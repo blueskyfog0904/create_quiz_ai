@@ -2,15 +2,25 @@ import OpenAI from 'openai'
 import { AIAdapter, AIResponse, GenerateParams, QuestionSchema } from './types'
 
 export class OpenAIAdapter implements AIAdapter {
-  private client: OpenAI
+  private client: OpenAI | null = null
 
   constructor() {
-    this.client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    })
+    // Only initialize if API key is available
+    if (process.env.OPENAI_API_KEY) {
+      this.client = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      })
+    }
   }
 
   async generate(params: GenerateParams): Promise<AIResponse> {
+    // Check if client is initialized
+    if (!this.client) {
+      return {
+        success: false,
+        error: 'OpenAI API key is not configured. Please use Gemini provider instead.'
+      }
+    }
     try {
       const response = await this.client.chat.completions.create({
         model: params.modelName,
