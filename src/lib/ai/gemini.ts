@@ -118,10 +118,10 @@ export class GeminiAdapter implements AIAdapter {
 
       if (!validation.success) {
         console.error('[Gemini] Schema validation failed:', validation.error.message)
-        console.error('[Gemini] Validation errors:', JSON.stringify(validation.error.errors, null, 2))
+        console.error('[Gemini] Validation errors:', JSON.stringify(validation.error.issues, null, 2))
         console.error('[Gemini] Parsed JSON:', JSON.stringify(parsedJson, null, 2))
         
-        const errorMsg = validation.error.errors?.[0]?.message || validation.error.message || '알 수 없는 검증 오류'
+        const errorMsg = validation.error.issues?.[0]?.message || validation.error.message || '알 수 없는 검증 오류'
          return { 
             success: false, 
             rawResponse: rawContent, 

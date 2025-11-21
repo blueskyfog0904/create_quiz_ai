@@ -34,7 +34,7 @@ export async function createProblemType(prevState: any, formData: FormData) {
   const validated = ProblemTypeSchema.safeParse(rawData)
 
   if (!validated.success) {
-    return { error: validated.error.errors?.[0]?.message || 'Validation failed' }
+    return { error: validated.error.issues?.[0]?.message || 'Validation failed' }
   }
 
   const { error } = await supabase
@@ -64,7 +64,7 @@ export async function updateProblemType(id: string, prevState: any, formData: Fo
   const validated = ProblemTypeSchema.safeParse(rawData)
 
   if (!validated.success) {
-    return { error: validated.error.errors?.[0]?.message || 'Validation failed' }
+    return { error: validated.error.issues?.[0]?.message || 'Validation failed' }
   }
 
   const { error } = await supabase
