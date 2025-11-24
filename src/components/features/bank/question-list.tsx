@@ -6,6 +6,7 @@ import { QuestionPreview } from '@/components/features/quiz/question-preview'
 import { Question } from '@/lib/ai/types'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -138,9 +139,18 @@ export function QuestionList({ questions }: QuestionListProps) {
                   onCheckedChange={(checked) => handleSelectQuestion(q.id, checked as boolean)}
                 />
               </div>
-              <div className="absolute top-2 right-2 z-10 flex gap-1">
-                <span className="px-2 py-1 text-xs bg-gray-200 rounded">{q.grade_level}</span>
-                <span className="px-2 py-1 text-xs bg-gray-200 rounded">{q.difficulty}</span>
+              <div className="absolute top-2 right-2 z-10 flex gap-1 flex-wrap justify-end max-w-[200px]">
+                {q.source && (
+                  <Badge variant={q.source === 'ai_generated' ? 'default' : 'secondary'}>
+                    {q.source === 'ai_generated' ? 'AI생성문제' : '문제은행'}
+                  </Badge>
+                )}
+                {q.grade_level && (
+                  <span className="px-2 py-1 text-xs bg-gray-200 rounded">{q.grade_level}</span>
+                )}
+                {q.difficulty && (
+                  <span className="px-2 py-1 text-xs bg-gray-200 rounded">{q.difficulty}</span>
+                )}
               </div>
               <div className="ml-8">
                 <QuestionPreview question={mappedQuestion} />

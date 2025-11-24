@@ -192,6 +192,8 @@ export type Database = {
           problem_type_id: string | null
           question_text: string
           raw_ai_response: string | null
+          shared_question_id: string | null
+          source: string | null
           updated_at: string
           user_id: string
         }
@@ -207,6 +209,8 @@ export type Database = {
           problem_type_id?: string | null
           question_text: string
           raw_ai_response?: string | null
+          shared_question_id?: string | null
+          source?: string | null
           updated_at?: string
           user_id: string
         }
@@ -222,6 +226,8 @@ export type Database = {
           problem_type_id?: string | null
           question_text?: string
           raw_ai_response?: string | null
+          shared_question_id?: string | null
+          source?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -231,6 +237,13 @@ export type Database = {
             columns: ["problem_type_id"]
             isOneToOne: false
             referencedRelation: "problem_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "questions_shared_question_id_fkey"
+            columns: ["shared_question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
             referencedColumns: ["id"]
           },
           {

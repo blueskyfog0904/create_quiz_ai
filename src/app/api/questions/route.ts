@@ -45,7 +45,9 @@ export async function POST(request: Request) {
         grade_level: gradeLevel,
         difficulty: difficulty,
         problem_type_id: problemTypeId,
-        raw_ai_response: rawAiResponse
+        raw_ai_response: rawAiResponse,
+        source: 'ai_generated',
+        shared_question_id: null
       })
       .select()
       .single()

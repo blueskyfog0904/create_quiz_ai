@@ -10,25 +10,18 @@ export class GeminiAdapter implements AIAdapter {
 
   async generate(params: GenerateParams): Promise<AIResponse> {
     try {
+      console.log('\n' + '='.repeat(80))
+      console.log('📤 FULL PROMPT SENT TO AI')
       console.log('='.repeat(80))
-      console.log('[Gemini] Starting generation with model:', params.modelName)
-      console.log('[Gemini] Temperature:', params.temperature)
-      console.log('[Gemini] Max Tokens:', params.maxTokens)
-      console.log('[Gemini] Prompt length:', params.prompt.length, 'characters')
-      console.log('[Gemini] Prompt preview (first 500 chars):')
-      console.log(params.prompt.substring(0, 500))
-      console.log('...')
-      console.log('[Gemini] Expected JSON format:')
-      console.log(JSON.stringify({
-        questionText: "문제 본문",
-        choices: [
-          { label: "①", text: "선택지 1" },
-          { label: "②", text: "선택지 2" }
-        ],
-        answer: "①",
-        explanation: "해설"
-      }, null, 2))
-      console.log('='.repeat(80))
+      console.log('Provider:', params.modelName)
+      console.log('Model:', params.modelName)
+      console.log('Temperature:', params.temperature)
+      console.log('Max Tokens:', params.maxTokens)
+      console.log('Prompt length:', params.prompt.length, 'characters')
+      console.log('-'.repeat(80))
+      console.log('FULL PROMPT CONTENT:')
+      console.log(params.prompt)
+      console.log('='.repeat(80) + '\n')
       
       const model = this.client.getGenerativeModel({ 
           model: params.modelName,
@@ -60,14 +53,17 @@ export class GeminiAdapter implements AIAdapter {
       const result = await model.generateContent(params.prompt)
       const response = await result.response
       
-      console.log('[Gemini] Response received')
-      console.log('[Gemini] Candidates count:', result.response.candidates?.length)
-      console.log('[Gemini] Prompt feedback:', JSON.stringify(result.response.promptFeedback, null, 2))
+      console.log('\n' + '='.repeat(80))
+      console.log('📊 AI RESPONSE METADATA')
+      console.log('='.repeat(80))
+      console.log('Candidates count:', result.response.candidates?.length || 0)
+      console.log('Prompt feedback:', result.response.promptFeedback)
       
       if (result.response.candidates && result.response.candidates.length > 0) {
-        console.log('[Gemini] First candidate finish reason:', result.response.candidates[0].finishReason)
-        console.log('[Gemini] First candidate safety ratings:', JSON.stringify(result.response.candidates[0].safetyRatings, null, 2))
+        console.log('First candidate finish reason:', result.response.candidates[0].finishReason)
+        console.log('First candidate safety ratings:', result.response.candidates[0].safetyRatings)
       }
+      console.log('='.repeat(80) + '\n')
       
       // Check for blocked content
       if (result.response.promptFeedback?.blockReason) {
@@ -79,12 +75,19 @@ export class GeminiAdapter implements AIAdapter {
       }
 
       const rawContent = response.text()
-      console.log('[Gemini] Raw content length:', rawContent?.length || 0)
+      console.log('\n' + '='.repeat(80))
+      console.log('📥 FULL RESPONSE FROM AI')
+      console.log('='.repeat(80))
+      console.log('Raw content length:', rawContent?.length || 0)
+      console.log('-'.repeat(80))
       
       if (rawContent && rawContent.length > 0) {
-        console.log('[Gemini] Raw response (first 1000 chars):')
-        console.log(rawContent.substring(0, 1000))
+        console.log('FULL RESPONSE CONTENT:')
+        console.log(rawContent)
+      } else {
+        console.log('(Empty response)')
       }
+      console.log('='.repeat(80) + '\n')
 
       if (!rawContent || rawContent.trim() === '') {
         console.error('[Gemini] Empty response received despite having candidates')

@@ -56,13 +56,64 @@ export async function POST(request: Request) {
     }
 
     // 4. Construct Prompt
-    let prompt = problemType.prompt_template
-    prompt = prompt.replace('{{PASSAGE}}', passage)
-    prompt = prompt.replace('{{GRADE_LEVEL}}', gradeLevel)
-    prompt = prompt.replace('{{DIFFICULTY}}', difficulty)
+    
+    // Helper function to convert grade level to Korean
+    const getGradeLevelKorean = (grade: string): string => {
+      const gradeMap: { [key: string]: string } = {
+        '고1': '고등학교 1학년',
+        'High1': '고등학교 1학년',
+        '고2': '고등학교 2학년',
+        'High2': '고등학교 2학년',
+        '고3': '고등학교 3학년',
+        'High3': '고등학교 3학년',
+        '중1': '중학교 1학년',
+        'Middle1': '중학교 1학년',
+        '중2': '중학교 2학년',
+        'Middle2': '중학교 2학년',
+        '중3': '중학교 3학년',
+        'Middle3': '중학교 3학년',
+      }
+      return gradeMap[grade] || grade
+    }
+    
+    // Helper function to convert difficulty to Korean
+    const getDifficultyKorean = (diff: string): string => {
+      const diffMap: { [key: string]: string } = {
+        '상': '상',
+        'High': '상',
+        '중': '중',
+        'Medium': '중',
+        '하': '하',
+        'Low': '하',
+      }
+      return diffMap[diff] || diff
+    }
+    
+    const gradeLevelKorean = getGradeLevelKorean(gradeLevel)
+    const difficultyKorean = getDifficultyKorean(difficulty)
+    
+    // Build structured prompt
+    let prompt = `
+================================================================================
+📝 PROMPT TEMPLATE 시작
+================================================================================
 
-    // Enforce JSON format explicitly in the prompt
-    prompt += `
+${problemType.prompt_template}
+
+================================================================================
+📝 PROMPT TEMPLATE 끝
+================================================================================
+
+위 PROMPT TEMPLATE 규칙을 적용해서 아래에 입력된 지문에 대한 문제, 보기, 답안, 해설을 만들어줘.
+
+【문제 생성 조건】
+- 학년의 난이도는 대한민국의 ${gradeLevelKorean} 수준이야.
+- 문제의 난이도는 위에서 설정한 학년의 수준에서 상, 중, 하 중 ${difficultyKorean}의 난이도로 설정해줘.
+
+【지문】
+${passage}
+
+================================================================================
 
 CRITICAL INSTRUCTIONS:
 - Generate ONLY ONE question (not an array of questions).
@@ -84,12 +135,26 @@ Required JSON structure (single object):
   "explanation": "Detailed explanation of the answer"
 }`
 
+    // Log the full prompt being sent to AI
+    console.log('\n' + '='.repeat(80))
+    console.log('📤 FULL PROMPT SENT TO AI')
+    console.log('='.repeat(80))
+    console.log('Provider:', problemType.provider)
+    console.log('Model:', problemType.model_name)
+    console.log('Problem Type:', problemType.type_name)
+    console.log('Grade Level:', gradeLevel, '→', gradeLevelKorean)
+    console.log('Difficulty:', difficulty, '→', difficultyKorean)
+    console.log('Passage Length:', passage.length, 'characters')
+    console.log('-'.repeat(80))
+    console.log(prompt)
+    console.log('='.repeat(80) + '\n')
+
     // 5. Call AI Service
     const result = await AIGenerationService.generate({
       provider: problemType.provider as AIProvider, // Cast to AIProvider type
       modelName: problemType.model_name,
       prompt: prompt,
-      maxTokens: 4000, // Increased to prevent MAX_TOKENS error
+      maxTokens: 16000, // Increased significantly to accommodate Gemini's thinking tokens
       temperature: 0.7
     })
 

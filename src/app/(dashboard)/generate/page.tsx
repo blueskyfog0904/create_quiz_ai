@@ -23,6 +23,24 @@ export default async function GeneratePage() {
         </p>
       </div>
 
+      <div className="mb-6">
+        <Link href="/generate/multi">
+          <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-primary hover:border-primary/80 bg-gradient-to-r from-primary/5 to-primary/10">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-primary mb-1">AI로 문제 생성하기</h2>
+                <p className="text-sm text-gray-600">
+                  하나의 지문으로 여러 문제 유형을 동시에 생성하세요
+                </p>
+              </div>
+              <Badge variant="default" className="text-base px-4 py-2">
+                다중 생성 →
+              </Badge>
+            </div>
+          </Card>
+        </Link>
+      </div>
+
       {!problemTypes || problemTypes.length === 0 ? (
         <Card className="text-center py-16">
           <CardContent>

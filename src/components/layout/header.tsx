@@ -8,13 +8,15 @@ export async function Header() {
   const { data: { user } } = await supabase.auth.getUser()
   
   let profile = null
+  let isAdmin = false
   if (user) {
     const { data } = await supabase
       .from('profiles')
-      .select('name')
+      .select('name, is_admin')
       .eq('id', user.id)
       .single()
     profile = data
+    isAdmin = data?.is_admin || false
   }
 
   return (
@@ -30,9 +32,17 @@ export async function Header() {
               <Link href="/bank">
                 <Button variant="ghost">문제 은행</Button>
               </Link>
+              <Link href="/community-bank">
+                <Button variant="ghost">커뮤니티 은행</Button>
+              </Link>
               <Link href="/exam-papers">
                 <Button variant="ghost">문제지</Button>
               </Link>
+              {isAdmin && (
+                <Link href="/admin/questions/upload">
+                  <Button variant="ghost" className="text-orange-600">관리자 업로드</Button>
+                </Link>
+              )}
               <div className="flex items-center gap-3 ml-2 border-l pl-4">
                 <span className="text-sm text-gray-600">{profile?.name || user.email}</span>
                 <LogoutButton />

@@ -24,10 +24,12 @@ export function BankClient({ questions, problemTypes, gradeLevels, difficulties 
   const [selectedTypeId, setSelectedTypeId] = useState<string>('all')
   const [selectedGrade, setSelectedGrade] = useState<string>('all')
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all')
+  const [selectedSource, setSelectedSource] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<'latest' | 'oldest'>('latest')
 
   // Filter questions based on selected criteria
   const filteredQuestions = useMemo(() => {
-    return questions.filter(question => {
+    let result = questions.filter(question => {
       // Filter by problem type
       if (selectedTypeId !== 'all' && question.problem_type_id !== selectedTypeId) {
         return false
@@ -43,14 +45,30 @@ export function BankClient({ questions, problemTypes, gradeLevels, difficulties 
         return false
       }
 
+      // Filter by source
+      if (selectedSource !== 'all' && question.source !== selectedSource) {
+        return false
+      }
+
       return true
     })
-  }, [questions, selectedTypeId, selectedGrade, selectedDifficulty])
+    
+    // Apply sorting
+    result.sort((a, b) => {
+      const dateA = new Date(a.created_at).getTime()
+      const dateB = new Date(b.created_at).getTime()
+      return sortBy === 'latest' ? dateB - dateA : dateA - dateB
+    })
+    
+    return result
+  }, [questions, selectedTypeId, selectedGrade, selectedDifficulty, selectedSource, sortBy])
 
   const handleReset = () => {
     setSelectedTypeId('all')
     setSelectedGrade('all')
     setSelectedDifficulty('all')
+    setSelectedSource('all')
+    setSortBy('latest')
   }
 
   return (
@@ -68,7 +86,7 @@ export function BankClient({ questions, problemTypes, gradeLevels, difficulties 
       {/* Filter Section */}
       <div className="bg-white border rounded-lg p-6 mb-6 shadow-sm">
         <h2 className="text-lg font-semibold mb-4">필터</h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
           {/* Problem Type Filter */}
           <div>
             <label className="text-sm font-medium text-gray-700 mb-2 block">
@@ -125,6 +143,39 @@ export function BankClient({ questions, problemTypes, gradeLevels, difficulties 
                     {difficulty}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Source Filter */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-2 block">
+              출처
+            </label>
+            <Select value={selectedSource} onValueChange={setSelectedSource}>
+              <SelectTrigger>
+                <SelectValue placeholder="전체" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체</SelectItem>
+                <SelectItem value="ai_generated">AI생성문제</SelectItem>
+                <SelectItem value="from_community">문제은행</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Sort Filter */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-2 block">
+              정렬
+            </label>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="latest">최신순</SelectItem>
+                <SelectItem value="oldest">오래된 순</SelectItem>
               </SelectContent>
             </Select>
           </div>
