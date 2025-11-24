@@ -58,7 +58,7 @@ export async function DELETE(
     
     return NextResponse.json({ success: true }, { status: 200 })
     
-  } catch (error: any) {
+  } catch (error) {
     console.error('[Admin Delete] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -119,13 +119,13 @@ export async function PATCH(
     
     return NextResponse.json({ success: true, question }, { status: 200 })
     
-  } catch (error: any) {
+  } catch (error) {
     console.error('[Admin Update] Error:', error)
     
     if (error instanceof z.ZodError) {
       return NextResponse.json({ 
         error: 'Validation failed', 
-        details: error.errors 
+        details: error.issues 
       }, { status: 400 })
     }
     

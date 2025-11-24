@@ -74,13 +74,13 @@ export async function POST(request: Request) {
       question 
     }, { status: 201 })
     
-  } catch (error: any) {
+  } catch (error) {
     console.error('[Admin Upload] Error:', error)
     
     if (error instanceof z.ZodError) {
       return NextResponse.json({ 
         error: 'Validation failed', 
-        details: error.errors 
+        details: error.issues 
       }, { status: 400 })
     }
     

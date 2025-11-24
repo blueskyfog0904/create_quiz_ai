@@ -431,7 +431,7 @@ export default function CommunityBankClient({
             <label className="text-sm font-medium text-gray-700 mb-2 block">
               정렬
             </label>
-            <Select value={sortBy} onValueChange={setSortBy}>
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'latest' | 'oldest')}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

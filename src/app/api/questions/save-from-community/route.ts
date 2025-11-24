@@ -78,13 +78,13 @@ export async function POST(request: Request) {
       question: newQuestion 
     }, { status: 201 })
     
-  } catch (error: any) {
+  } catch (error) {
     console.error('[Save from Community] Error:', error)
     
     if (error instanceof z.ZodError) {
       return NextResponse.json({ 
         error: 'Validation failed', 
-        details: error.errors 
+        details: error.issues 
       }, { status: 400 })
     }
     
