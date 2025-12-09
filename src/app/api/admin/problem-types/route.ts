@@ -2,6 +2,44 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
+// GET - 전체 문제 유형 리스트 조회
+export async function GET() {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .single()
+    
+    if (!profile?.is_admin) {
+      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
+    }
+    
+    // Fetch all problem types (including inactive)
+    const { data: types, error } = await supabase
+      .from('problem_types')
+      .select('*')
+      .order('created_at', { ascending: false })
+    
+    if (error) {
+      console.error('[Admin Problem Types] Database error:', error)
+      return NextResponse.json({ error: 'Failed to fetch problem types' }, { status: 500 })
+    }
+    
+    return NextResponse.json({ types: types || [] })
+  } catch (error) {
+    console.error('[Admin Problem Types] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 const problemTypeSchema = z.object({
   type_name: z.string().min(1, 'Problem type name is required'),
   description: z.string().optional(),

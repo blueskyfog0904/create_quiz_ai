@@ -186,23 +186,23 @@ export async function POST(request: Request) {
                 const parsed = JSON.parse(row.option.trim())
                 console.log(`[Bulk Upload] Row ${rowNumber}: Parsed JSON:`, parsed)
                 if (Array.isArray(parsed)) {
-                  choices = parsed.map(c => removeHtmlTags(String(c))).filter(c => c !== '')
+                  choices = parsed.map((c: any) => removeHtmlTags(String(c))).filter((c: string) => c !== '')
                 } else if (parsed.choices && Array.isArray(parsed.choices)) {
                   choices = parsed.choices.map((c: any) => {
                     if (typeof c === 'string') return removeHtmlTags(c)
                     if (c && typeof c === 'object' && c.text) return removeHtmlTags(String(c.text))
                     return removeHtmlTags(String(c))
-                  }).filter(c => c !== '')
+                  }).filter((c: string) => c !== '')
                 }
               } else {
                 // 쉼표로 구분된 문자열인 경우
                 console.log(`[Bulk Upload] Row ${rowNumber}: Parsing as comma-separated string`)
-                choices = row.option.split(',').map(c => removeHtmlTags(c)).filter(c => c !== '')
+                choices = row.option.split(',').map((c: string) => removeHtmlTags(c)).filter((c: string) => c !== '')
               }
             } else if (Array.isArray(row.option)) {
               // 이미 배열인 경우
               console.log(`[Bulk Upload] Row ${rowNumber}: Option is already an array`)
-              choices = row.option.map(c => removeHtmlTags(String(c))).filter(c => c !== '')
+              choices = row.option.map((c: any) => removeHtmlTags(String(c))).filter((c: string) => c !== '')
             }
             console.log(`[Bulk Upload] Row ${rowNumber}: Choices from option column:`, choices)
           } catch (e) {
@@ -224,7 +224,7 @@ export async function POST(request: Request) {
           ]
           console.log(`[Bulk Upload] Row ${rowNumber}: Raw choice array (HTML tags removed):`, choiceArray)
           // 빈 문자열이 아닌 것만 필터링 (빈 선택지도 포함하여 저장)
-          choices = choiceArray.filter(c => c !== '')
+          choices = choiceArray.filter((c: string) => c !== '')
           console.log(`[Bulk Upload] Row ${rowNumber}: Filtered choices:`, choices)
         }
         
@@ -301,19 +301,19 @@ export async function POST(request: Request) {
                   if (row.option.trim().startsWith('[') || row.option.trim().startsWith('{')) {
                     const parsed = JSON.parse(row.option.trim())
                     if (Array.isArray(parsed)) {
-                      return parsed.map(c => removeHtmlTags(String(c))).filter(c => c !== '')
+                      return parsed.map((c: any) => removeHtmlTags(String(c))).filter((c: string) => c !== '')
                     } else if (parsed.choices && Array.isArray(parsed.choices)) {
                       return parsed.choices.map((c: any) => {
                         if (typeof c === 'string') return removeHtmlTags(c)
                         if (c && typeof c === 'object' && c.text) return removeHtmlTags(String(c.text))
                         return removeHtmlTags(String(c))
-                      }).filter(c => c !== '')
+                      }).filter((c: string) => c !== '')
                     }
                   } else {
-                    return row.option.split(',').map(c => removeHtmlTags(c)).filter(c => c !== '')
+                    return row.option.split(',').map((c: string) => removeHtmlTags(c)).filter((c: string) => c !== '')
                   }
                 } else if (Array.isArray(row.option)) {
-                  return row.option.map(c => removeHtmlTags(String(c))).filter(c => c !== '')
+                  return row.option.map((c: any) => removeHtmlTags(String(c))).filter((c: string) => c !== '')
                 }
               } catch (e) {
                 console.warn(`[Bulk Upload] Row ${rowNumber} (error case): Failed to parse option:`, e)
@@ -328,7 +328,7 @@ export async function POST(request: Request) {
               row.선택지4 ? removeHtmlTags(String(row.선택지4)) : '',
               row.선택지5 ? removeHtmlTags(String(row.선택지5)) : '',
             ]
-            const filtered = choiceArray.filter(c => c !== '')
+            const filtered = choiceArray.filter((c: string) => c !== '')
             console.log(`[Bulk Upload] Row ${rowNumber} (error case): Final choices:`, filtered)
             return filtered
           })(),

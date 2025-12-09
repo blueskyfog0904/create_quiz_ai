@@ -172,6 +172,18 @@ export default function SignupPage() {
               <Input id="name" name="name" placeholder="홍길동" required />
             </div>
             <div className="grid gap-2">
+              <Label htmlFor="role">역할 *</Label>
+              <Select name="role" required>
+                <SelectTrigger>
+                  <SelectValue placeholder="역할을 선택해주세요" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="teacher">교사</SelectItem>
+                  <SelectItem value="academy_instructor">학원강사</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="phone">휴대폰 번호</Label>
               <Input 
                 id="phone" 
