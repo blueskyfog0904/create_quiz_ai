@@ -11,6 +11,8 @@ import { toast } from 'sonner'
 
 interface QuestionWithNumber extends Question {
   number: number
+  questionTextForward?: string | null
+  questionTextBackward?: string | null
 }
 
 interface ExamPaperViewProps {
@@ -21,7 +23,7 @@ interface ExamPaperViewProps {
   }
 }
 
-export type ViewMode = 'exam-only' | 'exam-with-answers'
+export type ViewMode = 'exam-only' | 'answer-only' | 'exam-with-answers'
 
 export function ExamPaperView({ questions: initialQuestions, examPaper }: ExamPaperViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('exam-with-answers')
@@ -67,6 +69,12 @@ export function ExamPaperView({ questions: initialQuestions, examPaper }: ExamPa
               </Label>
             </div>
             <div className="flex items-center space-x-2">
+              <RadioGroupItem value="answer-only" id="answer-only" />
+              <Label htmlFor="answer-only" className="cursor-pointer font-normal">
+                답안
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
               <RadioGroupItem value="exam-with-answers" id="exam-with-answers" />
               <Label htmlFor="exam-with-answers" className="cursor-pointer font-normal">
                 시험지 + 답안
@@ -76,6 +84,8 @@ export function ExamPaperView({ questions: initialQuestions, examPaper }: ExamPa
           <p className="text-sm text-gray-600 mt-2">
             {viewMode === 'exam-only' 
               ? '문제와 선택지만 표시됩니다.' 
+              : viewMode === 'answer-only'
+              ? '정답과 해설만 표시됩니다.'
               : '문제, 선택지, 정답, 해설이 모두 표시됩니다.'}
           </p>
         </CardContent>
@@ -105,31 +115,56 @@ export function ExamPaperView({ questions: initialQuestions, examPaper }: ExamPa
           </div>
           <Card className="ml-4">
             <CardContent className="pt-6">
-              {/* Question Text */}
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold mb-2">문제</h3>
-                <p className="whitespace-pre-wrap text-gray-800 leading-relaxed">
-                  {question.number}. {question.questionText}
-                </p>
-              </div>
-
-              {/* Choices */}
-              <div className="mb-6">
-                <h4 className="text-base font-semibold mb-2">선택지</h4>
-                <div className="space-y-2 pl-2">
-                  {question.choices.map((choice) => (
-                    <div key={choice.label} className="flex gap-2">
-                      <span className="font-semibold min-w-[24px]">{choice.label}</span>
-                      <span className="text-gray-700">{choice.text}</span>
-                    </div>
-                  ))}
+              {/* Question Text Forward (hide in answer-only mode) */}
+              {viewMode !== 'answer-only' && question.questionTextForward && (
+                <div className="mb-4 p-3 bg-gray-100 rounded-lg border-l-4 border-gray-400">
+                  <p className="whitespace-pre-wrap text-gray-700">{question.questionTextForward}</p>
                 </div>
-              </div>
+              )}
 
-              {/* Answer and Explanation (only show in exam-with-answers mode) */}
-              {viewMode === 'exam-with-answers' && (
+              {/* Question Text (hide in answer-only mode) */}
+              {viewMode !== 'answer-only' && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold mb-2">문제</h3>
+                  <p className="whitespace-pre-wrap text-gray-800 leading-relaxed">
+                    {question.number}. {question.questionText}
+                  </p>
+                </div>
+              )}
+
+              {/* Question Text Backward (hide in answer-only mode) */}
+              {viewMode !== 'answer-only' && question.questionTextBackward && (
+                <div className="mb-4 p-3 bg-gray-100 rounded-lg border-l-4 border-gray-400">
+                  <p className="whitespace-pre-wrap text-gray-700">{question.questionTextBackward}</p>
+                </div>
+              )}
+
+              {/* Choices (hide in answer-only mode) */}
+              {viewMode !== 'answer-only' && (
+                <div className="mb-6">
+                  <h4 className="text-base font-semibold mb-2">선택지</h4>
+                  <div className="space-y-2 pl-2">
+                    {question.choices.map((choice) => (
+                      <div key={choice.label} className="flex gap-2">
+                        <span className="font-semibold min-w-[24px]">{choice.label}</span>
+                        <span className="text-gray-700">{choice.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Answer and Explanation (show in answer-only and exam-with-answers mode) */}
+              {(viewMode === 'answer-only' || viewMode === 'exam-with-answers') && (
                 <>
-                  <div className="border-t pt-4 mb-4">
+                  {/* Question number for answer-only mode */}
+                  {viewMode === 'answer-only' && (
+                    <div className="mb-4">
+                      <span className="text-lg font-bold text-gray-800">{question.number}번</span>
+                    </div>
+                  )}
+
+                  <div className={viewMode === 'exam-with-answers' ? 'border-t pt-4 mb-4' : 'mb-4'}>
                     <div className="bg-blue-50 p-4 rounded-lg">
                       <h4 className="text-base font-bold text-blue-900 mb-1">정답</h4>
                       <p className="text-blue-800 font-semibold">{question.answer}</p>

@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -25,19 +25,19 @@ type ProblemType = {
 }
 
 interface CommunityBankClientProps {
-  questions: DBQuestion[]
-  problemTypes: ProblemType[]
-  gradeLevels: string[]
-  difficulties: string[]
-  isAdmin: boolean
+  initialQuestions?: DBQuestion[]
+  problemTypes?: ProblemType[]
+  gradeLevels?: string[]
+  difficulties?: string[]
+  isAdmin?: boolean
 }
 
 export default function CommunityBankClient({ 
-  questions: initialQuestions, 
-  problemTypes, 
-  gradeLevels, 
-  difficulties,
-  isAdmin 
+  initialQuestions = [], 
+  problemTypes = [], 
+  gradeLevels = [], 
+  difficulties = [],
+  isAdmin = false 
 }: CommunityBankClientProps) {
   const router = useRouter()
   const [questions, setQuestions] = useState<DBQuestion[]>(initialQuestions)
@@ -49,6 +49,10 @@ export default function CommunityBankClient({
   const [selectedQuestions, setSelectedQuestions] = useState<string[]>([])
   const [deletingQuestionId, setDeletingQuestionId] = useState<string | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
+  const [isBulkConfirmDialogOpen, setIsBulkConfirmDialogOpen] = useState(false)
+  const [pendingQuestionId, setPendingQuestionId] = useState<string | null>(null)
+  const [isBulkSaving, setIsBulkSaving] = useState(false)
   const [editingQuestion, setEditingQuestion] = useState<DBQuestion | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [editFormData, setEditFormData] = useState({
@@ -98,27 +102,81 @@ export default function CommunityBankClient({
     setSortBy('latest')
   }
   
-  const handleSaveQuestion = async (questionId: string) => {
-    setSavingQuestionId(questionId)
+  const handleSaveQuestionClick = (questionId: string) => {
+    setPendingQuestionId(questionId)
+    setIsConfirmDialogOpen(true)
+  }
+  
+  const handleSaveQuestion = async () => {
+    if (!pendingQuestionId) return
+    
+    setSavingQuestionId(pendingQuestionId)
+    setIsConfirmDialogOpen(false)
     
     try {
       const response = await fetch('/api/questions/save-from-community', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question_id: questionId }),
+        body: JSON.stringify({ question_id: pendingQuestionId }),
       })
       
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || '문제 저장에 실패했습니다.')
+        throw new Error(error.error || '문제 가져오기에 실패했습니다.')
       }
       
-      toast.success('문제가 내 문제 은행에 저장되었습니다.')
+      toast.success('문제를 내 문제 은행으로 가져왔습니다!')
       
     } catch (error: any) {
       toast.error(error.message)
     } finally {
       setSavingQuestionId(null)
+      setPendingQuestionId(null)
+    }
+  }
+  
+  const handleBulkSaveClick = () => {
+    if (selectedQuestions.length === 0) {
+      toast.error('가져올 문제를 선택해주세요.')
+      return
+    }
+    setIsBulkConfirmDialogOpen(true)
+  }
+  
+  const handleBulkSaveQuestions = async () => {
+    if (selectedQuestions.length === 0) return
+    
+    setIsBulkSaving(true)
+    setIsBulkConfirmDialogOpen(false)
+    
+    try {
+      const response = await fetch('/api/questions/save-from-community', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question_ids: selectedQuestions }),
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || '문제 가져오기에 실패했습니다.')
+      }
+      
+      const result = await response.json()
+      const savedCount = result.saved_count || 0
+      const skippedCount = result.skipped_count || 0
+      
+      if (skippedCount > 0) {
+        toast.success(`${savedCount}개의 문제를 가져왔습니다. (${skippedCount}개는 이미 저장된 문제입니다.)`)
+      } else {
+        toast.success(`${savedCount}개의 문제를 가져왔습니다!`)
+      }
+      
+      setSelectedQuestions([])
+      
+    } catch (error: any) {
+      toast.error(error.message)
+    } finally {
+      setIsBulkSaving(false)
     }
   }
   
@@ -463,38 +521,51 @@ export default function CommunityBankClient({
             )}
           </div>
           
-          {/* Admin Actions */}
-          {isAdmin && (
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleToggleAll}
-              >
-                {selectedQuestions.length === filteredQuestions.length ? '전체 해제' : '전체 선택'}
-              </Button>
-              {selectedQuestions.length > 0 && (
-                <>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={handleEditSelected}
-                  >
-                    <Edit className="h-4 w-4 mr-1" />
-                    선택 수정 ({selectedQuestions.length})
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleDeleteSelected}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    선택 삭제 ({selectedQuestions.length})
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
+          {/* Actions - Admin and User */}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleToggleAll}
+            >
+              {selectedQuestions.length === filteredQuestions.length ? '전체 해제' : '전체 선택'}
+            </Button>
+            {selectedQuestions.length > 0 && (
+              <>
+                {/* 일괄 가져오기 버튼 (모든 사용자) */}
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleBulkSaveClick}
+                  disabled={isBulkSaving}
+                >
+                  {isBulkSaving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                  일괄 가져오기 ({selectedQuestions.length})
+                </Button>
+                {/* 관리자 전용 버튼 */}
+                {isAdmin && (
+                  <>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={handleEditSelected}
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      선택 수정 ({selectedQuestions.length})
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleDeleteSelected}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      선택 삭제 ({selectedQuestions.length})
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
       
@@ -502,8 +573,17 @@ export default function CommunityBankClient({
       <div className="space-y-4">
         {filteredQuestions.length === 0 ? (
           <Card>
-            <CardContent className="py-12 text-center text-gray-500">
-              표시할 문제가 없습니다.
+            <CardContent className="py-12 text-center">
+              <p className="text-gray-500 mb-2">
+                {questions.length === 0 
+                  ? '아직 커뮤니티에 공유된 문제가 없습니다.' 
+                  : '선택한 필터 조건에 맞는 문제가 없습니다.'}
+              </p>
+              {isAdmin && questions.length === 0 && (
+                <p className="text-sm text-gray-400">
+                  관리자 업로드 페이지에서 문제를 등록해주세요.
+                </p>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -511,15 +591,13 @@ export default function CommunityBankClient({
             <Card key={question.id} className="hover:shadow-md transition-shadow">
               <CardHeader>
                 <div className="flex justify-between items-start gap-4">
-                  {/* Admin Checkbox */}
-                  {isAdmin && (
-                    <div className="pt-1">
-                      <Checkbox
-                        checked={selectedQuestions.includes(question.id)}
-                        onCheckedChange={() => handleToggleQuestion(question.id)}
-                      />
-                    </div>
-                  )}
+                  {/* Checkbox (for both admin and regular users) */}
+                  <div className="pt-1">
+                    <Checkbox
+                      checked={selectedQuestions.includes(question.id)}
+                      onCheckedChange={() => handleToggleQuestion(question.id)}
+                    />
+                  </div>
                   
                   <div className="flex-1">
                     <div className="flex gap-2 mb-2">
@@ -537,6 +615,19 @@ export default function CommunityBankClient({
                   </div>
                   
                   <div className="flex gap-2">
+                    {/* 가져오기 버튼 (모든 사용자) */}
+                    <Button
+                      onClick={() => handleSaveQuestionClick(question.id)}
+                      disabled={savingQuestionId === question.id}
+                      size="sm"
+                      className="bg-primary hover:bg-primary/90"
+                    >
+                      {savingQuestionId === question.id && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      가져오기
+                    </Button>
+                    
                     {/* Admin Edit and Delete Buttons */}
                     {isAdmin && (
                       <>
@@ -561,28 +652,39 @@ export default function CommunityBankClient({
                         </Button>
                       </>
                     )}
-                    
-                    {/* Save Button (for non-admin users) */}
-                    {!isAdmin && (
-                      <Button
-                        onClick={() => handleSaveQuestion(question.id)}
-                        disabled={savingQuestionId === question.id}
-                        size="sm"
-                      >
-                        {savingQuestionId === question.id && (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        )}
-                        내 은행에 저장
-                      </Button>
-                    )}
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
-                {question.passage_text && (
+                {/* 지문 섹션: question_text_forward, passage_text, question_text_backward 통합 */}
+                {(question.question_text_forward || question.passage_text || question.question_text_backward) && (
                   <div className="mb-4 p-4 bg-gray-50 rounded-lg">
                     <p className="text-sm font-medium text-gray-700 mb-2">지문</p>
-                    <p className="text-sm whitespace-pre-wrap">{question.passage_text}</p>
+                    <div className="space-y-3">
+                      {question.question_text_forward && (
+                        <p className="text-sm whitespace-pre-wrap text-gray-700">{question.question_text_forward}</p>
+                      )}
+                      {question.passage_text && (
+                        <>
+                          {question.question_text_forward && (
+                            <div className="flex justify-center my-2">
+                              <span className="text-2xl text-gray-400">↓</span>
+                            </div>
+                          )}
+                          <p className="text-sm whitespace-pre-wrap">{question.passage_text}</p>
+                        </>
+                      )}
+                      {question.question_text_backward && (
+                        <>
+                          {(question.question_text_forward || question.passage_text) && (
+                            <div className="flex justify-center my-2">
+                              <span className="text-2xl text-gray-400">↓</span>
+                            </div>
+                          )}
+                          <p className="text-sm whitespace-pre-wrap text-gray-700">{question.question_text_backward}</p>
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
                 
@@ -796,6 +898,62 @@ export default function CommunityBankClient({
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Confirm Save Dialog */}
+      <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>문제 가져오기 확인</DialogTitle>
+            <DialogDescription>
+              문제를 가져올까요?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsConfirmDialogOpen(false)
+                setPendingQuestionId(null)
+              }}
+            >
+              취소
+            </Button>
+            <Button
+              onClick={handleSaveQuestion}
+              disabled={savingQuestionId !== null}
+            >
+              확인
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Bulk Save Confirm Dialog */}
+      <Dialog open={isBulkConfirmDialogOpen} onOpenChange={setIsBulkConfirmDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>일괄 가져오기 확인</DialogTitle>
+            <DialogDescription>
+              선택한 {selectedQuestions.length}개의 문제를 가져올까요?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsBulkConfirmDialogOpen(false)}
+            >
+              취소
+            </Button>
+            <Button
+              onClick={handleBulkSaveQuestions}
+              disabled={isBulkSaving}
+            >
+              {isBulkSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              확인
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

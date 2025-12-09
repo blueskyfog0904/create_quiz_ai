@@ -77,6 +77,8 @@ export default async function ExamPaperDetailPage({ params }: { params: Promise<
             return {
               number: index + 1,
               questionText: question.question_text,
+              questionTextForward: question.question_text_forward || null,
+              questionTextBackward: question.question_text_backward || null,
               choices: question.choices as any,
               answer: question.answer,
               explanation: question.explanation || ''

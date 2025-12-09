@@ -34,6 +34,8 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
   const [gradeLevel, setGradeLevel] = useState('High1')
   const [difficulty, setDifficulty] = useState('Medium')
   const [selectedTypeIds, setSelectedTypeIds] = useState<string[]>([])
+  const [questionTextForward, setQuestionTextForward] = useState('')
+  const [questionTextBackward, setQuestionTextBackward] = useState('')
   
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedQuestions, setGeneratedQuestions] = useState<Map<string, GeneratedQuestionData>>(new Map())
@@ -189,7 +191,9 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
           gradeLevel,
           difficulty,
           problemTypeId: typeId,
-          rawAiResponse: questionData.rawResponse
+          rawAiResponse: questionData.rawResponse,
+          questionTextForward: questionTextForward || undefined,
+          questionTextBackward: questionTextBackward || undefined
         })
       })
 
@@ -236,7 +240,9 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
               gradeLevel,
               difficulty,
               problemTypeId: typeId,
-              rawAiResponse: questionData.rawResponse
+              rawAiResponse: questionData.rawResponse,
+              questionTextForward: questionTextForward || undefined,
+              questionTextBackward: questionTextBackward || undefined
             })
           })
 
@@ -276,6 +282,8 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
     setSavedStates(new Map())
     setPassage('')
     setSelectedTypeIds([])
+    setQuestionTextForward('')
+    setQuestionTextBackward('')
   }
 
   const handleGoToExamPaper = () => {
@@ -388,6 +396,33 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                {/* Question Text Forward/Backward */}
+                <div className="space-y-2">
+                  <Label htmlFor="questionTextForward">문제 앞 텍스트 (선택)</Label>
+                  <Textarea
+                    id="questionTextForward"
+                    placeholder="문제 앞에 박스로 표시될 텍스트를 입력하세요..."
+                    className="min-h-[80px] font-mono text-sm"
+                    value={questionTextForward}
+                    onChange={(e) => setQuestionTextForward(e.target.value)}
+                    disabled={isGenerating}
+                  />
+                  <p className="text-xs text-gray-500">입력한 내용이 문제 앞에 배경색 박스로 표시됩니다.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="questionTextBackward">문제 뒤 텍스트 (선택)</Label>
+                  <Textarea
+                    id="questionTextBackward"
+                    placeholder="문제 뒤에 박스로 표시될 텍스트를 입력하세요..."
+                    className="min-h-[80px] font-mono text-sm"
+                    value={questionTextBackward}
+                    onChange={(e) => setQuestionTextBackward(e.target.value)}
+                    disabled={isGenerating}
+                  />
+                  <p className="text-xs text-gray-500">입력한 내용이 문제 뒤에 배경색 박스로 표시됩니다.</p>
                 </div>
 
                 <Button 

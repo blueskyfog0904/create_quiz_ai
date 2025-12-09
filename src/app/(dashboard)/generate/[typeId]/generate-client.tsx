@@ -24,6 +24,8 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
   const [passage, setPassage] = useState('')
   const [gradeLevel, setGradeLevel] = useState('High1')
   const [difficulty, setDifficulty] = useState('Medium')
+  const [questionTextForward, setQuestionTextForward] = useState('')
+  const [questionTextBackward, setQuestionTextBackward] = useState('')
   
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedQuestion, setGeneratedQuestion] = useState<Question | null>(null)
@@ -90,7 +92,9 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
                 gradeLevel,
                 difficulty,
                 problemTypeId: problemType.id,
-                rawAiResponse: rawResponse
+                rawAiResponse: rawResponse,
+                questionTextForward: questionTextForward || undefined,
+                questionTextBackward: questionTextBackward || undefined
             })
         })
 
@@ -112,6 +116,8 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
     setShowSuccessDialog(false)
     setGeneratedQuestion(null)
     setPassage('')
+    setQuestionTextForward('')
+    setQuestionTextBackward('')
   }
 
   const handleGoToExamPaper = () => {
@@ -174,6 +180,30 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="questionTextForward">문제 앞 텍스트 (선택)</Label>
+                  <Textarea
+                    id="questionTextForward"
+                    placeholder="문제 앞에 박스로 표시될 텍스트를 입력하세요..."
+                    className="min-h-[80px] font-mono text-sm"
+                    value={questionTextForward}
+                    onChange={(e) => setQuestionTextForward(e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500">입력한 내용이 문제 앞에 배경색 박스로 표시됩니다.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="questionTextBackward">문제 뒤 텍스트 (선택)</Label>
+                  <Textarea
+                    id="questionTextBackward"
+                    placeholder="문제 뒤에 박스로 표시될 텍스트를 입력하세요..."
+                    className="min-h-[80px] font-mono text-sm"
+                    value={questionTextBackward}
+                    onChange={(e) => setQuestionTextBackward(e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500">입력한 내용이 문제 뒤에 배경색 박스로 표시됩니다.</p>
                 </div>
 
                 <Button type="submit" className="w-full" disabled={isGenerating}>

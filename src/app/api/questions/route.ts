@@ -9,7 +9,9 @@ const SaveQuestionSchema = z.object({
   gradeLevel: z.string(),
   difficulty: z.string(),
   problemTypeId: z.string().uuid(),
-  rawAiResponse: z.string().optional()
+  rawAiResponse: z.string().optional(),
+  questionTextForward: z.string().optional(),
+  questionTextBackward: z.string().optional()
 })
 
 export async function POST(request: Request) {
@@ -31,13 +33,15 @@ export async function POST(request: Request) {
         }, { status: 400 })
     }
 
-    const { question, passage, gradeLevel, difficulty, problemTypeId, rawAiResponse } = validation.data
+    const { question, passage, gradeLevel, difficulty, problemTypeId, rawAiResponse, questionTextForward, questionTextBackward } = validation.data
 
     const { data, error } = await supabase
       .from('questions')
       .insert({
         user_id: user.id,
         question_text: question.questionText,
+        question_text_forward: questionTextForward || null,
+        question_text_backward: questionTextBackward || null,
         choices: question.choices,
         answer: question.answer,
         explanation: question.explanation,

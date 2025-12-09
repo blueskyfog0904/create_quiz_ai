@@ -191,6 +191,8 @@ export type Database = {
           passage_text: string | null
           problem_type_id: string | null
           question_text: string
+          question_text_forward: string | null
+          question_text_backward: string | null
           raw_ai_response: string | null
           shared_question_id: string | null
           source: string | null
@@ -208,6 +210,8 @@ export type Database = {
           passage_text?: string | null
           problem_type_id?: string | null
           question_text: string
+          question_text_forward?: string | null
+          question_text_backward?: string | null
           raw_ai_response?: string | null
           shared_question_id?: string | null
           source?: string | null
@@ -225,6 +229,8 @@ export type Database = {
           passage_text?: string | null
           problem_type_id?: string | null
           question_text?: string
+          question_text_forward?: string | null
+          question_text_backward?: string | null
           raw_ai_response?: string | null
           shared_question_id?: string | null
           source?: string | null

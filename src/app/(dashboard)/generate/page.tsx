@@ -12,6 +12,7 @@ export default async function GeneratePage() {
     .from('problem_types')
     .select('*')
     .eq('is_active', true)
+    .neq('model_name', 'admin')  // Admin 문제 유형은 AI 생성에서 제외
     .order('type_name')
 
   return (

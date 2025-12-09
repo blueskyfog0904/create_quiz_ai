@@ -153,7 +153,19 @@ export function QuestionList({ questions }: QuestionListProps) {
                 )}
               </div>
               <div className="ml-8">
+                {/* Question Text Forward */}
+                {q.question_text_forward && (
+                  <div className="bg-gray-100 p-3 rounded-lg mb-3 border-l-4 border-gray-400">
+                    <p className="whitespace-pre-wrap text-gray-700">{q.question_text_forward}</p>
+                  </div>
+                )}
                 <QuestionPreview question={mappedQuestion} />
+                {/* Question Text Backward */}
+                {q.question_text_backward && (
+                  <div className="bg-gray-100 p-3 rounded-lg mt-3 border-l-4 border-gray-400">
+                    <p className="whitespace-pre-wrap text-gray-700">{q.question_text_backward}</p>
+                  </div>
+                )}
               </div>
             </div>
           )

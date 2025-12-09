@@ -8,11 +8,12 @@ export default async function MultiGeneratePage() {
   await requireAuth()
   const supabase = await createClient()
 
-  // Fetch all active problem types
+  // Fetch all active problem types (excluding admin types)
   const { data: problemTypes } = await supabase
     .from('problem_types')
     .select('*')
     .eq('is_active', true)
+    .neq('model_name', 'admin')  // Admin 문제 유형은 AI 생성에서 제외
     .order('type_name')
 
   return (
