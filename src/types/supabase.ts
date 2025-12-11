@@ -9,6 +9,47 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      admin_logs: {
+        Row: {
+          id: string
+          type: string
+          user_id: string | null
+          details: Json
+          ip_address: string | null
+          status: string | null
+          error_message: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          type: string
+          user_id?: string | null
+          details?: Json
+          ip_address?: string | null
+          status?: string | null
+          error_message?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          type?: string
+          user_id?: string | null
+          details?: Json
+          ip_address?: string | null
+          status?: string | null
+          error_message?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       exam_paper_items: {
         Row: {
           created_at: string
@@ -141,6 +182,7 @@ export type Database = {
           organization: string | null
           phone: string | null
           provider: string | null
+          role: string | null
           updated_at: string
         }
         Insert: {
@@ -158,6 +200,7 @@ export type Database = {
           organization?: string | null
           phone?: string | null
           provider?: string | null
+          role?: string | null
           updated_at?: string
         }
         Update: {
@@ -175,9 +218,177 @@ export type Database = {
           organization?: string | null
           phone?: string | null
           provider?: string | null
+          role?: string | null
           updated_at?: string
         }
         Relationships: []
+      }
+      user_sessions: {
+        Row: {
+          id: string
+          user_id: string
+          device_info: string | null
+          ip_address: string | null
+          user_agent: string | null
+          browser: string | null
+          os: string | null
+          device_type: string | null
+          is_current: boolean | null
+          last_active: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          device_info?: string | null
+          ip_address?: string | null
+          user_agent?: string | null
+          browser?: string | null
+          os?: string | null
+          device_type?: string | null
+          is_current?: boolean | null
+          last_active?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          device_info?: string | null
+          ip_address?: string | null
+          user_agent?: string | null
+          browser?: string | null
+          os?: string | null
+          device_type?: string | null
+          is_current?: boolean | null
+          last_active?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      user_credits: {
+        Row: {
+          id: string
+          user_id: string
+          balance: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          balance?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          balance?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_credits_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      credit_transactions: {
+        Row: {
+          id: string
+          user_id: string
+          type: string
+          amount: number
+          balance_after: number
+          description: string | null
+          reference_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: string
+          amount: number
+          balance_after: number
+          description?: string | null
+          reference_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: string
+          amount?: number
+          balance_after?: number
+          description?: string | null
+          reference_id?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      support_tickets: {
+        Row: {
+          id: string
+          user_id: string
+          subject: string
+          message: string
+          status: string | null
+          admin_response: string | null
+          responded_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          subject: string
+          message: string
+          status?: string | null
+          admin_response?: string | null
+          responded_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          subject?: string
+          message?: string
+          status?: string | null
+          admin_response?: string | null
+          responded_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       questions: {
         Row: {

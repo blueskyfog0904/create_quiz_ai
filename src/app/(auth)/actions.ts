@@ -61,8 +61,9 @@ export async function signup(formData: FormData) {
   const organization = formData.get('organization') as string
   const gender = formData.get('gender') as string
   const address = formData.get('address') as string
+  const role = formData.get('role') as string
 
-  console.log(`[Signup Action] Data received - Email: ${email}, Name: ${name}, Phone: ${phone}, Birthdate: ${birthdate || 'empty'}`)
+  console.log(`[Signup Action] Data received - Email: ${email}, Name: ${name}, Phone: ${phone}, Role: ${role}, Birthdate: ${birthdate || 'empty'}`)
 
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -75,6 +76,7 @@ export async function signup(formData: FormData) {
             organization: organization || null,
             gender: gender || null,
             address: address || null,
+            role: role || null,
             provider: 'email'
         }
     }

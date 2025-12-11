@@ -80,7 +80,7 @@ export function QuestionList({ questions }: QuestionListProps) {
       setSelectedQuestionIds([])
       
       // Redirect to exam papers page
-      router.push('/exam-papers')
+      router.push('/library/exam-papers')
     } catch (error: any) {
       console.error('Create exam paper error:', error)
       toast.error(error.message)

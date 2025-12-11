@@ -28,7 +28,7 @@ export default async function Home() {
                 <Button size="lg" className="px-8 text-lg">무료로 시작하기</Button>
               </Link>
             )}
-            <Link href="/bank">
+            <Link href="/library/purchased">
                <Button variant="outline" size="lg" className="text-lg">예시 문제 보기</Button>
             </Link>
           </div>
