@@ -166,6 +166,33 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_models: {
+        Row: {
+          id: string
+          name: string
+          provider: string
+          display_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          provider: string
+          display_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          provider?: string
+          display_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           address: string | null
