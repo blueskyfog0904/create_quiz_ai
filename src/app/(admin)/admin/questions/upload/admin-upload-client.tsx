@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { Loader2, Plus, X, Download, Upload, FileSpreadsheet, CheckCircle2, Trash2, AlertCircle, Edit, RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { Resizable } from 're-resizable'
 
 interface ProblemType {
   id: string
@@ -1214,7 +1215,6 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
         </Card>
       </form>
       
-      {/* Problem Type Management Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={(open) => {
         setIsDialogOpen(open)
         if (!open) {
@@ -1222,210 +1222,249 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
           setDeleteConfirmId(null)
         }
       }}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>문제 유형 관리</DialogTitle>
-            <DialogDescription>
-              문제 유형을 추가, 수정, 삭제할 수 있습니다.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="flex gap-6 py-4">
-            {/* Left Sidebar - Problem Type List */}
-            <div className="w-1/3 border-r pr-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium text-sm text-gray-700">기존 문제 유형</h3>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={fetchAllProblemTypes}
-                  disabled={isLoadingTypes}
-                  className="h-7 w-7"
-                >
-                  <RefreshCw className={`h-4 w-4 ${isLoadingTypes ? 'animate-spin' : ''}`} />
-                </Button>
-              </div>
+        {/* max-w-none를 사용하여 기본 max-width 제한을 제거하고 Resizable이 크기를 제어하도록 함 */}
+        {/* flex justify-center items-center를 추가하여 화면 정중앙에 위치하도록 명시함 */}
+        <DialogContent 
+          className="max-w-none w-auto p-0 border-0 bg-transparent shadow-none flex justify-center items-center"
+          onInteractOutside={(e) => e.preventDefault()} // 영역 밖 클릭 시 닫힘 방지
+          showCloseButton={false} // 기본 닫기 버튼 숨김
+        >
+          {/* Resizable 컴포넌트로 감싸서 크기 조절 기능 추가 */}
+          <Resizable
+            defaultSize={{
+              width: 1000,
+              height: 'auto',
+            }}
+            minWidth={800}
+            minHeight={600}
+            className="bg-white rounded-lg border shadow-lg flex flex-col overflow-hidden relative" // relative 추가 (닫기 버튼 배치를 위해)
+            enable={{
+              top: false,
+              right: true,
+              bottom: true,
+              left: false,
+              topRight: false,
+              bottomRight: true,
+              bottomLeft: false,
+              topLeft: false,
+            }}
+          >
+            {/* 커스텀 닫기 버튼 (우측 상단) */}
+            <button
+              onClick={() => setIsDialogOpen(false)}
+              className="absolute right-4 top-4 p-2 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-50"
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </button>
+
+            {/* 실제 컨텐츠 영역 */}
+            <div className="flex flex-col h-full w-full">
+              <DialogHeader className="p-6 pb-2 pr-12"> {/* 닫기 버튼 공간 확보를 위해 pr-12 추가 */}
+                <DialogTitle>문제 유형 관리</DialogTitle>
+                <DialogDescription>
+                  문제 유형을 추가, 수정, 삭제할 수 있습니다.
+                </DialogDescription>
+              </DialogHeader>
               
-              <div className="max-h-[400px] overflow-y-auto space-y-2 pr-1">
-                {isLoadingTypes ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-                  </div>
-                ) : allProblemTypes.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-8">
-                    등록된 문제 유형이 없습니다.
-                  </p>
-                ) : (
-                  allProblemTypes.map((type) => (
-                    <div
-                      key={type.id}
-                      className={`p-3 rounded-lg border transition-colors ${
-                        editingType?.id === type.id
-                          ? 'border-primary bg-primary/5'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
+              <div className="flex gap-6 p-6 pt-2 h-full overflow-hidden">
+                {/* Left Sidebar - Problem Type List */}
+                <div className="w-1/3 border-r pr-4 flex flex-col h-full">
+                  <div className="flex items-center justify-between mb-3 shrink-0">
+                    <h3 className="font-medium text-sm text-gray-700">기존 문제 유형</h3>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={fetchAllProblemTypes}
+                      disabled={isLoadingTypes}
+                      className="h-7 w-7"
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{type.type_name}</p>
-                          {type.description && (
-                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
-                              {type.description}
-                            </p>
-                          )}
-                          <div className="flex items-center gap-2 mt-1">
-                            {type.is_active === false ? (
-                              <Badge variant="secondary" className="text-xs">비활성</Badge>
-                            ) : (
-                              <Badge className="bg-green-100 text-green-700 text-xs">활성</Badge>
-                            )}
-                            {type.provider && (
-                              <Badge variant="outline" className="text-xs">{type.provider}</Badge>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => handleEditProblemType(type)}
-                            title="수정"
-                          >
-                            <Edit className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => setDeleteConfirmId(type.id)}
-                            title="삭제"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      {/* Delete Confirmation */}
-                      {deleteConfirmId === type.id && (
-                        <div className="mt-2 p-2 bg-red-50 rounded border border-red-200">
-                          <p className="text-xs text-red-700 mb-2">정말 삭제하시겠습니까?</p>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              className="h-7 text-xs"
-                              onClick={() => handleDeleteProblemType(type.id)}
-                              disabled={isDeleting}
-                            >
-                              {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : '삭제'}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs"
-                              onClick={() => setDeleteConfirmId(null)}
-                              disabled={isDeleting}
-                            >
-                              취소
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-            
-            {/* Right Side - Form */}
-            <div className="flex-1">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-medium text-sm text-gray-700">
-                  {editingType ? '문제 유형 수정' : '새 문제 유형 추가'}
-                </h3>
-                {editingType && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={resetProblemTypeForm}
-                    className="text-xs"
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    새로 추가
-                  </Button>
-                )}
-              </div>
-              
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="type_name">문제 유형 이름 *</Label>
-                  <Input
-                    id="type_name"
-                    placeholder="예: 문장삽입형 문제"
-                    value={newProblemType.type_name}
-                    onChange={(e) => setNewProblemType({ ...newProblemType, type_name: e.target.value })}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="description">설명 (선택)</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="문제 유형에 대한 간단한 설명"
-                    value={newProblemType.description}
-                    onChange={(e) => setNewProblemType({ ...newProblemType, description: e.target.value })}
-                    rows={3}
-                  />
-                </div>
-                
-                {editingType && (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="is_active"
-                      checked={newProblemType.is_active}
-                      onChange={(e) => setNewProblemType({ ...newProblemType, is_active: e.target.checked })}
-                      className="rounded border-gray-300"
-                    />
-                    <Label htmlFor="is_active" className="text-sm font-normal cursor-pointer">
-                      활성화 상태
-                    </Label>
+                      <RefreshCw className={`h-4 w-4 ${isLoadingTypes ? 'animate-spin' : ''}`} />
+                    </Button>
                   </div>
-                )}
-              </div>
-              
-              <div className="flex justify-end gap-2 mt-6">
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setIsDialogOpen(false)
-                    resetProblemTypeForm()
-                  }} 
-                  disabled={isAddingProblemType}
-                >
-                  닫기
-                </Button>
-                {editingType ? (
-                  <Button 
-                    onClick={handleUpdateProblemType} 
-                    disabled={isAddingProblemType || !newProblemType.type_name.trim()}
-                  >
-                    {isAddingProblemType && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    저장
-                  </Button>
-                ) : (
-                  <Button 
-                    onClick={handleAddProblemType} 
-                    disabled={isAddingProblemType || !newProblemType.type_name.trim()}
-                  >
-                    {isAddingProblemType && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    추가
-                  </Button>
-                )}
+                  
+                  <div className="overflow-y-auto space-y-2 pr-1 flex-1">
+                    {isLoadingTypes ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                      </div>
+                    ) : allProblemTypes.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-8">
+                        등록된 문제 유형이 없습니다.
+                      </p>
+                    ) : (
+                      allProblemTypes.map((type) => (
+                        <div
+                          key={type.id}
+                          className={`p-3 rounded-lg border transition-colors ${
+                            editingType?.id === type.id
+                              ? 'border-primary bg-primary/5'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">{type.type_name}</p>
+                              {type.description && (
+                                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                                  {type.description}
+                                </p>
+                              )}
+                              <div className="flex items-center gap-2 mt-1">
+                                {type.is_active === false ? (
+                                  <Badge variant="secondary" className="text-xs">비활성</Badge>
+                                ) : (
+                                  <Badge className="bg-green-100 text-green-700 text-xs">활성</Badge>
+                                )}
+                                {type.provider && (
+                                  <Badge variant="outline" className="text-xs">{type.provider}</Badge>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => handleEditProblemType(type)}
+                                title="수정"
+                              >
+                                <Edit className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => setDeleteConfirmId(type.id)}
+                                title="삭제"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          {/* Delete Confirmation */}
+                          {deleteConfirmId === type.id && (
+                            <div className="mt-2 p-2 bg-red-50 rounded border border-red-200">
+                              <p className="text-xs text-red-700 mb-2">정말 삭제하시겠습니까?</p>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  className="h-7 text-xs"
+                                  onClick={() => handleDeleteProblemType(type.id)}
+                                  disabled={isDeleting}
+                                >
+                                  {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : '삭제'}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs"
+                                  onClick={() => setDeleteConfirmId(null)}
+                                  disabled={isDeleting}
+                                >
+                                  취소
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+                
+                {/* Right Side - Form */}
+                <div className="flex-1 flex flex-col h-full overflow-hidden">
+                  <div className="flex items-center justify-between mb-4 shrink-0">
+                    <h3 className="font-medium text-sm text-gray-700">
+                      {editingType ? '문제 유형 수정' : '새 문제 유형 추가'}
+                    </h3>
+                    {editingType && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={resetProblemTypeForm}
+                        className="text-xs"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        새로 추가
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-4 overflow-y-auto flex-1 pr-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="type_name">문제 유형 이름 *</Label>
+                      <Input
+                        id="type_name"
+                        placeholder="예: 문장삽입형 문제"
+                        value={newProblemType.type_name}
+                        onChange={(e) => setNewProblemType({ ...newProblemType, type_name: e.target.value })}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="description">설명 (선택)</Label>
+                      <Textarea
+                        id="description"
+                        placeholder="문제 유형에 대한 간단한 설명"
+                        value={newProblemType.description}
+                        onChange={(e) => setNewProblemType({ ...newProblemType, description: e.target.value })}
+                        rows={3}
+                      />
+                    </div>
+                    
+                    {editingType && (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="is_active"
+                          checked={newProblemType.is_active}
+                          onChange={(e) => setNewProblemType({ ...newProblemType, is_active: e.target.checked })}
+                          className="rounded border-gray-300"
+                        />
+                        <Label htmlFor="is_active" className="text-sm font-normal cursor-pointer">
+                          활성화 상태
+                        </Label>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-end gap-2 mt-6 shrink-0 pt-4 border-t">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setIsDialogOpen(false)
+                        resetProblemTypeForm()
+                      }} 
+                      disabled={isAddingProblemType}
+                    >
+                      닫기
+                    </Button>
+                    {editingType ? (
+                      <Button 
+                        onClick={handleUpdateProblemType} 
+                        disabled={isAddingProblemType || !newProblemType.type_name.trim()}
+                      >
+                        {isAddingProblemType && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        저장
+                      </Button>
+                    ) : (
+                      <Button 
+                        onClick={handleAddProblemType} 
+                        disabled={isAddingProblemType || !newProblemType.type_name.trim()}
+                      >
+                        {isAddingProblemType && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        추가
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </Resizable>
         </DialogContent>
       </Dialog>
     </>
