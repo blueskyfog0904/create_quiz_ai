@@ -5,7 +5,23 @@ import {
   Shuffle,
   Loader2
 } from 'lucide-react';
-import { DifficultyLevel } from '@/app/api/admin/settings/actions';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Checkbox } from '@/components/ui/checkbox';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { DifficultyLevel, getSystemSettings } from '@/app/api/admin/settings/actions';
+import { generatePassages, GeneratedPassage } from '@/app/api/ai/generate-passages';
+import { MAIN_CATEGORIES, SUB_CATEGORIES, MainCategory } from '@/lib/constants/passage-categories';
 
 interface AIPassageGeneratorProps {
   onBack: () => void;
