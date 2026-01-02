@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { createPassage, enrichPassages, type PassageAnalysis } from '@/app/api/passages/actions';
+import { createPassage, enrichPassages, enrichPassage, type PassageAnalysis } from '@/app/api/passages/actions';
 import { OCRResultView } from './ocr-result-view';
 import dynamic from 'next/dynamic';
 
@@ -118,6 +118,20 @@ export function PassageSelector({ onPassageSelect }: PassageSelectorProps) {
     setDirectPassages(prev => [...prev, { id: crypto.randomUUID(), content: '' }]);
   };
 
+  // Analysis State
+  const [analysisProgress, setAnalysisProgress] = useState({ current: 0, total: 0 });
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const isCancelledRef = useRef(false);
+
+  const handleCancelAnalysis = useCallback(() => {
+    if (confirm('분석을 중단하시겠습니까?')) {
+        isCancelledRef.current = true;
+        setShowProgressModal(false);
+        setIsSubmitting(false);
+        toast.info('분석이 취소되었습니다.');
+    }
+  }, []);
+
   const handleDirectAnalyze = async () => {
     const validPassages = directPassages.filter(p => p.content.trim());
     if (validPassages.length === 0) {
@@ -126,19 +140,56 @@ export function PassageSelector({ onPassageSelect }: PassageSelectorProps) {
     }
 
     setIsSubmitting(true);
+    setShowProgressModal(true);
+    setAnalysisProgress({ current: 0, total: validPassages.length });
+    isCancelledRef.current = false;
+
     try {
-      const contents = validPassages.map(p => p.content);
-      const analysisResults = await enrichPassages(contents);
+      const results: PassageAnalysis[] = [];
+      let completedCount = 0;
+
+      // Process sequentially
+      for (let i = 0; i < validPassages.length; i++) {
+        if (isCancelledRef.current) break;
+
+        try {
+          // Process single passage
+          const result = await enrichPassage(validPassages[i].content);
+          
+          // Adjust result to match the original index structure expected by logic
+          // Note: enrichPassage returns index 0 since it's a single batch. 
+          // We map it to the index in the validPassages array or directPassages array.
+          // Since OCRResultView mapping looks for original_index, let's use the index from validPassages for simplicity
+          // or ideally mapping back to directPassages ID if OCRResultView supported ID mapping.
+          // OCRResultView maps by index. Let's use 'i' as original_index for the ResultView context.
+          
+          results.push({
+            ...result,
+            original_index: i // Override index
+          });
+          
+          completedCount++;
+        } catch (error) {
+           console.error(`Passage ${i + 1} analysis failed`, error);
+        }
+
+        setAnalysisProgress(prev => ({ ...prev, current: i + 1 }));
+      }
       
-      // Store analyzed results and switch to result view
-      setAnalyzedPassages(analysisResults);
-      setMode('direct-result');
-      toast.success('AI 분석이 완료되었습니다.');
+      if (!isCancelledRef.current) {
+          // Store analyzed results and switch to result view
+          setAnalyzedPassages(results);
+          setMode('direct-result');
+          toast.success('AI 분석이 완료되었습니다.');
+      }
     } catch (error) {
       console.error(error);
       toast.error('AI 분석 중 오류가 발생했습니다.');
     } finally {
-      setIsSubmitting(false);
+      if (!isCancelledRef.current) {
+        setIsSubmitting(false);
+        setShowProgressModal(false);
+      }
     }
   };
 
@@ -195,7 +246,53 @@ export function PassageSelector({ onPassageSelect }: PassageSelectorProps) {
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto p-6 space-y-8 animate-in fade-in duration-500">
+    <div className="w-full max-w-5xl mx-auto p-6 space-y-8 animate-in fade-in duration-500 relative">
+      {/* Progress Modal */}
+      {showProgressModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200">
+            {/* Close Button */}
+            <button 
+                onClick={handleCancelAnalysis}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+                type="button"
+            >
+                <X className="w-5 h-5" />
+            </button>
+
+            <div className="text-center space-y-6 py-4">
+                <div className="space-y-2">
+                    <h3 className="text-xl font-bold">AI 분석 및 메타데이터 생성 중</h3>
+                    <p className="text-gray-500 text-sm">
+                        지문을 분석하고 있습니다, 잠시만 기다려주세요..
+                    </p>
+                </div>
+
+                <div className="flex justify-center">
+                    <Loader2 className="w-12 h-12 animate-spin text-primary" />
+                </div>
+
+                <div className="space-y-1">
+                     <p className="text-sm text-gray-400">
+                        창을 닫거나, 새로고침하지 마세요.
+                     </p>
+                     <p className="text-lg font-semibold">
+                        {analysisProgress.current} / {analysisProgress.total} 개 완료됨
+                     </p>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                    <div 
+                        className="bg-primary h-2.5 rounded-full transition-all duration-300 ease-out"
+                        style={{ width: `${(analysisProgress.current / analysisProgress.total) * 100}%` }}
+                    />
+                </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-500 dark:from-white dark:to-gray-400">
           지문 관리 및 추가

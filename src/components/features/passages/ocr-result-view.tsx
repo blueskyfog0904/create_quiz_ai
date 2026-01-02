@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { 
   X, 
   Plus, 
@@ -116,7 +116,22 @@ export function OCRResultView({ initialPassages, preAnalyzedData, onBack, onClos
 
   // --- Actions ---
 
+  // --- Actions ---
+
   // Phase 1 -> Phase 2: AI Analysis
+  const [analysisProgress, setAnalysisProgress] = useState({ current: 0, total: 0 });
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const isCancelledRef = useRef(false);
+
+  const handleCancelAnalysis = useCallback(() => {
+    if (confirm('분석을 중단하시겠습니까?')) {
+        isCancelledRef.current = true;
+        setShowProgressModal(false);
+        setIsProcessing(false);
+        toast.info('분석이 취소되었습니다.');
+    }
+  }, []);
+
   const handleAnalyze = async () => {
     const validPassages = passages.filter(p => p.content.trim().length > 0);
     if (validPassages.length === 0) {
@@ -124,40 +139,63 @@ export function OCRResultView({ initialPassages, preAnalyzedData, onBack, onClos
       return;
     }
 
-    // Analyze in batch
+    setIsProcessing(true);
+    setShowProgressModal(true);
+    setAnalysisProgress({ current: 0, total: validPassages.length });
+    isCancelledRef.current = false;
+
     try {
-      // Prepare contents, applying line break removal if preferred by user for input
-      const contentsToSend = passages.map(p => 
-        removeLineBreaks ? p.content.replace(/\n+/g, ' ') : p.content
-      );
-      
-      const analysisResults = await enrichPassages(contentsToSend);
+      const updatedPassages = [...passages];
+      let completedCount = 0;
 
-      // Merge results back into passages
-      const analyzedPassages = passages.map((p, index) => {
-        // Find matching result by original_index if possible, otherwise use array index
-        const result = analysisResults.find(r => r.original_index === index) || analysisResults[index];
+      // Process sequentially to show progress
+      for (let i = 0; i < validPassages.length; i++) {
+        if (isCancelledRef.current) break;
+
+        const passage = validPassages[i];
         
-        if (!result) return p;
+        // Find index in original passages array
+        const originalIndex = passages.findIndex(p => p.id === passage.id);
+        
+        const contentToSend = removeLineBreaks ? passage.content.replace(/\n+/g, ' ') : passage.content;
+        
+        try {
+          // Process single passage
+          const result = await enrichPassage(contentToSend);
+          
+          if (originalIndex !== -1) {
+             updatedPassages[originalIndex] = {
+               ...updatedPassages[originalIndex],
+               content: result.content_refined || updatedPassages[originalIndex].content,
+               title_en: result.title_en,
+               title_ko: result.title_ko,
+               content_translation: result.content_translation
+             };
+          }
+          completedCount++;
+        } catch (err) {
+          console.error(`Failed to analyze passage ${i+1}`, err);
+          // Continue with others even if one fails
+        }
 
-        return {
-          ...p,
-          content: result.content_refined || p.content, // Use refined content if available
-          title_en: result.title_en,
-          title_ko: result.title_ko,
-          content_translation: result.content_translation
-        };
-      });
+        // Update progress
+        setAnalysisProgress(prev => ({ ...prev, current: i + 1 }));
+      }
 
-      setPassages(analyzedPassages);
-      setIsAnalyzed(true); // Switch to analyzed view
-      toast.success('AI 분석이 완료되었습니다.');
+      if (!isCancelledRef.current) {
+        setPassages(updatedPassages);
+        setIsAnalyzed(true); // Switch to analyzed view
+        toast.success(`${completedCount}개의 지문 분석이 완료되었습니다.`);
+      }
 
     } catch (error) {
       console.error(error);
       toast.error('AI 분석 중 오류가 발생했습니다.');
     } finally {
-      setIsProcessing(false);
+      if (!isCancelledRef.current) {
+        setIsProcessing(false);
+        setShowProgressModal(false);
+      }
     }
   };
 
@@ -198,7 +236,53 @@ export function OCRResultView({ initialPassages, preAnalyzedData, onBack, onClos
 
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20 relative">
+      {/* Progress Modal */}
+      {showProgressModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200">
+            {/* Close Button */}
+            <button 
+                onClick={handleCancelAnalysis}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+                type="button"
+            >
+                <X className="w-5 h-5" />
+            </button>
+
+            <div className="text-center space-y-6 py-4">
+                <div className="space-y-2">
+                    <h3 className="text-xl font-bold">AI 분석 및 메타데이터 생성 중</h3>
+                    <p className="text-gray-500 text-sm">
+                        지문을 분석하고 있습니다, 잠시만 기다려주세요..
+                    </p>
+                </div>
+
+                <div className="flex justify-center">
+                    <Loader2 className="w-12 h-12 animate-spin text-primary" />
+                </div>
+
+                <div className="space-y-1">
+                     <p className="text-sm text-gray-400">
+                        창을 닫거나, 새로고침하지 마세요.
+                     </p>
+                     <p className="text-lg font-semibold">
+                        {analysisProgress.current} / {analysisProgress.total} 개 완료됨
+                     </p>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                    <div 
+                        className="bg-primary h-2.5 rounded-full transition-all duration-300 ease-out"
+                        style={{ width: `${(analysisProgress.current / analysisProgress.total) * 100}%` }}
+                    />
+                </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur z-10 py-4 border-b">
         <div className="flex items-center gap-2">
