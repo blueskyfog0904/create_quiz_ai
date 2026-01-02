@@ -7,9 +7,20 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { Monitor, Smartphone, Tablet, LogOut, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { Database } from '@/types/supabase'
 
-type Session = Database['public']['Tables']['user_sessions']['Row']
+// Local Session type definition (since user_sessions may not be in Supabase types)
+interface Session {
+  id: string
+  user_id: string
+  device_type: string | null
+  device_info: string | null
+  browser: string | null
+  os: string | null
+  ip_address: string | null
+  last_active: string
+  is_current?: boolean
+  created_at: string
+}
 
 interface DevicesClientProps {
   sessions: Session[]
