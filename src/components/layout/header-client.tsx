@@ -86,6 +86,12 @@ export function HeaderClient({ isLoggedIn, userName, isAdmin, isMobile = false }
                 
                 <div className="border-t my-2" />
                 <p className="px-4 py-2 text-sm font-semibold text-gray-500">내 라이브러리</p>
+                <Link href="/library/mypassages" onClick={() => setIsOpen(false)}>
+                  <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
+                    <BookOpen className="h-4 w-4" />
+                    영어지문 관리
+                  </Button>
+                </Link>
                 <Link href="/library/purchased" onClick={() => setIsOpen(false)}>
                   <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
                     <FolderOpen className="h-4 w-4" />
@@ -198,6 +204,12 @@ export function HeaderClient({ isLoggedIn, userName, isAdmin, isMobile = false }
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-48">
+          <DropdownMenuItem asChild>
+            <Link href="/library/mypassages" className="flex items-center gap-2 cursor-pointer">
+              <BookOpen className="h-4 w-4" />
+              영어지문 관리
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/library/purchased" className="flex items-center gap-2 cursor-pointer">
               <FolderOpen className="h-4 w-4" />

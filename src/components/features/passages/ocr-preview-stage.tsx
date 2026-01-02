@@ -1,0 +1,674 @@
+'use client';
+
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Document, Page, pdfjs } from 'react-pdf';
+import { 
+  X, 
+  Check, 
+  ChevronLeft, 
+  ChevronRight, 
+  Trash2, 
+  RotateCcw,
+  Crop,
+  Loader2,
+  ZoomIn,
+  ZoomOut,
+  MousePointer2,
+  Highlighter,
+  Sparkles,
+  CheckCircle2
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { extractTextFromFile } from '@/app/api/ocr/actions';
+
+// Setup PDF worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+interface OCRPreviewStageProps {
+  file: File;
+  onBack: () => void;
+  onExtractionComplete: (passages: string[]) => void;
+}
+
+interface Selection {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+type Tool = 'box' | 'highlighter';
+
+export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPreviewStageProps) {
+  const [fileType, setFileType] = useState<'image' | 'pdf'>(file.type.includes('pdf') ? 'pdf' : 'image');
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [numPages, setNumPages] = useState<number>(1);
+  const [pageNumber, setPageNumber] = useState<number>(1);
+  const [scale, setScale] = useState<number>(1);
+  
+  const [tool, setTool] = useState<Tool>('box');
+  const [selections, setSelections] = useState<Selection[]>([]);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [startPos, setStartPos] = useState({ x: 0, y: 0 });
+  const [currentSelection, setCurrentSelection] = useState<Selection | null>(null);
+  
+  // Highlighter State
+  const [currentStroke, setCurrentStroke] = useState<{x: number, y: number}[]>([]);
+
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const pdfPageRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (fileType === 'image') {
+      const url = URL.createObjectURL(file);
+      setImageUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+  }, [file, fileType]);
+
+  // Handle PDF Load Success
+  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+    setNumPages(numPages);
+  };
+
+  // Convert mouse event to relative coordinates
+  // Adjusted for scale
+  const getRelativeCoords = (e: React.MouseEvent | MouseEvent) => {
+    if (!containerRef.current) return { x: 0, y: 0 };
+    const rect = containerRef.current.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) / scale,
+      y: (e.clientY - rect.top) / scale
+    };
+  };
+
+  const drawHighlight = (points: {x: number, y: number}[]) => {
+    const canvas = canvasRef.current;
+    if (!canvas || points.length < 2) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // We can clear continuously or just add to it. 
+    // Since we want to show the current stroke being drawn, clearing and redrawing is safer to avoid artifacts if we were handling history, 
+    // but here we just append. But to be clean:
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    
+    // Smooth curve
+    for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+    }
+    
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(255, 255, 0, 0.4)'; // Yellow transparent
+    ctx.lineWidth = 20; // Thick highlighter
+    ctx.stroke();
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('.selection-remove-btn')) return;
+
+    setIsDrawing(true);
+    const coords = getRelativeCoords(e);
+    setStartPos(coords);
+
+    if (tool === 'box') {
+        setCurrentSelection({
+            id: 'current',
+            x: coords.x,
+            y: coords.y,
+            width: 0,
+            height: 0
+        });
+    } else {
+        // Highlighter start
+        setCurrentStroke([coords]);
+        // Resize canvas to match container content size if not already set specifically
+        // But container size changes with scale. 
+        // We really want the canvas to match the 'unscaled' content coordinate space, 
+        // but visually it is scaled via CSS transform on the container.
+        // Wait, the canvas is INSIDE the scaled container. So its width/height should be the natural content size.
+        // For Image: naturalWidth/Height. For PDF: 800 (as set in Page prop) x AspectRatio.
+        
+        // Simpler approach: Just ensure canvas internal resolution matches the offsetWidth/Height of the container content.
+        // Since the container is scaled by CSS transform, checking its offsetWidth gives the unscaled size?
+        // Let's check.
+        if (containerRef.current && canvasRef.current) {
+            // Because of transform: scale, getBoundingClientRect returns scaled size.
+            // offsetWidth returns unscaled size if transform is on parent? No, on element itself.
+            // Actually, best to rely on the source content size.
+            
+            let w = 0, h = 0;
+            if (fileType === 'pdf') {
+                // We set width={800} on Page
+                w = 800; // Approximate or exact based on Page render
+                // We can try to grab it from the DOM
+                 const pdfCanvas = containerRef.current.querySelector('.react-pdf__Page__canvas');
+                 if(pdfCanvas) {
+                    w = pdfCanvas.clientWidth;
+                    h = pdfCanvas.clientHeight;
+                 }
+            } else if (imageRef.current) {
+                w = imageRef.current.naturalWidth; // Or offsetWidth if styled
+                // If we use standard <img>, offsetWidth might be constrained by max-width.
+                // But in our css: max-w-none. So offsetWidth should be image width.
+                 w = imageRef.current.offsetWidth;
+                 h = imageRef.current.offsetHeight;
+            }
+
+            // Sync canvas size if zero
+            if (canvasRef.current.width === 0 && w > 0) {
+                 canvasRef.current.width = w;
+                 canvasRef.current.height = h;
+            }
+        }
+    }
+  };
+
+  // State Refs for Event Handlers (to avoid stale closures in window listeners)
+  const isDrawingRef = useRef(isDrawing);
+  const toolRef = useRef(tool);
+  const startPosRef = useRef(startPos);
+  const currentSelectionRef = useRef(currentSelection);
+  const currentStrokeRef = useRef(currentStroke);
+  
+  // Sync Refs with State
+  useEffect(() => { isDrawingRef.current = isDrawing; }, [isDrawing]);
+  useEffect(() => { toolRef.current = tool; }, [tool]);
+  useEffect(() => { startPosRef.current = startPos; }, [startPos]);
+  useEffect(() => { currentSelectionRef.current = currentSelection; }, [currentSelection]);
+  useEffect(() => { currentStrokeRef.current = currentStroke; }, [currentStroke]);
+
+  // Global event listeners for drawing outside bounds
+  useEffect(() => {
+    // Only attach if drawing started (checked via state to trigger this effect)
+    if (!isDrawing) return;
+
+    const handleWindowMouseMove = (e: MouseEvent) => {
+      e.preventDefault(); 
+      handleMouseMove(e);
+    };
+
+    const handleWindowMouseUp = (e: MouseEvent) => {
+      handleMouseUp(e);
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+    };
+  }, [isDrawing]); // Depend on isDrawing state to attach/detach
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    // Use Refs to get fresh state without re-binding listeners
+    if (!isDrawingRef.current || !containerRef.current) return;
+    const coords = getRelativeCoords(e);
+    
+    // Clamp coordinates
+    const rect = containerRef.current.getBoundingClientRect();
+    const contentWidth = rect.width / scale;
+    const contentHeight = rect.height / scale;
+
+    const clampedX = Math.max(0, Math.min(coords.x, contentWidth));
+    const clampedY = Math.max(0, Math.min(coords.y, contentHeight));
+
+    if (toolRef.current === 'box') {
+        const start = startPosRef.current;
+        const width = clampedX - start.x;
+        const height = clampedY - start.y;
+
+        const newSelection = {
+            id: 'current',
+            x: width > 0 ? start.x : clampedX,
+            y: height > 0 ? start.y : clampedY,
+            width: Math.abs(width),
+            height: Math.abs(height)
+        };
+        
+        setCurrentSelection(newSelection);
+        // Sync ref immediately for next move event within same frame (optional but safe)
+        currentSelectionRef.current = newSelection;
+
+    } else {
+        // Highlighter move
+        const prevStroke = currentStrokeRef.current;
+        const newStroke = [...prevStroke, { x: clampedX, y: clampedY }];
+        
+        setCurrentStroke(newStroke);
+        currentStrokeRef.current = newStroke; // Sync ref
+        
+        drawHighlight(newStroke);
+    }
+  }, [scale]); // scale might change less frequently, but OK to include (or use ref)
+
+  const handleMouseUp = useCallback((e: MouseEvent) => {
+    if (!isDrawingRef.current) return;
+    setIsDrawing(false);
+    isDrawingRef.current = false; // Immediate sync
+
+    if (toolRef.current === 'box') {
+        const cur = currentSelectionRef.current;
+        if (cur && cur.width > 5 && cur.height > 5) {
+            setSelections(prev => [...prev, { ...cur, id: crypto.randomUUID() }]);
+        }
+        setCurrentSelection(null);
+        currentSelectionRef.current = null;
+    } else {
+        // Highlighter end
+        const stroke = currentStrokeRef.current;
+        if (stroke.length > 2) {
+            // Calculate bounding box
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            stroke.forEach(p => {
+                minX = Math.min(minX, p.x);
+                minY = Math.min(minY, p.y);
+                maxX = Math.max(maxX, p.x);
+                maxY = Math.max(maxY, p.y);
+            });
+            
+            // Add padding
+            minX = Math.max(0, minX - 10);
+            minY = Math.max(0, minY - 10);
+            maxX = maxX + 10;
+            maxY = maxY + 10;
+
+            const width = maxX - minX;
+            const height = maxY - minY;
+
+            if (width > 10 && height > 10) {
+                 setSelections(prev => [...prev, {
+                     id: crypto.randomUUID(),
+                     x: minX,
+                     y: minY,
+                     width,
+                     height
+                 }]);
+            }
+        }
+        setCurrentStroke([]);
+        currentStrokeRef.current = [];
+        
+        // Clear canvas
+        const canvas = canvasRef.current;
+        if(canvas) {
+            const ctx = canvas.getContext('2d');
+            ctx?.clearRect(0, 0, canvas.width, canvas.height);
+        }
+    }
+  }, []);
+
+  const removeSelection = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelections(selections.filter(s => s.id !== id));
+  };
+ 
+  // ... cropSelection and handleExtraction remain mostly same ...
+  // [Lines 150-221 are skipped here - assume they are kept or we need to ensure they exist if replacing whole file]
+  // Wait, I am replacing the whole file content block by block, or just the top part? 
+  // The 'Instruction' says "OCRPreviewStage 컴포넌트를 대폭 수정합니다.", so I should replace effectively the whole render part or careful chunk.
+  // Given the complexity of adding canvas + tool state + imports, replacing the file (or large chunk) is safer.
+  // I will include the cropSelection/handleExtraction logic below.
+
+  // Merge original image with selections to create a "Visual Prompt" image
+  const mergeImageWithSelections = async (skipMarking: boolean = false): Promise<Blob | null> => {
+    if (!containerRef.current) return null;
+
+    let sourceElement: HTMLCanvasElement | HTMLImageElement | null = null;
+    
+    // Get source content
+    if (fileType === 'pdf') {
+      const canvas = containerRef.current.querySelector('canvas') as HTMLCanvasElement;
+      sourceElement = canvas;
+    } else {
+      sourceElement = imageRef.current;
+    }
+
+    if (!sourceElement) return null;
+
+    // Create a new canvas for merging
+    const canvas = document.createElement('canvas');
+    // Set explicit size to match the intrinsic size of source
+    // For PDF canvas, width/height attributes are the intrinsic pixel size
+    // For Image, naturalWidth.
+    let intrinsicWidth = 0;
+    let intrinsicHeight = 0;
+
+    if (sourceElement instanceof HTMLCanvasElement) {
+        intrinsicWidth = sourceElement.width;
+        intrinsicHeight = sourceElement.height;
+    } else { // Image
+        intrinsicWidth = (sourceElement as HTMLImageElement).naturalWidth;
+        intrinsicHeight = (sourceElement as HTMLImageElement).naturalHeight;
+    }
+
+    canvas.width = intrinsicWidth;
+    canvas.height = intrinsicHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // 1. Draw Original Image
+    ctx.drawImage(sourceElement, 0, 0, intrinsicWidth, intrinsicHeight);
+
+    // 2. Draw Selections (Visual Prompting with Dimming)
+    // AI Attention Control: Dim everything OUTSIDE the selection boxes
+    if (!skipMarking) {
+        const visualUnzoomedWidth = sourceElement.clientWidth; 
+        const visualUnzoomedHeight = sourceElement.clientHeight;
+
+        const scaleX = intrinsicWidth / visualUnzoomedWidth;
+        const scaleY = intrinsicHeight / visualUnzoomedHeight;
+
+        // A. Dim the entire image first
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'; // 65% opacity black overlay
+        ctx.fillRect(0, 0, intrinsicWidth, intrinsicHeight);
+
+        // B. Clear/Restore original brightness ONLY for selected areas
+        // We do this by clipping the context to the selection paths and redrawing the original image
+        ctx.save();
+        ctx.beginPath();
+        selections.forEach(sel => {
+            const x = sel.x * scaleX;
+            const y = sel.y * scaleY;
+            const w = sel.width * scaleX;
+            const h = sel.height * scaleY;
+            ctx.rect(x, y, w, h);
+        });
+        ctx.clip();
+        
+        // Redraw original image inside clipping region (restores brightness)
+        ctx.drawImage(sourceElement, 0, 0, intrinsicWidth, intrinsicHeight);
+        ctx.restore();
+
+        // C. Draw borders for clearer definition
+        ctx.lineWidth = 4 * scaleX; // Thicker border for visibility
+        ctx.strokeStyle = '#FFFF00'; // Yellow border
+        selections.forEach(sel => {
+            const x = sel.x * scaleX;
+            const y = sel.y * scaleY;
+            const w = sel.width * scaleX;
+            const h = sel.height * scaleY;
+            ctx.strokeRect(x, y, w, h);
+        });
+    }
+
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.95);
+    });
+  };
+
+  const handleExtraction = async (mode: 'visual' | 'auto') => {
+    // Validation for visual mode
+    if (mode === 'visual' && selections.length === 0) {
+      toast.error('추출할 영역을 선택해주세요.');
+      return;
+    }
+
+    setIsProcessing(true);
+    setProcessingProgress(10);
+    
+    try {
+      // 1. Merge image (with or without marks)
+      const mergedBlob = await mergeImageWithSelections(mode === 'auto');
+      
+      if (!mergedBlob) {
+        toast.error('이미지 처리에 실패했습니다.');
+        setIsProcessing(false);
+        return;
+      }
+
+      setProcessingProgress(40);
+
+      // 2. Prepare FormData
+      const formData = new FormData();
+      formData.append('files', mergedBlob, 'source_image.jpg');
+      formData.append('mode', mode); // Add mode parameter
+
+      // 3. Send Request
+      setProcessingProgress(60); 
+      const message = mode === 'auto' ? '전체 이미지를 분석 중입니다...' : '선택된 영역을 분석 중입니다...';
+      toast.info(message);
+      
+      const result = await extractTextFromFile(formData);
+      setProcessingProgress(90);
+
+      if (result.success && result.data && result.data.passages) {
+        toast.success(`${result.data.passages.length}개의 지문이 추출되었습니다.`);
+        onExtractionComplete(result.data.passages);
+      } else {
+        console.error('OCR Batch Failed:', result);
+        toast.error(result.error || '텍스트 추출에 실패했습니다.');
+      }
+
+    } catch (error: any) {
+      console.error('Extraction flow error:', error);
+      toast.error(`오류 발생: ${error.message}`);
+    } finally {
+      setIsProcessing(false);
+      setProcessingProgress(0);
+    }
+  };
+
+  // ... (render) ...
+
+
+
+  return (
+    <div className="flex flex-col h-[80vh] bg-card rounded-lg overflow-hidden border">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b bg-muted/30">
+        <div className="flex items-center gap-4">
+           <Button variant="ghost" size="icon" onClick={onBack}>
+             <ChevronLeft className="w-5 h-5" />
+           </Button>
+           
+           <div className="flex items-center border rounded-lg bg-background p-1">
+             <ToggleGroup type="single" value={tool} onValueChange={(v) => v && setTool(v as Tool)}>
+                <ToggleGroupItem value="box" className="gap-2" aria-label="Box Selection">
+                   <MousePointer2 className="w-4 h-4" />
+                   <span className="text-xs font-medium">박스 선택</span>
+                </ToggleGroupItem>
+                <ToggleGroupItem value="highlighter" className="gap-2" aria-label="Highlighter">
+                   <Highlighter className="w-4 h-4" />
+                   <span className="text-xs font-medium">영역 그리기</span>
+                </ToggleGroupItem>
+             </ToggleGroup>
+           </div>
+           
+           <div className="h-6 w-px bg-border mx-2" />
+           
+           <p className="text-xs text-muted-foreground hidden md:block">
+             {tool === 'box' ? '마우스로 드래그하여 박스를 그리세요.' : '텍스트 위를 형광펜으로 칠하듯 그리세요.'}
+           </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+           <div className="flex items-center bg-background border rounded-md px-2 py-1 mr-4">
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setScale(s => Math.max(0.5, s - 0.1))}>
+                <ZoomOut className="w-3 h-3" />
+              </Button>
+              <span className="text-xs font-mono w-12 text-center">{Math.round(scale * 100)}%</span>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setScale(s => Math.min(3, s + 0.1))}>
+                <ZoomIn className="w-3 h-3" />
+              </Button>
+           </div>
+           
+           <Button 
+             variant="outline"
+             onClick={() => handleExtraction('auto')}
+             disabled={isProcessing}
+             className="gap-2 border-primary/20 hover:bg-primary/5 text-primary"
+           >
+             <Sparkles className="w-4 h-4" />
+             전체 영역 자동 추출
+           </Button>
+
+           <Button 
+             onClick={() => handleExtraction('visual')} 
+             disabled={selections.length === 0 || isProcessing}
+             className="min-w-[140px]"
+           >
+             {isProcessing ? (
+               <span className="flex items-center gap-2">
+                 <Loader2 className="animate-spin w-4 h-4" />
+                 {processingProgress}%
+               </span>
+             ) : (
+               <span className="flex items-center gap-2">
+                 <Check className="w-4 h-4" />
+                 선택 영역 추출 ({selections.length})
+               </span>
+             )}
+           </Button>
+        </div>
+      </div>
+
+      {/* Main Content (Scrollable) */}
+      <div className="flex-1 overflow-auto bg-gray-100/50 dark:bg-gray-900/50 p-8 relative flex justify-center">
+        
+        {/* Render Stage Container */}
+        <div 
+           ref={containerRef}
+           className={cn(
+             "relative shadow-xl bg-white select-none box-content",
+             tool === 'box' ? "cursor-crosshair" : "cursor-text" // Highlight cursor suggestion
+           )}
+           style={{ 
+             width: 'fit-content', 
+             height: 'fit-content',
+             transform: `scale(${scale})`,
+             transformOrigin: 'top center',
+             transition: 'transform 0.1s ease-out'
+           }}
+           onMouseDown={handleMouseDown}
+
+           // Prevent default drag behavior
+           onDragStart={(e) => e.preventDefault()}
+        >
+           {/* File Content */}
+           {fileType === 'pdf' ? (
+             <Document
+               file={file}
+               onLoadSuccess={onDocumentLoadSuccess}
+               loading={<div className="flex items-center justify-center w-[600px] h-[800px] text-muted-foreground">PDF 로딩 중...</div>}
+               error={<div className="text-red-500 p-8">PDF를 불러올 수 없습니다.</div>}
+             >
+               <Page 
+                 pageNumber={pageNumber} 
+                 renderTextLayer={false} 
+                 renderAnnotationLayer={false}
+                 width={800} 
+                 className="shadow-sm"
+                 inputRef={pdfPageRef}
+               />
+             </Document>
+           ) : (
+             <img 
+               ref={imageRef}
+               src={imageUrl!} 
+               alt="Preview" 
+               className="max-w-none block" 
+               draggable={false}
+             />
+           )}
+           
+           {/* Highlighter Canvas Layer */}
+           <canvas
+             ref={canvasRef}
+             className="absolute inset-0 pointer-events-none z-10"
+             // Size will be set by JS based on content size
+           />
+
+           {/* Selections Overlay */}
+           {selections.map((sel) => (
+             <div
+               key={sel.id}
+               className="absolute border-2 border-primary bg-primary/10 group z-20"
+               style={{
+                 left: sel.x,
+                 top: sel.y,
+                 width: sel.width,
+                 height: sel.height,
+               }}
+             >
+               <div className="absolute -top-3 -right-3 hidden group-hover:flex">
+                 <Button 
+                   variant="destructive" 
+                   size="icon" 
+                   className="h-6 w-6 rounded-full shadow-md selection-remove-btn"
+                   onClick={(e) => removeSelection(sel.id, e)}
+                 >
+                   <X className="w-3 h-3" />
+                 </Button>
+               </div>
+               <div className="absolute top-1 left-1 bg-primary text-primary-foreground text-[10px] px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                 {Math.round(sel.width)} x {Math.round(sel.height)}
+               </div>
+             </div>
+           ))}
+
+           {/* Current Drawing Selection (Box) */}
+           {isDrawing && tool === 'box' && currentSelection && (
+             <div
+               className="absolute border-2 border-blue-500 bg-blue-500/10 pointer-events-none z-20"
+               style={{
+                 left: currentSelection.x,
+                 top: currentSelection.y,
+                 width: currentSelection.width,
+                 height: currentSelection.height,
+               }}
+             />
+           )}
+        </div>
+      </div>
+
+      {/* Footer Controls */}
+      {fileType === 'pdf' && numPages > 1 && (
+        <div className="p-4 border-t bg-muted/30 flex justify-center items-center gap-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+                setSelections([]);
+                setPageNumber(p => Math.max(1, p - 1));
+            }}
+            disabled={pageNumber <= 1}
+          >
+            <ChevronLeft className="w-4 h-4 mr-1" /> 이전 페이지
+          </Button>
+          <span className="text-sm font-medium">
+            Page {pageNumber} of {numPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+                setSelections([]);
+                setPageNumber(p => Math.min(numPages, p + 1));
+            }}
+            disabled={pageNumber >= numPages}
+          >
+            다음 페이지 <ChevronRight className="w-4 h-4 ml-1" />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}

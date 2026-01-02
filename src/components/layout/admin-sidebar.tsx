@@ -12,6 +12,7 @@ import {
   MessageSquare,
   ChevronLeft,
   Menu,
+  BookOpen,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
@@ -33,6 +34,12 @@ const menuItems = [
     href: '/admin/questions', 
     icon: Database,
     exact: true
+  },
+  { 
+    name: '영어지문 관리', 
+    href: '/admin/passages', 
+    icon: BookOpen,
+    exact: false
   },
   { 
     name: '문제 업로드', 

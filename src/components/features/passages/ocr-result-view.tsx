@@ -1,0 +1,433 @@
+'use client';
+
+import React, { useState } from 'react';
+import { 
+  X, 
+  Plus, 
+  CheckCircle2, 
+  Loader2,
+  ArrowLeft,
+  Sparkles,
+  Bot,
+  Languages,
+  Type
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { createPassage, enrichPassage, enrichPassages, type PassageAnalysis } from '@/app/api/passages/actions';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+interface OCRResultViewProps {
+  initialPassages: string[];
+  preAnalyzedData?: PassageAnalysis[];
+  onBack: () => void;
+  onClose: () => void;
+  onComplete: () => void;
+}
+
+interface PassageData {
+  id: string;
+  content: string;
+  title_en: string;
+  title_ko: string;
+  content_translation: string;
+}
+
+export function OCRResultView({ initialPassages, preAnalyzedData, onBack, onClose, onComplete }: OCRResultViewProps) {
+  // Mode: 'raw' (initial text editing) -> 'analyzed' (metadata editing)
+  const [isAnalyzed, setIsAnalyzed] = useState(!!preAnalyzedData);
+  
+  const [passages, setPassages] = useState<PassageData[]>(() => {
+    if (preAnalyzedData && preAnalyzedData.length > 0) {
+      // Use pre-analyzed data
+      return preAnalyzedData.map((data) => ({
+        id: crypto.randomUUID(),
+        content: data.content_refined || initialPassages[data.original_index] || '',
+        title_en: data.title_en || '',
+        title_ko: data.title_ko || '',
+        content_translation: data.content_translation || ''
+      }));
+    }
+    // Use initial passages for raw editing
+    return initialPassages.map((text) => ({
+      id: crypto.randomUUID(),
+      content: text,
+      title_en: '',
+      title_ko: '',
+      content_translation: ''
+    }));
+  });
+  
+  const [removeLineBreaks, setRemoveLineBreaks] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false); // Analyzing or Saving
+  const [showBackConfirm, setShowBackConfirm] = useState(false);
+  const [isLineByLine, setIsLineByLine] = useState(false); // Toggle for analyzed view
+
+  // --- Helpers ---
+
+  const handleTextChange = (id: string, field: keyof PassageData, value: string) => {
+    setPassages(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
+  };
+
+  const processText = (text: string) => {
+    if (removeLineBreaks) {
+      return text.replace(/\n+/g, ' ');
+    }
+    return text;
+  };
+
+  // Process text for analyzed view display based on isLineByLine toggle
+  const processTextForDisplay = (text: string) => {
+    if (!isLineByLine) {
+      // Remove line breaks for continuous display
+      return text.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+    return text;
+  };
+
+  const handleRemovePassage = (id: string) => {
+    setPassages(prev => prev.filter(p => p.id !== id));
+  };
+
+  const handleAddPassage = () => {
+    setPassages(prev => [...prev, {
+      id: crypto.randomUUID(),
+      content: '',
+      title_en: '',
+      title_ko: '',
+      content_translation: ''
+    }]);
+  };
+
+  // --- Actions ---
+
+  // Phase 1 -> Phase 2: AI Analysis
+  const handleAnalyze = async () => {
+    const validPassages = passages.filter(p => p.content.trim().length > 0);
+    if (validPassages.length === 0) {
+      toast.error('분석할 지문이 없습니다.');
+      return;
+    }
+
+    // Analyze in batch
+    try {
+      // Prepare contents, applying line break removal if preferred by user for input
+      const contentsToSend = passages.map(p => 
+        removeLineBreaks ? p.content.replace(/\n+/g, ' ') : p.content
+      );
+      
+      const analysisResults = await enrichPassages(contentsToSend);
+
+      // Merge results back into passages
+      const analyzedPassages = passages.map((p, index) => {
+        // Find matching result by original_index if possible, otherwise use array index
+        const result = analysisResults.find(r => r.original_index === index) || analysisResults[index];
+        
+        if (!result) return p;
+
+        return {
+          ...p,
+          content: result.content_refined || p.content, // Use refined content if available
+          title_en: result.title_en,
+          title_ko: result.title_ko,
+          content_translation: result.content_translation
+        };
+      });
+
+      setPassages(analyzedPassages);
+      setIsAnalyzed(true); // Switch to analyzed view
+      toast.success('AI 분석이 완료되었습니다.');
+
+    } catch (error) {
+      console.error(error);
+      toast.error('AI 분석 중 오류가 발생했습니다.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Phase 2: Final Save
+  const handleSaveAll = async () => {
+    const validPassages = passages.filter(p => p.content.trim().length > 0);
+    if (validPassages.length === 0) {
+      toast.error('저장할 지문 내용이 없습니다.');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      let successCount = 0;
+      await Promise.all(validPassages.map(async (p, index) => {
+        // Use processed text if checkbox is checked
+        const finalContent = removeLineBreaks ? p.content.replace(/\n+/g, ' ').trim() : p.content.trim();
+        
+        await createPassage({
+          content: finalContent,
+          title_en: p.title_en || `Extracted Passage ${index + 1}`,
+          title_ko: p.title_ko || null,
+          content_translation: p.content_translation || null
+        });
+        successCount++;
+      }));
+
+      toast.success(`${successCount}개의 지문이 저장되었습니다.`);
+      onComplete();
+
+    } catch (error) {
+      console.error(error);
+      toast.error('지문 저장 중 오류가 발생했습니다.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+      {/* Header */}
+      <div className="flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur z-10 py-4 border-b">
+        <div className="flex items-center gap-2">
+            <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setShowBackConfirm(true)} 
+                className="pl-0 gap-2 hover:bg-transparent hover:text-primary"
+            >
+                <ArrowLeft className="w-5 h-5" />
+                <span className="text-xl font-bold text-foreground">
+                  {isAnalyzed ? '지문 분석 및 수정' : '지문 추출 결과'}
+                </span>
+            </Button>
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              {isAnalyzed ? '(AI 생성 데이터 확인)' : '(이미지 재확인)'}
+            </span>
+        </div>
+        <Button variant="ghost" onClick={onClose} size="sm">
+          <X className="w-4 h-4 mr-2" /> 닫기
+        </Button>
+      </div>
+
+      <div className="space-y-8">
+        {/* Helper Options (Only in Raw View) */}
+        {!isAnalyzed && (
+             <div className="flex items-center justify-end space-x-2">
+                <Checkbox 
+                id="remove-breaks" 
+                checked={removeLineBreaks}
+                onCheckedChange={(checked) => setRemoveLineBreaks(checked as boolean)}
+                />
+                <Label htmlFor="remove-breaks" className="cursor-pointer">줄바꿈 제거 미리보기</Label>
+            </div>
+        )}
+
+        {passages.map((passage, index) => (
+          <div key={passage.id} className="relative group animate-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: `${index * 100}ms` }}>
+            { !isAnalyzed ? (
+                // --- Raw Text View ---
+                <div className="relative">
+                    <Label className="mb-2 block text-muted-foreground font-medium">지문 {index + 1}</Label>
+                    <div className="relative">
+                        <Textarea
+                            value={processText(passage.content)}
+                            onChange={(e) => handleTextChange(passage.id, 'content', e.target.value)}
+                            className="min-h-[150px] resize-none pr-10 text-base leading-relaxed bg-muted/30"
+                            placeholder="지문 내용을 입력하거나 OCR 결과를 수정하세요..."
+                        />
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-2 right-2 text-muted-foreground hover:text-red-500 hover:bg-red-50"
+                            onClick={() => handleRemovePassage(passage.id)}
+                        >
+                            <X className="w-4 h-4" />
+                        </Button>
+                    </div>
+                </div>
+            ) : (
+                // --- Analyzed Card View ---
+                <Card className="border-2 border-primary/10 overflow-hidden shadow-sm hover:shadow-md transition-all">
+                    <CardHeader className="bg-muted/30 border-b pb-4">
+                        <div className="flex items-center justify-between">
+                             <div className="flex items-center gap-2">
+                                <span className="bg-primary/10 text-primary text-xs font-bold px-2 py-1 rounded-full">
+                                    PASSAGE {index + 1}
+                                </span>
+                             </div>
+                             <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-muted-foreground hover:text-red-500"
+                                onClick={() => handleRemovePassage(passage.id)}
+                            >
+                                <X className="w-4 h-4 mr-1" /> 삭제
+                            </Button>
+                        </div>
+                        <div className="mt-4 space-y-4">
+                             {/* English Title */}
+                             <div className="grid gap-2">
+                                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <Type className="w-3 h-3" /> 영어 제목 (Title EN)
+                                </Label>
+                                <Input 
+                                    value={passage.title_en}
+                                    onChange={(e) => handleTextChange(passage.id, 'title_en', e.target.value)}
+                                    placeholder="English Title"
+                                    className="font-medium"
+                                />
+                             </div>
+                             {/* Korean Title */}
+                             <div className="grid gap-2">
+                                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <Languages className="w-3 h-3" /> 한글 제목 (Title KO)
+                                </Label>
+                                <Input 
+                                    value={passage.title_ko}
+                                    onChange={(e) => handleTextChange(passage.id, 'title_ko', e.target.value)}
+                                    placeholder="한글 제목"
+                                />
+                             </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="space-y-6 pt-6">
+                         <div className="grid md:grid-cols-2 gap-6">
+                            {/* Original Content */}
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <Label className="flex items-center gap-2 text-sm font-semibold">
+                                       <Sparkles className="w-4 h-4 text-amber-500" /> 
+                                       영어 지문 (Content)
+                                  </Label>
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsLineByLine(!isLineByLine)}
+                                    className={cn(
+                                      "text-xs px-2 py-0.5 rounded border transition-colors",
+                                      isLineByLine 
+                                        ? "bg-primary text-primary-foreground border-primary" 
+                                        : "bg-muted/50 text-muted-foreground border-muted hover:bg-muted"
+                                    )}
+                                  >
+                                    한줄로 보기
+                                  </button>
+                                </div>
+                                <Textarea 
+                                    value={processTextForDisplay(passage.content)}
+                                    onChange={(e) => handleTextChange(passage.id, 'content', e.target.value)}
+                                    className="min-h-[200px] leading-relaxed resize-none bg-amber-50/50 dark:bg-amber-900/10 border-amber-200/50 focus-visible:ring-amber-500"
+                                />
+                            </div>
+
+                            {/* Korean Translation */}
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-2 text-sm font-semibold">
+                                     <Bot className="w-4 h-4 text-emerald-500" /> 
+                                     한글 번역 (Translation)
+                                </Label>
+                                <Textarea 
+                                    value={processTextForDisplay(passage.content_translation)}
+                                    onChange={(e) => handleTextChange(passage.id, 'content_translation', e.target.value)}
+                                    className="min-h-[200px] leading-relaxed resize-none bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200/50 focus-visible:ring-emerald-500"
+                                    placeholder="AI가 생성한 번역이 여기에 표시됩니다."
+                                />
+                            </div>
+                         </div>
+                    </CardContent>
+                </Card>
+            )}
+          </div>
+        ))}
+
+        {!isAnalyzed && (
+            <Button variant="outline" onClick={handleAddPassage} className="w-full py-8 border-dashed gap-2 text-muted-foreground hover:text-primary">
+                <Plus className="w-4 h-4" /> 지문 추가 (Add Empty)
+            </Button>
+        )}
+      </div>
+
+      {/* Footer Actions */}
+      <div className="fixed bottom-0 left-0 right-0 p-6 bg-background/80 backdrop-blur border-t z-20 flex justify-end">
+        <div className="w-full max-w-7xl mx-auto flex justify-end gap-3">
+             { !isAnalyzed ? (
+                 <Button 
+                    size="lg" 
+                    onClick={handleAnalyze} 
+                    disabled={isProcessing || passages.length === 0}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 dark:shadow-none min-w-[200px]"
+                 >
+                    {isProcessing ? (
+                        <>
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" /> 
+                            AI 분석 중... ({passages.length}개)
+                        </>
+                    ) : (
+                        <>
+                            <Sparkles className="w-4 h-4 mr-2" /> 
+                            AI 분석 및 메타데이터 생성
+                        </>
+                    )}
+                 </Button>
+             ) : (
+                 <Button 
+                    size="lg" 
+                    onClick={handleSaveAll} 
+                    disabled={isProcessing}
+                    className="bg-gray-900 text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 shadow-lg min-w-[200px]"
+                 >
+                    {isProcessing ? (
+                        <>
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" /> 
+                            저장 중...
+                        </>
+                    ) : (
+                        <>
+                            <CheckCircle2 className="w-4 h-4 mr-2" /> 
+                            최종 확인 및 저장
+                        </>
+                    )}
+                 </Button>
+             )}
+        </div>
+      </div>
+
+      {/* Back Confirmation Dialog */}
+      <AlertDialog open={showBackConfirm} onOpenChange={setShowBackConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>이전 단계로 돌아가기</AlertDialogTitle>
+            <AlertDialogDescription>
+               {isAnalyzed 
+                 ? "분석된 메타데이터가 사라집니다. 다시 분석 단계로 돌아가시겠습니까?"
+                 : "이미지 재확인하러 돌아가시겠습니까?"
+               }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+                setShowBackConfirm(false);
+                if (isAnalyzed) setIsAnalyzed(false); // Go back to raw edit
+                else onBack(); // Go back to image
+            }}>
+                확인
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}

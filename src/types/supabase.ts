@@ -7,48 +7,39 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "13.0.5"
+  }
   public: {
     Tables: {
-      admin_logs: {
+      ai_models: {
         Row: {
-          id: string
-          type: string
-          user_id: string | null
-          details: Json
-          ip_address: string | null
-          status: string | null
-          error_message: string | null
           created_at: string
+          display_order: number
+          id: string
+          name: string
+          provider: string
+          updated_at: string
         }
         Insert: {
-          id?: string
-          type: string
-          user_id?: string | null
-          details?: Json
-          ip_address?: string | null
-          status?: string | null
-          error_message?: string | null
           created_at?: string
+          display_order?: number
+          id?: string
+          name: string
+          provider: string
+          updated_at?: string
         }
         Update: {
-          id?: string
-          type?: string
-          user_id?: string | null
-          details?: Json
-          ip_address?: string | null
-          status?: string | null
-          error_message?: string | null
           created_at?: string
+          display_order?: number
+          id?: string
+          name?: string
+          provider?: string
+          updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "admin_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          }
-        ]
+        Relationships: []
       }
       exam_paper_items: {
         Row: {
@@ -89,7 +80,7 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "questions"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
       exam_papers: {
@@ -124,8 +115,47 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
-          }
+          },
         ]
+      }
+      passages: {
+        Row: {
+          content: string
+          content_translation: string | null
+          created_at: string
+          id: string
+          title_en: string | null
+          title_ko: string | null
+          updated_at: string
+          user_id: string
+          tags: string[] | null
+          is_bookmarked: boolean | null
+        }
+        Insert: {
+          content: string
+          content_translation?: string | null
+          created_at?: string
+          id?: string
+          title_en?: string | null
+          title_ko?: string | null
+          updated_at?: string
+          user_id: string
+          tags?: string[] | null
+          is_bookmarked?: boolean | null
+        }
+        Update: {
+          content?: string
+          content_translation?: string | null
+          created_at?: string
+          id?: string
+          title_en?: string | null
+          title_ko?: string | null
+          updated_at?: string
+          user_id?: string
+          tags?: string[] | null
+          is_bookmarked?: boolean | null
+        }
+        Relationships: []
       }
       problem_types: {
         Row: {
@@ -162,33 +192,6 @@ export type Database = {
           prompt_template?: string
           provider?: string
           type_name?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      ai_models: {
-        Row: {
-          id: string
-          name: string
-          provider: string
-          display_order: number
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          provider: string
-          display_order?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          provider?: string
-          display_order?: number
-          created_at?: string
           updated_at?: string
         }
         Relationships: []
@@ -250,172 +253,35 @@ export type Database = {
         }
         Relationships: []
       }
-      user_sessions: {
+      providers: {
         Row: {
-          id: string
-          user_id: string
-          device_info: string | null
-          ip_address: string | null
-          user_agent: string | null
-          browser: string | null
-          os: string | null
-          device_type: string | null
-          is_current: boolean | null
-          last_active: string
           created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          device_info?: string | null
-          ip_address?: string | null
-          user_agent?: string | null
-          browser?: string | null
-          os?: string | null
-          device_type?: string | null
-          is_current?: boolean | null
-          last_active?: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          device_info?: string | null
-          ip_address?: string | null
-          user_agent?: string | null
-          browser?: string | null
-          os?: string | null
-          device_type?: string | null
-          is_current?: boolean | null
-          last_active?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_sessions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      user_credits: {
-        Row: {
+          display_name: string
+          display_order: number
           id: string
-          user_id: string
-          balance: number
-          created_at: string
+          is_active: boolean
+          name: string
           updated_at: string
         }
         Insert: {
-          id?: string
-          user_id: string
-          balance?: number
           created_at?: string
+          display_name: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name: string
           updated_at?: string
         }
         Update: {
-          id?: string
-          user_id?: string
-          balance?: number
           created_at?: string
+          display_name?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name?: string
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "user_credits_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      credit_transactions: {
-        Row: {
-          id: string
-          user_id: string
-          type: string
-          amount: number
-          balance_after: number
-          description: string | null
-          reference_id: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          type: string
-          amount: number
-          balance_after: number
-          description?: string | null
-          reference_id?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          type?: string
-          amount?: number
-          balance_after?: number
-          description?: string | null
-          reference_id?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "credit_transactions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      support_tickets: {
-        Row: {
-          id: string
-          user_id: string
-          subject: string
-          message: string
-          status: string | null
-          admin_response: string | null
-          responded_at: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          subject: string
-          message: string
-          status?: string | null
-          admin_response?: string | null
-          responded_at?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          subject?: string
-          message?: string
-          status?: string | null
-          admin_response?: string | null
-          responded_at?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "support_tickets_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          }
-        ]
+        Relationships: []
       }
       questions: {
         Row: {
@@ -426,11 +292,12 @@ export type Database = {
           explanation: string | null
           grade_level: string | null
           id: string
+          passage_id: string | null
           passage_text: string | null
           problem_type_id: string | null
           question_text: string
-          question_text_forward: string | null
           question_text_backward: string | null
+          question_text_forward: string | null
           raw_ai_response: string | null
           shared_question_id: string | null
           source: string | null
@@ -445,11 +312,12 @@ export type Database = {
           explanation?: string | null
           grade_level?: string | null
           id?: string
+          passage_id?: string | null
           passage_text?: string | null
           problem_type_id?: string | null
           question_text: string
-          question_text_forward?: string | null
           question_text_backward?: string | null
+          question_text_forward?: string | null
           raw_ai_response?: string | null
           shared_question_id?: string | null
           source?: string | null
@@ -464,11 +332,12 @@ export type Database = {
           explanation?: string | null
           grade_level?: string | null
           id?: string
+          passage_id?: string | null
           passage_text?: string | null
           problem_type_id?: string | null
           question_text?: string
-          question_text_forward?: string | null
           question_text_backward?: string | null
+          question_text_forward?: string | null
           raw_ai_response?: string | null
           shared_question_id?: string | null
           source?: string | null
@@ -476,6 +345,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "questions_passage_id_fkey"
+            columns: ["passage_id"]
+            isOneToOne: false
+            referencedRelation: "passages"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "questions_problem_type_id_fkey"
             columns: ["problem_type_id"]
@@ -496,7 +372,7 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
     }
@@ -515,3 +391,125 @@ export type Database = {
   }
 }
 
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const
