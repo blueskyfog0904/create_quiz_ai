@@ -301,6 +301,8 @@ export type Database = {
           raw_ai_response: string | null
           shared_question_id: string | null
           source: string | null
+          tags: string[] | null
+          rating: number | null
           updated_at: string
           user_id: string
         }
@@ -321,6 +323,8 @@ export type Database = {
           raw_ai_response?: string | null
           shared_question_id?: string | null
           source?: string | null
+          tags?: string[] | null
+          rating?: number | null
           updated_at?: string
           user_id: string
         }
@@ -341,6 +345,8 @@ export type Database = {
           raw_ai_response?: string | null
           shared_question_id?: string | null
           source?: string | null
+          tags?: string[] | null
+          rating?: number | null
           updated_at?: string
           user_id?: string
         }

@@ -44,6 +44,28 @@ export function PassageDetailModal({
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [isLineByLine, setIsLineByLine] = useState(false);
 
+  // Render sentences in fixed 3-line height blocks for perfect alignment
+  const renderLineByLine = (text: string) => {
+    if (!text) return null;
+    const sentences = text.split('\n').filter(s => s.trim());
+    return (
+      <div className="space-y-0">
+        {sentences.map((sentence, index) => (
+          <div 
+            key={index} 
+            className="min-h-[4.5em] flex items-start border-b border-dashed border-muted-foreground/20 py-2"
+            style={{ lineHeight: '1.5em' }}
+          >
+            <span className="text-muted-foreground text-xs mr-3 mt-0.5 select-none w-6 text-right shrink-0">
+              {index + 1}.
+            </span>
+            <span>{sentence}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   useEffect(() => {
     if (passage && open) {
       setTitleEn(passage.title_en || '');
@@ -218,7 +240,19 @@ export function PassageDetailModal({
                             한줄씩 보기
                           </button>
                         </div>
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => navigator.clipboard.writeText(content)}>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6" 
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(content);
+                              toast.success('영어 지문이 복사되었습니다.');
+                            } catch (err) {
+                              toast.error('복사에 실패했습니다.');
+                            }
+                          }}
+                        >
                             <Copy className="w-3 h-3" />
                         </Button>
                    </div>
@@ -228,13 +262,14 @@ export function PassageDetailModal({
                        onChange={(e) => setContent(e.target.value)} 
                        className="flex-1 min-h-[300px] font-mono leading-relaxed resize-none p-4"
                      />
-                   ) : (
-                     <div className={cn(
-                       "flex-1 bg-muted/30 border rounded-md p-6 text-base leading-relaxed font-serif overflow-y-auto shadow-sm",
-                       isLineByLine && "whitespace-pre-wrap"
-                     )}>
-                       {content}
-                     </div>
+                    ) : isLineByLine ? (
+                      <div className="flex-1 bg-muted/30 border rounded-md p-4 text-base leading-relaxed font-serif overflow-y-auto shadow-sm">
+                        {renderLineByLine(content)}
+                      </div>
+                    ) : (
+                      <div className="flex-1 bg-muted/30 border rounded-md p-6 text-base leading-relaxed font-serif overflow-y-auto shadow-sm">
+                        {content}
+                      </div>
                    )}
                  </div>
               </div>
@@ -244,7 +279,19 @@ export function PassageDetailModal({
                  <div className="space-y-2 flex-1 flex flex-col">
                     <div className="flex items-center justify-between">
                         <Label className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">Korean Translation</Label>
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => navigator.clipboard.writeText(translation)}>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6" 
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(translation || '');
+                              toast.success('한글 번역이 복사되었습니다.');
+                            } catch (err) {
+                              toast.error('복사에 실패했습니다.');
+                            }
+                          }}
+                        >
                             <Copy className="w-3 h-3" />
                         </Button>
                     </div>
@@ -255,13 +302,14 @@ export function PassageDetailModal({
                        className="flex-1 min-h-[300px] leading-relaxed resize-none p-4"
                        placeholder="번역 입력"
                      />
-                   ) : (
-                     <div className={cn(
-                       "flex-1 bg-muted/50 border-none rounded-md p-6 text-base leading-relaxed text-foreground/90 overflow-y-auto",
-                       isLineByLine && "whitespace-pre-wrap"
-                     )}>
-                       {translation || '번역 내용이 없습니다.'}
-                     </div>
+                    ) : isLineByLine ? (
+                      <div className="flex-1 bg-muted/50 border-none rounded-md p-4 text-base leading-relaxed text-foreground/90 overflow-y-auto">
+                        {renderLineByLine(translation)}
+                      </div>
+                    ) : (
+                      <div className="flex-1 bg-muted/50 border-none rounded-md p-6 text-base leading-relaxed text-foreground/90 overflow-y-auto">
+                        {translation || '번역 내용이 없습니다.'}
+                      </div>
                    )}
                  </div>
               </div>

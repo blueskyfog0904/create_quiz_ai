@@ -11,7 +11,10 @@ const SaveQuestionSchema = z.object({
   problemTypeId: z.string().uuid(),
   rawAiResponse: z.string().optional(),
   questionTextForward: z.string().optional(),
-  questionTextBackward: z.string().optional()
+  questionTextBackward: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  passageId: z.string().optional(),
+  rating: z.number().int().min(0).max(3).optional()
 })
 
 export async function POST(request: Request) {
@@ -33,7 +36,22 @@ export async function POST(request: Request) {
         }, { status: 400 })
     }
 
-    const { question, passage, gradeLevel, difficulty, problemTypeId, rawAiResponse, questionTextForward, questionTextBackward } = validation.data
+    const { question, passage, gradeLevel, difficulty, problemTypeId, rawAiResponse, questionTextForward, questionTextBackward, tags, passageId, rating } = validation.data
+
+    let finalTags = tags;
+
+    // If passageId is provided but no tags, try to fetch tags from passage
+    if (passageId && (!tags || tags.length === 0)) {
+        const { data: passageData } = await supabase
+            .from('passages')
+            .select('tags')
+            .eq('id', passageId)
+            .single()
+        
+        if (passageData?.tags) {
+            finalTags = passageData.tags
+        }
+    }
 
     const { data, error } = await supabase
       .from('questions')
@@ -51,7 +69,10 @@ export async function POST(request: Request) {
         problem_type_id: problemTypeId,
         raw_ai_response: rawAiResponse,
         source: 'ai_generated',
-        shared_question_id: null
+        shared_question_id: null,
+        tags: finalTags || null,
+        passage_id: passageId || null,
+        rating: rating || 0
       })
       .select()
       .single()

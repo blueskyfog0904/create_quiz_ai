@@ -51,6 +51,7 @@
 ### Commit Standards
 - **Atomic Commits**: **MUST** commit after completing a distinct feature or fix.
 - **Message Format**: `type: description` (e.g., `feat: add login page`, `fix: resolve RLS issue`).
+- **Auto-Commit Rule**: **MUST** automatically save work to git upon the completion of every user request or significant task. This rule applies across all AI sessions and models. Always check `git status` and commit changes before finishing a turn if work was done.
 
 ## Prohibited Actions
 - **NO** `pages/` directory usage (App Router enforced).

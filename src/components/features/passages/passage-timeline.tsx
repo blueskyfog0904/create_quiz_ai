@@ -5,6 +5,7 @@ import { format, isSameDay } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { Bookmark, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Passage } from '@/app/api/passages/actions';
 
@@ -13,6 +14,7 @@ interface PassageTimelineProps {
   onView: (passage: Passage) => void;
   onBookmarkToggle: (id: string, current: boolean) => void;
   onTagAdd: (id: string, tags: string[]) => void;
+  onUse?: (passage: Passage) => void;
 }
 
 export function PassageTimeline({
@@ -20,6 +22,7 @@ export function PassageTimeline({
   onView,
   onBookmarkToggle,
   onTagAdd,
+  onUse,
 }: PassageTimelineProps) {
   // Group passages by date
   const groupedPassages = React.useMemo(() => {
@@ -67,15 +70,15 @@ export function PassageTimeline({
             {group.items.map((passage) => (
                <div 
                  key={passage.id}
-                 className="group relative bg-card hover:bg-accent/5 transition-colors border rounded-lg p-4 cursor-pointer flex gap-4 items-start shadow-sm hover:shadow"
-                 onClick={() => onView(passage)}
+                 className="group relative bg-card hover:bg-accent/5 transition-colors border rounded-lg p-4 flex gap-4 items-start shadow-sm hover:shadow"
                >
-                  <div className="text-xs text-muted-foreground whitespace-nowrap pt-1 font-mono">
-                    {format(new Date(passage.created_at), 'a h:mm', { locale: ko })}
-                  </div>
-
-                  <div className="flex-1 min-w-0 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
+                  {/* Main content area - clickable for detail view */}
+                  <button
+                    type="button"
+                    className="flex-1 min-w-0 space-y-2 text-left focus:outline-none"
+                    onClick={() => onView(passage)}
+                  >
+                      <div className="flex items-center gap-2">
                           <div className="flex items-center gap-2 min-w-0">
                              <div 
                                 role="button"
@@ -113,6 +116,25 @@ export function PassageTimeline({
                             </Badge>
                         ))}
                       </div>
+                  </button>
+
+                  {/* Right side - Time and Use button */}
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {format(new Date(passage.created_at), 'a h:mm', { locale: ko })}
+                    </span>
+                    {onUse && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUse(passage);
+                        }}
+                      >
+                        사용
+                      </Button>
+                    )}
                   </div>
                </div>
             ))}
@@ -122,3 +144,4 @@ export function PassageTimeline({
     </div>
   );
 }
+

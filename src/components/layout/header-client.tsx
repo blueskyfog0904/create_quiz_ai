@@ -95,7 +95,7 @@ export function HeaderClient({ isLoggedIn, userName, isAdmin, isMobile = false }
                 <Link href="/library/purchased" onClick={() => setIsOpen(false)}>
                   <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
                     <FolderOpen className="h-4 w-4" />
-                    내가 구매한 문제
+                    영어문제 관리
                   </Button>
                 </Link>
                 <Link href="/library/exam-papers" onClick={() => setIsOpen(false)}>
@@ -213,7 +213,7 @@ export function HeaderClient({ isLoggedIn, userName, isAdmin, isMobile = false }
           <DropdownMenuItem asChild>
             <Link href="/library/purchased" className="flex items-center gap-2 cursor-pointer">
               <FolderOpen className="h-4 w-4" />
-              내가 구매한 문제
+              영어문제 관리
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>

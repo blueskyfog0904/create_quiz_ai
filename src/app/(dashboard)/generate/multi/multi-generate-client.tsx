@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,7 +13,10 @@ import { QuestionPreview } from '@/components/features/quiz/question-preview'
 import { Database } from '@/types/supabase'
 import { Question } from '@/lib/ai/types'
 import { useRouter } from 'next/navigation'
-import { Loader2 } from 'lucide-react'
+import { Loader2, BookOpen, Plus, FileText, CheckCircle2 } from 'lucide-react'
+import { PassageSelectorModal } from '@/components/features/passages/passage-selector-modal'
+import { PassageRegisterModal } from '@/components/features/passages/passage-register-modal'
+import { Passage } from '@/app/api/passages/actions'
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
 
@@ -31,11 +33,11 @@ interface GeneratedQuestionData {
 export default function MultiGenerateClient({ problemTypes }: MultiGenerateClientProps) {
   const router = useRouter()
   const [passage, setPassage] = useState('')
+  const [selectedPassage, setSelectedPassage] = useState<Passage | null>(null)
+  
   const [gradeLevel, setGradeLevel] = useState('High1')
   const [difficulty, setDifficulty] = useState('Medium')
   const [selectedTypeIds, setSelectedTypeIds] = useState<string[]>([])
-  const [questionTextForward, setQuestionTextForward] = useState('')
-  const [questionTextBackward, setQuestionTextBackward] = useState('')
   
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedQuestions, setGeneratedQuestions] = useState<Map<string, GeneratedQuestionData>>(new Map())
@@ -43,12 +45,29 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
   const [generatingProgress, setGeneratingProgress] = useState({ current: 0, total: 0, currentType: '' })
 
+  const [isSelectorOpen, setIsSelectorOpen] = useState(false)
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false)
+
   const handleTypeToggle = (typeId: string, checked: boolean) => {
     if (checked) {
       setSelectedTypeIds([...selectedTypeIds, typeId])
     } else {
       setSelectedTypeIds(selectedTypeIds.filter(id => id !== typeId))
     }
+  }
+
+  const handlePassageSelect = (p: Passage) => {
+    setSelectedPassage(p)
+    setPassage(p.content)
+    setIsSelectorOpen(false)
+    toast.success('지문이 선택되었습니다')
+  }
+
+  const handlePassageRegisterSuccess = (p: Passage) => {
+    setSelectedPassage(p)
+    setPassage(p.content)
+    setIsRegisterOpen(false)
+    // toast handled in modal
   }
 
   const handleGenerate = async (e: React.FormEvent) => {
@@ -60,12 +79,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
     }
 
     if (!passage) {
-      toast.error("지문을 입력해주세요")
-      return
-    }
-
-    if (passage.length > 3000) {
-      toast.error("지문이 너무 깁니다 (최대 3000자)")
+      toast.error("지문을 선택하거나 등록해주세요")
       return
     }
 
@@ -178,7 +192,8 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
   const handleSaveIndividual = async (typeId: string) => {
     const questionData = generatedQuestions.get(typeId)
     if (!questionData) return
-
+    
+    // Optimistic UI update
     setSavedStates(new Map(savedStates.set(typeId, true)))
 
     try {
@@ -192,8 +207,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
           difficulty,
           problemTypeId: typeId,
           rawAiResponse: questionData.rawResponse,
-          questionTextForward: questionTextForward || undefined,
-          questionTextBackward: questionTextBackward || undefined
+          source_passage_id: selectedPassage?.id // Save link to passage if available
         })
       })
 
@@ -207,7 +221,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
       
     } catch (error: any) {
       toast.error(error.message)
-      setSavedStates(new Map(savedStates.set(typeId, false)))
+      setSavedStates(new Map(savedStates.set(typeId, false))) // Revert
     }
   }
 
@@ -241,8 +255,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
               difficulty,
               problemTypeId: typeId,
               rawAiResponse: questionData.rawResponse,
-              questionTextForward: questionTextForward || undefined,
-              questionTextBackward: questionTextBackward || undefined
+              source_passage_id: selectedPassage?.id
             })
           })
 
@@ -280,10 +293,9 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
     setShowSuccessDialog(false)
     setGeneratedQuestions(new Map())
     setSavedStates(new Map())
-    setPassage('')
-    setSelectedTypeIds([])
-    setQuestionTextForward('')
-    setQuestionTextBackward('')
+    // Do not clear passage/type selection for faster re-generation if desired, 
+    // or clear if user wants fresh start. Let's keep passage but clear results.
+    // User can change passage if they want.
   }
 
   const handleGoToExamPaper = () => {
@@ -300,6 +312,62 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
               <h2 className="text-xl font-semibold mb-4">문제 생성 옵션</h2>
               
               <form onSubmit={handleGenerate} className="space-y-4">
+                
+                {/* Passage Selection Section */}
+                <div className="space-y-3">
+                    <Label className="text-base font-semibold">
+                      지문 선택 <span className="text-red-500">*</span>
+                    </Label>
+                    
+                    <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="flex-1 gap-2 h-12"
+                          onClick={() => setIsSelectorOpen(true)}
+                          disabled={isGenerating}
+                        >
+                            <BookOpen className="w-4 h-4" />
+                            내 영어지문 불러오기
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="flex-1 gap-2 h-12"
+                          onClick={() => setIsRegisterOpen(true)}
+                          disabled={isGenerating}
+                        >
+                            <Plus className="w-4 h-4" />
+                            영어지문 등록하기
+                        </Button>
+                    </div>
+
+                    {passage ? (
+                         <div className="relative mt-2 p-4 border rounded-lg bg-gray-50 group">
+                            <div className="flex items-start gap-3">
+                                <FileText className="w-5 h-5 text-gray-500 mt-0.5 shrink-0" />
+                                <div className="space-y-1 min-w-0 flex-1">
+                                    <h4 className="font-medium text-sm truncate">
+                                        {selectedPassage?.title_ko || selectedPassage?.title_en || "선택된 지문"}
+                                    </h4>
+                                    <p className="text-xs text-gray-500 line-clamp-3 leading-relaxed">
+                                        {passage}
+                                    </p>
+                                </div>
+                                <div className="shrink-0 text-green-600">
+                                   <CheckCircle2 className="w-5 h-5" />
+                                </div>
+                            </div>
+                         </div>
+                    ) : (
+                        <div className="mt-2 p-8 border-2 border-dashed rounded-lg text-center text-gray-400 bg-gray-50/50">
+                            <p className="text-sm">지문을 불러오거나 등록해주세요</p>
+                        </div>
+                    )}
+                </div>
+
+                <div className="border-t my-4" />
+
                 {/* Problem Type Selection */}
                 <div className="space-y-3">
                   <Label className="text-base font-semibold">
@@ -344,26 +412,6 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
                   </div>
                 </div>
 
-                {/* Passage Input */}
-                <div className="space-y-2">
-                  <Label htmlFor="passage">
-                    지문 텍스트 <span className="text-red-500">*</span>
-                    <span className={passage.length > 3000 ? "text-red-500 ml-2" : "text-gray-400 ml-2"}>
-                      ({passage.length}/3000)
-                    </span>
-                  </Label>
-                  <Textarea 
-                    id="passage" 
-                    placeholder="영어 지문을 입력하세요..." 
-                    className="min-h-[200px] font-mono text-sm"
-                    value={passage}
-                    onChange={(e) => setPassage(e.target.value)}
-                    maxLength={3000}
-                    disabled={isGenerating}
-                    required
-                  />
-                </div>
-
                 {/* Grade and Difficulty */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -398,51 +446,25 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
                   </div>
                 </div>
 
-                {/* Question Text Forward/Backward */}
-                <div className="space-y-2">
-                  <Label htmlFor="questionTextForward">문제 앞 텍스트 (선택)</Label>
-                  <Textarea
-                    id="questionTextForward"
-                    placeholder="문제 앞에 박스로 표시될 텍스트를 입력하세요..."
-                    className="min-h-[80px] font-mono text-sm"
-                    value={questionTextForward}
-                    onChange={(e) => setQuestionTextForward(e.target.value)}
-                    disabled={isGenerating}
-                  />
-                  <p className="text-xs text-gray-500">입력한 내용이 문제 앞에 배경색 박스로 표시됩니다.</p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="questionTextBackward">문제 뒤 텍스트 (선택)</Label>
-                  <Textarea
-                    id="questionTextBackward"
-                    placeholder="문제 뒤에 박스로 표시될 텍스트를 입력하세요..."
-                    className="min-h-[80px] font-mono text-sm"
-                    value={questionTextBackward}
-                    onChange={(e) => setQuestionTextBackward(e.target.value)}
-                    disabled={isGenerating}
-                  />
-                  <p className="text-xs text-gray-500">입력한 내용이 문제 뒤에 배경색 박스로 표시됩니다.</p>
-                </div>
-
                 <Button 
                   type="submit" 
-                  className="w-full" 
-                  disabled={isGenerating || selectedTypeIds.length === 0}
+                  className="w-full text-lg h-12 mt-4" 
+                  disabled={isGenerating || selectedTypeIds.length === 0 || !passage}
                 >
                   {isGenerating ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      생성 중...
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      문제 생성 중...
                     </>
                   ) : (
-                    '문제 생성'
+                    '문제 생성 시작'
                   )}
                 </Button>
               </form>
             </CardContent>
           </Card>
         </div>
+
 
         {/* Preview Area */}
         <div className="space-y-6">
@@ -573,6 +595,18 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PassageSelectorModal
+        open={isSelectorOpen}
+        onOpenChange={setIsSelectorOpen}
+        onSelect={handlePassageSelect}
+      />
+
+      <PassageRegisterModal
+        open={isRegisterOpen}
+        onOpenChange={setIsRegisterOpen}
+        onSuccess={handlePassageRegisterSuccess}
+      />
     </>
   )
 }

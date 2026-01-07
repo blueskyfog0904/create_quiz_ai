@@ -56,6 +56,11 @@ const menuItems = [
     href: '/admin/support', 
     icon: MessageSquare 
   },
+  { 
+    name: '표기값 관리', 
+    href: '/admin/labels', 
+    icon: Settings 
+  },
 ]
 
 export function AdminSidebar() {
