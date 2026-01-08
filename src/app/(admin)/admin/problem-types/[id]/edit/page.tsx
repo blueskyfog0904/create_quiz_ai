@@ -1,8 +1,13 @@
-import { createClient } from '@/lib/supabase/server'
-import ProblemTypesClient from './problem-types-client'
 import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import ProblemTypeFormClient from './problem-type-form-client'
 
-export default async function ProblemTypesPage() {
+interface PageProps {
+  params: Promise<{ id: string }>
+}
+
+export default async function EditProblemTypePage({ params }: PageProps) {
+  const { id } = await params
   const supabase = await createClient()
   
   // Check authentication and admin status
@@ -19,22 +24,23 @@ export default async function ProblemTypesPage() {
     .single()
 
   if (!profile?.is_admin) {
-    // Redirect to home or show unauthorized
     redirect('/')
-    // Alternatively, return an unauthorized UI
-    // return <div>Unauthorized Access</div>
   }
 
-  const { data: types } = await supabase
+  // Fetch problem type
+  const { data: problemType } = await supabase
     .from('problem_types')
     .select('*')
-    .order('created_at', { ascending: false })
+    .eq('id', id)
+    .single()
+
+  if (!problemType) {
+    redirect('/admin/problem-types')
+  }
 
   return (
     <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">문제 유형 관리</h1>
-      <ProblemTypesClient initialTypes={types || []} />
+      <ProblemTypeFormClient problemType={problemType} />
     </div>
   )
 }
-
