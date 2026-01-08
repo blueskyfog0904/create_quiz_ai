@@ -440,9 +440,9 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
                     </Label>
                     <Button
                         type="button"
-                        variant="ghost"
+                        variant={selectedTypeIds.length === problemTypes.length ? "outline" : "default"}
                         size="sm"
-                        className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                        className="h-8 text-xs"
                         onClick={() => {
                             if (selectedTypeIds.length === problemTypes.length) {
                                 setSelectedTypeIds([])
