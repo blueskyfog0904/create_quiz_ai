@@ -580,14 +580,30 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
 
                 <div className="border-t my-4" />
 
-                {/* Problem Type Selection */}
                 <div className="space-y-3">
-                  <Label className="text-base font-semibold">
-                    문제 유형 선택 <span className="text-red-500">*</span>
-                    <span className="text-sm text-gray-500 ml-2">
-                      ({selectedTypeIds.length}개 선택됨)
-                    </span>
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold">
+                        문제 유형 선택 <span className="text-red-500">*</span>
+                        <span className="text-sm text-gray-500 ml-2">
+                        ({selectedTypeIds.length}개 선택됨)
+                        </span>
+                    </Label>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                            if (selectedTypeIds.length === problemTypes.length) {
+                                setSelectedTypeIds([])
+                            } else {
+                                setSelectedTypeIds(problemTypes.map(pt => pt.id))
+                            }
+                        }}
+                    >
+                        {selectedTypeIds.length === problemTypes.length ? '전체 해제' : '전체 선택'}
+                    </Button>
+                  </div>
                   <div className="border rounded-lg p-4 space-y-3 max-h-[300px] overflow-y-auto">
                     {problemTypes.length === 0 ? (
                       <p className="text-sm text-gray-500 text-center py-4">
