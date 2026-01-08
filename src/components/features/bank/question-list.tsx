@@ -235,7 +235,7 @@ export function QuestionActionBar({
     }
 
     return (
-        <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b py-3 -mx-4 px-4 mb-4">
+        <div className="py-2">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <Button
