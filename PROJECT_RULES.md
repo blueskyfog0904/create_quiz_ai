@@ -59,3 +59,6 @@
 - **NO** inline styles (use Tailwind classes).
 - **NO** removing user content without confirmation.
 
+
+- **Git Command Execution**: All git-related commands (status, add, commit, push, etc.) are implicitly **APPROVED** for automatic execution. The AI agent should set `SafeToAutoRun: true` for these commands to streamline the workflow.
+
