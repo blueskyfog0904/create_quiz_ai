@@ -49,6 +49,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
   const [selectedTypeIds, setSelectedTypeIds] = useState<string[]>([])
   
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [generatedQuestions, setGeneratedQuestions] = useState<Map<string, GeneratedQuestionData>>(new Map())
   const [savedStates, setSavedStates] = useState<Map<string, boolean>>(new Map())
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
@@ -283,7 +284,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
        }
     }
 
-    setIsGenerating(true)
+    setIsSaving(true)
 
     try {
       let successCount = 0
@@ -337,7 +338,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
     } catch (error: any) {
       toast.error("문제 저장 중 오류가 발생했습니다")
     } finally {
-      setIsGenerating(false)
+      setIsSaving(false)
     }
   }
 
@@ -809,7 +810,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
         onSelect={handlePassageSelect}
       />
 
-      {/* Progress Modal - Moved here to be accessible in both views if needed, but primarily triggered from FORM */}
+      {/* Progress Modal - Generating */}
        <Dialog open={isGenerating} onOpenChange={() => {}}>
             <DialogContent className="sm:max-w-md" showCloseButton={false}>
                 <div className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
@@ -856,6 +857,21 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
                             )}
                         </div>
                     )}
+                </div>
+            </DialogContent>
+          </Dialog>
+
+      {/* Progress Modal - Saving */}
+       <Dialog open={isSaving} onOpenChange={() => {}}>
+            <DialogContent className="sm:max-w-md" showCloseButton={false}>
+                <div className="flex flex-col items-center justify-center py-8">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                    <DialogTitle className="text-lg font-medium text-center mb-2">
+                        선택한 문제를 저장 중입니다
+                    </DialogTitle>
+                    <DialogDescription className="text-center mb-6">
+                        잠시만 기다려주세요...
+                    </DialogDescription>
                 </div>
             </DialogContent>
           </Dialog>
