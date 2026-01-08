@@ -32,9 +32,7 @@ export default async function GenerateWithTypePage({ params }: { params: Promise
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <h1 className="text-3xl font-bold">{problemType.type_name}</h1>
-          <Badge variant={problemType.provider === 'openai' ? 'default' : 'secondary'}>
-            {problemType.provider === 'openai' ? 'OpenAI' : 'Gemini'}
-          </Badge>
+
         </div>
         {problemType.description && (
           <p className="text-gray-600">{problemType.description}</p>

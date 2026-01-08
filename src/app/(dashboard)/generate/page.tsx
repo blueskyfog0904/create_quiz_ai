@@ -61,9 +61,6 @@ export default async function GeneratePage() {
                 <CardHeader>
                   <div className="flex justify-between items-start mb-2">
                     <CardTitle className="text-xl">{type.type_name}</CardTitle>
-                    <Badge variant={type.provider === 'openai' ? 'default' : 'secondary'}>
-                      {type.provider === 'openai' ? 'OpenAI' : 'Gemini'}
-                    </Badge>
                   </div>
                   {type.description && (
                     <CardDescription className="line-clamp-3">
