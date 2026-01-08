@@ -356,7 +356,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
+    <div className={`${viewMode === 'RESULT' ? 'max-w-[1700px]' : 'max-w-5xl'} mx-auto space-y-8`}>
       {/* Input Form */}
       <div className="space-y-6">
       {viewMode === 'FORM' && (
