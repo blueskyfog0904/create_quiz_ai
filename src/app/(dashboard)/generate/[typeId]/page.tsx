@@ -37,11 +37,8 @@ export default async function GenerateWithTypePage({ params }: { params: Promise
           </Badge>
         </div>
         {problemType.description && (
-          <p className="text-gray-600 mb-2">{problemType.description}</p>
+          <p className="text-gray-600">{problemType.description}</p>
         )}
-        <p className="text-sm text-gray-500">
-          Model: {problemType.model_name}
-        </p>
       </div>
       
       <GenerateClient problemType={problemType} />

@@ -71,13 +71,6 @@ export default async function GeneratePage() {
                     </CardDescription>
                   )}
                 </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-gray-600">
-                    <p className="font-mono text-xs bg-gray-50 p-2 rounded line-clamp-2">
-                      Model: {type.model_name}
-                    </p>
-                  </div>
-                </CardContent>
               </Card>
             </Link>
           ))}
