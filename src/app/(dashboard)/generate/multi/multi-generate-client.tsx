@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from '@/components/ui/label'
@@ -13,10 +13,10 @@ import { QuestionPreview } from '@/components/features/quiz/question-preview'
 import { Database } from '@/types/supabase'
 import { Question } from '@/lib/ai/types'
 import { useRouter } from 'next/navigation'
-import { Loader2, BookOpen, Plus, FileText, CheckCircle2 } from 'lucide-react'
+import { Loader2, BookOpen, Plus, FileText, CheckCircle2, X, ChevronLeft } from 'lucide-react'
 import { PassageSelectorModal } from '@/components/features/passages/passage-selector-modal'
-import { PassageRegisterModal } from '@/components/features/passages/passage-register-modal'
 import { Passage } from '@/app/api/passages/actions'
+import { Textarea } from '@/components/ui/textarea'
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
 
@@ -35,6 +35,11 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
   const [passage, setPassage] = useState('')
   const [selectedPassage, setSelectedPassage] = useState<Passage | null>(null)
   
+  // AbortController ref for cancelling generation
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  const [viewMode, setViewMode] = useState<'FORM' | 'RESULT'>('FORM')
+  
   const [gradeLevel, setGradeLevel] = useState('High1')
   const [difficulty, setDifficulty] = useState('Medium')
   const [selectedTypeIds, setSelectedTypeIds] = useState<string[]>([])
@@ -46,7 +51,6 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
   const [generatingProgress, setGeneratingProgress] = useState({ current: 0, total: 0, currentType: '' })
 
   const [isSelectorOpen, setIsSelectorOpen] = useState(false)
-  const [isRegisterOpen, setIsRegisterOpen] = useState(false)
 
   const handleTypeToggle = (typeId: string, checked: boolean) => {
     if (checked) {
@@ -58,17 +62,16 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
 
   const handlePassageSelect = (p: Passage) => {
     setSelectedPassage(p)
-    setPassage(p.content)
+    // Format content: replace single newlines with spaces to make sentences continuous,
+    // but preserve double newlines (paragraphs) if needed.
+    // The regex looks for a single newline surrounded by non-newlines and replaces it with a space.
+    const formattedContent = p.content.replace(/([^\n])\n([^\n])/g, '$1 $2')
+    setPassage(formattedContent)
     setIsSelectorOpen(false)
     toast.success('지문이 선택되었습니다')
   }
 
-  const handlePassageRegisterSuccess = (p: Passage) => {
-    setSelectedPassage(p)
-    setPassage(p.content)
-    setIsRegisterOpen(false)
-    // toast handled in modal
-  }
+
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -83,6 +86,10 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
       return
     }
 
+    // Create new AbortController
+    abortControllerRef.current = new AbortController()
+    const signal = abortControllerRef.current.signal
+
     setIsGenerating(true)
     setGeneratedQuestions(new Map())
     setSavedStates(new Map())
@@ -93,6 +100,11 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
       const results = []
       
       for (let i = 0; i < selectedTypeIds.length; i++) {
+        // Check if aborted before starting next iteration
+        if (signal.aborted) {
+            throw new Error('Generation cancelled')
+        }
+
         const typeId = selectedTypeIds[i]
         const problemType = problemTypes.find(pt => pt.id === typeId)
         
@@ -106,7 +118,13 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
         try {
           // 첫 번째 요청이 아닌 경우 1초 대기 (rate limit 방지)
           if (i > 0) {
-            await new Promise(resolve => setTimeout(resolve, 1000))
+            await new Promise((resolve, reject) => {
+                const timeoutId = setTimeout(resolve, 1000)
+                signal.addEventListener('abort', () => {
+                    clearTimeout(timeoutId)
+                    reject(new Error('Generation cancelled'))
+                })
+            })
           }
 
           const res = await fetch('/api/questions/generate', {
@@ -117,7 +135,8 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
               gradeLevel,
               difficulty,
               problemTypeId: typeId
-            })
+            }),
+            signal // Pass the abort signal
           })
 
           const data = await res.json()
@@ -173,19 +192,35 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
         }
       })
 
-      if (successCount > 0 && failCount === 0) {
+      if (successCount > 0) {
         toast.success(`모든 문제가 생성되었습니다! (${successCount}개)`)
+        setViewMode('RESULT')
       } else if (successCount > 0 && failCount > 0) {
         toast.info(`${successCount}개 생성 완료, ${failCount}개 실패`)
+        setViewMode('RESULT')
       } else if (failCount === selectedTypeIds.length) {
         toast.error("모든 문제 생성에 실패했습니다. 다시 시도해주세요.")
       }
 
     } catch (error: any) {
-      console.error(error)
-      toast.error("문제 생성 중 오류가 발생했습니다")
+        if (error.name === 'AbortError' || error.message === 'Generation cancelled') {
+            console.log('Generation cancelled by user')
+            // Toast handled in handleCancelGeneration
+        } else {
+            console.error(error)
+            toast.error("문제 생성 중 오류가 발생했습니다")
+        }
     } finally {
       setIsGenerating(false)
+      abortControllerRef.current = null
+    }
+  }
+
+  const handleCancelGeneration = () => {
+    if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        toast.info("문제 생성을 중단했습니다")
+        // State cleanup handled in catch/finally block of handleGenerate
     }
   }
 
@@ -293,6 +328,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
     setShowSuccessDialog(false)
     setGeneratedQuestions(new Map())
     setSavedStates(new Map())
+    setViewMode('FORM')
     // Do not clear passage/type selection for faster re-generation if desired, 
     // or clear if user wants fresh start. Let's keep passage but clear results.
     // User can change passage if they want.
@@ -302,11 +338,105 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
     router.push('/exam-papers')
   }
 
+  if (viewMode === 'RESULT') {
+    return (
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex items-center gap-4">
+            <Button 
+                variant="ghost" 
+                onClick={() => setViewMode('FORM')}
+                className="gap-2 pl-2"
+            >
+                <ChevronLeft className="w-5 h-5" />
+                문제 생성 옵션으로 돌아가기
+            </Button>
+            <h1 className="text-2xl font-bold">생성된 문제 목록</h1>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+             {Array.from(generatedQuestions.entries()).map(([typeId, questionData]) => (
+                <Card key={typeId} className="border-2 flex flex-col">
+                  <CardHeader className="bg-gray-50 border-b">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-lg">{questionData.problemType.type_name}</CardTitle>
+                        <Badge variant={questionData.problemType.provider === 'openai' ? 'default' : 'secondary'}>
+                          {questionData.problemType.provider === 'openai' ? 'OpenAI' : 'Gemini'}
+                        </Badge>
+                        {savedStates.get(typeId) && (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                            저장됨
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-6 flex-1">
+                    <QuestionPreview 
+                      question={questionData.question} 
+                      onSave={() => handleSaveIndividual(typeId)}
+                      isSaving={false} // Loading logic handled in parent? Actually savedStates usage is correct here
+                      showSaveButton={!savedStates.get(typeId)}
+                    />
+                  </CardContent>
+                </Card>
+              ))}
+        </div>
+
+        {/* Save All Button (Fixed at bottom or static) */}
+        <div className="sticky bottom-4 z-10 text-center pointer-events-none">
+            <div className="inline-block shadow-lg rounded-xl overflow-hidden pointer-events-auto">
+            <Card className="border-2 border-primary">
+                <CardContent className="p-4 flex items-center gap-6">
+                    <div className="text-left">
+                        <p className="font-bold text-lg">
+                        총 {generatedQuestions.size}문제 생성됨
+                        </p>
+                        <p className="text-sm text-gray-500">
+                        {Array.from(savedStates.values()).filter(Boolean).length}개 저장 완료
+                        </p>
+                    </div>
+                    <Button 
+                        onClick={handleSaveAll}
+                        disabled={isGenerating || Array.from(savedStates.values()).filter(Boolean).length === generatedQuestions.size}
+                        size="lg"
+                        className="bg-primary hover:bg-primary/90 text-white min-w-[120px]"
+                    >
+                        전체 저장
+                    </Button>
+                </CardContent>
+            </Card>
+            </div>
+        </div>
+        
+         {/* Success Dialog */}
+        <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+            <DialogContent>
+            <DialogHeader>
+                <DialogTitle>문제가 저장되었습니다</DialogTitle>
+                <DialogDescription>
+                다음 단계를 선택해주세요.
+                </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex gap-2">
+                <Button variant="outline" onClick={handleContinueGeneration}>
+                문제 계속 만들기
+                </Button>
+                <Button onClick={handleGoToExamPaper}>
+                문제지 생성 페이지로 이동
+                </Button>
+            </DialogFooter>
+            </DialogContent>
+        </Dialog>
+      </div>
+    )
+  }
+
   return (
-    <>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        {/* Input Form */}
-        <div className="space-y-6">
+    <div className="max-w-5xl mx-auto space-y-8">
+      {/* Input Form */}
+      <div className="space-y-6">
+      {viewMode === 'FORM' && (
           <Card>
             <CardContent className="p-6 space-y-4">
               <h2 className="text-xl font-semibold mb-4">문제 생성 옵션</h2>
@@ -334,7 +464,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
                           type="button"
                           variant="outline"
                           className="flex-1 gap-2 h-12"
-                          onClick={() => setIsRegisterOpen(true)}
+                          onClick={() => router.push('/library/mypassages')}
                           disabled={isGenerating}
                         >
                             <Plus className="w-4 h-4" />
@@ -342,28 +472,37 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
                         </Button>
                     </div>
 
-                    {passage ? (
-                         <div className="relative mt-2 p-4 border rounded-lg bg-gray-50 group">
-                            <div className="flex items-start gap-3">
-                                <FileText className="w-5 h-5 text-gray-500 mt-0.5 shrink-0" />
-                                <div className="space-y-1 min-w-0 flex-1">
-                                    <h4 className="font-medium text-sm truncate">
-                                        {selectedPassage?.title_ko || selectedPassage?.title_en || "선택된 지문"}
-                                    </h4>
-                                    <p className="text-xs text-gray-500 line-clamp-3 leading-relaxed">
-                                        {passage}
-                                    </p>
+                    <div className="mt-4 space-y-2">
+                        {passage || selectedPassage ? (
+                            <>
+                                <div className="flex items-center justify-between">
+                                    <Label className="text-sm font-medium text-gray-500">
+                                        지문 내용 (직접 수정 가능)
+                                    </Label>
+                                    {selectedPassage && (
+                                        <Badge variant="secondary" className="text-xs font-normal">
+                                            불러온 지문: {selectedPassage.title_ko || selectedPassage.title_en || '제목 없음'}
+                                        </Badge>
+                                    )}
                                 </div>
-                                <div className="shrink-0 text-green-600">
-                                   <CheckCircle2 className="w-5 h-5" />
-                                </div>
+                                <Textarea 
+                                    value={passage}
+                                    onChange={(e) => setPassage(e.target.value)}
+                                    placeholder="지문을 불러오거나 여기에 직접 입력하세요."
+                                    className="min-h-[300px] text-base leading-relaxed p-4 font-serif resize-y focus:ring-primary/20"
+                                />
+                                <p className="text-xs text-gray-400 text-right">
+                                    {passage.length}자
+                                </p>
+                            </>
+                        ) : (
+                             <div className="mt-2 p-12 border-2 border-dashed rounded-lg text-center text-gray-400 bg-gray-50/50 flex flex-col items-center justify-center gap-2">
+                                <FileText className="w-8 h-8 opacity-50 mb-2" />
+                                <p className="text-sm font-medium">지문을 선택하면 이곳에 내용이 표시됩니다</p>
+                                <p className="text-xs text-gray-400">위 버튼을 클릭하여 지문을 불러오거나 등록해주세요</p>
                             </div>
-                         </div>
-                    ) : (
-                        <div className="mt-2 p-8 border-2 border-dashed rounded-lg text-center text-gray-400 bg-gray-50/50">
-                            <p className="text-sm">지문을 불러오거나 등록해주세요</p>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
 
                 <div className="border-t my-4" />
@@ -460,121 +599,92 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
                     '문제 생성 시작'
                   )}
                 </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
 
-
-        {/* Preview Area */}
-        <div className="space-y-6">
-          {/* Loading Progress Card */}
-          {isGenerating && (
-            <Card className="min-h-[200px] flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10 border-2 border-primary/20">
-              <div className="text-center p-8 w-full max-w-md">
-                <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
-                <p className="text-lg font-medium text-primary mb-2">
-                  AI가 문제를 생성 중에 있습니다
-                </p>
-                <p className="text-sm text-gray-600 mb-4">
-                  잠시만 기다려주세요...
-                </p>
-                
-                {generatingProgress.total > 0 && (
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">진행 상황</span>
-                      <span className="font-medium text-primary">
-                        {generatingProgress.current} / {generatingProgress.total}
-                      </span>
-                    </div>
-                    
-                    {/* Progress Bar */}
-                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                      <div 
-                        className="bg-primary h-2.5 rounded-full transition-all duration-300"
-                        style={{ width: `${(generatingProgress.current / generatingProgress.total) * 100}%` }}
-                      />
-                    </div>
-                    
-                    {generatingProgress.currentType && (
-                      <p className="text-xs text-gray-500 mt-2">
-                        현재 생성 중: <span className="font-medium text-gray-700">{generatingProgress.currentType}</span>
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
+                </form>
+              </CardContent>
             </Card>
-          )}
+      )}
+      </div>
 
-          {/* Generated Questions */}
-          {generatedQuestions.size > 0 ? (
-            <>
-              {Array.from(generatedQuestions.entries()).map(([typeId, questionData]) => (
-                <Card key={typeId} className="border-2">
-                  <CardHeader className="bg-gray-50 border-b">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="text-lg">{questionData.problemType.type_name}</CardTitle>
-                        <Badge variant={questionData.problemType.provider === 'openai' ? 'default' : 'secondary'}>
-                          {questionData.problemType.provider === 'openai' ? 'OpenAI' : 'Gemini'}
+
+      {generatedQuestions.size > 0 && viewMode === 'FORM' && (
+         <div className="fixed bottom-8 right-8 z-50 animate-in fade-in slide-in-from-bottom-4">
+             <Button 
+                onClick={() => setViewMode('RESULT')}
+                size="lg"
+                className="shadow-xl"
+             >
+                생성된 문제 보기 ({generatedQuestions.size})
+             </Button>
+         </div>
+      )}
+
+      {viewMode === 'RESULT' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold">생성된 문제</h2>
+            <Button variant="outline" onClick={() => setViewMode('FORM')}>
+              <ChevronLeft className="mr-2 h-4 w-4" />
+              문제 생성 폼으로 돌아가기
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> {/* Apply 2-column grid */}
+            {Array.from(generatedQuestions.entries()).map(([typeId, questionData]) => (
+              <Card key={typeId} className="border-2">
+                <CardHeader className="bg-gray-50 border-b">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-lg">{questionData.problemType.type_name}</CardTitle>
+                      <Badge variant={questionData.problemType.provider === 'openai' ? 'default' : 'secondary'}>
+                        {questionData.problemType.provider === 'openai' ? 'OpenAI' : 'Gemini'}
+                      </Badge>
+                      {savedStates.get(typeId) && (
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                          저장됨
                         </Badge>
-                        {savedStates.get(typeId) && (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                            저장됨
-                          </Badge>
-                        )}
-                      </div>
+                      )}
                     </div>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <QuestionPreview 
-                      question={questionData.question} 
-                      onSave={() => handleSaveIndividual(typeId)}
-                      isSaving={false}
-                      showSaveButton={!savedStates.get(typeId)}
-                    />
-                  </CardContent>
-                </Card>
-              ))}
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <QuestionPreview 
+                    question={questionData.question} 
+                    onSave={() => handleSaveIndividual(typeId)}
+                    isSaving={false} // Loading logic handled in parent? Actually savedStates usage is correct here
+                    showSaveButton={!savedStates.get(typeId)}
+                  />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
 
-              {/* Save All Button */}
-              <div className="sticky bottom-4 z-10">
-                <Card className="border-2 border-primary shadow-lg">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">
-                          총 {generatedQuestions.size}개의 문제 생성 완료
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {Array.from(savedStates.values()).filter(Boolean).length}개 저장됨
-                        </p>
+          {/* Save All Button */}
+          <div className="sticky bottom-4 z-10 text-center">
+              <div className="inline-block shadow-lg rounded-xl overflow-hidden">
+                  <Card className="border-2 border-primary">
+                  <CardContent className="p-4 flex items-center gap-6">
+                      <div className="text-left">
+                          <p className="font-bold text-lg">
+                          총 {generatedQuestions.size}문제 생성됨
+                          </p>
+                          <p className="text-sm text-gray-500">
+                          {Array.from(savedStates.values()).filter(Boolean).length}개 저장 완료
+                          </p>
                       </div>
                       <Button 
-                        onClick={handleSaveAll}
-                        disabled={isGenerating || Array.from(savedStates.values()).filter(Boolean).length === generatedQuestions.size}
-                        size="lg"
+                          onClick={handleSaveAll}
+                          disabled={isGenerating || Array.from(savedStates.values()).filter(Boolean).length === generatedQuestions.size}
+                          size="lg"
+                          className="bg-primary hover:bg-primary/90 text-white min-w-[120px]"
                       >
-                        전체 저장
+                          전체 저장
                       </Button>
-                    </div>
                   </CardContent>
-                </Card>
+                  </Card>
               </div>
-            </>
-          ) : !isGenerating && (
-            <Card className="h-full min-h-[400px] flex items-center justify-center bg-gray-50 border-dashed border-2">
-              <div className="text-center text-gray-400 p-8">
-                <p className="text-lg font-medium mb-2">문제 생성 준비 완료</p>
-                <p className="text-sm">문제 유형을 선택하고 지문을 작성한 후</p>
-                <p className="text-sm">문제 생성 버튼을 클릭하세요.</p>
-              </div>
-            </Card>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Success Dialog */}
       <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
@@ -602,12 +712,58 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
         onSelect={handlePassageSelect}
       />
 
-      <PassageRegisterModal
-        open={isRegisterOpen}
-        onOpenChange={setIsRegisterOpen}
-        onSuccess={handlePassageRegisterSuccess}
-      />
-    </>
+      {/* Progress Modal - Moved here to be accessible in both views if needed, but primarily triggered from FORM */}
+       <Dialog open={isGenerating} onOpenChange={() => {}}>
+            <DialogContent className="sm:max-w-md" showCloseButton={false}>
+                <div className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6" 
+                        onClick={handleCancelGeneration}
+                    >
+                        <X className="h-4 w-4" />
+                        <span className="sr-only">Close</span>
+                    </Button>
+                </div>
+                
+                <div className="flex flex-col items-center justify-center py-8">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                    <DialogTitle className="text-lg font-medium text-center mb-2">
+                        AI가 문제를 생성 중에 있습니다
+                    </DialogTitle>
+                    <DialogDescription className="text-center mb-6">
+                        잠시만 기다려주세요...
+                    </DialogDescription>
+                    
+                    {generatingProgress.total > 0 && (
+                        <div className="w-full space-y-3 px-4">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-600">진행 상황</span>
+                                <span className="font-medium text-primary">
+                                    {generatingProgress.current} / {generatingProgress.total}
+                                </span>
+                            </div>
+                            
+                            <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                <div 
+                                    className="bg-primary h-2.5 rounded-full transition-all duration-300"
+                                    style={{ width: `${(generatingProgress.current / generatingProgress.total) * 100}%` }}
+                                />
+                            </div>
+                            
+                            {generatingProgress.currentType && (
+                                <p className="text-xs text-gray-500 mt-2 text-center">
+                                    현재 생성 중: <span className="font-medium text-gray-700">{generatingProgress.currentType}</span>
+                                </p>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </DialogContent>
+          </Dialog>
+
+    </div>
   )
 }
 
