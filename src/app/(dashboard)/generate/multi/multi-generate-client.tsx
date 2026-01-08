@@ -353,7 +353,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
   }
 
   const handleGoToExamPaper = () => {
-    router.push('/library/exam-papers')
+    router.push('/library/purchased')
   }
 
   return (
@@ -798,7 +798,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
               문제 계속 만들기
             </Button>
             <Button onClick={handleGoToExamPaper}>
-              문제지 생성 페이지로 이동
+              생성한 문제 확인하기
             </Button>
           </DialogFooter>
         </DialogContent>
