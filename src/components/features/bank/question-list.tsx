@@ -235,62 +235,64 @@ export function QuestionActionBar({
     }
 
     return (
-        <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+        <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b py-3 -mx-4 px-4 mb-4">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={onSelectAll}
+                    >
+                        {selectedCount > 0 && selectedCount === totalCount ? '전체 해제' : '전체 선택'}
+                    </Button>
+                    <span className="text-xs text-gray-600">
+                        {selectedCount}개 선택됨
+                    </span>
+
+                    {/* Zoom Slider Control */}
+                    <div className="flex items-center gap-2 ml-3 pl-3 border-l">
+                        <span className="text-xs font-medium w-12 text-center">{scale}%</span>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 rounded-full"
+                            onClick={() => adjustScale(-10)}
+                            disabled={scale <= 50}
+                        >
+                            <Minus className="h-3 w-3" />
+                        </Button>
+
+                        <input
+                            type="range"
+                            min="50"
+                            max="150"
+                            step="10"
+                            value={scale}
+                            onChange={(e) => onScaleChange(Number(e.target.value))}
+                            className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary"
+                        />
+
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 rounded-full"
+                            onClick={() => adjustScale(10)}
+                            disabled={scale >= 150}
+                        >
+                            <Plus className="h-3 w-3" />
+                        </Button>
+                    </div>
+                </div>
                 <Button
-                    variant="outline"
                     size="sm"
                     className="text-xs h-7"
-                    onClick={onSelectAll}
+                    onClick={onCreateExamPaper}
+                    disabled={selectedCount === 0}
                 >
-                    {selectedCount > 0 && selectedCount === totalCount ? '전체 해제' : '전체 선택'}
+                    선택한 문제로 시험지 만들기
                 </Button>
-                <span className="text-xs text-gray-600">
-                    {selectedCount}개 선택됨
-                </span>
-
-                {/* Zoom Slider Control */}
-                <div className="flex items-center gap-2 ml-3 pl-3 border-l">
-                    <span className="text-xs font-medium w-12 text-center">{scale}%</span>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 rounded-full"
-                        onClick={() => adjustScale(-10)}
-                        disabled={scale <= 50}
-                    >
-                        <Minus className="h-3 w-3" />
-                    </Button>
-
-                    <input
-                        type="range"
-                        min="50"
-                        max="150"
-                        step="10"
-                        value={scale}
-                        onChange={(e) => onScaleChange(Number(e.target.value))}
-                        className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary"
-                    />
-
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 rounded-full"
-                        onClick={() => adjustScale(10)}
-                        disabled={scale >= 150}
-                    >
-                        <Plus className="h-3 w-3" />
-                    </Button>
-                </div>
             </div>
-            <Button
-                size="sm"
-                className="text-xs h-7"
-                onClick={onCreateExamPaper}
-                disabled={selectedCount === 0}
-            >
-                선택한 문제로 시험지 만들기
-            </Button>
         </div>
     )
 }

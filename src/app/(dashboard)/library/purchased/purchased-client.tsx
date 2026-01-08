@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { Minus, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { QuestionList } from '@/components/features/bank/question-list'
 import { Database } from '@/types/supabase'
+import { ChevronDown, ChevronUp, Star } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 
 type DBQuestion = Database['public']['Tables']['questions']['Row']
 type ProblemType = {
@@ -26,8 +27,29 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
   const [selectedGrade, setSelectedGrade] = useState<string>('all')
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all')
   const [selectedSource, setSelectedSource] = useState<string>('all')
+  const [selectedRating, setSelectedRating] = useState<string>('all')
+  const [tagFilter, setTagFilter] = useState<string>('')
   const [sortBy, setSortBy] = useState<'latest' | 'oldest'>('latest')
-  const [scale, setScale] = useState(100)
+  
+  // Collapsible filter state
+  const [isFilterExpanded, setIsFilterExpanded] = useState(true)
+  const filterRef = useRef<HTMLDivElement>(null)
+  const lastScrollY = useRef(0)
+
+  // Auto-collapse filter on scroll down
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY
+      if (currentScrollY > lastScrollY.current && currentScrollY > 200) {
+        // Scrolling down and past threshold
+        setIsFilterExpanded(false)
+      }
+      lastScrollY.current = currentScrollY
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   // Filter questions based on selected criteria
   const filteredQuestions = useMemo(() => {
@@ -52,6 +74,22 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
         return false
       }
 
+      // Filter by rating
+      if (selectedRating !== 'all') {
+        const ratingValue = parseInt(selectedRating)
+        if ((question.rating || 0) !== ratingValue) {
+          return false
+        }
+      }
+
+      // Filter by tag
+      if (tagFilter.trim()) {
+        const tags = question.tags || []
+        if (!tags.some(tag => tag.toLowerCase().includes(tagFilter.toLowerCase()))) {
+          return false
+        }
+      }
+
       return true
     })
     
@@ -63,196 +101,180 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
     })
     
     return result
-  }, [questions, selectedTypeId, selectedGrade, selectedDifficulty, selectedSource, sortBy])
+  }, [questions, selectedTypeId, selectedGrade, selectedDifficulty, selectedSource, selectedRating, tagFilter, sortBy])
 
   const handleReset = () => {
     setSelectedTypeId('all')
     setSelectedGrade('all')
     setSelectedDifficulty('all')
     setSelectedSource('all')
+    setSelectedRating('all')
+    setTagFilter('')
     setSortBy('latest')
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex justify-between items-center mb-8">
+    <div className="container mx-auto py-6 px-4">
+      <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold mb-2">내가 구매한 문제</h1>
-          <p className="text-gray-500">저장된 문제를 관리하고 문제지를 만들 수 있습니다.</p>
+          <h1 className="text-2xl font-bold mb-1">내가 구매한 문제</h1>
+          <p className="text-sm text-gray-500">저장된 문제를 관리하고 문제지를 만들 수 있습니다.</p>
         </div>
         <Link href="/generate">
-          <Button>+ 새 문제 생성</Button>
+          <Button size="sm">+ 새 문제 생성</Button>
         </Link>
       </div>
 
-      {/* Filter Section */}
-      <div className="bg-white border rounded-lg p-6 mb-6 shadow-sm">
-        <h2 className="text-lg font-semibold mb-4">필터</h2>
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-          {/* Problem Type Filter */}
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">
-              문제 유형
-            </label>
-            <Select value={selectedTypeId} onValueChange={setSelectedTypeId}>
-              <SelectTrigger>
-                <SelectValue placeholder="전체" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체</SelectItem>
-                {problemTypes.map(type => (
-                  <SelectItem key={type.id} value={type.id}>
-                    {type.type_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      {/* Collapsible Filter Section */}
+      <div ref={filterRef} className="bg-white border rounded-lg shadow-sm mb-4 overflow-hidden transition-all duration-300">
+        {/* Filter Header - Always visible */}
+        <button 
+          onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+          className="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm font-semibold">검색 필터</h2>
+            <span className="text-xs text-gray-500">
+              총 <span className="font-semibold text-primary">{filteredQuestions.length}</span>개의 문제
+              {filteredQuestions.length !== questions.length && (
+                <span className="text-gray-400"> (전체 {questions.length}개 중)</span>
+              )}
+            </span>
           </div>
+          {isFilterExpanded ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+        </button>
 
-          {/* Grade Level Filter */}
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">
-              학년
-            </label>
-            <Select value={selectedGrade} onValueChange={setSelectedGrade}>
-              <SelectTrigger>
-                <SelectValue placeholder="전체" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체</SelectItem>
-                {gradeLevels.map(grade => (
-                  <SelectItem key={grade} value={grade}>
-                    {grade}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {/* Filter Content - Collapsible */}
+        <div className={`transition-all duration-300 ease-in-out ${isFilterExpanded ? 'max-h-[200px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
+          <div className="px-3 pb-3 pt-1">
+            <div className="flex flex-wrap items-end gap-2">
+              {/* Problem Type Filter */}
+              <div className="flex-1 min-w-[100px]">
+                <label className="text-[11px] font-medium text-gray-600 mb-1 block">문제 유형</label>
+                <Select value={selectedTypeId} onValueChange={setSelectedTypeId}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="전체" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    {problemTypes.map(type => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.type_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Grade Level Filter */}
+              <div className="flex-1 min-w-[80px]">
+                <label className="text-[11px] font-medium text-gray-600 mb-1 block">학년</label>
+                <Select value={selectedGrade} onValueChange={setSelectedGrade}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="전체" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    {gradeLevels.map(grade => (
+                      <SelectItem key={grade} value={grade}>
+                        {grade}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Difficulty Filter */}
+              <div className="flex-1 min-w-[80px]">
+                <label className="text-[11px] font-medium text-gray-600 mb-1 block">난이도</label>
+                <Select value={selectedDifficulty} onValueChange={setSelectedDifficulty}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="전체" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    {difficulties.map(difficulty => (
+                      <SelectItem key={difficulty} value={difficulty}>
+                        {difficulty}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Source Filter */}
+              <div className="flex-1 min-w-[90px]">
+                <label className="text-[11px] font-medium text-gray-600 mb-1 block">출처</label>
+                <Select value={selectedSource} onValueChange={setSelectedSource}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="전체" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    <SelectItem value="ai_generated">AI생성</SelectItem>
+                    <SelectItem value="from_community">문제은행</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Rating Filter */}
+              <div className="flex-1 min-w-[80px]">
+                <label className="text-[11px] font-medium text-gray-600 mb-1 block">별점</label>
+                <Select value={selectedRating} onValueChange={setSelectedRating}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="전체" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    <SelectItem value="3">⭐⭐⭐</SelectItem>
+                    <SelectItem value="2">⭐⭐</SelectItem>
+                    <SelectItem value="1">⭐</SelectItem>
+                    <SelectItem value="0">없음</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Tag Filter */}
+              <div className="flex-1 min-w-[100px]">
+                <label className="text-[11px] font-medium text-gray-600 mb-1 block">태그 검색</label>
+                <Input 
+                  value={tagFilter}
+                  onChange={(e) => setTagFilter(e.target.value)}
+                  placeholder="태그 입력..."
+                  className="h-8 text-xs"
+                />
+              </div>
+
+              {/* Sort Filter */}
+              <div className="flex-1 min-w-[80px]">
+                <label className="text-[11px] font-medium text-gray-600 mb-1 block">정렬</label>
+                <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'latest' | 'oldest')}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="latest">최신순</SelectItem>
+                    <SelectItem value="oldest">오래된 순</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Reset Button */}
+              <Button 
+                variant="outline" 
+                onClick={handleReset}
+                size="sm"
+                className="h-8 text-xs px-3"
+              >
+                초기화
+              </Button>
+            </div>
           </div>
-
-          {/* Difficulty Filter */}
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">
-              난이도
-            </label>
-            <Select value={selectedDifficulty} onValueChange={setSelectedDifficulty}>
-              <SelectTrigger>
-                <SelectValue placeholder="전체" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체</SelectItem>
-                {difficulties.map(difficulty => (
-                  <SelectItem key={difficulty} value={difficulty}>
-                    {difficulty}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Source Filter */}
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">
-              출처
-            </label>
-            <Select value={selectedSource} onValueChange={setSelectedSource}>
-              <SelectTrigger>
-                <SelectValue placeholder="전체" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체</SelectItem>
-                <SelectItem value="ai_generated">AI생성문제</SelectItem>
-                <SelectItem value="from_community">문제은행</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Sort Filter */}
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">
-              정렬
-            </label>
-            <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'latest' | 'oldest')}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="latest">최신순</SelectItem>
-                <SelectItem value="oldest">오래된 순</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Reset Button */}
-          <div className="flex items-end">
-            <Button 
-              variant="outline" 
-              onClick={handleReset}
-              className="w-full"
-            >
-              초기화
-            </Button>
-          </div>
-        </div>
-
-        {/* Results Count */}
-        <div className="mt-4 text-sm text-gray-600">
-          총 <span className="font-semibold text-primary">{filteredQuestions.length}</span>개의 문제
-          {filteredQuestions.length !== questions.length && (
-            <span className="text-gray-500"> (전체 {questions.length}개 중)</span>
-          )}
-        </div>
-      </div>
-
-      {/* Zoom Control & Action Bar */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
-          <span className="text-sm font-medium text-muted-foreground">전체 선택</span>
-          <span className="text-sm text-muted-foreground">0개 선택됨</span>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          {/* Zoom Control */}
-          <div className="flex items-center gap-2 border rounded-lg px-3 py-1.5">
-            <span className="text-sm font-medium text-muted-foreground">{scale}%</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => setScale(Math.max(50, scale - 10))}
-              disabled={scale <= 50}
-            >
-              <Minus className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => setScale(Math.min(150, scale + 10))}
-              disabled={scale >= 150}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <Button className="bg-primary text-white">
-            선택한 문제로 +컬렉지 만들기
-          </Button>
         </div>
       </div>
 
-      {/* Question List with Zoom */}
-      <div 
-        className="transition-transform duration-200 origin-top-left"
-        style={{
-          transform: `scale(${scale / 100})`,
-          width: `${100 / (scale / 100)}%`,
-          marginBottom: `${((scale / 100) - 1) * 50}%`
-        }}
-      >
-        <QuestionList questions={filteredQuestions} />
-      </div>
+      {/* Question List */}
+      <QuestionList questions={filteredQuestions} />
     </div>
   )
 }
-
-
