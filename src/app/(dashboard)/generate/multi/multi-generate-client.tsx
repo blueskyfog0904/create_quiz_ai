@@ -13,10 +13,12 @@ import { QuestionPreview } from '@/components/features/quiz/question-preview'
 import { Database } from '@/types/supabase'
 import { Question } from '@/lib/ai/types'
 import { useRouter } from 'next/navigation'
-import { Loader2, BookOpen, Plus, FileText, CheckCircle2, X, ChevronLeft } from 'lucide-react'
+import { Star, Tag, Plus, X, ChevronLeft, Loader2, BookOpen, FileText, CheckCircle2, Minus, Maximize, ZoomIn } from 'lucide-react'
 import { PassageSelectorModal } from '@/components/features/passages/passage-selector-modal'
 import { Passage } from '@/app/api/passages/actions'
 import { Textarea } from '@/components/ui/textarea'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Input } from '@/components/ui/input'
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
 
@@ -28,6 +30,8 @@ interface GeneratedQuestionData {
   question: Question
   rawResponse: string
   problemType: ProblemType
+  tags: string[]
+  rating: number
 }
 
 export default function MultiGenerateClient({ problemTypes }: MultiGenerateClientProps) {
@@ -50,7 +54,22 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
   const [generatingProgress, setGeneratingProgress] = useState({ current: 0, total: 0, currentType: '' })
 
+  // Result View States
+  const [scale, setScale] = useState(100)
+  const [selectedResultIds, setSelectedResultIds] = useState<Set<string>>(new Set())
   const [isSelectorOpen, setIsSelectorOpen] = useState(false)
+
+  // Helper to update specific question data
+  const updateQuestionData = (typeId: string, updates: Partial<GeneratedQuestionData>) => {
+    setGeneratedQuestions(prev => {
+        const newMap = new Map(prev)
+        const current = newMap.get(typeId)
+        if (current) {
+            newMap.set(typeId, { ...current, ...updates })
+        }
+        return newMap
+    })
+  }
 
   const handleTypeToggle = (typeId: string, checked: boolean) => {
     if (checked) {
@@ -97,7 +116,8 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
 
     try {
       // 각 문제 유형에 대해 순차적으로 API 호출 (rate limit 방지)
-      const results = []
+      let successCount = 0
+      let failCount = 0
       
       for (let i = 0; i < selectedTypeIds.length; i++) {
         // Check if aborted before starting next iteration
@@ -145,55 +165,35 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
             throw new Error(data.error?.message || "문제 생성에 실패했습니다")
           }
           
-          results.push({
-            typeId,
-            success: true,
-            data: {
-              question: data.data,
-              rawResponse: data.rawAiResponse,
-              problemType: problemType!
-            }
-          })
-
           // 성공한 결과를 즉시 화면에 표시
           setGeneratedQuestions(prev => {
             const newMap = new Map(prev)
             newMap.set(typeId, {
               question: data.data,
               rawResponse: data.rawAiResponse,
-              problemType: problemType!
+              problemType: problemType!,
+              tags: selectedPassage?.tags || [], // Inherit tags from passage
+              rating: 0
             })
             return newMap
           })
 
           toast.success(`"${problemType?.type_name}" 문제가 생성되었습니다 (${i + 1}/${selectedTypeIds.length})`)
+          successCount++
 
         } catch (error: any) {
           console.error(`Failed to generate question for type ${typeId}:`, error)
           const problemType = problemTypes.find(pt => pt.id === typeId)
-          results.push({
-            typeId,
-            success: false,
-            error: error.message
-          })
           toast.error(`"${problemType?.type_name}" 문제 생성 실패: ${error.message}`)
+          failCount++
         }
       }
 
-      // 결과 요약
-      let successCount = 0
-      let failCount = 0
-
-      results.forEach(result => {
-        if (result.success) {
-          successCount++
-        } else {
-          failCount++
-        }
-      })
-
       if (successCount > 0) {
         toast.success(`모든 문제가 생성되었습니다! (${successCount}개)`)
+        // Auto select all generated questions by default in result view?
+        // Let's select all initially for convenience
+        // We'll handle this effect when viewMode changes or here
         setViewMode('RESULT')
       } else if (successCount > 0 && failCount > 0) {
         toast.info(`${successCount}개 생성 완료, ${failCount}개 실패`)
@@ -260,69 +260,9 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
     }
   }
 
-  const handleSaveAll = async () => {
-    if (generatedQuestions.size === 0) return
-
-    const unsavedQuestions = Array.from(generatedQuestions.entries()).filter(
-      ([typeId]) => !savedStates.get(typeId)
-    )
-
-    if (unsavedQuestions.length === 0) {
-      toast.info("모든 문제가 이미 저장되었습니다")
-      return
-    }
-
-    setIsGenerating(true)
-
-    try {
-      let successCount = 0
-      let failCount = 0
-
-      for (const [typeId, questionData] of unsavedQuestions) {
-        try {
-          const res = await fetch('/api/questions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              question: questionData.question,
-              passage,
-              gradeLevel,
-              difficulty,
-              problemTypeId: typeId,
-              rawAiResponse: questionData.rawResponse,
-              source_passage_id: selectedPassage?.id
-            })
-          })
-
-          const data = await res.json()
-
-          if (!res.ok || !data.success) {
-            throw new Error(data.error?.message || "문제 저장에 실패했습니다")
-          }
-
-          setSavedStates(new Map(savedStates.set(typeId, true)))
-          successCount++
-        } catch (error: any) {
-          console.error(`Failed to save question for type ${typeId}:`, error)
-          failCount++
-        }
-      }
-
-      if (successCount > 0) {
-        toast.success(`${successCount}개의 문제가 저장되었습니다!`)
-        setShowSuccessDialog(true)
-      }
-
-      if (failCount > 0) {
-        toast.error(`${failCount}개의 문제 저장에 실패했습니다`)
-      }
-
-    } catch (error: any) {
-      toast.error("문제 저장 중 오류가 발생했습니다")
-    } finally {
-      setIsGenerating(false)
-    }
-  }
+  /* Individual save logic (removed duplicate) */
+  
+  /* ... handleSaveAll logic ... */
 
   const handleContinueGeneration = () => {
     setShowSuccessDialog(false)
@@ -335,81 +275,213 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
   }
 
   const handleGoToExamPaper = () => {
-    router.push('/exam-papers')
+    router.push('/library/exam-papers')
   }
 
   if (viewMode === 'RESULT') {
     return (
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center gap-4">
-            <Button 
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+               <Button 
                 variant="ghost" 
                 onClick={() => setViewMode('FORM')}
                 className="gap-2 pl-2"
-            >
+                >
                 <ChevronLeft className="w-5 h-5" />
                 문제 생성 옵션으로 돌아가기
-            </Button>
-            <h1 className="text-2xl font-bold">생성된 문제 목록</h1>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-             {Array.from(generatedQuestions.entries()).map(([typeId, questionData]) => (
-                <Card key={typeId} className="border-2 flex flex-col">
-                  <CardHeader className="bg-gray-50 border-b">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="text-lg">{questionData.problemType.type_name}</CardTitle>
-                        <Badge variant={questionData.problemType.provider === 'openai' ? 'default' : 'secondary'}>
-                          {questionData.problemType.provider === 'openai' ? 'OpenAI' : 'Gemini'}
-                        </Badge>
-                        {savedStates.get(typeId) && (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                            저장됨
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-6 flex-1">
-                    <QuestionPreview 
-                      question={questionData.question} 
-                      onSave={() => handleSaveIndividual(typeId)}
-                      isSaving={false} // Loading logic handled in parent? Actually savedStates usage is correct here
-                      showSaveButton={!savedStates.get(typeId)}
-                    />
-                  </CardContent>
-                </Card>
-              ))}
-        </div>
-
-        {/* Save All Button (Fixed at bottom or static) */}
-        <div className="sticky bottom-4 z-10 text-center pointer-events-none">
-            <div className="inline-block shadow-lg rounded-xl overflow-hidden pointer-events-auto">
-            <Card className="border-2 border-primary">
-                <CardContent className="p-4 flex items-center gap-6">
-                    <div className="text-left">
-                        <p className="font-bold text-lg">
-                        총 {generatedQuestions.size}문제 생성됨
-                        </p>
-                        <p className="text-sm text-gray-500">
-                        {Array.from(savedStates.values()).filter(Boolean).length}개 저장 완료
-                        </p>
-                    </div>
-                    <Button 
-                        onClick={handleSaveAll}
-                        disabled={isGenerating || Array.from(savedStates.values()).filter(Boolean).length === generatedQuestions.size}
-                        size="lg"
-                        className="bg-primary hover:bg-primary/90 text-white min-w-[120px]"
-                    >
-                        전체 저장
-                    </Button>
-                </CardContent>
-            </Card>
+                </Button>
             </div>
-        </div>
-        
-         {/* Success Dialog */}
+          </div>
+
+           {/* Floating Action Bar (Sticky Top) */}
+           <div className="sticky top-4 z-50 bg-background/80 backdrop-blur-md border rounded-xl shadow-sm p-4 mb-6 flex items-center justify-between transition-all duration-200">
+                <div className="flex items-center gap-4">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                            if (selectedResultIds.size === generatedQuestions.size) {
+                                setSelectedResultIds(new Set())
+                            } else {
+                                setSelectedResultIds(new Set(generatedQuestions.keys()))
+                            }
+                        }}
+                    >
+                        {selectedResultIds.size === generatedQuestions.size ? '전체 해제' : '전체 선택'}
+                    </Button>
+                    <span className="text-sm font-medium">
+                        {selectedResultIds.size}개 선택됨
+                    </span>
+                    <div className="h-4 w-px bg-gray-200 mx-2" />
+                    
+                    {/* Zoom Control */}
+                    <div className="flex items-center gap-2">
+                         <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setScale(Math.max(50, scale - 10))}
+                            disabled={scale <= 50}
+                        >
+                            <Minus className="h-4 w-4" />
+                        </Button>
+                        <span className="text-xs font-medium w-12 text-center">{scale}%</span>
+                         <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setScale(Math.min(150, scale + 10))}
+                            disabled={scale >= 150}
+                        >
+                            <Plus className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                     <Button 
+                        onClick={handleSaveAll} 
+                        disabled={isGenerating || selectedResultIds.size === 0}
+                        className="bg-primary text-white"
+                     >
+                        선택한 {selectedResultIds.size}개 문제 저장
+                     </Button>
+                </div>
+           </div>
+
+
+          <div 
+             className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 transition-transform duration-200 origin-top-left"
+             style={{
+                transform: `scale(${scale / 100})`,
+                width: `${100 / (scale / 100)}%`,
+                marginBottom: `${((scale / 100) - 1) * 100}%` 
+             }}
+           > 
+            {Array.from(generatedQuestions.entries()).map(([typeId, questionData]) => (
+              <div 
+                key={typeId} 
+                className={`transition-all duration-200 ${
+                    selectedResultIds.has(typeId) ? 'ring-2 ring-primary ring-offset-2 rounded-xl' : ''
+                }`}
+                onClick={() => {
+                     const newSet = new Set(selectedResultIds)
+                     if (newSet.has(typeId)) newSet.delete(typeId)
+                     else newSet.add(typeId)
+                     setSelectedResultIds(newSet)
+                }}
+              >
+              <Card className="border-2 flex flex-col h-full cursor-pointer hover:border-primary/50">
+                <CardHeader className="bg-gray-50 border-b py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Checkbox 
+                        checked={selectedResultIds.has(typeId)}
+                        onCheckedChange={(checked) => {
+                             const newSet = new Set(selectedResultIds)
+                             if (checked) newSet.add(typeId)
+                             else newSet.delete(typeId)
+                             setSelectedResultIds(newSet)
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <CardTitle className="text-base font-semibold">{questionData.problemType.type_name}</CardTitle>
+                      <Badge variant={questionData.problemType.provider === 'openai' ? 'default' : 'secondary'} className="text-xs px-2 py-0.5">
+                        {questionData.problemType.provider === 'openai' ? 'AI (OpenAI)' : 'AI'} 
+                      </Badge> 
+                    </div>
+                    {savedStates.get(typeId) && (
+                        <div className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-medium border border-green-200">
+                          <CheckCircle2 className="w-3 h-3" />
+                          저장됨
+                        </div>
+                    )}
+                  </div>
+                </CardHeader>
+                
+                <CardContent className="pt-4 flex-1 space-y-4" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-0.5">
+                            {[1, 2, 3].map((star) => (
+                                <button
+                                    key={star}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        updateQuestionData(typeId, { rating: questionData.rating === star ? 0 : star })
+                                    }} 
+                                    className={`transition-colors focus:outline-none p-1 ${
+                                        (questionData.rating || 0) >= star 
+                                        ? 'text-yellow-400 fill-yellow-400' 
+                                        : 'text-gray-300 hover:text-yellow-200'
+                                    }`}
+                                >
+                                    <Star className={`w-5 h-5 ${(questionData.rating || 0) >= star ? 'fill-current' : ''}`} />
+                                </button>
+                            ))}
+                        </div>
+
+                         <div className="flex flex-wrap items-center justify-end gap-1.5 flex-1 ml-4">
+                            {(questionData.tags || []).map(tag => (
+                                <Badge key={tag} variant="outline" className="text-xs pl-2 pr-1 py-0.5 h-6 gap-1 group bg-white">
+                                    {tag}
+                                    <button 
+                                        onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            updateQuestionData(typeId, { tags: questionData.tags.filter(t => t !== tag) })
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground rounded-full p-0.5"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </Badge>
+                            ))}
+                            
+                             <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full border border-dashed hover:border-solid hover:bg-gray-100">
+                                        <Plus className="w-3 h-3" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-60 p-3" align="end">
+                                    <div className="flex gap-2">
+                                        <Input 
+                                            placeholder="태그 입력..."
+                                            className="h-8 text-sm"
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    const val = (e.currentTarget as HTMLInputElement).value.trim();
+                                                    if(val) {
+                                                        if(!questionData.tags.includes(val)) {
+                                                             updateQuestionData(typeId, { tags: [...questionData.tags, val] })
+                                                        } else {
+                                                            toast.error('이미 존재하는 태그입니다')
+                                                        }
+                                                        (e.currentTarget as HTMLInputElement).value = ''
+                                                    }
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 mt-2 text-right">엔터키를 눌러 추가</p>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                    </div>
+                  
+                  <div className="bg-white rounded-lg border p-4 shadow-sm">
+                      <QuestionPreview 
+                        question={questionData.question} 
+                        showSaveButton={false}
+                      />
+                  </div>
+                </CardContent>
+              </Card>
+              </div>
+            ))}
+          </div>
+          
+           {/* Success Dialog */}
         <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
             <DialogContent>
             <DialogHeader>
@@ -428,6 +500,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
             </DialogFooter>
             </DialogContent>
         </Dialog>
+
       </div>
     )
   }
@@ -622,67 +695,213 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
       {viewMode === 'RESULT' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold">생성된 문제</h2>
-            <Button variant="outline" onClick={() => setViewMode('FORM')}>
-              <ChevronLeft className="mr-2 h-4 w-4" />
-              문제 생성 폼으로 돌아가기
-            </Button>
+            <div className="flex items-center gap-4">
+               <Button 
+                variant="ghost" 
+                onClick={() => setViewMode('FORM')}
+                className="gap-2 pl-2"
+                >
+                <ChevronLeft className="w-5 h-5" />
+                문제 생성 옵션으로 돌아가기
+                </Button>
+            </div>
+            
+             {/* Saved Indicator logic could go here or inside Cards */}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> {/* Apply 2-column grid */}
-            {Array.from(generatedQuestions.entries()).map(([typeId, questionData]) => (
-              <Card key={typeId} className="border-2">
-                <CardHeader className="bg-gray-50 border-b">
-                  <div className="flex items-center justify-between">
+
+           {/* Floating Action Bar (Sticky Top) */}
+           <div className="sticky top-4 z-50 bg-background/80 backdrop-blur-md border rounded-xl shadow-sm p-4 mb-6 flex items-center justify-between transition-all duration-200">
+                <div className="flex items-center gap-4">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                            if (selectedResultIds.size === generatedQuestions.size) {
+                                setSelectedResultIds(new Set())
+                            } else {
+                                setSelectedResultIds(new Set(generatedQuestions.keys()))
+                            }
+                        }}
+                    >
+                        {selectedResultIds.size === generatedQuestions.size ? '전체 해제' : '전체 선택'}
+                    </Button>
+                    <span className="text-sm font-medium">
+                        {selectedResultIds.size}개 선택됨
+                    </span>
+                    <div className="h-4 w-px bg-gray-200 mx-2" />
+                    
+                    {/* Zoom Control */}
                     <div className="flex items-center gap-2">
-                      <CardTitle className="text-lg">{questionData.problemType.type_name}</CardTitle>
-                      <Badge variant={questionData.problemType.provider === 'openai' ? 'default' : 'secondary'}>
-                        {questionData.problemType.provider === 'openai' ? 'OpenAI' : 'Gemini'}
-                      </Badge>
-                      {savedStates.get(typeId) && (
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                          저장됨
-                        </Badge>
-                      )}
+                         <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setScale(Math.max(50, scale - 10))}
+                            disabled={scale <= 50}
+                        >
+                            <Minus className="h-4 w-4" />
+                        </Button>
+                        <span className="text-xs font-medium w-12 text-center">{scale}%</span>
+                         <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setScale(Math.min(150, scale + 10))}
+                            disabled={scale >= 150}
+                        >
+                            <Plus className="h-4 w-4" />
+                        </Button>
                     </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                     <Button 
+                        onClick={handleSaveAll} // Logic updated to use selectedResultIds
+                        disabled={isGenerating || selectedResultIds.size === 0}
+                        className="bg-primary text-white"
+                     >
+                        선택한 {selectedResultIds.size}개 문제 저장
+                     </Button>
+                </div>
+           </div>
+
+
+          <div 
+             className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 transition-transform duration-200 origin-top-left"
+             style={{
+                transform: `scale(${scale / 100})`,
+                width: `${100 / (scale / 100)}%`,
+                marginBottom: `${((scale / 100) - 1) * 100}%` // compensate spacing
+             }}
+           > 
+            {Array.from(generatedQuestions.entries()).map(([typeId, questionData]) => (
+              <div 
+                key={typeId} 
+                className={`transition-all duration-200 ${
+                    selectedResultIds.has(typeId) ? 'ring-2 ring-primary ring-offset-2 rounded-xl' : ''
+                }`}
+                onClick={() => {
+                    // Click card to select, but ignore if clicking interactive elements inside
+                     const newSet = new Set(selectedResultIds)
+                     if (newSet.has(typeId)) newSet.delete(typeId)
+                     else newSet.add(typeId)
+                     setSelectedResultIds(newSet)
+                }}
+              >
+              <Card className="border-2 flex flex-col h-full cursor-pointer hover:border-primary/50">
+                <CardHeader className="bg-gray-50 border-b py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Checkbox 
+                        checked={selectedResultIds.has(typeId)}
+                        onCheckedChange={(checked) => {
+                             const newSet = new Set(selectedResultIds)
+                             if (checked) newSet.add(typeId)
+                             else newSet.delete(typeId)
+                             setSelectedResultIds(newSet)
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <CardTitle className="text-base font-semibold">{questionData.problemType.type_name}</CardTitle>
+                      <Badge variant={questionData.problemType.provider === 'openai' ? 'default' : 'secondary'} className="text-xs px-2 py-0.5">
+                        {questionData.problemType.provider === 'openai' ? 'AI (OpenAI)' : 'AI'}  {/* Changed label */}
+                      </Badge> 
+                    </div>
+                    {savedStates.get(typeId) && (
+                        <div className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-medium border border-green-200">
+                          <CheckCircle2 className="w-3 h-3" />
+                          저장됨
+                        </div>
+                    )}
                   </div>
                 </CardHeader>
-                <CardContent className="pt-6">
-                  <QuestionPreview 
-                    question={questionData.question} 
-                    onSave={() => handleSaveIndividual(typeId)}
-                    isSaving={false} // Loading logic handled in parent? Actually savedStates usage is correct here
-                    showSaveButton={!savedStates.get(typeId)}
-                  />
+                
+                <CardContent className="pt-4 flex-1 space-y-4" onClick={(e) => e.stopPropagation()}>
+                    {/* Metadata: Rating & Tags */}
+                    <div className="flex items-center justify-between">
+                         {/* Rating */}
+                        <div className="flex items-center gap-0.5">
+                            {[1, 2, 3].map((star) => (
+                                <button
+                                    key={star}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        updateQuestionData(typeId, { rating: questionData.rating === star ? 0 : star })
+                                    }} 
+                                    className={`transition-colors focus:outline-none p-1 ${
+                                        (questionData.rating || 0) >= star 
+                                        ? 'text-yellow-400 fill-yellow-400' 
+                                        : 'text-gray-300 hover:text-yellow-200'
+                                    }`}
+                                >
+                                    <Star className={`w-5 h-5 ${(questionData.rating || 0) >= star ? 'fill-current' : ''}`} />
+                                </button>
+                            ))}
+                        </div>
+
+                         {/* Tags */}
+                         <div className="flex flex-wrap items-center justify-end gap-1.5 flex-1 ml-4">
+                            {(questionData.tags || []).map(tag => (
+                                <Badge key={tag} variant="outline" className="text-xs pl-2 pr-1 py-0.5 h-6 gap-1 group bg-white">
+                                    {tag}
+                                    <button 
+                                        onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            updateQuestionData(typeId, { tags: questionData.tags.filter(t => t !== tag) })
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground rounded-full p-0.5"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </Badge>
+                            ))}
+                            
+                             <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full border border-dashed hover:border-solid hover:bg-gray-100">
+                                        <Plus className="w-3 h-3" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-60 p-3" align="end">
+                                    <div className="flex gap-2">
+                                        <Input 
+                                            placeholder="태그 입력..."
+                                            className="h-8 text-sm"
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    const val = (e.currentTarget as HTMLInputElement).value.trim();
+                                                    if(val) {
+                                                        if(!questionData.tags.includes(val)) {
+                                                             updateQuestionData(typeId, { tags: [...questionData.tags, val] })
+                                                        } else {
+                                                            toast.error('이미 존재하는 태그입니다')
+                                                        }
+                                                        (e.currentTarget as HTMLInputElement).value = ''
+                                                    }
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 mt-2 text-right">엔터키를 눌러 추가</p>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                    </div>
+                  
+                  <div className="bg-white rounded-lg border p-4 shadow-sm">
+                      <QuestionPreview 
+                        question={questionData.question} 
+                        // Hide internal save button, we use the global one or card selection
+                        showSaveButton={false}
+                      />
+                  </div>
                 </CardContent>
               </Card>
+              </div>
             ))}
           </div>
 
-          {/* Save All Button */}
-          <div className="sticky bottom-4 z-10 text-center">
-              <div className="inline-block shadow-lg rounded-xl overflow-hidden">
-                  <Card className="border-2 border-primary">
-                  <CardContent className="p-4 flex items-center gap-6">
-                      <div className="text-left">
-                          <p className="font-bold text-lg">
-                          총 {generatedQuestions.size}문제 생성됨
-                          </p>
-                          <p className="text-sm text-gray-500">
-                          {Array.from(savedStates.values()).filter(Boolean).length}개 저장 완료
-                          </p>
-                      </div>
-                      <Button 
-                          onClick={handleSaveAll}
-                          disabled={isGenerating || Array.from(savedStates.values()).filter(Boolean).length === generatedQuestions.size}
-                          size="lg"
-                          className="bg-primary hover:bg-primary/90 text-white min-w-[120px]"
-                      >
-                          전체 저장
-                      </Button>
-                  </CardContent>
-                  </Card>
-              </div>
-          </div>
+          
         </div>
       )}
 

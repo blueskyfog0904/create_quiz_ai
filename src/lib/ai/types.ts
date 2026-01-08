@@ -1,3 +1,4 @@
+
 import { z } from 'zod'
 
 export type AIProvider = 'openai' | 'gemini'
@@ -33,4 +34,3 @@ export interface AIResponse {
 export interface AIAdapter {
   generate(params: GenerateParams): Promise<AIResponse>
 }
-
