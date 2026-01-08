@@ -579,8 +579,9 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
            <div className="sticky top-4 z-50 bg-background/80 backdrop-blur-md border rounded-xl shadow-sm p-4 mb-6 flex items-center justify-between transition-all duration-200">
                 <div className="flex items-center gap-4">
                     <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
+                        className="text-xs h-7"
                         onClick={() => {
                             if (selectedResultIds.size === generatedQuestions.size) {
                                 setSelectedResultIds(new Set())
@@ -591,31 +592,41 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
                     >
                         {selectedResultIds.size === generatedQuestions.size ? '전체 해제' : '전체 선택'}
                     </Button>
-                    <span className="text-sm font-medium">
+                    <span className="text-xs text-gray-600">
                         {selectedResultIds.size}개 선택됨
                     </span>
-                    <div className="h-4 w-px bg-gray-200 mx-2" />
-                    
-                    {/* Zoom Control */}
-                    <div className="flex items-center gap-2">
-                         <Button
+
+                    {/* Zoom Slider Control */}
+                    <div className="flex items-center gap-2 ml-3 pl-3 border-l">
+                        <span className="text-xs font-medium w-12 text-center">{scale}%</span>
+                        <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8"
+                            className="h-6 w-6 rounded-full"
                             onClick={() => setScale(Math.max(50, scale - 10))}
                             disabled={scale <= 50}
                         >
-                            <Minus className="h-4 w-4" />
+                            <Minus className="h-3 w-3" />
                         </Button>
-                        <span className="text-xs font-medium w-12 text-center">{scale}%</span>
-                         <Button
+
+                        <input
+                            type="range"
+                            min="50"
+                            max="150"
+                            step="10"
+                            value={scale}
+                            onChange={(e) => setScale(Number(e.target.value))}
+                            className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary"
+                        />
+
+                        <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8"
+                            className="h-6 w-6 rounded-full"
                             onClick={() => setScale(Math.min(150, scale + 10))}
                             disabled={scale >= 150}
                         >
-                            <Plus className="h-4 w-4" />
+                            <Plus className="h-3 w-3" />
                         </Button>
                     </div>
                 </div>
