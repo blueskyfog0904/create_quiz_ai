@@ -426,7 +426,7 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
 
 
           <div 
-             className="grid gap-6 md:grid-cols-1 lg:grid-cols-1 transition-transform duration-200 origin-top text-left" // Single column for single question
+             className="grid gap-6 md:grid-cols-1 lg:grid-cols-1 transition-transform duration-200 origin-top-left text-left" // Single column for single question
              style={{
                 transform: `scale(${scale / 100})`,
                 width: `${100 / (scale / 100)}%`,
