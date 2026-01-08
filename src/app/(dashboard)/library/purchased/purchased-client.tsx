@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
+import { Minus, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { QuestionList } from '@/components/features/bank/question-list'
@@ -26,6 +27,7 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all')
   const [selectedSource, setSelectedSource] = useState<string>('all')
   const [sortBy, setSortBy] = useState<'latest' | 'oldest'>('latest')
+  const [scale, setScale] = useState(100)
 
   // Filter questions based on selected criteria
   const filteredQuestions = useMemo(() => {
@@ -201,8 +203,54 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
         </div>
       </div>
 
-      {/* Question List */}
-      <QuestionList questions={filteredQuestions} />
+      {/* Zoom Control & Action Bar */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-4">
+          <span className="text-sm font-medium text-muted-foreground">전체 선택</span>
+          <span className="text-sm text-muted-foreground">0개 선택됨</span>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          {/* Zoom Control */}
+          <div className="flex items-center gap-2 border rounded-lg px-3 py-1.5">
+            <span className="text-sm font-medium text-muted-foreground">{scale}%</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setScale(Math.max(50, scale - 10))}
+              disabled={scale <= 50}
+            >
+              <Minus className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setScale(Math.min(150, scale + 10))}
+              disabled={scale >= 150}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <Button className="bg-primary text-white">
+            선택한 문제로 +컬렉지 만들기
+          </Button>
+        </div>
+      </div>
+
+      {/* Question List with Zoom */}
+      <div 
+        className="transition-transform duration-200 origin-top-left"
+        style={{
+          transform: `scale(${scale / 100})`,
+          width: `${100 / (scale / 100)}%`,
+          marginBottom: `${((scale / 100) - 1) * 50}%`
+        }}
+      >
+        <QuestionList questions={filteredQuestions} />
+      </div>
     </div>
   )
 }
