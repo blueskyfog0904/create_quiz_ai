@@ -82,10 +82,15 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
         }
       }
 
-      // Filter by tag
+      // Filter by tags (AND condition - all tags must be present)
       if (tagFilter.trim()) {
-        const tags = question.tags || []
-        if (!tags.some(tag => tag.toLowerCase().includes(tagFilter.toLowerCase()))) {
+        const questionTags = (question.tags || []).map(t => t.toLowerCase())
+        const searchTags = tagFilter.split(',').map(t => t.trim().toLowerCase()).filter(t => t)
+        // All search tags must be found in question tags
+        const allTagsMatch = searchTags.every(searchTag => 
+          questionTags.some(qTag => qTag.includes(searchTag))
+        )
+        if (!allTagsMatch) {
           return false
         }
       }
@@ -249,12 +254,12 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
               </div>
 
               {/* Tag Filter */}
-              <div className="w-[110px]">
+              <div className="w-[130px]">
                 <label className="text-[11px] font-medium text-gray-600 mb-1 block">태그 검색</label>
                 <Input 
                   value={tagFilter}
                   onChange={(e) => setTagFilter(e.target.value)}
-                  placeholder="태그 입력..."
+                  placeholder="태그1, 태그2..."
                   className="h-8 text-xs"
                 />
               </div>
