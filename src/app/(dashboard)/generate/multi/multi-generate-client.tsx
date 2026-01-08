@@ -261,8 +261,85 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
   }
 
   /* Individual save logic (removed duplicate) */
-  
-  /* ... handleSaveAll logic ... */
+
+  const handleSaveAll = async () => {
+    if (selectedResultIds.size === 0) {
+        toast.info("저장할 문제를 선택해주세요")
+        return
+    }
+
+    const unsavedQuestions = Array.from(generatedQuestions.entries())
+        .filter(([typeId]) => selectedResultIds.has(typeId)) // Only selected ones
+        .filter(([typeId]) => !savedStates.get(typeId)) // Skip already saved logic? Or allow overwrite? 
+    
+    if (unsavedQuestions.length === 0) {
+       // Check if there are selected items that are already saved
+       const selectedCount = selectedResultIds.size;
+       const savedSelectedCount = Array.from(selectedResultIds).filter(id => savedStates.get(id)).length;
+       
+       if (selectedCount === savedSelectedCount) {
+           toast.info("선택한 문제가 이미 모두 저장되었습니다")
+           return
+       }
+    }
+
+    setIsGenerating(true)
+
+    try {
+      let successCount = 0
+      let failCount = 0
+
+      for (const [typeId, questionData] of Array.from(generatedQuestions.entries())) {
+          // Only process selected items
+          if (!selectedResultIds.has(typeId)) continue;
+          if (savedStates.get(typeId)) continue; // Skip already saved for now
+
+        try {
+          const res = await fetch('/api/questions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              question: questionData.question,
+              passage,
+              gradeLevel,
+              difficulty,
+              problemTypeId: typeId,
+              rawAiResponse: questionData.rawResponse,
+              source_passage_id: selectedPassage?.id,
+              tags: questionData.tags,    // Send tags
+              rating: questionData.rating // Send rating
+            })
+          })
+
+          const data = await res.json()
+
+          if (!res.ok || !data.success) {
+            throw new Error(data.error?.message || "문제 저장에 실패했습니다")
+          }
+
+          setSavedStates(prev => new Map(prev.set(typeId, true)))
+          successCount++
+        } catch (error: any) {
+          console.error(`Failed to save question for type ${typeId}:`, error)
+          failCount++
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`${successCount}개의 문제가 저장되었습니다!`)
+        setShowSuccessDialog(true)
+      }
+
+      if (failCount > 0) {
+        toast.error(`${failCount}개의 문제 저장에 실패했습니다`)
+      }
+
+    } catch (error: any) {
+      toast.error("문제 저장 중 오류가 발생했습니다")
+    } finally {
+      setIsGenerating(false)
+    }
+  }
 
   const handleContinueGeneration = () => {
     setShowSuccessDialog(false)
@@ -276,233 +353,6 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
 
   const handleGoToExamPaper = () => {
     router.push('/library/exam-papers')
-  }
-
-  if (viewMode === 'RESULT') {
-    return (
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-               <Button 
-                variant="ghost" 
-                onClick={() => setViewMode('FORM')}
-                className="gap-2 pl-2"
-                >
-                <ChevronLeft className="w-5 h-5" />
-                문제 생성 옵션으로 돌아가기
-                </Button>
-            </div>
-          </div>
-
-           {/* Floating Action Bar (Sticky Top) */}
-           <div className="sticky top-4 z-50 bg-background/80 backdrop-blur-md border rounded-xl shadow-sm p-4 mb-6 flex items-center justify-between transition-all duration-200">
-                <div className="flex items-center gap-4">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                            if (selectedResultIds.size === generatedQuestions.size) {
-                                setSelectedResultIds(new Set())
-                            } else {
-                                setSelectedResultIds(new Set(generatedQuestions.keys()))
-                            }
-                        }}
-                    >
-                        {selectedResultIds.size === generatedQuestions.size ? '전체 해제' : '전체 선택'}
-                    </Button>
-                    <span className="text-sm font-medium">
-                        {selectedResultIds.size}개 선택됨
-                    </span>
-                    <div className="h-4 w-px bg-gray-200 mx-2" />
-                    
-                    {/* Zoom Control */}
-                    <div className="flex items-center gap-2">
-                         <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => setScale(Math.max(50, scale - 10))}
-                            disabled={scale <= 50}
-                        >
-                            <Minus className="h-4 w-4" />
-                        </Button>
-                        <span className="text-xs font-medium w-12 text-center">{scale}%</span>
-                         <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => setScale(Math.min(150, scale + 10))}
-                            disabled={scale >= 150}
-                        >
-                            <Plus className="h-4 w-4" />
-                        </Button>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                     <Button 
-                        onClick={handleSaveAll} 
-                        disabled={isGenerating || selectedResultIds.size === 0}
-                        className="bg-primary text-white"
-                     >
-                        선택한 {selectedResultIds.size}개 문제 저장
-                     </Button>
-                </div>
-           </div>
-
-
-          <div 
-             className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 transition-transform duration-200 origin-top-left"
-             style={{
-                transform: `scale(${scale / 100})`,
-                width: `${100 / (scale / 100)}%`,
-                marginBottom: `${((scale / 100) - 1) * 100}%` 
-             }}
-           > 
-            {Array.from(generatedQuestions.entries()).map(([typeId, questionData]) => (
-              <div 
-                key={typeId} 
-                className={`transition-all duration-200 ${
-                    selectedResultIds.has(typeId) ? 'ring-2 ring-primary ring-offset-2 rounded-xl' : ''
-                }`}
-                onClick={() => {
-                     const newSet = new Set(selectedResultIds)
-                     if (newSet.has(typeId)) newSet.delete(typeId)
-                     else newSet.add(typeId)
-                     setSelectedResultIds(newSet)
-                }}
-              >
-              <Card className="border-2 flex flex-col h-full cursor-pointer hover:border-primary/50">
-                <CardHeader className="bg-gray-50 border-b py-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Checkbox 
-                        checked={selectedResultIds.has(typeId)}
-                        onCheckedChange={(checked) => {
-                             const newSet = new Set(selectedResultIds)
-                             if (checked) newSet.add(typeId)
-                             else newSet.delete(typeId)
-                             setSelectedResultIds(newSet)
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <CardTitle className="text-base font-semibold">{questionData.problemType.type_name}</CardTitle>
-                      <Badge variant={questionData.problemType.provider === 'openai' ? 'default' : 'secondary'} className="text-xs px-2 py-0.5">
-                        {questionData.problemType.provider === 'openai' ? 'AI (OpenAI)' : 'AI'} 
-                      </Badge> 
-                    </div>
-                    {savedStates.get(typeId) && (
-                        <div className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-medium border border-green-200">
-                          <CheckCircle2 className="w-3 h-3" />
-                          저장됨
-                        </div>
-                    )}
-                  </div>
-                </CardHeader>
-                
-                <CardContent className="pt-4 flex-1 space-y-4" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-0.5">
-                            {[1, 2, 3].map((star) => (
-                                <button
-                                    key={star}
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        updateQuestionData(typeId, { rating: questionData.rating === star ? 0 : star })
-                                    }} 
-                                    className={`transition-colors focus:outline-none p-1 ${
-                                        (questionData.rating || 0) >= star 
-                                        ? 'text-yellow-400 fill-yellow-400' 
-                                        : 'text-gray-300 hover:text-yellow-200'
-                                    }`}
-                                >
-                                    <Star className={`w-5 h-5 ${(questionData.rating || 0) >= star ? 'fill-current' : ''}`} />
-                                </button>
-                            ))}
-                        </div>
-
-                         <div className="flex flex-wrap items-center justify-end gap-1.5 flex-1 ml-4">
-                            {(questionData.tags || []).map(tag => (
-                                <Badge key={tag} variant="outline" className="text-xs pl-2 pr-1 py-0.5 h-6 gap-1 group bg-white">
-                                    {tag}
-                                    <button 
-                                        onClick={(e) => { 
-                                            e.stopPropagation(); 
-                                            updateQuestionData(typeId, { tags: questionData.tags.filter(t => t !== tag) })
-                                        }}
-                                        className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground rounded-full p-0.5"
-                                    >
-                                        <X className="w-3 h-3" />
-                                    </button>
-                                </Badge>
-                            ))}
-                            
-                             <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full border border-dashed hover:border-solid hover:bg-gray-100">
-                                        <Plus className="w-3 h-3" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-60 p-3" align="end">
-                                    <div className="flex gap-2">
-                                        <Input 
-                                            placeholder="태그 입력..."
-                                            className="h-8 text-sm"
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    const val = (e.currentTarget as HTMLInputElement).value.trim();
-                                                    if(val) {
-                                                        if(!questionData.tags.includes(val)) {
-                                                             updateQuestionData(typeId, { tags: [...questionData.tags, val] })
-                                                        } else {
-                                                            toast.error('이미 존재하는 태그입니다')
-                                                        }
-                                                        (e.currentTarget as HTMLInputElement).value = ''
-                                                    }
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                    <p className="text-[10px] text-gray-400 mt-2 text-right">엔터키를 눌러 추가</p>
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-                    </div>
-                  
-                  <div className="bg-white rounded-lg border p-4 shadow-sm">
-                      <QuestionPreview 
-                        question={questionData.question} 
-                        showSaveButton={false}
-                      />
-                  </div>
-                </CardContent>
-              </Card>
-              </div>
-            ))}
-          </div>
-          
-           {/* Success Dialog */}
-        <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
-            <DialogContent>
-            <DialogHeader>
-                <DialogTitle>문제가 저장되었습니다</DialogTitle>
-                <DialogDescription>
-                다음 단계를 선택해주세요.
-                </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="flex gap-2">
-                <Button variant="outline" onClick={handleContinueGeneration}>
-                문제 계속 만들기
-                </Button>
-                <Button onClick={handleGoToExamPaper}>
-                문제지 생성 페이지로 이동
-                </Button>
-            </DialogFooter>
-            </DialogContent>
-        </Dialog>
-
-      </div>
-    )
   }
 
   return (
