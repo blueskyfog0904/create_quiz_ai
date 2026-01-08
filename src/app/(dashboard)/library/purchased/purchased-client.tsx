@@ -149,7 +149,7 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
           <div className="px-3 pb-3 pt-1">
             <div className="flex flex-wrap items-end gap-2">
               {/* Problem Type Filter */}
-              <div className="flex-1 min-w-[100px]">
+              <div className="w-[110px]">
                 <label className="text-[11px] font-medium text-gray-600 mb-1 block">문제 유형</label>
                 <Select value={selectedTypeId} onValueChange={setSelectedTypeId}>
                   <SelectTrigger className="h-8 text-xs">
@@ -167,7 +167,7 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
               </div>
 
               {/* Grade Level Filter */}
-              <div className="flex-1 min-w-[80px]">
+              <div className="w-[110px]">
                 <label className="text-[11px] font-medium text-gray-600 mb-1 block">학년</label>
                 <Select value={selectedGrade} onValueChange={setSelectedGrade}>
                   <SelectTrigger className="h-8 text-xs">
@@ -185,7 +185,7 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
               </div>
 
               {/* Difficulty Filter */}
-              <div className="flex-1 min-w-[80px]">
+              <div className="w-[110px]">
                 <label className="text-[11px] font-medium text-gray-600 mb-1 block">난이도</label>
                 <Select value={selectedDifficulty} onValueChange={setSelectedDifficulty}>
                   <SelectTrigger className="h-8 text-xs">
@@ -203,7 +203,7 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
               </div>
 
               {/* Source Filter */}
-              <div className="flex-1 min-w-[90px]">
+              <div className="w-[110px]">
                 <label className="text-[11px] font-medium text-gray-600 mb-1 block">출처</label>
                 <Select value={selectedSource} onValueChange={setSelectedSource}>
                   <SelectTrigger className="h-8 text-xs">
@@ -218,7 +218,7 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
               </div>
 
               {/* Rating Filter */}
-              <div className="flex-1 min-w-[80px]">
+              <div className="w-[110px]">
                 <label className="text-[11px] font-medium text-gray-600 mb-1 block">별점</label>
                 <Select value={selectedRating} onValueChange={setSelectedRating}>
                   <SelectTrigger className="h-8 text-xs">
@@ -234,19 +234,8 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                 </Select>
               </div>
 
-              {/* Tag Filter */}
-              <div className="flex-1 min-w-[100px]">
-                <label className="text-[11px] font-medium text-gray-600 mb-1 block">태그 검색</label>
-                <Input 
-                  value={tagFilter}
-                  onChange={(e) => setTagFilter(e.target.value)}
-                  placeholder="태그 입력..."
-                  className="h-8 text-xs"
-                />
-              </div>
-
               {/* Sort Filter */}
-              <div className="flex-1 min-w-[80px]">
+              <div className="w-[110px]">
                 <label className="text-[11px] font-medium text-gray-600 mb-1 block">정렬</label>
                 <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'latest' | 'oldest')}>
                   <SelectTrigger className="h-8 text-xs">
@@ -259,12 +248,22 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                 </Select>
               </div>
 
+              {/* Tag Filter */}
+              <div className="w-[110px]">
+                <label className="text-[11px] font-medium text-gray-600 mb-1 block">태그 검색</label>
+                <Input 
+                  value={tagFilter}
+                  onChange={(e) => setTagFilter(e.target.value)}
+                  placeholder="태그 입력..."
+                  className="h-8 text-xs"
+                />
+              </div>
+
               {/* Reset Button */}
               <Button 
-                variant="outline" 
                 onClick={handleReset}
                 size="sm"
-                className="h-8 text-xs px-3"
+                className="h-8 text-xs px-4"
               >
                 초기화
               </Button>
