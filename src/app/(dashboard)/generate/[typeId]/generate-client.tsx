@@ -318,7 +318,7 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
 
        {/* Generating Progress Modal */}
        <Dialog open={isGenerating} onOpenChange={(open) => { if(!open && isGenerating) handleCancelGeneration() }}>
-        <DialogContent className="sm:max-w-md" hideCloseButton>
+        <DialogContent className="sm:max-w-md" showCloseButton={false}>
             <DialogHeader>
                 <DialogTitle>문제 생성 중...</DialogTitle>
                 <DialogDescription>
