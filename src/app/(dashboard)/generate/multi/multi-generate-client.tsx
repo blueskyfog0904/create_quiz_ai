@@ -559,7 +559,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
       )}
 
       {viewMode === 'RESULT' && (
-        <div className="space-y-6">
+        <div className="space-y-6 pb-24">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
                <Button 
@@ -745,7 +745,8 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
                                             placeholder="태그 입력..."
                                             className="h-8 text-sm"
                                             onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
+                                                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                                                    e.preventDefault();
                                                     const val = (e.currentTarget as HTMLInputElement).value.trim();
                                                     if(val) {
                                                         if(!questionData.tags.includes(val)) {
