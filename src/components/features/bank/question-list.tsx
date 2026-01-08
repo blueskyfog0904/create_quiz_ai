@@ -257,37 +257,26 @@ export function QuestionActionBar({
                     {selectedCount}개 선택됨
                 </span>
 
-                {/* Zoom Slider Control */}
+                {/* Zoom Control */}
                 <div className="flex items-center gap-2 ml-3 pl-3 border-l">
-                    <span className="text-xs font-medium w-12 text-center">{scale}%</span>
-                    <Button
+                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 rounded-full"
+                        className="h-8 w-8"
                         onClick={() => adjustScale(-10)}
                         disabled={scale <= 50}
                     >
-                        <Minus className="h-3 w-3" />
+                        <Minus className="h-4 w-4" />
                     </Button>
-
-                    <input
-                        type="range"
-                        min="50"
-                        max="150"
-                        step="10"
-                        value={scale}
-                        onChange={(e) => onScaleChange(Number(e.target.value))}
-                        className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary"
-                    />
-
-                    <Button
+                    <span className="text-xs font-medium w-12 text-center">{scale}%</span>
+                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 rounded-full"
+                        className="h-8 w-8"
                         onClick={() => adjustScale(10)}
                         disabled={scale >= 150}
                     >
-                        <Plus className="h-3 w-3" />
+                        <Plus className="h-4 w-4" />
                     </Button>
                 </div>
             </div>
