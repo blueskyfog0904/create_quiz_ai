@@ -9,14 +9,15 @@ interface QuestionPreviewProps {
   onSave?: () => void
   isSaving?: boolean
   showSaveButton?: boolean
+  title?: string
 }
 
-export function QuestionPreview({ question, onSave, isSaving, showSaveButton = true }: QuestionPreviewProps) {
+export function QuestionPreview({ question, onSave, isSaving, showSaveButton = true, title = '문제 미리보기' }: QuestionPreviewProps) {
   return (
     <Card className="w-full border-2 border-primary/20 shadow-lg">
       <CardHeader className="bg-gray-50">
         <div className="flex justify-between items-center">
-            <CardTitle className="text-lg">문제 미리보기</CardTitle>
+            <CardTitle className="text-lg">{title}</CardTitle>
             {showSaveButton && onSave && (
                 <Button onClick={onSave} disabled={isSaving}>
                     {isSaving ? '저장 중...' : '문제 은행에 저장'}

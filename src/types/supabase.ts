@@ -381,6 +381,49 @@ export type Database = {
           },
         ]
       },
+      source_configs: {
+        Row: {
+          created_at: string
+          id: string
+          source_1_label: string | null
+          source_1_options: string[] | null
+          source_2_label: string | null
+          source_2_options: string[] | null
+          source_3_label: string | null
+          source_3_options: string[] | null
+          source_4_label: string | null
+          source_4_options: string[] | null
+          source_4_type: string | null
+          type_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          source_1_label?: string | null
+          source_1_options?: string[] | null
+          source_2_label?: string | null
+          source_2_options?: string[] | null
+          source_3_label?: string | null
+          source_3_options?: string[] | null
+          source_4_label?: string | null
+          source_4_options?: string[] | null
+          type_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          source_1_label?: string | null
+          source_1_options?: string[] | null
+          source_2_label?: string | null
+          source_2_options?: string[] | null
+          source_3_label?: string | null
+          source_3_options?: string[] | null
+          source_4_label?: string | null
+          source_4_options?: string[] | null
+          type_name?: string
+        }
+        Relationships: []
+      },
       support_tickets: {
         Row: {
           admin_response: string | null

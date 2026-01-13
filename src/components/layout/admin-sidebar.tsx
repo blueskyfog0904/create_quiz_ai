@@ -61,6 +61,11 @@ const menuItems = [
     href: '/admin/labels', 
     icon: Settings 
   },
+  {
+    name: '출처 관리',
+    href: '/admin/source-configs',
+    icon: Settings
+  },
 ]
 
 export function AdminSidebar() {

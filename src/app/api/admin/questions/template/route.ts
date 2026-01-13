@@ -53,7 +53,12 @@ export async function GET() {
       '정답',
       '해설',
       '학년',
-      '난이도'
+      '난이도',
+      '출처종류',
+      '출처1',
+      '출처2',
+      '출처3',
+      '출처4'
     ]
     
     // Sample data row
@@ -72,7 +77,12 @@ export async function GET() {
       '3',
       '글의 흐름상 기술 발전의 긍정적 측면을 먼저 언급한 후(B), 부정적 측면으로 전환(C)하고, 마지막으로 균형 잡힌 시각(A)으로 마무리하는 것이 자연스럽습니다.',
       '고1',
-      '중'
+      '중',
+      '모의고사', // 출처종류
+      '2023년 3월', // 출처1
+      '31번', // 출처2
+      '', // 출처3
+      '' // 출처4
     ]
     
     const mainSheetData = [mainSheetHeaders, sampleData]
@@ -95,6 +105,11 @@ export async function GET() {
       { wch: 50 },  // 해설
       { wch: 10 },  // 학년
       { wch: 10 },  // 난이도
+      { wch: 15 },  // 출처종류
+      { wch: 15 },  // 출처1
+      { wch: 15 },  // 출처2
+      { wch: 15 },  // 출처3
+      { wch: 15 },  // 출처4
     ]
     
     XLSX.utils.book_append_sheet(workbook, mainSheet, '문제입력')

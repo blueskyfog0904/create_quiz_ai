@@ -6,12 +6,15 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { QuestionActionBar, QuestionGrid, CreateExamDialog } from '@/components/features/bank/question-list'
 import { Database } from '@/types/supabase'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
-type DBQuestion = Database['public']['Tables']['questions']['Row']
+type DBQuestion = Database['public']['Tables']['questions']['Row'] & {
+  problem_types?: { type_name: string } | null
+}
 type ProblemType = {
   id: string
   type_name: string
@@ -39,6 +42,8 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([])
   const [scale, setScale] = useState(100)
   const [isExamDialogOpen, setIsExamDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Collapsible filter state
   const [isFilterExpanded, setIsFilterExpanded] = useState(true)
@@ -178,13 +183,47 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
     }
   }
 
+  const handleDeleteSelected = async () => {
+    setIsDeleting(true)
+    let successCount = 0
+    let errorCount = 0
+
+    for (const questionId of selectedQuestionIds) {
+      try {
+        const res = await fetch(`/api/questions/${questionId}`, {
+          method: 'DELETE',
+        })
+        if (res.ok) {
+          successCount++
+        } else {
+          errorCount++
+        }
+      } catch (error) {
+        console.error(`Failed to delete question ${questionId}:`, error)
+        errorCount++
+      }
+    }
+
+    setIsDeleting(false)
+    setIsDeleteDialogOpen(false)
+
+    if (successCount > 0) {
+      toast.success(`${successCount}개의 문제가 삭제되었습니다.`)
+      setSelectedQuestionIds([])
+      router.refresh()
+    }
+    if (errorCount > 0) {
+      toast.error(`${errorCount}개의 문제 삭제에 실패했습니다.`)
+    }
+  }
+
   return (
     <div className="container mx-auto py-6 px-4">
       {/* Sticky Header Container */}
       <div className="sticky top-16 z-40 bg-white -mx-4 px-4 pt-4 pb-2 shadow-sm border-b mb-6 transition-all">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-2xl font-bold mb-1">내가 구매한 문제</h1>
+            <h1 className="text-2xl font-bold mb-1">영어문제 관리</h1>
             <p className="text-sm text-gray-500">저장된 문제를 관리하고 문제지를 만들 수 있습니다.</p>
           </div>
           <Link href="/generate">
@@ -354,6 +393,7 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                 onScaleChange={setScale}
                 onSelectAll={handleSelectAll}
                 onCreateExamPaper={() => setIsExamDialogOpen(true)}
+                onDeleteSelected={() => setIsDeleteDialogOpen(true)}
             />
          </div>
       </div>
@@ -373,6 +413,27 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
         selectedCount={selectedQuestionIds.length}
         onConfirm={handleCreateExamPaper}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>문제 삭제</DialogTitle>
+            <DialogDescription>
+              선택한 {selectedQuestionIds.length}개의 문제를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
+              취소
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteSelected} disabled={isDeleting}>
+              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isDeleting ? '삭제 중...' : '삭제'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

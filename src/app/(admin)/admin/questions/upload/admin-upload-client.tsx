@@ -45,6 +45,11 @@ interface ParsedQuestion {
   difficulty: string
   isValid: boolean
   errorMessage?: string
+  source_type?: string
+  source_1?: string
+  source_2?: string
+  source_3?: string
+  source_4?: string
 }
 
 interface BulkParseResponse {
@@ -56,6 +61,19 @@ interface BulkParseResponse {
   }
   questions: ParsedQuestion[]
   problemTypes: { id: string, type_name: string }[]
+}
+
+interface SourceConfig {
+  id: string
+  type_name: string
+  source_1_label: string | null
+  source_1_options: string[] | null
+  source_2_label: string | null
+  source_2_options: string[] | null
+  source_3_label: string | null
+  source_3_options: string[] | null
+  source_4_label: string | null
+  source_4_options: string[] | null
 }
 
 export default function AdminUploadClient({ problemTypes, gradeLevels, difficulties }: AdminUploadClientProps) {
@@ -78,6 +96,10 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [isLoadingTypes, setIsLoadingTypes] = useState(false)
+
+  // Source Configs
+  const [sourceConfigs, setSourceConfigs] = useState<SourceConfig[]>([])
+  const [activeSourceConfig, setActiveSourceConfig] = useState<SourceConfig | null>(null)
   
   // Single upload form state
   const [formData, setFormData] = useState({
@@ -91,6 +113,11 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
     difficulty: undefined as string | undefined,
     grade_level: undefined as string | undefined,
     problem_type_id: '',
+    source_type: '',
+    source_1: '',
+    source_2: '',
+    source_3: '',
+    source_4: '',
   })
   
   const [newProblemType, setNewProblemType] = useState({
@@ -125,6 +152,28 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
       fetchAllProblemTypes()
     }
   }, [isDialogOpen, fetchAllProblemTypes])
+
+  // Fetch source configs
+  useEffect(() => {
+    const fetchSourceConfigs = async () => {
+      try {
+        const response = await fetch('/api/admin/source-configs')
+        if (response.ok) {
+          const data = await response.json()
+          setSourceConfigs(data.configs || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch source configs:', error)
+      }
+    }
+    fetchSourceConfigs()
+  }, [])
+
+  // Update active source config when source_type changes
+  useEffect(() => {
+    const config = sourceConfigs.find(c => c.type_name === formData.source_type)
+    setActiveSourceConfig(config || null)
+  }, [formData.source_type, sourceConfigs])
   
   // Reset form to add mode
   const resetProblemTypeForm = () => {
@@ -495,6 +544,11 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
           difficulty: question.difficulty || undefined,
           grade_level: question.grade_level || undefined,
           problem_type_id: question.problem_type_id,
+          source_type: question.source_type,
+          source_1: question.source_1,
+          source_2: question.source_2,
+          source_3: question.source_3,
+          source_4: question.source_4,
         }
         
         console.log('[Client Bulk Save] Request body:', JSON.stringify(requestBody, null, 2))
@@ -618,6 +672,11 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
         explanation: formData.explanation || undefined,
         question_text_forward: formData.question_text_forward || undefined,
         question_text_backward: formData.question_text_backward || undefined,
+        source_type: formData.source_type || undefined,
+        source_1: formData.source_1 || undefined,
+        source_2: formData.source_2 || undefined,
+        source_3: formData.source_3 || undefined,
+        source_4: formData.source_4 || undefined,
       }
       
       console.log('[Client Single Upload] Request body:', JSON.stringify(requestBody, null, 2))
@@ -662,6 +721,11 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
         difficulty: undefined,
         grade_level: undefined,
         problem_type_id: '',
+        source_type: '',
+        source_1: '',
+        source_2: '',
+        source_3: '',
+        source_4: '',
       })
       
     } catch (error: any) {
@@ -978,6 +1042,51 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
                     </Select>
                   </div>
                 </div>
+
+                {/* Question Source Info */}
+                <div className="space-y-4 pt-4 border-t">
+                  <h4 className="font-medium text-sm text-gray-700">출처 정보 (선택)</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>출처 종류</Label>
+                      <Input
+                        placeholder="예: 모의고사, 수능"
+                        value={question.source_type || ''}
+                        onChange={(e) => handleUpdateParsedQuestion(question.id, 'source_type', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>출처 1 (상세)</Label>
+                      <Input
+                        placeholder="예: 2023년 3월"
+                        value={question.source_1 || ''}
+                        onChange={(e) => handleUpdateParsedQuestion(question.id, 'source_1', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>출처 2 (상세)</Label>
+                      <Input
+                        placeholder="예: 31번"
+                        value={question.source_2 || ''}
+                        onChange={(e) => handleUpdateParsedQuestion(question.id, 'source_2', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>출처 3 (상세)</Label>
+                      <Input
+                        value={question.source_3 || ''}
+                        onChange={(e) => handleUpdateParsedQuestion(question.id, 'source_3', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>출처 4 (상세)</Label>
+                      <Input
+                        value={question.source_4 || ''}
+                        onChange={(e) => handleUpdateParsedQuestion(question.id, 'source_4', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -1201,6 +1310,89 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            {/* Source Information */}
+            <div className="space-y-4 pt-4 border-t">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium text-sm text-gray-700">출처 정보 (선택)</h4>
+                {activeSourceConfig && (
+                  <Badge variant="outline" className="text-xs">
+                    {activeSourceConfig.type_name} 설정 적용 중
+                  </Badge>
+                )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="source_type">출처 종류</Label>
+                  {sourceConfigs.length > 0 ? (
+                    <Select
+                      value={formData.source_type}
+                      onValueChange={(value) => setFormData({ ...formData, source_type: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="출처 종류 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sourceConfigs.map((config) => (
+                          <SelectItem key={config.id} value={config.type_name}>
+                            {config.type_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="source_type"
+                      placeholder="예: 모의고사, 수능"
+                      value={formData.source_type}
+                      onChange={(e) => setFormData({ ...formData, source_type: e.target.value })}
+                    />
+                  )}
+                </div>
+
+                {[1, 2, 3, 4].map((num) => {
+                  const labelKey = `source_${num}_label` as keyof SourceConfig
+                  const optionsKey = `source_${num}_options` as keyof SourceConfig
+                  const fieldKey = `source_${num}` as keyof typeof formData
+                  
+                  const label = activeSourceConfig?.[labelKey] 
+                    ? (activeSourceConfig[labelKey] as string)
+                    : `출처 ${num} (상세)`
+                  
+                  const options = activeSourceConfig?.[optionsKey] as string[] | undefined
+
+                  return (
+                    <div key={num} className="space-y-2">
+                      <Label htmlFor={`source_${num}`}>{label}</Label>
+                      {options && options.length > 0 ? (
+                        <Select
+                          value={formData[fieldKey] as string}
+                          onValueChange={(value) => setFormData({ ...formData, [fieldKey]: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={`${label} 선택`} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {options.map((opt) => (
+                              <SelectItem key={opt} value={opt}>
+                                {opt}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          id={`source_${num}`}
+                          placeholder={`예: ${num === 1 ? '2023년 3월' : '상세 정보'}`}
+                          value={formData[fieldKey] as string}
+                          onChange={(e) => setFormData({ ...formData, [fieldKey]: e.target.value })}
+                        />
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
             

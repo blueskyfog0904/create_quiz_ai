@@ -6,10 +6,12 @@ export default async function PurchasedPage() {
   await requireAuth()
   const supabase = await createClient()
 
-  // Fetch questions
+  // Fetch questions - only user's own AI generated or purchased from community
+  // Exclude admin_uploaded questions (those belong to the question bank)
   const { data: questions, error: questionsError } = await supabase
     .from('questions')
-    .select('*')
+    .select('*, problem_types(type_name)')
+    .in('source', ['ai_generated', 'from_community'])
     .order('created_at', { ascending: false })
 
   if (questionsError) {

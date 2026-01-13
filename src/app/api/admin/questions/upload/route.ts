@@ -51,6 +51,11 @@ const questionSchema = z.object({
   difficulty: z.string().optional(),
   grade_level: z.string().optional(),
   problem_type_id: z.string().uuid('Invalid problem type ID'),
+  source_type: z.string().optional(),
+  source_1: z.string().optional(),
+  source_2: z.string().optional(),
+  source_3: z.string().optional(),
+  source_4: z.string().optional(),
 })
 
 export async function POST(request: Request) {
@@ -129,6 +134,11 @@ export async function POST(request: Request) {
       problem_type_id: validatedData.problem_type_id,
       user_id: user.id,
       source: 'admin_uploaded',
+      source_type: removeHtmlTags(validatedData.source_type),
+      source_1: removeHtmlTags(validatedData.source_1),
+      source_2: removeHtmlTags(validatedData.source_2),
+      source_3: removeHtmlTags(validatedData.source_3),
+      source_4: removeHtmlTags(validatedData.source_4),
       shared_question_id: null,
       raw_ai_response: null,
     }

@@ -34,6 +34,11 @@ interface QuestionRow {
   해설?: string
   학년?: string
   난이도?: string
+  출처종류?: string
+  출처1?: string
+  출처2?: string
+  출처3?: string
+  출처4?: string
 }
 
 interface ParsedQuestion {
@@ -51,6 +56,11 @@ interface ParsedQuestion {
   difficulty: string
   isValid: boolean
   errorMessage?: string
+  source_type?: string
+  source_1?: string
+  source_2?: string
+  source_3?: string
+  source_4?: string
 }
 
 interface ParseResult {
@@ -261,6 +271,11 @@ export async function POST(request: Request) {
           explanation: row.해설 ? removeHtmlTags(String(row.해설)) : '',
           grade_level: gradeLevel,
           difficulty,
+          source_type: row.출처종류 ? removeHtmlTags(String(row.출처종류)) : '',
+          source_1: row.출처1 ? removeHtmlTags(String(row.출처1)) : '',
+          source_2: row.출처2 ? removeHtmlTags(String(row.출처2)) : '',
+          source_3: row.출처3 ? removeHtmlTags(String(row.출처3)) : '',
+          source_4: row.출처4 ? removeHtmlTags(String(row.출처4)) : '',
           isValid: true,
         }
         
@@ -336,6 +351,11 @@ export async function POST(request: Request) {
           explanation: row.해설 ? removeHtmlTags(String(row.해설)) : '',
           grade_level: row.학년 ? String(row.학년).trim() : '',
           difficulty: row.난이도 ? String(row.난이도).trim() : '',
+          source_type: row.출처종류 ? removeHtmlTags(String(row.출처종류)) : '',
+          source_1: row.출처1 ? removeHtmlTags(String(row.출처1)) : '',
+          source_2: row.출처2 ? removeHtmlTags(String(row.출처2)) : '',
+          source_3: row.출처3 ? removeHtmlTags(String(row.출처3)) : '',
+          source_4: row.출처4 ? removeHtmlTags(String(row.출처4)) : '',
           isValid: false,
           errorMessage: error.message,
         }

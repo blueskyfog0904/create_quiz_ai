@@ -17,11 +17,29 @@ import { useRouter } from 'next/navigation'
 
 type DBQuestion = Database['public']['Tables']['questions']['Row'] & {
   problem_types: { type_name: string } | null
+  source_type?: string | null
+  source_1?: string | null
+  source_2?: string | null
+  source_3?: string | null
+  source_4?: string | null
 }
 
 type ProblemType = {
   id: string
   type_name: string
+}
+
+interface SourceConfig {
+  id: string
+  type_name: string
+  source_1_label?: string | null
+  source_1_options?: string[] | null
+  source_2_label?: string | null
+  source_2_options?: string[] | null
+  source_3_label?: string | null
+  source_3_options?: string[] | null
+  source_4_label?: string | null
+  source_4_options?: string[] | null
 }
 
 interface BankClientProps {
@@ -44,6 +62,11 @@ export default function BankClient({
   const [selectedTypeId, setSelectedTypeId] = useState<string>('all')
   const [selectedGrade, setSelectedGrade] = useState<string>('all')
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all')
+  const [selectedSourceType, setSelectedSourceType] = useState<string>('')
+  const [selectedSource1, setSelectedSource1] = useState<string>('all')
+  const [selectedSource2, setSelectedSource2] = useState<string>('all')
+  const [selectedSource3, setSelectedSource3] = useState<string>('all')
+  const [selectedSource4, setSelectedSource4] = useState<string>('all')
   const [sortBy, setSortBy] = useState<'latest' | 'oldest'>('latest')
   const [savingQuestionId, setSavingQuestionId] = useState<string | null>(null)
   const [selectedQuestions, setSelectedQuestions] = useState<string[]>([])
@@ -66,6 +89,25 @@ export default function BankClient({
     problem_type_id: '',
   })
   
+  // Source Configs
+  const [sourceConfigs, setSourceConfigs] = useState<SourceConfig[]>([])
+
+  // Fetch source configs
+  useEffect(() => {
+    const fetchSourceConfigs = async () => {
+      try {
+        const response = await fetch('/api/admin/source-configs')
+        if (response.ok) {
+          const data = await response.json()
+          setSourceConfigs(data.configs || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch source configs:', error)
+      }
+    }
+    fetchSourceConfigs()
+  }, [])
+  
   // Sync local state with server data when props change
   useEffect(() => {
     setQuestions(initialQuestions)
@@ -83,6 +125,21 @@ export default function BankClient({
       if (selectedDifficulty !== 'all' && question.difficulty !== selectedDifficulty) {
         return false
       }
+      if (selectedSourceType && (!question.source_type || !question.source_type.includes(selectedSourceType))) {
+        return false
+      }
+      if (selectedSource1 !== 'all' && question.source_1 !== selectedSource1) {
+        return false
+      }
+      if (selectedSource2 !== 'all' && question.source_2 !== selectedSource2) {
+        return false
+      }
+      if (selectedSource3 !== 'all' && question.source_3 !== selectedSource3) {
+        return false
+      }
+      if (selectedSource4 !== 'all' && question.source_4 !== selectedSource4) {
+        return false
+      }
       return true
     })
     
@@ -93,14 +150,24 @@ export default function BankClient({
     })
     
     return result
-  }, [questions, selectedTypeId, selectedGrade, selectedDifficulty, sortBy])
+  }, [questions, selectedTypeId, selectedGrade, selectedDifficulty, selectedSourceType, selectedSource1, selectedSource2, selectedSource3, selectedSource4, sortBy])
   
   const handleReset = () => {
     setSelectedTypeId('all')
     setSelectedGrade('all')
     setSelectedDifficulty('all')
+    setSelectedSourceType('')
+    setSelectedSource1('all')
+    setSelectedSource2('all')
+    setSelectedSource3('all')
+    setSelectedSource4('all')
     setSortBy('latest')
   }
+
+  // Get active source config
+  const activeSourceConfig = useMemo(() => {
+    return sourceConfigs.find(config => config.type_name === selectedSourceType)
+  }, [sourceConfigs, selectedSourceType])
   
   const handleSaveQuestionClick = (questionId: string) => {
     setPendingQuestionId(questionId)
@@ -422,10 +489,13 @@ export default function BankClient({
     <div>
       {/* Filter Section */}
       <div className="bg-white border rounded-lg p-6 mb-6 shadow-sm">
-        <h2 className="text-lg font-semibold mb-4">필터</h2>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">필터</h2>
+        </div>
+        
+        <div className="flex flex-wrap items-end gap-4">
           {/* Problem Type Filter */}
-          <div>
+          <div className="min-w-[140px]">
             <label className="text-sm font-medium text-gray-700 mb-2 block">
               문제 유형
             </label>
@@ -443,9 +513,9 @@ export default function BankClient({
               </SelectContent>
             </Select>
           </div>
-          
+
           {/* Grade Level Filter */}
-          <div>
+          <div className="min-w-[120px]">
             <label className="text-sm font-medium text-gray-700 mb-2 block">
               학년
             </label>
@@ -465,7 +535,7 @@ export default function BankClient({
           </div>
           
           {/* Difficulty Filter */}
-          <div>
+          <div className="min-w-[120px]">
             <label className="text-sm font-medium text-gray-700 mb-2 block">
               난이도
             </label>
@@ -483,9 +553,9 @@ export default function BankClient({
               </SelectContent>
             </Select>
           </div>
-          
+
           {/* Sort Filter */}
-          <div>
+          <div className="min-w-[120px]">
             <label className="text-sm font-medium text-gray-700 mb-2 block">
               정렬
             </label>
@@ -499,13 +569,146 @@ export default function BankClient({
               </SelectContent>
             </Select>
           </div>
-          
+
+          <div className="w-px h-10 bg-gray-200 mx-2 self-center hidden md:block"></div>
+
+          {/* Source Filters Group */}
+          <div className="flex flex-wrap items-end gap-2 p-2 bg-indigo-50/80 rounded-lg border border-indigo-100">
+            {/* Source Type Filter */}
+            <div className="min-w-[140px]">
+              <label className="text-sm font-medium text-indigo-900 mb-1.5 block flex items-center gap-1">
+                출처 종류
+              </label>
+              <div className="relative">
+                {sourceConfigs.length > 0 ? (
+                  <Select 
+                    value={selectedSourceType} 
+                    onValueChange={(value) => {
+                      setSelectedSourceType(value === 'all' ? '' : value)
+                      setSelectedSource1('all')
+                      setSelectedSource2('all')
+                      setSelectedSource3('all')
+                      setSelectedSource4('all')
+                    }}
+                  >
+                    <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500">
+                      <SelectValue placeholder="전체" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      {sourceConfigs.map((config) => (
+                        <SelectItem key={config.id} value={config.type_name}>
+                          {config.type_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    placeholder="예: 모의고사"
+                    value={selectedSourceType}
+                    onChange={(e) => setSelectedSourceType(e.target.value)}
+                    className="w-full bg-white border-indigo-200"
+                  />
+                )}
+              </div>
+            </div>
+            
+            {/* Source 1 Filter */}
+            {activeSourceConfig?.source_1_label && (
+              <div className="min-w-[140px] animate-in fade-in slide-in-from-left-2 duration-300">
+                <label className="text-sm font-medium text-indigo-900 mb-1.5 block">
+                  {activeSourceConfig.source_1_label}
+                </label>
+                <Select value={selectedSource1} onValueChange={setSelectedSource1}>
+                  <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500">
+                    <SelectValue placeholder="전체" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    {activeSourceConfig.source_1_options?.map((option, idx) => (
+                      <SelectItem key={idx} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Source 2 Filter */}
+            {activeSourceConfig?.source_2_label && (
+              <div className="min-w-[140px] animate-in fade-in slide-in-from-left-2 duration-300 delay-75">
+                <label className="text-sm font-medium text-indigo-900 mb-1.5 block">
+                  {activeSourceConfig.source_2_label}
+                </label>
+                <Select value={selectedSource2} onValueChange={setSelectedSource2}>
+                  <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500">
+                    <SelectValue placeholder="전체" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    {activeSourceConfig.source_2_options?.map((option, idx) => (
+                      <SelectItem key={idx} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Source 3 Filter */}
+            {activeSourceConfig?.source_3_label && (
+              <div className="min-w-[140px] animate-in fade-in slide-in-from-left-2 duration-300 delay-100">
+                <label className="text-sm font-medium text-indigo-900 mb-1.5 block">
+                  {activeSourceConfig.source_3_label}
+                </label>
+                <Select value={selectedSource3} onValueChange={setSelectedSource3}>
+                  <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500">
+                    <SelectValue placeholder="전체" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    {activeSourceConfig.source_3_options?.map((option, idx) => (
+                      <SelectItem key={idx} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Source 4 Filter */}
+            {activeSourceConfig?.source_4_label && (
+              <div className="min-w-[140px] animate-in fade-in slide-in-from-left-2 duration-300 delay-150">
+                <label className="text-sm font-medium text-indigo-900 mb-1.5 block">
+                  {activeSourceConfig.source_4_label}
+                </label>
+                <Select value={selectedSource4} onValueChange={setSelectedSource4}>
+                  <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500">
+                    <SelectValue placeholder="전체" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    {activeSourceConfig.source_4_options?.map((option, idx) => (
+                      <SelectItem key={idx} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
           {/* Reset Button */}
-          <div className="flex items-end">
+          <div className="flex items-end ml-auto">
             <Button 
               variant="outline" 
               onClick={handleReset}
-              className="w-full"
+              className="text-gray-500 hover:text-gray-900"
             >
               초기화
             </Button>
@@ -569,10 +772,10 @@ export default function BankClient({
         </div>
       </div>
       
-      {/* Question List */}
-      <div className="space-y-4">
+      {/* Question List - 2 Column Grid */}
+      <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
         {filteredQuestions.length === 0 ? (
-          <Card>
+          <Card className="col-span-full">
             <CardContent className="py-12 text-center">
               <p className="text-gray-500 mb-2">
                 {questions.length === 0 
@@ -588,140 +791,182 @@ export default function BankClient({
           </Card>
         ) : (
           filteredQuestions.map((question) => (
-            <Card key={question.id} className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <div className="flex justify-between items-start gap-4">
-                  {/* Checkbox (for both admin and regular users) */}
-                  <div className="pt-1">
-                    <Checkbox
-                      checked={selectedQuestions.includes(question.id)}
-                      onCheckedChange={() => handleToggleQuestion(question.id)}
-                    />
-                  </div>
-                  
-                  <div className="flex-1">
-                    <div className="flex gap-2 mb-2">
-                      <Badge variant="secondary">
-                        {question.problem_types?.type_name || '미분류'}
-                      </Badge>
-                      {question.grade_level && (
-                        <Badge variant="outline">{question.grade_level}</Badge>
-                      )}
-                      {question.difficulty && (
-                        <Badge variant="outline">{question.difficulty}</Badge>
-                      )}
-                    </div>
-                    <CardTitle className="text-lg">{question.question_text}</CardTitle>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    {/* 가져오기 버튼 (모든 사용자) */}
-                    <Button
-                      onClick={() => handleSaveQuestionClick(question.id)}
-                      disabled={savingQuestionId === question.id}
-                      size="sm"
-                      className="bg-primary hover:bg-primary/90"
-                    >
-                      {savingQuestionId === question.id && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      가져오기
-                    </Button>
-                    
-                    {/* Admin Edit and Delete Buttons */}
-                    {isAdmin && (
-                      <>
-                        <Button
-                          onClick={() => handleEditQuestion(question)}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          onClick={() => handleDeleteQuestion(question.id)}
-                          disabled={deletingQuestionId === question.id}
-                          variant="destructive"
-                          size="sm"
-                        >
-                          {deletingQuestionId === question.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </>
-                    )}
-                  </div>
+            <div key={question.id} className={`relative border-2 rounded-lg p-4 transition-all hover:border-gray-300 ${selectedQuestions.includes(question.id) ? 'border-primary bg-primary/5 hover:border-primary' : 'border-transparent bg-white shadow-sm'}`}>
+              {/* Checkbox */}
+              <div className="absolute top-2 left-2 z-10">
+                <Checkbox
+                  checked={selectedQuestions.includes(question.id)}
+                  onCheckedChange={() => handleToggleQuestion(question.id)}
+                />
+              </div>
+              
+              {/* Header Badges */}
+              <div className="absolute top-2 right-2 z-10 flex gap-1.5 flex-wrap justify-end max-w-[400px] items-start">
+                <div className="flex items-center gap-1.5 bg-white/80 p-1 rounded backdrop-blur-sm">
+                  {question.source_type && (
+                    <Badge variant="default" className="text-xs font-normal">
+                      {question.source_type}
+                    </Badge>
+                  )}
+                  {question.source_1 && (
+                    <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">
+                      {question.source_1}
+                    </Badge>
+                  )}
+                  {question.source_2 && (
+                    <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">
+                      {question.source_2}
+                    </Badge>
+                  )}
+                  {question.source_3 && (
+                    <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">
+                      {question.source_3}
+                    </Badge>
+                  )}
+                  {question.source_4 && (
+                    <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">
+                      {question.source_4}
+                    </Badge>
+                  )}
                 </div>
-              </CardHeader>
-              <CardContent>
-                {/* 지문 섹션: question_text_forward, passage_text, question_text_backward 통합 */}
-                {(question.question_text_forward || question.passage_text || question.question_text_backward) && (
-                  <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm font-medium text-gray-700 mb-2">지문</p>
-                    <div className="space-y-3">
-                      {question.question_text_forward && (
-                        <p className="text-sm whitespace-pre-wrap text-gray-700">{question.question_text_forward}</p>
-                      )}
-                      {question.passage_text && (
-                        <>
-                          {question.question_text_forward && (
-                            <div className="flex justify-center my-2">
-                              <span className="text-2xl text-gray-400">↓</span>
-                            </div>
-                          )}
-                          <p className="text-sm whitespace-pre-wrap">{question.passage_text}</p>
-                        </>
-                      )}
-                      {question.question_text_backward && (
-                        <>
-                          {(question.question_text_forward || question.passage_text) && (
-                            <div className="flex justify-center my-2">
-                              <span className="text-2xl text-gray-400">↓</span>
-                            </div>
-                          )}
-                          <p className="text-sm whitespace-pre-wrap text-gray-700">{question.question_text_backward}</p>
-                        </>
-                      )}
-                    </div>
-                  </div>
+
+                {question.grade_level && (
+                  <Badge variant="outline" className="text-xs bg-blue-50 border-blue-200">
+                    {question.grade_level}
+                  </Badge>
                 )}
-                
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm font-medium text-gray-700 mb-2">선택지</p>
-                    <ul className="space-y-1">
-                      {Array.isArray(question.choices) && question.choices.map((choice: any, index: number) => {
-                        // Handle both formats: string[] or {label, text}[]
-                        const choiceText = typeof choice === 'string' 
-                          ? choice 
-                          : `${choice.label || ''} ${choice.text || ''}`.trim()
-                        return (
-                          <li key={index} className="text-sm">{choiceText}</li>
-                        )
-                      })}
-                    </ul>
-                  </div>
+                {question.difficulty && (
+                  <Badge variant="outline" className="text-xs bg-orange-50 border-orange-200">
+                    {question.difficulty}
+                  </Badge>
+                )}
+              </div>
+
+              <div className="ml-8 pt-8">
+                {/* Action Buttons */}
+                <div className="flex items-center justify-between mb-4">
+                  <Button
+                    onClick={() => handleSaveQuestionClick(question.id)}
+                    disabled={savingQuestionId === question.id}
+                    size="sm"
+                    className="bg-primary hover:bg-primary/90"
+                  >
+                    {savingQuestionId === question.id && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    가져오기
+                  </Button>
                   
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">정답</p>
-                    <p className="text-sm text-green-600 font-semibold">{question.answer}</p>
-                  </div>
-                  
-                  {question.explanation && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-700 mb-1">해설</p>
-                      <p className="text-sm text-gray-600 whitespace-pre-wrap">{question.explanation}</p>
+                  {isAdmin && (
+                    <div className="flex gap-1">
+                      <Button
+                        onClick={() => handleEditQuestion(question)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        onClick={() => handleDeleteQuestion(question.id)}
+                        disabled={deletingQuestionId === question.id}
+                        variant="destructive"
+                        size="sm"
+                      >
+                        {deletingQuestionId === question.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
                     </div>
                   )}
                 </div>
-                
-                <CardDescription className="mt-4 text-xs">
-                  생성일: {new Date(question.created_at).toLocaleDateString('ko-KR')}
-                </CardDescription>
-              </CardContent>
-            </Card>
+
+                {/* Question Preview Card */}
+                <Card className="w-full border-2 border-primary/20 shadow-lg">
+                  <CardHeader className="bg-gray-50">
+                    <div className="flex justify-between items-center">
+                      <CardTitle className="text-lg">{question.problem_types?.type_name || '미분류'}</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-6 p-6">
+                    {/* 1. 문제 (Question Text) */}
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground font-semibold">문제</Label>
+                      <div className="p-4 bg-white rounded-md border text-lg font-medium whitespace-pre-wrap">
+                        {question.question_text}
+                      </div>
+                    </div>
+
+                    {/* 2. 문제 앞 텍스트 (Question Text Forward) */}
+                    {question.question_text_forward && (
+                      <div className="bg-gray-100 p-3 rounded-lg border-l-4 border-gray-400">
+                        <p className="whitespace-pre-wrap text-gray-700">{question.question_text_forward}</p>
+                      </div>
+                    )}
+
+                    {/* 3. 본문 (Passage) */}
+                    {question.passage_text && (
+                      <div className="space-y-2">
+                        <Label className="text-muted-foreground font-semibold">본문</Label>
+                        <div className="p-4 bg-white rounded-md border text-lg whitespace-pre-wrap">
+                          {question.passage_text}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 4. 문제 뒤 텍스트 (Question Text Backward) */}
+                    {question.question_text_backward && (
+                      <div className="bg-gray-100 p-3 rounded-lg border-l-4 border-gray-400">
+                        <p className="whitespace-pre-wrap text-gray-700">{question.question_text_backward}</p>
+                      </div>
+                    )}
+
+                    {/* 5. 선택지 (Choices) - Always show 5 slots with unicode circled numbers */}
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground font-semibold">선택지</Label>
+                      <div className="grid gap-2">
+                        {[0, 1, 2, 3, 4].map((index) => {
+                          const choices = Array.isArray(question.choices) ? question.choices : []
+                          const choice = choices[index] as { label?: string; text?: string } | string | undefined
+                          const text = choice 
+                            ? (typeof choice === 'string' ? choice : ((choice as { text?: string }).text || ''))
+                            : ''
+                          const label = ['①', '②', '③', '④', '⑤'][index]
+                          const isAnswer = question.answer === String(index + 1) || question.answer === label
+
+                          return (
+                            <div key={index} className={`flex items-start p-3 rounded-md border bg-white hover:bg-gray-50 ${isAnswer ? 'border-green-200 bg-green-50' : ''}`}>
+                              <span className="font-bold mr-3 min-w-[24px] text-lg leading-none">{label}</span>
+                              <span className="pt-0.5">{text}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* 6. 정답 & 해설 (Answer & Explanation - side by side) */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Answer */}
+                      <div className="space-y-2">
+                        <Label className="text-muted-foreground font-semibold">정답</Label>
+                        <div className="p-3 bg-green-50 border border-green-200 rounded-md text-green-800 font-bold">
+                          {question.answer}
+                        </div>
+                      </div>
+
+                      {/* Explanation */}
+                      <div className="space-y-2">
+                        <Label className="text-muted-foreground font-semibold">해설</Label>
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-blue-800 text-sm whitespace-pre-wrap">
+                          {question.explanation || '-'}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           ))
         )}
       </div>

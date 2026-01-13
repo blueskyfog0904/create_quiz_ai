@@ -63,3 +63,42 @@ export async function PATCH(
     }, { status: 500 })
   }
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Please login first' } }, { status: 401 })
+  }
+
+  try {
+    const { error } = await supabase
+      .from('questions')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)
+
+    if (error) {
+      console.error('DB Delete Error:', error)
+      return NextResponse.json({ 
+        success: false, 
+        error: { code: 'DB_ERROR', message: 'Failed to delete question' } 
+      }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+
+  } catch (error: any) {
+    console.error('Delete API Error:', error)
+    return NextResponse.json({ 
+      success: false, 
+      error: { code: 'INTERNAL_SERVER_ERROR', message: 'An unexpected error occurred' } 
+    }, { status: 500 })
+  }
+}
+

@@ -14,12 +14,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { Star, Tag, Plus, X, Calendar, Minus } from 'lucide-react'
+import { Star, Tag, Plus, X, Calendar, Minus, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { getGradeLevelLabel, getDifficultyLabel } from '@/lib/display-labels'
 
-type DBQuestion = Database['public']['Tables']['questions']['Row']
+type DBQuestion = Database['public']['Tables']['questions']['Row'] & {
+  problem_types?: { type_name: string } | null
+}
 
 // --- Question Item Component ---
 function QuestionItem({ 
@@ -195,7 +197,10 @@ function QuestionItem({
           </div>
         )}
         
-        <QuestionPreview question={mappedQuestion} />
+        <QuestionPreview 
+          question={mappedQuestion} 
+          title={question.problem_types?.type_name || '문제 미리보기'}
+        />
         
         {/* Question Text Backward */}
         {question.question_text_backward && (
@@ -218,6 +223,7 @@ interface QuestionActionBarProps {
     onScaleChange: (scale: number) => void
     onSelectAll: () => void
     onCreateExamPaper: () => void
+    onDeleteSelected?: () => void
 }
 
 export function QuestionActionBar({
@@ -226,7 +232,8 @@ export function QuestionActionBar({
     scale,
     onScaleChange,
     onSelectAll,
-    onCreateExamPaper
+    onCreateExamPaper,
+    onDeleteSelected
 }: QuestionActionBarProps) {
 
     const adjustScale = (delta: number) => {
@@ -284,14 +291,28 @@ export function QuestionActionBar({
                         </Button>
                     </div>
                 </div>
-                <Button
-                    size="sm"
-                    className="text-xs h-7"
-                    onClick={onCreateExamPaper}
-                    disabled={selectedCount === 0}
-                >
-                    선택한 문제로 시험지 만들기
-                </Button>
+                <div className="flex items-center gap-2">
+                    {onDeleteSelected && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs h-7 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                            onClick={onDeleteSelected}
+                            disabled={selectedCount === 0}
+                        >
+                            <Trash2 className="w-3.5 h-3.5 mr-1" />
+                            선택 삭제
+                        </Button>
+                    )}
+                    <Button
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={onCreateExamPaper}
+                        disabled={selectedCount === 0}
+                    >
+                        선택한 문제로 시험지 만들기
+                    </Button>
+                </div>
             </div>
         </div>
     )
