@@ -99,10 +99,41 @@ export function PassageList({
                 className="flex-1 min-w-0 cursor-pointer space-y-1"
                 onClick={() => onView(passage)}
             >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                      <h3 className="font-semibold text-base truncate">
                         {passage.title_ko || passage.title_en || '제목 없음'}
                      </h3>
+                     
+                     {/* Source Badges - matching question bank style */}
+                     {(passage.source_type || passage.source_1 || passage.source_2 || passage.source_3 || passage.source_4) && (
+                       <div className="flex items-center gap-1 flex-wrap">
+                         {passage.source_type && (
+                           <Badge variant="default" className="text-xs font-normal">
+                             {passage.source_type}
+                           </Badge>
+                         )}
+                         {passage.source_1 && (
+                           <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">
+                             {passage.source_1}
+                           </Badge>
+                         )}
+                         {passage.source_2 && (
+                           <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">
+                             {passage.source_2}
+                           </Badge>
+                         )}
+                         {passage.source_3 && (
+                           <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">
+                             {passage.source_3}
+                           </Badge>
+                         )}
+                         {passage.source_4 && (
+                           <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">
+                             {passage.source_4}
+                           </Badge>
+                         )}
+                       </div>
+                     )}
                 </div>
                 {passage.title_en && (
                     <p className="text-xs text-muted-foreground truncate">{passage.title_en}</p>
