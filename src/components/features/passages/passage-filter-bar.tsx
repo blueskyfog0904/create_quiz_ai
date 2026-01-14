@@ -556,6 +556,24 @@ export function PassageFilterBar({
             </>
           );
         })()}
+
+        {/* Source Filters Reset Button */}
+        <div className="flex items-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100"
+            onClick={() => {
+              onSourceTypeChange('');
+              onSource1Change('');
+              onSource2Change('');
+              onSource3Change('');
+              onSource4Change('');
+            }}
+          >
+            초기화
+          </Button>
+        </div>
       </div>
     </div>
   );
