@@ -34,18 +34,18 @@ interface PassageFilterBarProps {
   onDateRangeChange: (range: { from?: Date; to?: Date } | undefined) => void;
   viewMode: 'list' | 'timeline';
   onViewModeChange: (mode: 'list' | 'timeline') => void;
-  // Source filters
-  sourceType: string;
-  onSourceTypeChange: (value: string) => void;
-  source1: string;
-  onSource1Change: (value: string) => void;
-  source2: string;
-  onSource2Change: (value: string) => void;
-  source3: string;
-  onSource3Change: (value: string) => void;
-  source4: string;
-  onSource4Change: (value: string) => void;
-  sourceConfigs: Array<{
+  // Source filters (optional - not all usages need them)
+  sourceType?: string;
+  onSourceTypeChange?: (value: string) => void;
+  source1?: string;
+  onSource1Change?: (value: string) => void;
+  source2?: string;
+  onSource2Change?: (value: string) => void;
+  source3?: string;
+  onSource3Change?: (value: string) => void;
+  source4?: string;
+  onSource4Change?: (value: string) => void;
+  sourceConfigs?: Array<{
     id: string;
     type_name: string;
     source_1_label?: string | null;
@@ -399,182 +399,184 @@ export function PassageFilterBar({
         </div>
       </div>
 
-      {/* Source Filters Section */}
-      <div className="flex flex-wrap items-end gap-2 p-3 bg-indigo-50/80 rounded-lg border border-indigo-100">
-        {/* Source Type Filter */}
-        <div className="min-w-[120px]">
-          <label className="text-xs font-medium text-indigo-900 mb-1 block">출처 종류</label>
-          {sourceConfigs.length > 0 ? (
-            <Select 
-              value={sourceType || 'all'} 
-              onValueChange={(value) => onSourceTypeChange(value === 'all' ? '' : value)}
+      {/* Source Filters Section - only shown when source filter props are provided */}
+      {sourceConfigs && onSourceTypeChange && (
+        <div className="flex flex-wrap items-end gap-2 p-3 bg-indigo-50/80 rounded-lg border border-indigo-100">
+          {/* Source Type Filter */}
+          <div className="min-w-[120px]">
+            <label className="text-xs font-medium text-indigo-900 mb-1 block">출처 종류</label>
+            {sourceConfigs.length > 0 ? (
+              <Select 
+                value={sourceType || 'all'} 
+                onValueChange={(value) => onSourceTypeChange(value === 'all' ? '' : value)}
+              >
+                <SelectTrigger className="h-9 text-sm bg-white border-indigo-200">
+                  <SelectValue placeholder="전체" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체</SelectItem>
+                  {sourceConfigs.map((config) => (
+                    <SelectItem key={config.id} value={config.type_name}>
+                      {config.type_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                placeholder="예: 모의고사"
+                value={sourceType || ''}
+                onChange={(e) => onSourceTypeChange(e.target.value)}
+                className="h-9 text-sm bg-white border-indigo-200"
+              />
+            )}
+          </div>
+
+          {/* Dynamic Source Filters based on selected source type */}
+          {(() => {
+            const activeConfig = sourceConfigs.find(c => c.type_name === sourceType);
+            if (!activeConfig) return null;
+            
+            return (
+              <>
+                {/* Source 1 */}
+                {activeConfig.source_1_label && onSource1Change && (
+                  <div className="min-w-[100px]">
+                    <label className="text-xs font-medium text-indigo-900 mb-1 block">
+                      {activeConfig.source_1_label}
+                    </label>
+                    {activeConfig.source_1_options && activeConfig.source_1_options.length > 0 ? (
+                      <Select value={source1 || 'all'} onValueChange={(v) => onSource1Change(v === 'all' ? '' : v)}>
+                        <SelectTrigger className="h-9 text-sm bg-white border-indigo-200">
+                          <SelectValue placeholder="전체" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">전체</SelectItem>
+                          {activeConfig.source_1_options.map((opt, i) => (
+                            <SelectItem key={i} value={opt}>{opt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        placeholder="직접 입력"
+                        value={source1 || ''}
+                        onChange={(e) => onSource1Change(e.target.value)}
+                        className="h-9 text-sm bg-white border-indigo-200"
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Source 2 */}
+                {activeConfig.source_2_label && onSource2Change && (
+                  <div className="min-w-[100px]">
+                    <label className="text-xs font-medium text-indigo-900 mb-1 block">
+                      {activeConfig.source_2_label}
+                    </label>
+                    {activeConfig.source_2_options && activeConfig.source_2_options.length > 0 ? (
+                      <Select value={source2 || 'all'} onValueChange={(v) => onSource2Change(v === 'all' ? '' : v)}>
+                        <SelectTrigger className="h-9 text-sm bg-white border-indigo-200">
+                          <SelectValue placeholder="전체" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">전체</SelectItem>
+                          {activeConfig.source_2_options.map((opt, i) => (
+                            <SelectItem key={i} value={opt}>{opt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        placeholder="직접 입력"
+                        value={source2 || ''}
+                        onChange={(e) => onSource2Change(e.target.value)}
+                        className="h-9 text-sm bg-white border-indigo-200"
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Source 3 */}
+                {activeConfig.source_3_label && onSource3Change && (
+                  <div className="min-w-[100px]">
+                    <label className="text-xs font-medium text-indigo-900 mb-1 block">
+                      {activeConfig.source_3_label}
+                    </label>
+                    {activeConfig.source_3_options && activeConfig.source_3_options.length > 0 ? (
+                      <Select value={source3 || 'all'} onValueChange={(v) => onSource3Change(v === 'all' ? '' : v)}>
+                        <SelectTrigger className="h-9 text-sm bg-white border-indigo-200">
+                          <SelectValue placeholder="전체" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">전체</SelectItem>
+                          {activeConfig.source_3_options.map((opt, i) => (
+                            <SelectItem key={i} value={opt}>{opt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        placeholder="직접 입력"
+                        value={source3 || ''}
+                        onChange={(e) => onSource3Change(e.target.value)}
+                        className="h-9 text-sm bg-white border-indigo-200"
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Source 4 */}
+                {activeConfig.source_4_label && onSource4Change && (
+                  <div className="min-w-[100px]">
+                    <label className="text-xs font-medium text-indigo-900 mb-1 block">
+                      {activeConfig.source_4_label}
+                    </label>
+                    {activeConfig.source_4_options && activeConfig.source_4_options.length > 0 ? (
+                      <Select value={source4 || 'all'} onValueChange={(v) => onSource4Change(v === 'all' ? '' : v)}>
+                        <SelectTrigger className="h-9 text-sm bg-white border-indigo-200">
+                          <SelectValue placeholder="전체" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">전체</SelectItem>
+                          {activeConfig.source_4_options.map((opt, i) => (
+                            <SelectItem key={i} value={opt}>{opt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        placeholder="직접 입력"
+                        value={source4 || ''}
+                        onChange={(e) => onSource4Change(e.target.value)}
+                        className="h-9 text-sm bg-white border-indigo-200"
+                      />
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          })()}
+
+          {/* Source Filters Reset Button */}
+          <div className="flex items-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100"
+              onClick={() => {
+                onSourceTypeChange('');
+                onSource1Change?.('');
+                onSource2Change?.('');
+                onSource3Change?.('');
+                onSource4Change?.('');
+              }}
             >
-              <SelectTrigger className="h-9 text-sm bg-white border-indigo-200">
-                <SelectValue placeholder="전체" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체</SelectItem>
-                {sourceConfigs.map((config) => (
-                  <SelectItem key={config.id} value={config.type_name}>
-                    {config.type_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <Input
-              placeholder="예: 모의고사"
-              value={sourceType}
-              onChange={(e) => onSourceTypeChange(e.target.value)}
-              className="h-9 text-sm bg-white border-indigo-200"
-            />
-          )}
+              초기화
+            </Button>
+          </div>
         </div>
-
-        {/* Dynamic Source Filters based on selected source type */}
-        {(() => {
-          const activeConfig = sourceConfigs.find(c => c.type_name === sourceType);
-          if (!activeConfig) return null;
-          
-          return (
-            <>
-              {/* Source 1 */}
-              {activeConfig.source_1_label && (
-                <div className="min-w-[100px]">
-                  <label className="text-xs font-medium text-indigo-900 mb-1 block">
-                    {activeConfig.source_1_label}
-                  </label>
-                  {activeConfig.source_1_options && activeConfig.source_1_options.length > 0 ? (
-                    <Select value={source1 || 'all'} onValueChange={(v) => onSource1Change(v === 'all' ? '' : v)}>
-                      <SelectTrigger className="h-9 text-sm bg-white border-indigo-200">
-                        <SelectValue placeholder="전체" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">전체</SelectItem>
-                        {activeConfig.source_1_options.map((opt, i) => (
-                          <SelectItem key={i} value={opt}>{opt}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      placeholder="직접 입력"
-                      value={source1}
-                      onChange={(e) => onSource1Change(e.target.value)}
-                      className="h-9 text-sm bg-white border-indigo-200"
-                    />
-                  )}
-                </div>
-              )}
-
-              {/* Source 2 */}
-              {activeConfig.source_2_label && (
-                <div className="min-w-[100px]">
-                  <label className="text-xs font-medium text-indigo-900 mb-1 block">
-                    {activeConfig.source_2_label}
-                  </label>
-                  {activeConfig.source_2_options && activeConfig.source_2_options.length > 0 ? (
-                    <Select value={source2 || 'all'} onValueChange={(v) => onSource2Change(v === 'all' ? '' : v)}>
-                      <SelectTrigger className="h-9 text-sm bg-white border-indigo-200">
-                        <SelectValue placeholder="전체" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">전체</SelectItem>
-                        {activeConfig.source_2_options.map((opt, i) => (
-                          <SelectItem key={i} value={opt}>{opt}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      placeholder="직접 입력"
-                      value={source2}
-                      onChange={(e) => onSource2Change(e.target.value)}
-                      className="h-9 text-sm bg-white border-indigo-200"
-                    />
-                  )}
-                </div>
-              )}
-
-              {/* Source 3 */}
-              {activeConfig.source_3_label && (
-                <div className="min-w-[100px]">
-                  <label className="text-xs font-medium text-indigo-900 mb-1 block">
-                    {activeConfig.source_3_label}
-                  </label>
-                  {activeConfig.source_3_options && activeConfig.source_3_options.length > 0 ? (
-                    <Select value={source3 || 'all'} onValueChange={(v) => onSource3Change(v === 'all' ? '' : v)}>
-                      <SelectTrigger className="h-9 text-sm bg-white border-indigo-200">
-                        <SelectValue placeholder="전체" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">전체</SelectItem>
-                        {activeConfig.source_3_options.map((opt, i) => (
-                          <SelectItem key={i} value={opt}>{opt}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      placeholder="직접 입력"
-                      value={source3}
-                      onChange={(e) => onSource3Change(e.target.value)}
-                      className="h-9 text-sm bg-white border-indigo-200"
-                    />
-                  )}
-                </div>
-              )}
-
-              {/* Source 4 */}
-              {activeConfig.source_4_label && (
-                <div className="min-w-[100px]">
-                  <label className="text-xs font-medium text-indigo-900 mb-1 block">
-                    {activeConfig.source_4_label}
-                  </label>
-                  {activeConfig.source_4_options && activeConfig.source_4_options.length > 0 ? (
-                    <Select value={source4 || 'all'} onValueChange={(v) => onSource4Change(v === 'all' ? '' : v)}>
-                      <SelectTrigger className="h-9 text-sm bg-white border-indigo-200">
-                        <SelectValue placeholder="전체" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">전체</SelectItem>
-                        {activeConfig.source_4_options.map((opt, i) => (
-                          <SelectItem key={i} value={opt}>{opt}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      placeholder="직접 입력"
-                      value={source4}
-                      onChange={(e) => onSource4Change(e.target.value)}
-                      className="h-9 text-sm bg-white border-indigo-200"
-                    />
-                  )}
-                </div>
-              )}
-            </>
-          );
-        })()}
-
-        {/* Source Filters Reset Button */}
-        <div className="flex items-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100"
-            onClick={() => {
-              onSourceTypeChange('');
-              onSource1Change('');
-              onSource2Change('');
-              onSource3Change('');
-              onSource4Change('');
-            }}
-          >
-            초기화
-          </Button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
