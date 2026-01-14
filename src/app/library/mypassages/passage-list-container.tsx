@@ -9,6 +9,19 @@ import { PassageFilterBar } from '@/components/features/passages/passage-filter-
 import { Passage, updatePassage } from '@/app/api/passages/actions';
 import { toast } from 'sonner';
 
+interface SourceConfig {
+  id: string;
+  type_name: string;
+  source_1_label?: string | null;
+  source_1_options?: string[] | null;
+  source_2_label?: string | null;
+  source_2_options?: string[] | null;
+  source_3_label?: string | null;
+  source_3_options?: string[] | null;
+  source_4_label?: string | null;
+  source_4_options?: string[] | null;
+}
+
 interface PassageListContainerProps {
   initialPassages: Passage[];
   totalCount: number;
@@ -42,6 +55,30 @@ export function PassageListContainer({
   });
   const [viewMode, setViewMode] = useState<'list' | 'timeline'>('list');
 
+  // Source Filter States
+  const [sourceType, setSourceType] = useState(searchParams.get('sourceType') || '');
+  const [source1, setSource1] = useState(searchParams.get('source1') || '');
+  const [source2, setSource2] = useState(searchParams.get('source2') || '');
+  const [source3, setSource3] = useState(searchParams.get('source3') || '');
+  const [source4, setSource4] = useState(searchParams.get('source4') || '');
+  const [sourceConfigs, setSourceConfigs] = useState<SourceConfig[]>([]);
+
+  // Fetch source configs on mount
+  useEffect(() => {
+    const fetchSourceConfigs = async () => {
+      try {
+        const response = await fetch('/api/admin/source-configs');
+        if (response.ok) {
+          const data = await response.json();
+          setSourceConfigs(data.configs || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch source configs:', error);
+      }
+    };
+    fetchSourceConfigs();
+  }, []);
+
   // Sync props to state (when server refetches)
   useEffect(() => {
     setPassages(initialPassages);
@@ -73,9 +110,9 @@ export function PassageListContainer({
   // Filter Handlers
   const handleSearchChange = (val: string) => {
     setSearch(val);
-    // Debounce usually recommended, but for now direct update
   };
-  // Trigger search on Enter or blur could be better, but let's debounce effect
+
+  // Debounced search update
   useEffect(() => {
       const timer = setTimeout(() => {
           if (search !== (searchParams.get('search') || '')) {
@@ -101,6 +138,37 @@ export function PassageListContainer({
         startDate: range?.from, 
         endDate: range?.to 
     });
+  };
+
+  // Source Filter Handlers
+  const handleSourceTypeChange = (val: string) => {
+    setSourceType(val);
+    // Reset source 1-4 when source type changes
+    setSource1('');
+    setSource2('');
+    setSource3('');
+    setSource4('');
+    updateFilters({ sourceType: val, source1: '', source2: '', source3: '', source4: '' });
+  };
+
+  const handleSource1Change = (val: string) => {
+    setSource1(val);
+    updateFilters({ source1: val });
+  };
+
+  const handleSource2Change = (val: string) => {
+    setSource2(val);
+    updateFilters({ source2: val });
+  };
+
+  const handleSource3Change = (val: string) => {
+    setSource3(val);
+    updateFilters({ source3: val });
+  };
+
+  const handleSource4Change = (val: string) => {
+    setSource4(val);
+    updateFilters({ source4: val });
   };
 
   // Pagination Handlers
@@ -160,6 +228,17 @@ export function PassageListContainer({
         onDateRangeChange={handleDateRangeChange}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
+        sourceType={sourceType}
+        onSourceTypeChange={handleSourceTypeChange}
+        source1={source1}
+        onSource1Change={handleSource1Change}
+        source2={source2}
+        onSource2Change={handleSource2Change}
+        source3={source3}
+        onSource3Change={handleSource3Change}
+        source4={source4}
+        onSource4Change={handleSource4Change}
+        sourceConfigs={sourceConfigs}
       />
 
       {viewMode === 'list' ? (
@@ -198,3 +277,4 @@ export function PassageListContainer({
     </>
   );
 }
+

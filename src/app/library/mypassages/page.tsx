@@ -29,6 +29,13 @@ export default async function MyPassagesPage({ searchParams }: PageProps) {
   const startDate = typeof params?.startDate === 'string' ? params.startDate : undefined;
   const endDate = typeof params?.endDate === 'string' ? params.endDate : undefined;
 
+  // Source filters
+  const sourceType = typeof params?.sourceType === 'string' ? params.sourceType : undefined;
+  const source1 = typeof params?.source1 === 'string' ? params.source1 : undefined;
+  const source2 = typeof params?.source2 === 'string' ? params.source2 : undefined;
+  const source3 = typeof params?.source3 === 'string' ? params.source3 : undefined;
+  const source4 = typeof params?.source4 === 'string' ? params.source4 : undefined;
+
   const { data: passages, count } = await getPassages({
     page,
     limit,
@@ -36,7 +43,12 @@ export default async function MyPassagesPage({ searchParams }: PageProps) {
     tags,
     isBookmarked,
     startDate,
-    endDate
+    endDate,
+    sourceType,
+    source1,
+    source2,
+    source3,
+    source4
   });
 
   return (

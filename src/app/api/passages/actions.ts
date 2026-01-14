@@ -142,6 +142,11 @@ export interface GetPassagesParams {
   isBookmarked?: boolean;
   startDate?: string;
   endDate?: string;
+  sourceType?: string;
+  source1?: string;
+  source2?: string;
+  source3?: string;
+  source4?: string;
 }
 
 export async function getPassages(params: GetPassagesParams = {}) {
@@ -152,7 +157,12 @@ export async function getPassages(params: GetPassagesParams = {}) {
     tags,
     isBookmarked,
     startDate,
-    endDate
+    endDate,
+    sourceType,
+    source1,
+    source2,
+    source3,
+    source4
   } = params;
   
   const supabase = await createClient();
@@ -190,6 +200,27 @@ export async function getPassages(params: GetPassagesParams = {}) {
 
   if (endDate) {
     query = query.lte('created_at', `${endDate}T23:59:59`);
+  }
+
+  // Source filters (partial match using ilike)
+  if (sourceType) {
+    query = query.ilike('source_type', `%${sourceType}%`);
+  }
+
+  if (source1) {
+    query = query.ilike('source_1', `%${source1}%`);
+  }
+
+  if (source2) {
+    query = query.ilike('source_2', `%${source2}%`);
+  }
+
+  if (source3) {
+    query = query.ilike('source_3', `%${source3}%`);
+  }
+
+  if (source4) {
+    query = query.ilike('source_4', `%${source4}%`);
   }
 
   const { data, error, count } = await query.range(from, to);
