@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { 
   X, 
   Plus, 
@@ -10,7 +10,8 @@ import {
   Sparkles,
   Bot,
   Languages,
-  Type
+  Type,
+  BookOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -18,6 +19,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { createPassage, enrichPassage, enrichPassages, type PassageAnalysis } from '@/app/api/passages/actions';
@@ -40,17 +42,72 @@ interface OCRResultViewProps {
   onComplete: () => void;
 }
 
+interface SourceConfig {
+  id: string;
+  type_name: string;
+  source_1_label?: string | null;
+  source_1_options?: string[] | null;
+  source_2_label?: string | null;
+  source_2_options?: string[] | null;
+  source_3_label?: string | null;
+  source_3_options?: string[] | null;
+  source_4_label?: string | null;
+  source_4_options?: string[] | null;
+}
+
 interface PassageData {
   id: string;
   content: string;
   title_en: string;
   title_ko: string;
   content_translation: string;
+  source_type: string;
+  source_1: string;
+  source_2: string;
+  source_3: string;
+  source_4: string;
 }
 
 export function OCRResultView({ initialPassages, preAnalyzedData, onBack, onClose, onComplete }: OCRResultViewProps) {
   // Mode: 'raw' (initial text editing) -> 'analyzed' (metadata editing)
   const [isAnalyzed, setIsAnalyzed] = useState(!!preAnalyzedData);
+  
+  // Source configs from admin
+  const [sourceConfigs, setSourceConfigs] = useState<SourceConfig[]>([]);
+  const [selectedSourceType, setSelectedSourceType] = useState<string>('');
+  const [selectedSource1, setSelectedSource1] = useState<string>('');
+  const [selectedSource2, setSelectedSource2] = useState<string>('');
+  const [selectedSource3, setSelectedSource3] = useState<string>('');
+  const [selectedSource4, setSelectedSource4] = useState<string>('');
+
+  // Fetch source configs on mount
+  useEffect(() => {
+    const fetchSourceConfigs = async () => {
+      try {
+        const response = await fetch('/api/admin/source-configs');
+        if (response.ok) {
+          const data = await response.json();
+          setSourceConfigs(data.configs || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch source configs:', error);
+      }
+    };
+    fetchSourceConfigs();
+  }, []);
+
+  // Get active source config based on selected type
+  const activeSourceConfig = useMemo(() => {
+    return sourceConfigs.find(c => c.type_name === selectedSourceType) || null;
+  }, [sourceConfigs, selectedSourceType]);
+
+  // Reset source 1-4 when source type changes
+  useEffect(() => {
+    setSelectedSource1('');
+    setSelectedSource2('');
+    setSelectedSource3('');
+    setSelectedSource4('');
+  }, [selectedSourceType]);
   
   const [passages, setPassages] = useState<PassageData[]>(() => {
     if (preAnalyzedData && preAnalyzedData.length > 0) {
@@ -60,7 +117,12 @@ export function OCRResultView({ initialPassages, preAnalyzedData, onBack, onClos
         content: data.content_refined || initialPassages[data.original_index] || '',
         title_en: data.title_en || '',
         title_ko: data.title_ko || '',
-        content_translation: data.content_translation || ''
+        content_translation: data.content_translation || '',
+        source_type: '',
+        source_1: '',
+        source_2: '',
+        source_3: '',
+        source_4: ''
       }));
     }
     // Use initial passages for raw editing
@@ -69,7 +131,12 @@ export function OCRResultView({ initialPassages, preAnalyzedData, onBack, onClos
       content: text,
       title_en: '',
       title_ko: '',
-      content_translation: ''
+      content_translation: '',
+      source_type: '',
+      source_1: '',
+      source_2: '',
+      source_3: '',
+      source_4: ''
     }));
   });
   
@@ -110,7 +177,12 @@ export function OCRResultView({ initialPassages, preAnalyzedData, onBack, onClos
       content: '',
       title_en: '',
       title_ko: '',
-      content_translation: ''
+      content_translation: '',
+      source_type: '',
+      source_1: '',
+      source_2: '',
+      source_3: '',
+      source_4: ''
     }]);
   };
 
@@ -218,7 +290,13 @@ export function OCRResultView({ initialPassages, preAnalyzedData, onBack, onClos
           content: finalContent,
           title_en: p.title_en || `Extracted Passage ${index + 1}`,
           title_ko: p.title_ko || null,
-          content_translation: p.content_translation || null
+          content_translation: p.content_translation || null,
+          // Use shared source fields for all passages
+          source_type: selectedSourceType || null,
+          source_1: selectedSource1 || null,
+          source_2: selectedSource2 || null,
+          source_3: selectedSource3 || null,
+          source_4: selectedSource4 || null
         });
         successCount++;
       }));
@@ -307,6 +385,149 @@ export function OCRResultView({ initialPassages, preAnalyzedData, onBack, onClos
       </div>
 
       <div className="space-y-8">
+        {/* Source Selection (Only in Analyzed View - Optional) */}
+        {isAnalyzed && sourceConfigs.length > 0 && (
+          <div className="p-4 bg-indigo-50/80 rounded-lg border border-indigo-100 space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <BookOpen className="w-4 h-4 text-indigo-600" />
+              <Label className="text-sm font-semibold text-indigo-900">출처 정보 (선택사항)</Label>
+            </div>
+            <div className="flex flex-wrap items-end gap-4">
+              {/* Source Type */}
+              <div className="min-w-[150px]">
+                <label className="text-xs font-medium text-indigo-900 mb-1 block">
+                  출처 종류
+                </label>
+                <Select value={selectedSourceType || 'none'} onValueChange={(val) => setSelectedSourceType(val === 'none' ? '' : val)}>
+                  <SelectTrigger className="h-9 bg-white border-indigo-200">
+                    <SelectValue placeholder="선택 안함" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">선택 안함</SelectItem>
+                    {sourceConfigs.map((config) => (
+                      <SelectItem key={config.id} value={config.type_name}>
+                        {config.type_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Source 1 */}
+              {activeSourceConfig?.source_1_label && (
+                <div className="min-w-[120px]">
+                  <label className="text-xs font-medium text-indigo-900 mb-1 block">
+                    {activeSourceConfig.source_1_label}
+                  </label>
+                  {activeSourceConfig.source_1_options && activeSourceConfig.source_1_options.length > 0 ? (
+                    <Select value={selectedSource1} onValueChange={setSelectedSource1}>
+                      <SelectTrigger className="h-9 bg-white border-indigo-200">
+                        <SelectValue placeholder="선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {activeSourceConfig.source_1_options.map((option, idx) => (
+                          <SelectItem key={idx} value={option}>{option}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      placeholder="직접 입력"
+                      value={selectedSource1}
+                      onChange={(e) => setSelectedSource1(e.target.value)}
+                      className="h-9 bg-white border-indigo-200"
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Source 2 */}
+              {activeSourceConfig?.source_2_label && (
+                <div className="min-w-[120px]">
+                  <label className="text-xs font-medium text-indigo-900 mb-1 block">
+                    {activeSourceConfig.source_2_label}
+                  </label>
+                  {activeSourceConfig.source_2_options && activeSourceConfig.source_2_options.length > 0 ? (
+                    <Select value={selectedSource2} onValueChange={setSelectedSource2}>
+                      <SelectTrigger className="h-9 bg-white border-indigo-200">
+                        <SelectValue placeholder="선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {activeSourceConfig.source_2_options.map((option, idx) => (
+                          <SelectItem key={idx} value={option}>{option}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      placeholder="직접 입력"
+                      value={selectedSource2}
+                      onChange={(e) => setSelectedSource2(e.target.value)}
+                      className="h-9 bg-white border-indigo-200"
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Source 3 */}
+              {activeSourceConfig?.source_3_label && (
+                <div className="min-w-[120px]">
+                  <label className="text-xs font-medium text-indigo-900 mb-1 block">
+                    {activeSourceConfig.source_3_label}
+                  </label>
+                  {activeSourceConfig.source_3_options && activeSourceConfig.source_3_options.length > 0 ? (
+                    <Select value={selectedSource3} onValueChange={setSelectedSource3}>
+                      <SelectTrigger className="h-9 bg-white border-indigo-200">
+                        <SelectValue placeholder="선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {activeSourceConfig.source_3_options.map((option, idx) => (
+                          <SelectItem key={idx} value={option}>{option}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      placeholder="직접 입력"
+                      value={selectedSource3}
+                      onChange={(e) => setSelectedSource3(e.target.value)}
+                      className="h-9 bg-white border-indigo-200"
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Source 4 */}
+              {activeSourceConfig?.source_4_label && (
+                <div className="min-w-[120px]">
+                  <label className="text-xs font-medium text-indigo-900 mb-1 block">
+                    {activeSourceConfig.source_4_label}
+                  </label>
+                  {activeSourceConfig.source_4_options && activeSourceConfig.source_4_options.length > 0 ? (
+                    <Select value={selectedSource4} onValueChange={setSelectedSource4}>
+                      <SelectTrigger className="h-9 bg-white border-indigo-200">
+                        <SelectValue placeholder="선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {activeSourceConfig.source_4_options.map((option, idx) => (
+                          <SelectItem key={idx} value={option}>{option}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      placeholder="직접 입력"
+                      value={selectedSource4}
+                      onChange={(e) => setSelectedSource4(e.target.value)}
+                      className="h-9 bg-white border-indigo-200"
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Helper Options (Only in Raw View) */}
         {!isAnalyzed && (
              <div className="flex items-center justify-end space-x-2">

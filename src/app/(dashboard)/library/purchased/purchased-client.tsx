@@ -34,9 +34,50 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
   const [selectedGrade, setSelectedGrade] = useState<string>('all')
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all')
   const [selectedSource, setSelectedSource] = useState<string>('all')
+  const [selectedSourceType, setSelectedSourceType] = useState<string>('')
+  const [selectedSource1, setSelectedSource1] = useState<string>('all')
+  const [selectedSource2, setSelectedSource2] = useState<string>('all')
+  const [selectedSource3, setSelectedSource3] = useState<string>('all')
+  const [selectedSource4, setSelectedSource4] = useState<string>('all')
   const [selectedRating, setSelectedRating] = useState<string>('all')
   const [tagFilter, setTagFilter] = useState<string>('')
   const [sortBy, setSortBy] = useState<'latest' | 'oldest'>('latest')
+  
+  // Source Configs for source type filter (with full config details)
+  interface SourceConfig {
+    id: string
+    type_name: string
+    source_1_label?: string | null
+    source_1_options?: string[] | null
+    source_2_label?: string | null
+    source_2_options?: string[] | null
+    source_3_label?: string | null
+    source_3_options?: string[] | null
+    source_4_label?: string | null
+    source_4_options?: string[] | null
+  }
+  const [sourceConfigs, setSourceConfigs] = useState<SourceConfig[]>([])
+  
+  // Fetch source configs
+  useEffect(() => {
+    const fetchSourceConfigs = async () => {
+      try {
+        const response = await fetch('/api/admin/source-configs')
+        if (response.ok) {
+          const data = await response.json()
+          setSourceConfigs(data.configs || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch source configs:', error)
+      }
+    }
+    fetchSourceConfigs()
+  }, [])
+
+  // Get active source config based on selected source type
+  const activeSourceConfig = useMemo(() => {
+    return sourceConfigs.find(config => config.type_name === selectedSourceType)
+  }, [sourceConfigs, selectedSourceType])
   
   // Selection & Zoom state (lifted from QuestionList)
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([])
@@ -93,6 +134,25 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
         return false
       }
 
+      // Filter by source type (only for community questions)
+      if (selectedSourceType && (!question.source_type || !question.source_type.includes(selectedSourceType))) {
+        return false
+      }
+
+      // Filter by source 1-4 (partial match - e.g., "37" matches "(37번)")
+      if (selectedSource1 !== 'all' && (!question.source_1 || !question.source_1.includes(selectedSource1))) {
+        return false
+      }
+      if (selectedSource2 !== 'all' && (!question.source_2 || !question.source_2.includes(selectedSource2))) {
+        return false
+      }
+      if (selectedSource3 !== 'all' && (!question.source_3 || !question.source_3.includes(selectedSource3))) {
+        return false
+      }
+      if (selectedSource4 !== 'all' && (!question.source_4 || !question.source_4.includes(selectedSource4))) {
+        return false
+      }
+
       // Filter by rating
       if (selectedRating !== 'all') {
         const ratingValue = parseInt(selectedRating)
@@ -125,13 +185,18 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
     })
     
     return result
-  }, [questions, selectedTypeId, selectedGrade, selectedDifficulty, selectedSource, selectedRating, tagFilter, sortBy])
+  }, [questions, selectedTypeId, selectedGrade, selectedDifficulty, selectedSource, selectedSourceType, selectedSource1, selectedSource2, selectedSource3, selectedSource4, selectedRating, tagFilter, sortBy])
 
   const handleReset = () => {
     setSelectedTypeId('all')
     setSelectedGrade('all')
     setSelectedDifficulty('all')
     setSelectedSource('all')
+    setSelectedSourceType('')
+    setSelectedSource1('all')
+    setSelectedSource2('all')
+    setSelectedSource3('all')
+    setSelectedSource4('all')
     setSelectedRating('all')
     setTagFilter('')
     setSortBy('latest')
@@ -222,9 +287,44 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
       {/* Sticky Header Container */}
       <div className="sticky top-16 z-40 bg-white -mx-4 px-4 pt-4 pb-2 shadow-sm border-b mb-6 transition-all">
         <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold mb-1">영어문제 관리</h1>
-            <p className="text-sm text-gray-500">저장된 문제를 관리하고 문제지를 만들 수 있습니다.</p>
+          <div className="flex items-center gap-6">
+            <div>
+              <h1 className="text-2xl font-bold mb-1">영어문제 관리</h1>
+              <p className="text-sm text-gray-500">저장된 문제를 관리하고 문제지를 만들 수 있습니다.</p>
+            </div>
+            {/* Source Type Toggle Buttons */}
+            <div className="flex items-center bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setSelectedSource('all')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  selectedSource === 'all'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                전체보기
+              </button>
+              <button
+                onClick={() => setSelectedSource('ai_generated')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  selectedSource === 'ai_generated'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                AI생성문제
+              </button>
+              <button
+                onClick={() => setSelectedSource('from_community')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  selectedSource === 'from_community'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                문제은행
+              </button>
+            </div>
           </div>
           <Link href="/generate">
             <Button size="sm">+ 새 문제 생성</Button>
@@ -308,21 +408,6 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                   </Select>
                 </div>
 
-                {/* Source Filter */}
-                <div className="w-[110px]">
-                  <label className="text-[11px] font-medium text-gray-600 mb-1 block">출처</label>
-                  <Select value={selectedSource} onValueChange={setSelectedSource}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="전체" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">전체</SelectItem>
-                      <SelectItem value="ai_generated">AI생성</SelectItem>
-                      <SelectItem value="from_community">문제은행</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 {/* Rating Filter */}
                 <div className="w-[110px]">
                   <label className="text-[11px] font-medium text-gray-600 mb-1 block">별점</label>
@@ -364,6 +449,171 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                     className="h-8 text-xs"
                   />
                 </div>
+
+                {/* Source Filters Group - Only visible when not filtering by AI generated */}
+                {selectedSource !== 'ai_generated' && (
+                  <div className="flex flex-wrap items-end gap-2 p-2 bg-indigo-50/80 rounded-lg border border-indigo-100">
+                    {/* Source Type Filter */}
+                    <div className="min-w-[120px]">
+                      <label className="text-[11px] font-medium text-indigo-900 mb-1 block">출처 종류</label>
+                      {sourceConfigs.length > 0 ? (
+                        <Select 
+                          value={selectedSourceType || 'all'} 
+                          onValueChange={(value) => {
+                            setSelectedSourceType(value === 'all' ? '' : value)
+                            setSelectedSource1('all')
+                            setSelectedSource2('all')
+                            setSelectedSource3('all')
+                            setSelectedSource4('all')
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-xs bg-white border-indigo-200">
+                            <SelectValue placeholder="전체" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">전체</SelectItem>
+                            {sourceConfigs.map((config) => (
+                              <SelectItem key={config.id} value={config.type_name}>
+                                {config.type_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          placeholder="예: 모의고사"
+                          value={selectedSourceType}
+                          onChange={(e) => setSelectedSourceType(e.target.value)}
+                          className="h-8 text-xs bg-white border-indigo-200"
+                        />
+                      )}
+                    </div>
+                    
+                    {/* Source 1 Filter */}
+                    {activeSourceConfig?.source_1_label && (
+                      <div className="min-w-[100px]">
+                        <label className="text-[11px] font-medium text-indigo-900 mb-1 block">
+                          {activeSourceConfig.source_1_label}
+                        </label>
+                        {activeSourceConfig.source_1_options && activeSourceConfig.source_1_options.length > 0 ? (
+                          <Select value={selectedSource1} onValueChange={setSelectedSource1}>
+                            <SelectTrigger className="h-8 text-xs bg-white border-indigo-200">
+                              <SelectValue placeholder="전체" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">전체</SelectItem>
+                              {activeSourceConfig.source_1_options.map((option, idx) => (
+                                <SelectItem key={idx} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            placeholder="직접 입력"
+                            value={selectedSource1 === 'all' ? '' : selectedSource1}
+                            onChange={(e) => setSelectedSource1(e.target.value || 'all')}
+                            className="h-8 text-xs bg-white border-indigo-200"
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {/* Source 2 Filter */}
+                    {activeSourceConfig?.source_2_label && (
+                      <div className="min-w-[100px]">
+                        <label className="text-[11px] font-medium text-indigo-900 mb-1 block">
+                          {activeSourceConfig.source_2_label}
+                        </label>
+                        {activeSourceConfig.source_2_options && activeSourceConfig.source_2_options.length > 0 ? (
+                          <Select value={selectedSource2} onValueChange={setSelectedSource2}>
+                            <SelectTrigger className="h-8 text-xs bg-white border-indigo-200">
+                              <SelectValue placeholder="전체" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">전체</SelectItem>
+                              {activeSourceConfig.source_2_options.map((option, idx) => (
+                                <SelectItem key={idx} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            placeholder="직접 입력"
+                            value={selectedSource2 === 'all' ? '' : selectedSource2}
+                            onChange={(e) => setSelectedSource2(e.target.value || 'all')}
+                            className="h-8 text-xs bg-white border-indigo-200"
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {/* Source 3 Filter */}
+                    {activeSourceConfig?.source_3_label && (
+                      <div className="min-w-[100px]">
+                        <label className="text-[11px] font-medium text-indigo-900 mb-1 block">
+                          {activeSourceConfig.source_3_label}
+                        </label>
+                        {activeSourceConfig.source_3_options && activeSourceConfig.source_3_options.length > 0 ? (
+                          <Select value={selectedSource3} onValueChange={setSelectedSource3}>
+                            <SelectTrigger className="h-8 text-xs bg-white border-indigo-200">
+                              <SelectValue placeholder="전체" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">전체</SelectItem>
+                              {activeSourceConfig.source_3_options.map((option, idx) => (
+                                <SelectItem key={idx} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            placeholder="직접 입력"
+                            value={selectedSource3 === 'all' ? '' : selectedSource3}
+                            onChange={(e) => setSelectedSource3(e.target.value || 'all')}
+                            className="h-8 text-xs bg-white border-indigo-200"
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {/* Source 4 Filter */}
+                    {activeSourceConfig?.source_4_label && (
+                      <div className="min-w-[100px]">
+                        <label className="text-[11px] font-medium text-indigo-900 mb-1 block">
+                          {activeSourceConfig.source_4_label}
+                        </label>
+                        {activeSourceConfig.source_4_options && activeSourceConfig.source_4_options.length > 0 ? (
+                          <Select value={selectedSource4} onValueChange={setSelectedSource4}>
+                            <SelectTrigger className="h-8 text-xs bg-white border-indigo-200">
+                              <SelectValue placeholder="전체" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">전체</SelectItem>
+                              {activeSourceConfig.source_4_options.map((option, idx) => (
+                                <SelectItem key={idx} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            placeholder="직접 입력"
+                            value={selectedSource4 === 'all' ? '' : selectedSource4}
+                            onChange={(e) => setSelectedSource4(e.target.value || 'all')}
+                            className="h-8 text-xs bg-white border-indigo-200"
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Reset Button */}
                 <Button 

@@ -130,6 +130,11 @@ export type Database = {
           user_id: string
           tags: string[] | null
           is_bookmarked: boolean | null
+          source_type: string | null
+          source_1: string | null
+          source_2: string | null
+          source_3: string | null
+          source_4: string | null
         }
         Insert: {
           content: string
@@ -142,6 +147,11 @@ export type Database = {
           user_id: string
           tags?: string[] | null
           is_bookmarked?: boolean | null
+          source_type?: string | null
+          source_1?: string | null
+          source_2?: string | null
+          source_3?: string | null
+          source_4?: string | null
         }
         Update: {
           content?: string
@@ -154,6 +164,11 @@ export type Database = {
           user_id?: string
           tags?: string[] | null
           is_bookmarked?: boolean | null
+          source_type?: string | null
+          source_1?: string | null
+          source_2?: string | null
+          source_3?: string | null
+          source_4?: string | null
         }
         Relationships: []
       }
@@ -301,6 +316,11 @@ export type Database = {
           raw_ai_response: string | null
           shared_question_id: string | null
           source: string | null
+          source_type: string | null
+          source_1: string | null
+          source_2: string | null
+          source_3: string | null
+          source_4: string | null
           tags: string[] | null
           rating: number | null
           updated_at: string
@@ -323,6 +343,11 @@ export type Database = {
           raw_ai_response?: string | null
           shared_question_id?: string | null
           source?: string | null
+          source_type?: string | null
+          source_1?: string | null
+          source_2?: string | null
+          source_3?: string | null
+          source_4?: string | null
           tags?: string[] | null
           rating?: number | null
           updated_at?: string
@@ -345,6 +370,11 @@ export type Database = {
           raw_ai_response?: string | null
           shared_question_id?: string | null
           source?: string | null
+          source_type?: string | null
+          source_1?: string | null
+          source_2?: string | null
+          source_3?: string | null
+          source_4?: string | null
           tags?: string[] | null
           rating?: number | null
           updated_at?: string

@@ -526,11 +526,27 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
           formattedChoicesJSON: JSON.stringify(formattedChoices)
         })
         
-        // Format answer
+        // Format answer - support multiple answers separated by comma
         let formattedAnswer = question.answer.trim()
-        const answerNum = parseInt(formattedAnswer)
-        if (!isNaN(answerNum) && answerNum >= 1 && answerNum <= 5) {
-          formattedAnswer = circledNumbers[answerNum - 1]
+        // Check if it contains comma (multiple answers)
+        if (formattedAnswer.includes(',')) {
+          // Split by comma, convert each number to circled number, and join back
+          formattedAnswer = formattedAnswer
+            .split(',')
+            .map(ans => {
+              const num = parseInt(ans.trim())
+              if (!isNaN(num) && num >= 1 && num <= 5) {
+                return circledNumbers[num - 1]
+              }
+              return ans.trim() // Keep as-is if not a valid number
+            })
+            .join(', ')
+        } else {
+          // Single answer
+          const answerNum = parseInt(formattedAnswer)
+          if (!isNaN(answerNum) && answerNum >= 1 && answerNum <= 5) {
+            formattedAnswer = circledNumbers[answerNum - 1]
+          }
         }
         
         const requestBody = {
@@ -656,10 +672,27 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
         formattedChoicesJSON: JSON.stringify(formattedChoices)
       })
       
+      // Format answer - support multiple answers separated by comma
       let formattedAnswer = formData.answer.trim()
-      const answerNum = parseInt(formattedAnswer)
-      if (!isNaN(answerNum) && answerNum >= 1 && answerNum <= 5) {
-        formattedAnswer = circledNumbers[answerNum - 1]
+      // Check if it contains comma (multiple answers)
+      if (formattedAnswer.includes(',')) {
+        // Split by comma, convert each number to circled number, and join back
+        formattedAnswer = formattedAnswer
+          .split(',')
+          .map(ans => {
+            const num = parseInt(ans.trim())
+            if (!isNaN(num) && num >= 1 && num <= 5) {
+              return circledNumbers[num - 1]
+            }
+            return ans.trim() // Keep as-is if not a valid number
+          })
+          .join(', ')
+      } else {
+        // Single answer
+        const answerNum = parseInt(formattedAnswer)
+        if (!isNaN(answerNum) && answerNum >= 1 && answerNum <= 5) {
+          formattedAnswer = circledNumbers[answerNum - 1]
+        }
       }
       
       const requestBody = {

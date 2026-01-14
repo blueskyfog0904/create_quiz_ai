@@ -69,6 +69,12 @@ export async function POST(request: Request) {
         source: 'from_community',
         shared_question_id: question_id,
         raw_ai_response: null,
+        // Copy source information from community question
+        source_type: originalQuestion.source_type,
+        source_1: originalQuestion.source_1,
+        source_2: originalQuestion.source_2,
+        source_3: originalQuestion.source_3,
+        source_4: originalQuestion.source_4,
       })
       .select()
       .single()
@@ -162,6 +168,12 @@ export async function PUT(request: Request) {
       source: 'from_community',
       shared_question_id: originalQuestion.id,
       raw_ai_response: null,
+      // Copy source information from community question
+      source_type: originalQuestion.source_type,
+      source_1: originalQuestion.source_1,
+      source_2: originalQuestion.source_2,
+      source_3: originalQuestion.source_3,
+      source_4: originalQuestion.source_4,
     }))
     
     const { data: newQuestions, error: insertError } = await supabase

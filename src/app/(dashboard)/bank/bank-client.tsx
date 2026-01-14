@@ -128,16 +128,16 @@ export default function BankClient({
       if (selectedSourceType && (!question.source_type || !question.source_type.includes(selectedSourceType))) {
         return false
       }
-      if (selectedSource1 !== 'all' && question.source_1 !== selectedSource1) {
+      if (selectedSource1 !== 'all' && (!question.source_1 || !question.source_1.includes(selectedSource1))) {
         return false
       }
-      if (selectedSource2 !== 'all' && question.source_2 !== selectedSource2) {
+      if (selectedSource2 !== 'all' && (!question.source_2 || !question.source_2.includes(selectedSource2))) {
         return false
       }
-      if (selectedSource3 !== 'all' && question.source_3 !== selectedSource3) {
+      if (selectedSource3 !== 'all' && (!question.source_3 || !question.source_3.includes(selectedSource3))) {
         return false
       }
-      if (selectedSource4 !== 'all' && question.source_4 !== selectedSource4) {
+      if (selectedSource4 !== 'all' && (!question.source_4 || !question.source_4.includes(selectedSource4))) {
         return false
       }
       return true
@@ -620,19 +620,28 @@ export default function BankClient({
                 <label className="text-sm font-medium text-indigo-900 mb-1.5 block">
                   {activeSourceConfig.source_1_label}
                 </label>
-                <Select value={selectedSource1} onValueChange={setSelectedSource1}>
-                  <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500">
-                    <SelectValue placeholder="전체" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">전체</SelectItem>
-                    {activeSourceConfig.source_1_options?.map((option, idx) => (
-                      <SelectItem key={idx} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {activeSourceConfig.source_1_options && activeSourceConfig.source_1_options.length > 0 ? (
+                  <Select value={selectedSource1} onValueChange={setSelectedSource1}>
+                    <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500">
+                      <SelectValue placeholder="전체" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      {activeSourceConfig.source_1_options.map((option, idx) => (
+                        <SelectItem key={idx} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    placeholder="직접 입력"
+                    value={selectedSource1 === 'all' ? '' : selectedSource1}
+                    onChange={(e) => setSelectedSource1(e.target.value || 'all')}
+                    className="bg-white border-indigo-200"
+                  />
+                )}
               </div>
             )}
 
@@ -642,19 +651,28 @@ export default function BankClient({
                 <label className="text-sm font-medium text-indigo-900 mb-1.5 block">
                   {activeSourceConfig.source_2_label}
                 </label>
-                <Select value={selectedSource2} onValueChange={setSelectedSource2}>
-                  <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500">
-                    <SelectValue placeholder="전체" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">전체</SelectItem>
-                    {activeSourceConfig.source_2_options?.map((option, idx) => (
-                      <SelectItem key={idx} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {activeSourceConfig.source_2_options && activeSourceConfig.source_2_options.length > 0 ? (
+                  <Select value={selectedSource2} onValueChange={setSelectedSource2}>
+                    <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500">
+                      <SelectValue placeholder="전체" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      {activeSourceConfig.source_2_options.map((option, idx) => (
+                        <SelectItem key={idx} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    placeholder="직접 입력"
+                    value={selectedSource2 === 'all' ? '' : selectedSource2}
+                    onChange={(e) => setSelectedSource2(e.target.value || 'all')}
+                    className="bg-white border-indigo-200"
+                  />
+                )}
               </div>
             )}
 
@@ -664,19 +682,28 @@ export default function BankClient({
                 <label className="text-sm font-medium text-indigo-900 mb-1.5 block">
                   {activeSourceConfig.source_3_label}
                 </label>
-                <Select value={selectedSource3} onValueChange={setSelectedSource3}>
-                  <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500">
-                    <SelectValue placeholder="전체" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">전체</SelectItem>
-                    {activeSourceConfig.source_3_options?.map((option, idx) => (
-                      <SelectItem key={idx} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {activeSourceConfig.source_3_options && activeSourceConfig.source_3_options.length > 0 ? (
+                  <Select value={selectedSource3} onValueChange={setSelectedSource3}>
+                    <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500">
+                      <SelectValue placeholder="전체" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      {activeSourceConfig.source_3_options.map((option, idx) => (
+                        <SelectItem key={idx} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    placeholder="직접 입력"
+                    value={selectedSource3 === 'all' ? '' : selectedSource3}
+                    onChange={(e) => setSelectedSource3(e.target.value || 'all')}
+                    className="bg-white border-indigo-200"
+                  />
+                )}
               </div>
             )}
 
@@ -686,19 +713,28 @@ export default function BankClient({
                 <label className="text-sm font-medium text-indigo-900 mb-1.5 block">
                   {activeSourceConfig.source_4_label}
                 </label>
-                <Select value={selectedSource4} onValueChange={setSelectedSource4}>
-                  <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500">
-                    <SelectValue placeholder="전체" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">전체</SelectItem>
-                    {activeSourceConfig.source_4_options?.map((option, idx) => (
-                      <SelectItem key={idx} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {activeSourceConfig.source_4_options && activeSourceConfig.source_4_options.length > 0 ? (
+                  <Select value={selectedSource4} onValueChange={setSelectedSource4}>
+                    <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500">
+                      <SelectValue placeholder="전체" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      {activeSourceConfig.source_4_options.map((option, idx) => (
+                        <SelectItem key={idx} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    placeholder="직접 입력"
+                    value={selectedSource4 === 'all' ? '' : selectedSource4}
+                    onChange={(e) => setSelectedSource4(e.target.value || 'all')}
+                    className="bg-white border-indigo-200"
+                  />
+                )}
               </div>
             )}
           </div>
