@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { Database } from '@/types/supabase';
+import { getAIModelSettings } from '@/app/api/admin/settings/actions';
 
 // ... (imports)
 
@@ -24,10 +25,13 @@ export async function enrichPassages(contents: string[]): Promise<PassageAnalysi
     throw new Error('GEMINI_API_KEY is not set');
   }
 
+  // Fetch dynamic model setting
+  const { modelName } = await getAIModelSettings();
+
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  // Using gemini-2.5-flash to match OCR action and avoid 429 errors from experimental models
+  // Using dynamic model from settings
   const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.5-flash",
+    model: modelName,
     generationConfig: { responseMimeType: "application/json" }
   });
 

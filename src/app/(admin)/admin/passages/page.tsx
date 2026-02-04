@@ -45,18 +45,24 @@ export default function AdminPassagesPage() {
           </Card>
         </Link>
         
-        {/* Placeholder for other potential admin features */}
-        <Card className="opacity-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bot className="w-5 h-5" />
-              AI 모델 설정 (준비중)
-            </CardTitle>
-            <CardDescription>
-              Gemini 모델 버전 및 파라미터를 설정합니다.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <Link href="/admin/passages/models">
+          <Card className="hover:bg-muted/50 transition-colors cursor-pointer h-full">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bot className="w-5 h-5 text-indigo-500" />
+                AI 모델 설정
+              </CardTitle>
+              <CardDescription>
+                Gemini 모델 버전 및 파라미터를 설정합니다.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                현재 전역으로 사용되는 AI 모델 버전을 변경합니다. (예: Gemini 2.0 Flash)
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
     </div>
   );

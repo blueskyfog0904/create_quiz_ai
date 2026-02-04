@@ -2,7 +2,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from "@/lib/supabase/server";
-import { getSystemSettings } from "@/app/api/admin/settings/actions";
+import { getSystemSettings, getAIModelSettings } from "@/app/api/admin/settings/actions";
 
 // Initialize Google AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
@@ -70,9 +70,9 @@ export async function generatePassages(input: GeneratePassagesInput): Promise<{ 
     `;
 
     // 3. Call Gemini
-    // Use 2.5 Flash for speed and cost
+    const { modelName } = await getAIModelSettings();
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.5-flash",
+        model: modelName,
         generationConfig: {
             responseMimeType: "application/json"
         }

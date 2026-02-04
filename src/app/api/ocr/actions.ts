@@ -6,6 +6,7 @@ import { writeFile, unlink } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { createClient } from "@/lib/supabase/server";
+import { getAIModelSettings } from "@/app/api/admin/settings/actions";
 
 // Initialize Google AI
 const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY!);
@@ -57,10 +58,10 @@ export async function extractTextFromFile(formData: FormData) {
     }
     console.log("[OCR] All files processed and ready.");
 
-    // 3. Generate content with Gemini 2.5 Flash
-    // Switching to 2.5-flash as 2.0-flash returned quota limit 0 (access restricted).
+    // 3. Generate content with dynamic model
+    const { modelName } = await getAIModelSettings();
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash",
+      model: modelName,
       generationConfig: {
         responseMimeType: "application/json",
       }
@@ -119,7 +120,7 @@ export async function extractTextFromFile(formData: FormData) {
 
     const prompt = promptData?.content || (mode === 'auto' ? autoPrompt : visualPrompt);
 
-    console.log("[OCR] Sending batch request to Gemini (gemini-2.5-flash)...");
+    console.log(`[OCR] Sending batch request to Gemini (${modelName})...`);
     
     // Construct the request parts: All images + Prompt
     const requestParts = [

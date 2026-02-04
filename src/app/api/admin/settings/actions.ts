@@ -1,31 +1,15 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
-
-export interface DifficultyLevel {
-  id: string;
-  name: string;
-  promptValue: string;
-}
-
-export interface AIConfig {
-  // Legacy field support
-  difficulty?: {
-    high: string;
-    middle: string;
-  };
-  // New dynamic structure
-  difficultyLevels: DifficultyLevel[];
-  counts: number[];
-}
-
-export interface SystemSetting {
-  key: string;
-  value: AIConfig;
-  description: string;
-  updated_at: string;
-}
+import { 
+  SystemSetting, 
+  AIConfig, 
+  AIModelConfig, 
+  AIModelOption, 
+  DEFAULT_MODELS 
+} from './types';
 
 export async function getSystemSettings(): Promise<SystemSetting | null> {
   const supabase = await createClient();
@@ -88,5 +72,114 @@ export async function updateSystemSettings(key: string, value: AIConfig) {
   }
 
   revalidatePath('/admin/passages/prompts');
+  return { success: true };
+}
+
+export async function getAIModelSettings(): Promise<AIModelConfig> {
+  const supabase = await createClient();
+  
+  const { data, error } = await supabase
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'ai_model_config')
+    .single();
+
+  if (error || !data) {
+    // Default fallback
+    return { modelName: 'gemini-2.0-flash' };
+  }
+
+  return data.value as AIModelConfig;
+}
+
+  // Check admin privileges using standard client
+export async function updateAIModelSettings(config: AIModelConfig) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Unauthorized');
+  
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user.id)
+    .single();
+    
+  if (!profile?.is_admin) throw new Error('Unauthorized');
+
+  // Perform update using Service Role Key to bypass RLS
+  const adminSupabase = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  // Insert or Update
+  const { error } = await adminSupabase
+    .from('system_settings')
+    .upsert({ 
+      key: 'ai_model_config',
+      value: config,
+      description: 'AI Model Configuration',
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'key' });
+
+  if (error) {
+    console.error('Error updating AI model settings:', error);
+    throw new Error('Failed to update settings');
+  }
+  revalidatePath('/admin/passages/models');
+  return { success: true };
+}
+
+export async function getAvailableAIModels(): Promise<AIModelOption[]> {
+  const supabase = await createClient();
+  
+  const { data, error } = await supabase
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'ai_available_models')
+    .single();
+
+  if (error || !data) {
+    return DEFAULT_MODELS;
+  }
+
+  return data.value as AIModelOption[];
+}
+
+export async function saveAvailableAIModels(models: AIModelOption[]) {
+  // Check admin privileges
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Unauthorized');
+  
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user.id)
+    .single();
+    
+  if (!profile?.is_admin) throw new Error('Unauthorized');
+
+  // Perform update using Service Role Key
+  const adminSupabase = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  const { error } = await adminSupabase
+    .from('system_settings')
+    .upsert({ 
+      key: 'ai_available_models',
+      value: models,
+      description: 'List of available AI models for selection',
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'key' });
+
+  if (error) {
+    console.error('Error saving available AI models:', error);
+    throw new Error('Failed to save available models');
+  }
+
+  revalidatePath('/admin/passages/models');
   return { success: true };
 }
