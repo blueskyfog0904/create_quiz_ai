@@ -78,7 +78,8 @@ export default function SignupPage() {
 
   if (isSuccess && successData) {
     return (
-      <Card className="w-full max-w-md">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-12 px-4 sm:px-6 lg:px-8">
+        <Card className="w-full max-w-md shadow-2xl border-0 ring-1 ring-gray-200/50 bg-white/50 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="text-2xl font-bold text-center text-green-600">회원가입 완료</CardTitle>
             <CardDescription className="text-center">
@@ -86,12 +87,12 @@ export default function SignupPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                <div className="flex justify-between border-b pb-2">
+            <div className="bg-gray-50 p-4 rounded-lg space-y-2 border border-gray-100">
+                <div className="flex justify-between border-b border-gray-200 pb-2">
                     <span className="text-gray-500">아이디(이메일)</span>
                     <span className="font-medium">{successData.email}</span>
                 </div>
-                <div className="flex justify-between border-b pb-2">
+                <div className="flex justify-between border-b border-gray-200 pb-2">
                     <span className="text-gray-500">이름</span>
                     <span className="font-medium">{successData.name}</span>
                 </div>
@@ -102,7 +103,7 @@ export default function SignupPage() {
             </div>
             <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg space-y-2">
                 <p className="text-sm font-semibold text-yellow-800 flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
                     </svg>
                     이메일 인증이 필요합니다
@@ -117,18 +118,20 @@ export default function SignupPage() {
           </CardContent>
           <CardFooter>
             <Link href="/" className="w-full">
-                <Button className="w-full">메인 페이지로 이동하기</Button>
+                <Button className="w-full h-11 text-md">메인 페이지로 이동하기</Button>
             </Link>
           </CardFooter>
         </Card>
+      </div>
     )
   }
 
   return (
-    <Card className="w-full max-w-md">
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-12 px-4 sm:px-6 lg:px-8">
+      <Card className="w-full max-w-md shadow-2xl border-0 ring-1 ring-gray-200/50 bg-white/50 backdrop-blur-sm">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">회원가입</CardTitle>
-          <CardDescription className="text-center">
+          <CardTitle className="text-2xl font-bold text-center tracking-tight">회원가입</CardTitle>
+          <CardDescription className="text-center text-gray-500">
             서비스 이용을 위해 정보를 입력해주세요
           </CardDescription>
         </CardHeader>
@@ -136,7 +139,7 @@ export default function SignupPage() {
           <form action={handleSignup} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="email">이메일 (아이디) *</Label>
-              <Input id="email" name="email" type="email" placeholder="name@example.com" required />
+              <Input id="email" name="email" type="email" placeholder="name@example.com" required className="h-10" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="password">비밀번호 *</Label>
@@ -147,6 +150,7 @@ export default function SignupPage() {
                 required 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="h-10"
               />
             </div>
             <div className="grid gap-2">
@@ -158,23 +162,24 @@ export default function SignupPage() {
                 required 
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                className="h-10"
               />
               {confirmPassword.length > 0 && (
-                <p className={`text-xs ${password === confirmPassword ? 'text-green-600' : 'text-red-500'}`}>
+                <p className={`text-xs mt-1 ${password === confirmPassword ? 'text-green-600' : 'text-red-500'}`}>
                   {password === confirmPassword 
                     ? '비밀번호가 일치합니다.' 
-                    : '비밀번호가 일치하지 않습니다. X'}
+                    : '비밀번호가 일치하지 않습니다.'}
                 </p>
               )}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="name">이름 *</Label>
-              <Input id="name" name="name" placeholder="홍길동" required />
+              <Input id="name" name="name" placeholder="홍길동" required className="h-10" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="role">역할 *</Label>
               <Select name="role" required>
-                <SelectTrigger>
+                <SelectTrigger className="h-10">
                   <SelectValue placeholder="역할을 선택해주세요" />
                 </SelectTrigger>
                 <SelectContent>
@@ -192,20 +197,21 @@ export default function SignupPage() {
                 value={phone}
                 onChange={handlePhoneChange}
                 maxLength={13}
+                className="h-10"
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="birthdate">생년월일</Label>
-              <Input id="birthdate" name="birthdate" type="date" />
+              <Input id="birthdate" name="birthdate" type="date" className="h-10" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="organization">소속 (학교/학원)</Label>
-              <Input id="organization" name="organization" placeholder="OOO 학교" />
+              <Input id="organization" name="organization" placeholder="OOO 학교" className="h-10" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="gender">성별</Label>
               <Select name="gender">
-                <SelectTrigger>
+                <SelectTrigger className="h-10">
                   <SelectValue placeholder="선택해주세요" />
                 </SelectTrigger>
                 <SelectContent>
@@ -217,19 +223,20 @@ export default function SignupPage() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="address">주소</Label>
-              <Input id="address" name="address" placeholder="서울특별시 강남구..." />
+              <Input id="address" name="address" placeholder="서울특별시 강남구..." className="h-10" />
             </div>
             
-            <Button className="w-full mt-4" type="submit" disabled={isLoading || (password !== confirmPassword)}>
+            <Button className="w-full mt-6 h-11 text-md font-medium" type="submit" disabled={isLoading || (password !== confirmPassword)}>
               {isLoading ? '가입 처리 중...' : '가입하기'}
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex justify-center">
+        <CardFooter className="flex justify-center pb-8">
             <div className="text-sm text-gray-500">
-                이미 계정이 있으신가요? <Link href="/login" className="underline text-primary">로그인</Link>
+                이미 계정이 있으신가요? <Link href="/login" className="underline underline-offset-4 hover:text-primary font-medium ml-1">로그인</Link>
             </div>
         </CardFooter>
       </Card>
+    </div>
   )
 }
