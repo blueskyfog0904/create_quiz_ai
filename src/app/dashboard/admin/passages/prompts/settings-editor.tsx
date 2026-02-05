@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { SystemSetting, AIConfig, updateSystemSettings, DifficultyLevel } from '@/app/api/admin/settings/actions';
+import { updateSystemSettings } from '@/app/api/admin/settings/actions';
+import { SystemSetting, AIConfig, DifficultyLevel } from '@/app/api/admin/settings/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

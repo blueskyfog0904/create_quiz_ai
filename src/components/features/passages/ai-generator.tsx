@@ -19,7 +19,8 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { DifficultyLevel, getSystemSettings } from '@/app/api/admin/settings/actions';
+import { getSystemSettings } from '@/app/api/admin/settings/actions';
+import { DifficultyLevel } from '@/app/api/admin/settings/types';
 import { generatePassages, GeneratedPassage } from '@/app/api/ai/generate-passages';
 import { MAIN_CATEGORIES, SUB_CATEGORIES, MainCategory } from '@/lib/constants/passage-categories';
 
