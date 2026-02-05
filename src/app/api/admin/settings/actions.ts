@@ -8,8 +8,12 @@ import {
   AIConfig, 
   AIModelConfig, 
   AIModelOption, 
-  DEFAULT_MODELS 
+  DEFAULT_MODELS,
+  DifficultyLevel
 } from './types';
+
+export type { SystemSetting, AIConfig, AIModelConfig, AIModelOption, DifficultyLevel };
+export { DEFAULT_MODELS };
 
 export async function getSystemSettings(): Promise<SystemSetting | null> {
   const supabase = await createClient();
