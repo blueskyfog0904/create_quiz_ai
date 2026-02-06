@@ -38,6 +38,9 @@ export async function Header() {
               <Link href="/bank">
                 <Button variant="ghost">문제은행</Button>
               </Link>
+              <Link href="/pricing">
+                <Button variant="ghost">요금제</Button>
+              </Link>
 
               {/* 내 라이브러리 드롭다운 - Client Component */}
               <HeaderClient
