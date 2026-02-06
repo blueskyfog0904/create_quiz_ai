@@ -32,6 +32,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
+import { createAdminClient } from '@/lib/supabase/bypass'
+
+// ... (GET stays same)
+
 // PATCH - Mark as read
 export async function PATCH(request: NextRequest) {
   try {
@@ -43,23 +47,31 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const { id, all } = body
 
+    // Use Admin Client to bypass potential RLS restrictions on UPDATE
+    const supabaseAdmin = createAdminClient()
+
     if (all) {
-      await supabase
+      const { error } = await supabaseAdmin
         .from('notifications')
         .update({ is_read: true })
         .eq('user_id', user.id)
         .eq('is_read', false)
+      
+      if (error) throw error
     } else if (id) {
-      await supabase
+      const { error } = await supabaseAdmin
         .from('notifications')
         .update({ is_read: true })
         .eq('id', id)
         .eq('user_id', user.id)
+        
+      if (error) throw error
     }
 
     return NextResponse.json({ success: true })
 
   } catch (error: any) {
+    console.error('Notification update error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

@@ -19,6 +19,7 @@ import { Passage } from '@/app/api/passages/actions'
 import { Textarea } from '@/components/ui/textarea'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
+import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
 
@@ -93,9 +94,15 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
 
 
 
-  const handleGenerate = async (e: React.FormEvent) => {
+  // Confirmation States
+  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [currentBalance, setCurrentBalance] = useState<number | null>(null)
+  const [isCheckingBalance, setIsCheckingBalance] = useState(false)
+
+  // 1. Validation & Balance Check
+  const handleGenerateClick = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (selectedTypeIds.length === 0) {
       toast.error("최소 1개 이상의 문제 유형을 선택해주세요")
       return
@@ -105,6 +112,25 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
       toast.error("지문을 선택하거나 등록해주세요")
       return
     }
+
+    setIsCheckingBalance(true)
+    try {
+      const res = await fetch('/api/credits/balance')
+      if (!res.ok) throw new Error('Failed to fetch balance')
+      const data = await res.json()
+      setCurrentBalance(data.balance)
+      setShowConfirmation(true)
+    } catch (error) {
+       console.error(error)
+       toast.error('잔액 정보를 불러오는데 실패했습니다.')
+    } finally {
+      setIsCheckingBalance(false)
+    }
+  }
+
+  // 2. Actual Generation Logic
+  const handleConfirmGeneration = async () => {
+    setShowConfirmation(false)
 
     // Create new AbortController
     abortControllerRef.current = new AbortController()
@@ -367,7 +393,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
             <CardContent className="p-6 space-y-4">
               <h2 className="text-xl font-semibold mb-4">문제 생성 옵션</h2>
               
-              <form onSubmit={handleGenerate} className="space-y-4">
+              <form onSubmit={handleGenerateClick} className="space-y-4">
                 
                 {/* Passage Selection Section */}
                 <div className="space-y-3">
@@ -530,13 +556,15 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
                 <Button 
                   type="submit" 
                   className="w-full text-lg h-12 mt-4" 
-                  disabled={isGenerating || selectedTypeIds.length === 0 || !passage}
+                  disabled={isGenerating || selectedTypeIds.length === 0 || !passage || isCheckingBalance}
                 >
                   {isGenerating ? (
                     <>
                       <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                       문제 생성 중...
                     </>
+                  ) : isCheckingBalance ? (
+                    '잔액 확인 중...'
                   ) : (
                     `문제 생성 시작 (예상 비용: ${(selectedTypeIds.length * 100).toLocaleString()} 크레딧)`
                   )}
@@ -546,6 +574,14 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
               </CardContent>
             </Card>
       )}
+
+      <CreditConfirmationDialog
+        open={showConfirmation}
+        onClose={() => setShowConfirmation(false)}
+        onConfirm={handleConfirmGeneration}
+        requiredAmount={selectedTypeIds.length * 100}
+        currentBalance={currentBalance}
+      />
       </div>
 
 

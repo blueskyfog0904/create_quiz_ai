@@ -19,6 +19,7 @@ import { Passage } from '@/app/api/passages/actions'
 import { Textarea } from '@/components/ui/textarea'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
+import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
 
@@ -68,7 +69,13 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
     toast.success('지문이 선택되었습니다')
   }
 
-  const handleGenerate = async (e: React.FormEvent) => {
+  // Confirmation Dialog States
+  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [currentBalance, setCurrentBalance] = useState<number | null>(null)
+  const [isCheckingBalance, setIsCheckingBalance] = useState(false)
+
+  // 1. Validation & Balance Check
+  const handleGenerateClick = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!passage) {
@@ -76,6 +83,25 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
       return
     }
 
+    setIsCheckingBalance(true)
+    try {
+      const res = await fetch('/api/credits/balance')
+      if (!res.ok) throw new Error('Failed to fetch balance')
+      const data = await res.json()
+      setCurrentBalance(data.balance)
+      setShowConfirmation(true)
+    } catch (error) {
+      console.error(error)
+      toast.error('잔액 정보를 불러오는데 실패했습니다.')
+    } finally {
+      setIsCheckingBalance(false)
+    }
+  }
+
+  // 2. Actual Generation Execution
+  const handleConfirmGeneration = async () => {
+    setShowConfirmation(false)
+    
     abortControllerRef.current = new AbortController()
     const signal = abortControllerRef.current.signal
 
@@ -202,7 +228,7 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
             <CardContent className="p-6 space-y-4">
               <h2 className="text-xl font-semibold mb-4">문제 생성 옵션</h2>
               
-              <form onSubmit={handleGenerate} className="space-y-4">
+              <form onSubmit={handleGenerateClick} className="space-y-4">
                 
                 {/* Passage Selection Section */}
                 <div className="space-y-3">
@@ -305,15 +331,23 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
                 <Button 
                   type="submit" 
                   className="w-full text-lg h-12 mt-4" 
-                  disabled={isGenerating || !passage}
+                  disabled={isGenerating || !passage || isCheckingBalance}
                 >
-                  {isGenerating ? '문제 생성 중...' : '문제 생성 시작'}
+                  {isGenerating ? '문제 생성 중...' : isCheckingBalance ? '잔액 확인 중...' : '문제 생성 시작 (100 크레딧)'}
                 </Button>
 
               </form>
             </CardContent>
           </Card>
       )}
+
+      <CreditConfirmationDialog
+        open={showConfirmation}
+        onClose={() => setShowConfirmation(false)}
+        onConfirm={handleConfirmGeneration}
+        requiredAmount={100} // Hardcoded for single generation
+        currentBalance={currentBalance}
+      />
       </div>
 
        {/* Generating Progress Modal */}

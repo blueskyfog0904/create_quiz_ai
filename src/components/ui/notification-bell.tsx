@@ -113,6 +113,26 @@ export function NotificationBell({ isAdmin = false }: NotificationBellProps) {
     }
   }
 
+  // Effect to mark active notifications as read when opened
+  useEffect(() => {
+    if (isOpen && notifications.length > 0) {
+      const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id)
+      
+      if (unreadIds.length > 0) {
+        // Optimistic update
+        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+        setUnreadCount(adminPendingCount) // Reset to just admin count
+
+        // Mark all as read in background
+        fetch('/api/notifications', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ all: true })
+        }).catch(err => console.error('Failed to auto-mark read:', err))
+      }
+    }
+  }, [isOpen, notifications, adminPendingCount])
+
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>

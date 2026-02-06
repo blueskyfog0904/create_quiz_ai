@@ -147,13 +147,16 @@ export function QuestionsClient({
         method: 'DELETE',
       })
 
-      if (!response.ok) throw new Error('Failed to delete')
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to delete')
+      }
 
       setDeleteDialog({ open: false, question: null })
       fetchQuestions()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting question:', error)
-      alert('문제 삭제에 실패했습니다.')
+      alert(`문제 삭제에 실패했습니다: ${error.message}`)
     } finally {
       setDeleting(false)
     }

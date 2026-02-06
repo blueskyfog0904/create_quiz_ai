@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { createAdminClient } from '@/lib/supabase/bypass'
 
 const updateQuestionSchema = z.object({
   question_text: z.string().optional(),
@@ -95,8 +96,35 @@ export async function DELETE(
     if (!profile?.is_admin) {
       return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
     }
+
+    // 1. Delete dependent exam_paper_items first (Manual Cascade)
+    const { error: itemsError } = await supabase
+      .from('exam_paper_items')
+      .delete()
+      .eq('question_id', id)
+
+    if (itemsError) {
+       console.error('[Admin Delete] Failed to delete dependency (exam_paper_items):', itemsError)
+       return NextResponse.json({ error: 'Failed to delete dependencies (exam_paper_items)' }, { status: 500 })
+    }
+
+    // 2. Unlink shared questions (Set shared_question_id to NULL)
+    // This handles the "questions_shared_question_id_fkey" constraint
+    // MUST use admin client because these questions belong to other users (RLS)
+    const supabaseAdmin = createAdminClient()
     
-    // Delete question (admin can delete any question)
+    const { error: unlinkError } = await supabaseAdmin
+      .from('questions')
+      .update({ shared_question_id: null })
+      .eq('shared_question_id', id)
+      
+    if (unlinkError) {
+       console.error('[Admin Delete] Failed to unlink shared questions:', unlinkError)
+       return NextResponse.json({ error: 'Failed to unlink shared questions' }, { status: 500 })
+    }
+    
+    // 3. Delete question
+    // Original delete can use normal client as it deletes the admin's own question
     const { error } = await supabase
       .from('questions')
       .delete()
@@ -104,7 +132,7 @@ export async function DELETE(
     
     if (error) {
       console.error('[Admin Delete] Database error:', error)
-      return NextResponse.json({ error: 'Failed to delete question' }, { status: 500 })
+      return NextResponse.json({ error: `Failed to delete question: ${error.message}` }, { status: 500 })
     }
     
     return NextResponse.json({ success: true }, { status: 200 })

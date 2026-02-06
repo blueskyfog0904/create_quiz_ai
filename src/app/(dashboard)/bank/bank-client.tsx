@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { Loader2, Trash2, Edit, X, Plus } from 'lucide-react'
 import { Database } from '@/types/supabase'
 import { useRouter } from 'next/navigation'
+import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
 
 type DBQuestion = Database['public']['Tables']['questions']['Row'] & {
   problem_types: { type_name: string } | null
@@ -72,8 +73,7 @@ export default function BankClient({
   const [selectedQuestions, setSelectedQuestions] = useState<string[]>([])
   const [deletingQuestionId, setDeletingQuestionId] = useState<string | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
-  const [isBulkConfirmDialogOpen, setIsBulkConfirmDialogOpen] = useState(false)
+
   const [pendingQuestionId, setPendingQuestionId] = useState<string | null>(null)
   const [isBulkSaving, setIsBulkSaving] = useState(false)
   const [editingQuestion, setEditingQuestion] = useState<DBQuestion | null>(null)
@@ -169,53 +169,104 @@ export default function BankClient({
     return sourceConfigs.find(config => config.type_name === selectedSourceType)
   }, [sourceConfigs, selectedSourceType])
   
-  const handleSaveQuestionClick = (questionId: string) => {
+  // Credit Confirmation States
+  const [showCreditConfirmation, setShowCreditConfirmation] = useState(false)
+  const [currentBalance, setCurrentBalance] = useState<number | null>(null)
+  const [isCheckingBalance, setIsCheckingBalance] = useState(false)
+  const [confirmationType, setConfirmationType] = useState<'single' | 'bulk'>('single')
+  const [importCost, setImportCost] = useState(0)
+
+
+  const handleSaveQuestionClick = async (questionId: string) => {
     setPendingQuestionId(questionId)
-    setIsConfirmDialogOpen(true)
-  }
-  
-  const handleSaveQuestion = async () => {
-    if (!pendingQuestionId) return
-    
-    setSavingQuestionId(pendingQuestionId)
-    setIsConfirmDialogOpen(false)
-    
+    setConfirmationType('single')
+    setImportCost(100) // 100 credits per import
+
+    // Fetch Balance
+    setIsCheckingBalance(true)
     try {
-      const response = await fetch('/api/questions/save-from-community', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question_id: pendingQuestionId }),
-      })
-      
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || '문제 가져오기에 실패했습니다.')
+      const res = await fetch('/api/credits/balance')
+      if (res.ok) {
+        const data = await res.json()
+        setCurrentBalance(data.balance)
+        setShowCreditConfirmation(true)
+      } else {
+         toast.error('잔액 조회 실패')
       }
-      
-      toast.success('문제를 내 라이브러리로 가져왔습니다!')
-      router.refresh()
-      
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch(e) {
+      toast.error('잔액 조회 중 오류 발생')
     } finally {
-      setSavingQuestionId(null)
-      setPendingQuestionId(null)
+      setIsCheckingBalance(false)
     }
   }
   
-  const handleBulkSaveClick = () => {
+  const handleConfirmSave = async () => {
+    setShowCreditConfirmation(false)
+
+    if (confirmationType === 'single') {
+        if (!pendingQuestionId) return
+        
+        setSavingQuestionId(pendingQuestionId)
+        
+        try {
+          const response = await fetch('/api/questions/save-from-community', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question_id: pendingQuestionId }),
+          })
+          
+          if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.error || '문제 가져오기에 실패했습니다.')
+          }
+          
+          toast.success('문제를 내 라이브러리로 가져왔습니다!')
+          router.refresh()
+          
+        } catch (error: any) {
+          toast.error(error.message)
+        } finally {
+          setSavingQuestionId(null)
+          setPendingQuestionId(null)
+        }
+    } else {
+        // Bulk Save Logic
+        handleBulkSaveQuestions()
+    }
+  }
+  
+  const handleBulkSaveClick = async () => {
     if (selectedQuestions.length === 0) {
       toast.error('가져올 문제를 선택해주세요.')
       return
     }
-    setIsBulkConfirmDialogOpen(true)
+
+    setConfirmationType('bulk')
+    setImportCost(selectedQuestions.length * 100)
+
+     // Fetch Balance
+    setIsCheckingBalance(true)
+    try {
+      const res = await fetch('/api/credits/balance')
+      if (res.ok) {
+        const data = await res.json()
+        setCurrentBalance(data.balance)
+        setShowCreditConfirmation(true)
+      } else {
+         toast.error('잔액 조회 실패')
+      }
+    } catch(e) {
+      toast.error('잔액 조회 중 오류 발생')
+    } finally {
+      setIsCheckingBalance(false)
+    }
   }
   
   const handleBulkSaveQuestions = async () => {
     if (selectedQuestions.length === 0) return
     
     setIsBulkSaving(true)
-    setIsBulkConfirmDialogOpen(false)
+    // setIsBulkConfirmDialogOpen(false) // Removed old dialog logic
     
     try {
       const response = await fetch('/api/questions/save-from-community', {
@@ -489,6 +540,16 @@ export default function BankClient({
   
   return (
     <div>
+      <CreditConfirmationDialog 
+        open={showCreditConfirmation}
+        onClose={() => setShowCreditConfirmation(false)}
+        onConfirm={handleConfirmSave}
+        requiredAmount={importCost}
+        currentBalance={currentBalance}
+        isLoading={isCheckingBalance} // Or confirmation loading status if needed
+        title="문제 가져오기"
+        description={`선택한 문제를 내 라이브러리로 가져옵니다. (건당 100 크레딧)`}
+      />
       {/* Filter Section */}
       <div className="bg-white border rounded-lg p-6 mb-6 shadow-sm">
         <div className="flex justify-between items-center mb-4">
@@ -1184,61 +1245,6 @@ export default function BankClient({
         </DialogContent>
       </Dialog>
       
-      {/* Confirm Save Dialog */}
-      <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>문제 가져오기 확인</DialogTitle>
-            <DialogDescription>
-              문제를 내 라이브러리로 가져올까요? (100 크레딧이 차감됩니다)
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsConfirmDialogOpen(false)
-                setPendingQuestionId(null)
-              }}
-            >
-              취소
-            </Button>
-            <Button
-              onClick={handleSaveQuestion}
-              disabled={savingQuestionId !== null}
-            >
-              확인
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Bulk Save Confirm Dialog */}
-      <Dialog open={isBulkConfirmDialogOpen} onOpenChange={setIsBulkConfirmDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>일괄 가져오기 확인</DialogTitle>
-            <DialogDescription>
-              선택한 {selectedQuestions.length}개의 문제를 내 라이브러리로 가져올까요? (총 {(selectedQuestions.length * 100).toLocaleString()} 크레딧이 차감됩니다)
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsBulkConfirmDialogOpen(false)}
-            >
-              취소
-            </Button>
-            <Button
-              onClick={handleBulkSaveQuestions}
-              disabled={isBulkSaving}
-            >
-              {isBulkSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              확인
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
