@@ -28,6 +28,11 @@ export default async function PaymentsPage() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
+  const formattedPayments = payments?.map((payment: any) => ({
+    ...payment,
+    pricing_plans: Array.isArray(payment.pricing_plans) ? payment.pricing_plans[0] : payment.pricing_plans
+  }))
+
   return (
     <div className="space-y-6">
       <Card>
@@ -41,7 +46,7 @@ export default async function PaymentsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <PaymentList payments={payments || []} />
+          <PaymentList payments={formattedPayments || []} />
         </CardContent>
       </Card>
     </div>
