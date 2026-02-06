@@ -18,18 +18,18 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
-import { 
-  ChevronDown, 
-  Menu, 
-  User, 
-  LogOut, 
-  FolderOpen, 
-  FileText, 
-  CreditCard, 
-  Coins, 
-  History, 
-  Monitor, 
-  UserX, 
+import {
+  ChevronDown,
+  Menu,
+  User,
+  LogOut,
+  FolderOpen,
+  FileText,
+  CreditCard,
+  Coins,
+  History,
+  Monitor,
+  UserX,
   HelpCircle,
   Sparkles,
   Library,
@@ -49,7 +49,7 @@ interface HeaderClientProps {
 export function HeaderClient({ isLoggedIn, userName, isAdmin, creditBalance = 0, isMobile = false }: HeaderClientProps) {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
-  
+
   const handleLogout = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -85,7 +85,7 @@ export function HeaderClient({ isLoggedIn, userName, isAdmin, creditBalance = 0,
                     문제은행
                   </Button>
                 </Link>
-                
+
                 <div className="border-t my-2" />
                 <p className="px-4 py-2 text-sm font-semibold text-gray-500">내 라이브러리</p>
                 <Link href="/library/mypassages" onClick={() => setIsOpen(false)}>
@@ -106,7 +106,7 @@ export function HeaderClient({ isLoggedIn, userName, isAdmin, creditBalance = 0,
                     문제지 관리
                   </Button>
                 </Link>
-                
+
                 <div className="border-t my-2" />
                 <p className="px-4 py-2 text-sm font-semibold text-gray-500">마이페이지</p>
                 <Link href="/mypage/payments" onClick={() => setIsOpen(false)}>
@@ -151,7 +151,7 @@ export function HeaderClient({ isLoggedIn, userName, isAdmin, creditBalance = 0,
                     고객지원
                   </Button>
                 </Link>
-                
+
                 {isAdmin && (
                   <>
                     <div className="border-t my-2" />
@@ -162,11 +162,11 @@ export function HeaderClient({ isLoggedIn, userName, isAdmin, creditBalance = 0,
                     </Link>
                   </>
                 )}
-                
+
                 <div className="border-t my-2" />
                 <div className="px-4 py-2 text-sm text-gray-600">{userName}</div>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   className="w-full justify-start gap-2 text-red-600"
                   onClick={() => {
                     setIsOpen(false)
@@ -295,16 +295,16 @@ export function HeaderClient({ isLoggedIn, userName, isAdmin, creditBalance = 0,
 
       {/* 사용자 정보 및 로그아웃 */}
       <div className="flex items-center gap-1 ml-2 border-l pl-4">
-        <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1 rounded-full border border-yellow-200 mr-2">
+        <Link href="/pricing" className="flex items-center gap-1 bg-yellow-50 px-3 py-1 rounded-full border border-yellow-200 mr-2 hover:bg-yellow-100 transition-colors">
           <Coins className="h-4 w-4 text-yellow-600" />
           <span className="font-bold text-yellow-700 text-sm">{creditBalance.toLocaleString()} C</span>
-        </div>
+        </Link>
         <div className="mr-2">
           <NotificationBell isAdmin={isAdmin} />
         </div>
         <span className="text-sm text-gray-600">{userName}</span>
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           size="sm"
           onClick={handleLogout}
           className="text-gray-500 hover:text-red-600"

@@ -18,15 +18,15 @@ export async function POST(request: Request) {
     // 1. Check authentication
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    
+
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    
+
     // 2. Validate request data
     const body = await request.json()
     const { question_id } = saveQuestionSchema.parse(body)
-    
+
     // 3. Fetch the original question
     const { data: originalQuestion, error: fetchError } = await supabase
       .from('questions')
@@ -34,12 +34,12 @@ export async function POST(request: Request) {
       .eq('id', question_id)
       .eq('source', 'admin_uploaded')
       .single()
-    
+
     if (fetchError || !originalQuestion) {
       console.error('[Save from Community] Question not found:', fetchError)
       return NextResponse.json({ error: 'Question not found' }, { status: 404 })
     }
-    
+
     // 4. Check for duplicate (already saved by this user)
     const { data: existingQuestion } = await supabase
       .from('questions')
@@ -47,26 +47,28 @@ export async function POST(request: Request) {
       .eq('user_id', user.id)
       .eq('shared_question_id', question_id)
       .single()
-    
+
     if (existingQuestion) {
-      return NextResponse.json({ 
-        error: '이미 저장된 문제입니다.' 
+      return NextResponse.json({
+        error: '이미 저장된 문제입니다.'
       }, { status: 400 })
     }
 
-    // [New] 4.5 Deduct Credits
+    // [New] 4.5 Deduct Credits (FIFO 방식)
     try {
-      await CreditService.deductCredits(user.id, COST_PER_IMPORT, 'question_import', {
-        description: '커뮤니티 문제 가져오기',
-        resourceType: 'question',
-        resourceId: question_id
-      })
+      await CreditService.deductCredits(
+        user.id,
+        COST_PER_IMPORT,
+        'question_import',
+        question_id,
+        '커뮤니티 문제 가져오기'
+      )
     } catch (error: any) {
-      return NextResponse.json({ 
-        error: error.message || '크레딧이 부족합니다.' 
+      return NextResponse.json({
+        error: error.message || '크레딧이 부족합니다.'
       }, { status: 402 })
     }
-    
+
     // 5. Create a copy in the user's question bank
     const { data: newQuestion, error: insertError } = await supabase
       .from('questions')
@@ -94,36 +96,42 @@ export async function POST(request: Request) {
       })
       .select()
       .single()
-    
+
     if (insertError) {
       console.error('[Save from Community] Insert error:', insertError)
       // [New] Refund if insert fails
-      await CreditService.grantCredits(user.id, COST_PER_IMPORT, 'system_refund', {
-        description: '문제 저장 실패로 인한 환불',
-        resourceType: 'question',
-        resourceId: question_id
-      })
+      try {
+        await CreditService.purchaseCredits(
+          user.id,
+          null,
+          COST_PER_IMPORT,
+          0,
+          'system_refund'
+        )
+      } catch (refundError) {
+        console.error('[Save from Community] Failed to refund:', refundError)
+      }
       return NextResponse.json({ error: 'Failed to save question' }, { status: 500 })
     }
-    
+
     // 6. Return success response
-    return NextResponse.json({ 
-      success: true, 
-      question: newQuestion 
+    return NextResponse.json({
+      success: true,
+      question: newQuestion
     }, { status: 201 })
-    
+
   } catch (error) {
     console.error('[Save from Community] Error:', error)
-    
+
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ 
-        error: 'Validation failed', 
-        details: error.issues 
+      return NextResponse.json({
+        error: 'Validation failed',
+        details: error.issues
       }, { status: 400 })
     }
-    
-    return NextResponse.json({ 
-      error: 'Internal server error' 
+
+    return NextResponse.json({
+      error: 'Internal server error'
     }, { status: 500 })
   }
 }
@@ -133,61 +141,63 @@ export async function PUT(request: Request) {
     // 1. Check authentication
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    
+
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    
+
     // 2. Validate request data
     const body = await request.json()
     const { question_ids } = bulkSaveQuestionsSchema.parse(body)
-    
+
     if (question_ids.length === 0) {
       return NextResponse.json({ error: 'No questions selected' }, { status: 400 })
     }
-    
+
     // 3. Fetch the original questions
     const { data: originalQuestions, error: fetchError } = await supabase
       .from('questions')
       .select('*')
       .in('id', question_ids)
       .eq('source', 'admin_uploaded')
-    
+
     if (fetchError || !originalQuestions || originalQuestions.length === 0) {
       console.error('[Bulk Save from Community] Questions not found:', fetchError)
       return NextResponse.json({ error: 'Questions not found' }, { status: 404 })
     }
-    
+
     // 4. Check for duplicates (already saved by this user)
     const { data: existingQuestions } = await supabase
       .from('questions')
       .select('shared_question_id')
       .eq('user_id', user.id)
       .in('shared_question_id', question_ids)
-    
+
     const existingIds = new Set(existingQuestions?.map(q => q.shared_question_id) || [])
     const questionsToSave = originalQuestions.filter(q => !existingIds.has(q.id))
-    
+
     if (questionsToSave.length === 0) {
-      return NextResponse.json({ 
-        error: '선택한 모든 문제가 이미 저장되어 있습니다.' 
+      return NextResponse.json({
+        error: '선택한 모든 문제가 이미 저장되어 있습니다.'
       }, { status: 400 })
     }
 
-    // [New] 4.5 Deduct Credits (Bulk)
+    // [New] 4.5 Deduct Credits (Bulk, FIFO 방식)
     const totalCost = questionsToSave.length * COST_PER_IMPORT
     try {
-      await CreditService.deductCredits(user.id, totalCost, 'question_import', {
-        description: `커뮤니티 문제 ${questionsToSave.length}개 가져오기`,
-        resourceType: 'question_bulk',
-        // resourceId could be the first one or null
-      })
+      await CreditService.deductCredits(
+        user.id,
+        totalCost,
+        'question_import',
+        null,
+        `커뮤니티 문제 ${questionsToSave.length}개 가져오기`
+      )
     } catch (error: any) {
-      return NextResponse.json({ 
-        error: `크레딧이 부족합니다. (필요: ${totalCost} C)` 
+      return NextResponse.json({
+        error: `크레딧이 부족합니다. (필요: ${totalCost} C)`
       }, { status: 402 })
     }
-    
+
     // 5. Create copies in the user's question bank
     const questionsToInsert = questionsToSave.map(originalQuestion => ({
       question_text: originalQuestion.question_text,
@@ -211,42 +221,50 @@ export async function PUT(request: Request) {
       source_3: originalQuestion.source_3,
       source_4: originalQuestion.source_4,
     }))
-    
+
     const { data: newQuestions, error: insertError } = await supabase
       .from('questions')
       .insert(questionsToInsert)
       .select()
-    
+
     if (insertError) {
       console.error('[Bulk Save from Community] Insert error:', insertError)
       // [New] Refund
-      await CreditService.grantCredits(user.id, totalCost, 'system_refund', {
-        description: '문제 일괄 저장 실패로 인한 환불'
-      })
+      try {
+        await CreditService.purchaseCredits(
+          user.id,
+          null,
+          totalCost,
+          0,
+          'system_refund'
+        )
+      } catch (refundError) {
+        console.error('[Bulk Save from Community] Failed to refund:', refundError)
+      }
       return NextResponse.json({ error: 'Failed to save questions' }, { status: 500 })
     }
-    
+
     // 6. Return success response
     const skippedCount = originalQuestions.length - questionsToSave.length
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       saved_count: newQuestions?.length || 0,
       skipped_count: skippedCount,
-      questions: newQuestions 
+      questions: newQuestions
     }, { status: 201 })
-    
+
   } catch (error) {
     console.error('[Bulk Save from Community] Error:', error)
-    
+
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ 
-        error: 'Validation failed', 
-        details: error.issues 
+      return NextResponse.json({
+        error: 'Validation failed',
+        details: error.issues
       }, { status: 400 })
     }
-    
-    return NextResponse.json({ 
-      error: 'Internal server error' 
+
+    return NextResponse.json({
+      error: 'Internal server error'
     }, { status: 500 })
   }
 }

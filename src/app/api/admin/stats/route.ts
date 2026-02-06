@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 export async function GET() {
   try {
     const supabase = await createClient()
-    
+
     // Check admin authentication
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -25,7 +25,7 @@ export async function GET() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const todayISO = today.toISOString()
-    
+
     // Get this month's start
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
     const monthStartISO = monthStart.toISOString()
@@ -45,18 +45,18 @@ export async function GET() {
         .from('profiles')
         .select('id', { count: 'exact', head: true })
         .gte('created_at', todayISO),
-      
+
       // This month's signups
       supabase
         .from('profiles')
         .select('id', { count: 'exact', head: true })
         .gte('created_at', monthStartISO),
-      
+
       // Total questions count
       supabase
         .from('questions')
         .select('id', { count: 'exact', head: true }),
-      
+
       // Recent questions (last 10)
       supabase
         .from('questions')
@@ -70,19 +70,19 @@ export async function GET() {
         `)
         .order('created_at', { ascending: false })
         .limit(10),
-      
+
       // Grade level statistics
       supabase
         .from('questions')
         .select('grade_level'),
-      
+
       // Today's AI generations (from admin_logs if exists, otherwise estimate from questions)
       supabase
         .from('questions')
         .select('id', { count: 'exact', head: true })
         .gte('created_at', todayISO)
         .not('raw_ai_response', 'is', null),
-      
+
       // This month's AI generations
       supabase
         .from('questions')
@@ -161,6 +161,37 @@ export async function GET() {
       },
       recentQuestions: recentQuestionsResult.data || [],
       topGradeLevels,
+      revenue: {
+        total: 0,
+        month: 0
+      }
+    }
+
+    // Try to get revenue stats from payment_history
+    try {
+      const [totalRevenue, monthRevenue] = await Promise.all([
+        supabase
+          .from('payment_history')
+          .select('amount.sum()')
+          .eq('status', 'completed'),
+        supabase
+          .from('payment_history')
+          .select('amount.sum()')
+          .eq('status', 'completed')
+          .gte('created_at', monthStartISO),
+      ])
+
+      // Supabase sum query might return different structures depending on client version/types
+      // Safely handle the response
+      const totalAmount = (totalRevenue.data as any)?.[0]?.sum || 0
+      const monthAmount = (monthRevenue.data as any)?.[0]?.sum || 0
+
+      stats.revenue = {
+        total: totalAmount,
+        month: monthAmount
+      }
+    } catch (e) {
+      console.warn('Failed to fetch revenue stats:', e)
     }
 
     return NextResponse.json(stats)

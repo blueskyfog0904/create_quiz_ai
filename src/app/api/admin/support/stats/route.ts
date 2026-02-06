@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
       .from('support_tickets')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'pending')
+      .eq('is_deleted_by_user', false)
 
     if (error) throw error
 

@@ -11,6 +11,7 @@ import {
   TrendingUp,
   Clock,
   RefreshCw,
+  CreditCard,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
@@ -33,6 +34,10 @@ interface Stats {
   }
   errorLogs: {
     today: number
+  }
+  revenue: {
+    total: number
+    month: number
   }
   recentQuestions: Array<{
     id: string
@@ -102,6 +107,14 @@ export function DashboardClient() {
       icon: Users,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
+    },
+    {
+      title: '총 매출',
+      value: `₩${stats.revenue.total.toLocaleString()}`,
+      subValue: `이번 달 ₩${stats.revenue.month.toLocaleString()}`,
+      icon: CreditCard,
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-50',
     },
     {
       title: '문제 판매/다운로드',
@@ -212,15 +225,14 @@ export function DashboardClient() {
                         </Badge>
                       )}
                       {question.difficulty && (
-                        <Badge 
-                          variant="outline" 
-                          className={`text-xs ${
-                            question.difficulty === '상' 
-                              ? 'border-red-300 text-red-600' 
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${question.difficulty === '상'
+                              ? 'border-red-300 text-red-600'
                               : question.difficulty === '중'
-                              ? 'border-yellow-300 text-yellow-600'
-                              : 'border-green-300 text-green-600'
-                          }`}
+                                ? 'border-yellow-300 text-yellow-600'
+                                : 'border-green-300 text-green-600'
+                            }`}
                         >
                           {question.difficulty}
                         </Badge>
@@ -249,17 +261,17 @@ export function DashboardClient() {
                 {stats.topGradeLevels.map((item, index) => {
                   const maxCount = stats.topGradeLevels[0]?.count || 1
                   const percentage = (item.count / maxCount) * 100
-                  
+
                   return (
                     <div key={item.grade_level} className="space-y-1">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className={`
                             w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
-                            ${index === 0 ? 'bg-yellow-100 text-yellow-700' : 
+                            ${index === 0 ? 'bg-yellow-100 text-yellow-700' :
                               index === 1 ? 'bg-gray-100 text-gray-700' :
-                              index === 2 ? 'bg-orange-100 text-orange-700' :
-                              'bg-gray-50 text-gray-500'}
+                                index === 2 ? 'bg-orange-100 text-orange-700' :
+                                  'bg-gray-50 text-gray-500'}
                           `}>
                             {index + 1}
                           </span>
@@ -269,12 +281,11 @@ export function DashboardClient() {
                       </div>
                       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            index === 0 ? 'bg-orange-500' :
-                            index === 1 ? 'bg-orange-400' :
-                            index === 2 ? 'bg-orange-300' :
-                            'bg-orange-200'
-                          }`}
+                          className={`h-full rounded-full transition-all duration-500 ${index === 0 ? 'bg-orange-500' :
+                              index === 1 ? 'bg-orange-400' :
+                                index === 2 ? 'bg-orange-300' :
+                                  'bg-orange-200'
+                            }`}
                           style={{ width: `${percentage}%` }}
                         />
                       </div>

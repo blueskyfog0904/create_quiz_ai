@@ -14,53 +14,55 @@ import {
   Menu,
   BookOpen,
   Coins,
+  CreditCard,
+  RefreshCcw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
 
 const menuItems = [
-  { 
-    name: '대시보드', 
-    href: '/admin', 
+  {
+    name: '대시보드',
+    href: '/admin',
     icon: LayoutDashboard,
-    exact: true 
+    exact: true
   },
-  { 
-    name: 'AI 문제 유형 관리', 
-    href: '/admin/problem-types', 
-    icon: Settings 
+  {
+    name: 'AI 문제 유형 관리',
+    href: '/admin/problem-types',
+    icon: Settings
   },
-  { 
-    name: '문제은행 관리', 
-    href: '/admin/questions', 
+  {
+    name: '문제은행 관리',
+    href: '/admin/questions',
     icon: Database,
     exact: true
   },
-  { 
-    name: '영어지문 관리', 
-    href: '/admin/passages', 
+  {
+    name: '영어지문 관리',
+    href: '/admin/passages',
     icon: BookOpen,
     exact: false
   },
-  { 
-    name: '문제 업로드', 
-    href: '/admin/questions/upload', 
-    icon: Upload 
+  {
+    name: '문제 업로드',
+    href: '/admin/questions/upload',
+    icon: Upload
   },
-  { 
-    name: '사용자 관리', 
-    href: '/admin/users', 
-    icon: Users 
+  {
+    name: '사용자 관리',
+    href: '/admin/users',
+    icon: Users
   },
-  { 
-    name: '고객지원 관리', 
-    href: '/admin/support', 
-    icon: MessageSquare 
+  {
+    name: '고객지원 관리',
+    href: '/admin/support',
+    icon: MessageSquare
   },
-  { 
-    name: '표기값 관리', 
-    href: '/admin/labels', 
-    icon: Settings 
+  {
+    name: '표기값 관리',
+    href: '/admin/labels',
+    icon: Settings
   },
   {
     name: '출처 관리',
@@ -68,9 +70,19 @@ const menuItems = [
     icon: Settings
   },
   {
+    name: '요금제 관리',
+    href: '/admin/pricing',
+    icon: CreditCard
+  },
+  {
     name: '크레딧 관리',
     href: '/admin/credits',
     icon: Coins
+  },
+  {
+    name: '환불 관리',
+    href: '/admin/refunds',
+    icon: RefreshCcw
   },
 ]
 
@@ -138,15 +150,15 @@ export function AdminSidebar() {
           {menuItems.map((item) => {
             const Icon = item.icon
             const active = isActive(item)
-            
+
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
-                  active 
-                    ? "bg-orange-600 text-white" 
+                  active
+                    ? "bg-orange-600 text-white"
                     : "text-slate-300 hover:bg-slate-800 hover:text-white",
                   collapsed && "md:justify-center md:px-2"
                 )}
@@ -176,8 +188,8 @@ export function AdminSidebar() {
           collapsed && "md:p-2"
         )}>
           <Link href="/">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className={cn(
                 "w-full bg-transparent border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white",
                 collapsed && "md:px-2"
@@ -191,7 +203,7 @@ export function AdminSidebar() {
 
       {/* Mobile Overlay */}
       {!collapsed && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-30 md:hidden"
           onClick={() => setCollapsed(true)}
         />

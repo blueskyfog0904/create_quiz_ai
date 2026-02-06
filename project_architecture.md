@@ -107,15 +107,19 @@
 | `id` | `uuid` | | NO | `auth.users` FK |
 | `email` | `text` | | YES | 이메일 |
 | `name` | `text` | | YES | 사용자 이름 |
-| `role` | `text` | | YES | 역할 (`teacher`, `academy_instructor`) |
+| `role` | `text` | | YES | 역할 (`teacher`, `academy_instructor` 등) |
 | `is_admin` | `boolean` | `false` | YES | 관리자 여부 |
 | `provider` | `text` | `'email'` | YES | 가입 경로 |
 | `kakao_id` | `text` | | YES | 카카오 ID |
 | `kakao_email` | `text` | | YES | 카카오 이메일 |
 | `phone` | `text` | | YES | 전화번호 |
 | `organization` | `text` | | YES | 소속 |
-| `created_at` | `timestamptz` | `now()` | YES | 생성일시 |
-| `updated_at` | `timestamptz` | `now()` | YES | 수정일시 |
+| `birthdate` | `date` | | YES | 생년월일 |
+| `gender` | `text` | | YES | 성별 |
+| `address` | `text` | | YES | 주소 |
+| `avatar_url` | `text` | | YES | 프로필 이미지 URL |
+| `created_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 생성일시 |
+| `updated_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 수정일시 |
 
 #### 2) `passages` (영어 지문)
 문제 생성의 기반이 되는 영어 지문입니다.
@@ -134,14 +138,14 @@
 | `source_4` | `text` | | YES | 출처 상세 4 |
 | `tags` | `text[]` | `'{}'` | YES | 태그 배열 |
 | `is_bookmarked` | `boolean` | `false` | YES | 북마크 여부 |
-| `created_at` | `timestamptz` | `now()` | YES | 생성일시 |
-| `updated_at` | `timestamptz` | `now()` | YES | 수정일시 |
+| `created_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 생성일시 |
+| `updated_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 수정일시 |
 
 #### 3) `questions` (문제)
 생성된 개별 문제 데이터입니다.
 | 컬럼명 | 타입 | 기본값 | Nullable | 설명 |
 | :--- | :--- | :--- | :--- | :--- |
-| `id` | `uuid` | `extensions.uuid_generate_v4()` | NO | PK |
+| `id` | `uuid` | `uuid_generate_v4()` | NO | PK |
 | `user_id` | `uuid` | | NO | 생성자 (FK) |
 | `passage_id` | `uuid` | | YES | 관련 지문 (FK) |
 | `problem_type_id` | `uuid` | | YES | 문제 유형 (FK) |
@@ -155,15 +159,23 @@
 | `grade_level` | `text` | | YES | 학년 |
 | `source` | `varchar` | `'ai_generated'` | YES | 생성 출처 |
 | `tags` | `text[]` | | YES | 태그 |
+| `rating` | `smallint` | `0` | YES | 평점 |
+| `source_type` | `text` | | YES | 출처 구분 |
+| `source_1` | `text` | | YES | 출처 상세 1 |
+| `source_2` | `text` | | YES | 출처 상세 2 |
+| `source_3` | `text` | | YES | 출처 상세 3 |
+| `source_4` | `text` | | YES | 출처 상세 4 |
 | `raw_ai_response` | `text` | | YES | AI 원본 응답 디버깅용 |
-| `created_at` | `timestamptz` | `now()` | YES | 생성일시 |
-| `updated_at` | `timestamptz` | `now()` | YES | 수정일시 |
+| `shared_question_id` | `uuid` | | YES | 공유된 문제 ID |
+| `passage_text` | `text` | | YES | 지문 텍스트 (스냅샷) |
+| `created_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 생성일시 |
+| `updated_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 수정일시 |
 
 #### 4) `problem_types` (문제 유형)
 관리자가 설정하는 문제 유형 정의입니다.
 | 컬럼명 | 타입 | 기본값 | Nullable | 설명 |
 | :--- | :--- | :--- | :--- | :--- |
-| `id` | `uuid` | `extensions.uuid_generate_v4()` | NO | PK |
+| `id` | `uuid` | `uuid_generate_v4()` | NO | PK |
 | `type_name` | `text` | | NO | 유형 이름 (예: 주제 찾기) |
 | `description` | `text` | | YES | 설명 |
 | `prompt_template` | `text` | | NO | 프롬프트 템플릿 |
@@ -171,36 +183,41 @@
 | `provider` | `text` | | NO | `gemini`, `openai` |
 | `model_name` | `text` | | NO | 모델명 |
 | `is_active` | `boolean` | `true` | YES | 활성화 여부 |
+| `created_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 생성일시 |
+| `updated_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 수정일시 |
 
 #### 5) `exam_papers` (시험지)
 사용자가 구성한 시험지 메타데이터입니다.
 | 컬럼명 | 타입 | 기본값 | Nullable | 설명 |
 | :--- | :--- | :--- | :--- | :--- |
-| `id` | `uuid` | `extensions.uuid_generate_v4()` | NO | PK |
+| `id` | `uuid` | `uuid_generate_v4()` | NO | PK |
 | `user_id` | `uuid` | | NO | 소유자 (FK) |
 | `paper_title` | `text` | | NO | 시험지 제목 |
 | `description` | `text` | | YES | 설명 |
-| `created_at` | `timestamptz` | `now()` | YES | 생성일시 |
-| `updated_at` | `timestamptz` | `now()` | YES | 수정일시 |
+| `created_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 생성일시 |
+| `updated_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 수정일시 |
 
 #### 6) `exam_paper_items` (시험지 문항)
 시험지에 포함된 문제와 순서를 관리합니다.
 | 컬럼명 | 타입 | 기본값 | Nullable | 설명 |
 | :--- | :--- | :--- | :--- | :--- |
-| `id` | `uuid` | `extensions.uuid_generate_v4()` | NO | PK |
+| `id` | `uuid` | `uuid_generate_v4()` | NO | PK |
 | `exam_paper_id` | `uuid` | | NO | 시험지 (FK) |
 | `question_id` | `uuid` | | NO | 문제 (FK) |
 | `number` | `integer` | | NO | 표기 번호 |
 | `order_index` | `integer` | | NO | 정렬 순서 |
+| `created_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 생성일시 |
 
 #### 7) `ai_models` (AI 모델)
 시스템에서 사용 가능한 AI 모델 목록입니다.
 | 컬럼명 | 타입 | 기본값 | Nullable | 설명 |
 | :--- | :--- | :--- | :--- | :--- |
-| `id` | `uuid` | `extensions.uuid_generate_v4()` | NO | PK |
+| `id` | `uuid` | `uuid_generate_v4()` | NO | PK |
 | `name` | `text` | | NO | 모델명 (Gemini 1.5 Pro 등) |
 | `provider` | `text` | | NO | 제공자 (google, openai) |
 | `display_order` | `integer` | `0` | NO | 정렬 순서 |
+| `created_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 생성일시 |
+| `updated_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 수정일시 |
 
 #### 8) `system_settings` (시스템 설정)
 | 컬럼명 | 타입 | 기본값 | Nullable | 설명 |
@@ -208,6 +225,7 @@
 | `key` | `text` | | NO | 설정 키 (PK) |
 | `value` | `jsonb` | | NO | 설정 값 |
 | `description` | `text` | | YES | 설명 |
+| `updated_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 수정일시 |
 
 #### 9) `support_tickets` (고객 지원)
 | 컬럼명 | 타입 | 기본값 | Nullable | 설명 |
@@ -218,23 +236,70 @@
 | `message` | `text` | | NO | 내용 |
 | `status` | `text` | `'pending'` | NO | 상태 |
 | `admin_response` | `text` | | YES | 관리자 답변 |
+| `responded_at` | `timestamptz` | | YES | 답변 일시 |
+| `is_deleted_by_user` | `boolean` | `false` | YES | 사용자 삭제 여부 |
+| `created_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 생성일시 |
+| `updated_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 수정일시 |
 
 #### 10) `source_configs` (출처 설정)
 | 컬럼명 | 타입 | 기본값 | Nullable | 설명 |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | `uuid` | `gen_random_uuid()` | NO | PK |
 | `type_name` | `text` | | NO | 출처 타입 (Unique) |
-| `source_X_label` | `text` | | YES | 출처 필드 라벨 (1~4) |
-| `source_X_options`| `text[]` | | YES | 출처 필드 옵션 (1~4) |
+| `source_1_label` | `text` | | YES | 출처 필드 라벨 1 |
+| `source_1_options`| `text[]` | | YES | 출처 필드 옵션 1 |
+| `source_2_label` | `text` | | YES | 출처 필드 라벨 2 |
+| `source_2_options`| `text[]` | | YES | 출처 필드 옵션 2 |
+| `source_3_label` | `text` | | YES | 출처 필드 라벨 3 |
+| `source_3_options`| `text[]` | | YES | 출처 필드 옵션 3 |
+| `source_4_label` | `text` | | YES | 출처 필드 라벨 4 |
+| `source_4_options`| `text[]` | | YES | 출처 필드 옵션 4 |
+| `created_at` | `timestamptz` | `now()` | YES | 생성일시 |
 
 #### 11) `notifications` (알림)
 | 컬럼명 | 타입 | 기본값 | Nullable | 설명 |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | `uuid` | `gen_random_uuid()` | NO | PK |
 | `user_id` | `uuid` | | NO | 수신자 (FK) |
+| `type` | `text` | | NO | 알림 유형 |
 | `title` | `text` | | NO | 제목 |
 | `message` | `text` | | NO | 메시지 |
+| `link` | `text` | | YES | 연결 링크 |
 | `is_read` | `boolean` | `false` | YES | 읽음 여부 |
+| `created_at` | `timestamptz` | `now()` | YES | 생성일시 |
+
+
+
+#### 14) `display_labels` (표시 라벨)
+| 컬럼명 | 타입 | 기본값 | Nullable | 설명 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | `uuid` | `gen_random_uuid()` | NO | PK |
+| `category` | `text` | | NO | 카테고리 |
+| `db_value` | `text` | | NO | DB 저장값 |
+| `display_value` | `text` | | NO | 화면 표시값 |
+| `sort_order` | `integer` | `0` | YES | 정렬 순서 |
+| `created_at` | `timestamptz` | `now()` | YES | 생성일시 |
+| `updated_at` | `timestamptz` | `now()` | YES | 수정일시 |
+
+#### 15) `providers` (제공자)
+| 컬럼명 | 타입 | 기본값 | Nullable | 설명 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | `uuid` | `uuid_generate_v4()` | NO | PK |
+| `name` | `text` | | NO | 이름 |
+| `display_name` | `text` | | NO | 표시 이름 |
+| `display_order` | `integer` | `0` | NO | 정렬 순서 |
+| `is_active` | `boolean` | `true` | NO | 활성화 여부 |
+| `created_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 생성일시 |
+| `updated_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 수정일시 |
+
+#### 16) `system_prompts` (시스템 프롬프트)
+| 컬럼명 | 타입 | 기본값 | Nullable | 설명 |
+| :--- | :--- | :--- | :--- | :--- |
+| `key` | `text` | | NO | 키 (PK) |
+| `content` | `text` | | NO | 프롬프트 내용 |
+| `description` | `text` | | YES | 설명 |
+| `created_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 생성일시 |
+| `updated_at` | `timestamptz` | `timezone('utc'::text, now())` | NO | 수정일시 |
 
 ---
 

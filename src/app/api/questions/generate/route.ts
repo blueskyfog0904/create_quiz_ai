@@ -16,7 +16,7 @@ const GenerateRequestSchema = z.object({
 
 export async function POST(request: Request) {
   const supabase = await createClient()
-  
+
   // 1. Auth Check
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
@@ -27,11 +27,11 @@ export async function POST(request: Request) {
     // 2. Validation
     const body = await request.json()
     const validation = GenerateRequestSchema.safeParse(body)
-    
+
     if (!validation.success) {
-      return NextResponse.json({ 
-        success: false, 
-        error: { code: 'INVALID_INPUT', message: validation.error.issues?.[0]?.message || 'Validation failed' } 
+      return NextResponse.json({
+        success: false,
+        error: { code: 'INVALID_INPUT', message: validation.error.issues?.[0]?.message || 'Validation failed' }
       }, { status: 400 })
     }
 
@@ -45,36 +45,38 @@ export async function POST(request: Request) {
       .single()
 
     if (dbError || !problemType) {
-      return NextResponse.json({ 
-        success: false, 
-        error: { code: 'NOT_FOUND', message: 'Problem type not found' } 
+      return NextResponse.json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Problem type not found' }
       }, { status: 404 })
     }
 
     if (!problemType.is_active) {
-        return NextResponse.json({ 
-            success: false, 
-            error: { code: 'INACTIVE_TYPE', message: 'This problem type is currently inactive' } 
-          }, { status: 400 })
+      return NextResponse.json({
+        success: false,
+        error: { code: 'INACTIVE_TYPE', message: 'This problem type is currently inactive' }
+      }, { status: 400 })
     }
 
-    // [New] 3.5 Deduct Credits (Atomic)
+    // [New] 3.5 Deduct Credits (FIFO 방식)
     // AI 생성 전 선차감
     try {
-      await CreditService.deductCredits(user.id, COST_PER_GENERATION, 'ai_generation', {
-        description: `AI 문제 생성 (${problemType.type_name})`,
-        resourceType: 'problem_type',
-        resourceId: problemTypeId
-      })
+      await CreditService.deductCredits(
+        user.id,
+        COST_PER_GENERATION,
+        'ai_generation',
+        problemTypeId,
+        `AI 문제 생성 (${problemType.type_name})`
+      )
     } catch (error: any) {
-      return NextResponse.json({ 
-        success: false, 
-        error: { code: 'INSUFFICIENT_CREDITS', message: error.message || '크레딧이 부족합니다.' } 
+      return NextResponse.json({
+        success: false,
+        error: { code: 'INSUFFICIENT_CREDITS', message: error.message || '크레딧이 부족합니다.' }
       }, { status: 402 })
     }
 
     // 4. Construct Prompt
-    
+
     // Helper function to convert grade level to Korean
     const getGradeLevelKorean = (grade: string): string => {
       const gradeMap: { [key: string]: string } = {
@@ -93,7 +95,7 @@ export async function POST(request: Request) {
       }
       return gradeMap[grade] || grade
     }
-    
+
     // Helper function to convert difficulty to Korean
     const getDifficultyKorean = (diff: string): string => {
       const diffMap: { [key: string]: string } = {
@@ -106,10 +108,10 @@ export async function POST(request: Request) {
       }
       return diffMap[diff] || diff
     }
-    
+
     const gradeLevelKorean = getGradeLevelKorean(gradeLevel)
     const difficultyKorean = getDifficultyKorean(difficulty)
-    
+
     // Build structured prompt
     let prompt = `
 ================================================================================
@@ -178,17 +180,25 @@ Required JSON structure (single object):
 
     if (!result.success) {
       console.error('AI Generation Error:', result.error, result.rawResponse)
-      
-      // [New] Rollback (Refund)
-      await CreditService.grantCredits(user.id, COST_PER_GENERATION, 'system_refund', {
-        description: 'AI 생성 오류로 인한 환불',
-        resourceType: 'problem_type',
-        resourceId: problemTypeId
-      })
 
-      return NextResponse.json({ 
-        success: false, 
-        error: { code: 'AI_ERROR', message: 'Failed to generate question. Credits have been refunded.' } 
+      // [New] Rollback (Refund) - 환불 처리
+      // 새 크레딧 시스템에서는 purchaseCredits를 통해 환불 크레딧을 지급
+      try {
+        await CreditService.purchaseCredits(
+          user.id,
+          null,  // plan_id 없음
+          COST_PER_GENERATION,
+          0,  // 환불이므로 금액 0
+          'system_refund'
+        )
+        console.log(`Refunded ${COST_PER_GENERATION} credits to user ${user.id} due to AI error`)
+      } catch (refundError) {
+        console.error('Failed to refund credits:', refundError)
+      }
+
+      return NextResponse.json({
+        success: false,
+        error: { code: 'AI_ERROR', message: 'Failed to generate question. Credits have been refunded.' }
       }, { status: 500 })
     }
 
@@ -201,16 +211,16 @@ Required JSON structure (single object):
 
   } catch (error: any) {
     console.error('Generation API Error:', error)
-    
+
     // Note: If error occurred AFTER deduction but BEFORE AI call (unlikely), we might need refund here too.
     // However, the deduction is in its own try-catch block above. 
     // If main try-catch catches something, it depends where it failed.
     // Ideally we should scope the try-catch better, but for now assuming if it fails here it's unexpected system error.
     // We should probably check if credit was deducted in this scope to refund, but simpler is to let AI error handling do the refund.
-    
-    return NextResponse.json({ 
-      success: false, 
-      error: { code: 'INTERNAL_SERVER_ERROR', message: 'An unexpected error occurred' } 
+
+    return NextResponse.json({
+      success: false,
+      error: { code: 'INTERNAL_SERVER_ERROR', message: 'An unexpected error occurred' }
     }, { status: 500 })
   }
 }
