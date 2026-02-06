@@ -7,9 +7,10 @@ export default async function AdminSupportPage() {
   // Fetch support tickets
   const { data: tickets } = await supabase
     .from('support_tickets')
+
     .select(`
       *,
-      profiles:user_id (name, email)
+      profiles!support_tickets_user_id_profiles_fkey (name, email, phone)
     `)
     .order('created_at', { ascending: false })
     .limit(50)

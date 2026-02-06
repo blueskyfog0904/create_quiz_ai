@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   Menu,
   BookOpen,
+  Coins,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
@@ -65,6 +66,11 @@ const menuItems = [
     name: '출처 관리',
     href: '/admin/source-configs',
     icon: Settings
+  },
+  {
+    name: '크레딧 관리',
+    href: '/admin/credits',
+    icon: Coins
   },
 ]
 

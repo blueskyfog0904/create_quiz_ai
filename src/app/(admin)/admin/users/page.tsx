@@ -11,6 +11,28 @@ export default async function AdminUsersPage() {
     .order('created_at', { ascending: false })
     .limit(20)
 
+    .limit(20)
+
+  // Fetch credits for these users
+  const userIds = users?.map(u => u.id) || []
+  let creditMap: Record<string, number> = {}
+  
+  if (userIds.length > 0) {
+    const { data: credits } = await supabase
+      .from('user_credits')
+      .select('user_id, balance')
+      .in('user_id', userIds)
+    
+    credits?.forEach(c => {
+      creditMap[c.user_id] = c.balance
+    })
+  }
+
+  const usersWithCredits = users?.map(u => ({
+    ...u,
+    credit_balance: creditMap[u.id] || 0
+  })) || []
+
   return (
     <div>
       <div className="mb-8">
@@ -18,7 +40,7 @@ export default async function AdminUsersPage() {
         <p className="text-gray-500 mt-1">가입된 사용자를 조회하고 관리합니다</p>
       </div>
 
-      <UsersClient initialUsers={users || []} totalCount={count || 0} />
+      <UsersClient initialUsers={usersWithCredits} totalCount={count || 0} />
     </div>
   )
 }

@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { CreditService } from '@/lib/credits'
+
+const COST_PER_IMPORT = 100
 
 const saveQuestionSchema = z.object({
   question_id: z.string().uuid('Invalid question ID'),
@@ -50,6 +53,19 @@ export async function POST(request: Request) {
         error: '이미 저장된 문제입니다.' 
       }, { status: 400 })
     }
+
+    // [New] 4.5 Deduct Credits
+    try {
+      await CreditService.deductCredits(user.id, COST_PER_IMPORT, 'question_import', {
+        description: '커뮤니티 문제 가져오기',
+        resourceType: 'question',
+        resourceId: question_id
+      })
+    } catch (error: any) {
+      return NextResponse.json({ 
+        error: error.message || '크레딧이 부족합니다.' 
+      }, { status: 402 })
+    }
     
     // 5. Create a copy in the user's question bank
     const { data: newQuestion, error: insertError } = await supabase
@@ -81,6 +97,12 @@ export async function POST(request: Request) {
     
     if (insertError) {
       console.error('[Save from Community] Insert error:', insertError)
+      // [New] Refund if insert fails
+      await CreditService.grantCredits(user.id, COST_PER_IMPORT, 'system_refund', {
+        description: '문제 저장 실패로 인한 환불',
+        resourceType: 'question',
+        resourceId: question_id
+      })
       return NextResponse.json({ error: 'Failed to save question' }, { status: 500 })
     }
     
@@ -151,6 +173,20 @@ export async function PUT(request: Request) {
         error: '선택한 모든 문제가 이미 저장되어 있습니다.' 
       }, { status: 400 })
     }
+
+    // [New] 4.5 Deduct Credits (Bulk)
+    const totalCost = questionsToSave.length * COST_PER_IMPORT
+    try {
+      await CreditService.deductCredits(user.id, totalCost, 'question_import', {
+        description: `커뮤니티 문제 ${questionsToSave.length}개 가져오기`,
+        resourceType: 'question_bulk',
+        // resourceId could be the first one or null
+      })
+    } catch (error: any) {
+      return NextResponse.json({ 
+        error: `크레딧이 부족합니다. (필요: ${totalCost} C)` 
+      }, { status: 402 })
+    }
     
     // 5. Create copies in the user's question bank
     const questionsToInsert = questionsToSave.map(originalQuestion => ({
@@ -183,6 +219,10 @@ export async function PUT(request: Request) {
     
     if (insertError) {
       console.error('[Bulk Save from Community] Insert error:', insertError)
+      // [New] Refund
+      await CreditService.grantCredits(user.id, totalCost, 'system_refund', {
+        description: '문제 일괄 저장 실패로 인한 환불'
+      })
       return NextResponse.json({ error: 'Failed to save questions' }, { status: 500 })
     }
     

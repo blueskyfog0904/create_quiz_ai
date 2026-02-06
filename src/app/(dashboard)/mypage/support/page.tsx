@@ -7,10 +7,12 @@ export default async function SupportPage() {
   const supabase = await createClient()
   
   // Fetch user's support tickets
+
   const { data: tickets } = await supabase
     .from('support_tickets')
     .select('*')
     .eq('user_id', user.id)
+    .eq('is_deleted_by_user', false) // Explicitly filter out deleted tickets
     .order('created_at', { ascending: false })
 
   return (

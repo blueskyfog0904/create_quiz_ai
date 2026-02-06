@@ -193,6 +193,7 @@ export default function BankClient({
       }
       
       toast.success('문제를 내 라이브러리로 가져왔습니다!')
+      router.refresh()
       
     } catch (error: any) {
       toast.error(error.message)
@@ -238,6 +239,7 @@ export default function BankClient({
         toast.success(`${savedCount}개의 문제를 가져왔습니다!`)
       }
       
+      router.refresh()
       setSelectedQuestions([])
       
     } catch (error: any) {
@@ -1188,7 +1190,7 @@ export default function BankClient({
           <DialogHeader>
             <DialogTitle>문제 가져오기 확인</DialogTitle>
             <DialogDescription>
-              문제를 내 라이브러리로 가져올까요?
+              문제를 내 라이브러리로 가져올까요? (100 크레딧이 차감됩니다)
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1217,7 +1219,7 @@ export default function BankClient({
           <DialogHeader>
             <DialogTitle>일괄 가져오기 확인</DialogTitle>
             <DialogDescription>
-              선택한 {selectedQuestions.length}개의 문제를 내 라이브러리로 가져올까요?
+              선택한 {selectedQuestions.length}개의 문제를 내 라이브러리로 가져올까요? (총 {(selectedQuestions.length * 100).toLocaleString()} 크레딧이 차감됩니다)
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

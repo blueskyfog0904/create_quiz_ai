@@ -36,15 +36,17 @@ import {
   BookOpen
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { NotificationBell } from '@/components/ui/notification-bell'
 
 interface HeaderClientProps {
   isLoggedIn: boolean
   userName: string
   isAdmin: boolean
+  creditBalance?: number
   isMobile?: boolean
 }
 
-export function HeaderClient({ isLoggedIn, userName, isAdmin, isMobile = false }: HeaderClientProps) {
+export function HeaderClient({ isLoggedIn, userName, isAdmin, creditBalance = 0, isMobile = false }: HeaderClientProps) {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   
@@ -292,7 +294,14 @@ export function HeaderClient({ isLoggedIn, userName, isAdmin, isMobile = false }
       )}
 
       {/* 사용자 정보 및 로그아웃 */}
-      <div className="flex items-center gap-3 ml-2 border-l pl-4">
+      <div className="flex items-center gap-1 ml-2 border-l pl-4">
+        <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1 rounded-full border border-yellow-200 mr-2">
+          <Coins className="h-4 w-4 text-yellow-600" />
+          <span className="font-bold text-yellow-700 text-sm">{creditBalance.toLocaleString()} C</span>
+        </div>
+        <div className="mr-2">
+          <NotificationBell isAdmin={isAdmin} />
+        </div>
         <span className="text-sm text-gray-600">{userName}</span>
         <Button 
           variant="ghost" 

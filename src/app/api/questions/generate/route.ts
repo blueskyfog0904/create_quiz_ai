@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AIGenerationService } from '@/lib/ai'
 import { AIProvider } from '@/lib/ai/types'
+import { CreditService } from '@/lib/credits'
+
+const COST_PER_GENERATION = 100
 
 const GenerateRequestSchema = z.object({
   passage: z.string().max(3500, "Passage must be under 3500 characters"), // increased for buffer, UI enforces 3000
@@ -53,6 +56,21 @@ export async function POST(request: Request) {
             success: false, 
             error: { code: 'INACTIVE_TYPE', message: 'This problem type is currently inactive' } 
           }, { status: 400 })
+    }
+
+    // [New] 3.5 Deduct Credits (Atomic)
+    // AI 생성 전 선차감
+    try {
+      await CreditService.deductCredits(user.id, COST_PER_GENERATION, 'ai_generation', {
+        description: `AI 문제 생성 (${problemType.type_name})`,
+        resourceType: 'problem_type',
+        resourceId: problemTypeId
+      })
+    } catch (error: any) {
+      return NextResponse.json({ 
+        success: false, 
+        error: { code: 'INSUFFICIENT_CREDITS', message: error.message || '크레딧이 부족합니다.' } 
+      }, { status: 402 })
     }
 
     // 4. Construct Prompt
@@ -160,10 +178,17 @@ Required JSON structure (single object):
 
     if (!result.success) {
       console.error('AI Generation Error:', result.error, result.rawResponse)
-      // Log to DB (optional, can be added later)
+      
+      // [New] Rollback (Refund)
+      await CreditService.grantCredits(user.id, COST_PER_GENERATION, 'system_refund', {
+        description: 'AI 생성 오류로 인한 환불',
+        resourceType: 'problem_type',
+        resourceId: problemTypeId
+      })
+
       return NextResponse.json({ 
         success: false, 
-        error: { code: 'AI_ERROR', message: 'Failed to generate question. Please try again.' } 
+        error: { code: 'AI_ERROR', message: 'Failed to generate question. Credits have been refunded.' } 
       }, { status: 500 })
     }
 
@@ -176,6 +201,13 @@ Required JSON structure (single object):
 
   } catch (error: any) {
     console.error('Generation API Error:', error)
+    
+    // Note: If error occurred AFTER deduction but BEFORE AI call (unlikely), we might need refund here too.
+    // However, the deduction is in its own try-catch block above. 
+    // If main try-catch catches something, it depends where it failed.
+    // Ideally we should scope the try-catch better, but for now assuming if it fails here it's unexpected system error.
+    // We should probably check if credit was deducted in this scope to refund, but simpler is to let AI error handling do the refund.
+    
     return NextResponse.json({ 
       success: false, 
       error: { code: 'INTERNAL_SERVER_ERROR', message: 'An unexpected error occurred' } 

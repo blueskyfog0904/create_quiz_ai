@@ -21,6 +21,7 @@ import {
   Send,
 } from 'lucide-react'
 
+
 interface Ticket {
   id: string
   user_id: string
@@ -31,9 +32,11 @@ interface Ticket {
   responded_at: string | null
   created_at: string
   updated_at: string
+  is_deleted_by_user: boolean
   profiles: {
     name: string | null
     email: string | null
+    phone: string | null
   } | null
 }
 
@@ -46,6 +49,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.E
   in_progress: { label: '처리 중', color: 'bg-blue-100 text-blue-700', icon: MessageSquare },
   resolved: { label: '해결됨', color: 'bg-green-100 text-green-700', icon: CheckCircle },
   closed: { label: '종료', color: 'bg-gray-100 text-gray-700', icon: AlertCircle },
+  deleted: { label: '고객삭제', color: 'bg-red-100 text-red-600 font-bold', icon: AlertCircle },
 }
 
 export function SupportClient({ initialTickets }: SupportClientProps) {
@@ -90,8 +94,10 @@ export function SupportClient({ initialTickets }: SupportClientProps) {
     }
   }
 
-  const pendingCount = tickets.filter(t => t.status === 'pending').length
-  const resolvedCount = tickets.filter(t => t.status === 'resolved').length
+  // Count metrics excluding deleted tickets if preferred, or including. 
+  // User asked to see them as disabled, so effectively they are still 'there'.
+  const pendingCount = tickets.filter(t => t.status === 'pending' && !t.is_deleted_by_user).length
+  const resolvedCount = tickets.filter(t => t.status === 'resolved' && !t.is_deleted_by_user).length
 
   return (
     <div className="space-y-6">
@@ -130,7 +136,7 @@ export function SupportClient({ initialTickets }: SupportClientProps) {
                 <MessageSquare className="h-5 w-5 text-gray-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-500">전체</p>
+                <p className="text-sm text-gray-500">전체 (삭제 포함)</p>
                 <p className="text-2xl font-bold">{tickets.length}</p>
               </div>
             </div>
@@ -151,22 +157,28 @@ export function SupportClient({ initialTickets }: SupportClientProps) {
           ) : (
             <div className="divide-y">
               {tickets.map((ticket) => {
-                const status = statusConfig[ticket.status || 'pending']
+                const isDeleted = ticket.is_deleted_by_user
+                const statusKey = isDeleted ? 'deleted' : (ticket.status || 'pending')
+                const status = statusConfig[statusKey]
                 const StatusIcon = status.icon
 
                 return (
                   <div
                     key={ticket.id}
-                    className="p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() => setSelectedTicket(ticket)}
+                    className={`p-4 transition-colors ${
+                      isDeleted 
+                        ? 'opacity-60 bg-gray-50 cursor-not-allowed' 
+                        : 'hover:bg-gray-50 cursor-pointer'
+                    }`}
+                    onClick={() => !isDeleted && setSelectedTicket(ticket)}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900">
+                          <span className={`font-medium ${isDeleted ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
                             {ticket.subject}
                           </span>
-                          <Badge className={status.color}>
+                          <Badge className={status.color} variant={isDeleted ? 'outline' : 'default'}>
                             <StatusIcon className="h-3 w-3 mr-1" />
                             {status.label}
                           </Badge>
@@ -182,7 +194,7 @@ export function SupportClient({ initialTickets }: SupportClientProps) {
                           <span>
                             {new Date(ticket.created_at).toLocaleDateString('ko-KR')}
                           </span>
-                          {ticket.responded_at && (
+                          {ticket.responded_at && !isDeleted && (
                             <>
                               <span>•</span>
                               <span className="text-green-600">
@@ -207,7 +219,9 @@ export function SupportClient({ initialTickets }: SupportClientProps) {
           <DialogHeader>
             <DialogTitle>{selectedTicket?.subject}</DialogTitle>
             <DialogDescription>
-              {selectedTicket?.profiles?.name || selectedTicket?.profiles?.email} •{' '}
+              {selectedTicket?.profiles?.name || '이름 없음'} •{' '}
+              {selectedTicket?.profiles?.phone || '전화번호 없음'} •{' '}
+              {selectedTicket?.profiles?.email || '이메일 없음'} •{' '}
               {selectedTicket && new Date(selectedTicket.created_at).toLocaleString('ko-KR')}
             </DialogDescription>
           </DialogHeader>

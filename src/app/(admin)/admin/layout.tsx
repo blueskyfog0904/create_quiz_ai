@@ -15,12 +15,14 @@ export default async function AdminLayout({
         {/* Sidebar */}
         <AdminSidebar />
         
-        {/* Main Content */}
-        <main className="flex-1 min-h-[calc(100vh-4rem)] md:ml-0">
-          <div className="p-6 md:p-8">
-            {children}
-          </div>
-        </main>
+        {/* Main Content Wrapper */}
+        <div className="flex-1 flex flex-col min-h-screen md:ml-0">
+          <main className="flex-1">
+            <div className="p-6 md:p-8">
+              {children}
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   )

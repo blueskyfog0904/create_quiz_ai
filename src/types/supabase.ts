@@ -41,6 +41,69 @@ export type Database = {
         }
         Relationships: []
       }
+      credit_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          id: string
+          resource_id: string | null
+          resource_type: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          resource_id?: string | null
+          resource_type?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          resource_id?: string | null
+          resource_type?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      display_labels: {
+        Row: {
+          category: string
+          created_at: string | null
+          db_value: string
+          display_value: string
+          id: string
+          sort_order: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          db_value: string
+          display_value: string
+          id?: string
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          db_value?: string
+          display_value?: string
+          id?: string
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       exam_paper_items: {
         Row: {
           created_at: string
@@ -118,57 +181,98 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          link: string | null
+          message: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          link?: string | null
+          message: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          link?: string | null
+          message?: string
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       passages: {
         Row: {
           content: string
           content_translation: string | null
           created_at: string
           id: string
-          title_en: string | null
-          title_ko: string | null
-          updated_at: string
-          user_id: string
-          tags: string[] | null
           is_bookmarked: boolean | null
-          source_type: string | null
           source_1: string | null
           source_2: string | null
           source_3: string | null
           source_4: string | null
+          source_type: string | null
+          tags: string[] | null
+          title_en: string | null
+          title_ko: string | null
+          updated_at: string
+          user_id: string
         }
         Insert: {
           content: string
           content_translation?: string | null
           created_at?: string
           id?: string
-          title_en?: string | null
-          title_ko?: string | null
-          updated_at?: string
-          user_id: string
-          tags?: string[] | null
           is_bookmarked?: boolean | null
-          source_type?: string | null
           source_1?: string | null
           source_2?: string | null
           source_3?: string | null
           source_4?: string | null
+          source_type?: string | null
+          tags?: string[] | null
+          title_en?: string | null
+          title_ko?: string | null
+          updated_at?: string
+          user_id: string
         }
         Update: {
           content?: string
           content_translation?: string | null
           created_at?: string
           id?: string
-          title_en?: string | null
-          title_ko?: string | null
-          updated_at?: string
-          user_id?: string
-          tags?: string[] | null
           is_bookmarked?: boolean | null
-          source_type?: string | null
           source_1?: string | null
           source_2?: string | null
           source_3?: string | null
           source_4?: string | null
+          source_type?: string | null
+          tags?: string[] | null
+          title_en?: string | null
+          title_ko?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -313,16 +417,16 @@ export type Database = {
           question_text: string
           question_text_backward: string | null
           question_text_forward: string | null
+          rating: number | null
           raw_ai_response: string | null
           shared_question_id: string | null
           source: string | null
-          source_type: string | null
           source_1: string | null
           source_2: string | null
           source_3: string | null
           source_4: string | null
+          source_type: string | null
           tags: string[] | null
-          rating: number | null
           updated_at: string
           user_id: string
         }
@@ -340,16 +444,16 @@ export type Database = {
           question_text: string
           question_text_backward?: string | null
           question_text_forward?: string | null
+          rating?: number | null
           raw_ai_response?: string | null
           shared_question_id?: string | null
           source?: string | null
-          source_type?: string | null
           source_1?: string | null
           source_2?: string | null
           source_3?: string | null
           source_4?: string | null
+          source_type?: string | null
           tags?: string[] | null
-          rating?: number | null
           updated_at?: string
           user_id: string
         }
@@ -367,16 +471,16 @@ export type Database = {
           question_text?: string
           question_text_backward?: string | null
           question_text_forward?: string | null
+          rating?: number | null
           raw_ai_response?: string | null
           shared_question_id?: string | null
           source?: string | null
-          source_type?: string | null
           source_1?: string | null
           source_2?: string | null
           source_3?: string | null
           source_4?: string | null
+          source_type?: string | null
           tags?: string[] | null
-          rating?: number | null
           updated_at?: string
           user_id?: string
         }
@@ -410,10 +514,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      },
+      }
       source_configs: {
         Row: {
-          created_at: string
+          created_at: string | null
           id: string
           source_1_label: string | null
           source_1_options: string[] | null
@@ -423,11 +527,10 @@ export type Database = {
           source_3_options: string[] | null
           source_4_label: string | null
           source_4_options: string[] | null
-          source_4_type: string | null
           type_name: string
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           source_1_label?: string | null
           source_1_options?: string[] | null
@@ -440,7 +543,7 @@ export type Database = {
           type_name: string
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           source_1_label?: string | null
           source_1_options?: string[] | null
@@ -453,12 +556,13 @@ export type Database = {
           type_name?: string
         }
         Relationships: []
-      },
+      }
       support_tickets: {
         Row: {
           admin_response: string | null
           created_at: string
           id: string
+          is_deleted_by_user: boolean | null
           message: string
           responded_at: string | null
           status: string
@@ -470,6 +574,7 @@ export type Database = {
           admin_response?: string | null
           created_at?: string
           id?: string
+          is_deleted_by_user?: boolean | null
           message: string
           responded_at?: string | null
           status?: string
@@ -481,10 +586,82 @@ export type Database = {
           admin_response?: string | null
           created_at?: string
           id?: string
+          is_deleted_by_user?: boolean | null
           message?: string
           responded_at?: string | null
           status?: string
           subject?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      system_prompts: {
+        Row: {
+          content: string
+          created_at: string
+          description: string | null
+          key: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          description?: string | null
+          key: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          description?: string | null
+          key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      system_settings: {
+        Row: {
+          description: string | null
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          description?: string | null
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          description?: string | null
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
+      user_credits: {
+        Row: {
+          balance: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
           updated_at?: string
           user_id?: string
         }
@@ -495,7 +672,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      deduct_credits: {
+        Args: {
+          p_amount: number
+          p_description: string
+          p_resource_id?: string
+          p_resource_type?: string
+          p_user_id: string
+        }
+        Returns: number
+      }
+      grant_credits: {
+        Args: {
+          p_amount: number
+          p_description: string
+          p_resource_id?: string
+          p_resource_type?: string
+          p_type?: string
+          p_user_id: string
+        }
+        Returns: number
+      }
+      is_admin: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

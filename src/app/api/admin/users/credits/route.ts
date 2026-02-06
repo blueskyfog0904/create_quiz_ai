@@ -1,0 +1,81 @@
+import { createClient } from '@/lib/supabase/server'
+import { NextResponse } from 'next/server'
+import { z } from 'zod'
+import { CreditService } from '@/lib/credits'
+
+const GrantCreditSchema = z.object({
+  userId: z.string().uuid(),
+  amount: z.number().int().positive('Amount must be positive').max(10000, '한 번에 최대 10,000 크레딧까지만 지급할 수 있습니다.'),
+  description: z.string().min(1, 'Description is required'),
+  category: z.enum(['compensation', 'event', 'refund', 'other']).default('other')
+})
+
+export async function POST(request: Request) {
+  const supabase = await createClient()
+
+  // 1. Auth Check (Admin Only)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Check admin role via profiles table
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile?.is_admin) {
+    return NextResponse.json({ error: 'Forbidden: Admin only' }, { status: 403 })
+  }
+
+  try {
+    const body = await request.json()
+    const { userId, amount, description, category } = GrantCreditSchema.parse(body)
+
+    // 2. Grant Credits
+    const categoryLabel = {
+        compensation: '보상',
+        event: '이벤트',
+        refund: '환불',
+        other: '기타'
+    }[category] || '기타'
+
+    const fullDescription = `[${categoryLabel}] ${description}`
+
+    const newBalance = await CreditService.grantCredits(userId, amount, 'admin_grant', {
+      description: fullDescription,
+      category,
+      admin_id: user.id
+    })
+
+    // 3. Send Notification
+    await supabase.from('notifications').insert({
+        user_id: userId,
+        type: 'info',
+        title: '크레딧이 지급되었습니다',
+        message: `${categoryLabel} 사유로 ${amount.toLocaleString()} 크레딧이 지급되었습니다. (내용: ${description})`,
+        is_read: false
+    })
+
+    return NextResponse.json({
+      success: true,
+      newBalance,
+    })
+
+  } catch (error: any) {
+    console.error('Grant Credits Error:', error)
+    
+    if (error instanceof z.ZodError) {
+        return NextResponse.json({ 
+            error: 'Validation failed', 
+            details: error.issues 
+        }, { status: 400 })
+    }
+
+    return NextResponse.json({
+      error: error.message || 'Failed to grant credits'
+    }, { status: 500 })
+  }
+}

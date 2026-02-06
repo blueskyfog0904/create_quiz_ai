@@ -6,6 +6,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import {
   Search,
   User,
   Mail,
@@ -14,7 +24,10 @@ import {
   Shield,
   ChevronLeft,
   ChevronRight,
+  Coins,
+  Plus
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface Profile {
   id: string
@@ -27,6 +40,7 @@ interface Profile {
   provider: string | null
   created_at: string
   updated_at: string
+  credit_balance?: number
 }
 
 interface UsersClientProps {
@@ -35,8 +49,15 @@ interface UsersClientProps {
 }
 
 export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
-  const [users] = useState<Profile[]>(initialUsers)
+  const [users, setUsers] = useState<Profile[]>(initialUsers)
   const [search, setSearch] = useState('')
+  
+  // Grant Credit Logic
+  const [selectedUser, setSelectedUser] = useState<Profile | null>(null)
+  const [isGrantModalOpen, setIsGrantModalOpen] = useState(false)
+  const [grantAmount, setGrantAmount] = useState<number>(0)
+  const [grantReason, setGrantReason] = useState('')
+  const [isGranting, setIsGranting] = useState(false)
 
   const filteredUsers = users.filter((user) => {
     const searchLower = search.toLowerCase()
@@ -48,8 +69,89 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
     )
   })
 
+  const openGrantModal = (user: Profile) => {
+    setSelectedUser(user)
+    setGrantAmount(0)
+    setGrantReason('')
+    setIsGrantModalOpen(true)
+  }
+
+  const handleGrantCredit = async () => {
+    if (!selectedUser || grantAmount <= 0) return
+
+    setIsGranting(true)
+    try {
+      const response = await fetch('/api/admin/users/credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: selectedUser.id,
+          amount: grantAmount,
+          description: grantReason || '관리자 수동 지급'
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to grant credits')
+      }
+
+      // Update local state
+      setUsers(users.map(u => 
+        u.id === selectedUser.id 
+          ? { ...u, credit_balance: data.newBalance } 
+          : u
+      ))
+
+      toast.success('크레딧이 지급되었습니다.')
+      setIsGrantModalOpen(false)
+    } catch (error: any) {
+      toast.error(error.message)
+    } finally {
+      setIsGranting(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
+      {/* Grant Credit Modal */}
+      <Dialog open={isGrantModalOpen} onOpenChange={setIsGrantModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>크레딧 지급</DialogTitle>
+            <DialogDescription>
+              {selectedUser?.name} ({selectedUser?.email}) 님에게 크레딧을 지급합니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>지급할 크레딧</Label>
+              <Input 
+                type="number" 
+                value={grantAmount} 
+                onChange={(e) => setGrantAmount(Number(e.target.value))}
+                placeholder="1000"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>지급 사유</Label>
+              <Textarea 
+                value={grantReason}
+                onChange={(e) => setGrantReason(e.target.value)}
+                placeholder="예: 이벤트 당첨, 시스템 환불 등"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsGrantModalOpen(false)}>취소</Button>
+            <Button onClick={handleGrantCredit} disabled={isGranting || grantAmount <= 0}>
+              {isGranting ? '지급 중...' : '지급하기'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Search */}
       <div className="flex gap-4 items-center">
         <div className="relative flex-1 max-w-md">
@@ -116,9 +218,16 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
                             <span className="text-blue-600">{user.organization}</span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1 mt-1 text-xs text-gray-400">
-                          <Calendar className="h-3 w-3" />
-                          가입일: {new Date(user.created_at).toLocaleDateString('ko-KR')}
+                        <div className="flex items-center gap-4 mt-2">
+                            <div className="flex items-center gap-1 text-xs text-gray-400">
+                                <Calendar className="h-3 w-3" />
+                                가입일: {new Date(user.created_at).toLocaleDateString('ko-KR')}
+                            </div>
+                            {/* Credit Display */}
+                            <div className="flex items-center gap-1 text-sm font-semibold text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded">
+                                <Coins className="h-3 w-3" />
+                                {user.credit_balance?.toLocaleString() || 0} C
+                            </div>
                         </div>
                       </div>
                     </div>
@@ -128,6 +237,15 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
                           {user.role === 'teacher' ? '선생님' : user.role === 'academy_instructor' ? '학원강사' : user.role}
                         </Badge>
                       )}
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 gap-1"
+                        onClick={() => openGrantModal(user)}
+                      >
+                        <Plus className="h-3 w-3" />
+                        크레딧 지급
+                      </Button>
                     </div>
                   </div>
                 </div>

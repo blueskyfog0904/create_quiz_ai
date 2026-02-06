@@ -20,6 +20,16 @@ export async function Header() {
     isAdmin = data?.is_admin || false
   }
 
+  let creditBalance = 0
+  if (user) {
+    const { data: creditData } = await supabase
+      .from('user_credits')
+      .select('balance')
+      .eq('user_id', user.id)
+      .single()
+    creditBalance = creditData?.balance || 0
+  }
+
   return (
     <header className="border-b bg-white sticky top-0 z-50">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -41,6 +51,7 @@ export async function Header() {
                 isLoggedIn={true}
                 userName={profile?.name || user.email || ''}
                 isAdmin={isAdmin}
+                creditBalance={creditBalance}
               />
             </>
           ) : (
@@ -61,6 +72,7 @@ export async function Header() {
             isLoggedIn={!!user}
             userName={profile?.name || user?.email || ''}
             isAdmin={isAdmin}
+            creditBalance={creditBalance}
             isMobile={true}
           />
         </div>
