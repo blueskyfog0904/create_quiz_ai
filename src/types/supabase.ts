@@ -739,6 +739,36 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          id: string
+          value: string
+          label: string
+          sort_order: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          value: string
+          label: string
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          value?: string
+          label?: string
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_credits: {
         Row: {
           balance: number

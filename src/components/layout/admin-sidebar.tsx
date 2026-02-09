@@ -9,6 +9,7 @@ import {
   Database,
   Upload,
   Users,
+  UserCog,
   MessageSquare,
   ChevronLeft,
   Menu,
@@ -53,6 +54,11 @@ const menuItems = [
     name: '사용자 관리',
     href: '/admin/users',
     icon: Users
+  },
+  {
+    name: '회원가입 관리',
+    href: '/admin/roles',
+    icon: UserCog
   },
   {
     name: '고객지원 관리',

@@ -51,7 +51,7 @@ interface UsersClientProps {
 export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
   const [users, setUsers] = useState<Profile[]>(initialUsers)
   const [search, setSearch] = useState('')
-  
+
   // Grant Credit Logic
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null)
   const [isGrantModalOpen, setIsGrantModalOpen] = useState(false)
@@ -98,9 +98,9 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
       }
 
       // Update local state
-      setUsers(users.map(u => 
-        u.id === selectedUser.id 
-          ? { ...u, credit_balance: data.newBalance } 
+      setUsers(users.map(u =>
+        u.id === selectedUser.id
+          ? { ...u, credit_balance: data.newBalance }
           : u
       ))
 
@@ -127,16 +127,16 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>지급할 크레딧</Label>
-              <Input 
-                type="number" 
-                value={grantAmount} 
+              <Input
+                type="number"
+                value={grantAmount}
                 onChange={(e) => setGrantAmount(Number(e.target.value))}
                 placeholder="1000"
               />
             </div>
             <div className="space-y-2">
               <Label>지급 사유</Label>
-              <Textarea 
+              <Textarea
                 value={grantReason}
                 onChange={(e) => setGrantReason(e.target.value)}
                 placeholder="예: 이벤트 당첨, 시스템 환불 등"
@@ -219,27 +219,32 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
                           )}
                         </div>
                         <div className="flex items-center gap-4 mt-2">
-                            <div className="flex items-center gap-1 text-xs text-gray-400">
-                                <Calendar className="h-3 w-3" />
-                                가입일: {new Date(user.created_at).toLocaleDateString('ko-KR')}
-                            </div>
-                            {/* Credit Display */}
-                            <div className="flex items-center gap-1 text-sm font-semibold text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded">
-                                <Coins className="h-3 w-3" />
-                                {user.credit_balance?.toLocaleString() || 0} C
-                            </div>
+                          <div className="flex items-center gap-1 text-xs text-gray-400">
+                            <Calendar className="h-3 w-3" />
+                            가입일: {new Date(user.created_at).toLocaleDateString('ko-KR')}
+                          </div>
+                          {/* Credit Display */}
+                          <div className="flex items-center gap-1 text-sm font-semibold text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded">
+                            <Coins className="h-3 w-3" />
+                            {user.credit_balance?.toLocaleString() || 0} C
+                          </div>
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       {user.role && (
                         <Badge variant="secondary">
-                          {user.role === 'teacher' ? '선생님' : user.role === 'academy_instructor' ? '학원강사' : user.role}
+                          {user.role === 'teacher' ? '교사' :
+                            user.role === 'instructor' ? '강사' :
+                              user.role === 'student' ? '학생' :
+                                user.role === 'parent' ? '학부모' :
+                                  user.role === 'academy_instructor' ? '학원강사' :
+                                    user.role}
                         </Badge>
                       )}
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
+                      <Button
+                        size="sm"
+                        variant="outline"
                         className="h-8 gap-1"
                         onClick={() => openGrantModal(user)}
                       >
