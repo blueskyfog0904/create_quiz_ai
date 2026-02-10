@@ -13,6 +13,7 @@ interface QuestionWithNumber extends Question {
   number: number
   questionTextForward?: string | null
   questionTextBackward?: string | null
+  passageText?: string | null
 }
 
 interface ExamPaperViewProps {
@@ -115,13 +116,6 @@ export function ExamPaperView({ questions: initialQuestions, examPaper }: ExamPa
           </div>
           <Card className="ml-4">
             <CardContent className="pt-6">
-              {/* Question Text Forward (hide in answer-only mode) */}
-              {viewMode !== 'answer-only' && question.questionTextForward && (
-                <div className="mb-4 p-3 bg-gray-100 rounded-lg border-l-4 border-gray-400">
-                  <p className="whitespace-pre-wrap text-gray-700">{question.questionTextForward}</p>
-                </div>
-              )}
-
               {/* Question Text (hide in answer-only mode) */}
               {viewMode !== 'answer-only' && (
                 <div className="mb-6">
@@ -129,6 +123,20 @@ export function ExamPaperView({ questions: initialQuestions, examPaper }: ExamPa
                   <p className="whitespace-pre-wrap text-gray-800 leading-relaxed">
                     {question.number}. {question.questionText}
                   </p>
+                </div>
+              )}
+
+              {/* Question Text Forward (hide in answer-only mode) */}
+              {viewMode !== 'answer-only' && question.questionTextForward && (
+                <div className="mb-4 p-3 bg-gray-100 rounded-lg border-l-4 border-gray-400">
+                  <p className="whitespace-pre-wrap text-gray-700">{question.questionTextForward}</p>
+                </div>
+              )}
+
+              {/* Passage Text (hide in answer-only mode) */}
+              {viewMode !== 'answer-only' && question.passageText && (
+                <div className="mb-4 p-4 bg-gray-50 rounded-lg border-l-4 border-primary/50">
+                  <p className="whitespace-pre-wrap text-gray-800 leading-relaxed">{question.passageText}</p>
                 </div>
               )}
 
@@ -144,12 +152,21 @@ export function ExamPaperView({ questions: initialQuestions, examPaper }: ExamPa
                 <div className="mb-6">
                   <h4 className="text-base font-semibold mb-2">선택지</h4>
                   <div className="space-y-2 pl-2">
-                    {question.choices.map((choice) => (
-                      <div key={choice.label} className="flex gap-2">
-                        <span className="font-semibold min-w-[24px]">{choice.label}</span>
-                        <span className="text-gray-700">{choice.text}</span>
-                      </div>
-                    ))}
+                    {Array.isArray(question.choices) && question.choices.length > 0 ? (
+                      question.choices.map((choice) => (
+                        <div key={choice.label} className="flex gap-2">
+                          <span className="font-semibold min-w-[24px]">{choice.label}</span>
+                          <span className="text-gray-700">{choice.text}</span>
+                        </div>
+                      ))
+                    ) : (
+                      ['①', '②', '③', '④', '⑤'].map((label) => (
+                        <div key={label} className="flex gap-2">
+                          <span className="font-semibold min-w-[24px]">{label}</span>
+                          <span className="text-gray-300"></span>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               )}

@@ -47,8 +47,19 @@ export class OpenAIAdapter implements AIAdapter {
         return { success: false, rawResponse: rawContent, error: 'Failed to parse JSON response' }
       }
 
+      // Map snake_case to camelCase for schema validation
+      const mappedJson = {
+        questionText: parsedJson.questionText || parsedJson.question_text,
+        questionTextForward: parsedJson.questionTextForward || parsedJson.question_text_forward || null,
+        questionTextBackward: parsedJson.questionTextBackward || parsedJson.question_text_backward || null,
+        passageText: parsedJson.passageText || parsedJson.passage_text || null,
+        choices: parsedJson.choices || [],
+        answer: parsedJson.answer,
+        explanation: parsedJson.explanation
+      }
+
       // Validate with Zod
-      const validation = QuestionSchema.safeParse(parsedJson)
+      const validation = QuestionSchema.safeParse(mappedJson)
 
       if (!validation.success) {
          // Try to handle partial matches or different structure if needed, but strict is better

@@ -37,6 +37,7 @@ interface Question {
   questionText: string
   questionTextForward?: string | null
   questionTextBackward?: string | null
+  passageText?: string | null
   choices: Choice[]
   answer: string
   explanation: string
@@ -169,8 +170,7 @@ export async function exportToPDF(examPaper: ExamPaper) {
         }
         .text-box {
           padding: ${isDoubleColumn ? '6px 10px' : '10px 15px'};
-          background-color: #f3f4f6;
-          border-left: ${isDoubleColumn ? '3px' : '4px'} solid #9ca3af;
+          border: 1px solid #9ca3af;
           border-radius: 4px;
           margin-bottom: ${isDoubleColumn ? '8px' : '12px'};
           font-size: ${isDoubleColumn ? '10px' : '13px'};
@@ -216,15 +216,21 @@ export async function exportToPDF(examPaper: ExamPaper) {
       ${examPaper.questions.map((question) => `
         <div class="question">
           ${showQuestions ? `
+            <div class="question-text">
+              ${question.number}. ${question.questionText.replace(/\n/g, '<br>')}
+            </div>
+            
             ${question.questionTextForward ? `
               <div class="text-box">
                 ${question.questionTextForward.replace(/\n/g, '<br>')}
               </div>
             ` : ''}
             
-            <div class="question-text">
-              ${question.number}. ${question.questionText.replace(/\n/g, '<br>')}
-            </div>
+            ${question.passageText ? `
+              <div class="text-box">
+                ${question.passageText.replace(/\n/g, '<br>')}
+              </div>
+            ` : ''}
             
             ${question.questionTextBackward ? `
               <div class="text-box">
@@ -232,13 +238,15 @@ export async function exportToPDF(examPaper: ExamPaper) {
               </div>
             ` : ''}
             
-            <div class="choices">
-              ${question.choices.map((choice) => `
-                <div class="choice">
-                  <span class="choice-label">${choice.label}</span>${choice.text}
-                </div>
-              `).join('')}
-            </div>
+            ${Array.isArray(question.choices) && question.choices.length > 0 ? `
+              <div class="choices">
+                ${question.choices.map((choice) => `
+                  <div class="choice">
+                    <span class="choice-label">${choice.label}</span>${choice.text}
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
           ` : `
             <div class="question-number">${question.number}번</div>
           `}
@@ -315,19 +323,7 @@ export async function exportToWord(examPaper: ExamPaper) {
   // Questions
   examPaper.questions.forEach((question) => {
     if (showQuestions) {
-      // Question Text Forward (if exists)
-      if (question.questionTextForward) {
-        children.push(
-          new Paragraph({
-            text: question.questionTextForward,
-            spacing: { before: 300, after: 100 },
-            shading: { fill: 'F3F4F6' },
-            indent: { left: 360 }
-          })
-        )
-      }
-
-      // Question number and text
+      // 1. Question number and text
       children.push(
         new Paragraph({
           children: [
@@ -337,7 +333,7 @@ export async function exportToWord(examPaper: ExamPaper) {
               size: 24
             })
           ],
-          spacing: { before: question.questionTextForward ? 100 : 300, after: 100 }
+          spacing: { before: 300, after: 100 }
         })
       )
 
@@ -349,28 +345,69 @@ export async function exportToWord(examPaper: ExamPaper) {
         })
       )
 
-      // Question Text Backward (if exists)
+      // 2. Question Text Forward (if exists)
+      if (question.questionTextForward) {
+        children.push(
+          new Paragraph({
+            text: question.questionTextForward,
+            spacing: { before: 100, after: 100 },
+            border: {
+              top: { style: 'single' as const, size: 6, color: '9CA3AF' },
+              bottom: { style: 'single' as const, size: 6, color: '9CA3AF' },
+              left: { style: 'single' as const, size: 6, color: '9CA3AF' },
+              right: { style: 'single' as const, size: 6, color: '9CA3AF' }
+            },
+            indent: { left: 360, right: 360 }
+          })
+        )
+      }
+
+      // 3. Passage Text (if exists)
+      if (question.passageText) {
+        children.push(
+          new Paragraph({
+            text: question.passageText,
+            spacing: { before: 100, after: 100 },
+            border: {
+              top: { style: 'single' as const, size: 6, color: '9CA3AF' },
+              bottom: { style: 'single' as const, size: 6, color: '9CA3AF' },
+              left: { style: 'single' as const, size: 6, color: '9CA3AF' },
+              right: { style: 'single' as const, size: 6, color: '9CA3AF' }
+            },
+            indent: { left: 360, right: 360 }
+          })
+        )
+      }
+
+      // 4. Question Text Backward (if exists)
       if (question.questionTextBackward) {
         children.push(
           new Paragraph({
             text: question.questionTextBackward,
             spacing: { before: 100, after: 200 },
-            shading: { fill: 'F3F4F6' },
-            indent: { left: 360 }
+            border: {
+              top: { style: 'single' as const, size: 6, color: '9CA3AF' },
+              bottom: { style: 'single' as const, size: 6, color: '9CA3AF' },
+              left: { style: 'single' as const, size: 6, color: '9CA3AF' },
+              right: { style: 'single' as const, size: 6, color: '9CA3AF' }
+            },
+            indent: { left: 360, right: 360 }
           })
         )
       }
 
-      // Choices
-      question.choices.forEach((choice) => {
-        children.push(
-          new Paragraph({
-            text: `${choice.label} ${choice.text}`,
-            spacing: { after: 100 },
-            indent: { left: 720 }
-          })
-        )
-      })
+      // 5. Choices (only if exists)
+      if (Array.isArray(question.choices) && question.choices.length > 0) {
+        question.choices.forEach((choice) => {
+          children.push(
+            new Paragraph({
+              text: `${choice.label} ${choice.text}`,
+              spacing: { after: 100 },
+              indent: { left: 720 }
+            })
+          )
+        })
+      }
     } else {
       // Answer-only mode: just show question number
       children.push(

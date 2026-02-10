@@ -35,16 +35,50 @@ export function QuestionPreview({ question, onSave, isSaving, showSaveButton = t
           </div>
         </div>
 
+        {/* Question Text Forward (if exists) */}
+        {question.questionTextForward && (
+          <div className="space-y-2">
+            <Label className="text-muted-foreground font-semibold">주어진 문장</Label>
+            <div className="p-4 bg-amber-50 rounded-md border border-amber-200 text-gray-800 whitespace-pre-wrap">
+              {question.questionTextForward}
+            </div>
+          </div>
+        )}
+
+        {/* Passage Text (if exists) */}
+        {question.passageText && (
+          <div className="space-y-2">
+            <Label className="text-muted-foreground font-semibold">지문</Label>
+            <div className="p-4 bg-gray-50 rounded-md border border-gray-200 text-gray-800 whitespace-pre-wrap leading-relaxed">
+              {question.passageText}
+            </div>
+          </div>
+        )}
+
+        {/* Question Text Backward (if exists) */}
+        {question.questionTextBackward && (
+          <div className="space-y-2">
+            <Label className="text-muted-foreground font-semibold">추가 지문</Label>
+            <div className="p-4 bg-amber-50 rounded-md border border-amber-200 text-gray-800 whitespace-pre-wrap">
+              {question.questionTextBackward}
+            </div>
+          </div>
+        )}
+
         {/* Choices */}
         <div className="space-y-2">
           <Label className="text-muted-foreground font-semibold">선택지</Label>
           <div className="grid gap-2">
-            {question.choices.map((choice, index) => (
-              <div key={index} className="flex items-start p-3 rounded-md border hover:bg-gray-50 bg-white">
-                <span className="font-bold mr-3 min-w-[24px]">{choice.label}</span>
-                <span>{choice.text}</span>
-              </div>
-            ))}
+            {question.choices && question.choices.length > 0 ? (
+              question.choices.map((choice, index) => (
+                <div key={index} className="flex items-start p-3 rounded-md border hover:bg-gray-50 bg-white">
+                  <span className="font-bold mr-3 min-w-[24px]">{choice.label}</span>
+                  <span>{choice.text}</span>
+                </div>
+              ))
+            ) : (
+              <div className="p-3 text-gray-400 text-sm italic">선택지 없음</div>
+            )}
           </div>
         </div>
 

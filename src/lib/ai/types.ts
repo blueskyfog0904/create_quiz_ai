@@ -14,6 +14,9 @@ export interface GenerateParams {
 // Define the schema for the normalized question output
 export const QuestionSchema = z.object({
   questionText: z.string(),
+  questionTextForward: z.string().nullable().optional(),
+  questionTextBackward: z.string().nullable().optional(),
+  passageText: z.string().nullable().optional(),
   choices: z.array(z.object({
     label: z.string(), // e.g., "①", "a)"
     text: z.string()

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { exportToPDF, exportToWord } from '@/lib/export-utils'
+import { exportToHwpx } from '@/lib/hwpx-generator'
 import { toast } from 'sonner'
 import { useState } from 'react'
 import type { ViewMode } from './exam-paper-view'
@@ -18,6 +19,9 @@ interface Choice {
 interface Question {
   number: number
   questionText: string
+  questionTextForward?: string | null
+  questionTextBackward?: string | null
+  passageText?: string | null
   choices: Choice[]
   answer: string
   explanation: string
@@ -74,6 +78,25 @@ export function ExportButtons({ examPaper, questions, viewMode }: ExportButtonsP
     }
   }
 
+  const handleExportHwpx = async () => {
+    setIsExporting(true)
+    try {
+      await exportToHwpx({
+        title: examPaper.paper_title,
+        description: examPaper.description || undefined,
+        questions,
+        viewMode,
+        columnLayout
+      })
+      toast.success('한글(HWPX) 파일이 다운로드되었습니다.')
+    } catch (error) {
+      console.error('HWPX export error:', error)
+      toast.error('한글 파일 생성 중 오류가 발생했습니다.')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   return (
     <div className="mt-8 space-y-4">
       {/* Layout Selector */}
@@ -110,6 +133,14 @@ export function ExportButtons({ examPaper, questions, viewMode }: ExportButtonsP
           disabled={isExporting}
         >
           📝 {isExporting ? 'Word 생성 중...' : 'Word로 저장'}
+        </Button>
+        <Button 
+          size="lg" 
+          variant="outline"
+          onClick={handleExportHwpx}
+          disabled={isExporting}
+        >
+          📄 {isExporting ? '한글 생성 중...' : '한글(HWP)로 저장'}
         </Button>
       </div>
     </div>

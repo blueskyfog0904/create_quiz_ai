@@ -116,8 +116,20 @@ export class GeminiAdapter implements AIAdapter {
         parsedJson = parsedJson[0]
       }
 
+      // Map snake_case to camelCase for schema validation
+      const mappedJson = {
+        questionText: parsedJson.questionText || parsedJson.question_text,
+        questionTextForward: parsedJson.questionTextForward || parsedJson.question_text_forward || null,
+        questionTextBackward: parsedJson.questionTextBackward || parsedJson.question_text_backward || null,
+        passageText: parsedJson.passageText || parsedJson.passage_text || null,
+        choices: parsedJson.choices || [],
+        answer: parsedJson.answer,
+        explanation: parsedJson.explanation
+      }
+      console.log('[Gemini] Mapped JSON:', JSON.stringify(mappedJson, null, 2).substring(0, 500))
+
       // Validate with Zod
-      const validation = QuestionSchema.safeParse(parsedJson)
+      const validation = QuestionSchema.safeParse(mappedJson)
 
       if (!validation.success) {
         console.error('[Gemini] Schema validation failed:', validation.error.message)

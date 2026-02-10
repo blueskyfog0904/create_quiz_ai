@@ -74,12 +74,17 @@ export default async function ExamPaperDetailPage({ params }: { params: Promise<
           examPaper={examPaper}
           questions={items.map((item, index) => {
             const question = item.questions as any
+            // choices가 문자열로 저장된 경우 JSON.parse 처리
+            const parsedChoices = typeof question.choices === 'string' 
+              ? JSON.parse(question.choices) 
+              : question.choices || []
             return {
               number: index + 1,
               questionText: question.question_text,
               questionTextForward: question.question_text_forward || null,
               questionTextBackward: question.question_text_backward || null,
-              choices: question.choices as any,
+              passageText: question.passage_text || null,
+              choices: parsedChoices,
               answer: question.answer,
               explanation: question.explanation || ''
             }
