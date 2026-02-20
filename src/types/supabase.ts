@@ -422,6 +422,7 @@ export type Database = {
           phone: string | null
           provider: string | null
           role: string | null
+          signup_completed: boolean
           updated_at: string
         }
         Insert: {
@@ -440,6 +441,7 @@ export type Database = {
           phone?: string | null
           provider?: string | null
           role?: string | null
+          signup_completed?: boolean
           updated_at?: string
         }
         Update: {
@@ -458,6 +460,7 @@ export type Database = {
           phone?: string | null
           provider?: string | null
           role?: string | null
+          signup_completed?: boolean
           updated_at?: string
         }
         Relationships: []

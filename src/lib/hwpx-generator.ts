@@ -343,13 +343,11 @@ function findFirstParagraphEnd(xml: string): number {
 
 /**
  * 템플릿 헤더 XML에서 머릿말(hp:header) 내부의 텍스트를 시험지 제목으로 교체
- * 
- * 한글 템플릿의 머릿말 구조:
- * <hp:header> > <hp:subList> > <hp:p> > <hp:run> > <hp:t/> (빈 텍스트)
- * 또는 drawText 안에 중첩된 구조
- * 
- * 접근: header 내부의 모든 <hp:t/> 또는 <hp:t></hp:t>를 찾아서
- * 첫 번째 것을 <hp:t>제목</hp:t>으로 교체
+ *
+ * 우선순위:
+ * 1) drawText 내부 self-closing run(<hp:run .../>)을 텍스트 run으로 교체
+ * 2) drawText 내부 <hp:t/> 또는 <hp:t></hp:t> 교체
+ * 3) header 내부 <hp:t/> 또는 <hp:t></hp:t> 교체
  */
 function injectTitleIntoHeader(templateHeader: string, title: string): string {
   const headerStart = templateHeader.indexOf('<hp:header')
@@ -364,43 +362,54 @@ function injectTitleIntoHeader(templateHeader: string, title: string): string {
   const headerSection = templateHeader.substring(headerStart, headerEnd + '</hp:header>'.length)
   const escapedTitle = escapeXml(title)
   
-  // 빈 텍스트 태그를 제목으로 교체
-  // 패턴 1: <hp:t/> (self-closing 빈 텍스트)
-  // 패턴 2: <hp:t></hp:t> (빈 텍스트)
   let modifiedHeader = headerSection
 
-  // drawText 내부의 텍스트 영역에 제목 삽입
-  // drawText > subList > p > run 의 빈 <hp:t/>를 교체
+  // drawText 영역 우선 처리 (현재 템플릿은 drawText 내부 run이 self-closing 형태)
   const drawTextIdx = modifiedHeader.indexOf('<hp:drawText')
   if (drawTextIdx !== -1) {
-    // drawText 내부의 첫 번째 <hp:t/> 교체
     const afterDrawText = modifiedHeader.substring(drawTextIdx)
+
+    // 패턴 1: <hp:run .../> -> <hp:run ...><hp:t>title</hp:t></hp:run>
+    const runSelfCloseMatch = afterDrawText.match(/<hp:run([^>]*)\/>/)
+    if (runSelfCloseMatch && typeof runSelfCloseMatch.index === 'number') {
+      const runStart = drawTextIdx + runSelfCloseMatch.index
+      const runOriginal = runSelfCloseMatch[0]
+      const runAttrs = runSelfCloseMatch[1] || ''
+      const runReplacement = `<hp:run${runAttrs}><hp:t>${escapedTitle}</hp:t></hp:run>`
+      modifiedHeader = modifiedHeader.substring(0, runStart) +
+        runReplacement +
+        modifiedHeader.substring(runStart + runOriginal.length)
+      return templateHeader.substring(0, headerStart) + modifiedHeader + templateHeader.substring(headerEnd + '</hp:header>'.length)
+    }
+
+    // 패턴 2: drawText 내부의 빈 텍스트 태그 교체
     const tSelfClose = afterDrawText.indexOf('<hp:t/>')
     const tEmpty = afterDrawText.indexOf('<hp:t></hp:t>')
-    
     if (tSelfClose !== -1 && (tEmpty === -1 || tSelfClose < tEmpty)) {
       modifiedHeader = modifiedHeader.substring(0, drawTextIdx + tSelfClose) +
         `<hp:t>${escapedTitle}</hp:t>` +
         modifiedHeader.substring(drawTextIdx + tSelfClose + '<hp:t/>'.length)
-    } else if (tEmpty !== -1) {
+      return templateHeader.substring(0, headerStart) + modifiedHeader + templateHeader.substring(headerEnd + '</hp:header>'.length)
+    }
+    if (tEmpty !== -1) {
       modifiedHeader = modifiedHeader.substring(0, drawTextIdx + tEmpty) +
         `<hp:t>${escapedTitle}</hp:t>` +
         modifiedHeader.substring(drawTextIdx + tEmpty + '<hp:t></hp:t>'.length)
+      return templateHeader.substring(0, headerStart) + modifiedHeader + templateHeader.substring(headerEnd + '</hp:header>'.length)
     }
-  } else {
-    // drawText가 없는 경우, header > subList > p > run 의 텍스트 직접 교체
-    const tSelfClose = modifiedHeader.indexOf('<hp:t/>')
-    const tEmpty = modifiedHeader.indexOf('<hp:t></hp:t>')
-    
-    if (tSelfClose !== -1 && (tEmpty === -1 || tSelfClose < tEmpty)) {
-      modifiedHeader = modifiedHeader.substring(0, tSelfClose) +
-        `<hp:t>${escapedTitle}</hp:t>` +
-        modifiedHeader.substring(tSelfClose + '<hp:t/>'.length)
-    } else if (tEmpty !== -1) {
-      modifiedHeader = modifiedHeader.substring(0, tEmpty) +
-        `<hp:t>${escapedTitle}</hp:t>` +
-        modifiedHeader.substring(tEmpty + '<hp:t></hp:t>'.length)
-    }
+  }
+
+  // drawText가 없거나 패턴 매칭 실패 시 header 내부의 빈 텍스트 태그를 직접 교체
+  const tSelfClose = modifiedHeader.indexOf('<hp:t/>')
+  const tEmpty = modifiedHeader.indexOf('<hp:t></hp:t>')
+  if (tSelfClose !== -1 && (tEmpty === -1 || tSelfClose < tEmpty)) {
+    modifiedHeader = modifiedHeader.substring(0, tSelfClose) +
+      `<hp:t>${escapedTitle}</hp:t>` +
+      modifiedHeader.substring(tSelfClose + '<hp:t/>'.length)
+  } else if (tEmpty !== -1) {
+    modifiedHeader = modifiedHeader.substring(0, tEmpty) +
+      `<hp:t>${escapedTitle}</hp:t>` +
+      modifiedHeader.substring(tEmpty + '<hp:t></hp:t>'.length)
   }
   
   // 원본에서 header 부분만 교체

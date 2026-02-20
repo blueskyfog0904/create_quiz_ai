@@ -3,19 +3,35 @@ import { redirect } from 'next/navigation'
 
 export async function getSession() {
   const supabase = await createClient()
-  const { data: { session }, error } = await supabase.auth.getSession()
-  return { session, error }
+  try {
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession()
+
+    return { session, error }
+  } catch (error) {
+    return { session: null, error }
+  }
 }
 
 export async function getUser() {
   const supabase = await createClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  return { user, error }
+  try {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
+
+    return { user, error }
+  } catch (error) {
+    return { user: null, error }
+  }
 }
 
 export async function getProfile() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await getUser()
   
   if (!user) return null
 
@@ -38,7 +54,7 @@ export async function requireAuth() {
 
 export async function requireAdmin() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await getUser()
   
   if (!user) {
     redirect('/login')
@@ -56,4 +72,3 @@ export async function requireAdmin() {
   
   return user
 }
-

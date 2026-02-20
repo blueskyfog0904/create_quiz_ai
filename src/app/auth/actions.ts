@@ -57,11 +57,12 @@ export async function signup(formData: FormData) {
   // Extract profile fields
   const name = formData.get('name') as string
   const phone = formData.get('phone') as string
-  const birthdate = formData.get('birthdate') as string
-  const gender = formData.get('gender') as string
-  const role = formData.get('role') as string
 
-  console.log(`[Signup Action] Data received - Email: ${email}, Name: ${name}, Phone: ${phone}, Role: ${role}, Birthdate: ${birthdate || 'empty'}`)
+  console.log(`[Signup Action] Data received - Email: ${email}, Name: ${name}, Phone: ${phone}`)
+
+  if (!email || !password || !name || !phone) {
+    return { success: false, error: '이메일, 비밀번호, 이름, 휴대폰 번호를 모두 입력해주세요.' }
+  }
 
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -70,9 +71,6 @@ export async function signup(formData: FormData) {
       data: {
         full_name: name,
         phone: phone || null,
-        birthdate: birthdate || null,
-        gender: gender || null,
-        role: role || null,
         provider: 'email'
       }
     }

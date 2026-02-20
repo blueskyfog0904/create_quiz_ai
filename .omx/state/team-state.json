@@ -1,0 +1,16 @@
+{
+  "active": false,
+  "mode": "team",
+  "iteration": 0,
+  "max_iterations": 50,
+  "current_phase": "cancelled",
+  "task_description": "[kakao-auth-verifier] Verifier 임무: 기능/보안/운영 중심으로 검증, PASS/FAIL 증거 수집",
+  "started_at": "2026-02-19T19:15:18.828Z",
+  "tmux_pane_id": "%2",
+  "tmux_pane_set_at": "2026-02-19T19:15:18.828Z",
+  "linked_ralph": false,
+  "team_name": "kakao-auth-verifier-verifier-p",
+  "agent_count": 1,
+  "agent_types": "ultraqa",
+  "completed_at": "2026-02-19T19:18:13.757Z"
+}

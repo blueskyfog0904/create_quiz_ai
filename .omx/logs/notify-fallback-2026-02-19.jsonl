@@ -1,0 +1,3 @@
+{"timestamp":"2026-02-19T18:03:33.691Z","type":"watcher_start","cwd":"/Users/mac/Documents/project/create_quiz_ai","notify_script":"/opt/homebrew/lib/node_modules/oh-my-codex/scripts/notify-hook.js","poll_ms":700,"once":false}
+{"timestamp":"2026-02-19T19:03:57.334Z","type":"watcher_stop","signal":"SIGTERM"}
+{"timestamp":"2026-02-19T19:03:57.365Z","type":"watcher_start","cwd":"/Users/mac/Documents/project/create_quiz_ai","notify_script":"/opt/homebrew/lib/node_modules/oh-my-codex/scripts/notify-hook.js","poll_ms":700,"once":false}

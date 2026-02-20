@@ -1,0 +1,9 @@
+{
+  "pid": 53095,
+  "started_at": "2026-02-19T19:03:57.364Z",
+  "cwd": "/Users/mac/Documents/project/create_quiz_ai",
+  "notify_script": "/opt/homebrew/lib/node_modules/oh-my-codex/scripts/notify-hook.js",
+  "poll_ms": 700,
+  "tracked_files": 9,
+  "seen_turns": 0
+}

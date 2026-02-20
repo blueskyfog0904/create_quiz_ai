@@ -15,13 +15,12 @@ type Profile = Database['public']['Tables']['profiles']['Row']
 
 interface ProfileClientProps {
   profile: Profile | null
-  email: string
+  fallbackEmail: string
 }
 
-export function ProfileClient({ profile, email }: ProfileClientProps) {
+export function ProfileClient({ profile, fallbackEmail }: ProfileClientProps) {
   const router = useRouter()
   const [isChangingPassword, setIsChangingPassword] = useState(false)
-  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -98,9 +97,10 @@ export function ProfileClient({ profile, email }: ProfileClientProps) {
       toast.success('프로필 정보가 성공적으로 업데이트되었습니다.')
       setIsEditingProfile(false)
       router.refresh()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Profile update error:', error)
-      toast.error(error.message || '프로필 업데이트에 실패했습니다.')
+      const message = error instanceof Error ? error.message : '프로필 업데이트에 실패했습니다.'
+      toast.error(message)
     } finally {
       setIsSavingProfile(false)
     }
@@ -142,11 +142,11 @@ export function ProfileClient({ profile, email }: ProfileClientProps) {
 
       toast.success('비밀번호가 성공적으로 변경되었습니다.')
       setIsChangingPassword(false)
-      setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
-    } catch (error: any) {
-      toast.error(error.message || '비밀번호 변경에 실패했습니다.')
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '비밀번호 변경에 실패했습니다.'
+      toast.error(message)
     } finally {
       setIsSubmitting(false)
     }
@@ -173,7 +173,7 @@ export function ProfileClient({ profile, email }: ProfileClientProps) {
             <div className="space-y-2">
               <Label className="text-gray-500">이메일</Label>
               <div className="p-3 bg-gray-50 rounded-lg border">
-                <span className="font-medium">{email}</span>
+                <span className="font-medium">{profile?.email || fallbackEmail || '미설정'}</span>
                 <span className="text-xs text-gray-400 ml-2">(변경 불가)</span>
               </div>
             </div>
@@ -324,4 +324,3 @@ export function ProfileClient({ profile, email }: ProfileClientProps) {
     </div>
   )
 }
-

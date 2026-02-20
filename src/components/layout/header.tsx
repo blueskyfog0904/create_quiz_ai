@@ -1,19 +1,25 @@
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { LogoutButton } from './logout-button'
 import { HeaderClient } from './header-client'
 
 export async function Header() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  let user = null
+
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    user = null
+  }
 
   let profile = null
   let isAdmin = false
   if (user) {
     const { data } = await supabase
       .from('profiles')
-      .select('name, is_admin, credits')
+      .select('name, email, is_admin, credits')
       .eq('id', user.id)
       .single()
     profile = data
@@ -45,7 +51,7 @@ export async function Header() {
               {/* 내 라이브러리 드롭다운 - Client Component */}
               <HeaderClient
                 isLoggedIn={true}
-                userName={profile?.name || user.email || ''}
+                userName={profile?.name || profile?.email || user.email || ''}
                 isAdmin={isAdmin}
                 creditBalance={creditBalance}
               />
@@ -66,7 +72,7 @@ export async function Header() {
         <div className="md:hidden">
           <HeaderClient
             isLoggedIn={!!user}
-            userName={profile?.name || user?.email || ''}
+            userName={profile?.name || profile?.email || user?.email || ''}
             isAdmin={isAdmin}
             creditBalance={creditBalance}
             isMobile={true}
