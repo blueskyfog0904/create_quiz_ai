@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { Database } from '@/types/supabase'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -17,6 +16,7 @@ import { Star, Plus, X, Calendar, Minus, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { getGradeLevelLabel, getDifficultyLabel } from '@/lib/display-labels'
+import { QuestionPreview } from '@/components/features/quiz/question-preview'
 
 type DBQuestion = Database['public']['Tables']['questions']['Row'] & {
   problem_types?: { type_name: string } | null
@@ -218,89 +218,19 @@ function QuestionItem({
             </div>
         </div>
 
-        {/* Question Preview Card - matching bank-client.tsx style */}
-        <Card className="w-full border-2 border-primary/20 shadow-lg">
-          <CardHeader className="bg-gray-50">
-            <div className="flex justify-between items-center">
-              <CardTitle className="text-lg">{question.problem_types?.type_name || '미분류'}</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6 p-6">
-            {/* 1. 문제 (Question Text) */}
-            <div className="space-y-2">
-              <Label className="text-muted-foreground font-semibold">문제</Label>
-              <div className="p-4 bg-white rounded-md border text-lg font-medium whitespace-pre-wrap">
-                {question.question_text}
-              </div>
-            </div>
-
-            {/* 2. 문제 앞 텍스트 (Question Text Forward) */}
-            {question.question_text_forward && (
-              <div className="bg-gray-100 p-3 rounded-lg border-l-4 border-gray-400">
-                <p className="whitespace-pre-wrap text-gray-700">{question.question_text_forward}</p>
-              </div>
-            )}
-
-            {/* 3. 본문 (Passage) */}
-            {question.passage_text && (
-              <div className="space-y-2">
-                <Label className="text-muted-foreground font-semibold">본문</Label>
-                <div className="p-4 bg-white rounded-md border text-lg whitespace-pre-wrap">
-                  {question.passage_text}
-                </div>
-              </div>
-            )}
-
-            {/* 4. 문제 뒤 텍스트 (Question Text Backward) */}
-            {question.question_text_backward && (
-              <div className="bg-gray-100 p-3 rounded-lg border-l-4 border-gray-400">
-                <p className="whitespace-pre-wrap text-gray-700">{question.question_text_backward}</p>
-              </div>
-            )}
-
-            {/* 5. 선택지 (Choices) - Always show 5 slots with unicode circled numbers */}
-            <div className="space-y-2">
-              <Label className="text-muted-foreground font-semibold">선택지</Label>
-              <div className="grid gap-2">
-                {[0, 1, 2, 3, 4].map((index) => {
-                  const choices = Array.isArray(question.choices) ? question.choices : []
-                  const choice = choices[index] as { label?: string; text?: string } | string | undefined
-                  const text = choice 
-                    ? (typeof choice === 'string' ? choice : ((choice as { text?: string }).text || ''))
-                    : ''
-                  const label = ['①', '②', '③', '④', '⑤'][index]
-                  const isAnswer = question.answer === String(index + 1) || question.answer === label
-
-                  return (
-                    <div key={index} className={`flex items-start p-3 rounded-md border bg-white hover:bg-gray-50 ${isAnswer ? 'border-green-200 bg-green-50' : ''}`}>
-                      <span className="font-bold mr-3 min-w-[24px] text-lg leading-none">{label}</span>
-                      <span className="pt-0.5">{text}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* 6. 정답 & 해설 (Answer & Explanation - side by side) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Answer */}
-              <div className="space-y-2">
-                <Label className="text-muted-foreground font-semibold">정답</Label>
-                <div className="p-3 bg-green-50 border border-green-200 rounded-md text-green-800 font-bold">
-                  {question.answer}
-                </div>
-              </div>
-
-              {/* Explanation */}
-              <div className="space-y-2">
-                <Label className="text-muted-foreground font-semibold">해설</Label>
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-blue-800 text-sm whitespace-pre-wrap">
-                  {question.explanation || '-'}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <QuestionPreview
+          question={{
+            questionText: question.question_text,
+            questionTextForward: question.question_text_forward,
+            questionTextBackward: question.question_text_backward,
+            passageText: question.passage_text,
+            choices: question.choices,
+            answer: question.answer,
+            explanation: question.explanation,
+          }}
+          showCard={false}
+          showSaveButton={false}
+        />
       </div>
     </div>
   )
@@ -565,17 +495,18 @@ export function QuestionList({ questions }: { questions: DBQuestion[] }) {
         body: JSON.stringify({
           title,
           description,
-          question_ids: selectedQuestionIds,
+          questionIds: selectedQuestionIds,
         }),
       })
 
-      if (!res.ok) {
-        throw new Error('Failed to create exam paper')
+      const data = await res.json()
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || 'Failed to create exam paper')
       }
 
-      const data = await res.json()
       toast.success('시험지가 생성되었습니다')
-      router.push(`/library/exam-papers/${data.id}`)
+      router.push(`/library/exam-papers/${data.data.id}`)
       setSelectedQuestionIds([])
     } catch (error) {
         console.error(error)

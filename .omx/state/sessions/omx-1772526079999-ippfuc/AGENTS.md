@@ -39,10 +39,16 @@
 
 <!-- OMX:RUNTIME:START -->
 <session_context>
-**Session:** omx-1771527837320-ppqstj | 2026-02-19T19:03:57.330Z
+**Session:** omx-1772526079999-ippfuc | 2026-03-03T08:21:20.048Z
 
-**Active Modes:**
-- team: iteration 0/50, phase: team-exec
+**Codebase Map:**
+  src/: middleware
+  src/app/: credits-client, grant-credit-dialog, page, dashboard-client, page, layout, page, model-settings, page, page
+  src/components/: model-selector, provider-selector, question-list, credit-confirmation-dialog, ai-generator, ocr-preview-stage, ocr-result-view, passage-detail-modal, passage-filter-bar, passage-list
+  src/lib/: gemini, openai, types, auth, passage-categories, credits, display-labels, export-utils, hwpx-generator
+  src/types/: supabase
+  scripts/: run-migration
+  (root): debug_models, eslint.config, list_models, next.config, postcss.config
 
 **Compaction Protocol:**
 Before context compaction, preserve critical state:

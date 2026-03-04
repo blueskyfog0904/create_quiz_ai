@@ -178,7 +178,7 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
           difficulty,
           problemTypeId: problemType.id,
           rawAiResponse: generatedQuestion.rawResponse,
-          source_passage_id: selectedPassage?.id,
+          passageId: selectedPassage?.id,
           tags: generatedQuestion.tags,
           rating: generatedQuestion.rating
         })

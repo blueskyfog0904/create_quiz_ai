@@ -1,0 +1,13 @@
+{"timestamp":"2026-03-03T00:56:56.162Z","type":"watcher_start","cwd":"/Users/donald/Documents/project/create_quiz_ai","notify_script":"/opt/homebrew/lib/node_modules/oh-my-codex/scripts/notify-hook.js","poll_ms":700,"once":false}
+{"timestamp":"2026-03-03T01:08:58.352Z","type":"fallback_notify","ok":true,"thread_id":"019cb13c-2418-7ac1-8dc9-ab2bffce5b29","turn_id":"019cb13c-242d-72a2-bd74-75686f4b3e1e","file":"/Users/donald/.codex/sessions/2026/03/03/rollout-2026-03-03T10-07-14-019cb13c-2418-7ac1-8dc9-ab2bffce5b29.jsonl","reason":"sent"}
+{"timestamp":"2026-03-03T08:17:50.352Z","type":"watcher_stop","signal":"SIGTERM"}
+{"timestamp":"2026-03-03T08:17:50.442Z","type":"watcher_start","cwd":"/Users/donald/Documents/project/create_quiz_ai","notify_script":"/opt/homebrew/lib/node_modules/oh-my-codex/scripts/notify-hook.js","poll_ms":700,"once":false}
+{"timestamp":"2026-03-03T08:18:02.916Z","type":"watcher_start","cwd":"/Users/donald/Documents/project/create_quiz_ai","notify_script":"/opt/homebrew/lib/node_modules/oh-my-codex/scripts/notify-hook.js","poll_ms":700,"once":true}
+{"timestamp":"2026-03-03T08:18:02.918Z","type":"watcher_once_complete","seen_turns":0}
+{"timestamp":"2026-03-03T08:18:02.920Z","type":"watcher_stop","signal":"SIGTERM"}
+{"timestamp":"2026-03-03T08:18:47.361Z","type":"watcher_start","cwd":"/Users/donald/Documents/project/create_quiz_ai","notify_script":"/opt/homebrew/lib/node_modules/oh-my-codex/scripts/notify-hook.js","poll_ms":700,"once":false}
+{"timestamp":"2026-03-03T08:21:02.651Z","type":"watcher_start","cwd":"/Users/donald/Documents/project/create_quiz_ai","notify_script":"/opt/homebrew/lib/node_modules/oh-my-codex/scripts/notify-hook.js","poll_ms":700,"once":true}
+{"timestamp":"2026-03-03T08:21:02.653Z","type":"watcher_once_complete","seen_turns":0}
+{"timestamp":"2026-03-03T08:21:02.658Z","type":"watcher_stop","signal":"SIGTERM"}
+{"timestamp":"2026-03-03T08:21:20.136Z","type":"watcher_start","cwd":"/Users/donald/Documents/project/create_quiz_ai","notify_script":"/opt/homebrew/lib/node_modules/oh-my-codex/scripts/notify-hook.js","poll_ms":700,"once":false}
+{"timestamp":"2026-03-04T01:01:33.148Z","type":"watcher_stop","signal":"SIGTERM"}

@@ -30,11 +30,18 @@ export default async function ProblemTypesPage() {
     .select('*')
     .order('created_at', { ascending: false })
 
+  const { data: aiModels } = await supabase
+    .from('ai_models')
+    .select('*')
+    .order('display_order', { ascending: true })
+
   return (
     <div className="container mx-auto py-8">
       <h1 className="text-3xl font-bold mb-6">문제 유형 관리</h1>
-      <ProblemTypesClient initialTypes={types || []} />
+      <ProblemTypesClient
+        initialTypes={types || []}
+        initialModels={aiModels || []}
+      />
     </div>
   )
 }
-

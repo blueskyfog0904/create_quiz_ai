@@ -216,16 +216,16 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
         }
       }
 
-      if (successCount > 0) {
+      if (successCount > 0 && failCount > 0) {
+        toast.info(`${successCount}개 생성 완료, ${failCount}개 실패`)
+        router.refresh()
+        setViewMode('RESULT')
+      } else if (successCount > 0) {
         toast.success(`모든 문제가 생성되었습니다! (${successCount}개)`)
         router.refresh()
         // Auto select all generated questions by default in result view?
         // Let's select all initially for convenience
         // We'll handle this effect when viewMode changes or here
-        setViewMode('RESULT')
-      } else if (successCount > 0 && failCount > 0) {
-        toast.info(`${successCount}개 생성 완료, ${failCount}개 실패`)
-        router.refresh()
         setViewMode('RESULT')
       } else if (failCount === selectedTypeIds.length) {
         toast.error("모든 문제 생성에 실패했습니다. 다시 시도해주세요.")
@@ -271,7 +271,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
           difficulty,
           problemTypeId: typeId,
           rawAiResponse: questionData.rawResponse,
-          source_passage_id: selectedPassage?.id // Save link to passage if available
+          passageId: selectedPassage?.id
         })
       })
 
@@ -334,7 +334,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
               difficulty,
               problemTypeId: typeId,
               rawAiResponse: questionData.rawResponse,
-              source_passage_id: selectedPassage?.id,
+              passageId: selectedPassage?.id,
               tags: questionData.tags,    // Send tags
               rating: questionData.rating // Send rating
             })

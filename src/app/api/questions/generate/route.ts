@@ -132,42 +132,7 @@ ${problemType.prompt_template}
 
 【지문】
 ${passage}
-
-================================================================================
-
-CRITICAL INSTRUCTIONS:
-- Generate ONLY ONE question (not an array of questions).
-- Output ONLY valid JSON in the exact format below.
-- Do NOT include markdown formatting (e.g., \`\`\`json).
-- Do NOT wrap the output in an array.
-
-Required JSON structure (single object):
-{
-  "questionText": "Question body text",
-  "choices": [
-    { "label": "①", "text": "Choice 1" },
-    { "label": "②", "text": "Choice 2" },
-    { "label": "③", "text": "Choice 3" },
-    { "label": "④", "text": "Choice 4" },
-    { "label": "⑤", "text": "Choice 5" }
-  ],
-  "answer": "The label of the correct choice (e.g., ①)",
-  "explanation": "Detailed explanation of the answer"
-}`
-
-    // Log the full prompt being sent to AI
-    console.log('\n' + '='.repeat(80))
-    console.log('📤 FULL PROMPT SENT TO AI')
-    console.log('='.repeat(80))
-    console.log('Provider:', problemType.provider)
-    console.log('Model:', problemType.model_name)
-    console.log('Problem Type:', problemType.type_name)
-    console.log('Grade Level:', gradeLevel, '→', gradeLevelKorean)
-    console.log('Difficulty:', difficulty, '→', difficultyKorean)
-    console.log('Passage Length:', passage.length, 'characters')
-    console.log('-'.repeat(80))
-    console.log(prompt)
-    console.log('='.repeat(80) + '\n')
+`
 
     // 5. Call AI Service
     const result = await AIGenerationService.generate({
