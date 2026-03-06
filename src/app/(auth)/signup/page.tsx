@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { signup } from '../../auth/actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -58,7 +58,7 @@ const normalizeKakaoPhoneNumber = (value: string) => {
   return trimmed.replace(/^\+82[\s-]?/, '0')
 }
 
-export default function SignupPage() {
+function SignupContent() {
   const [isLoading, setIsLoading] = useState(false)
   const [isKakaoProfileLoading, setIsKakaoProfileLoading] = useState(false)
   const [isKakaoSignupCompleted, setIsKakaoSignupCompleted] = useState(false)
@@ -670,5 +670,13 @@ export default function SignupPage() {
         </CardFooter>
       </Card>
     </div>
+  )
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense>
+      <SignupContent />
+    </Suspense>
   )
 }

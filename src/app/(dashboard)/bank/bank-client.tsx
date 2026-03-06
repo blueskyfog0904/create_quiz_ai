@@ -192,7 +192,7 @@ export default function BankClient({
     const raw = response.headers.get(CREDIT_BALANCE_HEADER)
     const parsed = raw === null ? null : Number(raw)
 
-    if (raw !== null && Number.isFinite(parsed)) {
+    if (raw !== null && parsed !== null && Number.isFinite(parsed)) {
       notifyHeaderCreditBalance(parsed)
       return
     }

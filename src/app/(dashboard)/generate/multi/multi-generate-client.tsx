@@ -242,7 +242,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
       code === 'AI_ERROR' ||
       code === 'INTERNAL_SERVER_ERROR' ||
       status === 408 ||
-      status >= 500 ||
+      (status !== undefined && status >= 500) ||
       status === undefined
     )
   }
@@ -1049,9 +1049,8 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
             setShowGenerationCompleteDialog(true)
           }
         }}
-        showCloseButton={false}
       >
-        <DialogContent>
+        <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>문제 생성이 완료되었습니다.</DialogTitle>
             <DialogDescription>

@@ -774,9 +774,8 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
             setShowGenerationCompleteDialog(true)
           }
         }}
-        showCloseButton={false}
       >
-        <DialogContent>
+        <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>문제 생성이 완료되었습니다.</DialogTitle>
             <DialogDescription>

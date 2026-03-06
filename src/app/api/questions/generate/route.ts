@@ -30,8 +30,8 @@ const jsonWithBalance = (
 ) =>
   NextResponse.json(body, {
     status,
-    headers: balance !== undefined && balance !== null
-      ? { [CREDIT_BALANCE_HEADER]: toNumberHeader(balance) }
+    headers: balance !== undefined && balance !== null && Number.isFinite(balance)
+      ? { [CREDIT_BALANCE_HEADER]: String(balance) }
       : undefined
   })
 

@@ -95,18 +95,9 @@ export async function POST(request: Request) {
       description: validatedData.description || null,
       provider: validatedData.provider,
       is_active: validatedData.is_active !== undefined ? validatedData.is_active : true,
-    }
-    
-    // Only add these fields for AI providers (not admin)
-    if (validatedData.provider !== 'admin') {
-      insertData.prompt_template = validatedData.prompt_template
-      insertData.model_name = validatedData.model_name
-      insertData.output_format = validatedData.output_format || null
-    } else {
-      // For admin provider, use placeholder values
-      insertData.prompt_template = 'N/A (Admin uploaded)'
-      insertData.model_name = 'admin'
-      insertData.output_format = null
+      model_name: validatedData.provider !== 'admin' ? validatedData.model_name! : 'admin',
+      prompt_template: validatedData.provider !== 'admin' ? validatedData.prompt_template! : 'N/A (Admin uploaded)',
+      output_format: validatedData.provider !== 'admin' ? (validatedData.output_format || null) : null,
     }
     
     const { data: problemType, error } = await supabase
