@@ -341,7 +341,7 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                         </div>
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="justify-center gap-2">
                         <Button
                             variant="outline"
                             onClick={() => setIsProcessDialogOpen(false)}

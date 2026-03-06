@@ -306,7 +306,7 @@ export default function SourceConfigClient() {
               ))}
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="justify-center gap-2">
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                 취소
               </Button>

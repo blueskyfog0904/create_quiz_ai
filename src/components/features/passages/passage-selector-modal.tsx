@@ -271,7 +271,7 @@ export function PassageSelectorModal({
           )}
           
           {/* Footer */}
-          <div className="px-6 py-3 border-t shrink-0 flex justify-end">
+          <div className="px-6 py-3 border-t shrink-0 flex justify-center">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               취소
             </Button>
@@ -304,11 +304,11 @@ export function PassageSelectorModal({
               </div>
             )}
           </div>
-          <DialogFooter className="flex gap-2 sm:gap-2">
-            <Button variant="outline" className="flex-1" onClick={handleCancelConfirm}>
-              아니오
+          <DialogFooter className="justify-center gap-2">
+            <Button variant="outline" onClick={handleCancelConfirm}>
+              취소
             </Button>
-            <Button className="flex-1" onClick={handleConfirmUse}>
+            <Button onClick={handleConfirmUse}>
               예
             </Button>
           </DialogFooter>

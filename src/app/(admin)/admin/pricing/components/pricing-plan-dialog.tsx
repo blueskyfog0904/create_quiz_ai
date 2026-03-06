@@ -172,7 +172,7 @@ export function PricingPlanDialog({
                         </div>
                     )}
 
-                    <div className="flex justify-end gap-2 pt-2">
+                    <div className="flex justify-center gap-2 pt-2">
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                             취소
                         </Button>

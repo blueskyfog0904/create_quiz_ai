@@ -47,6 +47,31 @@ export interface DeductResult {
   }>
 }
 
+const toFiniteNumber = (value: unknown): number | null => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const rpcErrorMessage = (error: { message?: unknown } | null | undefined): string => {
+  if (error && typeof error.message === 'string' && error.message.trim()) {
+    return error.message
+  }
+  return '크레딧 처리 중 오류가 발생했습니다.'
+}
+
+interface CreditRpcConsumeResult {
+  new_balance: number
+  consumptions: Array<{
+    source_id: string
+    amount: number
+  }>
+}
+
+interface CreditRpcRefundResult {
+  new_balance: number
+  refunded: number
+}
+
 export interface RefundEligibility {
   allowed: boolean
   reason?: string
@@ -149,93 +174,42 @@ export class CreditService {
     description: string
   ): Promise<DeductResult> {
     const supabase = await createClient()
+    const rpcClient = supabase as unknown as {
+      rpc: (fn: string, params: Record<string, unknown>) => Promise<{
+        data: unknown
+        error: { message: string } | null
+      }>
+    }
 
-    // 1. 현재 잔액 확인
-    const currentBalance = await this.getBalance(userId)
-    if (currentBalance < amount) {
+    const { data, error } = await rpcClient.rpc('consume_credits', {
+      p_user_id: userId,
+      p_amount: amount,
+      p_resource_type: resourceType,
+      p_resource_id: resourceId,
+      p_description: description
+    })
+
+    if (error) {
+      const message = rpcErrorMessage(error)
+      throw new Error(message.includes('INSUFFICIENT') || message.includes('부족') ? 'INSUFFICIENT_CREDITS' : message)
+    }
+
+    const result = (Array.isArray(data) ? data[0] : data) as CreditRpcConsumeResult | undefined
+    const newBalance = toFiniteNumber(result?.new_balance)
+
+    if (result === undefined || !Array.isArray(result.consumptions) || newBalance === null) {
       throw new Error('크레딧이 부족합니다.')
     }
 
-    // 2. 활성 소스 조회 (FIFO 순서)
-    const sources = await this.getActiveSources(userId)
+    const consumptions = result.consumptions
+      .map(({ source_id, amount }) => ({
+        sourceId: String(source_id),
+        amount: toFiniteNumber(amount) ?? 0
+      }))
+      .filter(consumption => consumption.amount > 0)
 
-    let remaining = amount
-    const consumptions: Array<{ sourceId: string; amount: number }> = []
-
-    // 3. FIFO 차감 로직
-    for (const source of sources) {
-      if (remaining <= 0) break
-
-      const deduct = Math.min(source.remaining_credits, remaining)
-      remaining -= deduct
-
-      consumptions.push({
-        sourceId: source.id,
-        amount: deduct
-      })
-
-      // source의 remaining_credits 업데이트
-      const { error: updateError } = await supabase
-        .from('credit_sources')
-        .update({ remaining_credits: source.remaining_credits - deduct })
-        .eq('id', source.id)
-
-      if (updateError) {
-        console.error('[CreditService] Failed to update source:', updateError)
-        throw new Error('크레딧 차감 중 오류가 발생했습니다.')
-      }
-    }
-
-    // 4. 잔액이 부족하면 에러 (이론적으로 발생하지 않아야 함)
-    if (remaining > 0) {
-      throw new Error('크레딧이 부족합니다.')
-    }
-
-    // 5. credit_consumption 기록
-    const consumptionRecords = consumptions.map(c => ({
-      user_id: userId,
-      source_id: c.sourceId,
-      amount: c.amount,
-      resource_type: resourceType,
-      resource_id: resourceId,
-      description: description
-    }))
-
-    const { error: consumptionError } = await supabase
-      .from('credit_consumption')
-      .insert(consumptionRecords)
-
-    if (consumptionError) {
-      console.error('[CreditService] Failed to insert consumption:', consumptionError)
-    }
-
-    // 6. profiles.credits 차감
-    const newBalance = currentBalance - amount
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({ credits: newBalance })
-      .eq('id', userId)
-
-    if (profileError) {
-      console.error('[CreditService] Failed to update profile credits:', profileError)
-      throw new Error('잔액 업데이트 중 오류가 발생했습니다.')
-    }
-
-    // 7. credit_transactions 기록
-    const { error: txError } = await supabase
-      .from('credit_transactions')
-      .insert({
-        user_id: userId,
-        type: 'consume',
-        amount: -amount,
-        balance_after: newBalance,
-        description: description,
-        resource_type: resourceType,
-        resource_id: resourceId
-      })
-
-    if (txError) {
-      console.error('[CreditService] Failed to insert transaction:', txError)
+    if (consumptions.length === 0) {
+      throw new Error('크레딧 차감 응답이 올바르지 않습니다.')
     }
 
     return {
@@ -243,6 +217,73 @@ export class CreditService {
       newBalance,
       consumptions
     }
+  }
+
+  /**
+   * 크레딧 차감을 롤백(환불)합니다.
+   *
+   * 1. 지정된 source들의 remaining_credits를 되돌려 FIFO 소비 내역 기준으로 복구
+   * 2. profiles.credits 복원
+   * 3. credit_transactions에 refund 로그 기록
+   */
+  static async refundCredits(
+    userId: string,
+    amount: number,
+    resourceType: string,
+    resourceId: string | null,
+    description: string,
+    consumptions: Array<{
+      sourceId: string
+      amount: number
+    }>,
+    targetBalance?: number
+  ): Promise<number> {
+    if (amount <= 0) {
+      return this.getBalance(userId)
+    }
+
+    if (!consumptions || consumptions.length === 0) {
+      throw new Error('환불 대상 소비 내역이 없습니다.')
+    }
+
+    const supabase = await createClient()
+    const rpcClient = supabase as unknown as {
+      rpc: (fn: string, params: Record<string, unknown>) => Promise<{
+        data: unknown
+        error: { message: string } | null
+      }>
+    }
+
+    const rpcPayload = consumptions.map(({ sourceId, amount }) => ({
+      source_id: sourceId,
+      amount
+    }))
+
+    if (rpcPayload.length === 0) {
+      throw new Error('환불 대상 소비 내역이 없습니다.')
+    }
+
+    const { data, error } = await rpcClient.rpc('refund_credits', {
+      p_user_id: userId,
+      p_amount: amount,
+      p_resource_type: resourceType,
+      p_resource_id: resourceId,
+      p_description: description,
+      p_target_balance: targetBalance ?? null,
+      p_consumptions: rpcPayload
+    })
+
+    if (error) {
+      throw new Error(error.message || '잔액 복구 중 오류가 발생했습니다.')
+    }
+
+    const result = (Array.isArray(data) ? data[0] : data) as CreditRpcRefundResult | undefined
+    const newBalance = toFiniteNumber(result?.new_balance)
+    if (newBalance === null) {
+      return this.getBalance(userId)
+    }
+
+    return newBalance
   }
 
   /**

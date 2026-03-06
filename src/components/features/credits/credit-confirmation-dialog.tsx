@@ -96,9 +96,9 @@ export function CreditConfirmationDialog({
           )}
         </div>
 
-        <DialogFooter className="flex gap-2 sm:justify-end">
+        <DialogFooter className="justify-center gap-2">
           <Button variant="outline" onClick={onClose} disabled={isLoading}>
-            아니오 (취소)
+            취소
           </Button>
           <Button 
             onClick={onConfirm} 

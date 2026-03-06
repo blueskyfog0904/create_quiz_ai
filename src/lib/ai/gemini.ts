@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai'
 import { AIAdapter, AIResponse, GenerateParams, QuestionSchema } from './types'
+import { normalizeQuestionTextBackward } from '../questions/normalize-question-field'
 
 export class GeminiAdapter implements AIAdapter {
   private client: GoogleGenerativeAI
@@ -50,7 +51,9 @@ export class GeminiAdapter implements AIAdapter {
           ],
       })
 
-      const result = await model.generateContent(params.prompt)
+      const result = await model.generateContent(params.prompt, {
+        signal: params.signal
+      })
       const response = await result.response
       
       console.log('\n' + '='.repeat(80))
@@ -120,7 +123,9 @@ export class GeminiAdapter implements AIAdapter {
       const mappedJson = {
         questionText: parsedJson.questionText || parsedJson.question_text,
         questionTextForward: parsedJson.questionTextForward || parsedJson.question_text_forward || null,
-        questionTextBackward: parsedJson.questionTextBackward || parsedJson.question_text_backward || null,
+        questionTextBackward: normalizeQuestionTextBackward(
+          parsedJson.questionTextBackward || parsedJson.question_text_backward
+        ),
         passageText: parsedJson.passageText || parsedJson.passage_text || null,
         choices: parsedJson.choices || [],
         answer: parsedJson.answer,
@@ -153,6 +158,15 @@ export class GeminiAdapter implements AIAdapter {
       }
 
     } catch (error: any) {
+      const isAbortError =
+        (error instanceof DOMException && error.name === 'AbortError') ||
+        (error instanceof Error && error.name === 'AbortError') ||
+        (error instanceof Error && error.message === 'Generation cancelled')
+
+      if (isAbortError) {
+        throw error
+      }
+
       console.error('[Gemini] API Error:', error)
       console.error('[Gemini] Error details:', error.message)
       if (error.stack) {

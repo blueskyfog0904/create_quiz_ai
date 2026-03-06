@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { AIAdapter, AIResponse, GenerateParams, QuestionSchema } from './types'
+import { normalizeQuestionTextBackward } from '../questions/normalize-question-field'
 
 export class OpenAIAdapter implements AIAdapter {
   private client: OpenAI | null = null
@@ -31,6 +32,8 @@ export class OpenAIAdapter implements AIAdapter {
         response_format: { type: 'json_object' },
         temperature: params.temperature ?? 0.7,
         max_tokens: params.maxTokens ?? 1500,
+      }, {
+        signal: params.signal
       })
 
       const rawContent = response.choices[0].message.content
@@ -51,7 +54,9 @@ export class OpenAIAdapter implements AIAdapter {
       const mappedJson = {
         questionText: parsedJson.questionText || parsedJson.question_text,
         questionTextForward: parsedJson.questionTextForward || parsedJson.question_text_forward || null,
-        questionTextBackward: parsedJson.questionTextBackward || parsedJson.question_text_backward || null,
+        questionTextBackward: normalizeQuestionTextBackward(
+          parsedJson.questionTextBackward || parsedJson.question_text_backward
+        ),
         passageText: parsedJson.passageText || parsedJson.passage_text || null,
         choices: parsedJson.choices || [],
         answer: parsedJson.answer,
@@ -77,6 +82,15 @@ export class OpenAIAdapter implements AIAdapter {
       }
 
     } catch (error: any) {
+      const isAbortError =
+        (error instanceof DOMException && error.name === 'AbortError') ||
+        (error instanceof Error && error.name === 'AbortError') ||
+        (error instanceof Error && error.message === 'Generation cancelled')
+
+      if (isAbortError) {
+        throw error
+      }
+
       console.error('OpenAI API Error:', error)
       return {
         success: false,
@@ -85,4 +99,3 @@ export class OpenAIAdapter implements AIAdapter {
     }
   }
 }
-

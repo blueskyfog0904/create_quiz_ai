@@ -265,7 +265,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
             </div>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="justify-center gap-2">
             {step === 'details' && (
                 <>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>취소</Button>

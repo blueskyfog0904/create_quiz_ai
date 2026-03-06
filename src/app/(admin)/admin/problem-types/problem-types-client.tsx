@@ -217,7 +217,7 @@ export default function ProblemTypesClient({ initialTypes, initialModels }: Prob
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="justify-center gap-2">
             <Button variant="outline" onClick={() => setBulkDialogOpen(false)} disabled={bulkUpdating}>
               취소
             </Button>

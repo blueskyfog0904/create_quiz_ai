@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { QuestionSchema } from '@/lib/ai/types'
+import { normalizeQuestionTextBackward } from '@/lib/questions/normalize-question-field'
 
 const SaveQuestionSchema = z.object({
   question: QuestionSchema,
@@ -64,8 +65,8 @@ export async function POST(request: Request) {
       ? toDbNull(question.questionTextForward)
       : toDbNull(questionTextForward)
     const backwardText = questionTextBackward === undefined
-      ? toDbNull(question.questionTextBackward)
-      : toDbNull(questionTextBackward)
+      ? toDbNull(normalizeQuestionTextBackward(question.questionTextBackward))
+      : toDbNull(normalizeQuestionTextBackward(questionTextBackward))
     const passageText = toDbNull(question.passageText) || toDbNull(passage) || null
 
     let finalTags = tags

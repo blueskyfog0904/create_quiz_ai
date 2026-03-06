@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Question } from '@/lib/ai/types'
 import { ExportButtons } from './export-buttons'
 import { toast } from 'sonner'
+import { normalizeQuestionTextBackward } from '@/lib/questions/normalize-question-field'
 
 interface QuestionWithNumber extends Question {
   number: number
@@ -92,6 +93,15 @@ export function ExamPaperView({ questions: initialQuestions, examPaper }: ExamPa
         </CardContent>
       </Card>
 
+      {/* Export Buttons */}
+      <div className="mt-8">
+        <ExportButtons
+          examPaper={examPaper}
+          questions={questions}
+          viewMode={viewMode}
+        />
+      </div>
+
       {/* Questions Display */}
       <h2 className="text-2xl font-bold">문제 목록</h2>
       
@@ -142,8 +152,13 @@ export function ExamPaperView({ questions: initialQuestions, examPaper }: ExamPa
 
               {/* 4. Question Text Backward (hide in answer-only mode) */}
               {viewMode !== 'answer-only' && question.questionTextBackward && (
-                <div className="mb-4 p-3 border border-gray-300 rounded">
-                  <p className="whitespace-pre-wrap text-gray-800">{question.questionTextBackward}</p>
+                <div className="mb-4 space-y-2">
+                  <Label className="text-muted-foreground font-semibold">추가 지문</Label>
+                  <div className="p-3 border border-gray-300 rounded">
+                    <p className="whitespace-pre-wrap text-gray-800">
+                      {normalizeQuestionTextBackward(question.questionTextBackward)}
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -204,5 +219,3 @@ export function ExamPaperView({ questions: initialQuestions, examPaper }: ExamPa
     </div>
   )
 }
-
-

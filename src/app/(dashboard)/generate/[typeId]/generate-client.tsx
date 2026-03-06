@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from '@/components/ui/label'
@@ -13,7 +13,7 @@ import { QuestionPreview } from '@/components/features/quiz/question-preview'
 import { Database } from '@/types/supabase'
 import { Question } from '@/lib/ai/types'
 import { useRouter } from 'next/navigation'
-import { Star, Tag, Plus, X, ChevronLeft, Loader2, BookOpen, FileText, CheckCircle2, Minus, Maximize, ZoomIn } from 'lucide-react'
+import { AlertCircle, Star, Tag, Plus, X, ChevronLeft, Loader2, BookOpen, FileText, CheckCircle2, Minus, Maximize, ZoomIn } from 'lucide-react'
 import { PassageSelectorModal } from '@/components/features/passages/passage-selector-modal'
 import { Passage } from '@/app/api/passages/actions'
 import { Textarea } from '@/components/ui/textarea'
@@ -35,6 +35,8 @@ interface GeneratedQuestionData {
   rating: number
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
 export default function GenerateClient({ problemType }: GenerateClientProps) {
   const router = useRouter()
   const [passage, setPassage] = useState('')
@@ -53,6 +55,7 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
   const [generatedQuestion, setGeneratedQuestion] = useState<GeneratedQuestionData | null>(null)
   const [isSaved, setIsSaved] = useState(false)
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
+  const [showGenerationCompleteDialog, setShowGenerationCompleteDialog] = useState(false)
   
   // Result View States
   const [scale, setScale] = useState(100)
@@ -73,9 +76,18 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [currentBalance, setCurrentBalance] = useState<number | null>(null)
   const [isCheckingBalance, setIsCheckingBalance] = useState(false)
+  const [isConfirming, setIsConfirming] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [showCancellationResult, setShowCancellationResult] = useState(false)
+  const [cancellationResultMessage, setCancellationResultMessage] = useState<ReactNode>('')
+  const CANCELLED_SINGLE_REFUND_CREDITS = 100
+  const isGenerationBusy = isGenerating || isCancelling
+  const singleExpectedRemainingMinutes = isGenerating ? 1 : 0
 
   // 1. Validation & Balance Check
   const handleGenerateClick = async (e: React.FormEvent) => {
+    if (isGenerationBusy) return
+
     e.preventDefault()
     
     if (!passage) {
@@ -85,10 +97,14 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
 
     setIsCheckingBalance(true)
     try {
-      const res = await fetch('/api/credits/balance')
+      const res = await fetch('/api/credits/balance', {
+        cache: 'no-store',
+        next: { revalidate: 0 }
+      })
       if (!res.ok) throw new Error('Failed to fetch balance')
       const data = await res.json()
       setCurrentBalance(data.balance)
+      notifyHeaderBalance(data.balance)
       setShowConfirmation(true)
     } catch (error) {
       console.error(error)
@@ -98,9 +114,85 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
     }
   }
 
+  const notifyHeaderBalance = (balance: number) => {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(
+      new CustomEvent('credit-balance-updated', {
+        detail: { balance }
+      })
+    )
+  }
+
+  const syncHeaderCreditBalance = async ({
+    attempts = 1,
+    delayMs = 250
+  }: { attempts?: number; delayMs?: number } = {}) => {
+    if (typeof window === 'undefined') return
+
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        const balanceRes = await fetch('/api/credits/balance', {
+          cache: 'no-store',
+          next: { revalidate: 0 }
+        })
+        if (!balanceRes.ok) continue
+
+        const data = await balanceRes.json()
+        if (typeof data.balance === 'number') {
+          notifyHeaderBalance(data.balance)
+        }
+      } catch {
+        // Ignore sync failures
+      }
+
+      if (attempt < attempts - 1) {
+        await sleep(delayMs * (attempt + 1))
+      }
+    }
+  }
+
+  const extractHeaderBalance = (response: Response): number | null => {
+    const rawBalance = response.headers.get('x-credit-balance')
+    if (rawBalance === null) return null
+
+    const parsedBalance = Number(rawBalance)
+    return Number.isFinite(parsedBalance) ? parsedBalance : null
+  }
+
+  const syncHeaderCreditBalanceFromResponse = async (response: Response) => {
+    const updatedBalance = extractHeaderBalance(response)
+    if (updatedBalance !== null) {
+      notifyHeaderBalance(updatedBalance)
+      return
+    }
+    await syncHeaderCreditBalance()
+  }
+
+  const getErrorCode = (error: unknown): string | undefined => {
+    if (!error || typeof error !== 'object') return undefined
+    const candidate = error as { code?: unknown }
+    return typeof candidate.code === 'string' ? candidate.code : undefined
+  }
+
+  const toErrorMessage = (error: unknown) => {
+    if (error instanceof Error) return error.message
+    return '문제가 발생했습니다'
+  }
+
+  const syncHeaderCreditBalanceAndRefresh = async () => {
+    await syncHeaderCreditBalance({
+      attempts: 10,
+      delayMs: 250
+    })
+  }
+
   // 2. Actual Generation Execution
   const handleConfirmGeneration = async () => {
+    setIsConfirming(true)
     setShowConfirmation(false)
+    setShowCancellationResult(false)
+    setCancellationResultMessage('')
+    setShowGenerationCompleteDialog(false)
     
     abortControllerRef.current = new AbortController()
     const signal = abortControllerRef.current.signal
@@ -122,10 +214,17 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
         signal
       })
 
+      await syncHeaderCreditBalanceFromResponse(res)
+
       const data = await res.json()
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error?.message || "문제 생성에 실패했습니다")
+        const error = new Error(data.error?.message || '문제 생성에 실패했습니다') as Error & {
+          code?: string
+        }
+        ;(error as unknown as { status?: number }).status = res.status
+        error.code = getErrorCode(data.error)
+        throw error
       }
       
       setGeneratedQuestion({
@@ -137,26 +236,63 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
       })
 
       toast.success("문제가 생성되었습니다!")
-      setViewMode('RESULT')
+      setShowGenerationCompleteDialog(true)
 
-    } catch (error: any) {
-      if (error.name === 'AbortError' || error.message === 'Generation cancelled') {
-        console.log('Generation cancelled by user')
+    } catch (error: unknown) {
+      const isCancelled =
+        error instanceof Error &&
+        (error.name === 'AbortError' ||
+          error.message === 'Generation cancelled')
+      const errorCode = getErrorCode(error)
+      const status = (error as unknown as { status?: number }).status
+      const isCancelledByServer =
+        errorCode === 'GENERATION_CANCELLED' ||
+        status === 408
+      const isServerMessageCancelled =
+        error instanceof Error && error.message.includes('중단되었습니다.')
+      const isUserCancelled = isCancelling || isCancelled || isCancelledByServer || isServerMessageCancelled
+      const shouldHandleSync =
+        isCancelled ||
+        errorCode === 'GENERATION_CANCELLED' ||
+        errorCode === 'AI_ERROR' ||
+        errorCode === 'INTERNAL_SERVER_ERROR' ||
+        status === 408 ||
+        status === 500 ||
+        status === undefined
+
+      if (shouldHandleSync) {
+        void syncHeaderCreditBalanceAndRefresh()
+        if (isUserCancelled) {
+          setCancellationResultMessage(
+            <span>
+              <span className="font-bold text-red-600">취소</span>되었습니다.
+              <br />
+              <span className="font-bold text-red-600">{CANCELLED_SINGLE_REFUND_CREDITS} 크레딧</span>이 반환되었습니다.
+            </span>
+          )
+          setShowCancellationResult(true)
+        }
       } else {
         console.error(error)
-        toast.error("문제 생성 중 오류가 발생했습니다: " + error.message)
+        toast.error(`문제 생성 중 오류가 발생했습니다: ${toErrorMessage(error)}`)
       }
     } finally {
+      setIsConfirming(false)
       setIsGenerating(false)
+      setIsCancelling(false)
       abortControllerRef.current = null
     }
   }
 
   const handleCancelGeneration = () => {
-    if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
-        toast.info("문제 생성을 중단했습니다")
-    }
+    if (!abortControllerRef.current || isCancelling) return
+
+    setIsCancelling(true)
+    setIsGenerating(false)
+    const controller = abortControllerRef.current
+    controller.abort()
+    abortControllerRef.current = null
+    void syncHeaderCreditBalanceAndRefresh()
   }
 
   const handleSave = async () => {
@@ -194,8 +330,8 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
       toast.success("문제가 저장되었습니다")
       setShowSuccessDialog(true)
 
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(toErrorMessage(error))
     } finally {
       setIsSaving(false)
     }
@@ -211,6 +347,11 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
 
   const handleGoToExamPaper = () => {
     router.push('/library/purchased')
+  }
+
+  const handleGenerationCompleteConfirm = () => {
+    setShowGenerationCompleteDialog(false)
+    setViewMode('RESULT')
   }
 
   // Helper to update local question data (tags, rating)
@@ -242,7 +383,7 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
                           variant="outline"
                           className="flex-1 gap-2 h-12"
                           onClick={() => setIsSelectorOpen(true)}
-                          disabled={isGenerating}
+                          disabled={isGenerationBusy}
                         >
                             <BookOpen className="w-4 h-4" />
                             내 영어지문 불러오기
@@ -252,7 +393,7 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
                           variant="outline"
                           className="flex-1 gap-2 h-12"
                           onClick={() => router.push('/library/mypassages')}
-                          disabled={isGenerating}
+                          disabled={isGenerationBusy}
                         >
                             <Plus className="w-4 h-4" />
                             영어지문 등록하기
@@ -298,7 +439,7 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="grade">학년</Label>
-                    <Select value={gradeLevel} onValueChange={setGradeLevel} disabled={isGenerating}>
+                    <Select value={gradeLevel} onValueChange={setGradeLevel} disabled={isGenerationBusy}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -315,7 +456,7 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
 
                   <div className="space-y-2">
                     <Label htmlFor="difficulty">난이도</Label>
-                    <Select value={difficulty} onValueChange={setDifficulty} disabled={isGenerating}>
+                    <Select value={difficulty} onValueChange={setDifficulty} disabled={isGenerationBusy}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -331,9 +472,15 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
                 <Button 
                   type="submit" 
                   className="w-full text-lg h-12 mt-4" 
-                  disabled={isGenerating || !passage || isCheckingBalance}
+                  disabled={isGenerationBusy || !passage || isCheckingBalance}
                 >
-                  {isGenerating ? '문제 생성 중...' : isCheckingBalance ? '잔액 확인 중...' : '문제 생성 시작 (100 크레딧)'}
+                  {isCancelling
+                    ? '중단 처리 중...'
+                    : isGenerating
+                      ? '문제 생성 중...'
+                      : isCheckingBalance
+                        ? '잔액 확인 중...'
+                        : '문제 생성 시작 (100 크레딧)'}
                 </Button>
 
               </form>
@@ -347,11 +494,12 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
         onConfirm={handleConfirmGeneration}
         requiredAmount={100} // Hardcoded for single generation
         currentBalance={currentBalance}
+        isLoading={isConfirming || isCheckingBalance || isCancelling}
       />
       </div>
 
        {/* Generating Progress Modal */}
-       <Dialog open={isGenerating} onOpenChange={(open) => { if(!open && isGenerating) handleCancelGeneration() }}>
+      <Dialog open={isGenerating} onOpenChange={(open) => { if(!open && isGenerating) handleCancelGeneration() }}>
         <DialogContent className="sm:max-w-md" showCloseButton={false}>
             <DialogHeader>
                 <DialogTitle>문제 생성 중...</DialogTitle>
@@ -369,16 +517,47 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
                  
                  <div className="text-center space-y-2">
                     <h3 className="font-semibold text-lg">{problemType.type_name}</h3>
-                    <p className="text-sm text-gray-500">잠시만 기다려주세요</p>
+                    <p className="text-sm text-gray-500">
+                      잠시만 기다려주세요...
+                      <span className="inline-flex items-center text-xs font-semibold text-primary ml-1">
+                        (예상 시간 {singleExpectedRemainingMinutes}분)
+                      </span>
+                    </p>
                  </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="justify-center">
                 <Button variant="ghost" onClick={handleCancelGeneration} className="w-full text-red-500 hover:text-red-600 hover:bg-red-50">
                     <X className="w-4 h-4 mr-2" />
-                    생성 취소
+                    취소
                 </Button>
             </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showCancellationResult}
+        onOpenChange={(open) => {
+          if (!open) return
+          setShowCancellationResult(open)
+        }}
+      >
+        <DialogContent className="sm:max-w-md" showCloseButton={false}>
+          <DialogHeader>
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+              <AlertCircle className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-center">취소 안내</DialogTitle>
+            <DialogDescription className="text-center leading-relaxed">
+              {cancellationResultMessage}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="flex justify-center">
+            <Button onClick={() => setShowCancellationResult(false)} className="w-full sm:w-auto">
+              확인
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -583,6 +762,33 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
             </Button>
             <Button onClick={handleGoToExamPaper}>
               저장된 목록 보기
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showGenerationCompleteDialog}
+        onOpenChange={(open) => {
+          if (open) {
+            setShowGenerationCompleteDialog(true)
+          }
+        }}
+        showCloseButton={false}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>문제 생성이 완료되었습니다.</DialogTitle>
+            <DialogDescription>
+              생성된 문제로 이동하시려면 <strong>확인</strong> 버튼을 눌러주세요.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex justify-center">
+            <Button
+              onClick={handleGenerationCompleteConfirm}
+              className="w-full sm:w-auto"
+            >
+              확인
             </Button>
           </DialogFooter>
         </DialogContent>

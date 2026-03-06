@@ -275,7 +275,7 @@ export function RolesClient({ initialRoles }: RolesClientProps) {
                             />
                         </div>
                     </div>
-                    <DialogFooter>
+                    <DialogFooter className="justify-center gap-2">
                         <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                             취소
                         </Button>

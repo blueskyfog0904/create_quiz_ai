@@ -113,7 +113,7 @@ export function PassageRegisterModal({
              </p>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="justify-center gap-2">
             <Button
               type="button"
               variant="outline"

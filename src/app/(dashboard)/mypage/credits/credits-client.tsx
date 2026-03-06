@@ -403,7 +403,7 @@ export function CreditsClient({
                         </div>
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="justify-center gap-2">
                         <Button
                             variant="outline"
                             onClick={() => setIsRefundDialogOpen(false)}

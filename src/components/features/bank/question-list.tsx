@@ -44,7 +44,6 @@ function QuestionItem({
   const [isUpdating, setIsUpdating] = useState(false)
   const [newTag, setNewTag] = useState('')
   const [isTagPopoverOpen, setIsTagPopoverOpen] = useState(false)
-
   const handleUpdate = async (updates: Partial<DBQuestion>) => {
     setIsUpdating(true)
     try {
@@ -102,6 +101,12 @@ function QuestionItem({
       
       {/* Header Badges */}
       <div className="absolute top-2 right-2 z-10 flex gap-1.5 flex-wrap justify-end max-w-[400px] items-start">
+        <Badge
+          variant="secondary"
+          className="rounded-full text-xs shadow-sm bg-violet-50 border-violet-200 text-violet-800"
+        >
+{question.problem_types?.type_name || '미분류'}
+        </Badge>
         <div className="flex items-center gap-1 text-xs text-gray-500 bg-white/80 px-2 py-1 rounded backdrop-blur-sm border">
             <Calendar className="w-3 h-3" />
             {format(new Date(question.created_at), 'yyyy-MM-dd', { locale: ko })}
@@ -158,64 +163,63 @@ function QuestionItem({
       </div>
 
       <div className="ml-8 pt-8"> 
-        {/* Tags & Rating Header */}
         <div className="flex justify-between items-center mb-4">
-             {/* Rating */}
-            <div className="flex items-center gap-1">
-                {[1, 2, 3].map((star) => (
-                    <button
-                        key={star}
-                        onClick={() => handleRate(question.rating === star ? 0 : star)} 
-                        disabled={isUpdating}
-                        className={`transition-colors focus:outline-none ${
-                            (question.rating || 0) >= star 
-                            ? 'text-yellow-400 fill-yellow-400' 
-                            : 'text-gray-300 hover:text-yellow-200'
-                        }`}
-                    >
-                        <Star className={`w-5 h-5 ${(question.rating || 0) >= star ? 'fill-current' : ''}`} />
-                    </button>
-                ))}
-            </div>
+          {/* Rating */}
+          <div className="flex items-center gap-1">
+            {[1, 2, 3].map((star) => (
+              <button
+                key={star}
+                onClick={() => handleRate(question.rating === star ? 0 : star)} 
+                disabled={isUpdating}
+                className={`transition-colors focus:outline-none ${
+                  (question.rating || 0) >= star 
+                  ? 'text-yellow-400 fill-yellow-400' 
+                  : 'text-gray-300 hover:text-yellow-200'
+                }`}
+              >
+                <Star className={`w-5 h-5 ${(question.rating || 0) >= star ? 'fill-current' : ''}`} />
+              </button>
+            ))}
+          </div>
 
-            {/* Tags area */}
-            <div className="flex flex-wrap items-center justify-end gap-1.5 min-w-0 flex-1 ml-4">
-                {(question.tags || []).map(tag => (
-                    <Badge key={tag} variant="outline" className="text-xs pl-2 pr-1 py-0.5 h-6 gap-1 group">
-                        {tag}
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); handleRemoveTag(tag); }}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground rounded-full p-0.5"
-                        >
-                            <X className="w-3 h-3" />
-                        </button>
-                    </Badge>
-                ))}
-                
-                <Popover open={isTagPopoverOpen} onOpenChange={setIsTagPopoverOpen}>
-                    <PopoverTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full border border-dashed hover:border-solid">
-                            <Plus className="w-3 h-3" />
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-60 p-3" align="end">
-                        <div className="flex gap-2">
-                            <Input 
-                                value={newTag} 
-                                onChange={(e) => setNewTag(e.target.value)} 
-                                placeholder="태그 입력..."
-                                className="h-8 text-sm"
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleAddTag()
-                                }}
-                            />
-                            <Button size="sm" onClick={handleAddTag} className="h-8 px-2">
-                                <Plus className="w-4 h-4" />
-                            </Button>
-                        </div>
-                    </PopoverContent>
-                </Popover>
-            </div>
+          {/* Tags area */}
+          <div className="flex flex-wrap items-center justify-end gap-1.5 min-w-0 flex-1 ml-4">
+            {(question.tags || []).map(tag => (
+              <Badge key={tag} variant="outline" className="text-xs pl-2 pr-1 py-0.5 h-6 gap-1 group">
+                {tag}
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleRemoveTag(tag); }}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground rounded-full p-0.5"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            ))}
+            
+            <Popover open={isTagPopoverOpen} onOpenChange={setIsTagPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full border border-dashed hover:border-solid">
+                  <Plus className="w-3 h-3" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-60 p-3" align="end">
+                <div className="flex gap-2">
+                  <Input 
+                    value={newTag} 
+                    onChange={(e) => setNewTag(e.target.value)} 
+                    placeholder="태그 입력..."
+                    className="h-8 text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddTag()
+                    }}
+                  />
+                  <Button size="sm" onClick={handleAddTag} className="h-8 px-2">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
 
         <QuestionPreview
@@ -450,7 +454,7 @@ export function CreateExamDialog({ open, onOpenChange, selectedCount, onConfirm 
                         />
                     </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="justify-center gap-2">
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                         취소
                     </Button>

@@ -225,7 +225,7 @@ export function SupportClient({ tickets, userId }: SupportClientProps) {
                           className="min-h-[100px]"
                         />
                       </div>
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-center gap-2">
                         <Button variant="outline" size="sm" onClick={cancelEditing}>취소</Button>
                         <Button size="sm" onClick={() => handleUpdate(ticket.id)}>수정 완료</Button>
                       </div>

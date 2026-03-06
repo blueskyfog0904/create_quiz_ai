@@ -353,13 +353,13 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
           {/* Filter Content - Collapsible */}
           <div className={`transition-all duration-300 ease-in-out ${isFilterExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
             <div className="px-3 pb-3 pt-1">
-              <div className="flex flex-wrap items-end gap-2">
+              <div className="grid gap-3 items-end grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                 {/* Problem Type Filter */}
-                <div className="w-[110px]">
+                <div className="min-w-0">
                   <label className="text-[11px] font-medium text-gray-600 mb-1 block">문제 유형</label>
                   <Select value={selectedTypeId} onValueChange={setSelectedTypeId}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="전체" />
+                    <SelectTrigger className="h-8 text-xs w-full min-w-0">
+                      <SelectValue placeholder="전체" className="truncate" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">전체</SelectItem>
@@ -373,11 +373,11 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                 </div>
 
                 {/* Grade Level Filter */}
-                <div className="w-[110px]">
+                <div className="min-w-0">
                   <label className="text-[11px] font-medium text-gray-600 mb-1 block">학년</label>
                   <Select value={selectedGrade} onValueChange={setSelectedGrade}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="전체" />
+                    <SelectTrigger className="h-8 text-xs w-full min-w-0">
+                      <SelectValue placeholder="전체" className="truncate" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">전체</SelectItem>
@@ -391,11 +391,11 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                 </div>
 
                 {/* Difficulty Filter */}
-                <div className="w-[110px]">
+                <div className="min-w-0">
                   <label className="text-[11px] font-medium text-gray-600 mb-1 block">난이도</label>
                   <Select value={selectedDifficulty} onValueChange={setSelectedDifficulty}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="전체" />
+                    <SelectTrigger className="h-8 text-xs w-full min-w-0">
+                      <SelectValue placeholder="전체" className="truncate" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">전체</SelectItem>
@@ -409,11 +409,11 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                 </div>
 
                 {/* Rating Filter */}
-                <div className="w-[110px]">
+                <div className="min-w-0">
                   <label className="text-[11px] font-medium text-gray-600 mb-1 block">별점</label>
                   <Select value={selectedRating} onValueChange={setSelectedRating}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="전체" />
+                    <SelectTrigger className="h-8 text-xs w-full min-w-0">
+                      <SelectValue placeholder="전체" className="truncate" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">전체</SelectItem>
@@ -426,11 +426,11 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                 </div>
 
                 {/* Sort Filter */}
-                <div className="w-[110px]">
+                <div className="min-w-0">
                   <label className="text-[11px] font-medium text-gray-600 mb-1 block">정렬</label>
                   <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'latest' | 'oldest')}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
+                    <SelectTrigger className="h-8 text-xs w-full min-w-0">
+                      <SelectValue className="truncate" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="latest">최신순</SelectItem>
@@ -440,21 +440,21 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                 </div>
 
                 {/* Tag Filter */}
-                <div className="w-[130px]">
+                <div className="min-w-0">
                   <label className="text-[11px] font-medium text-gray-600 mb-1 block">태그 검색</label>
                   <Input 
                     value={tagFilter}
                     onChange={(e) => setTagFilter(e.target.value)}
                     placeholder="태그1 태그2..."
-                    className="h-8 text-xs"
+                    className="h-8 text-xs w-full min-w-0"
                   />
                 </div>
 
                 {/* Source Filters Group - Only visible when not filtering by AI generated */}
                 {selectedSource !== 'ai_generated' && (
-                  <div className="flex flex-wrap items-end gap-2 p-2 bg-indigo-50/80 rounded-lg border border-indigo-100">
+                  <div className="min-w-0 lg:col-span-4 xl:col-span-6 2xl:col-span-6 flex flex-wrap items-end gap-2 p-2 bg-indigo-50/80 rounded-lg border border-indigo-100">
                     {/* Source Type Filter */}
-                    <div className="min-w-[120px]">
+                    <div className="min-w-0 flex-1">
                       <label className="text-[11px] font-medium text-indigo-900 mb-1 block">출처 종류</label>
                       {sourceConfigs.length > 0 ? (
                         <Select 
@@ -467,8 +467,8 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                             setSelectedSource4('all')
                           }}
                         >
-                          <SelectTrigger className="h-8 text-xs bg-white border-indigo-200">
-                            <SelectValue placeholder="전체" />
+                          <SelectTrigger className="h-8 text-xs w-full min-w-0 bg-white border-indigo-200">
+                            <SelectValue placeholder="전체" className="truncate" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">전체</SelectItem>
@@ -484,21 +484,21 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                           placeholder="예: 모의고사"
                           value={selectedSourceType}
                           onChange={(e) => setSelectedSourceType(e.target.value)}
-                          className="h-8 text-xs bg-white border-indigo-200"
+                          className="h-8 text-xs w-full min-w-0 bg-white border-indigo-200"
                         />
                       )}
                     </div>
                     
                     {/* Source 1 Filter */}
                     {activeSourceConfig?.source_1_label && (
-                      <div className="min-w-[100px]">
+                      <div className="min-w-0 flex-1">
                         <label className="text-[11px] font-medium text-indigo-900 mb-1 block">
                           {activeSourceConfig.source_1_label}
                         </label>
                         {activeSourceConfig.source_1_options && activeSourceConfig.source_1_options.length > 0 ? (
                           <Select value={selectedSource1} onValueChange={setSelectedSource1}>
-                            <SelectTrigger className="h-8 text-xs bg-white border-indigo-200">
-                              <SelectValue placeholder="전체" />
+                            <SelectTrigger className="h-8 text-xs w-full min-w-0 bg-white border-indigo-200">
+                              <SelectValue placeholder="전체" className="truncate" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="all">전체</SelectItem>
@@ -514,7 +514,7 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                             placeholder="직접 입력"
                             value={selectedSource1 === 'all' ? '' : selectedSource1}
                             onChange={(e) => setSelectedSource1(e.target.value || 'all')}
-                            className="h-8 text-xs bg-white border-indigo-200"
+                            className="h-8 text-xs w-full min-w-0 bg-white border-indigo-200"
                           />
                         )}
                       </div>
@@ -522,14 +522,14 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
 
                     {/* Source 2 Filter */}
                     {activeSourceConfig?.source_2_label && (
-                      <div className="min-w-[100px]">
+                      <div className="min-w-0 flex-1">
                         <label className="text-[11px] font-medium text-indigo-900 mb-1 block">
                           {activeSourceConfig.source_2_label}
                         </label>
                         {activeSourceConfig.source_2_options && activeSourceConfig.source_2_options.length > 0 ? (
                           <Select value={selectedSource2} onValueChange={setSelectedSource2}>
-                            <SelectTrigger className="h-8 text-xs bg-white border-indigo-200">
-                              <SelectValue placeholder="전체" />
+                            <SelectTrigger className="h-8 text-xs w-full min-w-0 bg-white border-indigo-200">
+                              <SelectValue placeholder="전체" className="truncate" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="all">전체</SelectItem>
@@ -545,7 +545,7 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                             placeholder="직접 입력"
                             value={selectedSource2 === 'all' ? '' : selectedSource2}
                             onChange={(e) => setSelectedSource2(e.target.value || 'all')}
-                            className="h-8 text-xs bg-white border-indigo-200"
+                            className="h-8 text-xs w-full min-w-0 bg-white border-indigo-200"
                           />
                         )}
                       </div>
@@ -553,14 +553,14 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
 
                     {/* Source 3 Filter */}
                     {activeSourceConfig?.source_3_label && (
-                      <div className="min-w-[100px]">
+                      <div className="min-w-0 flex-1">
                         <label className="text-[11px] font-medium text-indigo-900 mb-1 block">
                           {activeSourceConfig.source_3_label}
                         </label>
                         {activeSourceConfig.source_3_options && activeSourceConfig.source_3_options.length > 0 ? (
                           <Select value={selectedSource3} onValueChange={setSelectedSource3}>
-                            <SelectTrigger className="h-8 text-xs bg-white border-indigo-200">
-                              <SelectValue placeholder="전체" />
+                            <SelectTrigger className="h-8 text-xs w-full min-w-0 bg-white border-indigo-200">
+                              <SelectValue placeholder="전체" className="truncate" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="all">전체</SelectItem>
@@ -576,7 +576,7 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                             placeholder="직접 입력"
                             value={selectedSource3 === 'all' ? '' : selectedSource3}
                             onChange={(e) => setSelectedSource3(e.target.value || 'all')}
-                            className="h-8 text-xs bg-white border-indigo-200"
+                            className="h-8 text-xs w-full min-w-0 bg-white border-indigo-200"
                           />
                         )}
                       </div>
@@ -584,14 +584,14 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
 
                     {/* Source 4 Filter */}
                     {activeSourceConfig?.source_4_label && (
-                      <div className="min-w-[100px]">
+                      <div className="min-w-0 flex-1">
                         <label className="text-[11px] font-medium text-indigo-900 mb-1 block">
                           {activeSourceConfig.source_4_label}
                         </label>
                         {activeSourceConfig.source_4_options && activeSourceConfig.source_4_options.length > 0 ? (
                           <Select value={selectedSource4} onValueChange={setSelectedSource4}>
-                            <SelectTrigger className="h-8 text-xs bg-white border-indigo-200">
-                              <SelectValue placeholder="전체" />
+                            <SelectTrigger className="h-8 text-xs w-full min-w-0 bg-white border-indigo-200">
+                              <SelectValue placeholder="전체" className="truncate" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="all">전체</SelectItem>
@@ -607,7 +607,7 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                             placeholder="직접 입력"
                             value={selectedSource4 === 'all' ? '' : selectedSource4}
                             onChange={(e) => setSelectedSource4(e.target.value || 'all')}
-                            className="h-8 text-xs bg-white border-indigo-200"
+                            className="h-8 text-xs w-full min-w-0 bg-white border-indigo-200"
                           />
                         )}
                       </div>
@@ -619,7 +619,7 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
                 <Button 
                   onClick={handleReset}
                   size="sm"
-                  className="h-8 text-xs px-4"
+                  className="h-8 text-xs px-4 lg:col-span-4 xl:col-span-6"
                 >
                   초기화
                 </Button>
@@ -673,7 +673,7 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
               선택한 {selectedQuestionIds.length}개의 문제를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="justify-center gap-2">
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
               취소
             </Button>

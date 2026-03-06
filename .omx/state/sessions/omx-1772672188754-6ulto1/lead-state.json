@@ -1,0 +1,11 @@
+{
+  "task_description": "team-rpc-credits-rollback",
+  "current_phase": "complete",
+  "iteration": 2,
+  "max_iterations": 1,
+  "started_at": "2026-03-05T00:00:00Z",
+  "completed_at": "2026-03-05T01:00:00Z",
+  "active": false,
+  "last_turn_at": "2026-03-05T01:37:00.964Z",
+  "stop_reason": "max_iterations_reached"
+}

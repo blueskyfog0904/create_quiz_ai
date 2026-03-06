@@ -50,6 +50,7 @@ export async function Header() {
 
               {/* 내 라이브러리 드롭다운 - Client Component */}
               <HeaderClient
+                key={`header-client-${user?.id || 'guest'}`}
                 isLoggedIn={true}
                 userName={profile?.name || profile?.email || user.email || ''}
                 isAdmin={isAdmin}
@@ -71,6 +72,7 @@ export async function Header() {
         {/* Mobile Navigation - Client Component */}
         <div className="md:hidden">
           <HeaderClient
+            key={`header-client-mobile-${user?.id || 'guest'}`}
             isLoggedIn={!!user}
             userName={profile?.name || profile?.email || user?.email || ''}
             isAdmin={isAdmin}

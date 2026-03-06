@@ -14,7 +14,12 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, {
+        status: 401,
+        headers: {
+          'Cache-Control': 'no-store'
+        }
+      })
     }
 
     // profiles 테이블에서 credits 조회
@@ -26,17 +31,37 @@ export async function GET() {
 
     if (error) {
       console.error('Failed to fetch credit balance:', error)
-      return NextResponse.json({ error: 'Failed to fetch balance' }, { status: 500 })
+      return NextResponse.json(
+        { error: 'Failed to fetch balance' },
+        {
+          status: 500,
+          headers: {
+            'Cache-Control': 'no-store'
+          }
+        }
+      )
     }
 
-    return NextResponse.json({
-      balance: profile?.credits ?? 0
-    })
+    return NextResponse.json(
+      {
+        balance: profile?.credits ?? 0
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store'
+        }
+      }
+    )
   } catch (error) {
     console.error('Failed to fetch credit balance:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
-      { status: 500 }
+      {
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store'
+        }
+      }
     )
   }
 }

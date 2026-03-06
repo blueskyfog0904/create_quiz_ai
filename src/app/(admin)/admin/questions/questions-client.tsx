@@ -422,7 +422,7 @@ export function QuestionsClient({
               </p>
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="justify-center gap-2">
             <Button variant="outline" onClick={() => setDeleteDialog({ open: false, question: null })}>
               취소
             </Button>

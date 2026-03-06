@@ -317,7 +317,7 @@ export function PassageDetailModal({
         </div>
 
         {isEditing && (
-          <div className="p-4 border-t bg-muted/10 shrink-0 flex justify-end gap-2">
+          <div className="p-4 border-t bg-muted/10 shrink-0 flex justify-center gap-2">
              <Button variant="ghost" onClick={() => setIsEditing(false)} disabled={isSaving}>취소</Button>
              <Button onClick={handleSave} disabled={isSaving} className="gap-2 min-w-[100px]">
                {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}

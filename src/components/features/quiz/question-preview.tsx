@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { normalizeQuestionTextBackward } from '@/lib/questions/normalize-question-field'
 
 type PreviewQuestion = {
   questionText: string
@@ -31,7 +32,9 @@ function normalizeQuestionText(question: PreviewQuestion) {
   return {
     questionText: question.questionText ?? question.question_text ?? '',
     questionTextForward: question.questionTextForward ?? question.question_text_forward ?? null,
-    questionTextBackward: question.questionTextBackward ?? question.question_text_backward ?? null,
+    questionTextBackward: normalizeQuestionTextBackward(
+      question.questionTextBackward ?? question.question_text_backward ?? null
+    ),
     passageText: question.passageText ?? question.passage_text ?? null,
   }
 }

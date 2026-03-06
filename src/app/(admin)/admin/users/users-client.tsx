@@ -143,7 +143,7 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="justify-center gap-2">
             <Button variant="outline" onClick={() => setIsGrantModalOpen(false)}>취소</Button>
             <Button onClick={handleGrantCredit} disabled={isGranting || grantAmount <= 0}>
               {isGranting ? '지급 중...' : '지급하기'}

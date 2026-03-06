@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { CreditService } from '@/lib/credits'
 
 const COST_PER_IMPORT = 100
+const CREDIT_BALANCE_HEADER = 'x-credit-balance'
 
 const saveQuestionSchema = z.object({
   question_id: z.string().uuid('Invalid question ID'),
@@ -13,19 +14,66 @@ const bulkSaveQuestionsSchema = z.object({
   question_ids: z.array(z.string().uuid('Invalid question ID')),
 })
 
-export async function POST(request: Request) {
+const toNumberHeader = (value: number | null | undefined) => {
+  if (!Number.isFinite(value)) return undefined
+  return String(value)
+}
+
+const jsonWithBalance = (
+  body: Record<string, unknown>,
+  status: number,
+  balance?: number | null
+) =>
+  NextResponse.json(body, {
+    status,
+    headers: balance !== undefined && balance !== null
+      ? { [CREDIT_BALANCE_HEADER]: toNumberHeader(balance) }
+      : undefined
+  })
+
+const getBalance = async (userId: string): Promise<number> => {
   try {
-    // 1. Check authentication
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    return await CreditService.getBalance(userId)
+  } catch {
+    return 0
+  }
+}
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export async function POST(request: Request) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  let deductionResult: { newBalance: number; consumptions: Array<{ sourceId: string; amount: number }> } | null = null
+  let targetQuestionId: string | null = null
+
+  const rollbackIfNeeded = async () => {
+    if (!deductionResult || !targetQuestionId) return
+
+    try {
+      return await CreditService.refundCredits(
+        user.id,
+        COST_PER_IMPORT,
+        'question_import',
+        targetQuestionId,
+        '커뮤니티 문제 가져오기 실패 롤백',
+        deductionResult.consumptions
+      )
+    } catch (refundError) {
+      console.error('[Save from Community] Failed to refund:', refundError)
+      return
+    } finally {
+      deductionResult = null
     }
+  }
 
-    // 2. Validate request data
+  try {
     const body = await request.json()
     const { question_id } = saveQuestionSchema.parse(body)
+    targetQuestionId = question_id
 
     // 3. Fetch the original question
     const { data: originalQuestion, error: fetchError } = await supabase
@@ -54,22 +102,26 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
-    // [New] 4.5 Deduct Credits (FIFO 방식)
+    // 4.5 Deduct Credits (FIFO 방식)
     try {
-      await CreditService.deductCredits(
+      deductionResult = await CreditService.deductCredits(
         user.id,
         COST_PER_IMPORT,
         'question_import',
         question_id,
         '커뮤니티 문제 가져오기'
       )
-    } catch (error: any) {
-      return NextResponse.json({
-        error: error.message || '크레딧이 부족합니다.'
-      }, { status: 402 })
+    } catch (error: unknown) {
+      const currentBalance = await getBalance(user.id)
+      return jsonWithBalance(
+        {
+          error: error instanceof Error ? error.message : '크레딧이 부족합니다.'
+        },
+        402,
+        currentBalance
+      )
     }
 
-    // 5. Create a copy in the user's question bank
     const { data: newQuestion, error: insertError } = await supabase
       .from('questions')
       .insert({
@@ -99,28 +151,25 @@ export async function POST(request: Request) {
 
     if (insertError) {
       console.error('[Save from Community] Insert error:', insertError)
-      // [New] Refund if insert fails
-      try {
-        await CreditService.purchaseCredits(
-          user.id,
-          null,
-          COST_PER_IMPORT,
-          0,
-          'system_refund'
-        )
-      } catch (refundError) {
-        console.error('[Save from Community] Failed to refund:', refundError)
-      }
-      return NextResponse.json({ error: 'Failed to save question' }, { status: 500 })
+      const rolledBackBalance = await rollbackIfNeeded()
+      const fallbackBalance = rolledBackBalance ??
+        (deductionResult ? deductionResult.newBalance : await getBalance(user.id))
+      return jsonWithBalance({ error: 'Failed to save question' }, 500, fallbackBalance)
     }
 
-    // 6. Return success response
-    return NextResponse.json({
+    const finalBalance = deductionResult?.newBalance
+    deductionResult = null
+
+    return jsonWithBalance({
       success: true,
       question: newQuestion
-    }, { status: 201 })
+    }, 201, finalBalance)
 
   } catch (error) {
+    const rolledBackBalance = await rollbackIfNeeded()
+    const balanceFromRollback = rolledBackBalance ??
+      (deductionResult ? deductionResult.newBalance : await getBalance(user.id))
+
     console.error('[Save from Community] Error:', error)
 
     if (error instanceof z.ZodError) {
@@ -130,23 +179,48 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
-    return NextResponse.json({
-      error: 'Internal server error'
-    }, { status: 500 })
+    return jsonWithBalance(
+      {
+        error: 'Internal server error'
+      },
+      500,
+      balanceFromRollback
+    )
   }
 }
 
 export async function PUT(request: Request) {
-  try {
-    // 1. Check authentication
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  let deductionResult: { newBalance: number; consumptions: Array<{ sourceId: string; amount: number }> } | null = null
+  let targetQuestionIds: string[] = []
+
+  const rollbackIfNeeded = async () => {
+    if (!deductionResult || targetQuestionIds.length === 0) return
+
+    try {
+      return await CreditService.refundCredits(
+        user.id,
+        COST_PER_IMPORT * targetQuestionIds.length,
+        'question_import',
+        null,
+        `커뮤니티 문제 ${targetQuestionIds.length}개 가져오기 실패 롤백`,
+        deductionResult.consumptions
+      )
+    } catch (refundError) {
+      console.error('[Bulk Save from Community] Failed to refund:', refundError)
+      return
+    } finally {
+      deductionResult = null
     }
+  }
 
-    // 2. Validate request data
+  try {
     const body = await request.json()
     const { question_ids } = bulkSaveQuestionsSchema.parse(body)
 
@@ -182,20 +256,22 @@ export async function PUT(request: Request) {
       }, { status: 400 })
     }
 
-    // [New] 4.5 Deduct Credits (Bulk, FIFO 방식)
+    // 4.5 Deduct Credits (Bulk, FIFO 방식)
     const totalCost = questionsToSave.length * COST_PER_IMPORT
+    targetQuestionIds = questionsToSave.map(question => question.id)
     try {
-      await CreditService.deductCredits(
+      deductionResult = await CreditService.deductCredits(
         user.id,
         totalCost,
         'question_import',
         null,
         `커뮤니티 문제 ${questionsToSave.length}개 가져오기`
       )
-    } catch (error: any) {
-      return NextResponse.json({
-        error: `크레딧이 부족합니다. (필요: ${totalCost} C)`
-      }, { status: 402 })
+    } catch (error: unknown) {
+      const currentBalance = await getBalance(user.id)
+      return jsonWithBalance({
+        error: error instanceof Error ? error.message : `크레딧이 부족합니다. (필요: ${totalCost} C)`
+      }, 402, currentBalance)
     }
 
     // 5. Create copies in the user's question bank
@@ -229,31 +305,26 @@ export async function PUT(request: Request) {
 
     if (insertError) {
       console.error('[Bulk Save from Community] Insert error:', insertError)
-      // [New] Refund
-      try {
-        await CreditService.purchaseCredits(
-          user.id,
-          null,
-          totalCost,
-          0,
-          'system_refund'
-        )
-      } catch (refundError) {
-        console.error('[Bulk Save from Community] Failed to refund:', refundError)
-      }
-      return NextResponse.json({ error: 'Failed to save questions' }, { status: 500 })
+      const rolledBackBalance = await rollbackIfNeeded()
+      const fallbackBalance = rolledBackBalance ??
+        (deductionResult ? deductionResult.newBalance : await getBalance(user.id))
+      return jsonWithBalance({ error: 'Failed to save questions' }, 500, fallbackBalance)
     }
 
-    // 6. Return success response
     const skippedCount = originalQuestions.length - questionsToSave.length
-    return NextResponse.json({
+    const finalBalance = deductionResult?.newBalance
+    deductionResult = null
+    return jsonWithBalance({
       success: true,
       saved_count: newQuestions?.length || 0,
       skipped_count: skippedCount,
       questions: newQuestions
-    }, { status: 201 })
+    }, 201, finalBalance)
 
   } catch (error) {
+    const rolledBackBalance = await rollbackIfNeeded()
+    const balanceFromRollback = rolledBackBalance ??
+      (deductionResult ? deductionResult.newBalance : await getBalance(user.id))
     console.error('[Bulk Save from Community] Error:', error)
 
     if (error instanceof z.ZodError) {
@@ -263,9 +334,12 @@ export async function PUT(request: Request) {
       }, { status: 400 })
     }
 
-    return NextResponse.json({
-      error: 'Internal server error'
-    }, { status: 500 })
+    return jsonWithBalance(
+      {
+        error: 'Internal server error'
+      },
+      500,
+      balanceFromRollback
+    )
   }
 }
-

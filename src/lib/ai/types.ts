@@ -9,6 +9,7 @@ export interface GenerateParams {
   prompt: string
   maxTokens?: number
   temperature?: number
+  signal?: AbortSignal
 }
 
 // Define the schema for the normalized question output

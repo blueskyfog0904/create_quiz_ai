@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -49,6 +49,31 @@ interface HeaderClientProps {
 export function HeaderClient({ isLoggedIn, userName, isAdmin, creditBalance = 0, isMobile = false }: HeaderClientProps) {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
+  const [clientCreditBalance, setClientCreditBalance] = useState(creditBalance)
+
+  const fetchCreditBalance = useCallback(async () => {
+    try {
+      const res = await fetch('/api/credits/balance', {
+        cache: 'no-store',
+        next: { revalidate: 0 }
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      if (typeof data.balance === 'number') {
+        setClientCreditBalance(data.balance)
+      }
+    } catch {
+      // Ignore header sync failures silently
+    }
+  }, [])
+
+  const handleBalanceSync = useCallback((nextBalance?: number) => {
+    if (typeof nextBalance === 'number') {
+      setClientCreditBalance(nextBalance)
+      return
+    }
+    void fetchCreditBalance()
+  }, [fetchCreditBalance])
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -56,6 +81,23 @@ export function HeaderClient({ isLoggedIn, userName, isAdmin, creditBalance = 0,
     router.push('/')
     router.refresh()
   }
+
+  useEffect(() => {
+    if (!isLoggedIn) return
+    void fetchCreditBalance()
+  }, [isLoggedIn, fetchCreditBalance])
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const balance = (event as CustomEvent<{ balance?: number }>).detail?.balance
+      handleBalanceSync(balance)
+    }
+
+    window.addEventListener('credit-balance-updated', handler)
+    return () => {
+      window.removeEventListener('credit-balance-updated', handler)
+    }
+  }, [handleBalanceSync])
 
   // Mobile Navigation
   if (isMobile) {
@@ -294,10 +336,10 @@ export function HeaderClient({ isLoggedIn, userName, isAdmin, creditBalance = 0,
       )}
 
       {/* 사용자 정보 및 로그아웃 */}
-      <div className="flex items-center gap-1 ml-2 border-l pl-4">
+        <div className="flex items-center gap-1 ml-2 border-l pl-4">
         <Link href="/pricing" className="flex items-center gap-1 bg-yellow-50 px-3 py-1 rounded-full border border-yellow-200 mr-2 hover:bg-yellow-100 transition-colors">
           <Coins className="h-4 w-4 text-yellow-600" />
-          <span className="font-bold text-yellow-700 text-sm">{creditBalance.toLocaleString()} C</span>
+          <span className="font-bold text-yellow-700 text-sm">{clientCreditBalance.toLocaleString()} C</span>
         </Link>
         <div className="mr-2">
           <NotificationBell isAdmin={isAdmin} />
@@ -316,4 +358,3 @@ export function HeaderClient({ isLoggedIn, userName, isAdmin, creditBalance = 0,
     </>
   )
 }
-

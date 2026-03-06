@@ -1,38 +1,126 @@
 import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AIGenerationService } from '@/lib/ai'
 import { AIProvider } from '@/lib/ai/types'
 import { CreditService } from '@/lib/credits'
+import { randomUUID } from 'crypto'
+
+export const dynamic = 'force-dynamic'
 
 const COST_PER_GENERATION = 100
+const CREDIT_BALANCE_HEADER = 'x-credit-balance'
 
 const GenerateRequestSchema = z.object({
-  passage: z.string().max(3500, "Passage must be under 3500 characters"), // increased for buffer, UI enforces 3000
+  passage: z.string().max(3500, 'Passage must be under 3500 characters'), // increased for buffer, UI enforces 3000
   gradeLevel: z.string(),
   difficulty: z.string(),
-  problemTypeId: z.string().uuid(),
+  problemTypeId: z.string().uuid()
 })
 
-export async function POST(request: Request) {
+const toNumberHeader = (value: number | null | undefined) => {
+  if (!Number.isFinite(value)) return undefined
+  return String(value)
+}
+
+const jsonWithBalance = (
+  body: Record<string, unknown>,
+  status: number,
+  balance?: number | null
+) =>
+  NextResponse.json(body, {
+    status,
+    headers: balance !== undefined && balance !== null
+      ? { [CREDIT_BALANCE_HEADER]: toNumberHeader(balance) }
+      : undefined
+  })
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return '알 수 없는 오류'
+}
+
+const getCurrentBalance = async (userId: string): Promise<number | undefined> => {
+  try {
+    return await CreditService.getBalance(userId)
+  } catch {
+    return undefined
+  }
+}
+
+const isCancellationError = (error: unknown, requestCancelled: boolean) => {
+  if (requestCancelled) return true
+  if (error instanceof DOMException && error.name === 'AbortError') return true
+  if (error instanceof Error && error.message === 'Generation cancelled') return true
+  if (error && typeof error === 'object' && 'code' in error) {
+    return (error as { code?: unknown }).code === 'GENERATION_CANCELLED'
+  }
+  return false
+}
+
+export async function POST(request: NextRequest) {
   const supabase = await createClient()
 
   // 1. Auth Check
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
-    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Please login first' } }, { status: 401 })
+    return jsonWithBalance(
+      { success: false, error: { code: 'UNAUTHORIZED', message: 'Please login first' } },
+      401
+    )
+  }
+
+  const isCancelled = () => request.signal.aborted
+
+  const generationRequestId = randomUUID()
+  let deductionResult: { newBalance: number; consumptions: Array<{ sourceId: string; amount: number }> } | null = null
+  let balanceBeforeGeneration = await getCurrentBalance(user.id)
+
+  const rollbackGenerationCredit = async () => {
+    if (!deductionResult) return await getCurrentBalance(user.id)
+    try {
+      if (balanceBeforeGeneration === undefined) {
+        balanceBeforeGeneration = await getCurrentBalance(user.id)
+      }
+      return await CreditService.refundCredits(
+        user.id,
+        COST_PER_GENERATION,
+        'ai_generation',
+        generationRequestId,
+        'AI 문제 생성 취소 또는 실패 환불',
+        deductionResult.consumptions,
+        balanceBeforeGeneration
+      )
+    } catch (refundError) {
+      console.error('Failed to rollback credits after generation failure:', refundError)
+      return await getCurrentBalance(user.id)
+    }
   }
 
   try {
     // 2. Validation
-    const body = await request.json()
+    let body: unknown
+
+    try {
+      body = await request.json()
+    } catch {
+      return jsonWithBalance(
+        { success: false, error: { code: 'INVALID_INPUT', message: '요청 바디 파싱에 실패했습니다.' } },
+        400
+      )
+    }
+
     const validation = GenerateRequestSchema.safeParse(body)
 
     if (!validation.success) {
-      return NextResponse.json({
-        success: false,
-        error: { code: 'INVALID_INPUT', message: validation.error.issues?.[0]?.message || 'Validation failed' }
-      }, { status: 400 })
+      return jsonWithBalance(
+        {
+          success: false,
+          error: { code: 'INVALID_INPUT', message: validation.error.issues?.[0]?.message || 'Validation failed' }
+        },
+        400
+      )
     }
 
     const { passage, gradeLevel, difficulty, problemTypeId } = validation.data
@@ -45,39 +133,47 @@ export async function POST(request: Request) {
       .single()
 
     if (dbError || !problemType) {
-      return NextResponse.json({
-        success: false,
-        error: { code: 'NOT_FOUND', message: 'Problem type not found' }
-      }, { status: 404 })
+      return jsonWithBalance(
+        {
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Problem type not found' }
+        },
+        404
+      )
     }
 
     if (!problemType.is_active) {
-      return NextResponse.json({
-        success: false,
-        error: { code: 'INACTIVE_TYPE', message: 'This problem type is currently inactive' }
-      }, { status: 400 })
+      return jsonWithBalance(
+        {
+          success: false,
+          error: { code: 'INACTIVE_TYPE', message: 'This problem type is currently inactive' }
+        },
+        400
+      )
     }
 
-    // [New] 3.5 Deduct Credits (FIFO 방식)
-    // AI 생성 전 선차감
-    try {
-      await CreditService.deductCredits(
-        user.id,
-        COST_PER_GENERATION,
-        'ai_generation',
-        problemTypeId,
-        `AI 문제 생성 (${problemType.type_name})`
+    const preBalance = balanceBeforeGeneration
+    if (preBalance === undefined || preBalance < COST_PER_GENERATION) {
+      return jsonWithBalance(
+        {
+          success: false,
+          error: { code: 'INSUFFICIENT_CREDITS', message: '크레딧이 부족합니다.' }
+        },
+        402,
+        preBalance
       )
-    } catch (error: any) {
-      return NextResponse.json({
-        success: false,
-        error: { code: 'INSUFFICIENT_CREDITS', message: error.message || '크레딧이 부족합니다.' }
-      }, { status: 402 })
+    }
+
+    if (isCancelled()) {
+      const currentBalance = await getCurrentBalance(user.id)
+      return jsonWithBalance(
+        { success: false, error: { code: 'GENERATION_CANCELLED', message: '문제 생성이 중단되었습니다.' } },
+        408,
+        currentBalance
+      )
     }
 
     // 4. Construct Prompt
-
-    // Helper function to convert grade level to Korean
     const getGradeLevelKorean = (grade: string): string => {
       const gradeMap: { [key: string]: string } = {
         '고1': '고등학교 1학년',
@@ -91,7 +187,7 @@ export async function POST(request: Request) {
         '중2': '중학교 2학년',
         'Middle2': '중학교 2학년',
         '중3': '중학교 3학년',
-        'Middle3': '중학교 3학년',
+        'Middle3': '중학교 3학년'
       }
       return gradeMap[grade] || grade
     }
@@ -104,7 +200,7 @@ export async function POST(request: Request) {
         '중': '중',
         'Medium': '중',
         '하': '하',
-        'Low': '하',
+        'Low': '하'
       }
       return diffMap[diff] || diff
     }
@@ -112,8 +208,7 @@ export async function POST(request: Request) {
     const gradeLevelKorean = getGradeLevelKorean(gradeLevel)
     const difficultyKorean = getDifficultyKorean(difficulty)
 
-    // Build structured prompt
-    let prompt = `
+    const prompt = `
 ================================================================================
 📝 PROMPT TEMPLATE 시작
 ================================================================================
@@ -134,58 +229,97 @@ ${problemType.prompt_template}
 ${passage}
 `
 
-    // 5. Call AI Service
     const result = await AIGenerationService.generate({
-      provider: problemType.provider as AIProvider, // Cast to AIProvider type
+      provider: problemType.provider as AIProvider,
       modelName: problemType.model_name,
-      prompt: prompt,
-      maxTokens: 16000, // Increased significantly to accommodate Gemini's thinking tokens
-      temperature: 0.7
+      prompt,
+      maxTokens: 16000,
+      temperature: 0.7,
+      signal: request.signal
     })
+
+    if (isCancelled()) {
+      const currentBalance = await getCurrentBalance(user.id)
+      return jsonWithBalance(
+        { success: false, error: { code: 'GENERATION_CANCELLED', message: '문제 생성이 중단되었습니다.' } },
+        408,
+        currentBalance
+      )
+    }
 
     if (!result.success) {
       console.error('AI Generation Error:', result.error, result.rawResponse)
+      const currentBalance = await getCurrentBalance(user.id)
+      return jsonWithBalance(
+        {
+          success: false,
+          error: { code: 'AI_ERROR', message: 'AI 문제 생성 중 오류가 발생했습니다.' }
+        },
+        500,
+        currentBalance
+      )
+    }
 
-      // [New] Rollback (Refund) - 환불 처리
-      // 새 크레딧 시스템에서는 purchaseCredits를 통해 환불 크레딧을 지급
-      try {
-        await CreditService.purchaseCredits(
-          user.id,
-          null,  // plan_id 없음
-          COST_PER_GENERATION,
-          0,  // 환불이므로 금액 0
-          'system_refund'
+    // 6. Deduct credits only after AI generation succeeds
+    try {
+      deductionResult = await CreditService.deductCredits(
+        user.id,
+        COST_PER_GENERATION,
+        'ai_generation',
+        generationRequestId,
+        `AI 문제 생성 (${problemType.type_name})`
+      )
+      if (isCancelled()) {
+        const rolledBackBalance = await rollbackGenerationCredit()
+        return jsonWithBalance(
+          {
+            success: false,
+            error: { code: 'GENERATION_CANCELLED', message: '문제 생성이 중단되었습니다.' }
+          },
+          408,
+          rolledBackBalance
         )
-        console.log(`Refunded ${COST_PER_GENERATION} credits to user ${user.id} due to AI error`)
-      } catch (refundError) {
-        console.error('Failed to refund credits:', refundError)
       }
-
-      return NextResponse.json({
-        success: false,
-        error: { code: 'AI_ERROR', message: 'Failed to generate question. Credits have been refunded.' }
-      }, { status: 500 })
+    } catch (error: unknown) {
+      const currentBalance = await getCurrentBalance(user.id)
+      return jsonWithBalance(
+        {
+          success: false,
+          error: {
+            code: 'INSUFFICIENT_CREDITS',
+            message: getErrorMessage(error) || '크레딧이 부족합니다.'
+          }
+        },
+        402,
+        currentBalance
+      )
     }
 
     // 6. Return Result
-    return NextResponse.json({
-      success: true,
-      data: result.data,
-      rawAiResponse: result.rawResponse
-    })
+    const consumedBalance = deductionResult.newBalance
+    return jsonWithBalance(
+      {
+        success: true,
+        data: result.data,
+        rawAiResponse: result.rawResponse
+      },
+      200,
+      consumedBalance
+    )
+  } catch (error: unknown) {
+    const isCancelledError = isCancellationError(error, request.signal.aborted)
+    const currentBalance = deductionResult
+      ? await rollbackGenerationCredit()
+      : await getCurrentBalance(user.id)
 
-  } catch (error: any) {
     console.error('Generation API Error:', error)
-
-    // Note: If error occurred AFTER deduction but BEFORE AI call (unlikely), we might need refund here too.
-    // However, the deduction is in its own try-catch block above. 
-    // If main try-catch catches something, it depends where it failed.
-    // Ideally we should scope the try-catch better, but for now assuming if it fails here it's unexpected system error.
-    // We should probably check if credit was deducted in this scope to refund, but simpler is to let AI error handling do the refund.
-
-    return NextResponse.json({
-      success: false,
-      error: { code: 'INTERNAL_SERVER_ERROR', message: 'An unexpected error occurred' }
-    }, { status: 500 })
+    return jsonWithBalance(
+      {
+        success: false,
+        error: { code: isCancelledError ? 'GENERATION_CANCELLED' : 'INTERNAL_SERVER_ERROR', message: isCancelledError ? '문제 생성이 중단되었습니다.' : 'An unexpected error occurred' }
+      },
+      isCancelledError ? 408 : 500,
+      currentBalance
+    )
   }
 }
