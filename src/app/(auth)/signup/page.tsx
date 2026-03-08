@@ -500,9 +500,9 @@ function SignupContent() {
             )}
           </CardContent>
           <CardFooter>
-            <Link href="/" className="w-full">
-              <Button className="w-full h-11 text-md">메인 페이지로 이동하기</Button>
-            </Link>
+            <Button asChild className="w-full h-11 text-md">
+              <Link href="/">메인 페이지로 이동하기</Link>
+            </Button>
           </CardFooter>
         </Card>
       </div>

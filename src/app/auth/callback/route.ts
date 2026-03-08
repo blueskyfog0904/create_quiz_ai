@@ -1,8 +1,26 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
+const getRequestOrigin = (request: Request) => {
+  const requestUrl = new URL(request.url)
+  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim()
+  const forwardedProto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim()
+  const envSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim()
+
+  if (forwardedHost && forwardedProto && /^(http|https)$/i.test(forwardedProto)) {
+    return `${forwardedProto.toLowerCase()}://${forwardedHost}`
+  }
+
+  if (envSiteUrl) {
+    return envSiteUrl.replace(/\/$/, '')
+  }
+
+  return requestUrl.origin
+}
+
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
+  const origin = getRequestOrigin(request)
 
   const normalizeNext = (path: string | null) => {
     if (!path || path === '/') {
