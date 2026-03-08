@@ -38,15 +38,15 @@ export async function Header() {
         <nav className="hidden md:flex gap-1 items-center">
           {user ? (
             <>
-              <Link href="/generate">
-                <Button variant="ghost">AI문제생성</Button>
-              </Link>
-              <Link href="/bank">
-                <Button variant="ghost">문제은행</Button>
-              </Link>
-              <Link href="/pricing">
-                <Button variant="ghost">요금제</Button>
-              </Link>
+              <Button asChild variant="ghost">
+                <Link href="/generate">AI문제생성</Link>
+              </Button>
+              <Button asChild variant="ghost">
+                <Link href="/bank">문제은행</Link>
+              </Button>
+              <Button asChild variant="ghost">
+                <Link href="/pricing">요금제</Link>
+              </Button>
 
               {/* 내 라이브러리 드롭다운 - Client Component */}
               <HeaderClient
@@ -59,12 +59,12 @@ export async function Header() {
             </>
           ) : (
             <>
-              <Link href="/login">
-                <Button variant="ghost">로그인</Button>
-              </Link>
-              <Link href="/signup">
-                <Button>회원가입</Button>
-              </Link>
+              <Button asChild variant="ghost">
+                <Link href="/login">로그인</Link>
+              </Button>
+              <Button asChild>
+                <Link href="/signup">회원가입</Link>
+              </Button>
             </>
           )}
         </nav>

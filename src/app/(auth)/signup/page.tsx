@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 type JsonObject = Record<string, unknown>
@@ -58,10 +58,24 @@ const normalizeKakaoPhoneNumber = (value: string) => {
   return trimmed.replace(/^\+82[\s-]?/, '0')
 }
 
+const normalizeInternalPath = (path: string | null) => {
+  if (!path || path === '/signup') {
+    return '/'
+  }
+
+  if (!path.startsWith('/') || path.startsWith('//')) {
+    return '/'
+  }
+
+  return path
+}
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 function SignupContent() {
+  const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [isKakaoProfileLoading, setIsKakaoProfileLoading] = useState(false)
-  const [isKakaoSignupCompleted, setIsKakaoSignupCompleted] = useState(false)
   const [isEmailSignupMode, setIsEmailSignupMode] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const [successData, setSuccessData] = useState<{ email: string, name: string, phone: string } | null>(null)
@@ -71,7 +85,7 @@ function SignupContent() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [phone, setPhone] = useState('')
   const searchParams = useSearchParams()
-  const next = searchParams.get('next') ?? '/signup'
+  const next = normalizeInternalPath(searchParams.get('next') ?? '/signup')
   const kakaoSignupMode = searchParams.get('provider') === 'kakao' && searchParams.get('signup') === '1'
   const callbackPath = new URLSearchParams({
     next,
@@ -200,7 +214,7 @@ function SignupContent() {
 
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('email, name, phone, kakao_email, kakao_id, provider')
+          .select('email, name, phone, kakao_email, kakao_id, provider, signup_completed')
           .eq('id', user.id)
           .maybeSingle()
 
@@ -238,7 +252,7 @@ function SignupContent() {
                 provider: mergedProvider || null,
               })
               .eq('id', user.id)
-              .select('email, name, phone, kakao_email, kakao_id, provider')
+              .select('email, name, phone, kakao_email, kakao_id, provider, signup_completed')
               .single()
 
             if (updateError) {
@@ -262,6 +276,11 @@ function SignupContent() {
         setKakaoUserId(profileKakaoId)
         setKakaoName(profileName)
         setKakaoPhone(profilePhone)
+
+        if (syncedProfile?.signup_completed) {
+          window.location.replace(next)
+          return
+        }
 
         if (process.env.NODE_ENV !== 'production') {
           console.groupCollapsed('[Kakao Signup Debug] resolved profile')
@@ -296,7 +315,7 @@ function SignupContent() {
     }
 
     loadKakaoProfile()
-  }, [kakaoSignupMode])
+  }, [kakaoSignupMode, next])
 
   const formatPhoneNumber = (value: string) => {
     const cleaned = value.replace(/\D/g, '')
@@ -426,7 +445,7 @@ function SignupContent() {
       .from('profiles')
       .update(profileUpdate)
       .eq('id', userData.user.id)
-      .select('email, name, phone')
+      .select('email, name, phone, signup_completed')
       .single()
 
     if (error) {
@@ -435,36 +454,56 @@ function SignupContent() {
       return
     }
 
-    const updatedEmail = getFirstText(updatedProfile?.email, sanitizedEmail)
-    const updatedName = getFirstText(updatedProfile?.name, kakaoName.trim())
-    const updatedPhone = getFirstText(updatedProfile?.phone, sanitizedPhone)
+    let confirmedProfile = updatedProfile
+
+    if (!updatedProfile?.signup_completed) {
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        const { data: profileCheck, error: profileCheckError } = await supabase
+          .from('profiles')
+          .select('email, name, phone, signup_completed')
+          .eq('id', userData.user.id)
+          .single()
+
+        if (!profileCheckError && profileCheck?.signup_completed) {
+          confirmedProfile = profileCheck
+          break
+        }
+
+        if (attempt < 3) {
+          await wait(300)
+        }
+      }
+    }
+
+    if (!confirmedProfile?.signup_completed) {
+      setIsLoading(false)
+      toast.error('가입 완료 상태가 아직 반영되지 않았습니다. 잠시 후 다시 시도해주세요.')
+      router.refresh()
+      return
+    }
+
+    const updatedEmail = getFirstText(confirmedProfile.email, sanitizedEmail)
+    const updatedName = getFirstText(confirmedProfile.name, kakaoName.trim())
+    const updatedPhone = getFirstText(confirmedProfile.phone, sanitizedPhone)
 
     setKakaoEmail(updatedEmail)
     setKakaoName(updatedName)
     setKakaoPhone(updatedPhone)
-    setIsSuccess(true)
-    setSuccessData({
-      email: updatedEmail,
-      name: updatedName,
-      phone: updatedPhone
-    })
-    setIsKakaoSignupCompleted(true)
-    setIsLoading(false)
-    toast.success('카카오 간편가입이 완료되었습니다.')
+    toast.success('카카오 간편가입이 완료되었습니다. 메인 페이지로 이동합니다.')
+    window.location.replace(next)
   }
 
 
   if (isSuccess && successData) {
-    const completedViaKakao = isKakaoSignupCompleted
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-12 px-4 sm:px-6 lg:px-8">
         <Card className="w-full max-w-md shadow-2xl border-0 ring-1 ring-gray-200/50 bg-white/50 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="text-2xl font-bold text-center text-green-600">
-              {completedViaKakao ? '카카오 간편가입 완료' : '회원가입 완료'}
+              회원가입 완료
             </CardTitle>
             <CardDescription className="text-center">
-              {completedViaKakao ? '카카오 간편가입이 완료되었습니다.' : '회원가입이 성공적으로 완료되었습니다.'}
+              회원가입이 성공적으로 완료되었습니다.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -482,26 +521,28 @@ function SignupContent() {
                 <span className="font-medium">{successData.phone}</span>
               </div>
             </div>
-            {!completedViaKakao && (
-              <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg space-y-2">
-                <p className="text-sm font-semibold text-yellow-800 flex items-center gap-2">
-                  <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  이메일 인증이 필요합니다
-                </p>
-                <p className="text-sm text-yellow-700">
-                  <strong>{successData.email}</strong> 주소로 발송된 인증 메일을 확인해주세요.
-                </p>
-                <p className="text-xs text-yellow-600">
-                  이메일 인증을 완료해야 로그인할 수 있습니다. 메일이 오지 않았다면 스팸함을 확인해주세요.
-                </p>
-              </div>
-            )}
+            <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg space-y-2">
+              <p className="text-sm font-semibold text-yellow-800 flex items-center gap-2">
+                <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                이메일 인증이 필요합니다
+              </p>
+              <p className="text-sm text-yellow-700">
+                <strong>{successData.email}</strong> 주소로 발송된 인증 메일을 확인해주세요.
+              </p>
+              <p className="text-xs text-yellow-600">
+                이메일 인증을 완료해야 로그인할 수 있습니다. 메일이 오지 않았다면 스팸함을 확인해주세요.
+              </p>
+            </div>
           </CardContent>
           <CardFooter>
-            <Button asChild className="w-full h-11 text-md">
-              <Link href="/">메인 페이지로 이동하기</Link>
+            <Button
+              type="button"
+              className="w-full h-11 text-md"
+              onClick={() => window.location.assign('/')}
+            >
+              메인 페이지로 이동하기
             </Button>
           </CardFooter>
         </Card>

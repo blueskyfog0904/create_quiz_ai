@@ -4,14 +4,14 @@
   "cwd": "/Users/mac/Documents/project/create_quiz_ai",
   "notify_script": "/opt/homebrew/lib/node_modules/oh-my-codex/scripts/notify-hook.js",
   "poll_ms": 700,
-  "tracked_files": 5,
+  "tracked_files": 8,
   "seen_turns": 3,
   "dispatch_drain": {
     "enabled": true,
     "max_per_tick": 5,
-    "run_count": 1651,
+    "run_count": 3494,
     "leader_only": true,
-    "last_tick_at": "2026-03-08T01:38:19.993Z",
+    "last_tick_at": "2026-03-08T02:00:01.974Z",
     "last_result": {
       "processed": 0,
       "skipped": 0,

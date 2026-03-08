@@ -1,6 +1,18 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+const normalizeInternalPath = (path: string | null) => {
+  if (!path || path === '/signup') {
+    return '/'
+  }
+
+  if (!path.startsWith('/') || path.startsWith('//')) {
+    return '/'
+  }
+
+  return path
+}
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
     request,
@@ -44,18 +56,34 @@ export async function updateSession(request: NextRequest) {
     )
 
     if (!isBypassPath && user) {
+      const isKakaoSignupPage = (
+        pathname.startsWith('/signup')
+        && request.nextUrl.searchParams.get('provider') === 'kakao'
+        && request.nextUrl.searchParams.get('signup') === '1'
+      )
+
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('provider, signup_completed')
         .eq('id', user.id)
         .maybeSingle()
 
-      if (!profileError && profile?.provider === 'kakao' && !profile.signup_completed) {
-        const isKakaoSignupPage = (
-          pathname.startsWith('/signup')
-          && request.nextUrl.searchParams.get('provider') === 'kakao'
-          && request.nextUrl.searchParams.get('signup') === '1'
-        )
+      if (!profileError && profile?.provider === 'kakao') {
+        if (profile.signup_completed && isKakaoSignupPage) {
+          const nextPath = normalizeInternalPath(request.nextUrl.searchParams.get('next'))
+          const redirectUrl = request.nextUrl.clone()
+          const nextUrl = new URL(nextPath, redirectUrl.origin)
+
+          redirectUrl.pathname = nextUrl.pathname
+          redirectUrl.search = nextUrl.search
+          redirectUrl.hash = nextUrl.hash
+
+          return NextResponse.redirect(redirectUrl)
+        }
+
+        if (profile.signup_completed) {
+          return response
+        }
 
         if (isKakaoSignupPage) {
           return response
