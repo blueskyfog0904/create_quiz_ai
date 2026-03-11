@@ -17,7 +17,7 @@ export default async function MultiGeneratePage() {
     .order('type_name')
 
   return (
-    <div className="container mx-auto py-8 px-4">
+    <div>
       <Link href="/generate">
         <Button variant="ghost" className="mb-4">← 문제 유형 선택으로</Button>
       </Link>
@@ -33,4 +33,3 @@ export default async function MultiGeneratePage() {
     </div>
   )
 }
-

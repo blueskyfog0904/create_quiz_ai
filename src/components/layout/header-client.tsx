@@ -37,16 +37,25 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { NotificationBell } from '@/components/ui/notification-bell'
+import type { HeaderMenuItem } from '@/lib/header-navigation'
 
 interface HeaderClientProps {
   isLoggedIn: boolean
   userName: string
   isAdmin: boolean
   creditBalance?: number
+  mainMenuItems?: HeaderMenuItem[]
   isMobile?: boolean
 }
 
-export function HeaderClient({ isLoggedIn, userName, isAdmin, creditBalance = 0, isMobile = false }: HeaderClientProps) {
+export function HeaderClient({
+  isLoggedIn,
+  userName,
+  isAdmin,
+  creditBalance = 0,
+  mainMenuItems = [],
+  isMobile = false,
+}: HeaderClientProps) {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [clientCreditBalance, setClientCreditBalance] = useState(creditBalance)
@@ -84,7 +93,14 @@ export function HeaderClient({ isLoggedIn, userName, isAdmin, creditBalance = 0,
 
   useEffect(() => {
     if (!isLoggedIn) return
-    void fetchCreditBalance()
+
+    const timer = window.setTimeout(() => {
+      void fetchCreditBalance()
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
   }, [isLoggedIn, fetchCreditBalance])
 
   useEffect(() => {
@@ -115,18 +131,32 @@ export function HeaderClient({ isLoggedIn, userName, isAdmin, creditBalance = 0,
           <nav className="flex flex-col gap-2 mt-6">
             {isLoggedIn ? (
               <>
-                <Link href="/generate" onClick={() => setIsOpen(false)}>
-                  <Button variant="ghost" className="w-full justify-start gap-2">
-                    <Sparkles className="h-4 w-4" />
-                    AI문제생성
-                  </Button>
-                </Link>
-                <Link href="/bank" onClick={() => setIsOpen(false)}>
-                  <Button variant="ghost" className="w-full justify-start gap-2">
-                    <BookOpen className="h-4 w-4" />
-                    문제은행
-                  </Button>
-                </Link>
+                {mainMenuItems.map((item) => (
+                  <div key={item.id} className="space-y-1">
+                    {item.children.length > 0 ? (
+                      <>
+                        <p className="px-4 py-2 text-sm font-semibold text-gray-500">
+                          {item.title}
+                        </p>
+                        {item.children.map((child) => (
+                          <Link key={child.id} href={child.href} onClick={() => setIsOpen(false)}>
+                            <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
+                              <Sparkles className="h-4 w-4" />
+                              {child.title}
+                            </Button>
+                          </Link>
+                        ))}
+                      </>
+                    ) : (
+                      <Link href={item.href || '/'} onClick={() => setIsOpen(false)}>
+                        <Button variant="ghost" className="w-full justify-start gap-2">
+                          <Sparkles className="h-4 w-4" />
+                          {item.title}
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+                ))}
 
                 <div className="border-t my-2" />
                 <p className="px-4 py-2 text-sm font-semibold text-gray-500">내 라이브러리</p>

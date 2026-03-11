@@ -1,10 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
-import { notFound } from 'next/navigation'
 import GenerateClient from './generate-client'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import GenerateHomeContent from '../generate-home-content'
 
 export default async function GenerateWithTypePage({ params }: { params: Promise<{ typeId: string }> }) {
   await requireAuth()
@@ -20,11 +19,18 @@ export default async function GenerateWithTypePage({ params }: { params: Promise
     .single()
 
   if (error || !problemType) {
-    notFound()
+    const { data: problemTypes } = await supabase
+      .from('problem_types')
+      .select('*')
+      .eq('is_active', true)
+      .neq('model_name', 'admin')
+      .order('type_name')
+
+    return <GenerateHomeContent problemTypes={problemTypes || []} />
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
+    <div>
       <Link href="/generate">
         <Button variant="ghost" className="mb-4">← 문제 유형 선택으로</Button>
       </Link>
@@ -43,4 +49,3 @@ export default async function GenerateWithTypePage({ params }: { params: Promise
     </div>
   )
 }
-
