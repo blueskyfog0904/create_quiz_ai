@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { normalizeQuestionTextBackward } from '@/lib/questions/normalize-question-field'
+import { InlineBracketUnderlineText } from '@/components/features/quiz/InlineBracketUnderlineText'
 
 type PreviewQuestion = {
   questionText: string
@@ -89,18 +90,21 @@ export function QuestionPreview({
       {/* Question Text */}
       <div className="space-y-2">
         <Label className="text-muted-foreground font-semibold">문제</Label>
-        <div className="p-4 bg-white rounded-md border text-lg font-medium whitespace-pre-wrap">
-          {normalized.questionText}
-        </div>
+        <InlineBracketUnderlineText
+          text={normalized.questionText}
+          className="p-4 bg-white rounded-md border text-lg font-medium whitespace-pre-wrap"
+          noUnderline
+        />
       </div>
 
       {/* Question Text Forward (if exists) */}
       {normalized.questionTextForward && (
         <div className="space-y-2">
           <Label className="text-muted-foreground font-semibold">주어진 문장</Label>
-          <div className="p-4 bg-amber-50 rounded-md border border-amber-200 text-gray-800 whitespace-pre-wrap">
-            {normalized.questionTextForward}
-          </div>
+          <InlineBracketUnderlineText
+            text={normalized.questionTextForward}
+            className="p-4 bg-amber-50 rounded-md border border-amber-200 text-gray-800 whitespace-pre-wrap"
+          />
         </div>
       )}
 
@@ -108,9 +112,10 @@ export function QuestionPreview({
       {normalized.passageText && (
         <div className="space-y-2">
           <Label className="text-muted-foreground font-semibold">지문</Label>
-          <div className="p-4 bg-gray-50 rounded-md border border-gray-200 text-gray-800 whitespace-pre-wrap leading-relaxed">
-            {normalized.passageText}
-          </div>
+          <InlineBracketUnderlineText
+            text={normalized.passageText}
+            className="p-4 bg-gray-50 rounded-md border border-gray-200 text-gray-800 whitespace-pre-wrap leading-relaxed"
+          />
         </div>
       )}
 
@@ -118,9 +123,10 @@ export function QuestionPreview({
       {normalized.questionTextBackward && (
         <div className="space-y-2">
           <Label className="text-muted-foreground font-semibold">추가 지문</Label>
-          <div className="p-4 bg-amber-50 rounded-md border border-amber-200 text-gray-800 whitespace-pre-wrap">
-            {normalized.questionTextBackward}
-          </div>
+          <InlineBracketUnderlineText
+            text={normalized.questionTextBackward}
+            className="p-4 bg-amber-50 rounded-md border border-amber-200 text-gray-800 whitespace-pre-wrap"
+          />
         </div>
       )}
 

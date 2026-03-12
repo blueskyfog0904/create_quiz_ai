@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Question } from '@/lib/ai/types'
 import { ExportButtons } from './export-buttons'
 import { toast } from 'sonner'
+import { InlineBracketUnderlineText } from '@/components/features/quiz/InlineBracketUnderlineText'
 import { normalizeQuestionTextBackward } from '@/lib/questions/normalize-question-field'
 
 interface QuestionWithNumber extends Question {
@@ -131,7 +132,12 @@ export function ExamPaperView({ questions: initialQuestions, examPaper }: ExamPa
                 <div className="mb-6">
                   <h3 className="text-lg font-semibold mb-2">문제</h3>
                   <p className="whitespace-pre-wrap text-gray-800 leading-relaxed">
-                    {question.number}. {question.questionText}
+                    <span>{question.number}. </span>
+                    <InlineBracketUnderlineText
+                      as="span"
+                      text={question.questionText}
+                      noUnderline
+                    />
                   </p>
                 </div>
               )}
@@ -139,14 +145,22 @@ export function ExamPaperView({ questions: initialQuestions, examPaper }: ExamPa
               {/* Question Text Forward (hide in answer-only mode) */}
               {viewMode !== 'answer-only' && question.questionTextForward && (
                 <div className="mb-4 p-3 bg-gray-100 rounded-lg border-l-4 border-gray-400">
-                  <p className="whitespace-pre-wrap text-gray-700">{question.questionTextForward}</p>
+                  <InlineBracketUnderlineText
+                    as="p"
+                    text={question.questionTextForward}
+                    className="whitespace-pre-wrap text-gray-700"
+                  />
                 </div>
               )}
 
               {/* Passage Text (hide in answer-only mode) */}
               {viewMode !== 'answer-only' && question.passageText && (
                 <div className="mb-4 p-4 bg-gray-50 rounded-lg border-l-4 border-primary/50">
-                  <p className="whitespace-pre-wrap text-gray-800 leading-relaxed">{question.passageText}</p>
+                  <InlineBracketUnderlineText
+                    as="p"
+                    text={question.passageText}
+                    className="whitespace-pre-wrap text-gray-800 leading-relaxed"
+                  />
                 </div>
               )}
 
@@ -155,9 +169,11 @@ export function ExamPaperView({ questions: initialQuestions, examPaper }: ExamPa
                 <div className="mb-4 space-y-2">
                   <Label className="text-muted-foreground font-semibold">추가 지문</Label>
                   <div className="p-3 bg-gray-100 rounded-lg border-l-4 border-gray-400">
-                    <p className="whitespace-pre-wrap text-gray-700">
-                      {normalizeQuestionTextBackward(question.questionTextBackward)}
-                    </p>
+                    <InlineBracketUnderlineText
+                      as="p"
+                      text={normalizeQuestionTextBackward(question.questionTextBackward)}
+                      className="whitespace-pre-wrap text-gray-700"
+                    />
                   </div>
                 </div>
               )}

@@ -1,5 +1,9 @@
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
+import {
+  normalizeQuestionTextBackward,
+  splitBracketUnderlineSegments,
+} from '@/lib/questions/normalize-question-field'
 
 // ============================================
 // Types (consistent with export-utils.ts)
@@ -49,6 +53,49 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;')
 }
 
+function buildInlineRunsXml(
+  text: string,
+  options: {
+    bold?: boolean
+  } = {}
+): string {
+  if (!text) {
+    return '<hp:run><hp:t></hp:t></hp:run>'
+  }
+
+  const { bold = false } = options
+  const runs: string[] = []
+  let needsLineBreak = false
+
+  splitBracketUnderlineSegments(text).forEach((segment) => {
+    const lines = segment.value.split('\n')
+
+    lines.forEach((line, index) => {
+      if (needsLineBreak || index > 0) {
+        runs.push('<hp:run><hp:lineBreak /></hp:run>')
+      }
+
+      const charPrParts: string[] = []
+      if (bold) charPrParts.push('bold="true"')
+      if (segment.type === 'underline') {
+        charPrParts.push('underline="BOTTOM"')
+        if (!bold) charPrParts.push('bold="false"')
+      }
+
+      const charPrXml = charPrParts.length > 0
+        ? `<hp:charPr ${charPrParts.join(' ')} />`
+        : ''
+
+      runs.push(`<hp:run>${charPrXml}<hp:t>${escapeXml(line)}</hp:t></hp:run>`)
+      needsLineBreak = false
+    })
+
+    needsLineBreak = segment.value.endsWith('\n')
+  })
+
+  return runs.join('')
+}
+
 // ============================================
 // OWPML XML Generation Helpers
 // ============================================
@@ -66,22 +113,8 @@ function generateParagraphXML(
     paragraphStyle?: string 
   } = {}
 ): string {
-  const escapedText = escapeXml(text)
   const { bold = false, indent = 0 } = options
-  
-  // 줄바꿈을 별도 run으로 분리
-  const lines = escapedText.split('\n')
-  
-  const runsXml = lines.map((line, index) => {
-    const charPrXml = bold ? '<hp:charPr bold="true" />' : ''
-    const lineXml = `<hp:run>${charPrXml}<hp:t>${line}</hp:t></hp:run>`
-    
-    // 마지막 라인이 아니면 줄바꿈 추가
-    if (index < lines.length - 1) {
-      return lineXml + '<hp:run><hp:lineBreak /></hp:run>'
-    }
-    return lineXml
-  }).join('')
+  const runsXml = buildInlineRunsXml(text, { bold })
   
   // 들여쓰기 속성
   const indentAttr = indent > 0 ? ` indent="${indent}"` : ''
@@ -117,9 +150,12 @@ function generateQuestionXML(
   const paragraphs: string[] = []
   
   if (showQuestions) {
-    // 1. 문제 번호 + 발문
+    // 1. 문제 번호 + 발문 (no underline in question text)
     paragraphs.push(
-      generateParagraphXML(`${question.number}. ${question.questionText}`, { bold: true })
+      generateParagraphXML(`${question.number}. `, { bold: true }).replace(
+        '</hp:p>',
+        `<hp:run><hp:t>${escapeXml(question.questionText)}</hp:t></hp:run></hp:p>`
+      )
     )
     
     // 2. Question Text Forward (박스)
@@ -135,9 +171,10 @@ function generateQuestionXML(
     }
     
     // 4. Question Text Backward (박스)
-    if (question.questionTextBackward) {
+    const normalizedQuestionTextBackward = normalizeQuestionTextBackward(question.questionTextBackward)
+    if (normalizedQuestionTextBackward) {
       paragraphs.push(generateEmptyParagraphXML())
-      paragraphs.push(generateBoxParagraphXML(question.questionTextBackward))
+      paragraphs.push(generateBoxParagraphXML(normalizedQuestionTextBackward))
     }
     
     // 5. 선지 (있는 경우만)

@@ -1,17 +1,41 @@
 import pdfMake from 'pdfmake/build/pdfmake'
 import * as pdfFonts from 'pdfmake/build/vfs_fonts'
-import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel } from 'docx'
+import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel, UnderlineType } from 'docx'
 import { saveAs } from 'file-saver'
+import {
+  normalizeQuestionTextBackward,
+  splitBracketUnderlineSegments,
+} from '@/lib/questions/normalize-question-field'
+
+type PdfMakeWithVfs = typeof pdfMake & {
+  vfs?: unknown
+  fonts?: Record<string, {
+    normal: string
+    bold: string
+    italics: string
+    bolditalics: string
+  }>
+}
+
+type PdfFontsModule = {
+  pdfMake?: { vfs?: unknown }
+  default?: {
+    pdfMake?: { vfs?: unknown }
+  }
+}
+
+const pdfMakeWithVfs = pdfMake as PdfMakeWithVfs
+const pdfFontsModule = pdfFonts as PdfFontsModule
 
 // Register fonts
-if (pdfFonts && (pdfFonts as any).pdfMake && (pdfFonts as any).pdfMake.vfs) {
-  (pdfMake as any).vfs = (pdfFonts as any).pdfMake.vfs
-} else if (pdfFonts && (pdfFonts as any).default && (pdfFonts as any).default.pdfMake) {
-  (pdfMake as any).vfs = (pdfFonts as any).default.pdfMake.vfs
+if (pdfFontsModule.pdfMake?.vfs) {
+  pdfMakeWithVfs.vfs = pdfFontsModule.pdfMake.vfs
+} else if (pdfFontsModule.default?.pdfMake?.vfs) {
+  pdfMakeWithVfs.vfs = pdfFontsModule.default.pdfMake.vfs
 }
 
 // Add Korean font support using system fonts
-;(pdfMake as any).fonts = {
+pdfMakeWithVfs.fonts = {
   Roboto: {
     normal: 'Roboto-Regular.ttf',
     bold: 'Roboto-Medium.ttf',
@@ -55,6 +79,62 @@ interface ExamPaper {
   includeAnswers?: boolean  // deprecated, use viewMode instead
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function renderInlineBracketUnderlineHtml(text: string | null | undefined): string {
+  if (!text) return ''
+
+  return splitBracketUnderlineSegments(text)
+    .map((segment) => {
+      const escaped = escapeHtml(segment.value).replace(/\n/g, '<br>')
+
+      if (segment.type === 'underline') {
+        return `<span style="text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; font-weight: normal;">${escaped}</span>`
+      }
+
+      return escaped
+    })
+    .join('')
+}
+
+function createInlineBracketUnderlineRuns(text: string | null | undefined): TextRun[] {
+  if (!text) {
+    return [new TextRun('')]
+  }
+
+  const runs: TextRun[] = []
+  let needsBreakBeforeNextLine = false
+
+  splitBracketUnderlineSegments(text).forEach((segment) => {
+    const lines = segment.value.split('\n')
+
+    lines.forEach((line, index) => {
+      const shouldBreak = needsBreakBeforeNextLine || index > 0
+
+      runs.push(
+        new TextRun({
+          text: line,
+          break: shouldBreak ? 1 : undefined,
+          underline: segment.type === 'underline'
+            ? { type: UnderlineType.SINGLE }
+            : undefined,
+        })
+      )
+    })
+
+    needsBreakBeforeNextLine = segment.value.endsWith('\n')
+  })
+
+  return runs.length > 0 ? runs : [new TextRun('')]
+}
+
 export async function exportToPDF(examPaper: ExamPaper) {
   // Determine view mode (support legacy includeAnswers for backwards compatibility)
   const viewMode: ViewMode = examPaper.viewMode || 
@@ -81,7 +161,7 @@ export async function exportToPDF(examPaper: ExamPaper) {
     <html lang="ko">
     <head>
       <meta charset="UTF-8">
-      <title>${examPaper.title}${titleSuffix}</title>
+      <title>${escapeHtml(examPaper.title + titleSuffix)}</title>
       <style>
         @page {
           size: A4;
@@ -122,7 +202,7 @@ export async function exportToPDF(examPaper: ExamPaper) {
           color: #111;
         }
         .question-text {
-          font-weight: 600;
+          font-weight: normal;
           font-size: ${isDoubleColumn ? '11px' : '14px'};
           margin-bottom: ${isDoubleColumn ? '8px' : '12px'};
           color: #111;
@@ -209,32 +289,32 @@ export async function exportToPDF(examPaper: ExamPaper) {
       </style>
     </head>
     <body>
-      <h1>${examPaper.title}${titleSuffix}${layoutSuffix}</h1>
-      ${examPaper.description ? `<div class="description">${examPaper.description}</div>` : ''}
+      <h1>${escapeHtml(examPaper.title + titleSuffix + layoutSuffix)}</h1>
+      ${examPaper.description ? `<div class="description">${escapeHtml(examPaper.description)}</div>` : ''}
       
       <div class="questions-container">
       ${examPaper.questions.map((question) => `
         <div class="question">
           ${showQuestions ? `
             <div class="question-text">
-              ${question.number}. ${question.questionText.replace(/\n/g, '<br>')}
+              ${question.number}. ${escapeHtml(question.questionText)}
             </div>
             
             ${question.questionTextForward ? `
               <div class="text-box">
-                ${question.questionTextForward.replace(/\n/g, '<br>')}
+                ${renderInlineBracketUnderlineHtml(question.questionTextForward)}
               </div>
             ` : ''}
             
             ${question.passageText ? `
               <div class="text-box">
-                ${question.passageText.replace(/\n/g, '<br>')}
+                ${renderInlineBracketUnderlineHtml(question.passageText)}
               </div>
             ` : ''}
             
-            ${question.questionTextBackward ? `
+            ${normalizeQuestionTextBackward(question.questionTextBackward) ? `
               <div class="text-box">
-                ${question.questionTextBackward.replace(/\n/g, '<br>')}
+                ${renderInlineBracketUnderlineHtml(normalizeQuestionTextBackward(question.questionTextBackward))}
               </div>
             ` : ''}
             
@@ -242,7 +322,7 @@ export async function exportToPDF(examPaper: ExamPaper) {
               <div class="choices">
                 ${question.choices.map((choice) => `
                   <div class="choice">
-                    <span class="choice-label">${choice.label}</span>${choice.text}
+                    <span class="choice-label">${escapeHtml(choice.label)}</span>${escapeHtml(choice.text)}
                   </div>
                 `).join('')}
               </div>
@@ -253,9 +333,9 @@ export async function exportToPDF(examPaper: ExamPaper) {
           
           ${showAnswers ? `
           <div class="${showQuestions ? 'answer-section' : 'answer-only-section'}">
-            <div class="answer">정답: ${question.answer}</div>
+            <div class="answer">정답: ${escapeHtml(question.answer)}</div>
             <div class="explanation">
-              <span class="explanation-label">해설:</span> ${question.explanation.replace(/\n/g, '<br>')}
+              <span class="explanation-label">해설:</span> ${escapeHtml(question.explanation).replace(/\n/g, '<br>')}
             </div>
           </div>
           ` : ''}
@@ -337,10 +417,10 @@ export async function exportToWord(examPaper: ExamPaper) {
         })
       )
 
-      // Question text (passage) with spacing
+      // Question text (passage) with spacing - no underlines for question_text
       children.push(
         new Paragraph({
-          text: question.questionText,
+          children: [new TextRun({ text: question.questionText })],
           spacing: { after: 200 }
         })
       )
@@ -349,7 +429,7 @@ export async function exportToWord(examPaper: ExamPaper) {
       if (question.questionTextForward) {
         children.push(
           new Paragraph({
-            text: question.questionTextForward,
+            children: createInlineBracketUnderlineRuns(question.questionTextForward),
             spacing: { before: 100, after: 100 },
             border: {
               top: { style: 'single' as const, size: 6, color: '9CA3AF' },
@@ -366,7 +446,7 @@ export async function exportToWord(examPaper: ExamPaper) {
       if (question.passageText) {
         children.push(
           new Paragraph({
-            text: question.passageText,
+            children: createInlineBracketUnderlineRuns(question.passageText),
             spacing: { before: 100, after: 100 },
             border: {
               top: { style: 'single' as const, size: 6, color: '9CA3AF' },
@@ -380,10 +460,11 @@ export async function exportToWord(examPaper: ExamPaper) {
       }
 
       // 4. Question Text Backward (if exists)
-      if (question.questionTextBackward) {
+      const normalizedQuestionTextBackward = normalizeQuestionTextBackward(question.questionTextBackward)
+      if (normalizedQuestionTextBackward) {
         children.push(
           new Paragraph({
-            text: question.questionTextBackward,
+            children: createInlineBracketUnderlineRuns(normalizedQuestionTextBackward),
             spacing: { before: 100, after: 200 },
             border: {
               top: { style: 'single' as const, size: 6, color: '9CA3AF' },

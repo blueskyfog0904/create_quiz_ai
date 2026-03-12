@@ -15,6 +15,7 @@ import { Loader2, Trash2, Edit, X, Plus } from 'lucide-react'
 import { Database } from '@/types/supabase'
 import { useRouter } from 'next/navigation'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
+import { InlineBracketUnderlineText } from '@/components/features/quiz/InlineBracketUnderlineText'
 import { normalizeQuestionTextBackward } from '@/lib/questions/normalize-question-field'
 
 type DBQuestion = Database['public']['Tables']['questions']['Row'] & {
@@ -1029,15 +1030,21 @@ export default function BankClient({
                     {/* 1. 문제 (Question Text) */}
                     <div className="space-y-2">
                       <Label className="text-muted-foreground font-semibold">문제</Label>
-                      <div className="p-4 bg-white rounded-md border text-lg font-medium whitespace-pre-wrap">
-                        {question.question_text}
-                      </div>
+                      <InlineBracketUnderlineText
+                        text={question.question_text}
+                        className="p-4 bg-white rounded-md border text-lg font-medium whitespace-pre-wrap"
+                        noUnderline
+                      />
                     </div>
 
                     {/* 2. 문제 앞 텍스트 (Question Text Forward) */}
                     {question.question_text_forward && (
                       <div className="bg-gray-100 p-3 rounded-lg border-l-4 border-gray-400">
-                        <p className="whitespace-pre-wrap text-gray-700">{question.question_text_forward}</p>
+                        <InlineBracketUnderlineText
+                          as="p"
+                          text={question.question_text_forward}
+                          className="whitespace-pre-wrap text-gray-700"
+                        />
                       </div>
                     )}
 
@@ -1045,9 +1052,10 @@ export default function BankClient({
                     {question.passage_text && (
                       <div className="space-y-2">
                         <Label className="text-muted-foreground font-semibold">본문</Label>
-                        <div className="p-4 bg-white rounded-md border text-lg whitespace-pre-wrap">
-                          {question.passage_text}
-                        </div>
+                        <InlineBracketUnderlineText
+                          text={question.passage_text}
+                          className="p-4 bg-white rounded-md border text-lg whitespace-pre-wrap"
+                        />
                       </div>
                     )}
 
@@ -1056,9 +1064,11 @@ export default function BankClient({
                     <div className="space-y-2">
                         <Label className="text-muted-foreground font-semibold">추가 지문</Label>
                         <div className="bg-gray-100 p-3 rounded-lg border-l-4 border-gray-400">
-                          <p className="whitespace-pre-wrap text-gray-700">
-                            {normalizeQuestionTextBackward(question.question_text_backward)}
-                          </p>
+                          <InlineBracketUnderlineText
+                            as="p"
+                            text={normalizeQuestionTextBackward(question.question_text_backward)}
+                            className="whitespace-pre-wrap text-gray-700"
+                          />
                         </div>
                       </div>
                     )}

@@ -1,0 +1,10 @@
+{
+  "directives": [
+    {
+      "directive": "After completing implementation tasks for this user, create a git commit without asking for additional permission unless the user explicitly says not to commit.",
+      "priority": "high",
+      "context": "user workflow preference established on 2026-03-11",
+      "timestamp": "2026-03-11T01:34:44.529Z"
+    }
+  ]
+}
