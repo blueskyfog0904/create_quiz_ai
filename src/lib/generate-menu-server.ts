@@ -1,13 +1,26 @@
 import { createAdminClient } from '@/lib/supabase/bypass'
-import type { TablesInsert, TablesUpdate } from '@/types/supabase'
+import type { HeaderNavigationConfig, HeaderMenuChildItem } from '@/lib/header-navigation'
 import {
   buildGenerateMenuHref,
   type GenerateChildrenSourceMode,
+  type GenerateListboardPost,
   type GenerateMenuEntry,
   type GenerateMenuEntryAdminRow,
 } from '@/lib/generate-menu'
+import type { TablesInsert, TablesUpdate } from '@/types/supabase'
 
 const GENERATE_CHILDREN_SOURCE_MODE: GenerateChildrenSourceMode = 'hybrid_fallback'
+
+export interface LegacyGenerateChildSummary {
+  id: string
+  title: string
+  href: string
+  isActive: boolean
+  entryKey: string
+  slug: string
+  entryType: 'personal_generate' | 'listboard'
+  existsInDb: boolean
+}
 
 function getAdminSupabase() {
   return createAdminClient()
@@ -17,7 +30,7 @@ function normalizeText(value?: string | null) {
   return value?.trim() ?? ''
 }
 
-function normalizeSlug(value: string) {
+export function normalizeSlug(value: string) {
   return value
     .trim()
     .toLowerCase()
@@ -26,11 +39,60 @@ function normalizeSlug(value: string) {
     .replace(/^-|-$/g, '')
 }
 
+function buildSearchConfig(entryType: 'personal_generate' | 'listboard', slug: string) {
+  if (entryType === 'personal_generate') {
+    return { entryHref: '/generate' }
+  }
+
+  if (slug === 'mock-exams') {
+    return {
+      filters: ['year', 'month', 'grade', 'title'],
+      entryHref: buildGenerateMenuHref({ entry_type: entryType, slug }),
+    }
+  }
+
+  return {
+    filters: ['title'],
+    entryHref: buildGenerateMenuHref({ entry_type: entryType, slug }),
+  }
+}
+
+function getMappedLegacyKey(child: Pick<HeaderMenuChildItem, 'title' | 'href'>) {
+  const normalizedHref = child.href.replace(/^\//, '')
+
+  if (child.title === '개인지문' || child.href === '/personal') {
+    return {
+      entryKey: 'personal',
+      slug: 'personal',
+      entryType: 'personal_generate' as const,
+    }
+  }
+
+  if (child.title === '모의고사' || child.href === '/exam') {
+    return {
+      entryKey: 'mock-exams',
+      slug: 'mock-exams',
+      entryType: 'listboard' as const,
+    }
+  }
+
+  const slug = normalizeSlug(normalizedHref || child.title)
+  return {
+    entryKey: slug,
+    slug,
+    entryType: 'listboard' as const,
+  }
+}
+
 function validateEntryInput(input: {
   title?: string
   slug?: string
   entry_type?: string
-}) {
+}): {
+  title: string
+  slug: string
+  entryType: 'personal_generate' | 'listboard'
+} {
   const title = normalizeText(input.title)
   if (!title) {
     throw new Error('메뉴명을 입력해주세요.')
@@ -76,8 +138,47 @@ async function getPostCount(menuEntryId: string) {
   return count ?? 0
 }
 
+async function assertListboardEntry(menuEntryId: string) {
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('generate_menu_entries')
+    .select('*')
+    .eq('id', menuEntryId)
+    .single()
+
+  if (error || !data) {
+    throw new Error('문제생성 메뉴를 찾을 수 없습니다.')
+  }
+
+  if (data.entry_type !== 'listboard') {
+    throw new Error('리스트보드 게시글은 listboard 메뉴에만 연결할 수 있습니다.')
+  }
+
+  return data
+}
+
 export function getGenerateChildrenSourceMode() {
   return GENERATE_CHILDREN_SOURCE_MODE
+}
+
+export function getLegacyGenerateChildren(baseConfig: HeaderNavigationConfig, existingEntries: GenerateMenuEntry[]): LegacyGenerateChildSummary[] {
+  const generateParent = baseConfig.items.find((item) => item.href === '/generate')
+  const children = generateParent?.children ?? []
+  const existingKeys = new Set(existingEntries.map((entry) => entry.entry_key))
+
+  return children.map((child) => {
+    const mapped = getMappedLegacyKey(child)
+    return {
+      id: child.id,
+      title: child.title,
+      href: child.href,
+      isActive: child.isActive,
+      entryKey: mapped.entryKey,
+      slug: mapped.slug,
+      entryType: mapped.entryType,
+      existsInDb: existingKeys.has(mapped.entryKey),
+    }
+  })
 }
 
 export async function listGenerateMenuEntriesForAdmin(): Promise<GenerateMenuEntryAdminRow[]> {
@@ -131,6 +232,25 @@ export async function listVisibleGenerateMenuEntries(): Promise<GenerateMenuEntr
   return data ?? []
 }
 
+export async function listGenerateListboardPostsForAdmin(menuEntryId: string): Promise<GenerateListboardPost[]> {
+  await assertListboardEntry(menuEntryId)
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('generate_listboard_posts')
+    .select('*')
+    .eq('menu_entry_id', menuEntryId)
+    .is('deleted_at', null)
+    .order('exam_year', { ascending: false, nullsFirst: false })
+    .order('exam_month', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data ?? []
+}
+
 export async function getGenerateMenuEntryBySlug(slug: string) {
   const supabase = getAdminSupabase()
   const { data, error } = await supabase
@@ -148,20 +268,24 @@ export async function getGenerateMenuEntryBySlug(slug: string) {
   return data
 }
 
-export async function getGenerateMenuEntriesBackfillStatus() {
+export async function getGenerateMenuEntriesBackfillStatus(baseConfig?: HeaderNavigationConfig) {
   const supabase = getAdminSupabase()
-  const { count, error } = await supabase
+  const { data, error } = await supabase
     .from('generate_menu_entries')
-    .select('id', { count: 'exact', head: true })
+    .select('*')
     .is('deleted_at', null)
 
   if (error) {
     throw new Error(error.message)
   }
 
+  const entries = data ?? []
+  const legacyChildren = baseConfig ? getLegacyGenerateChildren(baseConfig, entries) : []
+
   return {
     sourceMode: getGenerateChildrenSourceMode(),
-    entryCount: count ?? 0,
+    entryCount: entries.length,
+    missingLegacyChildren: legacyChildren.filter((child) => !child.existsInDb),
   }
 }
 
@@ -181,7 +305,7 @@ export async function createGenerateMenuEntry(
     sort_order: input.sort_order ?? 0,
     is_visible: input.is_visible ?? true,
     is_active: input.is_active ?? true,
-    search_config: input.search_config ?? {},
+    search_config: input.search_config ?? buildSearchConfig(normalized.entryType, slug),
   }
 
   const { data, error } = await supabase
@@ -243,7 +367,7 @@ export async function updateGenerateMenuEntry(
     sort_order: input.sort_order ?? current.sort_order,
     is_visible: input.is_visible ?? current.is_visible,
     is_active: input.is_active ?? current.is_active,
-    search_config: input.search_config ?? current.search_config,
+    search_config: input.search_config ?? current.search_config ?? buildSearchConfig(current.entry_type as 'personal_generate' | 'listboard', nextSlug),
   }
 
   const { data, error } = await supabase
@@ -303,6 +427,161 @@ export async function reorderGenerateMenuEntries(ids: string[]) {
   const failed = results.find((result) => result.error)
   if (failed?.error) {
     throw new Error(failed.error.message)
+  }
+}
+
+export async function backfillGenerateMenuEntriesFromHeader(baseConfig: HeaderNavigationConfig) {
+  const supabase = getAdminSupabase()
+  const { data: existingEntries, error: existingError } = await supabase
+    .from('generate_menu_entries')
+    .select('*')
+    .is('deleted_at', null)
+
+  if (existingError) {
+    throw new Error(existingError.message)
+  }
+
+  const legacyChildren = getLegacyGenerateChildren(baseConfig, existingEntries ?? [])
+  const results: GenerateMenuEntry[] = []
+
+  for (const [index, child] of legacyChildren.entries()) {
+    const payload: TablesInsert<'generate_menu_entries'> = {
+      entry_key: child.entryKey,
+      slug: child.slug,
+      title: child.title,
+      entry_type: child.entryType,
+      description: child.entryType === 'personal_generate' ? '기존 개인지문 AI 문제생성 진입점' : `${child.title} 리스트보드 진입점`,
+      sort_order: (index + 1) * 10,
+      is_visible: child.isActive,
+      is_active: child.isActive,
+      search_config: buildSearchConfig(child.entryType, child.slug),
+    }
+
+    const { data, error } = await supabase
+      .from('generate_menu_entries')
+      .upsert(payload, { onConflict: 'entry_key' })
+      .select('*')
+      .single()
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    results.push(data)
+  }
+
+  return results
+}
+
+export async function createGenerateListboardPost(
+  input: Pick<TablesInsert<'generate_listboard_posts'>, 'menu_entry_id' | 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'status' | 'is_active' | 'published_at' | 'created_by' | 'updated_by'>
+) {
+  await assertListboardEntry(input.menu_entry_id)
+  const supabase = getAdminSupabase()
+  const title = normalizeText(input.title)
+  const passageText = normalizeText(input.passage_text)
+
+  if (!title) {
+    throw new Error('게시글 제목을 입력해주세요.')
+  }
+
+  if (!passageText) {
+    throw new Error('지문 내용을 입력해주세요.')
+  }
+
+  const payload: TablesInsert<'generate_listboard_posts'> = {
+    menu_entry_id: input.menu_entry_id,
+    title,
+    passage_text: passageText,
+    exam_year: input.exam_year ?? null,
+    exam_month: input.exam_month ?? null,
+    grade_level: normalizeText(input.grade_level) || null,
+    source_type: normalizeText(input.source_type) || null,
+    source_1: normalizeText(input.source_1) || null,
+    source_2: normalizeText(input.source_2) || null,
+    source_3: normalizeText(input.source_3) || null,
+    source_4: normalizeText(input.source_4) || null,
+    status: input.status ?? 'draft',
+    is_active: input.is_active ?? true,
+    published_at: input.status === 'published' ? (input.published_at ?? new Date().toISOString()) : null,
+    created_by: input.created_by ?? null,
+    updated_by: input.updated_by ?? null,
+  }
+
+  const { data, error } = await supabase
+    .from('generate_listboard_posts')
+    .insert(payload)
+    .select('*')
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data
+}
+
+export async function updateGenerateListboardPost(
+  id: string,
+  input: Pick<TablesUpdate<'generate_listboard_posts'>, 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'status' | 'is_active' | 'published_at' | 'updated_by'>
+) {
+  const supabase = getAdminSupabase()
+  const { data: current, error: currentError } = await supabase
+    .from('generate_listboard_posts')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (currentError || !current) {
+    throw new Error('수정할 게시글을 찾을 수 없습니다.')
+  }
+
+  const payload: TablesUpdate<'generate_listboard_posts'> = {
+    title: normalizeText(input.title ?? current.title),
+    passage_text: normalizeText(input.passage_text ?? current.passage_text),
+    exam_year: input.exam_year ?? current.exam_year,
+    exam_month: input.exam_month ?? current.exam_month,
+    grade_level: normalizeText(input.grade_level ?? current.grade_level) || null,
+    source_type: normalizeText(input.source_type ?? current.source_type) || null,
+    source_1: normalizeText(input.source_1 ?? current.source_1) || null,
+    source_2: normalizeText(input.source_2 ?? current.source_2) || null,
+    source_3: normalizeText(input.source_3 ?? current.source_3) || null,
+    source_4: normalizeText(input.source_4 ?? current.source_4) || null,
+    status: input.status ?? current.status,
+    is_active: input.is_active ?? current.is_active,
+    published_at: (input.status ?? current.status) === 'published'
+      ? (input.published_at ?? current.published_at ?? new Date().toISOString())
+      : null,
+    updated_by: input.updated_by ?? current.updated_by,
+  }
+
+  const { data, error } = await supabase
+    .from('generate_listboard_posts')
+    .update(payload)
+    .eq('id', id)
+    .select('*')
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data
+}
+
+export async function archiveGenerateListboardPost(id: string) {
+  const supabase = getAdminSupabase()
+  const { error } = await supabase
+    .from('generate_listboard_posts')
+    .update({
+      status: 'archived',
+      is_active: false,
+      deleted_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+
+  if (error) {
+    throw new Error(error.message)
   }
 }
 

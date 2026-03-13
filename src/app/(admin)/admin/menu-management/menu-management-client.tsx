@@ -30,6 +30,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Table,
   TableBody,
@@ -62,13 +63,19 @@ import {
 import {
   buildGenerateMenuHref,
   mergeGenerateEntriesIntoHeaderConfig,
+  type GenerateListboardPost,
   type GenerateMenuEntryAdminRow,
 } from '@/lib/generate-menu'
 import {
+  archiveGenerateListboardPostAction,
   archiveGenerateMenuEntryAction,
+  backfillGenerateMenuEntriesAction,
+  createGenerateListboardPostAction,
   createGenerateMenuEntryAction,
+  getGenerateListboardPostsAction,
   reorderGenerateMenuEntriesAction,
   saveMenuManagementConfig,
+  updateGenerateListboardPostAction,
   updateGenerateMenuEntryAction,
   type MenuManagementPageData,
 } from './actions'
@@ -99,6 +106,23 @@ interface GenerateEntryFormState {
   isActive: boolean
   entryType: 'personal_generate' | 'listboard'
   postCount: number
+}
+
+interface GeneratePostFormState {
+  id?: string
+  menuEntryId: string
+  title: string
+  passageText: string
+  examYear: string
+  examMonth: string
+  gradeLevel: string
+  sourceType: string
+  source1: string
+  source2: string
+  source3: string
+  source4: string
+  status: 'draft' | 'published' | 'archived'
+  isActive: boolean
 }
 
 function cloneConfig(config: HeaderNavigationConfig): HeaderNavigationConfig {
@@ -158,9 +182,48 @@ function buildGenerateEntryForm(entry: GenerateMenuEntryAdminRow): GenerateEntry
   }
 }
 
+function buildEmptyGeneratePostForm(menuEntryId: string): GeneratePostFormState {
+  return {
+    menuEntryId,
+    title: '',
+    passageText: '',
+    examYear: '',
+    examMonth: '',
+    gradeLevel: '',
+    sourceType: '',
+    source1: '',
+    source2: '',
+    source3: '',
+    source4: '',
+    status: 'published',
+    isActive: true,
+  }
+}
+
+function buildGeneratePostForm(post: GenerateListboardPost): GeneratePostFormState {
+  return {
+    id: post.id,
+    menuEntryId: post.menu_entry_id,
+    title: post.title,
+    passageText: post.passage_text,
+    examYear: post.exam_year ? String(post.exam_year) : '',
+    examMonth: post.exam_month ? String(post.exam_month) : '',
+    gradeLevel: post.grade_level || '',
+    sourceType: post.source_type || '',
+    source1: post.source_1 || '',
+    source2: post.source_2 || '',
+    source3: post.source_3 || '',
+    source4: post.source_4 || '',
+    status: post.status as 'draft' | 'published' | 'archived',
+    isActive: post.is_active,
+  }
+}
+
 export default function MenuManagementClient({
   initialConfig,
   generateMenuEntries: initialGenerateMenuEntries,
+  initialGeneratePosts,
+  initialSelectedBoardId,
   generateChildrenSourceMode,
   hasGenerateParent,
   backfillStatus,
@@ -173,17 +236,22 @@ export default function MenuManagementClient({
   const [dialogState, setDialogState] = useState<MenuDialogState | null>(null)
   const [formState, setFormState] = useState<MenuFormState>(buildEmptyMenuForm())
   const [isSaving, setIsSaving] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<{
-    id: string
-    title: string
-    parentId?: string
-    hasChildren?: boolean
-  } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string; parentId?: string; hasChildren?: boolean } | null>(null)
+
   const [generateMenuEntries, setGenerateMenuEntries] = useState(initialGenerateMenuEntries)
   const [isGenerateEntryDialogOpen, setIsGenerateEntryDialogOpen] = useState(false)
   const [generateEntryForm, setGenerateEntryForm] = useState<GenerateEntryFormState>(buildEmptyGenerateEntryForm())
   const [isMutatingGenerateEntries, setIsMutatingGenerateEntries] = useState(false)
   const [archiveTarget, setArchiveTarget] = useState<GenerateMenuEntryAdminRow | null>(null)
+  const [isBackfilling, setIsBackfilling] = useState(false)
+
+  const [selectedBoardId, setSelectedBoardId] = useState(initialSelectedBoardId || '')
+  const [generatePosts, setGeneratePosts] = useState(initialGeneratePosts)
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false)
+  const [isPostDialogOpen, setIsPostDialogOpen] = useState(false)
+  const [postForm, setPostForm] = useState<GeneratePostFormState>(buildEmptyGeneratePostForm(initialSelectedBoardId || ''))
+  const [isSavingPost, setIsSavingPost] = useState(false)
+  const [archivePostTarget, setArchivePostTarget] = useState<GenerateListboardPost | null>(null)
 
   const editableConfig = useMemo(() => ({
     ...config,
@@ -208,6 +276,11 @@ export default function MenuManagementClient({
     return resolveHeaderMenuHref(selectedParent?.href, href)
   }, [dialogState?.mode, formState.href, selectedParent?.href])
 
+  const listboardEntries = useMemo(
+    () => generateMenuEntries.filter((entry) => entry.entry_type === 'listboard' && entry.deleted_at === null),
+    [generateMenuEntries]
+  )
+  const selectedBoard = listboardEntries.find((entry) => entry.id === selectedBoardId) || listboardEntries[0] || null
   const hasUnsavedChanges = JSON.stringify({ ...config, logoText }) !== JSON.stringify(savedConfig)
 
   const closeDialog = () => {
@@ -216,11 +289,36 @@ export default function MenuManagementClient({
     setFormState(buildEmptyMenuForm())
   }
 
+  const closeGenerateEntryDialog = () => {
+    setGenerateEntryForm(buildEmptyGenerateEntryForm())
+    setIsGenerateEntryDialogOpen(false)
+  }
+
+  const closePostDialog = () => {
+    setPostForm(buildEmptyGeneratePostForm(selectedBoard?.id || ''))
+    setIsPostDialogOpen(false)
+  }
+
   const updateConfigItems = (updater: (items: HeaderMenuItem[]) => HeaderMenuItem[]) => {
     setConfig((current) => ({
       ...current,
       items: updater(current.items),
     }))
+  }
+
+  const refreshRoute = () => router.refresh()
+
+  const loadBoardPosts = async (boardId: string) => {
+    setSelectedBoardId(boardId)
+    setIsLoadingPosts(true)
+    try {
+      const response = await getGenerateListboardPostsAction(boardId)
+      setGeneratePosts(response.data)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '게시글 목록을 불러오지 못했습니다.')
+    } finally {
+      setIsLoadingPosts(false)
+    }
   }
 
   const openParentCreateDialog = () => {
@@ -236,11 +334,7 @@ export default function MenuManagementClient({
     }
 
     setDialogState({ mode: 'edit-parent', targetId: item.id })
-    setFormState({
-      title: item.title,
-      href: item.href || '',
-      parentId: '',
-    })
+    setFormState({ title: item.title, href: item.href || '', parentId: '' })
     setIsDialogOpen(true)
   }
 
@@ -264,11 +358,7 @@ export default function MenuManagementClient({
     }
 
     setDialogState({ mode: 'edit-child', targetId: child.id, parentId })
-    setFormState({
-      title: child.title,
-      href: child.href,
-      parentId,
-    })
+    setFormState({ title: child.title, href: child.href, parentId })
     setIsDialogOpen(true)
   }
 
@@ -279,10 +369,7 @@ export default function MenuManagementClient({
   const handleMoveChild = (parentId: string, childIndex: number, direction: 'up' | 'down') => {
     updateConfigItems((items) => items.map((item) => {
       if (item.id !== parentId) return item
-      return {
-        ...item,
-        children: moveArrayItem(item.children, childIndex, direction),
-      }
+      return { ...item, children: moveArrayItem(item.children, childIndex, direction) }
     }))
   }
 
@@ -307,10 +394,7 @@ export default function MenuManagementClient({
       if (deleteTarget.parentId) {
         return items.map((item) => {
           if (item.id !== deleteTarget.parentId) return item
-          return {
-            ...item,
-            children: item.children.filter((child) => child.id !== deleteTarget.id),
-          }
+          return { ...item, children: item.children.filter((child) => child.id !== deleteTarget.id) }
         })
       }
 
@@ -327,9 +411,7 @@ export default function MenuManagementClient({
     const title = formState.title.trim()
     const href = formState.href.trim()
     const selectedParentId = formState.parentId || dialogState.parentId
-    const parentItem = selectedParentId
-      ? editableConfig.items.find((item) => item.id === selectedParentId)
-      : null
+    const parentItem = selectedParentId ? editableConfig.items.find((item) => item.id === selectedParentId) : null
 
     if (!title) {
       toast.error('메뉴명을 입력해주세요.')
@@ -355,27 +437,21 @@ export default function MenuManagementClient({
     }
 
     if (dialogState.mode === 'create-parent') {
-      updateConfigItems((items) => ([
-        ...items,
-        {
-          id: crypto.randomUUID(),
-          title,
-          href,
-          isActive: true,
-          children: [],
-        },
-      ]))
+      updateConfigItems((items) => ([...items, {
+        id: crypto.randomUUID(),
+        title,
+        href,
+        isActive: true,
+        children: [],
+      }]))
     }
 
     if (dialogState.mode === 'edit-parent') {
-      updateConfigItems((items) => items.map((item) => {
-        if (item.id !== dialogState.targetId) return item
-        return {
-          ...item,
-          title,
-          href: href || undefined,
-        }
-      }))
+      updateConfigItems((items) => items.map((item) => item.id === dialogState.targetId ? {
+        ...item,
+        title,
+        href: href || undefined,
+      } : item))
     }
 
     if (dialogState.mode === 'create-child') {
@@ -390,21 +466,10 @@ export default function MenuManagementClient({
         return
       }
 
-      updateConfigItems((items) => items.map((item) => {
-        if (item.id !== parentId) return item
-        return {
-          ...item,
-          children: [
-            ...item.children,
-            {
-              id: crypto.randomUUID(),
-              title,
-              href,
-              isActive: true,
-            },
-          ],
-        }
-      }))
+      updateConfigItems((items) => items.map((item) => item.id === parentId ? {
+        ...item,
+        children: [...item.children, { id: crypto.randomUUID(), title, href, isActive: true }],
+      } : item))
     }
 
     if (dialogState.mode === 'edit-child') {
@@ -430,18 +495,7 @@ export default function MenuManagementClient({
 
       updateConfigItems((items) => items.map((item) => {
         const remainingChildren = item.children.filter((child) => child.id !== targetId)
-
-        if (item.id === parentId) {
-          return {
-            ...item,
-            children: [...remainingChildren, movedChild],
-          }
-        }
-
-        return {
-          ...item,
-          children: remainingChildren,
-        }
+        return item.id === parentId ? { ...item, children: [...remainingChildren, movedChild] } : { ...item, children: remainingChildren }
       }))
     }
 
@@ -463,13 +517,8 @@ export default function MenuManagementClient({
     }
 
     setIsSaving(true)
-
     try {
-      const response = await saveMenuManagementConfig({
-        ...config,
-        logoText: nextLogoText,
-      })
-
+      const response = await saveMenuManagementConfig({ ...config, logoText: nextLogoText })
       if (!response.success) {
         throw new Error('저장에 실패했습니다.')
       }
@@ -478,7 +527,7 @@ export default function MenuManagementClient({
       setSavedConfig(response.data)
       setLogoText(response.data.logoText)
       toast.success('일반 헤더 메뉴 설정을 저장했습니다.')
-      router.refresh()
+      refreshRoute()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '저장 중 오류가 발생했습니다.')
     } finally {
@@ -487,25 +536,14 @@ export default function MenuManagementClient({
   }
 
   const openCreateGenerateEntryDialog = () => {
-    const nextSortOrder = generateMenuEntries.length === 0
-      ? 10
-      : Math.max(...generateMenuEntries.map((entry) => entry.sort_order)) + 10
-
-    setGenerateEntryForm({
-      ...buildEmptyGenerateEntryForm(),
-      sortOrder: nextSortOrder,
-    })
+    const nextSortOrder = generateMenuEntries.length === 0 ? 10 : Math.max(...generateMenuEntries.map((entry) => entry.sort_order)) + 10
+    setGenerateEntryForm({ ...buildEmptyGenerateEntryForm(), sortOrder: nextSortOrder })
     setIsGenerateEntryDialogOpen(true)
   }
 
   const openEditGenerateEntryDialog = (entry: GenerateMenuEntryAdminRow) => {
     setGenerateEntryForm(buildGenerateEntryForm(entry))
     setIsGenerateEntryDialogOpen(true)
-  }
-
-  const closeGenerateEntryDialog = () => {
-    setGenerateEntryForm(buildEmptyGenerateEntryForm())
-    setIsGenerateEntryDialogOpen(false)
   }
 
   const persistGenerateEntryState = (nextEntries: GenerateMenuEntryAdminRow[]) => {
@@ -516,19 +554,17 @@ export default function MenuManagementClient({
     const title = generateEntryForm.title.trim()
     const slug = generateEntryForm.entryType === 'personal_generate' ? 'personal' : generateEntryForm.slug.trim()
 
-    if (!title) {
-      toast.error('메뉴명을 입력해주세요.')
-      return
-    }
-
-    if (!slug) {
-      toast.error('slug를 입력해주세요.')
+    if (!title || !slug) {
+      toast.error('메뉴명과 slug를 입력해주세요.')
       return
     }
 
     setIsMutatingGenerateEntries(true)
-
     try {
+      const searchConfig = generateEntryForm.entryType === 'listboard'
+        ? { filters: ['year', 'month', 'grade', 'title'], entryHref: buildGenerateMenuHref({ entry_type: generateEntryForm.entryType, slug }) }
+        : { entryHref: '/generate' }
+
       if (generateEntryForm.id) {
         const response = await updateGenerateMenuEntryAction(generateEntryForm.id, {
           title,
@@ -537,11 +573,8 @@ export default function MenuManagementClient({
           sort_order: generateEntryForm.sortOrder,
           is_visible: generateEntryForm.isVisible,
           is_active: generateEntryForm.isActive,
-          search_config: generateEntryForm.entryType === 'listboard'
-            ? { filters: ['year', 'month', 'grade', 'title'], entryHref: buildGenerateMenuHref({ entry_type: generateEntryForm.entryType, slug }) }
-            : { entryHref: '/generate' },
+          search_config: searchConfig,
         })
-
         const existing = generateMenuEntries.find((entry) => entry.id === generateEntryForm.id)
         persistGenerateEntryState(generateMenuEntries.map((entry) => entry.id === generateEntryForm.id ? {
           ...response.data,
@@ -557,23 +590,14 @@ export default function MenuManagementClient({
           sort_order: generateEntryForm.sortOrder,
           is_visible: generateEntryForm.isVisible,
           is_active: generateEntryForm.isActive,
-          search_config: generateEntryForm.entryType === 'listboard'
-            ? { filters: ['year', 'month', 'grade', 'title'], entryHref: buildGenerateMenuHref({ entry_type: generateEntryForm.entryType, slug }) }
-            : { entryHref: '/generate' },
+          search_config: searchConfig,
         })
-
-        persistGenerateEntryState([
-          ...generateMenuEntries,
-          {
-            ...response.data,
-            postCount: 0,
-          },
-        ])
+        persistGenerateEntryState([...generateMenuEntries, { ...response.data, postCount: 0 }])
         toast.success('문제생성 메뉴를 추가했습니다.')
       }
 
       closeGenerateEntryDialog()
-      router.refresh()
+      refreshRoute()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '문제생성 메뉴 저장에 실패했습니다.')
     } finally {
@@ -587,10 +611,18 @@ export default function MenuManagementClient({
     setIsMutatingGenerateEntries(true)
     try {
       await archiveGenerateMenuEntryAction(archiveTarget.id)
-      persistGenerateEntryState(generateMenuEntries.filter((entry) => entry.id !== archiveTarget.id))
+      const nextEntries = generateMenuEntries.filter((entry) => entry.id !== archiveTarget.id)
+      persistGenerateEntryState(nextEntries)
+      const nextSelectedBoard = nextEntries.find((entry) => entry.entry_type === 'listboard' && entry.deleted_at === null)
+      if (!nextSelectedBoard) {
+        setSelectedBoardId('')
+        setGeneratePosts([])
+      } else if (selectedBoardId === archiveTarget.id) {
+        await loadBoardPosts(nextSelectedBoard.id)
+      }
       setArchiveTarget(null)
       toast.success('문제생성 메뉴를 보관 처리했습니다.')
-      router.refresh()
+      refreshRoute()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '문제생성 메뉴 보관에 실패했습니다.')
     } finally {
@@ -605,14 +637,103 @@ export default function MenuManagementClient({
     }))
 
     setGenerateMenuEntries(nextEntries)
-
     try {
       await reorderGenerateMenuEntriesAction(nextEntries.map((entry) => entry.id))
       toast.success('정렬 순서를 저장했습니다.')
-      router.refresh()
+      refreshRoute()
     } catch (error) {
       setGenerateMenuEntries(generateMenuEntries)
       toast.error(error instanceof Error ? error.message : '정렬 순서 저장에 실패했습니다.')
+    }
+  }
+
+  const handleBackfillGenerateChildren = async () => {
+    setIsBackfilling(true)
+    try {
+      await backfillGenerateMenuEntriesAction()
+      toast.success('기존 문제생성 메뉴를 DB 메뉴로 가져왔습니다.')
+      refreshRoute()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '기존 메뉴 가져오기에 실패했습니다.')
+    } finally {
+      setIsBackfilling(false)
+    }
+  }
+
+  const openCreatePostDialog = () => {
+    if (!selectedBoard) {
+      toast.error('게시글을 등록할 리스트보드를 먼저 선택해주세요.')
+      return
+    }
+
+    setPostForm(buildEmptyGeneratePostForm(selectedBoard.id))
+    setIsPostDialogOpen(true)
+  }
+
+  const openEditPostDialog = (post: GenerateListboardPost) => {
+    setPostForm(buildGeneratePostForm(post))
+    setIsPostDialogOpen(true)
+  }
+
+  const handleSubmitPost = async () => {
+    if (!postForm.menuEntryId) {
+      toast.error('리스트보드를 선택해주세요.')
+      return
+    }
+
+    setIsSavingPost(true)
+    try {
+      const payload = {
+        menu_entry_id: postForm.menuEntryId,
+        title: postForm.title,
+        passage_text: postForm.passageText,
+        exam_year: postForm.examYear ? Number(postForm.examYear) : null,
+        exam_month: postForm.examMonth ? Number(postForm.examMonth) : null,
+        grade_level: postForm.gradeLevel || null,
+        source_type: postForm.sourceType || null,
+        source_1: postForm.source1 || null,
+        source_2: postForm.source2 || null,
+        source_3: postForm.source3 || null,
+        source_4: postForm.source4 || null,
+        status: postForm.status,
+        is_active: postForm.isActive,
+      } as const
+
+      if (postForm.id) {
+        const response = await updateGenerateListboardPostAction(postForm.id, payload)
+        setGeneratePosts((current) => current.map((post) => post.id === postForm.id ? response.data : post))
+        toast.success('게시글을 수정했습니다.')
+      } else {
+        const response = await createGenerateListboardPostAction(payload)
+        setGeneratePosts((current) => [response.data, ...current])
+        persistGenerateEntryState(generateMenuEntries.map((entry) => entry.id === postForm.menuEntryId ? { ...entry, postCount: entry.postCount + 1 } : entry))
+        toast.success('게시글을 등록했습니다.')
+      }
+
+      closePostDialog()
+      refreshRoute()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '게시글 저장에 실패했습니다.')
+    } finally {
+      setIsSavingPost(false)
+    }
+  }
+
+  const handleArchivePost = async () => {
+    if (!archivePostTarget) return
+
+    setIsSavingPost(true)
+    try {
+      await archiveGenerateListboardPostAction(archivePostTarget.id)
+      setGeneratePosts((current) => current.filter((post) => post.id !== archivePostTarget.id))
+      persistGenerateEntryState(generateMenuEntries.map((entry) => entry.id === archivePostTarget.menu_entry_id ? { ...entry, postCount: Math.max(0, entry.postCount - 1) } : entry))
+      setArchivePostTarget(null)
+      toast.success('게시글을 보관 처리했습니다.')
+      refreshRoute()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '게시글 보관에 실패했습니다.')
+    } finally {
+      setIsSavingPost(false)
     }
   }
 
@@ -642,12 +763,21 @@ export default function MenuManagementClient({
       )}
 
       <Card className="border-blue-200 bg-blue-50/60">
-        <CardContent className="flex flex-col gap-2 p-4 text-sm text-blue-900 md:flex-row md:items-center md:justify-between">
+        <CardContent className="flex flex-col gap-3 p-4 text-sm text-blue-900 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="font-semibold">문제생성 메뉴 source mode: {generateChildrenSourceMode}</p>
             <p>현재 등록된 DB 메뉴 수: {backfillStatus.entryCount}개</p>
+            <p>남은 legacy 메뉴 수: {backfillStatus.missingLegacyChildren.length}개</p>
           </div>
-          <Badge variant="secondary">/generate children은 아래 별도 섹션에서만 관리됩니다</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">/generate children은 아래 별도 섹션에서만 관리됩니다</Badge>
+            {backfillStatus.missingLegacyChildren.length > 0 ? (
+              <Button variant="outline" onClick={handleBackfillGenerateChildren} disabled={isBackfilling}>
+                {isBackfilling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                기존 문제생성 메뉴 가져오기
+              </Button>
+            ) : null}
+          </div>
         </CardContent>
       </Card>
 
@@ -762,7 +892,7 @@ export default function MenuManagementClient({
         <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle>문제생성 2단계 메뉴 관리</CardTitle>
-            <CardDescription>DB 기반 source of truth입니다. href는 slug와 유형으로 자동 계산되며, mock-exams부터 우선 적용합니다.</CardDescription>
+            <CardDescription>DB 기반 source of truth입니다. href는 slug와 유형으로 자동 계산됩니다.</CardDescription>
           </div>
           <Button onClick={openCreateGenerateEntryDialog}>
             <Plus className="mr-2 h-4 w-4" />문제생성 메뉴 추가
@@ -820,6 +950,77 @@ export default function MenuManagementClient({
               </TableBody>
             </Table>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <CardTitle>리스트보드 게시글 관리</CardTitle>
+            <CardDescription>선택한 문제생성 리스트보드에 등록된 지문/글을 관리합니다.</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedBoard?.id || ''}
+              onChange={(event) => void loadBoardPosts(event.target.value)}
+              className="flex h-10 min-w-[200px] rounded-md border bg-white px-3 text-sm"
+            >
+              {listboardEntries.map((entry) => (
+                <option key={entry.id} value={entry.id}>{entry.title}</option>
+              ))}
+            </select>
+            <Button onClick={openCreatePostDialog} disabled={!selectedBoard}>
+              <Plus className="mr-2 h-4 w-4" />게시글 추가
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!selectedBoard ? (
+            <div className="rounded-lg border border-dashed py-10 text-center text-gray-500">리스트보드 메뉴를 먼저 생성하거나 backfill 해주세요.</div>
+          ) : isLoadingPosts ? (
+            <div className="flex items-center justify-center py-10 text-gray-500"><Loader2 className="mr-2 h-4 w-4 animate-spin" />게시글 로딩 중...</div>
+          ) : generatePosts.length === 0 ? (
+            <div className="rounded-lg border border-dashed py-10 text-center text-gray-500">등록된 게시글이 없습니다.</div>
+          ) : (
+            <div className="rounded-lg border bg-white">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>제목</TableHead>
+                    <TableHead>년도</TableHead>
+                    <TableHead>월</TableHead>
+                    <TableHead>학년</TableHead>
+                    <TableHead>상태</TableHead>
+                    <TableHead className="text-right">관리</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {generatePosts.map((post) => (
+                    <TableRow key={post.id}>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="font-medium">{post.title}</div>
+                          <p className="line-clamp-1 text-xs text-gray-500">{post.passage_text}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>{post.exam_year ?? '-'}</TableCell>
+                      <TableCell>{post.exam_month ?? '-'}</TableCell>
+                      <TableCell>{post.grade_level ?? '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant={post.status === 'published' ? 'secondary' : 'outline'}>{post.status}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => openEditPostDialog(post)}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => setArchivePostTarget(post)}><Trash2 className="h-4 w-4" /></Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -883,9 +1084,7 @@ export default function MenuManagementClient({
               {dialogState?.mode === 'create-child' && '하위 메뉴 추가'}
               {dialogState?.mode === 'edit-child' && '하위 메뉴 수정'}
             </DialogTitle>
-            <DialogDescription>
-              일반 헤더 메뉴만 수정할 수 있습니다. 문제생성 하위 메뉴는 아래 별도 섹션에서 관리합니다.
-            </DialogDescription>
+            <DialogDescription>일반 헤더 메뉴만 수정할 수 있습니다. 문제생성 하위 메뉴는 아래 별도 섹션에서 관리합니다.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -903,12 +1102,7 @@ export default function MenuManagementClient({
 
             <div className="space-y-2">
               <Label htmlFor="menu-href">{dialogState?.mode === 'create-child' || dialogState?.mode === 'edit-child' ? '하위 경로' : '링크'}</Label>
-              <Input
-                id="menu-href"
-                value={formState.href}
-                onChange={(event) => setFormState((current) => ({ ...current, href: event.target.value }))}
-                placeholder={dialogState?.mode === 'create-child' || dialogState?.mode === 'edit-child' ? '예: /textbook' : '예: /generate'}
-              />
+              <Input id="menu-href" value={formState.href} onChange={(event) => setFormState((current) => ({ ...current, href: event.target.value }))} placeholder={dialogState?.mode === 'create-child' || dialogState?.mode === 'edit-child' ? '예: /textbook' : '예: /generate'} />
               {dialogState?.mode === 'create-child' || dialogState?.mode === 'edit-child' ? (
                 <div className="space-y-1 text-sm text-gray-500">
                   <p>하위 메뉴 링크는 상위 메뉴 링크를 기준으로 결합됩니다.</p>
@@ -937,9 +1131,7 @@ export default function MenuManagementClient({
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>유형</Label>
-              <div className="rounded-md border bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                {generateEntryForm.entryType === 'personal_generate' ? '개인지문' : '리스트보드'}
-              </div>
+              <div className="rounded-md border bg-gray-50 px-3 py-2 text-sm text-gray-700">{generateEntryForm.entryType === 'personal_generate' ? '개인지문' : '리스트보드'}</div>
             </div>
 
             <div className="space-y-2">
@@ -949,12 +1141,7 @@ export default function MenuManagementClient({
 
             <div className="space-y-2">
               <Label htmlFor="generate-slug">slug</Label>
-              <Input
-                id="generate-slug"
-                value={generateEntryForm.entryType === 'personal_generate' ? 'personal' : generateEntryForm.slug}
-                disabled={generateEntryForm.entryType === 'personal_generate' || generateEntryForm.postCount > 0}
-                onChange={(event) => setGenerateEntryForm((current) => ({ ...current, slug: event.target.value }))}
-              />
+              <Input id="generate-slug" value={generateEntryForm.entryType === 'personal_generate' ? 'personal' : generateEntryForm.slug} disabled={generateEntryForm.entryType === 'personal_generate' || generateEntryForm.postCount > 0} onChange={(event) => setGenerateEntryForm((current) => ({ ...current, slug: event.target.value }))} />
               <p className="text-sm text-gray-500">경로 미리보기: {buildGenerateMenuHref({ entry_type: generateEntryForm.entryType, slug: generateEntryForm.entryType === 'personal_generate' ? 'personal' : generateEntryForm.slug || 'slug' })}</p>
             </div>
 
@@ -995,6 +1182,94 @@ export default function MenuManagementClient({
         </DialogContent>
       </Dialog>
 
+      <Dialog open={isPostDialogOpen} onOpenChange={(open) => !open && closePostDialog()}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{postForm.id ? '리스트보드 게시글 수정' : '리스트보드 게시글 추가'}</DialogTitle>
+            <DialogDescription>교재형 문제생성에 사용할 지문/메타데이터를 관리합니다.</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>대상 리스트보드</Label>
+                <select value={postForm.menuEntryId} onChange={(event) => setPostForm((current) => ({ ...current, menuEntryId: event.target.value }))} className="flex h-10 w-full rounded-md border bg-white px-3 text-sm">
+                  {listboardEntries.map((entry) => <option key={entry.id} value={entry.id}>{entry.title}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="post-title">제목</Label>
+                <Input id="post-title" value={postForm.title} onChange={(event) => setPostForm((current) => ({ ...current, title: event.target.value }))} />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="exam-year">년도</Label>
+                <Input id="exam-year" value={postForm.examYear} onChange={(event) => setPostForm((current) => ({ ...current, examYear: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="exam-month">월</Label>
+                <Input id="exam-month" value={postForm.examMonth} onChange={(event) => setPostForm((current) => ({ ...current, examMonth: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="grade-level">학년</Label>
+                <Input id="grade-level" value={postForm.gradeLevel} onChange={(event) => setPostForm((current) => ({ ...current, gradeLevel: event.target.value }))} />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="source-type">출처 타입</Label>
+                <Input id="source-type" value={postForm.sourceType} onChange={(event) => setPostForm((current) => ({ ...current, sourceType: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="source-1">출처 1</Label>
+                <Input id="source-1" value={postForm.source1} onChange={(event) => setPostForm((current) => ({ ...current, source1: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="source-2">출처 2</Label>
+                <Input id="source-2" value={postForm.source2} onChange={(event) => setPostForm((current) => ({ ...current, source2: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="source-3">출처 3</Label>
+                <Input id="source-3" value={postForm.source3} onChange={(event) => setPostForm((current) => ({ ...current, source3: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="source-4">출처 4</Label>
+                <Input id="source-4" value={postForm.source4} onChange={(event) => setPostForm((current) => ({ ...current, source4: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>상태</Label>
+                <select value={postForm.status} onChange={(event) => setPostForm((current) => ({ ...current, status: event.target.value as GeneratePostFormState['status'] }))} className="flex h-10 w-full rounded-md border bg-white px-3 text-sm">
+                  <option value="draft">draft</option>
+                  <option value="published">published</option>
+                  <option value="archived">archived</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="passage-text">지문 내용</Label>
+              <Textarea id="passage-text" value={postForm.passageText} onChange={(event) => setPostForm((current) => ({ ...current, passageText: event.target.value }))} className="min-h-[220px]" />
+            </div>
+
+            <div className="flex items-center gap-3 rounded-md border px-3 py-2">
+              <Switch checked={postForm.isActive} onCheckedChange={(checked) => setPostForm((current) => ({ ...current, isActive: checked }))} />
+              <span className="text-sm text-gray-700">활성 상태 유지</span>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closePostDialog}>취소</Button>
+            <Button onClick={handleSubmitPost} disabled={isSavingPost}>
+              {isSavingPost ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              저장
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1022,6 +1297,21 @@ export default function MenuManagementClient({
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleArchiveGenerateEntry}>보관</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!archivePostTarget} onOpenChange={(open) => !open && setArchivePostTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>게시글을 보관할까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="font-medium">[{archivePostTarget?.title}]</span> 게시글은 사용자 화면에서 숨겨집니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleArchivePost}>보관</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

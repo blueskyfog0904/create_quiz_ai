@@ -6,6 +6,7 @@ import type {
 } from '@/lib/header-navigation'
 
 export type GenerateMenuEntry = Database['public']['Tables']['generate_menu_entries']['Row']
+export type GenerateListboardPost = Database['public']['Tables']['generate_listboard_posts']['Row']
 
 export interface GenerateMenuEntryAdminRow extends GenerateMenuEntry {
   postCount: number
