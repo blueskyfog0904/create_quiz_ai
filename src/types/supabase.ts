@@ -181,6 +181,145 @@ export type Database = {
           },
         ]
       }
+      generate_listboard_posts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          exam_month: number | null
+          exam_year: number | null
+          grade_level: string | null
+          id: string
+          is_active: boolean
+          menu_entry_id: string
+          passage_text: string
+          published_at: string | null
+          source_1: string | null
+          source_2: string | null
+          source_3: string | null
+          source_4: string | null
+          source_type: string | null
+          status: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          exam_month?: number | null
+          exam_year?: number | null
+          grade_level?: string | null
+          id?: string
+          is_active?: boolean
+          menu_entry_id: string
+          passage_text: string
+          published_at?: string | null
+          source_1?: string | null
+          source_2?: string | null
+          source_3?: string | null
+          source_4?: string | null
+          source_type?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          exam_month?: number | null
+          exam_year?: number | null
+          grade_level?: string | null
+          id?: string
+          is_active?: boolean
+          menu_entry_id?: string
+          passage_text?: string
+          published_at?: string | null
+          source_1?: string | null
+          source_2?: string | null
+          source_3?: string | null
+          source_4?: string | null
+          source_type?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generate_listboard_posts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generate_listboard_posts_menu_entry_id_fkey"
+            columns: ["menu_entry_id"]
+            isOneToOne: false
+            referencedRelation: "generate_menu_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generate_listboard_posts_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generate_menu_entries: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          description: string | null
+          entry_key: string
+          entry_type: string
+          id: string
+          is_active: boolean
+          is_visible: boolean
+          search_config: Json
+          slug: string
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          entry_key: string
+          entry_type: string
+          id?: string
+          is_active?: boolean
+          is_visible?: boolean
+          search_config?: Json
+          slug: string
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          entry_key?: string
+          entry_type?: string
+          id?: string
+          is_active?: boolean
+          is_visible?: boolean
+          search_config?: Json
+          slug?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string | null

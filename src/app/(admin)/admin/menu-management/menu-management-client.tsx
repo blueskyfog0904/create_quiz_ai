@@ -1,7 +1,9 @@
 'use client'
 
 import { Fragment, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   CornerDownRight,
@@ -27,13 +29,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import {
   Table,
@@ -64,11 +59,21 @@ import {
   type HeaderMenuItem,
   type HeaderNavigationConfig,
 } from '@/lib/header-navigation'
-import { saveMenuManagementConfig } from './actions'
+import {
+  buildGenerateMenuHref,
+  mergeGenerateEntriesIntoHeaderConfig,
+  type GenerateMenuEntryAdminRow,
+} from '@/lib/generate-menu'
+import {
+  archiveGenerateMenuEntryAction,
+  createGenerateMenuEntryAction,
+  reorderGenerateMenuEntriesAction,
+  saveMenuManagementConfig,
+  updateGenerateMenuEntryAction,
+  type MenuManagementPageData,
+} from './actions'
 
-interface MenuManagementClientProps {
-  initialConfig: HeaderNavigationConfig
-}
+type MenuManagementClientProps = MenuManagementPageData
 
 type DialogMode = 'create-parent' | 'edit-parent' | 'create-child' | 'edit-child'
 
@@ -82,6 +87,18 @@ interface MenuFormState {
   title: string
   href: string
   parentId: string
+}
+
+interface GenerateEntryFormState {
+  id?: string
+  title: string
+  slug: string
+  description: string
+  sortOrder: number
+  isVisible: boolean
+  isActive: boolean
+  entryType: 'personal_generate' | 'listboard'
+  postCount: number
 }
 
 function cloneConfig(config: HeaderNavigationConfig): HeaderNavigationConfig {
@@ -106,7 +123,7 @@ function moveArrayItem<T>(items: T[], index: number, direction: 'up' | 'down') {
   return nextItems
 }
 
-function buildEmptyForm(parentId?: string): MenuFormState {
+function buildEmptyMenuForm(parentId?: string): MenuFormState {
   return {
     title: '',
     href: '',
@@ -114,13 +131,47 @@ function buildEmptyForm(parentId?: string): MenuFormState {
   }
 }
 
-export default function MenuManagementClient({ initialConfig }: MenuManagementClientProps) {
+function buildEmptyGenerateEntryForm(): GenerateEntryFormState {
+  return {
+    title: '',
+    slug: '',
+    description: '',
+    sortOrder: 10,
+    isVisible: true,
+    isActive: true,
+    entryType: 'listboard',
+    postCount: 0,
+  }
+}
+
+function buildGenerateEntryForm(entry: GenerateMenuEntryAdminRow): GenerateEntryFormState {
+  return {
+    id: entry.id,
+    title: entry.title,
+    slug: entry.slug,
+    description: entry.description || '',
+    sortOrder: entry.sort_order,
+    isVisible: entry.is_visible,
+    isActive: entry.is_active,
+    entryType: entry.entry_type as 'personal_generate' | 'listboard',
+    postCount: entry.postCount,
+  }
+}
+
+export default function MenuManagementClient({
+  initialConfig,
+  generateMenuEntries: initialGenerateMenuEntries,
+  generateChildrenSourceMode,
+  hasGenerateParent,
+  backfillStatus,
+}: MenuManagementClientProps) {
+  const router = useRouter()
   const [config, setConfig] = useState<HeaderNavigationConfig>(() => cloneConfig(initialConfig))
   const [savedConfig, setSavedConfig] = useState<HeaderNavigationConfig>(() => cloneConfig(initialConfig))
   const [logoText, setLogoText] = useState(initialConfig.logoText)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [dialogState, setDialogState] = useState<MenuDialogState | null>(null)
-  const [formState, setFormState] = useState<MenuFormState>(buildEmptyForm())
+  const [formState, setFormState] = useState<MenuFormState>(buildEmptyMenuForm())
   const [isSaving, setIsSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string
@@ -128,18 +179,26 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
     parentId?: string
     hasChildren?: boolean
   } | null>(null)
+  const [generateMenuEntries, setGenerateMenuEntries] = useState(initialGenerateMenuEntries)
+  const [isGenerateEntryDialogOpen, setIsGenerateEntryDialogOpen] = useState(false)
+  const [generateEntryForm, setGenerateEntryForm] = useState<GenerateEntryFormState>(buildEmptyGenerateEntryForm())
+  const [isMutatingGenerateEntries, setIsMutatingGenerateEntries] = useState(false)
+  const [archiveTarget, setArchiveTarget] = useState<GenerateMenuEntryAdminRow | null>(null)
 
-  const flatRows = useMemo(() => flattenHeaderNavigationItems(config.items), [config.items])
-  const activePreviewItems = useMemo(() => getActiveHeaderNavigationItems(config.items), [config.items])
+  const editableConfig = useMemo(() => ({
+    ...config,
+    items: config.items.map((item) => item.href === '/generate' ? { ...item, children: [] } : item),
+  }), [config])
+
+  const flatRows = useMemo(() => flattenHeaderNavigationItems(editableConfig.items), [editableConfig.items])
+  const previewConfig = useMemo(() => mergeGenerateEntriesIntoHeaderConfig(config, generateMenuEntries, generateChildrenSourceMode), [config, generateMenuEntries, generateChildrenSourceMode])
+  const activePreviewItems = useMemo(() => getActiveHeaderNavigationItems(previewConfig.items), [previewConfig.items])
   const selectedParent = useMemo(
-    () => config.items.find((item) => item.id === formState.parentId || item.id === dialogState?.parentId),
-    [config.items, dialogState?.parentId, formState.parentId]
+    () => editableConfig.items.find((item) => item.id === formState.parentId || item.id === dialogState?.parentId),
+    [editableConfig.items, dialogState?.parentId, formState.parentId]
   )
   const childResolvedHrefPreview = useMemo(() => {
-    if (
-      dialogState?.mode !== 'create-child'
-      && dialogState?.mode !== 'edit-child'
-    ) {
+    if (dialogState?.mode !== 'create-child' && dialogState?.mode !== 'edit-child') {
       return ''
     }
 
@@ -148,12 +207,13 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
 
     return resolveHeaderMenuHref(selectedParent?.href, href)
   }, [dialogState?.mode, formState.href, selectedParent?.href])
+
   const hasUnsavedChanges = JSON.stringify({ ...config, logoText }) !== JSON.stringify(savedConfig)
 
   const closeDialog = () => {
     setIsDialogOpen(false)
     setDialogState(null)
-    setFormState(buildEmptyForm())
+    setFormState(buildEmptyMenuForm())
   }
 
   const updateConfigItems = (updater: (items: HeaderMenuItem[]) => HeaderMenuItem[]) => {
@@ -165,11 +225,16 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
 
   const openParentCreateDialog = () => {
     setDialogState({ mode: 'create-parent' })
-    setFormState(buildEmptyForm())
+    setFormState(buildEmptyMenuForm())
     setIsDialogOpen(true)
   }
 
   const openParentEditDialog = (item: HeaderMenuItem) => {
+    if (item.href === '/generate') {
+      toast.info('AI문제생성 하위 메뉴는 아래 별도 섹션에서 관리됩니다.')
+      return
+    }
+
     setDialogState({ mode: 'edit-parent', targetId: item.id })
     setFormState({
       title: item.title,
@@ -180,12 +245,24 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
   }
 
   const openChildCreateDialog = (parentId: string) => {
+    const parent = editableConfig.items.find((item) => item.id === parentId)
+    if (parent?.href === '/generate') {
+      toast.info('문제생성 하위 메뉴는 아래 별도 섹션에서 관리됩니다.')
+      return
+    }
+
     setDialogState({ mode: 'create-child', parentId })
-    setFormState(buildEmptyForm(parentId))
+    setFormState(buildEmptyMenuForm(parentId))
     setIsDialogOpen(true)
   }
 
   const openChildEditDialog = (parentId: string, child: HeaderMenuChildItem) => {
+    const parent = editableConfig.items.find((item) => item.id === parentId)
+    if (parent?.href === '/generate') {
+      toast.info('문제생성 하위 메뉴는 아래 별도 섹션에서 관리됩니다.')
+      return
+    }
+
     setDialogState({ mode: 'edit-child', targetId: child.id, parentId })
     setFormState({
       title: child.title,
@@ -251,7 +328,7 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
     const href = formState.href.trim()
     const selectedParentId = formState.parentId || dialogState.parentId
     const parentItem = selectedParentId
-      ? config.items.find((item) => item.id === selectedParentId)
+      ? editableConfig.items.find((item) => item.id === selectedParentId)
       : null
 
     if (!title) {
@@ -270,7 +347,7 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
     }
 
     if ((dialogState.mode === 'create-parent' || dialogState.mode === 'edit-parent') && !href) {
-      const editingParent = dialogState.targetId ? config.items.find((item) => item.id === dialogState.targetId) : null
+      const editingParent = dialogState.targetId ? editableConfig.items.find((item) => item.id === dialogState.targetId) : null
       if (!editingParent?.children.length) {
         toast.error('상위 메뉴 링크를 입력해주세요.')
         return
@@ -343,7 +420,7 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
         return
       }
 
-      const currentChild = config.items.flatMap((item) => item.children).find((child) => child.id === targetId)
+      const currentChild = editableConfig.items.flatMap((item) => item.children).find((child) => child.id === targetId)
       const movedChild: HeaderMenuChildItem = {
         id: targetId,
         title,
@@ -400,11 +477,142 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
       setConfig(response.data)
       setSavedConfig(response.data)
       setLogoText(response.data.logoText)
-      toast.success('헤더 메뉴 설정을 저장했습니다.')
+      toast.success('일반 헤더 메뉴 설정을 저장했습니다.')
+      router.refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '저장 중 오류가 발생했습니다.')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const openCreateGenerateEntryDialog = () => {
+    const nextSortOrder = generateMenuEntries.length === 0
+      ? 10
+      : Math.max(...generateMenuEntries.map((entry) => entry.sort_order)) + 10
+
+    setGenerateEntryForm({
+      ...buildEmptyGenerateEntryForm(),
+      sortOrder: nextSortOrder,
+    })
+    setIsGenerateEntryDialogOpen(true)
+  }
+
+  const openEditGenerateEntryDialog = (entry: GenerateMenuEntryAdminRow) => {
+    setGenerateEntryForm(buildGenerateEntryForm(entry))
+    setIsGenerateEntryDialogOpen(true)
+  }
+
+  const closeGenerateEntryDialog = () => {
+    setGenerateEntryForm(buildEmptyGenerateEntryForm())
+    setIsGenerateEntryDialogOpen(false)
+  }
+
+  const persistGenerateEntryState = (nextEntries: GenerateMenuEntryAdminRow[]) => {
+    setGenerateMenuEntries(nextEntries.sort((a, b) => a.sort_order - b.sort_order || a.title.localeCompare(b.title, 'ko')))
+  }
+
+  const handleSubmitGenerateEntry = async () => {
+    const title = generateEntryForm.title.trim()
+    const slug = generateEntryForm.entryType === 'personal_generate' ? 'personal' : generateEntryForm.slug.trim()
+
+    if (!title) {
+      toast.error('메뉴명을 입력해주세요.')
+      return
+    }
+
+    if (!slug) {
+      toast.error('slug를 입력해주세요.')
+      return
+    }
+
+    setIsMutatingGenerateEntries(true)
+
+    try {
+      if (generateEntryForm.id) {
+        const response = await updateGenerateMenuEntryAction(generateEntryForm.id, {
+          title,
+          slug,
+          description: generateEntryForm.description,
+          sort_order: generateEntryForm.sortOrder,
+          is_visible: generateEntryForm.isVisible,
+          is_active: generateEntryForm.isActive,
+          search_config: generateEntryForm.entryType === 'listboard'
+            ? { filters: ['year', 'month', 'grade', 'title'], entryHref: buildGenerateMenuHref({ entry_type: generateEntryForm.entryType, slug }) }
+            : { entryHref: '/generate' },
+        })
+
+        const existing = generateMenuEntries.find((entry) => entry.id === generateEntryForm.id)
+        persistGenerateEntryState(generateMenuEntries.map((entry) => entry.id === generateEntryForm.id ? {
+          ...response.data,
+          postCount: existing?.postCount ?? 0,
+        } : entry))
+        toast.success('문제생성 메뉴를 수정했습니다.')
+      } else {
+        const response = await createGenerateMenuEntryAction({
+          title,
+          slug,
+          entry_type: generateEntryForm.entryType,
+          description: generateEntryForm.description,
+          sort_order: generateEntryForm.sortOrder,
+          is_visible: generateEntryForm.isVisible,
+          is_active: generateEntryForm.isActive,
+          search_config: generateEntryForm.entryType === 'listboard'
+            ? { filters: ['year', 'month', 'grade', 'title'], entryHref: buildGenerateMenuHref({ entry_type: generateEntryForm.entryType, slug }) }
+            : { entryHref: '/generate' },
+        })
+
+        persistGenerateEntryState([
+          ...generateMenuEntries,
+          {
+            ...response.data,
+            postCount: 0,
+          },
+        ])
+        toast.success('문제생성 메뉴를 추가했습니다.')
+      }
+
+      closeGenerateEntryDialog()
+      router.refresh()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '문제생성 메뉴 저장에 실패했습니다.')
+    } finally {
+      setIsMutatingGenerateEntries(false)
+    }
+  }
+
+  const handleArchiveGenerateEntry = async () => {
+    if (!archiveTarget) return
+
+    setIsMutatingGenerateEntries(true)
+    try {
+      await archiveGenerateMenuEntryAction(archiveTarget.id)
+      persistGenerateEntryState(generateMenuEntries.filter((entry) => entry.id !== archiveTarget.id))
+      setArchiveTarget(null)
+      toast.success('문제생성 메뉴를 보관 처리했습니다.')
+      router.refresh()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '문제생성 메뉴 보관에 실패했습니다.')
+    } finally {
+      setIsMutatingGenerateEntries(false)
+    }
+  }
+
+  const handleMoveGenerateEntry = async (index: number, direction: 'up' | 'down') => {
+    const nextEntries = moveArrayItem(generateMenuEntries, index, direction).map((entry, nextIndex) => ({
+      ...entry,
+      sort_order: (nextIndex + 1) * 10,
+    }))
+
+    setGenerateMenuEntries(nextEntries)
+
+    try {
+      await reorderGenerateMenuEntriesAction(nextEntries.map((entry) => entry.id))
+      toast.success('정렬 순서를 저장했습니다.')
+      router.refresh()
+    } catch (error) {
+      setGenerateMenuEntries(generateMenuEntries)
+      toast.error(error instanceof Error ? error.message : '정렬 순서 저장에 실패했습니다.')
     }
   }
 
@@ -413,13 +621,35 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">메뉴관리</h1>
-          <p className="mt-1 text-gray-500">헤더 로고 문구와 메뉴를 추가, 수정, 삭제하고 2단계 메뉴까지 관리할 수 있습니다.</p>
+          <p className="mt-1 text-gray-500">일반 헤더 메뉴와 문제생성 2단계 메뉴를 분리해서 관리합니다.</p>
         </div>
         <Button onClick={handleSaveAll} disabled={isSaving || !hasUnsavedChanges}>
           {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-          변경사항 저장
+          일반 메뉴 저장
         </Button>
       </div>
+
+      {!hasGenerateParent && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardContent className="flex items-start gap-3 p-4 text-amber-900">
+            <AlertTriangle className="mt-0.5 h-5 w-5" />
+            <div>
+              <p className="font-semibold">AI문제생성 상위 메뉴가 저장된 헤더 설정에 없습니다.</p>
+              <p className="text-sm text-amber-800">런타임에서는 임시 self-heal이 가능하지만, 관리자에서 일반 헤더 메뉴를 다시 확인하는 것이 좋습니다.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="border-blue-200 bg-blue-50/60">
+        <CardContent className="flex flex-col gap-2 p-4 text-sm text-blue-900 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="font-semibold">문제생성 메뉴 source mode: {generateChildrenSourceMode}</p>
+            <p>현재 등록된 DB 메뉴 수: {backfillStatus.entryCount}개</p>
+          </div>
+          <Badge variant="secondary">/generate children은 아래 별도 섹션에서만 관리됩니다</Badge>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -438,8 +668,8 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
       <Card>
         <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <CardTitle>헤더 메뉴 목록</CardTitle>
-            <CardDescription>상위 메뉴와 하위 메뉴(2단계)를 구성합니다. 하위 메뉴 경로는 상위 경로 뒤에 자동으로 이어집니다.</CardDescription>
+            <CardTitle>일반 헤더 메뉴 관리</CardTitle>
+            <CardDescription>AI문제생성 상위 메뉴는 유지하되, 그 하위 메뉴는 아래 문제생성 메뉴 섹션에서 관리합니다.</CardDescription>
           </div>
           <Button onClick={openParentCreateDialog}>
             <Plus className="mr-2 h-4 w-4" />상위 메뉴 추가
@@ -453,9 +683,9 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
                   <TableHead className="w-[90px]">Depth</TableHead>
                   <TableHead>메뉴명</TableHead>
                   <TableHead>링크</TableHead>
-                  <TableHead className="w-[100px] text-center">하위 메뉴</TableHead>
+                  <TableHead className="w-[120px] text-center">하위 메뉴</TableHead>
                   <TableHead className="w-[110px] text-center">노출</TableHead>
-                  <TableHead className="w-[220px] text-right">관리</TableHead>
+                  <TableHead className="w-[240px] text-right">관리</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -464,13 +694,18 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
                     <TableCell colSpan={6} className="py-10 text-center text-gray-500">등록된 메뉴가 없습니다. 상위 메뉴를 먼저 추가해주세요.</TableCell>
                   </TableRow>
                 ) : (
-                  config.items.map((item, parentIndex) => (
+                  editableConfig.items.map((item, parentIndex) => (
                     <Fragment key={item.id}>
                       <TableRow>
                         <TableCell><Badge variant="secondary">1단계</Badge></TableCell>
-                        <TableCell className="font-medium">{item.title}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <span>{item.title}</span>
+                            {item.href === '/generate' ? <Badge variant="outline">하위 메뉴 별도 관리</Badge> : null}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-gray-600">{item.href || '-'}</TableCell>
-                        <TableCell className="text-center">{item.children.length}</TableCell>
+                        <TableCell className="text-center">{item.href === '/generate' ? generateMenuEntries.length : item.children.length}</TableCell>
                         <TableCell>
                           <div className="flex items-center justify-center gap-2">
                             <Switch checked={item.isActive} onCheckedChange={(checked) => handleToggleParent(item.id, checked)} />
@@ -480,14 +715,14 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
                             <Button variant="ghost" size="icon" onClick={() => handleMoveParent(parentIndex, 'up')} disabled={parentIndex === 0}><ArrowUp className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleMoveParent(parentIndex, 'down')} disabled={parentIndex === config.items.length - 1}><ArrowDown className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => openChildCreateDialog(item.id)}><Plus className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => openParentEditDialog(item)}><Pencil className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => setDeleteTarget({ id: item.id, title: item.title, hasChildren: item.children.length > 0 })}><Trash2 className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleMoveParent(parentIndex, 'down')} disabled={parentIndex === editableConfig.items.length - 1}><ArrowDown className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => openChildCreateDialog(item.id)} disabled={item.href === '/generate'}><Plus className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => openParentEditDialog(item)} disabled={item.href === '/generate'}><Pencil className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => setDeleteTarget({ id: item.id, title: item.title, hasChildren: item.children.length > 0 })} disabled={item.href === '/generate'}><Trash2 className="h-4 w-4" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>
-                      {item.children.map((child, childIndex) => (
+                      {item.href !== '/generate' && item.children.map((child, childIndex) => (
                         <TableRow key={child.id}>
                           <TableCell><Badge variant="outline">2단계</Badge></TableCell>
                           <TableCell>
@@ -517,6 +752,71 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
                     </Fragment>
                   ))
                 )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <CardTitle>문제생성 2단계 메뉴 관리</CardTitle>
+            <CardDescription>DB 기반 source of truth입니다. href는 slug와 유형으로 자동 계산되며, mock-exams부터 우선 적용합니다.</CardDescription>
+          </div>
+          <Button onClick={openCreateGenerateEntryDialog}>
+            <Plus className="mr-2 h-4 w-4" />문제생성 메뉴 추가
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border bg-white">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>메뉴명</TableHead>
+                  <TableHead>유형</TableHead>
+                  <TableHead>slug</TableHead>
+                  <TableHead>경로 미리보기</TableHead>
+                  <TableHead className="text-center">게시글 수</TableHead>
+                  <TableHead className="text-center">노출</TableHead>
+                  <TableHead className="text-center">활성</TableHead>
+                  <TableHead className="text-right">관리</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {generateMenuEntries.map((entry, index) => {
+                  const previewPath = buildGenerateMenuHref(entry)
+                  const slugLocked = entry.entry_type === 'personal_generate' || entry.postCount > 0
+
+                  return (
+                    <TableRow key={entry.id}>
+                      <TableCell className="font-medium">{entry.title}</TableCell>
+                      <TableCell>
+                        <Badge variant={entry.entry_type === 'personal_generate' ? 'secondary' : 'outline'}>
+                          {entry.entry_type === 'personal_generate' ? '개인지문' : '리스트보드'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span>{entry.slug}</span>
+                          {slugLocked ? <span className="text-xs text-gray-400">게시글 연결 또는 시스템 메뉴로 인해 변경 제한</span> : null}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-gray-600">{previewPath}</TableCell>
+                      <TableCell className="text-center">{entry.postCount}</TableCell>
+                      <TableCell className="text-center">{entry.is_visible ? '표시' : '숨김'}</TableCell>
+                      <TableCell className="text-center">{entry.is_active ? '활성' : '비활성'}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => handleMoveGenerateEntry(index, 'up')} disabled={index === 0 || isMutatingGenerateEntries}><ArrowUp className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleMoveGenerateEntry(index, 'down')} disabled={index === generateMenuEntries.length - 1 || isMutatingGenerateEntries}><ArrowDown className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => openEditGenerateEntryDialog(entry)}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50 hover:text-red-600" disabled={entry.entry_type === 'personal_generate'} onClick={() => setArchiveTarget(entry)}><Trash2 className="h-4 w-4" /></Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </div>
@@ -583,23 +883,16 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
               {dialogState?.mode === 'create-child' && '하위 메뉴 추가'}
               {dialogState?.mode === 'edit-child' && '하위 메뉴 수정'}
             </DialogTitle>
-            <DialogDescription>헤더 메뉴는 최대 2단계까지 설정할 수 있습니다.</DialogDescription>
+            <DialogDescription>
+              일반 헤더 메뉴만 수정할 수 있습니다. 문제생성 하위 메뉴는 아래 별도 섹션에서 관리합니다.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             {(dialogState?.mode === 'create-child' || dialogState?.mode === 'edit-child') && (
               <div className="space-y-2">
                 <Label>상위 메뉴</Label>
-                <Select value={formState.parentId} onValueChange={(value) => setFormState((current) => ({ ...current, parentId: value }))}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="상위 메뉴를 선택하세요" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {config.items.map((item) => (
-                      <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="rounded-md border bg-gray-50 px-3 py-2 text-sm text-gray-700">{selectedParent?.title || '상위 메뉴 없음'}</div>
               </div>
             )}
 
@@ -619,17 +912,10 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
               {dialogState?.mode === 'create-child' || dialogState?.mode === 'edit-child' ? (
                 <div className="space-y-1 text-sm text-gray-500">
                   <p>하위 메뉴 링크는 상위 메뉴 링크를 기준으로 결합됩니다.</p>
-                  {selectedParent?.href ? (
-                    <p>예: {selectedParent.href} + /textbook → {resolveHeaderMenuHref(selectedParent.href, '/textbook')}</p>
-                  ) : (
-                    <p>상위 메뉴 링크가 있어야 실제 2단계 주소를 미리볼 수 있습니다.</p>
-                  )}
-                  {childResolvedHrefPreview ? (
-                    <p className="font-medium text-gray-700">실제 주소: {childResolvedHrefPreview}</p>
-                  ) : null}
+                  {selectedParent?.href ? <p className="font-medium text-gray-700">실제 주소: {childResolvedHrefPreview || resolveHeaderMenuHref(selectedParent.href, '/sample')}</p> : null}
                 </div>
               ) : (
-                <p className="text-sm text-gray-500">상위 메뉴 링크는 2단계 메뉴의 기준 경로가 됩니다. 예: /generate</p>
+                <p className="text-sm text-gray-500">상위 메뉴 링크는 2단계 메뉴의 기준 경로가 됩니다.</p>
               )}
             </div>
           </div>
@@ -637,6 +923,74 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog}>취소</Button>
             <Button onClick={handleSubmitMenu}>적용</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isGenerateEntryDialogOpen} onOpenChange={(open) => !open && closeGenerateEntryDialog()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{generateEntryForm.id ? '문제생성 메뉴 수정' : '문제생성 메뉴 추가'}</DialogTitle>
+            <DialogDescription>문제생성 2단계 메뉴의 source of truth를 관리합니다.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>유형</Label>
+              <div className="rounded-md border bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                {generateEntryForm.entryType === 'personal_generate' ? '개인지문' : '리스트보드'}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="generate-title">메뉴명</Label>
+              <Input id="generate-title" value={generateEntryForm.title} onChange={(event) => setGenerateEntryForm((current) => ({ ...current, title: event.target.value }))} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="generate-slug">slug</Label>
+              <Input
+                id="generate-slug"
+                value={generateEntryForm.entryType === 'personal_generate' ? 'personal' : generateEntryForm.slug}
+                disabled={generateEntryForm.entryType === 'personal_generate' || generateEntryForm.postCount > 0}
+                onChange={(event) => setGenerateEntryForm((current) => ({ ...current, slug: event.target.value }))}
+              />
+              <p className="text-sm text-gray-500">경로 미리보기: {buildGenerateMenuHref({ entry_type: generateEntryForm.entryType, slug: generateEntryForm.entryType === 'personal_generate' ? 'personal' : generateEntryForm.slug || 'slug' })}</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="generate-description">설명</Label>
+              <Input id="generate-description" value={generateEntryForm.description} onChange={(event) => setGenerateEntryForm((current) => ({ ...current, description: event.target.value }))} />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="sort-order">정렬 순서</Label>
+                <Input id="sort-order" type="number" value={generateEntryForm.sortOrder} onChange={(event) => setGenerateEntryForm((current) => ({ ...current, sortOrder: Number(event.target.value) || 0 }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>노출</Label>
+                <div className="flex h-10 items-center gap-3 rounded-md border px-3">
+                  <Switch checked={generateEntryForm.isVisible} onCheckedChange={(checked) => setGenerateEntryForm((current) => ({ ...current, isVisible: checked }))} />
+                  <span className="text-sm text-gray-700">{generateEntryForm.isVisible ? '표시' : '숨김'}</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>활성</Label>
+                <div className="flex h-10 items-center gap-3 rounded-md border px-3">
+                  <Switch checked={generateEntryForm.isActive} onCheckedChange={(checked) => setGenerateEntryForm((current) => ({ ...current, isActive: checked }))} />
+                  <span className="text-sm text-gray-700">{generateEntryForm.isActive ? '활성' : '비활성'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeGenerateEntryDialog}>취소</Button>
+            <Button onClick={handleSubmitGenerateEntry} disabled={isMutatingGenerateEntries}>
+              {isMutatingGenerateEntries ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              저장
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -653,6 +1007,21 @@ export default function MenuManagementClient({ initialConfig }: MenuManagementCl
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleConfirmDelete}>삭제</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!archiveTarget} onOpenChange={(open) => !open && setArchiveTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>문제생성 메뉴를 보관할까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="font-medium">[{archiveTarget?.title}]</span> 메뉴는 비노출/비활성 처리되며, 게시글이 있어도 hard delete 되지 않습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleArchiveGenerateEntry}>보관</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

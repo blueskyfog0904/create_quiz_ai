@@ -1,8 +1,8 @@
-import { getMenuManagementConfig } from './actions'
+import { getMenuManagementData } from './actions'
 import MenuManagementClient from './menu-management-client'
 
 export default async function MenuManagementPage() {
-  const initialConfig = await getMenuManagementConfig()
+  const data = await getMenuManagementData()
 
-  return <MenuManagementClient initialConfig={initialConfig} />
+  return <MenuManagementClient {...data} />
 }
