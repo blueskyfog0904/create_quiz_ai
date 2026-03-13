@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -62,7 +63,9 @@ import {
 } from '@/lib/header-navigation'
 import {
   buildGenerateMenuHref,
+  LISTBOARD_GRADE_OPTIONS,
   mergeGenerateEntriesIntoHeaderConfig,
+  normalizeListboardGradeLevel,
   type GenerateListboardPost,
   type GenerateMenuEntryAdminRow,
 } from '@/lib/generate-menu'
@@ -116,13 +119,23 @@ interface GeneratePostFormState {
   examYear: string
   examMonth: string
   gradeLevel: string
-  sourceType: string
-  source1: string
-  source2: string
-  source3: string
-  source4: string
   status: 'draft' | 'published' | 'archived'
   isActive: boolean
+}
+
+const MIN_EXAM_YEAR = 2000
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1))
+
+function getDefaultExamDate() {
+  const today = new Date()
+  return {
+    examYear: String(today.getFullYear()),
+    examMonth: String(today.getMonth() + 1),
+  }
+}
+
+function buildExamYearOptions(baseYear = new Date().getFullYear()) {
+  return Array.from({ length: Math.max(baseYear - MIN_EXAM_YEAR + 1, 1) }, (_, index) => String(baseYear - index))
 }
 
 function cloneConfig(config: HeaderNavigationConfig): HeaderNavigationConfig {
@@ -183,37 +196,31 @@ function buildGenerateEntryForm(entry: GenerateMenuEntryAdminRow): GenerateEntry
 }
 
 function buildEmptyGeneratePostForm(menuEntryId: string): GeneratePostFormState {
+  const { examYear, examMonth } = getDefaultExamDate()
+
   return {
     menuEntryId,
     title: '',
     passageText: '',
-    examYear: '',
-    examMonth: '',
+    examYear,
+    examMonth,
     gradeLevel: '',
-    sourceType: '',
-    source1: '',
-    source2: '',
-    source3: '',
-    source4: '',
     status: 'published',
     isActive: true,
   }
 }
 
 function buildGeneratePostForm(post: GenerateListboardPost): GeneratePostFormState {
+  const { examYear, examMonth } = getDefaultExamDate()
+
   return {
     id: post.id,
     menuEntryId: post.menu_entry_id,
     title: post.title,
     passageText: post.passage_text,
-    examYear: post.exam_year ? String(post.exam_year) : '',
-    examMonth: post.exam_month ? String(post.exam_month) : '',
-    gradeLevel: post.grade_level || '',
-    sourceType: post.source_type || '',
-    source1: post.source_1 || '',
-    source2: post.source_2 || '',
-    source3: post.source_3 || '',
-    source4: post.source_4 || '',
+    examYear: post.exam_year ? String(post.exam_year) : examYear,
+    examMonth: post.exam_month ? String(post.exam_month) : examMonth,
+    gradeLevel: normalizeListboardGradeLevel(post.grade_level) || '',
     status: post.status as 'draft' | 'published' | 'archived',
     isActive: post.is_active,
   }
@@ -280,6 +287,18 @@ export default function MenuManagementClient({
     () => generateMenuEntries.filter((entry) => entry.entry_type === 'listboard' && entry.deleted_at === null),
     [generateMenuEntries]
   )
+  const examYearOptions = useMemo(() => {
+    const candidateYears = [
+      ...generatePosts.map((post) => post.exam_year).filter((value): value is number => value !== null).map(String),
+      postForm.examYear,
+    ]
+    const baseYear = Math.max(
+      ...candidateYears.map((value) => Number(value)).filter((value) => Number.isFinite(value)),
+      Number(getDefaultExamDate().examYear)
+    )
+
+    return buildExamYearOptions(baseYear)
+  }, [generatePosts, postForm.examYear])
   const selectedBoard = listboardEntries.find((entry) => entry.id === selectedBoardId) || listboardEntries[0] || null
   const hasUnsavedChanges = JSON.stringify({ ...config, logoText }) !== JSON.stringify(savedConfig)
 
@@ -690,11 +709,6 @@ export default function MenuManagementClient({
         exam_year: postForm.examYear ? Number(postForm.examYear) : null,
         exam_month: postForm.examMonth ? Number(postForm.examMonth) : null,
         grade_level: postForm.gradeLevel || null,
-        source_type: postForm.sourceType || null,
-        source_1: postForm.source1 || null,
-        source_2: postForm.source2 || null,
-        source_3: postForm.source3 || null,
-        source_4: postForm.source4 || null,
         status: postForm.status,
         is_active: postForm.isActive,
       } as const
@@ -1206,39 +1220,47 @@ export default function MenuManagementClient({
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="exam-year">년도</Label>
-                <Input id="exam-year" value={postForm.examYear} onChange={(event) => setPostForm((current) => ({ ...current, examYear: event.target.value }))} />
+                <Select value={postForm.examYear} onValueChange={(value) => setPostForm((current) => ({ ...current, examYear: value }))}>
+                  <SelectTrigger id="exam-year" className="w-full">
+                    <SelectValue placeholder="년도 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {examYearOptions.map((year) => (
+                      <SelectItem key={year} value={year}>{year}년</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="exam-month">월</Label>
-                <Input id="exam-month" value={postForm.examMonth} onChange={(event) => setPostForm((current) => ({ ...current, examMonth: event.target.value }))} />
+                <Select value={postForm.examMonth} onValueChange={(value) => setPostForm((current) => ({ ...current, examMonth: value }))}>
+                  <SelectTrigger id="exam-month" className="w-full">
+                    <SelectValue placeholder="월 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MONTH_OPTIONS.map((month) => (
+                      <SelectItem key={month} value={month}>{month}월</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="grade-level">학년</Label>
-                <Input id="grade-level" value={postForm.gradeLevel} onChange={(event) => setPostForm((current) => ({ ...current, gradeLevel: event.target.value }))} />
+                <select
+                  id="grade-level"
+                  value={postForm.gradeLevel}
+                  onChange={(event) => setPostForm((current) => ({ ...current, gradeLevel: event.target.value }))}
+                  className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
+                >
+                  <option value="">선택 안 함</option>
+                  {LISTBOARD_GRADE_OPTIONS.map((grade) => (
+                    <option key={grade} value={grade}>{grade}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="source-type">출처 타입</Label>
-                <Input id="source-type" value={postForm.sourceType} onChange={(event) => setPostForm((current) => ({ ...current, sourceType: event.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="source-1">출처 1</Label>
-                <Input id="source-1" value={postForm.source1} onChange={(event) => setPostForm((current) => ({ ...current, source1: event.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="source-2">출처 2</Label>
-                <Input id="source-2" value={postForm.source2} onChange={(event) => setPostForm((current) => ({ ...current, source2: event.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="source-3">출처 3</Label>
-                <Input id="source-3" value={postForm.source3} onChange={(event) => setPostForm((current) => ({ ...current, source3: event.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="source-4">출처 4</Label>
-                <Input id="source-4" value={postForm.source4} onChange={(event) => setPostForm((current) => ({ ...current, source4: event.target.value }))} />
-              </div>
               <div className="space-y-2">
                 <Label>상태</Label>
                 <select value={postForm.status} onChange={(event) => setPostForm((current) => ({ ...current, status: event.target.value as GeneratePostFormState['status'] }))} className="flex h-10 w-full rounded-md border bg-white px-3 text-sm">

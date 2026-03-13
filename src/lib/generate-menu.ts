@@ -17,6 +17,41 @@ export type GenerateChildrenSourceMode = 'legacy_json' | 'hybrid_fallback' | 'db
 export const GENERATE_PARENT_FALLBACK_ID = 'menu-generate'
 export const GENERATE_PARENT_FALLBACK_TITLE = 'AI문제생성'
 export const GENERATE_PARENT_HREF = '/generate'
+export const LISTBOARD_GRADE_OPTIONS = ['1학년', '2학년', '3학년'] as const
+
+export type ListboardGradeOption = typeof LISTBOARD_GRADE_OPTIONS[number]
+
+export function normalizeListboardGradeLevel(value?: string | null): ListboardGradeOption | null {
+  const normalized = value?.trim()
+  if (!normalized) {
+    return null
+  }
+
+  if (LISTBOARD_GRADE_OPTIONS.includes(normalized as ListboardGradeOption)) {
+    return normalized as ListboardGradeOption
+  }
+
+  const normalizedKey = normalized.toLowerCase().replace(/\s+/g, '')
+  const legacyMap: Record<string, ListboardGradeOption> = {
+    '1': '1학년',
+    '1학년': '1학년',
+    '고1': '1학년',
+    'high1': '1학년',
+    'middle1': '1학년',
+    '2': '2학년',
+    '2학년': '2학년',
+    '고2': '2학년',
+    'high2': '2학년',
+    'middle2': '2학년',
+    '3': '3학년',
+    '3학년': '3학년',
+    '고3': '3학년',
+    'high3': '3학년',
+    'middle3': '3학년',
+  }
+
+  return legacyMap[normalizedKey] ?? null
+}
 
 export function buildGenerateMenuHref(entry: Pick<GenerateMenuEntry, 'entry_type' | 'slug'>) {
   if (entry.entry_type === 'personal_generate') {

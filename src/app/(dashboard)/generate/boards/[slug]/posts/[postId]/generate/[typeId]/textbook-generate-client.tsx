@@ -15,6 +15,7 @@ import { QuestionPreview } from '@/components/features/quiz/question-preview'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
 import type { Database } from '@/types/supabase'
 import type { Question } from '@/lib/ai/types'
+import { LISTBOARD_GRADE_OPTIONS, normalizeListboardGradeLevel } from '@/lib/generate-menu'
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
 type GenerateListboardPost = Database['public']['Tables']['generate_listboard_posts']['Row']
@@ -34,7 +35,7 @@ interface GeneratedQuestionData {
 export default function TextbookGenerateClient({ board, post, problemType }: TextbookGenerateClientProps) {
   const router = useRouter()
   const abortControllerRef = useRef<AbortController | null>(null)
-  const [gradeLevel, setGradeLevel] = useState(post.grade_level || 'High1')
+  const [gradeLevel, setGradeLevel] = useState(normalizeListboardGradeLevel(post.grade_level) || '1학년')
   const [difficulty, setDifficulty] = useState('Medium')
   const [currentBalance, setCurrentBalance] = useState<number | null>(null)
   const [showConfirmation, setShowConfirmation] = useState(false)
@@ -206,15 +207,12 @@ export default function TextbookGenerateClient({ board, post, problemType }: Tex
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="grade-level">학년</Label>
-              <Select value={gradeLevel} onValueChange={setGradeLevel}>
+              <Select value={gradeLevel} onValueChange={(value) => setGradeLevel(value as typeof gradeLevel)}>
                 <SelectTrigger id="grade-level"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Middle1">중1</SelectItem>
-                  <SelectItem value="Middle2">중2</SelectItem>
-                  <SelectItem value="Middle3">중3</SelectItem>
-                  <SelectItem value="High1">고1</SelectItem>
-                  <SelectItem value="High2">고2</SelectItem>
-                  <SelectItem value="High3">고3</SelectItem>
+                  {LISTBOARD_GRADE_OPTIONS.map((grade) => (
+                    <SelectItem key={grade} value={grade}>{grade}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

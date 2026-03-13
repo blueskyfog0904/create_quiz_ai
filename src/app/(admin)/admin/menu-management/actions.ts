@@ -139,7 +139,7 @@ export async function backfillGenerateMenuEntriesAction() {
 }
 
 export async function createGenerateListboardPostAction(
-  input: Pick<TablesInsert<'generate_listboard_posts'>, 'menu_entry_id' | 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'status' | 'is_active'>
+  input: Pick<TablesInsert<'generate_listboard_posts'>, 'menu_entry_id' | 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'status' | 'is_active'>
 ) {
   const user = await requireAdmin()
   const post = await createGenerateListboardPost({
@@ -153,7 +153,7 @@ export async function createGenerateListboardPostAction(
 
 export async function updateGenerateListboardPostAction(
   id: string,
-  input: Pick<TablesUpdate<'generate_listboard_posts'>, 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'status' | 'is_active'>
+  input: Pick<TablesUpdate<'generate_listboard_posts'>, 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'status' | 'is_active'>
 ) {
   const user = await requireAdmin()
   const post = await updateGenerateListboardPost(id, {

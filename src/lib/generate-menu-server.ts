@@ -2,6 +2,8 @@ import { createAdminClient } from '@/lib/supabase/bypass'
 import type { HeaderNavigationConfig, HeaderMenuChildItem } from '@/lib/header-navigation'
 import {
   buildGenerateMenuHref,
+  LISTBOARD_GRADE_OPTIONS,
+  normalizeListboardGradeLevel,
   type GenerateChildrenSourceMode,
   type GenerateListboardPost,
   type GenerateMenuEntry,
@@ -28,6 +30,30 @@ function getAdminSupabase() {
 
 function normalizeText(value?: string | null) {
   return value?.trim() ?? ''
+}
+
+function validateListboardExamMetadata(input: { exam_year?: number | null, exam_month?: number | null, grade_level?: string | null }) {
+  const examYear = input.exam_year ?? null
+  const examMonth = input.exam_month ?? null
+  const gradeLevel = normalizeListboardGradeLevel(input.grade_level)
+
+  if (examYear !== null && (!Number.isInteger(examYear) || examYear < 2000 || examYear > 2100)) {
+    throw new Error('년도는 2000~2100 범위의 숫자로 입력해주세요.')
+  }
+
+  if (examMonth !== null && (!Number.isInteger(examMonth) || examMonth < 1 || examMonth > 12)) {
+    throw new Error('월은 1~12 범위에서 선택해주세요.')
+  }
+
+  if (input.grade_level && !gradeLevel) {
+    throw new Error(`학년은 ${LISTBOARD_GRADE_OPTIONS.join(', ')} 중에서 선택해주세요.`)
+  }
+
+  return {
+    examYear,
+    examMonth,
+    gradeLevel,
+  }
 }
 
 export function normalizeSlug(value: string) {
@@ -474,12 +500,13 @@ export async function backfillGenerateMenuEntriesFromHeader(baseConfig: HeaderNa
 }
 
 export async function createGenerateListboardPost(
-  input: Pick<TablesInsert<'generate_listboard_posts'>, 'menu_entry_id' | 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'status' | 'is_active' | 'published_at' | 'created_by' | 'updated_by'>
+  input: Pick<TablesInsert<'generate_listboard_posts'>, 'menu_entry_id' | 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'status' | 'is_active' | 'published_at' | 'created_by' | 'updated_by'>
 ) {
   await assertListboardEntry(input.menu_entry_id)
   const supabase = getAdminSupabase()
   const title = normalizeText(input.title)
   const passageText = normalizeText(input.passage_text)
+  const metadata = validateListboardExamMetadata(input)
 
   if (!title) {
     throw new Error('게시글 제목을 입력해주세요.')
@@ -493,14 +520,9 @@ export async function createGenerateListboardPost(
     menu_entry_id: input.menu_entry_id,
     title,
     passage_text: passageText,
-    exam_year: input.exam_year ?? null,
-    exam_month: input.exam_month ?? null,
-    grade_level: normalizeText(input.grade_level) || null,
-    source_type: normalizeText(input.source_type) || null,
-    source_1: normalizeText(input.source_1) || null,
-    source_2: normalizeText(input.source_2) || null,
-    source_3: normalizeText(input.source_3) || null,
-    source_4: normalizeText(input.source_4) || null,
+    exam_year: metadata.examYear,
+    exam_month: metadata.examMonth,
+    grade_level: metadata.gradeLevel,
     status: input.status ?? 'draft',
     is_active: input.is_active ?? true,
     published_at: input.status === 'published' ? (input.published_at ?? new Date().toISOString()) : null,
@@ -523,7 +545,7 @@ export async function createGenerateListboardPost(
 
 export async function updateGenerateListboardPost(
   id: string,
-  input: Pick<TablesUpdate<'generate_listboard_posts'>, 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'status' | 'is_active' | 'published_at' | 'updated_by'>
+  input: Pick<TablesUpdate<'generate_listboard_posts'>, 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'status' | 'is_active' | 'published_at' | 'updated_by'>
 ) {
   const supabase = getAdminSupabase()
   const { data: current, error: currentError } = await supabase
@@ -536,17 +558,18 @@ export async function updateGenerateListboardPost(
     throw new Error('수정할 게시글을 찾을 수 없습니다.')
   }
 
+  const metadata = validateListboardExamMetadata({
+    exam_year: input.exam_year ?? current.exam_year,
+    exam_month: input.exam_month ?? current.exam_month,
+    grade_level: input.grade_level ?? current.grade_level,
+  })
+
   const payload: TablesUpdate<'generate_listboard_posts'> = {
     title: normalizeText(input.title ?? current.title),
     passage_text: normalizeText(input.passage_text ?? current.passage_text),
-    exam_year: input.exam_year ?? current.exam_year,
-    exam_month: input.exam_month ?? current.exam_month,
-    grade_level: normalizeText(input.grade_level ?? current.grade_level) || null,
-    source_type: normalizeText(input.source_type ?? current.source_type) || null,
-    source_1: normalizeText(input.source_1 ?? current.source_1) || null,
-    source_2: normalizeText(input.source_2 ?? current.source_2) || null,
-    source_3: normalizeText(input.source_3 ?? current.source_3) || null,
-    source_4: normalizeText(input.source_4 ?? current.source_4) || null,
+    exam_year: metadata.examYear,
+    exam_month: metadata.examMonth,
+    grade_level: metadata.gradeLevel,
     status: input.status ?? current.status,
     is_active: input.is_active ?? current.is_active,
     published_at: (input.status ?? current.status) === 'published'
