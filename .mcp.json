@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "octo-browser": {
+      "command": "node",
+      "args": [
+        "/Users/mac/.config/octo/mcp-browser-server.js"
+      ]
+    }
+  }
+}

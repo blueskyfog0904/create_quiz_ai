@@ -1,0 +1,52 @@
+{
+  "active": false,
+  "started_at": "2026-03-13T01:32:00Z",
+  "current_phase": "handoff_ready",
+  "task_description": "Prepare reboot-safe handoff for generate menu/listboard rollout.",
+  "user_request": "개인지문은 기존 AI문제생성 유지, 나머지는 textbook_generate 복제 흐름 + textbook_listboard 진입, 모의고사 listboard 검색/DB 설계, system_settings/menu 구조 재검토, 팀 기반 plan 필요",
+  "roles": [
+    "analyst",
+    "planner",
+    "architect",
+    "critic",
+    "critic",
+    "critic"
+  ],
+  "status": "completed",
+  "completed_at": "2026-03-13T03:05:00Z",
+  "plan_path": ".omx/plans/plan-generate-menu-sync-safe-v2-20260313.md",
+  "summary": "Keep system_settings as base header config; move generate submenu source of truth to generate_menu_entries; compose generate children dynamically with cutover gating and fallback.",
+  "request": "system_settings menu sync-safe design with 2 extra critics until satisfied",
+  "note": "Team runtime hit tmux readiness/pane constraints; proceeding with grounded design synthesis from prior team findings and file-backed analysis.",
+  "context_snapshot": ".omx/context/generate-textbook-listboard-sync-v2-20260313T013300Z.md",
+  "target_plan": ".omx/plans/plan-generate-menu-sync-safe-v2-20260313.md",
+  "iteration": 2,
+  "reviewers": [
+    "critic-a",
+    "critic-b",
+    "critic-c"
+  ],
+  "approval_target": "all critics approve",
+  "plan": ".omx/plans/plan-generate-menu-sync-safe-v2-20260313.md",
+  "round": 1,
+  "goal": "All critics approve or actionable revisions captured",
+  "last_turn_at": "2026-03-13T01:51:41.326Z",
+  "critic_rounds": 2,
+  "final_status": "approved_after_revisions",
+  "key_revisions": [
+    "immutable entry_key and slug policy",
+    "generate parent fallback",
+    "saving path strips generate children from JSON",
+    "personal entry special policy",
+    "archive-only delete semantics"
+  ],
+  "design_path": ".omx/plans/plan-generate-menu-sync-safe-v2-20260313.md",
+  "critic_status": "3/3 approve",
+  "handoff_doc": ".omx/plans/session-handoff-20260313-generate-menu-sync-safe.md",
+  "ready_for_resume": true,
+  "next_focus": [
+    "admin post entry",
+    "mock-exams E2E verification",
+    "cutover preparation"
+  ]
+}
