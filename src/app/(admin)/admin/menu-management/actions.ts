@@ -17,6 +17,7 @@ import {
   archiveGenerateMenuEntry,
   backfillGenerateMenuEntriesFromHeader,
   createGenerateListboardPostItem,
+  createGenerateListboardPostWithItems,
   createGenerateListboardPost,
   createGenerateMenuEntry,
   getGenerateChildrenSourceMode,
@@ -160,6 +161,20 @@ export async function createGenerateListboardPostAction(
   })
   revalidateMenuRelatedPaths()
   return { success: true, data: post }
+}
+
+export async function createGenerateListboardPostWithItemsAction(
+  input: Pick<TablesInsert<'generate_listboard_posts'>, 'menu_entry_id' | 'title' | 'exam_year' | 'exam_month' | 'grade_level' | 'status' | 'is_active'>,
+  items: Array<Pick<TablesInsert<'generate_listboard_post_items'>, 'question_number' | 'passage_text' | 'sort_order' | 'is_active'>>
+) {
+  const user = await requireAdmin()
+  const result = await createGenerateListboardPostWithItems({
+    ...input,
+    created_by: user.id,
+    updated_by: user.id,
+  }, items)
+  revalidateMenuRelatedPaths()
+  return { success: true, data: result }
 }
 
 export async function updateGenerateListboardPostAction(

@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useMemo, useState } from 'react'
+import * as XLSX from 'xlsx'
 import { useRouter } from 'next/navigation'
 import {
   AlertTriangle,
@@ -73,7 +74,7 @@ import {
   archiveGenerateListboardPostAction,
   archiveGenerateMenuEntryAction,
   backfillGenerateMenuEntriesAction,
-  createGenerateListboardPostAction,
+  createGenerateListboardPostWithItemsAction,
   createGenerateMenuEntryAction,
   getGenerateListboardPostsAction,
   reorderGenerateMenuEntriesAction,
@@ -116,6 +117,8 @@ interface GeneratePostFormState {
   menuEntryId: string
   title: string
   passageText: string
+  csvFileName: string
+  csvItems: GeneratePostCsvItem[]
   examYear: string
   examMonth: string
   gradeLevel: string
@@ -123,8 +126,76 @@ interface GeneratePostFormState {
   isActive: boolean
 }
 
+interface GeneratePostCsvItem {
+  questionNumber: string
+  passageText: string
+  sortOrder: number
+  isActive: boolean
+}
+
 const MIN_EXAM_YEAR = 2000
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1))
+
+async function parseGeneratePostCsvFile(file: File): Promise<{ fileName: string, items: GeneratePostCsvItem[] }> {
+  const fileName = file.name.toLowerCase()
+  if (!fileName.endsWith('.csv') && !fileName.endsWith('.xlsx')) {
+    throw new Error('.csv 또는 .xlsx 파일만 업로드할 수 있습니다.')
+  }
+
+  const buffer = await file.arrayBuffer()
+  const workbook = XLSX.read(buffer, { type: 'array' })
+  const sheetName = workbook.SheetNames[0]
+
+  if (!sheetName) {
+    throw new Error('업로드한 파일에 시트가 없습니다.')
+  }
+
+  const sheet = workbook.Sheets[sheetName]
+  const rows = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, {
+    header: 1,
+    raw: false,
+    blankrows: false,
+  })
+
+  if (rows.length < 2) {
+    throw new Error('헤더와 데이터가 포함된 파일을 업로드해주세요.')
+  }
+
+  const [header, ...bodyRows] = rows
+  const normalizedHeader = header.map((cell) => String(cell ?? '').trim().toLowerCase())
+
+  if (normalizedHeader[0] !== 'question_number' || normalizedHeader[1] !== 'passage_text') {
+    throw new Error('첫 번째 열은 question_number, 두 번째 열은 passage_text 여야 합니다.')
+  }
+
+  const items = bodyRows
+    .map((row, index) => ({
+      questionNumber: String(row[0] ?? '').trim(),
+      passageText: String(row[1] ?? '').trim(),
+      sortOrder: (index + 1) * 10,
+      isActive: true,
+    }))
+    .filter((row) => row.questionNumber || row.passageText)
+
+  if (items.length === 0) {
+    throw new Error('저장할 문항이 없습니다.')
+  }
+
+  const invalidRow = items.find((item) => !item.questionNumber || !item.passageText)
+  if (invalidRow) {
+    throw new Error('문항 번호와 지문 내용이 모두 채워진 행만 업로드할 수 있습니다.')
+  }
+
+  const duplicate = items.find((item, index) => items.findIndex((candidate) => candidate.questionNumber === item.questionNumber) !== index)
+  if (duplicate) {
+    throw new Error(`문항 번호 "${duplicate.questionNumber}"가 중복되었습니다.`)
+  }
+
+  return {
+    fileName: file.name,
+    items,
+  }
+}
 
 function getDefaultExamDate() {
   const today = new Date()
@@ -202,6 +273,8 @@ function buildEmptyGeneratePostForm(menuEntryId: string): GeneratePostFormState 
     menuEntryId,
     title: '',
     passageText: '',
+    csvFileName: '',
+    csvItems: [],
     examYear,
     examMonth,
     gradeLevel: '',
@@ -218,6 +291,8 @@ function buildGeneratePostForm(post: GenerateListboardPost): GeneratePostFormSta
     menuEntryId: post.menu_entry_id,
     title: post.title,
     passageText: post.passage_text,
+    csvFileName: '',
+    csvItems: [],
     examYear: post.exam_year ? String(post.exam_year) : examYear,
     examMonth: post.exam_month ? String(post.exam_month) : examMonth,
     gradeLevel: normalizeListboardGradeLevel(post.grade_level) || '',
@@ -694,6 +769,26 @@ export default function MenuManagementClient({
     setIsPostDialogOpen(true)
   }
 
+  const handlePostCsvFileChange = async (file?: File) => {
+    if (!file) {
+      setPostForm((current) => ({ ...current, csvFileName: '', csvItems: [] }))
+      return
+    }
+
+    try {
+      const parsed = await parseGeneratePostCsvFile(file)
+      setPostForm((current) => ({
+        ...current,
+        csvFileName: parsed.fileName,
+        csvItems: parsed.items,
+      }))
+      toast.success(`CSV에서 ${parsed.items.length}개 문항을 불러왔습니다.`)
+    } catch (error) {
+      setPostForm((current) => ({ ...current, csvFileName: '', csvItems: [] }))
+      toast.error(error instanceof Error ? error.message : 'CSV 파일을 읽지 못했습니다.')
+    }
+  }
+
   const handleSubmitPost = async () => {
     if (!postForm.menuEntryId) {
       toast.error('리스트보드를 선택해주세요.')
@@ -718,10 +813,28 @@ export default function MenuManagementClient({
         setGeneratePosts((current) => current.map((post) => post.id === postForm.id ? response.data : post))
         toast.success('게시글을 수정했습니다.')
       } else {
-        const response = await createGenerateListboardPostAction(payload)
-        setGeneratePosts((current) => [response.data, ...current])
+        if (postForm.csvItems.length === 0) {
+          throw new Error('게시글 생성 시 CSV 파일 업로드가 필요합니다.')
+        }
+
+        const response = await createGenerateListboardPostWithItemsAction({
+          menu_entry_id: payload.menu_entry_id,
+          title: payload.title,
+          exam_year: payload.exam_year,
+          exam_month: payload.exam_month,
+          grade_level: payload.grade_level,
+          status: payload.status,
+          is_active: payload.is_active,
+        }, postForm.csvItems.map((item) => ({
+          question_number: item.questionNumber,
+          passage_text: item.passageText,
+          sort_order: item.sortOrder,
+          is_active: item.isActive,
+        })))
+
+        setGeneratePosts((current) => [response.data.post, ...current])
         persistGenerateEntryState(generateMenuEntries.map((entry) => entry.id === postForm.menuEntryId ? { ...entry, postCount: entry.postCount + 1 } : entry))
-        toast.success('게시글을 등록했습니다.')
+        toast.success(`게시글과 ${response.data.items.length}개 문항을 등록했습니다.`)
       }
 
       closePostDialog()
@@ -1271,10 +1384,38 @@ export default function MenuManagementClient({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="passage-text">지문 내용</Label>
-              <Textarea id="passage-text" value={postForm.passageText} onChange={(event) => setPostForm((current) => ({ ...current, passageText: event.target.value }))} className="min-h-[220px]" />
-            </div>
+            {postForm.id ? (
+              <div className="space-y-2">
+                <Label htmlFor="passage-text">대표 지문 내용</Label>
+                <Textarea id="passage-text" value={postForm.passageText} onChange={(event) => setPostForm((current) => ({ ...current, passageText: event.target.value }))} className="min-h-[220px]" />
+                <p className="text-sm text-gray-500">기존 게시글 호환용 대표 지문입니다. 문항 행 단위 수정 UI는 다음 단계에서 연결됩니다.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="post-csv-file">CSV / 엑셀 업로드</Label>
+                  <Input
+                    id="post-csv-file"
+                    type="file"
+                    accept=".csv,.xlsx"
+                    onChange={(event) => void handlePostCsvFileChange(event.target.files?.[0])}
+                  />
+                  <p className="text-sm text-gray-500">첫 번째 열은 question_number, 두 번째 열은 passage_text 형식이어야 합니다.</p>
+                </div>
+
+                <div className="rounded-md border bg-gray-50 px-3 py-3 text-sm text-gray-700">
+                  {postForm.csvItems.length > 0 ? (
+                    <div className="space-y-1">
+                      <p><span className="font-medium">업로드 파일:</span> {postForm.csvFileName}</p>
+                      <p><span className="font-medium">문항 수:</span> {postForm.csvItems.length}개</p>
+                      <p className="text-xs text-gray-500">미리보기: {postForm.csvItems.slice(0, 5).map((item) => item.questionNumber).join(', ')}{postForm.csvItems.length > 5 ? ' ...' : ''}</p>
+                    </div>
+                  ) : (
+                    <p>아직 업로드된 파일이 없습니다.</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center gap-3 rounded-md border px-3 py-2">
               <Switch checked={postForm.isActive} onCheckedChange={(checked) => setPostForm((current) => ({ ...current, isActive: checked }))} />

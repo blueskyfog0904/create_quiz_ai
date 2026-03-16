@@ -243,6 +243,44 @@ function buildGenerateListboardPostItemPayload(
   }
 }
 
+function validateGenerateListboardPostItems(
+  items: Array<Pick<TablesInsert<'generate_listboard_post_items'>, 'question_number' | 'passage_text' | 'sort_order' | 'is_active'>>
+) {
+  if (items.length === 0) {
+    throw new Error('최소 1개 이상의 문항이 필요합니다.')
+  }
+
+  const normalizedItems = items.map((item, index) => {
+    const questionNumber = normalizeQuestionNumber(item.question_number)
+    const passageText = normalizeText(item.passage_text)
+
+    if (!questionNumber) {
+      throw new Error(`${index + 1}번째 문항의 번호를 입력해주세요.`)
+    }
+
+    if (!passageText) {
+      throw new Error(`${index + 1}번째 문항의 지문 내용을 입력해주세요.`)
+    }
+
+    return {
+      question_number: questionNumber,
+      passage_text: passageText,
+      sort_order: item.sort_order ?? (index + 1) * 10,
+      is_active: item.is_active ?? true,
+    }
+  })
+
+  const duplicateQuestionNumber = normalizedItems.find((item, index) => (
+    normalizedItems.findIndex((candidate) => candidate.question_number === item.question_number) !== index
+  ))
+
+  if (duplicateQuestionNumber) {
+    throw new Error(`문항 번호 "${duplicateQuestionNumber.question_number}"가 중복되었습니다.`)
+  }
+
+  return normalizedItems
+}
+
 export function getGenerateChildrenSourceMode() {
   return GENERATE_CHILDREN_SOURCE_MODE
 }
@@ -601,6 +639,53 @@ export async function createGenerateListboardPost(
   }
 
   return data
+}
+
+export async function createGenerateListboardPostWithItems(
+  input: Pick<TablesInsert<'generate_listboard_posts'>, 'menu_entry_id' | 'title' | 'exam_year' | 'exam_month' | 'grade_level' | 'status' | 'is_active' | 'published_at' | 'created_by' | 'updated_by'>,
+  items: Array<Pick<TablesInsert<'generate_listboard_post_items'>, 'question_number' | 'passage_text' | 'sort_order' | 'is_active'>>
+) {
+  const normalizedItems = validateGenerateListboardPostItems(items)
+  const seedPassageText = normalizedItems[0]?.passage_text ?? ''
+  const supabase = getAdminSupabase()
+
+  const post = await createGenerateListboardPost({
+    ...input,
+    passage_text: seedPassageText,
+  })
+
+  try {
+    const itemPayloads: TablesInsert<'generate_listboard_post_items'>[] = normalizedItems.map((item) => ({
+      post_id: post.id,
+      question_number: item.question_number,
+      passage_text: item.passage_text,
+      sort_order: item.sort_order,
+      is_active: item.is_active,
+      created_by: input.created_by ?? null,
+      updated_by: input.updated_by ?? null,
+    }))
+
+    const { data, error } = await supabase
+      .from('generate_listboard_post_items')
+      .insert(itemPayloads)
+      .select('*')
+
+    if (error) {
+      throw normalizeGenerateListboardPostItemError(error)
+    }
+
+    return {
+      post,
+      items: data ?? [],
+    }
+  } catch (error) {
+    await supabase
+      .from('generate_listboard_posts')
+      .delete()
+      .eq('id', post.id)
+
+    throw error
+  }
 }
 
 export async function updateGenerateListboardPost(
