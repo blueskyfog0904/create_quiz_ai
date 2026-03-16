@@ -3,6 +3,7 @@ import type { Database } from '@/types/supabase'
 
 type GenerateMenuEntry = Database['public']['Tables']['generate_menu_entries']['Row']
 type GenerateListboardPost = Database['public']['Tables']['generate_listboard_posts']['Row']
+type GenerateListboardPostItem = Database['public']['Tables']['generate_listboard_post_items']['Row']
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
 
 export interface ListboardSearchFilters {
@@ -107,6 +108,36 @@ export async function getGenerateBoardPost(boardId: string, postId: string): Pro
   }
 
   return data
+}
+
+export async function getGenerateBoardPostWithItems(boardId: string, postId: string): Promise<{
+  post: GenerateListboardPost
+  items: GenerateListboardPostItem[]
+} | null> {
+  const post = await getGenerateBoardPost(boardId, postId)
+
+  if (!post) {
+    return null
+  }
+
+  const supabase = await createClient()
+  const { data: items, error } = await supabase
+    .from('generate_listboard_post_items')
+    .select('*')
+    .eq('post_id', post.id)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .order('sort_order')
+    .order('created_at')
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return {
+    post,
+    items: items ?? [],
+  }
 }
 
 export async function getActiveProblemTypes(): Promise<ProblemType[]> {
