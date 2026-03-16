@@ -433,8 +433,10 @@ export type Database = {
           created_at: string
           credit_charged: number
           credit_reserved: number
+          difficulty: string | null
           failed_count: number
           finished_at: string | null
+          grade_level: string | null
           id: string
           post_id: string
           requested_generation_count: number
@@ -452,8 +454,10 @@ export type Database = {
           created_at?: string
           credit_charged?: number
           credit_reserved?: number
+          difficulty?: string | null
           failed_count?: number
           finished_at?: string | null
+          grade_level?: string | null
           id?: string
           post_id: string
           requested_generation_count?: number
@@ -471,8 +475,10 @@ export type Database = {
           created_at?: string
           credit_charged?: number
           credit_reserved?: number
+          difficulty?: string | null
           failed_count?: number
           finished_at?: string | null
+          grade_level?: string | null
           id?: string
           post_id?: string
           requested_generation_count?: number

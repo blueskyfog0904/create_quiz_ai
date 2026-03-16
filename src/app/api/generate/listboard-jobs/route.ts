@@ -185,6 +185,8 @@ export async function POST(request: Request) {
     requestedGenerationCount = requestedItemCount * requestedTypeCount
     const requiredCredits = requestedGenerationCount * COST_PER_GENERATION
     const currentBalance = await CreditService.getBalance(user.id)
+    const gradeLevel = validation.data.gradeLevel || post.grade_level || '1학년'
+    const difficulty = validation.data.difficulty
 
     if (currentBalance < requiredCredits) {
       return NextResponse.json({
@@ -197,6 +199,8 @@ export async function POST(request: Request) {
       post_id: post.id,
       user_id: user.id,
       status: 'running',
+      grade_level: gradeLevel,
+      difficulty,
       selected_problem_type_ids: problemTypeIds,
       requested_item_count: requestedItemCount,
       requested_type_count: requestedTypeCount,
@@ -279,8 +283,6 @@ export async function POST(request: Request) {
 
     const postItemMap = new Map((postItems ?? []).map((item) => [item.id, item]))
     const problemTypeMap = new Map((problemTypes ?? []).map((type) => [type.id, type]))
-    const gradeLevel = validation.data.gradeLevel || post.grade_level || '1학년'
-    const difficulty = validation.data.difficulty
 
     let failedCount = 0
 

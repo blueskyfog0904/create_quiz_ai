@@ -36,6 +36,13 @@ export default function JobStatusClient({
   const [job, setJob] = useState(initialJob)
   const [items, setItems] = useState(initialItems)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isRetrying, setIsRetrying] = useState(false)
+
+  const completedCount = items.filter((item) => item.status === 'completed').length
+  const failedCount = items.filter((item) => item.status === 'failed').length
+  const progressPercent = job.requested_generation_count > 0
+    ? Math.round((completedCount / job.requested_generation_count) * 100)
+    : 0
 
   const refreshJob = useCallback(async (silent = false) => {
     if (!silent) {
@@ -74,6 +81,26 @@ export default function JobStatusClient({
     return () => window.clearInterval(interval)
   }, [job.status, refreshJob])
 
+  const handleRetryFailed = async () => {
+    setIsRetrying(true)
+    try {
+      const res = await fetch(`/api/generate/listboard-jobs/${job.id}/retry`, {
+        method: 'POST',
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || '실패 항목 재시도에 실패했습니다.')
+      }
+
+      toast.success(`실패 항목 ${data.data.retriedCount}건 재시도를 시작했습니다.`)
+      await refreshJob(true)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '재시도 중 오류가 발생했습니다.')
+    } finally {
+      setIsRetrying(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
@@ -86,6 +113,12 @@ export default function JobStatusClient({
             {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
             새로고침
           </Button>
+          {failedCount > 0 && job.status !== 'running' ? (
+            <Button onClick={() => void handleRetryFailed()} disabled={isRetrying}>
+              {isRetrying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              실패 항목 재시도
+            </Button>
+          ) : null}
           <Button variant="outline" asChild>
             <Link href={`/generate/boards/${board.slug}/posts/${post.id}`}>선택 화면으로 돌아가기</Link>
           </Button>
@@ -118,6 +151,24 @@ export default function JobStatusClient({
           <div className="rounded-md border bg-gray-50 px-4 py-3">
             <p className="text-xs text-gray-500">예상 차감 크레딧</p>
             <p className="mt-1 text-lg font-semibold text-primary">{job.credit_reserved.toLocaleString()}</p>
+          </div>
+        </CardContent>
+        <CardContent className="pt-0">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm text-gray-600">
+              <span>진행률</span>
+              <span>{completedCount} / {job.requested_generation_count} 완료 ({progressPercent}%)</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <div className="flex items-center gap-4 text-xs text-gray-500">
+              <span>성공 {completedCount}건</span>
+              <span>실패 {failedCount}건</span>
+            </div>
           </div>
         </CardContent>
       </Card>
