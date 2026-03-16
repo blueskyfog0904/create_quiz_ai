@@ -90,29 +90,39 @@ export default function TextbookListboard({ board, posts, filters, options }: Te
                 <thead className="bg-gray-50 text-left text-gray-600">
                   <tr>
                     <th className="px-4 py-3 font-medium">제목</th>
-                    <th className="px-4 py-3 font-medium">년도</th>
-                    <th className="px-4 py-3 font-medium">월</th>
-                    <th className="px-4 py-3 font-medium">학년</th>
-                    <th className="px-4 py-3 font-medium text-right">이동</th>
+                    <th className="w-[140px] px-4 py-3 font-medium whitespace-nowrap">년도</th>
+                    <th className="w-[120px] px-4 py-3 font-medium whitespace-nowrap">월</th>
+                    <th className="w-[140px] px-4 py-3 font-medium whitespace-nowrap">학년</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {posts.map((post) => (
-                    <tr key={post.id} className="border-t">
+                  {posts.map((post) => {
+                    const href = `/generate/boards/${board.slug}/posts/${post.id}`
+
+                    return (
+                    <tr key={post.id} className="border-t transition-colors hover:bg-gray-50">
                       <td className="px-4 py-3 align-top">
-                        <div className="font-medium text-gray-900">{post.title}</div>
-                        <p className="mt-1 line-clamp-2 text-xs text-gray-500">{post.passage_text}</p>
+                        <Link href={href} className="block font-medium text-gray-900">
+                          {post.title}
+                        </Link>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">{post.exam_year ?? '-'}</td>
-                      <td className="px-4 py-3 text-gray-700">{post.exam_month ? `${post.exam_month}월` : '-'}</td>
-                      <td className="px-4 py-3 text-gray-700">{post.grade_level ?? '-'}</td>
-                      <td className="px-4 py-3 text-right">
-                        <Button asChild size="sm">
-                          <Link href={`/generate/boards/${board.slug}/posts/${post.id}`}>문제 유형 선택</Link>
-                        </Button>
+                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                        <Link href={href} className="block">
+                          {post.exam_year ?? '-'}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                        <Link href={href} className="block">
+                          {post.exam_month ? `${post.exam_month}월` : '-'}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                        <Link href={href} className="block">
+                          {post.grade_level ?? '-'}
+                        </Link>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
