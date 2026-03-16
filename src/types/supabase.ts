@@ -272,6 +272,235 @@ export type Database = {
           },
         ]
       }
+      generate_listboard_post_items: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          id: string
+          is_active: boolean
+          passage_text: string
+          post_id: string
+          question_number: string
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          id?: string
+          is_active?: boolean
+          passage_text: string
+          post_id: string
+          question_number: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          id?: string
+          is_active?: boolean
+          passage_text?: string
+          post_id?: string
+          question_number?: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generate_listboard_post_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generate_listboard_post_items_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "generate_listboard_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generate_listboard_post_items_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generate_listboard_generation_job_items: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          credit_charged: number
+          error_code: string | null
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          job_id: string
+          post_id: string
+          post_item_id: string
+          problem_type_id: string
+          question_id: string | null
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string
+          credit_charged?: number
+          error_code?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          job_id: string
+          post_id: string
+          post_item_id: string
+          problem_type_id: string
+          question_id?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          credit_charged?: number
+          error_code?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          job_id?: string
+          post_id?: string
+          post_item_id?: string
+          problem_type_id?: string
+          question_id?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generate_listboard_generation_job_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "generate_listboard_generation_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generate_listboard_generation_job_items_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "generate_listboard_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generate_listboard_generation_job_items_post_item_id_fkey"
+            columns: ["post_item_id"]
+            isOneToOne: false
+            referencedRelation: "generate_listboard_post_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generate_listboard_generation_job_items_problem_type_id_fkey"
+            columns: ["problem_type_id"]
+            isOneToOne: false
+            referencedRelation: "problem_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generate_listboard_generation_job_items_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generate_listboard_generation_jobs: {
+        Row: {
+          cancelled_count: number
+          completed_count: number
+          created_at: string
+          credit_charged: number
+          credit_reserved: number
+          failed_count: number
+          finished_at: string | null
+          id: string
+          post_id: string
+          requested_generation_count: number
+          requested_item_count: number
+          requested_type_count: number
+          selected_problem_type_ids: string[]
+          started_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancelled_count?: number
+          completed_count?: number
+          created_at?: string
+          credit_charged?: number
+          credit_reserved?: number
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          post_id: string
+          requested_generation_count?: number
+          requested_item_count?: number
+          requested_type_count?: number
+          selected_problem_type_ids?: string[]
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancelled_count?: number
+          completed_count?: number
+          created_at?: string
+          credit_charged?: number
+          credit_reserved?: number
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          post_id?: string
+          requested_generation_count?: number
+          requested_item_count?: number
+          requested_type_count?: number
+          selected_problem_type_ids?: string[]
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generate_listboard_generation_jobs_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "generate_listboard_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generate_listboard_generation_jobs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       generate_menu_entries: {
         Row: {
           created_at: string
@@ -641,6 +870,9 @@ export type Database = {
           created_at: string
           difficulty: string | null
           explanation: string | null
+          generate_generation_job_item_id: string | null
+          generate_listboard_post_id: string | null
+          generate_listboard_post_item_id: string | null
           grade_level: string | null
           id: string
           passage_id: string | null
@@ -668,6 +900,9 @@ export type Database = {
           created_at?: string
           difficulty?: string | null
           explanation?: string | null
+          generate_generation_job_item_id?: string | null
+          generate_listboard_post_id?: string | null
+          generate_listboard_post_item_id?: string | null
           grade_level?: string | null
           id?: string
           passage_id?: string | null
@@ -695,6 +930,9 @@ export type Database = {
           created_at?: string
           difficulty?: string | null
           explanation?: string | null
+          generate_generation_job_item_id?: string | null
+          generate_listboard_post_id?: string | null
+          generate_listboard_post_item_id?: string | null
           grade_level?: string | null
           id?: string
           passage_id?: string | null
@@ -717,6 +955,27 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "questions_generate_generation_job_item_id_fkey"
+            columns: ["generate_generation_job_item_id"]
+            isOneToOne: false
+            referencedRelation: "generate_listboard_generation_job_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "questions_generate_listboard_post_id_fkey"
+            columns: ["generate_listboard_post_id"]
+            isOneToOne: false
+            referencedRelation: "generate_listboard_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "questions_generate_listboard_post_item_id_fkey"
+            columns: ["generate_listboard_post_item_id"]
+            isOneToOne: false
+            referencedRelation: "generate_listboard_post_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "questions_passage_id_fkey"
             columns: ["passage_id"]

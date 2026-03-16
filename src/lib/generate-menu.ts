@@ -7,6 +7,9 @@ import type {
 
 export type GenerateMenuEntry = Database['public']['Tables']['generate_menu_entries']['Row']
 export type GenerateListboardPost = Database['public']['Tables']['generate_listboard_posts']['Row']
+export type GenerateListboardPostItem = Database['public']['Tables']['generate_listboard_post_items']['Row']
+export type GenerateListboardGenerationJob = Database['public']['Tables']['generate_listboard_generation_jobs']['Row']
+export type GenerateListboardGenerationJobItem = Database['public']['Tables']['generate_listboard_generation_job_items']['Row']
 
 export interface GenerateMenuEntryAdminRow extends GenerateMenuEntry {
   postCount: number

@@ -12,21 +12,26 @@ import {
   type HeaderNavigationConfig,
 } from '@/lib/header-navigation'
 import {
+  archiveGenerateListboardPostItem,
   archiveGenerateListboardPost,
   archiveGenerateMenuEntry,
   backfillGenerateMenuEntriesFromHeader,
+  createGenerateListboardPostItem,
   createGenerateListboardPost,
   createGenerateMenuEntry,
   getGenerateChildrenSourceMode,
   getGenerateMenuEntriesBackfillStatus,
+  listGenerateListboardPostItemsForAdmin,
   listGenerateListboardPostsForAdmin,
   listGenerateMenuEntriesForAdmin,
   reorderGenerateMenuEntries,
+  updateGenerateListboardPostItem,
   updateGenerateListboardPost,
   updateGenerateMenuEntry,
   type LegacyGenerateChildSummary,
 } from '@/lib/generate-menu-server'
 import type {
+  GenerateListboardPostItem,
   GenerateListboardPost,
   GenerateMenuEntryAdminRow,
 } from '@/lib/generate-menu'
@@ -80,6 +85,12 @@ export async function getGenerateListboardPostsAction(menuEntryId: string) {
   await requireAdmin()
   const posts = await listGenerateListboardPostsForAdmin(menuEntryId)
   return { success: true, data: posts }
+}
+
+export async function getGenerateListboardPostItemsAction(postId: string): Promise<{ success: true, data: GenerateListboardPostItem[] }> {
+  await requireAdmin()
+  const items = await listGenerateListboardPostItemsForAdmin(postId)
+  return { success: true, data: items }
 }
 
 export async function saveMenuManagementConfig(input: HeaderNavigationConfig) {
@@ -167,6 +178,39 @@ export async function updateGenerateListboardPostAction(
 export async function archiveGenerateListboardPostAction(id: string) {
   await requireAdmin()
   await archiveGenerateListboardPost(id)
+  revalidateMenuRelatedPaths()
+  return { success: true }
+}
+
+export async function createGenerateListboardPostItemAction(
+  input: Pick<TablesInsert<'generate_listboard_post_items'>, 'post_id' | 'question_number' | 'passage_text' | 'sort_order' | 'is_active'>
+) {
+  const user = await requireAdmin()
+  const item = await createGenerateListboardPostItem({
+    ...input,
+    created_by: user.id,
+    updated_by: user.id,
+  })
+  revalidateMenuRelatedPaths()
+  return { success: true, data: item }
+}
+
+export async function updateGenerateListboardPostItemAction(
+  id: string,
+  input: Pick<TablesUpdate<'generate_listboard_post_items'>, 'question_number' | 'passage_text' | 'sort_order' | 'is_active'>
+) {
+  const user = await requireAdmin()
+  const item = await updateGenerateListboardPostItem(id, {
+    ...input,
+    updated_by: user.id,
+  })
+  revalidateMenuRelatedPaths()
+  return { success: true, data: item }
+}
+
+export async function archiveGenerateListboardPostItemAction(id: string) {
+  await requireAdmin()
+  await archiveGenerateListboardPostItem(id)
   revalidateMenuRelatedPaths()
   return { success: true }
 }

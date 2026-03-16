@@ -6,6 +6,7 @@ import {
   normalizeListboardGradeLevel,
   type GenerateChildrenSourceMode,
   type GenerateListboardPost,
+  type GenerateListboardPostItem,
   type GenerateMenuEntry,
   type GenerateMenuEntryAdminRow,
 } from '@/lib/generate-menu'
@@ -29,6 +30,10 @@ function getAdminSupabase() {
 }
 
 function normalizeText(value?: string | null) {
+  return value?.trim() ?? ''
+}
+
+function normalizeQuestionNumber(value?: string | null) {
   return value?.trim() ?? ''
 }
 
@@ -181,6 +186,61 @@ async function assertListboardEntry(menuEntryId: string) {
   }
 
   return data
+}
+
+async function assertGenerateListboardPost(postId: string) {
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('generate_listboard_posts')
+    .select('*')
+    .eq('id', postId)
+    .is('deleted_at', null)
+    .single()
+
+  if (error || !data) {
+    throw new Error('게시글을 찾을 수 없습니다.')
+  }
+
+  await assertListboardEntry(data.menu_entry_id)
+  return data
+}
+
+function normalizeGenerateListboardPostItemError(error: { message: string }) {
+  if (error.message.includes('uq_generate_listboard_post_items_post_question_number_active')) {
+    return new Error('같은 게시글 안에는 동일한 문항 번호를 중복 저장할 수 없습니다.')
+  }
+
+  return new Error(error.message)
+}
+
+function buildGenerateListboardPostItemPayload(
+  current: Pick<GenerateListboardPostItem, 'question_number' | 'passage_text' | 'sort_order' | 'is_active' | 'post_id' | 'updated_by' | 'created_by'> | null,
+  input: Pick<TablesInsert<'generate_listboard_post_items'>, 'post_id' | 'question_number' | 'passage_text' | 'sort_order' | 'is_active' | 'created_by' | 'updated_by'>
+) {
+  const questionNumber = normalizeQuestionNumber(input.question_number ?? current?.question_number)
+  const passageText = normalizeText(input.passage_text ?? current?.passage_text)
+
+  if (!input.post_id && !current?.post_id) {
+    throw new Error('게시글 정보가 없습니다.')
+  }
+
+  if (!questionNumber) {
+    throw new Error('문항 번호를 입력해주세요.')
+  }
+
+  if (!passageText) {
+    throw new Error('지문 내용을 입력해주세요.')
+  }
+
+  return {
+    post_id: input.post_id ?? current?.post_id ?? '',
+    question_number: questionNumber,
+    passage_text: passageText,
+    sort_order: input.sort_order ?? current?.sort_order ?? 0,
+    is_active: input.is_active ?? current?.is_active ?? true,
+    created_by: input.created_by ?? current?.created_by ?? null,
+    updated_by: input.updated_by ?? current?.updated_by ?? null,
+  }
 }
 
 export function getGenerateChildrenSourceMode() {
@@ -590,6 +650,117 @@ export async function updateGenerateListboardPost(
   }
 
   return data
+}
+
+export async function listGenerateListboardPostItemsForAdmin(postId: string): Promise<GenerateListboardPostItem[]> {
+  await assertGenerateListboardPost(postId)
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('generate_listboard_post_items')
+    .select('*')
+    .eq('post_id', postId)
+    .is('deleted_at', null)
+    .order('sort_order')
+    .order('created_at')
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data ?? []
+}
+
+export async function createGenerateListboardPostItem(
+  input: Pick<TablesInsert<'generate_listboard_post_items'>, 'post_id' | 'question_number' | 'passage_text' | 'sort_order' | 'is_active' | 'created_by' | 'updated_by'>
+) {
+  await assertGenerateListboardPost(input.post_id)
+  const supabase = getAdminSupabase()
+  const payload = buildGenerateListboardPostItemPayload(null, input)
+
+  const { data, error } = await supabase
+    .from('generate_listboard_post_items')
+    .insert(payload)
+    .select('*')
+    .single()
+
+  if (error) {
+    throw normalizeGenerateListboardPostItemError(error)
+  }
+
+  return data
+}
+
+export async function updateGenerateListboardPostItem(
+  id: string,
+  input: Pick<TablesUpdate<'generate_listboard_post_items'>, 'question_number' | 'passage_text' | 'sort_order' | 'is_active' | 'updated_by'>
+) {
+  const supabase = getAdminSupabase()
+  const { data: current, error: currentError } = await supabase
+    .from('generate_listboard_post_items')
+    .select('*')
+    .eq('id', id)
+    .is('deleted_at', null)
+    .single()
+
+  if (currentError || !current) {
+    throw new Error('수정할 문항을 찾을 수 없습니다.')
+  }
+
+  await assertGenerateListboardPost(current.post_id)
+  const payload = buildGenerateListboardPostItemPayload(current, {
+    post_id: current.post_id,
+    question_number: input.question_number ?? current.question_number,
+    passage_text: input.passage_text ?? current.passage_text,
+    sort_order: input.sort_order ?? current.sort_order,
+    is_active: input.is_active ?? current.is_active,
+    created_by: current.created_by,
+    updated_by: input.updated_by ?? current.updated_by,
+  })
+
+  const { data, error } = await supabase
+    .from('generate_listboard_post_items')
+    .update({
+      question_number: payload.question_number,
+      passage_text: payload.passage_text,
+      sort_order: payload.sort_order,
+      is_active: payload.is_active,
+      updated_by: payload.updated_by,
+    })
+    .eq('id', id)
+    .select('*')
+    .single()
+
+  if (error) {
+    throw normalizeGenerateListboardPostItemError(error)
+  }
+
+  return data
+}
+
+export async function archiveGenerateListboardPostItem(id: string) {
+  const supabase = getAdminSupabase()
+  const { data: current, error: currentError } = await supabase
+    .from('generate_listboard_post_items')
+    .select('*')
+    .eq('id', id)
+    .is('deleted_at', null)
+    .single()
+
+  if (currentError || !current) {
+    throw new Error('보관할 문항을 찾을 수 없습니다.')
+  }
+
+  const { error } = await supabase
+    .from('generate_listboard_post_items')
+    .update({
+      is_active: false,
+      deleted_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+
+  if (error) {
+    throw new Error(error.message)
+  }
 }
 
 export async function archiveGenerateListboardPost(id: string) {
