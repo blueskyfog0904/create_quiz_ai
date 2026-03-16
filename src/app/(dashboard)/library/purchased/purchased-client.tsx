@@ -25,9 +25,18 @@ interface PurchasedClientProps {
   problemTypes: ProblemType[]
   gradeLevels: string[]
   difficulties: string[]
+  highlightedJobId?: string | null
+  highlightedSavedCount?: number
 }
 
-export function PurchasedClient({ questions, problemTypes, gradeLevels, difficulties }: PurchasedClientProps) {
+export function PurchasedClient({
+  questions,
+  problemTypes,
+  gradeLevels,
+  difficulties,
+  highlightedJobId = null,
+  highlightedSavedCount = 0,
+}: PurchasedClientProps) {
   const router = useRouter()
   // Filter state
   const [selectedTypeId, setSelectedTypeId] = useState<string>('all')
@@ -89,7 +98,6 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
   // Collapsible filter state
   const [isFilterExpanded, setIsFilterExpanded] = useState(true)
   const filterRef = useRef<HTMLDivElement>(null)
-  const lastScrollY = useRef(0)
 
   // Auto-collapse filter on scroll down
   // Auto-collapse filter on scroll down logic removed to prevent conflict with sticky header
@@ -113,7 +121,7 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
 
   // Filter questions based on selected criteria
   const filteredQuestions = useMemo(() => {
-    let result = questions.filter(question => {
+    const result = questions.filter(question => {
       // Filter by problem type
       if (selectedTypeId !== 'all' && question.problem_type_id !== selectedTypeId) {
         return false
@@ -284,6 +292,18 @@ export function PurchasedClient({ questions, problemTypes, gradeLevels, difficul
 
   return (
     <div className="container mx-auto py-6 px-4">
+      {highlightedJobId ? (
+        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="font-semibold">방금 저장한 문제 {highlightedSavedCount}개를 표시 중입니다.</p>
+            <p className="mt-1 text-emerald-700">배치 생성 작업에서 저장한 결과만 우선 보여주고 있습니다.</p>
+          </div>
+          <Button variant="outline" onClick={() => router.push('/library/purchased')}>
+            전체 보기
+          </Button>
+        </div>
+      ) : null}
+
       {/* Sticky Header Container */}
       <div className="sticky top-16 z-40 bg-white -mx-4 px-4 pt-4 pb-2 shadow-sm border-b mb-6 transition-all">
         <div className="flex justify-between items-center mb-6">

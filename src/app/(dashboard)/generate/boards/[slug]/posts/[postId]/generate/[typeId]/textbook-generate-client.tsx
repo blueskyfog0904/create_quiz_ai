@@ -290,7 +290,7 @@ export default function TextbookGenerateClient({ board, post, problemType }: Tex
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowSavedDialog(false)}>계속 보기</Button>
-            <Button onClick={() => router.push('/bank')}>문제은행으로 이동</Button>
+            <Button onClick={() => router.push('/library/purchased')}>영어문제 관리로 이동</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/bypass'
 import type { TablesInsert } from '@/types/supabase'
 import { AIGenerationService } from '@/lib/ai'
 import type { AIProvider } from '@/lib/ai/types'
-import { normalizeQuestionTextBackward } from '@/lib/questions/normalize-question-field'
+import { stagedGeneratedQuestionToJson } from '@/lib/questions/generated-question-staging'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,12 +69,6 @@ ${promptTemplate}
 【지문】
 ${passage}
 `
-
-const toDbNull = (value?: string | null) => {
-  if (value === undefined || value === null) return null
-  const trimmed = value.trim()
-  return trimmed.length ? value : null
-}
 
 const getRefundConsumptions = (
   consumptions: Array<{ sourceId: string; amount: number }>,
@@ -199,6 +193,8 @@ export async function POST(request: Request) {
       post_id: post.id,
       user_id: user.id,
       status: 'running',
+      grade_level: gradeLevel,
+      difficulty,
       selected_problem_type_ids: problemTypeIds,
       requested_item_count: requestedItemCount,
       requested_type_count: requestedTypeCount,
@@ -325,44 +321,20 @@ export async function POST(request: Request) {
           throw new Error(result.error || 'AI 문제 생성에 실패했습니다.')
         }
 
-        const question = result.data
-        const { data: savedQuestion, error: questionError } = await adminSupabase
-          .from('questions')
-          .insert({
-            user_id: user.id,
-            question_text: question.questionText,
-            question_text_forward: toDbNull(question.questionTextForward),
-            question_text_backward: toDbNull(normalizeQuestionTextBackward(question.questionTextBackward)),
-            choices: question.choices,
-            answer: question.answer,
-            explanation: toDbNull(question.explanation),
-            passage_text: toDbNull(question.passageText) || postItem.passage_text,
-            grade_level: gradeLevel,
-            difficulty,
-            problem_type_id: problemType.id,
-            raw_ai_response: result.rawResponse ?? null,
-            source: 'ai_generated',
-            shared_question_id: null,
-            tags: null,
-            rating: 0,
-            generate_listboard_post_id: post.id,
-            generate_listboard_post_item_id: postItem.id,
-            generate_generation_job_item_id: jobItem.id,
-          })
-          .select('id')
-          .single()
-
-        if (questionError || !savedQuestion) {
-          throw new Error(questionError?.message || '문제 저장에 실패했습니다.')
-        }
-
         completedCount += 1
         await adminSupabase
           .from('generate_listboard_generation_job_items')
           .update({
             status: 'completed',
-            question_id: savedQuestion.id,
+            generated_question: stagedGeneratedQuestionToJson(result.data),
+            raw_ai_response: result.rawResponse ?? null,
+            question_id: null,
+            save_status: 'unsaved',
+            saved_at: null,
+            save_error_message: null,
             credit_charged: COST_PER_GENERATION,
+            error_code: null,
+            error_message: null,
             finished_at: new Date().toISOString(),
           })
           .eq('id', jobItem.id)
@@ -372,6 +344,11 @@ export async function POST(request: Request) {
           .from('generate_listboard_generation_job_items')
           .update({
             status: 'failed',
+            generated_question: null,
+            raw_ai_response: null,
+            save_status: 'unsaved',
+            saved_at: null,
+            save_error_message: null,
             error_code: 'GENERATION_FAILED',
             error_message: error instanceof Error ? error.message : 'AI 문제 생성 중 오류가 발생했습니다.',
             finished_at: new Date().toISOString(),

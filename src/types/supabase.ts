@@ -344,12 +344,17 @@ export type Database = {
           error_code: string | null
           error_message: string | null
           finished_at: string | null
+          generated_question: Json | null
           id: string
           job_id: string
           post_id: string
           post_item_id: string
           problem_type_id: string
           question_id: string | null
+          raw_ai_response: string | null
+          save_error_message: string | null
+          save_status: string
+          saved_at: string | null
           started_at: string | null
           status: string
           updated_at: string
@@ -361,12 +366,17 @@ export type Database = {
           error_code?: string | null
           error_message?: string | null
           finished_at?: string | null
+          generated_question?: Json | null
           id?: string
           job_id: string
           post_id: string
           post_item_id: string
           problem_type_id: string
           question_id?: string | null
+          raw_ai_response?: string | null
+          save_error_message?: string | null
+          save_status?: string
+          saved_at?: string | null
           started_at?: string | null
           status?: string
           updated_at?: string
@@ -378,12 +388,17 @@ export type Database = {
           error_code?: string | null
           error_message?: string | null
           finished_at?: string | null
+          generated_question?: Json | null
           id?: string
           job_id?: string
           post_id?: string
           post_item_id?: string
           problem_type_id?: string
           question_id?: string | null
+          raw_ai_response?: string | null
+          save_error_message?: string | null
+          save_status?: string
+          saved_at?: string | null
           started_at?: string | null
           status?: string
           updated_at?: string
