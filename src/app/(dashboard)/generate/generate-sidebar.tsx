@@ -14,11 +14,23 @@ interface GenerateSidebarProps {
 export default function GenerateSidebar({ parentTitle, items }: GenerateSidebarProps) {
   const pathname = usePathname()
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
+  const isActive = (href: string) => {
+    if (href === '/generate') {
+      return pathname === '/generate'
+        || pathname === '/generate/multi'
+        || (/^\/generate\/[^/]+$/.test(pathname) && !pathname.startsWith('/generate/boards/'))
+    }
+
+    return pathname === href || pathname.startsWith(`${href}/`)
+  }
 
   if (items.length === 0) {
     return null
   }
+
+  const personalItem = items.find((item) => item.href === '/generate') ?? null
+  const boardItems = items.filter((item) => item.href !== '/generate')
+  const orderedItems = personalItem ? [...boardItems, personalItem] : items
 
   return (
     <aside className="w-full lg:w-64 lg:flex-shrink-0">
@@ -33,23 +45,28 @@ export default function GenerateSidebar({ parentTitle, items }: GenerateSidebarP
           </div>
 
           <nav className="flex flex-col gap-1">
-            {items.map((item) => {
+            {orderedItems.map((item) => {
               const active = isActive(item.href)
+              const shouldRenderDivider = personalItem !== null && item.href === '/generate' && boardItems.length > 0
 
               return (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-colors',
-                    active
-                      ? 'bg-primary text-white shadow-sm'
-                      : 'text-gray-700 hover:bg-primary/5 hover:text-primary'
-                  )}
-                >
-                  <span className="font-medium">{item.title}</span>
-                  <ChevronRight className={cn('h-4 w-4', active ? 'text-white' : 'text-gray-400')} />
-                </Link>
+                <div key={item.id} className="space-y-1">
+                  {shouldRenderDivider ? (
+                    <div className="my-2 border-t border-gray-200" />
+                  ) : null}
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      'flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-colors',
+                      active
+                        ? 'bg-primary/10 text-primary shadow-sm'
+                        : 'text-gray-700 hover:bg-primary/5 hover:text-primary'
+                    )}
+                  >
+                    <span className="font-medium">{item.title}</span>
+                    <ChevronRight className={cn('h-4 w-4', active ? 'text-primary' : 'text-gray-400')} />
+                  </Link>
+                </div>
               )
             })}
           </nav>
