@@ -243,6 +243,58 @@ function buildGenerateListboardPostItemPayload(
   }
 }
 
+async function syncGenerateListboardPostRepresentativePassage(postId: string) {
+  const supabase = getAdminSupabase()
+  let { data: representativeItem, error: itemError } = await supabase
+    .from('generate_listboard_post_items')
+    .select('passage_text')
+    .eq('post_id', postId)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .order('sort_order')
+    .order('created_at')
+    .limit(1)
+    .maybeSingle()
+
+  if (itemError) {
+    throw new Error(itemError.message)
+  }
+
+  if (!representativeItem) {
+    const fallbackResponse = await supabase
+      .from('generate_listboard_post_items')
+      .select('passage_text')
+      .eq('post_id', postId)
+      .is('deleted_at', null)
+      .order('sort_order')
+      .order('created_at')
+      .limit(1)
+      .maybeSingle()
+
+    representativeItem = fallbackResponse.data
+    itemError = fallbackResponse.error
+  }
+
+  if (itemError) {
+    throw new Error(itemError.message)
+  }
+
+  const nextPassageText = normalizeText(representativeItem?.passage_text)
+
+  if (!nextPassageText) {
+    return
+  }
+
+  const { error: postError } = await supabase
+    .from('generate_listboard_posts')
+    .update({ passage_text: nextPassageText })
+    .eq('id', postId)
+
+  if (postError) {
+    throw new Error(postError.message)
+  }
+}
+
 function validateGenerateListboardPostItems(
   items: Array<Pick<TablesInsert<'generate_listboard_post_items'>, 'question_number' | 'passage_text' | 'sort_order' | 'is_active'>>
 ) {
@@ -772,6 +824,8 @@ export async function createGenerateListboardPostItem(
     throw normalizeGenerateListboardPostItemError(error)
   }
 
+  await syncGenerateListboardPostRepresentativePassage(input.post_id)
+
   return data
 }
 
@@ -819,6 +873,8 @@ export async function updateGenerateListboardPostItem(
     throw normalizeGenerateListboardPostItemError(error)
   }
 
+  await syncGenerateListboardPostRepresentativePassage(current.post_id)
+
   return data
 }
 
@@ -835,6 +891,20 @@ export async function archiveGenerateListboardPostItem(id: string) {
     throw new Error('보관할 문항을 찾을 수 없습니다.')
   }
 
+  const { count, error: countError } = await supabase
+    .from('generate_listboard_post_items')
+    .select('id', { count: 'exact', head: true })
+    .eq('post_id', current.post_id)
+    .is('deleted_at', null)
+
+  if (countError) {
+    throw new Error(countError.message)
+  }
+
+  if ((count ?? 0) <= 1) {
+    throw new Error('마지막 문항은 보관할 수 없습니다. 최소 1개 문항은 유지해주세요.')
+  }
+
   const { error } = await supabase
     .from('generate_listboard_post_items')
     .update({
@@ -846,6 +916,8 @@ export async function archiveGenerateListboardPostItem(id: string) {
   if (error) {
     throw new Error(error.message)
   }
+
+  await syncGenerateListboardPostRepresentativePassage(current.post_id)
 }
 
 export async function archiveGenerateListboardPost(id: string) {
