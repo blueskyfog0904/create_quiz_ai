@@ -326,8 +326,7 @@ export async function POST(_: Request, { params }: RouteContext) {
         throw new Error(result.error || 'AI 문제 생성에 실패했습니다.')
       }
 
-      completedRetries += 1
-      await adminSupabase
+      const { error: completeUpdateError } = await adminSupabase
         .from('generate_listboard_generation_job_items')
         .update({
           status: 'completed',
@@ -343,9 +342,15 @@ export async function POST(_: Request, { params }: RouteContext) {
           finished_at: new Date().toISOString(),
         })
         .eq('id', jobItem.id)
+
+      if (completeUpdateError) {
+        throw new Error(completeUpdateError.message)
+      }
+
+      completedRetries += 1
     } catch (error) {
       failedRetries += 1
-      await adminSupabase
+      const { error: failedUpdateError } = await adminSupabase
         .from('generate_listboard_generation_job_items')
         .update({
           status: 'failed',
@@ -359,6 +364,10 @@ export async function POST(_: Request, { params }: RouteContext) {
           finished_at: new Date().toISOString(),
         })
         .eq('id', jobItem.id)
+
+      if (failedUpdateError) {
+        console.error('Failed to persist batch retry failure state:', failedUpdateError)
+      }
     }
   }
 
