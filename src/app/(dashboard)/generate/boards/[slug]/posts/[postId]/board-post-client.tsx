@@ -129,7 +129,11 @@ export default function BoardPostClient({
       }
 
       toast.success('배치 생성 작업을 등록했습니다.')
-      router.push(`/generate/boards/${board.slug}/posts/${post.id}/jobs/${data.data.jobId}`)
+      const params = new URLSearchParams({
+        gradeLevel,
+        difficulty,
+      })
+      router.push(`/generate/boards/${board.slug}/posts/${post.id}/jobs/${data.data.jobId}?${params.toString()}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '배치 생성 작업 생성 중 오류가 발생했습니다.')
     } finally {

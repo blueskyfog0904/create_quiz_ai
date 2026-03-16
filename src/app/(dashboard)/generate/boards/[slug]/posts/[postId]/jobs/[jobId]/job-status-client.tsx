@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, CheckCircle2, Loader2, RefreshCw } from 'lucide-react'
@@ -26,6 +26,8 @@ interface JobStatusClientProps {
   board: GenerateMenuEntry
   post: GenerateListboardPost
   initialJob: GenerateListboardGenerationJob
+  initialGradeLevel?: string
+  initialDifficulty?: string
   initialItems: JobStatusItem[]
 }
 
@@ -35,6 +37,8 @@ export default function JobStatusClient({
   board,
   post,
   initialJob,
+  initialGradeLevel,
+  initialDifficulty,
   initialItems,
 }: JobStatusClientProps) {
   const router = useRouter()
@@ -44,6 +48,8 @@ export default function JobStatusClient({
   const [savingItemIds, setSavingItemIds] = useState<string[]>([])
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
+  const [isStartingRun, setIsStartingRun] = useState(false)
+  const hasStartedRunRef = useRef(false)
 
   const completedCount = items.filter((item) => item.status === 'completed').length
   const failedCount = items.filter((item) => item.status === 'failed').length
@@ -102,7 +108,7 @@ export default function JobStatusClient({
   }, [job.id])
 
   useEffect(() => {
-    if (TERMINAL_JOB_STATUSES.includes(job.status)) {
+    if (TERMINAL_JOB_STATUSES.includes(job.status) && !isStartingRun) {
       return
     }
 
@@ -111,7 +117,48 @@ export default function JobStatusClient({
     }, 5000)
 
     return () => window.clearInterval(interval)
-  }, [job.status, refreshJob])
+  }, [job.status, refreshJob, isStartingRun])
+
+  useEffect(() => {
+    if (job.status !== 'queued') {
+      return
+    }
+
+    if (hasStartedRunRef.current) {
+      return
+    }
+
+    hasStartedRunRef.current = true
+    setIsStartingRun(true)
+
+    const startRun = async () => {
+      try {
+        const res = await fetch(`/api/generate/listboard-jobs/${job.id}/run`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            gradeLevel: initialGradeLevel || post.grade_level || '1학년',
+            difficulty: initialDifficulty || 'Medium',
+          }),
+        })
+
+        const data = await res.json()
+        if (!res.ok || !data.success) {
+          throw new Error(data.error?.message || '배치 생성 실행에 실패했습니다.')
+        }
+
+        await refreshJob(true)
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : '배치 생성 실행 중 오류가 발생했습니다.')
+      } finally {
+        setIsStartingRun(false)
+      }
+    }
+
+    void startRun()
+  }, [job.id, job.status, initialDifficulty, initialGradeLevel, post.grade_level, refreshJob])
 
   const handleRetryFailed = async () => {
     setIsRetrying(true)
@@ -192,7 +239,7 @@ export default function JobStatusClient({
             {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
             새로고침
           </Button>
-          {failedCount > 0 && job.status !== 'running' ? (
+          {failedCount > 0 && job.status !== 'running' && !isStartingRun ? (
             <Button onClick={() => void handleRetryFailed()} disabled={isRetrying}>
               {isRetrying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               실패 항목 재시도
@@ -215,7 +262,7 @@ export default function JobStatusClient({
         <CardContent className="grid gap-3 text-sm text-gray-700 md:grid-cols-3 xl:grid-cols-6">
           <div className="rounded-md border bg-gray-50 px-4 py-3">
             <p className="text-xs text-gray-500">작업 상태</p>
-            <p className="mt-1 text-lg font-semibold">{job.status}</p>
+            <p className="mt-1 text-lg font-semibold">{isStartingRun ? 'running' : job.status}</p>
           </div>
           <div className="rounded-md border bg-gray-50 px-4 py-3">
             <p className="text-xs text-gray-500">총 생성 건수</p>
@@ -262,6 +309,7 @@ export default function JobStatusClient({
             </Button>
             <span>선택 {selectedItemIds.length}건</span>
             <span>저장 가능 {saveableItemIds.length}건</span>
+            {isStartingRun ? <Badge variant="outline">작업 실행 중…</Badge> : null}
             {savedCount > 0 ? <Badge className="bg-emerald-100 text-emerald-700">{savedCount}건 저장됨</Badge> : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
