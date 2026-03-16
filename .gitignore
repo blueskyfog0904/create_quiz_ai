@@ -44,3 +44,6 @@ next-env.d.ts
 /create_quiz_ai-main_11
 /downloadfile
 
+# oh-my-codex runtime state
+/.omx/
+
