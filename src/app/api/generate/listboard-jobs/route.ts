@@ -193,8 +193,6 @@ export async function POST(request: Request) {
       post_id: post.id,
       user_id: user.id,
       status: 'running',
-      grade_level: gradeLevel,
-      difficulty,
       selected_problem_type_ids: problemTypeIds,
       requested_item_count: requestedItemCount,
       requested_type_count: requestedTypeCount,
