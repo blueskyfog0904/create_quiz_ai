@@ -44,6 +44,25 @@ function buildSearchConfig(slug: string) {
   }
 }
 
+function isMissingMarketMenuEntriesTableError(error: { message?: string | null, code?: string | null, details?: string | null }) {
+  const message = error.message ?? ''
+  const details = error.details ?? ''
+
+  return error.code === 'PGRST205'
+    || message.includes("Could not find the table 'public.market_menu_entries'")
+    || message.includes('relation "public.market_menu_entries" does not exist')
+    || message.includes('relation "market_menu_entries" does not exist')
+    || details.includes('market_menu_entries')
+}
+
+function normalizeMarketMenuEntriesWriteError(error: { message?: string | null, code?: string | null, details?: string | null }) {
+  if (isMissingMarketMenuEntriesTableError(error)) {
+    return new Error('문제마켓 메뉴 테이블이 아직 준비되지 않았습니다. market_menu_entries 마이그레이션을 먼저 적용해주세요.')
+  }
+
+  return new Error(error.message ?? '문제마켓 메뉴 처리 중 오류가 발생했습니다.')
+}
+
 function getMappedLegacyKey(child: Pick<HeaderMenuChildItem, 'title' | 'href'>) {
   const href = child.href.trim()
   const absoluteUrl = new URL(href.startsWith('http') ? href : `https://example.com${href.startsWith('/') ? href : `/${href}`}`)
@@ -116,6 +135,10 @@ export async function listMarketMenuEntriesForAdmin(): Promise<MarketMenuEntryAd
     .order('created_at')
 
   if (error) {
+    if (isMissingMarketMenuEntriesTableError(error)) {
+      return []
+    }
+
     throw new Error(error.message)
   }
 
@@ -134,6 +157,10 @@ export async function listVisibleMarketMenuEntries(): Promise<MarketMenuEntry[]>
     .order('created_at')
 
   if (error) {
+    if (isMissingMarketMenuEntriesTableError(error)) {
+      return []
+    }
+
     throw new Error(error.message)
   }
 
@@ -148,6 +175,14 @@ export async function getMarketMenuEntriesBackfillStatus(baseConfig?: HeaderNavi
     .is('deleted_at', null)
 
   if (error) {
+    if (isMissingMarketMenuEntriesTableError(error)) {
+      return {
+        sourceMode: getMarketChildrenSourceMode(),
+        entryCount: 0,
+        missingLegacyChildren: baseConfig ? getLegacyMarketChildren(baseConfig, []) : [],
+      }
+    }
+
     throw new Error(error.message)
   }
 
@@ -185,7 +220,7 @@ export async function createMarketMenuEntry(
     .single()
 
   if (error) {
-    throw new Error(error.message)
+    throw normalizeMarketMenuEntriesWriteError(error)
   }
 
   return data
@@ -202,7 +237,11 @@ export async function updateMarketMenuEntry(
     .eq('id', id)
     .single()
 
-  if (currentError || !current) {
+  if (currentError) {
+    throw normalizeMarketMenuEntriesWriteError(currentError)
+  }
+
+  if (!current) {
     throw new Error('수정할 문제마켓 메뉴를 찾을 수 없습니다.')
   }
 
@@ -235,7 +274,7 @@ export async function updateMarketMenuEntry(
     .single()
 
   if (error) {
-    throw new Error(error.message)
+    throw normalizeMarketMenuEntriesWriteError(error)
   }
 
   return data
@@ -249,7 +288,11 @@ export async function archiveMarketMenuEntry(id: string) {
     .eq('id', id)
     .single()
 
-  if (currentError || !current) {
+  if (currentError) {
+    throw normalizeMarketMenuEntriesWriteError(currentError)
+  }
+
+  if (!current) {
     throw new Error('삭제할 문제마켓 메뉴를 찾을 수 없습니다.')
   }
 
@@ -263,7 +306,7 @@ export async function archiveMarketMenuEntry(id: string) {
     .eq('id', id)
 
   if (error) {
-    throw new Error(error.message)
+    throw normalizeMarketMenuEntriesWriteError(error)
   }
 }
 
@@ -279,7 +322,7 @@ export async function reorderMarketMenuEntries(ids: string[]) {
 
   const failed = results.find((result) => result.error)
   if (failed?.error) {
-    throw new Error(failed.error.message)
+    throw normalizeMarketMenuEntriesWriteError(failed.error)
   }
 }
 
@@ -291,7 +334,7 @@ export async function backfillMarketMenuEntriesFromHeader(baseConfig: HeaderNavi
     .is('deleted_at', null)
 
   if (existingError) {
-    throw new Error(existingError.message)
+    throw normalizeMarketMenuEntriesWriteError(existingError)
   }
 
   const legacyChildren = getLegacyMarketChildren(baseConfig, existingEntries ?? [])
@@ -316,7 +359,7 @@ export async function backfillMarketMenuEntriesFromHeader(baseConfig: HeaderNavi
       .single()
 
     if (error) {
-      throw new Error(error.message)
+      throw normalizeMarketMenuEntriesWriteError(error)
     }
 
     results.push(data)
