@@ -570,6 +570,51 @@ export type Database = {
         }
         Relationships: []
       }
+      market_menu_entries: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          description: string | null
+          entry_key: string
+          id: string
+          is_active: boolean
+          is_visible: boolean
+          search_config: Json
+          slug: string
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          entry_key: string
+          id?: string
+          is_active?: boolean
+          is_visible?: boolean
+          search_config?: Json
+          slug: string
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          entry_key?: string
+          id?: string
+          is_active?: boolean
+          is_visible?: boolean
+          search_config?: Json
+          slug?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string | null
