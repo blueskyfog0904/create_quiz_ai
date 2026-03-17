@@ -1,0 +1,326 @@
+import { createAdminClient } from '@/lib/supabase/bypass'
+import type { HeaderMenuChildItem, HeaderNavigationConfig } from '@/lib/header-navigation'
+import {
+  buildMarketMenuHref,
+  type MarketChildrenSourceMode,
+  type MarketMenuEntry,
+  type MarketMenuEntryAdminRow,
+} from '@/lib/market-menu'
+import type { TablesInsert, TablesUpdate } from '@/types/supabase'
+
+const MARKET_CHILDREN_SOURCE_MODE: MarketChildrenSourceMode = 'hybrid_fallback'
+
+export interface LegacyMarketChildSummary {
+  id: string
+  title: string
+  href: string
+  isActive: boolean
+  entryKey: string
+  slug: string
+  existsInDb: boolean
+}
+
+function getAdminSupabase() {
+  return createAdminClient()
+}
+
+function normalizeText(value?: string | null) {
+  return value?.trim() ?? ''
+}
+
+export function normalizeSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+function buildSearchConfig(slug: string) {
+  return {
+    marketSlug: slug,
+    entryHref: buildMarketMenuHref({ slug }),
+  }
+}
+
+function getMappedLegacyKey(child: Pick<HeaderMenuChildItem, 'title' | 'href'>) {
+  const href = child.href.trim()
+  const absoluteUrl = new URL(href.startsWith('http') ? href : `https://example.com${href.startsWith('/') ? href : `/${href}`}`)
+  const marketSlug = absoluteUrl.searchParams.get('marketSlug')
+  const pathnameSlug = absoluteUrl.pathname.startsWith('/market/')
+    ? absoluteUrl.pathname.replace(/^\/market\//, '')
+    : absoluteUrl.pathname.replace(/^\//, '')
+
+  const slug = normalizeSlug(marketSlug || pathnameSlug || child.title)
+
+  return {
+    entryKey: slug,
+    slug,
+  }
+}
+
+function validateEntryInput(input: {
+  title?: string
+  slug?: string
+}) {
+  const title = normalizeText(input.title)
+  if (!title) {
+    throw new Error('메뉴명을 입력해주세요.')
+  }
+
+  if (title.length > 30) {
+    throw new Error('메뉴명은 30자 이하로 입력해주세요.')
+  }
+
+  const slug = normalizeSlug(input.slug || '')
+  if (!slug) {
+    throw new Error('slug를 입력해주세요.')
+  }
+
+  return {
+    title,
+    slug,
+  }
+}
+
+export function getMarketChildrenSourceMode() {
+  return MARKET_CHILDREN_SOURCE_MODE
+}
+
+export function getLegacyMarketChildren(baseConfig: HeaderNavigationConfig, existingEntries: MarketMenuEntry[]): LegacyMarketChildSummary[] {
+  const marketParent = baseConfig.items.find((item) => item.href === '/market')
+  const children = marketParent?.children ?? []
+  const existingKeys = new Set(existingEntries.map((entry) => entry.entry_key))
+
+  return children.map((child) => {
+    const mapped = getMappedLegacyKey(child)
+    return {
+      id: child.id,
+      title: child.title,
+      href: child.href,
+      isActive: child.isActive,
+      entryKey: mapped.entryKey,
+      slug: mapped.slug,
+      existsInDb: existingKeys.has(mapped.entryKey),
+    }
+  })
+}
+
+export async function listMarketMenuEntriesForAdmin(): Promise<MarketMenuEntryAdminRow[]> {
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('market_menu_entries')
+    .select('*')
+    .order('sort_order')
+    .order('created_at')
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data ?? []
+}
+
+export async function listVisibleMarketMenuEntries(): Promise<MarketMenuEntry[]> {
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('market_menu_entries')
+    .select('*')
+    .is('deleted_at', null)
+    .eq('is_visible', true)
+    .eq('is_active', true)
+    .order('sort_order')
+    .order('created_at')
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data ?? []
+}
+
+export async function getMarketMenuEntriesBackfillStatus(baseConfig?: HeaderNavigationConfig) {
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('market_menu_entries')
+    .select('*')
+    .is('deleted_at', null)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const entries = data ?? []
+  const legacyChildren = baseConfig ? getLegacyMarketChildren(baseConfig, entries) : []
+
+  return {
+    sourceMode: getMarketChildrenSourceMode(),
+    entryCount: entries.length,
+    missingLegacyChildren: legacyChildren.filter((child) => !child.existsInDb),
+  }
+}
+
+export async function createMarketMenuEntry(
+  input: Pick<TablesInsert<'market_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>
+) {
+  const supabase = getAdminSupabase()
+  const normalized = validateEntryInput(input)
+
+  const payload: TablesInsert<'market_menu_entries'> = {
+    entry_key: normalized.slug,
+    slug: normalized.slug,
+    title: normalized.title,
+    description: normalizeText(input.description) || null,
+    sort_order: input.sort_order ?? 0,
+    is_visible: input.is_visible ?? true,
+    is_active: input.is_active ?? true,
+    search_config: input.search_config ?? buildSearchConfig(normalized.slug),
+  }
+
+  const { data, error } = await supabase
+    .from('market_menu_entries')
+    .insert(payload)
+    .select('*')
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data
+}
+
+export async function updateMarketMenuEntry(
+  id: string,
+  input: Pick<TablesUpdate<'market_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>
+) {
+  const supabase = getAdminSupabase()
+  const { data: current, error: currentError } = await supabase
+    .from('market_menu_entries')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (currentError || !current) {
+    throw new Error('수정할 문제마켓 메뉴를 찾을 수 없습니다.')
+  }
+
+  const normalizedTitle = normalizeText(input.title ?? current.title)
+  if (!normalizedTitle) {
+    throw new Error('메뉴명을 입력해주세요.')
+  }
+
+  const nextSlug = normalizeSlug(input.slug ?? current.slug)
+  if (!nextSlug) {
+    throw new Error('slug를 입력해주세요.')
+  }
+
+  const payload: TablesUpdate<'market_menu_entries'> = {
+    title: normalizedTitle,
+    slug: nextSlug,
+    entry_key: nextSlug,
+    description: normalizeText(input.description ?? current.description) || null,
+    sort_order: input.sort_order ?? current.sort_order,
+    is_visible: input.is_visible ?? current.is_visible,
+    is_active: input.is_active ?? current.is_active,
+    search_config: input.search_config ?? current.search_config ?? buildSearchConfig(nextSlug),
+  }
+
+  const { data, error } = await supabase
+    .from('market_menu_entries')
+    .update(payload)
+    .eq('id', id)
+    .select('*')
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data
+}
+
+export async function archiveMarketMenuEntry(id: string) {
+  const supabase = getAdminSupabase()
+  const { data: current, error: currentError } = await supabase
+    .from('market_menu_entries')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (currentError || !current) {
+    throw new Error('삭제할 문제마켓 메뉴를 찾을 수 없습니다.')
+  }
+
+  const { error } = await supabase
+    .from('market_menu_entries')
+    .update({
+      is_active: false,
+      is_visible: false,
+      deleted_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+export async function reorderMarketMenuEntries(ids: string[]) {
+  const supabase = getAdminSupabase()
+
+  const results = await Promise.all(ids.map((id, index) => (
+    supabase
+      .from('market_menu_entries')
+      .update({ sort_order: (index + 1) * 10 })
+      .eq('id', id)
+  )))
+
+  const failed = results.find((result) => result.error)
+  if (failed?.error) {
+    throw new Error(failed.error.message)
+  }
+}
+
+export async function backfillMarketMenuEntriesFromHeader(baseConfig: HeaderNavigationConfig) {
+  const supabase = getAdminSupabase()
+  const { data: existingEntries, error: existingError } = await supabase
+    .from('market_menu_entries')
+    .select('*')
+    .is('deleted_at', null)
+
+  if (existingError) {
+    throw new Error(existingError.message)
+  }
+
+  const legacyChildren = getLegacyMarketChildren(baseConfig, existingEntries ?? [])
+  const results: MarketMenuEntry[] = []
+
+  for (const [index, child] of legacyChildren.entries()) {
+    const payload: TablesInsert<'market_menu_entries'> = {
+      entry_key: child.entryKey,
+      slug: child.slug,
+      title: child.title,
+      description: `${child.title} 문제마켓 진입점`,
+      sort_order: (index + 1) * 10,
+      is_visible: child.isActive,
+      is_active: child.isActive,
+      search_config: buildSearchConfig(child.slug),
+    }
+
+    const { data, error } = await supabase
+      .from('market_menu_entries')
+      .upsert(payload, { onConflict: 'entry_key' })
+      .select('*')
+      .single()
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    results.push(data)
+  }
+
+  return results
+}

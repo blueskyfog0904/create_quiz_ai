@@ -10,6 +10,12 @@ import {
   listVisibleGenerateMenuEntries,
 } from '@/lib/generate-menu-server'
 import { mergeGenerateEntriesIntoHeaderConfig } from '@/lib/generate-menu'
+import {
+  getMarketChildrenSourceMode,
+  listVisibleMarketMenuEntries,
+} from '@/lib/market-menu-server'
+import { mergeMarketEntriesIntoHeaderConfig } from '@/lib/market-menu'
+import { preserveDbManagedParentChildren } from '@/lib/db-managed-header'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import type { Json, TablesInsert } from '@/types/supabase'
 
@@ -47,11 +53,16 @@ export async function getBaseHeaderNavigationConfig(): Promise<HeaderNavigationC
 export async function getHeaderNavigationConfig(): Promise<HeaderNavigationConfig> {
   const baseConfig = await getBaseHeaderNavigationConfig()
   const generateEntries = await listVisibleGenerateMenuEntries()
+  const marketEntries = await listVisibleMarketMenuEntries()
 
-  return mergeGenerateEntriesIntoHeaderConfig(
-    baseConfig,
-    generateEntries,
-    getGenerateChildrenSourceMode()
+  return mergeMarketEntriesIntoHeaderConfig(
+    mergeGenerateEntriesIntoHeaderConfig(
+      baseConfig,
+      generateEntries,
+      getGenerateChildrenSourceMode()
+    ),
+    marketEntries,
+    getMarketChildrenSourceMode()
   )
 }
 
@@ -59,21 +70,11 @@ export async function saveHeaderNavigationConfig(config: HeaderNavigationConfig)
   const adminSupabase = getServiceRoleClient()
   const existingConfig = await getBaseHeaderNavigationConfig()
   const normalizedConfig = normalizeHeaderNavigationConfig(config)
-  const existingGenerateParent = existingConfig.items.find((item) => item.href === '/generate')
-
-  const preservedConfig = {
-    ...normalizedConfig,
-    items: normalizedConfig.items.map((item) => {
-      if (item.href !== '/generate') {
-        return item
-      }
-
-      return {
-        ...item,
-        children: existingGenerateParent?.children ?? item.children,
-      }
-    }),
-  }
+  const preservedConfig = preserveDbManagedParentChildren(
+    existingConfig,
+    normalizedConfig,
+    ['/generate', '/market']
+  )
 
   const payload: TablesInsert<'system_settings'> = {
     key: HEADER_NAVIGATION_SETTING_KEY,
