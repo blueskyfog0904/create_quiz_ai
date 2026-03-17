@@ -55,6 +55,32 @@ export default function BoardPostClient({
   const requestedGenerationCount = selectedProblemTypeIds.length * selectedPostItemIds.length
   const requiredCredits = requestedGenerationCount * CREDIT_COST_PER_GENERATION
 
+  const renderBatchStartCard = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>배치 생성 시작</CardTitle>
+        <CardDescription>
+          선택된 문제 유형 {selectedProblemTypeIds.length}개 × 문항 {selectedPostItemIds.length}개 = 총 {requestedGenerationCount}건 생성
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {selectedItems.length > 0 ? (
+          <div className="rounded-lg border bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            선택 문항: {selectedItems.slice(0, 8).map((item) => item.question_number).join(', ')}
+            {selectedItems.length > 8 ? ' ...' : ''}
+          </div>
+        ) : null}
+        <Button
+          onClick={handleStartClick}
+          disabled={isCheckingBalance || isSubmitting || requestedGenerationCount === 0}
+          className="w-full h-11 text-base"
+        >
+          {isCheckingBalance ? '크레딧 확인 중...' : isSubmitting ? '작업 생성 중...' : `배치 생성 시작 (${requiredCredits.toLocaleString()} 크레딧)`}
+        </Button>
+      </CardContent>
+    </Card>
+  )
+
   const toggleProblemType = (typeId: string, checked: boolean) => {
     setSelectedProblemTypeIds((current) => checked
       ? [...current, typeId]
@@ -169,13 +195,13 @@ export default function BoardPostClient({
             <p className="text-xs text-gray-500">선택된 문항</p>
             <p className="mt-1 text-lg font-semibold">{selectedPostItemIds.length}개</p>
           </div>
-          <div className="rounded-md border bg-gray-50 px-4 py-3">
+          <div className="rounded-md border border-sky-100 bg-sky-50/80 px-4 py-3">
             <p className="text-xs text-gray-500">총 생성 건수</p>
-            <p className="mt-1 text-lg font-semibold">{requestedGenerationCount}건</p>
+            <p className="mt-1 text-lg font-semibold text-sky-700">{requestedGenerationCount}건</p>
           </div>
-          <div className="rounded-md border bg-gray-50 px-4 py-3">
+          <div className="rounded-md border border-rose-100 bg-rose-50/80 px-4 py-3">
             <p className="text-xs text-gray-500">예상 차감 크레딧</p>
-            <p className="mt-1 text-lg font-semibold text-primary">{requiredCredits.toLocaleString()}</p>
+            <p className="mt-1 text-lg font-semibold text-rose-700">{requiredCredits.toLocaleString()}</p>
           </div>
         </CardContent>
       </Card>
@@ -243,6 +269,8 @@ export default function BoardPostClient({
         </CardContent>
       </Card>
 
+      {renderBatchStartCard()}
+
       <Card>
         <CardHeader>
           <CardTitle>문항 선택</CardTitle>
@@ -273,29 +301,7 @@ export default function BoardPostClient({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>배치 생성 시작</CardTitle>
-          <CardDescription>
-            선택된 문제 유형 {selectedProblemTypeIds.length}개 × 문항 {selectedPostItemIds.length}개 = 총 {requestedGenerationCount}건 생성
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {selectedItems.length > 0 ? (
-            <div className="rounded-lg border bg-gray-50 px-4 py-3 text-sm text-gray-600">
-              선택 문항: {selectedItems.slice(0, 8).map((item) => item.question_number).join(', ')}
-              {selectedItems.length > 8 ? ' ...' : ''}
-            </div>
-          ) : null}
-          <Button
-            onClick={handleStartClick}
-            disabled={isCheckingBalance || isSubmitting || requestedGenerationCount === 0}
-            className="w-full h-11 text-base"
-          >
-            {isCheckingBalance ? '크레딧 확인 중...' : isSubmitting ? '작업 생성 중...' : `배치 생성 시작 (${requiredCredits.toLocaleString()} 크레딧)`}
-          </Button>
-        </CardContent>
-      </Card>
+      {renderBatchStartCard()}
 
       <CreditConfirmationDialog
         open={showConfirmation}

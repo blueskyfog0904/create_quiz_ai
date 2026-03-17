@@ -12,10 +12,26 @@ import { HeaderClient } from './header-client'
 import { getHeaderNavigationConfig } from '@/lib/header-navigation-server'
 import { getActiveHeaderNavigationItems } from '@/lib/header-navigation'
 
+function reorderGenerateChildren(items: ReturnType<typeof getActiveHeaderNavigationItems>) {
+  return items.map((item) => {
+    if (item.href !== '/generate' || item.children.length === 0) {
+      return item
+    }
+
+    const personalChild = item.children.find((child) => child.href === '/generate/personal') ?? null
+    const otherChildren = item.children.filter((child) => child.href !== '/generate/personal')
+
+    return {
+      ...item,
+      children: personalChild ? [...otherChildren, personalChild] : item.children,
+    }
+  })
+}
+
 export async function Header() {
   const supabase = await createClient()
   const navigationConfig = await getHeaderNavigationConfig()
-  const activeNavigationItems = getActiveHeaderNavigationItems(navigationConfig.items)
+  const activeNavigationItems = reorderGenerateChildren(getActiveHeaderNavigationItems(navigationConfig.items))
   let user = null
 
   try {
