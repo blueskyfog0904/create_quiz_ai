@@ -36,19 +36,39 @@ import type {
   GenerateListboardPost,
   GenerateMenuEntryAdminRow,
 } from '@/lib/generate-menu'
+import {
+  archiveMarketMenuEntry,
+  backfillMarketMenuEntriesFromHeader,
+  createMarketMenuEntry,
+  getMarketChildrenSourceMode,
+  getMarketMenuEntriesBackfillStatus,
+  listMarketMenuEntriesForAdmin,
+  reorderMarketMenuEntries,
+  updateMarketMenuEntry,
+  type LegacyMarketChildSummary,
+} from '@/lib/market-menu-server'
+import type { MarketMenuEntryAdminRow } from '@/lib/market-menu'
 import type { TablesInsert, TablesUpdate } from '@/types/supabase'
 
 export interface MenuManagementPageData {
   initialConfig: HeaderNavigationConfig
   generateMenuEntries: GenerateMenuEntryAdminRow[]
+  marketMenuEntries: MarketMenuEntryAdminRow[]
   initialGeneratePosts: GenerateListboardPost[]
   initialSelectedBoardId: string | null
   generateChildrenSourceMode: ReturnType<typeof getGenerateChildrenSourceMode>
+  marketChildrenSourceMode: ReturnType<typeof getMarketChildrenSourceMode>
   hasGenerateParent: boolean
+  hasMarketParent: boolean
   backfillStatus: {
     sourceMode: ReturnType<typeof getGenerateChildrenSourceMode>
     entryCount: number
     missingLegacyChildren: LegacyGenerateChildSummary[]
+  }
+  marketBackfillStatus: {
+    sourceMode: ReturnType<typeof getMarketChildrenSourceMode>
+    entryCount: number
+    missingLegacyChildren: LegacyMarketChildSummary[]
   }
 }
 
@@ -56,6 +76,8 @@ function revalidateMenuRelatedPaths() {
   revalidatePath('/', 'layout')
   revalidatePath('/generate', 'layout')
   revalidatePath('/generate/boards', 'layout')
+  revalidatePath('/market', 'layout')
+  revalidatePath('/library/purchased', 'layout')
   revalidatePath('/admin')
   revalidatePath('/admin/menu-management')
 }
@@ -65,7 +87,9 @@ export async function getMenuManagementData(): Promise<MenuManagementPageData> {
 
   const initialConfig = await getBaseHeaderNavigationConfig()
   const generateMenuEntries = await listGenerateMenuEntriesForAdmin()
+  const marketMenuEntries = await listMarketMenuEntriesForAdmin()
   const backfillStatus = await getGenerateMenuEntriesBackfillStatus(initialConfig)
+  const marketBackfillStatus = await getMarketMenuEntriesBackfillStatus(initialConfig)
   const firstListboardEntry = generateMenuEntries.find((entry) => entry.entry_type === 'listboard' && entry.deleted_at === null)
   const initialGeneratePosts = firstListboardEntry
     ? await listGenerateListboardPostsForAdmin(firstListboardEntry.id)
@@ -74,11 +98,15 @@ export async function getMenuManagementData(): Promise<MenuManagementPageData> {
   return {
     initialConfig,
     generateMenuEntries,
+    marketMenuEntries,
     initialGeneratePosts,
     initialSelectedBoardId: firstListboardEntry?.id ?? null,
     generateChildrenSourceMode: getGenerateChildrenSourceMode(),
+    marketChildrenSourceMode: getMarketChildrenSourceMode(),
     hasGenerateParent: initialConfig.items.some((item) => item.href === '/generate'),
+    hasMarketParent: initialConfig.items.some((item) => item.href === '/market'),
     backfillStatus,
+    marketBackfillStatus,
   }
 }
 
@@ -228,4 +256,46 @@ export async function archiveGenerateListboardPostItemAction(id: string) {
   await archiveGenerateListboardPostItem(id)
   revalidateMenuRelatedPaths()
   return { success: true }
+}
+
+
+export async function createMarketMenuEntryAction(
+  input: Pick<TablesInsert<'market_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>
+) {
+  await requireAdmin()
+  const entry = await createMarketMenuEntry(input)
+  revalidateMenuRelatedPaths()
+  return { success: true, data: entry }
+}
+
+export async function updateMarketMenuEntryAction(
+  id: string,
+  input: Pick<TablesUpdate<'market_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>
+) {
+  await requireAdmin()
+  const entry = await updateMarketMenuEntry(id, input)
+  revalidateMenuRelatedPaths()
+  return { success: true, data: entry }
+}
+
+export async function archiveMarketMenuEntryAction(id: string) {
+  await requireAdmin()
+  await archiveMarketMenuEntry(id)
+  revalidateMenuRelatedPaths()
+  return { success: true }
+}
+
+export async function reorderMarketMenuEntriesAction(ids: string[]) {
+  await requireAdmin()
+  await reorderMarketMenuEntries(ids)
+  revalidateMenuRelatedPaths()
+  return { success: true }
+}
+
+export async function backfillMarketMenuEntriesAction() {
+  await requireAdmin()
+  const config = await getBaseHeaderNavigationConfig()
+  const entries = await backfillMarketMenuEntriesFromHeader(config)
+  revalidateMenuRelatedPaths()
+  return { success: true, data: entries }
 }
