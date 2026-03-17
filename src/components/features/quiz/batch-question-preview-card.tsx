@@ -18,6 +18,7 @@ interface BatchQuestionPreviewCardProps {
   onSelectChange: (checked: boolean) => void
   onSave: () => void
   isSaving: boolean
+  disableActions?: boolean
 }
 
 const saveStatusLabel: Record<string, string> = {
@@ -44,6 +45,7 @@ export function BatchQuestionPreviewCard({
   onSelectChange,
   onSave,
   isSaving,
+  disableActions = false,
 }: BatchQuestionPreviewCardProps) {
   const isSaved = saveStatus === 'saved'
 
@@ -54,7 +56,7 @@ export function BatchQuestionPreviewCard({
           <div className="flex items-center gap-3">
             <Checkbox
               checked={isSelected}
-              disabled={isSaved || isSaving}
+              disabled={disableActions || isSaved || isSaving}
               onCheckedChange={(checked) => onSelectChange(Boolean(checked))}
             />
             <div>
@@ -76,7 +78,7 @@ export function BatchQuestionPreviewCard({
           <Button
             size="sm"
             onClick={onSave}
-            disabled={isSaved || isSaving}
+            disabled={disableActions || isSaved || isSaving}
           >
             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             {isSaved ? '저장 완료' : '개별 저장'}

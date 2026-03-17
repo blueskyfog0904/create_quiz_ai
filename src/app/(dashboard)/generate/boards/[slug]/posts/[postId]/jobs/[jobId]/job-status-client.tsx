@@ -55,6 +55,7 @@ export default function JobStatusClient({
   const failedCount = items.filter((item) => item.status === 'failed').length
   const savedCount = items.filter((item) => item.save_status === 'saved').length
   const saveFailedCount = items.filter((item) => item.save_status === 'save_failed').length
+  const isGenerationInProgress = isStartingRun || !TERMINAL_JOB_STATUSES.includes(job.status)
   const progressPercent = job.requested_generation_count > 0
     ? Math.round(((completedCount + failedCount) / job.requested_generation_count) * 100)
     : 0
@@ -235,20 +236,26 @@ export default function JobStatusClient({
           <p className="mt-2 text-gray-500">{post.title} 게시글 기준 생성 결과를 확인하고 선택 저장할 수 있습니다.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => void refreshJob()} disabled={isRefreshing}>
+          <Button variant="outline" onClick={() => void refreshJob()} disabled={isGenerationInProgress || isRefreshing}>
             {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
             새로고침
           </Button>
           {failedCount > 0 && job.status !== 'running' && !isStartingRun ? (
-            <Button onClick={() => void handleRetryFailed()} disabled={isRetrying}>
+            <Button onClick={() => void handleRetryFailed()} disabled={isGenerationInProgress || isRetrying}>
               {isRetrying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               실패 항목 재시도
             </Button>
           ) : null}
           <Button variant="outline" asChild>
-            <Link href={`/generate/boards/${board.slug}/posts/${post.id}`}>선택 화면으로 돌아가기</Link>
+            <Link
+              href={`/generate/boards/${board.slug}/posts/${post.id}`}
+              aria-disabled={isGenerationInProgress}
+              className={isGenerationInProgress ? 'pointer-events-none opacity-50' : ''}
+            >
+              선택 화면으로 돌아가기
+            </Link>
           </Button>
-          <Button onClick={() => router.push(`/library/purchased?jobId=${job.id}`)} disabled={savedCount === 0}>
+          <Button onClick={() => router.push(`/library/purchased?jobId=${job.id}`)} disabled={isGenerationInProgress || savedCount === 0}>
             저장한 문제 확인하기
           </Button>
         </div>
@@ -289,14 +296,22 @@ export default function JobStatusClient({
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm text-gray-600">
               <span>생성 진행률</span>
-              <span>{completedCount + failedCount} / {job.requested_generation_count} 처리 ({progressPercent}%)</span>
+              <span>
+                {completedCount + failedCount} / {job.requested_generation_count} 처리 ({progressPercent}%)
+                {isGenerationInProgress ? ' · 생성 중…' : ''}
+              </span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-gray-100">
               <div
-                className="h-full rounded-full bg-primary transition-all"
+                className={`h-full rounded-full bg-primary transition-all ${isGenerationInProgress ? 'animate-pulse' : ''}`}
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
+            {isGenerationInProgress ? (
+              <div className="relative h-2 overflow-hidden rounded-full bg-primary/10">
+                <div className="absolute inset-y-0 left-0 w-1/3 animate-[loading-bar_1.2s_ease-in-out_infinite] rounded-full bg-primary/50" />
+              </div>
+            ) : null}
           </div>
         </CardContent>
       </Card>
@@ -304,7 +319,7 @@ export default function JobStatusClient({
       <Card className="sticky top-20 z-20 border-primary/20 shadow-sm">
         <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
-            <Button variant="outline" size="sm" onClick={toggleSelectAll} disabled={saveableItemIds.length === 0}>
+            <Button variant="outline" size="sm" onClick={toggleSelectAll} disabled={isGenerationInProgress || saveableItemIds.length === 0}>
               {selectedItemIds.length === saveableItemIds.length && saveableItemIds.length > 0 ? '전체 해제' : '전체 선택'}
             </Button>
             <span>선택 {selectedItemIds.length}건</span>
@@ -316,13 +331,13 @@ export default function JobStatusClient({
             <Button
               variant="outline"
               onClick={() => router.push(`/library/purchased?jobId=${job.id}`)}
-              disabled={savedCount === 0}
+              disabled={isGenerationInProgress || savedCount === 0}
             >
               영어문제 관리에서 보기
             </Button>
             <Button
               onClick={() => void handleSaveItems(selectedItemIds, '{count}개의 문제를 저장했습니다.')}
-              disabled={selectedItemIds.length === 0 || savingItemIds.length > 0}
+              disabled={isGenerationInProgress || selectedItemIds.length === 0 || savingItemIds.length > 0}
             >
               {savingItemIds.length > 0 ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               선택한 문제 저장
@@ -349,6 +364,7 @@ export default function JobStatusClient({
                 saveStatus={item.save_status}
                 saveErrorMessage={item.save_error_message}
                 isSaving={savingItemIds.includes(item.id)}
+                disableActions={isGenerationInProgress}
                 onSelectChange={(checked) => {
                   setSelectedItemIds((current) => {
                     if (checked) {
