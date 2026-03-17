@@ -883,7 +883,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
 
 
           <div 
-             className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 transition-transform duration-200 origin-top-left"
+             className="grid gap-6 grid-cols-1 transition-transform duration-200 origin-top-left"
              style={{
                 transform: `scale(${scale / 100})`,
                 width: `${100 / (scale / 100)}%`,
@@ -919,9 +919,6 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
                         onClick={(e) => e.stopPropagation()}
                       />
                       <CardTitle className="text-base font-semibold">{questionData.problemType.type_name}</CardTitle>
-                      <Badge variant={questionData.problemType.provider === 'openai' ? 'default' : 'secondary'} className="text-xs px-2 py-0.5">
-                        {questionData.problemType.provider === 'openai' ? 'AI (OpenAI)' : 'AI'}  {/* Changed label */}
-                      </Badge> 
                     </div>
                     {savedStates.get(typeId) && (
                         <div className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-medium border border-green-200">
