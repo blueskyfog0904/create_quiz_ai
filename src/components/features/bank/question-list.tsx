@@ -151,7 +151,7 @@ function QuestionItem({
       </div>
 
       <div className="ml-8 pt-8"> 
-        <div className="flex justify-between items-center mb-4">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
           {/* Rating */}
           <div className="flex items-center gap-1">
             {[1, 2, 3].map((star) => (
@@ -171,7 +171,7 @@ function QuestionItem({
           </div>
 
           {/* Tags area */}
-          <div className="flex flex-wrap items-center justify-end gap-1.5 min-w-0 flex-1 ml-4">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
             {(question.tags || []).map(tag => (
               <Badge key={tag} variant="outline" className="text-xs pl-2 pr-1 py-0.5 h-6 gap-1 group">
                 {tag}
@@ -186,7 +186,7 @@ function QuestionItem({
             
             <Popover open={isTagPopoverOpen} onOpenChange={setIsTagPopoverOpen}>
               <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full border border-dashed hover:border-solid">
+                <Button variant="ghost" size="sm" className="h-6 w-6 shrink-0 rounded-full border border-dashed p-0 hover:border-solid">
                   <Plus className="w-3 h-3" />
                 </Button>
               </PopoverTrigger>
