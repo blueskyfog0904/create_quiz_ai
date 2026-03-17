@@ -149,6 +149,17 @@ interface GeneratePostItemFormState {
 
 const MIN_EXAM_YEAR = 2000
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1))
+const MANAGED_CHILD_PARENT_HREFS = ['/generate', '/market'] as const
+
+function isManagedChildParent(href?: string) {
+  return href ? MANAGED_CHILD_PARENT_HREFS.includes(href as typeof MANAGED_CHILD_PARENT_HREFS[number]) : false
+}
+
+function getManagedChildParentLabel(href?: string) {
+  if (href === '/generate') return '문제생성'
+  if (href === '/market') return '문제마켓'
+  return '별도 관리'
+}
 
 async function parseGeneratePostCsvFile(file: File): Promise<{ fileName: string, items: GeneratePostCsvItem[] }> {
   const fileName = file.name.toLowerCase()
@@ -337,7 +348,6 @@ export default function MenuManagementClient({
   initialGeneratePosts,
   initialSelectedBoardId,
   generateChildrenSourceMode,
-  hasGenerateParent,
   backfillStatus,
 }: MenuManagementClientProps) {
   const router = useRouter()
@@ -372,7 +382,7 @@ export default function MenuManagementClient({
 
   const editableConfig = useMemo(() => ({
     ...config,
-    items: config.items.map((item) => item.href === '/generate' ? { ...item, children: [] } : item),
+    items: config.items.map((item) => isManagedChildParent(item.href) ? { ...item, children: [] } : item),
   }), [config])
 
   const flatRows = useMemo(() => flattenHeaderNavigationItems(editableConfig.items), [editableConfig.items])
@@ -410,6 +420,10 @@ export default function MenuManagementClient({
     return buildExamYearOptions(baseYear)
   }, [generatePosts, postForm.examYear])
   const selectedBoard = listboardEntries.find((entry) => entry.id === selectedBoardId) || listboardEntries[0] || null
+  const marketParent = config.items.find((item) => item.href === '/market') || null
+  const marketChildren = marketParent?.children || []
+  const hasGenerateParent = config.items.some((item) => item.href === '/generate')
+  const hasMarketParent = config.items.some((item) => item.href === '/market')
   const hasUnsavedChanges = JSON.stringify({ ...config, logoText }) !== JSON.stringify(savedConfig)
 
   const closeDialog = () => {
@@ -461,7 +475,12 @@ export default function MenuManagementClient({
 
   const openParentEditDialog = (item: HeaderMenuItem) => {
     if (item.href === '/generate') {
-      toast.info('AI문제생성 하위 메뉴는 아래 별도 섹션에서 관리됩니다.')
+      toast.info('AI문제생성 상위 메뉴는 보호되며, 하위 메뉴는 아래 별도 섹션에서 관리됩니다.')
+      return
+    }
+
+    if (item.href === '/market') {
+      toast.info('문제마켓 상위 메뉴는 보호되며, 하위 메뉴는 아래 별도 섹션에서 관리됩니다.')
       return
     }
 
@@ -1030,7 +1049,7 @@ export default function MenuManagementClient({
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">메뉴관리</h1>
-          <p className="mt-1 text-gray-500">일반 헤더 메뉴와 문제생성 2단계 메뉴를 분리해서 관리합니다.</p>
+          <p className="mt-1 text-gray-500">일반 헤더 메뉴와 DB 연동 대상 2단계 메뉴를 분리해서 관리합니다.</p>
         </div>
         <Button onClick={handleSaveAll} disabled={isSaving || !hasUnsavedChanges}>
           {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
@@ -1045,6 +1064,18 @@ export default function MenuManagementClient({
             <div>
               <p className="font-semibold">AI문제생성 상위 메뉴가 저장된 헤더 설정에 없습니다.</p>
               <p className="text-sm text-amber-800">런타임에서는 임시 self-heal이 가능하지만, 관리자에서 일반 헤더 메뉴를 다시 확인하는 것이 좋습니다.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!hasMarketParent && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardContent className="flex items-start gap-3 p-4 text-amber-900">
+            <AlertTriangle className="mt-0.5 h-5 w-5" />
+            <div>
+              <p className="font-semibold">문제마켓 상위 메뉴가 저장된 헤더 설정에 없습니다.</p>
+              <p className="text-sm text-amber-800">문제마켓 2단계 메뉴 섹션을 쓰려면 일반 헤더 메뉴에 /market 상위 메뉴를 먼저 추가해주세요.</p>
             </div>
           </CardContent>
         </Card>
@@ -1087,7 +1118,7 @@ export default function MenuManagementClient({
         <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle>일반 헤더 메뉴 관리</CardTitle>
-            <CardDescription>AI문제생성 상위 메뉴는 유지하되, 그 하위 메뉴는 아래 문제생성 메뉴 섹션에서 관리합니다.</CardDescription>
+            <CardDescription>AI문제생성·문제마켓 상위 메뉴는 유지하되, 각 하위 메뉴는 아래 별도 섹션에서 관리합니다.</CardDescription>
           </div>
           <Button onClick={openParentCreateDialog}>
             <Plus className="mr-2 h-4 w-4" />상위 메뉴 추가
@@ -1119,11 +1150,17 @@ export default function MenuManagementClient({
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
                             <span>{item.title}</span>
-                            {item.href === '/generate' ? <Badge variant="outline">하위 메뉴 별도 관리</Badge> : null}
+                            {isManagedChildParent(item.href) ? <Badge variant="outline">{getManagedChildParentLabel(item.href)} 하위 메뉴 별도 관리</Badge> : null}
                           </div>
                         </TableCell>
                         <TableCell className="text-gray-600">{item.href || '-'}</TableCell>
-                        <TableCell className="text-center">{item.href === '/generate' ? generateMenuEntries.length : item.children.length}</TableCell>
+                        <TableCell className="text-center">
+                          {item.href === '/generate'
+                            ? generateMenuEntries.length
+                            : item.href === '/market'
+                              ? marketChildren.length
+                              : item.children.length}
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-center gap-2">
                             <Switch checked={item.isActive} onCheckedChange={(checked) => handleToggleParent(item.id, checked)} />
@@ -1134,13 +1171,13 @@ export default function MenuManagementClient({
                           <div className="flex items-center justify-end gap-1">
                             <Button variant="ghost" size="icon" onClick={() => handleMoveParent(parentIndex, 'up')} disabled={parentIndex === 0}><ArrowUp className="h-4 w-4" /></Button>
                             <Button variant="ghost" size="icon" onClick={() => handleMoveParent(parentIndex, 'down')} disabled={parentIndex === editableConfig.items.length - 1}><ArrowDown className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => openChildCreateDialog(item.id)} disabled={item.href === '/generate'}><Plus className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => openParentEditDialog(item)} disabled={item.href === '/generate'}><Pencil className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => setDeleteTarget({ id: item.id, title: item.title, hasChildren: item.children.length > 0 })} disabled={item.href === '/generate'}><Trash2 className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => openChildCreateDialog(item.id)} disabled={isManagedChildParent(item.href)}><Plus className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => openParentEditDialog(item)} disabled={isManagedChildParent(item.href)}><Pencil className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => setDeleteTarget({ id: item.id, title: item.title, hasChildren: item.children.length > 0 })} disabled={isManagedChildParent(item.href)}><Trash2 className="h-4 w-4" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>
-                      {item.href !== '/generate' && item.children.map((child, childIndex) => (
+                      {!isManagedChildParent(item.href) && item.children.map((child, childIndex) => (
                         <TableRow key={child.id}>
                           <TableCell><Badge variant="outline">2단계</Badge></TableCell>
                           <TableCell>
@@ -1238,6 +1275,62 @@ export default function MenuManagementClient({
               </TableBody>
             </Table>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <CardTitle>문제마켓 2단계 메뉴 관리</CardTitle>
+            <CardDescription>문제마켓 child 메뉴를 일반 헤더 표와 분리해 동일한 row 구조로 관리합니다. 현재 브랜치에서는 /market child를 별도 섹션에서 편집하고, backend lane merge 후 DB source로 교체됩니다.</CardDescription>
+          </div>
+          <Button onClick={() => marketParent && openChildCreateDialog(marketParent.id)} disabled={!marketParent}>
+            <Plus className="mr-2 h-4 w-4" />문제마켓 메뉴 추가
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {!marketParent ? (
+            <div className="rounded-lg border border-dashed py-10 text-center text-gray-500">일반 헤더 메뉴에 /market 상위 메뉴를 먼저 추가해주세요.</div>
+          ) : marketChildren.length === 0 ? (
+            <div className="rounded-lg border border-dashed py-10 text-center text-gray-500">등록된 문제마켓 2단계 메뉴가 없습니다.</div>
+          ) : (
+            <div className="rounded-lg border bg-white">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>메뉴명</TableHead>
+                    <TableHead>하위 경로</TableHead>
+                    <TableHead>경로 미리보기</TableHead>
+                    <TableHead className="text-center">활성</TableHead>
+                    <TableHead className="text-right">관리</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {marketChildren.map((child, index) => (
+                    <TableRow key={child.id}>
+                      <TableCell className="font-medium">{child.title}</TableCell>
+                      <TableCell className="text-gray-600">{child.href}</TableCell>
+                      <TableCell className="text-gray-600">{resolveHeaderMenuHref(marketParent.href, child.href)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-center gap-2">
+                          <Switch checked={child.isActive} onCheckedChange={(checked) => handleToggleChild(marketParent.id, child.id, checked)} />
+                          <span className="text-xs text-gray-500">{child.isActive ? '활성' : '비활성'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => handleMoveChild(marketParent.id, index, 'up')} disabled={index === 0}><ArrowUp className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleMoveChild(marketParent.id, index, 'down')} disabled={index === marketChildren.length - 1}><ArrowDown className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => openChildEditDialog(marketParent.id, child)}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => setDeleteTarget({ id: child.id, title: child.title, parentId: marketParent.id })}><Trash2 className="h-4 w-4" /></Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1372,7 +1465,7 @@ export default function MenuManagementClient({
               {dialogState?.mode === 'create-child' && '하위 메뉴 추가'}
               {dialogState?.mode === 'edit-child' && '하위 메뉴 수정'}
             </DialogTitle>
-            <DialogDescription>일반 헤더 메뉴만 수정할 수 있습니다. 문제생성 하위 메뉴는 아래 별도 섹션에서 관리합니다.</DialogDescription>
+            <DialogDescription>일반 헤더 메뉴만 수정할 수 있습니다. 문제생성/문제마켓 하위 메뉴는 아래 별도 섹션에서 관리합니다.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
