@@ -476,7 +476,6 @@ export default function MenuManagementClient({
     return buildExamYearOptions(baseYear)
   }, [generatePosts, postForm.examYear])
   const selectedBoard = listboardEntries.find((entry) => entry.id === selectedBoardId) || listboardEntries[0] || null
-  const marketParent = config.items.find((item) => item.href === '/market') || null
   const hasGenerateParent = config.items.some((item) => item.href === '/generate')
   const hasMarketParent = config.items.some((item) => item.href === '/market')
   const hasUnsavedChanges = JSON.stringify({ ...config, logoText }) !== JSON.stringify(savedConfig)
@@ -1248,7 +1247,7 @@ export default function MenuManagementClient({
             <AlertTriangle className="mt-0.5 h-5 w-5" />
             <div>
               <p className="font-semibold">문제마켓 상위 메뉴가 저장된 헤더 설정에 없습니다.</p>
-              <p className="text-sm text-amber-800">문제마켓 2단계 메뉴 섹션을 쓰려면 일반 헤더 메뉴에 /market 상위 메뉴를 먼저 추가해주세요.</p>
+              <p className="text-sm text-amber-800">런타임에서는 임시 self-heal이 가능하지만, 관리자에서 일반 헤더 메뉴를 다시 확인하는 것이 좋습니다.</p>
             </div>
           </CardContent>
         </Card>
@@ -1267,6 +1266,25 @@ export default function MenuManagementClient({
               <Button variant="outline" onClick={handleBackfillGenerateChildren} disabled={isBackfilling}>
                 {isBackfilling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 기존 문제생성 메뉴 가져오기
+              </Button>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-blue-200 bg-blue-50/60">
+        <CardContent className="flex flex-col gap-3 p-4 text-sm text-blue-900 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="font-semibold">문제마켓 메뉴 source mode: {marketChildrenSourceMode}</p>
+            <p>현재 등록된 DB 메뉴 수: {marketBackfillStatus.entryCount}개</p>
+            <p>남은 legacy 메뉴 수: {marketBackfillStatus.missingLegacyChildren.length}개</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">/market children은 아래 별도 섹션에서만 관리됩니다</Badge>
+            {marketBackfillStatus.missingLegacyChildren.length > 0 ? (
+              <Button variant="outline" onClick={handleBackfillMarketChildren} disabled={isBackfillingMarket}>
+                {isBackfillingMarket ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                기존 문제마켓 메뉴 가져오기
               </Button>
             ) : null}
           </div>
@@ -1455,73 +1473,50 @@ export default function MenuManagementClient({
         <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle>문제마켓 2단계 메뉴 관리</CardTitle>
-            <CardDescription>DB 기반 source of truth입니다. 문제마켓 하위 메뉴는 일반 메뉴 저장과 별개로 즉시 저장됩니다.</CardDescription>
+            <CardDescription>DB 기반 source of truth입니다. href는 slug로 자동 계산됩니다.</CardDescription>
           </div>
-          <Button onClick={openCreateMarketEntryDialog} disabled={!marketParent}>
+          <Button onClick={openCreateMarketEntryDialog}>
             <Plus className="mr-2 h-4 w-4" />문제마켓 메뉴 추가
           </Button>
         </CardHeader>
         <CardContent>
-          {!marketParent ? (
-            <div className="rounded-lg border border-dashed py-10 text-center text-gray-500">일반 헤더 메뉴에 /market 상위 메뉴를 먼저 추가해주세요.</div>
-          ) : (
-            <div className="mb-4 flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4 text-sm text-emerald-900 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="font-semibold">문제마켓 메뉴 source mode: {marketChildrenSourceMode}</p>
-                <p>현재 등록된 DB 메뉴 수: {marketMenuEntries.length}개</p>
-                <p>남은 legacy 메뉴 수: {marketBackfillStatus.missingLegacyChildren.length}개</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">/market children은 아래 별도 섹션에서만 관리됩니다</Badge>
-                {marketBackfillStatus.missingLegacyChildren.length > 0 ? (
-                  <Button variant="outline" onClick={handleBackfillMarketChildren} disabled={isBackfillingMarket}>
-                    {isBackfillingMarket ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    기존 문제마켓 메뉴 가져오기
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          )}
-
-          {marketParent ? (
-            marketMenuEntries.length === 0 ? (
-              <div className="rounded-lg border border-dashed py-10 text-center text-gray-500">등록된 문제마켓 2단계 메뉴가 없습니다.</div>
-            ) : (
-              <div className="rounded-lg border bg-white">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>메뉴명</TableHead>
-                      <TableHead>slug</TableHead>
-                      <TableHead>경로 미리보기</TableHead>
-                      <TableHead className="text-center">노출</TableHead>
-                      <TableHead className="text-center">활성</TableHead>
-                      <TableHead className="text-right">관리</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {marketMenuEntries.map((entry, index) => (
-                      <TableRow key={entry.id}>
-                        <TableCell className="font-medium">{entry.title}</TableCell>
-                        <TableCell>{entry.slug}</TableCell>
-                        <TableCell className="text-gray-600">{buildMarketMenuHref(entry)}</TableCell>
-                        <TableCell className="text-center">{entry.is_visible ? '표시' : '숨김'}</TableCell>
-                        <TableCell className="text-center">{entry.is_active ? '활성' : '비활성'}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => handleMoveMarketEntry(index, 'up')} disabled={index === 0 || isMutatingMarketEntries}><ArrowUp className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleMoveMarketEntry(index, 'down')} disabled={index === marketMenuEntries.length - 1 || isMutatingMarketEntries}><ArrowDown className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => openEditMarketEntryDialog(entry)}><Pencil className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => setArchiveMarketTarget(entry)}><Trash2 className="h-4 w-4" /></Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )
-          ) : null}
+          <div className="rounded-lg border bg-white">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>메뉴명</TableHead>
+                  <TableHead>유형</TableHead>
+                  <TableHead>slug</TableHead>
+                  <TableHead>경로 미리보기</TableHead>
+                  <TableHead className="text-center">노출</TableHead>
+                  <TableHead className="text-center">활성</TableHead>
+                  <TableHead className="text-right">관리</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {marketMenuEntries.map((entry, index) => (
+                  <TableRow key={entry.id}>
+                    <TableCell className="font-medium">{entry.title}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">문제마켓</Badge>
+                    </TableCell>
+                    <TableCell>{entry.slug}</TableCell>
+                    <TableCell className="text-gray-600">{buildMarketMenuHref(entry)}</TableCell>
+                    <TableCell className="text-center">{entry.is_visible ? '표시' : '숨김'}</TableCell>
+                    <TableCell className="text-center">{entry.is_active ? '활성' : '비활성'}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleMoveMarketEntry(index, 'up')} disabled={index === 0 || isMutatingMarketEntries}><ArrowUp className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleMoveMarketEntry(index, 'down')} disabled={index === marketMenuEntries.length - 1 || isMutatingMarketEntries}><ArrowDown className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => openEditMarketEntryDialog(entry)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => setArchiveMarketTarget(entry)}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -1762,6 +1757,11 @@ export default function MenuManagementClient({
           </DialogHeader>
 
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>유형</Label>
+              <div className="rounded-md border bg-gray-50 px-3 py-2 text-sm text-gray-700">문제마켓</div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="market-title">메뉴명</Label>
               <Input
@@ -2085,7 +2085,7 @@ export default function MenuManagementClient({
           <AlertDialogHeader>
             <AlertDialogTitle>문제마켓 메뉴를 보관할까요?</AlertDialogTitle>
             <AlertDialogDescription>
-              <span className="font-medium">[{archiveMarketTarget?.title}]</span> 메뉴는 비노출/비활성 처리되며, 문제마켓 진입점에서 숨겨집니다.
+              <span className="font-medium">[{archiveMarketTarget?.title}]</span> 메뉴는 비노출/비활성 처리되며, hard delete 되지 않습니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
