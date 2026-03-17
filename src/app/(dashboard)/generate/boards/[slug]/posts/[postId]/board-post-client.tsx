@@ -243,7 +243,7 @@ export default function BoardPostClient({
 
       <Card>
         <CardHeader>
-          <CardTitle>AI 문제 유형 선택</CardTitle>
+          <CardTitle>문제 유형 선택</CardTitle>
           <CardDescription>생성할 문제 유형을 복수 선택할 수 있습니다.</CardDescription>
         </CardHeader>
         <CardContent>
