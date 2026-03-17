@@ -149,6 +149,17 @@ interface GeneratePostItemFormState {
 
 const MIN_EXAM_YEAR = 2000
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1))
+const MANAGED_CHILD_PARENT_HREFS = ['/generate', '/market'] as const
+
+function isManagedChildParent(href?: string) {
+  return href ? MANAGED_CHILD_PARENT_HREFS.includes(href as typeof MANAGED_CHILD_PARENT_HREFS[number]) : false
+}
+
+function getManagedChildParentLabel(href?: string) {
+  if (href === '/generate') return '문제생성'
+  if (href === '/market') return '문제마켓'
+  return '별도 관리'
+}
 
 async function parseGeneratePostCsvFile(file: File): Promise<{ fileName: string, items: GeneratePostCsvItem[] }> {
   const fileName = file.name.toLowerCase()
@@ -337,7 +348,6 @@ export default function MenuManagementClient({
   initialGeneratePosts,
   initialSelectedBoardId,
   generateChildrenSourceMode,
-  hasGenerateParent,
   backfillStatus,
 }: MenuManagementClientProps) {
   const router = useRouter()
@@ -372,7 +382,7 @@ export default function MenuManagementClient({
 
   const editableConfig = useMemo(() => ({
     ...config,
-    items: config.items.map((item) => item.href === '/generate' ? { ...item, children: [] } : item),
+    items: config.items.map((item) => isManagedChildParent(item.href) ? { ...item, children: [] } : item),
   }), [config])
 
   const flatRows = useMemo(() => flattenHeaderNavigationItems(editableConfig.items), [editableConfig.items])
@@ -410,6 +420,10 @@ export default function MenuManagementClient({
     return buildExamYearOptions(baseYear)
   }, [generatePosts, postForm.examYear])
   const selectedBoard = listboardEntries.find((entry) => entry.id === selectedBoardId) || listboardEntries[0] || null
+  const marketParent = config.items.find((item) => item.href === '/market') || null
+  const marketChildren = marketParent?.children || []
+  const hasGenerateParent = config.items.some((item) => item.href === '/generate')
+  const hasMarketParent = config.items.some((item) => item.href === '/market')
   const hasUnsavedChanges = JSON.stringify({ ...config, logoText }) !== JSON.stringify(savedConfig)
 
   const closeDialog = () => {
@@ -461,7 +475,12 @@ export default function MenuManagementClient({
 
   const openParentEditDialog = (item: HeaderMenuItem) => {
     if (item.href === '/generate') {
-      toast.info('AI문제생성 하위 메뉴는 아래 별도 섹션에서 관리됩니다.')
+      toast.info('AI문제생성 상위 메뉴는 보호되며, 하위 메뉴는 아래 별도 섹션에서 관리됩니다.')
+      return
+    }
+
+    if (item.href === '/market') {
+      toast.info('문제마켓 상위 메뉴는 보호되며, 하위 메뉴는 아래 별도 섹션에서 관리됩니다.')
       return
     }
 
