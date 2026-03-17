@@ -10,7 +10,7 @@ import {
 
 export type MarketMenuEntry = Database['public']['Tables']['market_menu_entries']['Row']
 
-export interface MarketMenuEntryAdminRow extends MarketMenuEntry {}
+export type MarketMenuEntryAdminRow = MarketMenuEntry
 
 export type MarketChildrenSourceMode = DbManagedChildrenSourceMode
 
