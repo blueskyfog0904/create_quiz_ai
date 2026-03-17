@@ -243,8 +243,29 @@ export default function BoardPostClient({
 
       <Card>
         <CardHeader>
-          <CardTitle>문제 유형 선택</CardTitle>
-          <CardDescription>생성할 문제 유형을 복수 선택할 수 있습니다.</CardDescription>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <CardTitle>문제 유형 선택</CardTitle>
+              <CardDescription>생성할 문제 유형을 복수 선택할 수 있습니다.</CardDescription>
+            </div>
+            {problemTypes.length > 0 ? (
+              <Button
+                type="button"
+                variant={selectedProblemTypeIds.length === problemTypes.length ? 'outline' : 'default'}
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => {
+                  if (selectedProblemTypeIds.length === problemTypes.length) {
+                    setSelectedProblemTypeIds([])
+                  } else {
+                    setSelectedProblemTypeIds(problemTypes.map((type) => type.id))
+                  }
+                }}
+              >
+                {selectedProblemTypeIds.length === problemTypes.length ? '전체 해제' : '전체 선택'}
+              </Button>
+            ) : null}
+          </div>
         </CardHeader>
         <CardContent>
           {problemTypes.length === 0 ? (

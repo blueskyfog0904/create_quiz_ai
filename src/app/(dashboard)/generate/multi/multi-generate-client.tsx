@@ -4,7 +4,7 @@ import { useState, useRef, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from '@/components/ui/label'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -658,97 +658,102 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
 
                 <div className="border-t my-4" />
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-base font-semibold">
-                        문제 유형 선택 <span className="text-red-500">*</span>
-                        <span className="text-sm text-gray-500 ml-2">
-                        ({selectedTypeIds.length}개 선택됨)
-                        </span>
-                    </Label>
-                        <Button
-                          type="button"
-                          variant={selectedTypeIds.length === problemTypes.length ? "outline" : "default"}
-                          size="sm"
-                          className="h-8 text-xs"
-                          disabled={isGenerationBusy}
-                          onClick={() => {
-                            if (selectedTypeIds.length === problemTypes.length) {
-                                setSelectedTypeIds([])
-                            } else {
-                                setSelectedTypeIds(problemTypes.map(pt => pt.id))
-                            }
+                <Card>
+                  <CardHeader>
+                    <CardTitle>생성 옵션</CardTitle>
+                    <p className="text-sm text-gray-500">선택한 모든 문제 유형 조합에 동일한 옵션이 적용됩니다.</p>
+                  </CardHeader>
+                  <CardContent className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="grade">학년</Label>
+                      <Select value={gradeLevel} onValueChange={setGradeLevel} disabled={isGenerationBusy}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Middle1">중1</SelectItem>
+                          <SelectItem value="Middle2">중2</SelectItem>
+                          <SelectItem value="Middle3">중3</SelectItem>
+                          <SelectItem value="High1">고1</SelectItem>
+                          <SelectItem value="High2">고2</SelectItem>
+                          <SelectItem value="High3">고3</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="difficulty">난이도</Label>
+                      <Select value={difficulty} onValueChange={setDifficulty} disabled={isGenerationBusy}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Low">하</SelectItem>
+                          <SelectItem value="Medium">중</SelectItem>
+                          <SelectItem value="High">상</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <CardTitle>문제 유형 선택</CardTitle>
+                        <p className="text-sm text-gray-500">생성할 문제 유형을 복수 선택할 수 있습니다.</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant={selectedTypeIds.length === problemTypes.length ? 'outline' : 'default'}
+                        size="sm"
+                        className="h-8 text-xs"
+                        disabled={isGenerationBusy || problemTypes.length === 0}
+                        onClick={() => {
+                          if (selectedTypeIds.length === problemTypes.length) {
+                            setSelectedTypeIds([])
+                          } else {
+                            setSelectedTypeIds(problemTypes.map((pt) => pt.id))
+                          }
                         }}
-                    >
+                      >
                         {selectedTypeIds.length === problemTypes.length ? '전체 해제' : '전체 선택'}
-                    </Button>
-                  </div>
-                  <div className="border rounded-lg p-4 space-y-3 max-h-[300px] overflow-y-auto">
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
                     {problemTypes.length === 0 ? (
-                      <p className="text-sm text-gray-500 text-center py-4">
+                      <div className="rounded-lg border border-dashed py-12 text-center text-gray-500">
                         등록된 문제 유형이 없습니다
-                      </p>
+                      </div>
                     ) : (
-                      problemTypes.map((type) => (
-                        <div key={type.id} className="flex items-start space-x-3 p-3 rounded-md hover:bg-gray-50 border">
-                          <Checkbox
-                            id={type.id}
-                            checked={selectedTypeIds.includes(type.id)}
-                            onCheckedChange={(checked) => handleTypeToggle(type.id, checked as boolean)}
-                            disabled={isGenerationBusy}
-                          />
-                          <div className="flex-1">
-                            <label
-                              htmlFor={type.id}
-                              className="text-sm font-medium leading-none cursor-pointer"
-                            >
-                              {type.type_name}
-                            </label>
-                            {type.description && (
-                              <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                                {type.description}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      ))
+                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        {problemTypes.map((type) => (
+                          <label key={type.id} className="flex cursor-pointer gap-3 rounded-xl border p-4 transition hover:border-primary">
+                            <Checkbox
+                              id={type.id}
+                              checked={selectedTypeIds.includes(type.id)}
+                              onCheckedChange={(checked) => handleTypeToggle(type.id, checked as boolean)}
+                              disabled={isGenerationBusy}
+                              className="mt-1"
+                            />
+                            <div className="space-y-1">
+                              <span className="text-sm font-medium leading-none text-gray-900">
+                                {type.type_name}
+                              </span>
+                              {type.description && (
+                                <p className="text-xs text-gray-500 line-clamp-2">
+                                  {type.description}
+                                </p>
+                              )}
+                            </div>
+                          </label>
+                        ))}
+                      </div>
                     )}
-                  </div>
-                </div>
-
-                {/* Grade and Difficulty */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="grade">학년</Label>
-                    <Select value={gradeLevel} onValueChange={setGradeLevel} disabled={isGenerationBusy}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Middle1">중1</SelectItem>
-                        <SelectItem value="Middle2">중2</SelectItem>
-                        <SelectItem value="Middle3">중3</SelectItem>
-                        <SelectItem value="High1">고1</SelectItem>
-                        <SelectItem value="High2">고2</SelectItem>
-                        <SelectItem value="High3">고3</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="difficulty">난이도</Label>
-                    <Select value={difficulty} onValueChange={setDifficulty} disabled={isGenerationBusy}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Low">하</SelectItem>
-                        <SelectItem value="Medium">중</SelectItem>
-                        <SelectItem value="High">상</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
 
                 <Button 
                   type="submit" 
