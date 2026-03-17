@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation'
+import { Store } from 'lucide-react'
 import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { PurchasedClient } from '@/app/(dashboard)/library/purchased/purchased-client'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface MarketMenuPageProps {
   params: Promise<{
@@ -14,7 +15,7 @@ export default async function MarketMenuPage({ params }: MarketMenuPageProps) {
   const { slug } = await params
   const supabase = await createClient()
 
-  const { data: marketEntry, error: marketEntryError } = await supabase
+  const { data: marketEntry, error } = await supabase
     .from('market_menu_entries')
     .select('slug, title')
     .eq('slug', slug)
@@ -23,51 +24,26 @@ export default async function MarketMenuPage({ params }: MarketMenuPageProps) {
     .eq('is_visible', true)
     .maybeSingle()
 
-  if (marketEntryError) {
-    throw new Error(marketEntryError.message)
+  if (error) {
+    throw new Error(error.message)
   }
 
   if (!marketEntry) {
     notFound()
   }
 
-  const { data: questions, error: questionsError } = await supabase
-    .from('questions')
-    .select('*, problem_types(type_name)')
-    .in('source', ['ai_generated', 'from_community'])
-    .order('created_at', { ascending: false })
-
-  if (questionsError) {
-    console.error('Error fetching questions:', questionsError)
-  }
-
-  const { data: problemTypes, error: typesError } = await supabase
-    .from('problem_types')
-    .select('id, type_name')
-    .eq('is_active', true)
-    .order('type_name')
-
-  if (typesError) {
-    console.error('Error fetching problem types:', typesError)
-  }
-
-  const gradeLevels = Array.from(
-    new Set(questions?.map((question) => question.grade_level).filter(Boolean))
-  ).sort()
-
-  const difficulties = Array.from(
-    new Set(questions?.map((question) => question.difficulty).filter(Boolean))
-  ).sort()
-
   return (
-    <PurchasedClient
-      questions={questions || []}
-      problemTypes={problemTypes || []}
-      gradeLevels={gradeLevels}
-      difficulties={difficulties}
-      initialSelectedSource="from_community"
-      marketMenuSlug={marketEntry.slug}
-      marketMenuTitle={marketEntry.title}
-    />
+    <Card className="border-dashed">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-2xl">
+          <Store className="h-6 w-6 text-primary" />
+          {marketEntry.title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2 text-sm text-gray-600">
+        <p>이 문제마켓 상세 페이지는 아직 준비 중입니다.</p>
+        <p>현재는 좌측 사이드바 구조와 개별 경로만 먼저 연결했습니다.</p>
+      </CardContent>
+    </Card>
   )
 }
