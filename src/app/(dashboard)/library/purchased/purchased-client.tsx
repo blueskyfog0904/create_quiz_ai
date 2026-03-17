@@ -27,6 +27,9 @@ interface PurchasedClientProps {
   difficulties: string[]
   highlightedJobId?: string | null
   highlightedSavedCount?: number
+  initialSelectedSource?: 'all' | 'ai_generated' | 'from_community'
+  marketMenuSlug?: string | null
+  marketMenuTitle?: string | null
 }
 
 export function PurchasedClient({
@@ -36,13 +39,16 @@ export function PurchasedClient({
   difficulties,
   highlightedJobId = null,
   highlightedSavedCount = 0,
+  initialSelectedSource = 'all',
+  marketMenuSlug = null,
+  marketMenuTitle = null,
 }: PurchasedClientProps) {
   const router = useRouter()
   // Filter state
   const [selectedTypeId, setSelectedTypeId] = useState<string>('all')
   const [selectedGrade, setSelectedGrade] = useState<string>('all')
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all')
-  const [selectedSource, setSelectedSource] = useState<string>('all')
+  const [selectedSource, setSelectedSource] = useState<string>(initialSelectedSource)
   const [selectedSourceType, setSelectedSourceType] = useState<string>('')
   const [selectedSource1, setSelectedSource1] = useState<string>('all')
   const [selectedSource2, setSelectedSource2] = useState<string>('all')
@@ -300,6 +306,18 @@ export function PurchasedClient({
           </div>
           <Button variant="outline" onClick={() => router.push('/library/purchased')}>
             전체 보기
+          </Button>
+        </div>
+      ) : null}
+
+      {marketMenuSlug ? (
+        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-4 text-sm text-sky-800 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="font-semibold">{marketMenuTitle ?? marketMenuSlug} 문제마켓 메뉴 화면입니다.</p>
+            <p className="mt-1 text-sky-700">현재 문제마켓 기준으로 이동했으며, 기본 탭은 문제마켓으로 맞춰졌습니다.</p>
+          </div>
+          <Button variant="outline" onClick={() => router.push('/library/purchased')}>
+            영어문제 관리 전체 보기
           </Button>
         </div>
       ) : null}

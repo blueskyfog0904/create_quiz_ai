@@ -19,7 +19,7 @@ export const MARKET_PARENT_FALLBACK_TITLE = '문제마켓'
 export const MARKET_PARENT_HREF = '/market'
 
 export function buildMarketMenuHref(entry: Pick<MarketMenuEntry, 'slug'>) {
-  return `/library/purchased?marketSlug=${encodeURIComponent(entry.slug)}`
+  return `/market/${encodeURIComponent(entry.slug)}`
 }
 
 export function buildMarketHeaderChildItem(entry: MarketMenuEntry): HeaderMenuChildItem {

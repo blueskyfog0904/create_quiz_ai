@@ -5,6 +5,7 @@ import { PurchasedClient } from './purchased-client'
 interface PurchasedPageProps {
   searchParams?: Promise<{
     jobId?: string
+    marketSlug?: string
   }>
 }
 
@@ -12,10 +13,12 @@ export default async function PurchasedPage({ searchParams }: PurchasedPageProps
   await requireAuth()
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const jobId = resolvedSearchParams?.jobId
+  const marketSlug = resolvedSearchParams?.marketSlug
   const supabase = await createClient()
 
   let highlightedQuestionIds: string[] | null = null
   let highlightedSavedCount = 0
+  let marketMenuTitle: string | null = null
 
   if (jobId) {
     const { data: jobItems, error: jobItemsError } = await supabase
@@ -31,6 +34,21 @@ export default async function PurchasedPage({ searchParams }: PurchasedPageProps
         .map((item) => item.question_id)
         .filter((questionId): questionId is string => Boolean(questionId))
       highlightedSavedCount = highlightedQuestionIds.length
+    }
+  }
+
+  if (marketSlug) {
+    const { data: marketEntry, error: marketEntryError } = await supabase
+      .from('market_menu_entries')
+      .select('title')
+      .eq('slug', marketSlug)
+      .is('deleted_at', null)
+      .maybeSingle()
+
+    if (marketEntryError) {
+      console.error('Error fetching market menu entry:', marketEntryError)
+    } else {
+      marketMenuTitle = marketEntry?.title ?? null
     }
   }
 
@@ -80,6 +98,9 @@ export default async function PurchasedPage({ searchParams }: PurchasedPageProps
       difficulties={difficulties}
       highlightedJobId={highlightedQuestionIds ? jobId ?? null : null}
       highlightedSavedCount={highlightedSavedCount}
+      initialSelectedSource={marketSlug ? 'from_community' : 'all'}
+      marketMenuSlug={marketSlug ?? null}
+      marketMenuTitle={marketMenuTitle}
     />
   )
 }
