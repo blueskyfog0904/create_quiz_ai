@@ -20,7 +20,7 @@ export default function GenerateHomeContent({ problemTypes }: GenerateHomeConten
       </div>
 
       <div className="mb-6">
-        <Link href="/generate/multi">
+        <Link href="/generate/personal">
           <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-primary hover:border-primary/80 bg-gradient-to-r from-primary/5 to-primary/10">
             <div className="flex items-center justify-between">
               <div>

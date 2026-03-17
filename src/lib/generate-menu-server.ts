@@ -72,7 +72,7 @@ export function normalizeSlug(value: string) {
 
 function buildSearchConfig(entryType: 'personal_generate' | 'listboard', slug: string) {
   if (entryType === 'personal_generate') {
-    return { entryHref: '/generate' }
+    return { entryHref: '/generate/personal' }
   }
 
   if (slug === 'mock-exams') {

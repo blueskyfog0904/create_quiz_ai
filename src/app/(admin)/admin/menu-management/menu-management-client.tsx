@@ -695,7 +695,7 @@ export default function MenuManagementClient({
     try {
       const searchConfig = generateEntryForm.entryType === 'listboard'
         ? { filters: ['year', 'month', 'grade', 'title'], entryHref: buildGenerateMenuHref({ entry_type: generateEntryForm.entryType, slug }) }
-        : { entryHref: '/generate' }
+        : { entryHref: '/generate/personal' }
 
       if (generateEntryForm.id) {
         const response = await updateGenerateMenuEntryAction(generateEntryForm.id, {

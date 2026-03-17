@@ -20,6 +20,7 @@ export type GenerateChildrenSourceMode = 'legacy_json' | 'hybrid_fallback' | 'db
 export const GENERATE_PARENT_FALLBACK_ID = 'menu-generate'
 export const GENERATE_PARENT_FALLBACK_TITLE = 'AI문제생성'
 export const GENERATE_PARENT_HREF = '/generate'
+export const GENERATE_PERSONAL_HREF = '/generate/personal'
 export const LISTBOARD_GRADE_OPTIONS = ['1학년', '2학년', '3학년'] as const
 
 export type ListboardGradeOption = typeof LISTBOARD_GRADE_OPTIONS[number]
@@ -58,7 +59,7 @@ export function normalizeListboardGradeLevel(value?: string | null): ListboardGr
 
 export function buildGenerateMenuHref(entry: Pick<GenerateMenuEntry, 'entry_type' | 'slug'>) {
   if (entry.entry_type === 'personal_generate') {
-    return GENERATE_PARENT_HREF
+    return GENERATE_PERSONAL_HREF
   }
 
   return `/generate/boards/${entry.slug}`

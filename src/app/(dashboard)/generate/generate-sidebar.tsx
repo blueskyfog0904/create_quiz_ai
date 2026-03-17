@@ -15,10 +15,8 @@ export default function GenerateSidebar({ parentTitle, items }: GenerateSidebarP
   const pathname = usePathname()
 
   const isActive = (href: string) => {
-    if (href === '/generate') {
-      return pathname === '/generate'
-        || pathname === '/generate/multi'
-        || (/^\/generate\/[^/]+$/.test(pathname) && !pathname.startsWith('/generate/boards/'))
+    if (href === '/generate/personal') {
+      return pathname === '/generate/personal' || pathname === '/generate/multi'
     }
 
     return pathname === href || pathname.startsWith(`${href}/`)
@@ -28,8 +26,8 @@ export default function GenerateSidebar({ parentTitle, items }: GenerateSidebarP
     return null
   }
 
-  const personalItem = items.find((item) => item.href === '/generate') ?? null
-  const boardItems = items.filter((item) => item.href !== '/generate')
+  const personalItem = items.find((item) => item.href === '/generate/personal') ?? null
+  const boardItems = items.filter((item) => item.href !== '/generate/personal')
   const orderedItems = personalItem ? [...boardItems, personalItem] : items
 
   return (
@@ -47,7 +45,7 @@ export default function GenerateSidebar({ parentTitle, items }: GenerateSidebarP
           <nav className="flex flex-col gap-1">
             {orderedItems.map((item) => {
               const active = isActive(item.href)
-              const shouldRenderDivider = personalItem !== null && item.href === '/generate' && boardItems.length > 0
+              const shouldRenderDivider = personalItem !== null && item.href === '/generate/personal' && boardItems.length > 0
 
               return (
                 <div key={item.id} className="space-y-1">
