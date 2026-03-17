@@ -9,6 +9,7 @@ import { BatchQuestionPreviewCard } from '@/components/features/quiz/batch-quest
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { Database } from '@/types/supabase'
 import { parseStagedGeneratedQuestion } from '@/lib/questions/generated-question-staging'
 
@@ -49,7 +50,9 @@ export default function JobStatusClient({
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
   const [isStartingRun, setIsStartingRun] = useState(false)
+  const [showCompleteDialog, setShowCompleteDialog] = useState(false)
   const hasStartedRunRef = useRef(false)
+  const hasShownCompleteDialogRef = useRef(false)
 
   const completedCount = items.filter((item) => item.status === 'completed').length
   const failedCount = items.filter((item) => item.status === 'failed').length
@@ -161,8 +164,30 @@ export default function JobStatusClient({
     void startRun()
   }, [job.id, job.status, initialDifficulty, initialGradeLevel, post.grade_level, refreshJob])
 
+  useEffect(() => {
+    if (!hasStartedRunRef.current) {
+      return
+    }
+
+    if (isGenerationInProgress) {
+      return
+    }
+
+    if (hasShownCompleteDialogRef.current) {
+      return
+    }
+
+    if (completedCount + failedCount === 0) {
+      return
+    }
+
+    hasShownCompleteDialogRef.current = true
+    setShowCompleteDialog(true)
+  }, [completedCount, failedCount, isGenerationInProgress])
+
   const handleRetryFailed = async () => {
     setIsRetrying(true)
+    hasShownCompleteDialogRef.current = false
     try {
       const res = await fetch(`/api/generate/listboard-jobs/${job.id}/retry`, {
         method: 'POST',
@@ -301,17 +326,19 @@ export default function JobStatusClient({
                 {isGenerationInProgress ? ' · 생성 중…' : ''}
               </span>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-gray-100">
-              <div
-                className={`h-full rounded-full bg-primary transition-all ${isGenerationInProgress ? 'animate-pulse' : ''}`}
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
             {isGenerationInProgress ? (
-              <div className="relative h-2 overflow-hidden rounded-full bg-primary/10">
-                <div className="absolute inset-y-0 left-0 w-1/3 animate-[loading-bar_1.2s_ease-in-out_infinite] rounded-full bg-primary/50" />
+              <div className="flex items-center justify-center gap-3 rounded-lg border border-primary/10 bg-primary/5 px-4 py-4 text-primary">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span className="text-sm font-medium">문제 생성 진행 중입니다. 잠시만 기다려주세요…</span>
               </div>
-            ) : null}
+            ) : (
+              <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -424,6 +451,20 @@ export default function JobStatusClient({
           </CardContent>
         </Card>
       ) : null}
+
+      <Dialog open={showCompleteDialog} onOpenChange={setShowCompleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>문제 생성이 완료되었습니다.</DialogTitle>
+            <DialogDescription>
+              생성 결과를 확인하고 필요한 문제를 저장할 수 있습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setShowCompleteDialog(false)}>확인</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
