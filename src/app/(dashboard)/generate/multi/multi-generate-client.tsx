@@ -4,21 +4,19 @@ import { useState, useRef, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from 'sonner'
-import { QuestionPreview } from '@/components/features/quiz/question-preview'
+import { BatchQuestionPreviewCard } from '@/components/features/quiz/batch-question-preview-card'
 import { Database } from '@/types/supabase'
 import { Question } from '@/lib/ai/types'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, Star, Tag, Plus, X, ChevronLeft, Loader2, BookOpen, FileText, CheckCircle2, Minus, Maximize, ZoomIn } from 'lucide-react'
+import { AlertCircle, Plus, X, ChevronLeft, Loader2, BookOpen, FileText, Minus } from 'lucide-react'
 import { PassageSelectorModal } from '@/components/features/passages/passage-selector-modal'
 import { Passage } from '@/app/api/passages/actions'
 import { Textarea } from '@/components/ui/textarea'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Input } from '@/components/ui/input'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
@@ -891,127 +889,43 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
              }}
            > 
             {Array.from(generatedQuestions.entries()).map(([typeId, questionData]) => (
-              <div 
-                key={typeId} 
-                className={`transition-all duration-200 ${
-                    selectedResultIds.has(typeId) ? 'ring-2 ring-primary ring-offset-2 rounded-xl' : ''
-                }`}
-                onClick={() => {
-                    // Click card to select, but ignore if clicking interactive elements inside
-                     const newSet = new Set(selectedResultIds)
-                     if (newSet.has(typeId)) newSet.delete(typeId)
-                     else newSet.add(typeId)
-                     setSelectedResultIds(newSet)
+              <BatchQuestionPreviewCard
+                key={typeId}
+                questionNumber={questionData.problemType.type_name}
+                problemTypeName=""
+                generatedQuestion={{
+                  questionText: questionData.question.questionText,
+                  questionTextForward: questionData.question.questionTextForward ?? null,
+                  questionTextBackward: questionData.question.questionTextBackward ?? null,
+                  passageText: questionData.question.passageText ?? null,
+                  choices: questionData.question.choices,
+                  answer: questionData.question.answer,
+                  explanation: questionData.question.explanation ?? null,
                 }}
-              >
-              <Card className="border-2 flex flex-col h-full cursor-pointer hover:border-primary/50">
-                <CardHeader className="bg-gray-50 border-b py-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Checkbox 
-                        checked={selectedResultIds.has(typeId)}
-                        onCheckedChange={(checked) => {
-                             const newSet = new Set(selectedResultIds)
-                             if (checked) newSet.add(typeId)
-                             else newSet.delete(typeId)
-                             setSelectedResultIds(newSet)
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <CardTitle className="text-base font-semibold">{questionData.problemType.type_name}</CardTitle>
-                    </div>
-                    {savedStates.get(typeId) && (
-                        <div className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-medium border border-green-200">
-                          <CheckCircle2 className="w-3 h-3" />
-                          저장됨
-                        </div>
-                    )}
-                  </div>
-                </CardHeader>
-                
-                <CardContent className="pt-4 flex-1 space-y-4" onClick={(e) => e.stopPropagation()}>
-                    {/* Metadata: Rating & Tags */}
-                    <div className="flex items-center justify-between">
-                         {/* Rating */}
-                        <div className="flex items-center gap-0.5">
-                            {[1, 2, 3].map((star) => (
-                                <button
-                                    key={star}
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        updateQuestionData(typeId, { rating: questionData.rating === star ? 0 : star })
-                                    }} 
-                                    className={`transition-colors focus:outline-none p-1 ${
-                                        (questionData.rating || 0) >= star 
-                                        ? 'text-yellow-400 fill-yellow-400' 
-                                        : 'text-gray-300 hover:text-yellow-200'
-                                    }`}
-                                >
-                                    <Star className={`w-5 h-5 ${(questionData.rating || 0) >= star ? 'fill-current' : ''}`} />
-                                </button>
-                            ))}
-                        </div>
-
-                         {/* Tags */}
-                         <div className="flex flex-wrap items-center justify-end gap-1.5 flex-1 ml-4">
-                            {(questionData.tags || []).map(tag => (
-                                <Badge key={tag} variant="outline" className="text-xs pl-2 pr-1 py-0.5 h-6 gap-1 group bg-white">
-                                    {tag}
-                                    <button 
-                                        onClick={(e) => { 
-                                            e.stopPropagation(); 
-                                            updateQuestionData(typeId, { tags: questionData.tags.filter(t => t !== tag) })
-                                        }}
-                                        className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground rounded-full p-0.5"
-                                    >
-                                        <X className="w-3 h-3" />
-                                    </button>
-                                </Badge>
-                            ))}
-                            
-                             <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full border border-dashed hover:border-solid hover:bg-gray-100">
-                                        <Plus className="w-3 h-3" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-60 p-3" align="end">
-                                    <div className="flex gap-2">
-                                        <Input 
-                                            placeholder="태그 입력..."
-                                            className="h-8 text-sm"
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-                                                    e.preventDefault();
-                                                    const val = (e.currentTarget as HTMLInputElement).value.trim();
-                                                    if(val) {
-                                                        if(!questionData.tags.includes(val)) {
-                                                             updateQuestionData(typeId, { tags: [...questionData.tags, val] })
-                                                        } else {
-                                                            toast.error('이미 존재하는 태그입니다')
-                                                        }
-                                                        (e.currentTarget as HTMLInputElement).value = ''
-                                                    }
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                    <p className="text-[10px] text-gray-400 mt-2 text-right">엔터키를 눌러 추가</p>
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-                    </div>
-                  
-                  <div className="bg-white rounded-lg border p-4 shadow-sm">
-                      <QuestionPreview 
-                        question={questionData.question} 
-                        // Hide internal save button, we use the global one or card selection
-                        showSaveButton={false}
-                      />
-                  </div>
-                </CardContent>
-              </Card>
-              </div>
+                rating={questionData.rating}
+                tags={questionData.tags}
+                isSelected={selectedResultIds.has(typeId)}
+                saveStatus={savedStates.get(typeId) ? 'saved' : 'unsaved'}
+                isSaving={isSaving}
+                onRatingChange={(rating) => updateQuestionData(typeId, { rating })}
+                onAddTag={(tag) => {
+                  const nextTag = tag.trim()
+                  if (!nextTag) return
+                  if (questionData.tags.includes(nextTag)) {
+                    toast.error('이미 존재하는 태그입니다')
+                    return
+                  }
+                  updateQuestionData(typeId, { tags: [...questionData.tags, nextTag] })
+                }}
+                onRemoveTag={(tag) => updateQuestionData(typeId, { tags: questionData.tags.filter((currentTag) => currentTag !== tag) })}
+                onSelectChange={(checked) => {
+                  const newSet = new Set(selectedResultIds)
+                  if (checked) newSet.add(typeId)
+                  else newSet.delete(typeId)
+                  setSelectedResultIds(newSet)
+                }}
+                onSave={() => void handleSaveIndividual(typeId)}
+              />
             ))}
           </div>
 
