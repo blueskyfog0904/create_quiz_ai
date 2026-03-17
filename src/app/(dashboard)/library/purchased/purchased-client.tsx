@@ -342,7 +342,7 @@ export function PurchasedClient({
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
-                문제은행
+                문제마켓
               </button>
             </div>
           </div>

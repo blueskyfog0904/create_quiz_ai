@@ -15,7 +15,7 @@ import { useRouter } from 'next/navigation'
 import { Star, Plus, X, Calendar, Minus, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { getGradeLevelLabel, getDifficultyLabel } from '@/lib/display-labels'
+import { getDifficultyLabel } from '@/lib/display-labels'
 import { QuestionPreview } from '@/components/features/quiz/question-preview'
 
 type DBQuestion = Database['public']['Tables']['questions']['Row'] & {
@@ -141,18 +141,6 @@ function QuestionItem({
               </Badge>
             )}
           </div>
-        )}
-
-        {question.source && (
-          <Badge variant={question.source === 'ai_generated' ? 'default' : 'secondary'} className="text-xs">
-            {question.source === 'ai_generated' ? 'AI' : '문제은행'}
-          </Badge>
-        )}
-
-        {question.grade_level && (
-          <Badge variant="outline" className="text-xs bg-blue-50 border-blue-200">
-            {getGradeLevelLabel(question.grade_level)}
-          </Badge>
         )}
 
         {question.difficulty && (

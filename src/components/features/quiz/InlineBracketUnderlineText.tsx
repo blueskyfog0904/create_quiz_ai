@@ -36,7 +36,7 @@ export function InlineBracketUnderlineText({
           return (
             <span
               key={`segment-${index}`}
-              className={cn('underline decoration-[3px] underline-offset-[3px] font-normal', underlineClassName)}
+              className={cn('underline decoration-[1.5px] underline-offset-[2px] font-normal decoration-current/70', underlineClassName)}
             >
               {segment.value}
             </span>
