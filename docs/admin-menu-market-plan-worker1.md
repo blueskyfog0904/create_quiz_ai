@@ -76,3 +76,89 @@
 - 출처 관리는 단순 라벨/옵션 CRUD: `src/app/(admin)/admin/source-configs/source-config-client.tsx:23-220`, `src/app/api/admin/source-configs/route.ts:5-117`
 - 사용자 화면에는 이미 `문제마켓` 필터가 존재: `src/app/(dashboard)/library/purchased/purchased-client.tsx:337-346`
 - Supabase MCP: this worker session에서 `list_mcp_resources` 결과가 비어 있어 로컬 schema evidence로 판단
+
+
+## 구현 핸드오프용 실행 계획
+### 선택한 DB 방향
+- **선택안: market 전용 별도 테이블(`market_menu_entries`)**
+- 배제안: generic shared second-level menu model
+- 선택 이유:
+  1. 현재 `generate_menu_entries`는 `entry_type`, `/generate/...` 경로, listboard 전용 trigger/함수에 강하게 결합되어 있음
+  2. `source_configs`는 메뉴 엔티티가 아니라 입력 라벨/옵션 저장소임
+  3. 문제마켓은 개인용 lane 없이 카테고리형 2단계 메뉴만 있으면 되므로 전용 테이블이 가장 단순함
+
+### Phase 1. 스키마 추가
+- 작업
+  - `market_menu_entries` migration 추가
+  - `entry_key/slug/title/sort_order/is_visible/is_active/search_config/deleted_at` 정의
+  - admin RLS 정책 및 `updated_at` trigger 추가
+- 선행조건
+  - 없음
+- 완료 기준
+  - migration만으로 문제마켓 하위 메뉴 엔티티 CRUD가 가능한 상태
+  - soft delete, 정렬, 노출/활성 제어 컬럼 포함
+
+### Phase 2. 서버 도메인 레이어 구축
+- 작업
+  - `src/lib/market-menu.ts`, `src/lib/market-menu-server.ts` 추가
+  - 목록/생성/수정/정렬/아카이브/backfill status 함수 구현
+  - header merge용 `buildMarketHeaderChildItem`, `mergeMarketEntriesIntoHeaderConfig` 구현
+- 선행조건
+  - Phase 1
+- 완료 기준
+  - DB 엔트리를 헤더 child item으로 일관되게 변환 가능
+  - 로컬 코드에서 source of truth가 DB로 고정됨
+
+### Phase 3. 헤더 네비게이션 연동
+- 작업
+  - `getHeaderNavigationConfig()`에서 문제마켓 parent children merge 추가
+  - `saveHeaderNavigationConfig()`에서 문제마켓 parent children preserve 규칙 추가
+  - source mode는 초기 `hybrid_fallback`, 안정화 후 `db_authoritative` 전환 가능하게 설계
+- 선행조건
+  - Phase 2
+- 완료 기준
+  - header JSON 수동 수정이 문제마켓 child source를 덮어쓰지 않음
+  - 문제마켓 2단계 메뉴가 generate와 동일한 렌더링 패턴으로 동작
+
+### Phase 4. 관리자 UI 확장
+- 작업
+  - `/admin/menu-management`에 `문제마켓 2단계 메뉴` 섹션/탭 추가
+  - 목록/정렬/활성화/노출/slug 편집 UI 추가
+  - backfill 상태 및 적용 버튼 제공
+- 선행조건
+  - Phase 2, 3
+- 완료 기준
+  - 관리자 화면만으로 문제마켓 하위 메뉴를 생성/수정/정렬 가능
+  - `출처 관리`와 역할이 명확히 분리됨
+
+### Phase 5. 백필 및 점진 전환
+- 작업
+  - 필요 시 `source_configs.type_name` 또는 기존 header child를 1회 백필
+  - 중복 slug/title 충돌 규칙 적용
+  - 운영 확인 후 `db_authoritative` 전환
+- 선행조건
+  - Phase 4
+- 완료 기준
+  - 기존 운영 데이터가 신규 메뉴 구조로 누락 없이 이관됨
+  - fallback 제거 여부를 판단할 수 있는 운영 체크리스트 확보
+
+## 마이그레이션 / 백필 순서
+1. `market_menu_entries` 테이블/정책/trigger migration
+2. server domain 함수 추가
+3. header merge + preserve 로직 추가
+4. admin menu-management UI 추가
+5. 필요 시 기존 header/source_configs 기반 백필 실행
+6. 운영 검증 후 source mode를 `db_authoritative`로 전환
+
+## 구현 수용 기준
+- 관리자에서 문제마켓 2단계 메뉴를 CRUD/정렬/비활성화할 수 있다
+- 헤더 렌더 시 문제마켓 child는 DB 기준으로 merge된다
+- header 설정 저장이 문제마켓 child를 덮어쓰지 않는다
+- 기존 `출처 관리` 화면은 계속 동작하지만 메뉴 source of truth 역할은 맡지 않는다
+- 백필 후 기존 문제마켓 진입 경로가 끊기지 않는다
+
+## 상위 의사결정이 필요한 open questions
+1. 문제마켓 parent href를 기존 `/library/purchased`로 유지할지, 별도 `/market` 라우트를 만들지
+2. 초기 백필 소스를 `source_configs` 기준으로 할지, 기존 header child 기준으로 할지
+3. 실제 상품/문항 테이블에 `market_menu_entry_id` FK를 즉시 추가할지, 1차는 탐색/노출 레벨만 분리할지
+4. 문제마켓 검색 조건을 `search_config` jsonb로만 둘지, 추후 정규화할지
