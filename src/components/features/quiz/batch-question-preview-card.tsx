@@ -1,10 +1,12 @@
 'use client'
 
-import { CheckCircle2, Loader2 } from 'lucide-react'
+import { CheckCircle2, Loader2, Plus, Star, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { QuestionPreview } from '@/components/features/quiz/question-preview'
 import type { StagedGeneratedQuestion } from '@/lib/questions/generated-question-staging'
 
@@ -12,9 +14,14 @@ interface BatchQuestionPreviewCardProps {
   questionNumber: string
   problemTypeName: string
   generatedQuestion: StagedGeneratedQuestion
+  rating: number
+  tags: string[]
   isSelected: boolean
   saveStatus: string
   saveErrorMessage?: string | null
+  onRatingChange: (rating: number) => void
+  onAddTag: (tag: string) => void
+  onRemoveTag: (tag: string) => void
   onSelectChange: (checked: boolean) => void
   onSave: () => void
   isSaving: boolean
@@ -39,9 +46,14 @@ export function BatchQuestionPreviewCard({
   questionNumber,
   problemTypeName,
   generatedQuestion,
+  rating,
+  tags,
   isSelected,
   saveStatus,
   saveErrorMessage,
+  onRatingChange,
+  onAddTag,
+  onRemoveTag,
   onSelectChange,
   onSave,
   isSaving,
@@ -91,6 +103,70 @@ export function BatchQuestionPreviewCard({
       </CardHeader>
 
       <CardContent className="p-6">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div className="flex items-center gap-0.5">
+            {[1, 2, 3].map((star) => (
+              <button
+                key={star}
+                type="button"
+                onClick={() => onRatingChange(rating === star ? 0 : star)}
+                disabled={disableActions || isSaved || isSaving}
+                className={`p-1 transition-colors ${
+                  rating >= star
+                    ? 'text-yellow-400'
+                    : 'text-gray-300 hover:text-yellow-200'
+                }`}
+              >
+                <Star className={`h-5 w-5 ${rating >= star ? 'fill-current' : ''}`} />
+              </button>
+            ))}
+          </div>
+
+          <div className="ml-4 flex flex-1 flex-wrap items-center justify-end gap-1.5">
+            {tags.map((tag) => (
+              <Badge key={tag} variant="outline" className="group h-6 gap-1 pl-2 pr-1 py-0.5 text-xs bg-white">
+                {tag}
+                {!disableActions && !isSaved && !isSaving ? (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveTag(tag)}
+                    className="rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                ) : null}
+              </Badge>
+            ))}
+
+            {!disableActions && !isSaved && !isSaving ? (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-6 w-6 rounded-full border border-dashed p-0 hover:border-solid hover:bg-gray-100">
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-60 p-3" align="end">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="태그 입력..."
+                      className="h-8 text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
+                        e.preventDefault()
+                        const val = e.currentTarget.value.trim()
+                        if (!val) return
+                        onAddTag(val)
+                        e.currentTarget.value = ''
+                      }}
+                    />
+                  </div>
+                  <p className="mt-2 text-right text-[10px] text-gray-400">엔터키를 눌러 추가</p>
+                </PopoverContent>
+              </Popover>
+            ) : null}
+          </div>
+        </div>
+
         <QuestionPreview
           question={generatedQuestion}
           showCard={false}

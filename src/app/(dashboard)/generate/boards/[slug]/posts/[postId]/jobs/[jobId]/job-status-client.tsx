@@ -34,6 +34,11 @@ interface JobStatusClientProps {
 
 const TERMINAL_JOB_STATUSES = ['completed', 'failed', 'cancelled', 'partially_completed']
 
+interface DraftQuestionMeta {
+  rating: number
+  tags: string[]
+}
+
 export default function JobStatusClient({
   board,
   post,
@@ -51,6 +56,7 @@ export default function JobStatusClient({
   const [isRetrying, setIsRetrying] = useState(false)
   const [isStartingRun, setIsStartingRun] = useState(false)
   const [showCompleteDialog, setShowCompleteDialog] = useState(false)
+  const [draftQuestionMeta, setDraftQuestionMeta] = useState<Record<string, DraftQuestionMeta>>({})
   const hasStartedRunRef = useRef(false)
   const hasShownCompleteDialogRef = useRef(false)
 
@@ -74,6 +80,10 @@ export default function JobStatusClient({
     .filter(({ item }) => ['unsaved', 'save_failed'].includes(item.save_status))
     .map(({ item }) => item.id), [completedPreviewItems])
 
+  const getDraftMeta = useCallback((itemId: string): DraftQuestionMeta => (
+    draftQuestionMeta[itemId] ?? { rating: 0, tags: [] }
+  ), [draftQuestionMeta])
+
   useEffect(() => {
     setSelectedItemIds((current) => {
       const currentValidIds = current.filter((id) => saveableItemIds.includes(id))
@@ -85,6 +95,22 @@ export default function JobStatusClient({
       return saveableItemIds
     })
   }, [saveableItemIds])
+
+  useEffect(() => {
+    setDraftQuestionMeta((current) => {
+      const next = { ...current }
+      let changed = false
+
+      for (const { item } of completedPreviewItems) {
+        if (!next[item.id]) {
+          next[item.id] = { rating: 0, tags: [] }
+          changed = true
+        }
+      }
+
+      return changed ? next : current
+    })
+  }, [completedPreviewItems])
 
   const refreshJob = useCallback(async (silent = false) => {
     if (!silent) {
@@ -206,6 +232,17 @@ export default function JobStatusClient({
     }
   }
 
+  const updateDraftMeta = (itemId: string, updates: Partial<DraftQuestionMeta>) => {
+    setDraftQuestionMeta((current) => ({
+      ...current,
+      [itemId]: {
+        rating: current[itemId]?.rating ?? 0,
+        tags: current[itemId]?.tags ?? [],
+        ...updates,
+      },
+    }))
+  }
+
   const handleSaveItems = async (jobItemIds: string[], successMessage: string) => {
     if (jobItemIds.length === 0) {
       toast.info('저장할 생성 결과를 선택해주세요.')
@@ -220,7 +257,13 @@ export default function JobStatusClient({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ jobItemIds }),
+        body: JSON.stringify({
+          items: jobItemIds.map((jobItemId) => ({
+            jobItemId,
+            rating: getDraftMeta(jobItemId).rating,
+            tags: getDraftMeta(jobItemId).tags,
+          })),
+        }),
       })
 
       const data = await res.json()
@@ -387,11 +430,29 @@ export default function JobStatusClient({
                 questionNumber={item.question_number}
                 problemTypeName={item.problem_type_name}
                 generatedQuestion={generatedQuestion}
+                rating={getDraftMeta(item.id).rating}
+                tags={getDraftMeta(item.id).tags}
                 isSelected={selectedItemIds.includes(item.id)}
                 saveStatus={item.save_status}
                 saveErrorMessage={item.save_error_message}
                 isSaving={savingItemIds.includes(item.id)}
                 disableActions={isGenerationInProgress}
+                onRatingChange={(rating) => updateDraftMeta(item.id, { rating })}
+                onAddTag={(tag) => {
+                  const nextTag = tag.trim()
+                  if (!nextTag) return
+                  const currentTags = getDraftMeta(item.id).tags
+                  if (currentTags.includes(nextTag)) {
+                    toast.error('이미 존재하는 태그입니다.')
+                    return
+                  }
+                  updateDraftMeta(item.id, { tags: [...currentTags, nextTag] })
+                }}
+                onRemoveTag={(tag) => {
+                  updateDraftMeta(item.id, {
+                    tags: getDraftMeta(item.id).tags.filter((currentTag) => currentTag !== tag),
+                  })
+                }}
                 onSelectChange={(checked) => {
                   setSelectedItemIds((current) => {
                     if (checked) {

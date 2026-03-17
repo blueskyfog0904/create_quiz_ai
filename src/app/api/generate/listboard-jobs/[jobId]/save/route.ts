@@ -10,7 +10,11 @@ import { normalizeQuestionTextBackward } from '@/lib/questions/normalize-questio
 export const dynamic = 'force-dynamic'
 
 const SaveListboardJobItemsSchema = z.object({
-  jobItemIds: z.array(z.string().uuid()).min(1),
+  items: z.array(z.object({
+    jobItemId: z.string().uuid(),
+    rating: z.number().int().min(0).max(3).optional(),
+    tags: z.array(z.string()).optional(),
+  })).min(1),
 })
 
 interface RouteContext {
@@ -44,7 +48,12 @@ export async function POST(request: Request, { params }: RouteContext) {
       }, { status: 400 })
     }
 
-    const jobItemIds = Array.from(new Set(validation.data.jobItemIds))
+    const normalizedItems = validation.data.items.map((item) => ({
+      jobItemId: item.jobItemId,
+      rating: item.rating ?? 0,
+      tags: Array.from(new Set((item.tags ?? []).map((tag) => tag.trim()).filter(Boolean))),
+    }))
+    const jobItemIds = Array.from(new Set(normalizedItems.map((item) => item.jobItemId)))
 
     const { data: job, error: jobError } = await supabase
       .from('generate_listboard_generation_jobs')
@@ -112,6 +121,8 @@ export async function POST(request: Request, { params }: RouteContext) {
     let failedCount = 0
     const savedQuestionIds: string[] = []
 
+    const metadataMap = new Map(normalizedItems.map((item) => [item.jobItemId, item]))
+
     for (const item of saveCandidates) {
       const { data: lockedRows, error: lockError } = await adminSupabase
         .from('generate_listboard_generation_job_items')
@@ -138,6 +149,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       try {
         const stagedQuestion = parseStagedGeneratedQuestion(lockedItem.generated_question)
         const postItem = postItemMap.get(lockedItem.post_item_id)
+        const metadata = metadataMap.get(lockedItem.id)
 
         if (!stagedQuestion || !postItem || !problemTypeSet.has(lockedItem.problem_type_id)) {
           throw new Error('저장에 필요한 생성 결과 또는 참조 데이터를 찾지 못했습니다.')
@@ -158,8 +170,8 @@ export async function POST(request: Request, { params }: RouteContext) {
           raw_ai_response: lockedItem.raw_ai_response,
           source: 'ai_generated',
           shared_question_id: null,
-          tags: null,
-          rating: 0,
+          tags: metadata?.tags ?? [],
+          rating: metadata?.rating ?? 0,
           generate_listboard_post_id: job.post_id,
           generate_listboard_post_item_id: lockedItem.post_item_id,
           generate_generation_job_item_id: lockedItem.id,
