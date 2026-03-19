@@ -242,54 +242,56 @@ export default function MarketListboardClient({ categorySlug, rows }: MarketList
       <div className="mt-4 space-y-4">
         <div className="grid gap-3 rounded-xl border bg-gray-50/70 px-4 py-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
           <div className="hidden md:block" />
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(1)}
-            >
-              <ChevronsLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            {visiblePageNumbers.map((pageNumber) => (
+          <div className="overflow-x-auto pb-1">
+            <div className="flex min-w-max items-center justify-center gap-2">
               <Button
-                key={pageNumber}
                 type="button"
-                variant={pageNumber === currentPage ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setCurrentPage(pageNumber)}
+                variant="outline"
+                size="icon-sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(1)}
               >
-                {pageNumber}
+                <ChevronsLeft className="h-4 w-4" />
               </Button>
-            ))}
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(totalPages)}
-            >
-              <ChevronsRight className="h-4 w-4" />
-            </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              {visiblePageNumbers.map((pageNumber) => (
+                <Button
+                  key={pageNumber}
+                  type="button"
+                  variant={pageNumber === currentPage ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setCurrentPage(pageNumber)}
+                >
+                  {pageNumber}
+                </Button>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <div className="flex items-center justify-end gap-2 text-sm text-gray-600">
             <span>표시 개수</span>
@@ -309,7 +311,7 @@ export default function MarketListboardClient({ categorySlug, rows }: MarketList
         </div>
 
         <div className="flex justify-end">
-          <div className="flex flex-col gap-3 rounded-xl border bg-white px-4 py-3 shadow-sm md:min-w-[420px]">
+          <div className="flex w-full flex-col gap-3 rounded-xl border bg-white px-4 py-3 shadow-sm md:w-auto md:min-w-[420px]">
             <div className="flex flex-wrap items-center justify-end gap-3 text-sm text-gray-600">
               <span className="font-medium text-gray-900">선택 {selectionSummary.totalCount}건</span>
               <span>PDF {selectionSummary.pdfCount}건</span>
