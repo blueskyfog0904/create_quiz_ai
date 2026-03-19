@@ -167,6 +167,47 @@ export async function listVisibleMarketMenuEntries(): Promise<MarketMenuEntry[]>
   return data ?? []
 }
 
+export async function getVisibleMarketMenuEntryBySlug(slug: string): Promise<MarketMenuEntry | null> {
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('market_menu_entries')
+    .select('*')
+    .eq('slug', slug)
+    .is('deleted_at', null)
+    .eq('is_visible', true)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (error) {
+    if (isMissingMarketMenuEntriesTableError(error)) {
+      return null
+    }
+
+    throw new Error(error.message)
+  }
+
+  return data
+}
+
+export async function getMarketMenuEntryBySlugForAdmin(slug: string): Promise<MarketMenuEntry | null> {
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('market_menu_entries')
+    .select('*')
+    .eq('slug', slug)
+    .maybeSingle()
+
+  if (error) {
+    if (isMissingMarketMenuEntriesTableError(error)) {
+      return null
+    }
+
+    throw new Error(error.message)
+  }
+
+  return data
+}
+
 export async function getMarketMenuEntriesBackfillStatus(baseConfig?: HeaderNavigationConfig) {
   const supabase = getAdminSupabase()
   const { data, error } = await supabase

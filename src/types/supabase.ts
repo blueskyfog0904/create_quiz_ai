@@ -41,7 +41,7 @@ export type Database = {
         }
         Relationships: []
       }
-      credit_transactions: {
+      credit_consumption: {
         Row: {
           amount: number
           created_at: string
@@ -49,7 +49,7 @@ export type Database = {
           id: string
           resource_id: string | null
           resource_type: string | null
-          type: string
+          source_id: string
           user_id: string
         }
         Insert: {
@@ -59,7 +59,7 @@ export type Database = {
           id?: string
           resource_id?: string | null
           resource_type?: string | null
-          type: string
+          source_id: string
           user_id: string
         }
         Update: {
@@ -69,10 +69,133 @@ export type Database = {
           id?: string
           resource_id?: string | null
           resource_type?: string | null
+          source_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_consumption_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "credit_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_consumption_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_sources: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          initial_credits: number
+          plan_id: string | null
+          purchased_at: string
+          remaining_credits: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          initial_credits: number
+          plan_id?: string | null
+          purchased_at?: string
+          remaining_credits: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          initial_credits?: number
+          plan_id?: string | null
+          purchased_at?: string
+          remaining_credits?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_sources_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "pricing_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_sources_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_transactions: {
+        Row: {
+          amount: number
+          balance_after: number
+          created_at: string
+          description: string | null
+          id: string
+          resource_id: string | null
+          resource_type: string | null
+          source_id: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          resource_id?: string | null
+          resource_type?: string | null
+          source_id?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          resource_id?: string | null
+          resource_type?: string | null
+          source_id?: string | null
           type?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "credit_transactions_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "credit_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       display_labels: {
         Row: {
@@ -175,161 +298,6 @@ export type Database = {
           {
             foreignKeyName: "exam_papers_user_id_fkey"
             columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      generate_listboard_posts: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          deleted_at: string | null
-          exam_month: number | null
-          exam_year: number | null
-          grade_level: string | null
-          id: string
-          is_active: boolean
-          menu_entry_id: string
-          passage_text: string
-          published_at: string | null
-          source_1: string | null
-          source_2: string | null
-          source_3: string | null
-          source_4: string | null
-          source_type: string | null
-          status: string
-          title: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          deleted_at?: string | null
-          exam_month?: number | null
-          exam_year?: number | null
-          grade_level?: string | null
-          id?: string
-          is_active?: boolean
-          menu_entry_id: string
-          passage_text: string
-          published_at?: string | null
-          source_1?: string | null
-          source_2?: string | null
-          source_3?: string | null
-          source_4?: string | null
-          source_type?: string | null
-          status?: string
-          title: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          deleted_at?: string | null
-          exam_month?: number | null
-          exam_year?: number | null
-          grade_level?: string | null
-          id?: string
-          is_active?: boolean
-          menu_entry_id?: string
-          passage_text?: string
-          published_at?: string | null
-          source_1?: string | null
-          source_2?: string | null
-          source_3?: string | null
-          source_4?: string | null
-          source_type?: string | null
-          status?: string
-          title?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "generate_listboard_posts_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "generate_listboard_posts_menu_entry_id_fkey"
-            columns: ["menu_entry_id"]
-            isOneToOne: false
-            referencedRelation: "generate_menu_entries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "generate_listboard_posts_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      generate_listboard_post_items: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          deleted_at: string | null
-          id: string
-          is_active: boolean
-          passage_text: string
-          post_id: string
-          question_number: string
-          sort_order: number
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          deleted_at?: string | null
-          id?: string
-          is_active?: boolean
-          passage_text: string
-          post_id: string
-          question_number: string
-          sort_order?: number
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          deleted_at?: string | null
-          id?: string
-          is_active?: boolean
-          passage_text?: string
-          post_id?: string
-          question_number?: string
-          sort_order?: number
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "generate_listboard_post_items_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "generate_listboard_post_items_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: false
-            referencedRelation: "generate_listboard_posts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "generate_listboard_post_items_updated_by_fkey"
-            columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -522,6 +490,161 @@ export type Database = {
           },
         ]
       }
+      generate_listboard_post_items: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          id: string
+          is_active: boolean
+          passage_text: string
+          post_id: string
+          question_number: string
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          id?: string
+          is_active?: boolean
+          passage_text: string
+          post_id: string
+          question_number: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          id?: string
+          is_active?: boolean
+          passage_text?: string
+          post_id?: string
+          question_number?: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generate_listboard_post_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generate_listboard_post_items_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "generate_listboard_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generate_listboard_post_items_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generate_listboard_posts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          exam_month: number | null
+          exam_year: number | null
+          grade_level: string | null
+          id: string
+          is_active: boolean
+          menu_entry_id: string
+          passage_text: string
+          published_at: string | null
+          source_1: string | null
+          source_2: string | null
+          source_3: string | null
+          source_4: string | null
+          source_type: string | null
+          status: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          exam_month?: number | null
+          exam_year?: number | null
+          grade_level?: string | null
+          id?: string
+          is_active?: boolean
+          menu_entry_id: string
+          passage_text: string
+          published_at?: string | null
+          source_1?: string | null
+          source_2?: string | null
+          source_3?: string | null
+          source_4?: string | null
+          source_type?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          exam_month?: number | null
+          exam_year?: number | null
+          grade_level?: string | null
+          id?: string
+          is_active?: boolean
+          menu_entry_id?: string
+          passage_text?: string
+          published_at?: string | null
+          source_1?: string | null
+          source_2?: string | null
+          source_3?: string | null
+          source_4?: string | null
+          source_type?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generate_listboard_posts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generate_listboard_posts_menu_entry_id_fkey"
+            columns: ["menu_entry_id"]
+            isOneToOne: false
+            referencedRelation: "generate_menu_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generate_listboard_posts_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       generate_menu_entries: {
         Row: {
           created_at: string
@@ -570,6 +693,288 @@ export type Database = {
         }
         Relationships: []
       }
+      market_download_events: {
+        Row: {
+          asset_kind: string
+          created_at: string
+          file_id: string
+          id: string
+          ip_address: string | null
+          item_id: string
+          purchase_id: string | null
+          user_id: string
+        }
+        Insert: {
+          asset_kind: string
+          created_at?: string
+          file_id: string
+          id?: string
+          ip_address?: string | null
+          item_id: string
+          purchase_id?: string | null
+          user_id: string
+        }
+        Update: {
+          asset_kind?: string
+          created_at?: string
+          file_id?: string
+          id?: string
+          ip_address?: string | null
+          item_id?: string
+          purchase_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_download_events_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "market_item_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_download_events_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "market_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_download_events_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "market_purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_download_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_item_files: {
+        Row: {
+          asset_kind: string
+          checksum: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          file_size_bytes: number | null
+          id: string
+          is_active: boolean
+          item_id: string
+          mime_type: string | null
+          original_file_name: string
+          storage_bucket: string
+          storage_path: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          asset_kind: string
+          checksum?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          is_active?: boolean
+          item_id: string
+          mime_type?: string | null
+          original_file_name: string
+          storage_bucket: string
+          storage_path: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          asset_kind?: string
+          checksum?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          is_active?: boolean
+          item_id?: string
+          mime_type?: string | null
+          original_file_name?: string
+          storage_bucket?: string
+          storage_path?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_item_files_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_item_files_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "market_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_item_view_events: {
+        Row: {
+          created_at: string
+          id: string
+          ip_hash: string | null
+          item_id: string
+          session_key: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ip_hash?: string | null
+          item_id: string
+          session_key?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ip_hash?: string | null
+          item_id?: string
+          session_key?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_item_view_events_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "market_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_item_view_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_items: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          description: string | null
+          exam_month: number | null
+          exam_year: number | null
+          grade_level: string | null
+          hwp_price: number
+          id: string
+          is_active: boolean
+          menu_entry_id: string
+          pdf_price: number
+          published_at: string | null
+          sort_order: number
+          source_1: string | null
+          source_2: string | null
+          source_3: string | null
+          source_4: string | null
+          source_type: string | null
+          status: string
+          summary: string | null
+          thumbnail_url: string | null
+          title: string
+          updated_at: string
+          updated_by: string | null
+          view_count: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          exam_month?: number | null
+          exam_year?: number | null
+          grade_level?: string | null
+          hwp_price?: number
+          id?: string
+          is_active?: boolean
+          menu_entry_id: string
+          pdf_price?: number
+          published_at?: string | null
+          sort_order?: number
+          source_1?: string | null
+          source_2?: string | null
+          source_3?: string | null
+          source_4?: string | null
+          source_type?: string | null
+          status?: string
+          summary?: string | null
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+          view_count?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          exam_month?: number | null
+          exam_year?: number | null
+          grade_level?: string | null
+          hwp_price?: number
+          id?: string
+          is_active?: boolean
+          menu_entry_id?: string
+          pdf_price?: number
+          published_at?: string | null
+          sort_order?: number
+          source_1?: string | null
+          source_2?: string | null
+          source_3?: string | null
+          source_4?: string | null
+          source_type?: string | null
+          status?: string
+          summary?: string | null
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+          view_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_items_menu_entry_id_fkey"
+            columns: ["menu_entry_id"]
+            isOneToOne: false
+            referencedRelation: "market_menu_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_items_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       market_menu_entries: {
         Row: {
           created_at: string
@@ -615,35 +1020,95 @@ export type Database = {
         }
         Relationships: []
       }
-      notifications: {
+      market_purchases: {
         Row: {
-          created_at: string | null
+          asset_kind: string
+          created_at: string
+          credit_resource_id: string | null
+          credit_resource_type: string
           id: string
-          is_read: boolean | null
-          link: string | null
-          message: string
-          title: string
-          type: string
+          item_id: string
+          price_credits: number
+          purchased_at: string
+          refunded_at: string | null
+          status: string
+          updated_at: string
           user_id: string
         }
         Insert: {
-          created_at?: string | null
+          asset_kind: string
+          created_at?: string
+          credit_resource_id?: string | null
+          credit_resource_type: string
           id?: string
-          is_read?: boolean | null
-          link?: string | null
-          message: string
-          title: string
-          type: string
+          item_id: string
+          price_credits: number
+          purchased_at?: string
+          refunded_at?: string | null
+          status?: string
+          updated_at?: string
           user_id: string
         }
         Update: {
-          created_at?: string | null
+          asset_kind?: string
+          created_at?: string
+          credit_resource_id?: string | null
+          credit_resource_type?: string
+          id?: string
+          item_id?: string
+          price_credits?: number
+          purchased_at?: string
+          refunded_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_purchases_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "market_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_purchases_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          action_url: string | null
+          created_at: string
+          id: string
+          is_read: boolean | null
+          message: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          action_url?: string | null
+          created_at?: string
           id?: string
           is_read?: boolean | null
-          link?: string | null
+          message: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          action_url?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
           message?: string
-          title?: string
           type?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
@@ -708,7 +1173,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "passages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payment_history: {
         Row: {
@@ -756,12 +1229,19 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "payment_history_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "credit_sources"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "payment_history_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
       pricing_plans: {
@@ -845,6 +1325,7 @@ export type Database = {
           avatar_url: string | null
           birthdate: string | null
           created_at: string
+          credits: number
           email: string | null
           gender: string | null
           id: string
@@ -864,6 +1345,7 @@ export type Database = {
           avatar_url?: string | null
           birthdate?: string | null
           created_at?: string
+          credits?: number
           email?: string | null
           gender?: string | null
           id: string
@@ -883,6 +1365,7 @@ export type Database = {
           avatar_url?: string | null
           birthdate?: string | null
           created_at?: string
+          credits?: number
           email?: string | null
           gender?: string | null
           id?: string
@@ -1072,6 +1555,67 @@ export type Database = {
           },
         ]
       }
+      refund_requests: {
+        Row: {
+          admin_note: string | null
+          created_at: string
+          id: string
+          processed_at: string | null
+          processed_by: string | null
+          reason: string | null
+          source_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_note?: string | null
+          created_at?: string
+          id?: string
+          processed_at?: string | null
+          processed_by?: string | null
+          reason?: string | null
+          source_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_note?: string | null
+          created_at?: string
+          id?: string
+          processed_at?: string | null
+          processed_by?: string | null
+          reason?: string | null
+          source_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refund_requests_processed_by_fkey"
+            columns: ["processed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refund_requests_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "credit_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refund_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       source_configs: {
         Row: {
           created_at: string | null
@@ -1208,49 +1752,31 @@ export type Database = {
       }
       user_roles: {
         Row: {
+          created_at: string | null
           id: string
-          value: string
+          is_active: boolean | null
           label: string
-          sort_order: number
-          is_active: boolean
-          created_at: string
-          updated_at: string
+          sort_order: number | null
+          updated_at: string | null
+          value: string
         }
         Insert: {
+          created_at?: string | null
           id?: string
-          value: string
+          is_active?: boolean | null
           label: string
-          sort_order?: number
-          is_active?: boolean
-          created_at?: string
-          updated_at?: string
+          sort_order?: number | null
+          updated_at?: string | null
+          value: string
         }
         Update: {
+          created_at?: string | null
           id?: string
-          value?: string
+          is_active?: boolean | null
           label?: string
-          sort_order?: number
-          is_active?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      user_credits: {
-        Row: {
-          balance: number
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          balance?: number
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          balance?: number
-          updated_at?: string
-          user_id?: string
+          sort_order?: number | null
+          updated_at?: string | null
+          value?: string
         }
         Relationships: []
       }
@@ -1259,6 +1785,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      consume_credits: {
+        Args: {
+          p_amount: number
+          p_description: string
+          p_resource_id: string
+          p_resource_type: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       deduct_credits: {
         Args: {
           p_amount: number
@@ -1281,6 +1817,18 @@ export type Database = {
         Returns: number
       }
       is_admin: { Args: never; Returns: boolean }
+      refund_credits: {
+        Args: {
+          p_amount: number
+          p_consumptions: Json
+          p_description: string
+          p_resource_id: string
+          p_resource_type: string
+          p_target_balance?: number
+          p_user_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
@@ -1297,116 +1845,116 @@ type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-  : never = never,
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
-  ? R
-  : never
+    ? R
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])
-  ? (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-      Row: infer R
-    }
-  ? R
-  : never
-  : never
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
+      Insert: infer I
+    }
+    ? I
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
-  : never
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Update: infer U
-  }
-  ? U
-  : never
+      Update: infer U
+    }
+    ? U
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Update: infer U
-  }
-  ? U
-  : never
-  : never
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-  | keyof DefaultSchema["Enums"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-  : never
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-  | keyof DefaultSchema["CompositeTypes"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-  : never
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
 
 export const Constants = {
   public: {
