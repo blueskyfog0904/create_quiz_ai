@@ -182,15 +182,36 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
     setEditingFiles(payload.data.files || [])
   }
 
-  const handleSubmit = async () => {
+  const buildRequestBody = (statusOverride?: MarketItemFormState['status']) => ({
+    menuEntryId: form.menuEntryId,
+    title: form.title,
+    summary: form.summary,
+    description: form.description,
+    thumbnailUrl: form.thumbnailUrl,
+    examYear: form.examYear ? Number(form.examYear) : null,
+    examMonth: form.examMonth ? Number(form.examMonth) : null,
+    gradeLevel: form.gradeLevel,
+    sourceType: form.sourceType,
+    source1: form.source1,
+    source2: form.source2,
+    source3: form.source3,
+    source4: form.source4,
+    pdfPrice: Number(form.pdfPrice || 0),
+    hwpPrice: Number(form.hwpPrice || 0),
+    sortOrder: Number(form.sortOrder || 0),
+    status: statusOverride ?? form.status,
+    isActive: form.isActive,
+  })
+
+  const persistForm = async (statusOverride?: MarketItemFormState['status']) => {
     if (!form.menuEntryId) {
       toast.error('카테고리를 선택해주세요.')
-      return
+      return false
     }
 
     if (!form.title.trim()) {
       toast.error('상품 제목을 입력해주세요.')
-      return
+      return false
     }
 
     setIsSaving(true)
@@ -198,31 +219,12 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
       const previousMenuEntryId = form.id
         ? items.find((item) => item.id === form.id)?.menu_entry_id
         : null
-      const body = {
-        menuEntryId: form.menuEntryId,
-        title: form.title,
-        summary: form.summary,
-        description: form.description,
-        thumbnailUrl: form.thumbnailUrl,
-        examYear: form.examYear ? Number(form.examYear) : null,
-        examMonth: form.examMonth ? Number(form.examMonth) : null,
-        gradeLevel: form.gradeLevel,
-        sourceType: form.sourceType,
-        source1: form.source1,
-        source2: form.source2,
-        source3: form.source3,
-        source4: form.source4,
-        pdfPrice: Number(form.pdfPrice || 0),
-        hwpPrice: Number(form.hwpPrice || 0),
-        sortOrder: Number(form.sortOrder || 0),
-        status: form.status,
-        isActive: form.isActive,
-      }
+      const nextStatus = statusOverride ?? form.status
 
       const response = await fetch(form.id ? `/api/admin/market/items/${form.id}` : '/api/admin/market/items', {
         method: form.id ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(buildRequestBody(statusOverride)),
       })
       const payload = await response.json()
 
@@ -236,13 +238,32 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
         await refreshItems(previousMenuEntryId)
       }
       await loadItemDetail(payload.data.id)
-      toast.success(form.id ? '문제마켓 상품을 수정했습니다.' : '문제마켓 상품을 생성했습니다. 이어서 파일을 업로드할 수 있습니다.')
+      setForm((current) => ({ ...current, status: nextStatus }))
+      toast.success(form.id
+        ? `문제마켓 상품을 ${nextStatus === 'published' ? '공개' : nextStatus === 'hidden' ? '숨김' : '저장'}했습니다.`
+        : '문제마켓 상품을 생성했습니다. 이어서 파일을 업로드할 수 있습니다.')
       router.refresh()
+      return true
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '문제마켓 상품 저장 중 오류가 발생했습니다.')
+      return false
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const handleSubmit = async () => {
+    await persistForm()
+  }
+
+  const handleStatusAction = async (status: MarketItemFormState['status']) => {
+    if (!form.id) {
+      setForm((current) => ({ ...current, status }))
+      toast.message(`상태를 ${status}(으)로 설정했습니다. 저장하면 반영됩니다.`)
+      return
+    }
+
+    await persistForm(status)
   }
 
   const handleArchive = async () => {
@@ -303,6 +324,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
         throw new Error(payload.error?.message || '문제마켓 파일 업로드에 실패했습니다.')
       }
 
+      await refreshItems(form.menuEntryId)
       await loadItemDetail(form.id)
       toast.success(`${assetKind.toUpperCase()} 파일을 업로드했습니다.`)
     } catch (error) {
