@@ -240,22 +240,8 @@ export default function MarketListboardClient({ categorySlug, rows }: MarketList
       </div>
 
       <div className="mt-4 space-y-4">
-        <div className="flex flex-col gap-3 rounded-xl border bg-gray-50/70 px-4 py-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <span>표시 개수</span>
-            <select
-              value={rowsPerPage}
-              onChange={(event) => {
-                setRowsPerPage(Number(event.target.value))
-                setCurrentPage(1)
-              }}
-              className="flex h-9 rounded-md border bg-white px-3 text-sm"
-            >
-              {PER_PAGE_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-          </div>
+        <div className="grid gap-3 rounded-xl border bg-gray-50/70 px-4 py-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
+          <div className="hidden md:block" />
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button
               type="button"
@@ -304,6 +290,21 @@ export default function MarketListboardClient({ categorySlug, rows }: MarketList
             >
               <ChevronsRight className="h-4 w-4" />
             </Button>
+          </div>
+          <div className="flex items-center justify-end gap-2 text-sm text-gray-600">
+            <span>표시 개수</span>
+            <select
+              value={rowsPerPage}
+              onChange={(event) => {
+                setRowsPerPage(Number(event.target.value))
+                setCurrentPage(1)
+              }}
+              className="flex h-9 rounded-md border bg-white px-3 text-sm"
+            >
+              {PER_PAGE_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
           </div>
         </div>
 
