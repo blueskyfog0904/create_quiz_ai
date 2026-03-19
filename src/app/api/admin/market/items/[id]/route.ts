@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { createAdminClient } from '@/lib/supabase/bypass'
 import { createClient } from '@/lib/supabase/server'
 import { getMarketItemById, listMarketItemFiles, updateMarketItem } from '@/lib/market-items-server'
 
 export const dynamic = 'force-dynamic'
 
 const MarketItemUpdateSchema = z.object({
+  menuEntryId: z.string().uuid().optional(),
   title: z.string().trim().min(1),
   summary: z.string().trim().optional(),
   description: z.string().trim().optional(),
@@ -104,7 +106,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       }, { status: 400 })
     }
 
-    const item = await updateMarketItem(id, {
+    let item = await updateMarketItem(id, {
       title: parsed.data.title,
       summary: parsed.data.summary,
       description: parsed.data.description,
@@ -125,6 +127,26 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       updated_by: user.id,
     })
 
+    if (parsed.data.menuEntryId && parsed.data.menuEntryId !== item.menu_entry_id) {
+      const adminSupabase = createAdminClient()
+      const { data: movedItem, error: moveError } = await adminSupabase
+        .from('market_items')
+        .update({
+          menu_entry_id: parsed.data.menuEntryId,
+          updated_by: user.id,
+        })
+        .eq('id', id)
+        .is('deleted_at', null)
+        .select('*')
+        .single()
+
+      if (moveError) {
+        throw new Error(moveError.message)
+      }
+
+      item = movedItem
+    }
+
     return NextResponse.json({ success: true, data: item })
   } catch (error) {
     return NextResponse.json({
@@ -132,6 +154,52 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       error: {
         code: 'INTERNAL_SERVER_ERROR',
         message: error instanceof Error ? error.message : '문제마켓 상품 수정에 실패했습니다.',
+      },
+    }, { status: 500 })
+  }
+}
+
+export async function DELETE(_: Request, { params }: RouteContext) {
+  const { user, isAdmin } = await requireAdminUser()
+  const { id } = await params
+
+  if (!user) {
+    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
+  }
+
+  if (!isAdmin) {
+    return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: '관리자 권한이 필요합니다.' } }, { status: 403 })
+  }
+
+  try {
+    const item = await getMarketItemById(id)
+    if (!item || item.deleted_at) {
+      return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
+    }
+
+    const adminSupabase = createAdminClient()
+    const { error } = await adminSupabase
+      .from('market_items')
+      .update({
+        status: 'archived',
+        is_active: false,
+        deleted_at: new Date().toISOString(),
+        updated_by: user.id,
+      })
+      .eq('id', id)
+      .is('deleted_at', null)
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: error instanceof Error ? error.message : '문제마켓 상품 보관 처리에 실패했습니다.',
       },
     }, { status: 500 })
   }
