@@ -182,7 +182,7 @@ export default function MarketItemActions({
               <p className="mt-2 text-lg font-semibold text-gray-900">미제공</p>
             )}
           </div>
-          {ownsPdf ? <Badge>구매 완료</Badge> : hasPdf ? <Badge variant="outline">미구매</Badge> : null}
+          {ownsPdf ? <Badge variant="secondary">구매 완료</Badge> : hasPdf ? <Badge variant="outline">미구매</Badge> : null}
         </div>
         {ownsPdf ? (
           <Button asChild className="mt-3 w-full">
@@ -215,7 +215,7 @@ export default function MarketItemActions({
               <p className="mt-2 text-lg font-semibold text-gray-900">미제공</p>
             )}
           </div>
-          {ownsHwp ? <Badge>구매 완료</Badge> : hasHwp ? <Badge variant="outline">미구매</Badge> : null}
+          {ownsHwp ? <Badge variant="secondary">구매 완료</Badge> : hasHwp ? <Badge variant="outline">미구매</Badge> : null}
         </div>
         {ownsHwp ? (
           <Button asChild className="mt-3 w-full">
