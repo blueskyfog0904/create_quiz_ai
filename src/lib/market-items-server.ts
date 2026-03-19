@@ -27,26 +27,6 @@ export interface MarketLibraryRow {
   hwpFileName: string | null
 }
 
-export interface MarketLibraryRow {
-  itemId: string
-  categorySlug: string | null
-  categoryTitle: string
-  title: string
-  summary: string | null
-  purchasedAt: string
-  lastDownloadedAt: string | null
-  pdfOwned: boolean
-  hwpOwned: boolean
-  pdfPurchasedAt: string | null
-  hwpPurchasedAt: string | null
-  pdfDownloadUrl: string | null
-  hwpDownloadUrl: string | null
-  pdfAvailable: boolean
-  hwpAvailable: boolean
-  pdfFileName: string | null
-  hwpFileName: string | null
-}
-
 export interface MarketItemListFilters {
   search?: string
   assetKind?: 'pdf' | 'hwp' | 'sample' | 'all'
