@@ -318,19 +318,23 @@ export default function MarketListboardClient({ categorySlug, rows }: MarketList
               <span>HWP {selectionSummary.hwpCount}건</span>
               <span className="font-semibold text-rose-600">총 {selectionSummary.totalCredits.toLocaleString()} 크레딧</span>
             </div>
-            <Button
-              variant="outline"
-              disabled={selectionSummary.totalCount === 0 || isPending || isCheckingBalance}
-              onClick={() => setSelectedKeys([])}
-            >
-              선택 해제
-            </Button>
-            <Button
-              disabled={selectionSummary.totalCount === 0 || isPending || isCheckingBalance}
-              onClick={() => void handlePurchaseClick()}
-            >
-              {isPending ? '결제 처리 중...' : isCheckingBalance ? '잔액 확인 중...' : '선택 파일 결제'}
-            </Button>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                variant="outline"
+                className="px-2"
+                disabled={selectionSummary.totalCount === 0 || isPending || isCheckingBalance}
+                onClick={() => setSelectedKeys([])}
+              >
+                선택 해제
+              </Button>
+              <Button
+                className="px-2"
+                disabled={selectionSummary.totalCount === 0 || isPending || isCheckingBalance}
+                onClick={() => void handlePurchaseClick()}
+              >
+                {isPending ? '결제 처리 중...' : isCheckingBalance ? '잔액 확인 중...' : '선택 파일 결제'}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
