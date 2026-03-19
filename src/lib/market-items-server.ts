@@ -16,6 +16,27 @@ export interface MarketItemListFilters {
   sort?: 'latest' | 'views' | 'price_asc'
 }
 
+export async function getMarketItemFilterOptions(menuEntryId: string) {
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('market_items')
+    .select('exam_year, exam_month, grade_level')
+    .eq('menu_entry_id', menuEntryId)
+    .eq('status', 'published')
+    .eq('is_active', true)
+    .is('deleted_at', null)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const years = Array.from(new Set((data ?? []).map((item) => item.exam_year).filter((value): value is number => value !== null))).sort((a, b) => b - a)
+  const months = Array.from(new Set((data ?? []).map((item) => item.exam_month).filter((value): value is number => value !== null))).sort((a, b) => a - b)
+  const grades = Array.from(new Set((data ?? []).map((item) => item.grade_level).filter((value): value is string => Boolean(value)))).sort((a, b) => a.localeCompare(b, 'ko'))
+
+  return { years, months, grades }
+}
+
 function getAdminSupabase() {
   return createAdminClient()
 }
