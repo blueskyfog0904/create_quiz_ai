@@ -27,6 +27,26 @@ export interface MarketLibraryRow {
   hwpFileName: string | null
 }
 
+export interface MarketListboardAssetRow {
+  available: boolean
+  owned: boolean
+  price: number
+  fileName: string | null
+}
+
+export interface MarketListboardRow {
+  itemId: string
+  title: string
+  examYear: number | null
+  examMonth: number | null
+  gradeLevel: string | null
+  viewCount: number
+  publishedAt: string
+  rowNumber: number
+  pdf: MarketListboardAssetRow
+  hwp: MarketListboardAssetRow
+}
+
 export interface MarketItemListFilters {
   search?: string
   assetKind?: 'pdf' | 'hwp' | 'sample' | 'all'
@@ -173,6 +193,82 @@ export async function listPublishedMarketItems(menuEntryId: string, filters: Mar
   }
 
   return data ?? []
+}
+
+export async function listPublishedMarketListboardRows(
+  menuEntryId: string,
+  userId: string,
+  filters: MarketItemListFilters = {}
+): Promise<MarketListboardRow[]> {
+  const supabase = getAdminSupabase()
+  const items = await listPublishedMarketItems(menuEntryId, filters)
+
+  if (items.length === 0) {
+    return []
+  }
+
+  const itemIds = items.map((item) => item.id)
+  const [{ data: files, error: filesError }, { data: purchases, error: purchasesError }] = await Promise.all([
+    supabase
+      .from('market_item_files')
+      .select('item_id, asset_kind, original_file_name')
+      .in('item_id', itemIds)
+      .in('asset_kind', ['pdf', 'hwp'])
+      .eq('is_active', true)
+      .is('deleted_at', null),
+    supabase
+      .from('market_purchases')
+      .select('item_id, asset_kind')
+      .eq('user_id', userId)
+      .eq('status', 'completed')
+      .in('item_id', itemIds)
+      .in('asset_kind', ['pdf', 'hwp']),
+  ])
+
+  if (filesError) {
+    throw new Error(filesError.message)
+  }
+
+  if (purchasesError) {
+    throw new Error(purchasesError.message)
+  }
+
+  const fileMap = new Map<string, { pdf: string | null; hwp: string | null }>()
+  for (const file of files ?? []) {
+    const current = fileMap.get(file.item_id) ?? { pdf: null, hwp: null }
+    if (file.asset_kind === 'pdf') current.pdf = file.original_file_name
+    if (file.asset_kind === 'hwp') current.hwp = file.original_file_name
+    fileMap.set(file.item_id, current)
+  }
+
+  const ownership = new Set((purchases ?? []).map((purchase) => `${purchase.item_id}:${purchase.asset_kind}`))
+
+  return items.map((item, index) => {
+    const filesForItem = fileMap.get(item.id) ?? { pdf: null, hwp: null }
+
+    return {
+      itemId: item.id,
+      title: item.title,
+      examYear: item.exam_year,
+      examMonth: item.exam_month,
+      gradeLevel: item.grade_level,
+      viewCount: item.view_count,
+      publishedAt: item.published_at ?? item.created_at,
+      rowNumber: items.length - index,
+      pdf: {
+        available: filesForItem.pdf !== null && item.pdf_price > 0,
+        owned: ownership.has(`${item.id}:pdf`),
+        price: item.pdf_price,
+        fileName: filesForItem.pdf,
+      },
+      hwp: {
+        available: filesForItem.hwp !== null && item.hwp_price > 0,
+        owned: ownership.has(`${item.id}:hwp`),
+        price: item.hwp_price,
+        fileName: filesForItem.hwp,
+      },
+    }
+  })
 }
 
 export async function getMarketItemById(id: string): Promise<MarketItem | null> {
@@ -516,6 +612,25 @@ export async function createMarketPurchase(input: TablesInsert<'market_purchases
 
   return data
 }
+
+export async function createMarketPurchases(inputs: TablesInsert<'market_purchases'>[]): Promise<MarketPurchase[]> {
+  if (inputs.length === 0) {
+    return []
+  }
+
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('market_purchases')
+    .insert(inputs)
+    .select('*')
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data ?? []
+}
+
 
 export async function recordMarketDownloadEvent(input: TablesInsert<'market_download_events'>): Promise<MarketDownloadEvent> {
   const supabase = getAdminSupabase()

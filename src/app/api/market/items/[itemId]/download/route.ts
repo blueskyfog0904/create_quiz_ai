@@ -65,7 +65,9 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     const { data, error } = await adminSupabase
       .storage
       .from(file.storage_bucket)
-      .createSignedUrl(file.storage_path, 60 * 5)
+      .createSignedUrl(file.storage_path, 60 * 5, {
+        download: file.original_file_name || true,
+      })
 
     if (error || !data?.signedUrl) {
       return NextResponse.json({

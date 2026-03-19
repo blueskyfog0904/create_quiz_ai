@@ -1,7 +1,11 @@
 import { notFound } from 'next/navigation'
 import { requireAuth } from '@/lib/auth'
 import { getVisibleMarketMenuEntryBySlug } from '@/lib/market-menu-server'
-import { getMarketItemFilterOptions, listPublishedMarketItems, type MarketItemListFilters } from '@/lib/market-items-server'
+import {
+  getMarketItemFilterOptions,
+  listPublishedMarketListboardRows,
+  type MarketItemListFilters,
+} from '@/lib/market-items-server'
 import MarketListboard, { type MarketListboardFilters } from './market-listboard'
 
 interface MarketCategoryPageProps {
@@ -15,7 +19,7 @@ interface MarketCategoryPageProps {
 }
 
 export default async function MarketCategoryPage({ params, searchParams }: MarketCategoryPageProps) {
-  await requireAuth()
+  const user = await requireAuth()
   const { slug } = await params
   const rawFilters = await searchParams
   const filters: MarketListboardFilters = {
@@ -37,10 +41,10 @@ export default async function MarketCategoryPage({ params, searchParams }: Marke
     examMonth: filters.month ? Number(filters.month) : undefined,
   }
 
-  const [items, options] = await Promise.all([
-    listPublishedMarketItems(category.id, marketFilters),
+  const [rows, options] = await Promise.all([
+    listPublishedMarketListboardRows(category.id, user.id, marketFilters),
     getMarketItemFilterOptions(category.id),
   ])
 
-  return <MarketListboard category={category} items={items} filters={filters} options={options} />
+  return <MarketListboard category={category} rows={rows} filters={filters} options={options} />
 }
