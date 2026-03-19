@@ -178,7 +178,7 @@ export default function MarketListboardClient({ categorySlug, rows }: MarketList
           onCheckedChange={(value) => toggleSelection(row.itemId, assetKind, value === true)}
           aria-label={`${row.title} ${assetKind.toUpperCase()} 선택`}
         />
-        <div className="min-w-[72px] text-left">
+        <div className="min-w-[72px] text-center">
           {asset.owned ? (
             <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">보유</Badge>
           ) : !asset.available ? (
@@ -203,23 +203,27 @@ export default function MarketListboardClient({ categorySlug, rows }: MarketList
     <>
       <div className="overflow-x-auto rounded-xl border">
         <table className="min-w-full border-collapse text-sm">
-          <thead className="bg-gray-50 text-left text-gray-600">
+          <thead className="bg-slate-50 text-slate-500">
             <tr>
-              <th className="w-[72px] px-4 py-3 font-medium whitespace-nowrap">번호</th>
-              <th className="min-w-[320px] px-4 py-3 font-medium">제목</th>
+              <th className="w-[72px] px-4 py-3 text-center font-medium whitespace-nowrap">번호</th>
+              <th className="min-w-[320px] px-4 py-3 text-left font-medium">제목</th>
               <th className="w-[120px] px-4 py-3 text-center font-medium whitespace-nowrap">PDF</th>
               <th className="w-[120px] px-4 py-3 text-center font-medium whitespace-nowrap">HWP</th>
-              <th className="w-[100px] px-4 py-3 text-right font-medium whitespace-nowrap">조회</th>
-              <th className="w-[140px] px-4 py-3 text-right font-medium whitespace-nowrap">게시일자</th>
+              <th className="w-[100px] px-4 py-3 text-center font-medium whitespace-nowrap">조회</th>
+              <th className="w-[140px] px-4 py-3 text-center font-medium whitespace-nowrap">게시일자</th>
             </tr>
           </thead>
           <tbody>
-            {pagedRows.map((row) => {
+            {pagedRows.map((row, index) => {
               const href = `/market/${categorySlug}/items/${row.itemId}`
+              const isStripedRow = index % 2 === 1
 
               return (
-                <tr key={row.itemId} className="border-t transition-colors hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.rowNumber}</td>
+                <tr
+                  key={row.itemId}
+                  className={`border-t transition-colors hover:bg-slate-100/60 ${isStripedRow ? 'bg-slate-50/70' : 'bg-white'}`}
+                >
+                  <td className="px-4 py-3 text-center text-gray-600 whitespace-nowrap">{row.rowNumber}</td>
                   <td className="px-4 py-3 align-top">
                     <Link href={href} className="block space-y-1">
                       <div className="font-medium text-gray-900">{row.title}</div>
@@ -230,8 +234,8 @@ export default function MarketListboardClient({ categorySlug, rows }: MarketList
                   </td>
                   <td className="px-4 py-3">{renderAssetCell(row, 'pdf')}</td>
                   <td className="px-4 py-3">{renderAssetCell(row, 'hwp')}</td>
-                  <td className="px-4 py-3 text-right text-gray-700 whitespace-nowrap">{row.viewCount.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-right text-gray-700 whitespace-nowrap">{formatPublishedDate(row.publishedAt)}</td>
+                  <td className="px-4 py-3 text-center text-gray-700 whitespace-nowrap">{row.viewCount.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-center text-gray-700 whitespace-nowrap">{formatPublishedDate(row.publishedAt)}</td>
                 </tr>
               )
             })}
