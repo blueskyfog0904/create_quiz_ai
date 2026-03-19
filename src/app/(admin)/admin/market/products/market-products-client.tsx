@@ -360,7 +360,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
       }
 
       if (failedCount === 0) {
-        toast.success(`상품 생성과 파일 ${successCount}개 업로드를 완료했습니다.`)
+        toast.success(`상품 등록과 파일 ${successCount}개 업로드를 완료했습니다.`)
         return
       }
 
@@ -750,32 +750,6 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button onClick={handleSubmit} disabled={isSaving || isBulkUploading} className="flex-1">
-                {isSaving || isBulkUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {form.id
-                  ? '상품 저장'
-                  : selectedAssetKinds.length > 0
-                    ? (isBulkUploading ? '상품 생성 및 파일 업로드 중...' : '상품 생성 및 파일 업로드')
-                    : '상품 생성'}
-              </Button>
-              <Button type="button" variant="secondary" disabled={isSaving || isBulkUploading} onClick={() => void handleStatusAction('draft')}>
-                임시저장
-              </Button>
-              <Button type="button" variant="outline" disabled={isSaving || isBulkUploading} onClick={() => void handleStatusAction('hidden')}>
-                숨김
-              </Button>
-              <Button type="button" variant="outline" disabled={isSaving || isBulkUploading} onClick={() => void handleStatusAction('published')}>
-                공개
-              </Button>
-              {form.id ? (
-                <Button type="button" variant="destructive" disabled={isArchiving || isBulkUploading} onClick={handleArchive}>
-                  {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                  완전 삭제
-                </Button>
-              ) : null}
-            </div>
-
             <div className="space-y-3 rounded-lg border p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -783,7 +757,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                     <p className="text-sm text-gray-500">
                       {form.id
                         ? '샘플 PDF, 판매용 PDF, HWP를 각각 최신 버전으로 교체할 수 있습니다.'
-                        : '선택한 파일은 상품 생성 후 자동으로 업로드됩니다.'}
+                        : '선택한 파일은 상품 등록 후 자동으로 업로드됩니다.'}
                     </p>
                   </div>
                   <Button
@@ -917,7 +891,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                       >
                         <p className="text-sm font-medium text-gray-900">
                           {!form.id
-                            ? '상품 생성 전에 파일을 먼저 선택할 수 있습니다.'
+                            ? '상품 등록 전에 파일을 먼저 선택할 수 있습니다.'
                             : isDragActive
                               ? '여기에 파일을 놓으세요.'
                               : '파일을 드래그하여 놓거나, 파일선택 버튼으로 업로드할 파일을 고르세요.'}
@@ -958,6 +932,32 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                   )
                 })}
               </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button onClick={handleSubmit} disabled={isSaving || isBulkUploading} className="flex-1">
+                {isSaving || isBulkUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {form.id
+                  ? '상품 저장'
+                  : selectedAssetKinds.length > 0
+                    ? (isBulkUploading ? '상품 등록 및 파일 업로드 중...' : '상품 등록 및 파일 업로드')
+                    : '상품 등록'}
+              </Button>
+              <Button type="button" variant="secondary" disabled={isSaving || isBulkUploading} onClick={() => void handleStatusAction('draft')}>
+                임시저장
+              </Button>
+              <Button type="button" variant="outline" disabled={isSaving || isBulkUploading} onClick={() => void handleStatusAction('hidden')}>
+                숨김
+              </Button>
+              <Button type="button" variant="outline" disabled={isSaving || isBulkUploading} onClick={() => void handleStatusAction('published')}>
+                공개
+              </Button>
+              {form.id ? (
+                <Button type="button" variant="destructive" disabled={isArchiving || isBulkUploading} onClick={handleArchive}>
+                  {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                  완전 삭제
+                </Button>
+              ) : null}
+            </div>
           </CardContent>
         </Card>
 
