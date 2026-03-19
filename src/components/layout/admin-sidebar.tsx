@@ -35,6 +35,11 @@ const menuItems = [
     icon: LayoutPanelTop,
   },
   {
+    name: '문제마켓 상품 관리',
+    href: '/admin/market/products',
+    icon: Upload,
+  },
+  {
     name: 'AI 문제 유형 관리',
     href: '/admin/problem-types',
     icon: Settings,
