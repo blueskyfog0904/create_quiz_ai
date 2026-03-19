@@ -44,6 +44,13 @@ interface MarketItemFormState {
   isActive: boolean
 }
 
+const MARKET_STATUS_LABELS: Record<MarketItemFormState['status'], string> = {
+  draft: '임시저장',
+  published: '공개',
+  hidden: '숨김',
+  archived: '보관',
+}
+
 const MIN_EXAM_YEAR = 2000
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1))
 
@@ -216,7 +223,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
       await loadItemDetail(payload.data.id)
       setForm((current) => ({ ...current, status: nextStatus }))
       toast.success(form.id
-        ? `문제마켓 상품을 ${nextStatus === 'published' ? '공개' : nextStatus === 'hidden' ? '숨김' : '저장'}했습니다.`
+        ? `문제마켓 상품을 ${MARKET_STATUS_LABELS[nextStatus]} 상태로 저장했습니다.`
         : '문제마켓 상품을 생성했습니다. 이어서 파일을 업로드할 수 있습니다.')
       router.refresh()
       return true
@@ -456,10 +463,10 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
               <div className="space-y-2">
                 <Label>상태</Label>
                 <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as MarketItemFormState['status'] }))} className="flex h-10 w-full rounded-md border bg-white px-3 text-sm">
-                  <option value="draft">draft</option>
-                  <option value="published">published</option>
-                  <option value="hidden">hidden</option>
-                  <option value="archived">archived</option>
+                  <option value="draft">{MARKET_STATUS_LABELS.draft}</option>
+                  <option value="published">{MARKET_STATUS_LABELS.published}</option>
+                  <option value="hidden">{MARKET_STATUS_LABELS.hidden}</option>
+                  <option value="archived">{MARKET_STATUS_LABELS.archived}</option>
                 </select>
               </div>
               <div className="flex items-end">
@@ -617,7 +624,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                           <div>HWP {item.hwp_price}C</div>
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant="outline">{item.status}</Badge>
+                          <Badge variant="outline">{MARKET_STATUS_LABELS[item.status as MarketItemFormState['status']] ?? item.status}</Badge>
                         </TableCell>
                         <TableCell className="text-center text-sm text-gray-600">{formatDateTime(item.created_at)}</TableCell>
                         <TableCell>
