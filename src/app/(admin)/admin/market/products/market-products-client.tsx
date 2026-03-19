@@ -509,6 +509,15 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {form.id ? '상품 저장' : '상품 생성 후 업로드 계속'}
               </Button>
+              <Button type="button" variant="secondary" disabled={isSaving} onClick={() => void handleStatusAction('draft')}>
+                임시저장
+              </Button>
+              <Button type="button" variant="outline" disabled={isSaving} onClick={() => void handleStatusAction('hidden')}>
+                숨김
+              </Button>
+              <Button type="button" variant="outline" disabled={isSaving} onClick={() => void handleStatusAction('published')}>
+                공개
+              </Button>
               {form.id ? (
                 <Button type="button" variant="destructive" disabled={isArchiving} onClick={handleArchive}>
                   {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
@@ -522,6 +531,37 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                 <div>
                   <p className="font-medium text-gray-900">파일 업로드</p>
                   <p className="text-sm text-gray-500">샘플 PDF, 판매용 PDF, HWP를 각각 최신 버전으로 교체할 수 있습니다.</p>
+                </div>
+
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>자산</TableHead>
+                        <TableHead>현재 파일</TableHead>
+                        <TableHead className="text-center">버전</TableHead>
+                        <TableHead className="text-center">상태</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(['sample', 'pdf', 'hwp'] as const).map((assetKind) => {
+                        const currentFile = activeFileMap.get(assetKind)
+
+                        return (
+                          <TableRow key={`file-row-${assetKind}`}>
+                            <TableCell className="uppercase">{assetKind}</TableCell>
+                            <TableCell>{currentFile?.original_file_name || '미업로드'}</TableCell>
+                            <TableCell className="text-center">{currentFile ? `v${currentFile.version}` : '-'}</TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant={currentFile ? 'outline' : 'secondary'}>
+                                {currentFile ? '활성 파일' : '없음'}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
                 </div>
 
                 {(['sample', 'pdf', 'hwp'] as const).map((assetKind) => {
