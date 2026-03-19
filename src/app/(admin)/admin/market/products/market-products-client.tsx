@@ -136,6 +136,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
   const [isSaving, setIsSaving] = useState(false)
   const [isArchiving, setIsArchiving] = useState(false)
   const [uploadingKinds, setUploadingKinds] = useState<string[]>([])
+  const [isBulkUploading, setIsBulkUploading] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<Partial<Record<MarketUploadAssetKind, File>>>({})
   const [dragActiveKinds, setDragActiveKinds] = useState<MarketUploadAssetKind[]>([])
   const fileInputRefs = useRef<Record<MarketUploadAssetKind, HTMLInputElement | null>>({
@@ -152,6 +153,10 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
 
   const menuTitleMap = useMemo(() => new Map(menuEntries.map((entry) => [entry.id, entry.title])), [menuEntries])
   const examYearOptions = useMemo(() => buildExamYearOptions(), [])
+  const selectedAssetKinds = useMemo(
+    () => MARKET_ASSET_KINDS.filter((assetKind) => Boolean(selectedFiles[assetKind])),
+    [selectedFiles]
+  )
 
   const resetForm = (menuEntryId = selectedMenuEntryId) => {
     setForm(buildEmptyForm(menuEntryId))
@@ -181,7 +186,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
     })
   }
 
-  const loadItemDetail = async (id: string) => {
+  const fetchItemDetail = async (id: string) => {
     const response = await fetch(`/api/admin/market/items/${id}`, { cache: 'no-store' })
     const payload = await response.json()
 
@@ -189,11 +194,22 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
       throw new Error(payload.error?.message || '문제마켓 상품 상세를 불러오지 못했습니다.')
     }
 
-    setSelectedMenuEntryId(payload.data.item.menu_entry_id)
-    setForm(buildEditForm(payload.data.item))
-    setEditingFiles(payload.data.files || [])
+    return payload.data as { item: MarketItem; files: MarketItemFile[] }
+  }
+
+  const loadItemDetail = async (id: string) => {
+    const detail = await fetchItemDetail(id)
+
+    setSelectedMenuEntryId(detail.item.menu_entry_id)
+    setForm(buildEditForm(detail.item))
+    setEditingFiles(detail.files || [])
     setSelectedFiles({})
     setDragActiveKinds([])
+  }
+
+  const refreshEditingFiles = async (id: string) => {
+    const detail = await fetchItemDetail(id)
+    setEditingFiles(detail.files || [])
   }
 
   const buildRequestBody = (statusOverride?: MarketItemFormState['status']) => ({
@@ -345,16 +361,10 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
     }))
   }
 
-  const handleUpload = async (assetKind: MarketUploadAssetKind) => {
-    const file = selectedFiles[assetKind]
+  const uploadAssetFile = async (assetKind: MarketUploadAssetKind, file: File) => {
     if (!form.id) {
       toast.error('파일 업로드 전에 상품을 먼저 저장해주세요.')
-      return
-    }
-
-    if (!file) {
-      toast.error('업로드할 파일을 선택해주세요.')
-      return
+      return { success: false as const, message: '파일 업로드 전에 상품을 먼저 저장해주세요.' }
     }
 
     setUploadingKinds((current) => [...current, assetKind])
@@ -373,14 +383,82 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
         throw new Error(payload.error?.message || '문제마켓 파일 업로드에 실패했습니다.')
       }
 
-      await refreshItems(form.menuEntryId)
-      await loadItemDetail(form.id)
       clearSelectedFile(assetKind)
-      toast.success(`${assetKind.toUpperCase()} 파일을 업로드했습니다.`)
+      return { success: true as const, message: `${assetKind.toUpperCase()} 파일을 업로드했습니다.` }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '문제마켓 파일 업로드 중 오류가 발생했습니다.')
+      return {
+        success: false as const,
+        message: error instanceof Error ? error.message : '문제마켓 파일 업로드 중 오류가 발생했습니다.',
+      }
     } finally {
       setUploadingKinds((current) => current.filter((kind) => kind !== assetKind))
+    }
+  }
+
+  const handleUpload = async (assetKind: MarketUploadAssetKind) => {
+    const file = selectedFiles[assetKind]
+    if (!file) {
+      toast.error('업로드할 파일을 선택해주세요.')
+      return
+    }
+
+    const result = await uploadAssetFile(assetKind, file)
+    if (result.success) {
+      await refreshItems(form.menuEntryId)
+      await refreshEditingFiles(form.id!)
+      toast.success(result.message)
+      return
+    }
+
+    toast.error(result.message)
+  }
+
+  const handleUploadAll = async () => {
+    if (!form.id) {
+      toast.error('상품을 먼저 저장한 뒤 파일을 업로드할 수 있습니다.')
+      return
+    }
+
+    const uploadTargets = MARKET_ASSET_KINDS
+      .map((assetKind) => ({ assetKind, file: selectedFiles[assetKind] }))
+      .filter((target): target is { assetKind: MarketUploadAssetKind; file: File } => Boolean(target.file))
+
+    if (uploadTargets.length === 0) {
+      toast.error('업로드할 파일을 먼저 선택해주세요.')
+      return
+    }
+
+    setIsBulkUploading(true)
+    let successCount = 0
+    let failedCount = 0
+
+    try {
+      for (const target of uploadTargets) {
+        const result = await uploadAssetFile(target.assetKind, target.file)
+        if (result.success) {
+          successCount += 1
+        } else {
+          failedCount += 1
+          toast.error(`${target.assetKind.toUpperCase()}: ${result.message}`)
+        }
+      }
+
+      await refreshItems(form.menuEntryId)
+      await refreshEditingFiles(form.id)
+
+      if (failedCount === 0) {
+        toast.success(`선택한 ${successCount}개 파일 업로드를 완료했습니다.`)
+        return
+      }
+
+      if (successCount === 0) {
+        toast.error('선택한 파일 업로드에 실패했습니다.')
+        return
+      }
+
+      toast.message(`${successCount}개 업로드 성공, ${failedCount}개 실패했습니다.`)
+    } finally {
+      setIsBulkUploading(false)
     }
   }
 
@@ -571,9 +649,20 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
 
             {form.id ? (
               <div className="space-y-3 rounded-lg border p-4">
-                <div>
-                  <p className="font-medium text-gray-900">파일 업로드</p>
-                  <p className="text-sm text-gray-500">샘플 PDF, 판매용 PDF, HWP를 각각 최신 버전으로 교체할 수 있습니다.</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-gray-900">파일 업로드</p>
+                    <p className="text-sm text-gray-500">샘플 PDF, 판매용 PDF, HWP를 각각 최신 버전으로 교체할 수 있습니다.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!form.id || isBulkUploading || selectedAssetKinds.length === 0 || uploadingKinds.length > 0}
+                    onClick={() => void handleUploadAll()}
+                  >
+                    {isBulkUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                    모두 업로드
+                  </Button>
                 </div>
 
                 <div className="rounded-md border">
@@ -612,7 +701,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                   const isUploading = uploadingKinds.includes(assetKind)
                   const selectedFile = selectedFiles[assetKind]
                   const isDragActive = dragActiveKinds.includes(assetKind)
-                  const isUploadDisabled = !form.id || isUploading
+                  const isUploadDisabled = !form.id || isUploading || isBulkUploading
                   const allowDescription = assetKind === 'hwp' ? '.hwp 파일만 업로드할 수 있습니다.' : '.pdf 파일만 업로드할 수 있습니다.'
 
                   return (
