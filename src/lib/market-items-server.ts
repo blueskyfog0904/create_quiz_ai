@@ -4,6 +4,8 @@ import type { Tables, TablesInsert, TablesUpdate } from '@/types/supabase'
 export type MarketItem = Tables<'market_items'>
 export type MarketItemFile = Tables<'market_item_files'>
 export type MarketPurchase = Tables<'market_purchases'>
+export type MarketDownloadEvent = Tables<'market_download_events'>
+export type MarketItemViewEvent = Tables<'market_item_view_events'>
 
 export interface MarketItemListFilters {
   search?: string
@@ -424,4 +426,84 @@ export async function findCompletedMarketPurchase(userId: string, itemId: string
   }
 
   return data
+}
+
+export async function listCompletedMarketPurchasesForItem(userId: string, itemId: string): Promise<MarketPurchase[]> {
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('market_purchases')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('item_id', itemId)
+    .eq('status', 'completed')
+    .order('purchased_at', { ascending: false })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data ?? []
+}
+
+export async function createMarketPurchase(input: TablesInsert<'market_purchases'>): Promise<MarketPurchase> {
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('market_purchases')
+    .insert(input)
+    .select('*')
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data
+}
+
+export async function recordMarketDownloadEvent(input: TablesInsert<'market_download_events'>): Promise<MarketDownloadEvent> {
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('market_download_events')
+    .insert(input)
+    .select('*')
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data
+}
+
+export async function recordMarketItemView(input: TablesInsert<'market_item_view_events'>): Promise<MarketItemViewEvent> {
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('market_item_view_events')
+    .insert(input)
+    .select('*')
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data
+}
+
+export async function incrementMarketItemViewCount(itemId: string): Promise<void> {
+  const supabase = getAdminSupabase()
+  const item = await getMarketItemById(itemId)
+
+  if (!item) {
+    throw new Error('조회할 문제마켓 상품을 찾을 수 없습니다.')
+  }
+
+  const { error } = await supabase
+    .from('market_items')
+    .update({ view_count: item.view_count + 1 })
+    .eq('id', itemId)
+
+  if (error) {
+    throw new Error(error.message)
+  }
 }

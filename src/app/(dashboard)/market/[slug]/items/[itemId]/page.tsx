@@ -1,19 +1,39 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireAuth } from '@/lib/auth'
 import { getVisibleMarketMenuEntryBySlug } from '@/lib/market-menu-server'
-import { getPublishedMarketItemById, listMarketItemFiles } from '@/lib/market-items-server'
+import {
+  getPublishedMarketItemById,
+  listCompletedMarketPurchasesForItem,
+  listMarketItemFiles,
+} from '@/lib/market-items-server'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import MarketItemActions from './market-item-actions'
 
 interface MarketItemDetailPageProps {
   params: Promise<{ slug: string; itemId: string }>
 }
 
 const formatDate = (value?: string | null) => value ? value.slice(0, 10) : '-'
+const formatExamLabel = (year?: number | null, month?: number | null) => {
+  if (!year && !month) {
+    return '-'
+  }
+
+  return [year ? `${year}년` : null, month ? `${month}월` : null].filter(Boolean).join(' ')
+}
+
+const collectSources = (item: Awaited<ReturnType<typeof getPublishedMarketItemById>>) => {
+  if (!item) {
+    return []
+  }
+
+  return [item.source_1, item.source_2, item.source_3, item.source_4].filter(Boolean) as string[]
+}
 
 export default async function MarketItemDetailPage({ params }: MarketItemDetailPageProps) {
-  await requireAuth()
+  const user = await requireAuth()
   const { slug, itemId } = await params
 
   const category = await getVisibleMarketMenuEntryBySlug(slug)
@@ -27,9 +47,13 @@ export default async function MarketItemDetailPage({ params }: MarketItemDetailP
   }
 
   const files = await listMarketItemFiles(item.id)
+  const purchases = await listCompletedMarketPurchasesForItem(user.id, item.id)
   const hasSample = files.some((file) => file.asset_kind === 'sample')
   const hasPdf = files.some((file) => file.asset_kind === 'pdf')
   const hasHwp = files.some((file) => file.asset_kind === 'hwp')
+  const ownsPdf = purchases.some((purchase) => purchase.asset_kind === 'pdf')
+  const ownsHwp = purchases.some((purchase) => purchase.asset_kind === 'hwp')
+  const sources = collectSources(item)
 
   return (
     <div className="space-y-6">
@@ -40,7 +64,7 @@ export default async function MarketItemDetailPage({ params }: MarketItemDetailP
               <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
                 <span>문제마켓</span>
                 <span>/</span>
-                <span>{category.title}</span>
+                <Link className="hover:text-gray-900" href={`/market/${category.slug}`}>{category.title}</Link>
               </div>
               <CardTitle className="text-3xl">{item.title}</CardTitle>
               {item.summary ? <p className="text-sm text-gray-500">{item.summary}</p> : null}
@@ -73,6 +97,50 @@ export default async function MarketItemDetailPage({ params }: MarketItemDetailP
               </div>
             </div>
 
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card className="border-dashed">
+                <CardHeader>
+                  <CardTitle className="text-lg">자료 정보</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm text-gray-600">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-gray-500">시험 회차</span>
+                    <span className="font-medium text-gray-900">{formatExamLabel(item.exam_year, item.exam_month)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-gray-500">출제 타입</span>
+                    <span className="font-medium text-gray-900">{item.source_type || '-'}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-gray-500">보유 상태</span>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Badge variant={ownsPdf ? 'default' : 'outline'}>PDF {ownsPdf ? '보유' : '미보유'}</Badge>
+                      <Badge variant={ownsHwp ? 'default' : 'outline'}>HWP {ownsHwp ? '보유' : '미보유'}</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-dashed">
+                <CardHeader>
+                  <CardTitle className="text-lg">출처</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm leading-6 text-gray-600">
+                  {sources.length > 0 ? (
+                    <ul className="space-y-2">
+                      {sources.map((source, index) => (
+                        <li key={`${source}-${index}`} className="rounded-md bg-gray-50 px-3 py-2 text-gray-700">
+                          {source}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>등록된 출처 정보가 없습니다.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
             <Card className="border-dashed">
               <CardHeader>
                 <CardTitle className="text-lg">상세 설명</CardTitle>
@@ -87,30 +155,17 @@ export default async function MarketItemDetailPage({ params }: MarketItemDetailP
             <CardHeader>
               <CardTitle className="text-lg">구매 / 다운로드</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-lg border p-4">
-                <p className="text-sm text-gray-500">샘플 파일</p>
-                <p className="mt-2 text-lg font-semibold text-gray-900">{hasSample ? '무료' : '미제공'}</p>
-                <Button className="mt-3 w-full" variant="outline" disabled={!hasSample}>
-                  샘플 다운로드 준비 중
-                </Button>
-              </div>
-
-              <div className="rounded-lg border p-4">
-                <p className="text-sm text-gray-500">PDF</p>
-                <p className="mt-2 text-lg font-semibold text-gray-900">{hasPdf ? `${item.pdf_price} 크레딧` : '미제공'}</p>
-                <Button className="mt-3 w-full" disabled={!hasPdf}>
-                  PDF 구매 기능 준비 중
-                </Button>
-              </div>
-
-              <div className="rounded-lg border p-4">
-                <p className="text-sm text-gray-500">HWP</p>
-                <p className="mt-2 text-lg font-semibold text-gray-900">{hasHwp ? `${item.hwp_price} 크레딧` : '미제공'}</p>
-                <Button className="mt-3 w-full" disabled={!hasHwp}>
-                  HWP 구매 기능 준비 중
-                </Button>
-              </div>
+            <CardContent>
+              <MarketItemActions
+                hasHwp={hasHwp}
+                hasPdf={hasPdf}
+                hasSample={hasSample}
+                hwpPrice={item.hwp_price}
+                itemId={item.id}
+                ownsHwp={ownsHwp}
+                ownsPdf={ownsPdf}
+                pdfPrice={item.pdf_price}
+              />
             </CardContent>
           </Card>
         </CardContent>
