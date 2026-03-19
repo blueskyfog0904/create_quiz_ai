@@ -27,6 +27,26 @@ export interface MarketLibraryRow {
   hwpFileName: string | null
 }
 
+export interface MarketLibraryRow {
+  itemId: string
+  categorySlug: string | null
+  categoryTitle: string
+  title: string
+  summary: string | null
+  purchasedAt: string
+  lastDownloadedAt: string | null
+  pdfOwned: boolean
+  hwpOwned: boolean
+  pdfPurchasedAt: string | null
+  hwpPurchasedAt: string | null
+  pdfDownloadUrl: string | null
+  hwpDownloadUrl: string | null
+  pdfAvailable: boolean
+  hwpAvailable: boolean
+  pdfFileName: string | null
+  hwpFileName: string | null
+}
+
 export interface MarketItemListFilters {
   search?: string
   assetKind?: 'pdf' | 'hwp' | 'sample' | 'all'
@@ -467,6 +487,22 @@ export async function listCompletedMarketPurchasesForUser(userId: string): Promi
   return data ?? []
 }
 
+export async function listCompletedMarketPurchasesForUser(userId: string): Promise<MarketPurchase[]> {
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('market_purchases')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('status', 'completed')
+    .order('purchased_at', { ascending: false })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data ?? []
+}
+
 export async function findCompletedMarketPurchase(userId: string, itemId: string, assetKind: 'pdf' | 'hwp') {
   const supabase = getAdminSupabase()
   const { data, error } = await supabase
@@ -563,6 +599,124 @@ export async function incrementMarketItemViewCount(itemId: string): Promise<void
   if (error) {
     throw new Error(error.message)
   }
+}
+
+export async function listMarketLibraryRowsForUser(userId: string): Promise<MarketLibraryRow[]> {
+  const supabase = getAdminSupabase()
+  const purchases = await listCompletedMarketPurchasesForUser(userId)
+
+  if (purchases.length === 0) {
+    return []
+  }
+
+  const itemIds = Array.from(new Set(purchases.map((purchase) => purchase.item_id)))
+
+  const [{ data: items, error: itemsError }, { data: files, error: filesError }, { data: downloads, error: downloadsError }] = await Promise.all([
+    supabase
+      .from('market_items')
+      .select('*')
+      .in('id', itemIds),
+    supabase
+      .from('market_item_files')
+      .select('*')
+      .in('item_id', itemIds)
+      .eq('is_active', true)
+      .is('deleted_at', null),
+    supabase
+      .from('market_download_events')
+      .select('*')
+      .eq('user_id', userId)
+      .in('item_id', itemIds)
+      .order('created_at', { ascending: false }),
+  ])
+
+  if (itemsError) {
+    throw new Error(itemsError.message)
+  }
+
+  if (filesError) {
+    throw new Error(filesError.message)
+  }
+
+  if (downloadsError) {
+    throw new Error(downloadsError.message)
+  }
+
+  const menuEntryIds = Array.from(new Set((items ?? []).map((item) => item.menu_entry_id)))
+  const { data: menuEntries, error: menuEntriesError } = await supabase
+    .from('market_menu_entries')
+    .select('*')
+    .in('id', menuEntryIds)
+
+  if (menuEntriesError) {
+    throw new Error(menuEntriesError.message)
+  }
+
+  const itemMap = new Map((items ?? []).map((item) => [item.id, item]))
+  const menuMap = new Map((menuEntries ?? []).map((entry) => [entry.id, entry]))
+
+  const fileMap = new Map<string, { pdf: MarketItemFile | null; hwp: MarketItemFile | null }>()
+  for (const file of files ?? []) {
+    const current = fileMap.get(file.item_id) ?? { pdf: null, hwp: null }
+    if (file.asset_kind === 'pdf') current.pdf = file
+    if (file.asset_kind === 'hwp') current.hwp = file
+    fileMap.set(file.item_id, current)
+  }
+
+  const latestDownloadMap = new Map<string, string>()
+  for (const event of downloads ?? []) {
+    const key = `${event.item_id}:${event.asset_kind}`
+    if (!latestDownloadMap.has(key)) {
+      latestDownloadMap.set(key, event.created_at)
+    }
+  }
+
+  const groupedPurchases = new Map<string, MarketPurchase[]>()
+  for (const purchase of purchases) {
+    const current = groupedPurchases.get(purchase.item_id) ?? []
+    current.push(purchase)
+    groupedPurchases.set(purchase.item_id, current)
+  }
+
+  return Array.from(groupedPurchases.entries())
+    .map(([itemId, itemPurchases]) => {
+      const item = itemMap.get(itemId)
+      const menu = item ? menuMap.get(item.menu_entry_id) : null
+      const assetFiles = fileMap.get(itemId) ?? { pdf: null, hwp: null }
+      const pdfPurchase = itemPurchases.find((purchase) => purchase.asset_kind === 'pdf') ?? null
+      const hwpPurchase = itemPurchases.find((purchase) => purchase.asset_kind === 'hwp') ?? null
+      const purchasedAt = itemPurchases
+        .map((purchase) => purchase.purchased_at)
+        .sort((a, b) => b.localeCompare(a))[0]
+
+      const lastDownloadedAt = [
+        latestDownloadMap.get(`${itemId}:pdf`) ?? null,
+        latestDownloadMap.get(`${itemId}:hwp`) ?? null,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .sort((a, b) => b.localeCompare(a))[0] ?? null
+
+      return {
+        itemId,
+        categorySlug: menu?.slug ?? null,
+        categoryTitle: menu?.title ?? '알 수 없는 카테고리',
+        title: item?.title ?? '삭제되었거나 찾을 수 없는 상품',
+        summary: item?.summary ?? null,
+        purchasedAt,
+        lastDownloadedAt,
+        pdfOwned: pdfPurchase !== null,
+        hwpOwned: hwpPurchase !== null,
+        pdfPurchasedAt: pdfPurchase?.purchased_at ?? null,
+        hwpPurchasedAt: hwpPurchase?.purchased_at ?? null,
+        pdfDownloadUrl: pdfPurchase ? `/api/market/items/${itemId}/download?assetKind=pdf` : null,
+        hwpDownloadUrl: hwpPurchase ? `/api/market/items/${itemId}/download?assetKind=hwp` : null,
+        pdfAvailable: pdfPurchase !== null && assetFiles.pdf !== null,
+        hwpAvailable: hwpPurchase !== null && assetFiles.hwp !== null,
+        pdfFileName: assetFiles.pdf?.original_file_name ?? null,
+        hwpFileName: assetFiles.hwp?.original_file_name ?? null,
+      }
+    })
+    .sort((a, b) => b.purchasedAt.localeCompare(a.purchasedAt))
 }
 
 export async function listMarketLibraryRowsForUser(userId: string): Promise<MarketLibraryRow[]> {

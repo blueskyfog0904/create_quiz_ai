@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import {
   Table,
   TableBody,
@@ -21,7 +21,6 @@ interface MarketLibraryClientProps {
 }
 
 type SortOption = 'latest' | 'name'
-
 type AssetFilter = 'all' | 'pdf' | 'hwp'
 
 function formatDate(value?: string | null) {
@@ -36,7 +35,6 @@ export default function MarketLibraryClient({ rows }: MarketLibraryClientProps) 
 
   const filteredRows = useMemo(() => {
     const keyword = search.trim().toLowerCase()
-
     const nextRows = rows.filter((row) => {
       if (keyword && !(`${row.title} ${row.categoryTitle} ${row.summary || ''}`.toLowerCase().includes(keyword))) {
         return false
@@ -57,7 +55,6 @@ export default function MarketLibraryClient({ rows }: MarketLibraryClientProps) 
       if (sort === 'name') {
         return a.title.localeCompare(b.title, 'ko')
       }
-
       return b.purchasedAt.localeCompare(a.purchasedAt)
     })
 
@@ -109,28 +106,16 @@ export default function MarketLibraryClient({ rows }: MarketLibraryClientProps) 
       <Card>
         <CardHeader>
           <CardTitle>검색 / 정렬</CardTitle>
-          <CardDescription>상품명 기준 검색과 간단한 필터를 제공합니다.</CardDescription>
+          <CardDescription>상품명 검색과 최소 필터를 제공합니다.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-[minmax(0,1fr),180px,180px]">
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="상품명 검색"
-            />
-            <select
-              value={sort}
-              onChange={(event) => setSort(event.target.value as SortOption)}
-              className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
-            >
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="상품명 검색" />
+            <select value={sort} onChange={(event) => setSort(event.target.value as SortOption)} className="flex h-10 w-full rounded-md border bg-white px-3 text-sm">
               <option value="latest">최근 구매순</option>
               <option value="name">이름순</option>
             </select>
-            <select
-              value={assetFilter}
-              onChange={(event) => setAssetFilter(event.target.value as AssetFilter)}
-              className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
-            >
+            <select value={assetFilter} onChange={(event) => setAssetFilter(event.target.value as AssetFilter)} className="flex h-10 w-full rounded-md border bg-white px-3 text-sm">
               <option value="all">전체</option>
               <option value="pdf">PDF 포함</option>
               <option value="hwp">HWP 포함</option>
@@ -185,29 +170,9 @@ export default function MarketLibraryClient({ rows }: MarketLibraryClientProps) 
                         <TableCell>{formatDate(row.purchasedAt)}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-2">
-                            {row.pdfOwned ? (
-                              row.pdfAvailable ? (
-                                <Button asChild size="sm" variant="outline">
-                                  <a href={row.pdfDownloadUrl || '#'}>PDF 다운로드</a>
-                                </Button>
-                              ) : (
-                                <Button size="sm" variant="outline" disabled>PDF 점검 중</Button>
-                              )
-                            ) : null}
-                            {row.hwpOwned ? (
-                              row.hwpAvailable ? (
-                                <Button asChild size="sm" variant="outline">
-                                  <a href={row.hwpDownloadUrl || '#'}>HWP 다운로드</a>
-                                </Button>
-                              ) : (
-                                <Button size="sm" variant="outline" disabled>HWP 점검 중</Button>
-                              )
-                            ) : null}
-                            {row.categorySlug ? (
-                              <Button asChild size="sm">
-                                <Link href={`/market/${row.categorySlug}/items/${row.itemId}`}>상세 보기</Link>
-                              </Button>
-                            ) : null}
+                            {row.pdfOwned ? (row.pdfAvailable ? <Button asChild size="sm" variant="outline"><a href={row.pdfDownloadUrl || '#'}>PDF 다운로드</a></Button> : <Button size="sm" variant="outline" disabled>PDF 점검 중</Button>) : null}
+                            {row.hwpOwned ? (row.hwpAvailable ? <Button asChild size="sm" variant="outline"><a href={row.hwpDownloadUrl || '#'}>HWP 다운로드</a></Button> : <Button size="sm" variant="outline" disabled>HWP 점검 중</Button>) : null}
+                            {row.categorySlug ? <Button asChild size="sm"><Link href={`/market/${row.categorySlug}/items/${row.itemId}`}>상세 보기</Link></Button> : null}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -235,29 +200,9 @@ export default function MarketLibraryClient({ rows }: MarketLibraryClientProps) 
                       </div>
 
                       <div className="grid gap-2">
-                        {row.pdfOwned ? (
-                          row.pdfAvailable ? (
-                            <Button asChild variant="outline">
-                              <a href={row.pdfDownloadUrl || '#'}>PDF 다운로드</a>
-                            </Button>
-                          ) : (
-                            <Button variant="outline" disabled>PDF 점검 중</Button>
-                          )
-                        ) : null}
-                        {row.hwpOwned ? (
-                          row.hwpAvailable ? (
-                            <Button asChild variant="outline">
-                              <a href={row.hwpDownloadUrl || '#'}>HWP 다운로드</a>
-                            </Button>
-                          ) : (
-                            <Button variant="outline" disabled>HWP 점검 중</Button>
-                          )
-                        ) : null}
-                        {row.categorySlug ? (
-                          <Button asChild>
-                            <Link href={`/market/${row.categorySlug}/items/${row.itemId}`}>상세 보기</Link>
-                          </Button>
-                        ) : null}
+                        {row.pdfOwned ? (row.pdfAvailable ? <Button asChild variant="outline"><a href={row.pdfDownloadUrl || '#'}>PDF 다운로드</a></Button> : <Button variant="outline" disabled>PDF 점검 중</Button>) : null}
+                        {row.hwpOwned ? (row.hwpAvailable ? <Button asChild variant="outline"><a href={row.hwpDownloadUrl || '#'}>HWP 다운로드</a></Button> : <Button variant="outline" disabled>HWP 점검 중</Button>) : null}
+                        {row.categorySlug ? <Button asChild><Link href={`/market/${row.categorySlug}/items/${row.itemId}`}>상세 보기</Link></Button> : null}
                       </div>
                     </CardContent>
                   </Card>
