@@ -38,6 +38,22 @@ function PriceBlock({ price }: { price: number }) {
   )
 }
 
+function PurchaseStateBadge({ state }: { state: 'instant' | 'owned' | 'available' }) {
+  if (state === 'instant') {
+    return <Badge variant="secondary">즉시 다운로드</Badge>
+  }
+
+  if (state === 'owned') {
+    return <Badge variant="secondary">구매 완료</Badge>
+  }
+
+  return (
+    <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
+      미구매
+    </Badge>
+  )
+}
+
 export default function MarketItemActions({
   itemId,
   hasSample,
@@ -160,7 +176,7 @@ export default function MarketItemActions({
             <p className="text-sm text-gray-500">샘플 파일</p>
             <p className="mt-2 text-lg font-semibold text-gray-900">{hasSample ? '무료 제공' : '미제공'}</p>
           </div>
-          {hasSample ? <Badge variant="secondary">즉시 다운로드</Badge> : null}
+          {hasSample ? <PurchaseStateBadge state="instant" /> : null}
         </div>
         <Button
           asChild={hasSample}
@@ -182,7 +198,7 @@ export default function MarketItemActions({
               <p className="mt-2 text-lg font-semibold text-gray-900">미제공</p>
             )}
           </div>
-          {ownsPdf ? <Badge variant="secondary">구매 완료</Badge> : hasPdf ? <Badge variant="outline">미구매</Badge> : null}
+          {ownsPdf ? <PurchaseStateBadge state="owned" /> : hasPdf ? <PurchaseStateBadge state="available" /> : null}
         </div>
         {ownsPdf ? (
           <Button asChild className="mt-3 w-full">
@@ -215,7 +231,7 @@ export default function MarketItemActions({
               <p className="mt-2 text-lg font-semibold text-gray-900">미제공</p>
             )}
           </div>
-          {ownsHwp ? <Badge variant="secondary">구매 완료</Badge> : hasHwp ? <Badge variant="outline">미구매</Badge> : null}
+          {ownsHwp ? <PurchaseStateBadge state="owned" /> : hasHwp ? <PurchaseStateBadge state="available" /> : null}
         </div>
         {ownsHwp ? (
           <Button asChild className="mt-3 w-full">
