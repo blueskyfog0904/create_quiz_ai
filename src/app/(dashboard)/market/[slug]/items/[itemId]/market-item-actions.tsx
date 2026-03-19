@@ -22,6 +22,22 @@ function buildDownloadUrl(itemId: string, assetKind: 'sample' | 'pdf' | 'hwp') {
   return `/api/market/items/${itemId}/download?assetKind=${assetKind}`
 }
 
+function formatCredits(value: number) {
+  return value.toLocaleString('ko-KR')
+}
+
+function PriceBlock({ price }: { price: number }) {
+  return (
+    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">구매가</p>
+      <div className="mt-1 flex items-end gap-1.5">
+        <span className="text-2xl font-bold leading-none text-slate-900">{formatCredits(price)}</span>
+        <span className="text-xs font-medium text-slate-500">크레딧</span>
+      </div>
+    </div>
+  )
+}
+
 export default function MarketItemActions({
   itemId,
   hasSample,
@@ -160,7 +176,11 @@ export default function MarketItemActions({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-sm text-gray-500">PDF</p>
-            <p className="mt-2 text-lg font-semibold text-gray-900">{hasPdf ? `${pdfPrice} 크레딧` : '미제공'}</p>
+            {hasPdf ? (
+              <PriceBlock price={pdfPrice} />
+            ) : (
+              <p className="mt-2 text-lg font-semibold text-gray-900">미제공</p>
+            )}
           </div>
           {ownsPdf ? <Badge>구매 완료</Badge> : hasPdf ? <Badge variant="outline">미구매</Badge> : null}
         </div>
@@ -189,7 +209,11 @@ export default function MarketItemActions({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-sm text-gray-500">HWP</p>
-            <p className="mt-2 text-lg font-semibold text-gray-900">{hasHwp ? `${hwpPrice} 크레딧` : '미제공'}</p>
+            {hasHwp ? (
+              <PriceBlock price={hwpPrice} />
+            ) : (
+              <p className="mt-2 text-lg font-semibold text-gray-900">미제공</p>
+            )}
           </div>
           {ownsHwp ? <Badge>구매 완료</Badge> : hasHwp ? <Badge variant="outline">미구매</Badge> : null}
         </div>
