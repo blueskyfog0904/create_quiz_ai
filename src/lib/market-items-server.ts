@@ -127,7 +127,6 @@ export async function listMarketItemsForAdmin(menuEntryId?: string): Promise<Mar
     .from('market_items')
     .select('*')
     .is('deleted_at', null)
-    .order('sort_order')
     .order('created_at', { ascending: false })
 
   if (menuEntryId) {

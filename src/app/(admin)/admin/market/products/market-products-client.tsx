@@ -20,6 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import type { MarketItem, MarketItemFile } from '@/lib/market-items-server'
+import { LISTBOARD_GRADE_OPTIONS } from '@/lib/generate-menu'
 import type { MarketMenuEntryAdminRow } from '@/lib/market-menu'
 
 interface MarketProductsClientProps {
@@ -37,28 +38,20 @@ interface MarketItemFormState {
   examYear: string
   examMonth: string
   gradeLevel: string
-  sourceType: string
-  source1: string
-  source2: string
-  source3: string
-  source4: string
   pdfPrice: string
   hwpPrice: string
-  sortOrder: string
   status: 'draft' | 'published' | 'hidden' | 'archived'
   isActive: boolean
 }
 
-function getNextSortOrder(items: MarketItem[], menuEntryId?: string) {
-  const scopedItems = menuEntryId ? items.filter((item) => item.menu_entry_id === menuEntryId) : items
-  if (scopedItems.length === 0) {
-    return '10'
-  }
+const MIN_EXAM_YEAR = 2000
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1))
 
-  return String(Math.max(...scopedItems.map((item) => item.sort_order || 0)) + 10)
+function buildExamYearOptions(baseYear = new Date().getFullYear()) {
+  return Array.from({ length: Math.max(baseYear - MIN_EXAM_YEAR + 1, 1) }, (_, index) => String(baseYear - index))
 }
 
-function buildEmptyForm(items: MarketItem[], menuEntryId = ''): MarketItemFormState {
+function buildEmptyForm(menuEntryId = ''): MarketItemFormState {
   return {
     menuEntryId,
     title: '',
@@ -68,14 +61,8 @@ function buildEmptyForm(items: MarketItem[], menuEntryId = ''): MarketItemFormSt
     examYear: '',
     examMonth: '',
     gradeLevel: '',
-    sourceType: '',
-    source1: '',
-    source2: '',
-    source3: '',
-    source4: '',
     pdfPrice: '0',
     hwpPrice: '0',
-    sortOrder: getNextSortOrder(items, menuEntryId),
     status: 'draft',
     isActive: true,
   }
@@ -92,14 +79,8 @@ function buildEditForm(item: MarketItem): MarketItemFormState {
     examYear: item.exam_year ? String(item.exam_year) : '',
     examMonth: item.exam_month ? String(item.exam_month) : '',
     gradeLevel: item.grade_level || '',
-    sourceType: item.source_type || '',
-    source1: item.source_1 || '',
-    source2: item.source_2 || '',
-    source3: item.source_3 || '',
-    source4: item.source_4 || '',
     pdfPrice: String(item.pdf_price),
     hwpPrice: String(item.hwp_price),
-    sortOrder: String(item.sort_order),
     status: item.status as MarketItemFormState['status'],
     isActive: item.is_active,
   }
@@ -129,7 +110,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
   const router = useRouter()
   const [selectedMenuEntryId, setSelectedMenuEntryId] = useState(menuEntries[0]?.id || '')
   const [items, setItems] = useState(initialItems)
-  const [form, setForm] = useState<MarketItemFormState>(buildEmptyForm(initialItems, menuEntries[0]?.id || ''))
+  const [form, setForm] = useState<MarketItemFormState>(buildEmptyForm(menuEntries[0]?.id || ''))
   const [editingFiles, setEditingFiles] = useState<MarketItemFile[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [isArchiving, setIsArchiving] = useState(false)
@@ -142,9 +123,10 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
   ), [items, selectedMenuEntryId])
 
   const menuTitleMap = useMemo(() => new Map(menuEntries.map((entry) => [entry.id, entry.title])), [menuEntries])
+  const examYearOptions = useMemo(() => buildExamYearOptions(), [])
 
   const resetForm = (menuEntryId = selectedMenuEntryId) => {
-    setForm(buildEmptyForm(items, menuEntryId))
+    setForm(buildEmptyForm(menuEntryId))
     setEditingFiles([])
   }
 
@@ -191,14 +173,8 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
     examYear: form.examYear ? Number(form.examYear) : null,
     examMonth: form.examMonth ? Number(form.examMonth) : null,
     gradeLevel: form.gradeLevel,
-    sourceType: form.sourceType,
-    source1: form.source1,
-    source2: form.source2,
-    source3: form.source3,
-    source4: form.source4,
     pdfPrice: Number(form.pdfPrice || 0),
     hwpPrice: Number(form.hwpPrice || 0),
-    sortOrder: Number(form.sortOrder || 0),
     status: statusOverride ?? form.status,
     isActive: form.isActive,
   })
@@ -367,7 +343,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
               setSelectedMenuEntryId(nextMenuEntryId)
               setForm((current) => current.id
                 ? { ...current, menuEntryId: nextMenuEntryId }
-                : buildEmptyForm(items, nextMenuEntryId))
+                : buildEmptyForm(nextMenuEntryId))
             }}
             className="flex h-10 w-full max-w-sm rounded-md border bg-white px-3 text-sm"
           >
@@ -394,7 +370,6 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                 onChange={(event) => setForm((current) => ({
                   ...current,
                   menuEntryId: event.target.value,
-                  sortOrder: current.id ? current.sortOrder : getNextSortOrder(items, event.target.value),
                 }))}
                 className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
               >
@@ -438,26 +413,46 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>학년</Label>
-                <Input value={form.gradeLevel} onChange={(event) => setForm((current) => ({ ...current, gradeLevel: event.target.value }))} placeholder="예: 고3" />
+                <select
+                  value={form.gradeLevel}
+                  onChange={(event) => setForm((current) => ({ ...current, gradeLevel: event.target.value }))}
+                  className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
+                >
+                  <option value="">전체</option>
+                  {LISTBOARD_GRADE_OPTIONS.map((grade) => (
+                    <option key={grade} value={grade}>{grade}</option>
+                  ))}
+                </select>
               </div>
-              <div className="space-y-2">
-                <Label>정렬 순서</Label>
-                <Input type="number" min={0} value={form.sortOrder} onChange={(event) => setForm((current) => ({ ...current, sortOrder: event.target.value }))} />
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>연도</Label>
-                <Input type="number" min={0} value={form.examYear} onChange={(event) => setForm((current) => ({ ...current, examYear: event.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>월</Label>
-                <Input type="number" min={1} max={12} value={form.examMonth} onChange={(event) => setForm((current) => ({ ...current, examMonth: event.target.value }))} />
+                <select
+                  value={form.examYear}
+                  onChange={(event) => setForm((current) => ({ ...current, examYear: event.target.value }))}
+                  className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
+                >
+                  <option value="">선택</option>
+                  {examYearOptions.map((year) => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>월</Label>
+                <select
+                  value={form.examMonth}
+                  onChange={(event) => setForm((current) => ({ ...current, examMonth: event.target.value }))}
+                  className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
+                >
+                  <option value="">선택</option>
+                  {MONTH_OPTIONS.map((month) => (
+                    <option key={month} value={month}>{month}월</option>
+                  ))}
+                </select>
+              </div>
               <div className="space-y-2">
                 <Label>상태</Label>
                 <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as MarketItemFormState['status'] }))} className="flex h-10 w-full rounded-md border bg-white px-3 text-sm">
@@ -474,32 +469,6 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                     <p className="text-xs text-gray-500">비활성화하면 노출되지 않습니다.</p>
                   </div>
                   <Switch checked={form.isActive} onCheckedChange={(checked) => setForm((current) => ({ ...current, isActive: checked }))} />
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-lg border p-4">
-              <p className="text-sm font-medium text-gray-900">출처 정보</p>
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <div className="space-y-2 md:col-span-2">
-                  <Label>출처 타입</Label>
-                  <Input value={form.sourceType} onChange={(event) => setForm((current) => ({ ...current, sourceType: event.target.value }))} placeholder="예: 모의고사" />
-                </div>
-                <div className="space-y-2">
-                  <Label>출처 1</Label>
-                  <Input value={form.source1} onChange={(event) => setForm((current) => ({ ...current, source1: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label>출처 2</Label>
-                  <Input value={form.source2} onChange={(event) => setForm((current) => ({ ...current, source2: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label>출처 3</Label>
-                  <Input value={form.source3} onChange={(event) => setForm((current) => ({ ...current, source3: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label>출처 4</Label>
-                  <Input value={form.source4} onChange={(event) => setForm((current) => ({ ...current, source4: event.target.value }))} />
                 </div>
               </div>
             </div>
@@ -618,7 +587,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                     <TableHead>카테고리</TableHead>
                     <TableHead className="text-center">가격</TableHead>
                     <TableHead className="text-center">상태</TableHead>
-                    <TableHead className="text-center">정렬</TableHead>
+                    <TableHead className="text-center">등록일</TableHead>
                     <TableHead className="text-right">관리</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -650,7 +619,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                         <TableCell className="text-center">
                           <Badge variant="outline">{item.status}</Badge>
                         </TableCell>
-                        <TableCell className="text-center">{item.sort_order}</TableCell>
+                        <TableCell className="text-center text-sm text-gray-600">{formatDateTime(item.created_at)}</TableCell>
                         <TableCell>
                           <div className="flex justify-end">
                             <Button type="button" variant="ghost" size="icon" onClick={() => void loadItemDetail(item.id)}>
