@@ -27,7 +27,7 @@ interface MarketListboardProps {
 
 export default function MarketListboard({ category, rows, filters, options }: MarketListboardProps) {
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">{category.title}</h1>
         <p className="mt-2 text-gray-500">리스트보드에서 PDF/HWP를 선택한 뒤 바로 일괄 결제할 수 있습니다.</p>

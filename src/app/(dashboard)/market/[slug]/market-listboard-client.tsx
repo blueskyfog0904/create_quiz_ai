@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
 import { Badge } from '@/components/ui/badge'
@@ -16,6 +17,7 @@ interface MarketListboardClientProps {
 }
 
 type AssetKind = 'pdf' | 'hwp'
+const PER_PAGE_OPTIONS = [10, 20, 30] as const
 
 function formatPublishedDate(value: string) {
   return new Date(value).toLocaleDateString('ko-KR', {
@@ -36,6 +38,29 @@ export default function MarketListboardClient({ categorySlug, rows }: MarketList
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [isCheckingBalance, setIsCheckingBalance] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [currentPage, setCurrentPage] = useState(1)
+  const [rowsPerPage, setRowsPerPage] = useState<number>(10)
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / rowsPerPage))
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
+  const pagedRows = useMemo(() => {
+    const start = (currentPage - 1) * rowsPerPage
+    return rows.slice(start, start + rowsPerPage)
+  }, [currentPage, rows, rowsPerPage])
+
+  const visiblePageNumbers = useMemo(() => {
+    const windowSize = 5
+    const start = Math.max(1, currentPage - 2)
+    const end = Math.min(totalPages, start + windowSize - 1)
+    const adjustedStart = Math.max(1, end - windowSize + 1)
+    return Array.from({ length: end - adjustedStart + 1 }, (_, index) => adjustedStart + index)
+  }, [currentPage, totalPages])
 
   const selectionSummary = useMemo(() => {
     const selectedSet = new Set(selectedKeys)
@@ -189,7 +214,7 @@ export default function MarketListboardClient({ categorySlug, rows }: MarketList
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
+            {pagedRows.map((row) => {
               const href = `/market/${categorySlug}/items/${row.itemId}`
 
               return (
@@ -214,15 +239,82 @@ export default function MarketListboardClient({ categorySlug, rows }: MarketList
         </table>
       </div>
 
-      <div className="fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
-        <div className="flex w-full max-w-4xl flex-col gap-3 rounded-2xl border bg-white/95 px-4 py-3 shadow-lg backdrop-blur md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
-            <span className="font-medium text-gray-900">선택 {selectionSummary.totalCount}건</span>
-            <span>PDF {selectionSummary.pdfCount}건</span>
-            <span>HWP {selectionSummary.hwpCount}건</span>
-            <span className="font-semibold text-rose-600">총 {selectionSummary.totalCredits.toLocaleString()} 크레딧</span>
+      <div className="mt-4 space-y-4">
+        <div className="flex flex-col gap-3 rounded-xl border bg-gray-50/70 px-4 py-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <span>표시 개수</span>
+            <select
+              value={rowsPerPage}
+              onChange={(event) => {
+                setRowsPerPage(Number(event.target.value))
+                setCurrentPage(1)
+              }}
+              className="flex h-9 rounded-md border bg-white px-3 text-sm"
+            >
+              {PER_PAGE_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
           </div>
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(1)}
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            {visiblePageNumbers.map((pageNumber) => (
+              <Button
+                key={pageNumber}
+                type="button"
+                variant={pageNumber === currentPage ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setCurrentPage(pageNumber)}
+              >
+                {pageNumber}
+              </Button>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(totalPages)}
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <div className="flex flex-col gap-3 rounded-xl border bg-white px-4 py-3 shadow-sm md:min-w-[420px]">
+            <div className="flex flex-wrap items-center justify-end gap-3 text-sm text-gray-600">
+              <span className="font-medium text-gray-900">선택 {selectionSummary.totalCount}건</span>
+              <span>PDF {selectionSummary.pdfCount}건</span>
+              <span>HWP {selectionSummary.hwpCount}건</span>
+              <span className="font-semibold text-rose-600">총 {selectionSummary.totalCredits.toLocaleString()} 크레딧</span>
+            </div>
             <Button
               variant="outline"
               disabled={selectionSummary.totalCount === 0 || isPending || isCheckingBalance}
