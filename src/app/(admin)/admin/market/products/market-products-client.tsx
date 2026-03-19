@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Pencil, Plus, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
@@ -43,6 +43,9 @@ interface MarketItemFormState {
   status: 'draft' | 'published' | 'hidden' | 'archived'
   isActive: boolean
 }
+
+const MARKET_ASSET_KINDS = ['sample', 'pdf', 'hwp'] as const
+type MarketUploadAssetKind = typeof MARKET_ASSET_KINDS[number]
 
 const MARKET_STATUS_LABELS: Record<MarketItemFormState['status'], string> = {
   draft: '임시저장',
@@ -113,6 +116,17 @@ function formatDateTime(value?: string | null) {
   return new Date(value).toLocaleString('ko-KR')
 }
 
+function getAssetAcceptValue(assetKind: MarketUploadAssetKind) {
+  return assetKind === 'hwp' ? '.hwp' : '.pdf'
+}
+
+function isAllowedAssetFile(file: File, assetKind: MarketUploadAssetKind) {
+  const fileName = file.name.toLowerCase()
+  return assetKind === 'hwp'
+    ? fileName.endsWith('.hwp')
+    : fileName.endsWith('.pdf')
+}
+
 export default function MarketProductsClient({ menuEntries, initialItems }: MarketProductsClientProps) {
   const router = useRouter()
   const [selectedMenuEntryId, setSelectedMenuEntryId] = useState(menuEntries[0]?.id || '')
@@ -122,6 +136,13 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
   const [isSaving, setIsSaving] = useState(false)
   const [isArchiving, setIsArchiving] = useState(false)
   const [uploadingKinds, setUploadingKinds] = useState<string[]>([])
+  const [selectedFiles, setSelectedFiles] = useState<Partial<Record<MarketUploadAssetKind, File>>>({})
+  const [dragActiveKinds, setDragActiveKinds] = useState<MarketUploadAssetKind[]>([])
+  const fileInputRefs = useRef<Record<MarketUploadAssetKind, HTMLInputElement | null>>({
+    sample: null,
+    pdf: null,
+    hwp: null,
+  })
 
   const filteredItems = useMemo(() => (
     selectedMenuEntryId
@@ -135,6 +156,8 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
   const resetForm = (menuEntryId = selectedMenuEntryId) => {
     setForm(buildEmptyForm(menuEntryId))
     setEditingFiles([])
+    setSelectedFiles({})
+    setDragActiveKinds([])
   }
 
   const refreshItems = async (menuEntryId?: string) => {
@@ -169,6 +192,8 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
     setSelectedMenuEntryId(payload.data.item.menu_entry_id)
     setForm(buildEditForm(payload.data.item))
     setEditingFiles(payload.data.files || [])
+    setSelectedFiles({})
+    setDragActiveKinds([])
   }
 
   const buildRequestBody = (statusOverride?: MarketItemFormState['status']) => ({
@@ -280,7 +305,48 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
     }
   }
 
-  const handleUpload = async (assetKind: 'sample' | 'pdf' | 'hwp', file?: File | null) => {
+  const setDragActive = (assetKind: MarketUploadAssetKind, active: boolean) => {
+    setDragActiveKinds((current) => active
+      ? current.includes(assetKind) ? current : [...current, assetKind]
+      : current.filter((kind) => kind !== assetKind))
+  }
+
+  const clearSelectedFile = (assetKind: MarketUploadAssetKind) => {
+    setSelectedFiles((current) => {
+      const next = { ...current }
+      delete next[assetKind]
+      return next
+    })
+
+    const input = fileInputRefs.current[assetKind]
+    if (input) {
+      input.value = ''
+    }
+  }
+
+  const handleSelectedFile = (assetKind: MarketUploadAssetKind, file?: File | null) => {
+    if (!file) {
+      return
+    }
+
+    if (!form.id) {
+      toast.error('상품을 먼저 저장한 뒤 파일을 업로드할 수 있습니다.')
+      return
+    }
+
+    if (!isAllowedAssetFile(file, assetKind)) {
+      toast.error(`${assetKind.toUpperCase()} 자산에는 ${getAssetAcceptValue(assetKind)} 파일만 선택할 수 있습니다.`)
+      return
+    }
+
+    setSelectedFiles((current) => ({
+      ...current,
+      [assetKind]: file,
+    }))
+  }
+
+  const handleUpload = async (assetKind: MarketUploadAssetKind) => {
+    const file = selectedFiles[assetKind]
     if (!form.id) {
       toast.error('파일 업로드 전에 상품을 먼저 저장해주세요.')
       return
@@ -309,6 +375,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
 
       await refreshItems(form.menuEntryId)
       await loadItemDetail(form.id)
+      clearSelectedFile(assetKind)
       toast.success(`${assetKind.toUpperCase()} 파일을 업로드했습니다.`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '문제마켓 파일 업로드 중 오류가 발생했습니다.')
@@ -520,7 +587,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(['sample', 'pdf', 'hwp'] as const).map((assetKind) => {
+                      {MARKET_ASSET_KINDS.map((assetKind) => {
                         const currentFile = activeFileMap.get(assetKind)
 
                         return (
@@ -540,9 +607,13 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                   </Table>
                 </div>
 
-                {(['sample', 'pdf', 'hwp'] as const).map((assetKind) => {
+                {MARKET_ASSET_KINDS.map((assetKind) => {
                   const currentFile = activeFileMap.get(assetKind)
                   const isUploading = uploadingKinds.includes(assetKind)
+                  const selectedFile = selectedFiles[assetKind]
+                  const isDragActive = dragActiveKinds.includes(assetKind)
+                  const isUploadDisabled = !form.id || isUploading
+                  const allowDescription = assetKind === 'hwp' ? '.hwp 파일만 업로드할 수 있습니다.' : '.pdf 파일만 업로드할 수 있습니다.'
 
                   return (
                     <div key={assetKind} className="space-y-2 rounded-md border p-3">
@@ -558,15 +629,104 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                         <p>등록일: {formatDateTime(currentFile?.created_at)}</p>
                         <p className="truncate">경로: {currentFile?.storage_path || '-'}</p>
                       </div>
-                      <div className="flex flex-col gap-2 md:flex-row">
-                        <Input id={`upload-${assetKind}`} type="file" accept={assetKind === 'hwp' ? '.hwp' : '.pdf'} />
+                      <input
+                        ref={(node) => {
+                          fileInputRefs.current[assetKind] = node
+                        }}
+                        type="file"
+                        className="hidden"
+                        accept={getAssetAcceptValue(assetKind)}
+                        disabled={isUploadDisabled}
+                        onChange={(event) => handleSelectedFile(assetKind, event.target.files?.[0])}
+                      />
+                      <div
+                        role="button"
+                        tabIndex={isUploadDisabled ? -1 : 0}
+                        onClick={() => {
+                          if (isUploadDisabled) return
+                          const input = fileInputRefs.current[assetKind]
+                          if (!input) return
+                          input.value = ''
+                          input.click()
+                        }}
+                        onKeyDown={(event) => {
+                          if (isUploadDisabled) return
+                          if (event.key !== 'Enter' && event.key !== ' ') return
+                          event.preventDefault()
+                          const input = fileInputRefs.current[assetKind]
+                          if (!input) return
+                          input.value = ''
+                          input.click()
+                        }}
+                        onDragEnter={(event) => {
+                          if (isUploadDisabled) return
+                          event.preventDefault()
+                          setDragActive(assetKind, true)
+                        }}
+                        onDragOver={(event) => {
+                          if (isUploadDisabled) return
+                          event.preventDefault()
+                          setDragActive(assetKind, true)
+                        }}
+                        onDragLeave={(event) => {
+                          if (isUploadDisabled) return
+                          event.preventDefault()
+                          setDragActive(assetKind, false)
+                        }}
+                        onDrop={(event) => {
+                          if (isUploadDisabled) return
+                          event.preventDefault()
+                          setDragActive(assetKind, false)
+                          const droppedFiles = Array.from(event.dataTransfer.files || [])
+                          if (droppedFiles.length === 0) return
+                          if (droppedFiles.length > 1) {
+                            toast.message('여러 파일이 드롭되었지만 첫 번째 파일만 선택합니다.')
+                          }
+                          handleSelectedFile(assetKind, droppedFiles[0])
+                        }}
+                        className={`rounded-md border border-dashed px-4 py-4 text-left transition ${
+                          isUploadDisabled
+                            ? 'cursor-not-allowed bg-gray-50 text-gray-400'
+                            : isDragActive
+                              ? 'border-primary bg-primary/5'
+                              : selectedFile
+                                ? 'border-emerald-300 bg-emerald-50/60'
+                                : 'cursor-pointer hover:border-primary/50 hover:bg-gray-50'
+                        }`}
+                      >
+                        <p className="text-sm font-medium text-gray-900">
+                          {!form.id
+                            ? '상품을 먼저 저장한 뒤 파일을 업로드할 수 있습니다.'
+                            : isDragActive
+                              ? '여기에 파일을 놓으세요.'
+                              : '파일을 드래그하여 놓거나, 파일선택 버튼으로 업로드할 파일을 고르세요.'}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {selectedFile
+                            ? `선택 파일: ${selectedFile.name} (${formatFileSize(selectedFile.size)})`
+                            : `허용 형식: ${allowDescription}`}
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-2 md:flex-row md:justify-end">
                         <Button
                           type="button"
                           variant="outline"
-                          disabled={isUploading}
+                          disabled={isUploadDisabled}
                           onClick={() => {
-                            const input = document.getElementById(`upload-${assetKind}`) as HTMLInputElement | null
-                            void handleUpload(assetKind, input?.files?.[0])
+                            const input = fileInputRefs.current[assetKind]
+                            if (!input) return
+                            input.value = ''
+                            input.click()
+                          }}
+                        >
+                          파일선택
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={!selectedFile || isUploadDisabled}
+                          onClick={() => {
+                            void handleUpload(assetKind)
                           }}
                         >
                           {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
