@@ -311,14 +311,14 @@ export default function MarketListboardClient({ categorySlug, rows }: MarketList
         </div>
 
         <div className="flex justify-end">
-          <div className="flex w-full flex-col gap-3 rounded-xl border bg-white px-4 py-3 shadow-sm md:w-auto md:min-w-[420px] md:items-center">
+          <div className="flex w-full flex-col gap-3 rounded-xl border bg-white px-2 py-3 shadow-sm md:w-fit md:min-w-[340px]">
             <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-gray-600">
               <span className="font-medium text-gray-900">선택 {selectionSummary.totalCount}건</span>
               <span>PDF {selectionSummary.pdfCount}건</span>
               <span>HWP {selectionSummary.hwpCount}건</span>
               <span className="font-semibold text-rose-600">총 {selectionSummary.totalCredits.toLocaleString()} 크레딧</span>
             </div>
-            <div className="flex flex-wrap justify-center gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <Button
                 variant="outline"
                 className="px-2"
