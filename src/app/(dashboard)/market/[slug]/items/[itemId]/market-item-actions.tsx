@@ -28,12 +28,26 @@ function formatCredits(value: number) {
 
 function PriceBlock({ price }: { price: number }) {
   return (
-    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">
+    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 shadow-sm">
       <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">구매가</p>
-      <div className="mt-1 flex items-end gap-1.5">
+      <div className="mt-1.5 flex items-end gap-1.5">
         <span className="text-2xl font-bold leading-none text-slate-900">{formatCredits(price)}</span>
         <span className="text-xs font-medium text-slate-500">크레딧</span>
       </div>
+      <p className="mt-2 text-xs text-slate-500">구매 후 바로 다운로드할 수 있습니다.</p>
+    </div>
+  )
+}
+
+function FreeBlock() {
+  return (
+    <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/70 px-4 py-3 shadow-sm">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-sky-500">이용가</p>
+      <div className="mt-1.5 flex items-end gap-1.5">
+        <span className="text-2xl font-bold leading-none text-slate-900">무료</span>
+        <span className="text-xs font-medium text-slate-500">제공</span>
+      </div>
+      <p className="mt-2 text-xs text-slate-500">샘플 파일을 먼저 확인한 뒤 구매를 결정할 수 있습니다.</p>
     </div>
   )
 }
@@ -170,17 +184,21 @@ export default function MarketItemActions({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border p-4">
-        <div className="flex items-center justify-between gap-3">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-sm text-gray-500">샘플 파일</p>
-            <p className="mt-2 text-lg font-semibold text-gray-900">{hasSample ? '무료 제공' : '미제공'}</p>
+            {hasSample ? (
+              <FreeBlock />
+            ) : (
+              <p className="mt-3 text-lg font-semibold text-gray-900">미제공</p>
+            )}
           </div>
           {hasSample ? <PurchaseStateBadge state="instant" /> : null}
         </div>
         <Button
           asChild={hasSample}
-          className="mt-3 w-full"
+          className="mt-4 h-10 w-full rounded-lg font-medium"
           variant="outline"
           disabled={!hasSample}
         >
@@ -188,25 +206,25 @@ export default function MarketItemActions({
         </Button>
       </div>
 
-      <div className="rounded-lg border p-4">
-        <div className="flex items-center justify-between gap-3">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-sm text-gray-500">PDF</p>
             {hasPdf ? (
               <PriceBlock price={pdfPrice} />
             ) : (
-              <p className="mt-2 text-lg font-semibold text-gray-900">미제공</p>
+              <p className="mt-3 text-lg font-semibold text-gray-900">미제공</p>
             )}
           </div>
           {ownsPdf ? <PurchaseStateBadge state="owned" /> : hasPdf ? <PurchaseStateBadge state="available" /> : null}
         </div>
         {ownsPdf ? (
-          <Button asChild className="mt-3 w-full">
+          <Button asChild className="mt-4 h-10 w-full rounded-lg font-medium">
             <a href={buildDownloadUrl(itemId, 'pdf')}>PDF 다시 다운로드</a>
           </Button>
         ) : (
           <Button
-            className="mt-3 w-full"
+            className="mt-4 h-10 w-full rounded-lg font-medium"
             disabled={!hasPdf || isPending || isCheckingBalance}
             onClick={() => void openPurchaseConfirmation('pdf')}
           >
@@ -221,25 +239,25 @@ export default function MarketItemActions({
         )}
       </div>
 
-      <div className="rounded-lg border p-4">
-        <div className="flex items-center justify-between gap-3">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-sm text-gray-500">HWP</p>
             {hasHwp ? (
               <PriceBlock price={hwpPrice} />
             ) : (
-              <p className="mt-2 text-lg font-semibold text-gray-900">미제공</p>
+              <p className="mt-3 text-lg font-semibold text-gray-900">미제공</p>
             )}
           </div>
           {ownsHwp ? <PurchaseStateBadge state="owned" /> : hasHwp ? <PurchaseStateBadge state="available" /> : null}
         </div>
         {ownsHwp ? (
-          <Button asChild className="mt-3 w-full">
+          <Button asChild className="mt-4 h-10 w-full rounded-lg font-medium">
             <a href={buildDownloadUrl(itemId, 'hwp')}>HWP 다시 다운로드</a>
           </Button>
         ) : (
           <Button
-            className="mt-3 w-full"
+            className="mt-4 h-10 w-full rounded-lg font-medium"
             disabled={!hasHwp || isPending || isCheckingBalance}
             onClick={() => void openPurchaseConfirmation('hwp')}
           >
