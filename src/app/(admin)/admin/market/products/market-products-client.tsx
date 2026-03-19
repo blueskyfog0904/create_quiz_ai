@@ -137,6 +137,12 @@ function isAllowedAssetFile(file: File, assetKind: MarketUploadAssetKind) {
     : fileName.endsWith('.pdf')
 }
 
+interface PersistFormOptions {
+  preserveSelections?: boolean
+  skipSuccessToast?: boolean
+  targetId?: string
+}
+
 export default function MarketProductsClient({ menuEntries, initialItems }: MarketProductsClientProps) {
   const router = useRouter()
   const [selectedMenuEntryId, setSelectedMenuEntryId] = useState(menuEntries[0]?.id || '')
@@ -238,26 +244,30 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
     isActive: form.isActive,
   })
 
-  const persistForm = async (statusOverride?: MarketItemFormState['status']) => {
+  const persistForm = async (
+    statusOverride?: MarketItemFormState['status'],
+    options: PersistFormOptions = {}
+  ): Promise<MarketItem | null> => {
     if (!form.menuEntryId) {
       toast.error('카테고리를 선택해주세요.')
-      return false
+      return null
     }
 
     if (!form.title.trim()) {
       toast.error('상품 제목을 입력해주세요.')
-      return false
+      return null
     }
 
     setIsSaving(true)
     try {
-      const previousMenuEntryId = form.id
-        ? items.find((item) => item.id === form.id)?.menu_entry_id
+      const targetId = options.targetId ?? form.id
+      const previousMenuEntryId = targetId
+        ? items.find((item) => item.id === targetId)?.menu_entry_id
         : null
       const nextStatus = statusOverride ?? form.status
 
-      const response = await fetch(form.id ? `/api/admin/market/items/${form.id}` : '/api/admin/market/items', {
-        method: form.id ? 'PATCH' : 'POST',
+      const response = await fetch(targetId ? `/api/admin/market/items/${targetId}` : '/api/admin/market/items', {
+        method: targetId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildRequestBody(statusOverride)),
       })
@@ -272,23 +282,97 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
       if (previousMenuEntryId && previousMenuEntryId !== form.menuEntryId) {
         await refreshItems(previousMenuEntryId)
       }
-      await loadItemDetail(payload.data.id)
-      setForm((current) => ({ ...current, status: nextStatus }))
-      toast.success(form.id
-        ? `문제마켓 상품을 ${MARKET_STATUS_LABELS[nextStatus]} 상태로 저장했습니다.`
-        : '문제마켓 상품을 생성했습니다. 이어서 파일을 업로드할 수 있습니다.')
+      const detail = await fetchItemDetail(payload.data.id)
+      setSelectedMenuEntryId(detail.item.menu_entry_id)
+      setForm(buildEditForm(detail.item))
+      setEditingFiles(detail.files || [])
+      if (!options.preserveSelections) {
+        setSelectedFiles({})
+        setDragActiveKinds([])
+      }
+      if (!options.skipSuccessToast) {
+        toast.success(targetId
+          ? `문제마켓 상품을 ${MARKET_STATUS_LABELS[nextStatus]} 상태로 저장했습니다.`
+          : '문제마켓 상품을 생성했습니다.')
+      }
       router.refresh()
-      return true
+      return detail.item
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '문제마켓 상품 저장 중 오류가 발생했습니다.')
-      return false
+      return null
     } finally {
       setIsSaving(false)
     }
   }
 
   const handleSubmit = async () => {
-    await persistForm()
+    if (form.id) {
+      await persistForm()
+      return
+    }
+
+    const uploadTargets = MARKET_ASSET_KINDS
+      .map((assetKind) => ({ assetKind, file: selectedFiles[assetKind] }))
+      .filter((target): target is { assetKind: MarketUploadAssetKind; file: File } => Boolean(target.file))
+
+    const desiredStatus = form.status
+    const shouldDelayPublish = desiredStatus === 'published' && uploadTargets.length > 0
+    const initialStatus = shouldDelayPublish ? 'draft' : desiredStatus
+
+    setIsBulkUploading(true)
+    try {
+      const createdItem = await persistForm(initialStatus, {
+        preserveSelections: true,
+        skipSuccessToast: true,
+      })
+
+      if (!createdItem) {
+        return
+      }
+
+      if (uploadTargets.length === 0) {
+        toast.success('문제마켓 상품을 생성했습니다.')
+        return
+      }
+
+      let successCount = 0
+      let failedCount = 0
+
+      for (const target of uploadTargets) {
+        const result = await uploadAssetFile(target.assetKind, target.file, createdItem.id)
+        if (result.success) {
+          successCount += 1
+        } else {
+          failedCount += 1
+          toast.error(`${target.assetKind.toUpperCase()}: ${result.message}`)
+        }
+      }
+
+      await refreshItems(createdItem.menu_entry_id)
+      await refreshEditingFiles(createdItem.id)
+
+      if (shouldDelayPublish && failedCount === 0) {
+        await persistForm('published', {
+          preserveSelections: true,
+          skipSuccessToast: true,
+          targetId: createdItem.id,
+        })
+      }
+
+      if (failedCount === 0) {
+        toast.success(`상품 생성과 파일 ${successCount}개 업로드를 완료했습니다.`)
+        return
+      }
+
+      if (shouldDelayPublish) {
+        toast.message(`상품은 생성되었지만 일부 파일 업로드에 실패해 ${MARKET_STATUS_LABELS.draft} 상태로 유지됩니다.`)
+        return
+      }
+
+      toast.message(`상품은 생성되었지만 파일 ${failedCount}개 업로드에 실패했습니다.`)
+    } finally {
+      setIsBulkUploading(false)
+    }
   }
 
   const handleStatusAction = async (status: MarketItemFormState['status']) => {
@@ -402,9 +486,9 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
     }))
   }
 
-  const uploadAssetFile = async (assetKind: MarketUploadAssetKind, file: File) => {
-    if (!form.id) {
-      toast.error('파일 업로드 전에 상품을 먼저 저장해주세요.')
+  const uploadAssetFile = async (assetKind: MarketUploadAssetKind, file: File, itemIdOverride?: string) => {
+    const targetItemId = itemIdOverride ?? form.id
+    if (!targetItemId) {
       return { success: false as const, message: '파일 업로드 전에 상품을 먼저 저장해주세요.' }
     }
 
@@ -414,7 +498,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
       formData.append('assetKind', assetKind)
       formData.append('file', file)
 
-      const response = await fetch(`/api/admin/market/items/${form.id}/files`, {
+      const response = await fetch(`/api/admin/market/items/${targetItemId}/files`, {
         method: 'POST',
         body: formData,
       })
@@ -667,33 +751,40 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row">
-              <Button onClick={handleSubmit} disabled={isSaving} className="flex-1">
-                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {form.id ? '상품 저장' : '상품 생성 후 업로드 계속'}
+              <Button onClick={handleSubmit} disabled={isSaving || isBulkUploading} className="flex-1">
+                {isSaving || isBulkUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {form.id
+                  ? '상품 저장'
+                  : selectedAssetKinds.length > 0
+                    ? (isBulkUploading ? '상품 생성 및 파일 업로드 중...' : '상품 생성 및 파일 업로드')
+                    : '상품 생성'}
               </Button>
-              <Button type="button" variant="secondary" disabled={isSaving} onClick={() => void handleStatusAction('draft')}>
+              <Button type="button" variant="secondary" disabled={isSaving || isBulkUploading} onClick={() => void handleStatusAction('draft')}>
                 임시저장
               </Button>
-              <Button type="button" variant="outline" disabled={isSaving} onClick={() => void handleStatusAction('hidden')}>
+              <Button type="button" variant="outline" disabled={isSaving || isBulkUploading} onClick={() => void handleStatusAction('hidden')}>
                 숨김
               </Button>
-              <Button type="button" variant="outline" disabled={isSaving} onClick={() => void handleStatusAction('published')}>
+              <Button type="button" variant="outline" disabled={isSaving || isBulkUploading} onClick={() => void handleStatusAction('published')}>
                 공개
               </Button>
               {form.id ? (
-                <Button type="button" variant="destructive" disabled={isArchiving} onClick={handleArchive}>
+                <Button type="button" variant="destructive" disabled={isArchiving || isBulkUploading} onClick={handleArchive}>
                   {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
                   완전 삭제
                 </Button>
               ) : null}
             </div>
 
-            {form.id ? (
-              <div className="space-y-3 rounded-lg border p-4">
+            <div className="space-y-3 rounded-lg border p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-medium text-gray-900">파일 업로드</p>
-                    <p className="text-sm text-gray-500">샘플 PDF, 판매용 PDF, HWP를 각각 최신 버전으로 교체할 수 있습니다.</p>
+                    <p className="text-sm text-gray-500">
+                      {form.id
+                        ? '샘플 PDF, 판매용 PDF, HWP를 각각 최신 버전으로 교체할 수 있습니다.'
+                        : '선택한 파일은 상품 생성 후 자동으로 업로드됩니다.'}
+                    </p>
                   </div>
                   <Button
                     type="button"
@@ -826,7 +917,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                       >
                         <p className="text-sm font-medium text-gray-900">
                           {!form.id
-                            ? '상품을 먼저 저장한 뒤 파일을 업로드할 수 있습니다.'
+                            ? '상품 생성 전에 파일을 먼저 선택할 수 있습니다.'
                             : isDragActive
                               ? '여기에 파일을 놓으세요.'
                               : '파일을 드래그하여 놓거나, 파일선택 버튼으로 업로드할 파일을 고르세요.'}
@@ -867,7 +958,6 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                   )
                 })}
               </div>
-            ) : null}
           </CardContent>
         </Card>
 
