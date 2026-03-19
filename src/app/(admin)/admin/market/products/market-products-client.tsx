@@ -697,7 +697,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                   </div>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="default"
                     disabled={!form.id || isBulkUploading || selectedAssetKinds.length === 0 || uploadingKinds.length > 0}
                     onClick={() => void handleUploadAll()}
                   >
