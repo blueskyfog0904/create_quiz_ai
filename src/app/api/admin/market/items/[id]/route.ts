@@ -173,21 +173,36 @@ export async function DELETE(_: Request, { params }: RouteContext) {
 
   try {
     const item = await getMarketItemById(id)
-    if (!item || item.deleted_at) {
+    if (!item) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
 
     const adminSupabase = createAdminClient()
+    const files = await listMarketItemFiles(id, true)
+    const storageTargets = new Map<string, string[]>()
+
+    for (const file of files) {
+      const currentPaths = storageTargets.get(file.storage_bucket) ?? []
+      currentPaths.push(file.storage_path)
+      storageTargets.set(file.storage_bucket, currentPaths)
+    }
+
+    for (const [bucket, paths] of storageTargets.entries()) {
+      const uniquePaths = Array.from(new Set(paths.filter(Boolean)))
+      if (uniquePaths.length === 0) {
+        continue
+      }
+
+      const { error: storageError } = await adminSupabase.storage.from(bucket).remove(uniquePaths)
+      if (storageError) {
+        throw new Error(storageError.message)
+      }
+    }
+
     const { error } = await adminSupabase
       .from('market_items')
-      .update({
-        status: 'archived',
-        is_active: false,
-        deleted_at: new Date().toISOString(),
-        updated_by: user.id,
-      })
+      .delete()
       .eq('id', id)
-      .is('deleted_at', null)
 
     if (error) {
       throw new Error(error.message)
@@ -199,7 +214,7 @@ export async function DELETE(_: Request, { params }: RouteContext) {
       success: false,
       error: {
         code: 'INTERNAL_SERVER_ERROR',
-        message: error instanceof Error ? error.message : '문제마켓 상품 보관 처리에 실패했습니다.',
+        message: error instanceof Error ? error.message : '문제마켓 상품 완전 삭제에 실패했습니다.',
       },
     }, { status: 500 })
   }

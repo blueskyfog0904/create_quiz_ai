@@ -295,7 +295,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
       return
     }
 
-    if (!window.confirm('이 상품을 보관 처리하시겠습니까? 목록에서 숨겨지고 다시 확인하려면 DB에서 복구해야 합니다.')) {
+    if (!window.confirm('이 상품을 완전 삭제하시겠습니까? DB 데이터와 업로드된 파일이 모두 삭제되며 되돌릴 수 없습니다.')) {
       return
     }
 
@@ -307,15 +307,15 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
       const payload = await response.json()
 
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error?.message || '문제마켓 상품 보관 처리에 실패했습니다.')
+        throw new Error(payload.error?.message || '문제마켓 상품 완전 삭제에 실패했습니다.')
       }
 
       await refreshItems(form.menuEntryId)
       resetForm(form.menuEntryId)
-      toast.success('문제마켓 상품을 보관 처리했습니다.')
+      toast.success('문제마켓 상품을 완전 삭제했습니다.')
       router.refresh()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '문제마켓 상품 보관 처리 중 오류가 발생했습니다.')
+      toast.error(error instanceof Error ? error.message : '문제마켓 상품 완전 삭제 중 오류가 발생했습니다.')
     } finally {
       setIsArchiving(false)
     }
@@ -642,7 +642,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
               {form.id ? (
                 <Button type="button" variant="destructive" disabled={isArchiving} onClick={handleArchive}>
                   {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                  보관 처리
+                  완전 삭제
                 </Button>
               ) : null}
             </div>
