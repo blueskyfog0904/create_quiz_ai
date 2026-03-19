@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/bypass'
-import { MARKET_STORAGE_BUCKET } from '@/lib/market-storage'
 import {
   findCompletedMarketPurchase,
+  getMarketItemById,
   getActiveMarketItemFile,
   getPublishedMarketItemById,
   recordMarketDownloadEvent,
@@ -35,7 +35,14 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   }
 
   try {
-    const item = await getPublishedMarketItemById(itemId)
+    const item = assetKind === 'sample'
+      ? await getPublishedMarketItemById(itemId)
+      : await getMarketItemById(itemId)
+
+    if (item && assetKind !== 'sample' && item.deleted_at !== null) {
+      return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
+    }
+
     if (!item) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
@@ -57,7 +64,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     const adminSupabase = createAdminClient()
     const { data, error } = await adminSupabase
       .storage
-      .from(MARKET_STORAGE_BUCKET)
+      .from(file.storage_bucket)
       .createSignedUrl(file.storage_path, 60 * 5)
 
     if (error || !data?.signedUrl) {

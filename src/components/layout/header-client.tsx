@@ -33,7 +33,8 @@ import {
   HelpCircle,
   Sparkles,
   Library,
-  BookOpen
+  BookOpen,
+  Download
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { NotificationBell } from '@/components/ui/notification-bell'
@@ -178,6 +179,12 @@ export function HeaderClient({
                     문제지 관리
                   </Button>
                 </Link>
+                <Link href="/library/market" onClick={() => setIsOpen(false)}>
+                  <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
+                    <Download className="h-4 w-4" />
+                    문제마켓 관리
+                  </Button>
+                </Link>
 
                 <div className="border-t my-2" />
                 <p className="px-4 py-2 text-sm font-semibold text-gray-500">마이페이지</p>
@@ -294,6 +301,12 @@ export function HeaderClient({
             <Link href="/library/exam-papers" className="flex items-center gap-2 cursor-pointer">
               <FileText className="h-4 w-4" />
               문제지 관리
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/library/market" className="flex items-center gap-2 cursor-pointer">
+              <Download className="h-4 w-4" />
+              문제마켓 관리
             </Link>
           </DropdownMenuItem>
         </DropdownMenuContent>

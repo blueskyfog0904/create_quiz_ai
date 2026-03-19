@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
 
 interface MarketItemActionsProps {
   itemId: string
@@ -33,7 +34,10 @@ export default function MarketItemActions({
 }: MarketItemActionsProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [submittingKind, setSubmittingKind] = useState<'pdf' | 'hwp' | null>(null)
+  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [currentBalance, setCurrentBalance] = useState<number | null>(null)
+  const [isCheckingBalance, setIsCheckingBalance] = useState(false)
+  const [pendingPurchaseKind, setPendingPurchaseKind] = useState<'pdf' | 'hwp' | null>(null)
   const viewTracked = useRef(false)
 
   const viewSessionKey = useMemo(() => `market-item:${itemId}`, [itemId])
@@ -53,14 +57,51 @@ export default function MarketItemActions({
     }).catch(() => undefined)
   }, [itemId, viewSessionKey])
 
-  const handlePurchase = (assetKind: 'pdf' | 'hwp') => {
-    setSubmittingKind(assetKind)
+  const fetchBalance = async () => {
+    const res = await fetch('/api/credits/balance', {
+      cache: 'no-store',
+      next: { revalidate: 0 },
+    })
+
+    if (!res.ok) {
+      throw new Error('잔액 정보를 불러오지 못했습니다.')
+    }
+
+    const data = await res.json()
+    if (typeof data.balance === 'number') {
+      setCurrentBalance(data.balance)
+      window.dispatchEvent(new CustomEvent('credit-balance-updated', { detail: { balance: data.balance } }))
+    } else {
+      throw new Error('잔액 정보 형식이 올바르지 않습니다.')
+    }
+  }
+
+  const openPurchaseConfirmation = async (assetKind: 'pdf' | 'hwp') => {
+    setPendingPurchaseKind(assetKind)
+    setIsCheckingBalance(true)
+    try {
+      await fetchBalance()
+      setShowConfirmation(true)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '크레딧 확인에 실패했습니다.')
+      setPendingPurchaseKind(null)
+    } finally {
+      setIsCheckingBalance(false)
+    }
+  }
+
+  const handleConfirmPurchase = () => {
+    if (!pendingPurchaseKind) {
+      return
+    }
+
+    setShowConfirmation(false)
     startTransition(async () => {
       try {
         const response = await fetch(`/api/market/items/${itemId}/purchase`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ assetKind }),
+          body: JSON.stringify({ assetKind: pendingPurchaseKind }),
         })
         const payload = await response.json()
 
@@ -68,15 +109,32 @@ export default function MarketItemActions({
           throw new Error(payload.error?.message || '구매 처리에 실패했습니다.')
         }
 
-        toast.success(payload.message || `${assetKind.toUpperCase()} 구매가 완료되었습니다.`)
+        if (typeof payload.balance === 'number') {
+          setCurrentBalance(payload.balance)
+          window.dispatchEvent(new CustomEvent('credit-balance-updated', { detail: { balance: payload.balance } }))
+        }
+
+        toast.success(payload.message || `${pendingPurchaseKind.toUpperCase()} 구매가 완료되었습니다.`)
         router.refresh()
       } catch (error) {
         toast.error(error instanceof Error ? error.message : '구매 처리 중 오류가 발생했습니다.')
       } finally {
-        setSubmittingKind(null)
+        setPendingPurchaseKind(null)
       }
     })
   }
+
+  const requiredCredits = pendingPurchaseKind === 'pdf'
+    ? pdfPrice
+    : pendingPurchaseKind === 'hwp'
+      ? hwpPrice
+      : 0
+
+  const confirmationDescription = pendingPurchaseKind === 'pdf'
+    ? 'PDF 파일을 크레딧으로 구매합니다.'
+    : pendingPurchaseKind === 'hwp'
+      ? 'HWP 파일을 크레딧으로 구매합니다.'
+      : '문제마켓 자료를 크레딧으로 구매합니다.'
 
   return (
     <div className="space-y-4">
@@ -113,10 +171,16 @@ export default function MarketItemActions({
         ) : (
           <Button
             className="mt-3 w-full"
-            disabled={!hasPdf || isPending}
-            onClick={() => handlePurchase('pdf')}
+            disabled={!hasPdf || isPending || isCheckingBalance}
+            onClick={() => void openPurchaseConfirmation('pdf')}
           >
-            {submittingKind === 'pdf' ? '구매 처리 중...' : hasPdf ? 'PDF 구매하기' : 'PDF 없음'}
+            {pendingPurchaseKind === 'pdf' && isPending
+              ? '구매 처리 중...'
+              : isCheckingBalance && pendingPurchaseKind === 'pdf'
+                ? '잔액 확인 중...'
+                : hasPdf
+                  ? 'PDF 구매하기'
+                  : 'PDF 없음'}
           </Button>
         )}
       </div>
@@ -136,13 +200,34 @@ export default function MarketItemActions({
         ) : (
           <Button
             className="mt-3 w-full"
-            disabled={!hasHwp || isPending}
-            onClick={() => handlePurchase('hwp')}
+            disabled={!hasHwp || isPending || isCheckingBalance}
+            onClick={() => void openPurchaseConfirmation('hwp')}
           >
-            {submittingKind === 'hwp' ? '구매 처리 중...' : hasHwp ? 'HWP 구매하기' : 'HWP 없음'}
+            {pendingPurchaseKind === 'hwp' && isPending
+              ? '구매 처리 중...'
+              : isCheckingBalance && pendingPurchaseKind === 'hwp'
+                ? '잔액 확인 중...'
+                : hasHwp
+                  ? 'HWP 구매하기'
+                  : 'HWP 없음'}
           </Button>
         )}
       </div>
+
+      <CreditConfirmationDialog
+        open={showConfirmation}
+        onClose={() => {
+          if (isPending) return
+          setShowConfirmation(false)
+          setPendingPurchaseKind(null)
+        }}
+        onConfirm={handleConfirmPurchase}
+        requiredAmount={requiredCredits}
+        currentBalance={currentBalance}
+        isLoading={isPending || isCheckingBalance}
+        title="문제마켓 구매 확인"
+        description={confirmationDescription}
+      />
     </div>
   )
 }
