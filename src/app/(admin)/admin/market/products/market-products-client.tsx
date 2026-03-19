@@ -12,6 +12,16 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Table,
   TableBody,
   TableCell,
@@ -135,6 +145,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
   const [editingFiles, setEditingFiles] = useState<MarketItemFile[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [isArchiving, setIsArchiving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<MarketItem | null>(null)
   const [uploadingKinds, setUploadingKinds] = useState<string[]>([])
   const [isBulkUploading, setIsBulkUploading] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<Partial<Record<MarketUploadAssetKind, File>>>({})
@@ -312,6 +323,36 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
 
       await refreshItems(form.menuEntryId)
       resetForm(form.menuEntryId)
+      toast.success('문제마켓 상품을 완전 삭제했습니다.')
+      router.refresh()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '문제마켓 상품 완전 삭제 중 오류가 발생했습니다.')
+    } finally {
+      setIsArchiving(false)
+    }
+  }
+
+  const handleDeleteFromList = async () => {
+    if (!deleteTarget) {
+      return
+    }
+
+    setIsArchiving(true)
+    try {
+      const response = await fetch(`/api/admin/market/items/${deleteTarget.id}`, {
+        method: 'DELETE',
+      })
+      const payload = await response.json()
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || '문제마켓 상품 완전 삭제에 실패했습니다.')
+      }
+
+      await refreshItems(deleteTarget.menu_entry_id)
+      if (form.id === deleteTarget.id) {
+        resetForm(deleteTarget.menu_entry_id)
+      }
+      setDeleteTarget(null)
       toast.success('문제마켓 상품을 완전 삭제했습니다.')
       router.refresh()
     } catch (error) {
@@ -877,9 +918,18 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                         </TableCell>
                         <TableCell className="text-center text-sm text-gray-600">{formatDateTime(item.created_at)}</TableCell>
                         <TableCell>
-                          <div className="flex justify-end">
+                          <div className="flex justify-end gap-1">
                             <Button type="button" variant="ghost" size="icon" onClick={() => void loadItemDetail(item.id)}>
                               <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                              onClick={() => setDeleteTarget(item)}
+                            >
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </TableCell>
@@ -892,6 +942,28 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isArchiving && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>문제마켓 상품을 완전 삭제할까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="font-medium">[{deleteTarget?.title}]</span> 상품의 DB 데이터와 업로드된 파일이 모두 삭제되며 되돌릴 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isArchiving}>취소</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={isArchiving}
+              onClick={handleDeleteFromList}
+            >
+              {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              완전 삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
