@@ -8,7 +8,7 @@ import {
 } from '@/lib/questions/normalize-question-field'
 
 type PdfMakeWithVfs = typeof pdfMake & {
-  vfs?: unknown
+  vfs?: { [file: string]: string }
   fonts?: Record<string, {
     normal: string
     bold: string
@@ -18,9 +18,9 @@ type PdfMakeWithVfs = typeof pdfMake & {
 }
 
 type PdfFontsModule = {
-  pdfMake?: { vfs?: unknown }
+  pdfMake?: { vfs?: { [file: string]: string } }
   default?: {
-    pdfMake?: { vfs?: unknown }
+    pdfMake?: { vfs?: { [file: string]: string } }
   }
 }
 
