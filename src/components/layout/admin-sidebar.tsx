@@ -40,6 +40,11 @@ const menuItems = [
     icon: Upload,
   },
   {
+    name: '문제생성 상품 관리',
+    href: '/admin/generate/products',
+    icon: BookOpen,
+  },
+  {
     name: 'AI 문제 유형 관리',
     href: '/admin/problem-types',
     icon: Settings,
