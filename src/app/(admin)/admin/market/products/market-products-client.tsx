@@ -933,8 +933,13 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                 })}
               </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button onClick={handleSubmit} disabled={isSaving || isBulkUploading} className="flex-1">
+            <div className="sticky bottom-4 z-10 -mx-2 rounded-xl border bg-white/95 px-2 py-3 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-white/85">
+              <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                onClick={handleSubmit}
+                disabled={isSaving || isBulkUploading}
+                className="h-11 flex-1 text-base font-semibold shadow-sm"
+              >
                 {isSaving || isBulkUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {form.id
                   ? '상품 저장'
@@ -957,6 +962,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                   완전 삭제
                 </Button>
               ) : null}
+              </div>
             </div>
           </CardContent>
         </Card>
