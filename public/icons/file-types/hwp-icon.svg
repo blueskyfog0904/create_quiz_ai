@@ -1,0 +1,9 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M16 4H42L56 18V54C56 58.4183 52.4183 62 48 62H16C11.5817 62 8 58.4183 8 54V12C8 7.58172 11.5817 4 16 4Z" fill="#F1F1F1"/>
+  <path d="M42 4L56 18H46C43.7909 18 42 16.2091 42 14V4Z" fill="#C9C9C9"/>
+  <rect x="15" y="43" width="42" height="16" rx="4" fill="#1668A5"/>
+  <text x="36" y="55" text-anchor="middle" font-size="16" font-weight="800" fill="white" font-family="Arial, sans-serif">HWP</text>
+  <rect x="18" y="18" width="18" height="2.5" rx="1.25" fill="#C9C9C9"/>
+  <rect x="18" y="24" width="28" height="2.5" rx="1.25" fill="#C9C9C9"/>
+  <rect x="18" y="30" width="24" height="2.5" rx="1.25" fill="#C9C9C9"/>
+</svg>

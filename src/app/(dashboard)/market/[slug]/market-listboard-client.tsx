@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react'
 import { toast } from 'sonner'
@@ -207,8 +208,18 @@ export default function MarketListboardClient({ categorySlug, rows }: MarketList
             <tr>
               <th className="w-[72px] px-4 py-3 text-center font-medium whitespace-nowrap">번호</th>
               <th className="min-w-[320px] px-4 py-3 text-left font-medium">제목</th>
-              <th className="w-[120px] px-4 py-3 text-center font-medium whitespace-nowrap">PDF</th>
-              <th className="w-[120px] px-4 py-3 text-center font-medium whitespace-nowrap">HWP</th>
+              <th className="w-[120px] px-4 py-3 text-center font-medium whitespace-nowrap">
+                <div className="flex items-center justify-center gap-1.5">
+                  <span>PDF</span>
+                  <Image src="/icons/file-types/pdf-icon.png" alt="PDF 아이콘" width={18} height={18} className="h-[18px] w-[18px]" />
+                </div>
+              </th>
+              <th className="w-[120px] px-4 py-3 text-center font-medium whitespace-nowrap">
+                <div className="flex items-center justify-center gap-1.5">
+                  <span>HWP</span>
+                  <Image src="/icons/file-types/hwp-icon.png" alt="HWP 아이콘" width={18} height={18} className="h-[18px] w-[18px]" />
+                </div>
+              </th>
               <th className="w-[100px] px-4 py-3 text-center font-medium whitespace-nowrap">조회</th>
               <th className="w-[140px] px-4 py-3 text-center font-medium whitespace-nowrap">게시일자</th>
             </tr>
