@@ -200,7 +200,7 @@ export default function MarketItemActions({
         </div>
         <Button
           asChild={hasSample}
-          className="mt-4 h-10 w-full rounded-lg bg-blue-600 font-medium text-white hover:bg-blue-700"
+          className="mt-4 h-10 w-full rounded-lg bg-secondary font-medium text-secondary-foreground hover:bg-secondary/85"
           disabled={!hasSample}
         >
           {hasSample ? <a href={buildDownloadUrl(itemId, 'sample')}>샘플 다운로드</a> : <span>샘플 없음</span>}
@@ -222,7 +222,7 @@ export default function MarketItemActions({
         {ownsPdf ? (
           <Button
             asChild
-            className="mt-4 h-10 w-full rounded-lg bg-blue-600 font-medium text-white hover:bg-blue-700"
+            className="mt-4 h-10 w-full rounded-lg bg-secondary font-medium text-secondary-foreground hover:bg-secondary/85"
           >
             <a href={buildDownloadUrl(itemId, 'pdf')}>PDF 다운로드</a>
           </Button>
@@ -258,7 +258,7 @@ export default function MarketItemActions({
         {ownsHwp ? (
           <Button
             asChild
-            className="mt-4 h-10 w-full rounded-lg bg-blue-600 font-medium text-white hover:bg-blue-700"
+            className="mt-4 h-10 w-full rounded-lg bg-secondary font-medium text-secondary-foreground hover:bg-secondary/85"
           >
             <a href={buildDownloadUrl(itemId, 'hwp')}>HWP 다운로드</a>
           </Button>
