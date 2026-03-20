@@ -503,11 +503,6 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
       return
     }
 
-    if (!form.id) {
-      toast.error('상품을 먼저 저장한 뒤 파일을 업로드할 수 있습니다.')
-      return
-    }
-
     if (!isAllowedAssetFile(file, assetKind)) {
       toast.error(`${assetKind.toUpperCase()} 자산에는 ${getAssetAcceptValue(assetKind)} 파일만 선택할 수 있습니다.`)
       return
@@ -542,11 +537,12 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
       }
 
       clearSelectedFile(assetKind)
-      return { success: true as const, message: `${assetKind.toUpperCase()} 파일을 업로드했습니다.` }
+      return { success: true as const, message: `${assetKind.toUpperCase()} 파일을 업로드했습니다.`, itemId: targetItemId }
     } catch (error) {
       return {
         success: false as const,
         message: error instanceof Error ? error.message : '문제마켓 파일 업로드 중 오류가 발생했습니다.',
+        itemId: targetItemId,
       }
     } finally {
       setUploadingKinds((current) => current.filter((kind) => kind !== assetKind))
@@ -563,7 +559,9 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
     const result = await uploadAssetFile(assetKind, file)
     if (result.success) {
       await refreshItems(form.menuEntryId)
-      await refreshEditingFiles(form.id!)
+      if (result.itemId) {
+        await refreshEditingFiles(result.itemId)
+      }
       toast.success(result.message)
       return
     }
@@ -572,11 +570,6 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
   }
 
   const handleUploadAll = async () => {
-    if (!form.id) {
-      toast.error('상품을 먼저 저장한 뒤 파일을 업로드할 수 있습니다.')
-      return
-    }
-
     const uploadTargets = MARKET_ASSET_KINDS
       .map((assetKind) => ({ assetKind, file: selectedFiles[assetKind] }))
       .filter((target): target is { assetKind: MarketUploadAssetKind; file: File } => Boolean(target.file))
@@ -589,10 +582,14 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
     setIsBulkUploading(true)
     let successCount = 0
     let failedCount = 0
+    let latestItemId: string | null = form.id ?? null
 
     try {
       for (const target of uploadTargets) {
-        const result = await uploadAssetFile(target.assetKind, target.file)
+        const result = await uploadAssetFile(target.assetKind, target.file, latestItemId ?? undefined)
+        if (result.itemId) {
+          latestItemId = result.itemId
+        }
         if (result.success) {
           successCount += 1
         } else {
@@ -602,7 +599,9 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
       }
 
       await refreshItems(form.menuEntryId)
-      await refreshEditingFiles(form.id)
+      if (latestItemId) {
+        await refreshEditingFiles(latestItemId)
+      }
 
       if (failedCount === 0) {
         toast.success(`선택한 ${successCount}개 파일 업로드를 완료했습니다.`)
@@ -796,7 +795,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                   <Button
                     type="button"
                     variant="default"
-                    disabled={!form.id || isBulkUploading || selectedAssetKinds.length === 0 || uploadingKinds.length > 0}
+                    disabled={isBulkUploading || selectedAssetKinds.length === 0 || uploadingKinds.length > 0}
                     onClick={() => void handleUploadAll()}
                   >
                     {isBulkUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
@@ -840,7 +839,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                   const isUploading = uploadingKinds.includes(assetKind)
                   const selectedFile = selectedFiles[assetKind]
                   const isDragActive = dragActiveKinds.includes(assetKind)
-                  const isUploadDisabled = !form.id || isUploading || isBulkUploading
+                  const isUploadDisabled = isUploading || isBulkUploading
                   const allowDescription = assetKind === 'hwp' ? '.hwp 파일만 업로드할 수 있습니다.' : '.pdf 파일만 업로드할 수 있습니다.'
 
                   return (
