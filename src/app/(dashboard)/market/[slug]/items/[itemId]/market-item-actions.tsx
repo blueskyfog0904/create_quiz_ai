@@ -26,9 +26,11 @@ function formatCredits(value: number) {
   return value.toLocaleString('ko-KR')
 }
 
+const infoBlockClassName = 'mt-3 flex min-h-[104px] w-full max-w-[220px] flex-col justify-between rounded-xl border border-slate-200 px-4 py-3 shadow-sm'
+
 function PriceBlock({ price }: { price: number }) {
   return (
-    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 shadow-sm">
+    <div className={`${infoBlockClassName} bg-slate-50/80`}>
       <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">구매가</p>
       <div className="mt-1.5 flex items-end gap-1.5">
         <span className="text-2xl font-bold leading-none text-slate-900">{formatCredits(price)}</span>
@@ -41,7 +43,7 @@ function PriceBlock({ price }: { price: number }) {
 
 function FreeBlock() {
   return (
-    <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/70 px-4 py-3 shadow-sm">
+    <div className={`${infoBlockClassName} bg-sky-50/70`}>
       <p className="text-[11px] font-medium uppercase tracking-wide text-sky-500">이용가</p>
       <div className="mt-1.5 flex items-end gap-1.5">
         <span className="text-2xl font-bold leading-none text-slate-900">무료</span>
