@@ -209,15 +209,15 @@ export default function MarketListboardClient({ categorySlug, rows }: MarketList
               <th className="w-[72px] px-4 py-3 text-center font-medium whitespace-nowrap">번호</th>
               <th className="min-w-[320px] px-4 py-3 text-left font-medium">제목</th>
               <th className="w-[120px] px-4 py-3 text-center font-medium whitespace-nowrap">
-                <div className="flex items-center justify-center gap-1.5">
+                <div className="flex items-center justify-center gap-2">
                   <span>PDF</span>
-                  <Image src="/icons/file-types/pdf-icon.png" alt="PDF 아이콘" width={18} height={18} className="h-[18px] w-[18px]" />
+                  <Image src="/icons/file-types/pdf-icon.png" alt="PDF 아이콘" width={20} height={20} className="h-5 w-5" />
                 </div>
               </th>
               <th className="w-[120px] px-4 py-3 text-center font-medium whitespace-nowrap">
-                <div className="flex items-center justify-center gap-1.5">
+                <div className="flex items-center justify-center gap-2">
                   <span>HWP</span>
-                  <Image src="/icons/file-types/hwp-icon.png" alt="HWP 아이콘" width={18} height={18} className="h-[18px] w-[18px]" />
+                  <Image src="/icons/file-types/hwp-icon.png" alt="HWP 아이콘" width={20} height={20} className="h-5 w-5" />
                 </div>
               </th>
               <th className="w-[100px] px-4 py-3 text-center font-medium whitespace-nowrap">조회</th>
