@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
-import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Download, Loader2, Pencil, Plus, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -94,6 +94,7 @@ interface GeneratePostItemFormState {
 
 const MIN_EXAM_YEAR = 2000
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1))
+const CSV_ACCEPT_VALUE = '.csv,.xlsx'
 
 async function parseGeneratePostCsvFile(file: File): Promise<{ fileName: string; items: GeneratePostCsvItem[] }> {
   const fileName = file.name.toLowerCase()
@@ -236,7 +237,11 @@ export default function GenerateProductsClient({
   const [isLoadingPostItems, setIsLoadingPostItems] = useState(false)
   const [savingPostItemClientIds, setSavingPostItemClientIds] = useState<string[]>([])
   const [archivePostItemTarget, setArchivePostItemTarget] = useState<GeneratePostItemFormState | null>(null)
+  const [selectedCsvFile, setSelectedCsvFile] = useState<File | null>(null)
+  const [isCsvDragActive, setIsCsvDragActive] = useState(false)
+  const [isApplyingCsv, setIsApplyingCsv] = useState(false)
   const activePostItemsRequestRef = useRef<string | null>(null)
+  const csvInputRef = useRef<HTMLInputElement | null>(null)
 
   const listboardEntries = useMemo(
     () => generateMenuEntries.filter((entry) => entry.entry_type === 'listboard' && entry.deleted_at === null),
@@ -280,6 +285,8 @@ export default function GenerateProductsClient({
     setIsLoadingPostItems(false)
     setPostForm(buildEmptyGeneratePostForm(selectedBoard?.id || ''))
     setPostItems([])
+    setSelectedCsvFile(null)
+    setIsCsvDragActive(false)
     setIsPostDialogOpen(false)
   }
 
@@ -293,6 +300,8 @@ export default function GenerateProductsClient({
     setIsLoadingPostItems(false)
     setPostForm(buildEmptyGeneratePostForm(selectedBoard.id))
     setPostItems([])
+    setSelectedCsvFile(null)
+    setIsCsvDragActive(false)
     setIsPostDialogOpen(true)
   }
 
@@ -300,6 +309,8 @@ export default function GenerateProductsClient({
     activePostItemsRequestRef.current = post.id
     setPostForm(buildGeneratePostForm(post))
     setIsPostDialogOpen(true)
+    setSelectedCsvFile(null)
+    setIsCsvDragActive(false)
 
     setIsLoadingPostItems(true)
     try {
@@ -321,23 +332,48 @@ export default function GenerateProductsClient({
     }
   }
 
-  const handlePostCsvFileChange = async (file?: File) => {
+  const clearSelectedCsvFile = () => {
+    setSelectedCsvFile(null)
+    if (csvInputRef.current) {
+      csvInputRef.current.value = ''
+    }
+  }
+
+  const handleSelectedCsvFile = (file?: File | null) => {
     if (!file) {
-      setPostForm((current) => ({ ...current, csvFileName: '', csvItems: [] }))
       return
     }
 
+    const fileName = file.name.toLowerCase()
+    if (!fileName.endsWith('.csv') && !fileName.endsWith('.xlsx')) {
+      toast.error('.csv 또는 .xlsx 파일만 업로드할 수 있습니다.')
+      return
+    }
+
+    setSelectedCsvFile(file)
+  }
+
+  const handlePostCsvFileApply = async () => {
+    if (!selectedCsvFile) {
+      toast.error('업로드할 CSV/엑셀 파일을 먼저 선택해주세요.')
+      return
+    }
+
+    setIsApplyingCsv(true)
     try {
-      const parsed = await parseGeneratePostCsvFile(file)
+      const parsed = await parseGeneratePostCsvFile(selectedCsvFile)
       setPostForm((current) => ({
         ...current,
         csvFileName: parsed.fileName,
         csvItems: parsed.items,
       }))
       toast.success(`CSV에서 ${parsed.items.length}개 문항을 불러왔습니다.`)
+      clearSelectedCsvFile()
     } catch (error) {
       setPostForm((current) => ({ ...current, csvFileName: '', csvItems: [] }))
       toast.error(error instanceof Error ? error.message : 'CSV 파일을 읽지 못했습니다.')
+    } finally {
+      setIsApplyingCsv(false)
     }
   }
 
@@ -777,13 +813,108 @@ export default function GenerateProductsClient({
               <div className="space-y-3">
                 <div className="space-y-2">
                   <Label htmlFor="post-csv-file">CSV / 엑셀 업로드</Label>
-                  <Input
+                  <input
+                    ref={csvInputRef}
                     id="post-csv-file"
                     type="file"
-                    accept=".csv,.xlsx"
-                    onChange={(event) => void handlePostCsvFileChange(event.target.files?.[0])}
+                    accept={CSV_ACCEPT_VALUE}
+                    className="hidden"
+                    disabled={isApplyingCsv}
+                    onChange={(event) => handleSelectedCsvFile(event.target.files?.[0])}
                   />
-                  <p className="text-sm text-gray-500">첫 번째 열은 question_number, 두 번째 열은 passage_text 형식이어야 합니다.</p>
+                  <div
+                    role="button"
+                    tabIndex={isApplyingCsv ? -1 : 0}
+                    onClick={() => {
+                      if (isApplyingCsv) return
+                      if (!csvInputRef.current) return
+                      csvInputRef.current.value = ''
+                      csvInputRef.current.click()
+                    }}
+                    onKeyDown={(event) => {
+                      if (isApplyingCsv) return
+                      if (event.key !== 'Enter' && event.key !== ' ') return
+                      event.preventDefault()
+                      if (!csvInputRef.current) return
+                      csvInputRef.current.value = ''
+                      csvInputRef.current.click()
+                    }}
+                    onDragEnter={(event) => {
+                      if (isApplyingCsv) return
+                      event.preventDefault()
+                      setIsCsvDragActive(true)
+                    }}
+                    onDragOver={(event) => {
+                      if (isApplyingCsv) return
+                      event.preventDefault()
+                      setIsCsvDragActive(true)
+                    }}
+                    onDragLeave={(event) => {
+                      if (isApplyingCsv) return
+                      event.preventDefault()
+                      setIsCsvDragActive(false)
+                    }}
+                    onDrop={(event) => {
+                      if (isApplyingCsv) return
+                      event.preventDefault()
+                      setIsCsvDragActive(false)
+                      const droppedFiles = Array.from(event.dataTransfer.files || [])
+                      if (droppedFiles.length === 0) return
+                      if (droppedFiles.length > 1) {
+                        toast.message('여러 파일이 드롭되었지만 첫 번째 파일만 선택합니다.')
+                      }
+                      handleSelectedCsvFile(droppedFiles[0])
+                    }}
+                    className={`rounded-md border border-dashed px-4 py-4 text-left transition ${
+                      isApplyingCsv
+                        ? 'cursor-not-allowed bg-gray-50 text-gray-400'
+                        : isCsvDragActive
+                          ? 'border-primary bg-primary/5'
+                          : selectedCsvFile
+                            ? 'border-emerald-300 bg-emerald-50/60'
+                            : 'cursor-pointer hover:border-primary/50 hover:bg-gray-50'
+                    }`}
+                  >
+                    <p className="text-sm font-medium text-gray-900">
+                      {isCsvDragActive
+                        ? '여기에 파일을 놓으세요.'
+                        : '파일을 드래그하여 놓거나, 파일선택 버튼으로 업로드할 파일을 고르세요.'}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {selectedCsvFile
+                        ? `선택 파일: ${selectedCsvFile.name}`
+                        : '첫 번째 열은 question_number, 두 번째 열은 passage_text 형식이어야 합니다.'}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 md:flex-row md:justify-end">
+                    <Button type="button" variant="outline" asChild>
+                      <a href="/samples/generate-listboard-posts-sample.csv" download>
+                        <Download className="mr-2 h-4 w-4" />
+                        CSV/엑셀 샘플파일
+                      </a>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={isApplyingCsv}
+                      onClick={() => {
+                        if (!csvInputRef.current) return
+                        csvInputRef.current.value = ''
+                        csvInputRef.current.click()
+                      }}
+                    >
+                      파일선택
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="default"
+                      disabled={!selectedCsvFile || isApplyingCsv}
+                      onClick={() => void handlePostCsvFileApply()}
+                    >
+                      {isApplyingCsv ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                      업로드
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="rounded-md border bg-gray-50 px-3 py-3 text-sm text-gray-700">
