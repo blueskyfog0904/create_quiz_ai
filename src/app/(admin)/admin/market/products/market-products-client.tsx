@@ -151,6 +151,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
   const [editingFiles, setEditingFiles] = useState<MarketItemFile[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [isArchiving, setIsArchiving] = useState(false)
+  const [requiresFinalRegistration, setRequiresFinalRegistration] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<MarketItem | null>(null)
   const [uploadingKinds, setUploadingKinds] = useState<string[]>([])
   const [isBulkUploading, setIsBulkUploading] = useState(false)
@@ -180,6 +181,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
     setEditingFiles([])
     setSelectedFiles({})
     setDragActiveKinds([])
+    setRequiresFinalRegistration(false)
   }
 
   const refreshItems = async (menuEntryId?: string) => {
@@ -222,6 +224,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
     setEditingFiles(detail.files || [])
     setSelectedFiles({})
     setDragActiveKinds([])
+    setRequiresFinalRegistration(false)
   }
 
   const refreshEditingFiles = async (id: string) => {
@@ -307,7 +310,10 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
 
   const handleSubmit = async () => {
     if (form.id) {
-      await persistForm()
+      const result = await persistForm()
+      if (result) {
+        setRequiresFinalRegistration(false)
+      }
       return
     }
 
@@ -330,8 +336,11 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
         return
       }
 
+      setRequiresFinalRegistration(true)
+
       if (uploadTargets.length === 0) {
         toast.success('문제마켓 상품을 생성했습니다.')
+        setRequiresFinalRegistration(false)
         return
       }
 
@@ -352,11 +361,14 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
       await refreshEditingFiles(createdItem.id)
 
       if (shouldDelayPublish && failedCount === 0) {
-        await persistForm('published', {
+        const publishedItem = await persistForm('published', {
           preserveSelections: true,
           skipSuccessToast: true,
           targetId: createdItem.id,
         })
+        if (publishedItem) {
+          setRequiresFinalRegistration(false)
+        }
       }
 
       if (failedCount === 0) {
@@ -373,6 +385,27 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
     } finally {
       setIsBulkUploading(false)
     }
+  }
+
+  const ensureDraftItemForUpload = async () => {
+    if (form.id) {
+      return form.id
+    }
+
+    const desiredStatus = form.status
+    const createdItem = await persistForm('draft', {
+      preserveSelections: true,
+      skipSuccessToast: true,
+    })
+
+    if (!createdItem) {
+      return null
+    }
+
+    setRequiresFinalRegistration(true)
+    setForm((current) => ({ ...current, status: desiredStatus }))
+    toast.success('파일 업로드를 위해 상품을 임시 저장했습니다. 업로드 후 상품 등록을 완료해주세요.')
+    return createdItem.id
   }
 
   const handleStatusAction = async (status: MarketItemFormState['status']) => {
@@ -487,7 +520,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
   }
 
   const uploadAssetFile = async (assetKind: MarketUploadAssetKind, file: File, itemIdOverride?: string) => {
-    const targetItemId = itemIdOverride ?? form.id
+    const targetItemId = itemIdOverride ?? form.id ?? await ensureDraftItemForUpload()
     if (!targetItemId) {
       return { success: false as const, message: '파일 업로드 전에 상품을 먼저 저장해주세요.' }
     }
@@ -757,7 +790,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                     <p className="text-sm text-gray-500">
                       {form.id
                         ? '샘플 PDF, 판매용 PDF, HWP를 각각 최신 버전으로 교체할 수 있습니다.'
-                        : '선택한 파일은 상품 등록 후 자동으로 업로드됩니다.'}
+                        : '파일을 먼저 업로드할 수 있으며, 첫 업로드 시 상품이 임시 저장됩니다.'}
                     </p>
                   </div>
                   <Button
@@ -891,7 +924,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
                       >
                         <p className="text-sm font-medium text-gray-900">
                           {!form.id
-                            ? '상품 등록 전에 파일을 먼저 선택할 수 있습니다.'
+                            ? '상품 등록 전에 파일을 먼저 업로드할 수 있습니다.'
                             : isDragActive
                               ? '여기에 파일을 놓으세요.'
                               : '파일을 드래그하여 놓거나, 파일선택 버튼으로 업로드할 파일을 고르세요.'}
@@ -942,7 +975,9 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
               >
                 {isSaving || isBulkUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {form.id
-                  ? '상품 저장'
+                  ? requiresFinalRegistration
+                    ? '상품 등록'
+                    : '상품 저장'
                   : selectedAssetKinds.length > 0
                     ? (isBulkUploading ? '상품 등록 및 파일 업로드 중...' : '상품 등록 및 파일 업로드')
                     : '상품 등록'}
