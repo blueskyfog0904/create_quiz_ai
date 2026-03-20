@@ -199,7 +199,7 @@ export default function MarketItemActions({
         <Button
           asChild={hasSample}
           className="mt-4 h-10 w-full rounded-lg font-medium"
-          variant="outline"
+          variant="default"
           disabled={!hasSample}
         >
           {hasSample ? <a href={buildDownloadUrl(itemId, 'sample')}>샘플 다운로드</a> : <span>샘플 없음</span>}
@@ -219,12 +219,12 @@ export default function MarketItemActions({
           {ownsPdf ? <PurchaseStateBadge state="owned" /> : hasPdf ? <PurchaseStateBadge state="available" /> : null}
         </div>
         {ownsPdf ? (
-          <Button asChild className="mt-4 h-10 w-full rounded-lg font-medium">
+          <Button asChild className="mt-4 h-10 w-full rounded-lg font-medium" variant="default">
             <a href={buildDownloadUrl(itemId, 'pdf')}>PDF 다시 다운로드</a>
           </Button>
         ) : (
           <Button
-            className="mt-4 h-10 w-full rounded-lg font-medium"
+            className="mt-4 h-10 w-full rounded-lg bg-rose-600 font-medium text-white hover:bg-rose-700"
             disabled={!hasPdf || isPending || isCheckingBalance}
             onClick={() => void openPurchaseConfirmation('pdf')}
           >
@@ -252,12 +252,12 @@ export default function MarketItemActions({
           {ownsHwp ? <PurchaseStateBadge state="owned" /> : hasHwp ? <PurchaseStateBadge state="available" /> : null}
         </div>
         {ownsHwp ? (
-          <Button asChild className="mt-4 h-10 w-full rounded-lg font-medium">
+          <Button asChild className="mt-4 h-10 w-full rounded-lg font-medium" variant="default">
             <a href={buildDownloadUrl(itemId, 'hwp')}>HWP 다시 다운로드</a>
           </Button>
         ) : (
           <Button
-            className="mt-4 h-10 w-full rounded-lg font-medium"
+            className="mt-4 h-10 w-full rounded-lg bg-rose-600 font-medium text-white hover:bg-rose-700"
             disabled={!hasHwp || isPending || isCheckingBalance}
             onClick={() => void openPurchaseConfirmation('hwp')}
           >
