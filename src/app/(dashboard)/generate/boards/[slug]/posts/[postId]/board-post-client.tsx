@@ -58,7 +58,7 @@ export default function BoardPostClient({
   const renderBatchStartCard = () => (
     <Card>
       <CardHeader>
-        <CardTitle>배치 생성 시작</CardTitle>
+        <CardTitle>문제 생성 시작</CardTitle>
         <CardDescription>
           선택된 문제 유형 {selectedProblemTypeIds.length}개 × 문항 {selectedPostItemIds.length}개 = 총 {requestedGenerationCount}건 생성
         </CardDescription>
@@ -75,7 +75,7 @@ export default function BoardPostClient({
           disabled={isCheckingBalance || isSubmitting || requestedGenerationCount === 0}
           className="w-full h-11 text-base"
         >
-          {isCheckingBalance ? '크레딧 확인 중...' : isSubmitting ? '작업 생성 중...' : `배치 생성 시작 (${requiredCredits.toLocaleString()} 크레딧)`}
+          {isCheckingBalance ? '크레딧 확인 중...' : isSubmitting ? '작업 생성 중...' : `문제 생성 시작 (${requiredCredits.toLocaleString()} 크레딧)`}
         </Button>
       </CardContent>
     </Card>
@@ -151,17 +151,17 @@ export default function BoardPostClient({
 
       const data = await res.json()
       if (!res.ok || !data.success) {
-        throw new Error(data.error?.message || '배치 생성 작업 생성에 실패했습니다.')
+        throw new Error(data.error?.message || '문제 생성 작업 생성에 실패했습니다.')
       }
 
-      toast.success('배치 생성 작업을 등록했습니다.')
+      toast.success('문제 생성 작업을 등록했습니다.')
       const params = new URLSearchParams({
         gradeLevel,
         difficulty,
       })
       router.push(`/generate/boards/${board.slug}/posts/${post.id}/jobs/${data.data.jobId}?${params.toString()}`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '배치 생성 작업 생성 중 오류가 발생했습니다.')
+      toast.error(error instanceof Error ? error.message : '문제 생성 작업 생성 중 오류가 발생했습니다.')
     } finally {
       setIsSubmitting(false)
     }
@@ -172,7 +172,7 @@ export default function BoardPostClient({
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{post.title}</h1>
-          <p className="mt-2 text-gray-500">문제 유형과 문항을 선택한 뒤 배치 생성 작업을 시작할 수 있습니다.</p>
+          <p className="mt-2 text-gray-500">문제 유형과 문항을 선택한 뒤 문제 생성 작업을 시작할 수 있습니다.</p>
         </div>
         <Button variant="outline" asChild>
           <Link href={`/generate/boards/${board.slug}`}>목록으로 돌아가기</Link>
@@ -331,7 +331,7 @@ export default function BoardPostClient({
         requiredAmount={requiredCredits}
         currentBalance={currentBalance}
         isLoading={isSubmitting || isCheckingBalance}
-        title="배치 생성 확인"
+        title="문제 생성 확인"
         description={`학년 ${gradeLevel}, 난이도 ${DIFFICULTY_OPTIONS.find((option) => option.value === difficulty)?.label ?? difficulty} 기준으로 총 ${requestedGenerationCount}건의 생성 작업을 실행합니다.`}
       />
     </div>
