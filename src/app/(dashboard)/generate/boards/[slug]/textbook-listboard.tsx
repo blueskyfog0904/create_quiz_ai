@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import type { Database } from '@/types/supabase'
 import type { ListboardSearchFilters } from '../data'
+import TextbookListboardClient from './textbook-listboard-client'
 
 type GenerateMenuEntry = Database['public']['Tables']['generate_menu_entries']['Row']
 type GenerateListboardPost = Database['public']['Tables']['generate_listboard_posts']['Row']
@@ -80,53 +81,7 @@ export default function TextbookListboard({ board, posts, filters, options }: Te
           <CardDescription>총 {posts.length}건</CardDescription>
         </CardHeader>
         <CardContent>
-          {posts.length === 0 ? (
-            <div className="rounded-lg border border-dashed py-16 text-center text-gray-500">
-              검색 조건에 맞는 지문이 없습니다.
-            </div>
-          ) : (
-            <div className="overflow-hidden rounded-xl border">
-              <table className="w-full border-collapse text-sm">
-                <thead className="bg-gray-50 text-left text-gray-600">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">제목</th>
-                    <th className="w-[140px] px-4 py-3 font-medium whitespace-nowrap">년도</th>
-                    <th className="w-[120px] px-4 py-3 font-medium whitespace-nowrap">월</th>
-                    <th className="w-[140px] px-4 py-3 font-medium whitespace-nowrap">학년</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {posts.map((post) => {
-                    const href = `/generate/boards/${board.slug}/posts/${post.id}`
-
-                    return (
-                    <tr key={post.id} className="border-t transition-colors hover:bg-gray-50">
-                      <td className="px-4 py-3 align-top">
-                        <Link href={href} className="block font-medium text-gray-900">
-                          {post.title}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
-                        <Link href={href} className="block">
-                          {post.exam_year ?? '-'}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
-                        <Link href={href} className="block">
-                          {post.exam_month ? `${post.exam_month}월` : '-'}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
-                        <Link href={href} className="block">
-                          {post.grade_level ?? '-'}
-                        </Link>
-                      </td>
-                    </tr>
-                  )})}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <TextbookListboardClient boardSlug={board.slug} posts={posts} />
         </CardContent>
       </Card>
     </div>
