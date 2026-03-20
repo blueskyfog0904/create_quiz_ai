@@ -87,6 +87,10 @@ function LoginContent() {
       provider: 'kakao',
       options: {
         redirectTo: `${window.location.origin}/auth/callback?${callbackPath}`,
+        queryParams: {
+          prompt: 'select_account',
+          scope: 'account_email,phone_number,name',
+        },
       },
     })
 
