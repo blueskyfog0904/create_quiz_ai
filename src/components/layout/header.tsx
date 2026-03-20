@@ -1,8 +1,10 @@
+import { Fragment } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ChevronDown } from 'lucide-react'
@@ -26,6 +28,10 @@ function reorderGenerateChildren(items: ReturnType<typeof getActiveHeaderNavigat
       children: personalChild ? [...otherChildren, personalChild] : item.children,
     }
   })
+}
+
+function isGeneratePersonalChild(parentHref?: string, childHref?: string) {
+  return parentHref === '/generate' && childHref === '/generate/personal'
 }
 
 export async function Header() {
@@ -81,11 +87,14 @@ export async function Header() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="w-48">
                       {item.children.map((child) => (
-                        <DropdownMenuItem key={child.id} asChild>
-                          <Link href={child.href} className="cursor-pointer">
-                            {child.title}
-                          </Link>
-                        </DropdownMenuItem>
+                        <Fragment key={child.id}>
+                          {isGeneratePersonalChild(item.href, child.href) ? <DropdownMenuSeparator /> : null}
+                          <DropdownMenuItem asChild>
+                            <Link href={child.href} className="cursor-pointer">
+                              {child.title}
+                            </Link>
+                          </DropdownMenuItem>
+                        </Fragment>
                       ))}
                     </DropdownMenuContent>
                   </DropdownMenu>

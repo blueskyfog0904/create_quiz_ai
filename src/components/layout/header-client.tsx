@@ -116,6 +116,10 @@ export function HeaderClient({
     }
   }, [handleBalanceSync])
 
+  const isGeneratePersonalChild = (parentHref?: string, childHref?: string) => (
+    parentHref === '/generate' && childHref === '/generate/personal'
+  )
+
   // Mobile Navigation
   if (isMobile) {
     return (
@@ -140,12 +144,17 @@ export function HeaderClient({
                           {item.title}
                         </p>
                         {item.children.map((child) => (
-                          <Link key={child.id} href={child.href} onClick={() => setIsOpen(false)}>
-                            <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
-                              <Sparkles className="h-4 w-4" />
-                              {child.title}
-                            </Button>
-                          </Link>
+                          <div
+                            key={child.id}
+                            className={isGeneratePersonalChild(item.href, child.href) ? 'mt-1 border-t border-slate-200 pt-1' : ''}
+                          >
+                            <Link href={child.href} onClick={() => setIsOpen(false)}>
+                              <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
+                                <Sparkles className="h-4 w-4" />
+                                {child.title}
+                              </Button>
+                            </Link>
+                          </div>
                         ))}
                       </>
                     ) : (
