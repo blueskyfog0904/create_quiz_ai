@@ -198,8 +198,8 @@ export default function MarketItemActions({
         </div>
         <Button
           asChild={hasSample}
-          className="mt-4 h-10 w-full rounded-lg font-medium"
-          variant="default"
+          className="mt-4 h-10 w-full rounded-lg border border-sky-200 bg-sky-50 font-medium text-sky-700 hover:bg-sky-100"
+          variant="outline"
           disabled={!hasSample}
         >
           {hasSample ? <a href={buildDownloadUrl(itemId, 'sample')}>샘플 다운로드</a> : <span>샘플 없음</span>}
@@ -219,12 +219,17 @@ export default function MarketItemActions({
           {ownsPdf ? <PurchaseStateBadge state="owned" /> : hasPdf ? <PurchaseStateBadge state="available" /> : null}
         </div>
         {ownsPdf ? (
-          <Button asChild className="mt-4 h-10 w-full rounded-lg font-medium" variant="default">
+          <Button
+            asChild
+            className="mt-4 h-10 w-full rounded-lg border border-sky-200 bg-sky-50 font-medium text-sky-700 hover:bg-sky-100"
+            variant="outline"
+          >
             <a href={buildDownloadUrl(itemId, 'pdf')}>PDF 다시 다운로드</a>
           </Button>
         ) : (
           <Button
-            className="mt-4 h-10 w-full rounded-lg bg-rose-600 font-medium text-white hover:bg-rose-700"
+            className="mt-4 h-10 w-full rounded-lg border border-rose-200 bg-rose-50 font-medium text-rose-700 hover:bg-rose-100"
+            variant="outline"
             disabled={!hasPdf || isPending || isCheckingBalance}
             onClick={() => void openPurchaseConfirmation('pdf')}
           >
@@ -252,12 +257,17 @@ export default function MarketItemActions({
           {ownsHwp ? <PurchaseStateBadge state="owned" /> : hasHwp ? <PurchaseStateBadge state="available" /> : null}
         </div>
         {ownsHwp ? (
-          <Button asChild className="mt-4 h-10 w-full rounded-lg font-medium" variant="default">
+          <Button
+            asChild
+            className="mt-4 h-10 w-full rounded-lg border border-sky-200 bg-sky-50 font-medium text-sky-700 hover:bg-sky-100"
+            variant="outline"
+          >
             <a href={buildDownloadUrl(itemId, 'hwp')}>HWP 다시 다운로드</a>
           </Button>
         ) : (
           <Button
-            className="mt-4 h-10 w-full rounded-lg bg-rose-600 font-medium text-white hover:bg-rose-700"
+            className="mt-4 h-10 w-full rounded-lg border border-rose-200 bg-rose-50 font-medium text-rose-700 hover:bg-rose-100"
+            variant="outline"
             disabled={!hasHwp || isPending || isCheckingBalance}
             onClick={() => void openPurchaseConfirmation('hwp')}
           >
