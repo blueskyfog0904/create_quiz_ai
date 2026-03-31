@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import { DEFAULT_WORKSPACE_SUBJECT, withWorkspacePrefix } from '@/lib/workspace-subject'
 
 const ProblemTypeSchema = z.object({
   type_name: z.string().min(1, "Type name is required"),
@@ -13,7 +14,13 @@ const ProblemTypeSchema = z.object({
   is_active: z.boolean().optional()
 })
 
-export async function createProblemType(prevState: any, formData: FormData) {
+function revalidateProblemTypePaths() {
+  revalidatePath('/admin/problem-types')
+  revalidatePath('/generate', 'layout')
+  revalidatePath(withWorkspacePrefix(DEFAULT_WORKSPACE_SUBJECT, '/generate'), 'layout')
+}
+
+export async function createProblemType(_prevState: unknown, formData: FormData) {
   const supabase = await createClient()
 
   // Check admin (optional here if RLS handles it, but good for UX)
@@ -45,11 +52,11 @@ export async function createProblemType(prevState: any, formData: FormData) {
     return { error: error.message }
   }
 
-  revalidatePath('/admin/problem-types')
+  revalidateProblemTypePaths()
   return { success: true }
 }
 
-export async function updateProblemType(id: string, prevState: any, formData: FormData) {
+export async function updateProblemType(id: string, _prevState: unknown, formData: FormData) {
   const supabase = await createClient()
 
   const rawData = {
@@ -76,7 +83,7 @@ export async function updateProblemType(id: string, prevState: any, formData: Fo
     return { error: error.message }
   }
 
-  revalidatePath('/admin/problem-types')
+  revalidateProblemTypePaths()
   return { success: true }
 }
 
@@ -98,7 +105,6 @@ export async function deleteProblemType(id: string) {
       return { error: error.message }
     }
   
-    revalidatePath('/admin/problem-types')
+    revalidateProblemTypePaths()
     return { success: true }
 }
-

@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { parseWorkspaceSubjectFromPath, stripWorkspacePrefix, withWorkspacePrefix } from '@/lib/workspace-subject'
 
 type JsonObject = Record<string, unknown>
 
@@ -59,15 +60,29 @@ const normalizeKakaoPhoneNumber = (value: string) => {
 }
 
 const normalizeInternalPath = (path: string | null) => {
-  if (!path || path === '/signup') {
+  if (!path) {
     return '/'
   }
 
-  if (!path.startsWith('/') || path.startsWith('//')) {
+  const trimmed = path.trim()
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//')) {
     return '/'
   }
 
-  return path
+  try {
+    const url = new URL(trimmed, 'http://localhost')
+    const pathname = url.pathname
+    const subject = parseWorkspaceSubjectFromPath(pathname)
+    const scopedPath = stripWorkspacePrefix(pathname).scopedPath
+
+    if (pathname === '/login' || pathname === '/signup' || scopedPath === '/login' || scopedPath === '/signup') {
+      return subject ? withWorkspacePrefix(subject, '/') : '/'
+    }
+
+    return `${pathname}${url.search}${url.hash}`
+  } catch {
+    return '/'
+  }
 }
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -86,7 +101,12 @@ function SignupContent() {
   const [phone, setPhone] = useState('')
   const searchParams = useSearchParams()
   const next = normalizeInternalPath(searchParams.get('next') ?? '/signup')
+  const homeHref = (() => {
+    const subject = parseWorkspaceSubjectFromPath(next)
+    return subject ? withWorkspacePrefix(subject, '/') : '/'
+  })()
   const kakaoSignupMode = searchParams.get('provider') === 'kakao' && searchParams.get('signup') === '1'
+  const nextQuery = next === '/' ? '' : `?${new URLSearchParams({ next }).toString()}`
   const callbackPath = new URLSearchParams({
     next,
     provider: 'kakao',
@@ -540,7 +560,7 @@ function SignupContent() {
             <Button
               type="button"
               className="w-full h-11 text-md"
-              onClick={() => window.location.assign('/')}
+              onClick={() => window.location.assign(homeHref)}
             >
               메인 페이지로 이동하기
             </Button>
@@ -627,7 +647,7 @@ function SignupContent() {
           </CardContent>
           <CardFooter className="flex justify-center pb-8">
             <div className="text-sm text-gray-500">
-              이미 계정이 있으신가요? <Link href="/login" className="underline underline-offset-4 hover:text-primary font-medium ml-1">로그인</Link>
+              이미 계정이 있으신가요? <Link href={`/login${nextQuery}`} className="underline underline-offset-4 hover:text-primary font-medium ml-1">로그인</Link>
             </div>
           </CardFooter>
         </Card>
@@ -706,7 +726,7 @@ function SignupContent() {
         </CardContent>
         <CardFooter className="flex justify-center pb-8">
           <div className="text-sm text-gray-500">
-            이미 계정이 있으신가요? <Link href="/login" className="underline underline-offset-4 hover:text-primary font-medium ml-1">로그인</Link>
+            이미 계정이 있으신가요? <Link href={`/login${nextQuery}`} className="underline underline-offset-4 hover:text-primary font-medium ml-1">로그인</Link>
           </div>
         </CardFooter>
       </Card>

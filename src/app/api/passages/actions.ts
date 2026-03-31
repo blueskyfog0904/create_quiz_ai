@@ -113,6 +113,10 @@ export type Passage = Database['public']['Tables']['passages']['Row'];
 export type CreatePassageInput = Database['public']['Tables']['passages']['Insert'];
 export type UpdatePassageInput = Database['public']['Tables']['passages']['Update'];
 
+type WorkspaceScopedRow = {
+  workspace_subject?: string | null
+}
+
 type WorkspaceSubjectInput = WorkspaceSubject | string | null | undefined
 
 function resolvePassageWorkspaceSubject(value?: WorkspaceSubjectInput): WorkspaceSubject {
@@ -124,6 +128,7 @@ function resolvePassageWorkspaceSubject(value?: WorkspaceSubjectInput): Workspac
 }
 
 function revalidatePassageLibrary(workspaceSubject: WorkspaceSubject) {
+  revalidatePath('/library/mypassages', 'layout')
   workspaceRevalidatePaths(workspaceSubject, 'libraryMypassages').forEach(({ path, type }) => {
     revalidatePath(path, type)
   })
@@ -156,7 +161,11 @@ export async function createPassage(
     throw new Error('Failed to create passage');
   }
 
-  revalidatePassageLibrary(workspaceSubject);
+  const persistedWorkspaceSubject = resolvePassageWorkspaceSubject(
+    (data as Passage & WorkspaceScopedRow).workspace_subject
+    ?? workspaceSubject
+  )
+  revalidatePassageLibrary(persistedWorkspaceSubject);
   return data;
 }
 
@@ -343,7 +352,11 @@ export async function updatePassage(
     throw new Error('Failed to update passage');
   }
 
-  revalidatePassageLibrary(workspaceSubject);
+  const persistedWorkspaceSubject = resolvePassageWorkspaceSubject(
+    (data as Passage & WorkspaceScopedRow).workspace_subject
+    ?? workspaceSubject
+  )
+  revalidatePassageLibrary(persistedWorkspaceSubject);
   return data;
 }
 
@@ -359,17 +372,34 @@ export async function deletePassage(
     throw new Error('Unauthorized');
   }
 
+  const { data: existingPassage, error: existingPassageError } = await supabase
+    .from('passages')
+    .select('workspace_subject')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (existingPassageError) {
+    console.error('Error fetching passage workspace:', existingPassageError);
+    throw new Error('Failed to delete passage');
+  }
+
+  const persistedWorkspaceSubject = resolvePassageWorkspaceSubject(
+    (existingPassage as WorkspaceScopedRow | null)?.workspace_subject
+    ?? workspaceSubject
+  )
+
   const { error } = await supabase
     .from('passages')
     .delete()
     .eq('id', id)
     .eq('user_id', user.id)
-    .eq('workspace_subject', workspaceSubject);
+    .eq('workspace_subject', persistedWorkspaceSubject);
 
   if (error) {
     console.error('Error deleting passage:', error);
     throw new Error('Failed to delete passage');
   }
 
-  revalidatePassageLibrary(workspaceSubject);
+  revalidatePassageLibrary(persistedWorkspaceSubject);
 }

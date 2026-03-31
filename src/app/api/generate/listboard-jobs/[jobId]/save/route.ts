@@ -10,6 +10,7 @@ import {
   resolveGenerateWorkspaceSubject,
   type WorkspaceSubject,
 } from '@/app/(dashboard)/generate/workspace-subject'
+import { DEFAULT_WORKSPACE_SUBJECT, isWorkspaceSubject, withWorkspacePrefix } from '@/lib/workspace-subject'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,19 @@ const toDbNull = (value?: string | null) => {
   if (value === undefined || value === null) return null
   const trimmed = value.trim()
   return trimmed.length ? value : null
+}
+
+const normalizeWorkspaceSubject = (value: string | null | undefined): WorkspaceSubject => (
+  isWorkspaceSubject(value) ? value : DEFAULT_WORKSPACE_SUBJECT
+)
+
+const revalidateLegacyAndWorkspacePath = (
+  path: string,
+  type: 'layout' | 'page',
+  subject: WorkspaceSubject
+) => {
+  revalidatePath(path, type)
+  revalidatePath(withWorkspacePrefix(subject, path), type)
 }
 
 export async function POST(request: Request, { params }: RouteContext) {
@@ -53,7 +67,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       }, { status: 400 })
     }
 
-    const workspaceSubject = resolveGenerateWorkspaceSubject({
+    const requestedWorkspaceSubject = resolveGenerateWorkspaceSubject({
       workspaceSubject: validation.data.workspaceSubject,
       referer: request.headers.get('referer'),
     })
@@ -69,12 +83,14 @@ export async function POST(request: Request, { params }: RouteContext) {
       .select('*')
       .eq('id', jobId)
       .eq('user_id', user.id)
-      .eq('workspace_subject', workspaceSubject)
+      .eq('workspace_subject', requestedWorkspaceSubject)
       .maybeSingle()
 
     if (jobError || !job) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '작업을 찾을 수 없습니다.' } }, { status: 404 })
     }
+
+    const workspaceSubject = normalizeWorkspaceSubject((job as { workspace_subject?: string | null }).workspace_subject)
 
     const { data: existingItems, error: existingItemsError } = await supabase
       .from('generate_listboard_generation_job_items')
@@ -230,8 +246,8 @@ export async function POST(request: Request, { params }: RouteContext) {
       }
     }
 
-    revalidatePath('/generate/boards/[slug]/posts/[postId]/jobs/[jobId]', 'page')
-    revalidatePath('/library/purchased', 'page')
+    revalidateLegacyAndWorkspacePath('/generate/boards/[slug]/posts/[postId]/jobs/[jobId]', 'page', workspaceSubject)
+    revalidateLegacyAndWorkspacePath('/library/purchased', 'page', workspaceSubject)
 
     return NextResponse.json({
       success: true,

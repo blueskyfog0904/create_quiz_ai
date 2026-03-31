@@ -48,6 +48,7 @@ import {
   type LegacyMarketChildSummary,
 } from '@/lib/market-menu-server'
 import type { MarketMenuEntryAdminRow } from '@/lib/market-menu'
+import { DEFAULT_WORKSPACE_SUBJECT, withWorkspacePrefix } from '@/lib/workspace-subject'
 import type { TablesInsert, TablesUpdate } from '@/types/supabase'
 
 export interface MenuManagementPageData {
@@ -73,11 +74,16 @@ export interface MenuManagementPageData {
 }
 
 function revalidateMenuRelatedPaths() {
-  revalidatePath('/', 'layout')
-  revalidatePath('/generate', 'layout')
-  revalidatePath('/generate/boards', 'layout')
-  revalidatePath('/market', 'layout')
-  revalidatePath('/library/purchased', 'layout')
+  const revalidateLegacyAndEnglishPath = (path: string, type: 'layout' | 'page') => {
+    revalidatePath(path, type)
+    revalidatePath(withWorkspacePrefix(DEFAULT_WORKSPACE_SUBJECT, path), type)
+  }
+
+  revalidateLegacyAndEnglishPath('/', 'layout')
+  revalidateLegacyAndEnglishPath('/generate', 'layout')
+  revalidateLegacyAndEnglishPath('/generate/boards', 'layout')
+  revalidateLegacyAndEnglishPath('/market', 'layout')
+  revalidateLegacyAndEnglishPath('/library/purchased', 'layout')
   revalidatePath('/admin')
   revalidatePath('/admin/menu-management')
 }

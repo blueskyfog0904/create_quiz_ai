@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { DEFAULT_WORKSPACE_SUBJECT, withWorkspacePrefix } from '@/lib/workspace-subject';
 
 export interface DisplayLabel {
   id: string;
@@ -11,6 +12,11 @@ export interface DisplayLabel {
   sort_order: number;
   created_at: string;
   updated_at: string;
+}
+
+function revalidateLegacyAndEnglishPath(path: string, type: 'layout' | 'page' = 'page') {
+  revalidatePath(path, type);
+  revalidatePath(withWorkspacePrefix(DEFAULT_WORKSPACE_SUBJECT, path), type);
 }
 
 // Get all display labels
@@ -88,7 +94,7 @@ export async function updateDisplayLabel(
   }
   
   revalidatePath('/admin/labels');
-  revalidatePath('/library/purchased');
+  revalidateLegacyAndEnglishPath('/library/purchased');
   
   return { success: true };
 }
@@ -117,6 +123,7 @@ export async function addDisplayLabel(
   }
   
   revalidatePath('/admin/labels');
+  revalidateLegacyAndEnglishPath('/library/purchased');
   
   return { success: true };
 }
@@ -136,6 +143,7 @@ export async function deleteDisplayLabel(id: string): Promise<{ success: boolean
   }
   
   revalidatePath('/admin/labels');
+  revalidateLegacyAndEnglishPath('/library/purchased');
   
   return { success: true };
 }

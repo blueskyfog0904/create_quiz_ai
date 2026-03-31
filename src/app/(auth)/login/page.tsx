@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { parseWorkspaceSubjectFromPath, stripWorkspacePrefix, withWorkspacePrefix } from '@/lib/workspace-subject'
 
 const errorMessages: Record<string, string> = {
   access_denied: '카카오 로그인 동의가 취소되었습니다. 다시 시도해주세요.',
@@ -37,15 +38,45 @@ function getKakaoErrorMessage(error: string | null, description: string | null) 
   return null
 }
 
+function getWorkspaceHomePath(path: string) {
+  const subject = parseWorkspaceSubjectFromPath(path)
+  return subject ? withWorkspacePrefix(subject, '/') : '/'
+}
+
+function normalizeInternalPath(path: string | null) {
+  if (!path) {
+    return '/'
+  }
+
+  const trimmed = path.trim()
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//')) {
+    return '/'
+  }
+
+  try {
+    const url = new URL(trimmed, 'http://localhost')
+    const pathname = url.pathname
+    const scopedPath = stripWorkspacePrefix(pathname).scopedPath
+
+    if (pathname === '/login' || pathname === '/signup' || scopedPath === '/login' || scopedPath === '/signup') {
+      return getWorkspaceHomePath(pathname)
+    }
+
+    return `${pathname}${url.search}${url.hash}`
+  } catch {
+    return '/'
+  }
+}
+
 function LoginContent() {
   const [isLoading, setIsLoading] = useState(false)
   const searchParams = useSearchParams()
 
-  const next = searchParams.get('next') ?? '/'
+  const next = normalizeInternalPath(searchParams.get('next'))
   const errorCode = searchParams.get('error')
   const errorDescription = searchParams.get('error_description')
   const errorMessage = getKakaoErrorMessage(errorCode, errorDescription)
-
+  const nextQuery = next === '/' ? '' : `?${new URLSearchParams({ next }).toString()}`
   const callbackPath = new URLSearchParams({ next }).toString()
 
   async function handleEmailLogin(formData: FormData) {
@@ -63,8 +94,7 @@ function LoginContent() {
         
         if (session) {
           toast.success('로그인이 되었습니다.')
-          // Force full page reload to ensure session is properly set
-          window.location.href = '/'
+          window.location.assign(next)
         } else {
           toast.error('세션을 확인할 수 없습니다. 다시 시도해주세요.')
           setIsLoading(false)
@@ -157,7 +187,7 @@ function LoginContent() {
         </CardContent>
         <CardFooter className="flex flex-col gap-2 pb-8">
           <div className="text-sm text-center text-gray-500">
-            계정이 없으신가요? <Link href="/signup" className="underline underline-offset-4 hover:text-primary font-medium ml-1">회원가입</Link>
+            계정이 없으신가요? <Link href={`/signup${nextQuery}`} className="underline underline-offset-4 hover:text-primary font-medium ml-1">회원가입</Link>
           </div>
         </CardFooter>
       </Card>

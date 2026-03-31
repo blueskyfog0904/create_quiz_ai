@@ -1,16 +1,35 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { parseWorkspaceSubjectFromPath, stripWorkspacePrefix, withWorkspacePrefix } from '@/lib/workspace-subject'
+
+const getWorkspaceHomePath = (path: string) => {
+  const subject = parseWorkspaceSubjectFromPath(path)
+  return subject ? withWorkspacePrefix(subject, '/') : '/'
+}
 
 const normalizeInternalPath = (path: string | null) => {
-  if (!path || path === '/signup') {
+  if (!path) {
     return '/'
   }
 
-  if (!path.startsWith('/') || path.startsWith('//')) {
+  const trimmed = path.trim()
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//')) {
     return '/'
   }
 
-  return path
+  try {
+    const url = new URL(trimmed, 'http://localhost')
+    const pathname = url.pathname
+    const scopedPath = stripWorkspacePrefix(pathname).scopedPath
+
+    if (pathname === '/login' || pathname === '/signup' || scopedPath === '/login' || scopedPath === '/signup') {
+      return getWorkspaceHomePath(pathname)
+    }
+
+    return `${pathname}${url.search}${url.hash}`
+  } catch {
+    return '/'
+  }
 }
 
 export async function updateSession(request: NextRequest) {
