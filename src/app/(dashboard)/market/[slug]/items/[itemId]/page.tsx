@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireAuth } from '@/lib/auth'
-import { getVisibleMarketMenuEntryBySlug } from '@/lib/market-menu-server'
+import { DEFAULT_WORKSPACE_SUBJECT } from '@/lib/workspace-subject'
 import {
+  getVisibleMarketMenuEntryBySlugForWorkspace,
   getPublishedMarketItemById,
   listCompletedMarketPurchasesForItem,
   listMarketItemFiles,
@@ -36,18 +37,18 @@ export default async function MarketItemDetailPage({ params }: MarketItemDetailP
   const user = await requireAuth()
   const { slug, itemId } = await params
 
-  const category = await getVisibleMarketMenuEntryBySlug(slug)
+  const category = await getVisibleMarketMenuEntryBySlugForWorkspace(slug, DEFAULT_WORKSPACE_SUBJECT)
   if (!category) {
     notFound()
   }
 
-  const item = await getPublishedMarketItemById(itemId)
+  const item = await getPublishedMarketItemById(itemId, category.workspace_subject)
   if (!item || item.menu_entry_id !== category.id) {
     notFound()
   }
 
-  const files = await listMarketItemFiles(item.id)
-  const purchases = await listCompletedMarketPurchasesForItem(user.id, item.id)
+  const files = await listMarketItemFiles(item.id, false, item.workspace_subject)
+  const purchases = await listCompletedMarketPurchasesForItem(user.id, item.id, item.workspace_subject)
   const hasSample = files.some((file) => file.asset_kind === 'sample')
   const hasPdf = files.some((file) => file.asset_kind === 'pdf')
   const hasHwp = files.some((file) => file.asset_kind === 'hwp')

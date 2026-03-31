@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { DEFAULT_WORKSPACE_SUBJECT } from '@/lib/workspace-subject'
 import {
   findCompletedMarketPurchase,
   getMarketItemById,
@@ -36,8 +37,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
   try {
     const item = assetKind === 'sample'
-      ? await getPublishedMarketItemById(itemId)
-      : await getMarketItemById(itemId)
+      ? await getPublishedMarketItemById(itemId, DEFAULT_WORKSPACE_SUBJECT)
+      : await getMarketItemById(itemId, DEFAULT_WORKSPACE_SUBJECT)
 
     if (item && assetKind !== 'sample' && item.deleted_at !== null) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
@@ -47,14 +48,14 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
 
-    const file = await getActiveMarketItemFile(itemId, assetKind)
+    const file = await getActiveMarketItemFile(itemId, assetKind, item.workspace_subject)
     if (!file) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '요청한 파일 자산을 찾을 수 없습니다.' } }, { status: 404 })
     }
 
     let purchaseId: string | null = null
     if (assetKind !== 'sample') {
-      const purchase = await findCompletedMarketPurchase(user.id, itemId, assetKind)
+      const purchase = await findCompletedMarketPurchase(user.id, itemId, assetKind, item.workspace_subject)
       if (!purchase) {
         return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: '구매 후 다운로드할 수 있습니다.' } }, { status: 403 })
       }
@@ -83,6 +84,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       purchase_id: purchaseId,
       user_id: user.id,
       ip_address: getIpAddress(request),
+      workspace_subject: item.workspace_subject,
     })
 
     return NextResponse.redirect(data.signedUrl)

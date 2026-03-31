@@ -67,7 +67,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     }, assetKindValue)
 
     const adminSupabase = createAdminClient()
-    const storagePath = buildMarketStoragePath(item.id, assetKindValue, fileValue.name)
+    const storagePath = buildMarketStoragePath(item.workspace_subject, item.id, assetKindValue, fileValue.name)
     const fileBuffer = Buffer.from(await fileValue.arrayBuffer())
 
     const { error: uploadError } = await adminSupabase

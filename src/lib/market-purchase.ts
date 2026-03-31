@@ -1,5 +1,6 @@
 import type { TablesInsert } from '@/types/supabase'
 import { CreditService, type DeductResult } from '@/lib/credits'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import {
   findCompletedMarketPurchase,
   getActiveMarketItemFile,
@@ -20,13 +21,17 @@ export function resolveMarketAssetPrice(
   return assetKind === 'pdf' ? item.pdf_price : item.hwp_price
 }
 
-export async function ensureMarketItemIsPurchasable(itemId: string, assetKind: MarketPaidAssetKind) {
-  const item = await getMarketItemById(itemId)
+export async function ensureMarketItemIsPurchasable(
+  itemId: string,
+  assetKind: MarketPaidAssetKind,
+  workspaceSubject?: WorkspaceSubject
+) {
+  const item = await getMarketItemById(itemId, workspaceSubject)
   if (!item || item.deleted_at !== null || item.is_active === false || item.status !== 'published') {
     throw new Error('구매 가능한 문제마켓 상품을 찾을 수 없습니다.')
   }
 
-  const file = await getActiveMarketItemFile(itemId, assetKind)
+  const file = await getActiveMarketItemFile(itemId, assetKind, item.workspace_subject)
   if (!file) {
     throw new Error('요청한 파일 자산을 찾을 수 없습니다.')
   }
@@ -39,8 +44,13 @@ export async function ensureMarketItemIsPurchasable(itemId: string, assetKind: M
   return { item, file, price }
 }
 
-export async function ensureUserDoesNotOwnMarketAsset(userId: string, itemId: string, assetKind: MarketPaidAssetKind) {
-  const purchase = await findCompletedMarketPurchase(userId, itemId, assetKind)
+export async function ensureUserDoesNotOwnMarketAsset(
+  userId: string,
+  itemId: string,
+  assetKind: MarketPaidAssetKind,
+  workspaceSubject?: WorkspaceSubject
+) {
+  const purchase = await findCompletedMarketPurchase(userId, itemId, assetKind, workspaceSubject)
   if (purchase) {
     throw new Error('이미 구매한 파일입니다.')
   }
@@ -66,12 +76,14 @@ export function buildMarketPurchaseInsert(
   userId: string,
   itemId: string,
   assetKind: MarketPaidAssetKind,
-  price: number
-): TablesInsert<'market_purchases'> {
+  price: number,
+  workspaceSubject: WorkspaceSubject
+): TablesInsert<'market_purchases'> & { workspace_subject: WorkspaceSubject } {
   return {
     user_id: userId,
     item_id: itemId,
     asset_kind: assetKind,
+    workspace_subject: workspaceSubject,
     price_credits: price,
     status: 'completed',
     credit_resource_type: buildMarketPurchaseResourceType(assetKind),

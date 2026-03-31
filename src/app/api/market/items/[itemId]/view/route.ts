@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
+import { DEFAULT_WORKSPACE_SUBJECT } from '@/lib/workspace-subject'
 import {
   getPublishedMarketItemById,
   incrementMarketItemViewCount,
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 
   try {
-    const item = await getPublishedMarketItemById(itemId)
+    const item = await getPublishedMarketItemById(itemId, DEFAULT_WORKSPACE_SUBJECT)
     if (!item) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
@@ -46,8 +47,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       user_id: user.id,
       ip_hash: hashIpAddress(request),
       session_key: getSessionKey(request),
+      workspace_subject: item.workspace_subject,
     })
-    await incrementMarketItemViewCount(itemId)
+    await incrementMarketItemViewCount(itemId, item.workspace_subject)
 
     return NextResponse.json({ success: true })
   } catch (error) {

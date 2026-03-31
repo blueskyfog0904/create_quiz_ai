@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { CreditService } from '@/lib/credits'
+import { DEFAULT_WORKSPACE_SUBJECT } from '@/lib/workspace-subject'
 import {
   createMarketPurchase,
   findCompletedMarketPurchase,
@@ -67,7 +68,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       }, { status: 400 })
     }
 
-    const existingPurchase = await findCompletedMarketPurchase(user.id, itemId, parsed.data.assetKind)
+    const existingPurchase = await findCompletedMarketPurchase(
+      user.id,
+      itemId,
+      parsed.data.assetKind,
+      DEFAULT_WORKSPACE_SUBJECT
+    )
     if (existingPurchase) {
       return NextResponse.json({
         success: false,
@@ -75,7 +81,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       }, { status: 409 })
     }
 
-    const { item, price } = await ensureMarketItemIsPurchasable(itemId, parsed.data.assetKind)
+    const { item, price } = await ensureMarketItemIsPurchasable(itemId, parsed.data.assetKind, DEFAULT_WORKSPACE_SUBJECT)
     purchaseContext = {
       assetKind: parsed.data.assetKind,
       price,
@@ -103,7 +109,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     }
 
     const purchase = await createMarketPurchase({
-      ...buildMarketPurchaseInsert(user.id, item.id, parsed.data.assetKind, price),
+      ...buildMarketPurchaseInsert(user.id, item.id, parsed.data.assetKind, price, item.workspace_subject),
       credit_resource_id: item.id,
     })
 

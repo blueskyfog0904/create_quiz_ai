@@ -69,7 +69,7 @@ export async function GET(_: Request, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
 
-    const files = await listMarketItemFiles(id, true)
+    const files = await listMarketItemFiles(id, true, item.workspace_subject)
 
     return NextResponse.json({ success: true, data: { item, files } })
   } catch (error) {
@@ -106,7 +106,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       }, { status: 400 })
     }
 
-    let item = await updateMarketItem(id, {
+    const item = await updateMarketItem(id, {
+      menu_entry_id: parsed.data.menuEntryId,
       title: parsed.data.title,
       summary: parsed.data.summary,
       description: parsed.data.description,
@@ -126,26 +127,6 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       is_active: parsed.data.isActive,
       updated_by: user.id,
     })
-
-    if (parsed.data.menuEntryId && parsed.data.menuEntryId !== item.menu_entry_id) {
-      const adminSupabase = createAdminClient()
-      const { data: movedItem, error: moveError } = await adminSupabase
-        .from('market_items')
-        .update({
-          menu_entry_id: parsed.data.menuEntryId,
-          updated_by: user.id,
-        })
-        .eq('id', id)
-        .is('deleted_at', null)
-        .select('*')
-        .single()
-
-      if (moveError) {
-        throw new Error(moveError.message)
-      }
-
-      item = movedItem
-    }
 
     return NextResponse.json({ success: true, data: item })
   } catch (error) {
@@ -178,7 +159,7 @@ export async function DELETE(_: Request, { params }: RouteContext) {
     }
 
     const adminSupabase = createAdminClient()
-    const files = await listMarketItemFiles(id, true)
+    const files = await listMarketItemFiles(id, true, item.workspace_subject)
     const storageTargets = new Map<string, string[]>()
 
     for (const file of files) {
@@ -203,6 +184,7 @@ export async function DELETE(_: Request, { params }: RouteContext) {
       .from('market_items')
       .delete()
       .eq('id', id)
+      .eq('workspace_subject', item.workspace_subject)
 
     if (error) {
       throw new Error(error.message)

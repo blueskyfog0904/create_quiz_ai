@@ -1,3 +1,5 @@
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
+
 export const MARKET_STORAGE_BUCKET = 'market-files'
 export const MARKET_ALLOWED_EXTENSIONS = ['pdf', 'hwp'] as const
 export type MarketAllowedExtension = typeof MARKET_ALLOWED_EXTENSIONS[number]
@@ -46,8 +48,13 @@ export function assertMarketUploadIsAllowed(file: MarketUploadDescriptor, assetK
   }
 }
 
-export function buildMarketStoragePath(itemId: string, assetKind: 'sample' | 'pdf' | 'hwp', fileName: string) {
+export function buildMarketStoragePath(
+  workspaceSubject: WorkspaceSubject,
+  itemId: string,
+  assetKind: 'sample' | 'pdf' | 'hwp',
+  fileName: string
+) {
   const safeName = normalizeFileName(fileName)
   const timestamp = Date.now()
-  return `market/${itemId}/${assetKind}/${timestamp}-${safeName}`
+  return `market/${workspaceSubject}/${itemId}/${assetKind}/${timestamp}-${safeName}`
 }

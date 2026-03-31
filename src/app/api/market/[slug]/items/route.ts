@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { listPublishedMarketItems, type MarketItemListFilters } from '@/lib/market-items-server'
-import { getVisibleMarketMenuEntryBySlug } from '@/lib/market-menu-server'
+import { DEFAULT_WORKSPACE_SUBJECT } from '@/lib/workspace-subject'
+import {
+  getVisibleMarketMenuEntryBySlugForWorkspace,
+  listPublishedMarketItems,
+  type MarketItemListFilters,
+} from '@/lib/market-items-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +33,7 @@ export async function GET(request: Request, { params }: RouteContext) {
   }
 
   try {
-    const marketMenuEntry = await getVisibleMarketMenuEntryBySlug(slug)
+    const marketMenuEntry = await getVisibleMarketMenuEntryBySlugForWorkspace(slug, DEFAULT_WORKSPACE_SUBJECT)
     if (!marketMenuEntry) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 카테고리를 찾을 수 없습니다.' } }, { status: 404 })
     }

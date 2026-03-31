@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { CreditService } from '@/lib/credits'
+import { DEFAULT_WORKSPACE_SUBJECT } from '@/lib/workspace-subject'
 import {
   createMarketPurchases,
   findCompletedMarketPurchase,
@@ -73,10 +74,16 @@ export async function POST(request: NextRequest) {
       assetKind: MarketPaidAssetKind
       title: string
       price: number
+      workspaceSubject: 'english' | 'korean'
     }> = []
 
     for (const selection of dedupedSelections) {
-      const existingPurchase = await findCompletedMarketPurchase(user.id, selection.itemId, selection.assetKind)
+      const existingPurchase = await findCompletedMarketPurchase(
+        user.id,
+        selection.itemId,
+        selection.assetKind,
+        DEFAULT_WORKSPACE_SUBJECT
+      )
       if (existingPurchase) {
         return NextResponse.json({
           success: false,
@@ -84,12 +91,17 @@ export async function POST(request: NextRequest) {
         }, { status: 409 })
       }
 
-      const { item, price } = await ensureMarketItemIsPurchasable(selection.itemId, selection.assetKind)
+      const { item, price } = await ensureMarketItemIsPurchasable(
+        selection.itemId,
+        selection.assetKind,
+        DEFAULT_WORKSPACE_SUBJECT
+      )
       purchaseTargets.push({
         itemId: item.id,
         assetKind: selection.assetKind,
         title: item.title,
         price,
+        workspaceSubject: item.workspace_subject,
       })
     }
 
@@ -117,7 +129,13 @@ export async function POST(request: NextRequest) {
 
     const purchases = await createMarketPurchases(
       purchaseTargets.map((target) => ({
-        ...buildMarketPurchaseInsert(user.id, target.itemId, target.assetKind, target.price),
+        ...buildMarketPurchaseInsert(
+          user.id,
+          target.itemId,
+          target.assetKind,
+          target.price,
+          target.workspaceSubject
+        ),
         credit_resource_id: target.itemId,
       }))
     )
