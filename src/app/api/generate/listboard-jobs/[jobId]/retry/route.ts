@@ -5,6 +5,7 @@ import { CreditService } from '@/lib/credits'
 import { AIGenerationService } from '@/lib/ai'
 import type { AIProvider } from '@/lib/ai/types'
 import { stagedGeneratedQuestionToJson } from '@/lib/questions/generated-question-staging'
+import { resolveGenerateWorkspaceSubject } from '@/app/(dashboard)/generate/workspace-subject'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,10 +79,15 @@ interface RouteContext {
   params: Promise<{ jobId: string }>
 }
 
-export async function POST(_: Request, { params }: RouteContext) {
+export async function POST(request: Request, { params }: RouteContext) {
   const supabase = await createClient()
   const adminSupabase = createAdminClient()
   const { jobId } = await params
+  const requestUrl = new URL(request.url)
+  const workspaceSubject = resolveGenerateWorkspaceSubject({
+    workspaceSubject: requestUrl.searchParams.get('workspaceSubject'),
+    referer: request.headers.get('referer'),
+  })
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
@@ -92,6 +98,8 @@ export async function POST(_: Request, { params }: RouteContext) {
     .from('generate_listboard_generation_jobs')
     .select('*')
     .eq('id', jobId)
+    .eq('user_id', user.id)
+    .eq('workspace_subject', workspaceSubject)
     .maybeSingle()
 
   if (jobError || !job) {
@@ -105,6 +113,7 @@ export async function POST(_: Request, { params }: RouteContext) {
       finished_at: null,
     })
     .eq('id', job.id)
+    .eq('workspace_subject', workspaceSubject)
     .neq('status', 'running')
     .select('id')
 
@@ -120,6 +129,7 @@ export async function POST(_: Request, { params }: RouteContext) {
     .from('generate_listboard_generation_job_items')
     .select('*')
     .eq('job_id', job.id)
+    .eq('workspace_subject', workspaceSubject)
     .eq('status', 'failed')
     .order('created_at')
 
@@ -134,6 +144,7 @@ export async function POST(_: Request, { params }: RouteContext) {
         status: job.status,
       })
       .eq('id', job.id)
+      .eq('workspace_subject', workspaceSubject)
 
     return NextResponse.json({ success: false, error: { code: 'NO_FAILED_ITEMS', message: '재시도할 실패 항목이 없습니다.' } }, { status: 400 })
   }
@@ -147,6 +158,7 @@ export async function POST(_: Request, { params }: RouteContext) {
         finished_at: null,
       })
       .eq('id', item.id)
+      .eq('workspace_subject', workspaceSubject)
       .eq('status', 'failed')
       .select('*')
 
@@ -164,6 +176,7 @@ export async function POST(_: Request, { params }: RouteContext) {
         status: job.status,
       })
       .eq('id', job.id)
+      .eq('workspace_subject', workspaceSubject)
 
     return NextResponse.json({ success: false, error: { code: 'NO_FAILED_ITEMS', message: '이미 다른 요청에서 재시도 중입니다.' } }, { status: 409 })
   }
@@ -178,6 +191,7 @@ export async function POST(_: Request, { params }: RouteContext) {
         started_at: null,
       })
       .in('id', claimedItems.map((item) => item.id))
+      .eq('workspace_subject', workspaceSubject)
 
     await adminSupabase
       .from('generate_listboard_generation_jobs')
@@ -185,6 +199,7 @@ export async function POST(_: Request, { params }: RouteContext) {
         status: job.status,
       })
       .eq('id', job.id)
+      .eq('workspace_subject', workspaceSubject)
 
     return NextResponse.json({ success: false, error: { code: 'INSUFFICIENT_CREDITS', message: '크레딧이 부족합니다.' } }, { status: 402 })
   }
@@ -196,12 +211,14 @@ export async function POST(_: Request, { params }: RouteContext) {
     supabase
       .from('generate_listboard_post_items')
       .select('id, passage_text')
+      .eq('workspace_subject', workspaceSubject)
       .eq('is_active', true)
       .is('deleted_at', null)
       .in('id', postItemIds),
     supabase
       .from('problem_types')
       .select('*')
+      .eq('workspace_subject', workspaceSubject)
       .eq('is_active', true)
       .neq('model_name', 'admin')
       .in('id', problemTypeIds),
@@ -215,6 +232,7 @@ export async function POST(_: Request, { params }: RouteContext) {
         started_at: null,
       })
       .in('id', claimedItems.map((item) => item.id))
+      .eq('workspace_subject', workspaceSubject)
 
     await adminSupabase
       .from('generate_listboard_generation_jobs')
@@ -222,6 +240,7 @@ export async function POST(_: Request, { params }: RouteContext) {
         status: job.status,
       })
       .eq('id', job.id)
+      .eq('workspace_subject', workspaceSubject)
 
     return NextResponse.json({
       success: false,
@@ -247,6 +266,7 @@ export async function POST(_: Request, { params }: RouteContext) {
         started_at: null,
       })
       .in('id', claimedItems.map((item) => item.id))
+      .eq('workspace_subject', workspaceSubject)
 
     await adminSupabase
       .from('generate_listboard_generation_jobs')
@@ -254,6 +274,7 @@ export async function POST(_: Request, { params }: RouteContext) {
         status: job.status,
       })
       .eq('id', job.id)
+      .eq('workspace_subject', workspaceSubject)
 
     return NextResponse.json({
       success: false,
@@ -275,6 +296,7 @@ export async function POST(_: Request, { params }: RouteContext) {
       finished_at: null,
     })
     .eq('id', job.id)
+    .eq('workspace_subject', workspaceSubject)
 
   for (const jobItem of claimedItems) {
     const postItem = postItemMap.get(jobItem.post_item_id)
@@ -292,6 +314,7 @@ export async function POST(_: Request, { params }: RouteContext) {
           finished_at: new Date().toISOString(),
         })
         .eq('id', jobItem.id)
+        .eq('workspace_subject', workspaceSubject)
       continue
     }
 
@@ -312,6 +335,7 @@ export async function POST(_: Request, { params }: RouteContext) {
         attempt_count: (jobItem.attempt_count ?? 0) + 1,
       })
       .eq('id', jobItem.id)
+      .eq('workspace_subject', workspaceSubject)
 
     try {
       const result = await AIGenerationService.generate({
@@ -342,6 +366,7 @@ export async function POST(_: Request, { params }: RouteContext) {
           finished_at: new Date().toISOString(),
         })
         .eq('id', jobItem.id)
+        .eq('workspace_subject', workspaceSubject)
 
       if (completeUpdateError) {
         throw new Error(completeUpdateError.message)
@@ -364,6 +389,7 @@ export async function POST(_: Request, { params }: RouteContext) {
           finished_at: new Date().toISOString(),
         })
         .eq('id', jobItem.id)
+        .eq('workspace_subject', workspaceSubject)
 
       if (failedUpdateError) {
         console.error('Failed to persist batch retry failure state:', failedUpdateError)
@@ -386,6 +412,7 @@ export async function POST(_: Request, { params }: RouteContext) {
     .from('generate_listboard_generation_job_items')
     .select('status')
     .eq('job_id', job.id)
+    .eq('workspace_subject', workspaceSubject)
 
   if (allJobItemsError) {
     return NextResponse.json({ success: false, error: { code: 'INTERNAL_SERVER_ERROR', message: allJobItemsError.message } }, { status: 500 })
@@ -411,6 +438,7 @@ export async function POST(_: Request, { params }: RouteContext) {
       finished_at: new Date().toISOString(),
     })
     .eq('id', job.id)
+    .eq('workspace_subject', workspaceSubject)
 
   return NextResponse.json({
     success: true,

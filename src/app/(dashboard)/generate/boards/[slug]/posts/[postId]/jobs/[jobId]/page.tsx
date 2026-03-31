@@ -3,6 +3,14 @@ import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { getGenerateBoardBySlug, getGenerateBoardPost } from '../../../../../data'
 import JobStatusClient from './job-status-client'
+import {
+  DEFAULT_GENERATE_WORKSPACE_SUBJECT,
+  type WorkspaceScoped,
+} from '../../../../../../workspace-subject'
+import type { Database } from '@/types/supabase'
+
+type GenerateListboardGenerationJob = WorkspaceScoped<Database['public']['Tables']['generate_listboard_generation_jobs']['Row']>
+type GenerateListboardGenerationJobItem = WorkspaceScoped<Database['public']['Tables']['generate_listboard_generation_job_items']['Row']>
 
 interface GenerateBoardJobPageProps {
   params: Promise<{ slug: string; postId: string; jobId: string }>
@@ -10,51 +18,65 @@ interface GenerateBoardJobPageProps {
 }
 
 export default async function GenerateBoardJobPage({ params, searchParams }: GenerateBoardJobPageProps) {
-  await requireAuth()
+  const user = await requireAuth()
   const { slug, postId, jobId } = await params
   const resolvedSearchParams = await searchParams
+  const workspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
 
-  const board = await getGenerateBoardBySlug(slug)
+  const board = await getGenerateBoardBySlug(slug, workspaceSubject)
   if (!board) {
     notFound()
   }
 
-  const post = await getGenerateBoardPost(board.id, postId)
+  const post = await getGenerateBoardPost(board.id, postId, workspaceSubject)
   if (!post) {
     notFound()
   }
 
   const supabase = await createClient()
-  const { data: job, error: jobError } = await supabase
+  const { data: jobData, error: jobError } = await supabase
     .from('generate_listboard_generation_jobs')
     .select('*')
     .eq('id', jobId)
     .eq('post_id', post.id)
+    .eq('user_id', user.id)
+    .eq('workspace_subject', workspaceSubject)
     .maybeSingle()
 
-  if (jobError || !job) {
+  if (jobError || !jobData) {
     notFound()
   }
+  const job = jobData as GenerateListboardGenerationJob
 
-  const { data: jobItems, error: jobItemsError } = await supabase
+  const { data: jobItemsData, error: jobItemsError } = await supabase
     .from('generate_listboard_generation_job_items')
     .select('*')
     .eq('job_id', job.id)
+    .eq('workspace_subject', workspaceSubject)
     .order('created_at')
 
   if (jobItemsError) {
     throw new Error(jobItemsError.message)
   }
+  const jobItems = (jobItemsData ?? []) as GenerateListboardGenerationJobItem[]
 
-  const postItemIds = Array.from(new Set((jobItems ?? []).map((item) => item.post_item_id)))
-  const problemTypeIds = Array.from(new Set((jobItems ?? []).map((item) => item.problem_type_id)))
+  const postItemIds = Array.from(new Set(jobItems.map((item) => item.post_item_id)))
+  const problemTypeIds = Array.from(new Set(jobItems.map((item) => item.problem_type_id)))
 
   const [{ data: postItems }, { data: problemTypes }] = await Promise.all([
     postItemIds.length > 0
-      ? supabase.from('generate_listboard_post_items').select('id, question_number').in('id', postItemIds)
+      ? supabase
+        .from('generate_listboard_post_items')
+        .select('id, question_number')
+        .eq('workspace_subject', workspaceSubject)
+        .in('id', postItemIds)
       : Promise.resolve({ data: [] as Array<{ id: string; question_number: string }> }),
     problemTypeIds.length > 0
-      ? supabase.from('problem_types').select('id, type_name').in('id', problemTypeIds)
+      ? supabase
+        .from('problem_types')
+        .select('id, type_name')
+        .eq('workspace_subject', workspaceSubject)
+        .in('id', problemTypeIds)
       : Promise.resolve({ data: [] as Array<{ id: string; type_name: string }> }),
   ])
 
@@ -68,11 +90,12 @@ export default async function GenerateBoardJobPage({ params, searchParams }: Gen
       initialJob={job}
       initialGradeLevel={resolvedSearchParams.gradeLevel}
       initialDifficulty={resolvedSearchParams.difficulty}
-      initialItems={(jobItems ?? []).map((item) => ({
+      initialItems={jobItems.map((item) => ({
         ...item,
         question_number: postItemMap.get(item.post_item_id) ?? '-',
         problem_type_name: problemTypeMap.get(item.problem_type_id) ?? '-',
       }))}
+      workspaceSubject={workspaceSubject}
     />
   )
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { resolveGenerateWorkspaceSubject } from '@/app/(dashboard)/generate/workspace-subject'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,9 +8,14 @@ interface RouteContext {
   params: Promise<{ jobId: string }>
 }
 
-export async function GET(_: Request, { params }: RouteContext) {
+export async function GET(request: Request, { params }: RouteContext) {
   const supabase = await createClient()
   const { jobId } = await params
+  const requestUrl = new URL(request.url)
+  const workspaceSubject = resolveGenerateWorkspaceSubject({
+    workspaceSubject: requestUrl.searchParams.get('workspaceSubject'),
+    referer: request.headers.get('referer'),
+  })
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
@@ -20,6 +26,8 @@ export async function GET(_: Request, { params }: RouteContext) {
     .from('generate_listboard_generation_jobs')
     .select('*')
     .eq('id', jobId)
+    .eq('user_id', user.id)
+    .eq('workspace_subject', workspaceSubject)
     .maybeSingle()
 
   if (jobError || !job) {
@@ -30,6 +38,7 @@ export async function GET(_: Request, { params }: RouteContext) {
     .from('generate_listboard_generation_job_items')
     .select('*')
     .eq('job_id', job.id)
+    .eq('workspace_subject', workspaceSubject)
     .order('created_at')
 
   if (jobItemsError) {
@@ -44,10 +53,18 @@ export async function GET(_: Request, { params }: RouteContext) {
 
   const [{ data: postItems }, { data: problemTypes }] = await Promise.all([
     postItemIds.length > 0
-      ? supabase.from('generate_listboard_post_items').select('id, question_number').in('id', postItemIds)
+      ? supabase
+        .from('generate_listboard_post_items')
+        .select('id, question_number')
+        .eq('workspace_subject', workspaceSubject)
+        .in('id', postItemIds)
       : Promise.resolve({ data: [] as Array<{ id: string; question_number: string }> }),
     problemTypeIds.length > 0
-      ? supabase.from('problem_types').select('id, type_name').in('id', problemTypeIds)
+      ? supabase
+        .from('problem_types')
+        .select('id, type_name')
+        .eq('workspace_subject', workspaceSubject)
+        .in('id', problemTypeIds)
       : Promise.resolve({ data: [] as Array<{ id: string; type_name: string }> }),
   ])
 

@@ -5,6 +5,7 @@ import { AIGenerationService } from '@/lib/ai'
 import { AIProvider } from '@/lib/ai/types'
 import { CreditService } from '@/lib/credits'
 import { randomUUID } from 'crypto'
+import { resolveGenerateWorkspaceSubject } from '@/app/(dashboard)/generate/workspace-subject'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +16,8 @@ const GenerateRequestSchema = z.object({
   passage: z.string().max(3500, 'Passage must be under 3500 characters'), // increased for buffer, UI enforces 3000
   gradeLevel: z.string(),
   difficulty: z.string(),
-  problemTypeId: z.string().uuid()
+  problemTypeId: z.string().uuid(),
+  workspaceSubject: z.enum(['english', 'korean']).optional(),
 })
 
 const toNumberHeader = (value: number | null | undefined) => {
@@ -124,12 +126,17 @@ export async function POST(request: NextRequest) {
     }
 
     const { passage, gradeLevel, difficulty, problemTypeId } = validation.data
+    const workspaceSubject = resolveGenerateWorkspaceSubject({
+      workspaceSubject: validation.data.workspaceSubject,
+      referer: request.headers.get('referer'),
+    })
 
     // 3. Fetch Problem Type
     const { data: problemType, error: dbError } = await supabase
       .from('problem_types')
       .select('*')
       .eq('id', problemTypeId)
+      .eq('workspace_subject', workspaceSubject)
       .single()
 
     if (dbError || !problemType) {

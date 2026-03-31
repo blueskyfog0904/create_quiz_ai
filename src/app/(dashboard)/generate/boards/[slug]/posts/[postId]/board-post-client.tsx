@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
 import type { Database } from '@/types/supabase'
+import type { WorkspaceSubject } from '../../../../workspace-subject'
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
 type GenerateMenuEntry = Database['public']['Tables']['generate_menu_entries']['Row']
@@ -22,6 +23,7 @@ interface BoardPostClientProps {
   post: GenerateListboardPost
   items: GenerateListboardPostItem[]
   problemTypes: ProblemType[]
+  workspaceSubject: WorkspaceSubject
 }
 
 const CREDIT_COST_PER_GENERATION = 100
@@ -37,6 +39,7 @@ export default function BoardPostClient({
   post,
   items,
   problemTypes,
+  workspaceSubject,
 }: BoardPostClientProps) {
   const router = useRouter()
   const [selectedProblemTypeIds, setSelectedProblemTypeIds] = useState<string[]>([])
@@ -146,6 +149,7 @@ export default function BoardPostClient({
           problemTypeIds: selectedProblemTypeIds,
           gradeLevel,
           difficulty,
+          workspaceSubject,
         }),
       })
 

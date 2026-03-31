@@ -7,6 +7,7 @@ import {
   searchGenerateBoardPosts,
   type ListboardSearchFilters,
 } from '../data'
+import { DEFAULT_GENERATE_WORKSPACE_SUBJECT } from '../../workspace-subject'
 
 interface BoardPageProps {
   params: Promise<{ slug: string }>
@@ -22,6 +23,7 @@ export default async function GenerateBoardPage({ params, searchParams }: BoardP
   await requireAuth()
   const { slug } = await params
   const rawFilters = await searchParams
+  const workspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
   const filters: ListboardSearchFilters = {
     year: rawFilters.year?.trim() || '',
     month: rawFilters.month?.trim() || '',
@@ -29,14 +31,14 @@ export default async function GenerateBoardPage({ params, searchParams }: BoardP
     title: rawFilters.title?.trim() || '',
   }
 
-  const board = await getGenerateBoardBySlug(slug)
+  const board = await getGenerateBoardBySlug(slug, workspaceSubject)
   if (!board) {
     notFound()
   }
 
   const [posts, options] = await Promise.all([
-    searchGenerateBoardPosts(board.id, filters),
-    getGenerateBoardFilterOptions(board.id),
+    searchGenerateBoardPosts(board.id, filters, workspaceSubject),
+    getGenerateBoardFilterOptions(board.id, workspaceSubject),
   ])
 
   return (

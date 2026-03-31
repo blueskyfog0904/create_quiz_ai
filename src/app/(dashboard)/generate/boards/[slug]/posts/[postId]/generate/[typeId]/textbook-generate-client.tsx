@@ -16,6 +16,7 @@ import { CreditConfirmationDialog } from '@/components/features/credits/credit-c
 import type { Database } from '@/types/supabase'
 import type { Question } from '@/lib/ai/types'
 import { LISTBOARD_GRADE_OPTIONS, normalizeListboardGradeLevel } from '@/lib/generate-menu'
+import type { WorkspaceSubject } from '../../../../../../workspace-subject'
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
 type GenerateListboardPost = Database['public']['Tables']['generate_listboard_posts']['Row']
@@ -25,6 +26,7 @@ interface TextbookGenerateClientProps {
   board: GenerateMenuEntry
   post: GenerateListboardPost
   problemType: ProblemType
+  workspaceSubject: WorkspaceSubject
 }
 
 interface GeneratedQuestionData {
@@ -32,7 +34,12 @@ interface GeneratedQuestionData {
   rawResponse: string
 }
 
-export default function TextbookGenerateClient({ board, post, problemType }: TextbookGenerateClientProps) {
+export default function TextbookGenerateClient({
+  board,
+  post,
+  problemType,
+  workspaceSubject,
+}: TextbookGenerateClientProps) {
   const router = useRouter()
   const abortControllerRef = useRef<AbortController | null>(null)
   const [gradeLevel, setGradeLevel] = useState(normalizeListboardGradeLevel(post.grade_level) || '1학년')
@@ -98,6 +105,7 @@ export default function TextbookGenerateClient({ board, post, problemType }: Tex
           gradeLevel,
           difficulty,
           problemTypeId: problemType.id,
+          workspaceSubject,
         }),
         signal: abortControllerRef.current.signal,
       })
@@ -148,6 +156,7 @@ export default function TextbookGenerateClient({ board, post, problemType }: Tex
           rawAiResponse: generatedQuestion.rawResponse,
           tags: [],
           rating: 0,
+          workspaceSubject,
         }),
       })
 

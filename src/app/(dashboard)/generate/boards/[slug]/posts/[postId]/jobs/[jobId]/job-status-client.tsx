@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { Database } from '@/types/supabase'
 import { parseStagedGeneratedQuestion } from '@/lib/questions/generated-question-staging'
+import type { WorkspaceSubject } from '../../../../../../workspace-subject'
 
 type GenerateMenuEntry = Database['public']['Tables']['generate_menu_entries']['Row']
 type GenerateListboardPost = Database['public']['Tables']['generate_listboard_posts']['Row']
@@ -30,6 +31,7 @@ interface JobStatusClientProps {
   initialGradeLevel?: string
   initialDifficulty?: string
   initialItems: JobStatusItem[]
+  workspaceSubject: WorkspaceSubject
 }
 
 const TERMINAL_JOB_STATUSES = ['completed', 'failed', 'cancelled', 'partially_completed']
@@ -46,6 +48,7 @@ export default function JobStatusClient({
   initialGradeLevel,
   initialDifficulty,
   initialItems,
+  workspaceSubject,
 }: JobStatusClientProps) {
   const router = useRouter()
   const [job, setJob] = useState(initialJob)
@@ -118,7 +121,8 @@ export default function JobStatusClient({
     }
 
     try {
-      const res = await fetch(`/api/generate/listboard-jobs/${job.id}`, {
+      const params = new URLSearchParams({ workspaceSubject })
+      const res = await fetch(`/api/generate/listboard-jobs/${job.id}?${params.toString()}`, {
         cache: 'no-store',
       })
       const data = await res.json()
@@ -135,7 +139,7 @@ export default function JobStatusClient({
     } finally {
       setIsRefreshing(false)
     }
-  }, [job.id])
+  }, [job.id, workspaceSubject])
 
   useEffect(() => {
     if (TERMINAL_JOB_STATUSES.includes(job.status) && !isStartingRun) {
@@ -171,6 +175,7 @@ export default function JobStatusClient({
           body: JSON.stringify({
             gradeLevel: initialGradeLevel || post.grade_level || '1학년',
             difficulty: initialDifficulty || 'Medium',
+            workspaceSubject,
           }),
         })
 
@@ -188,7 +193,7 @@ export default function JobStatusClient({
     }
 
     void startRun()
-  }, [job.id, job.status, initialDifficulty, initialGradeLevel, post.grade_level, refreshJob])
+  }, [job.id, job.status, initialDifficulty, initialGradeLevel, post.grade_level, refreshJob, workspaceSubject])
 
   useEffect(() => {
     if (!hasStartedRunRef.current) {
@@ -215,7 +220,8 @@ export default function JobStatusClient({
     setIsRetrying(true)
     hasShownCompleteDialogRef.current = false
     try {
-      const res = await fetch(`/api/generate/listboard-jobs/${job.id}/retry`, {
+      const params = new URLSearchParams({ workspaceSubject })
+      const res = await fetch(`/api/generate/listboard-jobs/${job.id}/retry?${params.toString()}`, {
         method: 'POST',
       })
       const data = await res.json()
@@ -258,6 +264,7 @@ export default function JobStatusClient({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          workspaceSubject,
           items: jobItemIds.map((jobItemId) => ({
             jobItemId,
             rating: getDraftMeta(jobItemId).rating,

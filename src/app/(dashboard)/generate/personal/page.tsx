@@ -1,14 +1,17 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import MultiGenerateClient from '../multi/multi-generate-client'
+import { DEFAULT_GENERATE_WORKSPACE_SUBJECT } from '../workspace-subject'
 
 export default async function PersonalGeneratePage() {
   await requireAuth()
   const supabase = await createClient()
+  const workspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
 
   const { data: problemTypes } = await supabase
     .from('problem_types')
     .select('*')
+    .eq('workspace_subject', workspaceSubject)
     .eq('is_active', true)
     .neq('model_name', 'admin')
     .order('type_name')
@@ -22,7 +25,10 @@ export default async function PersonalGeneratePage() {
         </p>
       </div>
 
-      <MultiGenerateClient problemTypes={problemTypes || []} />
+      <MultiGenerateClient
+        problemTypes={problemTypes || []}
+        workspaceSubject={workspaceSubject}
+      />
     </div>
   )
 }

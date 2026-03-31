@@ -20,11 +20,13 @@ import { Textarea } from '@/components/ui/textarea'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
+import type { WorkspaceSubject } from '../workspace-subject'
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
 
 interface GenerateClientProps {
   problemType: ProblemType
+  workspaceSubject: WorkspaceSubject
 }
 
 interface GeneratedQuestionData {
@@ -37,7 +39,7 @@ interface GeneratedQuestionData {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-export default function GenerateClient({ problemType }: GenerateClientProps) {
+export default function GenerateClient({ problemType, workspaceSubject }: GenerateClientProps) {
   const router = useRouter()
   const [passage, setPassage] = useState('')
   const [selectedPassage, setSelectedPassage] = useState<Passage | null>(null)
@@ -209,7 +211,8 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
           passage,
           gradeLevel,
           difficulty,
-          problemTypeId: problemType.id
+          problemTypeId: problemType.id,
+          workspaceSubject,
         }),
         signal
       })
@@ -316,7 +319,8 @@ export default function GenerateClient({ problemType }: GenerateClientProps) {
           rawAiResponse: generatedQuestion.rawResponse,
           passageId: selectedPassage?.id,
           tags: generatedQuestion.tags,
-          rating: generatedQuestion.rating
+          rating: generatedQuestion.rating,
+          workspaceSubject,
         })
       })
 

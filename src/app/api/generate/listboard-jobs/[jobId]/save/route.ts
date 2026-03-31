@@ -6,10 +6,15 @@ import { createAdminClient } from '@/lib/supabase/bypass'
 import type { TablesInsert } from '@/types/supabase'
 import { parseStagedGeneratedQuestion } from '@/lib/questions/generated-question-staging'
 import { normalizeQuestionTextBackward } from '@/lib/questions/normalize-question-field'
+import {
+  resolveGenerateWorkspaceSubject,
+  type WorkspaceSubject,
+} from '@/app/(dashboard)/generate/workspace-subject'
 
 export const dynamic = 'force-dynamic'
 
 const SaveListboardJobItemsSchema = z.object({
+  workspaceSubject: z.enum(['english', 'korean']).optional(),
   items: z.array(z.object({
     jobItemId: z.string().uuid(),
     rating: z.number().int().min(0).max(3).optional(),
@@ -48,6 +53,10 @@ export async function POST(request: Request, { params }: RouteContext) {
       }, { status: 400 })
     }
 
+    const workspaceSubject = resolveGenerateWorkspaceSubject({
+      workspaceSubject: validation.data.workspaceSubject,
+      referer: request.headers.get('referer'),
+    })
     const normalizedItems = validation.data.items.map((item) => ({
       jobItemId: item.jobItemId,
       rating: item.rating ?? 0,
@@ -60,6 +69,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       .select('*')
       .eq('id', jobId)
       .eq('user_id', user.id)
+      .eq('workspace_subject', workspaceSubject)
       .maybeSingle()
 
     if (jobError || !job) {
@@ -70,6 +80,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       .from('generate_listboard_generation_job_items')
       .select('*')
       .eq('job_id', job.id)
+      .eq('workspace_subject', workspaceSubject)
       .in('id', jobItemIds)
 
     if (existingItemsError) {
@@ -103,10 +114,12 @@ export async function POST(request: Request, { params }: RouteContext) {
       supabase
         .from('generate_listboard_post_items')
         .select('id, passage_text')
+        .eq('workspace_subject', workspaceSubject)
         .in('id', postItemIds),
       supabase
         .from('problem_types')
         .select('id')
+        .eq('workspace_subject', workspaceSubject)
         .in('id', problemTypeIds),
     ])
 
@@ -132,6 +145,7 @@ export async function POST(request: Request, { params }: RouteContext) {
         })
         .eq('id', item.id)
         .eq('job_id', job.id)
+        .eq('workspace_subject', workspaceSubject)
         .eq('status', 'completed')
         .is('question_id', null)
         .in('save_status', ['unsaved', 'save_failed'])
@@ -155,8 +169,11 @@ export async function POST(request: Request, { params }: RouteContext) {
           throw new Error('저장에 필요한 생성 결과 또는 참조 데이터를 찾지 못했습니다.')
         }
 
-        const questionPayload: TablesInsert<'questions'> = {
+        const questionPayload: TablesInsert<'questions'> & {
+          workspace_subject: WorkspaceSubject
+        } = {
           user_id: user.id,
+          workspace_subject: workspaceSubject,
           question_text: stagedQuestion.questionText,
           question_text_forward: toDbNull(stagedQuestion.questionTextForward),
           question_text_backward: toDbNull(normalizeQuestionTextBackward(stagedQuestion.questionTextBackward)),
@@ -196,6 +213,7 @@ export async function POST(request: Request, { params }: RouteContext) {
             save_error_message: null,
           })
           .eq('id', lockedItem.id)
+          .eq('workspace_subject', workspaceSubject)
 
         savedCount += 1
         savedQuestionIds.push(savedQuestion.id)
@@ -208,6 +226,7 @@ export async function POST(request: Request, { params }: RouteContext) {
             save_error_message: error instanceof Error ? error.message : '문제 저장 중 오류가 발생했습니다.',
           })
           .eq('id', lockedItem.id)
+          .eq('workspace_subject', workspaceSubject)
       }
     }
 

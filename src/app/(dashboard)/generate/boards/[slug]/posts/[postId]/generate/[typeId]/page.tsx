@@ -4,8 +4,12 @@ import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/types/supabase'
 import { getGenerateBoardBySlug, getGenerateBoardPost } from '../../../../../data'
 import TextbookGenerateClient from './textbook-generate-client'
+import {
+  DEFAULT_GENERATE_WORKSPACE_SUBJECT,
+  type WorkspaceScoped,
+} from '../../../../../../workspace-subject'
 
-type ProblemType = Database['public']['Tables']['problem_types']['Row']
+type ProblemType = WorkspaceScoped<Database['public']['Tables']['problem_types']['Row']>
 
 interface TextbookGeneratePageProps {
   params: Promise<{ slug: string; postId: string; typeId: string }>
@@ -14,13 +18,14 @@ interface TextbookGeneratePageProps {
 export default async function TextbookGeneratePage({ params }: TextbookGeneratePageProps) {
   await requireAuth()
   const { slug, postId, typeId } = await params
-  const board = await getGenerateBoardBySlug(slug)
+  const workspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
+  const board = await getGenerateBoardBySlug(slug, workspaceSubject)
 
   if (!board) {
     notFound()
   }
 
-  const post = await getGenerateBoardPost(board.id, postId)
+  const post = await getGenerateBoardPost(board.id, postId, workspaceSubject)
   if (!post) {
     notFound()
   }
@@ -30,6 +35,7 @@ export default async function TextbookGeneratePage({ params }: TextbookGenerateP
     .from('problem_types')
     .select('*')
     .eq('id', typeId)
+    .eq('workspace_subject', workspaceSubject)
     .eq('is_active', true)
     .single<ProblemType>()
 
@@ -42,6 +48,7 @@ export default async function TextbookGeneratePage({ params }: TextbookGenerateP
       board={board}
       post={post}
       problemType={problemType}
+      workspaceSubject={workspaceSubject}
     />
   )
 }

@@ -3,6 +3,10 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import type { TablesInsert } from '@/types/supabase'
+import {
+  resolveGenerateWorkspaceSubject,
+  type WorkspaceSubject,
+} from '@/app/(dashboard)/generate/workspace-subject'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +18,7 @@ const CreateListboardJobSchema = z.object({
   problemTypeIds: z.array(z.string().uuid()).min(1),
   gradeLevel: z.string().min(1),
   difficulty: z.string().min(1),
+  workspaceSubject: z.enum(['english', 'korean']).optional(),
 })
 
 const unique = (values: string[]) => Array.from(new Set(values))
@@ -38,6 +43,10 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
+    const workspaceSubject = resolveGenerateWorkspaceSubject({
+      workspaceSubject: validation.data.workspaceSubject,
+      referer: request.headers.get('referer'),
+    })
     const postItemIds = unique(validation.data.postItemIds)
     const problemTypeIds = unique(validation.data.problemTypeIds)
 
@@ -45,6 +54,7 @@ export async function POST(request: Request) {
       .from('generate_listboard_posts')
       .select('id, title, grade_level')
       .eq('id', validation.data.postId)
+      .eq('workspace_subject', workspaceSubject)
       .eq('status', 'published')
       .eq('is_active', true)
       .is('deleted_at', null)
@@ -61,6 +71,7 @@ export async function POST(request: Request) {
       .from('generate_listboard_post_items')
       .select('id, question_number, passage_text')
       .eq('post_id', post.id)
+      .eq('workspace_subject', workspaceSubject)
       .eq('is_active', true)
       .is('deleted_at', null)
       .in('id', postItemIds)
@@ -79,6 +90,7 @@ export async function POST(request: Request) {
     const { data: problemTypes, error: problemTypesError } = await supabase
       .from('problem_types')
       .select('*')
+      .eq('workspace_subject', workspaceSubject)
       .eq('is_active', true)
       .neq('model_name', 'admin')
       .in('id', problemTypeIds)
@@ -99,9 +111,12 @@ export async function POST(request: Request) {
     const requestedGenerationCount = requestedItemCount * requestedTypeCount
     const requiredCredits = requestedGenerationCount * COST_PER_GENERATION
 
-    const jobPayload: TablesInsert<'generate_listboard_generation_jobs'> = {
+    const jobPayload: TablesInsert<'generate_listboard_generation_jobs'> & {
+      workspace_subject: WorkspaceSubject
+    } = {
       post_id: post.id,
       user_id: user.id,
+      workspace_subject: workspaceSubject,
       status: 'queued',
       selected_problem_type_ids: problemTypeIds,
       requested_item_count: requestedItemCount,
@@ -124,12 +139,17 @@ export async function POST(request: Request) {
       throw new Error(jobError?.message || '배치 생성 작업 생성에 실패했습니다.')
     }
 
-    const jobItemsPayload: TablesInsert<'generate_listboard_generation_job_items'>[] = postItemIds.flatMap((postItemId) => (
+    const jobItemsPayload: Array<
+      TablesInsert<'generate_listboard_generation_job_items'> & {
+        workspace_subject: WorkspaceSubject
+      }
+    > = postItemIds.flatMap((postItemId) => (
       problemTypeIds.map((problemTypeId) => ({
         job_id: job.id,
         post_id: post.id,
         post_item_id: postItemId,
         problem_type_id: problemTypeId,
+        workspace_subject: workspaceSubject,
         status: 'queued',
         credit_charged: 0,
         attempt_count: 0,

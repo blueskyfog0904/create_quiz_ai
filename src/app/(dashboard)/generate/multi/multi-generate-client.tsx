@@ -18,11 +18,13 @@ import { PassageSelectorModal } from '@/components/features/passages/passage-sel
 import { Passage } from '@/app/api/passages/actions'
 import { Textarea } from '@/components/ui/textarea'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
+import type { WorkspaceSubject } from '../workspace-subject'
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
 
 interface MultiGenerateClientProps {
   problemTypes: ProblemType[]
+  workspaceSubject: WorkspaceSubject
 }
 
 interface GeneratedQuestionData {
@@ -33,9 +35,22 @@ interface GeneratedQuestionData {
   rating: number
 }
 
+type RequestError = Error & {
+  code?: string
+  status?: number
+}
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-export default function MultiGenerateClient({ problemTypes }: MultiGenerateClientProps) {
+const toRequestError = (error: unknown, fallbackMessage = '문제 생성 중 오류가 발생했습니다'): RequestError => {
+  if (error instanceof Error) {
+    return error as RequestError
+  }
+
+  return new Error(fallbackMessage) as RequestError
+}
+
+export default function MultiGenerateClient({ problemTypes, workspaceSubject }: MultiGenerateClientProps) {
   const router = useRouter()
   const [passage, setPassage] = useState('')
   const [selectedPassage, setSelectedPassage] = useState<Passage | null>(null)
@@ -305,7 +320,8 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
               passage,
               gradeLevel,
               difficulty,
-              problemTypeId: typeId
+              problemTypeId: typeId,
+              workspaceSubject,
             }),
             signal // Pass the abort signal
           })
@@ -314,7 +330,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
           const data = await res.json()
 
           if (!res.ok || !data.success) {
-            const error: any = new Error(data.error?.message || "문제 생성에 실패했습니다")
+            const error: RequestError = new Error(data.error?.message || "문제 생성에 실패했습니다")
             error.code = data.error?.code
             error.status = res.status
 
@@ -338,29 +354,30 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
           toast.success(`"${problemType?.type_name}" 문제가 생성되었습니다 (${i + 1}/${selectedTypeIds.length})`)
           successCount++
 
-        } catch (error: any) {
+        } catch (error: unknown) {
+          const requestError = toRequestError(error)
           const isCancelled =
-            error?.name === 'AbortError' ||
-            error?.message === 'Generation cancelled' ||
-            error?.code === 'GENERATION_CANCELLED'
+            requestError.name === 'AbortError' ||
+            requestError.message === 'Generation cancelled' ||
+            requestError.code === 'GENERATION_CANCELLED'
 
-          if (shouldSyncOnError(error)) {
+          if (shouldSyncOnError(requestError)) {
             shouldSyncHeader = true
           }
 
-          if (isCancelled || error?.status >= 500) {
+          if (isCancelled || (requestError.status ?? 0) >= 500) {
             if (isCancelling) {
               setCancellationResultMessage(
                 buildCancellationMessage(selectedTypeIds.length, successCount)
               )
               setShowCancellationResult(true)
             }
-            throw error
+            throw requestError
           }
 
-          console.error(`Failed to generate question for type ${typeId}:`, error)
+          console.error(`Failed to generate question for type ${typeId}:`, requestError)
           const problemType = problemTypes.find(pt => pt.id === typeId)
-          toast.error(`"${problemType?.type_name}" 문제 생성 실패: ${error.message}`)
+          toast.error(`"${problemType?.type_name}" 문제 생성 실패: ${requestError.message}`)
           failCount++
         }
       }
@@ -379,12 +396,13 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
         toast.error("모든 문제 생성에 실패했습니다. 다시 시도해주세요.")
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const requestError = toRequestError(error)
       const isCancelled =
-        error?.name === 'AbortError' ||
-        error?.message === 'Generation cancelled' ||
-        error?.code === 'GENERATION_CANCELLED'
-      const status = error?.status
+        requestError.name === 'AbortError' ||
+        requestError.message === 'Generation cancelled' ||
+        requestError.code === 'GENERATION_CANCELLED'
+      const status = requestError.status
 
       if (isCancelled) {
             shouldSyncHeader = true
@@ -393,9 +411,9 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
             )
             setShowCancellationResult(true)
         } else {
-            console.error(error)
+            console.error(requestError)
             toast.error("문제 생성 중 오류가 발생했습니다")
-            if (status === undefined || status >= 500 || error?.code === 'AI_ERROR' || error?.code === 'INTERNAL_SERVER_ERROR') {
+            if (status === undefined || status >= 500 || requestError.code === 'AI_ERROR' || requestError.code === 'INTERNAL_SERVER_ERROR') {
               shouldSyncHeader = true
             }
         }
@@ -447,7 +465,8 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
           difficulty,
           problemTypeId: typeId,
           rawAiResponse: questionData.rawResponse,
-          passageId: selectedPassage?.id
+          passageId: selectedPassage?.id,
+          workspaceSubject,
         })
       })
 
@@ -459,8 +478,8 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
 
       toast.success(`"${questionData.problemType.type_name}" 문제가 저장되었습니다`)
       
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(toRequestError(error, '문제 저장에 실패했습니다').message)
       setSavedStates(new Map(savedStates.set(typeId, false))) // Revert
     }
   }
@@ -512,7 +531,8 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
               rawAiResponse: questionData.rawResponse,
               passageId: selectedPassage?.id,
               tags: questionData.tags,    // Send tags
-              rating: questionData.rating // Send rating
+              rating: questionData.rating, // Send rating
+              workspaceSubject,
             })
           })
 
@@ -524,7 +544,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
 
           setSavedStates(prev => new Map(prev.set(typeId, true)))
           successCount++
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error(`Failed to save question for type ${typeId}:`, error)
           failCount++
         }
@@ -539,7 +559,7 @@ export default function MultiGenerateClient({ problemTypes }: MultiGenerateClien
         toast.error(`${failCount}개의 문제 저장에 실패했습니다`)
       }
 
-    } catch (error: any) {
+    } catch {
       toast.error("문제 저장 중 오류가 발생했습니다")
     } finally {
       setIsSaving(false)

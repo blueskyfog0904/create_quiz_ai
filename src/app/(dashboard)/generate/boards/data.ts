@@ -1,10 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/types/supabase'
+import {
+  DEFAULT_GENERATE_WORKSPACE_SUBJECT,
+  type WorkspaceScoped,
+  type WorkspaceSubject,
+} from '../workspace-subject'
 
-type GenerateMenuEntry = Database['public']['Tables']['generate_menu_entries']['Row']
-type GenerateListboardPost = Database['public']['Tables']['generate_listboard_posts']['Row']
-type GenerateListboardPostItem = Database['public']['Tables']['generate_listboard_post_items']['Row']
-type ProblemType = Database['public']['Tables']['problem_types']['Row']
+type GenerateMenuEntry = WorkspaceScoped<Database['public']['Tables']['generate_menu_entries']['Row']>
+type GenerateListboardPost = WorkspaceScoped<Database['public']['Tables']['generate_listboard_posts']['Row']>
+type GenerateListboardPostItem = WorkspaceScoped<Database['public']['Tables']['generate_listboard_post_items']['Row']>
+type ProblemType = WorkspaceScoped<Database['public']['Tables']['problem_types']['Row']>
 
 export interface ListboardSearchFilters {
   year?: string
@@ -13,12 +18,16 @@ export interface ListboardSearchFilters {
   title?: string
 }
 
-export async function getGenerateBoardBySlug(slug: string): Promise<GenerateMenuEntry | null> {
+export async function getGenerateBoardBySlug(
+  slug: string,
+  workspaceSubject: WorkspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
+): Promise<GenerateMenuEntry | null> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('generate_menu_entries')
     .select('*')
     .eq('slug', slug)
+    .eq('workspace_subject', workspaceSubject)
     .eq('entry_type', 'listboard')
     .eq('is_visible', true)
     .eq('is_active', true)
@@ -32,12 +41,17 @@ export async function getGenerateBoardBySlug(slug: string): Promise<GenerateMenu
   return data
 }
 
-export async function searchGenerateBoardPosts(boardId: string, filters: ListboardSearchFilters) {
+export async function searchGenerateBoardPosts(
+  boardId: string,
+  filters: ListboardSearchFilters,
+  workspaceSubject: WorkspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
+) {
   const supabase = await createClient()
   let query = supabase
     .from('generate_listboard_posts')
     .select('*')
     .eq('menu_entry_id', boardId)
+    .eq('workspace_subject', workspaceSubject)
     .eq('status', 'published')
     .eq('is_active', true)
     .is('deleted_at', null)
@@ -70,12 +84,16 @@ export async function searchGenerateBoardPosts(boardId: string, filters: Listboa
   return data ?? []
 }
 
-export async function getGenerateBoardFilterOptions(boardId: string) {
+export async function getGenerateBoardFilterOptions(
+  boardId: string,
+  workspaceSubject: WorkspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
+) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('generate_listboard_posts')
     .select('exam_year, exam_month, grade_level')
     .eq('menu_entry_id', boardId)
+    .eq('workspace_subject', workspaceSubject)
     .eq('status', 'published')
     .eq('is_active', true)
     .is('deleted_at', null)
@@ -91,13 +109,18 @@ export async function getGenerateBoardFilterOptions(boardId: string) {
   return { years, months, grades }
 }
 
-export async function getGenerateBoardPost(boardId: string, postId: string): Promise<GenerateListboardPost | null> {
+export async function getGenerateBoardPost(
+  boardId: string,
+  postId: string,
+  workspaceSubject: WorkspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
+): Promise<GenerateListboardPost | null> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('generate_listboard_posts')
     .select('*')
     .eq('menu_entry_id', boardId)
     .eq('id', postId)
+    .eq('workspace_subject', workspaceSubject)
     .eq('status', 'published')
     .eq('is_active', true)
     .is('deleted_at', null)
@@ -110,11 +133,15 @@ export async function getGenerateBoardPost(boardId: string, postId: string): Pro
   return data
 }
 
-export async function getGenerateBoardPostWithItems(boardId: string, postId: string): Promise<{
+export async function getGenerateBoardPostWithItems(
+  boardId: string,
+  postId: string,
+  workspaceSubject: WorkspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
+): Promise<{
   post: GenerateListboardPost
   items: GenerateListboardPostItem[]
 } | null> {
-  const post = await getGenerateBoardPost(boardId, postId)
+  const post = await getGenerateBoardPost(boardId, postId, workspaceSubject)
 
   if (!post) {
     return null
@@ -125,6 +152,7 @@ export async function getGenerateBoardPostWithItems(boardId: string, postId: str
     .from('generate_listboard_post_items')
     .select('*')
     .eq('post_id', post.id)
+    .eq('workspace_subject', workspaceSubject)
     .eq('is_active', true)
     .is('deleted_at', null)
     .order('sort_order')
@@ -140,11 +168,14 @@ export async function getGenerateBoardPostWithItems(boardId: string, postId: str
   }
 }
 
-export async function getActiveProblemTypes(): Promise<ProblemType[]> {
+export async function getActiveProblemTypes(
+  workspaceSubject: WorkspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
+): Promise<ProblemType[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('problem_types')
     .select('*')
+    .eq('workspace_subject', workspaceSubject)
     .eq('is_active', true)
     .neq('model_name', 'admin')
     .order('type_name')

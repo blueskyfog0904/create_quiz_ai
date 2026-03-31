@@ -4,17 +4,20 @@ import GenerateClient from './generate-client'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import GenerateHomeContent from '../generate-home-content'
+import { DEFAULT_GENERATE_WORKSPACE_SUBJECT } from '../workspace-subject'
 
 export default async function GenerateWithTypePage({ params }: { params: Promise<{ typeId: string }> }) {
   await requireAuth()
   const supabase = await createClient()
   const { typeId } = await params
+  const workspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
 
   // Fetch the specific problem type
   const { data: problemType, error } = await supabase
     .from('problem_types')
     .select('*')
     .eq('id', typeId)
+    .eq('workspace_subject', workspaceSubject)
     .eq('is_active', true)
     .single()
 
@@ -22,6 +25,7 @@ export default async function GenerateWithTypePage({ params }: { params: Promise
     const { data: problemTypes } = await supabase
       .from('problem_types')
       .select('*')
+      .eq('workspace_subject', workspaceSubject)
       .eq('is_active', true)
       .neq('model_name', 'admin')
       .order('type_name')
@@ -45,7 +49,10 @@ export default async function GenerateWithTypePage({ params }: { params: Promise
         )}
       </div>
       
-      <GenerateClient problemType={problemType} />
+      <GenerateClient
+        problemType={problemType}
+        workspaceSubject={workspaceSubject}
+      />
     </div>
   )
 }

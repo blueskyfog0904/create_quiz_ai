@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/bypass'
 import { AIGenerationService } from '@/lib/ai'
 import type { AIProvider } from '@/lib/ai/types'
 import { stagedGeneratedQuestionToJson } from '@/lib/questions/generated-question-staging'
+import { resolveGenerateWorkspaceSubject } from '@/app/(dashboard)/generate/workspace-subject'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,7 @@ const COST_PER_GENERATION = 100
 const RunListboardJobSchema = z.object({
   gradeLevel: z.string().min(1),
   difficulty: z.string().min(1),
+  workspaceSubject: z.enum(['english', 'korean']).optional(),
 })
 
 const getGradeLevelKorean = (grade: string): string => {
@@ -100,12 +102,18 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.json({ success: false, error: { code: 'INVALID_INPUT', message: validation.error.issues[0]?.message || '입력이 올바르지 않습니다.' } }, { status: 400 })
   }
 
+  const workspaceSubject = resolveGenerateWorkspaceSubject({
+    workspaceSubject: validation.data.workspaceSubject,
+    referer: request.headers.get('referer'),
+  })
   const { gradeLevel, difficulty } = validation.data
 
   const { data: job, error: jobError } = await supabase
     .from('generate_listboard_generation_jobs')
     .select('*')
     .eq('id', jobId)
+    .eq('user_id', user.id)
+    .eq('workspace_subject', workspaceSubject)
     .maybeSingle()
 
   if (jobError || !job) {
@@ -120,6 +128,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       finished_at: null,
     })
     .eq('id', job.id)
+    .eq('workspace_subject', workspaceSubject)
     .eq('status', 'queued')
     .select('id')
 
@@ -142,6 +151,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     .from('generate_listboard_generation_job_items')
     .select('*')
     .eq('job_id', job.id)
+    .eq('workspace_subject', workspaceSubject)
     .order('created_at')
 
   if (jobItemsError || !jobItems) {
@@ -159,6 +169,7 @@ export async function POST(request: Request, { params }: RouteContext) {
         finished_at: new Date().toISOString(),
       })
       .eq('id', job.id)
+      .eq('workspace_subject', workspaceSubject)
 
     return NextResponse.json({ success: false, error: { code: 'INSUFFICIENT_CREDITS', message: '크레딧이 부족합니다.' } }, { status: 402 })
   }
@@ -181,6 +192,7 @@ export async function POST(request: Request, { params }: RouteContext) {
         finished_at: new Date().toISOString(),
       })
       .eq('id', job.id)
+      .eq('workspace_subject', workspaceSubject)
 
     return NextResponse.json({ success: false, error: { code: 'INSUFFICIENT_CREDITS', message: error instanceof Error ? error.message : '크레딧이 부족합니다.' } }, { status: 402 })
   }
@@ -192,12 +204,14 @@ export async function POST(request: Request, { params }: RouteContext) {
     supabase
       .from('generate_listboard_post_items')
       .select('id, passage_text')
+      .eq('workspace_subject', workspaceSubject)
       .eq('is_active', true)
       .is('deleted_at', null)
       .in('id', postItemIds),
     supabase
       .from('problem_types')
       .select('*')
+      .eq('workspace_subject', workspaceSubject)
       .eq('is_active', true)
       .neq('model_name', 'admin')
       .in('id', problemTypeIds),
@@ -225,6 +239,7 @@ export async function POST(request: Request, { params }: RouteContext) {
           finished_at: new Date().toISOString(),
         })
         .eq('id', jobItem.id)
+        .eq('workspace_subject', workspaceSubject)
 
       await adminSupabase
         .from('generate_listboard_generation_jobs')
@@ -233,6 +248,7 @@ export async function POST(request: Request, { params }: RouteContext) {
           failed_count: failedCount,
         })
         .eq('id', job.id)
+        .eq('workspace_subject', workspaceSubject)
       continue
     }
 
@@ -244,6 +260,7 @@ export async function POST(request: Request, { params }: RouteContext) {
         attempt_count: (jobItem.attempt_count ?? 0) + 1,
       })
       .eq('id', jobItem.id)
+      .eq('workspace_subject', workspaceSubject)
 
     try {
       const result = await AIGenerationService.generate({
@@ -274,6 +291,7 @@ export async function POST(request: Request, { params }: RouteContext) {
           finished_at: new Date().toISOString(),
         })
         .eq('id', jobItem.id)
+        .eq('workspace_subject', workspaceSubject)
 
       if (completeUpdateError) {
         throw new Error(completeUpdateError.message)
@@ -296,6 +314,7 @@ export async function POST(request: Request, { params }: RouteContext) {
           finished_at: new Date().toISOString(),
         })
         .eq('id', jobItem.id)
+        .eq('workspace_subject', workspaceSubject)
 
       if (failedUpdateError) {
         console.error('Failed to persist batch generation failure state:', failedUpdateError)
@@ -309,6 +328,7 @@ export async function POST(request: Request, { params }: RouteContext) {
         failed_count: failedCount,
       })
       .eq('id', job.id)
+      .eq('workspace_subject', workspaceSubject)
   }
 
   const failedRefundAmount = failedCount * COST_PER_GENERATION
@@ -342,6 +362,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       finished_at: new Date().toISOString(),
     })
     .eq('id', job.id)
+    .eq('workspace_subject', workspaceSubject)
 
   return NextResponse.json({
     success: true,
