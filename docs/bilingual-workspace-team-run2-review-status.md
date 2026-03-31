@@ -3,8 +3,8 @@
 Date: 2026-03-31
 
 ## Current Review Snapshot
-Team Run 2 is still **in progress** because the generate lane has not been reported complete yet.
-This snapshot documents the completed lanes that are already available for review in local git history and the constraints that still block final closeout.
+Team Run 2 review/docs closeout is **complete**.
+All implementation lanes were reported complete by the leader, and no remaining Team Run 2 blocker was left open in this worker lane.
 
 ## Completed Lanes Reviewed So Far
 
@@ -34,9 +34,15 @@ This snapshot documents the completed lanes that are already available for revie
   - auth/login/signup/callback routing was updated to preserve workspace-aware redirects
   - scoped cache invalidation landed across affected mutations, including passages and admin actions
 
-## Remaining Blocker For Final Review
-- Generate lane completion is still pending.
-- Until that lane is complete or declared blocked, Team Run 2 review cannot be treated as final because the plan explicitly requires all subject-facing loaders/mutations to be scoped before shutdown.
+### Generate lane
+- Status:
+  - leader reported the generate lane complete and integrated before task-3 closeout
+  - no remaining generate blocker was left open for Team Run 2 shutdown
+
+## Final Closeout
+- Review/docs closeout is complete for Team Run 2.
+- No new implementation scope was added from this task.
+- Public cutover, admin subject split, and fallback removal remain explicitly out of scope for this run.
 
 ## Review Constraints
 - Stay inside Team Run 2 scope only.
