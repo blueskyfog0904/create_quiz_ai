@@ -17,6 +17,7 @@ import {
 import { mergeMarketEntriesIntoHeaderConfig } from '@/lib/market-menu'
 import { preserveDbManagedParentChildren } from '@/lib/db-managed-header'
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { getWorkspaceSettingValue, upsertWorkspaceSetting, type WorkspaceSubject } from '@/lib/workspace-settings'
 import type { Json, TablesInsert } from '@/types/supabase'
 
 function getServiceRoleClient() {
@@ -30,7 +31,7 @@ function getServiceRoleClient() {
   return createAdminClient()
 }
 
-export async function getBaseHeaderNavigationConfig(): Promise<HeaderNavigationConfig> {
+async function getLegacyHeaderNavigationConfig(): Promise<HeaderNavigationConfig> {
   const adminSupabase = getServiceRoleClient()
 
   if (!adminSupabase) {
@@ -50,8 +51,29 @@ export async function getBaseHeaderNavigationConfig(): Promise<HeaderNavigationC
   return normalizeHeaderNavigationConfig(data.value)
 }
 
-export async function getHeaderNavigationConfig(): Promise<HeaderNavigationConfig> {
-  const baseConfig = await getBaseHeaderNavigationConfig()
+export async function getBaseHeaderNavigationConfig(
+  workspaceSubject: WorkspaceSubject = 'english'
+): Promise<HeaderNavigationConfig> {
+  const workspaceValue = await getWorkspaceSettingValue<HeaderNavigationConfig | Json>(
+    workspaceSubject,
+    HEADER_NAVIGATION_SETTING_KEY
+  )
+
+  if (workspaceValue) {
+    return normalizeHeaderNavigationConfig(workspaceValue)
+  }
+
+  if (workspaceSubject !== 'english') {
+    return DEFAULT_HEADER_NAVIGATION_CONFIG
+  }
+
+  return getLegacyHeaderNavigationConfig()
+}
+
+export async function getHeaderNavigationConfig(
+  workspaceSubject: WorkspaceSubject = 'english'
+): Promise<HeaderNavigationConfig> {
+  const baseConfig = await getBaseHeaderNavigationConfig(workspaceSubject)
   const generateEntries = await listVisibleGenerateMenuEntries()
   const marketEntries = await listVisibleMarketMenuEntries()
 
@@ -66,19 +88,12 @@ export async function getHeaderNavigationConfig(): Promise<HeaderNavigationConfi
   )
 }
 
-export async function saveHeaderNavigationConfig(config: HeaderNavigationConfig) {
+async function persistLegacyEnglishHeaderNavigationConfig(config: HeaderNavigationConfig) {
   const adminSupabase = getServiceRoleClient()
-  const existingConfig = await getBaseHeaderNavigationConfig()
-  const normalizedConfig = normalizeHeaderNavigationConfig(config)
-  const preservedConfig = preserveDbManagedParentChildren(
-    existingConfig,
-    normalizedConfig,
-    ['/generate', '/market']
-  )
 
   const payload: TablesInsert<'system_settings'> = {
     key: HEADER_NAVIGATION_SETTING_KEY,
-    value: preservedConfig as unknown as Json,
+    value: config as unknown as Json,
     description: 'Header navigation configuration including logo text and up to 2-depth menu items.',
     updated_at: new Date().toISOString(),
   }
@@ -89,10 +104,10 @@ export async function saveHeaderNavigationConfig(config: HeaderNavigationConfig)
       .upsert(payload, { onConflict: 'key' })
 
     if (error) {
-      throw new Error(error.message || '헤더 메뉴 저장에 실패했습니다.')
+      throw new Error(error.message || '레거시 영어 헤더 메뉴 저장에 실패했습니다.')
     }
 
-    return preservedConfig
+    return
   }
 
   const supabase = await createClient()
@@ -101,7 +116,31 @@ export async function saveHeaderNavigationConfig(config: HeaderNavigationConfig)
     .upsert(payload, { onConflict: 'key' })
 
   if (error) {
-    throw new Error(error.message || '헤더 메뉴 저장에 실패했습니다.')
+    throw new Error(error.message || '레거시 영어 헤더 메뉴 저장에 실패했습니다.')
+  }
+}
+
+export async function saveHeaderNavigationConfig(
+  config: HeaderNavigationConfig,
+  workspaceSubject: WorkspaceSubject = 'english'
+) {
+  const existingConfig = await getBaseHeaderNavigationConfig(workspaceSubject)
+  const normalizedConfig = normalizeHeaderNavigationConfig(config)
+  const preservedConfig = preserveDbManagedParentChildren(
+    existingConfig,
+    normalizedConfig,
+    ['/generate', '/market']
+  )
+
+  await upsertWorkspaceSetting({
+    workspaceSubject,
+    settingKey: HEADER_NAVIGATION_SETTING_KEY,
+    value: preservedConfig as unknown as Json,
+    description: 'Workspace-scoped header navigation configuration including logo text and up to 2-depth menu items.',
+  })
+
+  if (workspaceSubject === 'english') {
+    await persistLegacyEnglishHeaderNavigationConfig(preservedConfig)
   }
 
   return preservedConfig

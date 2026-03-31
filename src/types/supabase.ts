@@ -1750,6 +1750,47 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_settings: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          setting_key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+          workspace_subject: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          setting_key: string
+          updated_at?: string
+          updated_by?: string | null
+          value: Json
+          workspace_subject: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          setting_key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+          workspace_subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
