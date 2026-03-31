@@ -10,7 +10,8 @@ import { PassageFilterBar } from './passage-filter-bar';
 import { PassageDetailModal } from './passage-detail-modal';
 import { PassageTimeline } from './passage-timeline';
 import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { buildPassageLibraryHref, resolvePassageWorkspaceSubject } from './workspace-subject';
 
 interface PassageSelectorModalProps {
   open: boolean;
@@ -24,6 +25,8 @@ export function PassageSelectorModal({
   onSelect,
 }: PassageSelectorModalProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const workspaceSubject = resolvePassageWorkspaceSubject(pathname);
   
   // Data state
   const [passages, setPassages] = useState<Passage[]>([]);
@@ -61,6 +64,7 @@ export function PassageSelectorModal({
         isBookmarked: isBookmarked || undefined,
         startDate: dateRange.from?.toISOString().split('T')[0],
         endDate: dateRange.to?.toISOString().split('T')[0],
+        workspaceSubject,
       });
       setPassages(result.data);
       setTotalCount(result.count);
@@ -69,7 +73,7 @@ export function PassageSelectorModal({
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, itemsPerPage, search, tags, isBookmarked, dateRange]);
+  }, [currentPage, itemsPerPage, search, tags, isBookmarked, dateRange, workspaceSubject]);
   
   // Load passages when modal opens or filters change
   useEffect(() => {
@@ -152,7 +156,7 @@ export function PassageSelectorModal({
                       className="mt-2"
                       onClick={() => {
                         onOpenChange(false);
-                        router.push('/library/mypassages');
+                        router.push(buildPassageLibraryHref(pathname));
                       }}
                     >
                       영어지문 등록하러 가기 →
@@ -321,6 +325,7 @@ export function PassageSelectorModal({
         open={showDetailModal}
         onOpenChange={setShowDetailModal}
         onUpdate={fetchPassages}
+        workspaceSubject={workspaceSubject}
       />
     </>
   );

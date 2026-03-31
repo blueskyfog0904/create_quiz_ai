@@ -10,16 +10,26 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
 import { getAllTags } from '@/app/api/passages/actions';
+import { usePathname } from 'next/navigation';
+import { type WorkspaceSubject } from '@/lib/workspace-subject';
+import { resolvePassageWorkspaceSubject } from './workspace-subject';
 
 interface TagInputProps {
   value: string[];
   onChange: (tags: string[]) => void;
   placeholder?: string;
+  workspaceSubject?: WorkspaceSubject;
 }
 
-export function TagInput({ value = [], onChange, placeholder = "태그 추가..." }: TagInputProps) {
+export function TagInput({
+  value = [],
+  onChange,
+  placeholder = "태그 추가...",
+  workspaceSubject,
+}: TagInputProps) {
+  const pathname = usePathname();
+  const activeWorkspaceSubject = resolvePassageWorkspaceSubject(pathname, workspaceSubject);
   const [open, setOpen] = React.useState(false);
   const [inputValue, setInputValue] = React.useState('');
   const [availableTags, setAvailableTags] = React.useState<string[]>([]);
@@ -27,8 +37,8 @@ export function TagInput({ value = [], onChange, placeholder = "태그 추가...
 
   React.useEffect(() => {
     // Load available tags for autocomplete
-    getAllTags().then(tags => setAvailableTags(tags)).catch(console.error);
-  }, []);
+    getAllTags(activeWorkspaceSubject).then(tags => setAvailableTags(tags)).catch(console.error);
+  }, [activeWorkspaceSubject]);
 
   // Filter tags based on input
   const filteredTags = React.useMemo(() => {
@@ -140,7 +150,7 @@ export function TagInput({ value = [], onChange, placeholder = "태그 추가...
                   tabIndex={0}
                 >
                   <Plus className="w-3 h-3" />
-                  "{inputValue}" 생성
+                  &quot;{inputValue}&quot; 생성
                 </div>
               ) : (
                 <div className="py-2 text-center text-xs text-muted-foreground">

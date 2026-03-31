@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { PassageList } from '@/components/features/passages/passage-list';
 import { PassageTimeline } from '@/components/features/passages/passage-timeline';
 import { PassageDetailModal } from '@/components/features/passages/passage-detail-modal';
 import { PassageFilterBar } from '@/components/features/passages/passage-filter-bar';
 import { Passage, updatePassage } from '@/app/api/passages/actions';
 import { toast } from 'sonner';
+import { type WorkspaceSubject } from '@/lib/workspace-subject';
+import { resolvePassageWorkspaceSubject } from '@/components/features/passages/workspace-subject';
 
 interface SourceConfig {
   id: string;
@@ -27,16 +29,22 @@ interface PassageListContainerProps {
   totalCount: number;
   currentPage: number;
   itemsPerPage: number;
+  workspaceSubject?: WorkspaceSubject;
 }
+
+type FilterParamValue = string | string[] | Date | number | boolean | null | undefined
 
 export function PassageListContainer({
   initialPassages,
   totalCount,
   currentPage,
   itemsPerPage,
+  workspaceSubject,
 }: PassageListContainerProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const activeWorkspaceSubject = resolvePassageWorkspaceSubject(pathname, workspaceSubject);
   
   // Local state for optimistic updates
   const [passages, setPassages] = useState<Passage[]>(initialPassages);
@@ -85,7 +93,7 @@ export function PassageListContainer({
   }, [initialPassages]);
 
   // Handle URL updates for filters
-  const updateFilters = (newParams: Record<string, any>) => {
+  const updateFilters = (newParams: Record<string, FilterParamValue>) => {
     const params = new URLSearchParams(searchParams.toString());
     
     // Reset page on filter change
@@ -179,7 +187,7 @@ export function PassageListContainer({
   };
 
   const handleLimitChange = (limit: number) => {
-    updateFilters({ limit });
+    updateFilters({ limit: String(limit) });
   };
 
   const handleUpdate = () => {
@@ -192,7 +200,7 @@ export function PassageListContainer({
     setPassages(prev => prev.map(p => p.id === id ? { ...p, is_bookmarked: !current } : p));
     
     try {
-        await updatePassage(id, { is_bookmarked: !current });
+        await updatePassage(id, { is_bookmarked: !current }, { workspaceSubject: activeWorkspaceSubject });
         toast.success(current ? '북마크 해제됨' : '북마크 추가됨');
         router.refresh(); 
     } catch (error) {
@@ -207,7 +215,7 @@ export function PassageListContainer({
     setPassages(prev => prev.map(p => p.id === id ? { ...p, tags: newTags } : p));
 
     try {
-        await updatePassage(id, { tags: newTags });
+        await updatePassage(id, { tags: newTags }, { workspaceSubject: activeWorkspaceSubject });
         router.refresh();
     } catch (error) {
         toast.error('태그 업데이트 실패');
@@ -273,8 +281,8 @@ export function PassageListContainer({
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
         onUpdate={handleUpdate}
+        workspaceSubject={activeWorkspaceSubject}
       />
     </>
   );
 }
-

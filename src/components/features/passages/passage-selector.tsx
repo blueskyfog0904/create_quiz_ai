@@ -26,6 +26,9 @@ import { toast } from 'sonner';
 import { createPassage, enrichPassages, enrichPassage, type PassageAnalysis } from '@/app/api/passages/actions';
 import { OCRResultView } from './ocr-result-view';
 import dynamic from 'next/dynamic';
+import { usePathname } from 'next/navigation';
+import { type WorkspaceSubject } from '@/lib/workspace-subject';
+import { resolvePassageWorkspaceSubject } from './workspace-subject';
 
 const OCRPreviewStage = dynamic(
   () => import('./ocr-preview-stage').then((mod) => mod.OCRPreviewStage),
@@ -39,9 +42,12 @@ type Mode = 'direct' | 'direct-result' | 'upload' | 'library' | 'ai' | 'ocr-resu
 
 interface PassageSelectorProps {
   onPassageSelect?: (passageId: string) => void;
+  workspaceSubject?: WorkspaceSubject;
 }
 
-export function PassageSelector({ onPassageSelect }: PassageSelectorProps) {
+export function PassageSelector({ onPassageSelect, workspaceSubject }: PassageSelectorProps) {
+  const pathname = usePathname();
+  const activeWorkspaceSubject = resolvePassageWorkspaceSubject(pathname, workspaceSubject);
   const [mode, setMode] = useState<Mode>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -210,7 +216,7 @@ export function PassageSelector({ onPassageSelect }: PassageSelectorProps) {
         title_en: titleEn || null,
         title_ko: titleKo || null,
         content_translation: translation || null,
-      });
+      }, { workspaceSubject: activeWorkspaceSubject });
       
       toast.success('지문이 저장되었습니다.');
       resetForm();
@@ -413,6 +419,7 @@ export function PassageSelector({ onPassageSelect }: PassageSelectorProps) {
                    <OCRResultView 
                      initialPassages={directPassages.map(p => p.content).filter(c => c.trim())}
                      preAnalyzedData={analyzedPassages}
+                     workspaceSubject={activeWorkspaceSubject}
                      onBack={() => setMode('direct')}
                      onClose={() => setMode(null)}
                      onComplete={() => {
@@ -506,6 +513,7 @@ export function PassageSelector({ onPassageSelect }: PassageSelectorProps) {
                  <div className="p-6">
                    <OCRResultView 
                       initialPassages={ocrPassages}
+                      workspaceSubject={activeWorkspaceSubject}
                       onBack={() => setMode('ocr-preview')}
                       onClose={() => setMode(null)}
                       onComplete={() => {

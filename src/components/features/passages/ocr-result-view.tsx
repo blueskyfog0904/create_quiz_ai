@@ -33,10 +33,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { usePathname } from 'next/navigation';
+import { type WorkspaceSubject } from '@/lib/workspace-subject';
+import { resolvePassageWorkspaceSubject } from './workspace-subject';
 
 interface OCRResultViewProps {
   initialPassages: string[];
   preAnalyzedData?: PassageAnalysis[];
+  workspaceSubject?: WorkspaceSubject;
   onBack: () => void;
   onClose: () => void;
   onComplete: () => void;
@@ -68,7 +72,16 @@ interface PassageData {
   source_4: string;
 }
 
-export function OCRResultView({ initialPassages, preAnalyzedData, onBack, onClose, onComplete }: OCRResultViewProps) {
+export function OCRResultView({
+  initialPassages,
+  preAnalyzedData,
+  workspaceSubject,
+  onBack,
+  onClose,
+  onComplete,
+}: OCRResultViewProps) {
+  const pathname = usePathname()
+  const activeWorkspaceSubject = resolvePassageWorkspaceSubject(pathname, workspaceSubject)
   // Mode: 'raw' (initial text editing) -> 'analyzed' (metadata editing)
   const [isAnalyzed, setIsAnalyzed] = useState(!!preAnalyzedData);
   
@@ -297,7 +310,7 @@ export function OCRResultView({ initialPassages, preAnalyzedData, onBack, onClos
           source_2: selectedSource2 || null,
           source_3: selectedSource3 || null,
           source_4: selectedSource4 || null
-        });
+        }, { workspaceSubject: activeWorkspaceSubject });
         successCount++;
       }));
 

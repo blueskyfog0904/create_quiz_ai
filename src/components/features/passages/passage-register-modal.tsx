@@ -16,6 +16,8 @@ import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { createPassage, Passage } from '@/app/api/passages/actions';
 import { toast } from 'sonner';
+import { usePathname } from 'next/navigation';
+import { resolvePassageWorkspaceSubject } from './workspace-subject';
 
 interface PassageRegisterModalProps {
   open: boolean;
@@ -28,6 +30,8 @@ export function PassageRegisterModal({
   onOpenChange,
   onSuccess,
 }: PassageRegisterModalProps) {
+  const pathname = usePathname();
+  const workspaceSubject = resolvePassageWorkspaceSubject(pathname);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [titleKo, setTitleKo] = useState('');
   const [titleEn, setTitleEn] = useState('');
@@ -49,7 +53,7 @@ export function PassageRegisterModal({
         content_translation: '', // Init empty
         tags: [],
         is_bookmarked: false,
-      });
+      }, { workspaceSubject });
 
       toast.success('지문이 등록되었습니다.');
       onSuccess(newPassage);

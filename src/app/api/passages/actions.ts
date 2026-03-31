@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { Database } from '@/types/supabase';
 import { getAIModelSettings } from '@/app/api/admin/settings/actions';
+import { workspaceRevalidatePaths } from '@/lib/workspace-revalidate';
+import { assertWorkspaceSubject, DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject';
 
 // ... (imports)
 
@@ -111,10 +113,29 @@ export type Passage = Database['public']['Tables']['passages']['Row'];
 export type CreatePassageInput = Database['public']['Tables']['passages']['Insert'];
 export type UpdatePassageInput = Database['public']['Tables']['passages']['Update'];
 
+type WorkspaceSubjectInput = WorkspaceSubject | string | null | undefined
 
-export async function createPassage(input: Omit<CreatePassageInput, 'user_id'>) {
+function resolvePassageWorkspaceSubject(value?: WorkspaceSubjectInput): WorkspaceSubject {
+  if (!value) {
+    return DEFAULT_WORKSPACE_SUBJECT
+  }
+
+  return assertWorkspaceSubject(value)
+}
+
+function revalidatePassageLibrary(workspaceSubject: WorkspaceSubject) {
+  workspaceRevalidatePaths(workspaceSubject, 'libraryMypassages').forEach(({ path, type }) => {
+    revalidatePath(path, type)
+  })
+}
+
+export async function createPassage(
+  input: Omit<CreatePassageInput, 'user_id'>,
+  options: { workspaceSubject?: WorkspaceSubjectInput } = {}
+) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  const workspaceSubject = resolvePassageWorkspaceSubject(options.workspaceSubject)
 
   if (!user) {
     throw new Error('Unauthorized');
@@ -124,7 +145,8 @@ export async function createPassage(input: Omit<CreatePassageInput, 'user_id'>) 
     .from('passages')
     .insert({
       ...input,
-      user_id: user.id
+      user_id: user.id,
+      workspace_subject: workspaceSubject,
     })
     .select()
     .single();
@@ -134,7 +156,7 @@ export async function createPassage(input: Omit<CreatePassageInput, 'user_id'>) 
     throw new Error('Failed to create passage');
   }
 
-  revalidatePath('/library/mypassages');
+  revalidatePassageLibrary(workspaceSubject);
   return data;
 }
 
@@ -151,6 +173,7 @@ export interface GetPassagesParams {
   source2?: string;
   source3?: string;
   source4?: string;
+  workspaceSubject?: WorkspaceSubjectInput;
 }
 
 export async function getPassages(params: GetPassagesParams = {}) {
@@ -166,8 +189,10 @@ export async function getPassages(params: GetPassagesParams = {}) {
     source1,
     source2,
     source3,
-    source4
+    source4,
+    workspaceSubject,
   } = params;
+  const activeWorkspaceSubject = resolvePassageWorkspaceSubject(workspaceSubject)
   
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -183,6 +208,7 @@ export async function getPassages(params: GetPassagesParams = {}) {
     .from('passages')
     .select('*', { count: 'exact' })
     .eq('user_id', user.id)
+    .eq('workspace_subject', activeWorkspaceSubject)
     .order('created_at', { ascending: false });
 
   // Apply filters
@@ -237,15 +263,17 @@ export async function getPassages(params: GetPassagesParams = {}) {
   return { data: data as Passage[], count: count || 0 };
 }
 
-export async function getAllTags(): Promise<string[]> {
+export async function getAllTags(workspaceSubject?: WorkspaceSubjectInput): Promise<string[]> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
+  const activeWorkspaceSubject = resolvePassageWorkspaceSubject(workspaceSubject)
 
   const { data, error } = await supabase
     .from('passages')
     .select('tags')
-    .eq('user_id', user.id);
+    .eq('user_id', user.id)
+    .eq('workspace_subject', activeWorkspaceSubject);
 
   if (error || !data) return [];
 
@@ -260,13 +288,24 @@ export async function getAllTags(): Promise<string[]> {
   return Array.from(tagSet).sort();
 }
 
-export async function getPassageById(id: string) {
+export async function getPassageById(
+  id: string,
+  options: { workspaceSubject?: WorkspaceSubjectInput } = {}
+) {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const workspaceSubject = resolvePassageWorkspaceSubject(options.workspaceSubject)
+
+  if (!user) {
+    throw new Error('Unauthorized');
+  }
   
   const { data, error } = await supabase
     .from('passages')
     .select('*')
     .eq('id', id)
+    .eq('user_id', user.id)
+    .eq('workspace_subject', workspaceSubject)
     .single();
 
   if (error) {
@@ -277,9 +316,14 @@ export async function getPassageById(id: string) {
   return data;
 }
 
-export async function updatePassage(id: string, input: UpdatePassageInput) {
+export async function updatePassage(
+  id: string,
+  input: UpdatePassageInput,
+  options: { workspaceSubject?: WorkspaceSubjectInput } = {}
+) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  const workspaceSubject = resolvePassageWorkspaceSubject(options.workspaceSubject)
 
   if (!user) {
     throw new Error('Unauthorized');
@@ -290,6 +334,7 @@ export async function updatePassage(id: string, input: UpdatePassageInput) {
     .update(input)
     .eq('id', id)
     .eq('user_id', user.id)
+    .eq('workspace_subject', workspaceSubject)
     .select()
     .single();
 
@@ -298,13 +343,17 @@ export async function updatePassage(id: string, input: UpdatePassageInput) {
     throw new Error('Failed to update passage');
   }
 
-  revalidatePath('/library/mypassages');
+  revalidatePassageLibrary(workspaceSubject);
   return data;
 }
 
-export async function deletePassage(id: string) {
+export async function deletePassage(
+  id: string,
+  options: { workspaceSubject?: WorkspaceSubjectInput } = {}
+) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  const workspaceSubject = resolvePassageWorkspaceSubject(options.workspaceSubject)
 
   if (!user) {
     throw new Error('Unauthorized');
@@ -314,12 +363,13 @@ export async function deletePassage(id: string) {
     .from('passages')
     .delete()
     .eq('id', id)
-    .eq('user_id', user.id);
+    .eq('user_id', user.id)
+    .eq('workspace_subject', workspaceSubject);
 
   if (error) {
     console.error('Error deleting passage:', error);
     throw new Error('Failed to delete passage');
   }
 
-  revalidatePath('/library/mypassages');
+  revalidatePassageLibrary(workspaceSubject);
 }

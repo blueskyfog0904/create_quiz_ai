@@ -18,20 +18,27 @@ import { Loader2, Trash2, Edit2, Save, Bookmark, Copy } from 'lucide-react';
 import { Passage, updatePassage, deletePassage } from '@/app/api/passages/actions';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { usePathname } from 'next/navigation';
+import { type WorkspaceSubject } from '@/lib/workspace-subject';
+import { resolvePassageWorkspaceSubject } from './workspace-subject';
 
 interface PassageDetailModalProps {
   passage: Passage | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdate: () => void;
+  workspaceSubject?: WorkspaceSubject;
 }
 
 export function PassageDetailModal({ 
   passage, 
   open, 
   onOpenChange,
-  onUpdate
+  onUpdate,
+  workspaceSubject,
 }: PassageDetailModalProps) {
+  const pathname = usePathname();
+  const activeWorkspaceSubject = resolvePassageWorkspaceSubject(pathname, workspaceSubject);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -90,7 +97,7 @@ export function PassageDetailModal({
         content_translation: translation || null,
         tags: tags,
         is_bookmarked: isBookmarked
-      });
+      }, { workspaceSubject: activeWorkspaceSubject });
       toast.success('지문이 수정되었습니다.');
       setIsEditing(false);
       onUpdate();
@@ -107,7 +114,7 @@ export function PassageDetailModal({
     
     setIsDeleting(true);
     try {
-      await deletePassage(passage.id);
+      await deletePassage(passage.id, { workspaceSubject: activeWorkspaceSubject });
       toast.success('지문이 삭제되었습니다.');
       onOpenChange(false);
       onUpdate();
@@ -125,7 +132,7 @@ export function PassageDetailModal({
       setIsBookmarked(newValue);
 
       if (!isEditing) {
-          updatePassage(passage.id, { is_bookmarked: newValue })
+          updatePassage(passage.id, { is_bookmarked: newValue }, { workspaceSubject: activeWorkspaceSubject })
             .then(() => {
                 toast.success(newValue ? '북마크 추가됨' : '북마크 해제됨');
                 onUpdate();
@@ -204,7 +211,7 @@ export function PassageDetailModal({
                  {isEditing && (
                    <div className="space-y-2">
                       <Label className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">Tags</Label>
-                      <TagInput value={tags} onChange={setTags} />
+                      <TagInput value={tags} onChange={setTags} workspaceSubject={activeWorkspaceSubject} />
                    </div>
                  )}
 
