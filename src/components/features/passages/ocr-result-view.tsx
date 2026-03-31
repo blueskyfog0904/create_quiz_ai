@@ -18,11 +18,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { createPassage, enrichPassage, enrichPassages, type PassageAnalysis } from '@/app/api/passages/actions';
+import { createPassage, enrichPassage, type PassageAnalysis } from '@/app/api/passages/actions';
 import {
   AlertDialog,
   AlertDialogAction,

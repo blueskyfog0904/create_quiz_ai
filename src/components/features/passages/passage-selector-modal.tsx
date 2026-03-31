@@ -68,7 +68,7 @@ export function PassageSelectorModal({
       });
       setPassages(result.data);
       setTotalCount(result.count);
-    } catch (error) {
+    } catch {
       toast.error('지문 목록을 불러오는데 실패했습니다');
     } finally {
       setIsLoading(false);

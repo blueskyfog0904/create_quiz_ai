@@ -5,25 +5,20 @@ import { AIPassageGenerator } from './ai-generator';
 import { 
   PenTool, 
   UploadCloud, 
-  Library, 
-  Bot, 
-  FileText, 
   Camera, 
   X,
   ChevronRight,
   Sparkles,
-  CheckCircle2,
   Loader2,
   Plus
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { createPassage, enrichPassages, enrichPassage, type PassageAnalysis } from '@/app/api/passages/actions';
+import { enrichPassage, type PassageAnalysis } from '@/app/api/passages/actions';
 import { OCRResultView } from './ocr-result-view';
 import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
@@ -41,16 +36,15 @@ const OCRPreviewStage = dynamic(
 type Mode = 'direct' | 'direct-result' | 'upload' | 'library' | 'ai' | 'ocr-result' | 'ocr-preview' | null;
 
 interface PassageSelectorProps {
-  onPassageSelect?: (passageId: string) => void;
   workspaceSubject?: WorkspaceSubject;
 }
 
-export function PassageSelector({ onPassageSelect, workspaceSubject }: PassageSelectorProps) {
+export function PassageSelector({ workspaceSubject }: PassageSelectorProps) {
   const pathname = usePathname();
   const activeWorkspaceSubject = resolvePassageWorkspaceSubject(pathname, workspaceSubject);
   const [mode, setMode] = useState<Mode>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -89,21 +83,6 @@ export function PassageSelector({ onPassageSelect, workspaceSubject }: PassageSe
   // OCR & File State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [ocrPassages, setOcrPassages] = useState<string[]>([]);
-
-  // Form State
-  const [titleEn, setTitleEn] = useState('');
-  const [titleKo, setTitleKo] = useState('');
-  const [content, setContent] = useState('');
-  const [translation, setTranslation] = useState('');
-
-  const resetForm = () => {
-    setTitleEn('');
-    setTitleKo('');
-    setContent('');
-    setTranslation('');
-    setOcrPassages([]);
-    setSelectedFile(null);
-  };
 
   // Direct input multi-passage state
   interface DirectPassage {
@@ -152,7 +131,6 @@ export function PassageSelector({ onPassageSelect, workspaceSubject }: PassageSe
 
     try {
       const results: PassageAnalysis[] = [];
-      let completedCount = 0;
 
       // Process sequentially
       for (let i = 0; i < validPassages.length; i++) {
@@ -173,8 +151,6 @@ export function PassageSelector({ onPassageSelect, workspaceSubject }: PassageSe
             ...result,
             original_index: i // Override index
           });
-          
-          completedCount++;
         } catch (error) {
            console.error(`Passage ${i + 1} analysis failed`, error);
         }
@@ -201,36 +177,6 @@ export function PassageSelector({ onPassageSelect, workspaceSubject }: PassageSe
 
   // State for analyzed passages from direct input
   const [analyzedPassages, setAnalyzedPassages] = useState<PassageAnalysis[]>([]);
-
-  const handleCreatePassage = async () => {
-    if (!content.trim()) {
-      toast.error('지문 내용을 입력해주세요.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      // Note: user_id is handled server-side
-      const newPassage = await createPassage({
-        content,
-        title_en: titleEn || null,
-        title_ko: titleKo || null,
-        content_translation: translation || null,
-      }, { workspaceSubject: activeWorkspaceSubject });
-      
-      toast.success('지문이 저장되었습니다.');
-      resetForm();
-      setMode(null);
-      if (onPassageSelect) {
-        onPassageSelect(newPassage.id);
-      }
-    } catch (error) {
-      toast.error('지문 저장 중 오류가 발생했습니다.');
-      console.error(error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

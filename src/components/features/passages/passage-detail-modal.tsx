@@ -6,7 +6,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { TagInput } from './tag-input';
-import { Loader2, Trash2, Edit2, Save, Bookmark, Copy } from 'lucide-react';
+import { Loader2, Trash2, Edit2, Bookmark, Copy } from 'lucide-react';
 import { Passage, updatePassage, deletePassage } from '@/app/api/passages/actions';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -255,7 +254,7 @@ export function PassageDetailModal({
                             try {
                               await navigator.clipboard.writeText(content);
                               toast.success('영어 지문이 복사되었습니다.');
-                            } catch (err) {
+                            } catch {
                               toast.error('복사에 실패했습니다.');
                             }
                           }}
@@ -294,7 +293,7 @@ export function PassageDetailModal({
                             try {
                               await navigator.clipboard.writeText(translation || '');
                               toast.success('한글 번역이 복사되었습니다.');
-                            } catch (err) {
+                            } catch {
                               toast.error('복사에 실패했습니다.');
                             }
                           }}
