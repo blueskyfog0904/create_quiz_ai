@@ -1,10 +1,21 @@
 import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import { DEFAULT_WORKSPACE_SUBJECT, assertWorkspaceSubject } from '@/lib/workspace-subject'
 import BankClient from './bank-client'
 
-export default async function BankPage() {
+interface BankPageProps {
+  searchParams?: Promise<{
+    subject?: string
+  }>
+}
+
+export default async function BankPage({ searchParams }: BankPageProps) {
   const user = await requireAuth()
   const supabase = await createClient()
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const workspaceSubject = resolvedSearchParams?.subject
+    ? assertWorkspaceSubject(resolvedSearchParams.subject)
+    : DEFAULT_WORKSPACE_SUBJECT
   
   // Check if user is admin
   const { data: profile } = await supabase
@@ -20,6 +31,7 @@ export default async function BankPage() {
     .from('questions')
     .select('*, problem_types(type_name)')
     .eq('source', 'admin_uploaded')
+    .eq('workspace_subject', workspaceSubject)
     .order('created_at', { ascending: false })
   
   console.log('[Bank] Questions fetched:', questions?.length || 0)
@@ -34,6 +46,7 @@ export default async function BankPage() {
     .from('problem_types')
     .select('id, type_name')
     .eq('is_active', true)
+    .eq('workspace_subject', workspaceSubject)
     .order('type_name')
   
   // Get unique grade levels and difficulties
@@ -55,6 +68,7 @@ export default async function BankPage() {
         gradeLevels={gradeLevels}
         difficulties={difficulties}
         isAdmin={isAdmin}
+        workspaceSubject={workspaceSubject}
       />
     </div>
   )

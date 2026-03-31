@@ -1,19 +1,24 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
+import { DEFAULT_WORKSPACE_SUBJECT, assertWorkspaceSubject } from '@/lib/workspace-subject'
 import { PurchasedClient } from './purchased-client'
 
 interface PurchasedPageProps {
   searchParams?: Promise<{
     jobId?: string
     marketSlug?: string
+    subject?: string
   }>
 }
 
 export default async function PurchasedPage({ searchParams }: PurchasedPageProps) {
-  await requireAuth()
+  const user = await requireAuth()
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const jobId = resolvedSearchParams?.jobId
   const marketSlug = resolvedSearchParams?.marketSlug
+  const workspaceSubject = resolvedSearchParams?.subject
+    ? assertWorkspaceSubject(resolvedSearchParams.subject)
+    : DEFAULT_WORKSPACE_SUBJECT
   const supabase = await createClient()
 
   let highlightedQuestionIds: string[] | null = null
@@ -25,6 +30,7 @@ export default async function PurchasedPage({ searchParams }: PurchasedPageProps
       .from('generate_listboard_generation_job_items')
       .select('question_id')
       .eq('job_id', jobId)
+      .eq('workspace_subject', workspaceSubject)
       .not('question_id', 'is', null)
 
     if (jobItemsError) {
@@ -42,6 +48,7 @@ export default async function PurchasedPage({ searchParams }: PurchasedPageProps
       .from('market_menu_entries')
       .select('title')
       .eq('slug', marketSlug)
+      .eq('workspace_subject', workspaceSubject)
       .is('deleted_at', null)
       .maybeSingle()
 
@@ -55,7 +62,9 @@ export default async function PurchasedPage({ searchParams }: PurchasedPageProps
   let questionsQuery = supabase
     .from('questions')
     .select('*, problem_types(type_name)')
+    .eq('user_id', user.id)
     .in('source', ['ai_generated', 'from_community'])
+    .eq('workspace_subject', workspaceSubject)
     .order('created_at', { ascending: false })
 
   if (highlightedQuestionIds) {
@@ -76,6 +85,7 @@ export default async function PurchasedPage({ searchParams }: PurchasedPageProps
     .from('problem_types')
     .select('id, type_name')
     .eq('is_active', true)
+    .eq('workspace_subject', workspaceSubject)
     .order('type_name')
 
   if (typesError) {
@@ -101,6 +111,7 @@ export default async function PurchasedPage({ searchParams }: PurchasedPageProps
       initialSelectedSource={marketSlug ? 'from_community' : 'all'}
       marketMenuSlug={marketSlug ?? null}
       marketMenuTitle={marketMenuTitle}
+      workspaceSubject={workspaceSubject}
     />
   )
 }

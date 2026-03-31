@@ -17,6 +17,7 @@ import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { getDifficultyLabel } from '@/lib/display-labels'
 import { QuestionPreview } from '@/components/features/quiz/question-preview'
+import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
 
 type DBQuestion = Database['public']['Tables']['questions']['Row'] & {
   problem_types?: { type_name: string } | null
@@ -32,13 +33,16 @@ function QuestionItem({
   question: initialQuestion, 
   isSelected, 
   onSelect,
-  scale
+  workspaceSubject
 }: { 
   question: DBQuestion, 
   isSelected: boolean, 
   onSelect: (checked: boolean) => void,
-  scale: number
+  workspaceSubject: WorkspaceSubject
 }) {
+  const getErrorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error ? error.message : fallback
+
   const router = useRouter()
   const [question, setQuestion] = useState(initialQuestion)
   const [isUpdating, setIsUpdating] = useState(false)
@@ -47,7 +51,7 @@ function QuestionItem({
   const handleUpdate = async (updates: Partial<DBQuestion>) => {
     setIsUpdating(true)
     try {
-      const res = await fetch(`/api/questions/${question.id}`, {
+      const res = await fetch(`/api/questions/${question.id}?subject=${workspaceSubject}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -61,8 +65,8 @@ function QuestionItem({
       setQuestion({ ...question, ...updates })
       toast.success('저장되었습니다')
       router.refresh()
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, '업데이트 실패'))
     } finally {
       setIsUpdating(false)
     }
@@ -337,13 +341,15 @@ interface QuestionGridProps {
     selectedQuestionIds: string[]
     onSelectQuestion: (questionId: string, checked: boolean) => void
     scale: number
+    workspaceSubject: WorkspaceSubject
 }
 
 export function QuestionGrid({
     questions,
     selectedQuestionIds,
     onSelectQuestion,
-    scale
+    scale,
+    workspaceSubject
 }: QuestionGridProps) {
 
     // Calculate transform and layout adjustments
@@ -358,7 +364,7 @@ export function QuestionGrid({
     if (!questions || questions.length === 0) {
         return (
             <div className="text-center py-10 text-gray-500">
-                저장된 문제가 없습니다. '문제 생성' 페이지에서 문제를 만들어보세요!
+                저장된 문제가 없습니다. &apos;문제 생성&apos; 페이지에서 문제를 만들어보세요!
             </div>
         )
     }
@@ -374,7 +380,7 @@ export function QuestionGrid({
                     question={q}
                     isSelected={selectedQuestionIds.includes(q.id)}
                     onSelect={(checked) => onSelectQuestion(q.id, checked)}
-                    scale={scale}
+                    workspaceSubject={workspaceSubject}
                 />
             ))}
         </div>
@@ -406,7 +412,7 @@ export function CreateExamDialog({ open, onOpenChange, selectedCount, onConfirm 
             setTitle('')
             setDescription('')
             onOpenChange(false)
-        } catch (error) {
+        } catch {
             // Error handling should be done by parent or here if onConfirm throws
         } finally {
             setIsCreating(false)
@@ -455,7 +461,13 @@ export function CreateExamDialog({ open, onOpenChange, selectedCount, onConfirm 
     )
 }
 
-export function QuestionList({ questions }: { questions: DBQuestion[] }) {
+export function QuestionList({
+  questions,
+  workspaceSubject = DEFAULT_WORKSPACE_SUBJECT,
+}: {
+  questions: DBQuestion[]
+  workspaceSubject?: WorkspaceSubject
+}) {
   const router = useRouter()
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([])
   const [scale, setScale] = useState(100)
@@ -488,6 +500,7 @@ export function QuestionList({ questions }: { questions: DBQuestion[] }) {
           title,
           description,
           questionIds: selectedQuestionIds,
+          workspaceSubject,
         }),
       })
 
@@ -498,7 +511,7 @@ export function QuestionList({ questions }: { questions: DBQuestion[] }) {
       }
 
       toast.success('시험지가 생성되었습니다')
-      router.push(`/library/exam-papers/${data.data.id}`)
+      router.push(`/library/exam-papers/${data.data.id}?subject=${workspaceSubject}`)
       setSelectedQuestionIds([])
     } catch (error) {
         console.error(error)
@@ -523,6 +536,7 @@ export function QuestionList({ questions }: { questions: DBQuestion[] }) {
         selectedQuestionIds={selectedQuestionIds}
         onSelectQuestion={handleSelectQuestion}
         scale={scale}
+        workspaceSubject={workspaceSubject}
       />
 
       <CreateExamDialog

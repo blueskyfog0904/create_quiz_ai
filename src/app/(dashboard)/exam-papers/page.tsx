@@ -1,13 +1,24 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
+import { DEFAULT_WORKSPACE_SUBJECT, assertWorkspaceSubject } from '@/lib/workspace-subject'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { DeleteExamPaperButton } from './delete-button'
 
-export default async function ExamPapersPage() {
+interface ExamPapersPageProps {
+  searchParams?: Promise<{
+    subject?: string
+  }>
+}
+
+export default async function ExamPapersPage({ searchParams }: ExamPapersPageProps) {
   await requireAuth()
   const supabase = await createClient()
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const workspaceSubject = resolvedSearchParams?.subject
+    ? assertWorkspaceSubject(resolvedSearchParams.subject)
+    : DEFAULT_WORKSPACE_SUBJECT
 
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -15,6 +26,7 @@ export default async function ExamPapersPage() {
     .from('exam_papers')
     .select('*')
     .eq('user_id', user!.id)
+    .eq('workspace_subject', workspaceSubject)
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -28,7 +40,7 @@ export default async function ExamPapersPage() {
           <h1 className="text-3xl font-bold mb-2">문제지 관리</h1>
           <p className="text-gray-500">생성된 시험지를 관리합니다.</p>
         </div>
-        <Link href="/bank">
+        <Link href={`/bank?subject=${workspaceSubject}`}>
           <Button>+ 새 문제지 만들기</Button>
         </Link>
       </div>
@@ -37,7 +49,7 @@ export default async function ExamPapersPage() {
         <Card className="text-center py-16">
           <CardContent>
             <p className="text-gray-500 mb-4">생성된 문제지가 없습니다.</p>
-            <Link href="/bank">
+            <Link href={`/bank?subject=${workspaceSubject}`}>
               <Button>문제 은행에서 문제지 만들기</Button>
             </Link>
           </CardContent>
@@ -60,12 +72,12 @@ export default async function ExamPapersPage() {
                 </div>
               </CardContent>
               <CardFooter className="flex gap-2">
-                <Link href={`/exam-papers/${paper.id}`} className="flex-1">
+                <Link href={`/exam-papers/${paper.id}?subject=${workspaceSubject}`} className="flex-1">
                   <Button variant="outline" className="w-full">
                     보기
                   </Button>
                 </Link>
-                <DeleteExamPaperButton paperId={paper.id} />
+                <DeleteExamPaperButton paperId={paper.id} workspaceSubject={workspaceSubject} />
               </CardFooter>
             </Card>
           ))}
@@ -74,4 +86,3 @@ export default async function ExamPapersPage() {
     </div>
   )
 }
-

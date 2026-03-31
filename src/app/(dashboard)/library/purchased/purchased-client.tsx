@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 type DBQuestion = Database['public']['Tables']['questions']['Row'] & {
   problem_types?: { type_name: string } | null
@@ -30,6 +31,7 @@ interface PurchasedClientProps {
   initialSelectedSource?: 'all' | 'ai_generated' | 'from_community'
   marketMenuSlug?: string | null
   marketMenuTitle?: string | null
+  workspaceSubject: WorkspaceSubject
 }
 
 export function PurchasedClient({
@@ -42,6 +44,7 @@ export function PurchasedClient({
   initialSelectedSource = 'all',
   marketMenuSlug = null,
   marketMenuTitle = null,
+  workspaceSubject,
 }: PurchasedClientProps) {
   const router = useRouter()
   // Filter state
@@ -100,6 +103,7 @@ export function PurchasedClient({
   const [isExamDialogOpen, setIsExamDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const subjectQuery = `?subject=${workspaceSubject}`
 
   // Collapsible filter state
   const [isFilterExpanded, setIsFilterExpanded] = useState(true)
@@ -244,6 +248,7 @@ export function PurchasedClient({
           title,
           description,
           questionIds: selectedQuestionIds,
+          workspaceSubject,
         }),
       })
 
@@ -253,7 +258,7 @@ export function PurchasedClient({
 
       const data = await res.json()
       toast.success('시험지가 생성되었습니다')
-      router.push(`/library/exam-papers/${data.data.id}`)
+      router.push(`/library/exam-papers/${data.data.id}${subjectQuery}`)
       setSelectedQuestionIds([])
     } catch (error) {
         console.error(error)
@@ -269,7 +274,7 @@ export function PurchasedClient({
 
     for (const questionId of selectedQuestionIds) {
       try {
-        const res = await fetch(`/api/questions/${questionId}`, {
+        const res = await fetch(`/api/questions/${questionId}${subjectQuery}`, {
           method: 'DELETE',
         })
         if (res.ok) {
@@ -304,7 +309,7 @@ export function PurchasedClient({
             <p className="font-semibold">방금 저장한 문제 {highlightedSavedCount}개를 표시 중입니다.</p>
             <p className="mt-1 text-emerald-700">배치 생성 작업에서 저장한 결과만 우선 보여주고 있습니다.</p>
           </div>
-          <Button variant="outline" onClick={() => router.push('/library/purchased')}>
+          <Button variant="outline" onClick={() => router.push(`/library/purchased${subjectQuery}`)}>
             전체 보기
           </Button>
         </div>
@@ -316,7 +321,7 @@ export function PurchasedClient({
             <p className="font-semibold">{marketMenuTitle ?? marketMenuSlug} 문제마켓 메뉴 화면입니다.</p>
             <p className="mt-1 text-sky-700">현재 문제마켓 기준으로 이동했으며, 기본 탭은 문제마켓으로 맞춰졌습니다.</p>
           </div>
-          <Button variant="outline" onClick={() => router.push('/library/purchased')}>
+          <Button variant="outline" onClick={() => router.push(`/library/purchased${subjectQuery}`)}>
             영어문제 관리 전체 보기
           </Button>
         </div>
@@ -364,7 +369,7 @@ export function PurchasedClient({
               </button>
             </div>
           </div>
-          <Link href="/generate">
+          <Link href={`/generate${subjectQuery}`}>
             <Button size="sm">+ 새 문제 생성</Button>
           </Link>
         </div>
@@ -692,6 +697,7 @@ export function PurchasedClient({
         selectedQuestionIds={selectedQuestionIds}
         onSelectQuestion={handleSelectQuestion}
         scale={scale}
+        workspaceSubject={workspaceSubject}
       />
 
       {/* Create Exam Dialog */}

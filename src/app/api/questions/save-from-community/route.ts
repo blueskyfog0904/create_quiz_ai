@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { DEFAULT_WORKSPACE_SUBJECT } from '@/lib/workspace-subject'
 import { z } from 'zod'
 import { CreditService } from '@/lib/credits'
 
@@ -8,16 +9,13 @@ const CREDIT_BALANCE_HEADER = 'x-credit-balance'
 
 const saveQuestionSchema = z.object({
   question_id: z.string().uuid('Invalid question ID'),
+  workspaceSubject: z.enum(['english', 'korean']).optional(),
 })
 
 const bulkSaveQuestionsSchema = z.object({
   question_ids: z.array(z.string().uuid('Invalid question ID')),
+  workspaceSubject: z.enum(['english', 'korean']).optional(),
 })
-
-const toNumberHeader = (value: number | null | undefined) => {
-  if (!Number.isFinite(value)) return undefined
-  return String(value)
-}
 
 const jsonWithBalance = (
   body: Record<string, unknown>,
@@ -72,7 +70,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { question_id } = saveQuestionSchema.parse(body)
+    const { question_id, workspaceSubject = DEFAULT_WORKSPACE_SUBJECT } = saveQuestionSchema.parse(body)
     targetQuestionId = question_id
 
     // 3. Fetch the original question
@@ -81,6 +79,7 @@ export async function POST(request: Request) {
       .select('*')
       .eq('id', question_id)
       .eq('source', 'admin_uploaded')
+      .eq('workspace_subject', workspaceSubject)
       .single()
 
     if (fetchError || !originalQuestion) {
@@ -93,6 +92,7 @@ export async function POST(request: Request) {
       .from('questions')
       .select('id')
       .eq('user_id', user.id)
+      .eq('workspace_subject', workspaceSubject)
       .eq('shared_question_id', question_id)
       .single()
 
@@ -139,6 +139,7 @@ export async function POST(request: Request) {
         source: 'from_community',
         shared_question_id: question_id,
         raw_ai_response: null,
+        workspace_subject: workspaceSubject,
         // Copy source information from community question
         source_type: originalQuestion.source_type,
         source_1: originalQuestion.source_1,
@@ -222,7 +223,7 @@ export async function PUT(request: Request) {
 
   try {
     const body = await request.json()
-    const { question_ids } = bulkSaveQuestionsSchema.parse(body)
+    const { question_ids, workspaceSubject = DEFAULT_WORKSPACE_SUBJECT } = bulkSaveQuestionsSchema.parse(body)
 
     if (question_ids.length === 0) {
       return NextResponse.json({ error: 'No questions selected' }, { status: 400 })
@@ -234,6 +235,7 @@ export async function PUT(request: Request) {
       .select('*')
       .in('id', question_ids)
       .eq('source', 'admin_uploaded')
+      .eq('workspace_subject', workspaceSubject)
 
     if (fetchError || !originalQuestions || originalQuestions.length === 0) {
       console.error('[Bulk Save from Community] Questions not found:', fetchError)
@@ -245,6 +247,7 @@ export async function PUT(request: Request) {
       .from('questions')
       .select('shared_question_id')
       .eq('user_id', user.id)
+      .eq('workspace_subject', workspaceSubject)
       .in('shared_question_id', question_ids)
 
     const existingIds = new Set(existingQuestions?.map(q => q.shared_question_id) || [])
@@ -290,6 +293,7 @@ export async function PUT(request: Request) {
       source: 'from_community',
       shared_question_id: originalQuestion.id,
       raw_ai_response: null,
+      workspace_subject: workspaceSubject,
       // Copy source information from community question
       source_type: originalQuestion.source_type,
       source_1: originalQuestion.source_1,

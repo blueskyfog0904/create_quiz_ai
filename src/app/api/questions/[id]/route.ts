@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { DEFAULT_WORKSPACE_SUBJECT, assertWorkspaceSubject } from '@/lib/workspace-subject'
 import { z } from 'zod'
 
 // Schema for updating tags and rating
@@ -14,6 +15,10 @@ export async function PATCH(
 ) {
   const { id } = await params
   const supabase = await createClient()
+  const workspaceSubject = (() => {
+    const subject = new URL(request.url).searchParams.get('subject')
+    return subject ? assertWorkspaceSubject(subject) : DEFAULT_WORKSPACE_SUBJECT
+  })()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
@@ -42,6 +47,7 @@ export async function PATCH(
       .update(updates)
       .eq('id', id)
       .eq('user_id', user.id) // Ensure user owns the question
+      .eq('workspace_subject', workspaceSubject)
       .select()
       .single()
 
@@ -55,7 +61,7 @@ export async function PATCH(
 
     return NextResponse.json({ success: true, data })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Update API Error:', error)
     return NextResponse.json({ 
       success: false, 
@@ -70,6 +76,10 @@ export async function DELETE(
 ) {
   const { id } = await params
   const supabase = await createClient()
+  const workspaceSubject = (() => {
+    const subject = new URL(request.url).searchParams.get('subject')
+    return subject ? assertWorkspaceSubject(subject) : DEFAULT_WORKSPACE_SUBJECT
+  })()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
@@ -82,6 +92,7 @@ export async function DELETE(
       .delete()
       .eq('id', id)
       .eq('user_id', user.id)
+      .eq('workspace_subject', workspaceSubject)
 
     if (error) {
       console.error('DB Delete Error:', error)
@@ -93,7 +104,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Delete API Error:', error)
     return NextResponse.json({ 
       success: false, 
@@ -101,4 +112,3 @@ export async function DELETE(
     }, { status: 500 })
   }
 }
-

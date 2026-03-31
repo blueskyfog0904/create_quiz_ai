@@ -1,16 +1,32 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
+import { DEFAULT_WORKSPACE_SUBJECT, assertWorkspaceSubject } from '@/lib/workspace-subject'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ExportButtons } from './export-buttons'
+import { Database } from '@/types/supabase'
 import { ExamPaperView } from './exam-paper-view'
 
-export default async function ExamPaperDetailPage({ params }: { params: Promise<{ id: string }> }) {
+interface ExamPaperDetailPageProps {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<{
+    subject?: string
+  }>
+}
+
+type ExamPaperItemWithQuestion = Database['public']['Tables']['exam_paper_items']['Row'] & {
+  questions: Database['public']['Tables']['questions']['Row'] | Database['public']['Tables']['questions']['Row'][] | null
+}
+
+export default async function ExamPaperDetailPage({ params, searchParams }: ExamPaperDetailPageProps) {
   await requireAuth()
   const supabase = await createClient()
   const { id } = await params
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const workspaceSubject = resolvedSearchParams?.subject
+    ? assertWorkspaceSubject(resolvedSearchParams.subject)
+    : DEFAULT_WORKSPACE_SUBJECT
 
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -20,6 +36,7 @@ export default async function ExamPaperDetailPage({ params }: { params: Promise<
     .select('*')
     .eq('id', id)
     .eq('user_id', user!.id)
+    .eq('workspace_subject', workspaceSubject)
     .single()
 
   if (examPaperError || !examPaper) {
@@ -34,6 +51,7 @@ export default async function ExamPaperDetailPage({ params }: { params: Promise<
       questions (*)
     `)
     .eq('exam_paper_id', id)
+    .eq('workspace_subject', workspaceSubject)
     .order('order_index')
 
   if (itemsError) {
@@ -43,7 +61,7 @@ export default async function ExamPaperDetailPage({ params }: { params: Promise<
   return (
     <div className="container mx-auto py-8 px-4 max-w-4xl">
       <div className="mb-8">
-        <Link href="/library/exam-papers">
+        <Link href={`/library/exam-papers?subject=${workspaceSubject}`}>
           <Button variant="ghost" className="mb-4">← 목록으로</Button>
         </Link>
         
@@ -72,13 +90,16 @@ export default async function ExamPaperDetailPage({ params }: { params: Promise<
       ) : (
         <ExamPaperView
           examPaper={examPaper}
-          questions={items.map((item, index) => {
-            const question = item.questions as any
+          questions={(items as ExamPaperItemWithQuestion[]).flatMap((item, index) => {
+            const question = Array.isArray(item.questions) ? item.questions[0] : item.questions
+            if (!question) {
+              return []
+            }
             // choices가 문자열로 저장된 경우 JSON.parse 처리
             const parsedChoices = typeof question.choices === 'string' 
               ? JSON.parse(question.choices) 
               : question.choices || []
-            return {
+            return [{
               number: index + 1,
               questionText: question.question_text,
               questionTextForward: question.question_text_forward || null,
@@ -87,12 +108,10 @@ export default async function ExamPaperDetailPage({ params }: { params: Promise<
               choices: parsedChoices,
               answer: question.answer,
               explanation: question.explanation || ''
-            }
+            }]
           })}
         />
       )}
     </div>
   )
 }
-
-

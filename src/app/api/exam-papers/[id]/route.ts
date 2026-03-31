@@ -1,11 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { DEFAULT_WORKSPACE_SUBJECT, assertWorkspaceSubject } from '@/lib/workspace-subject'
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
+  const workspaceSubject = (() => {
+    const subject = new URL(request.url).searchParams.get('subject')
+    return subject ? assertWorkspaceSubject(subject) : DEFAULT_WORKSPACE_SUBJECT
+  })()
   
   // Auth Check
   const { data: { user } } = await supabase.auth.getUser()
@@ -25,6 +30,7 @@ export async function GET(
       .select('*')
       .eq('id', id)
       .eq('user_id', user.id)
+      .eq('workspace_subject', workspaceSubject)
       .single()
 
     if (examPaperError || !examPaper) {
@@ -42,6 +48,7 @@ export async function GET(
         questions (*)
       `)
       .eq('exam_paper_id', id)
+      .eq('workspace_subject', workspaceSubject)
       .order('order_index')
 
     if (itemsError) {
@@ -60,7 +67,7 @@ export async function GET(
       }
     })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Get exam paper API error:', error)
     return NextResponse.json({ 
       success: false, 
@@ -74,6 +81,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
+  const workspaceSubject = (() => {
+    const subject = new URL(request.url).searchParams.get('subject')
+    return subject ? assertWorkspaceSubject(subject) : DEFAULT_WORKSPACE_SUBJECT
+  })()
   
   // Auth Check
   const { data: { user } } = await supabase.auth.getUser()
@@ -93,6 +104,7 @@ export async function DELETE(
       .delete()
       .eq('id', id)
       .eq('user_id', user.id)
+      .eq('workspace_subject', workspaceSubject)
 
     if (error) {
       console.error('Error deleting exam paper:', error)
@@ -106,7 +118,7 @@ export async function DELETE(
       success: true
     })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Delete exam paper API error:', error)
     return NextResponse.json({ 
       success: false, 
@@ -114,4 +126,3 @@ export async function DELETE(
     }, { status: 500 })
   }
 }
-

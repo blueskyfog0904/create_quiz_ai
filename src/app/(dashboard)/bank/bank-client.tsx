@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
 import { InlineBracketUnderlineText } from '@/components/features/quiz/InlineBracketUnderlineText'
 import { normalizeQuestionTextBackward } from '@/lib/questions/normalize-question-field'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 type DBQuestion = Database['public']['Tables']['questions']['Row'] & {
   problem_types: { type_name: string } | null
@@ -31,6 +32,8 @@ type ProblemType = {
   id: string
   type_name: string
 }
+
+type ChoiceOption = { text?: string | null } | string | null
 
 interface SourceConfig {
   id: string
@@ -51,6 +54,7 @@ interface BankClientProps {
   gradeLevels?: string[]
   difficulties?: string[]
   isAdmin?: boolean
+  workspaceSubject: WorkspaceSubject
 }
 
 export default function BankClient({
@@ -58,8 +62,12 @@ export default function BankClient({
   problemTypes = [],
   gradeLevels = [],
   difficulties = [],
-  isAdmin = false
+  isAdmin = false,
+  workspaceSubject
 }: BankClientProps) {
+  const getErrorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error ? error.message : fallback
+
   const router = useRouter()
   const [questions, setQuestions] = useState<DBQuestion[]>(initialQuestions)
   const [selectedTypeId, setSelectedTypeId] = useState<string>('all')
@@ -117,7 +125,7 @@ export default function BankClient({
 
   // Filter and sort questions
   const filteredQuestions = useMemo(() => {
-    let result = questions.filter(question => {
+    const result = questions.filter(question => {
       if (selectedTypeId !== 'all' && question.problem_type_id !== selectedTypeId) {
         return false
       }
@@ -227,7 +235,7 @@ export default function BankClient({
       } else {
          toast.error('잔액 조회 실패')
       }
-    } catch(e) {
+    } catch {
       toast.error('잔액 조회 중 오류 발생')
     } finally {
       setIsCheckingBalance(false)
@@ -246,7 +254,7 @@ export default function BankClient({
         const response = await fetch('/api/questions/save-from-community', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question_id: pendingQuestionId }),
+          body: JSON.stringify({ question_id: pendingQuestionId, workspaceSubject }),
         })
 
         await syncCreditBalanceFromResponse(response)
@@ -259,8 +267,8 @@ export default function BankClient({
         toast.success('문제를 내 라이브러리로 가져왔습니다!')
         router.refresh()
 
-      } catch (error: any) {
-        toast.error(error.message)
+      } catch (error: unknown) {
+        toast.error(getErrorMessage(error, '문제 가져오기에 실패했습니다.'))
       } finally {
         setSavingQuestionId(null)
         setPendingQuestionId(null)
@@ -291,7 +299,7 @@ export default function BankClient({
       } else {
          toast.error('잔액 조회 실패')
       }
-    } catch(e) {
+    } catch {
       toast.error('잔액 조회 중 오류 발생')
     } finally {
       setIsCheckingBalance(false)
@@ -308,7 +316,7 @@ export default function BankClient({
       const response = await fetch('/api/questions/save-from-community', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question_ids: selectedQuestions }),
+        body: JSON.stringify({ question_ids: selectedQuestions, workspaceSubject }),
       })
 
       await syncCreditBalanceFromResponse(response)
@@ -331,8 +339,8 @@ export default function BankClient({
       router.refresh()
       setSelectedQuestions([])
 
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, '문제 가져오기에 실패했습니다.'))
     } finally {
       setIsBulkSaving(false)
     }
@@ -375,8 +383,8 @@ export default function BankClient({
       // 백그라운드에서 서버 데이터 동기화
       router.refresh()
 
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, '문제 삭제에 실패했습니다.'))
     } finally {
       setDeletingQuestionId(null)
     }
@@ -416,7 +424,7 @@ export default function BankClient({
       // 백그라운드에서 서버 데이터 동기화
       router.refresh()
 
-    } catch (error: any) {
+    } catch {
       toast.error('문제 삭제 중 오류가 발생했습니다.')
     }
   }
@@ -427,10 +435,10 @@ export default function BankClient({
     // Parse choices - handle both formats
     let parsedChoices = ['', '', '', '', '']
     if (Array.isArray(question.choices)) {
-      parsedChoices = question.choices.map((choice: any) => {
+      parsedChoices = (question.choices as ChoiceOption[]).map((choice) => {
         if (typeof choice === 'string') {
           return choice
-        } else if (choice.text) {
+        } else if (choice && choice.text) {
           return choice.text
         }
         return ''
@@ -569,8 +577,8 @@ export default function BankClient({
       // 백그라운드에서 서버 데이터 동기화
       router.refresh()
 
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, '문제 수정에 실패했습니다.'))
     } finally {
       setIsSubmitting(false)
     }

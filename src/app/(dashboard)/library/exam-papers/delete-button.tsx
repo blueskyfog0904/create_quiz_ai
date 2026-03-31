@@ -7,9 +7,10 @@ import { useState } from 'react'
 
 interface DeleteExamPaperButtonProps {
   paperId: string
+  workspaceSubject: string
 }
 
-export function DeleteExamPaperButton({ paperId }: DeleteExamPaperButtonProps) {
+export function DeleteExamPaperButton({ paperId, workspaceSubject }: DeleteExamPaperButtonProps) {
   const router = useRouter()
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -20,7 +21,7 @@ export function DeleteExamPaperButton({ paperId }: DeleteExamPaperButtonProps) {
 
     setIsDeleting(true)
     try {
-      const response = await fetch(`/api/exam-papers/${paperId}`, {
+      const response = await fetch(`/api/exam-papers/${paperId}?subject=${workspaceSubject}`, {
         method: 'DELETE'
       })
 
@@ -32,9 +33,9 @@ export function DeleteExamPaperButton({ paperId }: DeleteExamPaperButtonProps) {
 
       toast.success('문제지가 삭제되었습니다.')
       router.refresh()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Delete error:', error)
-      toast.error(error.message)
+      toast.error(error instanceof Error ? error.message : '삭제에 실패했습니다.')
     } finally {
       setIsDeleting(false)
     }
@@ -50,5 +51,3 @@ export function DeleteExamPaperButton({ paperId }: DeleteExamPaperButtonProps) {
     </Button>
   )
 }
-
-
