@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import * as XLSX from 'xlsx'
 import { Download, Loader2, Pencil, Plus, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
@@ -60,6 +61,7 @@ interface GenerateProductsClientProps {
   generateMenuEntries: GenerateMenuEntryAdminRow[]
   initialGeneratePosts: GenerateListboardPost[]
   initialSelectedBoardId: string | null
+  workspaceSubject: WorkspaceSubject
 }
 
 interface GeneratePostCsvItem {
@@ -224,6 +226,7 @@ export default function GenerateProductsClient({
   generateMenuEntries: initialGenerateMenuEntries,
   initialGeneratePosts,
   initialSelectedBoardId,
+  workspaceSubject,
 }: GenerateProductsClientProps) {
   const [generateMenuEntries, setGenerateMenuEntries] = useState(initialGenerateMenuEntries)
   const [selectedBoardId, setSelectedBoardId] = useState(initialSelectedBoardId || '')
@@ -271,7 +274,7 @@ export default function GenerateProductsClient({
     setSelectedBoardId(boardId)
     setIsLoadingPosts(true)
     try {
-      const response = await getGenerateListboardPostsAction(boardId)
+      const response = await getGenerateListboardPostsAction(boardId, workspaceSubject)
       setGeneratePosts(response.data)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '게시글 목록을 불러오지 못했습니다.')
@@ -314,7 +317,7 @@ export default function GenerateProductsClient({
 
     setIsLoadingPostItems(true)
     try {
-      const response = await getGenerateListboardPostItemsAction(post.id)
+      const response = await getGenerateListboardPostItemsAction(post.id, workspaceSubject)
       if (activePostItemsRequestRef.current !== post.id) {
         return
       }
@@ -410,7 +413,7 @@ export default function GenerateProductsClient({
           passage_text: item.passageText,
           sort_order: item.sortOrder,
           is_active: item.isActive,
-        })
+        }, workspaceSubject)
 
         setPostItems((current) => {
           const nextItems = current.map((candidate, index) => candidate.clientId === item.clientId
@@ -431,7 +434,7 @@ export default function GenerateProductsClient({
           passage_text: item.passageText,
           sort_order: item.sortOrder,
           is_active: item.isActive,
-        })
+        }, workspaceSubject)
 
         setPostItems((current) => {
           const nextItems = current.map((candidate, index) => candidate.clientId === item.clientId
@@ -458,7 +461,7 @@ export default function GenerateProductsClient({
 
     setSavingPostItemClientIds((current) => [...current, archivePostItemTarget.clientId])
     try {
-      await archiveGenerateListboardPostItemAction(archivePostItemTarget.id)
+      await archiveGenerateListboardPostItemAction(archivePostItemTarget.id, workspaceSubject)
       setPostItems((current) => {
         const nextItems = current.filter((item) => item.clientId !== archivePostItemTarget.clientId)
         const nextPassageText = getRepresentativePassageText(nextItems)
@@ -497,7 +500,7 @@ export default function GenerateProductsClient({
       } as const
 
       if (postForm.id) {
-        const response = await updateGenerateListboardPostAction(postForm.id, payload)
+        const response = await updateGenerateListboardPostAction(postForm.id, payload, workspaceSubject)
         setGeneratePosts((current) => current.map((post) => post.id === postForm.id ? response.data : post))
         toast.success('게시글을 수정했습니다.')
       } else {
@@ -518,7 +521,7 @@ export default function GenerateProductsClient({
           passage_text: item.passageText,
           sort_order: item.sortOrder,
           is_active: item.isActive,
-        })))
+        })), workspaceSubject)
 
         setGeneratePosts((current) => [response.data.post, ...current])
         persistGenerateEntryState(generateMenuEntries.map((entry) => entry.id === postForm.menuEntryId ? { ...entry, postCount: entry.postCount + 1 } : entry))
@@ -538,7 +541,7 @@ export default function GenerateProductsClient({
 
     setIsSavingPost(true)
     try {
-      await archiveGenerateListboardPostAction(archivePostTarget.id)
+      await archiveGenerateListboardPostAction(archivePostTarget.id, workspaceSubject)
       setGeneratePosts((current) => current.filter((post) => post.id !== archivePostTarget.id))
       persistGenerateEntryState(generateMenuEntries.map((entry) => entry.id === archivePostTarget.menu_entry_id ? { ...entry, postCount: Math.max(0, entry.postCount - 1) } : entry))
       setArchivePostTarget(null)
@@ -554,7 +557,7 @@ export default function GenerateProductsClient({
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">문제생성 상품 관리</h1>
+          <h1 className="text-3xl font-bold text-gray-900">문제생성 상품 관리 · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
           <p className="mt-1 text-gray-500">문제생성 2단계 리스트보드 메뉴별 게시글과 문항 행을 운영합니다.</p>
         </div>
       </div>

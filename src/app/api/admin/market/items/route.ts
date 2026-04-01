@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { createMarketItem, listMarketItemsForAdmin } from '@/lib/market-items-server'
+import { listMarketMenuEntriesForAdmin } from '@/lib/market-menu-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,8 +60,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    const menuEntryId = new URL(request.url).searchParams.get('menuEntryId') || undefined
-    const items = await listMarketItemsForAdmin(menuEntryId)
+    const searchParams = new URL(request.url).searchParams
+    const menuEntryId = searchParams.get('menuEntryId') || undefined
+    const workspaceSubject = resolveAdminWorkspaceSubject(searchParams.get('subject'))
+    const items = await listMarketItemsForAdmin(menuEntryId, workspaceSubject)
 
     return NextResponse.json({ success: true, data: items })
   } catch (error) {
@@ -87,11 +91,20 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     const parsed = MarketItemSchema.safeParse(body)
+    const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
 
     if (!parsed.success) {
       return NextResponse.json({
         success: false,
         error: { code: 'INVALID_INPUT', message: parsed.error.issues[0]?.message || '입력이 올바르지 않습니다.' },
+      }, { status: 400 })
+    }
+
+    const availableMenuEntries = await listMarketMenuEntriesForAdmin(workspaceSubject)
+    if (!availableMenuEntries.some((entry) => entry.id === parsed.data.menuEntryId && entry.deleted_at === null)) {
+      return NextResponse.json({
+        success: false,
+        error: { code: 'INVALID_INPUT', message: '선택한 과목 작업공간에 속한 문제마켓 카테고리를 선택해주세요.' },
       }, { status: 400 })
     }
 

@@ -221,9 +221,13 @@ function validateMarketItemInput(input: {
   }
 }
 
-export async function listMarketItemsForAdmin(menuEntryId?: string): Promise<MarketItem[]> {
+export async function listMarketItemsForAdmin(menuEntryId?: string, workspaceSubject?: WorkspaceSubject): Promise<MarketItem[]> {
   const supabase = getAdminSupabase()
   const menuEntry = menuEntryId ? await getMarketMenuEntryById(menuEntryId) : null
+  if (menuEntry && workspaceSubject) {
+    assertMatchingWorkspaceSubject('문제마켓 카테고리', workspaceSubject, menuEntry.workspace_subject)
+  }
+  const activeWorkspaceSubject = menuEntry?.workspace_subject ?? workspaceSubject
 
   let query = applyWorkspaceSubjectFilter(
     supabase
@@ -231,7 +235,7 @@ export async function listMarketItemsForAdmin(menuEntryId?: string): Promise<Mar
       .select('*')
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
-    menuEntry?.workspace_subject
+    activeWorkspaceSubject
   )
 
   if (menuEntryId) {

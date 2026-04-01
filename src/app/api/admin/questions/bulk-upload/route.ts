@@ -1,6 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.'
+}
 
 // HTML 태그 제거 함수 (특히 <br> 태그)
 function removeHtmlTags(text: string | null | undefined): string {
@@ -8,7 +13,7 @@ function removeHtmlTags(text: string | null | undefined): string {
   if (typeof text !== 'string') return String(text)
   
   // <br>, <br/>, <br /> 태그 제거 (대소문자 구분 없이)
-  let cleaned = text.replace(/<br\s*\/?>/gi, '')
+  const cleaned = text.replace(/<br\s*\/?>/gi, '')
   
   // 다른 일반적인 HTML 태그도 제거 (선택사항)
   // cleaned = cleaned.replace(/<[^>]*>/g, '')
@@ -23,7 +28,7 @@ interface QuestionRow {
   문제내용: string
   문제뒤텍스트?: string
   // option 컬럼 지원 (JSON 배열, 쉼표 구분 문자열, 또는 배열)
-  option?: string | any
+  option?: string | unknown
   // 기존 한글 컬럼명도 지원
   선택지1?: string
   선택지2?: string
@@ -121,11 +126,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No data found in the file' }, { status: 400 })
     }
     
+    const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
+
     // 3. Fetch problem types for name-to-ID mapping
     const { data: problemTypes, error: problemTypesError } = await supabase
       .from('problem_types')
       .select('id, type_name')
       .eq('is_active', true)
+      .eq('workspace_subject', workspaceSubject)
     
     if (problemTypesError) {
       console.error('[Bulk Upload] Error fetching problem types:', problemTypesError)
@@ -193,16 +201,19 @@ export async function POST(request: Request) {
               // JSON 배열 형식인 경우
               if (row.option.trim().startsWith('[') || row.option.trim().startsWith('{')) {
                 console.log(`[Bulk Upload] Row ${rowNumber}: Parsing as JSON`)
-                const parsed = JSON.parse(row.option.trim())
+                const parsed: unknown = JSON.parse(row.option.trim())
                 console.log(`[Bulk Upload] Row ${rowNumber}: Parsed JSON:`, parsed)
                 if (Array.isArray(parsed)) {
-                  choices = parsed.map((c: any) => removeHtmlTags(String(c))).filter((c: string) => c !== '')
-                } else if (parsed.choices && Array.isArray(parsed.choices)) {
-                  choices = parsed.choices.map((c: any) => {
-                    if (typeof c === 'string') return removeHtmlTags(c)
-                    if (c && typeof c === 'object' && c.text) return removeHtmlTags(String(c.text))
-                    return removeHtmlTags(String(c))
-                  }).filter((c: string) => c !== '')
+                  choices = parsed.map((c) => removeHtmlTags(String(c))).filter((c: string) => c !== '')
+                } else if (parsed && typeof parsed === 'object' && 'choices' in parsed) {
+                  const parsedChoices = (parsed as { choices?: unknown }).choices
+                  if (Array.isArray(parsedChoices)) {
+                    choices = parsedChoices.map((c) => {
+                      if (typeof c === 'string') return removeHtmlTags(c)
+                      if (c && typeof c === 'object' && 'text' in c) return removeHtmlTags(String((c as { text?: unknown }).text))
+                      return removeHtmlTags(String(c))
+                    }).filter((c: string) => c !== '')
+                  }
                 }
               } else {
                 // 쉼표로 구분된 문자열인 경우
@@ -212,7 +223,7 @@ export async function POST(request: Request) {
             } else if (Array.isArray(row.option)) {
               // 이미 배열인 경우
               console.log(`[Bulk Upload] Row ${rowNumber}: Option is already an array`)
-              choices = row.option.map((c: any) => removeHtmlTags(String(c))).filter((c: string) => c !== '')
+              choices = row.option.map((c) => removeHtmlTags(String(c))).filter((c: string) => c !== '')
             }
             console.log(`[Bulk Upload] Row ${rowNumber}: Choices from option column:`, choices)
           } catch (e) {
@@ -295,7 +306,7 @@ export async function POST(request: Request) {
           question: parsedQuestion,
         })
         
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Even if there's an error, create a partial question object for display
         const problemTypeInfo = problemTypeMap.get(row.문제유형)
         
@@ -314,21 +325,24 @@ export async function POST(request: Request) {
               try {
                 if (typeof row.option === 'string') {
                   if (row.option.trim().startsWith('[') || row.option.trim().startsWith('{')) {
-                    const parsed = JSON.parse(row.option.trim())
+                    const parsed: unknown = JSON.parse(row.option.trim())
                     if (Array.isArray(parsed)) {
-                      return parsed.map((c: any) => removeHtmlTags(String(c))).filter((c: string) => c !== '')
-                    } else if (parsed.choices && Array.isArray(parsed.choices)) {
-                      return parsed.choices.map((c: any) => {
-                        if (typeof c === 'string') return removeHtmlTags(c)
-                        if (c && typeof c === 'object' && c.text) return removeHtmlTags(String(c.text))
-                        return removeHtmlTags(String(c))
-                      }).filter((c: string) => c !== '')
+                      return parsed.map((c) => removeHtmlTags(String(c))).filter((c: string) => c !== '')
+                    } else if (parsed && typeof parsed === 'object' && 'choices' in parsed) {
+                      const parsedChoices = (parsed as { choices?: unknown }).choices
+                      if (Array.isArray(parsedChoices)) {
+                        return parsedChoices.map((c) => {
+                          if (typeof c === 'string') return removeHtmlTags(c)
+                          if (c && typeof c === 'object' && 'text' in c) return removeHtmlTags(String((c as { text?: unknown }).text))
+                          return removeHtmlTags(String(c))
+                        }).filter((c: string) => c !== '')
+                      }
                     }
                   } else {
                     return row.option.split(',').map((c: string) => removeHtmlTags(c)).filter((c: string) => c !== '')
                   }
                 } else if (Array.isArray(row.option)) {
-                  return row.option.map((c: any) => removeHtmlTags(String(c))).filter((c: string) => c !== '')
+                  return row.option.map((c) => removeHtmlTags(String(c))).filter((c: string) => c !== '')
                 }
               } catch (e) {
                 console.warn(`[Bulk Upload] Row ${rowNumber} (error case): Failed to parse option:`, e)
@@ -357,14 +371,14 @@ export async function POST(request: Request) {
           source_3: row.출처3 ? removeHtmlTags(String(row.출처3)) : '',
           source_4: row.출처4 ? removeHtmlTags(String(row.출처4)) : '',
           isValid: false,
-          errorMessage: error.message,
+          errorMessage: getErrorMessage(error),
         }
         
         results.push({
           success: false,
           row: rowNumber,
           question: partialQuestion,
-          error: error.message,
+          error: getErrorMessage(error),
         })
       }
     }

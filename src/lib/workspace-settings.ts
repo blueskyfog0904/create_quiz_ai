@@ -34,6 +34,16 @@ async function getWorkspaceSettingsClient() {
   return getServiceRoleClient() ?? await createClient()
 }
 
+function isMissingWorkspaceSettingsTableError(error: { message?: string | null; details?: string | null }) {
+  const message = (error.message || '').toLowerCase()
+  const details = (error.details || '').toLowerCase()
+
+  return message.includes("could not find the table 'public.workspace_settings'")
+    || message.includes('relation "public.workspace_settings" does not exist')
+    || message.includes('relation "workspace_settings" does not exist')
+    || details.includes('workspace_settings')
+}
+
 export function assertWorkspaceSubject(value: string): WorkspaceSubject {
   if (!isWorkspaceSubject(value)) {
     throw new Error(`Unsupported workspace subject: ${value}`)
@@ -55,6 +65,9 @@ export async function getWorkspaceSettingRow(
     .maybeSingle()
 
   if (error) {
+    if (isMissingWorkspaceSettingsTableError(error)) {
+      return null
+    }
     throw new Error(error.message || '워크스페이스 설정을 불러오지 못했습니다.')
   }
 

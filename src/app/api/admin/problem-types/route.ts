@@ -2,9 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { Database } from '@/types/supabase'
+import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 
 // GET - 전체 문제 유형 리스트 조회
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -23,10 +24,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
     }
     
+    const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
+
     // Fetch all problem types (including inactive)
     const { data: types, error } = await supabase
       .from('problem_types')
       .select('*')
+      .eq('workspace_subject', workspaceSubject)
       .order('created_at', { ascending: false })
     
     if (error) {
@@ -88,9 +92,11 @@ export async function POST(request: Request) {
     // 2. Validate request data
     const body = await request.json()
     const validatedData = problemTypeSchema.parse(body)
+    const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
     
     // 3. Insert problem type into database
-    const insertData: Database['public']['Tables']['problem_types']['Insert'] = {
+    const insertData: Database['public']['Tables']['problem_types']['Insert'] & { workspace_subject: string } = {
+      workspace_subject: workspaceSubject,
       type_name: validatedData.type_name,
       description: validatedData.description || null,
       provider: validatedData.provider,
@@ -155,6 +161,7 @@ export async function PATCH(request: Request) {
 
     const body = await request.json()
     const validatedData = bulkModelUpdateSchema.parse(body)
+    const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
 
     // 선택한 provider/model 조합의 존재 여부 검증
     const { data: model, error: modelError } = await supabase
@@ -180,6 +187,7 @@ export async function PATCH(request: Request) {
         model_name: validatedData.model_name,
         updated_at: new Date().toISOString(),
       })
+      .eq('workspace_subject', workspaceSubject)
       .in('provider', ['openai', 'gemini'])
       .select('id')
 

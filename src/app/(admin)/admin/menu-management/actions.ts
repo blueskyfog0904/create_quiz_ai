@@ -48,10 +48,11 @@ import {
   type LegacyMarketChildSummary,
 } from '@/lib/market-menu-server'
 import type { MarketMenuEntryAdminRow } from '@/lib/market-menu'
-import { DEFAULT_WORKSPACE_SUBJECT, withWorkspacePrefix } from '@/lib/workspace-subject'
+import { DEFAULT_WORKSPACE_SUBJECT, withWorkspacePrefix, type WorkspaceSubject } from '@/lib/workspace-subject'
 import type { TablesInsert, TablesUpdate } from '@/types/supabase'
 
 export interface MenuManagementPageData {
+  workspaceSubject?: WorkspaceSubject
   initialConfig: HeaderNavigationConfig
   generateMenuEntries: GenerateMenuEntryAdminRow[]
   marketMenuEntries: MarketMenuEntryAdminRow[]
@@ -73,32 +74,35 @@ export interface MenuManagementPageData {
   }
 }
 
-function revalidateMenuRelatedPaths() {
-  const revalidateLegacyAndEnglishPath = (path: string, type: 'layout' | 'page') => {
+function revalidateMenuRelatedPaths(workspaceSubject: WorkspaceSubject) {
+  const revalidateWorkspacePath = (subject: WorkspaceSubject, path: string, type: 'layout' | 'page') => {
     revalidatePath(path, type)
-    revalidatePath(withWorkspacePrefix(DEFAULT_WORKSPACE_SUBJECT, path), type)
+    revalidatePath(withWorkspacePrefix(subject, path), type)
   }
 
-  revalidateLegacyAndEnglishPath('/', 'layout')
-  revalidateLegacyAndEnglishPath('/generate', 'layout')
-  revalidateLegacyAndEnglishPath('/generate/boards', 'layout')
-  revalidateLegacyAndEnglishPath('/market', 'layout')
-  revalidateLegacyAndEnglishPath('/library/purchased', 'layout')
+  revalidateWorkspacePath(DEFAULT_WORKSPACE_SUBJECT, '/', 'layout')
+  revalidateWorkspacePath('korean', '/', 'layout')
+  revalidateWorkspacePath(DEFAULT_WORKSPACE_SUBJECT, '/generate', 'layout')
+  revalidateWorkspacePath(DEFAULT_WORKSPACE_SUBJECT, '/generate/boards', 'layout')
+  revalidateWorkspacePath(DEFAULT_WORKSPACE_SUBJECT, '/market', 'layout')
+  revalidateWorkspacePath('korean', '/market', 'layout')
+  revalidateWorkspacePath(DEFAULT_WORKSPACE_SUBJECT, '/library/purchased', 'layout')
+  revalidateWorkspacePath('korean', '/library/purchased', 'layout')
   revalidatePath('/admin')
-  revalidatePath('/admin/menu-management')
+  revalidatePath(`/admin/menu-management?subject=${workspaceSubject}`)
 }
 
-export async function getMenuManagementData(): Promise<MenuManagementPageData> {
+export async function getMenuManagementData(workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT): Promise<MenuManagementPageData> {
   await requireAdmin()
 
-  const initialConfig = await getBaseHeaderNavigationConfig()
-  const generateMenuEntries = await listGenerateMenuEntriesForAdmin()
-  const marketMenuEntries = await listMarketMenuEntriesForAdmin()
-  const backfillStatus = await getGenerateMenuEntriesBackfillStatus(initialConfig)
-  const marketBackfillStatus = await getMarketMenuEntriesBackfillStatus(initialConfig)
+  const initialConfig = await getBaseHeaderNavigationConfig(workspaceSubject)
+  const generateMenuEntries = await listGenerateMenuEntriesForAdmin(workspaceSubject)
+  const marketMenuEntries = await listMarketMenuEntriesForAdmin(workspaceSubject)
+  const backfillStatus = await getGenerateMenuEntriesBackfillStatus(initialConfig, workspaceSubject)
+  const marketBackfillStatus = await getMarketMenuEntriesBackfillStatus(initialConfig, workspaceSubject)
   const firstListboardEntry = generateMenuEntries.find((entry) => entry.entry_type === 'listboard' && entry.deleted_at === null)
   const initialGeneratePosts = firstListboardEntry
-    ? await listGenerateListboardPostsForAdmin(firstListboardEntry.id)
+    ? await listGenerateListboardPostsForAdmin(firstListboardEntry.id, workspaceSubject)
     : []
 
   return {
@@ -113,29 +117,30 @@ export async function getMenuManagementData(): Promise<MenuManagementPageData> {
     hasMarketParent: initialConfig.items.some((item) => item.href === '/market'),
     backfillStatus,
     marketBackfillStatus,
+    workspaceSubject,
   }
 }
 
-export async function getGenerateListboardPostsAction(menuEntryId: string) {
+export async function getGenerateListboardPostsAction(menuEntryId: string, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await requireAdmin()
-  const posts = await listGenerateListboardPostsForAdmin(menuEntryId)
+  const posts = await listGenerateListboardPostsForAdmin(menuEntryId, workspaceSubject)
   return { success: true, data: posts }
 }
 
-export async function getGenerateListboardPostItemsAction(postId: string): Promise<{ success: true, data: GenerateListboardPostItem[] }> {
+export async function getGenerateListboardPostItemsAction(postId: string, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT): Promise<{ success: true, data: GenerateListboardPostItem[] }> {
   await requireAdmin()
-  const items = await listGenerateListboardPostItemsForAdmin(postId)
+  const items = await listGenerateListboardPostItemsForAdmin(postId, workspaceSubject)
   return { success: true, data: items }
 }
 
-export async function saveMenuManagementConfig(input: HeaderNavigationConfig) {
+export async function saveMenuManagementConfig(input: HeaderNavigationConfig, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await requireAdmin()
 
   const normalizedConfig = normalizeHeaderNavigationConfig(input)
   validateHeaderNavigationConfig(normalizedConfig)
 
-  const savedConfig = await persistHeaderNavigationConfig(normalizedConfig)
-  revalidateMenuRelatedPaths()
+  const savedConfig = await persistHeaderNavigationConfig(normalizedConfig, workspaceSubject)
+  revalidateMenuRelatedPaths(workspaceSubject)
 
   return {
     success: true,
@@ -144,48 +149,51 @@ export async function saveMenuManagementConfig(input: HeaderNavigationConfig) {
 }
 
 export async function createGenerateMenuEntryAction(
-  input: Pick<TablesInsert<'generate_menu_entries'>, 'title' | 'slug' | 'entry_type' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>
+  input: Pick<TablesInsert<'generate_menu_entries'>, 'title' | 'slug' | 'entry_type' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>,
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
   await requireAdmin()
-  const entry = await createGenerateMenuEntry(input)
-  revalidateMenuRelatedPaths()
+  const entry = await createGenerateMenuEntry(input, workspaceSubject)
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true, data: entry }
 }
 
 export async function updateGenerateMenuEntryAction(
   id: string,
-  input: Pick<TablesUpdate<'generate_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>
+  input: Pick<TablesUpdate<'generate_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>,
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
   await requireAdmin()
   const entry = await updateGenerateMenuEntry(id, input)
-  revalidateMenuRelatedPaths()
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true, data: entry }
 }
 
-export async function archiveGenerateMenuEntryAction(id: string) {
+export async function archiveGenerateMenuEntryAction(id: string, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await requireAdmin()
   await archiveGenerateMenuEntry(id)
-  revalidateMenuRelatedPaths()
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true }
 }
 
-export async function reorderGenerateMenuEntriesAction(ids: string[]) {
+export async function reorderGenerateMenuEntriesAction(ids: string[], workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await requireAdmin()
   await reorderGenerateMenuEntries(ids)
-  revalidateMenuRelatedPaths()
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true }
 }
 
-export async function backfillGenerateMenuEntriesAction() {
+export async function backfillGenerateMenuEntriesAction(workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await requireAdmin()
-  const config = await getBaseHeaderNavigationConfig()
-  const entries = await backfillGenerateMenuEntriesFromHeader(config)
-  revalidateMenuRelatedPaths()
+  const config = await getBaseHeaderNavigationConfig(workspaceSubject)
+  const entries = await backfillGenerateMenuEntriesFromHeader(config, workspaceSubject)
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true, data: entries }
 }
 
 export async function createGenerateListboardPostAction(
-  input: Pick<TablesInsert<'generate_listboard_posts'>, 'menu_entry_id' | 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'status' | 'is_active'>
+  input: Pick<TablesInsert<'generate_listboard_posts'>, 'menu_entry_id' | 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'status' | 'is_active'>,
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
   const user = await requireAdmin()
   const post = await createGenerateListboardPost({
@@ -193,13 +201,14 @@ export async function createGenerateListboardPostAction(
     created_by: user.id,
     updated_by: user.id,
   })
-  revalidateMenuRelatedPaths()
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true, data: post }
 }
 
 export async function createGenerateListboardPostWithItemsAction(
   input: Pick<TablesInsert<'generate_listboard_posts'>, 'menu_entry_id' | 'title' | 'exam_year' | 'exam_month' | 'grade_level' | 'status' | 'is_active'>,
-  items: Array<Pick<TablesInsert<'generate_listboard_post_items'>, 'question_number' | 'passage_text' | 'sort_order' | 'is_active'>>
+  items: Array<Pick<TablesInsert<'generate_listboard_post_items'>, 'question_number' | 'passage_text' | 'sort_order' | 'is_active'>>,
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
   const user = await requireAdmin()
   const result = await createGenerateListboardPostWithItems({
@@ -207,32 +216,34 @@ export async function createGenerateListboardPostWithItemsAction(
     created_by: user.id,
     updated_by: user.id,
   }, items)
-  revalidateMenuRelatedPaths()
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true, data: result }
 }
 
 export async function updateGenerateListboardPostAction(
   id: string,
-  input: Pick<TablesUpdate<'generate_listboard_posts'>, 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'status' | 'is_active'>
+  input: Pick<TablesUpdate<'generate_listboard_posts'>, 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'status' | 'is_active'>,
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
   const user = await requireAdmin()
   const post = await updateGenerateListboardPost(id, {
     ...input,
     updated_by: user.id,
   })
-  revalidateMenuRelatedPaths()
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true, data: post }
 }
 
-export async function archiveGenerateListboardPostAction(id: string) {
+export async function archiveGenerateListboardPostAction(id: string, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await requireAdmin()
   await archiveGenerateListboardPost(id)
-  revalidateMenuRelatedPaths()
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true }
 }
 
 export async function createGenerateListboardPostItemAction(
-  input: Pick<TablesInsert<'generate_listboard_post_items'>, 'post_id' | 'question_number' | 'passage_text' | 'sort_order' | 'is_active'>
+  input: Pick<TablesInsert<'generate_listboard_post_items'>, 'post_id' | 'question_number' | 'passage_text' | 'sort_order' | 'is_active'>,
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
   const user = await requireAdmin()
   const item = await createGenerateListboardPostItem({
@@ -240,68 +251,71 @@ export async function createGenerateListboardPostItemAction(
     created_by: user.id,
     updated_by: user.id,
   })
-  revalidateMenuRelatedPaths()
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true, data: item }
 }
 
 export async function updateGenerateListboardPostItemAction(
   id: string,
-  input: Pick<TablesUpdate<'generate_listboard_post_items'>, 'question_number' | 'passage_text' | 'sort_order' | 'is_active'>
+  input: Pick<TablesUpdate<'generate_listboard_post_items'>, 'question_number' | 'passage_text' | 'sort_order' | 'is_active'>,
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
   const user = await requireAdmin()
   const item = await updateGenerateListboardPostItem(id, {
     ...input,
     updated_by: user.id,
   })
-  revalidateMenuRelatedPaths()
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true, data: item }
 }
 
-export async function archiveGenerateListboardPostItemAction(id: string) {
+export async function archiveGenerateListboardPostItemAction(id: string, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await requireAdmin()
   await archiveGenerateListboardPostItem(id)
-  revalidateMenuRelatedPaths()
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true }
 }
 
 
 export async function createMarketMenuEntryAction(
-  input: Pick<TablesInsert<'market_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>
+  input: Pick<TablesInsert<'market_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>,
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
   await requireAdmin()
-  const entry = await createMarketMenuEntry(input)
-  revalidateMenuRelatedPaths()
+  const entry = await createMarketMenuEntry(input, workspaceSubject)
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true, data: entry }
 }
 
 export async function updateMarketMenuEntryAction(
   id: string,
-  input: Pick<TablesUpdate<'market_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>
+  input: Pick<TablesUpdate<'market_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>,
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
   await requireAdmin()
   const entry = await updateMarketMenuEntry(id, input)
-  revalidateMenuRelatedPaths()
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true, data: entry }
 }
 
-export async function archiveMarketMenuEntryAction(id: string) {
+export async function archiveMarketMenuEntryAction(id: string, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await requireAdmin()
   await archiveMarketMenuEntry(id)
-  revalidateMenuRelatedPaths()
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true }
 }
 
-export async function reorderMarketMenuEntriesAction(ids: string[]) {
+export async function reorderMarketMenuEntriesAction(ids: string[], workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await requireAdmin()
   await reorderMarketMenuEntries(ids)
-  revalidateMenuRelatedPaths()
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true }
 }
 
-export async function backfillMarketMenuEntriesAction() {
+export async function backfillMarketMenuEntriesAction(workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await requireAdmin()
-  const config = await getBaseHeaderNavigationConfig()
-  const entries = await backfillMarketMenuEntriesFromHeader(config)
-  revalidateMenuRelatedPaths()
+  const config = await getBaseHeaderNavigationConfig(workspaceSubject)
+  const entries = await backfillMarketMenuEntriesFromHeader(config, workspaceSubject)
+  revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true, data: entries }
 }

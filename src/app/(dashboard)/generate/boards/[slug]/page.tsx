@@ -7,7 +7,7 @@ import {
   searchGenerateBoardPosts,
   type ListboardSearchFilters,
 } from '../data'
-import { DEFAULT_GENERATE_WORKSPACE_SUBJECT } from '../../workspace-subject'
+import { resolveGenerateWorkspaceSubject } from '../../workspace-subject'
 
 interface BoardPageProps {
   params: Promise<{ slug: string }>
@@ -16,6 +16,7 @@ interface BoardPageProps {
     month?: string
     grade?: string
     title?: string
+    subject?: string
   }>
 }
 
@@ -23,7 +24,9 @@ export default async function GenerateBoardPage({ params, searchParams }: BoardP
   await requireAuth()
   const { slug } = await params
   const rawFilters = await searchParams
-  const workspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
+  const workspaceSubject = resolveGenerateWorkspaceSubject({
+    workspaceSubject: rawFilters.subject,
+  })
   const filters: ListboardSearchFilters = {
     year: rawFilters.year?.trim() || '',
     month: rawFilters.month?.trim() || '',

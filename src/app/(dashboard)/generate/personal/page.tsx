@@ -1,12 +1,19 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import MultiGenerateClient from '../multi/multi-generate-client'
-import { DEFAULT_GENERATE_WORKSPACE_SUBJECT } from '../workspace-subject'
+import { resolveGenerateWorkspaceSubject } from '../workspace-subject'
 
-export default async function PersonalGeneratePage() {
+interface PersonalGeneratePageProps {
+  searchParams?: Promise<{ subject?: string }>
+}
+
+export default async function PersonalGeneratePage({ searchParams }: PersonalGeneratePageProps) {
   await requireAuth()
   const supabase = await createClient()
-  const workspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const workspaceSubject = resolveGenerateWorkspaceSubject({
+    workspaceSubject: resolvedSearchParams?.subject,
+  })
 
   const { data: problemTypes } = await supabase
     .from('problem_types')

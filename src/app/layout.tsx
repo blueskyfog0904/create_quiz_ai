@@ -5,8 +5,8 @@ import { Footer } from '@/components/layout/footer'
 import { Toaster } from '@/components/ui/sonner'
 
 export const metadata: Metadata = {
-  title: 'AI영어문제팩토리',
-  description: 'AI 기반 영어 문제 생성 플랫폼',
+  title: '써머썬 연구소',
+  description: '영어와 국어 워크스페이스를 지원하는 문제 생성 플랫폼',
 }
 
 export default function RootLayout({

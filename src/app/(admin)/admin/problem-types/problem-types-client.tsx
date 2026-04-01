@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { deleteProblemType } from './actions'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -35,9 +37,10 @@ type AIProvider = 'openai' | 'gemini'
 interface ProblemTypesClientProps {
   initialTypes: ProblemType[]
   initialModels: AIModel[]
+  workspaceSubject: WorkspaceSubject
 }
 
-export default function ProblemTypesClient({ initialTypes, initialModels }: ProblemTypesClientProps) {
+export default function ProblemTypesClient({ initialTypes, initialModels, workspaceSubject }: ProblemTypesClientProps) {
   const router = useRouter()
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
@@ -92,11 +95,11 @@ export default function ProblemTypesClient({ initialTypes, initialModels }: Prob
   }
 
   const handleCreate = () => {
-    router.push('/admin/problem-types/new')
+    router.push(withAdminWorkspaceSubject('/admin/problem-types/new', workspaceSubject))
   }
 
   const handleEdit = (id: string) => {
-    router.push(`/admin/problem-types/${id}/edit`)
+    router.push(withAdminWorkspaceSubject(`/admin/problem-types/${id}/edit`, workspaceSubject))
   }
 
   const handleOpenBulkDialog = () => {
@@ -128,7 +131,7 @@ export default function ProblemTypesClient({ initialTypes, initialModels }: Prob
     try {
       setBulkUpdating(true)
 
-      const response = await fetch('/api/admin/problem-types', {
+      const response = await fetch(withAdminWorkspaceSubject('/api/admin/problem-types', workspaceSubject), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

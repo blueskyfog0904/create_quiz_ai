@@ -1,12 +1,19 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import GenerateHomeContent from './generate-home-content'
-import { DEFAULT_GENERATE_WORKSPACE_SUBJECT } from './workspace-subject'
+import { resolveGenerateWorkspaceSubject } from './workspace-subject'
 
-export default async function GeneratePage() {
+interface GeneratePageProps {
+  searchParams?: Promise<{ subject?: string }>
+}
+
+export default async function GeneratePage({ searchParams }: GeneratePageProps) {
   await requireAuth()
   const supabase = await createClient()
-  const workspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const workspaceSubject = resolveGenerateWorkspaceSubject({
+    workspaceSubject: resolvedSearchParams?.subject,
+  })
 
   const { data: problemTypes } = await supabase
     .from('problem_types')

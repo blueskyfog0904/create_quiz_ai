@@ -7,6 +7,7 @@ import {
   type MarketMenuEntryAdminRow,
 } from '@/lib/market-menu'
 import type { TablesInsert, TablesUpdate } from '@/types/supabase'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 const MARKET_CHILDREN_SOURCE_MODE: MarketChildrenSourceMode = 'hybrid_fallback'
 
@@ -126,13 +127,19 @@ export function getLegacyMarketChildren(baseConfig: HeaderNavigationConfig, exis
   })
 }
 
-export async function listMarketMenuEntriesForAdmin(): Promise<MarketMenuEntryAdminRow[]> {
+export async function listMarketMenuEntriesForAdmin(workspaceSubject?: WorkspaceSubject): Promise<MarketMenuEntryAdminRow[]> {
   const supabase = getAdminSupabase()
-  const { data, error } = await supabase
+  let query = supabase
     .from('market_menu_entries')
     .select('*')
     .order('sort_order')
     .order('created_at')
+
+  if (workspaceSubject) {
+    query = query.eq('workspace_subject', workspaceSubject)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     if (isMissingMarketMenuEntriesTableError(error)) {
@@ -145,11 +152,12 @@ export async function listMarketMenuEntriesForAdmin(): Promise<MarketMenuEntryAd
   return data ?? []
 }
 
-export async function listVisibleMarketMenuEntries(): Promise<MarketMenuEntry[]> {
+export async function listVisibleMarketMenuEntries(workspaceSubject: WorkspaceSubject = 'english'): Promise<MarketMenuEntry[]> {
   const supabase = getAdminSupabase()
   const { data, error } = await supabase
     .from('market_menu_entries')
     .select('*')
+    .eq('workspace_subject', workspaceSubject)
     .is('deleted_at', null)
     .eq('is_visible', true)
     .eq('is_active', true)
@@ -167,12 +175,13 @@ export async function listVisibleMarketMenuEntries(): Promise<MarketMenuEntry[]>
   return data ?? []
 }
 
-export async function getVisibleMarketMenuEntryBySlug(slug: string): Promise<MarketMenuEntry | null> {
+export async function getVisibleMarketMenuEntryBySlug(slug: string, workspaceSubject: WorkspaceSubject = 'english'): Promise<MarketMenuEntry | null> {
   const supabase = getAdminSupabase()
   const { data, error } = await supabase
     .from('market_menu_entries')
     .select('*')
     .eq('slug', slug)
+    .eq('workspace_subject', workspaceSubject)
     .is('deleted_at', null)
     .eq('is_visible', true)
     .eq('is_active', true)
@@ -189,13 +198,18 @@ export async function getVisibleMarketMenuEntryBySlug(slug: string): Promise<Mar
   return data
 }
 
-export async function getMarketMenuEntryBySlugForAdmin(slug: string): Promise<MarketMenuEntry | null> {
+export async function getMarketMenuEntryBySlugForAdmin(slug: string, workspaceSubject?: WorkspaceSubject): Promise<MarketMenuEntry | null> {
   const supabase = getAdminSupabase()
-  const { data, error } = await supabase
+  let query = supabase
     .from('market_menu_entries')
     .select('*')
     .eq('slug', slug)
-    .maybeSingle()
+
+  if (workspaceSubject) {
+    query = query.eq('workspace_subject', workspaceSubject)
+  }
+
+  const { data, error } = await query.maybeSingle()
 
   if (error) {
     if (isMissingMarketMenuEntriesTableError(error)) {
@@ -208,12 +222,18 @@ export async function getMarketMenuEntryBySlugForAdmin(slug: string): Promise<Ma
   return data
 }
 
-export async function getMarketMenuEntriesBackfillStatus(baseConfig?: HeaderNavigationConfig) {
+export async function getMarketMenuEntriesBackfillStatus(baseConfig?: HeaderNavigationConfig, workspaceSubject?: WorkspaceSubject) {
   const supabase = getAdminSupabase()
-  const { data, error } = await supabase
+  let query = supabase
     .from('market_menu_entries')
     .select('*')
     .is('deleted_at', null)
+
+  if (workspaceSubject) {
+    query = query.eq('workspace_subject', workspaceSubject)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     if (isMissingMarketMenuEntriesTableError(error)) {
@@ -238,12 +258,14 @@ export async function getMarketMenuEntriesBackfillStatus(baseConfig?: HeaderNavi
 }
 
 export async function createMarketMenuEntry(
-  input: Pick<TablesInsert<'market_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>
+  input: Pick<TablesInsert<'market_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>,
+  workspaceSubject: WorkspaceSubject = 'english'
 ) {
   const supabase = getAdminSupabase()
   const normalized = validateEntryInput(input)
 
-  const payload: TablesInsert<'market_menu_entries'> = {
+  const payload: TablesInsert<'market_menu_entries'> & { workspace_subject: WorkspaceSubject } = {
+    workspace_subject: workspaceSubject,
     entry_key: normalized.slug,
     slug: normalized.slug,
     title: normalized.title,
@@ -367,12 +389,18 @@ export async function reorderMarketMenuEntries(ids: string[]) {
   }
 }
 
-export async function backfillMarketMenuEntriesFromHeader(baseConfig: HeaderNavigationConfig) {
+export async function backfillMarketMenuEntriesFromHeader(baseConfig: HeaderNavigationConfig, workspaceSubject?: WorkspaceSubject) {
   const supabase = getAdminSupabase()
-  const { data: existingEntries, error: existingError } = await supabase
+  let existingEntriesQuery = supabase
     .from('market_menu_entries')
     .select('*')
     .is('deleted_at', null)
+
+  if (workspaceSubject) {
+    existingEntriesQuery = existingEntriesQuery.eq('workspace_subject', workspaceSubject)
+  }
+
+  const { data: existingEntries, error: existingError } = await existingEntriesQuery
 
   if (existingError) {
     throw normalizeMarketMenuEntriesWriteError(existingError)
@@ -382,7 +410,8 @@ export async function backfillMarketMenuEntriesFromHeader(baseConfig: HeaderNavi
   const results: MarketMenuEntry[] = []
 
   for (const [index, child] of legacyChildren.entries()) {
-    const payload: TablesInsert<'market_menu_entries'> = {
+    const payload: TablesInsert<'market_menu_entries'> & { workspace_subject?: WorkspaceSubject } = {
+      workspace_subject: workspaceSubject,
       entry_key: child.entryKey,
       slug: child.slug,
       title: child.title,

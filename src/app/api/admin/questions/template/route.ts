@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     // 1. Check authentication and admin status
     const supabase = await createClient()
@@ -22,11 +23,14 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
     }
     
+    const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
+
     // 2. Fetch problem types from database
     const { data: problemTypes, error: problemTypesError } = await supabase
       .from('problem_types')
       .select('id, type_name')
       .eq('is_active', true)
+      .eq('workspace_subject', workspaceSubject)
       .order('type_name')
     
     if (problemTypesError) {

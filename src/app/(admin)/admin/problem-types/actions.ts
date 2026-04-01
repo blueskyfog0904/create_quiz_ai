@@ -3,9 +3,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { DEFAULT_WORKSPACE_SUBJECT, withWorkspacePrefix } from '@/lib/workspace-subject'
+import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import { DEFAULT_WORKSPACE_SUBJECT, withWorkspacePrefix, type WorkspaceSubject } from '@/lib/workspace-subject'
 
 const ProblemTypeSchema = z.object({
+  workspace_subject: z.enum(['english', 'korean']).optional(),
   type_name: z.string().min(1, "Type name is required"),
   description: z.string().optional(),
   provider: z.enum(['openai', 'gemini']),
@@ -14,10 +16,11 @@ const ProblemTypeSchema = z.object({
   is_active: z.boolean().optional()
 })
 
-function revalidateProblemTypePaths() {
-  revalidatePath('/admin/problem-types')
+function revalidateProblemTypePaths(workspaceSubject: WorkspaceSubject) {
+  revalidatePath(`/admin/problem-types?subject=${workspaceSubject}`)
   revalidatePath('/generate', 'layout')
   revalidatePath(withWorkspacePrefix(DEFAULT_WORKSPACE_SUBJECT, '/generate'), 'layout')
+  revalidatePath(withWorkspacePrefix(workspaceSubject, '/generate'), 'layout')
 }
 
 export async function createProblemType(_prevState: unknown, formData: FormData) {
@@ -44,15 +47,19 @@ export async function createProblemType(_prevState: unknown, formData: FormData)
     return { error: validated.error.issues?.[0]?.message || 'Validation failed' }
   }
 
+  const workspaceSubject = resolveAdminWorkspaceSubject(validated.data.workspace_subject)
   const { error } = await supabase
     .from('problem_types')
-    .insert(validated.data)
+    .insert({
+      ...validated.data,
+      workspace_subject: workspaceSubject,
+    })
 
   if (error) {
     return { error: error.message }
   }
 
-  revalidateProblemTypePaths()
+  revalidateProblemTypePaths(workspaceSubject)
   return { success: true }
 }
 
@@ -74,16 +81,21 @@ export async function updateProblemType(id: string, _prevState: unknown, formDat
     return { error: validated.error.issues?.[0]?.message || 'Validation failed' }
   }
 
+  const workspaceSubject = resolveAdminWorkspaceSubject(validated.data.workspace_subject)
   const { error } = await supabase
     .from('problem_types')
-    .update(validated.data)
+    .update({
+      ...validated.data,
+      workspace_subject: workspaceSubject,
+    })
     .eq('id', id)
+    .eq('workspace_subject', workspaceSubject)
 
   if (error) {
     return { error: error.message }
   }
 
-  revalidateProblemTypePaths()
+  revalidateProblemTypePaths(workspaceSubject)
   return { success: true }
 }
 
@@ -96,15 +108,24 @@ export async function deleteProblemType(id: string) {
     // but practically toggling active is safer.
     // I'll implement hard delete here as requested by "Delete".
     
+    const { data: current } = await supabase
+      .from('problem_types')
+      .select('workspace_subject')
+      .eq('id', id)
+      .maybeSingle()
+
+    const workspaceSubject = resolveAdminWorkspaceSubject(current?.workspace_subject)
+
     const { error } = await supabase
       .from('problem_types')
       .delete()
       .eq('id', id)
+      .eq('workspace_subject', workspaceSubject)
   
     if (error) {
       return { error: error.message }
     }
   
-    revalidateProblemTypePaths()
+    revalidateProblemTypePaths(workspaceSubject)
     return { success: true }
 }

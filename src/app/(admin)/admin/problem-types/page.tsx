@@ -1,9 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
+import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import ProblemTypesClient from './problem-types-client'
 import { redirect } from 'next/navigation'
 
-export default async function ProblemTypesPage() {
+interface ProblemTypesPageProps {
+  searchParams?: Promise<{ subject?: string }>
+}
+
+export default async function ProblemTypesPage({ searchParams }: ProblemTypesPageProps) {
   const supabase = await createClient()
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const workspaceSubject = resolveAdminWorkspaceSubject(resolvedSearchParams?.subject)
   
   // Check authentication and admin status
   const { data: { user } } = await supabase.auth.getUser()
@@ -28,6 +35,7 @@ export default async function ProblemTypesPage() {
   const { data: types } = await supabase
     .from('problem_types')
     .select('*')
+    .eq('workspace_subject', workspaceSubject)
     .order('created_at', { ascending: false })
 
   const { data: aiModels } = await supabase
@@ -37,10 +45,11 @@ export default async function ProblemTypesPage() {
 
   return (
     <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">문제 유형 관리</h1>
+      <h1 className="text-3xl font-bold mb-6">문제 유형 관리 · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
       <ProblemTypesClient
         initialTypes={types || []}
         initialModels={aiModels || []}
+        workspaceSubject={workspaceSubject}
       />
     </div>
   )

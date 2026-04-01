@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { createClient } from '@/lib/supabase/server'
 import { getMarketItemById, listMarketItemFiles, updateMarketItem } from '@/lib/market-items-server'
@@ -54,6 +55,7 @@ async function requireAdminUser() {
 export async function GET(_: Request, { params }: RouteContext) {
   const { user, isAdmin } = await requireAdminUser()
   const { id } = await params
+  const workspaceSubject = resolveAdminWorkspaceSubject(new URL(_.url).searchParams.get('subject'))
 
   if (!user) {
     return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
@@ -64,12 +66,12 @@ export async function GET(_: Request, { params }: RouteContext) {
   }
 
   try {
-    const item = await getMarketItemById(id)
+    const item = await getMarketItemById(id, workspaceSubject)
     if (!item) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
 
-    const files = await listMarketItemFiles(id, true, item.workspace_subject)
+    const files = await listMarketItemFiles(id, true, workspaceSubject)
 
     return NextResponse.json({ success: true, data: { item, files } })
   } catch (error) {
@@ -86,6 +88,7 @@ export async function GET(_: Request, { params }: RouteContext) {
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { user, isAdmin } = await requireAdminUser()
   const { id } = await params
+  const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
 
   if (!user) {
     return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
@@ -98,12 +101,17 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   try {
     const body = await request.json()
     const parsed = MarketItemUpdateSchema.safeParse(body)
+    const currentItem = await getMarketItemById(id, workspaceSubject)
 
     if (!parsed.success) {
       return NextResponse.json({
         success: false,
         error: { code: 'INVALID_INPUT', message: parsed.error.issues[0]?.message || '입력이 올바르지 않습니다.' },
       }, { status: 400 })
+    }
+
+    if (!currentItem) {
+      return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
 
     const item = await updateMarketItem(id, {
@@ -143,6 +151,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 export async function DELETE(_: Request, { params }: RouteContext) {
   const { user, isAdmin } = await requireAdminUser()
   const { id } = await params
+  const workspaceSubject = resolveAdminWorkspaceSubject(new URL(_.url).searchParams.get('subject'))
 
   if (!user) {
     return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
@@ -153,13 +162,13 @@ export async function DELETE(_: Request, { params }: RouteContext) {
   }
 
   try {
-    const item = await getMarketItemById(id)
+    const item = await getMarketItemById(id, workspaceSubject)
     if (!item) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
 
     const adminSupabase = createAdminClient()
-    const files = await listMarketItemFiles(id, true, item.workspace_subject)
+    const files = await listMarketItemFiles(id, true, workspaceSubject)
     const storageTargets = new Map<string, string[]>()
 
     for (const file of files) {

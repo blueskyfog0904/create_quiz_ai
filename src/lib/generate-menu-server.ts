@@ -11,8 +11,13 @@ import {
   type GenerateMenuEntryAdminRow,
 } from '@/lib/generate-menu'
 import type { TablesInsert, TablesUpdate } from '@/types/supabase'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 const GENERATE_CHILDREN_SOURCE_MODE: GenerateChildrenSourceMode = 'hybrid_fallback'
+
+type WorkspaceScopedGenerateMenuEntry = GenerateMenuEntry & { workspace_subject: WorkspaceSubject }
+type WorkspaceScopedGenerateListboardPost = GenerateListboardPost & { workspace_subject: WorkspaceSubject }
+type WorkspaceScopedGenerateListboardPostItem = GenerateListboardPostItem & { workspace_subject: WorkspaceSubject }
 
 export interface LegacyGenerateChildSummary {
   id: string
@@ -185,7 +190,7 @@ async function assertListboardEntry(menuEntryId: string) {
     throw new Error('리스트보드 게시글은 listboard 메뉴에만 연결할 수 있습니다.')
   }
 
-  return data
+  return data as WorkspaceScopedGenerateMenuEntry
 }
 
 async function assertGenerateListboardPost(postId: string) {
@@ -202,7 +207,7 @@ async function assertGenerateListboardPost(postId: string) {
   }
 
   await assertListboardEntry(data.menu_entry_id)
-  return data
+  return data as WorkspaceScopedGenerateListboardPost
 }
 
 function normalizeGenerateListboardPostItemError(error: { message: string }) {
@@ -357,11 +362,12 @@ export function getLegacyGenerateChildren(baseConfig: HeaderNavigationConfig, ex
   })
 }
 
-export async function listGenerateMenuEntriesForAdmin(): Promise<GenerateMenuEntryAdminRow[]> {
+export async function listGenerateMenuEntriesForAdmin(workspaceSubject: WorkspaceSubject = 'english'): Promise<GenerateMenuEntryAdminRow[]> {
   const supabase = getAdminSupabase()
   const { data, error } = await supabase
     .from('generate_menu_entries')
     .select('*')
+    .eq('workspace_subject', workspaceSubject)
     .order('sort_order')
     .order('created_at')
 
@@ -373,6 +379,7 @@ export async function listGenerateMenuEntriesForAdmin(): Promise<GenerateMenuEnt
   const { data: posts, error: postError } = await supabase
     .from('generate_listboard_posts')
     .select('menu_entry_id')
+    .eq('workspace_subject', workspaceSubject)
     .is('deleted_at', null)
 
   if (postError) {
@@ -390,11 +397,12 @@ export async function listGenerateMenuEntriesForAdmin(): Promise<GenerateMenuEnt
   }))
 }
 
-export async function listVisibleGenerateMenuEntries(): Promise<GenerateMenuEntry[]> {
+export async function listVisibleGenerateMenuEntries(workspaceSubject: WorkspaceSubject = 'english'): Promise<GenerateMenuEntry[]> {
   const supabase = getAdminSupabase()
   const { data, error } = await supabase
     .from('generate_menu_entries')
     .select('*')
+    .eq('workspace_subject', workspaceSubject)
     .is('deleted_at', null)
     .eq('is_visible', true)
     .eq('is_active', true)
@@ -408,8 +416,11 @@ export async function listVisibleGenerateMenuEntries(): Promise<GenerateMenuEntr
   return data ?? []
 }
 
-export async function listGenerateListboardPostsForAdmin(menuEntryId: string): Promise<GenerateListboardPost[]> {
-  await assertListboardEntry(menuEntryId)
+export async function listGenerateListboardPostsForAdmin(menuEntryId: string, workspaceSubject?: WorkspaceSubject): Promise<GenerateListboardPost[]> {
+  const menuEntry = await assertListboardEntry(menuEntryId)
+  if (workspaceSubject && menuEntry.workspace_subject !== workspaceSubject) {
+    throw new Error('선택한 작업 공간과 문제생성 메뉴가 일치하지 않습니다.')
+  }
   const supabase = getAdminSupabase()
   const { data, error } = await supabase
     .from('generate_listboard_posts')
@@ -427,12 +438,13 @@ export async function listGenerateListboardPostsForAdmin(menuEntryId: string): P
   return data ?? []
 }
 
-export async function getGenerateMenuEntryBySlug(slug: string) {
+export async function getGenerateMenuEntryBySlug(slug: string, workspaceSubject: WorkspaceSubject = 'english') {
   const supabase = getAdminSupabase()
   const { data, error } = await supabase
     .from('generate_menu_entries')
     .select('*')
     .eq('slug', slug)
+    .eq('workspace_subject', workspaceSubject)
     .is('deleted_at', null)
     .eq('is_active', true)
     .maybeSingle()
@@ -441,14 +453,15 @@ export async function getGenerateMenuEntryBySlug(slug: string) {
     throw new Error(error.message)
   }
 
-  return data
+  return data as WorkspaceScopedGenerateMenuEntry
 }
 
-export async function getGenerateMenuEntriesBackfillStatus(baseConfig?: HeaderNavigationConfig) {
+export async function getGenerateMenuEntriesBackfillStatus(baseConfig?: HeaderNavigationConfig, workspaceSubject: WorkspaceSubject = 'english') {
   const supabase = getAdminSupabase()
   const { data, error } = await supabase
     .from('generate_menu_entries')
     .select('*')
+    .eq('workspace_subject', workspaceSubject)
     .is('deleted_at', null)
 
   if (error) {
@@ -466,13 +479,15 @@ export async function getGenerateMenuEntriesBackfillStatus(baseConfig?: HeaderNa
 }
 
 export async function createGenerateMenuEntry(
-  input: Pick<TablesInsert<'generate_menu_entries'>, 'title' | 'slug' | 'entry_type' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>
+  input: Pick<TablesInsert<'generate_menu_entries'>, 'title' | 'slug' | 'entry_type' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>,
+  workspaceSubject: WorkspaceSubject = 'english'
 ) {
   const supabase = getAdminSupabase()
   const normalized = validateEntryInput(input)
   const slug = normalized.entryType === 'personal_generate' ? 'personal' : normalized.slug
 
-  const payload: TablesInsert<'generate_menu_entries'> = {
+  const payload: TablesInsert<'generate_menu_entries'> & { workspace_subject: WorkspaceSubject } = {
+    workspace_subject: workspaceSubject,
     entry_key: slug,
     slug,
     title: normalized.title,
@@ -606,11 +621,12 @@ export async function reorderGenerateMenuEntries(ids: string[]) {
   }
 }
 
-export async function backfillGenerateMenuEntriesFromHeader(baseConfig: HeaderNavigationConfig) {
+export async function backfillGenerateMenuEntriesFromHeader(baseConfig: HeaderNavigationConfig, workspaceSubject: WorkspaceSubject = 'english') {
   const supabase = getAdminSupabase()
   const { data: existingEntries, error: existingError } = await supabase
     .from('generate_menu_entries')
     .select('*')
+    .eq('workspace_subject', workspaceSubject)
     .is('deleted_at', null)
 
   if (existingError) {
@@ -621,7 +637,8 @@ export async function backfillGenerateMenuEntriesFromHeader(baseConfig: HeaderNa
   const results: GenerateMenuEntry[] = []
 
   for (const [index, child] of legacyChildren.entries()) {
-    const payload: TablesInsert<'generate_menu_entries'> = {
+    const payload: TablesInsert<'generate_menu_entries'> & { workspace_subject: WorkspaceSubject } = {
+      workspace_subject: workspaceSubject,
       entry_key: child.entryKey,
       slug: child.slug,
       title: child.title,
@@ -652,7 +669,7 @@ export async function backfillGenerateMenuEntriesFromHeader(baseConfig: HeaderNa
 export async function createGenerateListboardPost(
   input: Pick<TablesInsert<'generate_listboard_posts'>, 'menu_entry_id' | 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'status' | 'is_active' | 'published_at' | 'created_by' | 'updated_by'>
 ) {
-  await assertListboardEntry(input.menu_entry_id)
+  const menuEntry = await assertListboardEntry(input.menu_entry_id)
   const supabase = getAdminSupabase()
   const title = normalizeText(input.title)
   const passageText = normalizeText(input.passage_text)
@@ -666,8 +683,9 @@ export async function createGenerateListboardPost(
     throw new Error('지문 내용을 입력해주세요.')
   }
 
-  const payload: TablesInsert<'generate_listboard_posts'> = {
+  const payload: TablesInsert<'generate_listboard_posts'> & { workspace_subject: WorkspaceSubject } = {
     menu_entry_id: input.menu_entry_id,
+    workspace_subject: menuEntry.workspace_subject,
     title,
     passage_text: passageText,
     exam_year: metadata.examYear,
@@ -690,7 +708,7 @@ export async function createGenerateListboardPost(
     throw new Error(error.message)
   }
 
-  return data
+  return data as WorkspaceScopedGenerateListboardPost
 }
 
 export async function createGenerateListboardPostWithItems(
@@ -707,8 +725,9 @@ export async function createGenerateListboardPostWithItems(
   })
 
   try {
-    const itemPayloads: TablesInsert<'generate_listboard_post_items'>[] = normalizedItems.map((item) => ({
+    const itemPayloads: Array<TablesInsert<'generate_listboard_post_items'> & { workspace_subject: WorkspaceSubject }> = normalizedItems.map((item) => ({
       post_id: post.id,
+      workspace_subject: post.workspace_subject,
       question_number: item.question_number,
       passage_text: item.passage_text,
       sort_order: item.sort_order,
@@ -745,11 +764,13 @@ export async function updateGenerateListboardPost(
   input: Pick<TablesUpdate<'generate_listboard_posts'>, 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'status' | 'is_active' | 'published_at' | 'updated_by'>
 ) {
   const supabase = getAdminSupabase()
-  const { data: current, error: currentError } = await supabase
+  const { data: currentRow, error: currentError } = await supabase
     .from('generate_listboard_posts')
     .select('*')
     .eq('id', id)
     .single()
+
+  const current = currentRow as WorkspaceScopedGenerateListboardPost | null
 
   if (currentError || !current) {
     throw new Error('수정할 게시글을 찾을 수 없습니다.')
@@ -779,6 +800,7 @@ export async function updateGenerateListboardPost(
     .from('generate_listboard_posts')
     .update(payload)
     .eq('id', id)
+    .eq('workspace_subject', current.workspace_subject)
     .select('*')
     .single()
 
@@ -789,8 +811,11 @@ export async function updateGenerateListboardPost(
   return data
 }
 
-export async function listGenerateListboardPostItemsForAdmin(postId: string): Promise<GenerateListboardPostItem[]> {
-  await assertGenerateListboardPost(postId)
+export async function listGenerateListboardPostItemsForAdmin(postId: string, workspaceSubject?: WorkspaceSubject): Promise<GenerateListboardPostItem[]> {
+  const post = await assertGenerateListboardPost(postId)
+  if (workspaceSubject && post.workspace_subject !== workspaceSubject) {
+    throw new Error('선택한 작업 공간과 게시글이 일치하지 않습니다.')
+  }
   const supabase = getAdminSupabase()
   const { data, error } = await supabase
     .from('generate_listboard_post_items')
@@ -810,13 +835,16 @@ export async function listGenerateListboardPostItemsForAdmin(postId: string): Pr
 export async function createGenerateListboardPostItem(
   input: Pick<TablesInsert<'generate_listboard_post_items'>, 'post_id' | 'question_number' | 'passage_text' | 'sort_order' | 'is_active' | 'created_by' | 'updated_by'>
 ) {
-  await assertGenerateListboardPost(input.post_id)
+  const post = await assertGenerateListboardPost(input.post_id)
   const supabase = getAdminSupabase()
   const payload = buildGenerateListboardPostItemPayload(null, input)
 
   const { data, error } = await supabase
     .from('generate_listboard_post_items')
-    .insert(payload)
+    .insert({
+      ...payload,
+      workspace_subject: post.workspace_subject,
+    })
     .select('*')
     .single()
 
@@ -834,12 +862,14 @@ export async function updateGenerateListboardPostItem(
   input: Pick<TablesUpdate<'generate_listboard_post_items'>, 'question_number' | 'passage_text' | 'sort_order' | 'is_active' | 'updated_by'>
 ) {
   const supabase = getAdminSupabase()
-  const { data: current, error: currentError } = await supabase
+  const { data: currentRow, error: currentError } = await supabase
     .from('generate_listboard_post_items')
     .select('*')
     .eq('id', id)
     .is('deleted_at', null)
     .single()
+
+  const current = currentRow as WorkspaceScopedGenerateListboardPostItem | null
 
   if (currentError || !current) {
     throw new Error('수정할 문항을 찾을 수 없습니다.')
@@ -866,6 +896,7 @@ export async function updateGenerateListboardPostItem(
       updated_by: payload.updated_by,
     })
     .eq('id', id)
+    .eq('workspace_subject', current.workspace_subject)
     .select('*')
     .single()
 
@@ -880,12 +911,14 @@ export async function updateGenerateListboardPostItem(
 
 export async function archiveGenerateListboardPostItem(id: string) {
   const supabase = getAdminSupabase()
-  const { data: current, error: currentError } = await supabase
+  const { data: currentRow, error: currentError } = await supabase
     .from('generate_listboard_post_items')
     .select('*')
     .eq('id', id)
     .is('deleted_at', null)
     .single()
+
+  const current = currentRow as WorkspaceScopedGenerateListboardPostItem | null
 
   if (currentError || !current) {
     throw new Error('보관할 문항을 찾을 수 없습니다.')
@@ -912,6 +945,7 @@ export async function archiveGenerateListboardPostItem(id: string) {
       deleted_at: new Date().toISOString(),
     })
     .eq('id', id)
+    .eq('workspace_subject', current.workspace_subject)
 
   if (error) {
     throw new Error(error.message)
@@ -922,6 +956,18 @@ export async function archiveGenerateListboardPostItem(id: string) {
 
 export async function archiveGenerateListboardPost(id: string) {
   const supabase = getAdminSupabase()
+  const { data: currentRow, error: currentError } = await supabase
+    .from('generate_listboard_posts')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+
+  const current = currentRow as WorkspaceScopedGenerateListboardPost | null
+
+  if (currentError || !current) {
+    throw new Error('보관할 게시글을 찾을 수 없습니다.')
+  }
+
   const { error } = await supabase
     .from('generate_listboard_posts')
     .update({
@@ -930,6 +976,7 @@ export async function archiveGenerateListboardPost(id: string) {
       deleted_at: new Date().toISOString(),
     })
     .eq('id', id)
+    .eq('workspace_subject', current.workspace_subject)
 
   if (error) {
     throw new Error(error.message)

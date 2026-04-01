@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 
 const updateProblemTypeSchema = z.object({
   type_name: z.string().min(1).optional(),
@@ -16,6 +17,7 @@ export async function GET(
   try {
     const { id } = await params
     const supabase = await createClient()
+    const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
@@ -36,6 +38,7 @@ export async function GET(
       .from('problem_types')
       .select('*')
       .eq('id', id)
+      .eq('workspace_subject', workspaceSubject)
       .single()
     
     if (error) {
@@ -58,6 +61,7 @@ export async function PATCH(
   try {
     const { id } = await params
     const supabase = await createClient()
+    const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
@@ -95,6 +99,7 @@ export async function PATCH(
       .from('problem_types')
       .update(updateData)
       .eq('id', id)
+      .eq('workspace_subject', workspaceSubject)
       .select()
       .single()
     
@@ -126,6 +131,7 @@ export async function DELETE(
   try {
     const { id } = await params
     const supabase = await createClient()
+    const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
@@ -147,6 +153,7 @@ export async function DELETE(
       .from('questions')
       .select('id', { count: 'exact', head: true })
       .eq('problem_type_id', id)
+      .eq('workspace_subject', workspaceSubject)
     
     if (count && count > 0) {
       return NextResponse.json({ 
@@ -158,6 +165,7 @@ export async function DELETE(
       .from('problem_types')
       .delete()
       .eq('id', id)
+      .eq('workspace_subject', workspaceSubject)
     
     if (error) {
       console.error('[Admin Problem Type] Database error:', error)

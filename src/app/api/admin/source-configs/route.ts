@@ -1,8 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import type { Database } from '@/types/supabase'
 
 const configSchema = z.object({
+  workspace_subject: z.enum(['english', 'korean']).optional(),
   type_name: z.string().min(1, '출처 종류 이름은 필수입니다'),
   source_1_label: z.string().optional().nullable(),
   source_1_options: z.array(z.string()).optional().nullable(),
@@ -40,10 +44,13 @@ export async function GET(request: Request) {
       )
     }
 
+    const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
+
     // Fetch configs
     const { data, error } = await supabase
       .from('source_configs')
       .select('*')
+      .eq('workspace_subject', workspaceSubject)
       .order('type_name')
 
     if (error) {
@@ -94,9 +101,13 @@ export async function POST(request: Request) {
     const validatedData = configSchema.parse(body)
 
     // Insert config
+    const workspaceSubject = resolveAdminWorkspaceSubject(validatedData.workspace_subject)
     const { data, error } = await supabase
       .from('source_configs')
-      .insert(validatedData)
+      .insert({
+        ...validatedData,
+        workspace_subject: workspaceSubject,
+      } as Database['public']['Tables']['source_configs']['Insert'] & { workspace_subject: WorkspaceSubject })
       .select()
       .single()
 

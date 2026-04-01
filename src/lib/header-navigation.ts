@@ -1,3 +1,5 @@
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
+
 export interface HeaderMenuChildItem {
   id: string
   title: string
@@ -32,6 +34,10 @@ export interface HeaderNavigationFlatRow {
 export const HEADER_NAVIGATION_SETTING_KEY = 'header_navigation'
 export const MAX_LOGO_TEXT_LENGTH = 30
 export const MAX_MENU_TITLE_LENGTH = 30
+export const GENERATE_PARENT_HREF = '/generate'
+export const MARKET_PARENT_HREF = '/market'
+export const PRICING_PARENT_HREF = '/pricing'
+export const LIBRARY_PARENT_HREF = '/library'
 
 function normalizeInternalHeaderHref(value: string) {
   if (!value.startsWith('/')) return value
@@ -70,6 +76,174 @@ export const DEFAULT_HEADER_NAVIGATION_CONFIG: HeaderNavigationConfig = {
       children: [],
     },
   ],
+}
+
+const LEGACY_SYSTEM_TITLES_BY_HREF: Record<string, string[]> = {
+  [GENERATE_PARENT_HREF]: ['AI문제생성', '문제생성', '영어문제생성', '국어문제생성'],
+  [MARKET_PARENT_HREF]: ['문제마켓', '영어문제마켓', '국어문제마켓'],
+  [PRICING_PARENT_HREF]: ['요금제'],
+  [LIBRARY_PARENT_HREF]: ['내 라이브러리', '영어 라이브러리', '국어 라이브러리'],
+}
+
+function cloneChildItem(item: HeaderMenuChildItem): HeaderMenuChildItem {
+  return { ...item }
+}
+
+function cloneHeaderItem(item: HeaderMenuItem): HeaderMenuItem {
+  return {
+    ...item,
+    children: item.children.map(cloneChildItem),
+  }
+}
+
+function createLibraryChildren(workspaceSubject: WorkspaceSubject): HeaderMenuChildItem[] {
+  const isKorean = workspaceSubject === 'korean'
+  return [
+    {
+      id: `library-passages-${workspaceSubject}`,
+      title: isKorean ? '국어지문 관리' : '영어지문 관리',
+      href: '/mypassages',
+      isActive: true,
+    },
+    {
+      id: `library-questions-${workspaceSubject}`,
+      title: isKorean ? '국어문제 관리' : '영어문제 관리',
+      href: '/purchased',
+      isActive: true,
+    },
+    {
+      id: `library-exam-papers-${workspaceSubject}`,
+      title: '문제지 관리',
+      href: '/exam-papers',
+      isActive: true,
+    },
+    {
+      id: `library-market-${workspaceSubject}`,
+      title: '문제마켓 관리',
+      href: '/market',
+      isActive: true,
+    },
+  ]
+}
+
+export function getWorkspaceDefaultHeaderNavigationConfig(
+  workspaceSubject: WorkspaceSubject
+): HeaderNavigationConfig {
+  const libraryItem: HeaderMenuItem = {
+    id: `menu-library-${workspaceSubject}`,
+    title: workspaceSubject === 'korean' ? '국어 라이브러리' : '영어 라이브러리',
+    href: LIBRARY_PARENT_HREF,
+    isActive: true,
+    children: createLibraryChildren(workspaceSubject),
+  }
+
+  const pricingItem: HeaderMenuItem = {
+    id: `menu-pricing-${workspaceSubject}`,
+    title: '요금제',
+    href: PRICING_PARENT_HREF,
+    isActive: true,
+    children: [],
+  }
+
+  if (workspaceSubject === 'korean') {
+    return {
+      logoText: DEFAULT_HEADER_NAVIGATION_CONFIG.logoText,
+      items: [
+        {
+          id: 'menu-market',
+          title: '국어문제마켓',
+          href: MARKET_PARENT_HREF,
+          isActive: true,
+          children: [],
+        },
+        pricingItem,
+        libraryItem,
+      ],
+    }
+  }
+
+  return {
+    logoText: DEFAULT_HEADER_NAVIGATION_CONFIG.logoText,
+    items: [
+      {
+        id: 'menu-generate',
+        title: '영어문제생성',
+        href: GENERATE_PARENT_HREF,
+        isActive: true,
+        children: [],
+      },
+      {
+        id: 'menu-market',
+        title: '영어문제마켓',
+        href: MARKET_PARENT_HREF,
+        isActive: true,
+        children: [],
+      },
+      pricingItem,
+      libraryItem,
+    ],
+  }
+}
+
+export function getSystemOwnedHeaderParentHrefs(workspaceSubject: WorkspaceSubject) {
+  return workspaceSubject === 'korean'
+    ? [MARKET_PARENT_HREF, PRICING_PARENT_HREF, LIBRARY_PARENT_HREF]
+    : [GENERATE_PARENT_HREF, MARKET_PARENT_HREF, PRICING_PARENT_HREF, LIBRARY_PARENT_HREF]
+}
+
+export function isSystemOwnedHeaderParentHref(
+  href: string | undefined,
+  workspaceSubject: WorkspaceSubject
+) {
+  return Boolean(href && getSystemOwnedHeaderParentHrefs(workspaceSubject).includes(href))
+}
+
+function shouldUseWorkspaceDefaultTitle(href: string | undefined, title: string, defaultTitle: string) {
+  if (!href) return false
+  const legacyTitles = LEGACY_SYSTEM_TITLES_BY_HREF[href] ?? []
+  return !title || legacyTitles.includes(title) || title === defaultTitle
+}
+
+export function withWorkspaceHeaderDefaults(
+  config: HeaderNavigationConfig,
+  workspaceSubject: WorkspaceSubject
+): HeaderNavigationConfig {
+  const workspaceDefaults = getWorkspaceDefaultHeaderNavigationConfig(workspaceSubject)
+  const deprecatedHrefs = new Set(['/bank'])
+
+  const baseItems = config.items
+    .filter((item) => !deprecatedHrefs.has(item.href ?? ''))
+    .filter((item) => !(workspaceSubject === 'korean' && item.href === GENERATE_PARENT_HREF))
+    .map(cloneHeaderItem)
+
+  const itemsByHref = new Map(baseItems.map((item) => [item.href ?? `id:${item.id}`, item]))
+
+  workspaceDefaults.items.forEach((defaultItem) => {
+    const existingItem = itemsByHref.get(defaultItem.href ?? `id:${defaultItem.id}`)
+    if (!existingItem) {
+      baseItems.push(cloneHeaderItem(defaultItem))
+      return
+    }
+
+    if (shouldUseWorkspaceDefaultTitle(existingItem.href, existingItem.title, defaultItem.title)) {
+      existingItem.title = defaultItem.title
+    }
+
+    if (existingItem.href === LIBRARY_PARENT_HREF && existingItem.children.length === 0) {
+      existingItem.children = defaultItem.children.map(cloneChildItem)
+    }
+  })
+
+  const orderedSystemHrefs = getSystemOwnedHeaderParentHrefs(workspaceSubject)
+  const systemItems = orderedSystemHrefs
+    .map((href) => baseItems.find((item) => item.href === href))
+    .filter((item): item is HeaderMenuItem => Boolean(item))
+  const otherItems = baseItems.filter((item) => !orderedSystemHrefs.includes(item.href ?? ''))
+
+  return {
+    ...config,
+    items: [...systemItems, ...otherItems],
+  }
 }
 
 function normalizeText(value: unknown) {
@@ -165,7 +339,7 @@ export function normalizeHeaderNavigationConfig(rawValue: unknown): HeaderNaviga
 
   return {
     logoText: logoText || DEFAULT_HEADER_NAVIGATION_CONFIG.logoText,
-    items: hasExplicitItems ? items : DEFAULT_HEADER_NAVIGATION_CONFIG.items,
+    items: hasExplicitItems ? items : DEFAULT_HEADER_NAVIGATION_CONFIG.items.map(cloneHeaderItem),
   }
 }
 

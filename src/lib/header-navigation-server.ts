@@ -2,7 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import {
   DEFAULT_HEADER_NAVIGATION_CONFIG,
   HEADER_NAVIGATION_SETTING_KEY,
+  getWorkspaceDefaultHeaderNavigationConfig,
   normalizeHeaderNavigationConfig,
+  withWorkspaceHeaderDefaults,
   type HeaderNavigationConfig,
 } from '@/lib/header-navigation'
 import {
@@ -60,28 +62,32 @@ export async function getBaseHeaderNavigationConfig(
   )
 
   if (workspaceValue) {
-    return normalizeHeaderNavigationConfig(workspaceValue)
+    return withWorkspaceHeaderDefaults(
+      normalizeHeaderNavigationConfig(workspaceValue),
+      workspaceSubject
+    )
   }
 
   if (workspaceSubject !== 'english') {
-    return DEFAULT_HEADER_NAVIGATION_CONFIG
+    return getWorkspaceDefaultHeaderNavigationConfig(workspaceSubject)
   }
 
-  return getLegacyHeaderNavigationConfig()
+  return withWorkspaceHeaderDefaults(await getLegacyHeaderNavigationConfig(), workspaceSubject)
 }
 
 export async function getHeaderNavigationConfig(
   workspaceSubject: WorkspaceSubject = 'english'
 ): Promise<HeaderNavigationConfig> {
   const baseConfig = await getBaseHeaderNavigationConfig(workspaceSubject)
-  const generateEntries = await listVisibleGenerateMenuEntries()
-  const marketEntries = await listVisibleMarketMenuEntries()
+  const generateEntries = await listVisibleGenerateMenuEntries(workspaceSubject)
+  const marketEntries = await listVisibleMarketMenuEntries(workspaceSubject)
 
   return mergeMarketEntriesIntoHeaderConfig(
     mergeGenerateEntriesIntoHeaderConfig(
       baseConfig,
       generateEntries,
-      getGenerateChildrenSourceMode()
+      getGenerateChildrenSourceMode(),
+      { parentAllowed: workspaceSubject === 'english' }
     ),
     marketEntries,
     getMarketChildrenSourceMode()
@@ -125,7 +131,10 @@ export async function saveHeaderNavigationConfig(
   workspaceSubject: WorkspaceSubject = 'english'
 ) {
   const existingConfig = await getBaseHeaderNavigationConfig(workspaceSubject)
-  const normalizedConfig = normalizeHeaderNavigationConfig(config)
+  const normalizedConfig = withWorkspaceHeaderDefaults(
+    normalizeHeaderNavigationConfig(config),
+    workspaceSubject
+  )
   const preservedConfig = preserveDbManagedParentChildren(
     existingConfig,
     normalizedConfig,

@@ -1,11 +1,16 @@
 import { requireAuth } from '@/lib/auth'
-import { DEFAULT_WORKSPACE_SUBJECT } from '@/lib/workspace-subject'
+import { resolveWorkspaceSubject } from '@/lib/workspace-subject'
 import { listMarketLibraryRowsForUser } from '@/lib/market-items-server'
 import MarketLibraryClient from './market-library-client'
 
-export default async function MarketLibraryPage() {
+interface MarketLibraryPageProps {
+  searchParams?: Promise<{ subject?: string }>
+}
+
+export default async function MarketLibraryPage({ searchParams }: MarketLibraryPageProps) {
   const user = await requireAuth()
-  const rows = await listMarketLibraryRowsForUser(user.id, DEFAULT_WORKSPACE_SUBJECT)
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const rows = await listMarketLibraryRowsForUser(user.id, resolveWorkspaceSubject(resolvedSearchParams?.subject))
 
   return <MarketLibraryClient rows={rows} />
 }

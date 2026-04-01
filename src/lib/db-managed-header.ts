@@ -10,6 +10,7 @@ interface DbManagedParentOptions {
   parentHref: string
   fallbackId: string
   fallbackTitle: string
+  parentAllowed?: boolean
 }
 
 function cloneChild(child: HeaderMenuChildItem): HeaderMenuChildItem {
@@ -78,6 +79,15 @@ export function mergeDbManagedChildrenIntoHeaderConfig(
   options: DbManagedParentOptions,
   sourceMode: DbManagedChildrenSourceMode = 'hybrid_fallback'
 ): HeaderNavigationConfig {
+  if (options.parentAllowed === false) {
+    return {
+      ...baseConfig,
+      items: baseConfig.items
+        .filter((item) => item.href !== options.parentHref)
+        .map(cloneItem),
+    }
+  }
+
   if (sourceMode === 'legacy_json') {
     return {
       ...baseConfig,

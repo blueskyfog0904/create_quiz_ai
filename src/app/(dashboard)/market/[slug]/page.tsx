@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { requireAuth } from '@/lib/auth'
-import { DEFAULT_WORKSPACE_SUBJECT } from '@/lib/workspace-subject'
+import { resolveWorkspaceSubject } from '@/lib/workspace-subject'
 import {
   getVisibleMarketMenuEntryBySlugForWorkspace,
   getMarketItemFilterOptions,
@@ -16,6 +16,7 @@ interface MarketCategoryPageProps {
     month?: string
     grade?: string
     title?: string
+    subject?: string
   }>
 }
 
@@ -30,7 +31,8 @@ export default async function MarketCategoryPage({ params, searchParams }: Marke
     title: rawFilters.title?.trim() || '',
   }
 
-  const category = await getVisibleMarketMenuEntryBySlugForWorkspace(slug, DEFAULT_WORKSPACE_SUBJECT)
+  const workspaceSubject = resolveWorkspaceSubject(rawFilters.subject)
+  const category = await getVisibleMarketMenuEntryBySlugForWorkspace(slug, workspaceSubject)
   if (!category) {
     notFound()
   }

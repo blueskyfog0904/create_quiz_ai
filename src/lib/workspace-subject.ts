@@ -15,6 +15,13 @@ export function assertWorkspaceSubject(value: string | null | undefined): Worksp
   return value
 }
 
+export function resolveWorkspaceSubject(
+  value: string | null | undefined,
+  fallback: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
+): WorkspaceSubject {
+  return isWorkspaceSubject(value) ? value : fallback
+}
+
 export function getWorkspacePrefix(subject: WorkspaceSubject) {
   return `/${subject}`
 }

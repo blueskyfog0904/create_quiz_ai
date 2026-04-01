@@ -80,7 +80,10 @@ export function buildGenerateHeaderChildItem(entry: GenerateMenuEntry): HeaderMe
 export function mergeGenerateEntriesIntoHeaderConfig(
   baseConfig: HeaderNavigationConfig,
   generateEntries: GenerateMenuEntry[],
-  sourceMode: GenerateChildrenSourceMode = 'hybrid_fallback'
+  sourceMode: GenerateChildrenSourceMode = 'hybrid_fallback',
+  options?: {
+    parentAllowed?: boolean
+  }
 ): HeaderNavigationConfig {
   const entries = generateEntries
     .filter((entry) => entry.deleted_at === null)
@@ -94,6 +97,7 @@ export function mergeGenerateEntriesIntoHeaderConfig(
       parentHref: GENERATE_PARENT_HREF,
       fallbackId: GENERATE_PARENT_FALLBACK_ID,
       fallbackTitle: GENERATE_PARENT_FALLBACK_TITLE,
+      parentAllowed: options?.parentAllowed ?? true,
     },
     sourceMode
   )

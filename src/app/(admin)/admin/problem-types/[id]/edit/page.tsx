@@ -1,14 +1,18 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import ProblemTypeFormClient from './problem-type-form-client'
 
 interface PageProps {
   params: Promise<{ id: string }>
+  searchParams?: Promise<{ subject?: string }>
 }
 
-export default async function EditProblemTypePage({ params }: PageProps) {
+export default async function EditProblemTypePage({ params, searchParams }: PageProps) {
   const { id } = await params
   const supabase = await createClient()
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const workspaceSubject = resolveAdminWorkspaceSubject(resolvedSearchParams?.subject)
   
   // Check authentication and admin status
   const { data: { user } } = await supabase.auth.getUser()
@@ -32,15 +36,16 @@ export default async function EditProblemTypePage({ params }: PageProps) {
     .from('problem_types')
     .select('*')
     .eq('id', id)
+    .eq('workspace_subject', workspaceSubject)
     .single()
 
   if (!problemType) {
-    redirect('/admin/problem-types')
+    redirect(`/admin/problem-types?subject=${workspaceSubject}`)
   }
 
   return (
     <div className="container mx-auto py-8">
-      <ProblemTypeFormClient problemType={problemType} />
+      <ProblemTypeFormClient problemType={problemType} workspaceSubject={workspaceSubject} />
     </div>
   )
 }

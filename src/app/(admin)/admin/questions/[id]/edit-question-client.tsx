@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -47,12 +49,13 @@ interface Question {
 
 interface EditQuestionClientProps {
   questionId: string
+  workspaceSubject: WorkspaceSubject
 }
 
 const gradeLevels = ['중1', '중2', '중3', '고1', '고2', '고3']
 const difficulties = ['하', '중', '상']
 
-export function EditQuestionClient({ questionId }: EditQuestionClientProps) {
+export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestionClientProps) {
   const router = useRouter()
   const [question, setQuestion] = useState<Question | null>(null)
   const [problemTypes, setProblemTypes] = useState<Array<{ id: string; type_name: string }>>([])
@@ -88,8 +91,8 @@ export function EditQuestionClient({ questionId }: EditQuestionClientProps) {
         
         // Fetch question and problem types in parallel
         const [questionRes, typesRes] = await Promise.all([
-          fetch(`/api/admin/questions/${questionId}`),
-          fetch('/api/admin/problem-types'),
+          fetch(withAdminWorkspaceSubject(`/api/admin/questions/${questionId}`, workspaceSubject)),
+          fetch(withAdminWorkspaceSubject('/api/admin/problem-types', workspaceSubject)),
         ])
 
         if (!questionRes.ok) throw new Error('Failed to fetch question')
@@ -136,7 +139,7 @@ export function EditQuestionClient({ questionId }: EditQuestionClientProps) {
     }
 
     fetchData()
-  }, [questionId])
+  }, [questionId, workspaceSubject])
 
   const handleChoiceChange = (index: number, value: string) => {
     const newChoices = [...formData.choices]
@@ -163,7 +166,7 @@ export function EditQuestionClient({ questionId }: EditQuestionClientProps) {
     try {
       setSaving(true)
       
-      const response = await fetch(`/api/admin/questions/${questionId}`, {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/questions/${questionId}`, workspaceSubject), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -199,14 +202,14 @@ export function EditQuestionClient({ questionId }: EditQuestionClientProps) {
     if (!confirm('이 문제를 정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return
 
     try {
-      const response = await fetch(`/api/admin/questions/${questionId}`, {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/questions/${questionId}`, workspaceSubject), {
         method: 'DELETE',
       })
 
       if (!response.ok) throw new Error('Failed to delete')
 
       alert('문제가 삭제되었습니다.')
-      router.push('/admin/questions')
+      router.push(withAdminWorkspaceSubject('/admin/questions', workspaceSubject))
     } catch (err) {
       console.error(err)
       alert('삭제에 실패했습니다.')
@@ -226,7 +229,7 @@ export function EditQuestionClient({ questionId }: EditQuestionClientProps) {
       <div className="text-center py-12">
         <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
         <p className="text-gray-600">{error || '문제를 찾을 수 없습니다.'}</p>
-        <Link href="/admin/questions">
+        <Link href={withAdminWorkspaceSubject('/admin/questions', workspaceSubject)}>
           <Button className="mt-4">문제 목록으로</Button>
         </Link>
       </div>
@@ -238,7 +241,7 @@ export function EditQuestionClient({ questionId }: EditQuestionClientProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/admin/questions">
+          <Link href={withAdminWorkspaceSubject('/admin/questions', workspaceSubject)}>
             <Button variant="ghost" size="icon">
               <ArrowLeft className="h-5 w-5" />
             </Button>

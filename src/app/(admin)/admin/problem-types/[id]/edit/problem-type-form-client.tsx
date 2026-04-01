@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { updateProblemType } from '../../actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -92,9 +94,10 @@ type ProblemType = Database['public']['Tables']['problem_types']['Row']
 
 interface ProblemTypeFormClientProps {
   problemType: ProblemType
+  workspaceSubject: WorkspaceSubject
 }
 
-export default function ProblemTypeFormClient({ problemType }: ProblemTypeFormClientProps) {
+export default function ProblemTypeFormClient({ problemType, workspaceSubject }: ProblemTypeFormClientProps) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [provider, setProvider] = useState(problemType.provider || 'openai')
@@ -133,9 +136,9 @@ export default function ProblemTypeFormClient({ problemType }: ProblemTypeFormCl
         toast.error(result.error)
       } else {
         toast.success("문제 유형이 수정되었습니다")
-        router.push('/admin/problem-types')
+        router.push(withAdminWorkspaceSubject('/admin/problem-types', workspaceSubject))
       }
-    } catch (error) {
+    } catch {
       toast.error("수정 중 오류가 발생했습니다")
     } finally {
       setSaving(false)
@@ -147,7 +150,7 @@ export default function ProblemTypeFormClient({ problemType }: ProblemTypeFormCl
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/admin/problem-types">
+          <Link href={withAdminWorkspaceSubject('/admin/problem-types', workspaceSubject)}>
             <Button variant="ghost" size="icon">
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -175,6 +178,7 @@ export default function ProblemTypeFormClient({ problemType }: ProblemTypeFormCl
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            <input type="hidden" name="workspace_subject" value={workspaceSubject} />
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="type_name">유형 이름 *</Label>

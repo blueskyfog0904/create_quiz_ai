@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard,
@@ -20,7 +20,20 @@ import {
   LayoutPanelTop,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { resolveAdminWorkspaceSubject, withAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import { AdminWorkspaceSwitcher } from './admin-workspace-switcher'
+
+const subjectScopedAdminHrefs = new Set([
+  '/admin/menu-management',
+  '/admin/market/products',
+  '/admin/generate/products',
+  '/admin/problem-types',
+  '/admin/questions',
+  '/admin/passages',
+  '/admin/questions/upload',
+  '/admin/source-configs',
+])
 
 const menuItems = [
   {
@@ -110,7 +123,15 @@ const menuItems = [
 
 export function AdminSidebar() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [collapsed, setCollapsed] = useState(false)
+  const workspaceSubject = resolveAdminWorkspaceSubject(searchParams.get('subject'))
+
+  const buildHref = useMemo(() => (
+    (href: string) => subjectScopedAdminHrefs.has(href)
+      ? withAdminWorkspaceSubject(href, workspaceSubject)
+      : href
+  ), [workspaceSubject])
 
   const isActive = (item: typeof menuItems[number]) => {
     if (item.exact) {
@@ -152,6 +173,12 @@ export function AdminSidebar() {
           <h2 className={cn('text-lg font-bold text-orange-400', collapsed && 'md:text-center md:text-sm')}>
             {collapsed ? '관리' : '관리자 패널'}
           </h2>
+          {!collapsed ? (
+            <div className="mt-3 space-y-3">
+              <AdminWorkspaceSwitcher className="w-full" />
+              <p className="text-xs text-slate-400">현재 관리 대상: {workspaceSubject === 'english' ? '영어' : '국어'}</p>
+            </div>
+          ) : null}
         </div>
 
         <nav className="space-y-1 p-2">
@@ -162,7 +189,7 @@ export function AdminSidebar() {
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={buildHref(item.href)}
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors',
                   active ? 'bg-orange-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white',

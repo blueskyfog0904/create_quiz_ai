@@ -1,8 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import type { Database } from '@/types/supabase'
 
 const configSchema = z.object({
+  workspace_subject: z.enum(['english', 'korean']).optional(),
   type_name: z.string().min(1, '출처 종류 이름은 필수입니다'),
   source_1_label: z.string().optional().nullable(),
   source_1_options: z.array(z.string()).optional().nullable(),
@@ -48,10 +52,15 @@ export async function PATCH(
     const validatedData = configSchema.parse(body)
 
     // Update config
+    const workspaceSubject = resolveAdminWorkspaceSubject(validatedData.workspace_subject ?? new URL(request.url).searchParams.get('subject'))
     const { data, error } = await supabase
       .from('source_configs')
-      .update(validatedData)
+      .update({
+        ...validatedData,
+        workspace_subject: workspaceSubject,
+      } as Database['public']['Tables']['source_configs']['Update'] & { workspace_subject: WorkspaceSubject })
       .eq('id', params.id)
+      .eq('workspace_subject', workspaceSubject)
       .select()
       .single()
 
@@ -116,10 +125,12 @@ export async function DELETE(
     }
 
     // Delete config
+    const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
     const { error } = await supabase
       .from('source_configs')
       .delete()
       .eq('id', params.id)
+      .eq('workspace_subject', workspaceSubject)
 
     if (error) {
       console.error('Error deleting source config:', error)

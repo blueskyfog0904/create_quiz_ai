@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 
 // HTML 태그 제거 함수 (특히 <br> 태그)
 function removeHtmlTags(text: string | null | undefined): string | null {
@@ -8,7 +9,7 @@ function removeHtmlTags(text: string | null | undefined): string | null {
   if (typeof text !== 'string') return String(text)
   
   // <br>, <br/>, <br /> 태그 제거 (대소문자 구분 없이)
-  let cleaned = text.replace(/<br\s*\/?>/gi, '')
+  const cleaned = text.replace(/<br\s*\/?>/gi, '')
   
   // 다른 일반적인 HTML 태그도 제거 (선택사항)
   // cleaned = cleaned.replace(/<[^>]*>/g, '')
@@ -17,18 +18,24 @@ function removeHtmlTags(text: string | null | undefined): string | null {
 }
 
 // choices 배열에서 HTML 태그 제거
-function cleanChoices(choices: any[] | undefined): any[] {
+type ChoiceLike = string | { text?: string } | Record<string, unknown>
+
+function cleanChoices(choices: ChoiceLike[] | undefined): ChoiceLike[] {
   if (!choices || !Array.isArray(choices)) return []
-  
-  return choices.map(choice => {
+
+  return choices.map((choice) => {
     if (typeof choice === 'string') {
       return removeHtmlTags(choice) || ''
-    } else if (choice && typeof choice === 'object') {
-      return {
-        ...choice,
-        text: removeHtmlTags(choice.text) || ''
-      }
     }
+
+    if (choice && typeof choice === 'object') {
+      const nextChoice = { ...choice }
+      if ('text' in nextChoice) {
+        nextChoice.text = removeHtmlTags(typeof nextChoice.text === 'string' ? nextChoice.text : undefined) || ''
+      }
+      return nextChoice
+    }
+
     return choice
   })
 }
@@ -45,7 +52,7 @@ const questionSchema = z.object({
       label: z.string(),
       text: z.string()
     })),
-    z.array(z.any()) // 빈 배열도 허용
+    z.array(z.unknown()) // 빈 배열도 허용
   ]).optional(),
   explanation: z.string().optional(),
   difficulty: z.string().optional(),
@@ -98,6 +105,7 @@ export async function POST(request: Request) {
     })
     
     const validatedData = questionSchema.parse(body)
+    const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
     console.log('[Admin Upload] Validated data:', JSON.stringify(validatedData, null, 2))
     console.log('[Admin Upload] Choices after validation:', {
       choices: validatedData.choices,
@@ -110,7 +118,7 @@ export async function POST(request: Request) {
     
     // 3. Prepare insert data (HTML 태그 제거)
     const choicesValue = validatedData.choices !== undefined ? validatedData.choices : []
-    const cleanedChoices = cleanChoices(choicesValue)
+    const cleanedChoices = cleanChoices(choicesValue as ChoiceLike[])
     
     console.log('[Admin Upload] Choices value for DB insert:', {
       choicesValue,
@@ -133,6 +141,7 @@ export async function POST(request: Request) {
       grade_level: validatedData.grade_level || null,
       problem_type_id: validatedData.problem_type_id,
       user_id: user.id,
+      workspace_subject: workspaceSubject,
       source: 'admin_uploaded',
       source_type: removeHtmlTags(validatedData.source_type),
       source_1: removeHtmlTags(validatedData.source_1),

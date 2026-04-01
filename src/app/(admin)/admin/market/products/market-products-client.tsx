@@ -2,6 +2,8 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { Loader2, Pencil, Plus, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -36,6 +38,7 @@ import type { MarketMenuEntryAdminRow } from '@/lib/market-menu'
 interface MarketProductsClientProps {
   menuEntries: MarketMenuEntryAdminRow[]
   initialItems: MarketItem[]
+  workspaceSubject: WorkspaceSubject
 }
 
 interface MarketItemFormState {
@@ -143,7 +146,7 @@ interface PersistFormOptions {
   targetId?: string
 }
 
-export default function MarketProductsClient({ menuEntries, initialItems }: MarketProductsClientProps) {
+export default function MarketProductsClient({ menuEntries, initialItems, workspaceSubject }: MarketProductsClientProps) {
   const router = useRouter()
   const [selectedMenuEntryId, setSelectedMenuEntryId] = useState(menuEntries[0]?.id || '')
   const [items, setItems] = useState(initialItems)
@@ -187,7 +190,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
   const refreshItems = async (menuEntryId?: string) => {
     const targetMenuEntryId = menuEntryId ?? selectedMenuEntryId
     const url = targetMenuEntryId ? `/api/admin/market/items?menuEntryId=${targetMenuEntryId}` : '/api/admin/market/items'
-    const response = await fetch(url, { cache: 'no-store' })
+    const response = await fetch(withAdminWorkspaceSubject(url, workspaceSubject), { cache: 'no-store' })
     const payload = await response.json()
 
     if (!response.ok || !payload.success) {
@@ -206,7 +209,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
   }
 
   const fetchItemDetail = async (id: string) => {
-    const response = await fetch(`/api/admin/market/items/${id}`, { cache: 'no-store' })
+    const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${id}`, workspaceSubject), { cache: 'no-store' })
     const payload = await response.json()
 
     if (!response.ok || !payload.success) {
@@ -269,7 +272,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
         : null
       const nextStatus = statusOverride ?? form.status
 
-      const response = await fetch(targetId ? `/api/admin/market/items/${targetId}` : '/api/admin/market/items', {
+      const response = await fetch(withAdminWorkspaceSubject(targetId ? `/api/admin/market/items/${targetId}` : '/api/admin/market/items', workspaceSubject), {
         method: targetId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildRequestBody(statusOverride)),
@@ -429,7 +432,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
 
     setIsArchiving(true)
     try {
-      const response = await fetch(`/api/admin/market/items/${form.id}`, {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}`, workspaceSubject), {
         method: 'DELETE',
       })
       const payload = await response.json()
@@ -456,7 +459,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
 
     setIsArchiving(true)
     try {
-      const response = await fetch(`/api/admin/market/items/${deleteTarget.id}`, {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${deleteTarget.id}`, workspaceSubject), {
         method: 'DELETE',
       })
       const payload = await response.json()
@@ -526,7 +529,7 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
       formData.append('assetKind', assetKind)
       formData.append('file', file)
 
-      const response = await fetch(`/api/admin/market/items/${targetItemId}/files`, {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/files`, workspaceSubject), {
         method: 'POST',
         body: formData,
       })
@@ -627,8 +630,8 @@ export default function MarketProductsClient({ menuEntries, initialItems }: Mark
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">문제마켓 상품 관리</h1>
-          <p className="mt-1 text-gray-500">카테고리별 문제마켓 상품과 판매 파일을 등록/수정합니다.</p>
+          <h1 className="text-3xl font-bold text-gray-900">문제마켓 상품 관리 · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
+          <p className="mt-1 text-gray-500">선택한 과목의 문제마켓 상품과 판매 파일을 등록/수정합니다.</p>
         </div>
         <Button
           type="button"

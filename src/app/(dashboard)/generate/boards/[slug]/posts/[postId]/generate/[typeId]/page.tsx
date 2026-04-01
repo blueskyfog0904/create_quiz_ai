@@ -5,7 +5,7 @@ import type { Database } from '@/types/supabase'
 import { getGenerateBoardBySlug, getGenerateBoardPost } from '../../../../../data'
 import TextbookGenerateClient from './textbook-generate-client'
 import {
-  DEFAULT_GENERATE_WORKSPACE_SUBJECT,
+  resolveGenerateWorkspaceSubject,
   type WorkspaceScoped,
 } from '../../../../../../workspace-subject'
 
@@ -13,12 +13,16 @@ type ProblemType = WorkspaceScoped<Database['public']['Tables']['problem_types']
 
 interface TextbookGeneratePageProps {
   params: Promise<{ slug: string; postId: string; typeId: string }>
+  searchParams?: Promise<{ subject?: string }>
 }
 
-export default async function TextbookGeneratePage({ params }: TextbookGeneratePageProps) {
+export default async function TextbookGeneratePage({ params, searchParams }: TextbookGeneratePageProps) {
   await requireAuth()
   const { slug, postId, typeId } = await params
-  const workspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const workspaceSubject = resolveGenerateWorkspaceSubject({
+    workspaceSubject: resolvedSearchParams?.subject,
+  })
   const board = await getGenerateBoardBySlug(slug, workspaceSubject)
 
   if (!board) {

@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Plus, Loader2, Trash2, Save, X, Edit } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import { Plus, Loader2, Trash2, Edit } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -20,7 +22,11 @@ import { Badge } from '@/components/ui/badge'
 
 type SourceConfig = Database['public']['Tables']['source_configs']['Row']
 
-export default function SourceConfigClient() {
+interface SourceConfigClientProps {
+  workspaceSubject: WorkspaceSubject
+}
+
+export default function SourceConfigClient({ workspaceSubject }: SourceConfigClientProps) {
   const [configs, setConfigs] = useState<SourceConfig[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -39,22 +45,22 @@ export default function SourceConfigClient() {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  useEffect(() => {
-    fetchConfigs()
-  }, [])
-
-  const fetchConfigs = async () => {
+  const fetchConfigs = useCallback(async () => {
     try {
-      const response = await fetch('/api/admin/source-configs')
+      const response = await fetch(withAdminWorkspaceSubject('/api/admin/source-configs', workspaceSubject))
       if (!response.ok) throw new Error('Failed to fetch configs')
       const data = await response.json()
       setConfigs(data.configs)
-    } catch (error) {
+    } catch {
       toast.error('설정 목록을 불러오지 못했습니다.')
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [workspaceSubject])
+
+  useEffect(() => {
+    fetchConfigs()
+  }, [fetchConfigs])
 
   const handleOpenDialog = (config?: SourceConfig) => {
     if (config) {
@@ -115,7 +121,7 @@ export default function SourceConfigClient() {
       
       const method = editingConfig ? 'PATCH' : 'POST'
 
-      const response = await fetch(url, {
+      const response = await fetch(withAdminWorkspaceSubject(url, workspaceSubject), {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -130,8 +136,8 @@ export default function SourceConfigClient() {
       toast.success(editingConfig ? '설정이 수정되었습니다.' : '새 설정이 추가되었습니다.')
       setIsDialogOpen(false)
       fetchConfigs()
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : '저장 중 오류가 발생했습니다.')
     } finally {
       setIsSubmitting(false)
     }
@@ -141,7 +147,7 @@ export default function SourceConfigClient() {
     if (!confirm('정말 삭제하시겠습니까?')) return
 
     try {
-      const response = await fetch(`/api/admin/source-configs/${id}`, {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/source-configs/${id}`, workspaceSubject), {
         method: 'DELETE',
       })
 
@@ -151,7 +157,7 @@ export default function SourceConfigClient() {
 
       toast.success('설정이 삭제되었습니다.')
       fetchConfigs()
-    } catch (error) {
+    } catch {
       toast.error('삭제 중 오류가 발생했습니다.')
     }
   }

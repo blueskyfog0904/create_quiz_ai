@@ -2,16 +2,20 @@ import { notFound } from 'next/navigation'
 import { requireAuth } from '@/lib/auth'
 import { getActiveProblemTypes, getGenerateBoardBySlug, getGenerateBoardPostWithItems } from '../../../data'
 import BoardPostClient from './board-post-client'
-import { DEFAULT_GENERATE_WORKSPACE_SUBJECT } from '../../../../workspace-subject'
+import { resolveGenerateWorkspaceSubject } from '../../../../workspace-subject'
 
 interface BoardPostPageProps {
   params: Promise<{ slug: string; postId: string }>
+  searchParams?: Promise<{ subject?: string }>
 }
 
-export default async function GenerateBoardPostPage({ params }: BoardPostPageProps) {
+export default async function GenerateBoardPostPage({ params, searchParams }: BoardPostPageProps) {
   await requireAuth()
   const { slug, postId } = await params
-  const workspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const workspaceSubject = resolveGenerateWorkspaceSubject({
+    workspaceSubject: resolvedSearchParams?.subject,
+  })
 
   const board = await getGenerateBoardBySlug(slug, workspaceSubject)
   if (!board) {

@@ -1,7 +1,6 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireAuth } from '@/lib/auth'
-import { DEFAULT_WORKSPACE_SUBJECT } from '@/lib/workspace-subject'
+import { resolveWorkspaceSubject } from '@/lib/workspace-subject'
 import {
   getVisibleMarketMenuEntryBySlugForWorkspace,
   getPublishedMarketItemById,
@@ -11,9 +10,11 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import MarketItemActions from './market-item-actions'
+import { WorkspaceLink } from '@/components/layout/workspace-link'
 
 interface MarketItemDetailPageProps {
   params: Promise<{ slug: string; itemId: string }>
+  searchParams?: Promise<{ subject?: string }>
 }
 
 const formatDate = (value?: string | null) => value ? value.slice(0, 10) : '-'
@@ -33,11 +34,12 @@ const collectSources = (item: Awaited<ReturnType<typeof getPublishedMarketItemBy
   return [item.source_1, item.source_2, item.source_3, item.source_4].filter(Boolean) as string[]
 }
 
-export default async function MarketItemDetailPage({ params }: MarketItemDetailPageProps) {
+export default async function MarketItemDetailPage({ params, searchParams }: MarketItemDetailPageProps) {
   const user = await requireAuth()
   const { slug, itemId } = await params
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
 
-  const category = await getVisibleMarketMenuEntryBySlugForWorkspace(slug, DEFAULT_WORKSPACE_SUBJECT)
+  const category = await getVisibleMarketMenuEntryBySlugForWorkspace(slug, resolveWorkspaceSubject(resolvedSearchParams?.subject))
   if (!category) {
     notFound()
   }
@@ -65,7 +67,7 @@ export default async function MarketItemDetailPage({ params }: MarketItemDetailP
               <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
                 <span>문제마켓</span>
                 <span>/</span>
-                <Link className="hover:text-gray-900" href={`/market/${category.slug}`}>{category.title}</Link>
+                <WorkspaceLink className="hover:text-gray-900" href={`/market/${category.slug}`}>{category.title}</WorkspaceLink>
               </div>
               <CardTitle className="text-3xl">{item.title}</CardTitle>
               {item.summary ? <p className="text-sm text-gray-500">{item.summary}</p> : null}

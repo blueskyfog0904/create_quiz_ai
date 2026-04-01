@@ -34,5 +34,6 @@
 ## Testing, Security, and PR Guidelines
 - No dedicated test runner is configured; minimum checks are `npm run lint` + manual validation of affected routes/APIs.
 - All new DB tables must keep RLS enabled and policy-safe defaults (exception handling must be explicit).
-- Keep commits atomic and prefer `type: description` (`feat:`, `fix:`, `refactor:`).
+- Do not auto-commit after tasks. The user reviews results and handles git commits manually.
+- If the user explicitly asks for commit guidance, suggest an appropriate commit message instead of creating the commit automatically.
 - PRs should include: scope, changed routes/APIs, migration notes, env var changes, and screenshots for UI changes.

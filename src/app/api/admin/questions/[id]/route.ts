@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 
 const updateQuestionSchema = z.object({
   question_text: z.string().optional(),
@@ -48,6 +49,8 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
     }
     
+    const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
+
     // Get question with related data
     const { data: question, error } = await supabase
       .from('questions')
@@ -57,6 +60,7 @@ export async function GET(
         profiles:user_id (id, name, email)
       `)
       .eq('id', id)
+      .eq('workspace_subject', workspaceSubject)
       .single()
     
     if (error) {
@@ -97,11 +101,14 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
     }
 
+    const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
+
     // 1. Delete dependent exam_paper_items first (Manual Cascade)
     const { error: itemsError } = await supabase
       .from('exam_paper_items')
       .delete()
       .eq('question_id', id)
+      .eq('workspace_subject', workspaceSubject)
 
     if (itemsError) {
        console.error('[Admin Delete] Failed to delete dependency (exam_paper_items):', itemsError)
@@ -117,6 +124,7 @@ export async function DELETE(
       .from('questions')
       .update({ shared_question_id: null })
       .eq('shared_question_id', id)
+      .eq('workspace_subject', workspaceSubject)
       
     if (unlinkError) {
        console.error('[Admin Delete] Failed to unlink shared questions:', unlinkError)
@@ -129,6 +137,7 @@ export async function DELETE(
       .from('questions')
       .delete()
       .eq('id', id)
+      .eq('workspace_subject', workspaceSubject)
     
     if (error) {
       console.error('[Admin Delete] Database error:', error)
@@ -190,10 +199,12 @@ export async function PATCH(
     if (validatedData.source !== undefined) updateData.source = validatedData.source
     
     // Update question (admin can update any question)
+    const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
     const { data: question, error } = await supabase
       .from('questions')
       .update(updateData)
       .eq('id', id)
+      .eq('workspace_subject', workspaceSubject)
       .select(`
         *,
         problem_types (id, type_name),

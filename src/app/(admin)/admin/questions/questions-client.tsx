@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -62,12 +64,14 @@ interface QuestionsClientProps {
   problemTypes: ProblemType[]
   gradeLevels: string[]
   difficulties: string[]
+  workspaceSubject: WorkspaceSubject
 }
 
 export function QuestionsClient({
   problemTypes,
   gradeLevels,
   difficulties,
+  workspaceSubject,
 }: QuestionsClientProps) {
   const router = useRouter()
   const [questions, setQuestions] = useState<Question[]>([])
@@ -114,6 +118,7 @@ export function QuestionsClient({
       if (gradeLevel) params.set('grade_level', gradeLevel)
       if (difficulty) params.set('difficulty', difficulty)
       if (problemTypeId) params.set('problem_type_id', problemTypeId)
+      params.set('subject', workspaceSubject)
 
       const response = await fetch(`/api/admin/questions?${params}`)
       if (!response.ok) throw new Error('Failed to fetch')
@@ -126,7 +131,7 @@ export function QuestionsClient({
     } finally {
       setLoading(false)
     }
-  }, [pagination.page, pagination.limit, search, gradeLevel, difficulty, problemTypeId, sortBy, sortOrder])
+  }, [pagination.page, pagination.limit, search, gradeLevel, difficulty, problemTypeId, sortBy, sortOrder, workspaceSubject])
 
   useEffect(() => {
     fetchQuestions()
@@ -143,7 +148,7 @@ export function QuestionsClient({
 
     try {
       setDeleting(true)
-      const response = await fetch(`/api/admin/questions/${deleteDialog.question.id}`, {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/questions/${deleteDialog.question.id}`, workspaceSubject), {
         method: 'DELETE',
       })
 
@@ -154,9 +159,9 @@ export function QuestionsClient({
 
       setDeleteDialog({ open: false, question: null })
       fetchQuestions()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting question:', error)
-      alert(`문제 삭제에 실패했습니다: ${error.message}`)
+      alert(`문제 삭제에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
     } finally {
       setDeleting(false)
     }
@@ -194,7 +199,7 @@ export function QuestionsClient({
             <RefreshCw className="h-4 w-4 mr-2" />
             필터 초기화
           </Button>
-          <Link href="/admin/questions/upload">
+          <Link href={withAdminWorkspaceSubject('/admin/questions/upload', workspaceSubject)}>
             <Button>
               <Upload className="h-4 w-4 mr-2" />
               문제 업로드
@@ -350,7 +355,7 @@ export function QuestionsClient({
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => router.push(`/admin/questions/${question.id}`)}
+                        onClick={() => router.push(withAdminWorkspaceSubject(`/admin/questions/${question.id}`, workspaceSubject))}
                         title="수정"
                       >
                         <Edit className="h-4 w-4" />

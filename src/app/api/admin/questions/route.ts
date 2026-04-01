@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
     const problemTypeId = searchParams.get('problem_type_id') || ''
     const sortBy = searchParams.get('sort_by') || 'created_at'
     const sortOrder = searchParams.get('sort_order') || 'desc'
+    const workspaceSubject = resolveAdminWorkspaceSubject(searchParams.get('subject'))
 
     const offset = (page - 1) * limit
 
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest) {
       `, { count: 'exact' })
 
     // Only show admin uploaded questions (exclude ai_generated)
-    query = query.eq('source', 'admin_uploaded')
+    query = query.eq('source', 'admin_uploaded').eq('workspace_subject', workspaceSubject)
 
     // Apply filters
     if (search) {

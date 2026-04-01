@@ -23,8 +23,6 @@ import {
   Menu,
   User,
   LogOut,
-  FolderOpen,
-  FileText,
   CreditCard,
   Coins,
   History,
@@ -32,12 +30,10 @@ import {
   UserX,
   HelpCircle,
   Sparkles,
-  Library,
-  BookOpen,
-  Download
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { NotificationBell } from '@/components/ui/notification-bell'
+import { WorkspaceLink } from './workspace-link'
 import type { HeaderMenuItem } from '@/lib/header-navigation'
 
 interface HeaderClientProps {
@@ -134,7 +130,7 @@ export function HeaderClient({
             <SheetTitle>메뉴</SheetTitle>
           </SheetHeader>
           <nav className="flex flex-col gap-2 mt-6">
-            {isLoggedIn ? (
+            {mainMenuItems.length > 0 ? (
               <>
                 {mainMenuItems.map((item) => (
                   <div key={item.id} className="space-y-1">
@@ -148,54 +144,31 @@ export function HeaderClient({
                             key={child.id}
                             className={isGeneratePersonalChild(item.href, child.href) ? 'mt-1 border-t border-slate-200 pt-1' : ''}
                           >
-                            <Link href={child.href} onClick={() => setIsOpen(false)}>
+                            <WorkspaceLink href={child.href} onClick={() => setIsOpen(false)}>
                               <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
                                 <Sparkles className="h-4 w-4" />
                                 {child.title}
                               </Button>
-                            </Link>
+                            </WorkspaceLink>
                           </div>
                         ))}
                       </>
                     ) : (
-                      <Link href={item.href || '/'} onClick={() => setIsOpen(false)}>
+                      <WorkspaceLink href={item.href || '/'} onClick={() => setIsOpen(false)}>
                         <Button variant="ghost" className="w-full justify-start gap-2">
                           <Sparkles className="h-4 w-4" />
                           {item.title}
                         </Button>
-                      </Link>
+                      </WorkspaceLink>
                     )}
                   </div>
                 ))}
-
                 <div className="border-t my-2" />
-                <p className="px-4 py-2 text-sm font-semibold text-gray-500">내 라이브러리</p>
-                <Link href="/library/mypassages" onClick={() => setIsOpen(false)}>
-                  <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
-                    <BookOpen className="h-4 w-4" />
-                    영어지문 관리
-                  </Button>
-                </Link>
-                <Link href="/library/purchased" onClick={() => setIsOpen(false)}>
-                  <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
-                    <FolderOpen className="h-4 w-4" />
-                    영어문제 관리
-                  </Button>
-                </Link>
-                <Link href="/library/exam-papers" onClick={() => setIsOpen(false)}>
-                  <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
-                    <FileText className="h-4 w-4" />
-                    문제지 관리
-                  </Button>
-                </Link>
-                <Link href="/library/market" onClick={() => setIsOpen(false)}>
-                  <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
-                    <Download className="h-4 w-4" />
-                    문제마켓 관리
-                  </Button>
-                </Link>
+              </>
+            ) : null}
 
-                <div className="border-t my-2" />
+            {isLoggedIn ? (
+              <>
                 <p className="px-4 py-2 text-sm font-semibold text-gray-500">마이페이지</p>
                 <Link href="/mypage/payments" onClick={() => setIsOpen(false)}>
                   <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
@@ -284,43 +257,6 @@ export function HeaderClient({
   // Desktop Navigation - Dropdown Menus
   return (
     <>
-      {/* 내 라이브러리 드롭다운 */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="gap-1">
-            <Library className="h-4 w-4" />
-            내 라이브러리
-            <ChevronDown className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-48">
-          <DropdownMenuItem asChild>
-            <Link href="/library/mypassages" className="flex items-center gap-2 cursor-pointer">
-              <BookOpen className="h-4 w-4" />
-              영어지문 관리
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/library/purchased" className="flex items-center gap-2 cursor-pointer">
-              <FolderOpen className="h-4 w-4" />
-              영어문제 관리
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/library/exam-papers" className="flex items-center gap-2 cursor-pointer">
-              <FileText className="h-4 w-4" />
-              문제지 관리
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/library/market" className="flex items-center gap-2 cursor-pointer">
-              <Download className="h-4 w-4" />
-              문제마켓 관리
-            </Link>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
       {/* 마이페이지 드롭다운 */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

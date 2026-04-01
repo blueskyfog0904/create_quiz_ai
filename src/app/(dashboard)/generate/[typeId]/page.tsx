@@ -1,16 +1,24 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import GenerateClient from './generate-client'
-import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import GenerateHomeContent from '../generate-home-content'
-import { DEFAULT_GENERATE_WORKSPACE_SUBJECT } from '../workspace-subject'
+import { resolveGenerateWorkspaceSubject } from '../workspace-subject'
+import { WorkspaceLink } from '@/components/layout/workspace-link'
 
-export default async function GenerateWithTypePage({ params }: { params: Promise<{ typeId: string }> }) {
+interface GenerateWithTypePageProps {
+  params: Promise<{ typeId: string }>
+  searchParams?: Promise<{ subject?: string }>
+}
+
+export default async function GenerateWithTypePage({ params, searchParams }: GenerateWithTypePageProps) {
   await requireAuth()
   const supabase = await createClient()
   const { typeId } = await params
-  const workspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const workspaceSubject = resolveGenerateWorkspaceSubject({
+    workspaceSubject: resolvedSearchParams?.subject,
+  })
 
   // Fetch the specific problem type
   const { data: problemType, error } = await supabase
@@ -35,9 +43,9 @@ export default async function GenerateWithTypePage({ params }: { params: Promise
 
   return (
     <div>
-      <Link href="/generate">
+      <WorkspaceLink href="/generate">
         <Button variant="ghost" className="mb-4">← 문제 유형 선택으로</Button>
-      </Link>
+      </WorkspaceLink>
 
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">

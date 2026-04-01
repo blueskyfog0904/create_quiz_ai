@@ -1,18 +1,24 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.'
+}
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { Loader2, Plus, X, Download, Upload, FileSpreadsheet, CheckCircle2, Trash2, AlertCircle, Edit, RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Resizable } from 're-resizable'
+import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 interface ProblemType {
   id: string
@@ -27,6 +33,7 @@ interface AdminUploadClientProps {
   problemTypes: ProblemType[]
   gradeLevels: string[]
   difficulties: string[]
+  workspaceSubject: WorkspaceSubject
 }
 
 // Parsed question from Excel file
@@ -76,7 +83,7 @@ interface SourceConfig {
   source_4_options: string[] | null
 }
 
-export default function AdminUploadClient({ problemTypes, gradeLevels, difficulties }: AdminUploadClientProps) {
+export default function AdminUploadClient({ problemTypes, gradeLevels, difficulties, workspaceSubject }: AdminUploadClientProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isAddingProblemType, setIsAddingProblemType] = useState(false)
@@ -134,7 +141,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
   const fetchAllProblemTypes = useCallback(async () => {
     setIsLoadingTypes(true)
     try {
-      const response = await fetch('/api/admin/problem-types')
+      const response = await fetch(withAdminWorkspaceSubject('/api/admin/problem-types', workspaceSubject))
       if (!response.ok) throw new Error('Failed to fetch')
       const data = await response.json()
       setAllProblemTypes(data.types || [])
@@ -144,7 +151,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
     } finally {
       setIsLoadingTypes(false)
     }
-  }, [])
+  }, [workspaceSubject])
   
   // Fetch problem types when dialog opens
   useEffect(() => {
@@ -157,7 +164,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
   useEffect(() => {
     const fetchSourceConfigs = async () => {
       try {
-        const response = await fetch('/api/admin/source-configs')
+        const response = await fetch(withAdminWorkspaceSubject('/api/admin/source-configs', workspaceSubject))
         if (response.ok) {
           const data = await response.json()
           setSourceConfigs(data.configs || [])
@@ -167,7 +174,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
       }
     }
     fetchSourceConfigs()
-  }, [])
+  }, [workspaceSubject])
 
   // Update active source config when source_type changes
   useEffect(() => {
@@ -209,7 +216,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
     
     setIsAddingProblemType(true)
     try {
-      const response = await fetch(`/api/admin/problem-types/${editingType.id}`, {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/problem-types/${editingType.id}`, workspaceSubject), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -228,8 +235,8 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
       resetProblemTypeForm()
       fetchAllProblemTypes()
       router.refresh()
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error))
     } finally {
       setIsAddingProblemType(false)
     }
@@ -239,7 +246,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
   const handleDeleteProblemType = async (id: string) => {
     setIsDeleting(true)
     try {
-      const response = await fetch(`/api/admin/problem-types/${id}`, {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/problem-types/${id}`, workspaceSubject), {
         method: 'DELETE',
       })
       
@@ -255,8 +262,8 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
       }
       fetchAllProblemTypes()
       router.refresh()
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error))
     } finally {
       setIsDeleting(false)
     }
@@ -290,7 +297,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
         throw new Error('문제 유형 이름을 입력해주세요.')
       }
       
-      const response = await fetch('/api/admin/problem-types', {
+      const response = await fetch(withAdminWorkspaceSubject('/api/admin/problem-types', workspaceSubject), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newProblemType),
@@ -315,8 +322,8 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
       setIsDialogOpen(false)
       router.refresh()
       
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error))
     } finally {
       setIsAddingProblemType(false)
     }
@@ -326,7 +333,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
   const handleDownloadTemplate = async () => {
     setIsDownloadingTemplate(true)
     try {
-      const response = await fetch('/api/admin/questions/template')
+      const response = await fetch(withAdminWorkspaceSubject('/api/admin/questions/template', workspaceSubject))
       
       if (!response.ok) {
         throw new Error('템플릿 다운로드에 실패했습니다.')
@@ -343,8 +350,8 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
       document.body.removeChild(a)
       
       toast.success('템플릿이 다운로드되었습니다.')
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error))
     } finally {
       setIsDownloadingTemplate(false)
     }
@@ -359,7 +366,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
       const formData = new FormData()
       formData.append('file', file)
       
-      const response = await fetch('/api/admin/questions/bulk-upload', {
+      const response = await fetch(withAdminWorkspaceSubject('/api/admin/questions/bulk-upload', workspaceSubject), {
         method: 'POST',
         body: formData,
       })
@@ -378,8 +385,8 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
       setParsedQuestions(data.questions)
       toast.success(`${data.questions.length}개의 문제를 불러왔습니다. 내용을 확인 후 업로드해주세요.`)
       
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error))
     } finally {
       setIsParsing(false)
     }
@@ -576,7 +583,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
           choicesJSON: JSON.stringify(requestBody.choices)
         })
         
-        const response = await fetch('/api/admin/questions/upload', {
+        const response = await fetch(withAdminWorkspaceSubject('/api/admin/questions/upload', workspaceSubject), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestBody),
@@ -598,11 +605,11 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
           })
           failCount++
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[Client Bulk Save] Exception while saving question:', {
           questionId: question.id,
-          error: error.message,
-          stack: error.stack
+          error: getErrorMessage(error),
+          stack: error instanceof Error ? error.stack : undefined
         })
         failCount++
       }
@@ -721,7 +728,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
         choicesJSON: JSON.stringify(requestBody.choices)
       })
       
-      const response = await fetch('/api/admin/questions/upload', {
+      const response = await fetch(withAdminWorkspaceSubject('/api/admin/questions/upload', workspaceSubject), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
@@ -761,8 +768,8 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
         source_4: '',
       })
       
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error))
     } finally {
       setIsSubmitting(false)
     }

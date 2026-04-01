@@ -51,6 +51,7 @@ import {
 import {
   flattenHeaderNavigationItems,
   getActiveHeaderNavigationItems,
+  isSystemOwnedHeaderParentHref,
   isSafeHeaderHref,
   MAX_LOGO_TEXT_LENGTH,
   MAX_MENU_TITLE_LENGTH,
@@ -222,6 +223,7 @@ export default function MenuManagementClient({
   marketChildrenSourceMode,
   backfillStatus,
   marketBackfillStatus,
+  workspaceSubject = 'english',
 }: MenuManagementClientProps) {
   const router = useRouter()
   const [config, setConfig] = useState<HeaderNavigationConfig>(() => cloneConfig(initialConfig))
@@ -309,16 +311,6 @@ export default function MenuManagementClient({
   }
 
   const openParentEditDialog = (item: HeaderMenuItem) => {
-    if (item.href === '/generate') {
-      toast.info('AI문제생성 상위 메뉴는 보호되며, 하위 메뉴는 아래 별도 섹션에서 관리됩니다.')
-      return
-    }
-
-    if (item.href === '/market') {
-      toast.info('문제마켓 상위 메뉴는 보호되며, 하위 메뉴는 아래 별도 섹션에서 관리됩니다.')
-      return
-    }
-
     setDialogState({ mode: 'edit-parent', targetId: item.id })
     setFormState({ title: item.title, href: item.href || '', parentId: '' })
     setIsDialogOpen(true)
@@ -326,8 +318,8 @@ export default function MenuManagementClient({
 
   const openChildCreateDialog = (parentId: string) => {
     const parent = editableConfig.items.find((item) => item.id === parentId)
-    if (parent?.href === '/generate') {
-      toast.info('문제생성 하위 메뉴는 아래 별도 섹션에서 관리됩니다.')
+    if (parent?.href === '/generate' || parent?.href === '/market') {
+      toast.info('문제생성/문제마켓 하위 메뉴는 아래 별도 섹션에서 관리됩니다.')
       return
     }
 
@@ -338,8 +330,8 @@ export default function MenuManagementClient({
 
   const openChildEditDialog = (parentId: string, child: HeaderMenuChildItem) => {
     const parent = editableConfig.items.find((item) => item.id === parentId)
-    if (parent?.href === '/generate') {
-      toast.info('문제생성 하위 메뉴는 아래 별도 섹션에서 관리됩니다.')
+    if (parent?.href === '/generate' || parent?.href === '/market') {
+      toast.info('문제생성/문제마켓 하위 메뉴는 아래 별도 섹션에서 관리됩니다.')
       return
     }
 
@@ -376,6 +368,19 @@ export default function MenuManagementClient({
   const handleConfirmDelete = () => {
     if (!deleteTarget) return
 
+    if (!deleteTarget.parentId) {
+      const targetItem = editableConfig.items.find((item) => item.id === deleteTarget.id)
+      if (isSystemOwnedHeaderParentHref(targetItem?.href, workspaceSubject)) {
+        updateConfigItems((items) => items.map((item) => item.id === deleteTarget.id ? {
+          ...item,
+          isActive: false,
+        } : item))
+        toast.success('시스템 메뉴를 숨김 처리했습니다.')
+        setDeleteTarget(null)
+        return
+      }
+    }
+
     updateConfigItems((items) => {
       if (deleteTarget.parentId) {
         return items.map((item) => {
@@ -398,6 +403,7 @@ export default function MenuManagementClient({
     const href = formState.href.trim()
     const selectedParentId = formState.parentId || dialogState.parentId
     const parentItem = selectedParentId ? editableConfig.items.find((item) => item.id === selectedParentId) : null
+    const editingParent = dialogState.targetId ? editableConfig.items.find((item) => item.id === dialogState.targetId) : null
 
     if (!title) {
       toast.error('메뉴명을 입력해주세요.')
@@ -436,7 +442,9 @@ export default function MenuManagementClient({
       updateConfigItems((items) => items.map((item) => item.id === dialogState.targetId ? {
         ...item,
         title,
-        href: href || undefined,
+        href: isSystemOwnedHeaderParentHref(editingParent?.href, workspaceSubject)
+          ? editingParent?.href
+          : (href || undefined),
       } : item))
     }
 
@@ -504,7 +512,7 @@ export default function MenuManagementClient({
 
     setIsSaving(true)
     try {
-      const response = await saveMenuManagementConfig({ ...config, logoText: nextLogoText })
+      const response = await saveMenuManagementConfig({ ...config, logoText: nextLogoText }, workspaceSubject)
       if (!response.success) {
         throw new Error('저장에 실패했습니다.')
       }
@@ -560,7 +568,7 @@ export default function MenuManagementClient({
           is_visible: generateEntryForm.isVisible,
           is_active: generateEntryForm.isActive,
           search_config: searchConfig,
-        })
+        }, workspaceSubject)
         const existing = generateMenuEntries.find((entry) => entry.id === generateEntryForm.id)
         persistGenerateEntryState(generateMenuEntries.map((entry) => entry.id === generateEntryForm.id ? {
           ...response.data,
@@ -577,7 +585,7 @@ export default function MenuManagementClient({
           is_visible: generateEntryForm.isVisible,
           is_active: generateEntryForm.isActive,
           search_config: searchConfig,
-        })
+        }, workspaceSubject)
         persistGenerateEntryState([...generateMenuEntries, { ...response.data, postCount: 0 }])
         toast.success('문제생성 메뉴를 추가했습니다.')
       }
@@ -596,7 +604,7 @@ export default function MenuManagementClient({
 
     setIsMutatingGenerateEntries(true)
     try {
-      await archiveGenerateMenuEntryAction(archiveTarget.id)
+      await archiveGenerateMenuEntryAction(archiveTarget.id, workspaceSubject)
       const nextEntries = generateMenuEntries.filter((entry) => entry.id !== archiveTarget.id)
       persistGenerateEntryState(nextEntries)
       setArchiveTarget(null)
@@ -617,7 +625,7 @@ export default function MenuManagementClient({
 
     setGenerateMenuEntries(nextEntries)
     try {
-      await reorderGenerateMenuEntriesAction(nextEntries.map((entry) => entry.id))
+      await reorderGenerateMenuEntriesAction(nextEntries.map((entry) => entry.id), workspaceSubject)
       toast.success('정렬 순서를 저장했습니다.')
       refreshRoute()
     } catch (error) {
@@ -629,7 +637,7 @@ export default function MenuManagementClient({
   const handleBackfillGenerateChildren = async () => {
     setIsBackfilling(true)
     try {
-      await backfillGenerateMenuEntriesAction()
+      await backfillGenerateMenuEntriesAction(workspaceSubject)
       toast.success('기존 문제생성 메뉴를 DB 메뉴로 가져왔습니다.')
       refreshRoute()
     } catch (error) {
@@ -679,7 +687,7 @@ export default function MenuManagementClient({
           is_visible: marketEntryForm.isVisible,
           is_active: marketEntryForm.isActive,
           search_config: searchConfig,
-        })
+        }, workspaceSubject)
         persistMarketEntryState(marketMenuEntries.map((entry) => entry.id === marketEntryForm.id ? response.data : entry))
         toast.success('문제마켓 메뉴를 수정했습니다.')
       } else {
@@ -691,7 +699,7 @@ export default function MenuManagementClient({
           is_visible: marketEntryForm.isVisible,
           is_active: marketEntryForm.isActive,
           search_config: searchConfig,
-        })
+        }, workspaceSubject)
         persistMarketEntryState([...marketMenuEntries, response.data])
         toast.success('문제마켓 메뉴를 추가했습니다.')
       }
@@ -710,7 +718,7 @@ export default function MenuManagementClient({
 
     setIsMutatingMarketEntries(true)
     try {
-      await archiveMarketMenuEntryAction(archiveMarketTarget.id)
+      await archiveMarketMenuEntryAction(archiveMarketTarget.id, workspaceSubject)
       persistMarketEntryState(marketMenuEntries.filter((entry) => entry.id !== archiveMarketTarget.id))
       setArchiveMarketTarget(null)
       toast.success('문제마켓 메뉴를 보관 처리했습니다.')
@@ -730,7 +738,7 @@ export default function MenuManagementClient({
 
     setMarketMenuEntries(nextEntries)
     try {
-      await reorderMarketMenuEntriesAction(nextEntries.map((entry) => entry.id))
+      await reorderMarketMenuEntriesAction(nextEntries.map((entry) => entry.id), workspaceSubject)
       toast.success('문제마켓 메뉴 정렬 순서를 저장했습니다.')
       refreshRoute()
     } catch (error) {
@@ -742,7 +750,7 @@ export default function MenuManagementClient({
   const handleBackfillMarketChildren = async () => {
     setIsBackfillingMarket(true)
     try {
-      await backfillMarketMenuEntriesAction()
+      await backfillMarketMenuEntriesAction(workspaceSubject)
       toast.success('기존 문제마켓 메뉴를 DB 메뉴로 가져왔습니다.')
       refreshRoute()
     } catch (error) {
@@ -756,7 +764,7 @@ export default function MenuManagementClient({
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">메뉴관리</h1>
+          <h1 className="text-3xl font-bold text-gray-900">메뉴관리 · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
           <p className="mt-1 text-gray-500">일반 헤더 메뉴와 DB 연동 대상 2단계 메뉴를 분리해서 관리합니다.</p>
         </div>
         <Button onClick={handleSaveAll} disabled={isSaving || !hasUnsavedChanges}>
@@ -764,6 +772,17 @@ export default function MenuManagementClient({
           일반 메뉴 저장
         </Button>
       </div>
+
+      <Card className="border-slate-200 bg-slate-50/80">
+        <CardContent className="flex flex-col gap-2 p-4 text-sm text-slate-700">
+          <p className="font-semibold">현재 작업 공간 헤더 규칙</p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>`/generate`, `/market` 상위 메뉴는 시스템 링크를 유지하고 제목/순서/노출 여부만 수정합니다.</li>
+            <li>영어 작업공간은 문제생성 상위 메뉴를 가질 수 있고, 국어 작업공간은 문제생성 상위 메뉴를 노출하지 않습니다.</li>
+            <li>라이브러리 상위 메뉴는 일반 헤더 설정에서 관리하고, 기본 하위 링크는 시스템 fallback 구성을 사용합니다.</li>
+          </ul>
+        </CardContent>
+      </Card>
 
       {!hasGenerateParent && (
         <Card className="border-amber-300 bg-amber-50">
@@ -878,6 +897,9 @@ export default function MenuManagementClient({
                           <div className="flex items-center gap-2">
                             <span>{item.title}</span>
                             {isManagedChildParent(item.href) ? <Badge variant="outline">{getManagedChildParentLabel(item.href)} 하위 메뉴 별도 관리</Badge> : null}
+                            {isSystemOwnedHeaderParentHref(item.href, workspaceSubject) ? <Badge variant="secondary">시스템 메뉴</Badge> : null}
+                            {workspaceSubject === 'english' && item.href === '/generate' ? <Badge variant="outline">영어 전용</Badge> : null}
+                            {item.href === '/library' ? <Badge variant="outline">fallback child 사용</Badge> : null}
                           </div>
                         </TableCell>
                         <TableCell className="text-gray-600">{item.href || '-'}</TableCell>
@@ -899,8 +921,8 @@ export default function MenuManagementClient({
                             <Button variant="ghost" size="icon" onClick={() => handleMoveParent(parentIndex, 'up')} disabled={parentIndex === 0}><ArrowUp className="h-4 w-4" /></Button>
                             <Button variant="ghost" size="icon" onClick={() => handleMoveParent(parentIndex, 'down')} disabled={parentIndex === editableConfig.items.length - 1}><ArrowDown className="h-4 w-4" /></Button>
                             <Button variant="ghost" size="icon" onClick={() => openChildCreateDialog(item.id)} disabled={isManagedChildParent(item.href)}><Plus className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => openParentEditDialog(item)} disabled={isManagedChildParent(item.href)}><Pencil className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => setDeleteTarget({ id: item.id, title: item.title, hasChildren: item.children.length > 0 })} disabled={isManagedChildParent(item.href)}><Trash2 className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => openParentEditDialog(item)}><Pencil className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => setDeleteTarget({ id: item.id, title: item.title, hasChildren: item.children.length > 0 })}><Trash2 className="h-4 w-4" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1130,11 +1152,17 @@ export default function MenuManagementClient({
             <div className="space-y-2">
               <Label htmlFor="menu-title">메뉴명</Label>
               <Input id="menu-title" value={formState.title} maxLength={MAX_MENU_TITLE_LENGTH} onChange={(event) => setFormState((current) => ({ ...current, title: event.target.value }))} placeholder="예: 문제은행" />
+              {dialogState?.mode === 'edit-parent' && editableConfig.items.find((item) => item.id === dialogState?.targetId)?.href === '/library' ? (
+                <p className="text-xs text-slate-500">라이브러리 상위 메뉴의 기본 하위 링크는 시스템 fallback 구성을 사용합니다.</p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="menu-href">{dialogState?.mode === 'create-child' || dialogState?.mode === 'edit-child' ? '하위 경로' : '링크'}</Label>
-              <Input id="menu-href" value={formState.href} onChange={(event) => setFormState((current) => ({ ...current, href: event.target.value }))} placeholder={dialogState?.mode === 'create-child' || dialogState?.mode === 'edit-child' ? '예: /textbook' : '예: /generate'} />
+              <Input id="menu-href" value={formState.href} onChange={(event) => setFormState((current) => ({ ...current, href: event.target.value }))} placeholder={dialogState?.mode === 'create-child' || dialogState?.mode === 'edit-child' ? '예: /textbook' : '예: /generate'} disabled={dialogState?.mode === 'edit-parent' && isSystemOwnedHeaderParentHref(editableConfig.items.find((item) => item.id === dialogState?.targetId)?.href, workspaceSubject)} />
+              {dialogState?.mode === 'edit-parent' && isSystemOwnedHeaderParentHref(editableConfig.items.find((item) => item.id === dialogState?.targetId)?.href, workspaceSubject) ? (
+                <p className="text-xs text-amber-600">시스템 메뉴는 링크를 고정하고 제목/순서/노출 여부만 수정할 수 있습니다.</p>
+              ) : null}
               {dialogState?.mode === 'create-child' || dialogState?.mode === 'edit-child' ? (
                 <div className="space-y-1 text-sm text-gray-500">
                   <p>하위 메뉴 링크는 상위 메뉴 링크를 기준으로 결합됩니다.</p>

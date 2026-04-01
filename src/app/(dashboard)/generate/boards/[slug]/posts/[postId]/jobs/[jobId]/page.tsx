@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getGenerateBoardBySlug, getGenerateBoardPost } from '../../../../../data'
 import JobStatusClient from './job-status-client'
 import {
-  DEFAULT_GENERATE_WORKSPACE_SUBJECT,
+  resolveGenerateWorkspaceSubject,
   type WorkspaceScoped,
 } from '../../../../../../workspace-subject'
 import type { Database } from '@/types/supabase'
@@ -14,14 +14,16 @@ type GenerateListboardGenerationJobItem = WorkspaceScoped<Database['public']['Ta
 
 interface GenerateBoardJobPageProps {
   params: Promise<{ slug: string; postId: string; jobId: string }>
-  searchParams: Promise<{ gradeLevel?: string; difficulty?: string }>
+  searchParams: Promise<{ gradeLevel?: string; difficulty?: string; subject?: string }>
 }
 
 export default async function GenerateBoardJobPage({ params, searchParams }: GenerateBoardJobPageProps) {
   const user = await requireAuth()
   const { slug, postId, jobId } = await params
   const resolvedSearchParams = await searchParams
-  const workspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
+  const workspaceSubject = resolveGenerateWorkspaceSubject({
+    workspaceSubject: resolvedSearchParams.subject,
+  })
 
   const board = await getGenerateBoardBySlug(slug, workspaceSubject)
   if (!board) {
