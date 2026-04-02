@@ -39,8 +39,9 @@ function isGeneratePersonalChild(parentHref?: string, childHref?: string) {
 
 export async function Header() {
   const supabase = await createClient()
-  const { workspaceSubject, headerMode } = await getRequestWorkspaceContext()
+  const { workspaceSubject, headerMode, scopedPath } = await getRequestWorkspaceContext()
   const shouldShowWorkspaceNav = headerMode === 'subject'
+  const isSubjectLandingHome = shouldShowWorkspaceNav && scopedPath === '/'
   const activeNavigationItems = shouldShowWorkspaceNav
     ? reorderGenerateChildren(
         getActiveHeaderNavigationItems(
@@ -91,7 +92,10 @@ export async function Header() {
             item.children.length > 0 ? (
               <DropdownMenu key={item.id}>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="gap-1">
+                  <Button
+                    variant={isSubjectLandingHome ? 'secondary' : 'ghost'}
+                    className={isSubjectLandingHome ? 'gap-1 font-semibold text-primary' : 'gap-1'}
+                  >
                     {item.title}
                     <ChevronDown className="h-4 w-4" />
                   </Button>
@@ -110,7 +114,12 @@ export async function Header() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button key={item.id} asChild variant="ghost">
+              <Button
+                key={item.id}
+                asChild
+                variant={isSubjectLandingHome ? 'secondary' : 'ghost'}
+                className={isSubjectLandingHome ? 'font-semibold text-primary' : undefined}
+              >
                 <WorkspaceLink href={item.href || '/'} subject={workspaceSubject}>{item.title}</WorkspaceLink>
               </Button>
             )

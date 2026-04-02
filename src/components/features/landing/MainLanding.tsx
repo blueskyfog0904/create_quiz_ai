@@ -92,8 +92,7 @@ export function MainLanding() {
             const Icon = card.icon
 
             return (
-              <Link key={card.subject} href={`/${card.subject}`} className="group block h-full">
-                <Card className="relative h-full overflow-hidden rounded-[2rem] border-white/10 bg-white/95 py-0 text-slate-900 shadow-2xl shadow-slate-950/20 transition duration-300 hover:-translate-y-1 hover:shadow-indigo-500/10">
+              <Card key={card.subject} className="group relative h-full overflow-hidden rounded-[2rem] border-white/10 bg-white/95 py-0 text-slate-900 shadow-2xl shadow-slate-950/20 transition duration-300 hover:-translate-y-1 hover:shadow-indigo-500/10">
                   <div className={`absolute inset-0 bg-gradient-to-br ${card.accentClass}`} />
                   <CardContent className="relative flex h-full flex-col p-8 md:p-10">
                     <div className="flex items-start justify-between gap-4">
@@ -123,17 +122,21 @@ export function MainLanding() {
                     </div>
 
                     <div className="mt-8 flex items-center justify-between gap-4 border-t border-slate-200 pt-6">
-                      <Button size="lg" variant={card.buttonVariant} className="px-6">
-                        {card.buttonLabel}
+                      <Button asChild size="lg" variant={card.buttonVariant} className="px-6">
+                        <Link href={`/${card.subject}`}>
+                          {card.buttonLabel}
+                        </Link>
                       </Button>
-                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-600 transition group-hover:text-slate-900">
+                      <Link
+                        href={`/${card.subject}`}
+                        className="flex items-center gap-2 text-sm font-semibold text-slate-600 transition hover:text-slate-900"
+                      >
                         자세히 보기
                         <ArrowRight className="h-4 w-4" />
-                      </div>
+                      </Link>
                     </div>
                   </CardContent>
-                </Card>
-              </Link>
+              </Card>
             )
           })}
         </div>

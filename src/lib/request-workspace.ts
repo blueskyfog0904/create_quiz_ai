@@ -9,6 +9,7 @@ import {
 export const PREFERRED_WORKSPACE_COOKIE = 'preferred_workspace'
 export const WORKSPACE_SUBJECT_HEADER = 'x-workspace-subject'
 export const WORKSPACE_HEADER_MODE_HEADER = 'x-workspace-header-mode'
+export const WORKSPACE_SCOPED_PATH_HEADER = 'x-workspace-scoped-path'
 
 export type WorkspaceHeaderMode = 'root-neutral' | 'subject'
 
@@ -19,10 +20,12 @@ function isWorkspaceHeaderMode(value: string | null | undefined): value is Works
 export async function getRequestWorkspaceContext(): Promise<{
   workspaceSubject: WorkspaceSubject
   headerMode: WorkspaceHeaderMode
+  scopedPath: string
 }> {
   const headerStore = await headers()
   const cookieStore = await cookies()
   const headerModeValue = headerStore.get(WORKSPACE_HEADER_MODE_HEADER)
+  const scopedPath = headerStore.get(WORKSPACE_SCOPED_PATH_HEADER) ?? '/'
 
   const headerMode: WorkspaceHeaderMode = isWorkspaceHeaderMode(headerModeValue)
     ? headerModeValue
@@ -33,6 +36,7 @@ export async function getRequestWorkspaceContext(): Promise<{
     return {
       workspaceSubject: headerSubject,
       headerMode,
+      scopedPath,
     }
   }
 
@@ -41,6 +45,7 @@ export async function getRequestWorkspaceContext(): Promise<{
     return {
       workspaceSubject: cookieSubject,
       headerMode,
+      scopedPath,
     }
   }
 
@@ -52,6 +57,7 @@ export async function getRequestWorkspaceContext(): Promise<{
         return {
           workspaceSubject: refererSubject,
           headerMode,
+          scopedPath,
         }
       }
     } catch {
@@ -62,6 +68,7 @@ export async function getRequestWorkspaceContext(): Promise<{
   return {
     workspaceSubject: DEFAULT_WORKSPACE_SUBJECT,
     headerMode,
+    scopedPath,
   }
 }
 

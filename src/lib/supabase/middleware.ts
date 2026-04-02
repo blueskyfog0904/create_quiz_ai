@@ -11,6 +11,7 @@ import {
 
 const WORKSPACE_SUBJECT_HEADER = 'x-workspace-subject'
 const WORKSPACE_HEADER_MODE_HEADER = 'x-workspace-header-mode'
+const WORKSPACE_SCOPED_PATH_HEADER = 'x-workspace-scoped-path'
 
 const getWorkspaceHomePath = (path: string) => {
   const subject = parseWorkspaceSubjectFromPath(path)
@@ -51,7 +52,8 @@ const copyResponseCookies = (from: NextResponse, to: NextResponse) => {
 function buildRequestHeaders(
   request: NextRequest,
   workspaceSubject?: string | null,
-  headerMode: 'root-neutral' | 'subject' = 'subject'
+  headerMode: 'root-neutral' | 'subject' = 'subject',
+  scopedPath = '/'
 ) {
   const requestHeaders = new Headers(request.headers)
 
@@ -62,6 +64,7 @@ function buildRequestHeaders(
   }
 
   requestHeaders.set(WORKSPACE_HEADER_MODE_HEADER, headerMode)
+  requestHeaders.set(WORKSPACE_SCOPED_PATH_HEADER, scopedPath)
 
   return requestHeaders
 }
@@ -69,11 +72,12 @@ function buildRequestHeaders(
 function buildNextResponse(
   request: NextRequest,
   workspaceSubject?: string | null,
-  headerMode: 'root-neutral' | 'subject' = 'subject'
+  headerMode: 'root-neutral' | 'subject' = 'subject',
+  scopedPath = '/'
 ) {
   return NextResponse.next({
     request: {
-      headers: buildRequestHeaders(request, workspaceSubject, headerMode),
+      headers: buildRequestHeaders(request, workspaceSubject, headerMode, scopedPath),
     },
   })
 }
@@ -102,6 +106,7 @@ function resolveWorkspaceRoutingContext(request: NextRequest) {
     resolvedSubject: explicitSubject ?? DEFAULT_WORKSPACE_SUBJECT,
     explicitSubject,
     headerMode,
+    scopedPath: stripped.scopedPath,
   }
 }
 
@@ -124,7 +129,7 @@ const buildRoutingResponse = (
     rewriteUrl.searchParams.set('subject', pathSubject)
     const response = NextResponse.rewrite(rewriteUrl, {
       request: {
-        headers: buildRequestHeaders(request, pathSubject, 'subject'),
+        headers: buildRequestHeaders(request, pathSubject, 'subject', '/'),
       },
     })
     response.cookies.set('preferred_workspace', pathSubject)
@@ -137,7 +142,7 @@ const buildRoutingResponse = (
     rewriteUrl.searchParams.set('subject', pathSubject)
     const response = NextResponse.rewrite(rewriteUrl, {
       request: {
-        headers: buildRequestHeaders(request, pathSubject, 'subject'),
+        headers: buildRequestHeaders(request, pathSubject, 'subject', stripped.scopedPath),
       },
     })
     response.cookies.set('preferred_workspace', pathSubject)
@@ -216,7 +221,7 @@ const buildAuthRedirectResponse = (
 
 export async function updateSession(request: NextRequest) {
   const routingContext = resolveWorkspaceRoutingContext(request)
-  let response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode)
+  let response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath)
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -231,7 +236,7 @@ export async function updateSession(request: NextRequest) {
             request.cookies.set(name, value)
           )
 
-          response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode)
+          response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath)
 
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
