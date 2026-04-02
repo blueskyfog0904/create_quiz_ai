@@ -3,26 +3,11 @@
 import { useMemo } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { DEFAULT_WORKSPACE_SUBJECT, isSubjectFacingPath, isWorkspaceSubject, parseWorkspaceSubjectFromPath, stripWorkspacePrefix, type WorkspaceSubject, withWorkspacePrefix } from '@/lib/workspace-subject'
+import { DEFAULT_WORKSPACE_SUBJECT, isWorkspaceSubject, parseWorkspaceSubjectFromPath, type WorkspaceSubject } from '@/lib/workspace-subject'
 import { workspaceHref } from '@/lib/workspace-routes'
 import { cn } from '@/lib/utils'
 
-function buildToggleTarget(pathname: string, searchParams: URLSearchParams, targetSubject: WorkspaceSubject) {
-  const currentSubject = parseWorkspaceSubjectFromPath(pathname)
-  const stripped = stripWorkspacePrefix(pathname)
-
-  if (pathname === '/' && !searchParams.get('subject')) {
-    return workspaceHref(targetSubject, 'home')
-  }
-
-  if (currentSubject || isSubjectFacingPath(stripped.scopedPath)) {
-    const nextParams = new URLSearchParams(searchParams.toString())
-    nextParams.delete('subject')
-    const nextPath = stripped.scopedPath === '/' ? workspaceHref(targetSubject, 'home') : withWorkspacePrefix(targetSubject, stripped.scopedPath)
-    const nextQuery = nextParams.toString()
-    return nextQuery ? `${nextPath}?${nextQuery}` : nextPath
-  }
-
+function buildToggleTarget(targetSubject: WorkspaceSubject) {
   return workspaceHref(targetSubject, 'home')
 }
 
@@ -46,7 +31,7 @@ export function WorkspaceSubjectToggle({ className }: { className?: string }) {
       return
     }
 
-    router.push(buildToggleTarget(pathname, new URLSearchParams(searchParams.toString()), targetSubject))
+    router.push(buildToggleTarget(targetSubject))
   }
 
   return (

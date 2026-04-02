@@ -47,6 +47,11 @@ interface HeaderClientProps {
   isMobile?: boolean
 }
 
+const accountDropdownContentClassName = 'w-52 rounded-xl border-slate-200 bg-white p-2 text-slate-900 shadow-xl shadow-slate-200/70'
+const accountDropdownItemClassName = 'rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition-colors focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900'
+const accountDropdownSeparatorClassName = 'my-1 bg-slate-200'
+const accountTriggerButtonClassName = 'gap-1 rounded-full border border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-100 hover:text-slate-900'
+
 export function HeaderClient({
   isLoggedIn,
   userName,
@@ -263,52 +268,52 @@ export function HeaderClient({
       {/* 마이페이지 드롭다운 */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="gap-1">
+          <Button variant="ghost" className={accountTriggerButtonClassName}>
             <User className="h-4 w-4" />
             <span className="hidden xl:inline">마이페이지</span>
             <ChevronDown className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-48">
-          <DropdownMenuItem asChild>
+        <DropdownMenuContent align="start" className={accountDropdownContentClassName}>
+          <DropdownMenuItem asChild className={accountDropdownItemClassName}>
             <Link href="/mypage/payments" className="flex items-center gap-2 cursor-pointer">
               <CreditCard className="h-4 w-4" />
               결제 내역
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
+          <DropdownMenuItem asChild className={accountDropdownItemClassName}>
             <Link href="/mypage/credits" className="flex items-center gap-2 cursor-pointer">
               <Coins className="h-4 w-4" />
               크레딧 관리
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
+          <DropdownMenuSeparator className={accountDropdownSeparatorClassName} />
+          <DropdownMenuItem asChild className={accountDropdownItemClassName}>
             <Link href="/mypage/profile" className="flex items-center gap-2 cursor-pointer">
               <User className="h-4 w-4" />
               내정보 관리
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
+          <DropdownMenuItem asChild className={accountDropdownItemClassName}>
             <Link href="/mypage/history" className="flex items-center gap-2 cursor-pointer">
               <History className="h-4 w-4" />
               생성/구매 히스토리
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
+          <DropdownMenuItem asChild className={accountDropdownItemClassName}>
             <Link href="/mypage/devices" className="flex items-center gap-2 cursor-pointer">
               <Monitor className="h-4 w-4" />
               로그인 기기 관리
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
+          <DropdownMenuSeparator className={accountDropdownSeparatorClassName} />
+          <DropdownMenuItem asChild className={accountDropdownItemClassName}>
             <Link href="/mypage/withdraw" className="flex items-center gap-2 cursor-pointer">
               <UserX className="h-4 w-4" />
               회원 탈퇴
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
+          <DropdownMenuItem asChild className={accountDropdownItemClassName}>
             <Link href="/mypage/support" className="flex items-center gap-2 cursor-pointer">
               <HelpCircle className="h-4 w-4" />
               고객지원

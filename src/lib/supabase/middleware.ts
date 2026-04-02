@@ -144,10 +144,7 @@ const buildRoutingResponse = (
   }
 
   if (pathSubject && isSubjectFacingPath(stripped.scopedPath)) {
-    const rewriteUrl = url.clone()
-    rewriteUrl.pathname = stripped.scopedPath
-    rewriteUrl.searchParams.set('subject', pathSubject)
-    const response = NextResponse.rewrite(rewriteUrl, {
+    const response = NextResponse.next({
       request: {
         headers: buildRequestHeaders(request, pathSubject, 'subject', stripped.scopedPath),
       },

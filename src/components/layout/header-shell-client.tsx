@@ -15,8 +15,15 @@ import { ChevronDown } from 'lucide-react'
 import { HeaderClient } from './header-client'
 import { WorkspaceLink } from './workspace-link'
 import { WorkspaceSubjectToggle } from './workspace-subject-toggle'
+import { cn } from '@/lib/utils'
 import { isWorkspaceSubject, parseWorkspaceSubjectFromPath, stripWorkspacePrefix, type WorkspaceSubject } from '@/lib/workspace-subject'
 import type { HeaderMenuItem } from '@/lib/header-navigation'
+
+const headerDropdownContentClassName = 'w-52 rounded-xl border-slate-200 bg-white p-2 text-slate-900 shadow-xl shadow-slate-200/70'
+const headerDropdownItemClassName = 'rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition-colors focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900'
+const headerDropdownSeparatorClassName = 'my-1 bg-slate-200'
+const subjectNavButtonClassName = 'shrink-0 rounded-full border border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-100 hover:text-slate-900'
+const subjectNavButtonActiveClassName = 'border-slate-200 bg-slate-100 font-semibold text-slate-900 shadow-sm hover:bg-slate-100 hover:text-slate-900'
 
 interface HeaderShellClientProps {
   englishMenuItems: HeaderMenuItem[]
@@ -29,6 +36,30 @@ interface HeaderShellClientProps {
 
 function isGeneratePersonalChild(parentHref?: string, childHref?: string) {
   return parentHref === '/generate' && childHref === '/generate/personal'
+}
+
+function matchesSubjectPath(currentScopedPath: string, href?: string) {
+  if (!href) {
+    return false
+  }
+
+  if (href === '/') {
+    return currentScopedPath === '/'
+  }
+
+  return currentScopedPath === href || currentScopedPath.startsWith(`${href}/`)
+}
+
+function isNavigationItemHighlighted(item: HeaderMenuItem, currentScopedPath: string, isSubjectLandingHome: boolean) {
+  if (isSubjectLandingHome) {
+    return true
+  }
+
+  if (matchesSubjectPath(currentScopedPath, item.href)) {
+    return true
+  }
+
+  return item.children.some((child) => matchesSubjectPath(currentScopedPath, child.href))
 }
 
 export function HeaderShellClient({
@@ -53,7 +84,8 @@ export function HeaderShellClient({
   }, [pathname, searchParams])
 
   const shouldShowWorkspaceNav = currentSubject !== null
-  const isSubjectLandingHome = shouldShowWorkspaceNav && stripWorkspacePrefix(pathname).scopedPath === '/'
+  const currentScopedPath = stripWorkspacePrefix(pathname).scopedPath
+  const isSubjectLandingHome = shouldShowWorkspaceNav && currentScopedPath === '/'
   const activeNavigationItems = currentSubject === 'korean'
     ? koreanMenuItems
     : englishMenuItems
@@ -79,18 +111,22 @@ export function HeaderShellClient({
                   <DropdownMenu key={item.id}>
                     <DropdownMenuTrigger asChild>
                       <Button
-                        variant={isSubjectLandingHome ? 'secondary' : 'ghost'}
-                        className={isSubjectLandingHome ? 'shrink-0 gap-1 font-semibold text-primary' : 'shrink-0 gap-1'}
+                        variant="ghost"
+                        className={cn(
+                          subjectNavButtonClassName,
+                          'gap-1',
+                          isNavigationItemHighlighted(item, currentScopedPath, isSubjectLandingHome) && subjectNavButtonActiveClassName
+                        )}
                       >
                         {item.title}
                         <ChevronDown className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-48">
+                    <DropdownMenuContent align="start" className={headerDropdownContentClassName}>
                       {item.children.map((child) => (
                         <Fragment key={child.id}>
-                          {isGeneratePersonalChild(item.href, child.href) ? <DropdownMenuSeparator /> : null}
-                          <DropdownMenuItem asChild>
+                          {isGeneratePersonalChild(item.href, child.href) ? <DropdownMenuSeparator className={headerDropdownSeparatorClassName} /> : null}
+                          <DropdownMenuItem asChild className={headerDropdownItemClassName}>
                             <WorkspaceLink href={child.href} subject={currentSubject ?? undefined} className="cursor-pointer">
                               {child.title}
                             </WorkspaceLink>
@@ -103,8 +139,11 @@ export function HeaderShellClient({
                   <Button
                     key={item.id}
                     asChild
-                    variant={isSubjectLandingHome ? 'secondary' : 'ghost'}
-                    className={isSubjectLandingHome ? 'shrink-0 font-semibold text-primary' : 'shrink-0'}
+                    variant="ghost"
+                    className={cn(
+                      subjectNavButtonClassName,
+                      isNavigationItemHighlighted(item, currentScopedPath, isSubjectLandingHome) && subjectNavButtonActiveClassName
+                    )}
                   >
                     <WorkspaceLink href={item.href || '/'} subject={currentSubject ?? undefined}>{item.title}</WorkspaceLink>
                   </Button>
