@@ -265,7 +265,7 @@ export function HeaderClient({
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="gap-1">
             <User className="h-4 w-4" />
-            마이페이지
+            <span className="hidden xl:inline">마이페이지</span>
             <ChevronDown className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -320,30 +320,31 @@ export function HeaderClient({
       {/* 관리자 링크 */}
       {isAdmin && (
         <Link href="/admin">
-          <Button variant="ghost" className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
-            관리자
+          <Button variant="ghost" className="gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50">
+            <span className="hidden xl:inline">관리자</span>
+            <span className="xl:hidden">관리</span>
           </Button>
         </Link>
       )}
 
       {/* 사용자 정보 및 로그아웃 */}
-        <div className="flex items-center gap-1 ml-2 border-l pl-4">
-        <Link href="/pricing" className="flex items-center gap-1 bg-yellow-50 px-3 py-1 rounded-full border border-yellow-200 mr-2 hover:bg-yellow-100 transition-colors">
+        <div className="ml-2 flex items-center gap-1 border-l pl-3">
+        <Link href="/pricing" className="mr-1 flex items-center gap-1 rounded-full border border-yellow-200 bg-yellow-50 px-2.5 py-1 hover:bg-yellow-100 transition-colors">
           <Coins className="h-4 w-4 text-yellow-600" />
-          <span className="font-bold text-yellow-700 text-sm">{clientCreditBalance.toLocaleString()} C</span>
+          <span className="text-sm font-bold text-yellow-700">{clientCreditBalance.toLocaleString()} C</span>
         </Link>
-        <div className="mr-2">
+        <div className="mr-1">
           <NotificationBell isAdmin={isAdmin} />
         </div>
-        <span className="text-sm text-gray-600">{userName}</span>
+        <span className="hidden 2xl:inline text-sm text-gray-600">{userName}</span>
         <Button
           variant="ghost"
           size="sm"
           onClick={handleLogout}
           className="text-gray-500 hover:text-red-600"
         >
-          <LogOut className="h-4 w-4 mr-1" />
-          로그아웃
+          <LogOut className="mr-1 h-4 w-4" />
+          <span className="hidden xl:inline">로그아웃</span>
         </Button>
       </div>
     </>

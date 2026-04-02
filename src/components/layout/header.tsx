@@ -87,64 +87,70 @@ export async function Header() {
         </div>
 
         {/* Desktop Navigation */}
-        <div className="hidden md:flex gap-1 items-center">
-          {shouldShowWorkspaceNav ? activeNavigationItems.map((item) => (
-            item.children.length > 0 ? (
-              <DropdownMenu key={item.id}>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant={isSubjectLandingHome ? 'secondary' : 'ghost'}
-                    className={isSubjectLandingHome ? 'gap-1 font-semibold text-primary' : 'gap-1'}
-                  >
-                    {item.title}
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-48">
+        <div className="hidden md:flex flex-1 items-center justify-end gap-2 min-w-0">
+          {shouldShowWorkspaceNav ? (
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-x-auto pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {activeNavigationItems.map((item) => (
+                item.children.length > 0 ? (
+                  <DropdownMenu key={item.id}>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant={isSubjectLandingHome ? 'secondary' : 'ghost'}
+                        className={isSubjectLandingHome ? 'shrink-0 gap-1 font-semibold text-primary' : 'shrink-0 gap-1'}
+                      >
+                        {item.title}
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-48">
                       {item.children.map((child) => (
                         <Fragment key={child.id}>
                           {isGeneratePersonalChild(item.href, child.href) ? <DropdownMenuSeparator /> : null}
                           <DropdownMenuItem asChild>
-                        <WorkspaceLink href={child.href} subject={workspaceSubject} className="cursor-pointer">
+                            <WorkspaceLink href={child.href} subject={workspaceSubject} className="cursor-pointer">
                               {child.title}
                             </WorkspaceLink>
                           </DropdownMenuItem>
                         </Fragment>
                       ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <Button
-                key={item.id}
-                asChild
-                variant={isSubjectLandingHome ? 'secondary' : 'ghost'}
-                className={isSubjectLandingHome ? 'font-semibold text-primary' : undefined}
-              >
-                <WorkspaceLink href={item.href || '/'} subject={workspaceSubject}>{item.title}</WorkspaceLink>
-              </Button>
-            )
-          )) : null}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Button
+                    key={item.id}
+                    asChild
+                    variant={isSubjectLandingHome ? 'secondary' : 'ghost'}
+                    className={isSubjectLandingHome ? 'shrink-0 font-semibold text-primary' : 'shrink-0'}
+                  >
+                    <WorkspaceLink href={item.href || '/'} subject={workspaceSubject}>{item.title}</WorkspaceLink>
+                  </Button>
+                )
+              ))}
+            </div>
+          ) : null}
 
-          {user ? (
-            <HeaderClient
-              key={`header-client-${user?.id || 'guest'}`}
-              isLoggedIn={true}
-              userName={profile?.name || profile?.email || user.email || ''}
-              isAdmin={isAdmin}
-              creditBalance={creditBalance}
-              mainMenuItems={activeNavigationItems}
-              workspaceSubject={workspaceSubject}
-            />
-          ) : (
-            <>
-              <Button asChild variant="ghost">
-                <Link href="/login">로그인</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/signup">회원가입</Link>
-              </Button>
-            </>
-          )}
+          <div className="flex shrink-0 items-center gap-1">
+            {user ? (
+              <HeaderClient
+                key={`header-client-${user?.id || 'guest'}`}
+                isLoggedIn={true}
+                userName={profile?.name || profile?.email || user.email || ''}
+                isAdmin={isAdmin}
+                creditBalance={creditBalance}
+                mainMenuItems={activeNavigationItems}
+                workspaceSubject={workspaceSubject}
+              />
+            ) : (
+              <>
+                <Button asChild variant="ghost">
+                  <Link href="/login">로그인</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/signup">회원가입</Link>
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Mobile Navigation - Client Component */}
