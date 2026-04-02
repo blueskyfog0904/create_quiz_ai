@@ -1,8 +1,9 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ChevronRight, Sparkles } from 'lucide-react'
+import { WorkspaceLink } from '@/components/layout/workspace-link'
+import { stripWorkspacePrefix } from '@/lib/workspace-subject'
 import { cn } from '@/lib/utils'
 import type { HeaderMenuChildItem } from '@/lib/header-navigation'
 
@@ -12,14 +13,15 @@ interface GenerateSidebarProps {
 }
 
 export default function GenerateSidebar({ parentTitle, items }: GenerateSidebarProps) {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? '/'
+  const scopedPath = stripWorkspacePrefix(pathname).scopedPath
 
   const isActive = (href: string) => {
     if (href === '/generate/personal') {
-      return pathname === '/generate/personal' || pathname === '/generate/multi'
+      return scopedPath === '/generate/personal' || scopedPath === '/generate/multi'
     }
 
-    return pathname === href || pathname.startsWith(`${href}/`)
+    return scopedPath === href || scopedPath.startsWith(`${href}/`)
   }
 
   if (items.length === 0) {
@@ -52,7 +54,7 @@ export default function GenerateSidebar({ parentTitle, items }: GenerateSidebarP
                   {shouldRenderDivider ? (
                     <div className="my-2 border-t border-gray-200" />
                   ) : null}
-                  <Link
+                  <WorkspaceLink
                     href={item.href}
                     className={cn(
                       'flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-colors',
@@ -63,7 +65,7 @@ export default function GenerateSidebar({ parentTitle, items }: GenerateSidebarP
                   >
                     <span className="font-medium">{item.title}</span>
                     <ChevronRight className={cn('h-4 w-4', active ? 'text-primary' : 'text-gray-400')} />
-                  </Link>
+                  </WorkspaceLink>
                 </div>
               )
             })}

@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { parseWorkspaceSubjectFromPath, stripWorkspacePrefix, withWorkspacePrefix } from '@/lib/workspace-subject'
+import { normalizeAuthNextPath } from '@/lib/auth-paths'
 
 const errorMessages: Record<string, string> = {
   access_denied: '카카오 로그인 동의가 취소되었습니다. 다시 시도해주세요.',
@@ -38,41 +38,11 @@ function getKakaoErrorMessage(error: string | null, description: string | null) 
   return null
 }
 
-function getWorkspaceHomePath(path: string) {
-  const subject = parseWorkspaceSubjectFromPath(path)
-  return subject ? withWorkspacePrefix(subject, '/') : '/'
-}
-
-function normalizeInternalPath(path: string | null) {
-  if (!path) {
-    return '/'
-  }
-
-  const trimmed = path.trim()
-  if (!trimmed.startsWith('/') || trimmed.startsWith('//')) {
-    return '/'
-  }
-
-  try {
-    const url = new URL(trimmed, 'http://localhost')
-    const pathname = url.pathname
-    const scopedPath = stripWorkspacePrefix(pathname).scopedPath
-
-    if (pathname === '/login' || pathname === '/signup' || scopedPath === '/login' || scopedPath === '/signup') {
-      return getWorkspaceHomePath(pathname)
-    }
-
-    return `${pathname}${url.search}${url.hash}`
-  } catch {
-    return '/'
-  }
-}
-
 function LoginContent() {
   const [isLoading, setIsLoading] = useState(false)
   const searchParams = useSearchParams()
 
-  const next = normalizeInternalPath(searchParams.get('next'))
+  const next = normalizeAuthNextPath(searchParams.get('next'))
   const errorCode = searchParams.get('error')
   const errorDescription = searchParams.get('error_description')
   const errorMessage = getKakaoErrorMessage(errorCode, errorDescription)

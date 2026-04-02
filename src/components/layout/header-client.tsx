@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -34,6 +34,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { NotificationBell } from '@/components/ui/notification-bell'
 import { WorkspaceLink } from './workspace-link'
+import { buildAuthRedirectPath } from '@/lib/auth-paths'
 import type { HeaderMenuItem } from '@/lib/header-navigation'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
@@ -62,8 +63,13 @@ export function HeaderClient({
   isMobile = false,
 }: HeaderClientProps) {
   const router = useRouter()
+  const pathname = usePathname() ?? '/'
+  const searchParams = useSearchParams()
   const [isOpen, setIsOpen] = useState(false)
   const [clientCreditBalance, setClientCreditBalance] = useState(creditBalance)
+  const currentLocation = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
+  const loginHref = buildAuthRedirectPath(currentLocation, '/login')
+  const signupHref = buildAuthRedirectPath(currentLocation, '/signup')
 
   const fetchCreditBalance = useCallback(async () => {
     try {
@@ -248,10 +254,10 @@ export function HeaderClient({
               </>
             ) : (
               <>
-                <Link href="/login" onClick={() => setIsOpen(false)}>
+                <Link href={loginHref} onClick={() => setIsOpen(false)}>
                   <Button variant="ghost" className="w-full justify-start">로그인</Button>
                 </Link>
-                <Link href="/signup" onClick={() => setIsOpen(false)}>
+                <Link href={signupHref} onClick={() => setIsOpen(false)}>
                   <Button className="w-full">회원가입</Button>
                 </Link>
               </>

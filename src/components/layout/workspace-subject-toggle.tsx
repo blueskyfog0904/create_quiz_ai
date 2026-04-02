@@ -15,8 +15,13 @@ export function WorkspaceSubjectToggle({ className }: { className?: string }) {
   const pathname = usePathname() || '/'
   const searchParams = useSearchParams()
   const router = useRouter()
+  const isNeutralRoot = pathname === '/' && !searchParams.get('subject')
 
-  const currentSubject = useMemo<WorkspaceSubject>(() => {
+  const currentSubject = useMemo<WorkspaceSubject | null>(() => {
+    if (isNeutralRoot) {
+      return null
+    }
+
     const pathnameSubject = parseWorkspaceSubjectFromPath(pathname)
     if (pathnameSubject) {
       return pathnameSubject
@@ -24,7 +29,7 @@ export function WorkspaceSubjectToggle({ className }: { className?: string }) {
 
     const querySubject = searchParams.get('subject')
     return isWorkspaceSubject(querySubject) ? querySubject : DEFAULT_WORKSPACE_SUBJECT
-  }, [pathname, searchParams])
+  }, [isNeutralRoot, pathname, searchParams])
 
   const handleSwitch = (targetSubject: WorkspaceSubject) => {
     if (targetSubject === currentSubject) {

@@ -15,6 +15,7 @@ import { ChevronDown } from 'lucide-react'
 import { HeaderClient } from './header-client'
 import { WorkspaceLink } from './workspace-link'
 import { WorkspaceSubjectToggle } from './workspace-subject-toggle'
+import { buildAuthRedirectPath } from '@/lib/auth-paths'
 import { cn } from '@/lib/utils'
 import { isWorkspaceSubject, parseWorkspaceSubjectFromPath, stripWorkspacePrefix, type WorkspaceSubject } from '@/lib/workspace-subject'
 import type { HeaderMenuItem } from '@/lib/header-navigation'
@@ -22,8 +23,8 @@ import type { HeaderMenuItem } from '@/lib/header-navigation'
 const headerDropdownContentClassName = 'w-52 rounded-xl border-slate-200 bg-white p-2 text-slate-900 shadow-xl shadow-slate-200/70'
 const headerDropdownItemClassName = 'rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition-colors focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900'
 const headerDropdownSeparatorClassName = 'my-1 bg-slate-200'
-const subjectNavButtonClassName = 'shrink-0 rounded-full border border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-100 hover:text-slate-900'
-const subjectNavButtonActiveClassName = 'border-slate-200 bg-slate-100 font-semibold text-slate-900 shadow-sm hover:bg-slate-100 hover:text-slate-900'
+const subjectNavButtonClassName = 'shrink-0 gap-1 rounded-full border border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-100 hover:text-slate-900'
+const subjectNavButtonActiveClassName = 'border-slate-200 bg-white font-medium text-slate-900 shadow-sm hover:bg-slate-100 hover:text-slate-900'
 
 interface HeaderShellClientProps {
   englishMenuItems: HeaderMenuItem[]
@@ -50,11 +51,7 @@ function matchesSubjectPath(currentScopedPath: string, href?: string) {
   return currentScopedPath === href || currentScopedPath.startsWith(`${href}/`)
 }
 
-function isNavigationItemHighlighted(item: HeaderMenuItem, currentScopedPath: string, isSubjectLandingHome: boolean) {
-  if (isSubjectLandingHome) {
-    return true
-  }
-
+function isNavigationItemHighlighted(item: HeaderMenuItem, currentScopedPath: string) {
   if (matchesSubjectPath(currentScopedPath, item.href)) {
     return true
   }
@@ -85,10 +82,14 @@ export function HeaderShellClient({
 
   const shouldShowWorkspaceNav = currentSubject !== null
   const currentScopedPath = stripWorkspacePrefix(pathname).scopedPath
-  const isSubjectLandingHome = shouldShowWorkspaceNav && currentScopedPath === '/'
   const activeNavigationItems = currentSubject === 'korean'
     ? koreanMenuItems
     : englishMenuItems
+  const pricingNavigationItem = activeNavigationItems.find((item) => item.href === '/pricing')
+  const desktopNavigationItems = activeNavigationItems.filter((item) => item.href !== '/pricing')
+  const currentLocation = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
+  const loginHref = buildAuthRedirectPath(currentLocation, '/login')
+  const signupHref = buildAuthRedirectPath(currentLocation, '/signup')
 
   return (
     <header className="border-b bg-white sticky top-0 z-50">
@@ -106,7 +107,7 @@ export function HeaderShellClient({
         <div className="hidden md:flex flex-1 items-center justify-end gap-2 min-w-0">
           {shouldShowWorkspaceNav ? (
             <div className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-x-auto pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {activeNavigationItems.map((item) => (
+              {desktopNavigationItems.map((item) => (
                 item.children.length > 0 ? (
                   <DropdownMenu key={item.id}>
                     <DropdownMenuTrigger asChild>
@@ -114,8 +115,7 @@ export function HeaderShellClient({
                         variant="ghost"
                         className={cn(
                           subjectNavButtonClassName,
-                          'gap-1',
-                          isNavigationItemHighlighted(item, currentScopedPath, isSubjectLandingHome) && subjectNavButtonActiveClassName
+                          isNavigationItemHighlighted(item, currentScopedPath) && subjectNavButtonActiveClassName
                         )}
                       >
                         {item.title}
@@ -142,7 +142,7 @@ export function HeaderShellClient({
                     variant="ghost"
                     className={cn(
                       subjectNavButtonClassName,
-                      isNavigationItemHighlighted(item, currentScopedPath, isSubjectLandingHome) && subjectNavButtonActiveClassName
+                      isNavigationItemHighlighted(item, currentScopedPath) && subjectNavButtonActiveClassName
                     )}
                   >
                     <WorkspaceLink href={item.href || '/'} subject={currentSubject ?? undefined}>{item.title}</WorkspaceLink>
@@ -153,6 +153,20 @@ export function HeaderShellClient({
           ) : null}
 
           <div className="flex shrink-0 items-center gap-1">
+            {pricingNavigationItem ? (
+              <Button
+                asChild
+                variant="ghost"
+                className={cn(
+                  subjectNavButtonClassName,
+                  matchesSubjectPath(currentScopedPath, pricingNavigationItem.href) && subjectNavButtonActiveClassName
+                )}
+              >
+                <WorkspaceLink href={pricingNavigationItem.href || '/pricing'} subject={currentSubject ?? undefined}>
+                  {pricingNavigationItem.title}
+                </WorkspaceLink>
+              </Button>
+            ) : null}
             {isLoggedIn ? (
               <HeaderClient
                 key={`header-client-${userName || 'guest'}`}
@@ -166,10 +180,10 @@ export function HeaderShellClient({
             ) : (
               <>
                 <Button asChild variant="ghost">
-                  <Link href="/login">로그인</Link>
+                  <Link href={loginHref}>로그인</Link>
                 </Button>
                 <Button asChild>
-                  <Link href="/signup">회원가입</Link>
+                  <Link href={signupHref}>회원가입</Link>
                 </Button>
               </>
             )}

@@ -1,8 +1,9 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ChevronRight, Store } from 'lucide-react'
+import { WorkspaceLink } from '@/components/layout/workspace-link'
+import { stripWorkspacePrefix } from '@/lib/workspace-subject'
 import { cn } from '@/lib/utils'
 import type { HeaderMenuChildItem } from '@/lib/header-navigation'
 
@@ -12,10 +13,11 @@ interface MarketSidebarProps {
 }
 
 export default function MarketSidebar({ parentTitle, items }: MarketSidebarProps) {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? '/'
+  const scopedPath = stripWorkspacePrefix(pathname).scopedPath
 
   const isActive = (href: string) => (
-    pathname === href || pathname.startsWith(`${href}/`)
+    scopedPath === href || scopedPath.startsWith(`${href}/`)
   )
 
   if (items.length === 0) {
@@ -39,7 +41,7 @@ export default function MarketSidebar({ parentTitle, items }: MarketSidebarProps
               const active = isActive(item.href)
 
               return (
-                <Link
+                <WorkspaceLink
                   key={item.id}
                   href={item.href}
                   className={cn(
@@ -51,7 +53,7 @@ export default function MarketSidebar({ parentTitle, items }: MarketSidebarProps
                 >
                   <span className="font-medium">{item.title}</span>
                   <ChevronRight className={cn('h-4 w-4', active ? 'text-primary' : 'text-gray-400')} />
-                </Link>
+                </WorkspaceLink>
               )
             })}
           </nav>
