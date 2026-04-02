@@ -107,6 +107,7 @@ function resolveWorkspaceRoutingContext(request: NextRequest) {
     explicitSubject,
     headerMode,
     scopedPath: stripped.scopedPath,
+    hasExplicitSubjectParam,
   }
 }
 
@@ -120,14 +121,20 @@ const buildRoutingResponse = (
     pathSubject,
     stripped,
     resolvedSubject,
+    hasExplicitSubjectParam,
   } = routingContext
 
+  if (!pathSubject && pathname === '/' && hasExplicitSubjectParam) {
+    const redirectUrl = url.clone()
+    redirectUrl.pathname = withWorkspacePrefix(resolvedSubject, '/')
+    redirectUrl.searchParams.delete('subject')
+    const response = NextResponse.redirect(redirectUrl)
+    response.cookies.set('preferred_workspace', resolvedSubject)
+    return response
+  }
+
   if (pathSubject && stripped.scopedPath === '/') {
-    const rewriteUrl = url.clone()
-    rewriteUrl.pathname = '/'
-    rewriteUrl.searchParams.delete('subject')
-    rewriteUrl.searchParams.set('subject', pathSubject)
-    const response = NextResponse.rewrite(rewriteUrl, {
+    const response = NextResponse.next({
       request: {
         headers: buildRequestHeaders(request, pathSubject, 'subject', '/'),
       },

@@ -1,19 +1,5 @@
-import { Fragment } from 'react'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { ChevronDown } from 'lucide-react'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { HeaderClient } from './header-client'
-import { WorkspaceLink } from './workspace-link'
-import { WorkspaceSubjectToggle } from './workspace-subject-toggle'
-import { getRequestWorkspaceContext } from '@/lib/request-workspace'
+import { HeaderShellClient } from './header-shell-client'
 import { getHeaderNavigationConfig } from '@/lib/header-navigation-server'
 import { getActiveHeaderNavigationItems } from '@/lib/header-navigation'
 
@@ -33,22 +19,13 @@ function reorderGenerateChildren(items: ReturnType<typeof getActiveHeaderNavigat
   })
 }
 
-function isGeneratePersonalChild(parentHref?: string, childHref?: string) {
-  return parentHref === '/generate' && childHref === '/generate/personal'
-}
-
 export async function Header() {
   const supabase = await createClient()
-  const { workspaceSubject, headerMode, scopedPath } = await getRequestWorkspaceContext()
-  const shouldShowWorkspaceNav = headerMode === 'subject'
-  const isSubjectLandingHome = shouldShowWorkspaceNav && scopedPath === '/'
-  const activeNavigationItems = shouldShowWorkspaceNav
-    ? reorderGenerateChildren(
-        getActiveHeaderNavigationItems(
-          (await getHeaderNavigationConfig(workspaceSubject)).items
-        )
-      )
-    : []
+  const [englishConfig, koreanConfig] = await Promise.all([
+    getHeaderNavigationConfig('english'),
+    getHeaderNavigationConfig('korean'),
+  ])
+
   let user = null
 
   try {
@@ -70,103 +47,14 @@ export async function Header() {
     isAdmin = data?.is_admin || false
   }
 
-  // 크레딧 잔액은 profiles.credits에서 바로 읽음
-  const creditBalance = profile?.credits ?? 0
-
   return (
-    <header className="border-b bg-white sticky top-0 z-50">
-      <div className="container mx-auto flex h-16 items-center justify-between gap-4 px-4">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/"
-            className="max-w-[220px] truncate font-bold text-xl text-primary"
-          >
-            써머썬 연구소
-          </Link>
-          <WorkspaceSubjectToggle />
-        </div>
-
-        {/* Desktop Navigation */}
-        <div className="hidden md:flex flex-1 items-center justify-end gap-2 min-w-0">
-          {shouldShowWorkspaceNav ? (
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-x-auto pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {activeNavigationItems.map((item) => (
-                item.children.length > 0 ? (
-                  <DropdownMenu key={item.id}>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant={isSubjectLandingHome ? 'secondary' : 'ghost'}
-                        className={isSubjectLandingHome ? 'shrink-0 gap-1 font-semibold text-primary' : 'shrink-0 gap-1'}
-                      >
-                        {item.title}
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-48">
-                      {item.children.map((child) => (
-                        <Fragment key={child.id}>
-                          {isGeneratePersonalChild(item.href, child.href) ? <DropdownMenuSeparator /> : null}
-                          <DropdownMenuItem asChild>
-                            <WorkspaceLink href={child.href} subject={workspaceSubject} className="cursor-pointer">
-                              {child.title}
-                            </WorkspaceLink>
-                          </DropdownMenuItem>
-                        </Fragment>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <Button
-                    key={item.id}
-                    asChild
-                    variant={isSubjectLandingHome ? 'secondary' : 'ghost'}
-                    className={isSubjectLandingHome ? 'shrink-0 font-semibold text-primary' : 'shrink-0'}
-                  >
-                    <WorkspaceLink href={item.href || '/'} subject={workspaceSubject}>{item.title}</WorkspaceLink>
-                  </Button>
-                )
-              ))}
-            </div>
-          ) : null}
-
-          <div className="flex shrink-0 items-center gap-1">
-            {user ? (
-              <HeaderClient
-                key={`header-client-${user?.id || 'guest'}`}
-                isLoggedIn={true}
-                userName={profile?.name || profile?.email || user.email || ''}
-                isAdmin={isAdmin}
-                creditBalance={creditBalance}
-                mainMenuItems={activeNavigationItems}
-                workspaceSubject={workspaceSubject}
-              />
-            ) : (
-              <>
-                <Button asChild variant="ghost">
-                  <Link href="/login">로그인</Link>
-                </Button>
-                <Button asChild>
-                  <Link href="/signup">회원가입</Link>
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Mobile Navigation - Client Component */}
-        <div className="md:hidden">
-          <HeaderClient
-            key={`header-client-mobile-${user?.id || 'guest'}`}
-            isLoggedIn={!!user}
-            userName={profile?.name || profile?.email || user?.email || ''}
-            isAdmin={isAdmin}
-            creditBalance={creditBalance}
-            mainMenuItems={activeNavigationItems}
-            workspaceSubject={workspaceSubject}
-            isMobile={true}
-          />
-        </div>
-      </div>
-    </header>
+    <HeaderShellClient
+      englishMenuItems={reorderGenerateChildren(getActiveHeaderNavigationItems(englishConfig.items))}
+      koreanMenuItems={reorderGenerateChildren(getActiveHeaderNavigationItems(koreanConfig.items))}
+      isLoggedIn={Boolean(user)}
+      userName={profile?.name || profile?.email || user?.email || ''}
+      isAdmin={isAdmin}
+      creditBalance={profile?.credits ?? 0}
+    />
   )
 }
