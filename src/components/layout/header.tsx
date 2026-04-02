@@ -97,21 +97,21 @@ export async function Header() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-48">
-                  {item.children.map((child) => (
-                    <Fragment key={child.id}>
-                      {isGeneratePersonalChild(item.href, child.href) ? <DropdownMenuSeparator /> : null}
-                      <DropdownMenuItem asChild>
-                        <WorkspaceLink href={child.href} className="cursor-pointer">
-                          {child.title}
-                        </WorkspaceLink>
-                      </DropdownMenuItem>
-                    </Fragment>
-                  ))}
+                      {item.children.map((child) => (
+                        <Fragment key={child.id}>
+                          {isGeneratePersonalChild(item.href, child.href) ? <DropdownMenuSeparator /> : null}
+                          <DropdownMenuItem asChild>
+                        <WorkspaceLink href={child.href} subject={workspaceSubject} className="cursor-pointer">
+                              {child.title}
+                            </WorkspaceLink>
+                          </DropdownMenuItem>
+                        </Fragment>
+                      ))}
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
               <Button key={item.id} asChild variant="ghost">
-                <WorkspaceLink href={item.href || '/'}>{item.title}</WorkspaceLink>
+                <WorkspaceLink href={item.href || '/'} subject={workspaceSubject}>{item.title}</WorkspaceLink>
               </Button>
             )
           )) : null}
@@ -124,6 +124,7 @@ export async function Header() {
               isAdmin={isAdmin}
               creditBalance={creditBalance}
               mainMenuItems={activeNavigationItems}
+              workspaceSubject={workspaceSubject}
             />
           ) : (
             <>
@@ -146,6 +147,7 @@ export async function Header() {
             isAdmin={isAdmin}
             creditBalance={creditBalance}
             mainMenuItems={activeNavigationItems}
+            workspaceSubject={workspaceSubject}
             isMobile={true}
           />
         </div>

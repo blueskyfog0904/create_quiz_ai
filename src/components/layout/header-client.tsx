@@ -35,6 +35,7 @@ import { createClient } from '@/lib/supabase/client'
 import { NotificationBell } from '@/components/ui/notification-bell'
 import { WorkspaceLink } from './workspace-link'
 import type { HeaderMenuItem } from '@/lib/header-navigation'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 interface HeaderClientProps {
   isLoggedIn: boolean
@@ -42,6 +43,7 @@ interface HeaderClientProps {
   isAdmin: boolean
   creditBalance?: number
   mainMenuItems?: HeaderMenuItem[]
+  workspaceSubject?: WorkspaceSubject
   isMobile?: boolean
 }
 
@@ -51,6 +53,7 @@ export function HeaderClient({
   isAdmin,
   creditBalance = 0,
   mainMenuItems = [],
+  workspaceSubject = 'english',
   isMobile = false,
 }: HeaderClientProps) {
   const router = useRouter()
@@ -144,7 +147,7 @@ export function HeaderClient({
                             key={child.id}
                             className={isGeneratePersonalChild(item.href, child.href) ? 'mt-1 border-t border-slate-200 pt-1' : ''}
                           >
-                            <WorkspaceLink href={child.href} onClick={() => setIsOpen(false)}>
+                            <WorkspaceLink href={child.href} subject={workspaceSubject} onClick={() => setIsOpen(false)}>
                               <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
                                 <Sparkles className="h-4 w-4" />
                                 {child.title}
@@ -154,7 +157,7 @@ export function HeaderClient({
                         ))}
                       </>
                     ) : (
-                      <WorkspaceLink href={item.href || '/'} onClick={() => setIsOpen(false)}>
+                      <WorkspaceLink href={item.href || '/'} subject={workspaceSubject} onClick={() => setIsOpen(false)}>
                         <Button variant="ghost" className="w-full justify-start gap-2">
                           <Sparkles className="h-4 w-4" />
                           {item.title}

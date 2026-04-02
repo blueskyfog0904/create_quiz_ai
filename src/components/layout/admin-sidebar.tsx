@@ -126,6 +126,11 @@ export function AdminSidebar() {
   const searchParams = useSearchParams()
   const [collapsed, setCollapsed] = useState(false)
   const workspaceSubject = resolveAdminWorkspaceSubject(searchParams.get('subject'))
+  const resolvedMenuItems = useMemo(() => menuItems.map((item) => (
+    item.href === '/admin/passages'
+      ? { ...item, name: workspaceSubject === 'english' ? '영어지문 관리' : '국어지문 관리' }
+      : item
+  )), [workspaceSubject])
 
   const buildHref = useMemo(() => (
     (href: string) => subjectScopedAdminHrefs.has(href)
@@ -182,7 +187,7 @@ export function AdminSidebar() {
         </div>
 
         <nav className="space-y-1 p-2">
-          {menuItems.map((item) => {
+          {resolvedMenuItems.map((item) => {
             const Icon = item.icon
             const active = isActive(item)
 

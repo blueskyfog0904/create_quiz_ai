@@ -784,7 +784,7 @@ export default function MenuManagementClient({
         </CardContent>
       </Card>
 
-      {!hasGenerateParent && (
+      {workspaceSubject === 'english' && !hasGenerateParent && (
         <Card className="border-amber-300 bg-amber-50">
           <CardContent className="flex items-start gap-3 p-4 text-amber-900">
             <AlertTriangle className="mt-0.5 h-5 w-5" />
