@@ -20,6 +20,10 @@ import { Separator } from '@/components/ui/separator'
 import { getActiveHeaderNavigationItems } from '@/lib/header-navigation'
 import { getHeaderNavigationConfig } from '@/lib/header-navigation-server'
 import { resolveWorkspaceLandingQuickEntryTargets } from '@/lib/workspace-landing-quick-entry'
+import {
+  getWorkspaceLandingFeatureGridClassName,
+  getWorkspaceLandingWorkflowGridClassName,
+} from '@/lib/workspace-landing-layout'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 interface WorkspaceLandingProps {
@@ -200,6 +204,8 @@ export async function WorkspaceLanding({ subject, isLoggedIn }: WorkspaceLanding
   const secondaryHref = quickEntry.secondaryHref
     ? (isLoggedIn ? quickEntry.secondaryHref : `/login?next=${encodeURIComponent(quickEntry.secondaryHref)}`)
     : null
+  const featureGridClassName = getWorkspaceLandingFeatureGridClassName(content.features.length)
+  const workflowGridClassName = getWorkspaceLandingWorkflowGridClassName(content.steps.length)
 
   return (
     <div className="relative overflow-hidden bg-slate-50 text-slate-900">
@@ -280,7 +286,7 @@ export async function WorkspaceLanding({ subject, isLoggedIn }: WorkspaceLanding
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <div className={featureGridClassName}>
           {content.features.map((feature) => {
             const Icon = feature.icon
 
@@ -319,7 +325,7 @@ export async function WorkspaceLanding({ subject, isLoggedIn }: WorkspaceLanding
             </p>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-4">
+          <div className={workflowGridClassName}>
             {content.steps.map((step, index) => {
               const Icon = step.icon
 
