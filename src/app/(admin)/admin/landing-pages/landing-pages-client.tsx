@@ -439,10 +439,14 @@ export default function LandingPagesClient({
             </div>
             <div className="space-y-2">
               <Label>제목</Label>
-              <Input value={activeWorkspaceConfig.title} onChange={(event) => setWorkspaceConfigs((current) => ({
-                ...current,
-                [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], title: event.target.value },
-              }))} />
+              <Textarea
+                rows={2}
+                value={activeWorkspaceConfig.title}
+                onChange={(event) => setWorkspaceConfigs((current) => ({
+                  ...current,
+                  [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], title: event.target.value },
+                }))}
+              />
             </div>
             <div className="space-y-2">
               <Label>설명</Label>

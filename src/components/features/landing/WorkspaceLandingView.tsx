@@ -57,7 +57,7 @@ export function WorkspaceLandingView({
 
             <div className="mt-6 grid gap-10 lg:grid-cols-[1.4fr_0.9fr] lg:items-end">
               <div>
-                <h1 className="text-4xl font-bold tracking-tight md:text-6xl word-keep-all">
+                <h1 className="text-4xl font-bold tracking-tight md:text-6xl whitespace-pre-line word-keep-all">
                   {config.title}
                 </h1>
                 <p className="mt-6 max-w-3xl text-lg leading-relaxed text-white/90 md:text-xl whitespace-pre-line word-keep-all">
