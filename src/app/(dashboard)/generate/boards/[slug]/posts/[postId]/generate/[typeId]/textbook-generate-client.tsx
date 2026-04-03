@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { QuestionPreview } from '@/components/features/quiz/question-preview'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
+import { useLoginRedirect } from '@/hooks/use-login-redirect'
 import type { Database } from '@/types/supabase'
 import type { Question } from '@/lib/ai/types'
 import { LISTBOARD_GRADE_OPTIONS, normalizeListboardGradeLevel } from '@/lib/generate-menu'
@@ -27,6 +28,7 @@ interface TextbookGenerateClientProps {
   post: GenerateListboardPost
   problemType: ProblemType
   workspaceSubject: WorkspaceSubject
+  isLoggedIn: boolean
 }
 
 interface GeneratedQuestionData {
@@ -39,8 +41,10 @@ export default function TextbookGenerateClient({
   post,
   problemType,
   workspaceSubject,
+  isLoggedIn,
 }: TextbookGenerateClientProps) {
   const router = useRouter()
+  const { redirectToLogin } = useLoginRedirect()
   const abortControllerRef = useRef<AbortController | null>(null)
   const [gradeLevel, setGradeLevel] = useState(normalizeListboardGradeLevel(post.grade_level) || '1학년')
   const [difficulty, setDifficulty] = useState('Medium')
@@ -74,6 +78,11 @@ export default function TextbookGenerateClient({
   }
 
   const handleGenerateClick = async () => {
+    if (!isLoggedIn) {
+      redirectToLogin()
+      return
+    }
+
     if (!passage) {
       toast.error('지문 정보가 없습니다.')
       return

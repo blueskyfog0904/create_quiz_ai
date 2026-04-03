@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useMemo } from 'react'
+import { Fragment, useMemo, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -24,7 +24,7 @@ const headerDropdownContentClassName = 'w-52 rounded-xl border-slate-200 bg-whit
 const headerDropdownItemClassName = 'rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition-colors focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900'
 const headerDropdownSeparatorClassName = 'my-1 bg-slate-200'
 const subjectNavButtonClassName = 'shrink-0 gap-1 rounded-full border border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-100 hover:text-slate-900'
-const subjectNavButtonActiveClassName = 'border-slate-200 bg-white font-medium text-slate-900 shadow-sm hover:bg-slate-100 hover:text-slate-900'
+const subjectNavButtonActiveClassName = 'font-medium text-slate-900 hover:border-slate-200 hover:bg-slate-100 hover:text-slate-900'
 
 interface HeaderShellClientProps {
   englishMenuItems: HeaderMenuItem[]
@@ -69,6 +69,11 @@ export function HeaderShellClient({
 }: HeaderShellClientProps) {
   const pathname = usePathname() ?? '/'
   const searchParams = useSearchParams()
+  const isInteractiveReady = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  )
 
   const currentSubject = useMemo<WorkspaceSubject | null>(() => {
     const pathnameSubject = parseWorkspaceSubjectFromPath(pathname)
@@ -85,8 +90,11 @@ export function HeaderShellClient({
   const activeNavigationItems = currentSubject === 'korean'
     ? koreanMenuItems
     : englishMenuItems
-  const pricingNavigationItem = activeNavigationItems.find((item) => item.href === '/pricing')
-  const desktopNavigationItems = activeNavigationItems.filter((item) => item.href !== '/pricing')
+  const visibleNavigationItems = isLoggedIn
+    ? activeNavigationItems
+    : activeNavigationItems.filter((item) => item.href !== '/library')
+  const pricingNavigationItem = visibleNavigationItems.find((item) => item.href === '/pricing')
+  const desktopNavigationItems = visibleNavigationItems.filter((item) => item.href !== '/pricing')
   const currentLocation = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
   const loginHref = buildAuthRedirectPath(currentLocation, '/login')
   const signupHref = buildAuthRedirectPath(currentLocation, '/signup')
@@ -108,7 +116,7 @@ export function HeaderShellClient({
           {shouldShowWorkspaceNav ? (
             <div className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-x-auto pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {desktopNavigationItems.map((item) => (
-                item.children.length > 0 ? (
+                item.children.length > 0 && isInteractiveReady ? (
                   <DropdownMenu key={item.id}>
                     <DropdownMenuTrigger asChild>
                       <Button
@@ -136,17 +144,30 @@ export function HeaderShellClient({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 ) : (
-                  <Button
-                    key={item.id}
-                    asChild
-                    variant="ghost"
-                    className={cn(
-                      subjectNavButtonClassName,
-                      isNavigationItemHighlighted(item, currentScopedPath) && subjectNavButtonActiveClassName
-                    )}
-                  >
-                    <WorkspaceLink href={item.href || '/'} subject={currentSubject ?? undefined}>{item.title}</WorkspaceLink>
-                  </Button>
+                  item.href ? (
+                    <Button
+                      key={item.id}
+                      asChild
+                      variant="ghost"
+                      className={cn(
+                        subjectNavButtonClassName,
+                        isNavigationItemHighlighted(item, currentScopedPath) && subjectNavButtonActiveClassName
+                      )}
+                    >
+                      <WorkspaceLink href={item.href} subject={currentSubject ?? undefined}>{item.title}</WorkspaceLink>
+                    </Button>
+                  ) : (
+                    <Button
+                      key={item.id}
+                      variant="ghost"
+                      className={cn(
+                        subjectNavButtonClassName,
+                        isNavigationItemHighlighted(item, currentScopedPath) && subjectNavButtonActiveClassName
+                      )}
+                    >
+                      {item.title}
+                    </Button>
+                  )
                 )
               ))}
             </div>
@@ -174,7 +195,7 @@ export function HeaderShellClient({
                 userName={userName}
                 isAdmin={isAdmin}
                 creditBalance={creditBalance}
-                mainMenuItems={shouldShowWorkspaceNav ? activeNavigationItems : []}
+                mainMenuItems={shouldShowWorkspaceNav ? visibleNavigationItems : []}
                 workspaceSubject={currentSubject ?? 'english'}
               />
             ) : (
@@ -197,7 +218,7 @@ export function HeaderShellClient({
             userName={userName}
             isAdmin={isAdmin}
             creditBalance={creditBalance}
-            mainMenuItems={shouldShowWorkspaceNav ? activeNavigationItems : []}
+            mainMenuItems={shouldShowWorkspaceNav ? visibleNavigationItems : []}
             workspaceSubject={currentSubject ?? 'english'}
             isMobile={true}
           />

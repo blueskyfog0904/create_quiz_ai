@@ -313,7 +313,7 @@ export async function listPublishedMarketItems(menuEntryId: string, filters: Mar
 
 export async function listPublishedMarketListboardRows(
   menuEntryId: string,
-  userId: string,
+  userId: string | null | undefined,
   filters: MarketItemListFilters = {}
 ): Promise<MarketListboardRow[]> {
   const supabase = getAdminSupabase()
@@ -338,14 +338,16 @@ export async function listPublishedMarketListboardRows(
       .eq('is_active', true)
       .is('deleted_at', null)
       .eq('workspace_subject', menuEntry.workspace_subject),
-    supabase
-      .from('market_purchases')
-      .select('item_id, asset_kind')
-      .eq('user_id', userId)
-      .eq('status', 'completed')
-      .in('item_id', itemIds)
-      .in('asset_kind', ['pdf', 'hwp'])
-      .eq('workspace_subject', menuEntry.workspace_subject),
+    userId
+      ? supabase
+        .from('market_purchases')
+        .select('item_id, asset_kind')
+        .eq('user_id', userId)
+        .eq('status', 'completed')
+        .in('item_id', itemIds)
+        .in('asset_kind', ['pdf', 'hwp'])
+        .eq('workspace_subject', menuEntry.workspace_subject)
+      : Promise.resolve({ data: [], error: null }),
   ])
 
   if (filesError) {

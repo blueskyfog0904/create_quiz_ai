@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -67,6 +67,11 @@ export function HeaderClient({
   const searchParams = useSearchParams()
   const [isOpen, setIsOpen] = useState(false)
   const [clientCreditBalance, setClientCreditBalance] = useState(creditBalance)
+  const isInteractiveReady = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  )
   const currentLocation = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
   const loginHref = buildAuthRedirectPath(currentLocation, '/login')
   const signupHref = buildAuthRedirectPath(currentLocation, '/signup')
@@ -130,8 +135,18 @@ export function HeaderClient({
     parentHref === '/generate' && childHref === '/generate/personal'
   )
 
+  const isLibraryMenuItem = (item: HeaderMenuItem) => item.href === '/library'
+
   // Mobile Navigation
   if (isMobile) {
+    if (!isInteractiveReady) {
+      return (
+        <Button variant="ghost" size="icon" aria-label="모바일 메뉴">
+          <Menu className="h-6 w-6" />
+        </Button>
+      )
+    }
+
     return (
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetTrigger asChild>
@@ -148,7 +163,16 @@ export function HeaderClient({
               <>
                 {mainMenuItems.map((item) => (
                   <div key={item.id} className="space-y-1">
-                    {item.children.length > 0 ? (
+                    {isLibraryMenuItem(item) && !isLoggedIn ? (
+                      <Button
+                        variant="ghost"
+                        disabled
+                        className="w-full justify-start gap-2 opacity-45"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        {item.title}
+                      </Button>
+                    ) : item.children.length > 0 ? (
                       <>
                         <p className="px-4 py-2 text-sm font-semibold text-gray-500">
                           {item.title}
@@ -269,6 +293,34 @@ export function HeaderClient({
   }
 
   // Desktop Navigation - Dropdown Menus
+  if (!isInteractiveReady) {
+    return (
+      <>
+        <Button variant="ghost" className={accountTriggerButtonClassName}>
+          <User className="h-4 w-4" />
+          <span className="hidden xl:inline">마이페이지</span>
+          <ChevronDown className="h-4 w-4" />
+        </Button>
+
+        {isAdmin && (
+          <Link href="/admin">
+            <Button variant="ghost" className="gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50">
+              <span className="hidden xl:inline">관리자</span>
+              <span className="xl:hidden">관리</span>
+            </Button>
+          </Link>
+        )}
+
+        <div className="ml-2 flex items-center gap-1 border-l pl-3">
+          <Link href="/pricing" className="mr-1 flex items-center gap-1 rounded-full border border-yellow-200 bg-yellow-50 px-2.5 py-1 hover:bg-yellow-100 transition-colors">
+            <Coins className="h-4 w-4 text-yellow-600" />
+            <span className="text-sm font-bold text-yellow-700">{clientCreditBalance.toLocaleString()} C</span>
+          </Link>
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       {/* 마이페이지 드롭다운 */}

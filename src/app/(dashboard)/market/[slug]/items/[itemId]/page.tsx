@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { requireAuth } from '@/lib/auth'
+import { getUser } from '@/lib/auth'
 import { resolveWorkspaceSubject } from '@/lib/workspace-subject'
 import {
   getVisibleMarketMenuEntryBySlugForWorkspace,
@@ -35,7 +35,7 @@ const collectSources = (item: Awaited<ReturnType<typeof getPublishedMarketItemBy
 }
 
 export default async function MarketItemDetailPage({ params, searchParams }: MarketItemDetailPageProps) {
-  const user = await requireAuth()
+  const { user } = await getUser()
   const { slug, itemId } = await params
   const resolvedSearchParams = searchParams ? await searchParams : undefined
 
@@ -50,7 +50,9 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
   }
 
   const files = await listMarketItemFiles(item.id, false, item.workspace_subject)
-  const purchases = await listCompletedMarketPurchasesForItem(user.id, item.id, item.workspace_subject)
+  const purchases = user
+    ? await listCompletedMarketPurchasesForItem(user.id, item.id, item.workspace_subject)
+    : []
   const hasSample = files.some((file) => file.asset_kind === 'sample')
   const hasPdf = files.some((file) => file.asset_kind === 'pdf')
   const hasHwp = files.some((file) => file.asset_kind === 'hwp')
@@ -116,10 +118,14 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
                   </div>
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-gray-500">보유 상태</span>
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <Badge variant={ownsPdf ? 'default' : 'outline'}>PDF {ownsPdf ? '보유' : '미보유'}</Badge>
-                      <Badge variant={ownsHwp ? 'default' : 'outline'}>HWP {ownsHwp ? '보유' : '미보유'}</Badge>
-                    </div>
+                    {user ? (
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Badge variant={ownsPdf ? 'default' : 'outline'}>PDF {ownsPdf ? '보유' : '미보유'}</Badge>
+                        <Badge variant={ownsHwp ? 'default' : 'outline'}>HWP {ownsHwp ? '보유' : '미보유'}</Badge>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-medium text-gray-900">로그인 후 확인</span>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -165,6 +171,7 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
                 hasSample={hasSample}
                 hwpPrice={item.hwp_price}
                 itemId={item.id}
+                isLoggedIn={Boolean(user)}
                 ownsHwp={ownsHwp}
                 ownsPdf={ownsPdf}
                 pdfPrice={item.pdf_price}

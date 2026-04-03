@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
+import { useLoginRedirect } from '@/hooks/use-login-redirect'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -15,6 +16,7 @@ import type { MarketListboardRow } from '@/lib/market-items-server'
 interface MarketListboardClientProps {
   categorySlug: string
   rows: MarketListboardRow[]
+  isLoggedIn: boolean
 }
 
 type AssetKind = 'pdf' | 'hwp'
@@ -32,8 +34,9 @@ function getSelectionKey(itemId: string, assetKind: AssetKind) {
   return `${itemId}:${assetKind}`
 }
 
-export default function MarketListboardClient({ categorySlug, rows }: MarketListboardClientProps) {
+export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }: MarketListboardClientProps) {
   const router = useRouter()
+  const { redirectToLogin } = useLoginRedirect()
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [currentBalance, setCurrentBalance] = useState<number | null>(null)
   const [showConfirmation, setShowConfirmation] = useState(false)
@@ -120,6 +123,11 @@ export default function MarketListboardClient({ categorySlug, rows }: MarketList
   }
 
   const handlePurchaseClick = async () => {
+    if (!isLoggedIn) {
+      redirectToLogin()
+      return
+    }
+
     if (selectionSummary.totalCount === 0) {
       toast.error('구매할 파일을 먼저 선택해주세요.')
       return

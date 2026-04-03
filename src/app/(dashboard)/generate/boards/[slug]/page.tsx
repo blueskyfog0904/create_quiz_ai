@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation'
-import { requireAuth } from '@/lib/auth'
 import TextbookListboard from './textbook-listboard'
 import {
   getGenerateBoardBySlug,
@@ -21,7 +20,6 @@ interface BoardPageProps {
 }
 
 export default async function GenerateBoardPage({ params, searchParams }: BoardPageProps) {
-  await requireAuth()
   const { slug } = await params
   const rawFilters = await searchParams
   const workspaceSubject = resolveGenerateWorkspaceSubject({

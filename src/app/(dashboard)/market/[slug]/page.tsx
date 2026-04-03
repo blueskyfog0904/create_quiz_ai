@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { requireAuth } from '@/lib/auth'
+import { getUser } from '@/lib/auth'
 import { resolveWorkspaceSubject } from '@/lib/workspace-subject'
 import {
   getVisibleMarketMenuEntryBySlugForWorkspace,
@@ -21,7 +21,7 @@ interface MarketCategoryPageProps {
 }
 
 export default async function MarketCategoryPage({ params, searchParams }: MarketCategoryPageProps) {
-  const user = await requireAuth()
+  const { user } = await getUser()
   const { slug } = await params
   const rawFilters = await searchParams
   const filters: MarketListboardFilters = {
@@ -45,9 +45,9 @@ export default async function MarketCategoryPage({ params, searchParams }: Marke
   }
 
   const [rows, options] = await Promise.all([
-    listPublishedMarketListboardRows(category.id, user.id, marketFilters),
+    listPublishedMarketListboardRows(category.id, user?.id ?? null, marketFilters),
     getMarketItemFilterOptions(category.id),
   ])
 
-  return <MarketListboard category={category} rows={rows} filters={filters} options={options} />
+  return <MarketListboard category={category} rows={rows} filters={filters} options={options} isLoggedIn={Boolean(user)} />
 }

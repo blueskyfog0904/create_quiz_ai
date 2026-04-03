@@ -6,12 +6,14 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
+import { useLoginRedirect } from '@/hooks/use-login-redirect'
 
 interface MarketItemActionsProps {
   itemId: string
   hasSample: boolean
   hasPdf: boolean
   hasHwp: boolean
+  isLoggedIn: boolean
   ownsPdf: boolean
   ownsHwp: boolean
   pdfPrice: number
@@ -75,12 +77,14 @@ export default function MarketItemActions({
   hasSample,
   hasPdf,
   hasHwp,
+  isLoggedIn,
   ownsPdf,
   ownsHwp,
   pdfPrice,
   hwpPrice,
 }: MarketItemActionsProps) {
   const router = useRouter()
+  const { redirectToLogin } = useLoginRedirect()
   const [isPending, startTransition] = useTransition()
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [currentBalance, setCurrentBalance] = useState<number | null>(null)
@@ -125,6 +129,11 @@ export default function MarketItemActions({
   }
 
   const openPurchaseConfirmation = async (assetKind: 'pdf' | 'hwp') => {
+    if (!isLoggedIn) {
+      redirectToLogin()
+      return
+    }
+
     setPendingPurchaseKind(assetKind)
     setIsCheckingBalance(true)
     try {
@@ -199,11 +208,12 @@ export default function MarketItemActions({
           {hasSample ? <PurchaseStateBadge state="instant" /> : null}
         </div>
         <Button
-          asChild={hasSample}
+          asChild={hasSample && isLoggedIn}
           className="mt-4 h-10 w-full rounded-lg bg-secondary font-medium text-secondary-foreground hover:bg-secondary/85"
           disabled={!hasSample}
+          onClick={!isLoggedIn && hasSample ? () => redirectToLogin() : undefined}
         >
-          {hasSample ? <a href={buildDownloadUrl(itemId, 'sample')}>샘플 다운로드</a> : <span>샘플 없음</span>}
+          {hasSample ? (isLoggedIn ? <a href={buildDownloadUrl(itemId, 'sample')}>샘플 다운로드</a> : <span>샘플 다운로드</span>) : <span>샘플 없음</span>}
         </Button>
       </div>
 

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/bypass'
 import type { Database } from '@/types/supabase'
 import {
   DEFAULT_GENERATE_WORKSPACE_SUBJECT,
@@ -18,11 +18,28 @@ export interface ListboardSearchFilters {
   title?: string
 }
 
+function withWorkspaceSubject<T extends Record<string, unknown>>(
+  row: T | null,
+  workspaceSubject: WorkspaceSubject
+): (T & { workspace_subject: WorkspaceSubject }) | null {
+  return row ? { ...row, workspace_subject: workspaceSubject } : null
+}
+
+function withWorkspaceSubjects<T extends Record<string, unknown>>(
+  rows: T[] | null | undefined,
+  workspaceSubject: WorkspaceSubject
+): Array<T & { workspace_subject: WorkspaceSubject }> {
+  return (rows ?? []).map((row) => ({
+    ...row,
+    workspace_subject: workspaceSubject,
+  }))
+}
+
 export async function getGenerateBoardBySlug(
   slug: string,
   workspaceSubject: WorkspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
 ): Promise<GenerateMenuEntry | null> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('generate_menu_entries')
     .select('*')
@@ -38,7 +55,7 @@ export async function getGenerateBoardBySlug(
     throw new Error(error.message)
   }
 
-  return data
+  return withWorkspaceSubject(data, workspaceSubject)
 }
 
 export async function searchGenerateBoardPosts(
@@ -46,7 +63,7 @@ export async function searchGenerateBoardPosts(
   filters: ListboardSearchFilters,
   workspaceSubject: WorkspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
 ) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   let query = supabase
     .from('generate_listboard_posts')
     .select('*')
@@ -81,14 +98,14 @@ export async function searchGenerateBoardPosts(
     throw new Error(error.message)
   }
 
-  return data ?? []
+  return withWorkspaceSubjects(data, workspaceSubject)
 }
 
 export async function getGenerateBoardFilterOptions(
   boardId: string,
   workspaceSubject: WorkspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
 ) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('generate_listboard_posts')
     .select('exam_year, exam_month, grade_level')
@@ -114,7 +131,7 @@ export async function getGenerateBoardPost(
   postId: string,
   workspaceSubject: WorkspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
 ): Promise<GenerateListboardPost | null> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('generate_listboard_posts')
     .select('*')
@@ -130,7 +147,7 @@ export async function getGenerateBoardPost(
     throw new Error(error.message)
   }
 
-  return data
+  return withWorkspaceSubject(data, workspaceSubject)
 }
 
 export async function getGenerateBoardPostWithItems(
@@ -147,7 +164,7 @@ export async function getGenerateBoardPostWithItems(
     return null
   }
 
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data: items, error } = await supabase
     .from('generate_listboard_post_items')
     .select('*')
@@ -164,14 +181,14 @@ export async function getGenerateBoardPostWithItems(
 
   return {
     post,
-    items: items ?? [],
+    items: withWorkspaceSubjects(items, workspaceSubject),
   }
 }
 
 export async function getActiveProblemTypes(
   workspaceSubject: WorkspaceSubject = DEFAULT_GENERATE_WORKSPACE_SUBJECT
 ): Promise<ProblemType[]> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('problem_types')
     .select('*')
@@ -184,5 +201,5 @@ export async function getActiveProblemTypes(
     throw new Error(error.message)
   }
 
-  return data ?? []
+  return withWorkspaceSubjects(data, workspaceSubject)
 }

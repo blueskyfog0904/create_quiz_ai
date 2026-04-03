@@ -8,6 +8,7 @@ import {
   stripWorkspacePrefix,
   withWorkspacePrefix,
 } from '@/lib/workspace-subject'
+import { isPublicBrowseableSubjectPath } from '@/lib/workspace-public-browse'
 
 const WORKSPACE_SUBJECT_HEADER = 'x-workspace-subject'
 const WORKSPACE_HEADER_MODE_HEADER = 'x-workspace-header-mode'
@@ -187,11 +188,18 @@ const buildAuthRedirectResponse = (
   const isSubjectFacingProtectedPath = pathSubject
     ? isSubjectFacingPath(stripped.scopedPath)
     : isSubjectFacingPath(pathname)
+  const isPublicBrowsePath = pathSubject
+    ? isPublicBrowseableSubjectPath(stripped.scopedPath)
+    : isPublicBrowseableSubjectPath(pathname)
   const isAdminPath = pathname === '/admin' || pathname.startsWith('/admin/')
   const isDashboardPath = pathname.startsWith('/dashboard')
   const isMyPagePath = pathname.startsWith('/mypage')
 
   if (!isSubjectFacingProtectedPath && !isAdminPath && !isDashboardPath && !isMyPagePath) {
+    return null
+  }
+
+  if (isSubjectFacingProtectedPath && isPublicBrowsePath) {
     return null
   }
 

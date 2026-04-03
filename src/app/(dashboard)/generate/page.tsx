@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/auth'
 import GenerateHomeContent from './generate-home-content'
 import { resolveGenerateWorkspaceSubject } from './workspace-subject'
 
@@ -8,7 +7,6 @@ interface GeneratePageProps {
 }
 
 export default async function GeneratePage({ searchParams }: GeneratePageProps) {
-  await requireAuth()
   const supabase = await createClient()
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const workspaceSubject = resolveGenerateWorkspaceSubject({

@@ -1,11 +1,11 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { WorkspaceLink } from '@/components/layout/workspace-link'
 import {
   Table,
   TableBody,
@@ -15,9 +15,12 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import type { MarketLibraryRow } from '@/lib/market-items-server'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 interface MarketLibraryClientProps {
   rows: MarketLibraryRow[]
+  workspaceSubject: WorkspaceSubject
+  browseMarketHref: string
 }
 
 type SortOption = 'latest' | 'name'
@@ -28,7 +31,11 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleDateString('ko-KR')
 }
 
-export default function MarketLibraryClient({ rows }: MarketLibraryClientProps) {
+export default function MarketLibraryClient({
+  rows,
+  workspaceSubject,
+  browseMarketHref,
+}: MarketLibraryClientProps) {
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortOption>('latest')
   const [assetFilter, setAssetFilter] = useState<AssetFilter>('all')
@@ -72,7 +79,7 @@ export default function MarketLibraryClient({ rows }: MarketLibraryClientProps) 
           <p className="mt-2 text-gray-500">구매한 문제마켓 상품과 다운로드 가능한 파일을 관리합니다.</p>
         </div>
         <Button asChild>
-          <Link href="/market">문제마켓 둘러보기</Link>
+          <WorkspaceLink href={browseMarketHref} subject={workspaceSubject}>문제마켓 둘러보기</WorkspaceLink>
         </Button>
       </div>
 
@@ -135,7 +142,7 @@ export default function MarketLibraryClient({ rows }: MarketLibraryClientProps) 
               <p className="font-medium">아직 구매한 문제마켓 상품이 없습니다.</p>
               <p className="mt-2 text-sm">문제마켓에서 필요한 자료를 구매하면 이곳에서 다시 다운로드할 수 있습니다.</p>
               <Button asChild className="mt-4">
-                <Link href="/market">문제마켓 보러가기</Link>
+                <WorkspaceLink href={browseMarketHref} subject={workspaceSubject}>문제마켓 보러가기</WorkspaceLink>
               </Button>
             </div>
           ) : (
@@ -172,7 +179,7 @@ export default function MarketLibraryClient({ rows }: MarketLibraryClientProps) 
                           <div className="flex flex-wrap gap-2">
                             {row.pdfOwned ? (row.pdfAvailable ? <Button asChild size="sm" variant="outline"><a href={row.pdfDownloadUrl || '#'}>PDF 다운로드</a></Button> : <Button size="sm" variant="outline" disabled>PDF 점검 중</Button>) : null}
                             {row.hwpOwned ? (row.hwpAvailable ? <Button asChild size="sm" variant="outline"><a href={row.hwpDownloadUrl || '#'}>HWP 다운로드</a></Button> : <Button size="sm" variant="outline" disabled>HWP 점검 중</Button>) : null}
-                            {row.categorySlug ? <Button asChild size="sm"><Link href={`/market/${row.categorySlug}/items/${row.itemId}`}>상세 보기</Link></Button> : null}
+                            {row.categorySlug ? <Button asChild size="sm"><WorkspaceLink href={`/market/${row.categorySlug}/items/${row.itemId}`} subject={workspaceSubject}>상세 보기</WorkspaceLink></Button> : null}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -202,7 +209,7 @@ export default function MarketLibraryClient({ rows }: MarketLibraryClientProps) 
                       <div className="grid gap-2">
                         {row.pdfOwned ? (row.pdfAvailable ? <Button asChild variant="outline"><a href={row.pdfDownloadUrl || '#'}>PDF 다운로드</a></Button> : <Button variant="outline" disabled>PDF 점검 중</Button>) : null}
                         {row.hwpOwned ? (row.hwpAvailable ? <Button asChild variant="outline"><a href={row.hwpDownloadUrl || '#'}>HWP 다운로드</a></Button> : <Button variant="outline" disabled>HWP 점검 중</Button>) : null}
-                        {row.categorySlug ? <Button asChild><Link href={`/market/${row.categorySlug}/items/${row.itemId}`}>상세 보기</Link></Button> : null}
+                        {row.categorySlug ? <Button asChild><WorkspaceLink href={`/market/${row.categorySlug}/items/${row.itemId}`} subject={workspaceSubject}>상세 보기</WorkspaceLink></Button> : null}
                       </div>
                     </CardContent>
                   </Card>

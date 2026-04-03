@@ -18,6 +18,7 @@ import { PassageSelectorModal } from '@/components/features/passages/passage-sel
 import { Passage } from '@/app/api/passages/actions'
 import { Textarea } from '@/components/ui/textarea'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
+import { useLoginRedirect } from '@/hooks/use-login-redirect'
 import type { WorkspaceSubject } from '../workspace-subject'
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
@@ -25,6 +26,7 @@ type ProblemType = Database['public']['Tables']['problem_types']['Row']
 interface MultiGenerateClientProps {
   problemTypes: ProblemType[]
   workspaceSubject: WorkspaceSubject
+  isLoggedIn: boolean
 }
 
 interface GeneratedQuestionData {
@@ -50,8 +52,9 @@ const toRequestError = (error: unknown, fallbackMessage = '문제 생성 중 오
   return new Error(fallbackMessage) as RequestError
 }
 
-export default function MultiGenerateClient({ problemTypes, workspaceSubject }: MultiGenerateClientProps) {
+export default function MultiGenerateClient({ problemTypes, workspaceSubject, isLoggedIn }: MultiGenerateClientProps) {
   const router = useRouter()
+  const { redirectToLogin } = useLoginRedirect()
   const [passage, setPassage] = useState('')
   const [selectedPassage, setSelectedPassage] = useState<Passage | null>(null)
   
@@ -143,6 +146,11 @@ export default function MultiGenerateClient({ problemTypes, workspaceSubject }: 
     if (isGenerationBusy) return
 
     e.preventDefault()
+
+    if (!isLoggedIn) {
+      redirectToLogin()
+      return
+    }
 
     if (selectedTypeIds.length === 0) {
       toast.error("최소 1개 이상의 문제 유형을 선택해주세요")
@@ -625,7 +633,13 @@ export default function MultiGenerateClient({ problemTypes, workspaceSubject }: 
                           type="button"
                           variant="outline"
                           className="flex-1 gap-2 h-12"
-                          onClick={() => setIsSelectorOpen(true)}
+                          onClick={() => {
+                            if (!isLoggedIn) {
+                              redirectToLogin()
+                              return
+                            }
+                            setIsSelectorOpen(true)
+                          }}
                           disabled={isGenerationBusy}
                         >
                             <BookOpen className="w-4 h-4" />
@@ -635,7 +649,13 @@ export default function MultiGenerateClient({ problemTypes, workspaceSubject }: 
                           type="button"
                           variant="outline"
                           className="flex-1 gap-2 h-12"
-                          onClick={() => router.push('/library/mypassages')}
+                          onClick={() => {
+                            if (!isLoggedIn) {
+                              redirectToLogin()
+                              return
+                            }
+                            router.push('/library/mypassages')
+                          }}
                           disabled={isGenerationBusy}
                         >
                             <Plus className="w-4 h-4" />
@@ -778,7 +798,7 @@ export default function MultiGenerateClient({ problemTypes, workspaceSubject }: 
                 <Button 
                   type="submit" 
                   className="w-full text-lg h-12 mt-4" 
-                  disabled={isGenerationBusy || selectedTypeIds.length === 0 || !passage || isCheckingBalance}
+                  disabled={isGenerationBusy || isCheckingBalance || (isLoggedIn && (selectedTypeIds.length === 0 || !passage))}
                 >
                   {isGenerating ? (
                     <>

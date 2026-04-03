@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
-import { requireAuth } from '@/lib/auth'
-import { createClient } from '@/lib/supabase/server'
+import { getUser } from '@/lib/auth'
+import { createAdminClient } from '@/lib/supabase/bypass'
 import type { Database } from '@/types/supabase'
 import { getGenerateBoardBySlug, getGenerateBoardPost } from '../../../../../data'
 import TextbookGenerateClient from './textbook-generate-client'
@@ -17,7 +17,7 @@ interface TextbookGeneratePageProps {
 }
 
 export default async function TextbookGeneratePage({ params, searchParams }: TextbookGeneratePageProps) {
-  await requireAuth()
+  const { user } = await getUser()
   const { slug, postId, typeId } = await params
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const workspaceSubject = resolveGenerateWorkspaceSubject({
@@ -34,7 +34,7 @@ export default async function TextbookGeneratePage({ params, searchParams }: Tex
     notFound()
   }
 
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data: problemType, error } = await supabase
     .from('problem_types')
     .select('*')
@@ -53,6 +53,7 @@ export default async function TextbookGeneratePage({ params, searchParams }: Tex
       post={post}
       problemType={problemType}
       workspaceSubject={workspaceSubject}
+      isLoggedIn={Boolean(user)}
     />
   )
 }

@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/auth'
+import { getUser } from '@/lib/auth'
 import GenerateClient from './generate-client'
 import { Button } from '@/components/ui/button'
 import GenerateHomeContent from '../generate-home-content'
@@ -12,8 +12,8 @@ interface GenerateWithTypePageProps {
 }
 
 export default async function GenerateWithTypePage({ params, searchParams }: GenerateWithTypePageProps) {
-  await requireAuth()
   const supabase = await createClient()
+  const { user } = await getUser()
   const { typeId } = await params
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const workspaceSubject = resolveGenerateWorkspaceSubject({
@@ -60,6 +60,7 @@ export default async function GenerateWithTypePage({ params, searchParams }: Gen
       <GenerateClient
         problemType={problemType}
         workspaceSubject={workspaceSubject}
+        isLoggedIn={Boolean(user)}
       />
     </div>
   )

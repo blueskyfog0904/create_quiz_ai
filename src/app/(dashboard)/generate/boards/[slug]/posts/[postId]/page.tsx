@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { requireAuth } from '@/lib/auth'
+import { getUser } from '@/lib/auth'
 import { getActiveProblemTypes, getGenerateBoardBySlug, getGenerateBoardPostWithItems } from '../../../data'
 import BoardPostClient from './board-post-client'
 import { resolveGenerateWorkspaceSubject } from '../../../../workspace-subject'
@@ -10,7 +10,7 @@ interface BoardPostPageProps {
 }
 
 export default async function GenerateBoardPostPage({ params, searchParams }: BoardPostPageProps) {
-  await requireAuth()
+  const { user } = await getUser()
   const { slug, postId } = await params
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const workspaceSubject = resolveGenerateWorkspaceSubject({
@@ -38,6 +38,7 @@ export default async function GenerateBoardPostPage({ params, searchParams }: Bo
       items={postResult.items}
       problemTypes={problemTypes}
       workspaceSubject={workspaceSubject}
+      isLoggedIn={Boolean(user)}
     />
   )
 }

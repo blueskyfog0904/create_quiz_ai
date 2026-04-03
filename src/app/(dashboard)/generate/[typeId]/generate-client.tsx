@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from 'sonner'
@@ -13,13 +12,14 @@ import { QuestionPreview } from '@/components/features/quiz/question-preview'
 import { Database } from '@/types/supabase'
 import { Question } from '@/lib/ai/types'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, Star, Tag, Plus, X, ChevronLeft, Loader2, BookOpen, FileText, CheckCircle2, Minus, Maximize, ZoomIn } from 'lucide-react'
+import { AlertCircle, Star, Plus, X, ChevronLeft, Loader2, BookOpen, FileText, CheckCircle2, Minus } from 'lucide-react'
 import { PassageSelectorModal } from '@/components/features/passages/passage-selector-modal'
 import { Passage } from '@/app/api/passages/actions'
 import { Textarea } from '@/components/ui/textarea'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
+import { useLoginRedirect } from '@/hooks/use-login-redirect'
 import type { WorkspaceSubject } from '../workspace-subject'
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
@@ -27,6 +27,7 @@ type ProblemType = Database['public']['Tables']['problem_types']['Row']
 interface GenerateClientProps {
   problemType: ProblemType
   workspaceSubject: WorkspaceSubject
+  isLoggedIn: boolean
 }
 
 interface GeneratedQuestionData {
@@ -39,8 +40,9 @@ interface GeneratedQuestionData {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-export default function GenerateClient({ problemType, workspaceSubject }: GenerateClientProps) {
+export default function GenerateClient({ problemType, workspaceSubject, isLoggedIn }: GenerateClientProps) {
   const router = useRouter()
+  const { redirectToLogin } = useLoginRedirect()
   const [passage, setPassage] = useState('')
   const [selectedPassage, setSelectedPassage] = useState<Passage | null>(null)
   
@@ -91,6 +93,11 @@ export default function GenerateClient({ problemType, workspaceSubject }: Genera
     if (isGenerationBusy) return
 
     e.preventDefault()
+
+    if (!isLoggedIn) {
+      redirectToLogin()
+      return
+    }
     
     if (!passage) {
       toast.error("지문을 선택하거나 등록해주세요")
@@ -386,7 +393,13 @@ export default function GenerateClient({ problemType, workspaceSubject }: Genera
                           type="button"
                           variant="outline"
                           className="flex-1 gap-2 h-12"
-                          onClick={() => setIsSelectorOpen(true)}
+                          onClick={() => {
+                            if (!isLoggedIn) {
+                              redirectToLogin()
+                              return
+                            }
+                            setIsSelectorOpen(true)
+                          }}
                           disabled={isGenerationBusy}
                         >
                             <BookOpen className="w-4 h-4" />
@@ -396,7 +409,13 @@ export default function GenerateClient({ problemType, workspaceSubject }: Genera
                           type="button"
                           variant="outline"
                           className="flex-1 gap-2 h-12"
-                          onClick={() => router.push('/library/mypassages')}
+                          onClick={() => {
+                            if (!isLoggedIn) {
+                              redirectToLogin()
+                              return
+                            }
+                            router.push('/library/mypassages')
+                          }}
                           disabled={isGenerationBusy}
                         >
                             <Plus className="w-4 h-4" />
@@ -476,7 +495,7 @@ export default function GenerateClient({ problemType, workspaceSubject }: Genera
                 <Button 
                   type="submit" 
                   className="w-full text-lg h-12 mt-4" 
-                  disabled={isGenerationBusy || !passage || isCheckingBalance}
+                  disabled={isGenerationBusy || isCheckingBalance || (isLoggedIn && !passage)}
                 >
                   {isCancelling
                     ? '중단 처리 중...'

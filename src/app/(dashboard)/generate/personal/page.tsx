@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/auth'
+import { getUser } from '@/lib/auth'
 import MultiGenerateClient from '../multi/multi-generate-client'
 import { resolveGenerateWorkspaceSubject } from '../workspace-subject'
 
@@ -8,8 +8,8 @@ interface PersonalGeneratePageProps {
 }
 
 export default async function PersonalGeneratePage({ searchParams }: PersonalGeneratePageProps) {
-  await requireAuth()
   const supabase = await createClient()
+  const { user } = await getUser()
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const workspaceSubject = resolveGenerateWorkspaceSubject({
     workspaceSubject: resolvedSearchParams?.subject,
@@ -35,6 +35,7 @@ export default async function PersonalGeneratePage({ searchParams }: PersonalGen
       <MultiGenerateClient
         problemTypes={problemTypes || []}
         workspaceSubject={workspaceSubject}
+        isLoggedIn={Boolean(user)}
       />
     </div>
   )

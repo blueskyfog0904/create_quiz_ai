@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
+import { useLoginRedirect } from '@/hooks/use-login-redirect'
 import type { Database } from '@/types/supabase'
 import type { WorkspaceSubject } from '../../../../workspace-subject'
 
@@ -24,6 +25,7 @@ interface BoardPostClientProps {
   items: GenerateListboardPostItem[]
   problemTypes: ProblemType[]
   workspaceSubject: WorkspaceSubject
+  isLoggedIn: boolean
 }
 
 const CREDIT_COST_PER_GENERATION = 100
@@ -40,8 +42,10 @@ export default function BoardPostClient({
   items,
   problemTypes,
   workspaceSubject,
+  isLoggedIn,
 }: BoardPostClientProps) {
   const router = useRouter()
+  const { redirectToLogin } = useLoginRedirect()
   const [selectedProblemTypeIds, setSelectedProblemTypeIds] = useState<string[]>([])
   const [selectedPostItemIds, setSelectedPostItemIds] = useState<string[]>([])
   const [currentBalance, setCurrentBalance] = useState<number | null>(null)
@@ -75,7 +79,7 @@ export default function BoardPostClient({
         ) : null}
         <Button
           onClick={handleStartClick}
-          disabled={isCheckingBalance || isSubmitting || requestedGenerationCount === 0}
+          disabled={isCheckingBalance || isSubmitting || (isLoggedIn && requestedGenerationCount === 0)}
           className="w-full h-11 text-base"
         >
           {isCheckingBalance ? '크레딧 확인 중...' : isSubmitting ? '작업 생성 중...' : `문제 생성 시작 (${requiredCredits.toLocaleString()} 크레딧)`}
@@ -114,6 +118,11 @@ export default function BoardPostClient({
   }
 
   const handleStartClick = async () => {
+    if (!isLoggedIn) {
+      redirectToLogin()
+      return
+    }
+
     if (selectedProblemTypeIds.length === 0) {
       toast.error('최소 1개 이상의 문제 유형을 선택해주세요.')
       return

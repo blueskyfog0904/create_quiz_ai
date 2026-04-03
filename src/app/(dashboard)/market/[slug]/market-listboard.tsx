@@ -18,6 +18,7 @@ interface MarketListboardProps {
   category: MarketMenuEntry
   rows: MarketListboardRow[]
   filters: MarketListboardFilters
+  isLoggedIn: boolean
   options: {
     years: number[]
     months: number[]
@@ -25,7 +26,7 @@ interface MarketListboardProps {
   }
 }
 
-export default function MarketListboard({ category, rows, filters, options }: MarketListboardProps) {
+export default function MarketListboard({ category, rows, filters, isLoggedIn, options }: MarketListboardProps) {
   return (
     <div className="space-y-6">
       <div>
@@ -87,7 +88,7 @@ export default function MarketListboard({ category, rows, filters, options }: Ma
           <CardDescription>총 {rows.length}건</CardDescription>
         </CardHeader>
         <CardContent>
-          <MarketListboardClient categorySlug={category.slug} rows={rows} />
+          <MarketListboardClient categorySlug={category.slug} rows={rows} isLoggedIn={isLoggedIn} />
         </CardContent>
       </Card>
     </div>
