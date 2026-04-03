@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Monitor, Smartphone } from 'lucide-react'
+import { Minus, Monitor, Plus, Smartphone } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,14 +16,20 @@ import { WorkspaceLandingView } from '@/components/features/landing/WorkspaceLan
 import {
   getDefaultMainLandingConfig,
   getDefaultWorkspaceLandingConfig,
+  LANDING_FONT_STEPS,
   LANDING_ICON_TOKENS,
   LANDING_THEME_TOKENS,
+  type LandingFontStep,
   type LandingIconToken,
   type LandingThemeToken,
   type MainLandingConfig,
   type WorkspaceLandingConfig,
 } from '@/lib/landing-page'
-import { landingIconLabels, landingThemeLabels } from '@/components/features/landing/landing-view-shared'
+import {
+  getLandingFontStepLabel,
+  landingIconLabels,
+  landingThemeLabels,
+} from '@/components/features/landing/landing-view-shared'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import {
   saveMainLandingConfigAction,
@@ -40,6 +46,12 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
+function clampLandingFontStep(value: number): LandingFontStep {
+  if (value <= LANDING_FONT_STEPS[0]) return LANDING_FONT_STEPS[0]
+  if (value >= LANDING_FONT_STEPS[LANDING_FONT_STEPS.length - 1]) return LANDING_FONT_STEPS[LANDING_FONT_STEPS.length - 1]
+  return value as LandingFontStep
+}
+
 function SectionCard({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
     <Card>
@@ -49,6 +61,27 @@ function SectionCard({ title, description, children }: { title: string; descript
       </CardHeader>
       <CardContent className="space-y-4">{children}</CardContent>
     </Card>
+  )
+}
+
+function FontStepControl({
+  step,
+  onChange,
+}: {
+  step: LandingFontStep
+  onChange: (next: LandingFontStep) => void
+}) {
+  return (
+    <div className="inline-flex items-center gap-1 rounded-md border bg-white px-2 py-1 text-xs">
+      <span className="mr-1 text-slate-500">폰트</span>
+      <Button type="button" variant="ghost" size="sm" className="h-7 w-7 px-0" disabled={step === -2} onClick={() => onChange(clampLandingFontStep(step - 1))}>
+        <Minus className="h-3.5 w-3.5" />
+      </Button>
+      <span className="min-w-[2.5rem] text-center font-medium">{getLandingFontStepLabel(step)}</span>
+      <Button type="button" variant="ghost" size="sm" className="h-7 w-7 px-0" disabled={step === 2} onClick={() => onChange(clampLandingFontStep(step + 1))}>
+        <Plus className="h-3.5 w-3.5" />
+      </Button>
+    </div>
   )
 }
 
@@ -87,17 +120,26 @@ function StringListEditor({
   label,
   values,
   maxItems,
+  fontStep,
+  onFontStepChange,
   onChange,
 }: {
   label: string
   values: string[]
   maxItems: number
+  fontStep?: LandingFontStep
+  onFontStepChange?: (next: LandingFontStep) => void
   onChange: (nextValues: string[]) => void
 }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <Label>{label}</Label>
+        <div className="flex items-center gap-3">
+          <Label>{label}</Label>
+          {fontStep !== undefined && onFontStepChange ? (
+            <FontStepControl step={fontStep} onChange={onFontStepChange} />
+          ) : null}
+        </div>
         <Button
           type="button"
           variant="outline"
@@ -286,19 +328,33 @@ export default function LandingPagesClient({
           <SectionCard title="Hero">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>배지</Label>
+                <div className="flex items-center justify-between">
+                  <Label>배지</Label>
+                  <FontStepControl step={mainConfig.fontSteps.hero.badge} onChange={(next) => setMainConfig((current) => ({ ...current, fontSteps: { ...current.fontSteps, hero: { ...current.fontSteps.hero, badge: next } } }))} />
+                </div>
                 <Input value={mainConfig.hero.badge} onChange={(event) => setMainConfig((current) => ({ ...current, hero: { ...current.hero, badge: event.target.value } }))} />
               </div>
               <div className="space-y-2">
-                <Label>제목</Label>
-                <Input value={mainConfig.hero.title} onChange={(event) => setMainConfig((current) => ({ ...current, hero: { ...current.hero, title: event.target.value } }))} />
+                <div className="flex items-center justify-between">
+                  <Label>제목</Label>
+                  <FontStepControl step={mainConfig.fontSteps.hero.title} onChange={(next) => setMainConfig((current) => ({ ...current, fontSteps: { ...current.fontSteps, hero: { ...current.fontSteps.hero, title: next } } }))} />
+                </div>
+                <Textarea rows={2} value={mainConfig.hero.title} onChange={(event) => setMainConfig((current) => ({ ...current, hero: { ...current.hero, title: event.target.value } }))} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>설명</Label>
+              <div className="flex items-center justify-between">
+                <Label>설명</Label>
+                <FontStepControl step={mainConfig.fontSteps.hero.description} onChange={(next) => setMainConfig((current) => ({ ...current, fontSteps: { ...current.fontSteps, hero: { ...current.fontSteps.hero, description: next } } }))} />
+              </div>
               <Textarea rows={4} value={mainConfig.hero.description} onChange={(event) => setMainConfig((current) => ({ ...current, hero: { ...current.hero, description: event.target.value } }))} />
             </div>
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Hero 칩 폰트</Label>
+                <FontStepControl step={mainConfig.fontSteps.hero.chips} onChange={(next) => setMainConfig((current) => ({ ...current, fontSteps: { ...current.fontSteps, hero: { ...current.fontSteps.hero, chips: next } } }))} />
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
               {mainConfig.hero.chips.map((chip, index) => (
                 <div key={`hero-chip-${index}`} className="space-y-2">
                   <Label>Hero 칩 {index + 1}</Label>
@@ -314,6 +370,7 @@ export default function LandingPagesClient({
                   />
                 </div>
               ))}
+              </div>
             </div>
           </SectionCard>
 
@@ -324,22 +381,31 @@ export default function LandingPagesClient({
                   <Badge variant="outline">{card.subject === 'english' ? '영어 카드' : '국어 카드'}</Badge>
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label>라벨</Label>
+                      <div className="flex items-center justify-between">
+                        <Label>라벨</Label>
+                        <FontStepControl step={mainConfig.fontSteps.workspaceCards.label} onChange={(next) => setMainConfig((current) => ({ ...current, fontSteps: { ...current.fontSteps, workspaceCards: { ...current.fontSteps.workspaceCards, label: next } } }))} />
+                      </div>
                       <Input value={card.label} onChange={(event) => setMainConfig((current) => ({
                         ...current,
                         workspaceCards: current.workspaceCards.map((entry, entryIndex) => entryIndex === index ? { ...entry, label: event.target.value } : entry) as MainLandingConfig['workspaceCards'],
                       }))} />
                     </div>
                     <div className="space-y-2">
-                      <Label>제목</Label>
-                      <Input value={card.title} onChange={(event) => setMainConfig((current) => ({
+                      <div className="flex items-center justify-between">
+                        <Label>제목</Label>
+                        <FontStepControl step={mainConfig.fontSteps.workspaceCards.title} onChange={(next) => setMainConfig((current) => ({ ...current, fontSteps: { ...current.fontSteps, workspaceCards: { ...current.fontSteps.workspaceCards, title: next } } }))} />
+                      </div>
+                      <Textarea rows={2} value={card.title} onChange={(event) => setMainConfig((current) => ({
                         ...current,
                         workspaceCards: current.workspaceCards.map((entry, entryIndex) => entryIndex === index ? { ...entry, title: event.target.value } : entry) as MainLandingConfig['workspaceCards'],
                       }))} />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>설명</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>설명</Label>
+                      <FontStepControl step={mainConfig.fontSteps.workspaceCards.description} onChange={(next) => setMainConfig((current) => ({ ...current, fontSteps: { ...current.fontSteps, workspaceCards: { ...current.fontSteps.workspaceCards, description: next } } }))} />
+                    </div>
                     <Textarea rows={3} value={card.description} onChange={(event) => setMainConfig((current) => ({
                       ...current,
                       workspaceCards: current.workspaceCards.map((entry, entryIndex) => entryIndex === index ? { ...entry, description: event.target.value } : entry) as MainLandingConfig['workspaceCards'],
@@ -347,7 +413,10 @@ export default function LandingPagesClient({
                   </div>
                   <div className="grid gap-3 md:grid-cols-3">
                     <div className="space-y-2 md:col-span-2">
-                      <Label>버튼 라벨</Label>
+                      <div className="flex items-center justify-between">
+                        <Label>버튼 라벨</Label>
+                        <FontStepControl step={mainConfig.fontSteps.workspaceCards.buttonLabel} onChange={(next) => setMainConfig((current) => ({ ...current, fontSteps: { ...current.fontSteps, workspaceCards: { ...current.fontSteps.workspaceCards, buttonLabel: next } } }))} />
+                      </div>
                       <Input value={card.buttonLabel} onChange={(event) => setMainConfig((current) => ({
                         ...current,
                         workspaceCards: current.workspaceCards.map((entry, entryIndex) => entryIndex === index ? { ...entry, buttonLabel: event.target.value } : entry) as MainLandingConfig['workspaceCards'],
@@ -378,6 +447,8 @@ export default function LandingPagesClient({
                     label="카드 하이라이트 칩"
                     values={card.highlightChips}
                     maxItems={5}
+                    fontStep={mainConfig.fontSteps.workspaceCards.highlightChips}
+                    onFontStepChange={(next) => setMainConfig((current) => ({ ...current, fontSteps: { ...current.fontSteps, workspaceCards: { ...current.fontSteps.workspaceCards, highlightChips: next } } }))}
                     onChange={(nextValues) => setMainConfig((current) => ({
                       ...current,
                       workspaceCards: current.workspaceCards.map((entry, entryIndex) => entryIndex === index ? { ...entry, highlightChips: nextValues } : entry) as MainLandingConfig['workspaceCards'],
@@ -391,12 +462,28 @@ export default function LandingPagesClient({
           <SectionCard title="가치 포인트 섹션">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>섹션 제목</Label>
+                <div className="flex items-center justify-between">
+                  <Label>섹션 제목</Label>
+                  <FontStepControl step={mainConfig.fontSteps.valueSection.heading} onChange={(next) => setMainConfig((current) => ({ ...current, fontSteps: { ...current.fontSteps, valueSection: { ...current.fontSteps.valueSection, heading: next } } }))} />
+                </div>
                 <Input value={mainConfig.valueSection.heading} onChange={(event) => setMainConfig((current) => ({ ...current, valueSection: { ...current.valueSection, heading: event.target.value } }))} />
               </div>
               <div className="space-y-2">
-                <Label>섹션 소개</Label>
+                <div className="flex items-center justify-between">
+                  <Label>섹션 소개</Label>
+                  <FontStepControl step={mainConfig.fontSteps.valueSection.intro} onChange={(next) => setMainConfig((current) => ({ ...current, fontSteps: { ...current.fontSteps, valueSection: { ...current.fontSteps.valueSection, intro: next } } }))} />
+                </div>
                 <Textarea rows={3} value={mainConfig.valueSection.intro} onChange={(event) => setMainConfig((current) => ({ ...current, valueSection: { ...current.valueSection, intro: event.target.value } }))} />
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+                <span className="text-sm font-medium">가치 포인트 제목 폰트</span>
+                <FontStepControl step={mainConfig.fontSteps.valuePoints.title} onChange={(next) => setMainConfig((current) => ({ ...current, fontSteps: { ...current.fontSteps, valuePoints: { ...current.fontSteps.valuePoints, title: next } } }))} />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+                <span className="text-sm font-medium">가치 포인트 설명 폰트</span>
+                <FontStepControl step={mainConfig.fontSteps.valuePoints.description} onChange={(next) => setMainConfig((current) => ({ ...current, fontSteps: { ...current.fontSteps, valuePoints: { ...current.fontSteps.valuePoints, description: next } } }))} />
               </div>
             </div>
             <div className="grid gap-4 xl:grid-cols-3">
@@ -420,7 +507,13 @@ export default function LandingPagesClient({
           <SectionCard title={`${activeWorkspaceSubject === 'english' ? '영어' : '국어'} 랜딩 Hero`}>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>Eyebrow</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Eyebrow</Label>
+                  <FontStepControl step={activeWorkspaceConfig.fontSteps.hero.eyebrow} onChange={(next) => setWorkspaceConfigs((current) => ({
+                    ...current,
+                    [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, hero: { ...current[activeWorkspaceSubject].fontSteps.hero, eyebrow: next } } },
+                  }))} />
+                </div>
                 <Input value={activeWorkspaceConfig.eyebrow} onChange={(event) => setWorkspaceConfigs((current) => ({
                   ...current,
                   [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], eyebrow: event.target.value },
@@ -438,7 +531,13 @@ export default function LandingPagesClient({
               />
             </div>
             <div className="space-y-2">
-              <Label>제목</Label>
+              <div className="flex items-center justify-between">
+                <Label>제목</Label>
+                <FontStepControl step={activeWorkspaceConfig.fontSteps.hero.title} onChange={(next) => setWorkspaceConfigs((current) => ({
+                  ...current,
+                  [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, hero: { ...current[activeWorkspaceSubject].fontSteps.hero, title: next } } },
+                }))} />
+              </div>
               <Textarea
                 rows={2}
                 value={activeWorkspaceConfig.title}
@@ -449,14 +548,26 @@ export default function LandingPagesClient({
               />
             </div>
             <div className="space-y-2">
-              <Label>설명</Label>
+              <div className="flex items-center justify-between">
+                <Label>설명</Label>
+                <FontStepControl step={activeWorkspaceConfig.fontSteps.hero.description} onChange={(next) => setWorkspaceConfigs((current) => ({
+                  ...current,
+                  [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, hero: { ...current[activeWorkspaceSubject].fontSteps.hero, description: next } } },
+                }))} />
+              </div>
               <Textarea rows={3} value={activeWorkspaceConfig.description} onChange={(event) => setWorkspaceConfigs((current) => ({
                 ...current,
                 [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], description: event.target.value },
               }))} />
             </div>
             <div className="space-y-2">
-              <Label>Hero Summary</Label>
+              <div className="flex items-center justify-between">
+                <Label>Hero Summary</Label>
+                <FontStepControl step={activeWorkspaceConfig.fontSteps.hero.heroSummary} onChange={(next) => setWorkspaceConfigs((current) => ({
+                  ...current,
+                  [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, hero: { ...current[activeWorkspaceSubject].fontSteps.hero, heroSummary: next } } },
+                }))} />
+              </div>
               <Textarea rows={3} value={activeWorkspaceConfig.heroSummary} onChange={(event) => setWorkspaceConfigs((current) => ({
                 ...current,
                 [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], heroSummary: event.target.value },
@@ -466,6 +577,11 @@ export default function LandingPagesClient({
               label="Quick Pills"
               values={activeWorkspaceConfig.quickPills}
               maxItems={4}
+              fontStep={activeWorkspaceConfig.fontSteps.hero.quickPills}
+              onFontStepChange={(next) => setWorkspaceConfigs((current) => ({
+                ...current,
+                [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, hero: { ...current[activeWorkspaceSubject].fontSteps.hero, quickPills: next } } },
+              }))}
               onChange={(nextValues) => setWorkspaceConfigs((current) => ({
                 ...current,
                 [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], quickPills: nextValues },
@@ -476,17 +592,45 @@ export default function LandingPagesClient({
           <SectionCard title="Feature 섹션">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>Feature Heading</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Feature Heading</Label>
+                  <FontStepControl step={activeWorkspaceConfig.fontSteps.featureSection.heading} onChange={(next) => setWorkspaceConfigs((current) => ({
+                    ...current,
+                    [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, featureSection: { ...current[activeWorkspaceSubject].fontSteps.featureSection, heading: next } } },
+                  }))} />
+                </div>
                 <Input value={activeWorkspaceConfig.featureHeading} onChange={(event) => setWorkspaceConfigs((current) => ({
                   ...current,
                   [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], featureHeading: event.target.value },
                 }))} />
               </div>
               <div className="space-y-2">
-                <Label>Feature Intro</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Feature Intro</Label>
+                  <FontStepControl step={activeWorkspaceConfig.fontSteps.featureSection.intro} onChange={(next) => setWorkspaceConfigs((current) => ({
+                    ...current,
+                    [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, featureSection: { ...current[activeWorkspaceSubject].fontSteps.featureSection, intro: next } } },
+                  }))} />
+                </div>
                 <Textarea rows={3} value={activeWorkspaceConfig.featureIntro} onChange={(event) => setWorkspaceConfigs((current) => ({
                   ...current,
                   [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], featureIntro: event.target.value },
+                }))} />
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+                <span className="text-sm font-medium">Feature 제목 폰트</span>
+                <FontStepControl step={activeWorkspaceConfig.fontSteps.featureSection.title} onChange={(next) => setWorkspaceConfigs((current) => ({
+                  ...current,
+                  [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, featureSection: { ...current[activeWorkspaceSubject].fontSteps.featureSection, title: next } } },
+                }))} />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+                <span className="text-sm font-medium">Feature 설명 폰트</span>
+                <FontStepControl step={activeWorkspaceConfig.fontSteps.featureSection.description} onChange={(next) => setWorkspaceConfigs((current) => ({
+                  ...current,
+                  [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, featureSection: { ...current[activeWorkspaceSubject].fontSteps.featureSection, description: next } } },
                 }))} />
               </div>
             </div>
@@ -540,24 +684,58 @@ export default function LandingPagesClient({
           <SectionCard title="Workflow 섹션">
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <Label>Badge</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Badge</Label>
+                  <FontStepControl step={activeWorkspaceConfig.fontSteps.workflowSection.badge} onChange={(next) => setWorkspaceConfigs((current) => ({
+                    ...current,
+                    [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, workflowSection: { ...current[activeWorkspaceSubject].fontSteps.workflowSection, badge: next } } },
+                  }))} />
+                </div>
                 <Input value={activeWorkspaceConfig.workflowBadge} onChange={(event) => setWorkspaceConfigs((current) => ({
                   ...current,
                   [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], workflowBadge: event.target.value },
                 }))} />
               </div>
               <div className="space-y-2">
-                <Label>Heading</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Heading</Label>
+                  <FontStepControl step={activeWorkspaceConfig.fontSteps.workflowSection.heading} onChange={(next) => setWorkspaceConfigs((current) => ({
+                    ...current,
+                    [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, workflowSection: { ...current[activeWorkspaceSubject].fontSteps.workflowSection, heading: next } } },
+                  }))} />
+                </div>
                 <Input value={activeWorkspaceConfig.workflowHeading} onChange={(event) => setWorkspaceConfigs((current) => ({
                   ...current,
                   [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], workflowHeading: event.target.value },
                 }))} />
               </div>
               <div className="space-y-2">
-                <Label>Intro</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Intro</Label>
+                  <FontStepControl step={activeWorkspaceConfig.fontSteps.workflowSection.intro} onChange={(next) => setWorkspaceConfigs((current) => ({
+                    ...current,
+                    [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, workflowSection: { ...current[activeWorkspaceSubject].fontSteps.workflowSection, intro: next } } },
+                  }))} />
+                </div>
                 <Textarea rows={3} value={activeWorkspaceConfig.workflowIntro} onChange={(event) => setWorkspaceConfigs((current) => ({
                   ...current,
                   [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], workflowIntro: event.target.value },
+                }))} />
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+                <span className="text-sm font-medium">Step 제목 폰트</span>
+                <FontStepControl step={activeWorkspaceConfig.fontSteps.workflowSection.title} onChange={(next) => setWorkspaceConfigs((current) => ({
+                  ...current,
+                  [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, workflowSection: { ...current[activeWorkspaceSubject].fontSteps.workflowSection, title: next } } },
+                }))} />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+                <span className="text-sm font-medium">Step 설명 폰트</span>
+                <FontStepControl step={activeWorkspaceConfig.fontSteps.workflowSection.description} onChange={(next) => setWorkspaceConfigs((current) => ({
+                  ...current,
+                  [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, workflowSection: { ...current[activeWorkspaceSubject].fontSteps.workflowSection, description: next } } },
                 }))} />
               </div>
             </div>
@@ -611,21 +789,39 @@ export default function LandingPagesClient({
           <SectionCard title="CTA">
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <Label>CTA Headline</Label>
+                <div className="flex items-center justify-between">
+                  <Label>CTA Headline</Label>
+                  <FontStepControl step={activeWorkspaceConfig.fontSteps.cta.headline} onChange={(next) => setWorkspaceConfigs((current) => ({
+                    ...current,
+                    [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, cta: { ...current[activeWorkspaceSubject].fontSteps.cta, headline: next } } },
+                  }))} />
+                </div>
                 <Input value={activeWorkspaceConfig.ctaHeadline} onChange={(event) => setWorkspaceConfigs((current) => ({
                   ...current,
                   [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], ctaHeadline: event.target.value },
                 }))} />
               </div>
               <div className="space-y-2">
-                <Label>CTA Body</Label>
+                <div className="flex items-center justify-between">
+                  <Label>CTA Body</Label>
+                  <FontStepControl step={activeWorkspaceConfig.fontSteps.cta.body} onChange={(next) => setWorkspaceConfigs((current) => ({
+                    ...current,
+                    [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, cta: { ...current[activeWorkspaceSubject].fontSteps.cta, body: next } } },
+                  }))} />
+                </div>
                 <Textarea rows={3} value={activeWorkspaceConfig.ctaBody} onChange={(event) => setWorkspaceConfigs((current) => ({
                   ...current,
                   [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], ctaBody: event.target.value },
                 }))} />
               </div>
               <div className="space-y-2">
-                <Label>CTA Hint</Label>
+                <div className="flex items-center justify-between">
+                  <Label>CTA Hint</Label>
+                  <FontStepControl step={activeWorkspaceConfig.fontSteps.cta.hint} onChange={(next) => setWorkspaceConfigs((current) => ({
+                    ...current,
+                    [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], fontSteps: { ...current[activeWorkspaceSubject].fontSteps, cta: { ...current[activeWorkspaceSubject].fontSteps.cta, hint: next } } },
+                  }))} />
+                </div>
                 <Textarea rows={3} value={activeWorkspaceConfig.ctaHint} onChange={(event) => setWorkspaceConfigs((current) => ({
                   ...current,
                   [activeWorkspaceSubject]: { ...current[activeWorkspaceSubject], ctaHint: event.target.value },

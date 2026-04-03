@@ -12,7 +12,8 @@ import {
   Sparkles,
   WandSparkles,
 } from 'lucide-react'
-import type { LandingIconToken, LandingThemeToken } from '@/lib/landing-page'
+import type { CSSProperties } from 'react'
+import type { LandingFontStep, LandingIconToken, LandingThemeToken } from '@/lib/landing-page'
 
 export const landingIconComponents: Record<LandingIconToken, LucideIcon> = {
   sparkles: Sparkles,
@@ -46,6 +47,29 @@ export const landingThemeLabels: Record<LandingThemeToken, string> = {
   indigo: 'Indigo',
   emerald: 'Emerald',
   neutral: 'Neutral',
+}
+
+export function getLandingFontStepLabel(step: LandingFontStep) {
+  if (step === 0) return '기본'
+  return step > 0 ? `+${step}` : `${step}`
+}
+
+export function getLandingFontSizeStyle(
+  step: LandingFontStep,
+  options: {
+    mobileRem: number
+    desktopRem?: number
+    lineHeight?: number
+  }
+): CSSProperties {
+  const delta = step * 0.125
+  const mobile = Math.max(0.75, options.mobileRem + delta)
+  const desktop = Math.max(mobile, (options.desktopRem ?? options.mobileRem) + delta)
+
+  return {
+    fontSize: `clamp(${mobile}rem, ${mobile}rem + 0.6vw, ${desktop}rem)`,
+    lineHeight: options.lineHeight,
+  }
 }
 
 export function getMainLandingAccentClass(theme: LandingThemeToken) {

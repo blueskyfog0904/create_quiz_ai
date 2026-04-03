@@ -19,10 +19,72 @@ export const LANDING_ICON_TOKENS = [
 ] as const
 export type LandingIconToken = (typeof LANDING_ICON_TOKENS)[number]
 
+export const LANDING_FONT_STEPS = [-2, -1, 0, 1, 2] as const
+export type LandingFontStep = (typeof LANDING_FONT_STEPS)[number]
+
 const landingThemeTokenSchema = z.enum(LANDING_THEME_TOKENS)
 const landingIconTokenSchema = z.enum(LANDING_ICON_TOKENS)
+const landingFontStepSchema = z.union([
+  z.literal(-2),
+  z.literal(-1),
+  z.literal(0),
+  z.literal(1),
+  z.literal(2),
+])
 
 const limitedString = (max: number) => z.string().trim().min(1).max(max)
+
+const mainLandingFontStepsSchema = z.object({
+  hero: z.object({
+    badge: landingFontStepSchema,
+    title: landingFontStepSchema,
+    description: landingFontStepSchema,
+    chips: landingFontStepSchema,
+  }),
+  workspaceCards: z.object({
+    label: landingFontStepSchema,
+    title: landingFontStepSchema,
+    description: landingFontStepSchema,
+    buttonLabel: landingFontStepSchema,
+    highlightChips: landingFontStepSchema,
+  }),
+  valueSection: z.object({
+    heading: landingFontStepSchema,
+    intro: landingFontStepSchema,
+  }),
+  valuePoints: z.object({
+    title: landingFontStepSchema,
+    description: landingFontStepSchema,
+  }),
+})
+
+const workspaceLandingFontStepsSchema = z.object({
+  hero: z.object({
+    eyebrow: landingFontStepSchema,
+    title: landingFontStepSchema,
+    description: landingFontStepSchema,
+    heroSummary: landingFontStepSchema,
+    quickPills: landingFontStepSchema,
+  }),
+  featureSection: z.object({
+    heading: landingFontStepSchema,
+    intro: landingFontStepSchema,
+    title: landingFontStepSchema,
+    description: landingFontStepSchema,
+  }),
+  workflowSection: z.object({
+    badge: landingFontStepSchema,
+    heading: landingFontStepSchema,
+    intro: landingFontStepSchema,
+    title: landingFontStepSchema,
+    description: landingFontStepSchema,
+  }),
+  cta: z.object({
+    headline: landingFontStepSchema,
+    body: landingFontStepSchema,
+    hint: landingFontStepSchema,
+  }),
+})
 
 const workspaceCardSchema = z.object({
   subject: z.enum(['english', 'korean']),
@@ -66,6 +128,7 @@ export const mainLandingConfigSchema = z.object({
     intro: limitedString(120),
   }),
   valuePoints: z.tuple([valuePointSchema, valuePointSchema, valuePointSchema]),
+  fontSteps: mainLandingFontStepsSchema.default(getDefaultMainLandingFontSteps()),
 })
 
 export const workspaceLandingConfigSchema = z.object({
@@ -85,10 +148,32 @@ export const workspaceLandingConfigSchema = z.object({
   features: z.array(workspaceFeatureSchema).min(1).max(4),
   steps: z.array(workspaceStepSchema).min(1).max(4),
   theme: landingThemeTokenSchema,
+  fontSteps: workspaceLandingFontStepsSchema.default(getDefaultWorkspaceLandingFontSteps()),
 })
 
 export type MainLandingConfig = z.infer<typeof mainLandingConfigSchema>
 export type WorkspaceLandingConfig = z.infer<typeof workspaceLandingConfigSchema>
+
+export type MainLandingFontSteps = z.infer<typeof mainLandingFontStepsSchema>
+export type WorkspaceLandingFontSteps = z.infer<typeof workspaceLandingFontStepsSchema>
+
+export function getDefaultMainLandingFontSteps(): MainLandingFontSteps {
+  return {
+    hero: { badge: 0, title: 0, description: 0, chips: 0 },
+    workspaceCards: { label: 0, title: 0, description: 0, buttonLabel: 0, highlightChips: 0 },
+    valueSection: { heading: 0, intro: 0 },
+    valuePoints: { title: 0, description: 0 },
+  }
+}
+
+export function getDefaultWorkspaceLandingFontSteps(): WorkspaceLandingFontSteps {
+  return {
+    hero: { eyebrow: 0, title: 0, description: 0, heroSummary: 0, quickPills: 0 },
+    featureSection: { heading: 0, intro: 0, title: 0, description: 0 },
+    workflowSection: { badge: 0, heading: 0, intro: 0, title: 0, description: 0 },
+    cta: { headline: 0, body: 0, hint: 0 },
+  }
+}
 
 const DEFAULT_MAIN_LANDING_CONFIG: MainLandingConfig = {
   hero: {
@@ -140,6 +225,7 @@ const DEFAULT_MAIN_LANDING_CONFIG: MainLandingConfig = {
       icon: 'fileText',
     },
   ],
+  fontSteps: getDefaultMainLandingFontSteps(),
 }
 
 const DEFAULT_WORKSPACE_LANDING_CONFIG: Record<WorkspaceSubject, WorkspaceLandingConfig> = {
@@ -170,6 +256,7 @@ const DEFAULT_WORKSPACE_LANDING_CONFIG: Record<WorkspaceSubject, WorkspaceLandin
       { icon: 'scrollText', title: '문제지 완성', description: '최종적으로 시험지/학습지 형태로 정리합니다.' },
     ],
     theme: 'indigo',
+    fontSteps: getDefaultWorkspaceLandingFontSteps(),
   },
   korean: {
     eyebrow: 'Korean Workspace',
@@ -196,6 +283,7 @@ const DEFAULT_WORKSPACE_LANDING_CONFIG: Record<WorkspaceSubject, WorkspaceLandin
       { icon: 'libraryBig', title: '국어문제마켓 관리', description: '라이브러리에서 구매한 국어문제마켓 자료를 다시 관리합니다.' },
     ],
     theme: 'emerald',
+    fontSteps: getDefaultWorkspaceLandingFontSteps(),
   },
 }
 
@@ -212,13 +300,31 @@ export function getDefaultWorkspaceLandingConfig(subject: WorkspaceSubject) {
 }
 
 export function normalizeMainLandingConfig(raw: unknown): MainLandingConfig {
+  const base = getDefaultMainLandingConfig()
   const parsed = mainLandingConfigSchema.safeParse(raw)
-  return parsed.success ? parsed.data : getDefaultMainLandingConfig()
+  return parsed.success
+    ? {
+        ...base,
+        ...parsed.data,
+        hero: parsed.data.hero,
+        workspaceCards: parsed.data.workspaceCards,
+        valueSection: parsed.data.valueSection,
+        valuePoints: parsed.data.valuePoints,
+        fontSteps: parsed.data.fontSteps ?? base.fontSteps,
+      }
+    : base
 }
 
 export function normalizeWorkspaceLandingConfig(subject: WorkspaceSubject, raw: unknown): WorkspaceLandingConfig {
+  const base = getDefaultWorkspaceLandingConfig(subject)
   const parsed = workspaceLandingConfigSchema.safeParse(raw)
-  return parsed.success ? parsed.data : getDefaultWorkspaceLandingConfig(subject)
+  return parsed.success
+    ? {
+        ...base,
+        ...parsed.data,
+        fontSteps: parsed.data.fontSteps ?? base.fontSteps,
+      }
+    : base
 }
 
 export function validateMainLandingConfig(raw: unknown): MainLandingConfig {

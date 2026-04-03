@@ -6,7 +6,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import type { MainLandingConfig } from '@/lib/landing-page'
-import { getMainLandingAccentClass, landingIconComponents } from './landing-view-shared'
+import {
+  getLandingFontSizeStyle,
+  getMainLandingAccentClass,
+  landingIconComponents,
+} from './landing-view-shared'
 
 interface MainLandingViewProps {
   config: MainLandingConfig
@@ -22,18 +26,30 @@ export function MainLandingView({ config }: MainLandingViewProps) {
         <div className="mx-auto max-w-4xl text-center">
           <Badge className="border-white/20 bg-white/10 px-4 py-1 text-sm text-white backdrop-blur-sm">
             <Sparkles className="h-3.5 w-3.5" />
-            {config.hero.badge}
+            <span style={getLandingFontSizeStyle(config.fontSteps.hero.badge, { mobileRem: 0.875 })}>
+              {config.hero.badge}
+            </span>
           </Badge>
-          <h1 className="mt-6 text-4xl font-bold tracking-tight md:text-6xl word-keep-all">
+          <h1
+            className="mt-6 font-bold tracking-tight word-keep-all"
+            style={getLandingFontSizeStyle(config.fontSteps.hero.title, { mobileRem: 2.25, desktopRem: 3.75, lineHeight: 1.05 })}
+          >
             {config.hero.title}
           </h1>
-          <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-slate-200 md:text-xl whitespace-pre-line word-keep-all">
+          <p
+            className="mx-auto mt-6 max-w-3xl text-slate-200 whitespace-pre-line word-keep-all"
+            style={getLandingFontSizeStyle(config.fontSteps.hero.description, { mobileRem: 1.125, desktopRem: 1.25, lineHeight: 1.7 })}
+          >
             {config.hero.description}
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-sm text-slate-200">
             {config.hero.chips.map((chip) => (
-              <span key={chip} className="rounded-full border border-white/15 bg-white/5 px-4 py-2">
+              <span
+                key={chip}
+                className="rounded-full border border-white/15 bg-white/5 px-4 py-2"
+                style={getLandingFontSizeStyle(config.fontSteps.hero.chips, { mobileRem: 0.875 })}
+              >
                 {chip}
               </span>
             ))}
@@ -50,8 +66,16 @@ export function MainLandingView({ config }: MainLandingViewProps) {
                 <CardContent className="relative flex h-full flex-col p-8 md:p-10">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <div className="text-sm font-semibold text-primary">{card.label}</div>
-                      <h2 className="mt-3 text-3xl font-bold md:text-4xl word-keep-all">
+                      <div
+                        className="font-semibold text-primary"
+                        style={getLandingFontSizeStyle(config.fontSteps.workspaceCards.label, { mobileRem: 0.875 })}
+                      >
+                        {card.label}
+                      </div>
+                      <h2
+                        className="mt-3 font-bold word-keep-all"
+                        style={getLandingFontSizeStyle(config.fontSteps.workspaceCards.title, { mobileRem: 1.875, desktopRem: 2.25, lineHeight: 1.15 })}
+                      >
                         {card.title}
                       </h2>
                     </div>
@@ -60,13 +84,20 @@ export function MainLandingView({ config }: MainLandingViewProps) {
                     </div>
                   </div>
 
-                  <p className="mt-5 text-base leading-7 text-slate-700 whitespace-pre-line word-keep-all">
+                  <p
+                    className="mt-5 text-slate-700 whitespace-pre-line word-keep-all"
+                    style={getLandingFontSizeStyle(config.fontSteps.workspaceCards.description, { mobileRem: 1, lineHeight: 1.7 })}
+                  >
                     {card.description}
                   </p>
 
                   <div className="mt-6 flex flex-wrap gap-2">
                     {card.highlightChips.map((highlight) => (
-                      <span key={highlight} className="rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-sm font-medium text-slate-700 backdrop-blur-sm">
+                      <span
+                        key={highlight}
+                        className="rounded-full border border-slate-200 bg-white/80 px-3 py-1 font-medium text-slate-700 backdrop-blur-sm"
+                        style={getLandingFontSizeStyle(config.fontSteps.workspaceCards.highlightChips, { mobileRem: 0.875 })}
+                      >
                         {highlight}
                       </span>
                     ))}
@@ -74,7 +105,12 @@ export function MainLandingView({ config }: MainLandingViewProps) {
 
                   <div className="mt-8 flex items-center justify-between gap-4 border-t border-slate-200 pt-6">
                     <Button asChild size="lg" variant={card.subject === 'english' ? 'default' : 'outline'} className="px-6">
-                      <Link href={`/${card.subject}`}>{card.buttonLabel}</Link>
+                      <Link
+                        href={`/${card.subject}`}
+                        style={getLandingFontSizeStyle(config.fontSteps.workspaceCards.buttonLabel, { mobileRem: 0.9375 })}
+                      >
+                        {card.buttonLabel}
+                      </Link>
                     </Button>
                     <Link href={`/${card.subject}`} className="flex items-center gap-2 text-sm font-semibold text-slate-600 transition hover:text-slate-900">
                       자세히 보기
@@ -91,10 +127,16 @@ export function MainLandingView({ config }: MainLandingViewProps) {
       <section className="relative border-t border-white/10 bg-white/5 py-16 backdrop-blur-sm">
         <div className="container mx-auto px-4">
           <div className="mx-auto mb-10 max-w-3xl text-center">
-            <h2 className="text-2xl font-bold md:text-3xl word-keep-all">
+            <h2
+              className="font-bold word-keep-all"
+              style={getLandingFontSizeStyle(config.fontSteps.valueSection.heading, { mobileRem: 1.5, desktopRem: 1.875, lineHeight: 1.2 })}
+            >
               {config.valueSection.heading}
             </h2>
-            <p className="mt-3 text-base leading-7 text-slate-200 whitespace-pre-line word-keep-all">
+            <p
+              className="mt-3 text-slate-200 whitespace-pre-line word-keep-all"
+              style={getLandingFontSizeStyle(config.fontSteps.valueSection.intro, { mobileRem: 1, lineHeight: 1.7 })}
+            >
               {config.valueSection.intro}
             </p>
           </div>
@@ -108,8 +150,16 @@ export function MainLandingView({ config }: MainLandingViewProps) {
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15">
                     <Icon className="h-6 w-6" />
                   </div>
-                  <h3 className="mt-5 text-xl font-semibold word-keep-all">{point.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-slate-200 whitespace-pre-line word-keep-all">
+                  <h3
+                    className="mt-5 font-semibold word-keep-all"
+                    style={getLandingFontSizeStyle(config.fontSteps.valuePoints.title, { mobileRem: 1.25, lineHeight: 1.3 })}
+                  >
+                    {point.title}
+                  </h3>
+                  <p
+                    className="mt-3 text-slate-200 whitespace-pre-line word-keep-all"
+                    style={getLandingFontSizeStyle(config.fontSteps.valuePoints.description, { mobileRem: 0.875, lineHeight: 1.7 })}
+                  >
                     {point.description}
                   </p>
                 </div>

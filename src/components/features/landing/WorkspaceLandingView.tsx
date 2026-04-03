@@ -12,7 +12,11 @@ import {
   getWorkspaceLandingWorkflowGridClassName,
 } from '@/lib/workspace-landing-layout'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
-import { getWorkspaceLandingThemeStyles, landingIconComponents } from './landing-view-shared'
+import {
+  getLandingFontSizeStyle,
+  getWorkspaceLandingThemeStyles,
+  landingIconComponents,
+} from './landing-view-shared'
 
 interface WorkspaceLandingQuickEntry {
   primaryLabel: string
@@ -52,24 +56,39 @@ export function WorkspaceLandingView({
           <div className="mx-auto max-w-5xl">
             <Badge className={`${theme.badgeClass} px-4 py-1 text-sm backdrop-blur-sm`}>
               <WandSparkles className="h-3.5 w-3.5" />
-              {config.eyebrow}
+              <span style={getLandingFontSizeStyle(config.fontSteps.hero.eyebrow, { mobileRem: 0.875 })}>
+                {config.eyebrow}
+              </span>
             </Badge>
 
             <div className="mt-6 grid gap-10 lg:grid-cols-[1.4fr_0.9fr] lg:items-end">
               <div>
-                <h1 className="text-4xl font-bold tracking-tight md:text-6xl whitespace-pre-line word-keep-all">
+                <h1
+                  className="font-bold tracking-tight whitespace-pre-line word-keep-all"
+                  style={getLandingFontSizeStyle(config.fontSteps.hero.title, { mobileRem: 2.25, desktopRem: 3.75, lineHeight: 1.05 })}
+                >
                   {config.title}
                 </h1>
-                <p className="mt-6 max-w-3xl text-lg leading-relaxed text-white/90 md:text-xl whitespace-pre-line word-keep-all">
+                <p
+                  className="mt-6 max-w-3xl text-white/90 whitespace-pre-line word-keep-all"
+                  style={getLandingFontSizeStyle(config.fontSteps.hero.description, { mobileRem: 1.125, desktopRem: 1.25, lineHeight: 1.7 })}
+                >
                   {config.description}
                 </p>
-                <p className="mt-4 max-w-3xl text-base leading-7 text-white/75 whitespace-pre-line word-keep-all">
+                <p
+                  className="mt-4 max-w-3xl text-white/75 whitespace-pre-line word-keep-all"
+                  style={getLandingFontSizeStyle(config.fontSteps.hero.heroSummary, { mobileRem: 1, lineHeight: 1.7 })}
+                >
                   {config.heroSummary}
                 </p>
 
                 <div className="mt-8 flex flex-wrap gap-3">
                   {config.quickPills.map((pill) => (
-                    <span key={pill} className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white/90 backdrop-blur-sm">
+                    <span
+                      key={pill}
+                      className="rounded-full border border-white/20 bg-white/10 px-4 py-2 font-medium text-white/90 backdrop-blur-sm"
+                      style={getLandingFontSizeStyle(config.fontSteps.hero.quickPills, { mobileRem: 0.875 })}
+                    >
                       {pill}
                     </span>
                   ))}
@@ -84,7 +103,10 @@ export function WorkspaceLandingView({
                   <h2 className="mt-3 text-2xl font-bold word-keep-all">
                     지금 바로 {subject === 'english' ? '영어' : '국어'} 워크스페이스로 이동하세요
                   </h2>
-                  <p className="mt-3 text-sm leading-6 text-white/75 whitespace-pre-line word-keep-all">
+                  <p
+                    className="mt-3 text-white/75 whitespace-pre-line word-keep-all"
+                    style={getLandingFontSizeStyle(config.fontSteps.cta.hint, { mobileRem: 0.875, lineHeight: 1.6 })}
+                  >
                     {config.ctaHint}
                   </p>
                   <Separator className="my-5 bg-white/15" />
@@ -113,10 +135,16 @@ export function WorkspaceLandingView({
 
       <section className="relative container mx-auto px-4 pb-8">
         <div className="mb-8 text-center">
-          <h2 className="text-2xl font-bold text-slate-900 md:text-3xl word-keep-all">
+          <h2
+            className="font-bold text-slate-900 word-keep-all"
+            style={getLandingFontSizeStyle(config.fontSteps.featureSection.heading, { mobileRem: 1.5, desktopRem: 1.875, lineHeight: 1.2 })}
+          >
             {config.featureHeading}
           </h2>
-          <p className="mx-auto mt-3 max-w-3xl text-base leading-7 text-slate-600 whitespace-pre-line word-keep-all">
+          <p
+            className="mx-auto mt-3 max-w-3xl text-slate-600 whitespace-pre-line word-keep-all"
+            style={getLandingFontSizeStyle(config.fontSteps.featureSection.intro, { mobileRem: 1, lineHeight: 1.7 })}
+          >
             {config.featureIntro}
           </p>
         </div>
@@ -132,10 +160,16 @@ export function WorkspaceLandingView({
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg">
                     <Icon className="h-6 w-6" />
                   </div>
-                  <h3 className="mt-5 text-xl font-semibold text-slate-900 word-keep-all">
+                  <h3
+                    className="mt-5 font-semibold text-slate-900 word-keep-all"
+                    style={getLandingFontSizeStyle(config.fontSteps.featureSection.title, { mobileRem: 1.25, lineHeight: 1.3 })}
+                  >
                     {feature.title}
                   </h3>
-                  <p className="mt-3 text-sm leading-7 text-slate-600 whitespace-pre-line word-keep-all">
+                  <p
+                    className="mt-3 text-slate-600 whitespace-pre-line word-keep-all"
+                    style={getLandingFontSizeStyle(config.fontSteps.featureSection.description, { mobileRem: 0.875, lineHeight: 1.7 })}
+                  >
                     {feature.description}
                   </p>
                 </CardContent>
@@ -150,12 +184,20 @@ export function WorkspaceLandingView({
           <div className="mb-8 text-center">
             <Badge variant="outline" className="border-slate-300 bg-slate-50 px-4 py-1 text-slate-700">
               <Sparkles className="h-3.5 w-3.5" />
-              {config.workflowBadge}
+              <span style={getLandingFontSizeStyle(config.fontSteps.workflowSection.badge, { mobileRem: 0.875 })}>
+                {config.workflowBadge}
+              </span>
             </Badge>
-            <h2 className="mt-5 text-2xl font-bold text-slate-900 md:text-3xl word-keep-all">
+            <h2
+              className="mt-5 font-bold text-slate-900 word-keep-all"
+              style={getLandingFontSizeStyle(config.fontSteps.workflowSection.heading, { mobileRem: 1.5, desktopRem: 1.875, lineHeight: 1.2 })}
+            >
               {config.workflowHeading}
             </h2>
-            <p className="mx-auto mt-3 max-w-3xl text-base leading-7 text-slate-600 whitespace-pre-line word-keep-all">
+            <p
+              className="mx-auto mt-3 max-w-3xl text-slate-600 whitespace-pre-line word-keep-all"
+              style={getLandingFontSizeStyle(config.fontSteps.workflowSection.intro, { mobileRem: 1, lineHeight: 1.7 })}
+            >
               {config.workflowIntro}
             </p>
           </div>
@@ -174,10 +216,16 @@ export function WorkspaceLandingView({
                       0{index + 1}
                     </span>
                   </div>
-                  <h3 className="mt-5 text-xl font-semibold text-slate-900 word-keep-all">
+                  <h3
+                    className="mt-5 font-semibold text-slate-900 word-keep-all"
+                    style={getLandingFontSizeStyle(config.fontSteps.workflowSection.title, { mobileRem: 1.25, lineHeight: 1.3 })}
+                  >
                     {step.title}
                   </h3>
-                  <p className="mt-3 text-sm leading-7 text-slate-600 whitespace-pre-line word-keep-all">
+                  <p
+                    className="mt-3 text-slate-600 whitespace-pre-line word-keep-all"
+                    style={getLandingFontSizeStyle(config.fontSteps.workflowSection.description, { mobileRem: 0.875, lineHeight: 1.7 })}
+                  >
                     {step.description}
                   </p>
                 </div>
@@ -195,13 +243,22 @@ export function WorkspaceLandingView({
                 <Sparkles className="h-3.5 w-3.5" />
                 Recommended Next Step
               </Badge>
-              <h2 className="mt-5 text-3xl font-bold md:text-4xl word-keep-all">
+              <h2
+                className="mt-5 font-bold word-keep-all"
+                style={getLandingFontSizeStyle(config.fontSteps.cta.headline, { mobileRem: 1.875, desktopRem: 2.25, lineHeight: 1.15 })}
+              >
                 {config.ctaHeadline}
               </h2>
-              <p className="mt-4 text-base leading-7 text-white/85 whitespace-pre-line word-keep-all">
+              <p
+                className="mt-4 text-white/85 whitespace-pre-line word-keep-all"
+                style={getLandingFontSizeStyle(config.fontSteps.cta.body, { mobileRem: 1, lineHeight: 1.7 })}
+              >
                 {config.ctaBody}
               </p>
-              <p className="mt-3 text-sm leading-6 text-white/70 whitespace-pre-line word-keep-all">
+              <p
+                className="mt-3 text-white/70 whitespace-pre-line word-keep-all"
+                style={getLandingFontSizeStyle(config.fontSteps.cta.hint, { mobileRem: 0.875, lineHeight: 1.6 })}
+              >
                 {config.ctaHint}
               </p>
             </div>
