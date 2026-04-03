@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { CreditService } from '@/lib/credits'
-import { DEFAULT_WORKSPACE_SUBJECT } from '@/lib/workspace-subject'
 import {
   createMarketPurchases,
   findCompletedMarketPurchase,
@@ -81,8 +80,7 @@ export async function POST(request: NextRequest) {
       const existingPurchase = await findCompletedMarketPurchase(
         user.id,
         selection.itemId,
-        selection.assetKind,
-        DEFAULT_WORKSPACE_SUBJECT
+        selection.assetKind
       )
       if (existingPurchase) {
         return NextResponse.json({
@@ -93,8 +91,7 @@ export async function POST(request: NextRequest) {
 
       const { item, price } = await ensureMarketItemIsPurchasable(
         selection.itemId,
-        selection.assetKind,
-        DEFAULT_WORKSPACE_SUBJECT
+        selection.assetKind
       )
       purchaseTargets.push({
         itemId: item.id,
