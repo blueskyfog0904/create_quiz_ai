@@ -23,7 +23,7 @@ export default function WorkspaceSecondLevelSidebar({
   icon,
   parentTitle,
   items,
-  description = '2단계 메뉴 바로가기',
+  description,
   reorderItems,
   isItemActive,
   renderDividerBeforeItem,
@@ -51,7 +51,7 @@ export default function WorkspaceSecondLevelSidebar({
             <div className="text-primary">{icon}</div>
             <div>
               <p className="text-sm font-semibold text-gray-900">{parentTitle}</p>
-              <p className="text-xs text-gray-500">{description}</p>
+              {description ? <p className="text-xs text-gray-500">{description}</p> : null}
             </div>
           </div>
 
