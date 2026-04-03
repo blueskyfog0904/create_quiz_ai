@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   AlertTriangle,
@@ -285,6 +285,24 @@ export default function MenuManagementClient({
   const libraryParent = useMemo(() => getMenuParentByHref(config.items, '/library'), [config.items])
   const libraryMenuChildren = libraryParent?.children ?? []
   const hasUnsavedChanges = JSON.stringify({ ...config, logoText }) !== JSON.stringify(savedConfig)
+
+  useEffect(() => {
+    setConfig(cloneConfig(initialConfig))
+    setSavedConfig(cloneConfig(initialConfig))
+    setLogoText(initialConfig.logoText)
+    setGenerateMenuEntries(initialGenerateMenuEntries)
+    setMarketMenuEntries(initialMarketMenuEntries)
+    setDialogState(null)
+    setFormState(buildEmptyMenuForm())
+    setIsDialogOpen(false)
+    setIsGenerateEntryDialogOpen(false)
+    setIsMarketEntryDialogOpen(false)
+    setGenerateEntryForm(buildEmptyGenerateEntryForm())
+    setMarketEntryForm(buildEmptyMarketEntryForm())
+    setDeleteTarget(null)
+    setArchiveTarget(null)
+    setArchiveMarketTarget(null)
+  }, [initialConfig, initialGenerateMenuEntries, initialMarketMenuEntries, workspaceSubject])
 
   const closeDialog = () => {
     setIsDialogOpen(false)

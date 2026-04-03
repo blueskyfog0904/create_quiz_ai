@@ -86,6 +86,8 @@ function revalidateMenuRelatedPaths(workspaceSubject: WorkspaceSubject) {
   revalidateWorkspacePath(DEFAULT_WORKSPACE_SUBJECT, '/generate/boards', 'layout')
   revalidateWorkspacePath(DEFAULT_WORKSPACE_SUBJECT, '/market', 'layout')
   revalidateWorkspacePath('korean', '/market', 'layout')
+  revalidateWorkspacePath(DEFAULT_WORKSPACE_SUBJECT, '/library', 'layout')
+  revalidateWorkspacePath('korean', '/library', 'layout')
   revalidateWorkspacePath(DEFAULT_WORKSPACE_SUBJECT, '/library/mypassages', 'layout')
   revalidateWorkspacePath('korean', '/library/mypassages', 'layout')
   revalidateWorkspacePath(DEFAULT_WORKSPACE_SUBJECT, '/library/purchased', 'layout')

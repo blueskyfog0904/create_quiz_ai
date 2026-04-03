@@ -11,5 +11,5 @@ export default async function MenuManagementPage({ searchParams }: MenuManagemen
   const workspaceSubject = resolveAdminWorkspaceSubject(resolvedSearchParams?.subject)
   const data = await getMenuManagementData(workspaceSubject)
 
-  return <MenuManagementClient {...data} workspaceSubject={workspaceSubject} />
+  return <MenuManagementClient key={workspaceSubject} {...data} workspaceSubject={workspaceSubject} />
 }
