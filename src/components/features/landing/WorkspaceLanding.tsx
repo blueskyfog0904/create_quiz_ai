@@ -17,7 +17,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { workspaceHref } from '@/lib/workspace-routes'
+import { getActiveHeaderNavigationItems } from '@/lib/header-navigation'
+import { getHeaderNavigationConfig } from '@/lib/header-navigation-server'
+import { resolveWorkspaceLandingQuickEntryTargets } from '@/lib/workspace-landing-quick-entry'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 interface WorkspaceLandingProps {
@@ -72,11 +74,11 @@ const landingContent: Record<WorkspaceSubject, WorkspaceLandingContent> = {
     heroSummary: '개인지문 생성, 보드형 생성, 문항 축적, 문제지 제작까지 수업 준비에서 반복되는 핵심 작업을 더 짧은 시간 안에 정리할 수 있습니다.',
     featureHeading: '영어 서비스에서 바로 할 수 있는 일',
     featureIntro: '현재 메인페이지의 안내 흐름을 바탕으로, 영어 수업 운영에서 자주 쓰는 작업을 아이콘 중심으로 다시 정리했습니다.',
-    primaryLabel: '영어 서비스 들어가기',
-    secondaryLabel: '영어문제 관리 보기',
+    primaryLabel: '영어문제생성 서비스 들어가기',
+    secondaryLabel: '영어문제마켓 서비스 들어가기',
     ctaHeadline: '영어 수업 준비를 하나의 워크스페이스로 정리하세요',
     ctaBody: '문제생성부터 문제지 정리까지 끊기지 않는 흐름으로 이어지도록, 영어 워크스페이스 진입점을 더 선명하게 구성했습니다.',
-    ctaHint: '지금 바로 생성 흐름으로 들어가거나, 누적된 영어문제를 먼저 확인할 수 있습니다.',
+    ctaHint: '영어문제생성과 영어문제마켓의 첫 번째 메뉴로 바로 이동할 수 있습니다.',
     quickPills: ['개인지문 생성', '문제은행 정리', '라이브러리 연결', '문제지 제작'],
     features: [
       {
@@ -138,11 +140,11 @@ const landingContent: Record<WorkspaceSubject, WorkspaceLandingContent> = {
     heroSummary: '문제마켓 탐색, 자료 정리, 라이브러리 축적, 문제지 연결처럼 국어 운영에서 자주 반복되는 흐름을 더 보기 쉽게 재구성했습니다.',
     featureHeading: '국어 서비스에서 바로 할 수 있는 일',
     featureIntro: '기존 메인페이지에서 안내하던 핵심 흐름을 국어 워크스페이스 관점으로 재배열해, 어디서 무엇을 해야 하는지 더 분명하게 보이도록 만들었습니다.',
-    primaryLabel: '국어 서비스 들어가기',
-    secondaryLabel: '국어문제 관리 보기',
+    primaryLabel: '국어문제마켓 서비스 들어가기',
+    secondaryLabel: '',
     ctaHeadline: '국어 운영 흐름도 워크스페이스 중심으로 더 간결하게',
     ctaBody: '문제마켓 탐색부터 자료관리, 라이브러리 정리, 문제지 연결까지 국어 서비스에서 자주 오가는 흐름을 한 화면 안에서 이해할 수 있도록 구성했습니다.',
-    ctaHint: '바로 국어 워크스페이스로 이동하거나, 누적된 국어문제를 먼저 살펴볼 수 있습니다.',
+    ctaHint: '국어문제마켓 드롭다운의 첫 번째 메뉴로 바로 이동할 수 있습니다.',
     quickPills: ['문제마켓 탐색', '자료관리', '라이브러리 축적', '문제지 연결'],
     features: [
       {
@@ -199,13 +201,15 @@ const landingContent: Record<WorkspaceSubject, WorkspaceLandingContent> = {
   },
 }
 
-export function WorkspaceLanding({ subject, isLoggedIn }: WorkspaceLandingProps) {
+export async function WorkspaceLanding({ subject, isLoggedIn }: WorkspaceLandingProps) {
   const content = landingContent[subject]
-  const primaryHref = subject === 'english'
-    ? workspaceHref(subject, 'generate')
-    : workspaceHref(subject, 'market')
-  const secondaryHref = workspaceHref(subject, 'libraryPurchased')
-  const entryHref = isLoggedIn ? primaryHref : `/login?next=${encodeURIComponent(primaryHref)}`
+  const navigationConfig = await getHeaderNavigationConfig(subject)
+  const activeNavigationItems = getActiveHeaderNavigationItems(navigationConfig.items)
+  const quickEntry = resolveWorkspaceLandingQuickEntryTargets(subject, activeNavigationItems)
+  const primaryHref = isLoggedIn ? quickEntry.primaryHref : `/login?next=${encodeURIComponent(quickEntry.primaryHref)}`
+  const secondaryHref = quickEntry.secondaryHref
+    ? (isLoggedIn ? quickEntry.secondaryHref : `/login?next=${encodeURIComponent(quickEntry.secondaryHref)}`)
+    : null
 
   return (
     <div className="relative overflow-hidden bg-slate-50 text-slate-900">
@@ -254,18 +258,20 @@ export function WorkspaceLanding({ subject, isLoggedIn }: WorkspaceLandingProps)
                   </p>
                   <Separator className="my-5 bg-white/15" />
                   <div className="flex flex-col gap-3">
-                    <Link href={entryHref}>
+                    <Link href={primaryHref}>
                       <Button size="lg" className={`w-full justify-between ${content.theme.ctaButtonClass}`}>
-                        {content.primaryLabel}
+                        {quickEntry.primaryLabel}
                         <ArrowRight className="h-4 w-4" />
                       </Button>
                     </Link>
-                    <Link href={secondaryHref}>
-                      <Button size="lg" variant="outline" className="w-full justify-between border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white">
-                        {content.secondaryLabel}
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
-                    </Link>
+                    {secondaryHref && quickEntry.secondaryLabel ? (
+                      <Link href={secondaryHref}>
+                        <Button size="lg" variant="outline" className="w-full justify-between border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white">
+                          {quickEntry.secondaryLabel}
+                          <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                    ) : null}
                   </div>
                 </CardContent>
               </Card>
@@ -373,26 +379,30 @@ export function WorkspaceLanding({ subject, isLoggedIn }: WorkspaceLandingProps)
               <div className="space-y-3 text-sm text-white/80">
                 <div className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3">
                   <Sparkles className="h-4 w-4" />
-                  빠르게 진입할 primary CTA
+                  {quickEntry.primaryLabel}
                 </div>
-                <div className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3">
-                  <LibraryBig className="h-4 w-4" />
-                  누적된 문제를 먼저 보는 secondary CTA
-                </div>
+                {quickEntry.secondaryLabel ? (
+                  <div className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3">
+                    <LibraryBig className="h-4 w-4" />
+                    {quickEntry.secondaryLabel}
+                  </div>
+                ) : null}
               </div>
               <div className="mt-5 flex flex-col gap-3">
-                <Link href={entryHref}>
+                <Link href={primaryHref}>
                   <Button size="lg" className={`w-full justify-between ${content.theme.ctaButtonClass}`}>
-                    {content.primaryLabel}
+                    {quickEntry.primaryLabel}
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
-                <Link href={secondaryHref}>
-                  <Button size="lg" variant="outline" className="w-full justify-between border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white">
-                    {content.secondaryLabel}
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
+                {secondaryHref && quickEntry.secondaryLabel ? (
+                  <Link href={secondaryHref}>
+                    <Button size="lg" variant="outline" className="w-full justify-between border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white">
+                      {quickEntry.secondaryLabel}
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                ) : null}
               </div>
             </div>
           </div>
