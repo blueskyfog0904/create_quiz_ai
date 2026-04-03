@@ -41,3 +41,10 @@ test('validateWorkspaceLandingConfig rejects missing workflow fields', () => {
 
   assert.throws(() => validateWorkspaceLandingConfig(next))
 })
+
+test('validateMainLandingConfig allows more than three workspace-card highlight chips', () => {
+  const next = getDefaultMainLandingConfig()
+  next.workspaceCards[0].highlightChips = ['AI 문제생성', '문제은행', '문제지 제작', '라이브러리']
+
+  assert.doesNotThrow(() => validateMainLandingConfig(next))
+})

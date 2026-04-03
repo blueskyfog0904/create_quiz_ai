@@ -30,7 +30,7 @@ const workspaceCardSchema = z.object({
   title: limitedString(24),
   description: limitedString(90),
   buttonLabel: limitedString(24),
-  highlightChips: z.array(limitedString(16)).min(1).max(3),
+  highlightChips: z.array(limitedString(16)).min(1).max(5),
   accentTheme: landingThemeTokenSchema,
   icon: landingIconTokenSchema,
 })

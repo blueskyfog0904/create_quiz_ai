@@ -377,7 +377,7 @@ export default function LandingPagesClient({
                   <StringListEditor
                     label="카드 하이라이트 칩"
                     values={card.highlightChips}
-                    maxItems={3}
+                    maxItems={5}
                     onChange={(nextValues) => setMainConfig((current) => ({
                       ...current,
                       workspaceCards: current.workspaceCards.map((entry, entryIndex) => entryIndex === index ? { ...entry, highlightChips: nextValues } : entry) as MainLandingConfig['workspaceCards'],
