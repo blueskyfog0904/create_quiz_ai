@@ -18,6 +18,7 @@ import {
   CreditCard,
   RefreshCcw,
   LayoutPanelTop,
+  WandSparkles,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useMemo, useState } from 'react'
@@ -46,6 +47,11 @@ const menuItems = [
     name: '메뉴관리',
     href: '/admin/menu-management',
     icon: LayoutPanelTop,
+  },
+  {
+    name: '랜딩페이지 관리',
+    href: '/admin/landing-pages',
+    icon: WandSparkles,
   },
   {
     name: '문제마켓 상품 관리',

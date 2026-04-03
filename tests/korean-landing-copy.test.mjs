@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
-const source = readFileSync(new URL('../src/components/features/landing/WorkspaceLanding.tsx', import.meta.url), 'utf8')
+const source = readFileSync(new URL('../src/lib/landing-page.ts', import.meta.url), 'utf8')
 const koreanBlockStart = source.indexOf('korean: {')
 const koreanBlockEnd = source.indexOf('theme:', koreanBlockStart)
 const koreanBlock = source.slice(koreanBlockStart, koreanBlockEnd)
