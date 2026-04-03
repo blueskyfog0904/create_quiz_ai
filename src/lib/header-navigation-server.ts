@@ -4,6 +4,7 @@ import {
   HEADER_NAVIGATION_SETTING_KEY,
   getWorkspaceDefaultHeaderNavigationConfig,
   normalizeHeaderNavigationConfig,
+  withSeededLibraryChildren,
   withWorkspaceHeaderDefaults,
   type HeaderNavigationConfig,
 } from '@/lib/header-navigation'
@@ -72,7 +73,10 @@ export async function getBaseHeaderNavigationConfig(
     return getWorkspaceDefaultHeaderNavigationConfig(workspaceSubject)
   }
 
-  return withWorkspaceHeaderDefaults(await getLegacyHeaderNavigationConfig(), workspaceSubject)
+  return withSeededLibraryChildren(
+    withWorkspaceHeaderDefaults(await getLegacyHeaderNavigationConfig(), workspaceSubject),
+    workspaceSubject
+  )
 }
 
 export async function getHeaderNavigationConfig(

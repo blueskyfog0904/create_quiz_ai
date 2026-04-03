@@ -126,16 +126,20 @@ function createLibraryChildren(workspaceSubject: WorkspaceSubject): HeaderMenuCh
   ]
 }
 
-export function getWorkspaceDefaultHeaderNavigationConfig(
-  workspaceSubject: WorkspaceSubject
-): HeaderNavigationConfig {
-  const libraryItem: HeaderMenuItem = {
+function getDefaultLibraryItem(workspaceSubject: WorkspaceSubject): HeaderMenuItem {
+  return {
     id: `menu-library-${workspaceSubject}`,
     title: workspaceSubject === 'korean' ? '국어 라이브러리' : '영어 라이브러리',
     href: LIBRARY_PARENT_HREF,
     isActive: true,
     children: createLibraryChildren(workspaceSubject),
   }
+}
+
+export function getWorkspaceDefaultHeaderNavigationConfig(
+  workspaceSubject: WorkspaceSubject
+): HeaderNavigationConfig {
+  const libraryItem = getDefaultLibraryItem(workspaceSubject)
 
   const pricingItem: HeaderMenuItem = {
     id: `menu-pricing-${workspaceSubject}`,
@@ -228,10 +232,6 @@ export function withWorkspaceHeaderDefaults(
     if (shouldUseWorkspaceDefaultTitle(existingItem.href, existingItem.title, defaultItem.title)) {
       existingItem.title = defaultItem.title
     }
-
-    if (existingItem.href === LIBRARY_PARENT_HREF && existingItem.children.length === 0) {
-      existingItem.children = defaultItem.children.map(cloneChildItem)
-    }
   })
 
   const orderedSystemHrefs = getSystemOwnedHeaderParentHrefs(workspaceSubject)
@@ -243,6 +243,25 @@ export function withWorkspaceHeaderDefaults(
   return {
     ...config,
     items: [...systemItems, ...otherItems],
+  }
+}
+
+export function withSeededLibraryChildren(
+  config: HeaderNavigationConfig,
+  workspaceSubject: WorkspaceSubject
+): HeaderNavigationConfig {
+  return {
+    ...config,
+    items: config.items.map((item) => {
+      if (item.href !== LIBRARY_PARENT_HREF || item.children.length > 0) {
+        return cloneHeaderItem(item)
+      }
+
+      return {
+        ...item,
+        children: getDefaultLibraryItem(workspaceSubject).children.map(cloneChildItem),
+      }
+    }),
   }
 }
 
