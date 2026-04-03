@@ -27,7 +27,7 @@ export function MainLandingView({ config }: MainLandingViewProps) {
           <h1 className="mt-6 text-4xl font-bold tracking-tight md:text-6xl word-keep-all">
             {config.hero.title}
           </h1>
-          <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-slate-200 md:text-xl word-keep-all">
+          <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-slate-200 md:text-xl whitespace-pre-line word-keep-all">
             {config.hero.description}
           </p>
 
@@ -60,7 +60,7 @@ export function MainLandingView({ config }: MainLandingViewProps) {
                     </div>
                   </div>
 
-                  <p className="mt-5 text-base leading-7 text-slate-700 word-keep-all">
+                  <p className="mt-5 text-base leading-7 text-slate-700 whitespace-pre-line word-keep-all">
                     {card.description}
                   </p>
 
@@ -94,7 +94,7 @@ export function MainLandingView({ config }: MainLandingViewProps) {
             <h2 className="text-2xl font-bold md:text-3xl word-keep-all">
               {config.valueSection.heading}
             </h2>
-            <p className="mt-3 text-base leading-7 text-slate-200 word-keep-all">
+            <p className="mt-3 text-base leading-7 text-slate-200 whitespace-pre-line word-keep-all">
               {config.valueSection.intro}
             </p>
           </div>
@@ -109,7 +109,7 @@ export function MainLandingView({ config }: MainLandingViewProps) {
                     <Icon className="h-6 w-6" />
                   </div>
                   <h3 className="mt-5 text-xl font-semibold word-keep-all">{point.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-slate-200 word-keep-all">
+                  <p className="mt-3 text-sm leading-7 text-slate-200 whitespace-pre-line word-keep-all">
                     {point.description}
                   </p>
                 </div>

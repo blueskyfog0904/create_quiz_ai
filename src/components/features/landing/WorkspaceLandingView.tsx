@@ -60,10 +60,10 @@ export function WorkspaceLandingView({
                 <h1 className="text-4xl font-bold tracking-tight md:text-6xl word-keep-all">
                   {config.title}
                 </h1>
-                <p className="mt-6 max-w-3xl text-lg leading-relaxed text-white/90 md:text-xl word-keep-all">
+                <p className="mt-6 max-w-3xl text-lg leading-relaxed text-white/90 md:text-xl whitespace-pre-line word-keep-all">
                   {config.description}
                 </p>
-                <p className="mt-4 max-w-3xl text-base leading-7 text-white/75 word-keep-all">
+                <p className="mt-4 max-w-3xl text-base leading-7 text-white/75 whitespace-pre-line word-keep-all">
                   {config.heroSummary}
                 </p>
 
@@ -84,7 +84,7 @@ export function WorkspaceLandingView({
                   <h2 className="mt-3 text-2xl font-bold word-keep-all">
                     지금 바로 {subject === 'english' ? '영어' : '국어'} 워크스페이스로 이동하세요
                   </h2>
-                  <p className="mt-3 text-sm leading-6 text-white/75 word-keep-all">
+                  <p className="mt-3 text-sm leading-6 text-white/75 whitespace-pre-line word-keep-all">
                     {config.ctaHint}
                   </p>
                   <Separator className="my-5 bg-white/15" />
@@ -116,7 +116,7 @@ export function WorkspaceLandingView({
           <h2 className="text-2xl font-bold text-slate-900 md:text-3xl word-keep-all">
             {config.featureHeading}
           </h2>
-          <p className="mx-auto mt-3 max-w-3xl text-base leading-7 text-slate-600 word-keep-all">
+          <p className="mx-auto mt-3 max-w-3xl text-base leading-7 text-slate-600 whitespace-pre-line word-keep-all">
             {config.featureIntro}
           </p>
         </div>
@@ -135,7 +135,7 @@ export function WorkspaceLandingView({
                   <h3 className="mt-5 text-xl font-semibold text-slate-900 word-keep-all">
                     {feature.title}
                   </h3>
-                  <p className="mt-3 text-sm leading-7 text-slate-600 word-keep-all">
+                  <p className="mt-3 text-sm leading-7 text-slate-600 whitespace-pre-line word-keep-all">
                     {feature.description}
                   </p>
                 </CardContent>
@@ -155,7 +155,7 @@ export function WorkspaceLandingView({
             <h2 className="mt-5 text-2xl font-bold text-slate-900 md:text-3xl word-keep-all">
               {config.workflowHeading}
             </h2>
-            <p className="mx-auto mt-3 max-w-3xl text-base leading-7 text-slate-600 word-keep-all">
+            <p className="mx-auto mt-3 max-w-3xl text-base leading-7 text-slate-600 whitespace-pre-line word-keep-all">
               {config.workflowIntro}
             </p>
           </div>
@@ -177,7 +177,7 @@ export function WorkspaceLandingView({
                   <h3 className="mt-5 text-xl font-semibold text-slate-900 word-keep-all">
                     {step.title}
                   </h3>
-                  <p className="mt-3 text-sm leading-7 text-slate-600 word-keep-all">
+                  <p className="mt-3 text-sm leading-7 text-slate-600 whitespace-pre-line word-keep-all">
                     {step.description}
                   </p>
                 </div>
@@ -198,10 +198,10 @@ export function WorkspaceLandingView({
               <h2 className="mt-5 text-3xl font-bold md:text-4xl word-keep-all">
                 {config.ctaHeadline}
               </h2>
-              <p className="mt-4 text-base leading-7 text-white/85 word-keep-all">
+              <p className="mt-4 text-base leading-7 text-white/85 whitespace-pre-line word-keep-all">
                 {config.ctaBody}
               </p>
-              <p className="mt-3 text-sm leading-6 text-white/70 word-keep-all">
+              <p className="mt-3 text-sm leading-6 text-white/70 whitespace-pre-line word-keep-all">
                 {config.ctaHint}
               </p>
             </div>
