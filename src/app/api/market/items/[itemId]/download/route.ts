@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/bypass'
-import { DEFAULT_WORKSPACE_SUBJECT } from '@/lib/workspace-subject'
 import {
   findCompletedMarketPurchase,
   getMarketItemById,
@@ -37,8 +36,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
   try {
     const item = assetKind === 'sample'
-      ? await getPublishedMarketItemById(itemId, DEFAULT_WORKSPACE_SUBJECT)
-      : await getMarketItemById(itemId, DEFAULT_WORKSPACE_SUBJECT)
+      ? await getPublishedMarketItemById(itemId)
+      : await getMarketItemById(itemId)
 
     if (item && assetKind !== 'sample' && item.deleted_at !== null) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
