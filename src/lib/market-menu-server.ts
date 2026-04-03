@@ -56,9 +56,28 @@ function isMissingMarketMenuEntriesTableError(error: { message?: string | null, 
     || details.includes('market_menu_entries')
 }
 
+function isDuplicateMarketMenuEntryError(error: { message?: string | null, code?: string | null, details?: string | null }) {
+  const message = error.message ?? ''
+  const details = error.details ?? ''
+
+  return error.code === '23505'
+    && (
+      message.includes('market_menu_entries')
+      || details.includes('market_menu_entries')
+      || message.includes('subject_entry_key')
+      || message.includes('workspace_entry_key')
+      || message.includes('subject_slug')
+      || message.includes('workspace_slug')
+    )
+}
+
 function normalizeMarketMenuEntriesWriteError(error: { message?: string | null, code?: string | null, details?: string | null }) {
   if (isMissingMarketMenuEntriesTableError(error)) {
     return new Error('문제마켓 메뉴 테이블이 아직 준비되지 않았습니다. market_menu_entries 마이그레이션을 먼저 적용해주세요.')
+  }
+
+  if (isDuplicateMarketMenuEntryError(error)) {
+    return new Error('같은 과목에 동일한 문제마켓 메뉴 slug가 이미 있습니다.')
   }
 
   return new Error(error.message ?? '문제마켓 메뉴 처리 중 오류가 발생했습니다.')
@@ -264,7 +283,8 @@ export async function createMarketMenuEntry(
   const supabase = getAdminSupabase()
   const normalized = validateEntryInput(input)
 
-  const payload: TablesInsert<'market_menu_entries'> & { workspace_subject: WorkspaceSubject } = {
+  const payload: TablesInsert<'market_menu_entries'> & { subject_code: WorkspaceSubject, workspace_subject: WorkspaceSubject } = {
+    subject_code: workspaceSubject,
     workspace_subject: workspaceSubject,
     entry_key: normalized.slug,
     slug: normalized.slug,
@@ -410,7 +430,8 @@ export async function backfillMarketMenuEntriesFromHeader(baseConfig: HeaderNavi
   const results: MarketMenuEntry[] = []
 
   for (const [index, child] of legacyChildren.entries()) {
-    const payload: TablesInsert<'market_menu_entries'> & { workspace_subject?: WorkspaceSubject } = {
+    const payload: TablesInsert<'market_menu_entries'> & { subject_code?: WorkspaceSubject, workspace_subject?: WorkspaceSubject } = {
+      subject_code: workspaceSubject,
       workspace_subject: workspaceSubject,
       entry_key: child.entryKey,
       slug: child.slug,
@@ -424,7 +445,7 @@ export async function backfillMarketMenuEntriesFromHeader(baseConfig: HeaderNavi
 
     const { data, error } = await supabase
       .from('market_menu_entries')
-      .upsert(payload, { onConflict: 'entry_key' })
+      .upsert(payload, { onConflict: 'workspace_subject,entry_key' })
       .select('*')
       .single()
 

@@ -486,7 +486,8 @@ export async function createGenerateMenuEntry(
   const normalized = validateEntryInput(input)
   const slug = normalized.entryType === 'personal_generate' ? 'personal' : normalized.slug
 
-  const payload: TablesInsert<'generate_menu_entries'> & { workspace_subject: WorkspaceSubject } = {
+  const payload: TablesInsert<'generate_menu_entries'> & { subject_code: WorkspaceSubject, workspace_subject: WorkspaceSubject } = {
+    subject_code: workspaceSubject,
     workspace_subject: workspaceSubject,
     entry_key: slug,
     slug,
@@ -637,7 +638,8 @@ export async function backfillGenerateMenuEntriesFromHeader(baseConfig: HeaderNa
   const results: GenerateMenuEntry[] = []
 
   for (const [index, child] of legacyChildren.entries()) {
-    const payload: TablesInsert<'generate_menu_entries'> & { workspace_subject: WorkspaceSubject } = {
+    const payload: TablesInsert<'generate_menu_entries'> & { subject_code: WorkspaceSubject, workspace_subject: WorkspaceSubject } = {
+      subject_code: workspaceSubject,
       workspace_subject: workspaceSubject,
       entry_key: child.entryKey,
       slug: child.slug,
@@ -652,7 +654,7 @@ export async function backfillGenerateMenuEntriesFromHeader(baseConfig: HeaderNa
 
     const { data, error } = await supabase
       .from('generate_menu_entries')
-      .upsert(payload, { onConflict: 'entry_key' })
+      .upsert(payload, { onConflict: 'workspace_subject,entry_key' })
       .select('*')
       .single()
 
