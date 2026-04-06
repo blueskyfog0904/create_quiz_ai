@@ -27,22 +27,18 @@ interface WorkspaceLandingQuickEntry {
 
 interface WorkspaceLandingViewProps {
   subject: WorkspaceSubject
-  isLoggedIn: boolean
   config: WorkspaceLandingConfig
   quickEntry: WorkspaceLandingQuickEntry
 }
 
 export function WorkspaceLandingView({
   subject,
-  isLoggedIn,
   config,
   quickEntry,
 }: WorkspaceLandingViewProps) {
   const theme = getWorkspaceLandingThemeStyles(config.theme)
-  const primaryHref = isLoggedIn ? quickEntry.primaryHref : `/login?next=${encodeURIComponent(quickEntry.primaryHref)}`
+  const primaryHref = quickEntry.primaryHref
   const secondaryHref = quickEntry.secondaryHref
-    ? (isLoggedIn ? quickEntry.secondaryHref : `/login?next=${encodeURIComponent(quickEntry.secondaryHref)}`)
-    : null
   const featureGridClassName = getWorkspaceLandingFeatureGridClassName(config.features.length)
   const workflowGridClassName = getWorkspaceLandingWorkflowGridClassName(config.steps.length)
 
