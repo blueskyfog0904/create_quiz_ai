@@ -7,11 +7,10 @@ import { WorkspaceLandingView } from './WorkspaceLandingView'
 
 interface WorkspaceLandingProps {
   subject: WorkspaceSubject
-  isLoggedIn: boolean
   config: WorkspaceLandingConfig
 }
 
-export async function WorkspaceLanding({ subject, isLoggedIn, config }: WorkspaceLandingProps) {
+export async function WorkspaceLanding({ subject, config }: WorkspaceLandingProps) {
   const navigationConfig = await getHeaderNavigationConfig(subject)
   const activeNavigationItems = getActiveHeaderNavigationItems(navigationConfig.items)
   const quickEntry = resolveWorkspaceLandingQuickEntryTargets(subject, activeNavigationItems)
