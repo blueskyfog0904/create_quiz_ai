@@ -19,7 +19,6 @@ export async function WorkspaceLanding({ subject, isLoggedIn, config }: Workspac
   return (
     <WorkspaceLandingView
       subject={subject}
-      isLoggedIn={isLoggedIn}
       config={config}
       quickEntry={quickEntry}
     />

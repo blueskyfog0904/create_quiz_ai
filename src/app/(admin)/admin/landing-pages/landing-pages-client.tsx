@@ -281,7 +281,6 @@ export default function LandingPagesClient({
     return (
       <WorkspaceLandingView
         subject={activeWorkspaceSubject}
-        isLoggedIn
         config={activeWorkspaceConfig}
         quickEntry={quickEntryTargets[activeWorkspaceSubject]}
       />
