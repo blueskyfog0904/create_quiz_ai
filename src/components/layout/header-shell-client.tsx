@@ -39,6 +39,10 @@ function isGeneratePersonalChild(parentHref?: string, childHref?: string) {
   return parentHref === '/generate' && childHref === '/generate/personal'
 }
 
+function shouldRenderChildDivider(parentHref: string | undefined, child: { href: string, showDividerBefore?: boolean }) {
+  return Boolean(child.showDividerBefore) || isGeneratePersonalChild(parentHref, child.href)
+}
+
 function matchesSubjectPath(currentScopedPath: string, href?: string) {
   if (!href) {
     return false
@@ -133,7 +137,7 @@ export function HeaderShellClient({
                     <DropdownMenuContent align="start" className={headerDropdownContentClassName}>
                       {item.children.map((child) => (
                         <Fragment key={child.id}>
-                          {isGeneratePersonalChild(item.href, child.href) ? <DropdownMenuSeparator className={headerDropdownSeparatorClassName} /> : null}
+                          {shouldRenderChildDivider(item.href, child) ? <DropdownMenuSeparator className={headerDropdownSeparatorClassName} /> : null}
                           <DropdownMenuItem asChild className={headerDropdownItemClassName}>
                             <WorkspaceLink href={child.href} subject={currentSubject ?? undefined} className="cursor-pointer">
                               {child.title}

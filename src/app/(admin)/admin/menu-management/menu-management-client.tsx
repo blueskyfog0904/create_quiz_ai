@@ -61,12 +61,18 @@ import {
   type HeaderNavigationConfig,
 } from '@/lib/header-navigation'
 import {
+  resolveAdminSidebarMenuItems,
+  type AdminSidebarNavigationConfig,
+} from '@/lib/admin-sidebar'
+import {
   buildGenerateMenuHref,
+  getGenerateMenuEntryShowDividerBefore,
   mergeGenerateEntriesIntoHeaderConfig,
   type GenerateMenuEntryAdminRow,
 } from '@/lib/generate-menu'
 import {
   buildMarketMenuHref,
+  getMarketMenuEntryShowDividerBefore,
   mergeMarketEntriesIntoHeaderConfig,
   type MarketMenuEntryAdminRow,
 } from '@/lib/market-menu'
@@ -79,6 +85,7 @@ import {
   createMarketMenuEntryAction,
   reorderGenerateMenuEntriesAction,
   reorderMarketMenuEntriesAction,
+  saveAdminSidebarNavigationConfigAction,
   saveMenuManagementConfig,
   updateGenerateMenuEntryAction,
   updateMarketMenuEntryAction,
@@ -99,6 +106,7 @@ interface MenuFormState {
   title: string
   href: string
   parentId: string
+  showDividerBefore: boolean
 }
 
 interface GenerateEntryFormState {
@@ -109,6 +117,7 @@ interface GenerateEntryFormState {
   sortOrder: number
   isVisible: boolean
   isActive: boolean
+  showDividerBefore: boolean
   entryType: 'personal_generate' | 'listboard'
   postCount: number
 }
@@ -121,6 +130,7 @@ interface MarketEntryFormState {
   sortOrder: number
   isVisible: boolean
   isActive: boolean
+  showDividerBefore: boolean
 }
 
 const DEDICATED_CHILD_SECTION_PARENT_HREFS = ['/generate', '/market', '/library'] as const
@@ -163,6 +173,7 @@ function buildEmptyMenuForm(parentId?: string): MenuFormState {
     title: '',
     href: '',
     parentId: parentId || '',
+    showDividerBefore: false,
   }
 }
 
@@ -174,6 +185,7 @@ function buildEmptyGenerateEntryForm(): GenerateEntryFormState {
     sortOrder: 10,
     isVisible: true,
     isActive: true,
+    showDividerBefore: false,
     entryType: 'listboard',
     postCount: 0,
   }
@@ -188,6 +200,7 @@ function buildGenerateEntryForm(entry: GenerateMenuEntryAdminRow): GenerateEntry
     sortOrder: entry.sort_order,
     isVisible: entry.is_visible,
     isActive: entry.is_active,
+    showDividerBefore: getGenerateMenuEntryShowDividerBefore(entry),
     entryType: entry.entry_type as 'personal_generate' | 'listboard',
     postCount: entry.postCount,
   }
@@ -201,6 +214,7 @@ function buildEmptyMarketEntryForm(): MarketEntryFormState {
     sortOrder: 10,
     isVisible: true,
     isActive: true,
+    showDividerBefore: false,
   }
 }
 
@@ -213,6 +227,7 @@ function buildMarketEntryForm(entry: MarketMenuEntryAdminRow): MarketEntryFormSt
     sortOrder: entry.sort_order,
     isVisible: entry.is_visible,
     isActive: entry.is_active,
+    showDividerBefore: getMarketMenuEntryShowDividerBefore(entry),
   }
 }
 
@@ -222,6 +237,7 @@ function getMenuParentByHref(items: HeaderMenuItem[], href: string) {
 
 export default function MenuManagementClient({
   initialConfig,
+  adminSidebarConfig: initialAdminSidebarConfig,
   generateMenuEntries: initialGenerateMenuEntries,
   marketMenuEntries: initialMarketMenuEntries,
   generateChildrenSourceMode,
@@ -233,6 +249,8 @@ export default function MenuManagementClient({
   const router = useRouter()
   const [config, setConfig] = useState<HeaderNavigationConfig>(() => cloneConfig(initialConfig))
   const [savedConfig, setSavedConfig] = useState<HeaderNavigationConfig>(() => cloneConfig(initialConfig))
+  const [adminSidebarConfig, setAdminSidebarConfig] = useState<AdminSidebarNavigationConfig>(initialAdminSidebarConfig)
+  const [savedAdminSidebarConfig, setSavedAdminSidebarConfig] = useState<AdminSidebarNavigationConfig>(initialAdminSidebarConfig)
   const [logoText, setLogoText] = useState(initialConfig.logoText)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [dialogState, setDialogState] = useState<MenuDialogState | null>(null)
@@ -252,6 +270,7 @@ export default function MenuManagementClient({
   const [archiveMarketTarget, setArchiveMarketTarget] = useState<MarketMenuEntryAdminRow | null>(null)
   const [isBackfilling, setIsBackfilling] = useState(false)
   const [isBackfillingMarket, setIsBackfillingMarket] = useState(false)
+  const [isSavingAdminSidebar, setIsSavingAdminSidebar] = useState(false)
 
   const editableConfig = useMemo(() => ({
     ...config,
@@ -285,10 +304,17 @@ export default function MenuManagementClient({
   const libraryParent = useMemo(() => getMenuParentByHref(config.items, '/library'), [config.items])
   const libraryMenuChildren = libraryParent?.children ?? []
   const hasUnsavedChanges = JSON.stringify({ ...config, logoText }) !== JSON.stringify(savedConfig)
+  const adminSidebarItems = useMemo(
+    () => resolveAdminSidebarMenuItems(workspaceSubject, adminSidebarConfig),
+    [adminSidebarConfig, workspaceSubject]
+  )
+  const hasUnsavedAdminSidebarChanges = JSON.stringify(adminSidebarConfig) !== JSON.stringify(savedAdminSidebarConfig)
 
   useEffect(() => {
     setConfig(cloneConfig(initialConfig))
     setSavedConfig(cloneConfig(initialConfig))
+    setAdminSidebarConfig(initialAdminSidebarConfig)
+    setSavedAdminSidebarConfig(initialAdminSidebarConfig)
     setLogoText(initialConfig.logoText)
     setGenerateMenuEntries(initialGenerateMenuEntries)
     setMarketMenuEntries(initialMarketMenuEntries)
@@ -302,7 +328,7 @@ export default function MenuManagementClient({
     setDeleteTarget(null)
     setArchiveTarget(null)
     setArchiveMarketTarget(null)
-  }, [initialConfig, initialGenerateMenuEntries, initialMarketMenuEntries, workspaceSubject])
+  }, [initialConfig, initialAdminSidebarConfig, initialGenerateMenuEntries, initialMarketMenuEntries, workspaceSubject])
 
   const closeDialog = () => {
     setIsDialogOpen(false)
@@ -337,7 +363,7 @@ export default function MenuManagementClient({
 
   const openParentEditDialog = (item: HeaderMenuItem) => {
     setDialogState({ mode: 'edit-parent', targetId: item.id })
-    setFormState({ title: item.title, href: item.href || '', parentId: '' })
+    setFormState({ title: item.title, href: item.href || '', parentId: '', showDividerBefore: false })
     setIsDialogOpen(true)
   }
 
@@ -361,7 +387,7 @@ export default function MenuManagementClient({
     }
 
     setDialogState({ mode: 'edit-child', targetId: child.id, parentId })
-    setFormState({ title: child.title, href: child.href, parentId })
+    setFormState({ title: child.title, href: child.href, parentId, showDividerBefore: Boolean(child.showDividerBefore) })
     setIsDialogOpen(true)
   }
 
@@ -373,7 +399,7 @@ export default function MenuManagementClient({
 
   const openDedicatedChildEditDialog = (parentId: string, child: HeaderMenuChildItem) => {
     setDialogState({ mode: 'edit-child', targetId: child.id, parentId })
-    setFormState({ title: child.title, href: child.href, parentId })
+    setFormState({ title: child.title, href: child.href, parentId, showDividerBefore: Boolean(child.showDividerBefore) })
     setIsDialogOpen(true)
   }
 
@@ -385,6 +411,12 @@ export default function MenuManagementClient({
     updateConfigItems((items) => items.map((item) => {
       if (item.id !== parentId) return item
       return { ...item, children: moveArrayItem(item.children, childIndex, direction) }
+    }))
+  }
+
+  const handleMoveAdminSidebarItem = (index: number, direction: 'up' | 'down') => {
+    setAdminSidebarConfig((current) => ({
+      items: moveArrayItem(current.items, index, direction),
     }))
   }
 
@@ -499,7 +531,7 @@ export default function MenuManagementClient({
 
       updateConfigItems((items) => items.map((item) => item.id === parentId ? {
         ...item,
-        children: [...item.children, { id: crypto.randomUUID(), title, href, isActive: true }],
+        children: [...item.children, { id: crypto.randomUUID(), title, href, isActive: true, showDividerBefore: formState.showDividerBefore }],
       } : item))
     }
 
@@ -522,6 +554,7 @@ export default function MenuManagementClient({
         title,
         href,
         isActive: currentChild?.isActive ?? true,
+        showDividerBefore: formState.showDividerBefore,
       }
 
       updateConfigItems((items) => items.map((item) => {
@@ -566,6 +599,25 @@ export default function MenuManagementClient({
     }
   }
 
+  const handleSaveAdminSidebar = async () => {
+    setIsSavingAdminSidebar(true)
+    try {
+      const response = await saveAdminSidebarNavigationConfigAction(adminSidebarConfig, workspaceSubject)
+      if (!response.success) {
+        throw new Error('저장에 실패했습니다.')
+      }
+
+      setAdminSidebarConfig(response.data)
+      setSavedAdminSidebarConfig(response.data)
+      toast.success('관리자 패널 메뉴 순서를 저장했습니다.')
+      refreshRoute()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '저장 중 오류가 발생했습니다.')
+    } finally {
+      setIsSavingAdminSidebar(false)
+    }
+  }
+
   const openCreateGenerateEntryDialog = () => {
     const nextSortOrder = generateMenuEntries.length === 0 ? 10 : Math.max(...generateMenuEntries.map((entry) => entry.sort_order)) + 10
     setGenerateEntryForm({ ...buildEmptyGenerateEntryForm(), sortOrder: nextSortOrder })
@@ -593,8 +645,8 @@ export default function MenuManagementClient({
     setIsMutatingGenerateEntries(true)
     try {
       const searchConfig = generateEntryForm.entryType === 'listboard'
-        ? { filters: ['year', 'month', 'grade', 'title'], entryHref: buildGenerateMenuHref({ entry_type: generateEntryForm.entryType, slug }) }
-        : { entryHref: '/generate/personal' }
+        ? { filters: ['year', 'month', 'grade', 'title'], entryHref: buildGenerateMenuHref({ entry_type: generateEntryForm.entryType, slug }), showDividerBefore: generateEntryForm.showDividerBefore }
+        : { entryHref: '/generate/personal', showDividerBefore: generateEntryForm.showDividerBefore }
 
       if (generateEntryForm.id) {
         const response = await updateGenerateMenuEntryAction(generateEntryForm.id, {
@@ -713,6 +765,7 @@ export default function MenuManagementClient({
       const searchConfig = {
         marketSlug: slug,
         entryHref: buildMarketMenuHref({ slug }),
+        showDividerBefore: marketEntryForm.showDividerBefore,
       }
 
       if (marketEntryForm.id) {
@@ -884,6 +937,51 @@ export default function MenuManagementClient({
       </Card>
 
       <Card>
+        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <CardTitle>관리자 패널 메뉴 순서</CardTitle>
+            <CardDescription>현재 subject 기준으로 관리자 사이드바 메뉴 위치를 위/아래 버튼으로 조정합니다.</CardDescription>
+          </div>
+          <Button onClick={handleSaveAdminSidebar} disabled={isSavingAdminSidebar || !hasUnsavedAdminSidebarChanges}>
+            {isSavingAdminSidebar ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            관리자 패널 순서 저장
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border bg-white">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>메뉴명</TableHead>
+                  <TableHead>기준 경로</TableHead>
+                  <TableHead className="w-[160px] text-right">순서 조정</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {adminSidebarItems.map((item, index) => (
+                  <TableRow key={item.href}>
+                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell className="text-gray-600">{item.href}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleMoveAdminSidebarItem(index, 'up')} disabled={index === 0}>
+                          <ArrowUp className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleMoveAdminSidebarItem(index, 'down')} disabled={index === adminSidebarItems.length - 1}>
+                          <ArrowDown className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <p className="mt-3 text-sm text-gray-500">영어/국어 관리 대상별로 서로 다른 순서를 저장합니다.</p>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader>
           <CardTitle>헤더 기본 설정</CardTitle>
           <CardDescription>헤더 좌측 로고 위치에 표시되는 문구를 설정합니다.</CardDescription>
@@ -1022,6 +1120,7 @@ export default function MenuManagementClient({
                   <TableHead className="text-center">게시글 수</TableHead>
                   <TableHead className="text-center">노출</TableHead>
                   <TableHead className="text-center">활성</TableHead>
+                  <TableHead className="text-center">구분선</TableHead>
                   <TableHead className="text-right">관리</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1048,6 +1147,7 @@ export default function MenuManagementClient({
                       <TableCell className="text-center">{entry.postCount}</TableCell>
                       <TableCell className="text-center">{entry.is_visible ? '표시' : '숨김'}</TableCell>
                       <TableCell className="text-center">{entry.is_active ? '활성' : '비활성'}</TableCell>
+                      <TableCell className="text-center">{getGenerateMenuEntryShowDividerBefore(entry) ? '표시' : '-'}</TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
                           <Button variant="ghost" size="icon" onClick={() => handleMoveGenerateEntry(index, 'up')} disabled={index === 0 || isMutatingGenerateEntries}><ArrowUp className="h-4 w-4" /></Button>
@@ -1086,6 +1186,7 @@ export default function MenuManagementClient({
                   <TableHead>경로 미리보기</TableHead>
                   <TableHead className="text-center">노출</TableHead>
                   <TableHead className="text-center">활성</TableHead>
+                  <TableHead className="text-center">구분선</TableHead>
                   <TableHead className="text-right">관리</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1100,6 +1201,7 @@ export default function MenuManagementClient({
                     <TableCell className="text-gray-600">{buildMarketMenuHref(entry)}</TableCell>
                     <TableCell className="text-center">{entry.is_visible ? '표시' : '숨김'}</TableCell>
                     <TableCell className="text-center">{entry.is_active ? '활성' : '비활성'}</TableCell>
+                    <TableCell className="text-center">{getMarketMenuEntryShowDividerBefore(entry) ? '표시' : '-'}</TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
                         <Button variant="ghost" size="icon" onClick={() => handleMoveMarketEntry(index, 'up')} disabled={index === 0 || isMutatingMarketEntries}><ArrowUp className="h-4 w-4" /></Button>
@@ -1135,17 +1237,18 @@ export default function MenuManagementClient({
                   <TableHead>경로</TableHead>
                   <TableHead>실제 주소 미리보기</TableHead>
                   <TableHead className="text-center">노출</TableHead>
+                  <TableHead className="text-center">구분선</TableHead>
                   <TableHead className="text-right">관리</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {!libraryParent ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-10 text-center text-gray-500">라이브러리 상위 메뉴를 찾을 수 없습니다.</TableCell>
+                    <TableCell colSpan={6} className="py-10 text-center text-gray-500">라이브러리 상위 메뉴를 찾을 수 없습니다.</TableCell>
                   </TableRow>
                 ) : libraryMenuChildren.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-10 text-center text-gray-500">등록된 라이브러리 2단계 메뉴가 없습니다.</TableCell>
+                    <TableCell colSpan={6} className="py-10 text-center text-gray-500">등록된 라이브러리 2단계 메뉴가 없습니다.</TableCell>
                   </TableRow>
                 ) : (
                   libraryMenuChildren.map((child, childIndex) => (
@@ -1159,6 +1262,7 @@ export default function MenuManagementClient({
                           <span className="text-xs text-gray-500">{child.isActive ? '표시' : '숨김'}</span>
                         </div>
                       </TableCell>
+                      <TableCell className="text-center">{child.showDividerBefore ? '표시' : '-'}</TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
                           <Button variant="ghost" size="icon" onClick={() => handleMoveChild(libraryParent.id, childIndex, 'up')} disabled={childIndex === 0}><ArrowUp className="h-4 w-4" /></Button>
@@ -1270,6 +1374,16 @@ export default function MenuManagementClient({
                 <p className="text-sm text-gray-500">상위 메뉴 링크는 2단계 메뉴의 기준 경로가 됩니다.</p>
               )}
             </div>
+
+            {dialogState?.mode === 'create-child' || dialogState?.mode === 'edit-child' ? (
+              <div className="space-y-2">
+                <Label>구분선</Label>
+                <div className="flex h-10 items-center gap-3 rounded-md border px-3">
+                  <Switch checked={formState.showDividerBefore} onCheckedChange={(checked) => setFormState((current) => ({ ...current, showDividerBefore: checked }))} />
+                  <span className="text-sm text-gray-700">{formState.showDividerBefore ? '이 메뉴 앞에 구분선 표시' : '구분선 없음'}</span>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <DialogFooter>
@@ -1326,6 +1440,14 @@ export default function MenuManagementClient({
                   <Switch checked={generateEntryForm.isActive} onCheckedChange={(checked) => setGenerateEntryForm((current) => ({ ...current, isActive: checked }))} />
                   <span className="text-sm text-gray-700">{generateEntryForm.isActive ? '활성' : '비활성'}</span>
                 </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>구분선</Label>
+              <div className="flex h-10 items-center gap-3 rounded-md border px-3">
+                <Switch checked={generateEntryForm.showDividerBefore} onCheckedChange={(checked) => setGenerateEntryForm((current) => ({ ...current, showDividerBefore: checked }))} />
+                <span className="text-sm text-gray-700">{generateEntryForm.showDividerBefore ? '이 메뉴 앞에 구분선 표시' : '구분선 없음'}</span>
               </div>
             </div>
           </div>
@@ -1404,6 +1526,14 @@ export default function MenuManagementClient({
                   <Switch checked={marketEntryForm.isActive} onCheckedChange={(checked) => setMarketEntryForm((current) => ({ ...current, isActive: checked }))} />
                   <span className="text-sm text-gray-700">{marketEntryForm.isActive ? '활성' : '비활성'}</span>
                 </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>구분선</Label>
+              <div className="flex h-10 items-center gap-3 rounded-md border px-3">
+                <Switch checked={marketEntryForm.showDividerBefore} onCheckedChange={(checked) => setMarketEntryForm((current) => ({ ...current, showDividerBefore: checked }))} />
+                <span className="text-sm text-gray-700">{marketEntryForm.showDividerBefore ? '이 메뉴 앞에 구분선 표시' : '구분선 없음'}</span>
               </div>
             </div>
           </div>

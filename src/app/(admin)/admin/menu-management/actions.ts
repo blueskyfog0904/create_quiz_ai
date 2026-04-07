@@ -3,6 +3,13 @@
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth'
 import {
+} from '@/lib/admin-sidebar'
+import type { AdminSidebarNavigationConfig } from '@/lib/admin-sidebar'
+import {
+  getAdminSidebarNavigationConfig,
+  saveAdminSidebarNavigationConfig,
+} from '@/lib/admin-sidebar-server'
+import {
   saveHeaderNavigationConfig as persistHeaderNavigationConfig,
   getBaseHeaderNavigationConfig,
 } from '@/lib/header-navigation-server'
@@ -54,6 +61,7 @@ import type { TablesInsert, TablesUpdate } from '@/types/supabase'
 export interface MenuManagementPageData {
   workspaceSubject?: WorkspaceSubject
   initialConfig: HeaderNavigationConfig
+  adminSidebarConfig: AdminSidebarNavigationConfig
   generateMenuEntries: GenerateMenuEntryAdminRow[]
   marketMenuEntries: MarketMenuEntryAdminRow[]
   initialGeneratePosts: GenerateListboardPost[]
@@ -97,6 +105,7 @@ function revalidateMenuRelatedPaths(workspaceSubject: WorkspaceSubject) {
   revalidateWorkspacePath(DEFAULT_WORKSPACE_SUBJECT, '/library/market', 'layout')
   revalidateWorkspacePath('korean', '/library/market', 'layout')
   revalidatePath('/admin')
+  revalidatePath('/admin', 'layout')
   revalidatePath(`/admin/menu-management?subject=${workspaceSubject}`)
 }
 
@@ -104,6 +113,7 @@ export async function getMenuManagementData(workspaceSubject: WorkspaceSubject =
   await requireAdmin()
 
   const initialConfig = await getBaseHeaderNavigationConfig(workspaceSubject)
+  const adminSidebarConfig = await getAdminSidebarNavigationConfig(workspaceSubject)
   const generateMenuEntries = await listGenerateMenuEntriesForAdmin(workspaceSubject)
   const marketMenuEntries = await listMarketMenuEntriesForAdmin(workspaceSubject)
   const backfillStatus = await getGenerateMenuEntriesBackfillStatus(initialConfig, workspaceSubject)
@@ -115,6 +125,7 @@ export async function getMenuManagementData(workspaceSubject: WorkspaceSubject =
 
   return {
     initialConfig,
+    adminSidebarConfig,
     generateMenuEntries,
     marketMenuEntries,
     initialGeneratePosts,
@@ -126,6 +137,21 @@ export async function getMenuManagementData(workspaceSubject: WorkspaceSubject =
     backfillStatus,
     marketBackfillStatus,
     workspaceSubject,
+  }
+}
+
+export async function saveAdminSidebarNavigationConfigAction(
+  input: AdminSidebarNavigationConfig,
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
+) {
+  await requireAdmin()
+
+  const savedConfig = await saveAdminSidebarNavigationConfig(input, workspaceSubject)
+  revalidateMenuRelatedPaths(workspaceSubject)
+
+  return {
+    success: true,
+    data: savedConfig,
   }
 }
 

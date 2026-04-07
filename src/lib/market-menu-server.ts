@@ -16,6 +16,7 @@ export interface LegacyMarketChildSummary {
   title: string
   href: string
   isActive: boolean
+  showDividerBefore: boolean
   entryKey: string
   slug: string
   existsInDb: boolean
@@ -38,10 +39,11 @@ export function normalizeSlug(value: string) {
     .replace(/^-|-$/g, '')
 }
 
-function buildSearchConfig(slug: string) {
+function buildSearchConfig(slug: string, showDividerBefore = false) {
   return {
     marketSlug: slug,
     entryHref: buildMarketMenuHref({ slug }),
+    showDividerBefore,
   }
 }
 
@@ -139,6 +141,7 @@ export function getLegacyMarketChildren(baseConfig: HeaderNavigationConfig, exis
       title: child.title,
       href: child.href,
       isActive: child.isActive,
+      showDividerBefore: Boolean(child.showDividerBefore),
       entryKey: mapped.entryKey,
       slug: mapped.slug,
       existsInDb: existingKeys.has(mapped.entryKey),
@@ -440,7 +443,7 @@ export async function backfillMarketMenuEntriesFromHeader(baseConfig: HeaderNavi
       sort_order: (index + 1) * 10,
       is_visible: child.isActive,
       is_active: child.isActive,
-      search_config: buildSearchConfig(child.slug),
+      search_config: buildSearchConfig(child.slug, Boolean(child.showDividerBefore)),
     }
 
     const { data, error } = await supabase

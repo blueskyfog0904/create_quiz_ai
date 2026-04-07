@@ -27,11 +27,6 @@ export default function GenerateSidebar({ parentTitle, items }: GenerateSidebarP
 
         return currentPath === item.href || currentPath.startsWith(`${item.href}/`)
       }}
-      renderDividerBeforeItem={(item, orderedItems) => {
-        const hasPersonal = orderedItems.some((candidate) => candidate.href === '/generate/personal')
-        const hasBoardItems = orderedItems.some((candidate) => candidate.href !== '/generate/personal')
-        return hasPersonal && hasBoardItems && item.href === '/generate/personal'
-      }}
     />
   )
 }

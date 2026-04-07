@@ -60,6 +60,22 @@ export function normalizeListboardGradeLevel(value?: string | null): ListboardGr
   return legacyMap[normalizedKey] ?? null
 }
 
+
+interface GenerateMenuSearchConfig {
+  filters?: string[]
+  entryHref?: string
+  showDividerBefore?: boolean
+}
+
+export function getGenerateMenuEntryShowDividerBefore(entry: Pick<GenerateMenuEntry, 'entry_type' | 'search_config'>) {
+  const searchConfig = entry.search_config as GenerateMenuSearchConfig | null
+  if (typeof searchConfig?.showDividerBefore === 'boolean') {
+    return searchConfig.showDividerBefore
+  }
+
+  return entry.entry_type === 'personal_generate'
+}
+
 export function buildGenerateMenuHref(entry: Pick<GenerateMenuEntry, 'entry_type' | 'slug'>) {
   if (entry.entry_type === 'personal_generate') {
     return GENERATE_PERSONAL_HREF
@@ -74,6 +90,7 @@ export function buildGenerateHeaderChildItem(entry: GenerateMenuEntry): HeaderMe
     title: entry.title,
     href: buildGenerateMenuHref(entry),
     isActive: entry.is_active && entry.is_visible && entry.deleted_at === null,
+    showDividerBefore: getGenerateMenuEntryShowDividerBefore(entry),
   }
 }
 

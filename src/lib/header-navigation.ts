@@ -5,6 +5,7 @@ export interface HeaderMenuChildItem {
   title: string
   href: string
   isActive: boolean
+  showDividerBefore?: boolean
 }
 
 export interface HeaderMenuItem {
@@ -104,24 +105,28 @@ function createLibraryChildren(workspaceSubject: WorkspaceSubject): HeaderMenuCh
       title: isKorean ? '국어지문 관리' : '영어지문 관리',
       href: '/mypassages',
       isActive: true,
+      showDividerBefore: false,
     },
     {
       id: `library-questions-${workspaceSubject}`,
       title: isKorean ? '국어문제 관리' : '영어문제 관리',
       href: '/purchased',
       isActive: true,
+      showDividerBefore: false,
     },
     {
       id: `library-exam-papers-${workspaceSubject}`,
       title: '문제지 관리',
       href: '/exam-papers',
       isActive: true,
+      showDividerBefore: false,
     },
     {
       id: `library-market-${workspaceSubject}`,
       title: '문제마켓 관리',
       href: '/market',
       isActive: true,
+      showDividerBefore: false,
     },
   ]
 }
@@ -311,6 +316,7 @@ function normalizeChildItem(rawChild: unknown, fallbackIndex: number): HeaderMen
     title,
     href,
     isActive: normalizeBoolean(child.isActive),
+    showDividerBefore: normalizeBoolean(child.showDividerBefore, false),
   }
 }
 

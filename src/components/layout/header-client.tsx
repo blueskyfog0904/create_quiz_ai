@@ -53,6 +53,10 @@ const accountDropdownItemClassName = 'rounded-lg px-3 py-2 text-sm font-medium t
 const accountDropdownSeparatorClassName = 'my-1 bg-slate-200'
 const accountTriggerButtonClassName = 'gap-1 rounded-full border border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-100 hover:text-slate-900'
 
+function shouldRenderWorkspaceChildDivider(parentHref: string | undefined, child: { href: string, showDividerBefore?: boolean }) {
+  return Boolean(child.showDividerBefore) || (parentHref === '/generate' && child.href === '/generate/personal')
+}
+
 export function HeaderClient({
   isLoggedIn,
   userName,
@@ -131,9 +135,6 @@ export function HeaderClient({
     }
   }, [handleBalanceSync])
 
-  const isGeneratePersonalChild = (parentHref?: string, childHref?: string) => (
-    parentHref === '/generate' && childHref === '/generate/personal'
-  )
 
   const isLibraryMenuItem = (item: HeaderMenuItem) => item.href === '/library'
 
@@ -180,7 +181,7 @@ export function HeaderClient({
                         {item.children.map((child) => (
                           <div
                             key={child.id}
-                            className={isGeneratePersonalChild(item.href, child.href) ? 'mt-1 border-t border-slate-200 pt-1' : ''}
+                            className={shouldRenderWorkspaceChildDivider(item.href, child) ? 'mt-1 border-t border-slate-200 pt-1' : ''}
                           >
                             <WorkspaceLink href={child.href} subject={workspaceSubject} onClick={() => setIsOpen(false)}>
                               <Button variant="ghost" className="w-full justify-start gap-2 pl-6">

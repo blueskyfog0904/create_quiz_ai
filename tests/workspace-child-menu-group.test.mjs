@@ -25,3 +25,21 @@ test('grouped sidebar model keeps a non-clickable parent shell even with one chi
   assert.equal(group.items[0].clickable, true)
   assert.equal(group.items[0].active, true)
 })
+
+test('grouped sidebar model preserves divider metadata on child items', () => {
+  const group = buildWorkspaceChildMenuGroup({
+    parentTitle: '영어 라이브러리',
+    items: [
+      {
+        id: 'library-questions',
+        title: '영어문제 관리',
+        href: '/library/purchased',
+        isActive: true,
+        showDividerBefore: true,
+      },
+    ],
+    currentPath: '/library/purchased',
+  })
+
+  assert.equal(group.items[0].showDividerBefore, true)
+})

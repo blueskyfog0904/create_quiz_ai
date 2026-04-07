@@ -47,3 +47,21 @@ test('generate-style second-level menu can move personal to the end and treat /g
   )
   assert.equal(items[1].active, true)
 })
+
+
+test('second-level menu preserves divider metadata through reordering', () => {
+  const items = buildWorkspaceSecondLevelMenuItems({
+    currentPath: '/generate/personal',
+    items: [
+      { id: 'personal', title: '개인지문', href: '/generate/personal', isActive: true, showDividerBefore: true },
+      { id: 'mock-exams', title: '모의고사', href: '/generate/boards/mock-exams', isActive: true, showDividerBefore: false },
+    ],
+    reorderItems: (input) => {
+      const personal = input.find((item) => item.href === '/generate/personal') ?? null
+      const others = input.filter((item) => item.href !== '/generate/personal')
+      return personal ? [...others, personal] : input
+    },
+  })
+
+  assert.equal(items[1].showDividerBefore, true)
+})

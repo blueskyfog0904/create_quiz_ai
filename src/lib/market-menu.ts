@@ -18,6 +18,18 @@ export const MARKET_PARENT_FALLBACK_ID = 'menu-market'
 export const MARKET_PARENT_FALLBACK_TITLE = '문제마켓'
 export const MARKET_PARENT_HREF = '/market'
 
+
+interface MarketMenuSearchConfig {
+  marketSlug?: string
+  entryHref?: string
+  showDividerBefore?: boolean
+}
+
+export function getMarketMenuEntryShowDividerBefore(entry: Pick<MarketMenuEntry, 'search_config'>) {
+  const searchConfig = entry.search_config as MarketMenuSearchConfig | null
+  return Boolean(searchConfig?.showDividerBefore)
+}
+
 export function buildMarketMenuHref(entry: Pick<MarketMenuEntry, 'slug'>) {
   return `/market/${encodeURIComponent(entry.slug)}`
 }
@@ -28,6 +40,7 @@ export function buildMarketHeaderChildItem(entry: MarketMenuEntry): HeaderMenuCh
     title: entry.title,
     href: buildMarketMenuHref(entry),
     isActive: entry.is_active && entry.is_visible && entry.deleted_at === null,
+    showDividerBefore: getMarketMenuEntryShowDividerBefore(entry),
   }
 }
 

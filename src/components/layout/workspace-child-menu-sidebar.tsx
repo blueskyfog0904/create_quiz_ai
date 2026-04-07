@@ -64,19 +64,23 @@ export default function WorkspaceChildMenuSidebar({
             </div>
             <div className="space-y-1 border-t border-slate-200 px-2 py-2">
               {group.items.map((item) => (
-                <WorkspaceLink
-                  key={item.id}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors',
-                    item.active
-                      ? 'bg-primary/10 text-primary shadow-sm'
-                      : 'text-gray-700 hover:bg-primary/5 hover:text-primary'
-                  )}
-                >
-                  <span className="pl-2 font-medium">{item.title}</span>
-                  <ChevronRight className={cn('h-4 w-4', item.active ? 'text-primary' : 'text-gray-400')} />
-                </WorkspaceLink>
+                <div key={item.id} className="space-y-1">
+                  {item.showDividerBefore ? (
+                    <div className="my-2 border-t border-gray-200" />
+                  ) : null}
+                  <WorkspaceLink
+                    href={item.href}
+                    className={cn(
+                      'flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors',
+                      item.active
+                        ? 'bg-primary/10 text-primary shadow-sm'
+                        : 'text-gray-700 hover:bg-primary/5 hover:text-primary'
+                    )}
+                  >
+                    <span className="pl-2 font-medium">{item.title}</span>
+                    <ChevronRight className={cn('h-4 w-4', item.active ? 'text-primary' : 'text-gray-400')} />
+                  </WorkspaceLink>
+                </div>
               ))}
             </div>
           </div>

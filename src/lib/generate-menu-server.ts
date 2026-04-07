@@ -24,6 +24,7 @@ export interface LegacyGenerateChildSummary {
   title: string
   href: string
   isActive: boolean
+  showDividerBefore: boolean
   entryKey: string
   slug: string
   entryType: 'personal_generate' | 'listboard'
@@ -75,21 +76,23 @@ export function normalizeSlug(value: string) {
     .replace(/^-|-$/g, '')
 }
 
-function buildSearchConfig(entryType: 'personal_generate' | 'listboard', slug: string) {
+function buildSearchConfig(entryType: 'personal_generate' | 'listboard', slug: string, showDividerBefore = false) {
   if (entryType === 'personal_generate') {
-    return { entryHref: '/generate/personal' }
+    return { entryHref: '/generate/personal', showDividerBefore }
   }
 
   if (slug === 'mock-exams') {
     return {
       filters: ['year', 'month', 'grade', 'title'],
       entryHref: buildGenerateMenuHref({ entry_type: entryType, slug }),
+      showDividerBefore,
     }
   }
 
   return {
     filters: ['title'],
     entryHref: buildGenerateMenuHref({ entry_type: entryType, slug }),
+    showDividerBefore,
   }
 }
 
@@ -354,6 +357,7 @@ export function getLegacyGenerateChildren(baseConfig: HeaderNavigationConfig, ex
       title: child.title,
       href: child.href,
       isActive: child.isActive,
+      showDividerBefore: Boolean(child.showDividerBefore),
       entryKey: mapped.entryKey,
       slug: mapped.slug,
       entryType: mapped.entryType,
@@ -649,7 +653,7 @@ export async function backfillGenerateMenuEntriesFromHeader(baseConfig: HeaderNa
       sort_order: (index + 1) * 10,
       is_visible: child.isActive,
       is_active: child.isActive,
-      search_config: buildSearchConfig(child.entryType, child.slug),
+      search_config: buildSearchConfig(child.entryType, child.slug, Boolean(child.showDividerBefore)),
     }
 
     const { data, error } = await supabase

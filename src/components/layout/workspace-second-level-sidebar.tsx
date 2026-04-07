@@ -58,7 +58,7 @@ export default function WorkspaceSecondLevelSidebar({
           <nav className="flex flex-col gap-1">
             {menuItems.map((item) => (
               <div key={item.id} className="space-y-1">
-                {renderDividerBeforeItem?.(item, orderedItems) ? (
+                {(renderDividerBeforeItem?.(item, orderedItems) ?? item.showDividerBefore) ? (
                   <div className="my-2 border-t border-gray-200" />
                 ) : null}
                 <WorkspaceLink

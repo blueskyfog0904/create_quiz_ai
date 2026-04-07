@@ -3,6 +3,7 @@ export interface WorkspaceChildMenuItemInput {
   title: string
   href: string
   isActive: boolean
+  showDividerBefore?: boolean
 }
 
 export interface WorkspaceChildMenuGroupInput {
@@ -26,6 +27,7 @@ export interface WorkspaceChildMenuGroup {
     href: string
     clickable: true
     active: boolean
+    showDividerBefore: boolean
   }>
 }
 
@@ -53,6 +55,7 @@ export function buildWorkspaceChildMenuGroup({
       href: item.href,
       clickable: true,
       active: isItemActive ? isItemActive(item, currentPath) : isPathActive(item.href, currentPath),
+      showDividerBefore: Boolean(item.showDividerBefore),
     })),
   }
 }
