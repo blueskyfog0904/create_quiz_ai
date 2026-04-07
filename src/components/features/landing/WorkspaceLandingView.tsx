@@ -42,17 +42,28 @@ export function WorkspaceLandingView({
   const featureGridClassName = getWorkspaceLandingFeatureGridClassName(config.features.length)
   const workflowGridClassName = getWorkspaceLandingWorkflowGridClassName(config.steps.length)
   const guideButton = (
-    <Button
-      asChild
-      size="sm"
-      variant="outline"
-      className="w-full justify-between border-white/15 bg-white/5 text-white/90 hover:bg-white/10 hover:text-white"
-    >
-      <a href={config.guide.url} target="_blank" rel="noreferrer noopener">
-        {config.guide.label}
-        <ArrowUpRight className="h-4 w-4" />
-      </a>
-    </Button>
+    <div className="rounded-2xl border border-white/20 bg-white/10 p-3 shadow-lg shadow-slate-900/10 ring-1 ring-white/10 backdrop-blur-sm">
+      <div className="flex items-center justify-between gap-3">
+        <Badge className="border-white/20 bg-white/15 text-white">
+          <Sparkles className="h-3.5 w-3.5" />
+          사용방법
+        </Badge>
+        <span className="text-xs font-medium text-white/70">
+          처음이라면 먼저 확인
+        </span>
+      </div>
+      <Button
+        asChild
+        size="lg"
+        variant="outline"
+        className="mt-3 w-full justify-between border-white/20 bg-white/15 text-white shadow-sm hover:bg-white/20 hover:text-white"
+      >
+        <a href={config.guide.url} target="_blank" rel="noreferrer noopener">
+          {config.guide.label}
+          <ArrowUpRight className="h-4 w-4" />
+        </a>
+      </Button>
+    </div>
   )
 
   return (
