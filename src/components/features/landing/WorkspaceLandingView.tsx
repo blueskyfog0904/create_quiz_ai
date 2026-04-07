@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowRight, LibraryBig, Sparkles, WandSparkles } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, LibraryBig, Sparkles, WandSparkles } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -41,6 +41,19 @@ export function WorkspaceLandingView({
   const secondaryHref = quickEntry.secondaryHref
   const featureGridClassName = getWorkspaceLandingFeatureGridClassName(config.features.length)
   const workflowGridClassName = getWorkspaceLandingWorkflowGridClassName(config.steps.length)
+  const guideButton = (
+    <Button
+      asChild
+      size="sm"
+      variant="outline"
+      className="w-full justify-between border-white/15 bg-white/5 text-white/90 hover:bg-white/10 hover:text-white"
+    >
+      <a href={config.guide.url} target="_blank" rel="noreferrer noopener">
+        {config.guide.label}
+        <ArrowUpRight className="h-4 w-4" />
+      </a>
+    </Button>
+  )
 
   return (
     <div className="relative overflow-hidden bg-slate-50 text-slate-900">
@@ -121,6 +134,7 @@ export function WorkspaceLandingView({
                         </Button>
                       </Link>
                     ) : null}
+                    {guideButton}
                   </div>
                 </CardContent>
               </Card>

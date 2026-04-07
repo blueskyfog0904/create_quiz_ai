@@ -28,3 +28,15 @@ test('workspace landing admin editor uses a textarea for the hero title field', 
 
   assert.match(landingPagesClientSource, /<Label>제목<\/Label>[\s\S]*?<Textarea[\s\S]*value=\{activeWorkspaceConfig\.title\}/)
 })
+
+test('workspace landing admin editor exposes guide label and url controls', () => {
+  const landingPagesClientSource = readFileSync(
+    new URL('../src/app/(admin)/admin/landing-pages/landing-pages-client.tsx', import.meta.url),
+    'utf8'
+  )
+
+  assert.match(landingPagesClientSource, /<Label>사용방법 가이드 명칭<\/Label>/)
+  assert.match(landingPagesClientSource, /value=\{activeWorkspaceConfig\.guide\.label\}/)
+  assert.match(landingPagesClientSource, /<Label>사용방법 가이드 주소<\/Label>/)
+  assert.match(landingPagesClientSource, /value=\{activeWorkspaceConfig\.guide\.url\}/)
+})

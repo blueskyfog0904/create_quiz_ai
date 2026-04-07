@@ -827,6 +827,41 @@ export default function LandingPagesClient({
                 }))} />
               </div>
             </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>사용방법 가이드 명칭</Label>
+                <Input
+                  value={activeWorkspaceConfig.guide.label}
+                  onChange={(event) => setWorkspaceConfigs((current) => ({
+                    ...current,
+                    [activeWorkspaceSubject]: {
+                      ...current[activeWorkspaceSubject],
+                      guide: {
+                        ...current[activeWorkspaceSubject].guide,
+                        label: event.target.value,
+                      },
+                    },
+                  }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>사용방법 가이드 주소</Label>
+                <Input
+                  type="url"
+                  value={activeWorkspaceConfig.guide.url}
+                  onChange={(event) => setWorkspaceConfigs((current) => ({
+                    ...current,
+                    [activeWorkspaceSubject]: {
+                      ...current[activeWorkspaceSubject],
+                      guide: {
+                        ...current[activeWorkspaceSubject].guide,
+                        url: event.target.value,
+                      },
+                    },
+                  }))}
+                />
+              </div>
+            </div>
           </SectionCard>
         </div>
       ) : null}

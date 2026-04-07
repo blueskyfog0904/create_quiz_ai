@@ -34,6 +34,45 @@ const landingFontStepSchema = z.union([
 
 const limitedString = (max: number) => z.string().trim().min(1).max(max)
 
+function normalizeGuideUrl(value: string) {
+  const trimmed = value.trim()
+  const secondProtocolIndex = trimmed.indexOf('https://', 8) >= 0
+    ? trimmed.indexOf('https://', 8)
+    : trimmed.indexOf('http://', 7)
+
+  if (secondProtocolIndex > 0) {
+    const first = trimmed.slice(0, secondProtocolIndex)
+    const second = trimmed.slice(secondProtocolIndex)
+
+    if (first === second) {
+      return first
+    }
+  }
+
+  return trimmed
+}
+
+function isValidExternalUrl(value: string) {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' || url.protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
+const externalUrlSchema = z.string().trim().min(1).max(500)
+  .transform(normalizeGuideUrl)
+  .refine(isValidExternalUrl, '유효한 외부 링크를 입력해주세요.')
+const DEFAULT_WORKSPACE_GUIDE = {
+  label: '사용방법 가이드',
+  url: 'https://wind-rat-0db.notion.site/33bfb91711e780a3b4cfdd6dbe47f942',
+} as const
+const workspaceGuideSchema = z.object({
+  label: limitedString(30),
+  url: externalUrlSchema,
+})
+
 const mainLandingFontStepsSchema = z.object({
   hero: z.object({
     badge: landingFontStepSchema,
@@ -144,6 +183,7 @@ export const workspaceLandingConfigSchema = z.object({
   ctaHeadline: limitedString(36),
   ctaBody: limitedString(120),
   ctaHint: limitedString(90),
+  guide: workspaceGuideSchema.default(getDefaultWorkspaceGuide()),
   quickPills: z.array(limitedString(16)).min(1).max(4),
   features: z.array(workspaceFeatureSchema).min(1).max(4),
   steps: z.array(workspaceStepSchema).min(1).max(4),
@@ -153,6 +193,7 @@ export const workspaceLandingConfigSchema = z.object({
 
 export type MainLandingConfig = z.infer<typeof mainLandingConfigSchema>
 export type WorkspaceLandingConfig = z.infer<typeof workspaceLandingConfigSchema>
+export type WorkspaceGuide = z.infer<typeof workspaceGuideSchema>
 
 export type MainLandingFontSteps = z.infer<typeof mainLandingFontStepsSchema>
 export type WorkspaceLandingFontSteps = z.infer<typeof workspaceLandingFontStepsSchema>
@@ -173,6 +214,10 @@ export function getDefaultWorkspaceLandingFontSteps(): WorkspaceLandingFontSteps
     workflowSection: { badge: 0, heading: 0, intro: 0, title: 0, description: 0 },
     cta: { headline: 0, body: 0, hint: 0 },
   }
+}
+
+export function getDefaultWorkspaceGuide(): WorkspaceGuide {
+  return { ...DEFAULT_WORKSPACE_GUIDE }
 }
 
 const DEFAULT_MAIN_LANDING_CONFIG: MainLandingConfig = {
@@ -242,6 +287,7 @@ const DEFAULT_WORKSPACE_LANDING_CONFIG: Record<WorkspaceSubject, WorkspaceLandin
     ctaHeadline: '영어 수업 준비를 하나의 워크스페이스로 정리하세요',
     ctaBody: '문제생성부터 문제지 정리까지 끊기지 않는 흐름으로 이어지도록, 영어 워크스페이스 진입점을 더 선명하게 구성했습니다.',
     ctaHint: '영어문제생성과 영어문제마켓의 첫 번째 메뉴로 바로 이동할 수 있습니다.',
+    guide: getDefaultWorkspaceGuide(),
     quickPills: ['개인지문 생성', '문제은행 정리', '라이브러리 연결', '문제지 제작'],
     features: [
       { icon: 'brainCircuit', title: 'AI 문제생성', description: '개인지문과 보드형 생성 흐름을 통해 영어 문항을 빠르게 만들고 다음 작업으로 바로 연결합니다.' },
@@ -271,6 +317,7 @@ const DEFAULT_WORKSPACE_LANDING_CONFIG: Record<WorkspaceSubject, WorkspaceLandin
     ctaHeadline: '국어문제마켓과 라이브러리 흐름만 바로 이어보세요',
     ctaBody: '지금 제공 중인 국어 서비스는 문제마켓 탐색과 라이브러리의 국어문제마켓 관리 흐름에 집중되어 있습니다.',
     ctaHint: '국어문제마켓 드롭다운의 첫 번째 메뉴로 바로 이동할 수 있습니다.',
+    guide: getDefaultWorkspaceGuide(),
     quickPills: ['문제마켓 탐색', '상품 확인', '국어문제마켓 관리'],
     features: [
       { icon: 'shoppingBag', title: '문제마켓 탐색', description: '주제와 용도에 맞는 국어 콘텐츠를 빠르게 찾고 필요한 흐름으로 이어갈 수 있습니다.' },
@@ -322,6 +369,7 @@ export function normalizeWorkspaceLandingConfig(subject: WorkspaceSubject, raw: 
     ? {
         ...base,
         ...parsed.data,
+        guide: parsed.data.guide,
         fontSteps: parsed.data.fontSteps ?? base.fontSteps,
       }
     : base
