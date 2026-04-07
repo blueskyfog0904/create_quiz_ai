@@ -42,7 +42,7 @@ export function WorkspaceLandingView({
   const featureGridClassName = getWorkspaceLandingFeatureGridClassName(config.features.length)
   const workflowGridClassName = getWorkspaceLandingWorkflowGridClassName(config.steps.length)
   const guideButton = (
-    <div className="rounded-2xl border border-white/20 bg-white/10 p-3 shadow-lg shadow-slate-900/10 ring-1 ring-white/10 backdrop-blur-sm">
+    <div className="rounded-2xl border border-white/20 bg-white/12 p-3 shadow-lg shadow-slate-900/10 ring-1 ring-white/15 backdrop-blur-sm">
       <div className="flex items-center justify-between gap-3">
         <Badge className="border-white/20 bg-white/15 text-white">
           <Sparkles className="h-3.5 w-3.5" />
@@ -55,8 +55,7 @@ export function WorkspaceLandingView({
       <Button
         asChild
         size="lg"
-        variant="outline"
-        className="mt-3 w-full justify-between border-white/20 bg-white/15 text-white shadow-sm hover:bg-white/20 hover:text-white"
+        className={`mt-3 w-full justify-between ${theme.ctaButtonClass}`}
       >
         <a href={config.guide.url} target="_blank" rel="noreferrer noopener">
           {config.guide.label}
@@ -132,7 +131,7 @@ export function WorkspaceLandingView({
                   <Separator className="my-5 bg-white/15" />
                   <div className="flex flex-col gap-3">
                     <Link href={primaryHref}>
-                      <Button size="lg" className={`w-full justify-between ${theme.ctaButtonClass}`}>
+                      <Button size="lg" variant="outline" className="w-full justify-between border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white">
                         {quickEntry.primaryLabel}
                         <ArrowRight className="h-4 w-4" />
                       </Button>
