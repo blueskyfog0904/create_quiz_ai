@@ -33,7 +33,12 @@ export default async function CreditsPage() {
   // 거래 내역 조회
   const { data: transactions } = await supabase
     .from('credit_transactions')
-    .select('*')
+    .select(`
+      *,
+      source:credit_sources(
+        source_category
+      )
+    `)
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(50)

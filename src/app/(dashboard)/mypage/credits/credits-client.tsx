@@ -38,6 +38,10 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getCreditSourceCategoryLabel, type CreditSourceCategory } from '@/lib/credit-source-display'
+import {
+  getCreditTransactionDescription,
+  getCreditTransactionTypeLabel,
+} from '@/lib/credit-transaction-display'
 
 interface CreditSource {
   id: string
@@ -53,12 +57,15 @@ interface CreditSource {
 }
 
 interface CreditTransaction {
-    id: string
-    type: string
-    amount: number
-    balance_after: number
-    description: string
-    created_at: string
+  id: string
+  type: string
+  amount: number
+  balance_after: number
+  description: string
+  created_at: string
+  source?: {
+    source_category: CreditSourceCategory
+  } | null
 }
 
 interface RefundRequest {
@@ -174,20 +181,23 @@ export function CreditsClient({
     })
 
     // 거래 유형 배지
-    const getTypeBadge = (type: string) => {
-        if (type === 'purchase') {
-            return <Badge className="bg-blue-100 text-blue-700">구매</Badge>
+    const getTypeBadge = (transaction: CreditTransaction) => {
+        const label = getCreditTransactionTypeLabel(transaction)
+
+        if (label === '충전') {
+            return <Badge className="bg-blue-100 text-blue-700">충전</Badge>
         }
-        if (type === 'consume') {
+        if (label === '지급') {
+            return <Badge className="bg-purple-100 text-purple-700">지급</Badge>
+        }
+        if (label === '사용') {
             return <Badge className="bg-gray-100 text-gray-700">사용</Badge>
         }
-        if (type === 'refund') {
+        if (label === '환불') {
             return <Badge className="bg-yellow-100 text-yellow-700">환불</Badge>
         }
-        if (type === 'admin_grant') {
-            return <Badge className="bg-purple-100 text-purple-700">관리자 지급</Badge>
-        }
-        return <Badge>{type}</Badge>
+
+        return <Badge>{label}</Badge>
     }
 
     return (
@@ -343,10 +353,10 @@ export function CreditsClient({
                                                     {new Date(tx.created_at).toLocaleString('ko-KR')}
                                                 </TableCell>
                                                 <TableCell>
-                                                    {getTypeBadge(tx.type)}
+                                                    {getTypeBadge(tx)}
                                                 </TableCell>
                                                 <TableCell className="text-sm">
-                                                    {tx.description}
+                                                    {getCreditTransactionDescription(tx)}
                                                 </TableCell>
                                                 <TableCell className={`text-right font-medium ${tx.amount > 0 ? 'text-green-600' : 'text-red-600'
                                                     }`}>
