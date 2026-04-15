@@ -3,12 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CreditCard } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { PaymentList, type PaymentItem } from './payment-list'
-import { isRealPaidPlanPurchase } from './payment-history'
 
-type PaymentHistoryRow = PaymentItem & {
-  plan_id: string | null
-  payment_key: string | null
-  pricing_plans: PaymentItem['pricing_plans'] | PaymentItem['pricing_plans'][]
+interface PaymentRow extends Omit<PaymentItem, 'pricing_plans'> {
+  pricing_plans: PaymentItem['pricing_plans'] | Array<NonNullable<PaymentItem['pricing_plans']>>
 }
 
 export default async function PaymentsPage() {
@@ -40,14 +37,10 @@ export default async function PaymentsPage() {
     .not('plan_id', 'is', null)
     .order('created_at', { ascending: false })
 
-  const paymentRows = (payments ?? []) as PaymentHistoryRow[]
-
-  const formattedPayments = paymentRows
-    ?.filter(isRealPaidPlanPurchase)
-    .map((payment) => ({
-      ...payment,
-      pricing_plans: Array.isArray(payment.pricing_plans) ? payment.pricing_plans[0] : payment.pricing_plans
-    }))
+  const formattedPayments = payments?.map((payment: PaymentRow) => ({
+    ...payment,
+    pricing_plans: Array.isArray(payment.pricing_plans) ? payment.pricing_plans[0] : payment.pricing_plans
+  }))
 
   return (
     <div className="space-y-6">
