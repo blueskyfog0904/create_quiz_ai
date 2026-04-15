@@ -2,8 +2,14 @@ import { requireAuth } from '@/lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CreditCard } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { PaymentList } from './payment-list'
+import { PaymentList, type PaymentItem } from './payment-list'
 import { isRealPaidPlanPurchase } from './payment-history'
+
+type PaymentHistoryRow = PaymentItem & {
+  plan_id: string | null
+  payment_key: string | null
+  pricing_plans: PaymentItem['pricing_plans'] | PaymentItem['pricing_plans'][]
+}
 
 export default async function PaymentsPage() {
   await requireAuth()
@@ -35,9 +41,11 @@ export default async function PaymentsPage() {
     .gt('amount', 0)
     .order('created_at', { ascending: false })
 
-  const formattedPayments = payments
+  const paymentRows = (payments ?? []) as PaymentHistoryRow[]
+
+  const formattedPayments = paymentRows
     ?.filter(isRealPaidPlanPurchase)
-    .map((payment: any) => ({
+    .map((payment) => ({
       ...payment,
       pricing_plans: Array.isArray(payment.pricing_plans) ? payment.pricing_plans[0] : payment.pricing_plans
     }))
@@ -55,10 +63,9 @@ export default async function PaymentsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <PaymentList payments={formattedPayments || []} />
+          <PaymentList payments={formattedPayments} />
         </CardContent>
       </Card>
     </div>
   )
 }
-
