@@ -36,9 +36,8 @@ export default async function PaymentsPage() {
       )
     `)
     .eq('user_id', user.id)
-    .not('plan_id', 'is', null)
-    .not('payment_key', 'is', null)
     .gt('amount', 0)
+    .not('plan_id', 'is', null)
     .order('created_at', { ascending: false })
 
   const paymentRows = (payments ?? []) as PaymentHistoryRow[]
