@@ -31,29 +31,25 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import {
     Coins,
-    TrendingUp,
-    TrendingDown,
     ArrowRight,
-    RefreshCcw,
     Clock,
-    CheckCircle,
-    XCircle,
     AlertCircle,
     Loader2
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { CreditService } from '@/lib/credits'
+import { getCreditSourceCategoryLabel } from '@/lib/credit-source-display'
 
 interface CreditSource {
-    id: string
-    initial_credits: number
-    remaining_credits: number
-    status: 'active' | 'pending_refund' | 'refunded'
-    purchased_at: string
-    plan: {
-        name: string
-        price: number
-    } | null
+  id: string
+  initial_credits: number
+  remaining_credits: number
+  status: 'active' | 'pending_refund' | 'refunded'
+  purchased_at: string
+  paymentMethod: string | null
+  plan: {
+    name: string
+    price: number
+  } | null
 }
 
 interface CreditTransaction {
@@ -83,8 +79,7 @@ interface CreditsClientProps {
 export function CreditsClient({
     balance,
     sources,
-    transactions,
-    refundRequests
+    transactions
 }: CreditsClientProps) {
     const router = useRouter()
     const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false)
@@ -94,6 +89,8 @@ export function CreditsClient({
 
     // 환불 가능 여부 확인
     const canRequestRefund = (source: CreditSource) => {
+        if (!source.plan) return false
+
         // 이미 환불 요청 중이거나 환불됨
         if (source.status !== 'active') return false
 
@@ -111,6 +108,7 @@ export function CreditsClient({
 
     // 환불 불가 사유
     const getRefundBlockReason = (source: CreditSource) => {
+        if (!source.plan) return '요금제 구매건만 환불 가능'
         if (source.status === 'pending_refund') return '환불 요청 중'
         if (source.status === 'refunded') return '환불 완료'
         if (source.remaining_credits < source.initial_credits) return '이미 사용한 크레딧 있음'
@@ -169,8 +167,14 @@ export function CreditsClient({
         }
     }
 
+    const getSourceCategoryLabel = (source: CreditSource) => getCreditSourceCategoryLabel({
+        status: source.status,
+        plan: source.plan,
+        paymentMethod: source.paymentMethod,
+    })
+
     // 거래 유형 배지
-    const getTypeBadge = (type: string, amount: number) => {
+    const getTypeBadge = (type: string) => {
         if (type === 'purchase') {
             return <Badge className="bg-blue-100 text-blue-700">구매</Badge>
         }
@@ -249,7 +253,7 @@ export function CreditsClient({
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>구매일</TableHead>
-                                            <TableHead>요금제</TableHead>
+                                            <TableHead>구분</TableHead>
                                             <TableHead>구매 크레딧</TableHead>
                                             <TableHead>잔여 크레딧</TableHead>
                                             <TableHead>상태</TableHead>
@@ -267,7 +271,7 @@ export function CreditsClient({
                                                         {new Date(source.purchased_at).toLocaleDateString('ko-KR')}
                                                     </TableCell>
                                                     <TableCell>
-                                                        {source.plan?.name || '알 수 없음'}
+                                                        {getSourceCategoryLabel(source)}
                                                     </TableCell>
                                                     <TableCell>
                                                         {source.initial_credits.toLocaleString()}
@@ -339,7 +343,7 @@ export function CreditsClient({
                                                     {new Date(tx.created_at).toLocaleString('ko-KR')}
                                                 </TableCell>
                                                 <TableCell>
-                                                    {getTypeBadge(tx.type, tx.amount)}
+                                                    {getTypeBadge(tx.type)}
                                                 </TableCell>
                                                 <TableCell className="text-sm">
                                                     {tx.description}

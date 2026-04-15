@@ -2,11 +2,8 @@ import { requireAuth } from '@/lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CreditCard } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { PaymentList, type PaymentItem } from './payment-list'
-
-interface PaymentRow extends Omit<PaymentItem, 'pricing_plans'> {
-  pricing_plans: PaymentItem['pricing_plans'] | Array<NonNullable<PaymentItem['pricing_plans']>>
-}
+import { PaymentList } from './payment-list'
+import { filterRealPaidPlanPurchases, type PaymentHistoryRecord } from '@/lib/payment-history'
 
 export default async function PaymentsPage() {
   await requireAuth()
@@ -23,8 +20,6 @@ export default async function PaymentsPage() {
       id,
       created_at,
       amount,
-      plan_id,
-      payment_key,
       status,
       payment_method,
       plan_id,
@@ -37,10 +32,7 @@ export default async function PaymentsPage() {
     .not('plan_id', 'is', null)
     .order('created_at', { ascending: false })
 
-  const formattedPayments = payments?.map((payment: PaymentRow) => ({
-    ...payment,
-    pricing_plans: Array.isArray(payment.pricing_plans) ? payment.pricing_plans[0] : payment.pricing_plans
-  }))
+  const formattedPayments = filterRealPaidPlanPurchases((payments ?? []) as PaymentHistoryRecord[])
 
   return (
     <div className="space-y-6">
