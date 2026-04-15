@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CreditCard } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { PaymentList } from './payment-list'
-import { filterRealPaidPlanPurchases, type PaymentHistoryRecord } from '@/lib/payment-history'
+import { isRealPaidPlanPurchase } from './payment-history'
 
 export default async function PaymentsPage() {
   await requireAuth()
@@ -20,6 +20,8 @@ export default async function PaymentsPage() {
       id,
       created_at,
       amount,
+      plan_id,
+      payment_key,
       status,
       payment_method,
       plan_id,
@@ -29,10 +31,16 @@ export default async function PaymentsPage() {
     `)
     .eq('user_id', user.id)
     .not('plan_id', 'is', null)
+    .not('payment_key', 'is', null)
     .gt('amount', 0)
     .order('created_at', { ascending: false })
 
-  const formattedPayments = filterRealPaidPlanPurchases((payments ?? []) as PaymentHistoryRecord[])
+  const formattedPayments = payments
+    ?.filter(isRealPaidPlanPurchase)
+    .map((payment: any) => ({
+      ...payment,
+      pricing_plans: Array.isArray(payment.pricing_plans) ? payment.pricing_plans[0] : payment.pricing_plans
+    }))
 
   return (
     <div className="space-y-6">
@@ -53,3 +61,4 @@ export default async function PaymentsPage() {
     </div>
   )
 }
+
