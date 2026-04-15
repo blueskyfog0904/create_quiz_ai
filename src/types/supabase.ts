@@ -98,6 +98,7 @@ export type Database = {
           plan_id: string | null
           purchased_at: string
           remaining_credits: number
+          source_category: string
           status: string
           updated_at: string
           user_id: string
@@ -110,6 +111,7 @@ export type Database = {
           plan_id?: string | null
           purchased_at?: string
           remaining_credits: number
+          source_category?: string
           status?: string
           updated_at?: string
           user_id: string
@@ -122,6 +124,7 @@ export type Database = {
           plan_id?: string | null
           purchased_at?: string
           remaining_credits?: number
+          source_category?: string
           status?: string
           updated_at?: string
           user_id?: string

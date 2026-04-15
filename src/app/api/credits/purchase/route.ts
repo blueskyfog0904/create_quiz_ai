@@ -43,7 +43,9 @@ export async function POST(request: NextRequest) {
             planId,
             plan.credits,
             plan.price,
-            'test' // 테스트 결제
+            'test', // 테스트 결제
+            undefined,
+            'plan_purchase'
         )
 
         return NextResponse.json({

@@ -9,6 +9,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { sendSlackNotification } from '@/lib/slack'
+import type { CreditSourceCategory } from '@/lib/credit-source-display'
 
 // ============================================================================
 // 타입 정의
@@ -18,6 +19,7 @@ export interface CreditSource {
   id: string
   user_id: string
   plan_id: string | null
+  source_category: CreditSourceCategory
   initial_credits: number
   remaining_credits: number
   status: 'active' | 'pending_refund' | 'refunded'
@@ -300,7 +302,8 @@ export class CreditService {
     credits: number,
     price: number,
     paymentMethod: string = 'test',
-    paymentKey?: string
+    paymentKey?: string,
+    sourceCategory: CreditSourceCategory = 'plan_purchase'
   ): Promise<{ sourceId: string; newBalance: number }> {
     const supabase = await createClient()
 
@@ -312,7 +315,8 @@ export class CreditService {
         plan_id: planId,
         initial_credits: credits,
         remaining_credits: credits,
-        status: 'active'
+        status: 'active',
+        source_category: sourceCategory
       })
       .select()
       .single()

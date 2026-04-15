@@ -30,26 +30,6 @@ export default async function CreditsPage() {
     .eq('user_id', user.id)
     .order('purchased_at', { ascending: false })
 
-  const { data: paymentHistory } = await supabase
-    .from('payment_history')
-    .select('source_id, payment_method, created_at')
-    .eq('user_id', user.id)
-    .not('source_id', 'is', null)
-    .order('created_at', { ascending: false })
-
-  const paymentMethodBySourceId = new Map<string, string>()
-
-  for (const payment of paymentHistory ?? []) {
-    if (payment.source_id && !paymentMethodBySourceId.has(payment.source_id)) {
-      paymentMethodBySourceId.set(payment.source_id, payment.payment_method)
-    }
-  }
-
-  const enrichedSources = (sources ?? []).map((source) => ({
-    ...source,
-    paymentMethod: paymentMethodBySourceId.get(source.id) ?? null,
-  }))
-
   // 거래 내역 조회
   const { data: transactions } = await supabase
     .from('credit_transactions')
@@ -68,7 +48,7 @@ export default async function CreditsPage() {
   return (
     <CreditsClient
       balance={profile?.credits ?? 0}
-      sources={enrichedSources}
+      sources={sources || []}
       transactions={transactions || []}
       refundRequests={refundRequests || []}
     />

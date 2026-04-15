@@ -37,7 +37,7 @@ import {
     Loader2
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { getCreditSourceCategoryLabel } from '@/lib/credit-source-display'
+import { getCreditSourceCategoryLabel, type CreditSourceCategory } from '@/lib/credit-source-display'
 
 interface CreditSource {
   id: string
@@ -45,7 +45,7 @@ interface CreditSource {
   remaining_credits: number
   status: 'active' | 'pending_refund' | 'refunded'
   purchased_at: string
-  paymentMethod: string | null
+  source_category: CreditSourceCategory
   plan: {
     name: string
     price: number
@@ -170,7 +170,7 @@ export function CreditsClient({
     const getSourceCategoryLabel = (source: CreditSource) => getCreditSourceCategoryLabel({
         status: source.status,
         plan: source.plan,
-        paymentMethod: source.paymentMethod,
+        sourceCategory: source.source_category,
     })
 
     // 거래 유형 배지

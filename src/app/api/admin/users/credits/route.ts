@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { CreditService } from '@/lib/credits'
+import { resolveAdminGrantSourceCategory } from '@/lib/credit-source-display'
 
 const GrantCreditSchema = z.object({
   userId: z.string().uuid(),
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
       other: '기타'
     }[category] || '기타'
 
-    const fullDescription = `[${categoryLabel}] ${description}`
+    const sourceCategory = resolveAdminGrantSourceCategory(category)
 
     // 2. Grant Credits via purchaseCredits (관리자 지급)
     const result = await CreditService.purchaseCredits(
@@ -50,7 +51,9 @@ export async function POST(request: Request) {
       null,  // plan_id 없음 (관리자 지급)
       amount,
       0,  // 관리자 지급은 결제 금액 0
-      'admin_grant'
+      'admin_grant',
+      undefined,
+      sourceCategory
     )
 
     // 3. Send Notification
@@ -67,7 +70,7 @@ export async function POST(request: Request) {
       newBalance: result.newBalance,
     })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Grant Credits Error:', error)
 
     if (error instanceof z.ZodError) {
@@ -78,7 +81,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      error: error.message || 'Failed to grant credits'
+      error: error instanceof Error ? error.message : 'Failed to grant credits'
     }, { status: 500 })
   }
 }

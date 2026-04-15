@@ -120,7 +120,8 @@ export async function POST(request: NextRequest) {
                 plan.credits,
                 plan.price,
                 confirmData.method || 'card',
-                paymentKey
+                paymentKey,
+                'plan_purchase'
             )
 
             // 결제 정보에 orderId 추가 (payment_history는 purchaseCredits에서 이미 생성됨)
