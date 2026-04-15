@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CreditCard } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { PaymentList } from './payment-list'
+import { filterRealPaidPlanPurchases, type PaymentHistoryRecord } from '@/lib/payment-history'
 
 export default async function PaymentsPage() {
   await requireAuth()
@@ -21,17 +22,17 @@ export default async function PaymentsPage() {
       amount,
       status,
       payment_method,
+      plan_id,
       pricing_plans (
         name
       )
     `)
     .eq('user_id', user.id)
+    .not('plan_id', 'is', null)
+    .gt('amount', 0)
     .order('created_at', { ascending: false })
 
-  const formattedPayments = payments?.map((payment: any) => ({
-    ...payment,
-    pricing_plans: Array.isArray(payment.pricing_plans) ? payment.pricing_plans[0] : payment.pricing_plans
-  }))
+  const formattedPayments = filterRealPaidPlanPurchases((payments ?? []) as PaymentHistoryRecord[])
 
   return (
     <div className="space-y-6">
@@ -42,7 +43,7 @@ export default async function PaymentsPage() {
             결제 내역
           </CardTitle>
           <CardDescription>
-            크레딧 구매 및 결제 기록을 확인하실 수 있습니다.
+            요금제에서 실제로 결제한 구매 및 환불 기록을 확인하실 수 있습니다.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -52,5 +53,3 @@ export default async function PaymentsPage() {
     </div>
   )
 }
-
-
