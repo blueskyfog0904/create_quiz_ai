@@ -307,31 +307,42 @@ export default function JobStatusClient({
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">배치 생성 결과 검토</h1>
+          <h1 className="text-3xl font-bold text-gray-900">문제 생성 결과 진행창</h1>
           <p className="mt-2 text-gray-500">{post.title} 게시글 기준 생성 결과를 확인하고 선택 저장할 수 있습니다.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => void refreshJob()} disabled={isGenerationInProgress || isRefreshing}>
-            {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-            새로고침
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => void refreshJob()}
+            disabled={isGenerationInProgress || isRefreshing}
+            aria-label="새로고침"
+            title="새로고침"
+            className="shrink-0"
+          >
+            {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           </Button>
           {failedCount > 0 && job.status !== 'running' && !isStartingRun ? (
-            <Button onClick={() => void handleRetryFailed()} disabled={isGenerationInProgress || isRetrying}>
+            <Button onClick={() => void handleRetryFailed()} disabled={isGenerationInProgress || isRetrying} className="shrink-0 whitespace-nowrap">
               {isRetrying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               실패 항목 재시도
             </Button>
           ) : null}
-          <Button variant="outline" asChild>
+          <Button variant="outline" asChild className="shrink-0 whitespace-nowrap">
             <Link
               href={`/generate/boards/${board.slug}/posts/${post.id}`}
               aria-disabled={isGenerationInProgress}
-              className={isGenerationInProgress ? 'pointer-events-none opacity-50' : ''}
+              className={`whitespace-nowrap ${isGenerationInProgress ? 'pointer-events-none opacity-50' : ''}`}
             >
               선택 화면으로 돌아가기
             </Link>
           </Button>
-          <Button onClick={() => router.push(`/library/purchased?jobId=${job.id}`)} disabled={isGenerationInProgress || savedCount === 0}>
-            저장한 문제 확인하기
+          <Button
+            onClick={() => router.push(`/library/purchased?jobId=${job.id}`)}
+            disabled={isGenerationInProgress || savedCount === 0}
+            className="shrink-0 whitespace-nowrap"
+          >
+            저장 문제 확인
           </Button>
         </div>
       </div>
