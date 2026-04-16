@@ -125,6 +125,8 @@ export async function extractTextFromFile(formData: FormData) {
       3. **Ignore**:
          - Short headers/footers (e.g., "Lesson 1", "No Hat, No Play").
          - Question numbers or instructions (e.g., "03 What does...", "Answer the question").
+         - Standalone multiple-choice answer blocks such as 5-choice options, answer lists, 보기, 선지 묶음, or boxes that contain only numbered/circled choices.
+         - Text blocks whose primary content is answer options rather than a readable English passage.
          - Korean explanations or definitions mixed in the text.
          - Isolated UI elements or button texts.
       4. **Smart Merge & Split**:
@@ -132,6 +134,7 @@ export async function extractTextFromFile(formData: FormData) {
          - Separate distinct passages (e.g., Passage 1 vs Passage 2).
       5. If a passage includes an underlined blank or missing-word line, preserve that blank as _____ in the extracted text.
       6. If the extracted passage contains numbered answer choices, preserve them and prefer the format (1), (2), (3), ...
+      7. Extract only the passage/question stem when it is meaningful by itself, and exclude detached choice-only panels.
 
       **Output Format**:
       Return a JSON object: { "passages": ["Valid passage 1...", "Valid passage 2..."] }
