@@ -20,6 +20,7 @@ interface ProfileClientProps {
 export function ProfileClient({ profile, fallbackEmail }: ProfileClientProps) {
   const router = useRouter()
   const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -93,6 +94,11 @@ export function ProfileClient({ profile, fallbackEmail }: ProfileClientProps) {
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!currentPassword.trim()) {
+      toast.error('기존 비밀번호를 입력해주세요.')
+      return
+    }
     
     if (newPassword !== confirmPassword) {
       toast.error('새 비밀번호가 일치하지 않습니다.')
@@ -106,8 +112,22 @@ export function ProfileClient({ profile, fallbackEmail }: ProfileClientProps) {
 
     setIsSubmitting(true)
     const supabase = createClient()
+    const email = profile?.email || fallbackEmail
 
     try {
+      if (!email) {
+        throw new Error('계정 이메일을 확인할 수 없습니다.')
+      }
+
+      const { error: currentPasswordError } = await supabase.auth.signInWithPassword({
+        email,
+        password: currentPassword,
+      })
+
+      if (currentPasswordError) {
+        throw new Error('기존 비밀번호가 올바르지 않습니다.')
+      }
+
       const { error } = await supabase.auth.updateUser({
         password: newPassword
       })
@@ -118,6 +138,7 @@ export function ProfileClient({ profile, fallbackEmail }: ProfileClientProps) {
 
       toast.success('비밀번호가 성공적으로 변경되었습니다.')
       setIsChangingPassword(false)
+      setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
     } catch (error: unknown) {
@@ -213,6 +234,18 @@ export function ProfileClient({ profile, fallbackEmail }: ProfileClientProps) {
           ) : (
             <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
               <div className="space-y-2">
+                <Label htmlFor="currentPassword">기존 비밀번호</Label>
+                <Input
+                  id="currentPassword"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="기존 비밀번호 입력"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="newPassword">새 비밀번호</Label>
                 <Input
                   id="newPassword"
@@ -249,6 +282,7 @@ export function ProfileClient({ profile, fallbackEmail }: ProfileClientProps) {
                   variant="outline" 
                   onClick={() => {
                     setIsChangingPassword(false)
+                    setCurrentPassword('')
                     setNewPassword('')
                     setConfirmPassword('')
                   }}
