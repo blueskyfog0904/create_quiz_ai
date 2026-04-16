@@ -7,6 +7,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { createClient } from "@/lib/supabase/server";
 import { getAIModelSettings } from "@/app/api/admin/settings/actions";
+import { normalizeVisualCropPassages } from "@/lib/ocr/response-normalization";
 
 // Initialize Google AI
 const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY!);
@@ -127,6 +128,66 @@ export async function extractTextFromFile(formData: FormData) {
 
     console.log(`[OCR] Sending batch request to Gemini (${modelName})...`);
     
+    const parsePassagesFromResponse = (text: string): { success: true; passages: string[] } | { success: false; error: string } => {
+      const cleanText = text.replace(/```json\n|\n```/g, '').trim();
+      
+      const jsonResponse = JSON.parse(cleanText);
+      console.log("[OCR] Parsed Object keys:", Object.keys(jsonResponse));
+
+      if (!jsonResponse.passages || !Array.isArray(jsonResponse.passages)) {
+         console.warn("[OCR] Response missing 'passages' array. Raw parsed:", jsonResponse);
+         if (jsonResponse.content) {
+             return { success: true, passages: [jsonResponse.content] };
+         }
+         if (Array.isArray(jsonResponse)) {
+             return { success: true, passages: jsonResponse };
+         }
+         return { success: true, passages: [cleanText] };
+      }
+
+      const passages = jsonResponse.passages
+        .map((passage: unknown) => typeof passage === 'string' ? passage.trim() : '')
+        .filter(Boolean);
+
+      return { success: true, passages };
+    }
+
+    if (mode === 'visual') {
+      const normalizedVisualPassages: string[] = []
+
+      for (const uploadResult of uploadResults) {
+        const requestParts = [
+          {
+            fileData: {
+              mimeType: uploadResult.file.mimeType,
+              fileUri: uploadResult.file.uri,
+            },
+          },
+          { text: prompt },
+        ]
+
+        const result = await model.generateContent(requestParts)
+        const response = await result.response
+        const text = response.text()
+        console.log(`[OCR] Raw visual crop AI Response: ${text.substring(0, 500)}...`)
+
+        try {
+          const parsed = parsePassagesFromResponse(text)
+          if (!parsed.success) {
+            return { success: false, error: parsed.error }
+          }
+
+          normalizedVisualPassages.push(...normalizeVisualCropPassages(parsed.passages))
+        } catch (parseError) {
+          console.error("[OCR] JSON Parse Error:", parseError);
+          console.error("[OCR] Text causing error:", text);
+          return { success: false, error: "AI responded but failed to parse JSON." };
+        }
+      }
+
+      return { success: true, data: { passages: normalizedVisualPassages } };
+    }
+
     // Construct the request parts: All images + Prompt
     const requestParts = [
         ...uploadResults.map(r => ({
@@ -145,33 +206,12 @@ export async function extractTextFromFile(formData: FormData) {
     console.log(`[OCR] Raw AI Response: ${text.substring(0, 500)}...`); 
     
     try {
-      const cleanText = text.replace(/```json\n|\n```/g, '').trim();
-      const jsonResponse = JSON.parse(cleanText);
-      console.log("[OCR] Parsed Object keys:", Object.keys(jsonResponse));
-
-      if (!jsonResponse.passages || !Array.isArray(jsonResponse.passages)) {
-         console.warn("[OCR] Response missing 'passages' array. Raw parsed:", jsonResponse);
-         if (jsonResponse.content) {
-             return { success: true, data: { passages: [jsonResponse.content] } };
-         }
-         if (Array.isArray(jsonResponse)) {
-             return { success: true, data: { passages: jsonResponse } };
-         }
-         return { success: true, data: { passages: [cleanText] } };
+      const parsed = parsePassagesFromResponse(text)
+      if (!parsed.success) {
+        return { success: false, error: parsed.error }
       }
 
-      const passages = jsonResponse.passages
-        .map((passage: unknown) => typeof passage === 'string' ? passage.trim() : '')
-        .filter(Boolean);
-
-      if (mode === 'visual' && passages.length > files.length) {
-        console.warn('[OCR] Visual mode returned more passages than crop images', {
-          cropCount: files.length,
-          passageCount: passages.length,
-        });
-      }
-
-      return { success: true, data: { passages } };
+      return { success: true, data: { passages: parsed.passages } };
     } catch (parseError) {
       console.error("[OCR] JSON Parse Error:", parseError);
       console.error("[OCR] Text causing error:", text);
