@@ -47,6 +47,7 @@ export function HistoryFilterBar({
   onApply,
   resultCount,
 }: HistoryFilterBarProps) {
+  const [quickRangeValue, setQuickRangeValue] = useState('custom')
   const [draft, setDraft] = useState<HistoryFilterBarValues>({
     fromDate: initialValues.fromDate,
     toDate: initialValues.toDate,
@@ -68,6 +69,7 @@ export function HistoryFilterBar({
       categoryValue: DEFAULT_CATEGORY,
     }
 
+    setQuickRangeValue('custom')
     setDraft(resetValues)
     onApply(resetValues)
   }
@@ -78,34 +80,20 @@ export function HistoryFilterBar({
       categoryValue: draft.categoryValue ?? DEFAULT_CATEGORY,
     }
 
+    setQuickRangeValue(String(days))
     setDraft(nextValues)
     onApply(nextValues)
   }
 
   return (
     <div className="mb-5 rounded-lg border bg-muted/20 p-4">
-      <div className="mb-4 flex flex-wrap gap-2">
-        {QUICK_RANGES.map((range) => (
-          <Button
-            key={range.label}
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-full"
-            onClick={() => handleQuickRangeApply(range.days)}
-          >
-            {range.label}
-          </Button>
-        ))}
-      </div>
-
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div
           className={cn(
             'grid flex-1 gap-3 md:grid-cols-2',
             categoryLabel && categoryOptions.length > 0
-              ? 'xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px]'
-              : 'xl:grid-cols-2'
+              ? 'xl:grid-cols-[168px_168px_128px_220px]'
+              : 'xl:grid-cols-[168px_168px_128px]'
           )}
         >
           <div className="space-y-2">
@@ -115,8 +103,12 @@ export function HistoryFilterBar({
             </div>
             <Input
               type="date"
+              className="w-full px-2 text-sm"
               value={draft.fromDate}
-              onChange={(event) => setDraft((current) => ({ ...current, fromDate: event.target.value }))}
+              onChange={(event) => {
+                setQuickRangeValue('custom')
+                setDraft((current) => ({ ...current, fromDate: event.target.value }))
+              }}
             />
           </div>
 
@@ -127,9 +119,40 @@ export function HistoryFilterBar({
             </div>
             <Input
               type="date"
+              className="w-full px-2 text-sm"
               value={draft.toDate}
-              onChange={(event) => setDraft((current) => ({ ...current, toDate: event.target.value }))}
+              onChange={(event) => {
+                setQuickRangeValue('custom')
+                setDraft((current) => ({ ...current, toDate: event.target.value }))
+              }}
             />
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-gray-700">빠른 선택</div>
+            <Select
+              value={quickRangeValue}
+              onValueChange={(value) => {
+                if (value === 'custom') {
+                  setQuickRangeValue(value)
+                  return
+                }
+
+                handleQuickRangeApply(Number(value))
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="기간 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="custom">직접 선택</SelectItem>
+                {QUICK_RANGES.map((range) => (
+                  <SelectItem key={range.label} value={String(range.days)}>
+                    {range.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {categoryLabel && categoryOptions.length > 0 ? (
