@@ -7,7 +7,10 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { createClient } from "@/lib/supabase/server";
 import { getAIModelSettings } from "@/app/api/admin/settings/actions";
-import { normalizeVisualCropPassages } from "@/lib/ocr/response-normalization";
+import {
+  normalizeOcrPassageText,
+  normalizeVisualCropPassages,
+} from "@/lib/ocr/response-normalization";
 import {
   getErrorStatusCode,
   isRetryableGeminiError,
@@ -104,7 +107,9 @@ export async function extractTextFromFile(formData: FormData) {
       1. Extract only the English passage text visible in each cropped image.
       2. Do not invent, merge, or continue text that is not visible in the crop.
       3. Preserve the reading order within each crop.
-      4. Return a JSON object: { "passages": ["text1", "text2"] }
+      4. If the passage contains an underlined blank or missing-word line, preserve it in the output as _____ exactly where it appears.
+      5. Do not omit blanks/underlines just because they are not alphabetic text.
+      6. Return a JSON object: { "passages": ["text1", "text2"] }
     `;
 
     const autoPrompt = `
@@ -124,6 +129,7 @@ export async function extractTextFromFile(formData: FormData) {
       4. **Smart Merge & Split**:
          - Merge text split across columns or pages if it forms a single continuous story/article.
          - Separate distinct passages (e.g., Passage 1 vs Passage 2).
+      5. If a passage includes an underlined blank or missing-word line, preserve that blank as _____ in the extracted text.
 
       **Output Format**:
       Return a JSON object: { "passages": ["Valid passage 1...", "Valid passage 2..."] }
@@ -151,7 +157,7 @@ export async function extractTextFromFile(formData: FormData) {
       }
 
       const passages = jsonResponse.passages
-        .map((passage: unknown) => typeof passage === 'string' ? passage.trim() : '')
+        .map((passage: unknown) => typeof passage === 'string' ? normalizeOcrPassageText(passage) : '')
         .filter(Boolean);
 
       return { success: true, passages };

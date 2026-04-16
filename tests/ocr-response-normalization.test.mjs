@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { normalizeVisualCropPassages } from '../src/lib/ocr/response-normalization.ts'
+import {
+  normalizeOcrPassageText,
+  normalizeVisualCropPassages,
+} from '../src/lib/ocr/response-normalization.ts'
+
+test('normalizeOcrPassageText preserves common blank markers as underscores', () => {
+  assert.equal(normalizeOcrPassageText('which [blank] than before'), 'which _____ than before')
+  assert.equal(normalizeOcrPassageText('which (blank) than before'), 'which _____ than before')
+  assert.equal(normalizeOcrPassageText('which ____ than before'), 'which _____ than before')
+})
 
 test('normalizeVisualCropPassages joins multiple OCR fragments from one crop into one passage', () => {
   assert.deepEqual(
