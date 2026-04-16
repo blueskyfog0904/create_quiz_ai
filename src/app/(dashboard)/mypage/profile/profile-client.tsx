@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -28,28 +27,13 @@ export function ProfileClient({ profile, fallbackEmail }: ProfileClientProps) {
   // Profile editing states
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [phone, setPhone] = useState(profile?.phone || '')
-  const [role, setRole] = useState(profile?.role || '')
-  const [organization, setOrganization] = useState(profile?.organization || '')
   const [isSavingProfile, setIsSavingProfile] = useState(false)
 
   useEffect(() => {
     if (profile) {
       setPhone(profile.phone || '')
-      setRole(profile.role || '')
-      setOrganization(profile.organization || '')
     }
   }, [profile])
-
-  const getRoleLabel = (role: string | null | undefined) => {
-    switch (role) {
-      case 'teacher':
-        return '교사'
-      case 'academy_instructor':
-        return '학원강사'
-      default:
-        return '미설정'
-    }
-  }
 
   const formatPhoneNumber = (value: string) => {
     const cleaned = value.replace(/\D/g, '')
@@ -75,14 +59,8 @@ export function ProfileClient({ profile, fallbackEmail }: ProfileClientProps) {
     const supabase = createClient()
 
     try {
-      const updateData: {
-        phone: string | null
-        role: string | null
-        organization: string | null
-      } = {
+      const updateData = {
         phone: phone?.trim() || null,
-        role: role?.trim() || null,
-        organization: organization?.trim() || null,
       }
 
       const { error } = await supabase
@@ -109,8 +87,6 @@ export function ProfileClient({ profile, fallbackEmail }: ProfileClientProps) {
   const handleProfileCancel = () => {
     if (profile) {
       setPhone(profile.phone || '')
-      setRole(profile.role || '')
-      setOrganization(profile.organization || '')
     }
     setIsEditingProfile(false)
   }
@@ -176,43 +152,6 @@ export function ProfileClient({ profile, fallbackEmail }: ProfileClientProps) {
                 <span className="font-medium">{profile?.email || fallbackEmail || '미설정'}</span>
                 <span className="text-xs text-gray-400 ml-2">(변경 불가)</span>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-gray-500">역할</Label>
-              {isEditingProfile ? (
-                <Select 
-                  value={role?.trim() || undefined} 
-                  onValueChange={(value) => setRole(value || '')}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="역할을 선택해주세요" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="teacher">교사</SelectItem>
-                    <SelectItem value="academy_instructor">학원강사</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div className="p-3 bg-gray-50 rounded-lg border">
-                  <span className="font-medium">{getRoleLabel(profile?.role)}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-gray-500">소속</Label>
-              {isEditingProfile ? (
-                <Input
-                  value={organization}
-                  onChange={(e) => setOrganization(e.target.value)}
-                  placeholder="OOO 학교"
-                />
-              ) : (
-                <div className="p-3 bg-gray-50 rounded-lg border">
-                  <span className="font-medium">{profile?.organization || '미설정'}</span>
-                </div>
-              )}
             </div>
 
             <div className="space-y-2">
