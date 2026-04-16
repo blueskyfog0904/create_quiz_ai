@@ -7,23 +7,22 @@ import {
   Check, 
   ChevronLeft, 
   ChevronRight, 
-  Trash2, 
-  RotateCcw,
-  Crop,
   Loader2,
   ZoomIn,
   ZoomOut,
   MousePointer2,
   Highlighter,
   Sparkles,
-  CheckCircle2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { extractTextFromFile } from '@/app/api/ocr/actions';
+import {
+  buildOrderedCropRects,
+  type SelectionRect,
+} from '@/lib/ocr/selection-crop';
 
 // Setup PDF worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -34,18 +33,12 @@ interface OCRPreviewStageProps {
   onExtractionComplete: (passages: string[]) => void;
 }
 
-interface Selection {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+type Selection = SelectionRect
 
 type Tool = 'box' | 'highlighter';
 
 export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPreviewStageProps) {
-  const [fileType, setFileType] = useState<'image' | 'pdf'>(file.type.includes('pdf') ? 'pdf' : 'image');
+  const [fileType] = useState<'image' | 'pdf'>(file.type.includes('pdf') ? 'pdf' : 'image');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number>(1);
   const [pageNumber, setPageNumber] = useState<number>(1);
@@ -83,14 +76,14 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
 
   // Convert mouse event to relative coordinates
   // Adjusted for scale
-  const getRelativeCoords = (e: React.MouseEvent | MouseEvent) => {
+  const getRelativeCoords = useCallback((e: React.MouseEvent | MouseEvent) => {
     if (!containerRef.current) return { x: 0, y: 0 };
     const rect = containerRef.current.getBoundingClientRect();
     return {
       x: (e.clientX - rect.left) / scale,
       y: (e.clientY - rect.top) / scale
     };
-  };
+  }, [scale]);
 
   const drawHighlight = (points: {x: number, y: number}[]) => {
     const canvas = canvasRef.current;
@@ -194,29 +187,6 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
   useEffect(() => { currentSelectionRef.current = currentSelection; }, [currentSelection]);
   useEffect(() => { currentStrokeRef.current = currentStroke; }, [currentStroke]);
 
-  // Global event listeners for drawing outside bounds
-  useEffect(() => {
-    // Only attach if drawing started (checked via state to trigger this effect)
-    if (!isDrawing) return;
-
-    const handleWindowMouseMove = (e: MouseEvent) => {
-      e.preventDefault(); 
-      handleMouseMove(e);
-    };
-
-    const handleWindowMouseUp = (e: MouseEvent) => {
-      handleMouseUp(e);
-    };
-
-    window.addEventListener('mousemove', handleWindowMouseMove);
-    window.addEventListener('mouseup', handleWindowMouseUp);
-
-    return () => {
-      window.removeEventListener('mousemove', handleWindowMouseMove);
-      window.removeEventListener('mouseup', handleWindowMouseUp);
-    };
-  }, [isDrawing]); // Depend on isDrawing state to attach/detach
-
   const handleMouseMove = useCallback((e: MouseEvent) => {
     // Use Refs to get fresh state without re-binding listeners
     if (!isDrawingRef.current || !containerRef.current) return;
@@ -257,9 +227,9 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
         
         drawHighlight(newStroke);
     }
-  }, [scale]); // scale might change less frequently, but OK to include (or use ref)
+  }, [getRelativeCoords, scale]);
 
-  const handleMouseUp = useCallback((e: MouseEvent) => {
+  const handleMouseUp = useCallback(() => {
     if (!isDrawingRef.current) return;
     setIsDrawing(false);
     isDrawingRef.current = false; // Immediate sync
@@ -315,6 +285,28 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
     }
   }, []);
 
+  // Global event listeners for drawing outside bounds
+  useEffect(() => {
+    if (!isDrawing) return;
+
+    const handleWindowMouseMove = (e: MouseEvent) => {
+      e.preventDefault();
+      handleMouseMove(e);
+    };
+
+    const handleWindowMouseUp = () => {
+      handleMouseUp();
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp, isDrawing]);
+
   const removeSelection = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelections(selections.filter(s => s.id !== id));
@@ -327,92 +319,102 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
   // Given the complexity of adding canvas + tool state + imports, replacing the file (or large chunk) is safer.
   // I will include the cropSelection/handleExtraction logic below.
 
-  // Merge original image with selections to create a "Visual Prompt" image
-  const mergeImageWithSelections = async (skipMarking: boolean = false): Promise<Blob | null> => {
-    if (!containerRef.current) return null;
+  const resolveSourceElement = (): HTMLCanvasElement | HTMLImageElement | null => {
+    if (!containerRef.current) return null
 
-    let sourceElement: HTMLCanvasElement | HTMLImageElement | null = null;
-    
-    // Get source content
     if (fileType === 'pdf') {
-      const canvas = containerRef.current.querySelector('canvas') as HTMLCanvasElement;
-      sourceElement = canvas;
-    } else {
-      sourceElement = imageRef.current;
+      return containerRef.current.querySelector('.react-pdf__Page__canvas') as HTMLCanvasElement | null
     }
 
-    if (!sourceElement) return null;
+    return imageRef.current
+  }
 
-    // Create a new canvas for merging
-    const canvas = document.createElement('canvas');
-    // Set explicit size to match the intrinsic size of source
-    // For PDF canvas, width/height attributes are the intrinsic pixel size
-    // For Image, naturalWidth.
-    let intrinsicWidth = 0;
-    let intrinsicHeight = 0;
-
+  const getIntrinsicSize = (sourceElement: HTMLCanvasElement | HTMLImageElement) => {
     if (sourceElement instanceof HTMLCanvasElement) {
-        intrinsicWidth = sourceElement.width;
-        intrinsicHeight = sourceElement.height;
-    } else { // Image
-        intrinsicWidth = (sourceElement as HTMLImageElement).naturalWidth;
-        intrinsicHeight = (sourceElement as HTMLImageElement).naturalHeight;
+      return {
+        width: sourceElement.width,
+        height: sourceElement.height,
+      }
     }
 
-    canvas.width = intrinsicWidth;
-    canvas.height = intrinsicHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-
-    // 1. Draw Original Image
-    ctx.drawImage(sourceElement, 0, 0, intrinsicWidth, intrinsicHeight);
-
-    // 2. Draw Selections (Visual Prompting with Dimming)
-    // AI Attention Control: Dim everything OUTSIDE the selection boxes
-    if (!skipMarking) {
-        const visualUnzoomedWidth = sourceElement.clientWidth; 
-        const visualUnzoomedHeight = sourceElement.clientHeight;
-
-        const scaleX = intrinsicWidth / visualUnzoomedWidth;
-        const scaleY = intrinsicHeight / visualUnzoomedHeight;
-
-        // A. Dim the entire image first
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'; // 65% opacity black overlay
-        ctx.fillRect(0, 0, intrinsicWidth, intrinsicHeight);
-
-        // B. Clear/Restore original brightness ONLY for selected areas
-        // We do this by clipping the context to the selection paths and redrawing the original image
-        ctx.save();
-        ctx.beginPath();
-        selections.forEach(sel => {
-            const x = sel.x * scaleX;
-            const y = sel.y * scaleY;
-            const w = sel.width * scaleX;
-            const h = sel.height * scaleY;
-            ctx.rect(x, y, w, h);
-        });
-        ctx.clip();
-        
-        // Redraw original image inside clipping region (restores brightness)
-        ctx.drawImage(sourceElement, 0, 0, intrinsicWidth, intrinsicHeight);
-        ctx.restore();
-
-        // C. Draw borders for clearer definition
-        ctx.lineWidth = 4 * scaleX; // Thicker border for visibility
-        ctx.strokeStyle = '#FFFF00'; // Yellow border
-        selections.forEach(sel => {
-            const x = sel.x * scaleX;
-            const y = sel.y * scaleY;
-            const w = sel.width * scaleX;
-            const h = sel.height * scaleY;
-            ctx.strokeRect(x, y, w, h);
-        });
+    return {
+      width: sourceElement.naturalWidth,
+      height: sourceElement.naturalHeight,
     }
+  }
+
+  const buildWholeImageBlob = async (): Promise<Blob | null> => {
+    const sourceElement = resolveSourceElement()
+    if (!sourceElement) return null
+
+    const intrinsicSize = getIntrinsicSize(sourceElement)
+    const canvas = document.createElement('canvas')
+    canvas.width = intrinsicSize.width
+    canvas.height = intrinsicSize.height
+    const ctx = canvas.getContext('2d')
+
+    if (!ctx) return null
+
+    ctx.drawImage(sourceElement, 0, 0, intrinsicSize.width, intrinsicSize.height)
 
     return new Promise((resolve) => {
-      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.95);
-    });
-  };
+      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.95)
+    })
+  }
+
+  const buildSelectionCropBlobs = async (padding = 12): Promise<Blob[]> => {
+    const sourceElement = resolveSourceElement()
+    if (!sourceElement) {
+      throw new Error('선택 영역의 원본 이미지를 찾을 수 없습니다.')
+    }
+
+    const intrinsicSize = getIntrinsicSize(sourceElement)
+    const visualSize = {
+      width: sourceElement.clientWidth,
+      height: sourceElement.clientHeight,
+    }
+
+    const cropRects = buildOrderedCropRects(selections, visualSize, intrinsicSize, padding)
+    const blobs = await Promise.all(cropRects.map(async (rect) => {
+      const canvas = document.createElement('canvas')
+      canvas.width = rect.width
+      canvas.height = rect.height
+      const ctx = canvas.getContext('2d')
+
+      if (!ctx) {
+        throw new Error('선택 영역 crop canvas를 만들 수 없습니다.')
+      }
+
+      ctx.drawImage(
+        sourceElement,
+        rect.x,
+        rect.y,
+        rect.width,
+        rect.height,
+        0,
+        0,
+        rect.width,
+        rect.height
+      )
+
+      return await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            reject(new Error('선택 영역 crop 이미지 생성에 실패했습니다.'))
+            return
+          }
+
+          resolve(blob)
+        }, 'image/jpeg', 0.95)
+      })
+    }))
+
+    if (blobs.length !== selections.length) {
+      throw new Error('선택 영역 crop 생성 수가 일치하지 않습니다.')
+    }
+
+    return blobs
+  }
 
   const handleExtraction = async (mode: 'visual' | 'auto') => {
     // Validation for visual mode
@@ -425,10 +427,14 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
     setProcessingProgress(10);
     
     try {
-      // 1. Merge image (with or without marks)
-      const mergedBlob = await mergeImageWithSelections(mode === 'auto');
-      
-      if (!mergedBlob) {
+      const formData = new FormData();
+      const sourceFiles = mode === 'visual'
+        ? await buildSelectionCropBlobs()
+        : [await buildWholeImageBlob()]
+
+      const validFiles = sourceFiles.filter((blob): blob is Blob => blob !== null)
+
+      if (validFiles.length === 0) {
         toast.error('이미지 처리에 실패했습니다.');
         setIsProcessing(false);
         return;
@@ -436,9 +442,9 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
 
       setProcessingProgress(40);
 
-      // 2. Prepare FormData
-      const formData = new FormData();
-      formData.append('files', mergedBlob, 'source_image.jpg');
+      validFiles.forEach((blob, index) => {
+        formData.append('files', blob, mode === 'visual' ? `selection-${index + 1}.jpg` : 'source_image.jpg')
+      })
       formData.append('mode', mode); // Add mode parameter
 
       // 3. Send Request
@@ -457,9 +463,10 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
         toast.error(result.error || '텍스트 추출에 실패했습니다.');
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Extraction flow error:', error);
-      toast.error(`오류 발생: ${error.message}`);
+      const message = error instanceof Error ? error.message : '선택 영역 추출 중 오류가 발생했습니다.';
+      toast.error(`오류 발생: ${message}`);
     } finally {
       setIsProcessing(false);
       setProcessingProgress(0);

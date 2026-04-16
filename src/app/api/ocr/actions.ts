@@ -23,7 +23,14 @@ export async function extractTextFromFile(formData: FormData) {
   console.log(`[OCR] Starting batch processing for ${files.length} files`);
 
   const tempFilePaths: string[] = [];
-  const uploadResults: any[] = [];
+  const uploadResults: Array<{
+    file: {
+      uri: string
+      mimeType: string
+      name: string
+      state: FileState
+    }
+  }> = [];
 
   try {
     // 1. Save and Upload all files
@@ -84,16 +91,14 @@ export async function extractTextFromFile(formData: FormData) {
 
     // Fallback prompts
     const visualPrompt = `
-      You are an expert OCR assistant for English education materials. 
-      The user has provided an image where specific parts are **highlighted/boxed** and the rest is **dimmed/darkened**.
+      You are an expert OCR assistant for English education materials.
+      Each provided image is already cropped to a user-selected passage region.
       
       YOUR TASK:
-      1. Focus **STRICTLY** on the bright, highlighted areas.
-      2. Extract **ONLY the English text** contained within these bright/boxed areas.
-      3. **CRITICAL**: Ignore ALL text in the darkened/dimmed background. Even if you can read it, DO NOT extract it.
-      4. If a sentence continues from a highlighted area into the dark background, **STOP** extracting at the boundary.
-      5. If the highlighted areas cover parts of the same continuous passage, **MERGE them intelligently**.
-      6. Return a JSON object: { "passages": ["text1", "text2"] }
+      1. Extract only the English passage text visible in each cropped image.
+      2. Do not invent, merge, or continue text that is not visible in the crop.
+      3. Preserve the reading order within each crop.
+      4. Return a JSON object: { "passages": ["text1", "text2"] }
     `;
 
     const autoPrompt = `
@@ -155,14 +160,25 @@ export async function extractTextFromFile(formData: FormData) {
          return { success: true, data: { passages: [cleanText] } };
       }
 
-      return { success: true, data: jsonResponse };
+      const passages = jsonResponse.passages
+        .map((passage: unknown) => typeof passage === 'string' ? passage.trim() : '')
+        .filter(Boolean);
+
+      if (mode === 'visual' && passages.length > files.length) {
+        console.warn('[OCR] Visual mode returned more passages than crop images', {
+          cropCount: files.length,
+          passageCount: passages.length,
+        });
+      }
+
+      return { success: true, data: { passages } };
     } catch (parseError) {
       console.error("[OCR] JSON Parse Error:", parseError);
       console.error("[OCR] Text causing error:", text);
       return { success: false, error: "AI responded but failed to parse JSON." };
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[OCR] Critical Error:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     return { success: false, error: errorMessage };
