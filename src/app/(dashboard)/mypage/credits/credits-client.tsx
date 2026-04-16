@@ -5,7 +5,7 @@
  * 잔액 표시, 구매건 목록(환불 요청 버튼), 거래 내역
  */
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -42,6 +42,13 @@ import {
   getCreditTransactionDescription,
   getCreditTransactionTypeLabel,
 } from '@/lib/credit-transaction-display'
+import { HistoryFilterBar } from '@/components/features/mypage/history-filter-bar'
+import {
+  filterCreditSourcesByHistoryFilter,
+  filterCreditTransactionsByHistoryFilter,
+  type CreditSourceHistoryFilter,
+  type CreditTransactionHistoryFilter,
+} from '@/lib/mypage-history-filters'
 
 interface CreditSource {
   id: string
@@ -93,6 +100,26 @@ export function CreditsClient({
     const [selectedSource, setSelectedSource] = useState<CreditSource | null>(null)
     const [refundReason, setRefundReason] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [sourceFilters, setSourceFilters] = useState<CreditSourceHistoryFilter>({
+        fromDate: '',
+        toDate: '',
+        sourceCategory: 'all',
+    })
+    const [transactionFilters, setTransactionFilters] = useState<CreditTransactionHistoryFilter>({
+        fromDate: '',
+        toDate: '',
+        transactionType: 'all',
+    })
+
+    const filteredSources = useMemo(
+        () => filterCreditSourcesByHistoryFilter(sources, sourceFilters),
+        [sourceFilters, sources]
+    )
+
+    const filteredTransactions = useMemo(
+        () => filterCreditTransactionsByHistoryFilter(transactions, transactionFilters),
+        [transactionFilters, transactions]
+    )
 
     // 환불 가능 여부 확인
     const canRequestRefund = (source: CreditSource) => {
@@ -200,6 +227,23 @@ export function CreditsClient({
         return <Badge>{label}</Badge>
     }
 
+    const sourceCategoryOptions = [
+        { value: 'all', label: '전체' },
+        { value: 'plan_purchase', label: '요금제 구매' },
+        { value: 'admin_grant', label: '관리자 지급' },
+        { value: 'system_refund', label: '환불' },
+        { value: 'bonus', label: '보너스' },
+        { value: 'legacy_unknown', label: '기타 지급' },
+    ]
+
+    const transactionTypeOptions = [
+        { value: 'all', label: '전체' },
+        { value: 'purchase', label: '충전/지급' },
+        { value: 'consume', label: '사용' },
+        { value: 'refund', label: '환불' },
+        { value: 'admin_grant', label: '지급' },
+    ]
+
     return (
         <div className="space-y-6">
             {/* 잔액 카드 */}
@@ -259,62 +303,86 @@ export function CreditsClient({
                                     </Link>
                                 </div>
                             ) : (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>구매일</TableHead>
-                                            <TableHead>구분</TableHead>
-                                            <TableHead>구매 크레딧</TableHead>
-                                            <TableHead>잔여 크레딧</TableHead>
-                                            <TableHead>상태</TableHead>
-                                            <TableHead className="text-right">환불</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {sources.map((source) => {
-                                            const canRefund = canRequestRefund(source)
-                                            const blockReason = getRefundBlockReason(source)
-
-                                            return (
-                                                <TableRow key={source.id}>
-                                                    <TableCell className="text-sm">
-                                                        {new Date(source.purchased_at).toLocaleDateString('ko-KR')}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {getSourceCategoryLabel(source)}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {source.initial_credits.toLocaleString()}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <span className={source.remaining_credits === 0 ? 'text-gray-400' : 'font-medium'}>
-                                                            {source.remaining_credits.toLocaleString()}
-                                                        </span>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {getStatusBadge(source.status)}
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        {source.status === 'active' && (
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                disabled={!canRefund}
-                                                                onClick={() => {
-                                                                    setSelectedSource(source)
-                                                                    setIsRefundDialogOpen(true)
-                                                                }}
-                                                                title={blockReason || undefined}
-                                                            >
-                                                                {canRefund ? '환불 요청' : blockReason}
-                                                            </Button>
-                                                        )}
-                                                    </TableCell>
-                                                </TableRow>
-                                            )
+                                <>
+                                    <HistoryFilterBar
+                                        categoryLabel="구분"
+                                        categoryOptions={sourceCategoryOptions}
+                                        initialValues={{
+                                            fromDate: sourceFilters.fromDate,
+                                            toDate: sourceFilters.toDate,
+                                            categoryValue: sourceFilters.sourceCategory,
+                                        }}
+                                        onApply={(next) => setSourceFilters({
+                                            fromDate: next.fromDate,
+                                            toDate: next.toDate,
+                                            sourceCategory: next.categoryValue ?? 'all',
                                         })}
-                                    </TableBody>
-                                </Table>
+                                        resultCount={filteredSources.length}
+                                    />
+
+                                    {filteredSources.length === 0 ? (
+                                        <div className="rounded-lg border border-dashed bg-gray-50/60 p-10 text-center text-sm text-gray-500">
+                                            선택한 조건에 해당하는 구매 내역이 없습니다.
+                                        </div>
+                                    ) : (
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>구매일</TableHead>
+                                                    <TableHead>구분</TableHead>
+                                                    <TableHead>구매 크레딧</TableHead>
+                                                    <TableHead>잔여 크레딧</TableHead>
+                                                    <TableHead>상태</TableHead>
+                                                    <TableHead className="text-right">환불</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {filteredSources.map((source) => {
+                                                    const canRefund = canRequestRefund(source)
+                                                    const blockReason = getRefundBlockReason(source)
+
+                                                    return (
+                                                        <TableRow key={source.id}>
+                                                            <TableCell className="text-sm">
+                                                                {new Date(source.purchased_at).toLocaleDateString('ko-KR')}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {getSourceCategoryLabel(source)}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {source.initial_credits.toLocaleString()}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <span className={source.remaining_credits === 0 ? 'text-gray-400' : 'font-medium'}>
+                                                                    {source.remaining_credits.toLocaleString()}
+                                                                </span>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {getStatusBadge(source.status)}
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                {source.status === 'active' && (
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        disabled={!canRefund}
+                                                                        onClick={() => {
+                                                                            setSelectedSource(source)
+                                                                            setIsRefundDialogOpen(true)
+                                                                        }}
+                                                                        title={blockReason || undefined}
+                                                                    >
+                                                                        {canRefund ? '환불 요청' : blockReason}
+                                                                    </Button>
+                                                                )}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    )}
+                                </>
                             )}
                         </CardContent>
                     </Card>
@@ -336,39 +404,63 @@ export function CreditsClient({
                                     <p>아직 거래 내역이 없습니다.</p>
                                 </div>
                             ) : (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>일시</TableHead>
-                                            <TableHead>유형</TableHead>
-                                            <TableHead>내용</TableHead>
-                                            <TableHead className="text-right">변동</TableHead>
-                                            <TableHead className="text-right">잔액</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {transactions.map((tx) => (
-                                            <TableRow key={tx.id}>
-                                                <TableCell className="text-sm text-gray-500">
-                                                    {new Date(tx.created_at).toLocaleString('ko-KR')}
-                                                </TableCell>
-                                                <TableCell>
-                                                    {getTypeBadge(tx)}
-                                                </TableCell>
-                                                <TableCell className="text-sm">
-                                                    {getCreditTransactionDescription(tx)}
-                                                </TableCell>
-                                                <TableCell className={`text-right font-medium ${tx.amount > 0 ? 'text-green-600' : 'text-red-600'
-                                                    }`}>
-                                                    {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString()}
-                                                </TableCell>
-                                                <TableCell className="text-right text-gray-600">
-                                                    {tx.balance_after.toLocaleString()}
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
+                                <>
+                                    <HistoryFilterBar
+                                        categoryLabel="유형"
+                                        categoryOptions={transactionTypeOptions}
+                                        initialValues={{
+                                            fromDate: transactionFilters.fromDate,
+                                            toDate: transactionFilters.toDate,
+                                            categoryValue: transactionFilters.transactionType,
+                                        }}
+                                        onApply={(next) => setTransactionFilters({
+                                            fromDate: next.fromDate,
+                                            toDate: next.toDate,
+                                            transactionType: next.categoryValue ?? 'all',
+                                        })}
+                                        resultCount={filteredTransactions.length}
+                                    />
+
+                                    {filteredTransactions.length === 0 ? (
+                                        <div className="rounded-lg border border-dashed bg-gray-50/60 p-10 text-center text-sm text-gray-500">
+                                            선택한 조건에 해당하는 거래 내역이 없습니다.
+                                        </div>
+                                    ) : (
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>일시</TableHead>
+                                                    <TableHead>유형</TableHead>
+                                                    <TableHead>내용</TableHead>
+                                                    <TableHead className="text-right">변동</TableHead>
+                                                    <TableHead className="text-right">잔액</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {filteredTransactions.map((tx) => (
+                                                    <TableRow key={tx.id}>
+                                                        <TableCell className="text-sm text-gray-500">
+                                                            {new Date(tx.created_at).toLocaleString('ko-KR')}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {getTypeBadge(tx)}
+                                                        </TableCell>
+                                                        <TableCell className="text-sm">
+                                                            {getCreditTransactionDescription(tx)}
+                                                        </TableCell>
+                                                        <TableCell className={`text-right font-medium ${tx.amount > 0 ? 'text-green-600' : 'text-red-600'
+                                                            }`}>
+                                                            {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString()}
+                                                        </TableCell>
+                                                        <TableCell className="text-right text-gray-600">
+                                                            {tx.balance_after.toLocaleString()}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    )}
+                                </>
                             )}
                         </CardContent>
                     </Card>

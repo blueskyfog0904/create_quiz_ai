@@ -1,17 +1,33 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CreditCard, Calendar, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import type { NormalizedPaymentHistoryRecord } from '@/lib/payment-history'
+import { HistoryFilterBar } from '@/components/features/mypage/history-filter-bar'
+import {
+  filterPaymentsByHistoryFilter,
+  type PaymentHistoryFilter,
+} from '@/lib/mypage-history-filters'
 
 interface PaymentListProps {
   payments: NormalizedPaymentHistoryRecord[]
 }
 
 export function PaymentList({ payments }: PaymentListProps) {
+  const [filters, setFilters] = useState<PaymentHistoryFilter>({
+    fromDate: '',
+    toDate: '',
+  })
+
+  const filteredPayments = useMemo(
+    () => filterPaymentsByHistoryFilter(payments, filters),
+    [filters, payments]
+  )
+
   if (payments.length === 0) {
     return (
       <div className="rounded-lg border-2 border-dashed bg-gray-50/50 p-12 text-center">
@@ -52,7 +68,19 @@ export function PaymentList({ payments }: PaymentListProps) {
 
   return (
     <div className="space-y-4">
-      {payments.map((payment) => (
+      <HistoryFilterBar
+        initialValues={filters}
+        onApply={(next) => setFilters({ fromDate: next.fromDate, toDate: next.toDate })}
+        resultCount={filteredPayments.length}
+      />
+
+      {filteredPayments.length === 0 ? (
+        <div className="rounded-lg border border-dashed bg-gray-50/60 p-10 text-center text-sm text-gray-500">
+          선택한 기간에 해당하는 결제 내역이 없습니다.
+        </div>
+      ) : null}
+
+      {filteredPayments.map((payment) => (
         <Card key={payment.id} className="overflow-hidden transition-shadow hover:shadow-md">
           <CardContent className="p-0">
             <div className="flex flex-col justify-between gap-4 p-6 sm:flex-row sm:items-center">
