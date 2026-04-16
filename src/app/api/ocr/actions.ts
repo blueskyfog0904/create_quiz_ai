@@ -8,6 +8,11 @@ import { tmpdir } from "os";
 import { createClient } from "@/lib/supabase/server";
 import { getAIModelSettings } from "@/app/api/admin/settings/actions";
 import { normalizeVisualCropPassages } from "@/lib/ocr/response-normalization";
+import {
+  getErrorStatusCode,
+  isRetryableGeminiError,
+  withGeminiRetry,
+} from "@/lib/ocr/gemini-retry";
 
 // Initialize Google AI
 const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY!);
@@ -152,6 +157,23 @@ export async function extractTextFromFile(formData: FormData) {
       return { success: true, passages };
     }
 
+    const runGenerateContent = async (requestParts: Parameters<typeof model.generateContent>[0]) => withGeminiRetry(
+      () => model.generateContent(requestParts),
+      {
+        maxAttempts: 3,
+        onRetry: (attempt, delayMs, error) => {
+          console.warn('[OCR] Retrying Gemini request', {
+            mode,
+            modelName,
+            attempt,
+            delayMs,
+            status: getErrorStatusCode(error),
+            fileCount: files.length,
+          });
+        },
+      }
+    );
+
     if (mode === 'visual') {
       const normalizedVisualPassages: string[] = []
 
@@ -166,7 +188,7 @@ export async function extractTextFromFile(formData: FormData) {
           { text: prompt },
         ]
 
-        const result = await model.generateContent(requestParts)
+        const result = await runGenerateContent(requestParts)
         const response = await result.response
         const text = response.text()
         console.log(`[OCR] Raw visual crop AI Response: ${text.substring(0, 500)}...`)
@@ -199,7 +221,7 @@ export async function extractTextFromFile(formData: FormData) {
         { text: prompt }
     ];
 
-    const result = await model.generateContent(requestParts);
+    const result = await runGenerateContent(requestParts);
 
     const response = await result.response;
     const text = response.text();
@@ -220,6 +242,14 @@ export async function extractTextFromFile(formData: FormData) {
 
   } catch (error: unknown) {
     console.error("[OCR] Critical Error:", error);
+
+    if (isRetryableGeminiError(error)) {
+      return {
+        success: false,
+        error: 'AI 서버가 일시적으로 혼잡합니다. 잠시 후 다시 시도해주세요.',
+      };
+    }
+
     const errorMessage = error instanceof Error ? error.message : String(error);
     return { success: false, error: errorMessage };
   } finally {
