@@ -5,7 +5,6 @@ import {
   Coins, 
   User, 
   History, 
-  Monitor, 
   UserX, 
   HelpCircle 
 } from 'lucide-react'
@@ -15,7 +14,6 @@ const menuItems = [
   { href: '/mypage/credits', label: '크레딧 관리', icon: Coins },
   { href: '/mypage/profile', label: '내정보 관리', icon: User },
   { href: '/mypage/history', label: '생성/구매 히스토리', icon: History },
-  { href: '/mypage/devices', label: '로그인 기기 관리', icon: Monitor },
   { href: '/mypage/withdraw', label: '회원 탈퇴', icon: UserX },
   { href: '/mypage/support', label: '고객지원', icon: HelpCircle },
 ]
@@ -59,5 +57,4 @@ export default async function MyPageLayout({
     </div>
   )
 }
-
 

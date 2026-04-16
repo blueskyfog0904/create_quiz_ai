@@ -26,7 +26,6 @@ import {
   CreditCard,
   Coins,
   History,
-  Monitor,
   UserX,
   HelpCircle,
   Sparkles,
@@ -233,12 +232,6 @@ export function HeaderClient({
                     생성/구매 히스토리
                   </Button>
                 </Link>
-                <Link href="/mypage/devices" onClick={() => setIsOpen(false)}>
-                  <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
-                    <Monitor className="h-4 w-4" />
-                    로그인 기기 관리
-                  </Button>
-                </Link>
                 <Link href="/mypage/withdraw" onClick={() => setIsOpen(false)}>
                   <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
                     <UserX className="h-4 w-4" />
@@ -357,12 +350,6 @@ export function HeaderClient({
             <Link href="/mypage/history" className="flex items-center gap-2 cursor-pointer">
               <History className="h-4 w-4" />
               생성/구매 히스토리
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild className={accountDropdownItemClassName}>
-            <Link href="/mypage/devices" className="flex items-center gap-2 cursor-pointer">
-              <Monitor className="h-4 w-4" />
-              로그인 기기 관리
             </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator className={accountDropdownSeparatorClassName} />
