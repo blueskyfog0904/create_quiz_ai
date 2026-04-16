@@ -109,7 +109,8 @@ export async function extractTextFromFile(formData: FormData) {
       3. Preserve the reading order within each crop.
       4. If the passage contains an underlined blank or missing-word line, preserve it in the output as _____ exactly where it appears.
       5. Do not omit blanks/underlines just because they are not alphabetic text.
-      6. Return a JSON object: { "passages": ["text1", "text2"] }
+      6. If numbered answer choices are visible, preserve them in order and prefer the format (1), (2), (3), ...
+      7. Return a JSON object: { "passages": ["text1", "text2"] }
     `;
 
     const autoPrompt = `
@@ -130,6 +131,7 @@ export async function extractTextFromFile(formData: FormData) {
          - Merge text split across columns or pages if it forms a single continuous story/article.
          - Separate distinct passages (e.g., Passage 1 vs Passage 2).
       5. If a passage includes an underlined blank or missing-word line, preserve that blank as _____ in the extracted text.
+      6. If the extracted passage contains numbered answer choices, preserve them and prefer the format (1), (2), (3), ...
 
       **Output Format**:
       Return a JSON object: { "passages": ["Valid passage 1...", "Valid passage 2..."] }
