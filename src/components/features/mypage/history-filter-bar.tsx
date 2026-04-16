@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { buildQuickRangeFilter } from '@/lib/mypage-history-filters'
 
 export interface HistoryFilterOption {
   label: string
@@ -33,6 +34,11 @@ interface HistoryFilterBarProps {
 }
 
 const DEFAULT_CATEGORY = 'all'
+const QUICK_RANGES = [
+  { label: '7일', days: 7 },
+  { label: '1개월', days: 30 },
+  { label: '6개월', days: 180 },
+]
 
 export function HistoryFilterBar({
   categoryLabel,
@@ -66,8 +72,33 @@ export function HistoryFilterBar({
     onApply(resetValues)
   }
 
+  const handleQuickRangeApply = (days: number) => {
+    const nextValues = {
+      ...buildQuickRangeFilter(days),
+      categoryValue: draft.categoryValue ?? DEFAULT_CATEGORY,
+    }
+
+    setDraft(nextValues)
+    onApply(nextValues)
+  }
+
   return (
     <div className="mb-5 rounded-lg border bg-muted/20 p-4">
+      <div className="mb-4 flex flex-wrap gap-2">
+        {QUICK_RANGES.map((range) => (
+          <Button
+            key={range.label}
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-full"
+            onClick={() => handleQuickRangeApply(range.days)}
+          >
+            {range.label}
+          </Button>
+        ))}
+      </div>
+
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div
           className={cn(

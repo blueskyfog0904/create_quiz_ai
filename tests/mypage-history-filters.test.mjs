@@ -2,10 +2,37 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  buildQuickRangeFilter,
   filterCreditSourcesByHistoryFilter,
   filterCreditTransactionsByHistoryFilter,
   filterPaymentsByHistoryFilter,
+  formatDateInputValue,
 } from '../src/lib/mypage-history-filters.ts'
+
+test('formatDateInputValue returns yyyy-mm-dd for date inputs', () => {
+  assert.equal(
+    formatDateInputValue(new Date(2026, 3, 16, 9, 0, 0)),
+    '2026-04-16'
+  )
+})
+
+test('buildQuickRangeFilter builds inclusive quick ranges from today', () => {
+  assert.deepEqual(
+    buildQuickRangeFilter(7, new Date('2026-04-16T09:00:00.000Z')),
+    {
+      fromDate: '2026-04-10',
+      toDate: '2026-04-16',
+    }
+  )
+
+  assert.deepEqual(
+    buildQuickRangeFilter(30, new Date('2026-04-16T09:00:00.000Z')),
+    {
+      fromDate: '2026-03-18',
+      toDate: '2026-04-16',
+    }
+  )
+})
 
 test('payment history filter applies an inclusive date range', () => {
   const filtered = filterPaymentsByHistoryFilter([
