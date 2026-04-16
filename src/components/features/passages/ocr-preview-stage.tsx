@@ -428,11 +428,16 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
     
     try {
       const formData = new FormData();
-      const sourceFiles = mode === 'visual'
-        ? await buildSelectionCropBlobs()
-        : [await buildWholeImageBlob()]
+      let validFiles: Blob[] = []
 
-      const validFiles = sourceFiles.filter((blob): blob is Blob => blob !== null)
+      if (mode === 'visual') {
+        validFiles = await buildSelectionCropBlobs()
+      } else if (fileType === 'pdf') {
+        validFiles = [file]
+      } else {
+        const wholeImageBlob = await buildWholeImageBlob()
+        validFiles = wholeImageBlob ? [wholeImageBlob] : []
+      }
 
       if (validFiles.length === 0) {
         toast.error('이미지 처리에 실패했습니다.');
@@ -443,7 +448,13 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
       setProcessingProgress(40);
 
       validFiles.forEach((blob, index) => {
-        formData.append('files', blob, mode === 'visual' ? `selection-${index + 1}.jpg` : 'source_image.jpg')
+        const fileName = mode === 'visual'
+          ? `selection-${index + 1}.jpg`
+          : fileType === 'pdf'
+            ? file.name
+            : 'source_image.jpg'
+
+        formData.append('files', blob, fileName)
       })
       formData.append('mode', mode); // Add mode parameter
 
