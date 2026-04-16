@@ -55,6 +55,7 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingLabel, setProcessingLabel] = useState('');
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -425,6 +426,7 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
 
     setIsProcessing(true);
     setProcessingProgress(10);
+    setProcessingLabel(mode === 'auto' ? '전체 문서를 추출할 준비를 하고 있습니다...' : '선택한 영역을 추출할 준비를 하고 있습니다...');
     
     try {
       const formData = new FormData();
@@ -446,6 +448,7 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
       }
 
       setProcessingProgress(40);
+      setProcessingLabel(mode === 'auto' ? 'OCR 요청 파일을 준비하고 있습니다...' : '선택 영역 OCR 이미지를 준비하고 있습니다...');
 
       validFiles.forEach((blob, index) => {
         const fileName = mode === 'visual'
@@ -460,11 +463,13 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
 
       // 3. Send Request
       setProcessingProgress(60); 
+      setProcessingLabel(mode === 'auto' ? 'AI가 전체 문서의 지문을 분석하고 있습니다...' : 'AI가 선택 영역의 지문을 분석하고 있습니다...');
       const message = mode === 'auto' ? '전체 이미지를 분석 중입니다...' : '선택된 영역을 분석 중입니다...';
       toast.info(message);
       
       const result = await extractTextFromFile(formData);
       setProcessingProgress(90);
+      setProcessingLabel('추출 결과를 정리하고 있습니다...');
 
       if (result.success && result.data && result.data.passages) {
         toast.success(`${result.data.passages.length}개의 지문이 추출되었습니다.`);
@@ -481,6 +486,7 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
     } finally {
       setIsProcessing(false);
       setProcessingProgress(0);
+      setProcessingLabel('');
     }
   };
 
@@ -489,7 +495,7 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
 
 
   return (
-    <div className="flex flex-col h-[80vh] bg-card rounded-lg overflow-hidden border">
+    <div className="relative flex flex-col h-[80vh] bg-card rounded-lg overflow-hidden border">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b bg-muted/30">
         <div className="flex items-center gap-4">
@@ -685,6 +691,34 @@ export function OCRPreviewStage({ file, onBack, onExtractionComplete }: OCRPrevi
           >
             다음 페이지 <ChevronRight className="w-4 h-4 ml-1" />
           </Button>
+        </div>
+      )}
+
+      {isProcessing && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border bg-white/95 p-6 shadow-2xl">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Loader2 className="h-5 w-5 animate-spin" />
+              </div>
+              <div>
+                <p className="text-base font-semibold text-gray-900">OCR 추출 진행 중</p>
+                <p className="text-sm text-muted-foreground">잠시만 기다려주세요. 창을 닫거나 새로고침하지 마세요.</p>
+              </div>
+            </div>
+
+            <div className="mb-3 h-2.5 overflow-hidden rounded-full bg-gray-100">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-300"
+                style={{ width: `${processingProgress}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600">{processingLabel || 'AI가 지문을 추출하고 있습니다...'}</span>
+              <span className="font-medium text-primary">{processingProgress}%</span>
+            </div>
+          </div>
         </div>
       )}
     </div>
