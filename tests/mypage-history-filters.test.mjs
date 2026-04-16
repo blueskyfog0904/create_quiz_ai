@@ -32,6 +32,14 @@ test('buildQuickRangeFilter builds inclusive quick ranges from today', () => {
       toDate: '2026-04-16',
     }
   )
+
+  assert.deepEqual(
+    buildQuickRangeFilter(90, new Date('2026-04-16T09:00:00.000Z')),
+    {
+      fromDate: '2026-01-17',
+      toDate: '2026-04-16',
+    }
+  )
 })
 
 test('payment history filter applies an inclusive date range', () => {
