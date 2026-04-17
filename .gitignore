@@ -43,7 +43,7 @@ next-env.d.ts
 # backup/duplicate directories
 /create_quiz_ai-main_11
 /downloadfile
+/fonts
 
 # oh-my-codex runtime state
 /.omx/
-

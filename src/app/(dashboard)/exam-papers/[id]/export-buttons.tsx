@@ -3,10 +3,11 @@
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import { exportToPDF, exportToWord } from '@/lib/export-utils'
+import { exportToWord } from '@/lib/export-utils'
 import { toast } from 'sonner'
 import { useState } from 'react'
 import type { ViewMode } from './exam-paper-view'
+import { openExamPaperPdfInNewTab } from '@/lib/exam-paper-pdf'
 
 export type ColumnLayout = 'single' | 'double'
 
@@ -39,17 +40,17 @@ export function ExportButtons({ examPaper, questions, viewMode }: ExportButtonsP
   const handleExportPDF = async () => {
     setIsExporting(true)
     try {
-      await exportToPDF({
+      await openExamPaperPdfInNewTab({
         title: examPaper.paper_title,
         description: examPaper.description || undefined,
         questions,
         viewMode,
         columnLayout
       })
-      toast.success('PDF 파일이 다운로드되었습니다.')
+      toast.success('PDF 미리보기 창이 열렸습니다.')
     } catch (error) {
       console.error('PDF export error:', error)
-      toast.error('PDF 생성 중 오류가 발생했습니다.')
+      toast.error('PDF 미리보기 창을 여는 중 오류가 발생했습니다.')
     } finally {
       setIsExporting(false)
     }
@@ -115,4 +116,3 @@ export function ExportButtons({ examPaper, questions, viewMode }: ExportButtonsP
     </div>
   )
 }
-
