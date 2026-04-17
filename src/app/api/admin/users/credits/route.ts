@@ -45,15 +45,12 @@ export async function POST(request: Request) {
 
     const sourceCategory = resolveAdminGrantSourceCategory(category)
 
-    // 2. Grant Credits via purchaseCredits (관리자 지급)
-    const result = await CreditService.purchaseCredits(
+    // 2. Grant Credits via dedicated admin path
+    const result = await CreditService.grantCreditsAsAdmin(
       userId,
-      null,  // plan_id 없음 (관리자 지급)
       amount,
-      0,  // 관리자 지급은 결제 금액 0
+      sourceCategory,
       'admin_grant',
-      undefined,
-      sourceCategory
     )
 
     // 3. Send Notification

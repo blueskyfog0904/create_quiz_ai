@@ -380,6 +380,110 @@ export class CreditService {
   }
 
   /**
+   * 관리자가 사용자의 크레딧을 직접 지급합니다.
+   *
+   * 관리자 지급은 service role 클라이언트로 처리해서 대상 사용자 profile을
+   * 안정적으로 갱신하고, 기록(source/transaction/payment history)과 잔액이
+   * 서로 어긋나지 않도록 합니다.
+   */
+  static async grantCreditsAsAdmin(
+    userId: string,
+    credits: number,
+    sourceCategory: CreditSourceCategory = 'admin_grant',
+    paymentMethod: string = 'admin_grant',
+  ): Promise<{ sourceId: string; newBalance: number }> {
+    const adminSupabase = createAdminClient()
+
+    const { data: source, error: sourceError } = await adminSupabase
+      .from('credit_sources')
+      .insert({
+        user_id: userId,
+        plan_id: null,
+        initial_credits: credits,
+        remaining_credits: credits,
+        status: 'active',
+        source_category: sourceCategory
+      })
+      .select()
+      .single()
+
+    if (sourceError || !source) {
+      console.error('[CreditService] Failed to create admin grant source:', sourceError)
+      throw new Error('관리자 지급 구매건 생성 중 오류가 발생했습니다.')
+    }
+
+    const { data: profile, error: profileReadError } = await adminSupabase
+      .from('profiles')
+      .select('credits')
+      .eq('id', userId)
+      .single()
+
+    if (profileReadError) {
+      console.error('[CreditService] Failed to read profile credits for admin grant:', profileReadError)
+      throw new Error('잔액 조회 중 오류가 발생했습니다.')
+    }
+
+    const currentBalance = profile?.credits ?? 0
+    const newBalance = currentBalance + credits
+
+    const { data: updatedProfile, error: profileError } = await adminSupabase
+      .from('profiles')
+      .update({ credits: newBalance })
+      .eq('id', userId)
+      .select('credits')
+      .single()
+
+    if (profileError) {
+      console.error('[CreditService] Failed to update profile credits for admin grant:', profileError)
+      throw new Error('잔액 업데이트 중 오류가 발생했습니다.')
+    }
+
+    if (!updatedProfile || updatedProfile.credits !== newBalance) {
+      console.error('[CreditService] Admin grant profile balance mismatch:', {
+        userId,
+        expected: newBalance,
+        actual: updatedProfile?.credits ?? null,
+      })
+      throw new Error('잔액 반영 검증에 실패했습니다.')
+    }
+
+    const { error: paymentError } = await adminSupabase
+      .from('payment_history')
+      .insert({
+        user_id: userId,
+        source_id: source.id,
+        plan_id: null,
+        amount: 0,
+        payment_method: paymentMethod,
+        status: 'completed'
+      })
+
+    if (paymentError) {
+      console.error('[CreditService] Failed to create admin grant payment history:', paymentError)
+    }
+
+    const { error: txError } = await adminSupabase
+      .from('credit_transactions')
+      .insert({
+        user_id: userId,
+        type: 'purchase',
+        amount: credits,
+        balance_after: newBalance,
+        description: `크레딧 ${credits.toLocaleString()}개 구매`,
+        source_id: source.id
+      })
+
+    if (txError) {
+      console.error('[CreditService] Failed to insert admin grant transaction:', txError)
+    }
+
+    return {
+      sourceId: source.id,
+      newBalance
+    }
+  }
+
+  /**
    * 환불 가능 여부를 확인합니다.
    * 
    * 조건:
@@ -549,7 +653,7 @@ export class CreditService {
     const adminSupabase = createAdminClient()
 
     // 1. refund_request 조회
-    const { data: request, error: requestError } = await (adminSupabase as any)
+    const { data: request, error: requestError } = await adminSupabase
       .from('refund_requests')
       .select(`
         *,
@@ -565,7 +669,7 @@ export class CreditService {
     const source = request.source as CreditSource
 
     // 2. profiles.credits 차감 (service role로 RLS 우회)
-    const { data: profile } = await (adminSupabase as any)
+    const { data: profile } = await adminSupabase
       .from('profiles')
       .select('credits')
       .eq('id', request.user_id)
@@ -574,7 +678,7 @@ export class CreditService {
     const currentBalance = profile?.credits || 0
     const newBalance = currentBalance - source.initial_credits
 
-    const { error: profileError } = await (adminSupabase as any)
+    const { error: profileError } = await adminSupabase
       .from('profiles')
       .update({ credits: Math.max(0, newBalance) })
       .eq('id', request.user_id)
@@ -585,13 +689,13 @@ export class CreditService {
     }
 
     // 3. credit_sources.status 변경
-    await (adminSupabase as any)
+    await adminSupabase
       .from('credit_sources')
       .update({ status: 'refunded', remaining_credits: 0 })
       .eq('id', source.id)
 
     // 4. refund_requests 업데이트
-    await (adminSupabase as any)
+    await adminSupabase
       .from('refund_requests')
       .update({
         status: 'approved',
@@ -602,13 +706,13 @@ export class CreditService {
       .eq('id', requestId)
 
     // 5. payment_history 업데이트
-    await (adminSupabase as any)
+    await adminSupabase
       .from('payment_history')
       .update({ status: 'refunded' })
       .eq('source_id', source.id)
 
     // 6. credit_transactions에 환불 로그
-    await (adminSupabase as any)
+    await adminSupabase
       .from('credit_transactions')
       .insert({
         user_id: request.user_id,
@@ -621,7 +725,7 @@ export class CreditService {
 
     // 7. 사용자에게 환불 승인 알림 발송
     try {
-      await (adminSupabase as any).from('notifications').insert({
+      await adminSupabase.from('notifications').insert({
         user_id: request.user_id,
         type: 'success',
         title: '환불이 승인되었습니다',
@@ -649,7 +753,7 @@ export class CreditService {
     const adminSupabase = createAdminClient()
 
     // 1. refund_request 조회
-    const { data: request, error: requestError } = await (adminSupabase as any)
+    const { data: request, error: requestError } = await adminSupabase
       .from('refund_requests')
       .select('*, source:credit_sources(*)')
       .eq('id', requestId)
@@ -662,13 +766,13 @@ export class CreditService {
     const source = request.source as CreditSource
 
     // 2. credit_sources.status 복원
-    await (adminSupabase as any)
+    await adminSupabase
       .from('credit_sources')
       .update({ status: 'active' })
       .eq('id', source.id)
 
     // 3. refund_requests 업데이트
-    await (adminSupabase as any)
+    await adminSupabase
       .from('refund_requests')
       .update({
         status: 'rejected',
@@ -680,7 +784,7 @@ export class CreditService {
 
     // 4. 사용자에게 환불 거절 알림 발송
     try {
-      await (adminSupabase as any).from('notifications').insert({
+      await adminSupabase.from('notifications').insert({
         user_id: request.user_id,
         type: 'warning',
         title: '환불 요청이 거절되었습니다',
