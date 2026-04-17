@@ -116,6 +116,7 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
   const {
     showQuestions,
     showAnswers,
+    columnLayout,
     titleSuffix,
     layoutSuffix,
   } = getExportOptions(examPaper)
@@ -134,7 +135,7 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
     })
   }
 
-  examPaper.questions.forEach((question) => {
+  const questionNodes = examPaper.questions.map((question) => {
     const stack: Array<Record<string, unknown>> = []
 
     if (showQuestions) {
@@ -186,12 +187,26 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
       })
     }
 
-    content.push({
+    return {
       stack,
       unbreakable: true,
       margin: [0, 0, 0, 14],
-    })
+    }
   })
+
+  if (columnLayout === 'double') {
+    for (let index = 0; index < questionNodes.length; index += 2) {
+      content.push({
+        columns: [
+          questionNodes[index],
+          questionNodes[index + 1] ?? { text: '' },
+        ],
+        columnGap: 18,
+      })
+    }
+  } else {
+    content.push(...questionNodes)
+  }
 
   return {
     pageSize: 'A4',

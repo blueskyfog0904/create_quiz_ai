@@ -28,6 +28,8 @@ test('exam paper PDF util uses the generated Pretendard TTF VFS bundle', () => {
   assert.match(pdfSource, /Pretendard-Bold\.ttf/)
   assert.match(pdfSource, /createPdf\(docDefinition\)\.getBlob/)
   assert.match(pdfSource, /window\.open\(blobUrl, '_blank'\)/)
+  assert.match(pdfSource, /columnLayout === 'double'/)
+  assert.match(pdfSource, /columns:\s*\[/)
 })
 
 test('library exam-paper export now opens the PDF workspace', () => {
