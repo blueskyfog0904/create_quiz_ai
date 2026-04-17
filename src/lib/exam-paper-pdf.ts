@@ -112,6 +112,43 @@ function buildInlineSegments(text: string | null | undefined) {
   ))
 }
 
+function estimateQuestionNodeWeight(question: ExamPaperPdfQuestion, showQuestions: boolean, showAnswers: boolean) {
+  let weight = question.questionText.length
+
+  if (showQuestions) {
+    weight += question.questionTextForward?.length ?? 0
+    weight += question.questionTextBackward?.length ?? 0
+    weight += question.passageText?.length ?? 0
+    weight += question.choices.reduce((sum, choice) => sum + choice.text.length + choice.label.length, 0)
+  }
+
+  if (showAnswers) {
+    weight += question.answer.length + question.explanation.length
+  }
+
+  return weight
+}
+
+function splitQuestionNodesForDoubleColumn<T>(nodes: T[], weights: number[]) {
+  const leftColumn: T[] = []
+  const rightColumn: T[] = []
+  let leftWeight = 0
+  let rightWeight = 0
+
+  nodes.forEach((node, index) => {
+    if (leftWeight <= rightWeight) {
+      leftColumn.push(node)
+      leftWeight += weights[index] ?? 0
+      return
+    }
+
+    rightColumn.push(node)
+    rightWeight += weights[index] ?? 0
+  })
+
+  return { leftColumn, rightColumn }
+}
+
 function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
   const {
     showQuestions,
@@ -134,6 +171,10 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
       style: 'description',
     })
   }
+
+  const questionWeights = examPaper.questions.map((question) =>
+    estimateQuestionNodeWeight(question, showQuestions, showAnswers)
+  )
 
   const questionNodes = examPaper.questions.map((question) => {
     const stack: Array<Record<string, unknown>> = []
@@ -195,15 +236,15 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
   })
 
   if (columnLayout === 'double') {
-    for (let index = 0; index < questionNodes.length; index += 2) {
-      content.push({
-        columns: [
-          questionNodes[index],
-          questionNodes[index + 1] ?? { text: '' },
-        ],
-        columnGap: 18,
-      })
-    }
+    const { leftColumn, rightColumn } = splitQuestionNodesForDoubleColumn(questionNodes, questionWeights)
+
+    content.push({
+      columns: [
+        { stack: leftColumn },
+        { stack: rightColumn },
+      ],
+      columnGap: 18,
+    })
   } else {
     content.push(...questionNodes)
   }
