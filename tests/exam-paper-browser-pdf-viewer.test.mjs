@@ -17,6 +17,11 @@ const dashboardExportButtonsSource = readFileSync(
   'utf8'
 )
 
+const workspaceSource = readFileSync(
+  new URL('../src/components/features/exam-papers/ExamPaperPdfWorkspace.tsx', import.meta.url),
+  'utf8'
+)
+
 test('exam paper PDF util uses the generated Pretendard TTF VFS bundle', () => {
   assert.match(pdfSource, /exam-paper-pdf-vfs/)
   assert.match(pdfSource, /Pretendard-Regular\.ttf/)
@@ -25,12 +30,20 @@ test('exam paper PDF util uses the generated Pretendard TTF VFS bundle', () => {
   assert.match(pdfSource, /window\.open\(blobUrl, '_blank'\)/)
 })
 
-test('library exam-paper export now opens the browser-native PDF viewer flow', () => {
-  assert.match(libraryExportButtonsSource, /openExamPaperPdfInNewTab/)
-  assert.doesNotMatch(libraryExportButtonsSource, /exportToPDF/)
+test('library exam-paper export now opens the PDF workspace', () => {
+  assert.match(libraryExportButtonsSource, /ExamPaperPdfWorkspace/)
+  assert.match(libraryExportButtonsSource, /setIsPdfWorkspaceOpen\(true\)/)
 })
 
-test('dashboard exam-paper export now opens the browser-native PDF viewer flow', () => {
-  assert.match(dashboardExportButtonsSource, /openExamPaperPdfInNewTab/)
-  assert.doesNotMatch(dashboardExportButtonsSource, /exportToPDF/)
+test('dashboard exam-paper export now opens the PDF workspace', () => {
+  assert.match(dashboardExportButtonsSource, /ExamPaperPdfWorkspace/)
+  assert.match(dashboardExportButtonsSource, /setIsPdfWorkspaceOpen\(true\)/)
+})
+
+test('PDF workspace includes option panel controls and iframe preview', () => {
+  assert.match(workspaceSource, /표시모드/)
+  assert.match(workspaceSource, /레이아웃/)
+  assert.match(workspaceSource, /문제 순서/)
+  assert.match(workspaceSource, /draggable/)
+  assert.match(workspaceSource, /<iframe/)
 })

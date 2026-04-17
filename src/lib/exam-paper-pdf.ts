@@ -1,6 +1,7 @@
 import pdfMake from 'pdfmake/build/pdfmake'
 import * as pdfFonts from 'pdfmake/build/vfs_fonts'
 import examPaperVfs from '@/lib/exam-paper-pdf-vfs'
+import { saveAs } from 'file-saver'
 import {
   normalizeQuestionTextBackward,
   splitBracketUnderlineSegments,
@@ -256,6 +257,10 @@ export async function buildExamPaperPdfBlob(examPaper: ExamPaperPdfDocument): Pr
       resolve(blob)
     })
   })
+}
+
+export async function downloadExamPaperPdf(blob: Blob, fileName: string) {
+  saveAs(blob, fileName)
 }
 
 export async function openExamPaperPdfInNewTab(examPaper: ExamPaperPdfDocument) {

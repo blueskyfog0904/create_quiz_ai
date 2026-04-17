@@ -7,7 +7,7 @@ import { exportToWord } from '@/lib/export-utils'
 import { toast } from 'sonner'
 import { useState } from 'react'
 import type { ViewMode } from './exam-paper-view'
-import { openExamPaperPdfInNewTab } from '@/lib/exam-paper-pdf'
+import { ExamPaperPdfWorkspace } from '@/components/features/exam-papers/ExamPaperPdfWorkspace'
 
 export type ColumnLayout = 'single' | 'double'
 
@@ -36,24 +36,10 @@ interface ExportButtonsProps {
 export function ExportButtons({ examPaper, questions, viewMode }: ExportButtonsProps) {
   const [isExporting, setIsExporting] = useState(false)
   const [columnLayout, setColumnLayout] = useState<ColumnLayout>('single')
+  const [isPdfWorkspaceOpen, setIsPdfWorkspaceOpen] = useState(false)
 
   const handleExportPDF = async () => {
-    setIsExporting(true)
-    try {
-      await openExamPaperPdfInNewTab({
-        title: examPaper.paper_title,
-        description: examPaper.description || undefined,
-        questions,
-        viewMode,
-        columnLayout
-      })
-      toast.success('PDF 미리보기 창이 열렸습니다.')
-    } catch (error) {
-      console.error('PDF export error:', error)
-      toast.error('PDF 미리보기 창을 여는 중 오류가 발생했습니다.')
-    } finally {
-      setIsExporting(false)
-    }
+    setIsPdfWorkspaceOpen(true)
   }
 
   const handleExportWord = async () => {
@@ -113,6 +99,15 @@ export function ExportButtons({ examPaper, questions, viewMode }: ExportButtonsP
           📝 {isExporting ? 'Word 생성 중...' : 'Word로 저장'}
         </Button>
       </div>
+
+      <ExamPaperPdfWorkspace
+        open={isPdfWorkspaceOpen}
+        onOpenChange={setIsPdfWorkspaceOpen}
+        examPaper={examPaper}
+        initialQuestions={questions}
+        initialViewMode={viewMode}
+        initialColumnLayout={columnLayout}
+      />
     </div>
   )
 }
