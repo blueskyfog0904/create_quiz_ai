@@ -175,6 +175,7 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
   const questionWeights = examPaper.questions.map((question) =>
     estimateQuestionNodeWeight(question, showQuestions, showAnswers)
   )
+  const keepQuestionTogether = columnLayout === 'single'
 
   const questionNodes = examPaper.questions.map((question) => {
     const stack: Array<Record<string, unknown>> = []
@@ -230,7 +231,7 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
 
     return {
       stack,
-      unbreakable: true,
+      unbreakable: keepQuestionTogether,
       margin: [0, 0, 0, 14],
     }
   })

@@ -33,6 +33,8 @@ test('exam paper PDF util uses the generated Pretendard TTF VFS bundle', () => {
   assert.match(pdfSource, /splitQuestionNodesForDoubleColumn/)
   assert.match(pdfSource, /\{\s*stack: leftColumn\s*\}/)
   assert.match(pdfSource, /\{\s*stack: rightColumn\s*\}/)
+  assert.match(pdfSource, /keepQuestionTogether = columnLayout === 'single'/)
+  assert.match(pdfSource, /unbreakable: keepQuestionTogether/)
 })
 
 test('library exam-paper export now opens the PDF workspace', () => {
