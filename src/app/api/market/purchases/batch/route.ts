@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { CreditService } from '@/lib/credits'
+import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot } from '@/lib/credit-balance'
 import {
   createMarketPurchases,
   findCompletedMarketPurchase,
@@ -49,7 +50,8 @@ export async function POST(request: NextRequest) {
         balanceBefore
       )
     } catch {
-      return CreditService.getBalance(user.id)
+      const fallbackSnapshot = await getCreditBalanceSnapshot(user.id, supabase)
+      return fallbackSnapshot.displayBalance
     }
   }
 
@@ -113,14 +115,14 @@ export async function POST(request: NextRequest) {
         `문제마켓 선택 파일 ${purchaseTargets.length}건 구매`
       )
     } catch (error) {
-      const currentBalance = await CreditService.getBalance(user.id)
+      const snapshot = await getCreditBalanceSnapshot(user.id, supabase)
       return NextResponse.json({
         success: false,
         error: {
           code: 'INSUFFICIENT_CREDITS',
           message: error instanceof Error ? error.message : '크레딧이 부족합니다.',
         },
-        balance: currentBalance,
+        ...buildCreditBalanceResponseFields(snapshot),
       }, { status: 402 })
     }
 
@@ -137,14 +139,21 @@ export async function POST(request: NextRequest) {
       }))
     )
 
+    const snapshot = await getCreditBalanceSnapshot(user.id, supabase)
+
     return NextResponse.json({
       success: true,
       data: purchases,
-      balance: deductionResult.newBalance,
+      ...buildCreditBalanceResponseFields(snapshot),
       message: `선택한 파일 ${purchaseTargets.length}건 구매가 완료되었습니다.`,
     })
   } catch (error) {
-    const currentBalance = deductionResult ? await rollback() : await CreditService.getBalance(user.id)
+    if (deductionResult) {
+      await rollback()
+    } else {
+      await CreditService.getBalance(user.id)
+    }
+    const snapshot = await getCreditBalanceSnapshot(user.id, supabase)
 
     return NextResponse.json({
       success: false,
@@ -152,7 +161,7 @@ export async function POST(request: NextRequest) {
         code: 'INTERNAL_SERVER_ERROR',
         message: error instanceof Error ? error.message : '문제마켓 일괄 구매 처리에 실패했습니다.',
       },
-      balance: currentBalance,
+      ...buildCreditBalanceResponseFields(snapshot),
     }, { status: 500 })
   }
 }

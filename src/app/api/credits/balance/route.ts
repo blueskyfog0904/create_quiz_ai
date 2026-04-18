@@ -4,6 +4,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot, logCreditBalanceMismatch, selectDisplayBalance } from '@/lib/credit-balance'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -22,29 +23,17 @@ export async function GET() {
       })
     }
 
-    // profiles 테이블에서 credits 조회
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('credits')
-      .eq('id', user.id)
-      .single()
+    const snapshot = await getCreditBalanceSnapshot(user.id, supabase)
 
-    if (error) {
-      console.error('Failed to fetch credit balance:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch balance' },
-        {
-          status: 500,
-          headers: {
-            'Cache-Control': 'no-store'
-          }
-        }
-      )
+    if (snapshot.hasMismatch) {
+      logCreditBalanceMismatch('balance route', user.id, snapshot)
     }
+
+    const displayBalance = selectDisplayBalance(user.id, snapshot)
 
     return NextResponse.json(
       {
-        balance: profile?.credits ?? 0
+        ...buildCreditBalanceResponseFields(snapshot, displayBalance),
       },
       {
         headers: {

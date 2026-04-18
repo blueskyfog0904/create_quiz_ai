@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { HeaderShellClient } from './header-shell-client'
 import { getHeaderNavigationConfig } from '@/lib/header-navigation-server'
 import { getActiveHeaderNavigationItems } from '@/lib/header-navigation'
+import { getCreditBalanceSnapshot, logCreditBalanceMismatch, selectDisplayBalance } from '@/lib/credit-balance'
 
 function reorderGenerateChildren(items: ReturnType<typeof getActiveHeaderNavigationItems>) {
   return items.map((item) => {
@@ -37,6 +38,7 @@ export async function Header() {
 
   let profile = null
   let isAdmin = false
+  let snapshot = null
   if (user) {
     const { data } = await supabase
       .from('profiles')
@@ -45,6 +47,11 @@ export async function Header() {
       .single()
     profile = data
     isAdmin = data?.is_admin || false
+    snapshot = await getCreditBalanceSnapshot(user.id, supabase)
+
+    if (snapshot.hasMismatch) {
+      logCreditBalanceMismatch('header', user.id, snapshot)
+    }
   }
 
   return (
@@ -54,7 +61,7 @@ export async function Header() {
       isLoggedIn={Boolean(user)}
       userName={profile?.name || profile?.email || user?.email || ''}
       isAdmin={isAdmin}
-      creditBalance={profile?.credits ?? 0}
+      creditBalance={snapshot && user ? selectDisplayBalance(user.id, snapshot) : 0}
     />
   )
 }

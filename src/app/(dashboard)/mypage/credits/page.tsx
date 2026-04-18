@@ -5,6 +5,7 @@
 
 import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import { getCreditBalanceSnapshot, logCreditBalanceMismatch, selectDisplayBalance } from '@/lib/credit-balance'
 import { CreditsClient } from './credits-client'
 
 export const dynamic = 'force-dynamic'
@@ -13,12 +14,11 @@ export default async function CreditsPage() {
   const user = await requireAuth()
   const supabase = await createClient()
 
-  // 프로필 및 크레딧 잔액 조회
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('credits')
-    .eq('id', user.id)
-    .single()
+  const snapshot = await getCreditBalanceSnapshot(user.id, supabase)
+
+  if (snapshot.hasMismatch) {
+    logCreditBalanceMismatch('mypage credits', user.id, snapshot)
+  }
 
   // 구매건 목록 조회 (plan 정보 포함)
   const { data: sources } = await supabase
@@ -52,7 +52,7 @@ export default async function CreditsPage() {
 
   return (
     <CreditsClient
-      balance={profile?.credits ?? 0}
+      balance={selectDisplayBalance(user.id, snapshot)}
       sources={sources || []}
       transactions={transactions || []}
       refundRequests={refundRequests || []}

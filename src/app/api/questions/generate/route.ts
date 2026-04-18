@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { AIGenerationService } from '@/lib/ai'
 import { AIProvider } from '@/lib/ai/types'
 import { CreditService } from '@/lib/credits'
+import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot, type CreditBalanceSnapshot } from '@/lib/credit-balance'
 import { randomUUID } from 'crypto'
 import { resolveGenerateWorkspaceSubject } from '@/app/(dashboard)/generate/workspace-subject'
 
@@ -20,11 +21,6 @@ const GenerateRequestSchema = z.object({
   workspaceSubject: z.enum(['english', 'korean']).optional(),
 })
 
-const toNumberHeader = (value: number | null | undefined) => {
-  if (!Number.isFinite(value)) return undefined
-  return String(value)
-}
-
 const jsonWithBalance = (
   body: Record<string, unknown>,
   status: number,
@@ -34,6 +30,21 @@ const jsonWithBalance = (
     status,
     headers: balance !== undefined && balance !== null && Number.isFinite(balance)
       ? { [CREDIT_BALANCE_HEADER]: String(balance) }
+      : undefined
+  })
+
+const jsonWithBalanceSnapshot = (
+  body: Record<string, unknown>,
+  status: number,
+  snapshot?: CreditBalanceSnapshot | null
+) =>
+  NextResponse.json(snapshot ? {
+    ...body,
+    ...buildCreditBalanceResponseFields(snapshot),
+  } : body, {
+    status,
+    headers: snapshot
+      ? { [CREDIT_BALANCE_HEADER]: String(snapshot.displayBalance) }
       : undefined
   })
 
@@ -74,6 +85,13 @@ export async function POST(request: NextRequest) {
   }
 
   const isCancelled = () => request.signal.aborted
+  const getCurrentSnapshot = async () => {
+    try {
+      return await getCreditBalanceSnapshot(user.id, supabase)
+    } catch {
+      return null
+    }
+  }
 
   const generationRequestId = randomUUID()
   let deductionResult: { newBalance: number; consumptions: Array<{ sourceId: string; amount: number }> } | null = null
@@ -107,8 +125,13 @@ export async function POST(request: NextRequest) {
     try {
       body = await request.json()
     } catch {
+      const snapshot = await getCurrentSnapshot()
       return jsonWithBalance(
-        { success: false, error: { code: 'INVALID_INPUT', message: '요청 바디 파싱에 실패했습니다.' } },
+        {
+          success: false,
+          error: { code: 'INVALID_INPUT', message: '요청 바디 파싱에 실패했습니다.' },
+          ...(snapshot ? buildCreditBalanceResponseFields(snapshot) : {}),
+        },
         400
       )
     }
@@ -116,10 +139,12 @@ export async function POST(request: NextRequest) {
     const validation = GenerateRequestSchema.safeParse(body)
 
     if (!validation.success) {
+      const snapshot = await getCurrentSnapshot()
       return jsonWithBalance(
         {
           success: false,
-          error: { code: 'INVALID_INPUT', message: validation.error.issues?.[0]?.message || 'Validation failed' }
+          error: { code: 'INVALID_INPUT', message: validation.error.issues?.[0]?.message || 'Validation failed' },
+          ...(snapshot ? buildCreditBalanceResponseFields(snapshot) : {}),
         },
         400
       )
@@ -140,20 +165,24 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (dbError || !problemType) {
+      const snapshot = await getCurrentSnapshot()
       return jsonWithBalance(
         {
           success: false,
-          error: { code: 'NOT_FOUND', message: 'Problem type not found' }
+          error: { code: 'NOT_FOUND', message: 'Problem type not found' },
+          ...(snapshot ? buildCreditBalanceResponseFields(snapshot) : {}),
         },
         404
       )
     }
 
     if (!problemType.is_active) {
+      const snapshot = await getCurrentSnapshot()
       return jsonWithBalance(
         {
           success: false,
-          error: { code: 'INACTIVE_TYPE', message: 'This problem type is currently inactive' }
+          error: { code: 'INACTIVE_TYPE', message: 'This problem type is currently inactive' },
+          ...(snapshot ? buildCreditBalanceResponseFields(snapshot) : {}),
         },
         400
       )
@@ -161,10 +190,12 @@ export async function POST(request: NextRequest) {
 
     const preBalance = balanceBeforeGeneration
     if (preBalance === undefined || preBalance < COST_PER_GENERATION) {
+      const snapshot = await getCurrentSnapshot()
       return jsonWithBalance(
         {
           success: false,
-          error: { code: 'INSUFFICIENT_CREDITS', message: '크레딧이 부족합니다.' }
+          error: { code: 'INSUFFICIENT_CREDITS', message: '크레딧이 부족합니다.' },
+          ...(snapshot ? buildCreditBalanceResponseFields(snapshot) : {}),
         },
         402,
         preBalance
@@ -172,11 +203,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (isCancelled()) {
-      const currentBalance = await getCurrentBalance(user.id)
-      return jsonWithBalance(
+      const snapshot = await getCurrentSnapshot()
+      return jsonWithBalanceSnapshot(
         { success: false, error: { code: 'GENERATION_CANCELLED', message: '문제 생성이 중단되었습니다.' } },
         408,
-        currentBalance
+        snapshot
       )
     }
 
@@ -256,14 +287,14 @@ ${passage}
 
     if (!result.success) {
       console.error('AI Generation Error:', result.error, result.rawResponse)
-      const currentBalance = await getCurrentBalance(user.id)
-      return jsonWithBalance(
+      const snapshot = await getCurrentSnapshot()
+      return jsonWithBalanceSnapshot(
         {
           success: false,
           error: { code: 'AI_ERROR', message: 'AI 문제 생성 중 오류가 발생했습니다.' }
         },
         500,
-        currentBalance
+        snapshot
       )
     }
 
@@ -277,19 +308,20 @@ ${passage}
         `AI 문제 생성 (${problemType.type_name})`
       )
       if (isCancelled()) {
-        const rolledBackBalance = await rollbackGenerationCredit()
-        return jsonWithBalance(
+        await rollbackGenerationCredit()
+        const snapshot = await getCurrentSnapshot()
+        return jsonWithBalanceSnapshot(
           {
             success: false,
             error: { code: 'GENERATION_CANCELLED', message: '문제 생성이 중단되었습니다.' }
           },
           408,
-          rolledBackBalance
+          snapshot
         )
       }
     } catch (error: unknown) {
-      const currentBalance = await getCurrentBalance(user.id)
-      return jsonWithBalance(
+      const snapshot = await getCurrentSnapshot()
+      return jsonWithBalanceSnapshot(
         {
           success: false,
           error: {
@@ -298,35 +330,36 @@ ${passage}
           }
         },
         402,
-        currentBalance
+        snapshot
       )
     }
 
     // 6. Return Result
-    const consumedBalance = deductionResult.newBalance
-    return jsonWithBalance(
+    const snapshot = await getCurrentSnapshot()
+    return jsonWithBalanceSnapshot(
       {
         success: true,
         data: result.data,
         rawAiResponse: result.rawResponse
       },
       200,
-      consumedBalance
+      snapshot
     )
   } catch (error: unknown) {
     const isCancelledError = isCancellationError(error, request.signal.aborted)
-    const currentBalance = deductionResult
-      ? await rollbackGenerationCredit()
-      : await getCurrentBalance(user.id)
+    if (deductionResult) {
+      await rollbackGenerationCredit()
+    }
+    const snapshot = await getCurrentSnapshot()
 
     console.error('Generation API Error:', error)
-    return jsonWithBalance(
+    return jsonWithBalanceSnapshot(
       {
         success: false,
         error: { code: isCancelledError ? 'GENERATION_CANCELLED' : 'INTERNAL_SERVER_ERROR', message: isCancelledError ? '문제 생성이 중단되었습니다.' : 'An unexpected error occurred' }
       },
       isCancelledError ? 408 : 500,
-      currentBalance
+      snapshot
     )
   }
 }

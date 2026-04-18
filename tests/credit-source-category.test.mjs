@@ -27,12 +27,25 @@ test('maps admin event grants to bonus and refund grants to system_refund', () =
 test('admin grants use a dedicated admin-client credit path that verifies profile balance updates', () => {
   assert.match(creditsSource, /static async grantCreditsAsAdmin/)
   assert.match(creditsSource, /const adminSupabase = createAdminClient\(\)/)
-  assert.match(creditsSource, /\.from\('profiles'\)\s*\.select\('credits'\)/s)
-  assert.match(creditsSource, /\.update\(\{\s*credits:\s*newBalance\s*\}\)\s*\.eq\('id', userId\)\s*\.select\('credits'\)\s*\.single\(\)/s)
-  assert.match(creditsSource, /if\s*\(!updatedProfile\s*\|\|\s*updatedProfile\.credits !== newBalance\)/)
+  assert.match(creditsSource, /grantCreditsAsAdmin[\s\S]*finalizeCreditBalanceMutation\(userId,\s*'Admin grant',\s*adminSupabase\)/)
 })
 
 test('admin user credit route uses the dedicated admin grant service instead of purchaseCredits', () => {
   assert.match(adminGrantRouteSource, /CreditService\.grantCreditsAsAdmin\(/)
   assert.doesNotMatch(adminGrantRouteSource, /CreditService\.purchaseCredits\(/)
+})
+
+test('refund approval also performs post-write balance snapshot verification', () => {
+  assert.match(creditsSource, /approveRefund[\s\S]*finalizeCreditBalanceMutation\(\s*request\.user_id,\s*'Refund approval',\s*adminSupabase\s*\)/)
+})
+
+test('credit mutations share a common ledger-first balance finalizer', () => {
+  assert.match(creditsSource, /async function finalizeCreditBalanceMutation/)
+  assert.match(creditsSource, /syncProfileBalanceCacheFromLedger/)
+  assert.match(creditsSource, /reportCreditBalanceMismatch/)
+  assert.match(creditsSource, /purchaseCredits[\s\S]*finalizeCreditBalanceMutation\(/)
+  assert.match(creditsSource, /grantCreditsAsAdmin[\s\S]*finalizeCreditBalanceMutation\(/)
+  assert.match(creditsSource, /deductCredits[\s\S]*finalizeCreditBalanceMutation\(/)
+  assert.match(creditsSource, /refundCredits[\s\S]*finalizeCreditBalanceMutation\(/)
+  assert.match(creditsSource, /approveRefund[\s\S]*finalizeCreditBalanceMutation\(/)
 })

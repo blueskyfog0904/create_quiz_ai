@@ -8,6 +8,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { CreditService } from '@/lib/credits'
+import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot } from '@/lib/credit-balance'
 
 export async function POST(request: NextRequest) {
     try {
@@ -38,10 +39,13 @@ export async function POST(request: NextRequest) {
             description || `${resourceType} 사용`
         )
 
+        const snapshot = await getCreditBalanceSnapshot(user.id, supabase)
+
         return NextResponse.json({
             success: true,
             newBalance: result.newBalance,
-            consumptions: result.consumptions
+            consumptions: result.consumptions,
+            ...buildCreditBalanceResponseFields(snapshot),
         })
     } catch (error) {
         console.error('Failed to deduct credits:', error)

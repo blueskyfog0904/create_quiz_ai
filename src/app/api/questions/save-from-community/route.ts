@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { DEFAULT_WORKSPACE_SUBJECT } from '@/lib/workspace-subject'
 import { z } from 'zod'
 import { CreditService } from '@/lib/credits'
+import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot, type CreditBalanceSnapshot } from '@/lib/credit-balance'
 
 const COST_PER_IMPORT = 100
 const CREDIT_BALANCE_HEADER = 'x-credit-balance'
@@ -29,13 +30,20 @@ const jsonWithBalance = (
       : undefined
   })
 
-const getBalance = async (userId: string): Promise<number> => {
-  try {
-    return await CreditService.getBalance(userId)
-  } catch {
-    return 0
-  }
-}
+const jsonWithBalanceSnapshot = (
+  body: Record<string, unknown>,
+  status: number,
+  snapshot?: CreditBalanceSnapshot | null
+) =>
+  NextResponse.json(snapshot ? {
+    ...body,
+    ...buildCreditBalanceResponseFields(snapshot),
+  } : body, {
+    status,
+    headers: snapshot
+      ? { [CREDIT_BALANCE_HEADER]: String(snapshot.displayBalance) }
+      : undefined
+  })
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -43,6 +51,14 @@ export async function POST(request: Request) {
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const getCurrentSnapshot = async () => {
+    try {
+      return await getCreditBalanceSnapshot(user.id, supabase)
+    } catch {
+      return null
+    }
   }
 
   let deductionResult: { newBalance: number; consumptions: Array<{ sourceId: string; amount: number }> } | null = null
@@ -112,13 +128,13 @@ export async function POST(request: Request) {
         '커뮤니티 문제 가져오기'
       )
     } catch (error: unknown) {
-      const currentBalance = await getBalance(user.id)
-      return jsonWithBalance(
+      const snapshot = await getCurrentSnapshot()
+      return jsonWithBalanceSnapshot(
         {
           error: error instanceof Error ? error.message : '크레딧이 부족합니다.'
         },
         402,
-        currentBalance
+        snapshot
       )
     }
 
@@ -152,24 +168,22 @@ export async function POST(request: Request) {
 
     if (insertError) {
       console.error('[Save from Community] Insert error:', insertError)
-      const rolledBackBalance = await rollbackIfNeeded()
-      const fallbackBalance = rolledBackBalance ??
-        (deductionResult ? deductionResult.newBalance : await getBalance(user.id))
-      return jsonWithBalance({ error: 'Failed to save question' }, 500, fallbackBalance)
+      await rollbackIfNeeded()
+      const snapshot = await getCurrentSnapshot()
+      return jsonWithBalanceSnapshot({ error: 'Failed to save question' }, 500, snapshot)
     }
 
-    const finalBalance = deductionResult?.newBalance
     deductionResult = null
+    const snapshot = await getCurrentSnapshot()
 
-    return jsonWithBalance({
+    return jsonWithBalanceSnapshot({
       success: true,
       question: newQuestion
-    }, 201, finalBalance)
+    }, 201, snapshot)
 
   } catch (error) {
-    const rolledBackBalance = await rollbackIfNeeded()
-    const balanceFromRollback = rolledBackBalance ??
-      (deductionResult ? deductionResult.newBalance : await getBalance(user.id))
+    await rollbackIfNeeded()
+    const snapshot = await getCurrentSnapshot()
 
     console.error('[Save from Community] Error:', error)
 
@@ -185,7 +199,7 @@ export async function POST(request: Request) {
         error: 'Internal server error'
       },
       500,
-      balanceFromRollback
+      snapshot?.displayBalance ?? null
     )
   }
 }
@@ -196,6 +210,14 @@ export async function PUT(request: Request) {
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const getCurrentSnapshot = async () => {
+    try {
+      return await getCreditBalanceSnapshot(user.id, supabase)
+    } catch {
+      return null
+    }
   }
 
   let deductionResult: { newBalance: number; consumptions: Array<{ sourceId: string; amount: number }> } | null = null
@@ -271,10 +293,10 @@ export async function PUT(request: Request) {
         `커뮤니티 문제 ${questionsToSave.length}개 가져오기`
       )
     } catch (error: unknown) {
-      const currentBalance = await getBalance(user.id)
-      return jsonWithBalance({
+      const snapshot = await getCurrentSnapshot()
+      return jsonWithBalanceSnapshot({
         error: error instanceof Error ? error.message : `크레딧이 부족합니다. (필요: ${totalCost} C)`
-      }, 402, currentBalance)
+      }, 402, snapshot)
     }
 
     // 5. Create copies in the user's question bank
@@ -309,26 +331,24 @@ export async function PUT(request: Request) {
 
     if (insertError) {
       console.error('[Bulk Save from Community] Insert error:', insertError)
-      const rolledBackBalance = await rollbackIfNeeded()
-      const fallbackBalance = rolledBackBalance ??
-        (deductionResult ? deductionResult.newBalance : await getBalance(user.id))
-      return jsonWithBalance({ error: 'Failed to save questions' }, 500, fallbackBalance)
+      await rollbackIfNeeded()
+      const snapshot = await getCurrentSnapshot()
+      return jsonWithBalanceSnapshot({ error: 'Failed to save questions' }, 500, snapshot)
     }
 
     const skippedCount = originalQuestions.length - questionsToSave.length
-    const finalBalance = deductionResult?.newBalance
     deductionResult = null
-    return jsonWithBalance({
+    const snapshot = await getCurrentSnapshot()
+    return jsonWithBalanceSnapshot({
       success: true,
       saved_count: newQuestions?.length || 0,
       skipped_count: skippedCount,
       questions: newQuestions
-    }, 201, finalBalance)
+    }, 201, snapshot)
 
   } catch (error) {
-    const rolledBackBalance = await rollbackIfNeeded()
-    const balanceFromRollback = rolledBackBalance ??
-      (deductionResult ? deductionResult.newBalance : await getBalance(user.id))
+    await rollbackIfNeeded()
+    const snapshot = await getCurrentSnapshot()
     console.error('[Bulk Save from Community] Error:', error)
 
     if (error instanceof z.ZodError) {
@@ -343,7 +363,7 @@ export async function PUT(request: Request) {
         error: 'Internal server error'
       },
       500,
-      balanceFromRollback
+      snapshot?.displayBalance ?? null
     )
   }
 }

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { CreditService } from '@/lib/credits'
 import { resolveAdminGrantSourceCategory } from '@/lib/credit-source-display'
+import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot } from '@/lib/credit-balance'
 
 const GrantCreditSchema = z.object({
   userId: z.string().uuid(),
@@ -62,9 +63,12 @@ export async function POST(request: Request) {
       is_read: false
     })
 
+    const snapshot = await getCreditBalanceSnapshot(userId)
+
     return NextResponse.json({
       success: true,
       newBalance: result.newBalance,
+      ...buildCreditBalanceResponseFields(snapshot),
     })
 
   } catch (error: unknown) {

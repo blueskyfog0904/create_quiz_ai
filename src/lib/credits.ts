@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { sendSlackNotification } from '@/lib/slack'
 import type { CreditSourceCategory } from '@/lib/credit-source-display'
+import { getCreditBalanceSnapshot, reportCreditBalanceMismatch, syncProfileBalanceCacheFromLedger } from '@/lib/credit-balance'
 
 // ============================================================================
 // 타입 정의
@@ -77,6 +78,24 @@ interface CreditRpcRefundResult {
 export interface RefundEligibility {
   allowed: boolean
   reason?: string
+}
+
+async function finalizeCreditBalanceMutation(
+  userId: string,
+  context: string,
+  client: Parameters<typeof getCreditBalanceSnapshot>[1]
+) {
+  const newBalance = await syncProfileBalanceCacheFromLedger(userId, client)
+  const snapshot = await getCreditBalanceSnapshot(userId, client)
+
+  if (snapshot.hasMismatch) {
+    await reportCreditBalanceMismatch(context, userId, snapshot)
+  }
+
+  return {
+    newBalance,
+    snapshot,
+  }
 }
 
 // ============================================================================
@@ -214,9 +233,11 @@ export class CreditService {
       throw new Error('크레딧 차감 응답이 올바르지 않습니다.')
     }
 
+    const { newBalance: syncedBalance } = await finalizeCreditBalanceMutation(userId, 'Deduct', supabase)
+
     return {
       success: true,
-      newBalance,
+      newBalance: syncedBalance,
       consumptions
     }
   }
@@ -285,7 +306,9 @@ export class CreditService {
       return this.getBalance(userId)
     }
 
-    return newBalance
+    const { newBalance: syncedBalance } = await finalizeCreditBalanceMutation(userId, 'Refund', supabase)
+
+    return syncedBalance
   }
 
   /**
@@ -326,19 +349,8 @@ export class CreditService {
       throw new Error('구매건 생성 중 오류가 발생했습니다.')
     }
 
-    // 2. profiles.credits 증가
-    const currentBalance = await this.getBalance(userId)
-    const newBalance = currentBalance + credits
-
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({ credits: newBalance })
-      .eq('id', userId)
-
-    if (profileError) {
-      console.error('[CreditService] Failed to update profile credits:', profileError)
-      throw new Error('잔액 업데이트 중 오류가 발생했습니다.')
-    }
+    // 2. profile cache를 ledger 기준으로 동기화
+    const { newBalance } = await finalizeCreditBalanceMutation(userId, 'Purchase', supabase)
 
     // 3. payment_history에 결제 내역 기록
     const { error: paymentError } = await supabase
@@ -412,40 +424,7 @@ export class CreditService {
       throw new Error('관리자 지급 구매건 생성 중 오류가 발생했습니다.')
     }
 
-    const { data: profile, error: profileReadError } = await adminSupabase
-      .from('profiles')
-      .select('credits')
-      .eq('id', userId)
-      .single()
-
-    if (profileReadError) {
-      console.error('[CreditService] Failed to read profile credits for admin grant:', profileReadError)
-      throw new Error('잔액 조회 중 오류가 발생했습니다.')
-    }
-
-    const currentBalance = profile?.credits ?? 0
-    const newBalance = currentBalance + credits
-
-    const { data: updatedProfile, error: profileError } = await adminSupabase
-      .from('profiles')
-      .update({ credits: newBalance })
-      .eq('id', userId)
-      .select('credits')
-      .single()
-
-    if (profileError) {
-      console.error('[CreditService] Failed to update profile credits for admin grant:', profileError)
-      throw new Error('잔액 업데이트 중 오류가 발생했습니다.')
-    }
-
-    if (!updatedProfile || updatedProfile.credits !== newBalance) {
-      console.error('[CreditService] Admin grant profile balance mismatch:', {
-        userId,
-        expected: newBalance,
-        actual: updatedProfile?.credits ?? null,
-      })
-      throw new Error('잔액 반영 검증에 실패했습니다.')
-    }
+    const { newBalance } = await finalizeCreditBalanceMutation(userId, 'Admin grant', adminSupabase)
 
     const { error: paymentError } = await adminSupabase
       .from('payment_history')
@@ -668,33 +647,13 @@ export class CreditService {
 
     const source = request.source as CreditSource
 
-    // 2. profiles.credits 차감 (service role로 RLS 우회)
-    const { data: profile } = await adminSupabase
-      .from('profiles')
-      .select('credits')
-      .eq('id', request.user_id)
-      .single()
-
-    const currentBalance = profile?.credits || 0
-    const newBalance = currentBalance - source.initial_credits
-
-    const { error: profileError } = await adminSupabase
-      .from('profiles')
-      .update({ credits: Math.max(0, newBalance) })
-      .eq('id', request.user_id)
-
-    if (profileError) {
-      console.error('[CreditService] Profile update error:', profileError)
-      throw new Error('잔액 차감 중 오류가 발생했습니다.')
-    }
-
-    // 3. credit_sources.status 변경
+    // 2. credit_sources.status 변경
     await adminSupabase
       .from('credit_sources')
       .update({ status: 'refunded', remaining_credits: 0 })
       .eq('id', source.id)
 
-    // 4. refund_requests 업데이트
+    // 3. refund_requests 업데이트
     await adminSupabase
       .from('refund_requests')
       .update({
@@ -705,25 +664,31 @@ export class CreditService {
       })
       .eq('id', requestId)
 
-    // 5. payment_history 업데이트
+    // 4. payment_history 업데이트
     await adminSupabase
       .from('payment_history')
       .update({ status: 'refunded' })
       .eq('source_id', source.id)
 
-    // 6. credit_transactions에 환불 로그
+    const { newBalance: syncedBalance } = await finalizeCreditBalanceMutation(
+      request.user_id,
+      'Refund approval',
+      adminSupabase
+    )
+
+    // 5. credit_transactions에 환불 로그
     await adminSupabase
       .from('credit_transactions')
       .insert({
         user_id: request.user_id,
         type: 'refund',
         amount: -source.initial_credits,
-        balance_after: Math.max(0, newBalance),
+        balance_after: syncedBalance,
         description: `환불 승인 (${source.initial_credits.toLocaleString()} 크레딧)`,
         source_id: source.id
       })
 
-    // 7. 사용자에게 환불 승인 알림 발송
+    // 6. 사용자에게 환불 승인 알림 발송
     try {
       await adminSupabase.from('notifications').insert({
         user_id: request.user_id,

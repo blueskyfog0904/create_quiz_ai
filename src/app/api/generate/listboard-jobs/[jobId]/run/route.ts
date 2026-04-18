@@ -7,6 +7,7 @@ import { AIGenerationService } from '@/lib/ai'
 import type { AIProvider } from '@/lib/ai/types'
 import { stagedGeneratedQuestionToJson } from '@/lib/questions/generated-question-staging'
 import { resolveGenerateWorkspaceSubject } from '@/app/(dashboard)/generate/workspace-subject'
+import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot } from '@/lib/credit-balance'
 
 export const dynamic = 'force-dynamic'
 
@@ -96,6 +97,14 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
   }
 
+  const getSnapshot = async () => {
+    try {
+      return await getCreditBalanceSnapshot(user.id, supabase)
+    } catch {
+      return null
+    }
+  }
+
   const body = await request.json().catch(() => null)
   const validation = RunListboardJobSchema.safeParse(body)
   if (!validation.success) {
@@ -171,7 +180,12 @@ export async function POST(request: Request, { params }: RouteContext) {
       .eq('id', job.id)
       .eq('workspace_subject', workspaceSubject)
 
-    return NextResponse.json({ success: false, error: { code: 'INSUFFICIENT_CREDITS', message: '크레딧이 부족합니다.' } }, { status: 402 })
+    const snapshot = await getSnapshot()
+    return NextResponse.json(snapshot ? {
+      success: false,
+      error: { code: 'INSUFFICIENT_CREDITS', message: '크레딧이 부족합니다.' },
+      ...buildCreditBalanceResponseFields(snapshot),
+    } : { success: false, error: { code: 'INSUFFICIENT_CREDITS', message: '크레딧이 부족합니다.' } }, { status: 402 })
   }
 
   let deductionResult: Awaited<ReturnType<typeof CreditService.deductCredits>> | null = null
@@ -194,7 +208,12 @@ export async function POST(request: Request, { params }: RouteContext) {
       .eq('id', job.id)
       .eq('workspace_subject', workspaceSubject)
 
-    return NextResponse.json({ success: false, error: { code: 'INSUFFICIENT_CREDITS', message: error instanceof Error ? error.message : '크레딧이 부족합니다.' } }, { status: 402 })
+    const snapshot = await getSnapshot()
+    return NextResponse.json(snapshot ? {
+      success: false,
+      error: { code: 'INSUFFICIENT_CREDITS', message: error instanceof Error ? error.message : '크레딧이 부족합니다.' },
+      ...buildCreditBalanceResponseFields(snapshot),
+    } : { success: false, error: { code: 'INSUFFICIENT_CREDITS', message: error instanceof Error ? error.message : '크레딧이 부족합니다.' } }, { status: 402 })
   }
 
   const postItemIds = Array.from(new Set(jobItems.map((item) => item.post_item_id)))
@@ -364,7 +383,17 @@ export async function POST(request: Request, { params }: RouteContext) {
     .eq('id', job.id)
     .eq('workspace_subject', workspaceSubject)
 
-  return NextResponse.json({
+  const snapshot = await getSnapshot()
+  return NextResponse.json(snapshot ? {
+    success: true,
+    data: {
+      jobId: job.id,
+      status: finalStatus,
+      balance: finalBalance,
+      started: true,
+    },
+    ...buildCreditBalanceResponseFields(snapshot),
+  } : {
     success: true,
     data: {
       jobId: job.id,

@@ -8,6 +8,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { CreditService } from '@/lib/credits'
+import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot } from '@/lib/credit-balance'
 
 export async function POST(request: NextRequest) {
     try {
@@ -48,10 +49,13 @@ export async function POST(request: NextRequest) {
             'plan_purchase'
         )
 
+        const snapshot = await getCreditBalanceSnapshot(user.id, supabase)
+
         return NextResponse.json({
             success: true,
             sourceId: result.sourceId,
             newBalance: result.newBalance,
+            ...buildCreditBalanceResponseFields(snapshot),
             message: `${plan.name} 요금제 구매 완료! ${plan.credits.toLocaleString()} 크레딧이 충전되었습니다.`
         })
     } catch (error) {

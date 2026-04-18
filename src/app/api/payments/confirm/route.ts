@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { CreditService } from '@/lib/credits'
+import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot } from '@/lib/credit-balance'
 
 export const dynamic = 'force-dynamic'
 
@@ -130,11 +131,14 @@ export async function POST(request: NextRequest) {
                 .update({ order_id: orderId })
                 .eq('source_id', result.sourceId)
 
+            const snapshot = await getCreditBalanceSnapshot(user.id, supabase)
+
             return NextResponse.json({
                 success: true,
                 message: '결제가 완료되었습니다.',
                 credits: plan.credits,
                 newBalance: result.newBalance,
+                ...buildCreditBalanceResponseFields(snapshot),
                 payment: {
                     orderId: confirmData.orderId,
                     orderName: confirmData.orderName,
