@@ -2,10 +2,7 @@ import pdfMake from 'pdfmake/build/pdfmake'
 import * as pdfFonts from 'pdfmake/build/vfs_fonts'
 import examPaperVfs from '@/lib/exam-paper-pdf-vfs'
 import { saveAs } from 'file-saver'
-import {
-  paginateTwoColumnQuestionChunks,
-  splitTextIntoFlowChunks,
-} from '@/lib/exam-paper-pdf-pagination.js'
+import { paginateTwoColumnQuestionChunks } from '@/lib/exam-paper-pdf-pagination.js'
 import {
   normalizeQuestionTextBackward,
   splitBracketUnderlineSegments,
@@ -192,17 +189,22 @@ function buildAnswerSectionNode(stack: Array<Record<string, unknown>>, marginBot
 }
 
 function buildBoxedTextChunks(questionNumber: number, section: string, text: string | null | undefined) {
-  return splitTextIntoFlowChunks(text, 260).map((chunkText, index) => ({
-    id: `question-body-${questionNumber}-${section}-${index}`,
+  const normalizedText = text?.trim()
+  if (!normalizedText) {
+    return []
+  }
+
+  return [{
+    id: `question-body-${questionNumber}-${section}`,
     kind: 'body' as const,
-    estimatedHeight: estimateTextHeight(chunkText, 34, 4.8, 6),
+    estimatedHeight: estimateTextHeight(normalizedText, 34, 4.8, 6),
     node: buildDecoratedBoxNode({
-      text: buildInlineSegments(chunkText),
+      text: buildInlineSegments(normalizedText),
       fontSize: 10,
       lineHeight: 1.45,
       color: '#374151',
     }),
-  }))
+  }]
 }
 
 function buildChoiceChunks(question: ExamPaperPdfQuestion) {
@@ -223,20 +225,40 @@ function buildChoiceChunks(question: ExamPaperPdfQuestion) {
   })
 }
 
-function buildExplanationChunks(questionNumber: number, explanation: string) {
-  return splitTextIntoFlowChunks(explanation, 260).map((chunkText, index) => ({
-    id: `question-explanation-${questionNumber}-${index}`,
-    kind: 'explanation' as const,
-    estimatedHeight: estimateTextHeight(chunkText, 40, 4.4, 4),
-    node: buildAnswerSectionNode([
-      {
-        text: `해설: ${chunkText}`,
-        fontSize: 9,
-        color: '#475569',
-        lineHeight: 1.8,
-      },
-    ], index === 0 ? 10 : 8),
-  }))
+function buildExplanationChunks(questionNumber: number, answer: string, explanation: string) {
+  const answerText = answer.trim()
+  const explanationText = explanation.trim()
+  const stack: Array<Record<string, unknown>> = []
+
+  if (answerText) {
+    stack.push({
+      text: `정답: ${answerText}`,
+      fontSize: 10,
+      bold: true,
+      color: '#1d4ed8',
+      margin: explanationText ? [0, 0, 0, 6] : [0, 0, 0, 0],
+    })
+  }
+
+  if (explanationText) {
+    stack.push({
+      text: `해설: ${explanationText}`,
+      fontSize: 9,
+      color: '#475569',
+      lineHeight: 1.8,
+    })
+  }
+
+  if (stack.length === 0) {
+    return []
+  }
+
+  return [{
+    id: `question-answer-${questionNumber}`,
+    kind: 'answer' as const,
+    estimatedHeight: estimateTextHeight(`${answerText}\n${explanationText}`.trim(), 40, 4.8, 18),
+    node: buildAnswerSectionNode(stack, 10),
+  }]
 }
 
 function buildQuestionChunksForTwoColumn(
@@ -254,7 +276,19 @@ function buildQuestionChunksForTwoColumn(
 
     const bodyChunks = [
       ...buildBoxedTextChunks(question.number, 'forward', question.questionTextForward),
-      ...buildBoxedTextChunks(question.number, 'passage', question.passageText),
+      ...(question.passageText
+        ? [{
+          id: `question-body-${question.number}-passage`,
+          kind: 'body' as const,
+          estimatedHeight: estimateTextHeight(question.passageText.trim(), 34, 4.8, 6),
+          node: buildDecoratedBoxNode({
+            text: buildInlineSegments(question.passageText.trim()),
+            fontSize: 10,
+            lineHeight: 1.45,
+            color: '#374151',
+          }),
+        }]
+        : []),
       ...buildBoxedTextChunks(
         question.number,
         'backward',
@@ -287,22 +321,7 @@ function buildQuestionChunksForTwoColumn(
   }
 
   if (showAnswers) {
-    chunks.push({
-      id: `question-answer-${question.number}`,
-      kind: 'answer',
-      estimatedHeight: estimateTextHeight(question.answer, 32, 5, 6) + 36,
-      node: buildAnswerSectionNode([
-        {
-          text: `정답: ${question.answer}`,
-          fontSize: 10,
-          bold: true,
-          color: '#1d4ed8',
-          margin: [0, 0, 0, 6],
-        },
-      ], 8),
-    })
-
-    chunks.push(...buildExplanationChunks(question.number, question.explanation))
+    chunks.push(...buildExplanationChunks(question.number, question.answer, question.explanation))
   }
 
   return chunks
