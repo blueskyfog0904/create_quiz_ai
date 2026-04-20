@@ -136,16 +136,72 @@ function estimateTextHeight(text: string, charsPerLine: number, lineHeight: numb
   return base + (lineCount * lineHeight)
 }
 
+function createBoxLayout(borderColor = '#9ca3af') {
+  return {
+    hLineWidth: () => 1,
+    vLineWidth: () => 1,
+    hLineColor: () => borderColor,
+    vLineColor: () => borderColor,
+    paddingLeft: () => 10,
+    paddingRight: () => 15,
+    paddingTop: () => 10,
+    paddingBottom: () => 10,
+  }
+}
+
+function createAnswerSectionLayout() {
+  return {
+    hLineWidth: () => 0,
+    vLineWidth: (index: number) => (index === 0 ? 4 : 0),
+    hLineColor: () => '#3b82f6',
+    vLineColor: (index: number) => (index === 0 ? '#3b82f6' : '#3b82f6'),
+    paddingLeft: () => 12,
+    paddingRight: () => 12,
+    paddingTop: () => 12,
+    paddingBottom: () => 12,
+  }
+}
+
+function buildDecoratedBoxNode(content: Record<string, unknown>, marginBottom = 8) {
+  return {
+    table: {
+      widths: ['*'],
+      body: [[{
+        ...content,
+        border: [true, true, true, true],
+      }]],
+    },
+    layout: createBoxLayout(),
+    margin: [0, 0, 0, marginBottom],
+  }
+}
+
+function buildAnswerSectionNode(stack: Array<Record<string, unknown>>, marginBottom = 8) {
+  return {
+    table: {
+      widths: ['*'],
+      body: [[{
+        fillColor: '#f0f9ff',
+        border: [true, false, false, false],
+        stack,
+      }]],
+    },
+    layout: createAnswerSectionLayout(),
+    margin: [0, 0, 0, marginBottom],
+  }
+}
+
 function buildBoxedTextChunks(questionNumber: number, section: string, text: string | null | undefined) {
   return splitTextIntoFlowChunks(text, 260).map((chunkText, index) => ({
     id: `question-body-${questionNumber}-${section}-${index}`,
     kind: 'body' as const,
     estimatedHeight: estimateTextHeight(chunkText, 34, 4.8, 6),
-    node: {
+    node: buildDecoratedBoxNode({
       text: buildInlineSegments(chunkText),
-      style: 'boxedText',
-      margin: [0, 0, 0, 8],
-    },
+      fontSize: 10,
+      lineHeight: 1.45,
+      color: '#374151',
+    }),
   }))
 }
 
@@ -159,7 +215,7 @@ function buildChoiceChunks(question: ExamPaperPdfQuestion) {
       estimatedHeight: estimateTextHeight(choiceText, 34, 5, 5),
       node: {
         text: choiceText,
-        margin: [14, 0, 0, 6],
+        margin: [0, 0, 0, 6],
         fontSize: 10,
         lineHeight: 1.4,
       },
@@ -172,11 +228,14 @@ function buildExplanationChunks(questionNumber: number, explanation: string) {
     id: `question-explanation-${questionNumber}-${index}`,
     kind: 'explanation' as const,
     estimatedHeight: estimateTextHeight(chunkText, 40, 4.4, 4),
-    node: {
-      text: `해설: ${chunkText}`,
-      style: 'explanation',
-      margin: index === 0 ? [0, 0, 0, 10] : [0, 0, 0, 8],
-    },
+    node: buildAnswerSectionNode([
+      {
+        text: `해설: ${chunkText}`,
+        fontSize: 9,
+        color: '#475569',
+        lineHeight: 1.8,
+      },
+    ], index === 0 ? 10 : 8),
   }))
 }
 
@@ -231,11 +290,16 @@ function buildQuestionChunksForTwoColumn(
     chunks.push({
       id: `question-answer-${question.number}`,
       kind: 'answer',
-      estimatedHeight: estimateTextHeight(question.answer, 32, 5, 6),
-      node: {
-        text: `정답: ${question.answer}`,
-        style: 'answer',
-      },
+      estimatedHeight: estimateTextHeight(question.answer, 32, 5, 6) + 36,
+      node: buildAnswerSectionNode([
+        {
+          text: `정답: ${question.answer}`,
+          fontSize: 10,
+          bold: true,
+          color: '#1d4ed8',
+          margin: [0, 0, 0, 6],
+        },
+      ], 8),
     })
 
     chunks.push(...buildExplanationChunks(question.number, question.explanation))
@@ -356,44 +420,68 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
 
       if (question.questionTextForward) {
         stack.push({
-          text: buildInlineSegments(question.questionTextForward),
-          style: 'boxedText',
+          ...buildDecoratedBoxNode({
+            text: buildInlineSegments(question.questionTextForward),
+            fontSize: 10,
+            lineHeight: 1.45,
+            color: '#374151',
+          }, 10),
         })
       }
 
       if (question.passageText) {
         stack.push({
-          text: buildInlineSegments(question.passageText),
-          style: 'boxedText',
+          ...buildDecoratedBoxNode({
+            text: buildInlineSegments(question.passageText),
+            fontSize: 10,
+            lineHeight: 1.45,
+            color: '#374151',
+          }, 10),
         })
       }
 
       const normalizedBackward = normalizeQuestionTextBackward(question.questionTextBackward)
       if (normalizedBackward) {
         stack.push({
-          text: buildInlineSegments(normalizedBackward),
-          style: 'boxedText',
+          ...buildDecoratedBoxNode({
+            text: buildInlineSegments(normalizedBackward),
+            fontSize: 10,
+            lineHeight: 1.45,
+            color: '#374151',
+          }, 10),
         })
       }
 
       if (Array.isArray(question.choices) && question.choices.length > 0) {
         stack.push({
-          ul: question.choices.map((choice) => `${choice.label} ${choice.text}`),
-          margin: [14, 0, 0, 10],
-          fontSize: 10,
-          lineHeight: 1.4,
+          stack: question.choices.map((choice) => ({
+            text: `${choice.label} ${choice.text}`,
+            margin: [0, 0, 0, 6],
+            fontSize: 10,
+            lineHeight: 1.4,
+          })),
+          margin: [0, 0, 0, 10],
         })
       }
     }
 
     if (showAnswers) {
       stack.push({
-        text: `정답: ${question.answer}`,
-        style: 'answer',
-      })
-      stack.push({
-        text: `해설: ${question.explanation}`,
-        style: 'explanation',
+        ...buildAnswerSectionNode([
+          {
+            text: `정답: ${question.answer}`,
+            fontSize: 10,
+            bold: true,
+            color: '#1d4ed8',
+            margin: [0, 0, 0, 6],
+          },
+          {
+            text: `해설: ${question.explanation}`,
+            fontSize: 9,
+            color: '#475569',
+            lineHeight: 1.8,
+          },
+        ], 12),
       })
     }
 
