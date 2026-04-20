@@ -160,6 +160,153 @@ function createInlineBracketUnderlineRuns(text: string | null | undefined): Text
   return runs.length > 0 ? runs : [new TextRun('')]
 }
 
+function renderQuestionChoicesHtml(choices: Choice[]) {
+  if (!Array.isArray(choices) || choices.length === 0) {
+    return ''
+  }
+
+  return `
+    <div class="choices">
+      ${choices.map((choice) => `
+        <div class="choice">
+          <span class="choice-label">${escapeHtml(choice.label)}</span>${escapeHtml(choice.text)}
+        </div>
+      `).join('')}
+    </div>
+  `
+}
+
+function renderQuestionAnswerHtml(question: Question, showQuestions: boolean) {
+  return `
+    <div class="${showQuestions ? 'answer-section' : 'answer-only-section'}">
+      <div class="answer">정답: ${escapeHtml(question.answer)}</div>
+      <div class="explanation">
+        <span class="explanation-label">해설:</span> ${escapeHtml(question.explanation).replace(/\n/g, '<br>')}
+      </div>
+    </div>
+  `
+}
+
+function renderSingleColumnQuestionHtml(
+  question: Question,
+  {
+    showQuestions,
+    showAnswers,
+  }: {
+    showQuestions: boolean
+    showAnswers: boolean
+  }
+) {
+  const normalizedQuestionTextBackward = normalizeQuestionTextBackward(question.questionTextBackward)
+
+  return `
+    <div class="question">
+      ${showQuestions ? `
+        <div class="question-text">
+          ${question.number}. ${escapeHtml(question.questionText)}
+        </div>
+        
+        ${question.questionTextForward ? `
+          <div class="text-box">
+            ${renderInlineBracketUnderlineHtml(question.questionTextForward)}
+          </div>
+        ` : ''}
+        
+        ${question.passageText ? `
+          <div class="text-box">
+            ${renderInlineBracketUnderlineHtml(question.passageText)}
+          </div>
+        ` : ''}
+        
+        ${normalizedQuestionTextBackward ? `
+          <div class="text-box">
+            ${renderInlineBracketUnderlineHtml(normalizedQuestionTextBackward)}
+          </div>
+        ` : ''}
+        
+        ${renderQuestionChoicesHtml(question.choices)}
+      ` : `
+        <div class="question-number">${question.number}번</div>
+      `}
+      
+      ${showAnswers ? renderQuestionAnswerHtml(question, showQuestions) : ''}
+    </div>
+  `
+}
+
+function renderTwoColumnQuestionChunkHtml(
+  question: Question,
+  {
+    showQuestions,
+    showAnswers,
+  }: {
+    showQuestions: boolean
+    showAnswers: boolean
+  }
+) {
+  const normalizedQuestionTextBackward = normalizeQuestionTextBackward(question.questionTextBackward)
+  const textBoxChunks = [
+    question.questionTextForward
+      ? `
+        <div class="question-chunk question-body-chunk">
+          <div class="text-box">
+            ${renderInlineBracketUnderlineHtml(question.questionTextForward)}
+          </div>
+        </div>
+      `
+      : '',
+    question.passageText
+      ? `
+        <div class="question-chunk question-body-chunk">
+          <div class="text-box">
+            ${renderInlineBracketUnderlineHtml(question.passageText)}
+          </div>
+        </div>
+      `
+      : '',
+    normalizedQuestionTextBackward
+      ? `
+        <div class="question-chunk question-body-chunk">
+          <div class="text-box">
+            ${renderInlineBracketUnderlineHtml(normalizedQuestionTextBackward)}
+          </div>
+        </div>
+      `
+      : '',
+  ].filter(Boolean)
+
+  const choiceChunk = Array.isArray(question.choices) && question.choices.length > 0
+    ? `
+      <div class="question-chunk question-choice-chunk">
+        ${renderQuestionChoicesHtml(question.choices)}
+      </div>
+    `
+    : ''
+
+  const answerChunk = showAnswers
+    ? `
+      <div class="question-chunk question-answer-chunk">
+        ${renderQuestionAnswerHtml(question, showQuestions)}
+      </div>
+    `
+    : ''
+
+  return `
+    <div class="question-chunk question-chunk-anchor">
+      ${showQuestions ? `
+        <div class="question-text">
+          ${question.number}. ${escapeHtml(question.questionText)}
+        </div>
+      ` : `
+        <div class="question-number">${question.number}번</div>
+      `}
+    </div>
+    ${textBoxChunks.join('')}
+    ${choiceChunk}
+    ${answerChunk}
+  `
+}
+
 export function buildExamPaperPrintHtml(
   examPaper: ExamPaper,
   {
@@ -425,52 +572,15 @@ export function buildExamPaperPrintHtml(
           ` : ''}
           <div class="questions-container">
       ${pageQuestions.map((question) => `
-        <div class="question">
-          ${showQuestions ? `
-            <div class="question-text">
-              ${question.number}. ${escapeHtml(question.questionText)}
-            </div>
-            
-            ${question.questionTextForward ? `
-              <div class="text-box">
-                ${renderInlineBracketUnderlineHtml(question.questionTextForward)}
-              </div>
-            ` : ''}
-            
-            ${question.passageText ? `
-              <div class="text-box">
-                ${renderInlineBracketUnderlineHtml(question.passageText)}
-              </div>
-            ` : ''}
-            
-            ${normalizeQuestionTextBackward(question.questionTextBackward) ? `
-              <div class="text-box">
-                ${renderInlineBracketUnderlineHtml(normalizeQuestionTextBackward(question.questionTextBackward))}
-              </div>
-            ` : ''}
-            
-            ${Array.isArray(question.choices) && question.choices.length > 0 ? `
-              <div class="choices">
-                ${question.choices.map((choice) => `
-                  <div class="choice">
-                    <span class="choice-label">${escapeHtml(choice.label)}</span>${escapeHtml(choice.text)}
-                  </div>
-                `).join('')}
-              </div>
-            ` : ''}
-          ` : `
-            <div class="question-number">${question.number}번</div>
-          `}
-          
-          ${showAnswers ? `
-          <div class="${showQuestions ? 'answer-section' : 'answer-only-section'}">
-            <div class="answer">정답: ${escapeHtml(question.answer)}</div>
-            <div class="explanation">
-              <span class="explanation-label">해설:</span> ${escapeHtml(question.explanation).replace(/\n/g, '<br>')}
-            </div>
-          </div>
-          ` : ''}
-        </div>
+        ${isDoubleColumn
+          ? renderTwoColumnQuestionChunkHtml(question, {
+            showQuestions,
+            showAnswers,
+          })
+          : renderSingleColumnQuestionHtml(question, {
+            showQuestions,
+            showAnswers,
+          })}
       `).join('')}
           </div>
         </section>
