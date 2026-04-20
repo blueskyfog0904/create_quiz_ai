@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Download,
   ExternalLink,
@@ -23,15 +23,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  buildExamPaperPdfBlob,
-  buildExamPaperPdfFileName,
-  downloadExamPaperPdf,
-  openExamPaperPdfInNewTab,
-  type ExamPaperPdfColumnLayout,
-  type ExamPaperPdfDocument,
-  type ExamPaperPdfQuestion,
-  type ExamPaperPdfViewMode,
-} from '@/lib/exam-paper-pdf'
+  buildExamPaperPrintHtml,
+  openExamPaperPrintPreview,
+  type ColumnLayout as ExamPaperPdfColumnLayout,
+  type ExamPaper as ExamPaperPrintDocument,
+  type Question as ExamPaperPdfQuestion,
+  type ViewMode as ExamPaperPdfViewMode,
+} from '@/lib/export-utils'
 import { cn } from '@/lib/utils'
 
 interface ExamPaperPdfWorkspaceProps {
@@ -66,10 +64,9 @@ export function ExamPaperPdfWorkspace({
   const [questions, setQuestions] = useState<ExamPaperPdfQuestion[]>(() => renumberQuestions(initialQuestions))
   const [draggingQuestionId, setDraggingQuestionId] = useState<number | null>(null)
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
+  const [previewHtml, setPreviewHtml] = useState('')
 
-  const exportPayload: ExamPaperPdfDocument = useMemo(() => ({
+  const exportPayload: ExamPaperPrintDocument = useMemo(() => ({
     title: examPaper.paper_title,
     description: examPaper.description || undefined,
     questions,
@@ -77,7 +74,26 @@ export function ExamPaperPdfWorkspace({
     columnLayout,
   }), [columnLayout, examPaper.description, examPaper.paper_title, questions, viewMode])
 
-  const pdfFileName = useMemo(() => buildExamPaperPdfFileName(exportPayload), [exportPayload])
+  const previewTitle = useMemo(() => (
+    `${examPaper.paper_title}${viewMode === 'answer-only' ? ' - 답안' : viewMode === 'exam-only' ? ' - 시험지' : ''}${columnLayout === 'double' ? ' (2단)' : ''}`
+  ), [columnLayout, examPaper.paper_title, viewMode])
+
+  const syncWorkspaceToLatestProps = useCallback(() => {
+    setViewMode(initialViewMode)
+    setColumnLayout(initialColumnLayout)
+    setQuestions(renumberQuestions(initialQuestions))
+    setDraggingQuestionId(null)
+    setIsGeneratingPreview(false)
+    setPreviewHtml('')
+  }, [initialColumnLayout, initialQuestions, initialViewMode])
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    syncWorkspaceToLatestProps()
+  }, [open, syncWorkspaceToLatestProps])
 
   useEffect(() => {
     if (!open) {
@@ -89,17 +105,10 @@ export function ExamPaperPdfWorkspace({
       setIsGeneratingPreview(true)
 
       try {
-        const blob = await buildExamPaperPdfBlob(exportPayload)
+        const html = buildExamPaperPrintHtml(exportPayload)
         if (cancelled) return
 
-        setPdfBlob(blob)
-        setPreviewUrl((current) => {
-          if (current) {
-            URL.revokeObjectURL(current)
-          }
-
-          return URL.createObjectURL(blob)
-        })
+        setPreviewHtml(html)
       } catch (error) {
         console.error('PDF preview generation error:', error)
         if (!cancelled) {
@@ -118,14 +127,6 @@ export function ExamPaperPdfWorkspace({
     }
   }, [exportPayload, open])
 
-  useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl)
-      }
-    }
-  }, [previewUrl])
-
   const moveQuestion = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) {
       return
@@ -140,10 +141,7 @@ export function ExamPaperPdfWorkspace({
   }
 
   const resetWorkspace = () => {
-    setViewMode(initialViewMode)
-    setColumnLayout(initialColumnLayout)
-    setQuestions(renumberQuestions(initialQuestions))
-    setDraggingQuestionId(null)
+    syncWorkspaceToLatestProps()
   }
 
   return (
@@ -167,7 +165,7 @@ export function ExamPaperPdfWorkspace({
                 variant="outline"
                 className="gap-2"
                 onClick={async () => {
-                  await openExamPaperPdfInNewTab(exportPayload)
+                  openExamPaperPrintPreview(exportPayload)
                 }}
               >
                 <ExternalLink className="h-4 w-4" />
@@ -176,11 +174,14 @@ export function ExamPaperPdfWorkspace({
               <Button
                 type="button"
                 className="gap-2"
-                disabled={!pdfBlob || isGeneratingPreview}
+                disabled={!previewHtml || isGeneratingPreview}
                 onClick={async () => {
-                  if (!pdfBlob) return
-                  await downloadExamPaperPdf(pdfBlob, pdfFileName)
-                  toast.success('PDF 파일이 다운로드되었습니다.')
+                  if (!previewHtml) return
+                  openExamPaperPrintPreview(exportPayload, {
+                    autoPrint: true,
+                    closeAfterPrint: true,
+                  })
+                  toast.success('인쇄 창을 열었습니다. 대상에서 PDF로 저장을 선택할 수 있습니다.')
                 }}
               >
                 <Download className="h-4 w-4" />
@@ -299,7 +300,7 @@ export function ExamPaperPdfWorkspace({
             <div className="flex items-center justify-between border-b bg-white px-4 py-3 text-sm text-muted-foreground">
               <div className="flex items-center gap-3">
                 <FileText className="h-4 w-4 text-primary" />
-                <span className="truncate font-medium text-gray-700">{pdfFileName}</span>
+                <span className="truncate font-medium text-gray-700">{previewTitle}</span>
               </div>
               <div className="flex items-center gap-3 text-xs sm:text-sm">
                 <span className="rounded-full bg-primary/10 px-2.5 py-1 text-primary">{viewMode}</span>
@@ -318,17 +319,17 @@ export function ExamPaperPdfWorkspace({
                 </div>
               ) : null}
 
-              {previewUrl ? (
+              {previewHtml ? (
                 <iframe
-                  title="문제지 PDF 미리보기"
-                  src={previewUrl}
+                  title="문제지 출력 미리보기"
+                  srcDoc={previewHtml}
                   className="h-full w-full border-0"
                 />
               ) : (
                 <div className="flex h-full items-center justify-center">
                   <div className="rounded-2xl border bg-white px-6 py-8 text-center shadow-sm">
                     <MonitorSmartphone className="mx-auto mb-3 h-8 w-8 text-primary" />
-                    <p className="font-medium text-gray-900">PDF 미리보기를 준비 중입니다.</p>
+                    <p className="font-medium text-gray-900">출력 미리보기를 준비 중입니다.</p>
                     <p className="mt-1 text-sm text-muted-foreground">좌측 설정이 적용된 문제지를 오른쪽에서 바로 확인할 수 있습니다.</p>
                   </div>
                 </div>
