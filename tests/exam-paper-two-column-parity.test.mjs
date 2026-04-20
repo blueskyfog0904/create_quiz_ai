@@ -32,3 +32,14 @@ test('buildExamPaperPrintHtml routes 2-column preview through chunk-based questi
   assert.match(twoColumnChunkRendererSource, /class="question-chunk[^\"]*question-body-chunk/)
   assert.doesNotMatch(twoColumnChunkRendererSource, /class="question"/)
 })
+
+test('buildExamPaperPrintHtml reserves chunk-aware pagination for 2-column preview pages', () => {
+  assert.notEqual(buildExamPaperPrintHtmlSource, '')
+  assert.match(exportUtilsSource, /paginateTwoColumnQuestionChunks/)
+  assert.match(
+    buildExamPaperPrintHtmlSource,
+    /isDoubleColumn[\s\S]*paginateTwoColumnQuestionChunks\(/
+  )
+  assert.match(buildExamPaperPrintHtmlSource, /class="two-column-layout"/)
+  assert.match(buildExamPaperPrintHtmlSource, /class="two-column-column"/)
+})
