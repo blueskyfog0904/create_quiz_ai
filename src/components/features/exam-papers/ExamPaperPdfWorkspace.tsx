@@ -9,6 +9,7 @@ import {
   Loader2,
   MonitorSmartphone,
   PanelLeft,
+  Printer,
   RotateCcw,
   X,
 } from 'lucide-react'
@@ -30,6 +31,12 @@ import {
   type Question as ExamPaperPdfQuestion,
   type ViewMode as ExamPaperPdfViewMode,
 } from '@/lib/export-utils'
+import {
+  buildExamPaperPdfBlob,
+  buildExamPaperPdfFileName,
+  downloadExamPaperPdf,
+  openExamPaperPdfInNewTab,
+} from '@/lib/exam-paper-pdf'
 import { cn } from '@/lib/utils'
 
 interface ExamPaperPdfWorkspaceProps {
@@ -64,6 +71,8 @@ export function ExamPaperPdfWorkspace({
   const [questions, setQuestions] = useState<ExamPaperPdfQuestion[]>(() => renumberQuestions(initialQuestions))
   const [draggingQuestionId, setDraggingQuestionId] = useState<number | null>(null)
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
+  const [isSavingPdf, setIsSavingPdf] = useState(false)
+  const [isOpeningPdfTab, setIsOpeningPdfTab] = useState(false)
   const [previewHtml, setPreviewHtml] = useState('')
 
   const exportPayload: ExamPaperPrintDocument = useMemo(() => ({
@@ -84,6 +93,8 @@ export function ExamPaperPdfWorkspace({
     setQuestions(renumberQuestions(initialQuestions))
     setDraggingQuestionId(null)
     setIsGeneratingPreview(false)
+    setIsSavingPdf(false)
+    setIsOpeningPdfTab(false)
     setPreviewHtml('')
   }, [initialColumnLayout, initialQuestions, initialViewMode])
 
@@ -144,6 +155,49 @@ export function ExamPaperPdfWorkspace({
     syncWorkspaceToLatestProps()
   }
 
+  const handleSavePdf = async () => {
+    setIsSavingPdf(true)
+
+    try {
+      const fileName = buildExamPaperPdfFileName(exportPayload)
+      const blob = await buildExamPaperPdfBlob(exportPayload)
+
+      await downloadExamPaperPdf(blob, fileName)
+      toast.success('PDF 파일 다운로드를 시작했습니다.')
+    } catch (error) {
+      console.error('Direct PDF save error:', error)
+      toast.error(error instanceof Error ? error.message : 'PDF 저장 중 오류가 발생했습니다.')
+    } finally {
+      setIsSavingPdf(false)
+    }
+  }
+
+  const handleOpenPdfInNewTab = async () => {
+    setIsOpeningPdfTab(true)
+
+    try {
+      await openExamPaperPdfInNewTab(exportPayload)
+    } catch (error) {
+      console.error('Direct PDF new tab error:', error)
+      toast.error(error instanceof Error ? error.message : 'PDF 새 탭 열기 중 오류가 발생했습니다.')
+    } finally {
+      setIsOpeningPdfTab(false)
+    }
+  }
+
+  const handlePrint = () => {
+    try {
+      openExamPaperPrintPreview(exportPayload, {
+        autoPrint: true,
+        closeAfterPrint: true,
+      })
+      toast.success('인쇄 창을 열었습니다.')
+    } catch (error) {
+      console.error('Exam paper print preview error:', error)
+      toast.error(error instanceof Error ? error.message : '인쇄 창을 여는 중 오류가 발생했습니다.')
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="h-[92vh] max-w-[96vw] overflow-hidden p-0" showCloseButton={false}>
@@ -164,27 +218,28 @@ export function ExamPaperPdfWorkspace({
                 type="button"
                 variant="outline"
                 className="gap-2"
-                onClick={async () => {
-                  openExamPaperPrintPreview(exportPayload)
-                }}
+                disabled={isOpeningPdfTab || isSavingPdf}
+                onClick={handleOpenPdfInNewTab}
               >
-                <ExternalLink className="h-4 w-4" />
+                {isOpeningPdfTab ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
                 새 탭에서 열기
               </Button>
               <Button
                 type="button"
+                variant="outline"
                 className="gap-2"
-                disabled={!previewHtml || isGeneratingPreview}
-                onClick={async () => {
-                  if (!previewHtml) return
-                  openExamPaperPrintPreview(exportPayload, {
-                    autoPrint: true,
-                    closeAfterPrint: true,
-                  })
-                  toast.success('인쇄 창을 열었습니다. 대상에서 PDF로 저장을 선택할 수 있습니다.')
-                }}
+                onClick={handlePrint}
               >
-                <Download className="h-4 w-4" />
+                <Printer className="h-4 w-4" />
+                인쇄
+              </Button>
+              <Button
+                type="button"
+                className="gap-2"
+                disabled={isSavingPdf || isOpeningPdfTab}
+                onClick={handleSavePdf}
+              >
+                {isSavingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 PDF 저장
               </Button>
               <Button type="button" variant="ghost" className="gap-2" onClick={() => onOpenChange(false)}>
