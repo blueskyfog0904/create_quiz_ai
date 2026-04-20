@@ -3,6 +3,10 @@ import * as pdfFonts from 'pdfmake/build/vfs_fonts'
 import examPaperVfs from '@/lib/exam-paper-pdf-vfs'
 import { saveAs } from 'file-saver'
 import {
+  paginateTwoColumnQuestionChunks,
+  splitTextIntoFlowChunks,
+} from '@/lib/exam-paper-pdf-pagination.js'
+import {
   normalizeQuestionTextBackward,
   splitBracketUnderlineSegments,
 } from '@/lib/questions/normalize-question-field'
@@ -81,6 +85,13 @@ export interface ExamPaperPdfDocument {
   includeAnswers?: boolean
 }
 
+type PdfPaginationChunk = {
+  id: string
+  estimatedHeight: number
+  kind: 'header' | 'body' | 'choice' | 'answer' | 'explanation'
+  node: Record<string, unknown>
+}
+
 function getExportOptions(examPaper: ExamPaperPdfDocument) {
   const viewMode: ExamPaperPdfViewMode = examPaper.viewMode ||
     (examPaper.includeAnswers === false ? 'exam-only' : 'exam-with-answers')
@@ -112,41 +123,125 @@ function buildInlineSegments(text: string | null | undefined) {
   ))
 }
 
-function estimateQuestionNodeWeight(question: ExamPaperPdfQuestion, showQuestions: boolean, showAnswers: boolean) {
-  let weight = question.questionText.length
+function estimateTextHeight(text: string, charsPerLine: number, lineHeight: number, base = 0) {
+  const normalized = text.trim()
+  if (!normalized) {
+    return base
+  }
+
+  const lineCount = normalized
+    .split('\n')
+    .reduce((sum, line) => sum + Math.max(1, Math.ceil(line.trim().length / charsPerLine)), 0)
+
+  return base + (lineCount * lineHeight)
+}
+
+function buildBoxedTextChunks(questionNumber: number, section: string, text: string | null | undefined) {
+  return splitTextIntoFlowChunks(text, 260).map((chunkText, index) => ({
+    id: `question-body-${questionNumber}-${section}-${index}`,
+    kind: 'body' as const,
+    estimatedHeight: estimateTextHeight(chunkText, 34, 4.8, 6),
+    node: {
+      text: buildInlineSegments(chunkText),
+      style: 'boxedText',
+      margin: [0, 0, 0, 8],
+    },
+  }))
+}
+
+function buildChoiceChunks(question: ExamPaperPdfQuestion) {
+  return question.choices.map((choice, index) => {
+    const choiceText = `${choice.label} ${choice.text}`
+
+    return {
+      id: `question-body-${question.number}-choice-${index}`,
+      kind: 'choice' as const,
+      estimatedHeight: estimateTextHeight(choiceText, 34, 5, 5),
+      node: {
+        text: choiceText,
+        margin: [14, 0, 0, 6],
+        fontSize: 10,
+        lineHeight: 1.4,
+      },
+    }
+  })
+}
+
+function buildExplanationChunks(questionNumber: number, explanation: string) {
+  return splitTextIntoFlowChunks(explanation, 260).map((chunkText, index) => ({
+    id: `question-explanation-${questionNumber}-${index}`,
+    kind: 'explanation' as const,
+    estimatedHeight: estimateTextHeight(chunkText, 40, 4.4, 4),
+    node: {
+      text: `해설: ${chunkText}`,
+      style: 'explanation',
+      margin: index === 0 ? [0, 0, 0, 10] : [0, 0, 0, 8],
+    },
+  }))
+}
+
+function buildQuestionChunksForTwoColumn(
+  question: ExamPaperPdfQuestion,
+  options: { showQuestions: boolean, showAnswers: boolean }
+): PdfPaginationChunk[] {
+  const { showQuestions, showAnswers } = options
+  const chunks: PdfPaginationChunk[] = []
 
   if (showQuestions) {
-    weight += question.questionTextForward?.length ?? 0
-    weight += question.questionTextBackward?.length ?? 0
-    weight += question.passageText?.length ?? 0
-    weight += question.choices.reduce((sum, choice) => sum + choice.text.length + choice.label.length, 0)
+    const headingNode = {
+      text: `${question.number}. ${question.questionText}`,
+      style: 'questionText',
+    }
+
+    const bodyChunks = [
+      ...buildBoxedTextChunks(question.number, 'forward', question.questionTextForward),
+      ...buildBoxedTextChunks(question.number, 'passage', question.passageText),
+      ...buildBoxedTextChunks(
+        question.number,
+        'backward',
+        normalizeQuestionTextBackward(question.questionTextBackward)
+      ),
+      ...buildChoiceChunks(question),
+    ]
+
+    const [firstBodyChunk, ...remainingBodyChunks] = bodyChunks
+    const anchorStack = firstBodyChunk
+      ? [headingNode, firstBodyChunk.node]
+      : [headingNode]
+
+    const anchorHeight = estimateTextHeight(question.questionText, 30, 6, 10) +
+      (firstBodyChunk?.estimatedHeight ?? 0)
+
+    chunks.push({
+      id: `question-body-${question.number}-anchor`,
+      kind: 'header',
+      estimatedHeight: anchorHeight,
+      node: {
+        id: `question-body-${question.number}`,
+        stack: anchorStack,
+        unbreakable: true,
+        margin: [0, 0, 0, 8],
+      },
+    })
+
+    chunks.push(...remainingBodyChunks)
   }
 
   if (showAnswers) {
-    weight += question.answer.length + question.explanation.length
+    chunks.push({
+      id: `question-answer-${question.number}`,
+      kind: 'answer',
+      estimatedHeight: estimateTextHeight(question.answer, 32, 5, 6),
+      node: {
+        text: `정답: ${question.answer}`,
+        style: 'answer',
+      },
+    })
+
+    chunks.push(...buildExplanationChunks(question.number, question.explanation))
   }
 
-  return weight
-}
-
-function splitQuestionNodesForDoubleColumn<T>(nodes: T[], weights: number[]) {
-  const leftColumn: T[] = []
-  const rightColumn: T[] = []
-  let leftWeight = 0
-  let rightWeight = 0
-
-  nodes.forEach((node, index) => {
-    if (leftWeight <= rightWeight) {
-      leftColumn.push(node)
-      leftWeight += weights[index] ?? 0
-      return
-    }
-
-    rightColumn.push(node)
-    rightWeight += weights[index] ?? 0
-  })
-
-  return { leftColumn, rightColumn }
+  return chunks
 }
 
 function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
@@ -172,9 +267,82 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
     })
   }
 
-  const questionWeights = examPaper.questions.map((question) =>
-    estimateQuestionNodeWeight(question, showQuestions, showAnswers)
-  )
+  if (columnLayout === 'double') {
+    const paginatedPages = paginateTwoColumnQuestionChunks(
+      examPaper.questions.map((question) => ({
+        questionNumber: question.number,
+        chunks: buildQuestionChunksForTwoColumn(question, {
+          showQuestions,
+          showAnswers,
+        }),
+      })),
+      {
+        firstPageSlotCapacity: examPaper.description ? 220 : 245,
+        otherPageSlotCapacity: 280,
+      }
+    )
+
+    paginatedPages.forEach((page, index) => {
+      content.push({
+        columns: [
+          {
+            stack: page.left.map((chunk) => chunk.node),
+          },
+          {
+            stack: page.right.map((chunk) => chunk.node),
+          },
+        ],
+        columnGap: 18,
+        ...(index < paginatedPages.length - 1 ? { pageBreak: 'after' } : {}),
+      })
+    })
+
+    return {
+      pageSize: 'A4',
+      pageMargins: [36, 40, 36, 40],
+      content,
+      defaultStyle: {
+        font: 'Pretendard',
+        fontSize: 11,
+        lineHeight: 1.45,
+      },
+      styles: {
+        title: {
+          fontSize: 18,
+          bold: true,
+          alignment: 'center',
+          margin: [0, 0, 0, 8],
+        },
+        description: {
+          fontSize: 10,
+          color: '#64748b',
+          alignment: 'center',
+          margin: [0, 0, 0, 18],
+        },
+        questionText: {
+          fontSize: 11,
+          bold: true,
+          margin: [0, 0, 0, 8],
+        },
+        boxedText: {
+          fontSize: 10,
+          lineHeight: 1.45,
+          margin: [0, 0, 0, 10],
+        },
+        answer: {
+          fontSize: 10,
+          bold: true,
+          color: '#1d4ed8',
+          margin: [0, 4, 0, 4],
+        },
+        explanation: {
+          fontSize: 9,
+          color: '#475569',
+        },
+      },
+    } as unknown as import('pdfmake/interfaces').TDocumentDefinitions
+  }
+
   const keepQuestionTogether = columnLayout === 'single'
 
   const questionNodes = examPaper.questions.map((question) => {
@@ -236,19 +404,7 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
     }
   })
 
-  if (columnLayout === 'double') {
-    const { leftColumn, rightColumn } = splitQuestionNodesForDoubleColumn(questionNodes, questionWeights)
-
-    content.push({
-      columns: [
-        { stack: leftColumn },
-        { stack: rightColumn },
-      ],
-      columnGap: 18,
-    })
-  } else {
-    content.push(...questionNodes)
-  }
+  content.push(...questionNodes)
 
   return {
     pageSize: 'A4',
