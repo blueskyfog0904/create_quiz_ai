@@ -3,6 +3,7 @@ import * as pdfFonts from 'pdfmake/build/vfs_fonts'
 import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel, UnderlineType } from 'docx'
 import { saveAs } from 'file-saver'
 import { paginateExamPaperQuestions } from '@/lib/exam-paper-print-pagination.js'
+import { paginateTwoColumnQuestionChunks } from '@/lib/exam-paper-pdf-pagination.js'
 import {
   normalizeQuestionTextBackward,
   splitBracketUnderlineSegments,
@@ -85,6 +86,18 @@ interface ExamPaperPrintPreviewOptions {
   closeAfterPrint?: boolean
 }
 
+interface HtmlPaginationChunk {
+  id: string
+  estimatedHeight: number
+  kind: 'header' | 'body' | 'choice' | 'answer'
+  html: string
+}
+
+interface HtmlTwoColumnPage {
+  left: HtmlPaginationChunk[]
+  right: HtmlPaginationChunk[]
+}
+
 function getExamPaperRenderOptions(examPaper: ExamPaper) {
   const viewMode: ViewMode = examPaper.viewMode ||
     (examPaper.includeAnswers === false ? 'exam-only' : 'exam-with-answers')
@@ -158,6 +171,19 @@ function createInlineBracketUnderlineRuns(text: string | null | undefined): Text
   })
 
   return runs.length > 0 ? runs : [new TextRun('')]
+}
+
+function estimateTextHeight(text: string, charsPerLine: number, lineHeight: number, base = 0) {
+  const normalized = text.trim()
+  if (!normalized) {
+    return base
+  }
+
+  const lineCount = normalized
+    .split('\n')
+    .reduce((sum, line) => sum + Math.max(1, Math.ceil(line.trim().length / charsPerLine)), 0)
+
+  return base + (lineCount * lineHeight)
 }
 
 function renderQuestionChoicesHtml(choices: Choice[]) {
@@ -245,66 +271,133 @@ function renderTwoColumnQuestionChunkHtml(
   }
 ) {
   const normalizedQuestionTextBackward = normalizeQuestionTextBackward(question.questionTextBackward)
-  const textBoxChunks = [
+  const textBoxChunks: HtmlPaginationChunk[] = [
     question.questionTextForward
-      ? `
-        <div class="question-chunk question-body-chunk">
-          <div class="text-box">
-            ${renderInlineBracketUnderlineHtml(question.questionTextForward)}
-          </div>
-        </div>
-      `
-      : '',
+      ? {
+          id: `question-${question.number}-forward`,
+          estimatedHeight: estimateTextHeight(question.questionTextForward, 38, 23, 42),
+          kind: 'body',
+          html: `
+            <div class="question-chunk question-body-chunk">
+              <div class="text-box">
+                ${renderInlineBracketUnderlineHtml(question.questionTextForward)}
+              </div>
+            </div>
+          `,
+        }
+      : null,
     question.passageText
-      ? `
-        <div class="question-chunk question-body-chunk">
-          <div class="text-box">
-            ${renderInlineBracketUnderlineHtml(question.passageText)}
-          </div>
-        </div>
-      `
-      : '',
+      ? {
+          id: `question-${question.number}-passage`,
+          estimatedHeight: estimateTextHeight(question.passageText, 38, 23, 42),
+          kind: 'body',
+          html: `
+            <div class="question-chunk question-body-chunk">
+              <div class="text-box">
+                ${renderInlineBracketUnderlineHtml(question.passageText)}
+              </div>
+            </div>
+          `,
+        }
+      : null,
     normalizedQuestionTextBackward
-      ? `
-        <div class="question-chunk question-body-chunk">
-          <div class="text-box">
-            ${renderInlineBracketUnderlineHtml(normalizedQuestionTextBackward)}
-          </div>
+      ? {
+          id: `question-${question.number}-backward`,
+          estimatedHeight: estimateTextHeight(normalizedQuestionTextBackward, 38, 23, 42),
+          kind: 'body',
+          html: `
+            <div class="question-chunk question-body-chunk">
+              <div class="text-box">
+                ${renderInlineBracketUnderlineHtml(normalizedQuestionTextBackward)}
+              </div>
+            </div>
+          `,
+        }
+      : null,
+  ].filter((chunk): chunk is HtmlPaginationChunk => Boolean(chunk))
+
+  const chunks: HtmlPaginationChunk[] = [
+    {
+      id: `question-${question.number}-anchor`,
+      estimatedHeight: showQuestions
+        ? estimateTextHeight(question.questionText, 34, 25, 28)
+        : 52,
+      kind: 'header',
+      html: `
+        <div class="question-chunk question-chunk-anchor">
+          ${showQuestions ? `
+            <div class="question-text">
+              ${question.number}. ${escapeHtml(question.questionText)}
+            </div>
+          ` : `
+            <div class="question-number">${question.number}번</div>
+          `}
         </div>
-      `
-      : '',
-  ].filter(Boolean)
+      `,
+    },
+    ...textBoxChunks,
+  ]
 
-  const choiceChunk = Array.isArray(question.choices) && question.choices.length > 0
-    ? `
-      <div class="question-chunk question-choice-chunk">
-        ${renderQuestionChoicesHtml(question.choices)}
-      </div>
-    `
-    : ''
+  if (Array.isArray(question.choices) && question.choices.length > 0) {
+    const choicesText = question.choices
+      .map((choice) => `${choice.label}${choice.text}`)
+      .join('\n')
 
-  const answerChunk = showAnswers
-    ? `
-      <div class="question-chunk question-answer-chunk">
-        ${renderQuestionAnswerHtml(question, showQuestions)}
-      </div>
-    `
-    : ''
-
-  return `
-    <div class="question-chunk question-chunk-anchor">
-      ${showQuestions ? `
-        <div class="question-text">
-          ${question.number}. ${escapeHtml(question.questionText)}
+    chunks.push({
+      id: `question-${question.number}-choices`,
+      estimatedHeight: estimateTextHeight(choicesText, 34, 22, 52),
+      kind: 'choice',
+      html: `
+        <div class="question-chunk question-choice-chunk">
+          ${renderQuestionChoicesHtml(question.choices)}
         </div>
-      ` : `
-        <div class="question-number">${question.number}번</div>
-      `}
-    </div>
-    ${textBoxChunks.join('')}
-    ${choiceChunk}
-    ${answerChunk}
-  `
+      `,
+    })
+  }
+
+  if (showAnswers) {
+    chunks.push({
+      id: `question-${question.number}-answer`,
+      estimatedHeight: estimateTextHeight(question.explanation, 40, 22, 156),
+      kind: 'answer',
+      html: `
+        <div class="question-chunk question-answer-chunk">
+          ${renderQuestionAnswerHtml(question, showQuestions)}
+        </div>
+      `,
+    })
+  }
+
+  return chunks
+}
+
+function renderTwoColumnChunkPaginatedHtml(
+  examPaper: ExamPaper,
+  paginatedPages: HtmlTwoColumnPage[],
+  {
+    titleSuffix,
+    layoutSuffix,
+  }: {
+    titleSuffix: string
+    layoutSuffix: string
+  }
+) {
+  return paginatedPages.map((page, pageIndex) => `
+    <section class="preview-page">
+      ${pageIndex === 0 ? `
+        <h1>${escapeHtml(examPaper.title + titleSuffix + layoutSuffix)}</h1>
+        ${examPaper.description ? `<div class="description">${escapeHtml(examPaper.description)}</div>` : ''}
+      ` : ''}
+      <div class="two-column-layout">
+        <div class="two-column-column">
+          ${page.left.map((chunk) => chunk.html).join('')}
+        </div>
+        <div class="two-column-column">
+          ${page.right.map((chunk) => chunk.html).join('')}
+        </div>
+      </div>
+    </section>
+  `).join('')
 }
 
 export function buildExamPaperPrintHtml(
@@ -328,6 +421,23 @@ export function buildExamPaperPrintHtml(
     isDoubleColumn,
     hasDescription: Boolean(examPaper.description),
   }) as Question[][]
+  const twoColumnChunkPages = isDoubleColumn
+    ? paginateTwoColumnQuestionChunks(
+        examPaper.questions.map((question) => ({
+          questionNumber: question.number,
+          chunks: renderTwoColumnQuestionChunkHtml(question, {
+            showQuestions,
+            showAnswers,
+          }),
+        })),
+        {
+          firstPageSlotCapacity: examPaper.description ? 1200 : 1280,
+          otherPageSlotCapacity: 1280,
+        }
+      ) as unknown as HtmlTwoColumnPage[]
+    : null
+  // 2-column preview pages render via helper markup using class="two-column-layout"
+  // and class="two-column-column" once chunk-aware pagination is enabled.
 
   return `
     <!DOCTYPE html>
@@ -564,7 +674,12 @@ export function buildExamPaperPrintHtml(
     </head>
     <body>
       <div class="preview-shell">
-      ${pages.map((pageQuestions, pageIndex) => `
+      ${isDoubleColumn
+        ? renderTwoColumnChunkPaginatedHtml(examPaper, twoColumnChunkPages ?? [], {
+            titleSuffix,
+            layoutSuffix,
+          })
+        : pages.map((pageQuestions, pageIndex) => `
         <section class="preview-page">
           ${pageIndex === 0 ? `
             <h1>${escapeHtml(examPaper.title + titleSuffix + layoutSuffix)}</h1>
