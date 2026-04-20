@@ -11,12 +11,24 @@ const buildExamPaperPrintHtmlSource = exportUtilsSource.match(
   /export function buildExamPaperPrintHtml\([\s\S]*?\n}\n\nexport function openExamPaperPrintPreview/
 )?.[0] ?? ''
 
-test('buildExamPaperPrintHtml keeps 2-column preview on the shared question markup path', () => {
+const twoColumnChunkRendererName =
+  exportUtilsSource.match(/function (renderTwoColumn[A-Za-z0-9]*Chunk[A-Za-z0-9]*Html)\(/)?.[1] ?? ''
+
+const twoColumnChunkRendererSource = twoColumnChunkRendererName
+  ? exportUtilsSource.match(
+      new RegExp(`function ${twoColumnChunkRendererName}\\([\\s\\S]*?\\n}\\n`)
+    )?.[0] ?? ''
+  : ''
+
+test('buildExamPaperPrintHtml routes 2-column preview through chunk-based question markup', () => {
   assert.notEqual(buildExamPaperPrintHtmlSource, '')
-  assert.match(buildExamPaperPrintHtmlSource, /pages\.map\(\(pageQuestions, pageIndex\) =>/)
-  assert.match(buildExamPaperPrintHtmlSource, /pageQuestions\.map\(\(question\) =>/)
-  assert.doesNotMatch(
+  assert.notEqual(twoColumnChunkRendererName, '')
+  assert.notEqual(twoColumnChunkRendererSource, '')
+  assert.match(
     buildExamPaperPrintHtmlSource,
-    /isDoubleColumn\s*\?\s*renderTwoColumnHtmlPages\(/s
+    new RegExp(`isDoubleColumn[\\s\\S]*${twoColumnChunkRendererName}\\(`)
   )
+  assert.match(twoColumnChunkRendererSource, /class="question-chunk[^\"]*question-chunk-anchor/)
+  assert.match(twoColumnChunkRendererSource, /class="question-chunk[^\"]*question-body-chunk/)
+  assert.doesNotMatch(twoColumnChunkRendererSource, /class="question"/)
 })
