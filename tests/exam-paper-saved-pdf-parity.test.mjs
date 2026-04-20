@@ -23,6 +23,10 @@ const buildExplanationChunksSource = examPaperPdfSource.match(
 /function buildExplanationChunks\([\s\S]*?\n}\n/
 )?.[0] ?? ''
 
+const buildQuestionChunksForTwoColumnSource = examPaperPdfSource.match(
+/function buildQuestionChunksForTwoColumn\([\s\S]*?\n}\n/
+)?.[0] ?? ''
+
 test('saved PDF boxed passage chunks use bordered container nodes instead of plain text styles', () => {
   assert.notEqual(buildBoxedTextChunksSource, '')
   assert.notEqual(buildDecoratedBoxNodeSource, '')
@@ -41,4 +45,18 @@ test('saved PDF answer and explanation rendering includes decorated answer box s
   assert.notEqual(buildExplanationChunksSource, '')
   assert.match(examPaperPdfSource, /fillColor:\s*'#f0f9ff'/)
   assert.match(examPaperPdfSource, /vLineWidth:\s*\(/)
+})
+
+test('saved PDF 2-column passage path does not route passageText through split boxed chunks', () => {
+  assert.notEqual(buildQuestionChunksForTwoColumnSource, '')
+  assert.doesNotMatch(
+    buildQuestionChunksForTwoColumnSource,
+    /buildBoxedTextChunks\(\s*question\.number,\s*'passage',\s*question\.passageText\s*\)/
+  )
+})
+
+test('saved PDF explanation rendering keeps a single answer panel per question', () => {
+  assert.notEqual(buildExplanationChunksSource, '')
+  assert.doesNotMatch(buildExplanationChunksSource, /splitTextIntoFlowChunks\(explanation,\s*260\)\.map\(/)
+  assert.doesNotMatch(buildExplanationChunksSource, /question-explanation-\$\{questionNumber\}-\$\{index\}/)
 })
