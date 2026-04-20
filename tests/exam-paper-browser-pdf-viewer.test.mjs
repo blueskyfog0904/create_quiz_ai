@@ -50,10 +50,8 @@ test('legacy print template builder is extracted for shared preview and print ou
   assert.match(exportUtilsSource, /closeAfterPrint = false/)
   assert.match(exportUtilsSource, /paginateExamPaperQuestions/)
   assert.match(exportUtilsSource, /preview-page/)
-  assert.match(exportUtilsSource, /renderTwoColumnHtmlPages/)
-  assert.match(exportUtilsSource, /paginateTwoColumnQuestionChunks/)
-  assert.match(exportUtilsSource, /two-column-layout/)
-  assert.match(exportUtilsSource, /two-column-column/)
+  assert.match(exportUtilsSource, /questions-container/)
+  assert.match(exportUtilsSource, /column-count:\s*2/)
 })
 
 test('library exam-paper export now opens the PDF workspace', () => {
