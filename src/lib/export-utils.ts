@@ -506,7 +506,7 @@ export function buildExamPaperPrintHtml(
           line-height: 1.8;
         }
         .choices {
-          margin-left: 20px;
+          margin-left: 0;
           margin-bottom: 15px;
         }
         .choice {
@@ -625,7 +625,7 @@ export function buildExamPaperPrintHtml(
           margin-bottom: 12px;
         }
         .question-choice-chunk .choice {
-          margin-left: 20px;
+          margin-left: 0;
         }
         .questions-container .question {
           ${isDoubleColumn ? `
