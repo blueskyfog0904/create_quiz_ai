@@ -2,6 +2,7 @@ import pdfMake from 'pdfmake/build/pdfmake'
 import * as pdfFonts from 'pdfmake/build/vfs_fonts'
 import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel, UnderlineType } from 'docx'
 import { saveAs } from 'file-saver'
+import { paginateExamPaperQuestions } from '@/lib/exam-paper-print-pagination.js'
 import {
   normalizeQuestionTextBackward,
   splitBracketUnderlineSegments,
@@ -51,12 +52,12 @@ pdfMakeWithVfs.fonts = {
   }
 }
 
-interface Choice {
+export interface Choice {
   label: string
   text: string
 }
 
-interface Question {
+export interface Question {
   number: number
   questionText: string
   questionTextForward?: string | null
@@ -67,16 +68,40 @@ interface Question {
   explanation: string
 }
 
-type ViewMode = 'exam-only' | 'answer-only' | 'exam-with-answers'
-type ColumnLayout = 'single' | 'double'
+export type ViewMode = 'exam-only' | 'answer-only' | 'exam-with-answers'
+export type ColumnLayout = 'single' | 'double'
 
-interface ExamPaper {
+export interface ExamPaper {
   title: string
   description?: string
   questions: Question[]
   viewMode?: ViewMode
   columnLayout?: ColumnLayout
   includeAnswers?: boolean  // deprecated, use viewMode instead
+}
+
+interface ExamPaperPrintPreviewOptions {
+  autoPrint?: boolean
+  closeAfterPrint?: boolean
+}
+
+function getExamPaperRenderOptions(examPaper: ExamPaper) {
+  const viewMode: ViewMode = examPaper.viewMode ||
+    (examPaper.includeAnswers === false ? 'exam-only' : 'exam-with-answers')
+  const columnLayout: ColumnLayout = examPaper.columnLayout || 'single'
+
+  return {
+    viewMode,
+    columnLayout,
+    showQuestions: viewMode !== 'answer-only',
+    showAnswers: viewMode !== 'exam-only',
+    isDoubleColumn: columnLayout === 'double',
+    titleSuffix: viewMode === 'answer-only'
+      ? ' - 답안'
+      : viewMode === 'exam-only'
+        ? ' - 시험지'
+        : '',
+  }
 }
 
 function escapeHtml(text: string): string {
@@ -135,28 +160,29 @@ function createInlineBracketUnderlineRuns(text: string | null | undefined): Text
   return runs.length > 0 ? runs : [new TextRun('')]
 }
 
-export async function exportToPDF(examPaper: ExamPaper) {
-  // Determine view mode (support legacy includeAnswers for backwards compatibility)
-  const viewMode: ViewMode = examPaper.viewMode || 
-    (examPaper.includeAnswers === false ? 'exam-only' : 'exam-with-answers')
-  const columnLayout: ColumnLayout = examPaper.columnLayout || 'single'
-  
-  const showQuestions = viewMode !== 'answer-only'
-  const showAnswers = viewMode !== 'exam-only'
-  const isDoubleColumn = columnLayout === 'double'
-  
-  // Create a print-friendly HTML page
-  const printWindow = window.open('', '_blank')
-  
-  if (!printWindow) {
-    throw new Error('팝업 차단으로 인해 PDF를 생성할 수 없습니다. 팝업을 허용해주세요.')
-  }
-
-  const titleSuffix = viewMode === 'answer-only' ? ' - 답안' : 
-                      viewMode === 'exam-only' ? ' - 시험지' : ''
+export function buildExamPaperPrintHtml(
+  examPaper: ExamPaper,
+  {
+    autoPrint = false,
+    closeAfterPrint = false,
+  }: ExamPaperPrintPreviewOptions = {}
+) {
+  const {
+    showQuestions,
+    showAnswers,
+    isDoubleColumn,
+    titleSuffix,
+  } = getExamPaperRenderOptions(examPaper)
   const layoutSuffix = isDoubleColumn ? ' (2단)' : ''
+  const pages = paginateExamPaperQuestions({
+    questions: examPaper.questions,
+    showQuestions,
+    showAnswers,
+    isDoubleColumn,
+    hasDescription: Boolean(examPaper.description),
+  }) as Question[][]
 
-  const htmlContent = `
+  return `
     <!DOCTYPE html>
     <html lang="ko">
     <head>
@@ -165,7 +191,7 @@ export async function exportToPDF(examPaper: ExamPaper) {
       <style>
         @page {
           size: A4;
-          margin: 20mm;
+          margin: 12mm;
         }
         * {
           margin: 0;
@@ -176,7 +202,21 @@ export async function exportToPDF(examPaper: ExamPaper) {
           font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
           line-height: 1.6;
           color: #333;
-          padding: 20px;
+          padding: 12px;
+          background: #e5e7eb;
+        }
+        .preview-shell {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+        }
+        .preview-page {
+          width: 210mm;
+          min-height: 297mm;
+          background: #fff;
+          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+          padding: 12mm 10mm;
         }
         h1 {
           text-align: center;
@@ -192,77 +232,143 @@ export async function exportToPDF(examPaper: ExamPaper) {
           font-size: 14px;
         }
         .question {
-          margin-bottom: ${isDoubleColumn ? '20px' : '30px'};
+          margin-bottom: 24px;
           page-break-inside: avoid;
         }
         .question-number {
           font-weight: 700;
-          font-size: ${isDoubleColumn ? '13px' : '16px'};
-          margin-bottom: ${isDoubleColumn ? '8px' : '12px'};
+          font-size: 16px;
+          margin-bottom: 12px;
           color: #111;
         }
         .question-text {
           font-weight: normal;
-          font-size: ${isDoubleColumn ? '11px' : '14px'};
-          margin-bottom: ${isDoubleColumn ? '8px' : '12px'};
+          font-size: 14px;
+          margin-bottom: 12px;
           color: #111;
-          line-height: ${isDoubleColumn ? '1.6' : '1.8'};
+          line-height: 1.8;
         }
         .choices {
-          margin-left: ${isDoubleColumn ? '12px' : '20px'};
-          margin-bottom: ${isDoubleColumn ? '10px' : '15px'};
+          margin-left: 20px;
+          margin-bottom: 15px;
         }
         .choice {
-          margin-bottom: ${isDoubleColumn ? '4px' : '8px'};
-          font-size: ${isDoubleColumn ? '10px' : '13px'};
-          line-height: ${isDoubleColumn ? '1.5' : '1.8'};
+          margin-bottom: 8px;
+          font-size: 13px;
+          line-height: 1.8;
         }
         .choice-label {
           font-weight: 600;
           margin-right: 5px;
         }
         .answer-section {
-          margin-top: ${isDoubleColumn ? '10px' : '15px'};
-          padding: ${isDoubleColumn ? '8px' : '12px'};
+          margin-top: 15px;
+          padding: 12px;
           background-color: #f0f9ff;
-          border-left: ${isDoubleColumn ? '3px' : '4px'} solid #3b82f6;
+          border-left: 4px solid #3b82f6;
           border-radius: 4px;
         }
         .answer-only-section {
-          padding: ${isDoubleColumn ? '8px' : '12px'};
+          padding: 12px;
           background-color: #f0f9ff;
-          border-left: ${isDoubleColumn ? '3px' : '4px'} solid #3b82f6;
+          border-left: 4px solid #3b82f6;
           border-radius: 4px;
+        }
+        .answer-section-continued {
+          margin-top: 6px;
+        }
+        .answer-section.chunk-linked-start {
+          border-bottom-left-radius: 0;
+          border-bottom-right-radius: 0;
+          margin-bottom: 0;
+        }
+        .answer-section.answer-section-continued.chunk-linked-middle {
+          border-top: none;
+          border-radius: 0;
+          margin-top: 0;
+          margin-bottom: 0;
+        }
+        .answer-section.answer-section-continued.chunk-linked-end {
+          border-top: none;
+          border-top-left-radius: 0;
+          border-top-right-radius: 0;
+          margin-top: 0;
         }
         .answer {
           font-weight: 700;
           color: #1e40af;
-          margin-bottom: ${isDoubleColumn ? '4px' : '8px'};
-          font-size: ${isDoubleColumn ? '10px' : '13px'};
+          margin-bottom: 8px;
+          font-size: 13px;
         }
         .explanation {
           color: #475569;
-          font-size: ${isDoubleColumn ? '9px' : '12px'};
-          line-height: ${isDoubleColumn ? '1.5' : '1.8'};
+          font-size: 12px;
+          line-height: 1.8;
         }
         .explanation-label {
           font-weight: 600;
         }
         .text-box {
-          padding: ${isDoubleColumn ? '6px 10px' : '10px 15px'};
+          padding: 10px 15px;
           border: 1px solid #9ca3af;
           border-radius: 4px;
-          margin-bottom: ${isDoubleColumn ? '8px' : '12px'};
-          font-size: ${isDoubleColumn ? '10px' : '13px'};
-          line-height: ${isDoubleColumn ? '1.5' : '1.8'};
+          margin-bottom: 12px;
+          font-size: 13px;
+          line-height: 1.8;
           color: #374151;
+        }
+        .text-box.chunk-linked-start {
+          border-bottom-left-radius: 0;
+          border-bottom-right-radius: 0;
+          margin-bottom: 0;
+        }
+        .text-box.chunk-linked-middle {
+          border-top: none;
+          border-radius: 0;
+          margin-bottom: 0;
+        }
+        .text-box.chunk-linked-end {
+          border-top: none;
+          border-top-left-radius: 0;
+          border-top-right-radius: 0;
         }
         .questions-container {
           ${isDoubleColumn ? `
             column-count: 2;
-            column-gap: 25px;
+            column-gap: 16px;
             column-rule: 1px solid #e5e7eb;
+            column-fill: auto;
           ` : ''}
+        }
+        .two-column-layout {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 16px;
+          align-items: start;
+        }
+        .two-column-column {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+        }
+        .two-column-column + .two-column-column {
+          border-left: 1px solid #e5e7eb;
+          padding-left: 16px;
+        }
+        .question-chunk {
+          margin-bottom: 10px;
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+        .question-body-chunk.chunk-linked-start,
+        .question-body-chunk.chunk-linked-middle {
+          margin-bottom: 0;
+        }
+        .question-chunk-anchor {
+          margin-bottom: 12px;
+        }
+        .question-choice-chunk .choice {
+          margin-left: 20px;
         }
         .questions-container .question {
           ${isDoubleColumn ? `
@@ -274,26 +380,51 @@ export async function exportToPDF(examPaper: ExamPaper) {
         @media print {
           body {
             padding: 0;
+            background: #fff;
           }
           .no-print {
             display: none;
           }
+          .preview-shell {
+            display: block;
+          }
+          .preview-page {
+            width: auto;
+            min-height: auto;
+            padding: 0;
+            margin: 0;
+            box-shadow: none;
+            break-after: page;
+            page-break-after: always;
+          }
+          .preview-page:last-child {
+            break-after: auto;
+            page-break-after: auto;
+          }
           .questions-container {
             ${isDoubleColumn ? `
               column-count: 2;
-              column-gap: 25px;
+              column-gap: 16px;
               column-rule: 1px solid #e5e7eb;
+              column-fill: auto;
             ` : ''}
+          }
+          .two-column-column + .two-column-column {
+            border-left: 1px solid #e5e7eb;
           }
         }
       </style>
     </head>
     <body>
-      <h1>${escapeHtml(examPaper.title + titleSuffix + layoutSuffix)}</h1>
-      ${examPaper.description ? `<div class="description">${escapeHtml(examPaper.description)}</div>` : ''}
-      
-      <div class="questions-container">
-      ${examPaper.questions.map((question) => `
+      <div class="preview-shell">
+      ${pages.map((pageQuestions, pageIndex) => `
+        <section class="preview-page">
+          ${pageIndex === 0 ? `
+            <h1>${escapeHtml(examPaper.title + titleSuffix + layoutSuffix)}</h1>
+            ${examPaper.description ? `<div class="description">${escapeHtml(examPaper.description)}</div>` : ''}
+          ` : ''}
+          <div class="questions-container">
+      ${pageQuestions.map((question) => `
         <div class="question">
           ${showQuestions ? `
             <div class="question-text">
@@ -341,26 +472,59 @@ export async function exportToPDF(examPaper: ExamPaper) {
           ` : ''}
         </div>
       `).join('')}
+          </div>
+        </section>
+      `).join('')}
       </div>
       
+      ${autoPrint ? `
       <script>
         window.onload = function() {
-          // 자동으로 인쇄 대화상자 열기
           setTimeout(function() {
             window.print();
-            // 인쇄 후 창 닫기 (사용자가 취소할 수도 있음)
+            ${closeAfterPrint ? `
             setTimeout(function() {
               window.close();
             }, 100);
+            ` : ''}
           }, 500);
         }
       </script>
+      ` : ''}
     </body>
     </html>
   `
+}
 
-  printWindow.document.write(htmlContent)
+export function openExamPaperPrintPreview(
+  examPaper: ExamPaper,
+  {
+    autoPrint = false,
+    closeAfterPrint = false,
+  }: ExamPaperPrintPreviewOptions = {}
+) {
+  const printWindow = window.open('', '_blank')
+
+  if (!printWindow) {
+    throw new Error('팝업 차단으로 인해 PDF를 생성할 수 없습니다. 팝업을 허용해주세요.')
+  }
+
+  printWindow.document.write(
+    buildExamPaperPrintHtml(examPaper, {
+      autoPrint,
+      closeAfterPrint,
+    })
+  )
   printWindow.document.close()
+
+  return printWindow
+}
+
+export async function exportToPDF(examPaper: ExamPaper) {
+  openExamPaperPrintPreview(examPaper, {
+    autoPrint: true,
+    closeAfterPrint: true,
+  })
 }
 
 export async function exportToWord(examPaper: ExamPaper) {
