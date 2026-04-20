@@ -54,6 +54,22 @@ test('legacy print template builder is extracted for shared preview and print ou
   assert.match(exportUtilsSource, /column-count:\s*2/)
 })
 
+test('print preview choice styles do not apply extra left indentation', () => {
+  assert.doesNotMatch(exportUtilsSource, /\.choices\s*\{[\s\S]*?margin-left:\s*20px;/)
+  assert.doesNotMatch(exportUtilsSource, /\.question-choice-chunk \.choice\s*\{[\s\S]*?margin-left:\s*20px;/)
+})
+
+test('PDF save preview choice CSS keeps left indentation at zero', () => {
+  assert.match(
+    exportUtilsSource,
+    /\.choices\s*\{[^}]*margin-left:\s*0(?:px)?;/s
+  )
+  assert.match(
+    exportUtilsSource,
+    /\.question-choice-chunk\s+\.choice\s*\{[^}]*margin-left:\s*0(?:px)?;/s
+  )
+})
+
 test('library exam-paper export now opens the PDF workspace', () => {
   assert.match(libraryExportButtonsSource, /ExamPaperPdfWorkspace/)
   assert.match(libraryExportButtonsSource, /setIsPdfWorkspaceOpen\(true\)/)
