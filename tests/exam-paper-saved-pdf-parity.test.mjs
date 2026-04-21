@@ -60,3 +60,21 @@ test('saved PDF explanation rendering keeps a single answer panel per question',
   assert.doesNotMatch(buildExplanationChunksSource, /splitTextIntoFlowChunks\(explanation,\s*260\)\.map\(/)
   assert.doesNotMatch(buildExplanationChunksSource, /question-explanation-\$\{questionNumber\}-\$\{index\}/)
 })
+
+test('saved PDF page-1 header styles move closer to preview title and description typography', () => {
+  const titleStyleBlocks = [...examPaperPdfSource.matchAll(/title:\s*\{[\s\S]*?\n\s*\}/g)].map((match) => match[0])
+  const descriptionStyleBlocks = [...examPaperPdfSource.matchAll(/description:\s*\{[\s\S]*?\n\s*\}/g)].map((match) => match[0])
+
+  assert.equal(titleStyleBlocks.length, 2)
+  assert.equal(descriptionStyleBlocks.length, 2)
+
+  titleStyleBlocks.forEach((block) => {
+    assert.match(block, /fontSize:\s*24/)
+    assert.match(block, /margin:\s*\[0,\s*0,\s*0,\s*10\]/)
+  })
+
+  descriptionStyleBlocks.forEach((block) => {
+    assert.match(block, /fontSize:\s*14/)
+    assert.match(block, /margin:\s*\[0,\s*0,\s*0,\s*30\]/)
+  })
+})
