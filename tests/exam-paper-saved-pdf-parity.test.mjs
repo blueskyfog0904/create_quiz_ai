@@ -88,6 +88,40 @@ test('saved PDF explanation rendering keeps a single answer panel per question',
   assert.doesNotMatch(buildExplanationChunksSource, /question-explanation-\$\{questionNumber\}-\$\{index\}/)
 })
 
+test('saved PDF question header styles move closer to preview header density', () => {
+  const questionTextStyleBlocks = [...examPaperPdfSource.matchAll(/questionText:\s*\{[\s\S]*?\n\s*\}/g)].map((match) => match[0])
+
+  assert.equal(questionTextStyleBlocks.length, 2)
+
+  questionTextStyleBlocks.forEach((block) => {
+    assert.match(block, /fontSize:\s*14/)
+    assert.match(block, /margin:\s*\[0,\s*0,\s*0,\s*12\]/)
+    assert.doesNotMatch(block, /fontSize:\s*11/)
+    assert.doesNotMatch(block, /margin:\s*\[0,\s*0,\s*0,\s*8\]/)
+  })
+})
+
+test('saved PDF boxed passage and body typography move closer to preview density', () => {
+  assert.notEqual(buildBoxedTextChunksSource, '')
+
+  assert.match(buildBoxedTextChunksSource, /fontSize:\s*13/)
+  assert.match(buildBoxedTextChunksSource, /lineHeight:\s*1\.8/)
+  assert.match(examPaperPdfSource, /fontSize:\s*13,[\s\S]*?lineHeight:\s*1\.8,[\s\S]*?color:\s*'#374151'/)
+  assert.doesNotMatch(examPaperPdfSource, /fontSize:\s*10,[\s\S]*?lineHeight:\s*1\.45,[\s\S]*?color:\s*'#374151'/)
+})
+
+test('saved PDF choice row typography and spacing move closer to preview density', () => {
+  assert.notEqual(buildChoiceChunksSource, '')
+
+  assert.match(buildChoiceChunksSource, /margin:\s*\[0,\s*0,\s*0,\s*8\]/)
+  assert.match(buildChoiceChunksSource, /fontSize:\s*13/)
+  assert.match(buildChoiceChunksSource, /lineHeight:\s*1\.8/)
+  assert.match(
+    examPaperPdfSource,
+    /stack:\s*question\.choices\.map\(\(choice\) => \(\{[\s\S]*?margin:\s*\[0,\s*0,\s*0,\s*8\],[\s\S]*?fontSize:\s*13,[\s\S]*?lineHeight:\s*1\.8/
+  )
+})
+
 test('saved PDF page-1 header styles move closer to preview title and description typography', () => {
   const titleStyleBlocks = [...examPaperPdfSource.matchAll(/title:\s*\{[\s\S]*?\n\s*\}/g)].map((match) => match[0])
   const descriptionStyleBlocks = [...examPaperPdfSource.matchAll(/description:\s*\{[\s\S]*?\n\s*\}/g)].map((match) => match[0])
