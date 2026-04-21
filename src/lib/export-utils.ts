@@ -3,7 +3,10 @@ import * as pdfFonts from 'pdfmake/build/vfs_fonts'
 import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel, UnderlineType } from 'docx'
 import { saveAs } from 'file-saver'
 import { paginateExamPaperQuestions } from '@/lib/exam-paper-print-pagination.js'
-import { paginateTwoColumnQuestionChunks } from '@/lib/exam-paper-pdf-pagination.js'
+import {
+  buildExamPaperLayoutPlan,
+  buildExamPaperRenderOptions,
+} from '@/lib/exam-paper-layout-contract'
 import {
   normalizeQuestionTextBackward,
   splitBracketUnderlineSegments,
@@ -89,32 +92,8 @@ interface ExamPaperPrintPreviewOptions {
 interface HtmlPaginationChunk {
   id: string
   estimatedHeight: number
-  kind: 'header' | 'body' | 'choice' | 'answer'
+  kind: 'header' | 'body' | 'choice' | 'answer' | 'explanation'
   html: string
-}
-
-interface HtmlTwoColumnPage {
-  left: HtmlPaginationChunk[]
-  right: HtmlPaginationChunk[]
-}
-
-function getExamPaperRenderOptions(examPaper: ExamPaper) {
-  const viewMode: ViewMode = examPaper.viewMode ||
-    (examPaper.includeAnswers === false ? 'exam-only' : 'exam-with-answers')
-  const columnLayout: ColumnLayout = examPaper.columnLayout || 'single'
-
-  return {
-    viewMode,
-    columnLayout,
-    showQuestions: viewMode !== 'answer-only',
-    showAnswers: viewMode !== 'exam-only',
-    isDoubleColumn: columnLayout === 'double',
-    titleSuffix: viewMode === 'answer-only'
-      ? ' - 답안'
-      : viewMode === 'exam-only'
-        ? ' - 시험지'
-        : '',
-  }
 }
 
 function escapeHtml(text: string): string {
@@ -373,7 +352,10 @@ function renderTwoColumnQuestionChunkHtml(
 
 function renderTwoColumnChunkPaginatedHtml(
   examPaper: ExamPaper,
-  paginatedPages: HtmlTwoColumnPage[],
+  paginatedPages: Array<{
+    left: HtmlPaginationChunk[]
+    right: HtmlPaginationChunk[]
+  }>,
   {
     titleSuffix,
     layoutSuffix,
@@ -408,12 +390,14 @@ export function buildExamPaperPrintHtml(
   }: ExamPaperPrintPreviewOptions = {}
 ) {
   const {
+    viewMode,
+    columnLayout,
     showQuestions,
     showAnswers,
     isDoubleColumn,
     titleSuffix,
-  } = getExamPaperRenderOptions(examPaper)
-  const layoutSuffix = isDoubleColumn ? ' (2단)' : ''
+    layoutSuffix,
+  } = buildExamPaperRenderOptions(examPaper)
   const pages = paginateExamPaperQuestions({
     questions: examPaper.questions,
     showQuestions,
@@ -421,21 +405,40 @@ export function buildExamPaperPrintHtml(
     isDoubleColumn,
     hasDescription: Boolean(examPaper.description),
   }) as Question[][]
-  const twoColumnChunkPages = isDoubleColumn
-    ? paginateTwoColumnQuestionChunks(
-        examPaper.questions.map((question) => ({
+  const twoColumnChunkLayoutPlan = isDoubleColumn
+    ? buildExamPaperLayoutPlan<HtmlPaginationChunk['html']>({
+        questionPlans: examPaper.questions.map((question) => ({
           questionNumber: question.number,
-          chunks: renderTwoColumnQuestionChunkHtml(question, {
+          sections: renderTwoColumnQuestionChunkHtml(question, {
             showQuestions,
             showAnswers,
-          }),
+          }).map((chunk) => ({
+            id: chunk.id,
+            estimatedHeight: chunk.estimatedHeight,
+            kind: chunk.kind,
+            payload: chunk.html,
+          })),
         })),
-        {
-          firstPageSlotCapacity: examPaper.description ? 1200 : 1280,
-          otherPageSlotCapacity: 1280,
-        }
-      ) as unknown as HtmlTwoColumnPage[]
+        viewMode,
+        columnLayout,
+        firstPageSlotCapacity: examPaper.description ? 1200 : 1280,
+        otherPageSlotCapacity: 1280,
+      })
     : null
+  const twoColumnChunkPages = twoColumnChunkLayoutPlan?.pages.map((page) => ({
+    left: page.columns[0].sections.map((section) => ({
+      id: section.id,
+      estimatedHeight: section.estimatedHeight,
+      kind: section.kind,
+      html: section.payload,
+    })),
+    right: page.columns[1].sections.map((section) => ({
+      id: section.id,
+      estimatedHeight: section.estimatedHeight,
+      kind: section.kind,
+      html: section.payload,
+    })),
+  })) ?? null
   // 2-column preview pages render via helper markup using class="two-column-layout"
   // and class="two-column-column" once chunk-aware pagination is enabled.
 

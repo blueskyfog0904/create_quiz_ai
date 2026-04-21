@@ -93,8 +93,8 @@ export function ExamPaperPdfWorkspace({
     setQuestions(renumberQuestions(initialQuestions))
     setDraggingQuestionId(null)
     setIsGeneratingPreview(false)
-    setIsSavingPdf(false)
     setIsOpeningPdfTab(false)
+    setIsSavingPdf(false)
     setPreviewHtml('')
   }, [initialColumnLayout, initialQuestions, initialViewMode])
 
@@ -161,7 +161,6 @@ export function ExamPaperPdfWorkspace({
     try {
       const fileName = buildExamPaperPdfFileName(exportPayload)
       const blob = await buildExamPaperPdfBlob(exportPayload)
-
       await downloadExamPaperPdf(blob, fileName)
       toast.success('PDF 파일 다운로드를 시작했습니다.')
     } catch (error) {

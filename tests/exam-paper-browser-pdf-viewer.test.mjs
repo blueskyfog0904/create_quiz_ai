@@ -35,7 +35,7 @@ test('exam paper PDF util uses the generated Pretendard TTF VFS bundle', () => {
   assert.match(pdfSource, /window\.open\(blobUrl, '_blank'\)/)
   assert.match(pdfSource, /columnLayout === 'double'/)
   assert.match(pdfSource, /columns:\s*\[/)
-  assert.match(pdfSource, /paginateTwoColumnQuestionChunks/)
+  assert.match(pdfSource, /buildExamPaperLayoutPlan/)
   assert.match(pdfSource, /buildQuestionChunksForTwoColumn/)
   assert.match(pdfSource, /firstPageSlotCapacity/)
   assert.match(pdfSource, /pageBreak: 'after'/)

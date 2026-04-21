@@ -2,7 +2,10 @@ import pdfMake from 'pdfmake/build/pdfmake'
 import * as pdfFonts from 'pdfmake/build/vfs_fonts'
 import examPaperVfs from '@/lib/exam-paper-pdf-vfs'
 import { saveAs } from 'file-saver'
-import { paginateTwoColumnQuestionChunks } from '@/lib/exam-paper-pdf-pagination.js'
+import {
+  buildExamPaperLayoutPlan,
+  buildExamPaperRenderOptions,
+} from '@/lib/exam-paper-layout-contract'
 import {
   normalizeQuestionTextBackward,
   splitBracketUnderlineSegments,
@@ -87,25 +90,6 @@ type PdfPaginationChunk = {
   estimatedHeight: number
   kind: 'header' | 'body' | 'choice' | 'answer' | 'explanation'
   node: Record<string, unknown>
-}
-
-function getExportOptions(examPaper: ExamPaperPdfDocument) {
-  const viewMode: ExamPaperPdfViewMode = examPaper.viewMode ||
-    (examPaper.includeAnswers === false ? 'exam-only' : 'exam-with-answers')
-  const columnLayout: ExamPaperPdfColumnLayout = examPaper.columnLayout || 'single'
-
-  return {
-    viewMode,
-    columnLayout,
-    showQuestions: viewMode !== 'answer-only',
-    showAnswers: viewMode !== 'exam-only',
-    titleSuffix: viewMode === 'answer-only'
-      ? ' - 답안'
-      : viewMode === 'exam-only'
-        ? ' - 시험지'
-        : '',
-    layoutSuffix: columnLayout === 'double' ? ' (2단)' : '',
-  }
 }
 
 function buildInlineSegments(text: string | null | undefined) {
@@ -330,12 +314,13 @@ function buildQuestionChunksForTwoColumn(
 
 function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
   const {
+    viewMode,
+    columnLayout,
     showQuestions,
     showAnswers,
-    columnLayout,
     titleSuffix,
     layoutSuffix,
-  } = getExportOptions(examPaper)
+  } = buildExamPaperRenderOptions(examPaper)
 
   const content: Array<Record<string, unknown>> = [
     {
@@ -352,32 +337,37 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
   }
 
   if (columnLayout === 'double') {
-    const paginatedPages = paginateTwoColumnQuestionChunks(
-      examPaper.questions.map((question) => ({
+    const layoutPlan = buildExamPaperLayoutPlan<Record<string, unknown>>({
+      questionPlans: examPaper.questions.map((question) => ({
         questionNumber: question.number,
-        chunks: buildQuestionChunksForTwoColumn(question, {
+        sections: buildQuestionChunksForTwoColumn(question, {
           showQuestions,
           showAnswers,
-        }),
+        }).map((chunk) => ({
+          id: chunk.id,
+          estimatedHeight: chunk.estimatedHeight,
+          kind: chunk.kind,
+          payload: chunk.node,
+        })),
       })),
-      {
-        firstPageSlotCapacity: examPaper.description ? 220 : 245,
-        otherPageSlotCapacity: 280,
-      }
-    )
+      viewMode,
+      columnLayout,
+      firstPageSlotCapacity: examPaper.description ? 220 : 245,
+      otherPageSlotCapacity: 280,
+    })
 
-    paginatedPages.forEach((page, index) => {
+    layoutPlan.pages.forEach((page, index) => {
       content.push({
         columns: [
           {
-            stack: page.left.map((chunk) => chunk.node),
+            stack: page.columns[0].sections.map((chunk) => chunk.payload),
           },
           {
-            stack: page.right.map((chunk) => chunk.node),
+            stack: page.columns[1].sections.map((chunk) => chunk.payload),
           },
         ],
         columnGap: 18,
-        ...(index < paginatedPages.length - 1 ? { pageBreak: 'after' } : {}),
+        ...(index < layoutPlan.pages.length - 1 ? { pageBreak: 'after' } : {}),
       })
     })
 
@@ -561,7 +551,7 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
 }
 
 export function buildExamPaperPdfFileName(examPaper: ExamPaperPdfDocument) {
-  const { titleSuffix, layoutSuffix } = getExportOptions(examPaper)
+  const { titleSuffix, layoutSuffix } = buildExamPaperRenderOptions(examPaper)
   return `${examPaper.title}${titleSuffix}${layoutSuffix}.pdf`
 }
 

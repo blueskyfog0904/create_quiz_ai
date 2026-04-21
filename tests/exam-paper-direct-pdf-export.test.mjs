@@ -17,6 +17,7 @@ test('ExamPaperPdfWorkspace separates direct PDF save from browser print preview
   assert.match(workspaceSource, /buildExamPaperPdfBlob/)
   assert.match(workspaceSource, /buildExamPaperPdfFileName/)
   assert.match(workspaceSource, /downloadExamPaperPdf/)
+  assert.doesNotMatch(workspaceSource, /fetch\('\/api\/exam-papers\/print-pdf'/)
 
   assert.match(
     workspaceSource,
@@ -37,11 +38,11 @@ test('ExamPaperPdfWorkspace separates direct PDF save from browser print preview
 })
 
 test('saved PDF two-column flow stays chunk-aware even without combined question-and-answer mode', () => {
-  assert.match(examPaperPdfSource, /paginateTwoColumnQuestionChunks/)
+  assert.match(examPaperPdfSource, /buildExamPaperLayoutPlan/)
   assert.match(examPaperPdfSource, /buildQuestionChunksForTwoColumn/)
   assert.match(
     examPaperPdfSource,
-    /if \(columnLayout === 'double'\) \{[\s\S]*?paginateTwoColumnQuestionChunks\(/
+    /if \(columnLayout === 'double'\) \{[\s\S]*?buildExamPaperLayoutPlan/
   )
   assert.doesNotMatch(
     examPaperPdfSource,
