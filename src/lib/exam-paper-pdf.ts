@@ -200,14 +200,15 @@ function buildBoxedTextChunks(questionNumber: number, section: string, text: str
     estimatedHeight: estimateTextHeight(normalizedText, 34, 4.8, 6),
     node: buildDecoratedBoxNode({
       text: buildInlineSegments(normalizedText),
-      fontSize: 10,
-      lineHeight: 1.45,
+      fontSize: 13,
+      lineHeight: 1.8,
       color: '#374151',
     }),
   }]
 }
 
 function buildChoiceChunks(question: ExamPaperPdfQuestion) {
+  // Historical baseline margin: [0, 0, 0, 6]
   return question.choices.map((choice, index) => {
     const choiceText = `${choice.label} ${choice.text}`
 
@@ -217,9 +218,9 @@ function buildChoiceChunks(question: ExamPaperPdfQuestion) {
       estimatedHeight: estimateTextHeight(choiceText, 34, 5, 5),
       node: {
         text: choiceText,
-        margin: [0, 0, 0, 6],
-        fontSize: 10,
-        lineHeight: 1.4,
+        margin: [0, 0, 0, 8],
+        fontSize: 13,
+        lineHeight: 1.8,
       },
     }
   })
@@ -283,8 +284,8 @@ function buildQuestionChunksForTwoColumn(
           estimatedHeight: estimateTextHeight(question.passageText.trim(), 34, 4.8, 6),
           node: buildDecoratedBoxNode({
             text: buildInlineSegments(question.passageText.trim()),
-            fontSize: 10,
-            lineHeight: 1.45,
+            fontSize: 13,
+            lineHeight: 1.8,
             color: '#374151',
           }),
         }]
@@ -387,7 +388,7 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
       defaultStyle: {
         font: 'Pretendard',
         fontSize: 11,
-        lineHeight: 1.45,
+        lineHeight: 1.5,
       },
       styles: {
         title: {
@@ -403,13 +404,13 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
           margin: [0, 0, 0, 30],
         },
         questionText: {
-          fontSize: 11,
+          fontSize: 14,
           bold: true,
-          margin: [0, 0, 0, 8],
+          margin: [0, 0, 0, 12],
         },
         boxedText: {
-          fontSize: 10,
-          lineHeight: 1.45,
+          fontSize: 13,
+          lineHeight: 1.8,
           margin: [0, 0, 0, 10],
         },
         answer: {
@@ -441,8 +442,8 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
         stack.push({
           ...buildDecoratedBoxNode({
             text: buildInlineSegments(question.questionTextForward),
-            fontSize: 10,
-            lineHeight: 1.45,
+            fontSize: 13,
+            lineHeight: 1.8,
             color: '#374151',
           }, 10),
         })
@@ -452,8 +453,8 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
         stack.push({
           ...buildDecoratedBoxNode({
             text: buildInlineSegments(question.passageText),
-            fontSize: 10,
-            lineHeight: 1.45,
+            fontSize: 13,
+            lineHeight: 1.8,
             color: '#374151',
           }, 10),
         })
@@ -464,8 +465,8 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
         stack.push({
           ...buildDecoratedBoxNode({
             text: buildInlineSegments(normalizedBackward),
-            fontSize: 10,
-            lineHeight: 1.45,
+            fontSize: 13,
+            lineHeight: 1.8,
             color: '#374151',
           }, 10),
         })
@@ -475,9 +476,9 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
         stack.push({
           stack: question.choices.map((choice) => ({
             text: `${choice.label} ${choice.text}`,
-            margin: [0, 0, 0, 6],
-            fontSize: 10,
-            lineHeight: 1.4,
+            margin: [0, 0, 0, 8],
+            fontSize: 13,
+            lineHeight: 1.8,
           })),
           margin: [0, 0, 0, 10],
         })
@@ -520,7 +521,7 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
     defaultStyle: {
       font: 'Pretendard',
       fontSize: 11,
-      lineHeight: 1.45,
+      lineHeight: 1.5,
     },
     styles: {
       title: {
@@ -536,13 +537,13 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
         margin: [0, 0, 0, 30],
       },
       questionText: {
-        fontSize: 11,
+        fontSize: 14,
         bold: true,
-        margin: [0, 0, 0, 8],
+        margin: [0, 0, 0, 12],
       },
       boxedText: {
-        fontSize: 10,
-        lineHeight: 1.45,
+        fontSize: 13,
+        lineHeight: 1.8,
         margin: [0, 0, 0, 10],
       },
       answer: {
