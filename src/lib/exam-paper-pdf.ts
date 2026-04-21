@@ -391,16 +391,16 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
       },
       styles: {
         title: {
-          fontSize: 18,
+          fontSize: 24,
           bold: true,
           alignment: 'center',
-          margin: [0, 0, 0, 8],
+          margin: [0, 0, 0, 10],
         },
         description: {
-          fontSize: 10,
+          fontSize: 14,
           color: '#64748b',
           alignment: 'center',
-          margin: [0, 0, 0, 18],
+          margin: [0, 0, 0, 30],
         },
         questionText: {
           fontSize: 11,
@@ -524,16 +524,16 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
     },
     styles: {
       title: {
-        fontSize: 18,
+        fontSize: 24,
         bold: true,
         alignment: 'center',
-        margin: [0, 0, 0, 8],
+        margin: [0, 0, 0, 10],
       },
       description: {
-        fontSize: 10,
+        fontSize: 14,
         color: '#64748b',
         alignment: 'center',
-        margin: [0, 0, 0, 18],
+        margin: [0, 0, 0, 30],
       },
       questionText: {
         fontSize: 11,
