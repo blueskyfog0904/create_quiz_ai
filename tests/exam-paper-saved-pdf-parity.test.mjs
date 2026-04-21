@@ -55,6 +55,33 @@ test('saved PDF 2-column passage path does not route passageText through split b
   )
 })
 
+test('saved PDF 2-column path keeps stable anchor/body/choice/answer structure before density tweaks', () => {
+  assert.notEqual(buildQuestionChunksForTwoColumnSource, '')
+  assert.notEqual(buildChoiceChunksSource, '')
+  assert.notEqual(buildExplanationChunksSource, '')
+
+  assert.match(buildQuestionChunksForTwoColumnSource, /const bodyChunks = \[/)
+  assert.match(buildQuestionChunksForTwoColumnSource, /\.\.\.buildBoxedTextChunks\(question\.number, 'forward', question\.questionTextForward\)/)
+  assert.match(buildQuestionChunksForTwoColumnSource, /id: `question-body-\$\{question\.number\}-passage`/)
+  assert.match(buildQuestionChunksForTwoColumnSource, /kind: 'body' as const/)
+  assert.match(buildQuestionChunksForTwoColumnSource, /text: buildInlineSegments\(question\.passageText\.trim\(\)\)/)
+  assert.match(buildQuestionChunksForTwoColumnSource, /\.\.\.buildBoxedTextChunks\([\s\S]*?question\.number,[\s\S]*?'backward'/)
+  assert.match(buildQuestionChunksForTwoColumnSource, /\.\.\.buildChoiceChunks\(question\)/)
+  assert.match(buildQuestionChunksForTwoColumnSource, /const \[firstBodyChunk, \.\.\.remainingBodyChunks\] = bodyChunks/)
+  assert.match(buildQuestionChunksForTwoColumnSource, /const anchorStack = firstBodyChunk[\s\S]*?\[headingNode, firstBodyChunk\.node\][\s\S]*?: \[headingNode\]/)
+  assert.match(buildQuestionChunksForTwoColumnSource, /id: `question-body-\$\{question\.number\}-anchor`/)
+  assert.match(buildQuestionChunksForTwoColumnSource, /kind: 'header'/)
+  assert.match(buildQuestionChunksForTwoColumnSource, /chunks\.push\(\.\.\.remainingBodyChunks\)/)
+  assert.match(buildQuestionChunksForTwoColumnSource, /if \(showAnswers\) \{[\s\S]*?buildExplanationChunks\(question\.number, question\.answer, question\.explanation\)/)
+
+  assert.match(buildExplanationChunksSource, /return \[\{[\s\S]*?id: `question-answer-\$\{questionNumber\}`,[\s\S]*?kind: 'answer' as const,[\s\S]*?node: buildAnswerSectionNode\(stack, 10\)/)
+  assert.doesNotMatch(buildExplanationChunksSource, /splitTextIntoFlowChunks\(explanation,\s*260\)\.map\(/)
+  assert.doesNotMatch(buildExplanationChunksSource, /question-explanation-\$\{questionNumber\}-\$\{index\}/)
+
+  assert.match(buildChoiceChunksSource, /margin: \[0, 0, 0, 6\]/)
+  assert.doesNotMatch(buildChoiceChunksSource, /margin: \[14,\s*0,\s*0,\s*6\]/)
+})
+
 test('saved PDF explanation rendering keeps a single answer panel per question', () => {
   assert.notEqual(buildExplanationChunksSource, '')
   assert.doesNotMatch(buildExplanationChunksSource, /splitTextIntoFlowChunks\(explanation,\s*260\)\.map\(/)
