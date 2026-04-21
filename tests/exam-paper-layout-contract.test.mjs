@@ -31,6 +31,8 @@ test('shared layout contract exposes a page-and-column planning surface', () => 
   )
   assert.match(sharedContractSource, /export (function|const) /)
   assert.match(sharedContractSource, plannerNamePattern)
+  assert.match(sharedContractSource, /\bbuildQuestionSectionPlan\b/)
+  assert.match(sharedContractSource, /\bbuildTwoColumnLayoutPlan\b/)
   assert.match(sharedContractSource, /(sectionId|sectionKey)/)
   assert.match(sharedContractSource, /(pageId|pageIndex)/)
   assert.match(sharedContractSource, /(columnId|columnIndex)/)
@@ -42,6 +44,8 @@ test('export-utils delegates page and column planning to the shared contract', (
     /from ['"]@\/lib\/exam-paper-layout-contract['"]/
   )
   assert.match(exportUtilsSource, plannerNamePattern)
+  assert.match(exportUtilsSource, /\bbuildQuestionSectionPlan\b/)
+  assert.match(exportUtilsSource, /\bbuildTwoColumnLayoutPlan\b/)
   assert.doesNotMatch(exportUtilsSource, /\bfunction getExamPaperRenderOptions\(/)
 })
 
@@ -51,5 +55,7 @@ test('exam-paper-pdf delegates page and column planning to the shared contract',
     /from ['"]@\/lib\/exam-paper-layout-contract['"]/
   )
   assert.match(examPaperPdfSource, plannerNamePattern)
+  assert.match(examPaperPdfSource, /\bbuildQuestionSectionPlan\b/)
+  assert.match(examPaperPdfSource, /\bbuildTwoColumnLayoutPlan\b/)
   assert.doesNotMatch(examPaperPdfSource, /\bfunction getExportOptions\(/)
 })
