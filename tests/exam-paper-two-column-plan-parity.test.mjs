@@ -5,10 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 
-import {
-  regressionExamPaper,
-  regressionParityExpectations,
-} from './fixtures/exam-paper-two-column-regression.fixture.mjs'
+import { regressionExamPaper } from './fixtures/exam-paper-two-column-regression.fixture.mjs'
 
 const sharedContractPath = new URL('../src/lib/exam-paper-layout-contract.ts', import.meta.url)
 const sharedContractSource = readFileSync(sharedContractPath, 'utf8')
@@ -70,30 +67,6 @@ function getPageSectionIds(plan, pageIndex) {
   return page.columns.map((column) => column.sectionIds)
 }
 
-function assertColumnIncludesAll(columnIds, expectedIds) {
-  const columnIdSet = new Set(columnIds)
-
-  expectedIds.forEach((sectionId) => {
-    assert.equal(
-      columnIdSet.has(sectionId),
-      true,
-      `expected column to include exact section id ${sectionId}`
-    )
-  })
-}
-
-function assertColumnExcludesAll(columnIds, excludedIds) {
-  const columnIdSet = new Set(columnIds)
-
-  excludedIds.forEach((sectionId) => {
-    assert.equal(
-      columnIdSet.has(sectionId),
-      false,
-      `expected column not to include exact section id ${sectionId}`
-    )
-  })
-}
-
 function assertPageIncludesAll(pageColumnIds, expectedIds) {
   const pageIdSet = new Set(pageColumnIds.flat())
 
@@ -131,54 +104,31 @@ async function buildRegressionPlans(viewMode) {
   }
 }
 
-test('regression fixture covers the page 1 / 3 / 6 direct-PDF drift anchors', () => {
+test('regression fixture still covers a multi-question answered 2-column paper', () => {
   assert.equal(regressionExamPaper.columnLayout, 'double')
   assert.equal(regressionExamPaper.questions.length >= 6, true)
-  assert.deepEqual(regressionParityExpectations.targetedPages, [1, 3, 6])
-  assert.deepEqual(
-    regressionParityExpectations.sharedBuilders,
-    ['buildQuestionSectionPlan', 'buildTwoColumnLayoutPlan']
-  )
 
   const questionNumbers = regressionExamPaper.questions.map((question) => question.number)
   assert.deepEqual(questionNumbers, [1, 2, 3, 4, 5, 6])
 
   const question1 = regressionExamPaper.questions.find((question) => question.number === 1)
-  const question4 = regressionExamPaper.questions.find((question) => question.number === 4)
-  const question6 = regressionExamPaper.questions.find((question) => question.number === 6)
+  const question2 = regressionExamPaper.questions.find((question) => question.number === 2)
 
   assert.ok(question1?.passageText)
   assert.ok(question1?.choices?.length >= 5)
-  assert.ok(question4?.answer)
-  assert.ok(question6?.answer)
-
-  assert.equal(
-    regressionParityExpectations.page1.anchorReason,
-    'left-column-lead-before-choice-spill'
-  )
-  assert.equal(
-    regressionParityExpectations.page3.anchorReason,
-    'prompt-answer-same-page-group'
-  )
-  assert.equal(
-    regressionParityExpectations.page6.anchorReason,
-    'preview-pdf-page-6-parity'
-  )
+  assert.ok(question2?.answer)
 })
 
 test('shared layout contract exports the section planners needed for parity recovery', async () => {
   await getRequiredPlannerApi()
 })
 
-test('page 1 keeps question 1 header and passage in the left column before choices spill right', async () => {
+test('question 1 passage stays atomic instead of splitting into continuation fragments', async () => {
   const { pdfPlan } = await buildRegressionPlans('exam-only')
-  const leftColumnIds = getPageSectionIds(pdfPlan, regressionParityExpectations.page1.pageIndex)[0]
+  const page1Ids = getPageSectionIds(pdfPlan, 0).flat()
 
-  assertColumnIncludesAll(leftColumnIds, regressionParityExpectations.page1.leadingSectionIds)
-  assertColumnExcludesAll(
-    leftColumnIds,
-    regressionParityExpectations.page1.shouldNotAppearInLeftColumn
-  )
+  assert.equal(page1Ids.includes('question-1-passage'), true)
+  assert.equal(page1Ids.some((sectionId) => sectionId.startsWith('question-1-passage-part-')), false)
 })
 
 test('buildQuestionSectionPlan normalizes questionTextBackward before storing sectionPlan.text', async () => {
@@ -208,31 +158,23 @@ test('buildQuestionSectionPlan normalizes questionTextBackward before storing se
   )
 })
 
-test('page 3 keeps the regression prompt and answer panel in the same page group', async () => {
+test('answered-mode first page can continue into question 2 instead of isolating question 1', async () => {
   const { pdfPlan } = await buildRegressionPlans('exam-with-answers')
-  const page3ColumnIds = getPageSectionIds(pdfPlan, regressionParityExpectations.page3.pageIndex)
+  const page1Ids = getPageSectionIds(pdfPlan, 0).flat()
 
-  assertPageIncludesAll(page3ColumnIds, [
-    regressionParityExpectations.page3.promptSectionId,
-    regressionParityExpectations.page3.answerSectionId,
+  assertPageIncludesAll([page1Ids], [
+    'question-1-header',
+    'question-1-passage',
+    'question-1-answer',
+    'question-2-header',
   ])
 })
 
-test('page 6 preview/pdf parity keeps the final regression prompt and answer on the same grouped page', async () => {
+test('preview/pdf parity keeps identical page grouping after removing first-page isolation', async () => {
   const { previewPlan, pdfPlan } = await buildRegressionPlans('exam-with-answers')
-  const previewPage6Ids = getPageSectionIds(
-    previewPlan,
-    regressionParityExpectations.page6.pageIndex
-  )
-  const pdfPage6Ids = getPageSectionIds(pdfPlan, regressionParityExpectations.page6.pageIndex)
 
-  assertPageIncludesAll(previewPage6Ids, [
-    regressionParityExpectations.page6.promptSectionId,
-    regressionParityExpectations.page6.answerSectionId,
-  ])
-  assertPageIncludesAll(pdfPage6Ids, [
-    regressionParityExpectations.page6.promptSectionId,
-    regressionParityExpectations.page6.answerSectionId,
-  ])
-  assert.deepEqual(pdfPage6Ids, previewPage6Ids)
+  assert.deepEqual(
+    pdfPlan.pages.map((page) => page.columns.flatMap((column) => column.sectionIds)),
+    previewPlan.pages.map((page) => page.columns.flatMap((column) => column.sectionIds))
+  )
 })

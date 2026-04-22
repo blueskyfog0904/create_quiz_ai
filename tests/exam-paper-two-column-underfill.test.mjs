@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 
-import { underfillExamPaper } from './fixtures/exam-paper-two-column-underfill.fixture.mjs'
+import { regressionExamPaper } from './fixtures/exam-paper-two-column-regression.fixture.mjs'
 
 const sharedContractPath = new URL('../src/lib/exam-paper-layout-contract.ts', import.meta.url)
 const sharedContractSource = readFileSync(sharedContractPath, 'utf8')
@@ -18,7 +18,7 @@ const normalizeQuestionFieldModuleUrl = new URL(
   import.meta.url
 ).href
 
-const FIRST_PAGE_CAPACITY_WITH_DESCRIPTION = 700
+const FIRST_PAGE_CAPACITY_WITH_DESCRIPTION = 1120
 
 async function loadRuntimeLayoutContractModule() {
   const tempDir = mkdtempSync(join(tmpdir(), 'exam-paper-underfill-layout-contract-'))
@@ -36,10 +36,14 @@ function sumColumnUnits(column) {
   return column.sections.reduce((sum, section) => sum + section.estimatedHeight, 0)
 }
 
-test('underfill fixture keeps passage fragments in reading order while reducing first-left slack', async () => {
+test('first page uses remaining answered-mode space for question 2 instead of isolating question 1', async () => {
   const layoutContractModule = await loadRuntimeLayoutContractModule()
-  const renderOptions = layoutContractModule.buildExamPaperRenderOptions(underfillExamPaper)
-  const questionPlans = underfillExamPaper.questions.map((question) =>
+  const examPaper = {
+    ...regressionExamPaper,
+    viewMode: 'exam-with-answers',
+  }
+  const renderOptions = layoutContractModule.buildExamPaperRenderOptions(examPaper)
+  const questionPlans = examPaper.questions.map((question) =>
     layoutContractModule.buildQuestionSectionPlan(question, renderOptions)
   )
   const layoutPlan = layoutContractModule.buildTwoColumnLayoutPlan({
@@ -51,35 +55,23 @@ test('underfill fixture keeps passage fragments in reading order while reducing 
 
   const page1Left = layoutPlan.pages[0].columns[0]
   const page1Right = layoutPlan.pages[0].columns[1]
+  const page1Ids = [...page1Left.sectionIds, ...page1Right.sectionIds]
   const page1LeftUsedUnits = sumColumnUnits(page1Left)
   const page1LeftSlack = FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - page1LeftUsedUnits
 
-  assert.ok(page1Left.sectionIds.includes('question-1-header'))
+  assert.ok(page1Ids.includes('question-1-passage'))
+  assert.ok(page1Ids.includes('question-1-answer'))
   assert.ok(
-    page1Left.sectionIds.includes('question-1-passage-part-1'),
-    'expected the first passage fragment to stay in the first left column'
-  )
-  assert.ok(
-    page1Right.sectionIds.some((sectionId) => sectionId.startsWith('question-1-passage-part-')),
-    'expected later passage fragments to continue in the first right column'
+    page1Ids.includes('question-2-header'),
+    'expected question 2 to start on page 1 so the lower whitespace is reduced'
   )
   assert.equal(
-    page1Left.sectionIds.indexOf('question-1-header') <
-      page1Left.sectionIds.indexOf('question-1-passage-part-1'),
-    true,
-    'expected the passage fragment to keep reading order after the header'
-  )
-  assert.equal(
-    page1Left.sectionIds.filter((sectionId) => sectionId.startsWith('question-1-passage-part-')).length >= 2,
-    true,
-    'expected multiple passage fragments to stay in the first left column before spillover'
+    page1Ids.some((sectionId) => sectionId.startsWith('question-1-passage-part-')),
+    false,
+    'expected the first passage to stay atomic'
   )
   assert.ok(
-    page1LeftSlack < 100,
-    `expected first-left slack to drop below 100 units after fragmentation, got ${page1LeftSlack}`
-  )
-  assert.ok(
-    page1LeftUsedUnits >= 600,
-    `expected the first-left column to use at least 600 units after fragmentation, got ${page1LeftUsedUnits}`
+    page1LeftSlack < 200,
+    `expected the first-left slack to stay under 200 units, got ${page1LeftSlack}`
   )
 })

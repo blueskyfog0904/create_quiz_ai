@@ -194,7 +194,7 @@ function buildChoiceRows(rows: ExamPaperPdfChoice[]) {
       estimatedHeight: estimateTextHeight(choiceText, 34, 5, 5),
       node: {
         text: choiceText,
-        margin: [0, 0, 0, 8],
+        margin: [0, 0, 0, 0],
         fontSize: 13,
         lineHeight: 1.8,
       },

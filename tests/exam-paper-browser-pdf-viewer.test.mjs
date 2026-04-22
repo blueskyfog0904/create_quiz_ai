@@ -193,7 +193,7 @@ test('print preview choice styles do not apply extra left indentation', () => {
   assert.doesNotMatch(exportUtilsSource, /\.question-choice-chunk \.choice\s*\{[\s\S]*?margin-left:\s*20px;/)
 })
 
-test('PDF save preview choice CSS keeps left indentation at zero', () => {
+test('PDF save preview choice CSS keeps left indentation at zero and removes row spacing', () => {
   assert.match(
     exportUtilsSource,
     /\.choices\s*\{[^}]*margin-left:\s*0(?:px)?;/s
@@ -201,6 +201,10 @@ test('PDF save preview choice CSS keeps left indentation at zero', () => {
   assert.match(
     exportUtilsSource,
     /\.question-choice-chunk\s+\.choice\s*\{[^}]*margin-left:\s*0(?:px)?;/s
+  )
+  assert.match(
+    exportUtilsSource,
+    /\.choice\s*\{[^}]*margin-bottom:\s*0(?:px)?;/s
   )
 })
 
@@ -222,6 +226,11 @@ test('PDF workspace includes option panel controls and iframe preview', () => {
   assert.match(workspaceSource, /<iframe/)
   assert.match(workspaceSource, /srcDoc=\{previewHtml\}/)
   assert.match(workspaceSource, /buildExamPaperPrintHtml/)
+})
+
+test('preview pages keep a fixed A4 height instead of growing by content', () => {
+  assert.match(exportUtilsSource, /\.preview-page\s*\{[^}]*height:\s*297mm;/s)
+  assert.match(exportUtilsSource, /\.preview-page\s*\{[^}]*overflow:\s*hidden;/s)
 })
 
 test('PDF workspace reseeds the preview state from the latest web question order whenever it opens', () => {

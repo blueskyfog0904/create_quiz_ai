@@ -486,10 +486,11 @@ export function buildExamPaperPrintHtml(
         }
         .preview-page {
           width: 210mm;
-          min-height: 297mm;
+          height: 297mm;
           background: #fff;
           box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
           padding: 12mm 10mm;
+          overflow: hidden;
         }
         h1 {
           text-align: center;
@@ -526,7 +527,7 @@ export function buildExamPaperPrintHtml(
           margin-bottom: 15px;
         }
         .choice {
-          margin-bottom: 8px;
+          margin-bottom: 0;
           font-size: 13px;
           line-height: 1.8;
         }

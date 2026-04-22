@@ -5,10 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import {
-  regressionExamPaper,
-  regressionParityExpectations,
-} from './fixtures/exam-paper-two-column-regression.fixture.mjs'
+import { regressionExamPaper } from './fixtures/exam-paper-two-column-regression.fixture.mjs'
 
 const examPaperPdfPath = new URL('../src/lib/exam-paper-pdf.ts', import.meta.url)
 const examPaperPdfSource = readFileSync(examPaperPdfPath, 'utf8')
@@ -169,19 +166,15 @@ test('saved PDF runtime pages preserve the shared planner section counts per pag
   })
 })
 
-test('saved PDF runtime keeps question 1 header/body nodes separate instead of reintroducing anchor merging', async () => {
+test('saved PDF runtime keeps question 1 passage as a single boxed area', async () => {
   const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-only')
-  const page1LeftColumn = layoutPlan.pages[regressionParityExpectations.page1.pageIndex].columns[0]
+  const page1Ids = layoutPlan.pages[0].columns.flatMap((column) => column.sectionIds)
 
-  assert.deepEqual(
-    regressionParityExpectations.page1.leadingSectionIds.every((sectionId) =>
-      page1LeftColumn.sectionIds.includes(sectionId)
-    ),
-    true
-  )
+  assert.equal(page1Ids.includes('question-1-passage'), true)
+  assert.equal(page1Ids.some((sectionId) => sectionId.startsWith('question-1-passage-part-')), false)
 
   const header = findRenderedSection(layoutPlan, renderedPages, 'question-1-header').node
-  const passage = findRenderedSection(layoutPlan, renderedPages, 'question-1-passage-part-1').node
+  const passage = findRenderedSection(layoutPlan, renderedPages, 'question-1-passage').node
   const passageCell = passage.table.body[0][0]
 
   assert.match(header.text, /^1\./)
@@ -189,32 +182,32 @@ test('saved PDF runtime keeps question 1 header/body nodes separate instead of r
   assert.equal(header.unbreakable, undefined)
   assert.ok(passage.table)
   assert.equal(Array.isArray(passage.stack), false)
-  assert.deepEqual(passage.margin, [0, 0, 0, 0])
-  assert.deepEqual(passageCell.border, [true, true, true, false])
+  assert.deepEqual(passage.margin, [0, 0, 0, 8])
+  assert.deepEqual(passageCell.border, [true, true, true, true])
 })
 
-test('saved PDF runtime choice fragments keep zero-left-margin spacing for individual rows', async () => {
-  const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-only')
-  const choiceNode = findRenderedSection(layoutPlan, renderedPages, 'question-1-choice-part-1').node
+test('saved PDF runtime choice rows remove extra spacing between 1-5 options', async () => {
+  const { examPaper, layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-only')
+  const choiceNode = findRenderedSection(layoutPlan, renderedPages, 'question-1-choice').node
 
   assert.equal(Array.isArray(choiceNode.stack), true)
-  assert.equal(choiceNode.stack.length, 1)
+  assert.equal(choiceNode.stack.length, examPaper.questions[0].choices.length)
 
   choiceNode.stack.forEach((row) => {
-    assert.deepEqual(row.margin, [0, 0, 0, 8])
-    assert.notEqual(row.margin[0], 14)
+    assert.deepEqual(row.margin, [0, 0, 0, 0])
     assert.equal(row.fontSize, 13)
     assert.equal(row.lineHeight, 1.8)
   })
 })
 
-test('saved PDF runtime answer sections render as a single decorated panel per question', async () => {
+test('saved PDF runtime keeps explanation as a single decorated panel', async () => {
   const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-with-answers')
-  const answerNode = findRenderedSection(
-    layoutPlan,
-    renderedPages,
-    regressionParityExpectations.page3.answerSectionId
-  ).node
+  const answerIds = layoutPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
+
+  assert.equal(answerIds.includes('question-1-answer'), true)
+  assert.equal(answerIds.some((sectionId) => sectionId.startsWith('question-1-answer-part-')), false)
+
+  const answerNode = findRenderedSection(layoutPlan, renderedPages, 'question-1-answer').node
   const answerCell = answerNode.table.body[0][0]
 
   assert.equal(answerNode.margin[3], 10)
