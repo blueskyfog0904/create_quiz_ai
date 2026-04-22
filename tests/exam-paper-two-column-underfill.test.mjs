@@ -19,7 +19,7 @@ const normalizeQuestionFieldModuleUrl = new URL(
 ).href
 
 const FIRST_PAGE_CAPACITY_WITH_DESCRIPTION = 1120
-const ANSWER_ONLY_DOUBLE_GUARD_BAND_UNITS = 80
+const ANSWER_ONLY_DOUBLE_GUARD_BAND_UNITS = 200
 
 async function loadRuntimeLayoutContractModule() {
   const tempDir = mkdtempSync(join(tmpdir(), 'exam-paper-underfill-layout-contract-'))
