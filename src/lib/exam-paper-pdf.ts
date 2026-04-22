@@ -287,11 +287,28 @@ function renderSectionPdfNode(
       ? sectionPlan.payload
       : null
 
-    return buildAnswerSectionNode(
+    const answerNode = buildAnswerSectionNode(
       answerPayload ? buildAnswerFragmentStack(answerPayload) : [],
       sectionPlan.continuationPosition === 'single' || sectionPlan.continuationPosition === 'end' ? 10 : 0,
       sectionPlan.continuationPosition === 'single' || sectionPlan.continuationPosition === 'start' ? 12 : 6
     )
+
+    if (answerPayload?.questionLabel) {
+      return {
+        stack: [
+          {
+            text: answerPayload.questionLabel,
+            fontSize: 16,
+            bold: true,
+            color: '#111',
+            margin: [0, 0, 0, 12],
+          },
+          answerNode,
+        ],
+      }
+    }
+
+    return answerNode
   }
 
   return { text: '' }

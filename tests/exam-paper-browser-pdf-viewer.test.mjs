@@ -179,7 +179,7 @@ test('print template builder uses dedicated single-column groups and shared two-
   assert.match(exportUtilsSource, /column-count:\s*2/)
 })
 
-test('two-column preview follows the shared planner page grouping for the regression fixture', async () => {
+async function getRuntimePreviewArtifacts(viewMode) {
   const {
     module: layoutContractModule,
     moduleUrl: layoutContractModuleUrl,
@@ -192,7 +192,7 @@ test('two-column preview follows the shared planner page grouping for the regres
 
   const examPaper = {
     ...regressionExamPaper,
-    viewMode: 'exam-with-answers',
+    viewMode,
   }
   const renderOptions = layoutContractModule.buildExamPaperRenderOptions(examPaper)
   const questionPlans = examPaper.questions.map((question) =>
@@ -206,9 +206,28 @@ test('two-column preview follows the shared planner page grouping for the regres
   })
   const previewHtml = exportUtilsModule.buildExamPaperPrintHtml(examPaper)
 
+  return {
+    previewPlan,
+    previewHtml,
+  }
+}
+
+test('two-column preview follows the shared planner page grouping for the regression fixture', async () => {
+  const { previewPlan, previewHtml } = await getRuntimePreviewArtifacts('exam-with-answers')
+
   assert.deepEqual(
     extractPreviewPageSectionIds(previewHtml),
     previewPlan.pages.map((page) => page.columns.flatMap((column) => column.sectionIds))
+  )
+})
+
+
+test('answer-only two-column preview prepends the question number inside each answer chunk', async () => {
+  const { previewHtml } = await getRuntimePreviewArtifacts('answer-only')
+
+  assert.match(
+    previewHtml,
+    /data-section-id="question-1-answer"[\s\S]*?<div class="question-number">1번<\/div>[\s\S]*?정답:/
   )
 })
 

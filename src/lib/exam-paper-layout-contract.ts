@@ -81,6 +81,7 @@ export interface TwoColumnSectionPlan {
   choiceRows?: TwoColumnLayoutChoiceLike[]
   answerText?: string
   explanationText?: string
+  answerOnlyQuestionLabel?: string
 }
 
 export interface TwoColumnQuestionSectionPlan {
@@ -109,6 +110,7 @@ export interface TwoColumnChoiceFragmentPayload {
 
 export interface TwoColumnAnswerFragmentPayload {
   type: 'answer'
+  questionLabel?: string
   answerText?: string
   explanationText?: string
   explanationChunkIndex?: number
@@ -337,6 +339,7 @@ function createSingleFragmentFromSection(section: TwoColumnSectionPlan): TwoColu
     splittable: true,
     payload: {
       type: 'answer',
+      questionLabel: section.answerOnlyQuestionLabel,
       answerText: section.answerText,
       explanationText: section.explanationText,
       explanationChunkIndex: section.explanationText ? 1 : undefined,
@@ -530,7 +533,11 @@ export function buildQuestionSectionPlan(
   if (options.showAnswers) {
     const answerText = normalizeSectionText(question.answer)
     const explanationText = normalizeSectionText(question.explanation)
+    const answerOnlyQuestionLabel = options.showQuestions ? '' : `${question.number}번`
     const combinedAnswerText = [answerText, explanationText].filter(Boolean).join('\n')
+    const estimatedAnswerText = [answerOnlyQuestionLabel, combinedAnswerText]
+      .filter(Boolean)
+      .join('\n')
 
     if (combinedAnswerText) {
       sections.push({
@@ -538,7 +545,7 @@ export function buildQuestionSectionPlan(
         questionNumber: question.number,
         kind: 'answer',
         sectionKey: 'answer',
-        estimatedUnits: estimateSectionUnits(combinedAnswerText, {
+        estimatedUnits: estimateSectionUnits(estimatedAnswerText, {
           charsPerLine: 40,
           lineUnit: 22,
           baseUnit: 156,
@@ -546,6 +553,7 @@ export function buildQuestionSectionPlan(
         text: combinedAnswerText,
         answerText,
         explanationText,
+        answerOnlyQuestionLabel: answerOnlyQuestionLabel || undefined,
       })
     }
   }

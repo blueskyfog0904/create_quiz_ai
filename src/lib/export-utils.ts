@@ -318,6 +318,9 @@ function renderAnswerFragmentHtml(
   const isContinued = sectionPlan.continuationPosition !== 'single' && sectionPlan.fragmentIndex > 0
 
   return `
+    ${payload.questionLabel ? `
+      <div class="question-number">${escapeHtml(payload.questionLabel)}</div>
+    ` : ''}
     <div class="answer-section${isContinued ? ' answer-section-continued' : ''}${continuationClassName}">
       ${payload.showAnswerLabel && payload.answerText ? `
         <div class="answer">정답: ${escapeHtml(payload.answerText)}</div>

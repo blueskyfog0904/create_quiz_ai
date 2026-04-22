@@ -235,6 +235,16 @@ test('saved PDF runtime keeps explanation as a single decorated panel', async ()
   assert.match(answerCell.stack[1].text, /^해설:/)
 })
 
+test('answer-only two-column PDF keeps the question number attached above the answer panel', async () => {
+  const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('answer-only')
+  const answerNode = findRenderedSection(layoutPlan, renderedPages, 'question-1-answer').node
+
+  assert.equal(Array.isArray(answerNode.stack), true)
+  assert.equal(answerNode.stack.length, 2)
+  assert.equal(answerNode.stack[0].text, '1번')
+  assert.ok(answerNode.stack[1].table)
+})
+
 test('saved PDF runtime styles stay aligned with preview-facing typography', async () => {
   const { docDefinition } = await buildRuntimeArtifacts('exam-with-answers')
 
