@@ -164,7 +164,7 @@ test('exam paper PDF util uses the generated Pretendard TTF VFS bundle and share
   assert.match(pdfSource, /questionChunkMap\.get\(sectionId\)\?\.node/)
   assert.match(pdfSource, /pageBreak: 'after'/)
   assert.match(pdfSource, /buildDecoratedBoxNode/)
-  assert.match(pdfSource, /buildAnswerSectionNode/)
+  assert.match(pdfSource, /buildPlainAnswerTextStack/)
 })
 
 test('print template builder uses dedicated single-column groups and shared two-column preview output', () => {
@@ -227,8 +227,32 @@ test('answer-only two-column preview prepends the question number inside each an
 
   assert.match(
     previewHtml,
-    /data-section-id="question-1-answer"[\s\S]*?<div class="question-number">1번<\/div>[\s\S]*?정답:/
+    /data-section-id="question-1-answer"[\s\S]*?<div class="answer-text-block">[\s\S]*?<div class="answer-text-line answer-text-question">1번<\/div>[\s\S]*?<div class="answer-text-line answer-text-answer">정답:/
   )
+  assert.doesNotMatch(previewHtml, /answer-section/)
+})
+
+test('single-column preview renders answer blocks as plain text with question labels', async () => {
+  const {
+    moduleUrl: layoutContractModuleUrl,
+  } = await loadRuntimeLayoutContractModule()
+  const singleColumnLayoutModuleUrl = await loadRuntimeSingleColumnLayoutModule()
+  const exportUtilsModule = await loadRuntimeExportUtilsModule(
+    layoutContractModuleUrl,
+    singleColumnLayoutModuleUrl
+  )
+
+  const html = exportUtilsModule.buildExamPaperPrintHtml({
+    ...regressionExamPaper,
+    columnLayout: 'single',
+    viewMode: 'exam-with-answers',
+  })
+
+  assert.match(
+    html,
+    /data-block-id="question-1-answer"[\s\S]*?<div class="answer-text-block">[\s\S]*?<div class="answer-text-line answer-text-question">1번<\/div>[\s\S]*?<div class="answer-text-line answer-text-answer">정답:/
+  )
+  assert.doesNotMatch(html, /answer-only-section|answer-section/)
 })
 
 test('print preview choice styles do not apply extra left indentation', () => {

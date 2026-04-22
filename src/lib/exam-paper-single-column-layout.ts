@@ -32,7 +32,7 @@ export interface SingleColumnBlock {
     | { type: 'header'; text: string }
     | { type: 'body'; text: string; sectionKey: 'forward' | 'passage' | 'backward' }
     | { type: 'choice-row'; label: string; text: string; choiceIndex: number }
-    | { type: 'answer'; answerText: string; explanationText: string }
+    | { type: 'answer'; questionLabel: string; answerText: string; explanationText: string }
 }
 
 export interface SingleColumnQuestionGroups {
@@ -127,6 +127,7 @@ function createChoiceRowBlock(
 function createAnswerBlock(question: SingleColumnQuestionLike): SingleColumnBlock | null {
   const answerText = normalizeText(question.answer)
   const explanationText = normalizeText(question.explanation)
+  const questionLabel = `${question.number}번`
 
   if (!answerText && !explanationText) {
     return null
@@ -136,9 +137,12 @@ function createAnswerBlock(question: SingleColumnQuestionLike): SingleColumnBloc
     id: `question-${question.number}-answer`,
     questionNumber: question.number,
     kind: 'answer',
-    estimatedHeight: estimateTextWeight(answerText, 84, 3) + estimateTextWeight(explanationText, 90, 6),
+    estimatedHeight: estimateTextWeight(questionLabel, 72, 1)
+      + estimateTextWeight(answerText, 84, 1)
+      + estimateTextWeight(explanationText, 90, 3),
     payload: {
       type: 'answer',
+      questionLabel,
       answerText,
       explanationText,
     },
@@ -176,7 +180,7 @@ export function buildSingleColumnQuestionGroups(
         choiceBlocks.push(createChoiceRowBlock(question, choice, index))
       })
     }
-  } else {
+  } else if (!options.showAnswers) {
     promptBlocks.push(createHeaderBlock(question, false))
   }
 

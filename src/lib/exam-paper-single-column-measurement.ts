@@ -194,32 +194,37 @@ function createBlockElement(
   if (block.kind === 'answer' && block.payload.type === 'answer') {
     wrapper.style.marginBottom = '24px'
 
-    const answerSection = document.createElement('div')
-    answerSection.className = showQuestions ? 'answer-section' : 'answer-only-section'
-    answerSection.style.marginTop = showQuestions ? '15px' : '0'
-    answerSection.style.padding = '12px'
-    answerSection.style.backgroundColor = '#f0f9ff'
-    answerSection.style.borderLeft = '4px solid #3b82f6'
-    answerSection.style.borderRadius = '4px'
+    const answerBlock = document.createElement('div')
+    answerBlock.className = 'answer-text-block'
 
-    const answer = document.createElement('div')
-    answer.className = 'answer'
-    answer.textContent = `정답: ${block.payload.answerText}`
-    answer.style.fontWeight = '700'
-    answer.style.color = '#1e40af'
-    answer.style.marginBottom = '8px'
-    answer.style.fontSize = '13px'
-    answerSection.appendChild(answer)
+    const questionLabel = document.createElement('div')
+    questionLabel.className = 'answer-text-line answer-text-question'
+    questionLabel.textContent = block.payload.questionLabel
+    questionLabel.style.fontWeight = '700'
+    questionLabel.style.fontSize = '16px'
+    questionLabel.style.marginBottom = '6px'
+    answerBlock.appendChild(questionLabel)
 
-    const explanation = document.createElement('div')
-    explanation.className = 'explanation'
-    explanation.style.color = '#475569'
-    explanation.style.fontSize = '12px'
-    explanation.style.lineHeight = '1.8'
-    explanation.innerHTML = `<span class="explanation-label" style="font-weight:600;">해설:</span> ${escapeHtml(block.payload.explanationText).replace(/\n/g, '<br>')}`
-    answerSection.appendChild(explanation)
+    if (block.payload.answerText) {
+      const answer = document.createElement('div')
+      answer.className = 'answer-text-line answer-text-answer'
+      answer.textContent = `정답: ${block.payload.answerText}`
+      answer.style.fontWeight = '700'
+      answer.style.fontSize = '12px'
+      answer.style.marginBottom = '4px'
+      answerBlock.appendChild(answer)
+    }
 
-    wrapper.appendChild(answerSection)
+    if (block.payload.explanationText) {
+      const explanation = document.createElement('div')
+      explanation.className = 'answer-text-line answer-text-explanation'
+      explanation.style.fontSize = '12px'
+      explanation.style.lineHeight = '1.8'
+      explanation.innerHTML = `해설: ${escapeHtml(block.payload.explanationText).replace(/\n/g, '<br>')}`
+      answerBlock.appendChild(explanation)
+    }
+
+    wrapper.appendChild(answerBlock)
     return wrapper
   }
 

@@ -216,7 +216,7 @@ test('saved PDF runtime splits choice rows into separate planner fragments with 
   })
 })
 
-test('saved PDF runtime keeps explanation as a single decorated panel', async () => {
+test('saved PDF runtime keeps explanation as a single plain text answer block with question label', async () => {
   const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-with-answers')
   const answerIds = layoutPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
 
@@ -224,25 +224,24 @@ test('saved PDF runtime keeps explanation as a single decorated panel', async ()
   assert.equal(answerIds.some((sectionId) => sectionId.startsWith('question-1-answer-part-')), false)
 
   const answerNode = findRenderedSection(layoutPlan, renderedPages, 'question-1-answer').node
-  const answerCell = answerNode.table.body[0][0]
-
-  assert.equal(answerNode.margin[3], 10)
-  assert.equal(answerCell.fillColor, '#f0f9ff')
-  assert.deepEqual(answerCell.border, [true, false, false, false])
-  assert.equal(Array.isArray(answerCell.stack), true)
-  assert.equal(answerCell.stack.length, 2)
-  assert.match(answerCell.stack[0].text, /^정답:/)
-  assert.match(answerCell.stack[1].text, /^해설:/)
+  assert.equal(Array.isArray(answerNode.stack), true)
+  assert.equal(answerNode.stack.length, 3)
+  assert.equal(answerNode.table, undefined)
+  assert.equal(answerNode.stack[0].text, '1번')
+  assert.match(answerNode.stack[1].text, /^정답:/)
+  assert.match(answerNode.stack[2].text, /^해설:/)
 })
 
-test('answer-only two-column PDF keeps the question number attached above the answer panel', async () => {
+test('answer-only two-column PDF keeps the question number attached inside the plain text answer block', async () => {
   const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('answer-only')
   const answerNode = findRenderedSection(layoutPlan, renderedPages, 'question-1-answer').node
 
   assert.equal(Array.isArray(answerNode.stack), true)
-  assert.equal(answerNode.stack.length, 2)
+  assert.equal(answerNode.stack.length, 3)
   assert.equal(answerNode.stack[0].text, '1번')
-  assert.ok(answerNode.stack[1].table)
+  assert.equal(answerNode.table, undefined)
+  assert.match(answerNode.stack[1].text, /^정답:/)
+  assert.match(answerNode.stack[2].text, /^해설:/)
 })
 
 test('saved PDF runtime styles stay aligned with preview-facing typography', async () => {

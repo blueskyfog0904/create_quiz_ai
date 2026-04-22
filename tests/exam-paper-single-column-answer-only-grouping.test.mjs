@@ -25,34 +25,20 @@ async function loadRuntimeSingleColumnLayoutModule() {
   return import(`${pathToFileURL(tempModulePath).href}?t=${Date.now()}`)
 }
 
-test('answer-only single-column without grouping can split header and answer across pages under tight capacity', async () => {
+test('answer-only single-column stores the question number inside the plain text answer block', async () => {
   const layoutModule = await loadRuntimeSingleColumnLayoutModule()
-  const questionGroups = regressionExamPaper.questions.slice(0, 2).map((question) => (
-    layoutModule.buildSingleColumnQuestionGroups(question, {
-      showQuestions: false,
-      showAnswers: true,
-    })
-  ))
-
-  const firstQuestionTotal = [
-    ...questionGroups[0].promptBlocks,
-    ...questionGroups[0].answerBlocks,
-  ].reduce((sum, block) => sum + block.estimatedHeight, 0)
-  const secondHeaderWeight = questionGroups[1].promptBlocks.reduce((sum, block) => sum + block.estimatedHeight, 0)
-
-  const pages = layoutModule.paginateSingleColumnQuestionGroups({
-    questionGroups,
-    hasDescription: false,
-    firstPageCapacity: firstQuestionTotal + secondHeaderWeight,
-    otherPageCapacity: 999,
+  const groups = layoutModule.buildSingleColumnQuestionGroups(regressionExamPaper.questions[0], {
+    showQuestions: false,
+    showAnswers: true,
   })
 
-  assert.equal(pages.length, 2)
-  assert.deepEqual(pages[0].blockIds, ['question-1-header', 'question-1-answer', 'question-2-header'])
-  assert.deepEqual(pages[1].blockIds, ['question-2-answer'])
+  assert.deepEqual(groups.promptBlocks, [])
+  assert.equal(groups.answerBlocks.length, 1)
+  assert.equal(groups.answerBlocks[0].payload.type, 'answer')
+  assert.equal(groups.answerBlocks[0].payload.questionLabel, '1번')
 })
 
-test('answer-only single-column keeps question number and answer panel together when space is tight', async () => {
+test('answer-only single-column pagination keeps one plain text answer block per question', async () => {
   const layoutModule = await loadRuntimeSingleColumnLayoutModule()
   const questionGroups = regressionExamPaper.questions.slice(0, 2).map((question) => (
     layoutModule.buildSingleColumnQuestionGroups(question, {
@@ -61,23 +47,19 @@ test('answer-only single-column keeps question number and answer panel together 
     })
   ))
 
-  const firstQuestionTotal = [
-    ...questionGroups[0].promptBlocks,
-    ...questionGroups[0].answerBlocks,
-  ].reduce((sum, block) => sum + block.estimatedHeight, 0)
-  const secondHeaderWeight = questionGroups[1].promptBlocks.reduce((sum, block) => sum + block.estimatedHeight, 0)
+  const firstQuestionWeight = questionGroups[0].answerBlocks.reduce((sum, block) => sum + block.estimatedHeight, 0)
 
   const pages = layoutModule.paginateSingleColumnQuestionGroups({
     questionGroups,
     hasDescription: false,
-    firstPageCapacity: firstQuestionTotal + secondHeaderWeight,
+    firstPageCapacity: firstQuestionWeight,
     otherPageCapacity: 999,
     groupAnswerOnlyQuestion: true,
   })
 
   assert.equal(pages.length, 2)
-  assert.deepEqual(pages[0].blockIds, ['question-1-header', 'question-1-answer'])
-  assert.deepEqual(pages[1].blockIds, ['question-2-header', 'question-2-answer'])
+  assert.deepEqual(pages[0].blockIds, ['question-1-answer'])
+  assert.deepEqual(pages[1].blockIds, ['question-2-answer'])
 })
 
 test('answer-only grouping does not change the normal choice spill path', async () => {

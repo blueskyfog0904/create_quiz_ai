@@ -157,19 +157,19 @@ class FakeElement {
       return this.children.reduce((sum, child) => sum + child.measureHeight(), 0)
     }
 
-    if (this.className.includes('question-number')) {
+    if (this.className.includes('question-number') || this.className.includes('answer-text-question')) {
       return 28 + marginBottom
     }
 
-    if (this.className.includes('answer-only-section') || this.className.includes('answer-section')) {
-      return 30 + paddingTop + paddingBottom + this.children.reduce((sum, child) => sum + child.measureHeight(), 0)
+    if (this.className.includes('answer-text-block')) {
+      return 12 + paddingTop + paddingBottom + this.children.reduce((sum, child) => sum + child.measureHeight(), 0)
     }
 
-    if (this.className === 'answer') {
+    if (this.className.includes('answer-text-answer')) {
       return 24 + marginBottom
     }
 
-    if (this.className === 'explanation') {
+    if (this.className.includes('answer-text-explanation')) {
       return 120
     }
 
@@ -195,7 +195,7 @@ class FakeDocument {
   }
 }
 
-test('measured answer-only pagination keeps header and answer panel together when space is tight', async () => {
+test('measured answer-only pagination keeps one plain text answer block per question when space is tight', async () => {
   const {
     buildSingleColumnQuestionGroups,
     measureSingleColumnPreviewPages,
@@ -223,8 +223,8 @@ test('measured answer-only pagination keeps header and answer panel together whe
     })
 
     assert.equal(pages.length, 2)
-    assert.deepEqual(pages[0].blockIds, ['question-1-header', 'question-1-answer'])
-    assert.deepEqual(pages[1].blockIds, ['question-2-header', 'question-2-answer'])
+    assert.deepEqual(pages[0].blockIds, ['question-1-answer'])
+    assert.deepEqual(pages[1].blockIds, ['question-2-answer'])
   } finally {
     if (typeof originalDocument === 'undefined') {
       delete globalThis.document

@@ -182,22 +182,22 @@ function renderQuestionChoicesHtml(choices: Choice[]) {
   `
 }
 
-function renderAnswerPanelHtml(
+function renderPlainAnswerTextHtml(
   {
+    questionLabel,
     answerText,
     explanationText,
   }: {
+    questionLabel?: string
     answerText: string
     explanationText: string
-  },
-  showQuestions: boolean
+  }
 ) {
   return `
-    <div class="${showQuestions ? 'answer-section' : 'answer-only-section'}">
-      <div class="answer">정답: ${escapeHtml(answerText)}</div>
-      <div class="explanation">
-        <span class="explanation-label">해설:</span> ${escapeHtml(explanationText).replace(/\n/g, '<br>')}
-      </div>
+    <div class="answer-text-block">
+      ${questionLabel ? `<div class="answer-text-line answer-text-question">${escapeHtml(questionLabel)}</div>` : ''}
+      ${answerText ? `<div class="answer-text-line answer-text-answer">정답: ${escapeHtml(answerText)}</div>` : ''}
+      ${explanationText ? `<div class="answer-text-line answer-text-explanation">해설: ${escapeHtml(explanationText).replace(/\n/g, '<br>')}</div>` : ''}
     </div>
   `
 }
@@ -253,15 +253,17 @@ function renderSingleColumnBlockHtml(
     `
   }
 
+  const questionLabel = block.payload.type === 'answer' ? block.payload.questionLabel : ''
   const answerText = block.payload.type === 'answer' ? block.payload.answerText : ''
   const explanationText = block.payload.type === 'answer' ? block.payload.explanationText : ''
 
   return `
     <div class="single-column-block single-column-answer" ${baseAttributes}>
-      ${renderAnswerPanelHtml({
+      ${renderPlainAnswerTextHtml({
+        questionLabel,
         answerText,
         explanationText,
-      }, showQuestions)}
+      })}
     </div>
   `
 }
@@ -314,24 +316,13 @@ function renderAnswerFragmentHtml(
   payload: TwoColumnAnswerFragmentPayload,
   sectionPlan: PreviewPlannedSection
 ) {
-  const continuationClassName = buildContinuationClassName(sectionPlan)
-  const isContinued = sectionPlan.continuationPosition !== 'single' && sectionPlan.fragmentIndex > 0
+  void sectionPlan
 
-  return `
-    ${payload.questionLabel ? `
-      <div class="question-number">${escapeHtml(payload.questionLabel)}</div>
-    ` : ''}
-    <div class="answer-section${isContinued ? ' answer-section-continued' : ''}${continuationClassName}">
-      ${payload.showAnswerLabel && payload.answerText ? `
-        <div class="answer">정답: ${escapeHtml(payload.answerText)}</div>
-      ` : ''}
-      ${payload.explanationText ? `
-        <div class="explanation">
-          <span class="explanation-label">${payload.showAnswerLabel ? '해설:' : '해설 (계속):'}</span> ${escapeHtml(payload.explanationText).replace(/\n/g, '<br>')}
-        </div>
-      ` : ''}
-    </div>
-  `
+  return renderPlainAnswerTextHtml({
+    questionLabel: payload.questionLabel,
+    answerText: payload.showAnswerLabel ? payload.answerText ?? '' : '',
+    explanationText: payload.explanationText ?? '',
+  })
 }
 
 function renderPlannedTwoColumnSectionHtml(
@@ -613,52 +604,22 @@ export function buildExamPaperPrintHtml(
           font-weight: 600;
           margin-right: 5px;
         }
-        .answer-section {
-          margin-top: 15px;
-          padding: 12px;
-          background-color: #f0f9ff;
-          border-left: 4px solid #3b82f6;
-          border-radius: 4px;
+        .answer-text-block {
+          margin-top: 4px;
         }
-        .answer-only-section {
-          padding: 12px;
-          background-color: #f0f9ff;
-          border-left: 4px solid #3b82f6;
-          border-radius: 4px;
-        }
-        .answer-section-continued {
-          margin-top: 6px;
-        }
-        .answer-section.chunk-linked-start {
-          border-bottom-left-radius: 0;
-          border-bottom-right-radius: 0;
-          margin-bottom: 0;
-        }
-        .answer-section.answer-section-continued.chunk-linked-middle {
-          border-top: none;
-          border-radius: 0;
-          margin-top: 0;
-          margin-bottom: 0;
-        }
-        .answer-section.answer-section-continued.chunk-linked-end {
-          border-top: none;
-          border-top-left-radius: 0;
-          border-top-right-radius: 0;
-          margin-top: 0;
-        }
-        .answer {
-          font-weight: 700;
-          color: #1e40af;
-          margin-bottom: 8px;
-          font-size: 13px;
-        }
-        .explanation {
-          color: #475569;
+        .answer-text-line {
           font-size: 12px;
           line-height: 1.8;
+          color: #111;
         }
-        .explanation-label {
-          font-weight: 600;
+        .answer-text-question {
+          font-size: 16px;
+          font-weight: 700;
+          margin-bottom: 6px;
+        }
+        .answer-text-answer {
+          font-weight: 700;
+          margin-bottom: 4px;
         }
         .text-box {
           padding: 10px 15px;

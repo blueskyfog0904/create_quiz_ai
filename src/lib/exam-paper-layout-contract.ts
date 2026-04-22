@@ -81,7 +81,7 @@ export interface TwoColumnSectionPlan {
   choiceRows?: TwoColumnLayoutChoiceLike[]
   answerText?: string
   explanationText?: string
-  answerOnlyQuestionLabel?: string
+  questionLabel?: string
 }
 
 export interface TwoColumnQuestionSectionPlan {
@@ -339,7 +339,7 @@ function createSingleFragmentFromSection(section: TwoColumnSectionPlan): TwoColu
     splittable: true,
     payload: {
       type: 'answer',
-      questionLabel: section.answerOnlyQuestionLabel,
+      questionLabel: section.questionLabel,
       answerText: section.answerText,
       explanationText: section.explanationText,
       explanationChunkIndex: section.explanationText ? 1 : undefined,
@@ -533,9 +533,9 @@ export function buildQuestionSectionPlan(
   if (options.showAnswers) {
     const answerText = normalizeSectionText(question.answer)
     const explanationText = normalizeSectionText(question.explanation)
-    const answerOnlyQuestionLabel = options.showQuestions ? '' : `${question.number}번`
+    const questionLabel = `${question.number}번`
     const combinedAnswerText = [answerText, explanationText].filter(Boolean).join('\n')
-    const estimatedAnswerText = [answerOnlyQuestionLabel, combinedAnswerText]
+    const estimatedAnswerText = [questionLabel, combinedAnswerText]
       .filter(Boolean)
       .join('\n')
 
@@ -548,12 +548,12 @@ export function buildQuestionSectionPlan(
         estimatedUnits: estimateSectionUnits(estimatedAnswerText, {
           charsPerLine: 40,
           lineUnit: 22,
-          baseUnit: 156,
+          baseUnit: 72,
         }),
         text: combinedAnswerText,
         answerText,
         explanationText,
-        answerOnlyQuestionLabel: answerOnlyQuestionLabel || undefined,
+        questionLabel,
       })
     }
   }

@@ -166,7 +166,8 @@ test('single-column HTML preview uses block pagination and exposes choice-row bl
   assert.match(html, /data-block-id="question-1-choice-row-1"/)
   assert.match(html, /data-block-kind="choice-row"/)
   assert.match(html, /data-block-id="question-1-answer"/)
-  assert.match(html, /정답:/)
+  assert.match(html, /data-block-id="question-1-answer"[\s\S]*?1번[\s\S]*?정답:/)
+  assert.doesNotMatch(html, /answer-only-section|answer-section/)
 })
 
 test('single-column PDF document keeps prompt and answer groups atomic while choice rows stay separate', async () => {
@@ -180,7 +181,10 @@ test('single-column PDF document keeps prompt and answer groups atomic while cho
   const contentNodes = docDefinition.content.slice(2)
   const promptNode = contentNodes[0]
   const firstChoiceNode = contentNodes.find((node) => node.text?.startsWith('① '))
-  const answerGroupNode = contentNodes.find((node) => Array.isArray(node.stack) && node.stack.some((child) => child.table))
+  const answerGroupNode = contentNodes.find((node) => (
+    Array.isArray(node.stack) &&
+    node.stack.some((child) => Array.isArray(child.stack) && child.stack[0]?.text === '1번')
+  ))
 
   assert.equal(Array.isArray(promptNode.stack), true)
   assert.equal(promptNode.unbreakable, true)
@@ -188,4 +192,5 @@ test('single-column PDF document keeps prompt and answer groups atomic while cho
   assert.equal(firstChoiceNode.unbreakable, undefined)
   assert.ok(answerGroupNode)
   assert.equal(answerGroupNode.unbreakable, true)
+  assert.equal(answerGroupNode.stack[0].stack[0].text, '1번')
 })

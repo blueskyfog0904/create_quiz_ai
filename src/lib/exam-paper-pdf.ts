@@ -7,7 +7,6 @@ import {
   buildQuestionSectionPlan,
   buildTwoColumnLayoutPlan,
   type TwoColumnFragmentPlan,
-  type TwoColumnAnswerFragmentPayload,
   type TwoColumnChoiceFragmentPayload,
 } from '@/lib/exam-paper-layout-contract'
 import {
@@ -138,19 +137,6 @@ function createBoxLayout(borderColor = '#9ca3af') {
   }
 }
 
-function createAnswerSectionLayout(paddingTop = 12) {
-  return {
-    hLineWidth: () => 0,
-    vLineWidth: (index: number) => (index === 0 ? 4 : 0),
-    hLineColor: () => '#3b82f6',
-    vLineColor: (index: number) => (index === 0 ? '#3b82f6' : '#3b82f6'),
-    paddingLeft: () => 12,
-    paddingRight: () => 12,
-    paddingTop: () => paddingTop,
-    paddingBottom: () => 12,
-  }
-}
-
 function buildDecoratedBoxNode(
   content: Record<string, unknown>,
   marginBottom = 8,
@@ -165,25 +151,6 @@ function buildDecoratedBoxNode(
       }]],
     },
     layout: createBoxLayout(),
-    margin: [0, 0, 0, marginBottom],
-  }
-}
-
-function buildAnswerSectionNode(
-  stack: Array<Record<string, unknown>>,
-  marginBottom = 8,
-  paddingTop = 12
-) {
-  return {
-    table: {
-      widths: ['*'],
-      body: [[{
-        fillColor: '#f0f9ff',
-        border: [true, false, false, false],
-        stack,
-      }]],
-    },
-    layout: createAnswerSectionLayout(paddingTop),
     margin: [0, 0, 0, marginBottom],
   }
 }
@@ -206,24 +173,42 @@ function buildChoiceRows(rows: ExamPaperPdfChoice[]) {
   })
 }
 
-function buildAnswerFragmentStack(payload: TwoColumnAnswerFragmentPayload) {
+function buildPlainAnswerTextStack({
+  questionLabel,
+  answerText,
+  explanationText,
+}: {
+  questionLabel?: string
+  answerText?: string
+  explanationText?: string
+}) {
   const stack: Array<Record<string, unknown>> = []
 
-  if (payload.showAnswerLabel && payload.answerText) {
+  if (questionLabel) {
     stack.push({
-      text: `정답: ${payload.answerText}`,
-      fontSize: 10,
+      text: questionLabel,
+      fontSize: 16,
       bold: true,
-      color: '#1d4ed8',
-      margin: payload.explanationText ? [0, 0, 0, 6] : [0, 0, 0, 0],
+      color: '#111',
+      margin: [0, 0, 0, 6],
     })
   }
 
-  if (payload.explanationText) {
+  if (answerText) {
     stack.push({
-      text: `${payload.showAnswerLabel ? '해설' : '해설 (계속)'}: ${payload.explanationText}`,
-      fontSize: 9,
-      color: '#475569',
+      text: `정답: ${answerText}`,
+      fontSize: 12,
+      bold: true,
+      color: '#111',
+      margin: explanationText ? [0, 0, 0, 4] : [0, 0, 0, 0],
+    })
+  }
+
+  if (explanationText) {
+    stack.push({
+      text: `해설: ${explanationText}`,
+      fontSize: 12,
+      color: '#111',
       lineHeight: 1.8,
     })
   }
@@ -287,28 +272,14 @@ function renderSectionPdfNode(
       ? sectionPlan.payload
       : null
 
-    const answerNode = buildAnswerSectionNode(
-      answerPayload ? buildAnswerFragmentStack(answerPayload) : [],
-      sectionPlan.continuationPosition === 'single' || sectionPlan.continuationPosition === 'end' ? 10 : 0,
-      sectionPlan.continuationPosition === 'single' || sectionPlan.continuationPosition === 'start' ? 12 : 6
-    )
-
-    if (answerPayload?.questionLabel) {
-      return {
-        stack: [
-          {
-            text: answerPayload.questionLabel,
-            fontSize: 16,
-            bold: true,
-            color: '#111',
-            margin: [0, 0, 0, 12],
-          },
-          answerNode,
-        ],
-      }
+    return {
+      stack: buildPlainAnswerTextStack({
+        questionLabel: answerPayload?.questionLabel,
+        answerText: answerPayload?.showAnswerLabel ? answerPayload.answerText : undefined,
+        explanationText: answerPayload?.explanationText,
+      }),
+      margin: [0, 0, 0, 10],
     }
-
-    return answerNode
   }
 
   return { text: '' }
@@ -352,21 +323,13 @@ function renderSingleColumnBlockNode(block: SingleColumnBlock): Record<string, u
   }
 
   if (block.kind === 'answer' && block.payload.type === 'answer') {
-    return buildAnswerSectionNode([
-      {
-        text: `정답: ${block.payload.answerText}`,
-        fontSize: 10,
-        bold: true,
-        color: '#1d4ed8',
-        margin: [0, 0, 0, 6],
-      },
-      {
-        text: `해설: ${block.payload.explanationText}`,
-        fontSize: 9,
-        color: '#475569',
-        lineHeight: 1.8,
-      },
-    ], 12)
+    return {
+      stack: buildPlainAnswerTextStack({
+        questionLabel: block.payload.questionLabel,
+        answerText: block.payload.answerText,
+        explanationText: block.payload.explanationText,
+      }),
+    }
   }
 
   return { text: '' }
