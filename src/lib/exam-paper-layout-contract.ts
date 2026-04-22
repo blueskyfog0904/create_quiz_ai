@@ -153,7 +153,7 @@ interface ResolvedTwoColumnLayoutProfile {
 
 const DEFAULT_COMPAT_LAYOUT_PROFILE_NAME: TwoColumnLayoutProfileName = 'shared-default'
 const DEFAULT_COMPAT_LAYOUT_TARGET: TwoColumnLayoutTarget = 'preview'
-const ANSWER_ONLY_DOUBLE_BOTTOM_GUARD_BAND_UNITS = 200
+const DOUBLE_COLUMN_BOTTOM_GUARD_BAND_UNITS = 200
 
 const BODY_SECTION_DEFINITIONS = [
   {
@@ -514,10 +514,6 @@ function hasAnswerSections(questionPlan: TwoColumnQuestionSectionPlan) {
   return questionPlan.sections.some((section) => section.kind === 'answer')
 }
 
-function isAnswerOnlyQuestionPlan(questionPlan: TwoColumnQuestionSectionPlan) {
-  return questionPlan.sections.every((section) => section.kind === 'answer')
-}
-
 export function buildExamPaperRenderOptions(examPaper: ExamPaperLayoutInput): ExamPaperRenderOptions {
   const viewMode: ExamPaperLayoutViewMode = examPaper.viewMode ||
     (examPaper.includeAnswers === false ? 'exam-only' : 'exam-with-answers')
@@ -645,14 +641,15 @@ export function buildTwoColumnLayoutPlan({
   TwoColumnSectionPlan
 > {
   const includeAnswers = questionPlans.some(hasAnswerSections)
-  const isAnswerOnlyLayout = includeAnswers && questionPlans.every(isAnswerOnlyQuestionPlan)
   const resolvedProfile = resolveTwoColumnLayoutProfile(profile, target, hasDescription)
-  const firstPageSlotCapacity = isAnswerOnlyLayout
-    ? Math.max(0, resolvedProfile.firstPageSlotCapacity - ANSWER_ONLY_DOUBLE_BOTTOM_GUARD_BAND_UNITS)
-    : resolvedProfile.firstPageSlotCapacity
-  const otherPageSlotCapacity = isAnswerOnlyLayout
-    ? Math.max(0, resolvedProfile.otherPageSlotCapacity - ANSWER_ONLY_DOUBLE_BOTTOM_GUARD_BAND_UNITS)
-    : resolvedProfile.otherPageSlotCapacity
+  const firstPageSlotCapacity = Math.max(
+    0,
+    resolvedProfile.firstPageSlotCapacity - DOUBLE_COLUMN_BOTTOM_GUARD_BAND_UNITS
+  )
+  const otherPageSlotCapacity = Math.max(
+    0,
+    resolvedProfile.otherPageSlotCapacity - DOUBLE_COLUMN_BOTTOM_GUARD_BAND_UNITS
+  )
   const layoutPlan = buildExamPaperLayoutPlan<TwoColumnFragmentPlan>({
     questionPlans: questionPlans.map(toFragmentQuestionPlan),
     viewMode: includeAnswers ? 'exam-with-answers' : 'exam-only',

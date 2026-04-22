@@ -19,7 +19,7 @@ const normalizeQuestionFieldModuleUrl = new URL(
 ).href
 
 const FIRST_PAGE_CAPACITY_WITH_DESCRIPTION = 1120
-const ANSWER_ONLY_DOUBLE_GUARD_BAND_UNITS = 200
+const DOUBLE_GUARD_BAND_UNITS = 200
 
 async function loadRuntimeLayoutContractModule() {
   const tempDir = mkdtempSync(join(tmpdir(), 'exam-paper-underfill-layout-contract-'))
@@ -68,7 +68,7 @@ function createLongAnswerOnlyExamPaper() {
   }
 }
 
-test('first page uses remaining answered-mode space for question 2 instead of isolating question 1', async () => {
+test('exam-with-answers two-column keeps a bottom guard band on the first page right column', async () => {
   const layoutContractModule = await loadRuntimeLayoutContractModule()
   const examPaper = {
     ...regressionExamPaper,
@@ -85,26 +85,12 @@ test('first page uses remaining answered-mode space for question 2 instead of is
     hasDescription: true,
   })
 
-  const page1Left = layoutPlan.pages[0].columns[0]
   const page1Right = layoutPlan.pages[0].columns[1]
-  const page1Ids = [...page1Left.sectionIds, ...page1Right.sectionIds]
-  const page1LeftUsedUnits = sumColumnUnits(page1Left)
-  const page1LeftSlack = FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - page1LeftUsedUnits
+  const page1RightUsedUnits = sumColumnUnits(page1Right)
 
-  assert.ok(page1Ids.includes('question-1-passage'))
-  assert.ok(page1Ids.includes('question-1-answer'))
   assert.ok(
-    page1Ids.includes('question-2-header'),
-    'expected question 2 to start on page 1 so the lower whitespace is reduced'
-  )
-  assert.equal(
-    page1Ids.some((sectionId) => sectionId.startsWith('question-1-passage-part-')),
-    false,
-    'expected the first passage to stay atomic'
-  )
-  assert.ok(
-    page1LeftSlack < 200,
-    `expected the first-left slack to stay under 200 units, got ${page1LeftSlack}`
+    page1RightUsedUnits <= FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - DOUBLE_GUARD_BAND_UNITS,
+    `expected answered-mode right column to reserve at least ${DOUBLE_GUARD_BAND_UNITS} units, got ${FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - page1RightUsedUnits}`
   )
 })
 
@@ -126,7 +112,33 @@ test('answer-only two-column keeps a bottom guard band on the first page right c
   const page1RightUsedUnits = sumColumnUnits(page1Right)
 
   assert.ok(
-    page1RightUsedUnits <= FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - ANSWER_ONLY_DOUBLE_GUARD_BAND_UNITS,
-    `expected answer-only right column to reserve at least ${ANSWER_ONLY_DOUBLE_GUARD_BAND_UNITS} units, got ${FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - page1RightUsedUnits}`
+    page1RightUsedUnits <= FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - DOUBLE_GUARD_BAND_UNITS,
+    `expected answer-only right column to reserve at least ${DOUBLE_GUARD_BAND_UNITS} units, got ${FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - page1RightUsedUnits}`
+  )
+})
+
+test('exam-only two-column keeps a bottom guard band on the first page right column', async () => {
+  const layoutContractModule = await loadRuntimeLayoutContractModule()
+  const examPaper = {
+    ...regressionExamPaper,
+    viewMode: 'exam-only',
+  }
+  const renderOptions = layoutContractModule.buildExamPaperRenderOptions(examPaper)
+  const questionPlans = examPaper.questions.map((question) =>
+    layoutContractModule.buildQuestionSectionPlan(question, renderOptions)
+  )
+  const layoutPlan = layoutContractModule.buildTwoColumnLayoutPlan({
+    questionPlans,
+    profile: 'shared-default',
+    target: 'preview',
+    hasDescription: true,
+  })
+
+  const page1Right = layoutPlan.pages[0].columns[1]
+  const page1RightUsedUnits = sumColumnUnits(page1Right)
+
+  assert.ok(
+    page1RightUsedUnits <= FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - DOUBLE_GUARD_BAND_UNITS,
+    `expected exam-only right column to reserve at least ${DOUBLE_GUARD_BAND_UNITS} units, got ${FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - page1RightUsedUnits}`
   )
 })

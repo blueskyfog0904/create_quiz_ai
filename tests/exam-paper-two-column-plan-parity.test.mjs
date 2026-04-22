@@ -67,18 +67,6 @@ function getPageSectionIds(plan, pageIndex) {
   return page.columns.map((column) => column.sectionIds)
 }
 
-function assertPageIncludesAll(pageColumnIds, expectedIds) {
-  const pageIdSet = new Set(pageColumnIds.flat())
-
-  expectedIds.forEach((sectionId) => {
-    assert.equal(
-      pageIdSet.has(sectionId),
-      true,
-      `expected page to include exact section id ${sectionId}`
-    )
-  })
-}
-
 async function buildRegressionPlans(viewMode) {
   const {
     buildExamPaperRenderOptions,
@@ -192,16 +180,11 @@ test('buildQuestionSectionPlan normalizes questionTextBackward before storing se
   )
 })
 
-test('answered-mode first page can continue into question 2 instead of isolating question 1', async () => {
+test('answered-mode first page still keeps question 1 answer on page 1 while using the shared bottom guard band', async () => {
   const { pdfPlan } = await buildRegressionPlans('exam-with-answers')
-  const page1Ids = getPageSectionIds(pdfPlan, 0).flat()
+  const page1RightIds = getPageSectionIds(pdfPlan, 0)[1]
 
-  assertPageIncludesAll([page1Ids], [
-    'question-1-header',
-    'question-1-passage',
-    'question-1-answer',
-    'question-2-header',
-  ])
+  assert.ok(page1RightIds.includes('question-1-answer'))
 })
 
 test('preview/pdf parity keeps identical page grouping after removing first-page isolation', async () => {
