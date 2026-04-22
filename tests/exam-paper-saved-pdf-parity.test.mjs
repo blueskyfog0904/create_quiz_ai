@@ -181,22 +181,24 @@ test('saved PDF runtime keeps question 1 header/body nodes separate instead of r
   )
 
   const header = findRenderedSection(layoutPlan, renderedPages, 'question-1-header').node
-  const passage = findRenderedSection(layoutPlan, renderedPages, 'question-1-passage').node
+  const passage = findRenderedSection(layoutPlan, renderedPages, 'question-1-passage-part-1').node
+  const passageCell = passage.table.body[0][0]
 
   assert.match(header.text, /^1\./)
   assert.equal(Array.isArray(header.stack), false)
   assert.equal(header.unbreakable, undefined)
   assert.ok(passage.table)
   assert.equal(Array.isArray(passage.stack), false)
-  assert.deepEqual(passage.margin, [0, 0, 0, 8])
+  assert.deepEqual(passage.margin, [0, 0, 0, 0])
+  assert.deepEqual(passageCell.border, [true, true, true, false])
 })
 
-test('saved PDF runtime choice rows use actual zero-left-margin spacing instead of legacy indentation', async () => {
-  const { examPaper, layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-only')
-  const choiceNode = findRenderedSection(layoutPlan, renderedPages, 'question-1-choice').node
+test('saved PDF runtime choice fragments keep zero-left-margin spacing for individual rows', async () => {
+  const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-only')
+  const choiceNode = findRenderedSection(layoutPlan, renderedPages, 'question-1-choice-part-1').node
 
   assert.equal(Array.isArray(choiceNode.stack), true)
-  assert.equal(choiceNode.stack.length, examPaper.questions[0].choices.length)
+  assert.equal(choiceNode.stack.length, 1)
 
   choiceNode.stack.forEach((row) => {
     assert.deepEqual(row.margin, [0, 0, 0, 8])

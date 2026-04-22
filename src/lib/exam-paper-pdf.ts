@@ -6,8 +6,9 @@ import {
   buildExamPaperRenderOptions,
   buildQuestionSectionPlan,
   buildTwoColumnLayoutPlan,
-  type TwoColumnQuestionSectionPlan,
-  type TwoColumnSectionPlan,
+  type TwoColumnFragmentPlan,
+  type TwoColumnAnswerFragmentPayload,
+  type TwoColumnChoiceFragmentPayload,
 } from '@/lib/exam-paper-layout-contract'
 import {
   normalizeQuestionTextBackward,
@@ -133,7 +134,7 @@ function createBoxLayout(borderColor = '#9ca3af') {
   }
 }
 
-function createAnswerSectionLayout() {
+function createAnswerSectionLayout(paddingTop = 12) {
   return {
     hLineWidth: () => 0,
     vLineWidth: (index: number) => (index === 0 ? 4 : 0),
@@ -141,18 +142,22 @@ function createAnswerSectionLayout() {
     vLineColor: (index: number) => (index === 0 ? '#3b82f6' : '#3b82f6'),
     paddingLeft: () => 12,
     paddingRight: () => 12,
-    paddingTop: () => 12,
+    paddingTop: () => paddingTop,
     paddingBottom: () => 12,
   }
 }
 
-function buildDecoratedBoxNode(content: Record<string, unknown>, marginBottom = 8) {
+function buildDecoratedBoxNode(
+  content: Record<string, unknown>,
+  marginBottom = 8,
+  border: [boolean, boolean, boolean, boolean] = [true, true, true, true]
+) {
   return {
     table: {
       widths: ['*'],
       body: [[{
         ...content,
-        border: [true, true, true, true],
+        border,
       }]],
     },
     layout: createBoxLayout(),
@@ -160,7 +165,11 @@ function buildDecoratedBoxNode(content: Record<string, unknown>, marginBottom = 
   }
 }
 
-function buildAnswerSectionNode(stack: Array<Record<string, unknown>>, marginBottom = 8) {
+function buildAnswerSectionNode(
+  stack: Array<Record<string, unknown>>,
+  marginBottom = 8,
+  paddingTop = 12
+) {
   return {
     table: {
       widths: ['*'],
@@ -170,18 +179,17 @@ function buildAnswerSectionNode(stack: Array<Record<string, unknown>>, marginBot
         stack,
       }]],
     },
-    layout: createAnswerSectionLayout(),
+    layout: createAnswerSectionLayout(paddingTop),
     margin: [0, 0, 0, marginBottom],
   }
 }
 
-function buildChoiceChunks(question: ExamPaperPdfQuestion) {
-  // Historical baseline margin: [0, 0, 0, 6]
-  return question.choices.map((choice, index) => {
+function buildChoiceRows(rows: ExamPaperPdfChoice[]) {
+  return rows.map((choice, index) => {
     const choiceText = `${choice.label} ${choice.text}`
 
     return {
-      id: `question-body-${question.number}-choice-${index}`,
+      id: `choice-row-${index}`,
       kind: 'choice' as const,
       estimatedHeight: estimateTextHeight(choiceText, 34, 5, 5),
       node: {
@@ -194,111 +202,105 @@ function buildChoiceChunks(question: ExamPaperPdfQuestion) {
   })
 }
 
-function buildExplanationChunks(questionNumber: number, answer: string, explanation: string) {
-  const answerText = answer.trim()
-  const explanationText = explanation.trim()
+function buildAnswerFragmentStack(payload: TwoColumnAnswerFragmentPayload) {
   const stack: Array<Record<string, unknown>> = []
 
-  if (answerText) {
+  if (payload.showAnswerLabel && payload.answerText) {
     stack.push({
-      text: `정답: ${answerText}`,
+      text: `정답: ${payload.answerText}`,
       fontSize: 10,
       bold: true,
       color: '#1d4ed8',
-      margin: explanationText ? [0, 0, 0, 6] : [0, 0, 0, 0],
+      margin: payload.explanationText ? [0, 0, 0, 6] : [0, 0, 0, 0],
     })
   }
 
-  if (explanationText) {
+  if (payload.explanationText) {
     stack.push({
-      text: `해설: ${explanationText}`,
+      text: `${payload.showAnswerLabel ? '해설' : '해설 (계속)'}: ${payload.explanationText}`,
       fontSize: 9,
       color: '#475569',
       lineHeight: 1.8,
     })
   }
 
-  if (stack.length === 0) {
-    return []
-  }
-
-  return [{
-    id: `question-answer-${questionNumber}`,
-    kind: 'answer' as const,
-    estimatedHeight: estimateTextHeight(`${answerText}\n${explanationText}`.trim(), 40, 4.8, 18),
-    node: buildAnswerSectionNode(stack, 10),
-  }]
+  return stack
 }
 
 function renderSectionPdfNode(
-  sectionPlan: TwoColumnSectionPlan,
-  question: ExamPaperPdfQuestion | undefined
+  sectionPlan: TwoColumnFragmentPlan
 ): Record<string, unknown> {
   if (sectionPlan.kind === 'header') {
+    const headerText = sectionPlan.payload.type === 'header'
+      ? sectionPlan.payload.text
+      : ''
+
     return {
       id: `question-body-${sectionPlan.questionNumber}-header`,
-      text: `${sectionPlan.questionNumber}. ${sectionPlan.text ?? ''}`,
+      text: `${sectionPlan.questionNumber}. ${headerText}`,
       style: 'questionText',
       margin: [0, 0, 0, 12],
     }
   }
 
   if (sectionPlan.kind === 'body') {
+    const bodyText = sectionPlan.payload.type === 'body'
+      ? sectionPlan.payload.text
+      : ''
+    const border: [boolean, boolean, boolean, boolean] = sectionPlan.continuationPosition === 'single'
+      ? [true, true, true, true]
+      : sectionPlan.continuationPosition === 'start'
+        ? [true, true, true, false]
+        : sectionPlan.continuationPosition === 'middle'
+          ? [true, false, true, false]
+          : [true, false, true, true]
+
     return buildDecoratedBoxNode({
-      text: buildInlineSegments(sectionPlan.text ?? ''),
+      text: buildInlineSegments(bodyText),
       fontSize: 13,
       lineHeight: 1.8,
       color: '#374151',
-    })
+    }, sectionPlan.continuationPosition === 'single' || sectionPlan.continuationPosition === 'end' ? 8 : 0, border)
   }
 
   if (sectionPlan.kind === 'choice') {
-    if (!question || !Array.isArray(question.choices) || question.choices.length === 0) {
-      return {
-        text: sectionPlan.text ?? '',
-        fontSize: 13,
-        lineHeight: 1.8,
-      }
-    }
+    const choicePayload = sectionPlan.payload.type === 'choice'
+      ? sectionPlan.payload
+      : {
+        type: 'choice',
+        rows: [],
+        choiceStartIndex: 0,
+        choiceEndIndex: -1,
+      } satisfies TwoColumnChoiceFragmentPayload
 
     return {
-      stack: buildChoiceChunks(question).map((chunk) => chunk.node),
+      stack: buildChoiceRows(choicePayload.rows).map((chunk) => chunk.node),
     }
   }
 
   if (sectionPlan.kind === 'answer') {
-    if (!question) {
-      return buildAnswerSectionNode([
-        {
-          text: sectionPlan.text ?? '',
-          fontSize: 9,
-          color: '#475569',
-          lineHeight: 1.8,
-        },
-      ], 10)
-    }
+    const answerPayload = sectionPlan.payload.type === 'answer'
+      ? sectionPlan.payload
+      : null
 
-    const [answerChunk] = buildExplanationChunks(
-      sectionPlan.questionNumber,
-      question.answer,
-      question.explanation
+    return buildAnswerSectionNode(
+      answerPayload ? buildAnswerFragmentStack(answerPayload) : [],
+      sectionPlan.continuationPosition === 'single' || sectionPlan.continuationPosition === 'end' ? 10 : 0,
+      sectionPlan.continuationPosition === 'single' || sectionPlan.continuationPosition === 'start' ? 12 : 6
     )
-
-    return answerChunk?.node ?? buildAnswerSectionNode([], 10)
   }
 
-  return { text: sectionPlan.text ?? '' }
+  return { text: '' }
 }
 
 function buildQuestionChunksForTwoColumn(
-  questionPlan: TwoColumnQuestionSectionPlan,
-  question: ExamPaperPdfQuestion | undefined
+  sections: TwoColumnFragmentPlan[]
 ): PdfPaginationChunk[] {
-  return questionPlan.sections.map((sectionPlan) => ({
+  return sections.map((sectionPlan) => ({
     id: sectionPlan.id,
     kind: sectionPlan.kind,
     estimatedHeight: sectionPlan.estimatedUnits,
-    node: renderSectionPdfNode(sectionPlan, question),
+    node: renderSectionPdfNode(sectionPlan),
   }))
 }
 
@@ -338,17 +340,6 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
         layoutSuffix,
       })
     )
-    const questionMap = new Map(
-      examPaper.questions.map((question) => [question.number, question] as const)
-    )
-    const questionChunkMap = new Map(
-      questionPlans.flatMap((questionPlan) =>
-        buildQuestionChunksForTwoColumn(
-          questionPlan,
-          questionMap.get(questionPlan.questionNumber)
-        ).map((chunk) => [chunk.id, chunk] as const)
-      )
-    )
     // Shared two-column parity path: buildTwoColumnLayoutPlan supersedes the older
     // buildExamPaperLayoutPlan-only PDF pagination lane while keeping local node rendering.
     const layoutPlan = buildTwoColumnLayoutPlan({
@@ -357,6 +348,15 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
       target: 'pdf',
       hasDescription: Boolean(examPaper.description),
     })
+    const questionChunkMap = new Map(
+      layoutPlan.pages.flatMap((page) => (
+        page.columns.flatMap((column) => (
+          buildQuestionChunksForTwoColumn(
+            column.sections.map((section) => section.payload)
+          ).map((chunk) => [chunk.id, chunk] as const)
+        ))
+      ))
+    )
 
     layoutPlan.pages.forEach((page, index) => {
       content.push({

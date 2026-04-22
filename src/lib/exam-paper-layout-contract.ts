@@ -1,4 +1,7 @@
-import { paginateTwoColumnQuestionChunks } from '@/lib/exam-paper-pdf-pagination.js'
+import {
+  paginateTwoColumnQuestionChunks,
+  splitTextIntoFlowChunks,
+} from '@/lib/exam-paper-pdf-pagination.js'
 import { normalizeQuestionTextBackward } from '@/lib/questions/normalize-question-field'
 
 export type ExamPaperLayoutViewMode = 'exam-only' | 'answer-only' | 'exam-with-answers'
@@ -48,11 +51,11 @@ export interface ExamPaperPagePlan<TPayload> {
   columns: [ExamPaperColumnPlan<TPayload>, ExamPaperColumnPlan<TPayload>]
 }
 
-export interface ExamPaperLayoutPlan<TPayload> {
+export interface ExamPaperLayoutPlan<TPagePayload, TQuestionPayload = TPagePayload> {
   viewMode: ExamPaperLayoutViewMode
   columnLayout: ExamPaperLayoutColumnLayout
-  pages: ExamPaperPagePlan<TPayload>[]
-  questions: ExamPaperQuestionPlan<TPayload>[]
+  pages: ExamPaperPagePlan<TPagePayload>[]
+  questions: ExamPaperQuestionPlan<TQuestionPayload>[]
 }
 
 export interface TwoColumnLayoutChoiceLike {
@@ -78,11 +81,61 @@ export interface TwoColumnSectionPlan {
   sectionKey: string
   estimatedUnits: number
   text?: string
+  choiceRows?: TwoColumnLayoutChoiceLike[]
+  answerText?: string
+  explanationText?: string
 }
 
 export interface TwoColumnQuestionSectionPlan {
   questionNumber: number
   sections: TwoColumnSectionPlan[]
+}
+
+export type TwoColumnContinuationPosition = 'single' | 'start' | 'middle' | 'end'
+
+export interface TwoColumnHeaderFragmentPayload {
+  type: 'header'
+  text: string
+}
+
+export interface TwoColumnBodyFragmentPayload {
+  type: 'body'
+  text: string
+}
+
+export interface TwoColumnChoiceFragmentPayload {
+  type: 'choice'
+  rows: TwoColumnLayoutChoiceLike[]
+  choiceStartIndex: number
+  choiceEndIndex: number
+}
+
+export interface TwoColumnAnswerFragmentPayload {
+  type: 'answer'
+  answerText?: string
+  explanationText?: string
+  explanationChunkIndex?: number
+  explanationChunkCount?: number
+  showAnswerLabel: boolean
+}
+
+export type TwoColumnFragmentPayload =
+  | TwoColumnHeaderFragmentPayload
+  | TwoColumnBodyFragmentPayload
+  | TwoColumnChoiceFragmentPayload
+  | TwoColumnAnswerFragmentPayload
+
+export interface TwoColumnFragmentPlan {
+  id: string
+  sourceSectionId: string
+  questionNumber: number
+  kind: TwoColumnSectionKind
+  sectionKey: string
+  continuationPosition: TwoColumnContinuationPosition
+  fragmentIndex: number
+  estimatedUnits: number
+  splittable: boolean
+  payload: TwoColumnFragmentPayload
 }
 
 export interface BuildTwoColumnLayoutPlanInput {
@@ -192,6 +245,305 @@ function estimateSectionUnits(
   }
 
   return baseUnit + (countEstimatedLines(normalized, charsPerLine) * lineUnit)
+}
+
+function getContinuationPosition(
+  index: number,
+  totalCount: number
+): TwoColumnContinuationPosition {
+  if (totalCount <= 1) {
+    return 'single'
+  }
+
+  if (index === 0) {
+    return 'start'
+  }
+
+  if (index === totalCount - 1) {
+    return 'end'
+  }
+
+  return 'middle'
+}
+
+function buildFragmentId(sourceSectionId: string, index: number, totalCount: number) {
+  return totalCount <= 1 ? sourceSectionId : `${sourceSectionId}-part-${index + 1}`
+}
+
+function buildChoiceRowText(choice: TwoColumnLayoutChoiceLike) {
+  return `${choice.label}${choice.text}`
+}
+
+function estimateBodyFragmentUnits(
+  text: string,
+  continuationPosition: TwoColumnContinuationPosition
+) {
+  return estimateSectionUnits(text, {
+    charsPerLine: 38,
+    lineUnit: 23,
+    baseUnit: continuationPosition === 'single'
+      ? 42
+      : continuationPosition === 'start'
+        ? 30
+        : continuationPosition === 'middle'
+          ? 16
+          : 20,
+  })
+}
+
+function estimateChoiceFragmentUnits(
+  rows: TwoColumnLayoutChoiceLike[],
+  continuationPosition: TwoColumnContinuationPosition
+) {
+  return estimateSectionUnits(rows.map(buildChoiceRowText).join('\n'), {
+    charsPerLine: 34,
+    lineUnit: 22,
+    baseUnit: continuationPosition === 'single' ? 52 : 10,
+  })
+}
+
+function estimateAnswerFragmentUnits(
+  {
+    answerText,
+    explanationText,
+    showAnswerLabel,
+  }: {
+    answerText?: string
+    explanationText?: string
+    showAnswerLabel: boolean
+  },
+  continuationPosition: TwoColumnContinuationPosition
+) {
+  const combinedText = [showAnswerLabel ? answerText ?? '' : '', explanationText ?? '']
+    .filter(Boolean)
+    .join('\n')
+
+  return estimateSectionUnits(combinedText, {
+    charsPerLine: 40,
+    lineUnit: 22,
+    baseUnit: continuationPosition === 'single'
+      ? 156
+      : showAnswerLabel
+        ? 64
+        : continuationPosition === 'middle'
+          ? 14
+          : 20,
+  })
+}
+
+function createSingleFragmentFromSection(section: TwoColumnSectionPlan): TwoColumnFragmentPlan {
+  if (section.kind === 'header') {
+    return {
+      id: section.id,
+      sourceSectionId: section.id,
+      questionNumber: section.questionNumber,
+      kind: section.kind,
+      sectionKey: section.sectionKey,
+      continuationPosition: 'single',
+      fragmentIndex: 0,
+      estimatedUnits: section.estimatedUnits,
+      splittable: false,
+      payload: {
+        type: 'header',
+        text: section.text ?? '',
+      },
+    }
+  }
+
+  if (section.kind === 'body') {
+    return {
+      id: section.id,
+      sourceSectionId: section.id,
+      questionNumber: section.questionNumber,
+      kind: section.kind,
+      sectionKey: section.sectionKey,
+      continuationPosition: 'single',
+      fragmentIndex: 0,
+      estimatedUnits: section.estimatedUnits,
+      splittable: true,
+      payload: {
+        type: 'body',
+        text: section.text ?? '',
+      },
+    }
+  }
+
+  if (section.kind === 'choice') {
+    return {
+      id: section.id,
+      sourceSectionId: section.id,
+      questionNumber: section.questionNumber,
+      kind: section.kind,
+      sectionKey: section.sectionKey,
+      continuationPosition: 'single',
+      fragmentIndex: 0,
+      estimatedUnits: section.estimatedUnits,
+      splittable: true,
+      payload: {
+        type: 'choice',
+        rows: section.choiceRows ?? [],
+        choiceStartIndex: 0,
+        choiceEndIndex: Math.max(0, (section.choiceRows?.length ?? 1) - 1),
+      },
+    }
+  }
+
+  return {
+    id: section.id,
+    sourceSectionId: section.id,
+    questionNumber: section.questionNumber,
+    kind: section.kind,
+    sectionKey: section.sectionKey,
+    continuationPosition: 'single',
+    fragmentIndex: 0,
+    estimatedUnits: section.estimatedUnits,
+    splittable: true,
+    payload: {
+      type: 'answer',
+      answerText: section.answerText,
+      explanationText: section.explanationText,
+      explanationChunkIndex: section.explanationText ? 1 : undefined,
+      explanationChunkCount: section.explanationText ? 1 : undefined,
+      showAnswerLabel: true,
+    },
+  }
+}
+
+function createBodyFragments(section: TwoColumnSectionPlan) {
+  const bodyChunks = splitTextIntoFlowChunks(section.text)
+
+  if (bodyChunks.length <= 1) {
+    return [createSingleFragmentFromSection(section)]
+  }
+
+  return bodyChunks.map((chunkText, index) => {
+    const continuationPosition = getContinuationPosition(index, bodyChunks.length)
+
+    return {
+      id: buildFragmentId(section.id, index, bodyChunks.length),
+      sourceSectionId: section.id,
+      questionNumber: section.questionNumber,
+      kind: section.kind,
+      sectionKey: section.sectionKey,
+      continuationPosition,
+      fragmentIndex: index,
+      estimatedUnits: estimateBodyFragmentUnits(chunkText, continuationPosition),
+      splittable: true,
+      payload: {
+        type: 'body',
+        text: chunkText,
+      },
+    } satisfies TwoColumnFragmentPlan
+  })
+}
+
+function createChoiceFragments(section: TwoColumnSectionPlan) {
+  const choiceRows = section.choiceRows ?? []
+
+  if (choiceRows.length <= 1 || section.estimatedUnits <= 260) {
+    return [createSingleFragmentFromSection(section)]
+  }
+
+  return choiceRows.map((choiceRow, index) => {
+    const continuationPosition = getContinuationPosition(index, choiceRows.length)
+
+    return {
+      id: buildFragmentId(section.id, index, choiceRows.length),
+      sourceSectionId: section.id,
+      questionNumber: section.questionNumber,
+      kind: section.kind,
+      sectionKey: section.sectionKey,
+      continuationPosition,
+      fragmentIndex: index,
+      estimatedUnits: estimateChoiceFragmentUnits([choiceRow], continuationPosition),
+      splittable: true,
+      payload: {
+        type: 'choice',
+        rows: [choiceRow],
+        choiceStartIndex: index,
+        choiceEndIndex: index,
+      },
+    } satisfies TwoColumnFragmentPlan
+  })
+}
+
+function createAnswerFragments(section: TwoColumnSectionPlan) {
+  if (
+    section.estimatedUnits <= 260 ||
+    !section.explanationText ||
+    !section.answerText
+  ) {
+    return [createSingleFragmentFromSection(section)]
+  }
+
+  const explanationChunks = splitTextIntoFlowChunks(section.explanationText, 220)
+  const fragmentInputs = explanationChunks.map((chunkText, index) => ({
+    answerText: index === 0 ? section.answerText : undefined,
+    explanationText: chunkText,
+    showAnswerLabel: index === 0,
+  }))
+
+  return fragmentInputs.map((fragmentInput, index) => {
+    const continuationPosition = getContinuationPosition(index, fragmentInputs.length)
+
+    return {
+      id: buildFragmentId(section.id, index, fragmentInputs.length),
+      sourceSectionId: section.id,
+      questionNumber: section.questionNumber,
+      kind: section.kind,
+      sectionKey: index === 0 ? 'answer' : 'explanation',
+      continuationPosition,
+      fragmentIndex: index,
+      estimatedUnits: estimateAnswerFragmentUnits(fragmentInput, continuationPosition),
+      splittable: true,
+      payload: {
+        type: 'answer',
+        answerText: fragmentInput.answerText,
+        explanationText: fragmentInput.explanationText,
+        explanationChunkIndex: index + 1,
+        explanationChunkCount: fragmentInputs.length,
+        showAnswerLabel: fragmentInput.showAnswerLabel,
+      },
+    } satisfies TwoColumnFragmentPlan
+  })
+}
+
+function buildSectionFragments(section: TwoColumnSectionPlan) {
+  if (section.kind === 'body') {
+    return createBodyFragments(section)
+  }
+
+  if (section.kind === 'choice') {
+    return createChoiceFragments(section)
+  }
+
+  if (section.kind === 'answer') {
+    return createAnswerFragments(section)
+  }
+
+  return [createSingleFragmentFromSection(section)]
+}
+
+function toLayoutFragment(
+  fragment: TwoColumnFragmentPlan
+): ExamPaperSectionChunk<TwoColumnFragmentPlan> {
+  return {
+    id: fragment.id,
+    estimatedHeight: fragment.estimatedUnits,
+    kind: fragment.kind,
+    payload: fragment,
+  }
+}
+
+function toFragmentQuestionPlan(
+  questionPlan: TwoColumnQuestionSectionPlan
+): ExamPaperQuestionPlan<TwoColumnFragmentPlan> {
+  return {
+    questionNumber: questionPlan.questionNumber,
+    sections: questionPlan.sections.flatMap((section) => (
+      buildSectionFragments(section).map(toLayoutFragment)
+    )),
+  }
 }
 
 function chunkArray<TValue>(items: TValue[], size: number) {
@@ -385,8 +737,8 @@ function buildTwoColumnLayoutStages(
 }
 
 function mergeStageLayouts(
-  stageLayouts: ExamPaperLayoutPlan<TwoColumnSectionPlan>[]
-): ExamPaperPagePlan<TwoColumnSectionPlan>[] {
+  stageLayouts: ExamPaperLayoutPlan<TwoColumnFragmentPlan, TwoColumnSectionPlan>[]
+): ExamPaperPagePlan<TwoColumnFragmentPlan>[] {
   return stageLayouts
     .flatMap((stageLayout) => stageLayout.pages)
     .map((page, pageIndex) => ({
@@ -473,6 +825,7 @@ export function buildQuestionSectionPlan(
           baseUnit: 52,
         }),
         text: choiceText,
+        choiceRows: question.choices,
       })
     }
   }
@@ -494,6 +847,8 @@ export function buildQuestionSectionPlan(
           baseUnit: 156,
         }),
         text: combinedAnswerText,
+        answerText,
+        explanationText,
       })
     }
   }
@@ -509,15 +864,18 @@ export function buildTwoColumnLayoutPlan({
   profile = 'shared-default',
   target = 'preview',
   hasDescription = false,
-}: BuildTwoColumnLayoutPlanInput): ExamPaperLayoutPlan<TwoColumnSectionPlan> {
+}: BuildTwoColumnLayoutPlanInput): ExamPaperLayoutPlan<
+  TwoColumnFragmentPlan,
+  TwoColumnSectionPlan
+> {
   const includeAnswers = questionPlans.some(hasAnswerSections)
   const resolvedProfile = resolveTwoColumnLayoutProfile(profile, target, hasDescription)
   const stageLayouts = buildTwoColumnLayoutStages(
     questionPlans,
     resolvedProfile,
     includeAnswers
-  ).map((stage) => buildExamPaperLayoutPlan<TwoColumnSectionPlan>({
-    questionPlans: stage.questionPlans.map(toLayoutQuestionPlan),
+  ).map((stage) => buildExamPaperLayoutPlan<TwoColumnFragmentPlan>({
+    questionPlans: stage.questionPlans.map(toFragmentQuestionPlan),
     viewMode: includeAnswers ? 'exam-with-answers' : 'exam-only',
     columnLayout: 'double',
     firstPageSlotCapacity: stage.firstPageSlotCapacity,

@@ -146,8 +146,8 @@ export const regressionParityExpectations = {
     pageIndex: 0,
     questionNumber: 1,
     anchorReason: 'left-column-lead-before-choice-spill',
-    leadingSectionIds: ['question-1-header', 'question-1-passage'],
-    shouldNotAppearInLeftColumn: ['question-1-choice'],
+    leadingSectionIds: ['question-1-header', 'question-1-passage-part-1'],
+    shouldNotAppearInLeftColumn: ['question-1-choice-part-1'],
   },
   page3: {
     pageIndex: 2,

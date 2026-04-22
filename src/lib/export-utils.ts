@@ -11,7 +11,9 @@ import {
 import type {
   ExamPaperRenderOptions,
   ExamPaperSectionChunk,
-  TwoColumnSectionPlan,
+  TwoColumnAnswerFragmentPayload,
+  TwoColumnChoiceFragmentPayload,
+  TwoColumnFragmentPlan,
 } from '@/lib/exam-paper-layout-contract'
 import {
   normalizeQuestionTextBackward,
@@ -232,20 +234,7 @@ function renderSingleColumnQuestionHtml(
   `
 }
 
-type PreviewPlannedSection = TwoColumnSectionPlan
-
-function getQuestionForSection(
-  questionMap: Map<number, Question>,
-  sectionPlan: PreviewPlannedSection
-) {
-  const question = questionMap.get(sectionPlan.questionNumber)
-
-  if (!question) {
-    throw new Error(`Question ${sectionPlan.questionNumber} is missing from the 2-column preview map`)
-  }
-
-  return question
-}
+type PreviewPlannedSection = TwoColumnFragmentPlan
 
 function buildPlannedSectionAttributes(sectionPlan: PreviewPlannedSection) {
   return [
@@ -255,14 +244,47 @@ function buildPlannedSectionAttributes(sectionPlan: PreviewPlannedSection) {
   ].join(' ')
 }
 
+function buildContinuationClassName(sectionPlan: PreviewPlannedSection) {
+  if (sectionPlan.continuationPosition === 'single') {
+    return ''
+  }
+
+  return ` chunk-linked-${sectionPlan.continuationPosition}`
+}
+
+function renderAnswerFragmentHtml(
+  payload: TwoColumnAnswerFragmentPayload,
+  sectionPlan: PreviewPlannedSection
+) {
+  const continuationClassName = buildContinuationClassName(sectionPlan)
+  const isContinued = sectionPlan.continuationPosition !== 'single' && sectionPlan.fragmentIndex > 0
+
+  return `
+    <div class="answer-section${isContinued ? ' answer-section-continued' : ''}${continuationClassName}">
+      ${payload.showAnswerLabel && payload.answerText ? `
+        <div class="answer">정답: ${escapeHtml(payload.answerText)}</div>
+      ` : ''}
+      ${payload.explanationText ? `
+        <div class="explanation">
+          <span class="explanation-label">${payload.showAnswerLabel ? '해설:' : '해설 (계속):'}</span> ${escapeHtml(payload.explanationText).replace(/\n/g, '<br>')}
+        </div>
+      ` : ''}
+    </div>
+  `
+}
+
 function renderPlannedTwoColumnSectionHtml(
   sectionPlan: PreviewPlannedSection,
-  question: Question,
   showQuestions: boolean
 ): HtmlPaginationChunk {
   const sectionAttributes = buildPlannedSectionAttributes(sectionPlan)
+  const continuationClassName = buildContinuationClassName(sectionPlan)
 
   if (sectionPlan.kind === 'header') {
+    const headerText = sectionPlan.payload.type === 'header'
+      ? sectionPlan.payload.text
+      : ''
+
     return {
       id: sectionPlan.id,
       estimatedHeight: sectionPlan.estimatedUnits,
@@ -271,10 +293,10 @@ function renderPlannedTwoColumnSectionHtml(
         <div class="question-chunk question-chunk-anchor" ${sectionAttributes}>
           ${showQuestions ? `
             <div class="question-text">
-              ${question.number}. ${escapeHtml(sectionPlan.text ?? question.questionText)}
+              ${sectionPlan.questionNumber}. ${escapeHtml(headerText)}
             </div>
           ` : `
-            <div class="question-number">${question.number}번</div>
+            <div class="question-number">${sectionPlan.questionNumber}번</div>
           `}
         </div>
       `,
@@ -282,14 +304,18 @@ function renderPlannedTwoColumnSectionHtml(
   }
 
   if (sectionPlan.kind === 'body') {
+    const bodyText = sectionPlan.payload.type === 'body'
+      ? sectionPlan.payload.text
+      : ''
+
     return {
       id: sectionPlan.id,
       estimatedHeight: sectionPlan.estimatedUnits,
       kind: 'body',
       html: `
         <div class="question-chunk question-body-chunk" ${sectionAttributes}>
-          <div class="text-box">
-            ${renderInlineBracketUnderlineHtml(sectionPlan.text)}
+          <div class="text-box${continuationClassName}">
+            ${renderInlineBracketUnderlineHtml(bodyText)}
           </div>
         </div>
       `,
@@ -297,13 +323,22 @@ function renderPlannedTwoColumnSectionHtml(
   }
 
   if (sectionPlan.kind === 'choice') {
+    const choicePayload = sectionPlan.payload.type === 'choice'
+      ? sectionPlan.payload
+      : {
+        type: 'choice',
+        rows: [],
+        choiceStartIndex: 0,
+        choiceEndIndex: -1,
+      } satisfies TwoColumnChoiceFragmentPayload
+
     return {
       id: sectionPlan.id,
       estimatedHeight: sectionPlan.estimatedUnits,
       kind: 'choice',
       html: `
         <div class="question-chunk question-choice-chunk" ${sectionAttributes}>
-          ${renderQuestionChoicesHtml(question.choices)}
+          ${renderQuestionChoicesHtml(choicePayload.rows)}
         </div>
       `,
     }
@@ -315,7 +350,9 @@ function renderPlannedTwoColumnSectionHtml(
     kind: 'answer',
     html: `
       <div class="question-chunk question-answer-chunk" ${sectionAttributes}>
-        ${renderQuestionAnswerHtml(question, showQuestions)}
+        ${sectionPlan.payload.type === 'answer'
+          ? renderAnswerFragmentHtml(sectionPlan.payload, sectionPlan)
+          : ''}
       </div>
     `,
   }
@@ -323,12 +360,10 @@ function renderPlannedTwoColumnSectionHtml(
 
 function mapPlannedSectionsToHtmlChunks(
   sections: ExamPaperSectionChunk<PreviewPlannedSection>[],
-  questionMap: Map<number, Question>,
   showQuestions: boolean
 ) {
   return sections.map((section) => renderPlannedTwoColumnSectionHtml(
     section.payload,
-    getQuestionForSection(questionMap, section.payload),
     showQuestions
   ))
 }
@@ -346,11 +381,10 @@ function buildTwoColumnPreviewPages(
     target: 'preview',
     hasDescription: Boolean(examPaper.description),
   })
-  const questionMap = new Map(examPaper.questions.map((question) => [question.number, question]))
 
   return layoutPlan.pages.map((page) => {
     const [left, right] = page.columns.map((column) => (
-      mapPlannedSectionsToHtmlChunks(column.sections, questionMap, renderOptions.showQuestions)
+      mapPlannedSectionsToHtmlChunks(column.sections, renderOptions.showQuestions)
     )) as [HtmlPaginationChunk[], HtmlPaginationChunk[]]
 
     return {
