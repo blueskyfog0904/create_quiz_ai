@@ -21,6 +21,10 @@ const layoutContractSource = readFileSync(
   new URL('../src/lib/exam-paper-layout-contract.ts', import.meta.url),
   'utf8'
 )
+const singleColumnLayoutSource = readFileSync(
+  new URL('../src/lib/exam-paper-single-column-layout.ts', import.meta.url),
+  'utf8'
+)
 
 const libraryExportButtonsSource = readFileSync(
   new URL('../src/app/(dashboard)/library/exam-papers/[id]/export-buttons.tsx', import.meta.url),
@@ -73,7 +77,18 @@ async function loadRuntimeLayoutContractModule() {
   }
 }
 
-async function loadRuntimeExportUtilsModule(layoutContractModuleUrl) {
+async function loadRuntimeSingleColumnLayoutModule() {
+  const tempDir = mkdtempSync(join(tmpdir(), 'exam-paper-browser-single-column-layout-'))
+  const tempModulePath = join(tempDir, 'exam-paper-single-column-layout.runtime.ts')
+  const runtimeSource = singleColumnLayoutSource
+    .replace(/@\/lib\/questions\/normalize-question-field/g, normalizeQuestionFieldModuleUrl)
+
+  writeFileSync(tempModulePath, runtimeSource)
+
+  return `${pathToFileURL(tempModulePath).href}?t=${Date.now()}`
+}
+
+async function loadRuntimeExportUtilsModule(layoutContractModuleUrl, singleColumnLayoutModuleUrl) {
   const tempDir = mkdtempSync(join(tmpdir(), 'exam-paper-browser-export-utils-'))
   const tempModulePath = join(tempDir, 'export-utils.runtime.ts')
 
@@ -112,6 +127,10 @@ async function loadRuntimeExportUtilsModule(layoutContractModuleUrl) {
       `from '${layoutContractModuleUrl}'`
     )
     .replace(
+      /from '@\/lib\/exam-paper-single-column-layout'/g,
+      `from '${singleColumnLayoutModuleUrl}'`
+    )
+    .replace(
       /from '@\/lib\/questions\/normalize-question-field'/g,
       `from '${normalizeQuestionFieldModuleUrl}'`
     )
@@ -148,12 +167,13 @@ test('exam paper PDF util uses the generated Pretendard TTF VFS bundle and share
   assert.match(pdfSource, /buildAnswerSectionNode/)
 })
 
-test('legacy print template builder is extracted for shared preview and print output', () => {
+test('print template builder uses dedicated single-column groups and shared two-column preview output', () => {
   assert.match(exportUtilsSource, /export function buildExamPaperPrintHtml/)
   assert.match(exportUtilsSource, /export function openExamPaperPrintPreview/)
   assert.match(exportUtilsSource, /autoPrint = false/)
   assert.match(exportUtilsSource, /closeAfterPrint = false/)
-  assert.match(exportUtilsSource, /paginateExamPaperQuestions/)
+  assert.match(exportUtilsSource, /buildSingleColumnQuestionGroups/)
+  assert.match(exportUtilsSource, /paginateSingleColumnQuestionGroups/)
   assert.match(exportUtilsSource, /preview-page/)
   assert.match(exportUtilsSource, /questions-container/)
   assert.match(exportUtilsSource, /column-count:\s*2/)
@@ -164,7 +184,11 @@ test('two-column preview follows the shared planner page grouping for the regres
     module: layoutContractModule,
     moduleUrl: layoutContractModuleUrl,
   } = await loadRuntimeLayoutContractModule()
-  const exportUtilsModule = await loadRuntimeExportUtilsModule(layoutContractModuleUrl)
+  const singleColumnLayoutModuleUrl = await loadRuntimeSingleColumnLayoutModule()
+  const exportUtilsModule = await loadRuntimeExportUtilsModule(
+    layoutContractModuleUrl,
+    singleColumnLayoutModuleUrl
+  )
 
   const examPaper = {
     ...regressionExamPaper,

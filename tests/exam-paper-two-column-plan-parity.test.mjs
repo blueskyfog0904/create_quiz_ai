@@ -123,12 +123,15 @@ test('shared layout contract exports the section planners needed for parity reco
   await getRequiredPlannerApi()
 })
 
-test('question 1 passage stays atomic instead of splitting into continuation fragments', async () => {
+test('question 1 passage stays atomic while choices are allowed to split by row', async () => {
   const { pdfPlan } = await buildRegressionPlans('exam-only')
   const page1Ids = getPageSectionIds(pdfPlan, 0).flat()
+  const allPageIds = pdfPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
 
   assert.equal(page1Ids.includes('question-1-passage'), true)
   assert.equal(page1Ids.some((sectionId) => sectionId.startsWith('question-1-passage-part-')), false)
+  assert.equal(allPageIds.includes('question-1-choice-part-1'), true)
+  assert.equal(allPageIds.includes('question-1-choice-part-5'), true)
 })
 
 test('buildQuestionSectionPlan normalizes questionTextBackward before storing sectionPlan.text', async () => {

@@ -11,6 +11,10 @@ const examPaperPdfPath = new URL('../src/lib/exam-paper-pdf.ts', import.meta.url
 const examPaperPdfSource = readFileSync(examPaperPdfPath, 'utf8')
 const layoutContractPath = new URL('../src/lib/exam-paper-layout-contract.ts', import.meta.url)
 const layoutContractSource = readFileSync(layoutContractPath, 'utf8')
+const singleColumnLayoutSource = readFileSync(
+  new URL('../src/lib/exam-paper-single-column-layout.ts', import.meta.url),
+  'utf8'
+)
 const paginationModuleUrl = new URL(
   '../src/lib/exam-paper-pdf-pagination.js',
   import.meta.url
@@ -23,6 +27,7 @@ const normalizeQuestionFieldModuleUrl = new URL(
 async function loadRuntimePdfHarness() {
   const tempDir = mkdtempSync(join(tmpdir(), 'exam-paper-pdf-runtime-'))
   const runtimeLayoutContractPath = join(tempDir, 'exam-paper-layout-contract.runtime.ts')
+  const runtimeSingleColumnLayoutPath = join(tempDir, 'exam-paper-single-column-layout.runtime.ts')
   const runtimePdfPath = join(tempDir, 'exam-paper-pdf.runtime.ts')
 
   writeFileSync(
@@ -66,12 +71,19 @@ async function loadRuntimePdfHarness() {
       )
   )
 
+  writeFileSync(
+    runtimeSingleColumnLayoutPath,
+    singleColumnLayoutSource
+      .replace(/'@\/lib\/questions\/normalize-question-field'/g, `'${normalizeQuestionFieldModuleUrl}'`)
+  )
+
   const runtimePdfSource = examPaperPdfSource
     .replace(/'pdfmake\/build\/pdfmake'/g, "'./pdfmake.stub.mjs'")
     .replace(/'pdfmake\/build\/vfs_fonts'/g, "'./vfs-fonts.stub.mjs'")
     .replace(/'@\/lib\/exam-paper-pdf-vfs'/g, "'./exam-paper-pdf-vfs.stub.mjs'")
     .replace(/'file-saver'/g, "'./file-saver.stub.mjs'")
     .replace(/'@\/lib\/exam-paper-layout-contract'/g, "'./exam-paper-layout-contract.runtime.ts'")
+    .replace(/'@\/lib\/exam-paper-single-column-layout'/g, "'./exam-paper-single-column-layout.runtime.ts'")
     .replace(
       /'@\/lib\/questions\/normalize-question-field'/g,
       `'${normalizeQuestionFieldModuleUrl}'`
@@ -186,12 +198,16 @@ test('saved PDF runtime keeps question 1 passage as a single boxed area', async 
   assert.deepEqual(passageCell.border, [true, true, true, true])
 })
 
-test('saved PDF runtime choice rows remove extra spacing between 1-5 options', async () => {
-  const { examPaper, layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-only')
-  const choiceNode = findRenderedSection(layoutPlan, renderedPages, 'question-1-choice').node
+test('saved PDF runtime splits choice rows into separate planner fragments with tight spacing', async () => {
+  const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-only')
+  const choiceIds = layoutPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
+  const choiceNode = findRenderedSection(layoutPlan, renderedPages, 'question-1-choice-part-1').node
+
+  assert.equal(choiceIds.includes('question-1-choice-part-1'), true)
+  assert.equal(choiceIds.includes('question-1-choice-part-5'), true)
 
   assert.equal(Array.isArray(choiceNode.stack), true)
-  assert.equal(choiceNode.stack.length, examPaper.questions[0].choices.length)
+  assert.equal(choiceNode.stack.length, 1)
 
   choiceNode.stack.forEach((row) => {
     assert.deepEqual(row.margin, [0, 0, 0, 0])

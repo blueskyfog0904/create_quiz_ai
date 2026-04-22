@@ -229,6 +229,44 @@ function estimateSectionUnits(
   return baseUnit + (countEstimatedLines(normalized, charsPerLine) * lineUnit)
 }
 
+function getContinuationPosition(
+  index: number,
+  totalCount: number
+): TwoColumnContinuationPosition {
+  if (totalCount <= 1) {
+    return 'single'
+  }
+
+  if (index === 0) {
+    return 'start'
+  }
+
+  if (index === totalCount - 1) {
+    return 'end'
+  }
+
+  return 'middle'
+}
+
+function buildFragmentId(sourceSectionId: string, index: number, totalCount: number) {
+  return totalCount <= 1 ? sourceSectionId : `${sourceSectionId}-part-${index + 1}`
+}
+
+function buildChoiceRowText(choice: TwoColumnLayoutChoiceLike) {
+  return `${choice.label}${choice.text}`
+}
+
+function estimateChoiceFragmentUnits(
+  rows: TwoColumnLayoutChoiceLike[],
+  continuationPosition: TwoColumnContinuationPosition
+) {
+  return estimateSectionUnits(rows.map(buildChoiceRowText).join('\n'), {
+    charsPerLine: 34,
+    lineUnit: 22,
+    baseUnit: continuationPosition === 'single' ? 52 : 10,
+  })
+}
+
 
 function createSingleFragmentFromSection(section: TwoColumnSectionPlan): TwoColumnFragmentPlan {
   if (section.kind === 'header') {
@@ -308,7 +346,41 @@ function createSingleFragmentFromSection(section: TwoColumnSectionPlan): TwoColu
   }
 }
 
+function createChoiceFragments(section: TwoColumnSectionPlan) {
+  const choiceRows = section.choiceRows ?? []
+
+  if (choiceRows.length <= 1) {
+    return [createSingleFragmentFromSection(section)]
+  }
+
+  return choiceRows.map((choiceRow, index) => {
+    const continuationPosition = getContinuationPosition(index, choiceRows.length)
+
+    return {
+      id: buildFragmentId(section.id, index, choiceRows.length),
+      sourceSectionId: section.id,
+      questionNumber: section.questionNumber,
+      kind: section.kind,
+      sectionKey: section.sectionKey,
+      continuationPosition,
+      fragmentIndex: index,
+      estimatedUnits: estimateChoiceFragmentUnits([choiceRow], continuationPosition),
+      splittable: true,
+      payload: {
+        type: 'choice',
+        rows: [choiceRow],
+        choiceStartIndex: index,
+        choiceEndIndex: index,
+      },
+    } satisfies TwoColumnFragmentPlan
+  })
+}
+
 function buildSectionFragments(section: TwoColumnSectionPlan) {
+  if (section.kind === 'choice') {
+    return createChoiceFragments(section)
+  }
+
   return [createSingleFragmentFromSection(section)]
 }
 

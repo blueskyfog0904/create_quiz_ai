@@ -2,12 +2,16 @@ import pdfMake from 'pdfmake/build/pdfmake'
 import * as pdfFonts from 'pdfmake/build/vfs_fonts'
 import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel, UnderlineType } from 'docx'
 import { saveAs } from 'file-saver'
-import { paginateExamPaperQuestions } from '@/lib/exam-paper-print-pagination.js'
 import {
   buildExamPaperRenderOptions,
   buildQuestionSectionPlan,
   buildTwoColumnLayoutPlan,
 } from '@/lib/exam-paper-layout-contract'
+import {
+  buildSingleColumnQuestionGroups,
+  paginateSingleColumnQuestionGroups,
+  type SingleColumnBlock,
+} from '@/lib/exam-paper-single-column-layout'
 import type {
   ExamPaperRenderOptions,
   ExamPaperSectionChunk,
@@ -176,19 +180,92 @@ function renderQuestionChoicesHtml(choices: Choice[]) {
   `
 }
 
-function renderQuestionAnswerHtml(question: Question, showQuestions: boolean) {
+function renderAnswerPanelHtml(
+  {
+    answerText,
+    explanationText,
+  }: {
+    answerText: string
+    explanationText: string
+  },
+  showQuestions: boolean
+) {
   return `
     <div class="${showQuestions ? 'answer-section' : 'answer-only-section'}">
-      <div class="answer">정답: ${escapeHtml(question.answer)}</div>
+      <div class="answer">정답: ${escapeHtml(answerText)}</div>
       <div class="explanation">
-        <span class="explanation-label">해설:</span> ${escapeHtml(question.explanation).replace(/\n/g, '<br>')}
+        <span class="explanation-label">해설:</span> ${escapeHtml(explanationText).replace(/\n/g, '<br>')}
       </div>
     </div>
   `
 }
 
-function renderSingleColumnQuestionHtml(
-  question: Question,
+function renderSingleColumnBlockHtml(
+  block: SingleColumnBlock,
+  {
+    showQuestions,
+    isFirstBlockOnPage,
+  }: {
+    showQuestions: boolean
+    isFirstBlockOnPage: boolean
+  }
+) {
+  const baseAttributes = [
+    `data-block-id="${escapeHtml(block.id)}"`,
+    `data-question-number="${block.questionNumber}"`,
+    `data-block-kind="${block.kind}"`,
+  ].join(' ')
+
+  if (block.kind === 'header') {
+    const headerText = block.payload.type === 'header' ? block.payload.text : ''
+
+    return `
+      <div class="single-column-block single-column-header${isFirstBlockOnPage ? '' : ' question-start'}" ${baseAttributes}>
+        ${showQuestions
+          ? `<div class="question-text">${block.questionNumber}. ${escapeHtml(headerText)}</div>`
+          : `<div class="question-number">${escapeHtml(headerText)}</div>`}
+      </div>
+    `
+  }
+
+  if (block.kind === 'body') {
+    const bodyText = block.payload.type === 'body' ? block.payload.text : ''
+
+    return `
+      <div class="single-column-block single-column-body" ${baseAttributes}>
+        <div class="text-box">
+          ${renderInlineBracketUnderlineHtml(bodyText)}
+        </div>
+      </div>
+    `
+  }
+
+  if (block.kind === 'choice-row') {
+    const choiceLabel = block.payload.type === 'choice-row' ? block.payload.label : ''
+    const choiceText = block.payload.type === 'choice-row' ? block.payload.text : ''
+
+    return `
+      <div class="single-column-block single-column-choice-row choice" ${baseAttributes}>
+        <span class="choice-label">${escapeHtml(choiceLabel)}</span>${escapeHtml(choiceText)}
+      </div>
+    `
+  }
+
+  const answerText = block.payload.type === 'answer' ? block.payload.answerText : ''
+  const explanationText = block.payload.type === 'answer' ? block.payload.explanationText : ''
+
+  return `
+    <div class="single-column-block single-column-answer" ${baseAttributes}>
+      ${renderAnswerPanelHtml({
+        answerText,
+        explanationText,
+      }, showQuestions)}
+    </div>
+  `
+}
+
+function buildSingleColumnPreviewPages(
+  examPaper: ExamPaper,
   {
     showQuestions,
     showAnswers,
@@ -197,41 +274,17 @@ function renderSingleColumnQuestionHtml(
     showAnswers: boolean
   }
 ) {
-  const normalizedQuestionTextBackward = normalizeQuestionTextBackward(question.questionTextBackward)
+  const questionGroups = examPaper.questions.map((question) => (
+    buildSingleColumnQuestionGroups(question, {
+      showQuestions,
+      showAnswers,
+    })
+  ))
 
-  return `
-    <div class="question">
-      ${showQuestions ? `
-        <div class="question-text">
-          ${question.number}. ${escapeHtml(question.questionText)}
-        </div>
-        
-        ${question.questionTextForward ? `
-          <div class="text-box">
-            ${renderInlineBracketUnderlineHtml(question.questionTextForward)}
-          </div>
-        ` : ''}
-        
-        ${question.passageText ? `
-          <div class="text-box">
-            ${renderInlineBracketUnderlineHtml(question.passageText)}
-          </div>
-        ` : ''}
-        
-        ${normalizedQuestionTextBackward ? `
-          <div class="text-box">
-            ${renderInlineBracketUnderlineHtml(normalizedQuestionTextBackward)}
-          </div>
-        ` : ''}
-        
-        ${renderQuestionChoicesHtml(question.choices)}
-      ` : `
-        <div class="question-number">${question.number}번</div>
-      `}
-      
-      ${showAnswers ? renderQuestionAnswerHtml(question, showQuestions) : ''}
-    </div>
-  `
+  return paginateSingleColumnQuestionGroups({
+    questionGroups,
+    hasDescription: Boolean(examPaper.description),
+  })
 }
 
 type PreviewPlannedSection = TwoColumnFragmentPlan
@@ -441,13 +494,12 @@ export function buildExamPaperPrintHtml(
     titleSuffix,
     layoutSuffix,
   } = renderOptions
-  const pages = paginateExamPaperQuestions({
-    questions: examPaper.questions,
-    showQuestions,
-    showAnswers,
-    isDoubleColumn,
-    hasDescription: Boolean(examPaper.description),
-  }) as Question[][]
+  const singleColumnPages = !isDoubleColumn
+    ? buildSingleColumnPreviewPages(examPaper, {
+      showQuestions,
+      showAnswers,
+    })
+    : null
   // Shared page/column planning continues through buildExamPaperLayoutPlan inside the contract.
   const twoColumnChunkPages = isDoubleColumn
     ? buildTwoColumnPreviewPages(examPaper, renderOptions)
@@ -508,6 +560,22 @@ export function buildExamPaperPrintHtml(
         .question {
           margin-bottom: 24px;
           page-break-inside: avoid;
+        }
+        .single-column-block {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+        .single-column-header.question-start {
+          margin-top: 24px;
+        }
+        .single-column-choice-row {
+          margin-left: 0;
+          margin-bottom: 0;
+          font-size: 13px;
+          line-height: 1.8;
+        }
+        .single-column-answer {
+          margin-bottom: 24px;
         }
         .question-number {
           font-weight: 700;
@@ -696,17 +764,17 @@ export function buildExamPaperPrintHtml(
             titleSuffix,
             layoutSuffix,
           })
-        : pages.map((pageQuestions, pageIndex) => `
+        : (singleColumnPages ?? []).map((page, pageIndex) => `
         <section class="preview-page">
           ${pageIndex === 0 ? `
             <h1>${escapeHtml(examPaper.title + titleSuffix + layoutSuffix)}</h1>
             ${examPaper.description ? `<div class="description">${escapeHtml(examPaper.description)}</div>` : ''}
           ` : ''}
           <div class="questions-container">
-      ${pageQuestions.map((question) => `
-        ${renderSingleColumnQuestionHtml(question, {
+      ${page.blocks.map((block, blockIndex) => `
+        ${renderSingleColumnBlockHtml(block, {
           showQuestions,
-          showAnswers,
+          isFirstBlockOnPage: blockIndex === 0,
         })}
       `).join('')}
           </div>

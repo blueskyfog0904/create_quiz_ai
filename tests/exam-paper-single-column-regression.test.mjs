@@ -19,6 +19,10 @@ const layoutContractSource = readFileSync(
   new URL('../src/lib/exam-paper-layout-contract.ts', import.meta.url),
   'utf8'
 )
+const singleColumnLayoutSource = readFileSync(
+  new URL('../src/lib/exam-paper-single-column-layout.ts', import.meta.url),
+  'utf8'
+)
 const paginationModuleUrl = new URL(
   '../src/lib/exam-paper-pdf-pagination.js',
   import.meta.url
@@ -49,7 +53,18 @@ async function loadRuntimeLayoutContractModule() {
   }
 }
 
-async function loadRuntimeExportUtilsModule(layoutContractModuleUrl) {
+async function loadRuntimeSingleColumnLayoutModule() {
+  const tempDir = mkdtempSync(join(tmpdir(), 'exam-paper-single-single-column-layout-'))
+  const tempModulePath = join(tempDir, 'exam-paper-single-column-layout.runtime.ts')
+  const runtimeSource = singleColumnLayoutSource
+    .replace(/@\/lib\/questions\/normalize-question-field/g, normalizeQuestionFieldModuleUrl)
+
+  writeFileSync(tempModulePath, runtimeSource)
+
+  return `${pathToFileURL(tempModulePath).href}?t=${Date.now()}`
+}
+
+async function loadRuntimeExportUtilsModule(layoutContractModuleUrl, singleColumnLayoutModuleUrl) {
   const tempDir = mkdtempSync(join(tmpdir(), 'exam-paper-single-export-utils-'))
   const tempModulePath = join(tempDir, 'export-utils.runtime.ts')
 
@@ -72,6 +87,7 @@ async function loadRuntimeExportUtilsModule(layoutContractModuleUrl) {
     .replace("import { saveAs } from 'file-saver'\n", 'const saveAs = () => {}\n')
     .replace(/from '@\/lib\/exam-paper-print-pagination\.js'/g, `from '${printPaginationModuleUrl}'`)
     .replace(/from '@\/lib\/exam-paper-layout-contract'/g, `from '${layoutContractModuleUrl}'`)
+    .replace(/from '@\/lib\/exam-paper-single-column-layout'/g, `from '${singleColumnLayoutModuleUrl}'`)
     .replace(/from '@\/lib\/questions\/normalize-question-field'/g, `from '${normalizeQuestionFieldModuleUrl}'`)
 
   writeFileSync(tempModulePath, runtimeSource)
@@ -82,6 +98,7 @@ async function loadRuntimeExportUtilsModule(layoutContractModuleUrl) {
 async function loadRuntimePdfHarness() {
   const tempDir = mkdtempSync(join(tmpdir(), 'exam-paper-single-pdf-runtime-'))
   const runtimeLayoutContractPath = join(tempDir, 'exam-paper-layout-contract.runtime.ts')
+  const runtimeSingleColumnLayoutPath = join(tempDir, 'exam-paper-single-column-layout.runtime.ts')
   const runtimePdfPath = join(tempDir, 'exam-paper-pdf.runtime.ts')
 
   writeFileSync(join(tempDir, 'pdfmake.stub.mjs'), [
@@ -107,12 +124,19 @@ async function loadRuntimePdfHarness() {
       .replace(/'@\/lib\/questions\/normalize-question-field'/g, `'${normalizeQuestionFieldModuleUrl}'`)
   )
 
+  writeFileSync(
+    runtimeSingleColumnLayoutPath,
+    singleColumnLayoutSource
+      .replace(/'@\/lib\/questions\/normalize-question-field'/g, `'${normalizeQuestionFieldModuleUrl}'`)
+  )
+
   const runtimePdfSource = examPaperPdfSource
     .replace(/'pdfmake\/build\/pdfmake'/g, "'./pdfmake.stub.mjs'")
     .replace(/'pdfmake\/build\/vfs_fonts'/g, "'./vfs-fonts.stub.mjs'")
     .replace(/'@\/lib\/exam-paper-pdf-vfs'/g, "'./exam-paper-pdf-vfs.stub.mjs'")
     .replace(/'file-saver'/g, "'./file-saver.stub.mjs'")
     .replace(/'@\/lib\/exam-paper-layout-contract'/g, "'./exam-paper-layout-contract.runtime.ts'")
+    .replace(/'@\/lib\/exam-paper-single-column-layout'/g, "'./exam-paper-single-column-layout.runtime.ts'")
     .replace(/'@\/lib\/questions\/normalize-question-field'/g, `'${normalizeQuestionFieldModuleUrl}'`)
     .concat('\nexport { buildPdfDocumentDefinition as buildExamPaperPdfDocumentDefinition }\n')
 
@@ -122,11 +146,15 @@ async function loadRuntimePdfHarness() {
   return { buildExamPaperPdfDocumentDefinition: pdfModule.buildExamPaperPdfDocumentDefinition }
 }
 
-test('single-column HTML preview stays on the legacy question stack path', async () => {
+test('single-column HTML preview uses block pagination and exposes choice-row blocks', async () => {
   const {
     moduleUrl: layoutContractModuleUrl,
   } = await loadRuntimeLayoutContractModule()
-  const exportUtilsModule = await loadRuntimeExportUtilsModule(layoutContractModuleUrl)
+  const singleColumnLayoutModuleUrl = await loadRuntimeSingleColumnLayoutModule()
+  const exportUtilsModule = await loadRuntimeExportUtilsModule(
+    layoutContractModuleUrl,
+    singleColumnLayoutModuleUrl
+  )
 
   const html = exportUtilsModule.buildExamPaperPrintHtml({
     ...regressionExamPaper,
@@ -134,13 +162,14 @@ test('single-column HTML preview stays on the legacy question stack path', async
     viewMode: 'exam-with-answers',
   })
 
-  assert.match(html, /class="question"/)
   assert.doesNotMatch(html, /class="two-column-layout"/)
-  assert.doesNotMatch(html, /data-section-id="[^"]*-part-/)
+  assert.match(html, /data-block-id="question-1-choice-row-1"/)
+  assert.match(html, /data-block-kind="choice-row"/)
+  assert.match(html, /data-block-id="question-1-answer"/)
   assert.match(html, /정답:/)
 })
 
-test('single-column PDF document keeps question stacks unbreakable and does not use fragment column pages', async () => {
+test('single-column PDF document keeps prompt and answer groups atomic while choice rows stay separate', async () => {
   const runtime = await loadRuntimePdfHarness()
   const docDefinition = runtime.buildExamPaperPdfDocumentDefinition({
     ...regressionExamPaper,
@@ -148,9 +177,14 @@ test('single-column PDF document keeps question stacks unbreakable and does not 
     viewMode: 'exam-with-answers',
   })
 
-  const questionNode = docDefinition.content[2]
+  const contentNodes = docDefinition.content.slice(2)
+  const promptNode = contentNodes[0]
+  const firstChoiceNode = contentNodes.find((node) => node.text?.startsWith('① '))
+  const answerNode = contentNodes.find((node) => node.table)
 
-  assert.equal(Array.isArray(questionNode.stack), true)
-  assert.equal(questionNode.unbreakable, true)
-  assert.equal(questionNode.columns, undefined)
+  assert.equal(Array.isArray(promptNode.stack), true)
+  assert.equal(promptNode.unbreakable, true)
+  assert.equal(promptNode.columns, undefined)
+  assert.equal(firstChoiceNode.unbreakable, undefined)
+  assert.ok(answerNode)
 })

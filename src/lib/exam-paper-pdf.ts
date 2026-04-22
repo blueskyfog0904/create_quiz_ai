@@ -11,7 +11,10 @@ import {
   type TwoColumnChoiceFragmentPayload,
 } from '@/lib/exam-paper-layout-contract'
 import {
-  normalizeQuestionTextBackward,
+  buildSingleColumnQuestionGroups,
+  type SingleColumnBlock,
+} from '@/lib/exam-paper-single-column-layout'
+import {
   splitBracketUnderlineSegments,
 } from '@/lib/questions/normalize-question-field'
 
@@ -304,6 +307,53 @@ function buildQuestionChunksForTwoColumn(
   }))
 }
 
+function renderSingleColumnBlockNode(block: SingleColumnBlock): Record<string, unknown> {
+  if (block.kind === 'header' && block.payload.type === 'header') {
+    return {
+      text: `${block.questionNumber}. ${block.payload.text}`,
+      style: 'questionText',
+    }
+  }
+
+  if (block.kind === 'body' && block.payload.type === 'body') {
+    return buildDecoratedBoxNode({
+      text: buildInlineSegments(block.payload.text),
+      fontSize: 13,
+      lineHeight: 1.8,
+      color: '#374151',
+    }, 10)
+  }
+
+  if (block.kind === 'choice-row' && block.payload.type === 'choice-row') {
+    return {
+      text: `${block.payload.label} ${block.payload.text}`,
+      margin: [0, 0, 0, 0],
+      fontSize: 13,
+      lineHeight: 1.8,
+    }
+  }
+
+  if (block.kind === 'answer' && block.payload.type === 'answer') {
+    return buildAnswerSectionNode([
+      {
+        text: `정답: ${block.payload.answerText}`,
+        fontSize: 10,
+        bold: true,
+        color: '#1d4ed8',
+        margin: [0, 0, 0, 6],
+      },
+      {
+        text: `해설: ${block.payload.explanationText}`,
+        fontSize: 9,
+        color: '#475569',
+        lineHeight: 1.8,
+      },
+    ], 12)
+  }
+
+  return { text: '' }
+}
+
 function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
   const {
     viewMode,
@@ -423,92 +473,41 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
     } as unknown as import('pdfmake/interfaces').TDocumentDefinitions
   }
 
-  const keepQuestionTogether = columnLayout === 'single'
+  const singleColumnNodes = examPaper.questions.flatMap((question, questionIndex) => {
+    const groups = buildSingleColumnQuestionGroups(question, {
+      showQuestions,
+      showAnswers,
+    })
 
-  const questionNodes = examPaper.questions.map((question) => {
-    const stack: Array<Record<string, unknown>> = []
+    const nodes: Array<Record<string, unknown>> = []
 
-    if (showQuestions) {
-      stack.push({
-        text: `${question.number}. ${question.questionText}`,
-        style: 'questionText',
-      })
-
-      if (question.questionTextForward) {
-        stack.push({
-          ...buildDecoratedBoxNode({
-            text: buildInlineSegments(question.questionTextForward),
-            fontSize: 13,
-            lineHeight: 1.8,
-            color: '#374151',
-          }, 10),
-        })
-      }
-
-      if (question.passageText) {
-        stack.push({
-          ...buildDecoratedBoxNode({
-            text: buildInlineSegments(question.passageText),
-            fontSize: 13,
-            lineHeight: 1.8,
-            color: '#374151',
-          }, 10),
-        })
-      }
-
-      const normalizedBackward = normalizeQuestionTextBackward(question.questionTextBackward)
-      if (normalizedBackward) {
-        stack.push({
-          ...buildDecoratedBoxNode({
-            text: buildInlineSegments(normalizedBackward),
-            fontSize: 13,
-            lineHeight: 1.8,
-            color: '#374151',
-          }, 10),
-        })
-      }
-
-      if (Array.isArray(question.choices) && question.choices.length > 0) {
-        stack.push({
-          stack: question.choices.map((choice) => ({
-            text: `${choice.label} ${choice.text}`,
-            margin: [0, 0, 0, 8],
-            fontSize: 13,
-            lineHeight: 1.8,
-          })),
-          margin: [0, 0, 0, 10],
-        })
-      }
-    }
-
-    if (showAnswers) {
-      stack.push({
-        ...buildAnswerSectionNode([
-          {
-            text: `정답: ${question.answer}`,
-            fontSize: 10,
-            bold: true,
-            color: '#1d4ed8',
-            margin: [0, 0, 0, 6],
-          },
-          {
-            text: `해설: ${question.explanation}`,
-            fontSize: 9,
-            color: '#475569',
-            lineHeight: 1.8,
-          },
-        ], 12),
+    if (groups.promptBlocks.length > 0) {
+      nodes.push({
+        stack: groups.promptBlocks.map((block) => renderSingleColumnBlockNode(block)),
+        unbreakable: true,
+        margin: [0, questionIndex === 0 ? 0 : 14, 0, 8],
       })
     }
 
-    return {
-      stack,
-      unbreakable: keepQuestionTogether,
-      margin: [0, 0, 0, 14],
+    groups.choiceBlocks.forEach((block, index) => {
+      nodes.push({
+        ...renderSingleColumnBlockNode(block),
+        margin: [0, 0, 0, index === groups.choiceBlocks.length - 1 ? 10 : 0],
+      })
+    })
+
+    if (groups.answerBlocks.length > 0) {
+      nodes.push({
+        ...renderSingleColumnBlockNode(groups.answerBlocks[0]),
+        unbreakable: true,
+        margin: [0, 0, 0, 14],
+      })
     }
+
+    return nodes
   })
 
-  content.push(...questionNodes)
+  content.push(...singleColumnNodes)
 
   return {
     pageSize: 'A4',
