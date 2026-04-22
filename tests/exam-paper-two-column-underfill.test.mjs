@@ -19,7 +19,8 @@ const normalizeQuestionFieldModuleUrl = new URL(
 ).href
 
 const FIRST_PAGE_CAPACITY_WITH_DESCRIPTION = 1120
-const DOUBLE_GUARD_BAND_UNITS = 200
+const DOUBLE_GUARD_BAND_UNITS = 50
+const MAX_EXPECTED_FIRST_PAGE_RIGHT_SLACK = 200
 
 async function loadRuntimeLayoutContractModule() {
   const tempDir = mkdtempSync(join(tmpdir(), 'exam-paper-underfill-layout-contract-'))
@@ -87,10 +88,15 @@ test('exam-with-answers two-column keeps a bottom guard band on the first page r
 
   const page1Right = layoutPlan.pages[0].columns[1]
   const page1RightUsedUnits = sumColumnUnits(page1Right)
+  const page1RightSlack = FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - page1RightUsedUnits
 
   assert.ok(
     page1RightUsedUnits <= FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - DOUBLE_GUARD_BAND_UNITS,
     `expected answered-mode right column to reserve at least ${DOUBLE_GUARD_BAND_UNITS} units, got ${FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - page1RightUsedUnits}`
+  )
+  assert.ok(
+    page1RightSlack < MAX_EXPECTED_FIRST_PAGE_RIGHT_SLACK,
+    `expected answered-mode right column to stop over-reserving space, got ${page1RightSlack}`
   )
 })
 
@@ -110,10 +116,15 @@ test('answer-only two-column keeps a bottom guard band on the first page right c
 
   const page1Right = layoutPlan.pages[0].columns[1]
   const page1RightUsedUnits = sumColumnUnits(page1Right)
+  const page1RightSlack = FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - page1RightUsedUnits
 
   assert.ok(
     page1RightUsedUnits <= FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - DOUBLE_GUARD_BAND_UNITS,
     `expected answer-only right column to reserve at least ${DOUBLE_GUARD_BAND_UNITS} units, got ${FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - page1RightUsedUnits}`
+  )
+  assert.ok(
+    page1RightSlack < MAX_EXPECTED_FIRST_PAGE_RIGHT_SLACK,
+    `expected answer-only right column to stop over-reserving space, got ${page1RightSlack}`
   )
 })
 
@@ -136,9 +147,14 @@ test('exam-only two-column keeps a bottom guard band on the first page right col
 
   const page1Right = layoutPlan.pages[0].columns[1]
   const page1RightUsedUnits = sumColumnUnits(page1Right)
+  const page1RightSlack = FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - page1RightUsedUnits
 
   assert.ok(
     page1RightUsedUnits <= FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - DOUBLE_GUARD_BAND_UNITS,
     `expected exam-only right column to reserve at least ${DOUBLE_GUARD_BAND_UNITS} units, got ${FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - page1RightUsedUnits}`
+  )
+  assert.ok(
+    page1RightSlack < MAX_EXPECTED_FIRST_PAGE_RIGHT_SLACK,
+    `expected exam-only right column to stop over-reserving space, got ${page1RightSlack}`
   )
 })

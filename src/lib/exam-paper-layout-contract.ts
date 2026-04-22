@@ -153,7 +153,7 @@ interface ResolvedTwoColumnLayoutProfile {
 
 const DEFAULT_COMPAT_LAYOUT_PROFILE_NAME: TwoColumnLayoutProfileName = 'shared-default'
 const DEFAULT_COMPAT_LAYOUT_TARGET: TwoColumnLayoutTarget = 'preview'
-const DOUBLE_COLUMN_BOTTOM_GUARD_BAND_UNITS = 200
+const DOUBLE_COLUMN_BOTTOM_GUARD_BAND_UNITS = 50
 
 const BODY_SECTION_DEFINITIONS = [
   {
