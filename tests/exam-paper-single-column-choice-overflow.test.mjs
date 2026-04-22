@@ -9,6 +9,10 @@ import { regressionExamPaper } from './fixtures/exam-paper-two-column-regression
 
 const singleColumnLayoutPath = new URL('../src/lib/exam-paper-single-column-layout.ts', import.meta.url)
 const singleColumnLayoutSource = readFileSync(singleColumnLayoutPath, 'utf8')
+const paginationModuleUrl = new URL(
+  '../src/lib/exam-paper-pdf-pagination.js',
+  import.meta.url
+).href
 const normalizeQuestionFieldModuleUrl = new URL(
   '../src/lib/questions/normalize-question-field.ts',
   import.meta.url
@@ -18,6 +22,7 @@ async function loadRuntimeSingleColumnLayoutModule() {
   const tempDir = mkdtempSync(join(tmpdir(), 'exam-paper-single-choice-layout-'))
   const tempModulePath = join(tempDir, 'exam-paper-single-column-layout.runtime.ts')
   const runtimeSource = singleColumnLayoutSource
+    .replace(/@\/lib\/exam-paper-pdf-pagination\.js/g, paginationModuleUrl)
     .replace(/@\/lib\/questions\/normalize-question-field/g, normalizeQuestionFieldModuleUrl)
 
   writeFileSync(tempModulePath, runtimeSource)

@@ -197,13 +197,15 @@ function createBlockElement(
     const answerBlock = document.createElement('div')
     answerBlock.className = 'answer-text-block'
 
-    const questionLabel = document.createElement('div')
-    questionLabel.className = 'answer-text-line answer-text-question'
-    questionLabel.textContent = block.payload.questionLabel
-    questionLabel.style.fontWeight = '700'
-    questionLabel.style.fontSize = '16px'
-    questionLabel.style.marginBottom = '6px'
-    answerBlock.appendChild(questionLabel)
+    if (block.payload.questionLabel) {
+      const questionLabel = document.createElement('div')
+      questionLabel.className = 'answer-text-line answer-text-question'
+      questionLabel.textContent = block.payload.questionLabel
+      questionLabel.style.fontWeight = '700'
+      questionLabel.style.fontSize = '16px'
+      questionLabel.style.marginBottom = '6px'
+      answerBlock.appendChild(questionLabel)
+    }
 
     if (block.payload.answerText) {
       const answer = document.createElement('div')
@@ -220,7 +222,7 @@ function createBlockElement(
       explanation.className = 'answer-text-line answer-text-explanation'
       explanation.style.fontSize = '12px'
       explanation.style.lineHeight = '1.8'
-      explanation.innerHTML = `해설: ${escapeHtml(block.payload.explanationText).replace(/\n/g, '<br>')}`
+      explanation.innerHTML = `${block.payload.showAnswerLabel ? '해설: ' : ''}${escapeHtml(block.payload.explanationText).replace(/\n/g, '<br>')}`
       answerBlock.appendChild(explanation)
     }
 

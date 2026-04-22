@@ -1,4 +1,4 @@
-import { paginateTwoColumnQuestionChunks } from '@/lib/exam-paper-pdf-pagination.js'
+import { paginateTwoColumnQuestionChunks, splitTextIntoFlowChunks } from '@/lib/exam-paper-pdf-pagination.js'
 import { normalizeQuestionTextBackward } from '@/lib/questions/normalize-question-field'
 
 export type ExamPaperLayoutViewMode = 'exam-only' | 'answer-only' | 'exam-with-answers'
@@ -82,6 +82,7 @@ export interface TwoColumnSectionPlan {
   answerText?: string
   explanationText?: string
   questionLabel?: string
+  allowContinuation?: boolean
 }
 
 export interface TwoColumnQuestionSectionPlan {
@@ -269,6 +270,28 @@ function estimateChoiceFragmentUnits(
   })
 }
 
+function estimateAnswerFragmentUnits(
+  {
+    questionLabel,
+    answerText,
+    explanationText,
+  }: {
+    questionLabel?: string
+    answerText?: string
+    explanationText?: string
+  },
+  continuationPosition: TwoColumnContinuationPosition
+) {
+  return estimateSectionUnits(
+    [questionLabel, answerText ? `정답: ${answerText}` : '', explanationText].filter(Boolean).join('\n'),
+    {
+      charsPerLine: 34,
+      lineUnit: 22,
+      baseUnit: continuationPosition === 'single' || continuationPosition === 'start' ? 30 : 6,
+    }
+  )
+}
+
 
 function createSingleFragmentFromSection(section: TwoColumnSectionPlan): TwoColumnFragmentPlan {
   if (section.kind === 'header') {
@@ -379,9 +402,51 @@ function createChoiceFragments(section: TwoColumnSectionPlan) {
   })
 }
 
+function createAnswerFragments(section: TwoColumnSectionPlan) {
+  const explanationChunks = splitTextIntoFlowChunks(section.explanationText ?? '', 220)
+  const chunks = explanationChunks.length > 0
+    ? explanationChunks
+    : [section.explanationText ?? '']
+  const fragmentCount = chunks.length
+
+  return chunks.map((explanationChunk, index) => {
+    const continuationPosition = getContinuationPosition(index, fragmentCount)
+    const isFirstFragment = index === 0
+
+    return {
+      id: buildFragmentId(section.id, index, fragmentCount),
+      sourceSectionId: section.id,
+      questionNumber: section.questionNumber,
+      kind: section.kind,
+      sectionKey: section.sectionKey,
+      continuationPosition,
+      fragmentIndex: index,
+      estimatedUnits: estimateAnswerFragmentUnits({
+        questionLabel: isFirstFragment ? section.questionLabel : '',
+        answerText: isFirstFragment ? section.answerText : '',
+        explanationText: explanationChunk,
+      }, continuationPosition),
+      splittable: true,
+      payload: {
+        type: 'answer',
+        questionLabel: isFirstFragment ? section.questionLabel : '',
+        answerText: isFirstFragment ? section.answerText : '',
+        explanationText: explanationChunk,
+        explanationChunkIndex: index + 1,
+        explanationChunkCount: fragmentCount,
+        showAnswerLabel: isFirstFragment,
+      },
+    } satisfies TwoColumnFragmentPlan
+  })
+}
+
 function buildSectionFragments(section: TwoColumnSectionPlan) {
   if (section.kind === 'choice') {
     return createChoiceFragments(section)
+  }
+
+  if (section.kind === 'answer' && section.allowContinuation) {
+    return createAnswerFragments(section)
   }
 
   return [createSingleFragmentFromSection(section)]
@@ -554,6 +619,7 @@ export function buildQuestionSectionPlan(
         answerText,
         explanationText,
         questionLabel,
+        allowContinuation: options.viewMode === 'answer-only',
       })
     }
   }

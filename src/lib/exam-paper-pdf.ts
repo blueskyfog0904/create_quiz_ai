@@ -177,10 +177,12 @@ function buildPlainAnswerTextStack({
   questionLabel,
   answerText,
   explanationText,
+  showAnswerLabel = true,
 }: {
   questionLabel?: string
   answerText?: string
   explanationText?: string
+  showAnswerLabel?: boolean
 }) {
   const stack: Array<Record<string, unknown>> = []
 
@@ -206,7 +208,7 @@ function buildPlainAnswerTextStack({
 
   if (explanationText) {
     stack.push({
-      text: `해설: ${explanationText}`,
+      text: `${showAnswerLabel ? '해설: ' : ''}${explanationText}`,
       fontSize: 12,
       color: '#111',
       lineHeight: 1.8,
@@ -277,6 +279,7 @@ function renderSectionPdfNode(
         questionLabel: answerPayload?.questionLabel,
         answerText: answerPayload?.showAnswerLabel ? answerPayload.answerText : undefined,
         explanationText: answerPayload?.explanationText,
+        showAnswerLabel: answerPayload?.showAnswerLabel ?? true,
       }),
       margin: [0, 0, 0, 10],
     }
@@ -328,6 +331,7 @@ function renderSingleColumnBlockNode(block: SingleColumnBlock): Record<string, u
         questionLabel: block.payload.questionLabel,
         answerText: block.payload.answerText,
         explanationText: block.payload.explanationText,
+        showAnswerLabel: block.payload.showAnswerLabel,
       }),
     }
   }

@@ -187,17 +187,19 @@ function renderPlainAnswerTextHtml(
     questionLabel,
     answerText,
     explanationText,
+    showAnswerLabel = true,
   }: {
     questionLabel?: string
-    answerText: string
+    answerText?: string
     explanationText: string
+    showAnswerLabel?: boolean
   }
 ) {
   return `
     <div class="answer-text-block">
       ${questionLabel ? `<div class="answer-text-line answer-text-question">${escapeHtml(questionLabel)}</div>` : ''}
       ${answerText ? `<div class="answer-text-line answer-text-answer">정답: ${escapeHtml(answerText)}</div>` : ''}
-      ${explanationText ? `<div class="answer-text-line answer-text-explanation">해설: ${escapeHtml(explanationText).replace(/\n/g, '<br>')}</div>` : ''}
+      ${explanationText ? `<div class="answer-text-line answer-text-explanation">${showAnswerLabel ? '해설: ' : ''}${escapeHtml(explanationText).replace(/\n/g, '<br>')}</div>` : ''}
     </div>
   `
 }
@@ -263,6 +265,7 @@ function renderSingleColumnBlockHtml(
         questionLabel,
         answerText,
         explanationText,
+        showAnswerLabel: block.payload.type === 'answer' ? block.payload.showAnswerLabel : true,
       })}
     </div>
   `
@@ -322,6 +325,7 @@ function renderAnswerFragmentHtml(
     questionLabel: payload.questionLabel,
     answerText: payload.showAnswerLabel ? payload.answerText ?? '' : '',
     explanationText: payload.explanationText ?? '',
+    showAnswerLabel: payload.showAnswerLabel,
   })
 }
 

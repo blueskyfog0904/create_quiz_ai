@@ -57,6 +57,7 @@ async function loadRuntimeSingleColumnLayoutModule() {
   const tempDir = mkdtempSync(join(tmpdir(), 'exam-paper-single-single-column-layout-'))
   const tempModulePath = join(tempDir, 'exam-paper-single-column-layout.runtime.ts')
   const runtimeSource = singleColumnLayoutSource
+    .replace(/@\/lib\/exam-paper-pdf-pagination\.js/g, paginationModuleUrl)
     .replace(/@\/lib\/questions\/normalize-question-field/g, normalizeQuestionFieldModuleUrl)
 
   writeFileSync(tempModulePath, runtimeSource)
@@ -127,6 +128,7 @@ async function loadRuntimePdfHarness() {
   writeFileSync(
     runtimeSingleColumnLayoutPath,
     singleColumnLayoutSource
+      .replace(/'@\/lib\/exam-paper-pdf-pagination\.js'/g, `'${paginationModuleUrl}'`)
       .replace(/'@\/lib\/questions\/normalize-question-field'/g, `'${normalizeQuestionFieldModuleUrl}'`)
   )
 

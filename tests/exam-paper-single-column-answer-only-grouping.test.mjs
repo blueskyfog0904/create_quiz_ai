@@ -9,6 +9,10 @@ import { regressionExamPaper } from './fixtures/exam-paper-two-column-regression
 
 const singleColumnLayoutPath = new URL('../src/lib/exam-paper-single-column-layout.ts', import.meta.url)
 const singleColumnLayoutSource = readFileSync(singleColumnLayoutPath, 'utf8')
+const paginationModuleUrl = new URL(
+  '../src/lib/exam-paper-pdf-pagination.js',
+  import.meta.url
+).href
 const normalizeQuestionFieldModuleUrl = new URL(
   '../src/lib/questions/normalize-question-field.ts',
   import.meta.url
@@ -18,6 +22,7 @@ async function loadRuntimeSingleColumnLayoutModule() {
   const tempDir = mkdtempSync(join(tmpdir(), 'exam-paper-single-answer-layout-'))
   const tempModulePath = join(tempDir, 'exam-paper-single-column-layout.runtime.ts')
   const runtimeSource = singleColumnLayoutSource
+    .replace(/@\/lib\/exam-paper-pdf-pagination\.js/g, paginationModuleUrl)
     .replace(/@\/lib\/questions\/normalize-question-field/g, normalizeQuestionFieldModuleUrl)
 
   writeFileSync(tempModulePath, runtimeSource)
@@ -25,41 +30,57 @@ async function loadRuntimeSingleColumnLayoutModule() {
   return import(`${pathToFileURL(tempModulePath).href}?t=${Date.now()}`)
 }
 
-test('answer-only single-column stores the question number inside the plain text answer block', async () => {
+function createLongAnswerOnlyQuestion() {
+  return {
+    number: 1,
+    questionText: '무시되는 answer-only question text',
+    answer: '①',
+    explanation: Array.from({ length: 12 }, (_, index) => (
+      `Explanation sentence ${index + 1} explains in detail why the selected option is correct and how the supporting evidence accumulates across the passage.`
+    )).join(' '),
+  }
+}
+
+test('answer-only single-column splits long explanations into multiple answer fragments', async () => {
   const layoutModule = await loadRuntimeSingleColumnLayoutModule()
-  const groups = layoutModule.buildSingleColumnQuestionGroups(regressionExamPaper.questions[0], {
+  const groups = layoutModule.buildSingleColumnQuestionGroups(createLongAnswerOnlyQuestion(), {
     showQuestions: false,
     showAnswers: true,
   })
 
   assert.deepEqual(groups.promptBlocks, [])
-  assert.equal(groups.answerBlocks.length, 1)
+  assert.ok(groups.answerBlocks.length > 1)
+  assert.equal(groups.answerBlocks[0].id, 'question-1-answer-part-1')
+  assert.equal(groups.answerBlocks[1].id, 'question-1-answer-part-2')
   assert.equal(groups.answerBlocks[0].payload.type, 'answer')
   assert.equal(groups.answerBlocks[0].payload.questionLabel, '1번')
+  assert.equal(groups.answerBlocks[0].payload.answerText, '①')
+  assert.equal(groups.answerBlocks[1].payload.questionLabel, '')
+  assert.equal(groups.answerBlocks[1].payload.answerText, '')
 })
 
-test('answer-only single-column pagination keeps one plain text answer block per question', async () => {
+test('answer-only single-column pagination lets answer fragments spill across pages', async () => {
   const layoutModule = await loadRuntimeSingleColumnLayoutModule()
-  const questionGroups = regressionExamPaper.questions.slice(0, 2).map((question) => (
-    layoutModule.buildSingleColumnQuestionGroups(question, {
+  const questionGroups = [
+    layoutModule.buildSingleColumnQuestionGroups(createLongAnswerOnlyQuestion(), {
       showQuestions: false,
       showAnswers: true,
-    })
-  ))
+    }),
+  ]
 
-  const firstQuestionWeight = questionGroups[0].answerBlocks.reduce((sum, block) => sum + block.estimatedHeight, 0)
+  const firstFragmentWeight = questionGroups[0].answerBlocks[0].estimatedHeight
 
   const pages = layoutModule.paginateSingleColumnQuestionGroups({
     questionGroups,
     hasDescription: false,
-    firstPageCapacity: firstQuestionWeight,
+    firstPageCapacity: firstFragmentWeight + 1,
     otherPageCapacity: 999,
     groupAnswerOnlyQuestion: true,
   })
 
-  assert.equal(pages.length, 2)
-  assert.deepEqual(pages[0].blockIds, ['question-1-answer'])
-  assert.deepEqual(pages[1].blockIds, ['question-2-answer'])
+  assert.ok(pages.length >= 2)
+  assert.deepEqual(pages[0].blockIds, ['question-1-answer-part-1'])
+  assert.equal(pages[1].blockIds[0], 'question-1-answer-part-2')
 })
 
 test('answer-only grouping does not change the normal choice spill path', async () => {

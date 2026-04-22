@@ -74,6 +74,7 @@ async function loadRuntimePdfHarness() {
   writeFileSync(
     runtimeSingleColumnLayoutPath,
     singleColumnLayoutSource
+      .replace(/'@\/lib\/exam-paper-pdf-pagination\.js'/g, `'${paginationModuleUrl}'`)
       .replace(/'@\/lib\/questions\/normalize-question-field'/g, `'${normalizeQuestionFieldModuleUrl}'`)
   )
 
@@ -105,9 +106,9 @@ async function loadRuntimePdfHarness() {
   }
 }
 
-async function buildRuntimeArtifacts(viewMode) {
+async function buildRuntimeArtifacts(viewMode, examPaperOverride) {
   const runtime = await loadRuntimePdfHarness()
-  const examPaper = {
+  const examPaper = examPaperOverride ?? {
     ...regressionExamPaper,
     viewMode,
     columnLayout: 'double',
@@ -131,6 +132,38 @@ async function buildRuntimeArtifacts(viewMode) {
     layoutPlan,
     docDefinition,
     renderedPages,
+  }
+}
+
+function createLongAnswerOnlyExamPaper() {
+  return {
+    ...regressionExamPaper,
+    viewMode: 'answer-only',
+    columnLayout: 'double',
+    questions: [
+      {
+        number: 1,
+        questionText: 'unused in answer-only',
+        questionTextForward: null,
+        questionTextBackward: null,
+        passageText: null,
+        choices: [],
+        answer: '①',
+        explanation: 'Short explanation to seed the page before the continued answer.',
+      },
+      {
+        number: 2,
+        questionText: 'unused in answer-only',
+        questionTextForward: null,
+        questionTextBackward: null,
+        passageText: null,
+        choices: [],
+        answer: '②',
+        explanation: Array.from({ length: 48 }, (_, index) => (
+          `Explanation sentence ${index + 1} explains in detail why the selected option is correct and how the supporting evidence accumulates across the passage.`
+        )).join(' '),
+      },
+    ],
   }
 }
 
@@ -234,7 +267,7 @@ test('saved PDF runtime keeps explanation as a single plain text answer block wi
 
 test('answer-only two-column PDF keeps the question number attached inside the plain text answer block', async () => {
   const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('answer-only')
-  const answerNode = findRenderedSection(layoutPlan, renderedPages, 'question-1-answer').node
+  const answerNode = findRenderedSection(layoutPlan, renderedPages, 'question-1-answer-part-1').node
 
   assert.equal(Array.isArray(answerNode.stack), true)
   assert.equal(answerNode.stack.length, 3)
@@ -242,6 +275,23 @@ test('answer-only two-column PDF keeps the question number attached inside the p
   assert.equal(answerNode.table, undefined)
   assert.match(answerNode.stack[1].text, /^정답:/)
   assert.match(answerNode.stack[2].text, /^해설:/)
+})
+
+test('answer-only two-column PDF can continue a long explanation into later answer fragments', async () => {
+  const { layoutPlan, renderedPages } = await buildRuntimeArtifacts(
+    'answer-only',
+    createLongAnswerOnlyExamPaper()
+  )
+  const allSectionIds = layoutPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
+  const firstFragmentNode = findRenderedSection(layoutPlan, renderedPages, 'question-2-answer-part-1').node
+  const secondFragmentNode = findRenderedSection(layoutPlan, renderedPages, 'question-2-answer-part-2').node
+
+  assert.ok(allSectionIds.includes('question-2-answer-part-1'))
+  assert.ok(allSectionIds.includes('question-2-answer-part-2'))
+  assert.equal(firstFragmentNode.stack[0].text, '2번')
+  assert.match(firstFragmentNode.stack[1].text, /^정답:/)
+  assert.equal(secondFragmentNode.stack.length, 1)
+  assert.equal(secondFragmentNode.stack[0].text.startsWith('Explanation sentence'), true)
 })
 
 test('saved PDF runtime styles stay aligned with preview-facing typography', async () => {

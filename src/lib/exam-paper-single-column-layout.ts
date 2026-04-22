@@ -1,3 +1,4 @@
+import { splitTextIntoFlowChunks } from '@/lib/exam-paper-pdf-pagination.js'
 import { normalizeQuestionTextBackward } from '@/lib/questions/normalize-question-field'
 
 export interface SingleColumnChoiceLike {
@@ -32,7 +33,15 @@ export interface SingleColumnBlock {
     | { type: 'header'; text: string }
     | { type: 'body'; text: string; sectionKey: 'forward' | 'passage' | 'backward' }
     | { type: 'choice-row'; label: string; text: string; choiceIndex: number }
-    | { type: 'answer'; questionLabel: string; answerText: string; explanationText: string }
+    | {
+      type: 'answer'
+      questionLabel?: string
+      answerText?: string
+      explanationText: string
+      fragmentIndex: number
+      fragmentCount: number
+      showAnswerLabel: boolean
+    }
 }
 
 export interface SingleColumnQuestionGroups {
@@ -55,6 +64,7 @@ export interface SingleColumnPlacementOptions {
 export type SingleColumnPlacementStep =
   | { type: 'atomic-group'; blocks: SingleColumnBlock[] }
   | { type: 'choice-rows'; blocks: SingleColumnBlock[] }
+  | { type: 'answer-fragments'; blocks: SingleColumnBlock[] }
 
 function normalizeText(text: string | null | undefined) {
   if (typeof text !== 'string') {
@@ -124,29 +134,51 @@ function createChoiceRowBlock(
   }
 }
 
-function createAnswerBlock(question: SingleColumnQuestionLike): SingleColumnBlock | null {
+function buildAnswerBlockId(questionNumber: number, fragmentIndex: number, fragmentCount: number) {
+  return fragmentCount <= 1
+    ? `question-${questionNumber}-answer`
+    : `question-${questionNumber}-answer-part-${fragmentIndex + 1}`
+}
+
+function createAnswerBlocks(
+  question: SingleColumnQuestionLike,
+  { splitExplanation = false }: { splitExplanation?: boolean } = {}
+): SingleColumnBlock[] {
   const answerText = normalizeText(question.answer)
   const explanationText = normalizeText(question.explanation)
   const questionLabel = `${question.number}번`
 
   if (!answerText && !explanationText) {
-    return null
+    return []
   }
 
-  return {
-    id: `question-${question.number}-answer`,
-    questionNumber: question.number,
-    kind: 'answer',
-    estimatedHeight: estimateTextWeight(questionLabel, 72, 1)
-      + estimateTextWeight(answerText, 84, 1)
-      + estimateTextWeight(explanationText, 90, 3),
-    payload: {
-      type: 'answer',
-      questionLabel,
-      answerText,
-      explanationText,
-    },
-  }
+  const explanationChunks = splitExplanation && explanationText
+    ? splitTextIntoFlowChunks(explanationText, 320)
+    : []
+  const chunks = explanationChunks.length > 0 ? explanationChunks : [explanationText]
+  const fragmentCount = chunks.length
+
+  return chunks.map((chunk, index) => {
+    const isFirstFragment = index === 0
+
+    return {
+      id: buildAnswerBlockId(question.number, index, fragmentCount),
+      questionNumber: question.number,
+      kind: 'answer',
+      estimatedHeight: estimateTextWeight(isFirstFragment ? questionLabel : '', 72, isFirstFragment ? 1 : 0)
+        + estimateTextWeight(isFirstFragment ? answerText : '', 84, isFirstFragment ? 1 : 0)
+        + estimateTextWeight(chunk, 90, isFirstFragment ? 3 : 1),
+      payload: {
+        type: 'answer',
+        questionLabel: isFirstFragment ? questionLabel : '',
+        answerText: isFirstFragment ? answerText : '',
+        explanationText: chunk,
+        fragmentIndex: index,
+        fragmentCount,
+        showAnswerLabel: isFirstFragment,
+      },
+    }
+  })
 }
 
 export function buildSingleColumnQuestionGroups(
@@ -185,10 +217,9 @@ export function buildSingleColumnQuestionGroups(
   }
 
   if (options.showAnswers) {
-    const answerBlock = createAnswerBlock(question)
-    if (answerBlock) {
-      answerBlocks.push(answerBlock)
-    }
+    answerBlocks.push(...createAnswerBlocks(question, {
+      splitExplanation: !options.showQuestions,
+    }))
   }
 
   return {
@@ -205,8 +236,8 @@ export function buildSingleColumnPlacementSteps(
 ): SingleColumnPlacementStep[] {
   if (groupAnswerOnlyQuestion) {
     return [{
-      type: 'atomic-group',
-      blocks: [...group.promptBlocks, ...group.answerBlocks],
+      type: 'answer-fragments',
+      blocks: group.answerBlocks,
     }]
   }
 
@@ -310,6 +341,11 @@ export function paginateSingleColumnQuestionGroups({
     }).forEach((step) => {
       if (step.type === 'atomic-group') {
         placeGroup(step.blocks)
+        return
+      }
+
+      if (step.type === 'answer-fragments') {
+        placeChoiceBlocks(step.blocks)
         return
       }
 

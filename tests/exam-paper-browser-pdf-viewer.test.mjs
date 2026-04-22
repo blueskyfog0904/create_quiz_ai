@@ -81,6 +81,7 @@ async function loadRuntimeSingleColumnLayoutModule() {
   const tempDir = mkdtempSync(join(tmpdir(), 'exam-paper-browser-single-column-layout-'))
   const tempModulePath = join(tempDir, 'exam-paper-single-column-layout.runtime.ts')
   const runtimeSource = singleColumnLayoutSource
+    .replace(/@\/lib\/exam-paper-pdf-pagination\.js/g, paginationModuleUrl)
     .replace(/@\/lib\/questions\/normalize-question-field/g, normalizeQuestionFieldModuleUrl)
 
   writeFileSync(tempModulePath, runtimeSource)
@@ -212,6 +213,66 @@ async function getRuntimePreviewArtifacts(viewMode) {
   }
 }
 
+function createLongAnswerOnlyExamPaper() {
+  return {
+    ...regressionExamPaper,
+    viewMode: 'answer-only',
+    questions: [
+      {
+        number: 1,
+        questionText: 'unused in answer-only',
+        questionTextForward: null,
+        passageText: null,
+        questionTextBackward: null,
+        choices: [],
+        answer: '①',
+        explanation: 'Short explanation to seed the page before the continued answer.',
+      },
+      {
+        number: 2,
+        questionText: 'unused in answer-only',
+        questionTextForward: null,
+        passageText: null,
+        questionTextBackward: null,
+        choices: [],
+        answer: '②',
+        explanation: Array.from({ length: 48 }, (_, index) => (
+          `Explanation sentence ${index + 1} explains in detail why the selected option is correct and how the supporting evidence accumulates across the passage.`
+        )).join(' '),
+      },
+    ],
+  }
+}
+
+async function getRuntimePreviewArtifactsForExamPaper(examPaper) {
+  const {
+    module: layoutContractModule,
+    moduleUrl: layoutContractModuleUrl,
+  } = await loadRuntimeLayoutContractModule()
+  const singleColumnLayoutModuleUrl = await loadRuntimeSingleColumnLayoutModule()
+  const exportUtilsModule = await loadRuntimeExportUtilsModule(
+    layoutContractModuleUrl,
+    singleColumnLayoutModuleUrl
+  )
+
+  const renderOptions = layoutContractModule.buildExamPaperRenderOptions(examPaper)
+  const questionPlans = examPaper.questions.map((question) =>
+    layoutContractModule.buildQuestionSectionPlan(question, renderOptions)
+  )
+  const previewPlan = layoutContractModule.buildTwoColumnLayoutPlan({
+    questionPlans,
+    profile: 'shared-default',
+    target: 'preview',
+    hasDescription: true,
+  })
+  const previewHtml = exportUtilsModule.buildExamPaperPrintHtml(examPaper)
+
+  return {
+    previewPlan,
+    previewHtml,
+  }
+}
+
 test('two-column preview follows the shared planner page grouping for the regression fixture', async () => {
   const { previewPlan, previewHtml } = await getRuntimePreviewArtifacts('exam-with-answers')
 
@@ -227,9 +288,26 @@ test('answer-only two-column preview prepends the question number inside each an
 
   assert.match(
     previewHtml,
-    /data-section-id="question-1-answer"[\s\S]*?<div class="answer-text-block">[\s\S]*?<div class="answer-text-line answer-text-question">1번<\/div>[\s\S]*?<div class="answer-text-line answer-text-answer">정답:/
+    /data-section-id="question-1-answer-part-1"[\s\S]*?<div class="answer-text-block">[\s\S]*?<div class="answer-text-line answer-text-question">1번<\/div>[\s\S]*?<div class="answer-text-line answer-text-answer">정답:/
   )
   assert.doesNotMatch(previewHtml, /answer-section/)
+})
+
+test('answer-only two-column preview can continue a long explanation into later answer fragments', async () => {
+  const { previewPlan, previewHtml } = await getRuntimePreviewArtifactsForExamPaper(
+    createLongAnswerOnlyExamPaper()
+  )
+
+  const allSectionIds = previewPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
+
+  assert.ok(allSectionIds.includes('question-2-answer-part-1'))
+  assert.ok(allSectionIds.includes('question-2-answer-part-2'))
+  assert.match(previewHtml, /data-section-id="question-2-answer-part-1"/)
+  assert.match(previewHtml, /data-section-id="question-2-answer-part-2"/)
+  assert.match(
+    previewHtml,
+    /data-section-id="question-2-answer-part-2"[\s\S]*?<div class="answer-text-block">[\s\S]*?<div class="answer-text-line answer-text-explanation">Explanation sentence/
+  )
 })
 
 test('single-column preview renders answer blocks as plain text with question labels', async () => {

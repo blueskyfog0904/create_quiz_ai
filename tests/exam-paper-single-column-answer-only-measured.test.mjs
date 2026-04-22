@@ -5,12 +5,14 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 
-import { regressionExamPaper } from './fixtures/exam-paper-two-column-regression.fixture.mjs'
-
 const singleColumnLayoutSource = readFileSync(
   new URL('../src/lib/exam-paper-single-column-layout.ts', import.meta.url),
   'utf8'
 )
+const paginationModuleUrl = new URL(
+  '../src/lib/exam-paper-pdf-pagination.js',
+  import.meta.url
+).href
 const singleColumnMeasurementSource = readFileSync(
   new URL('../src/lib/exam-paper-single-column-measurement.ts', import.meta.url),
   'utf8'
@@ -28,6 +30,7 @@ async function loadRuntimeModules() {
   writeFileSync(
     layoutPath,
     singleColumnLayoutSource
+      .replace(/@\/lib\/exam-paper-pdf-pagination\.js/g, paginationModuleUrl)
       .replace(/@\/lib\/questions\/normalize-question-field/g, normalizeQuestionFieldModuleUrl)
   )
 
@@ -46,6 +49,17 @@ async function loadRuntimeModules() {
   return {
     buildSingleColumnQuestionGroups: layoutModule.buildSingleColumnQuestionGroups,
     measureSingleColumnPreviewPages: measurementModule.measureSingleColumnPreviewPages,
+  }
+}
+
+function createLongAnswerOnlyQuestion() {
+  return {
+    number: 1,
+    questionText: '무시되는 answer-only question text',
+    answer: '①',
+    explanation: Array.from({ length: 12 }, (_, index) => (
+      `Explanation sentence ${index + 1} explains in detail why the selected option is correct and how the supporting evidence accumulates across the passage.`
+    )).join(' '),
   }
 }
 
@@ -195,18 +209,18 @@ class FakeDocument {
   }
 }
 
-test('measured answer-only pagination keeps one plain text answer block per question when space is tight', async () => {
+test('measured answer-only pagination lets long answer fragments continue across pages', async () => {
   const {
     buildSingleColumnQuestionGroups,
     measureSingleColumnPreviewPages,
   } = await loadRuntimeModules()
 
-  const questionGroups = regressionExamPaper.questions.slice(0, 2).map((question) => (
-    buildSingleColumnQuestionGroups(question, {
+  const questionGroups = [
+    buildSingleColumnQuestionGroups(createLongAnswerOnlyQuestion(), {
       showQuestions: false,
       showAnswers: true,
-    })
-  ))
+    }),
+  ]
 
   const fakeDocument = new FakeDocument()
   const originalDocument = globalThis.document
@@ -222,9 +236,9 @@ test('measured answer-only pagination keeps one plain text answer block per ques
       groupAnswerOnlyQuestion: true,
     })
 
-    assert.equal(pages.length, 2)
-    assert.deepEqual(pages[0].blockIds, ['question-1-answer'])
-    assert.deepEqual(pages[1].blockIds, ['question-2-answer'])
+    assert.ok(pages.length >= 2)
+    assert.deepEqual(pages[0].blockIds, ['question-1-answer-part-1'])
+    assert.deepEqual(pages[1].blockIds, ['question-1-answer-part-2'])
   } finally {
     if (typeof originalDocument === 'undefined') {
       delete globalThis.document

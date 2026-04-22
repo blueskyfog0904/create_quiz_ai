@@ -104,6 +104,37 @@ async function buildRegressionPlans(viewMode) {
   }
 }
 
+function createLongAnswerOnlyExamPaper() {
+  return {
+    ...regressionExamPaper,
+    viewMode: 'answer-only',
+    questions: [
+      {
+        number: 1,
+        questionText: 'unused in answer-only',
+        questionTextForward: null,
+        questionTextBackward: null,
+        passageText: null,
+        choices: [],
+        answer: '①',
+        explanation: 'Short explanation to seed the page before the continued answer.',
+      },
+      {
+        number: 2,
+        questionText: 'unused in answer-only',
+        questionTextForward: null,
+        questionTextBackward: null,
+        passageText: null,
+        choices: [],
+        answer: '②',
+        explanation: Array.from({ length: 14 }, (_, index) => (
+          `Explanation sentence ${index + 1} explains in detail why the selected option is correct and how the supporting evidence accumulates across the passage.`
+        )).join(' '),
+      },
+    ],
+  }
+}
+
 test('regression fixture still covers a multi-question answered 2-column paper', () => {
   assert.equal(regressionExamPaper.columnLayout, 'double')
   assert.equal(regressionExamPaper.questions.length >= 6, true)
@@ -180,4 +211,46 @@ test('preview/pdf parity keeps identical page grouping after removing first-page
     pdfPlan.pages.map((page) => page.columns.flatMap((column) => column.sectionIds)),
     previewPlan.pages.map((page) => page.columns.flatMap((column) => column.sectionIds))
   )
+})
+
+test('answer-only two-column fragments long answer text while exam-with-answers keeps answers atomic', async () => {
+  const {
+    buildExamPaperRenderOptions,
+    buildQuestionSectionPlan,
+    buildTwoColumnLayoutPlan,
+  } = await getRequiredPlannerApi()
+
+  const answerOnlyExamPaper = createLongAnswerOnlyExamPaper()
+  const answerOnlyOptions = buildExamPaperRenderOptions(answerOnlyExamPaper)
+  const answerOnlyPlans = answerOnlyExamPaper.questions.map((question) =>
+    buildQuestionSectionPlan(question, answerOnlyOptions)
+  )
+  const answerOnlyLayout = buildTwoColumnLayoutPlan({
+    questionPlans: answerOnlyPlans,
+    profile: 'shared-default',
+    target: 'preview',
+    hasDescription: true,
+  })
+
+  const answerOnlyIds = answerOnlyLayout.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
+  assert.ok(answerOnlyIds.includes('question-2-answer-part-1'))
+  assert.ok(answerOnlyIds.includes('question-2-answer-part-2'))
+
+  const answeredOptions = buildExamPaperRenderOptions({
+    ...answerOnlyExamPaper,
+    viewMode: 'exam-with-answers',
+  })
+  const answeredPlans = answerOnlyExamPaper.questions.map((question) =>
+    buildQuestionSectionPlan(question, answeredOptions)
+  )
+  const answeredLayout = buildTwoColumnLayoutPlan({
+    questionPlans: answeredPlans,
+    profile: 'shared-default',
+    target: 'preview',
+    hasDescription: true,
+  })
+  const answeredIds = answeredLayout.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
+
+  assert.equal(answeredIds.includes('question-2-answer'), true)
+  assert.equal(answeredIds.some((sectionId) => sectionId.startsWith('question-2-answer-part-')), false)
 })
