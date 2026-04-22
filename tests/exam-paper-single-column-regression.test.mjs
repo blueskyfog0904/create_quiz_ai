@@ -180,11 +180,12 @@ test('single-column PDF document keeps prompt and answer groups atomic while cho
   const contentNodes = docDefinition.content.slice(2)
   const promptNode = contentNodes[0]
   const firstChoiceNode = contentNodes.find((node) => node.text?.startsWith('① '))
-  const answerNode = contentNodes.find((node) => node.table)
+  const answerGroupNode = contentNodes.find((node) => Array.isArray(node.stack) && node.stack.some((child) => child.table))
 
   assert.equal(Array.isArray(promptNode.stack), true)
   assert.equal(promptNode.unbreakable, true)
   assert.equal(promptNode.columns, undefined)
   assert.equal(firstChoiceNode.unbreakable, undefined)
-  assert.ok(answerNode)
+  assert.ok(answerGroupNode)
+  assert.equal(answerGroupNode.unbreakable, true)
 })

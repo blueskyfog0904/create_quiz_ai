@@ -134,6 +134,7 @@ export function ExamPaperPdfWorkspace({
               })
             )),
             showQuestions: viewMode !== 'answer-only',
+            groupAnswerOnlyQuestion: viewMode === 'answer-only',
           })
           : null
 

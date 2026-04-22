@@ -12,6 +12,7 @@ import {
 } from '@/lib/exam-paper-layout-contract'
 import {
   buildSingleColumnQuestionGroups,
+  buildSingleColumnPlacementSteps,
   type SingleColumnBlock,
 } from '@/lib/exam-paper-single-column-layout'
 import {
@@ -478,33 +479,28 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
       showQuestions,
       showAnswers,
     })
-
-    const nodes: Array<Record<string, unknown>> = []
-
-    if (groups.promptBlocks.length > 0) {
-      nodes.push({
-        stack: groups.promptBlocks.map((block) => renderSingleColumnBlockNode(block)),
-        unbreakable: true,
-        margin: [0, questionIndex === 0 ? 0 : 14, 0, 8],
-      })
-    }
-
-    groups.choiceBlocks.forEach((block, index) => {
-      nodes.push({
-        ...renderSingleColumnBlockNode(block),
-        margin: [0, 0, 0, index === groups.choiceBlocks.length - 1 ? 10 : 0],
-      })
+    const placementSteps = buildSingleColumnPlacementSteps(groups, {
+      groupAnswerOnlyQuestion: !showQuestions && showAnswers,
     })
 
-    if (groups.answerBlocks.length > 0) {
-      nodes.push({
-        ...renderSingleColumnBlockNode(groups.answerBlocks[0]),
-        unbreakable: true,
-        margin: [0, 0, 0, 14],
-      })
-    }
+    return placementSteps.flatMap((step, stepIndex) => {
+      if (step.type === 'atomic-group') {
+        if (step.blocks.length === 0) {
+          return []
+        }
 
-    return nodes
+        return [{
+          stack: step.blocks.map((block) => renderSingleColumnBlockNode(block)),
+          unbreakable: true,
+          margin: [0, questionIndex === 0 && stepIndex === 0 ? 0 : 14, 0, 8],
+        }]
+      }
+
+      return step.blocks.map((block, index) => ({
+        ...renderSingleColumnBlockNode(block),
+        margin: [0, 0, 0, index === step.blocks.length - 1 ? 10 : 0],
+      }))
+    })
   })
 
   content.push(...singleColumnNodes)

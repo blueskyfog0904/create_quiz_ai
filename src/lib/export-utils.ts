@@ -271,9 +271,11 @@ function buildSingleColumnPreviewPages(
   {
     showQuestions,
     showAnswers,
+    groupAnswerOnlyQuestion,
   }: {
     showQuestions: boolean
     showAnswers: boolean
+    groupAnswerOnlyQuestion: boolean
   }
 ) {
   const questionGroups = examPaper.questions.map((question) => (
@@ -286,6 +288,7 @@ function buildSingleColumnPreviewPages(
   return paginateSingleColumnQuestionGroups({
     questionGroups,
     hasDescription: Boolean(examPaper.description),
+    groupAnswerOnlyQuestion,
   })
 }
 
@@ -501,6 +504,7 @@ export function buildExamPaperPrintHtml(
     ? singleColumnMeasuredPages ?? buildSingleColumnPreviewPages(examPaper, {
       showQuestions,
       showAnswers,
+      groupAnswerOnlyQuestion: !showQuestions && showAnswers,
     })
     : null
   // Shared page/column planning continues through buildExamPaperLayoutPlan inside the contract.

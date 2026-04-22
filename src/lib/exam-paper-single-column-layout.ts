@@ -48,6 +48,14 @@ export interface SingleColumnPagePlan {
   blocks: SingleColumnBlock[]
 }
 
+export interface SingleColumnPlacementOptions {
+  groupAnswerOnlyQuestion?: boolean
+}
+
+export type SingleColumnPlacementStep =
+  | { type: 'atomic-group'; blocks: SingleColumnBlock[] }
+  | { type: 'choice-rows'; blocks: SingleColumnBlock[] }
+
 function normalizeText(text: string | null | undefined) {
   if (typeof text !== 'string') {
     return ''
@@ -187,6 +195,24 @@ export function buildSingleColumnQuestionGroups(
   }
 }
 
+export function buildSingleColumnPlacementSteps(
+  group: SingleColumnQuestionGroups,
+  { groupAnswerOnlyQuestion = false }: SingleColumnPlacementOptions = {}
+): SingleColumnPlacementStep[] {
+  if (groupAnswerOnlyQuestion) {
+    return [{
+      type: 'atomic-group',
+      blocks: [...group.promptBlocks, ...group.answerBlocks],
+    }]
+  }
+
+  return [
+    { type: 'atomic-group', blocks: group.promptBlocks },
+    { type: 'choice-rows', blocks: group.choiceBlocks },
+    { type: 'atomic-group', blocks: group.answerBlocks },
+  ]
+}
+
 function getPageCapacity(
   pageIndex: number,
   {
@@ -211,11 +237,13 @@ export function paginateSingleColumnQuestionGroups({
   hasDescription,
   firstPageCapacity,
   otherPageCapacity,
+  groupAnswerOnlyQuestion = false,
 }: {
   questionGroups: SingleColumnQuestionGroups[]
   hasDescription: boolean
   firstPageCapacity?: number
   otherPageCapacity?: number
+  groupAnswerOnlyQuestion?: boolean
 }): SingleColumnPagePlan[] {
   const pages: SingleColumnPagePlan[] = []
   const usage: number[] = []
@@ -273,9 +301,16 @@ export function paginateSingleColumnQuestionGroups({
   }
 
   questionGroups.forEach((group) => {
-    placeGroup(group.promptBlocks)
-    placeChoiceBlocks(group.choiceBlocks)
-    placeGroup(group.answerBlocks)
+    buildSingleColumnPlacementSteps(group, {
+      groupAnswerOnlyQuestion,
+    }).forEach((step) => {
+      if (step.type === 'atomic-group') {
+        placeGroup(step.blocks)
+        return
+      }
+
+      placeChoiceBlocks(step.blocks)
+    })
   })
 
   return pages.filter((page) => page.blocks.length > 0)

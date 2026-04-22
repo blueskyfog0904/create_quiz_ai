@@ -4,12 +4,14 @@ import type {
   SingleColumnPagePlan,
   SingleColumnQuestionGroups,
 } from '@/lib/exam-paper-single-column-layout'
+import { buildSingleColumnPlacementSteps } from '@/lib/exam-paper-single-column-layout'
 
 interface MeasureSingleColumnPreviewPagesInput {
   description?: string | undefined
   pageTitle: string
   questionGroups: SingleColumnQuestionGroups[]
   showQuestions: boolean
+  groupAnswerOnlyQuestion?: boolean
 }
 
 function escapeHtml(text: string) {
@@ -233,6 +235,7 @@ export function measureSingleColumnPreviewPages({
   description,
   questionGroups,
   showQuestions,
+  groupAnswerOnlyQuestion = false,
 }: MeasureSingleColumnPreviewPagesInput): SingleColumnPagePlan[] {
   if (typeof document === 'undefined') {
     throw new Error('single-column preview measurement requires a browser document')
@@ -318,9 +321,16 @@ export function measureSingleColumnPreviewPages({
     }
 
     questionGroups.forEach((group) => {
-      placeAtomicGroup(group.promptBlocks)
-      placeChoiceRows(group.choiceBlocks)
-      placeAtomicGroup(group.answerBlocks)
+      buildSingleColumnPlacementSteps(group, {
+        groupAnswerOnlyQuestion,
+      }).forEach((step) => {
+        if (step.type === 'atomic-group') {
+          placeAtomicGroup(step.blocks)
+          return
+        }
+
+        placeChoiceRows(step.blocks)
+      })
     })
 
     return measuredPages.filter((page) => page.blocks.length > 0)

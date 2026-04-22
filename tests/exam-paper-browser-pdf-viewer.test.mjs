@@ -272,4 +272,5 @@ test('PDF workspace measures single-column pages before building preview HTML', 
   assert.match(workspaceSource, /measureSingleColumnPreviewPages/)
   assert.match(workspaceSource, /singleColumnMeasuredPages/)
   assert.match(workspaceSource, /columnLayout === 'single'/)
+  assert.match(workspaceSource, /groupAnswerOnlyQuestion:\s*viewMode === 'answer-only'/)
 })
