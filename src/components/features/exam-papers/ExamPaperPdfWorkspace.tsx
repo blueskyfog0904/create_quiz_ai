@@ -32,6 +32,11 @@ import {
   type ViewMode as ExamPaperPdfViewMode,
 } from '@/lib/export-utils'
 import {
+  buildSingleColumnQuestionGroups,
+  type SingleColumnPagePlan,
+} from '@/lib/exam-paper-single-column-layout'
+import { measureSingleColumnPreviewPages } from '@/lib/exam-paper-single-column-measurement'
+import {
   buildExamPaperPdfBlob,
   buildExamPaperPdfFileName,
   downloadExamPaperPdf,
@@ -74,6 +79,7 @@ export function ExamPaperPdfWorkspace({
   const [isSavingPdf, setIsSavingPdf] = useState(false)
   const [isOpeningPdfTab, setIsOpeningPdfTab] = useState(false)
   const [previewHtml, setPreviewHtml] = useState('')
+  const [singleColumnMeasuredPages, setSingleColumnMeasuredPages] = useState<SingleColumnPagePlan[] | null>(null)
 
   const exportPayload: ExamPaperPrintDocument = useMemo(() => ({
     title: examPaper.paper_title,
@@ -96,6 +102,7 @@ export function ExamPaperPdfWorkspace({
     setIsOpeningPdfTab(false)
     setIsSavingPdf(false)
     setPreviewHtml('')
+    setSingleColumnMeasuredPages(null)
   }, [initialColumnLayout, initialQuestions, initialViewMode])
 
   useEffect(() => {
@@ -116,7 +123,27 @@ export function ExamPaperPdfWorkspace({
       setIsGeneratingPreview(true)
 
       try {
-        const html = buildExamPaperPrintHtml(exportPayload)
+        const measuredPages = columnLayout === 'single'
+          ? measureSingleColumnPreviewPages({
+            pageTitle: previewTitle,
+            description: exportPayload.description,
+            questionGroups: exportPayload.questions.map((question) => (
+              buildSingleColumnQuestionGroups(question, {
+                showQuestions: viewMode !== 'answer-only',
+                showAnswers: viewMode !== 'exam-only',
+              })
+            )),
+            showQuestions: viewMode !== 'answer-only',
+          })
+          : null
+
+        if (!cancelled) {
+          setSingleColumnMeasuredPages(measuredPages)
+        }
+
+        const html = buildExamPaperPrintHtml(exportPayload, {
+          singleColumnMeasuredPages: measuredPages,
+        })
         if (cancelled) return
 
         setPreviewHtml(html)
@@ -136,7 +163,7 @@ export function ExamPaperPdfWorkspace({
       cancelled = true
       window.clearTimeout(timeoutId)
     }
-  }, [exportPayload, open])
+  }, [columnLayout, exportPayload, open, previewTitle, viewMode])
 
   const moveQuestion = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) {
@@ -189,6 +216,7 @@ export function ExamPaperPdfWorkspace({
       openExamPaperPrintPreview(exportPayload, {
         autoPrint: true,
         closeAfterPrint: true,
+        singleColumnMeasuredPages,
       })
       toast.success('인쇄 창을 열었습니다.')
     } catch (error) {

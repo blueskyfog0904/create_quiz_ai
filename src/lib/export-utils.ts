@@ -11,6 +11,7 @@ import {
   buildSingleColumnQuestionGroups,
   paginateSingleColumnQuestionGroups,
   type SingleColumnBlock,
+  type SingleColumnPagePlan,
 } from '@/lib/exam-paper-single-column-layout'
 import type {
   ExamPaperRenderOptions,
@@ -99,6 +100,7 @@ export interface ExamPaper {
 interface ExamPaperPrintPreviewOptions {
   autoPrint?: boolean
   closeAfterPrint?: boolean
+  singleColumnMeasuredPages?: SingleColumnPagePlan[] | null
 }
 
 interface HtmlPaginationChunk {
@@ -484,6 +486,7 @@ export function buildExamPaperPrintHtml(
   {
     autoPrint = false,
     closeAfterPrint = false,
+    singleColumnMeasuredPages = null,
   }: ExamPaperPrintPreviewOptions = {}
 ) {
   const renderOptions = buildExamPaperRenderOptions(examPaper)
@@ -495,7 +498,7 @@ export function buildExamPaperPrintHtml(
     layoutSuffix,
   } = renderOptions
   const singleColumnPages = !isDoubleColumn
-    ? buildSingleColumnPreviewPages(examPaper, {
+    ? singleColumnMeasuredPages ?? buildSingleColumnPreviewPages(examPaper, {
       showQuestions,
       showAnswers,
     })
@@ -806,6 +809,7 @@ export function openExamPaperPrintPreview(
   {
     autoPrint = false,
     closeAfterPrint = false,
+    singleColumnMeasuredPages = null,
   }: ExamPaperPrintPreviewOptions = {}
 ) {
   const printWindow = window.open('', '_blank')
@@ -818,6 +822,7 @@ export function openExamPaperPrintPreview(
     buildExamPaperPrintHtml(examPaper, {
       autoPrint,
       closeAfterPrint,
+      singleColumnMeasuredPages,
     })
   )
   printWindow.document.close()

@@ -267,3 +267,9 @@ test('PDF workspace reseeds the preview state from the latest web question order
     /useEffect\(\(\) => \{\s*if \(!open\) \{\s*return\s*\}\s*syncWorkspaceToLatestProps\(\)/s
   )
 })
+
+test('PDF workspace measures single-column pages before building preview HTML', () => {
+  assert.match(workspaceSource, /measureSingleColumnPreviewPages/)
+  assert.match(workspaceSource, /singleColumnMeasuredPages/)
+  assert.match(workspaceSource, /columnLayout === 'single'/)
+})
