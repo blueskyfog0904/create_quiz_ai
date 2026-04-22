@@ -154,6 +154,7 @@ interface ResolvedTwoColumnLayoutProfile {
 const DEFAULT_COMPAT_LAYOUT_PROFILE_NAME: TwoColumnLayoutProfileName = 'shared-default'
 const DEFAULT_COMPAT_LAYOUT_TARGET: TwoColumnLayoutTarget = 'preview'
 const DOUBLE_COLUMN_BOTTOM_GUARD_BAND_UNITS = 50
+const ANSWER_ONLY_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS = 160
 
 const BODY_SECTION_DEFINITIONS = [
   {
@@ -286,9 +287,9 @@ function estimateAnswerFragmentUnits(
   return estimateSectionUnits(
     [questionLabel, answerText ? `정답: ${answerText}` : '', explanationText].filter(Boolean).join('\n'),
     {
-      charsPerLine: 34,
-      lineUnit: 22,
-      baseUnit: continuationPosition === 'single' || continuationPosition === 'start' ? 30 : 6,
+      charsPerLine: 31,
+      lineUnit: 24,
+      baseUnit: continuationPosition === 'single' || continuationPosition === 'start' ? 40 : 12,
     }
   )
 }
@@ -404,7 +405,10 @@ function createChoiceFragments(section: TwoColumnSectionPlan) {
 }
 
 function createAnswerFragments(section: TwoColumnSectionPlan) {
-  const explanationChunks = splitTextIntoFlowChunks(section.explanationText ?? '', 220)
+  const explanationChunks = splitTextIntoFlowChunks(
+    section.explanationText ?? '',
+    ANSWER_ONLY_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS
+  )
   const chunks = explanationChunks.length > 0
     ? explanationChunks
     : [section.explanationText ?? '']

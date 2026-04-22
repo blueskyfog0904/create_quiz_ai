@@ -123,6 +123,42 @@ function createLongAnswerOnlyExamPaper() {
   }
 }
 
+function createLongSentenceAnswerOnlyExamPaper() {
+  const longSentence = [
+    'This explanation intentionally uses a single overlong sentence to force the planner',
+    'to decide whether one sentence should stay together or be split more aggressively',
+    'before the last line reaches the bottom edge of the preview column while the final clause keeps adding more descriptive phrasing',
+    'so that the estimate and chunk size both have to do more work than they do for ordinary short answer explanations.',
+  ].join(' ')
+
+  return {
+    ...regressionExamPaper,
+    viewMode: 'answer-only',
+    questions: [
+      {
+        number: 1,
+        questionText: 'unused in answer-only',
+        questionTextForward: null,
+        questionTextBackward: null,
+        passageText: null,
+        choices: [],
+        answer: '①',
+        explanation: longSentence,
+      },
+      {
+        number: 2,
+        questionText: 'unused in answer-only',
+        questionTextForward: null,
+        questionTextBackward: null,
+        passageText: null,
+        choices: [],
+        answer: '②',
+        explanation: `${longSentence} ${longSentence}`,
+      },
+    ],
+  }
+}
+
 test('regression fixture still covers a multi-question answered 2-column paper', () => {
   assert.equal(regressionExamPaper.columnLayout, 'double')
   assert.equal(regressionExamPaper.questions.length >= 6, true)
@@ -236,4 +272,28 @@ test('answer-only two-column fragments long answer text while exam-with-answers 
 
   assert.equal(answeredIds.includes('question-2-answer'), true)
   assert.equal(answeredIds.some((sectionId) => sectionId.startsWith('question-2-answer-part-')), false)
+})
+
+test('answer-only two-column splits overlong explanation sentences more aggressively than the legacy 220-char chunk size', async () => {
+  const {
+    buildExamPaperRenderOptions,
+    buildQuestionSectionPlan,
+    buildTwoColumnLayoutPlan,
+  } = await getRequiredPlannerApi()
+
+  const answerOnlyExamPaper = createLongSentenceAnswerOnlyExamPaper()
+  const answerOnlyOptions = buildExamPaperRenderOptions(answerOnlyExamPaper)
+  const answerOnlyPlans = answerOnlyExamPaper.questions.map((question) =>
+    buildQuestionSectionPlan(question, answerOnlyOptions)
+  )
+  const answerOnlyLayout = buildTwoColumnLayoutPlan({
+    questionPlans: answerOnlyPlans,
+    profile: 'shared-default',
+    target: 'preview',
+    hasDescription: true,
+  })
+
+  const answerOnlyIds = answerOnlyLayout.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
+  assert.ok(answerOnlyIds.includes('question-2-answer-part-1'))
+  assert.ok(answerOnlyIds.includes('question-2-answer-part-6'))
 })
