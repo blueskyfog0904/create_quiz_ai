@@ -109,6 +109,22 @@ function createLongExamWithAnswersExamPaper() {
   }
 }
 
+function createRealisticExamWithAnswersUnderfillExamPaper() {
+  return {
+    title: regressionExamPaper.title,
+    description: regressionExamPaper.description,
+    viewMode: 'exam-with-answers',
+    columnLayout: 'double',
+    questions: [
+      {
+        ...regressionExamPaper.questions[0],
+        questionTextBackward: null,
+      },
+      regressionExamPaper.questions[1],
+    ],
+  }
+}
+
 test('exam-with-answers two-column keeps a bottom guard band on the first page right column', async () => {
   const layoutPlan = await buildPreviewLayoutPlan(createRegressionExamPaper('exam-with-answers'))
 
@@ -160,6 +176,28 @@ test('exam-with-answers two-column continues a long answer before leaving a larg
     page2RightUsedUnits <= OTHER_PAGE_CAPACITY_WITH_GUARD_BAND,
     `expected exam-with-answers page 2 right column to avoid overflow after answer continuation, got ${page2RightUsedUnits}`
   )
+})
+
+test('realistic exam-with-answers two-column pages stay dense instead of orphaning a short answer on a sparse next page', async () => {
+  const layoutPlan = await buildPreviewLayoutPlan(createRealisticExamWithAnswersUnderfillExamPaper())
+
+  const firstPage = layoutPlan.pages[0]
+  const secondPage = layoutPlan.pages[1]
+  const firstPageRightSlack = FIRST_PAGE_CAPACITY_WITH_DESCRIPTION - sumColumnUnits(firstPage.columns[1])
+
+  assert.ok(
+    firstPageRightSlack < 140,
+    `expected realistic exam-with-answers page 1 right column slack < 140, got ${firstPageRightSlack}`
+  )
+
+  if (secondPage) {
+    const secondPageLeftSlack = OTHER_PAGE_CAPACITY_WITH_GUARD_BAND - sumColumnUnits(secondPage.columns[0])
+
+    assert.ok(
+      secondPageLeftSlack < 700,
+      `expected realistic exam-with-answers page 2 left column slack < 700, got ${secondPageLeftSlack}`
+    )
+  }
 })
 
 test('exam-only two-column keeps a bottom guard band on the first page right column', async () => {

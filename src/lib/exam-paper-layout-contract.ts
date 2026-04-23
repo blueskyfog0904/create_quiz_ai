@@ -353,19 +353,28 @@ function estimateAnswerFragmentUnits(
   continuationMode: false | 'answer-only' | 'exam-with-answers' = false
 ): number {
   const isAnswerOnlyContinuation = continuationMode === 'answer-only'
+  const isAtomicExamWithAnswers = continuationMode === false
   const isLeadingFragment = continuationPosition === 'single' || continuationPosition === 'start'
 
+  let charsPerLine = 31
+  let lineUnit = 24
   let baseUnit = isLeadingFragment ? 40 : 12
 
   if (isAnswerOnlyContinuation) {
+    charsPerLine = 34
+    lineUnit = 20
     baseUnit = isLeadingFragment ? 36 : 10
+  } else if (isAtomicExamWithAnswers) {
+    charsPerLine = 36
+    lineUnit = 18
+    baseUnit = isLeadingFragment ? 34 : 10
   }
 
   return estimateSectionUnits(
     [questionLabel, answerText ? `정답: ${answerText}` : '', explanationText].filter(Boolean).join('\n'),
     {
-      charsPerLine: isAnswerOnlyContinuation ? 34 : 31,
-      lineUnit: isAnswerOnlyContinuation ? 20 : 24,
+      charsPerLine,
+      lineUnit,
       baseUnit,
     }
   )
@@ -548,18 +557,16 @@ function createAnswerFragments(section: TwoColumnSectionPlan) {
   const explanationMaxChars = section.allowContinuation === 'answer-only'
     ? ANSWER_ONLY_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS
     : EXAM_WITH_ANSWERS_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS
-  const explanationChunks = splitTextIntoFlowChunks(
-    section.explanationText ?? '',
-    explanationMaxChars
-  )
-  const chunks = explanationChunks.length > 0
-    ? explanationChunks
-    : [section.explanationText ?? '']
+  const explanationText = section.explanationText ?? ''
+  const explanationChunks = splitTextIntoFlowChunks(explanationText, explanationMaxChars)
+  const chunks = explanationChunks.length > 0 ? explanationChunks : [explanationText]
   const fragmentCount = chunks.length
 
   return chunks.map((explanationChunk, index) => {
     const continuationPosition = getContinuationPosition(index, fragmentCount)
     const isFirstFragment = index === 0
+    const questionLabel = isFirstFragment ? section.questionLabel : ''
+    const answerText = isFirstFragment ? section.answerText : ''
 
     const fragment = {
       id: buildFragmentId(section.id, index, fragmentCount),
@@ -570,15 +577,15 @@ function createAnswerFragments(section: TwoColumnSectionPlan) {
       continuationPosition,
       fragmentIndex: index,
       estimatedUnits: estimateAnswerFragmentUnits({
-        questionLabel: isFirstFragment ? section.questionLabel : '',
-        answerText: isFirstFragment ? section.answerText : '',
+        questionLabel,
+        answerText,
         explanationText: explanationChunk,
       }, continuationPosition, section.allowContinuation),
       splittable: true,
       payload: {
         type: 'answer',
-        questionLabel: isFirstFragment ? section.questionLabel : '',
-        answerText: isFirstFragment ? section.answerText : '',
+        questionLabel,
+        answerText,
         explanationText: explanationChunk,
         explanationChunkIndex: index + 1,
         explanationChunkCount: fragmentCount,
@@ -594,9 +601,9 @@ function createAnswerFragments(section: TwoColumnSectionPlan) {
       fragmentCount,
       continuationPosition,
       estimatedUnits: fragment.estimatedUnits,
-      answerTextLength: (isFirstFragment ? section.answerText : '')?.length ?? 0,
+      answerTextLength: answerText?.length ?? 0,
       explanationTextLength: explanationChunk.length,
-      questionLabelLength: (isFirstFragment ? section.questionLabel : '')?.length ?? 0,
+      questionLabelLength: questionLabel?.length ?? 0,
     })
 
     return fragment
@@ -804,6 +811,7 @@ export function buildQuestionSectionPlan(
     const estimatedAnswerText = [questionLabel, combinedAnswerText]
       .filter(Boolean)
       .join('\n')
+    const allowContinuation = shouldAllowAnswerContinuation(options, estimatedAnswerText)
 
     if (combinedAnswerText) {
       sections.push({
@@ -811,16 +819,16 @@ export function buildQuestionSectionPlan(
         questionNumber: question.number,
         kind: 'answer',
         sectionKey: 'answer',
-        estimatedUnits: estimateSectionUnits(estimatedAnswerText, {
-          charsPerLine: 40,
-          lineUnit: 22,
-          baseUnit: 72,
-        }),
+        estimatedUnits: estimateAnswerFragmentUnits({
+          questionLabel,
+          answerText,
+          explanationText,
+        }, 'single', allowContinuation),
         text: combinedAnswerText,
         answerText,
         explanationText,
         questionLabel,
-        allowContinuation: shouldAllowAnswerContinuation(options, estimatedAnswerText),
+        allowContinuation,
       })
     }
   }
