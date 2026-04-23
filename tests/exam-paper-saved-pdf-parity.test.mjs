@@ -211,24 +211,60 @@ test('saved PDF runtime pages preserve the shared planner section counts per pag
   })
 })
 
-test('saved PDF runtime keeps question 1 passage as a single boxed area', async () => {
-  const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-only')
-  const page1Ids = layoutPlan.pages[0].columns.flatMap((column) => column.sectionIds)
+function createFlowBodyExamPaper(viewMode = 'exam-only') {
+  const longBody = [
+    regressionExamPaper.questions[0].questionTextForward,
+    regressionExamPaper.questions[0].passageText,
+    regressionExamPaper.questions[0].questionTextBackward,
+    regressionExamPaper.questions[0].passageText,
+  ].filter(Boolean).join(' ')
 
-  assert.equal(page1Ids.includes('question-1-passage'), true)
-  assert.equal(page1Ids.some((sectionId) => sectionId.startsWith('question-1-passage-part-')), false)
+  return {
+    ...regressionExamPaper,
+    viewMode,
+    columnLayout: 'double',
+    questions: [
+      {
+        ...regressionExamPaper.questions[0],
+        questionTextForward: regressionExamPaper.questions[0].questionTextForward,
+        passageText: longBody,
+        questionTextBackward: regressionExamPaper.questions[0].questionTextBackward,
+      },
+      ...regressionExamPaper.questions.slice(1, 3),
+    ],
+  }
+}
+
+test('saved PDF runtime renders flow-body fragments as plain text nodes instead of boxed passage tables', async () => {
+  const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-only', createFlowBodyExamPaper())
+  const allPageIds = layoutPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
+
+  assert.equal(allPageIds.some((sectionId) => sectionId.startsWith('question-1-forward')), false)
+  assert.equal(allPageIds.some((sectionId) => sectionId.startsWith('question-1-passage')), false)
+  assert.equal(allPageIds.some((sectionId) => sectionId.startsWith('question-1-backward')), false)
+  assert.equal(allPageIds.includes('question-1-body-part-1'), true)
+  assert.equal(allPageIds.some((sectionId) => sectionId.startsWith('question-1-body-part-2')), true)
 
   const header = findRenderedSection(layoutPlan, renderedPages, 'question-1-header').node
-  const passage = findRenderedSection(layoutPlan, renderedPages, 'question-1-passage').node
-  const passageCell = passage.table.body[0][0]
+  const bodyPart = findRenderedSection(layoutPlan, renderedPages, 'question-1-body-part-1').node
 
   assert.match(header.text, /^1\./)
   assert.equal(Array.isArray(header.stack), false)
-  assert.equal(header.unbreakable, undefined)
-  assert.ok(passage.table)
-  assert.equal(Array.isArray(passage.stack), false)
-  assert.deepEqual(passage.margin, [0, 0, 0, 8])
-  assert.deepEqual(passageCell.border, [true, true, true, true])
+  assert.equal(bodyPart.table, undefined)
+  assert.equal(Array.isArray(bodyPart.stack), true)
+  assert.equal(bodyPart.stack[0].text.length > 0, true)
+})
+
+test('saved PDF runtime keeps answer blocks after the last merged flow-body fragment in exam-with-answers mode', async () => {
+  const { layoutPlan } = await buildRuntimeArtifacts('exam-with-answers', createFlowBodyExamPaper('exam-with-answers'))
+  const allSectionIds = layoutPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
+  const lastBodyIndex = Math.max(...allSectionIds
+    .map((sectionId, index) => sectionId.startsWith('question-1-body-part-') ? index : -1)
+    .filter((index) => index >= 0))
+  const answerIndex = allSectionIds.indexOf('question-1-answer')
+
+  assert.equal(lastBodyIndex >= 0, true)
+  assert.equal(answerIndex > lastBodyIndex, true)
 })
 
 test('saved PDF runtime splits choice rows into separate planner fragments with tight spacing', async () => {

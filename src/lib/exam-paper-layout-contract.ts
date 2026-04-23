@@ -155,8 +155,8 @@ const DEFAULT_COMPAT_LAYOUT_PROFILE_NAME: TwoColumnLayoutProfileName = 'shared-d
 const DEFAULT_COMPAT_LAYOUT_TARGET: TwoColumnLayoutTarget = 'preview'
 const DOUBLE_COLUMN_BOTTOM_GUARD_BAND_UNITS = 50
 const ANSWER_ONLY_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS = 300
-const DOUBLE_COLUMN_BODY_FRAGMENT_MIN_LENGTH = 900
-const DOUBLE_COLUMN_BODY_FRAGMENT_MAX_CHARS = 700
+const DOUBLE_COLUMN_BODY_FRAGMENT_MIN_LENGTH = 420
+const DOUBLE_COLUMN_BODY_FRAGMENT_MAX_CHARS = 420
 const EXAM_PAPER_DEBUG_STORAGE_KEY = 'exam-paper-pdf-debug'
 
 function isExamPaperDebugEnabled() {
@@ -287,6 +287,43 @@ function buildFragmentId(sourceSectionId: string, index: number, totalCount: num
 
 function buildChoiceRowText(choice: TwoColumnLayoutChoiceLike) {
   return `${choice.label}${choice.text}`
+}
+
+function buildFlowBodyText(question: TwoColumnLayoutQuestionLike) {
+  return BODY_SECTION_DEFINITIONS
+    .map(({ resolveText }) => normalizeSectionText(resolveText(question)))
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+function getBodyFragmentBaseUnit(
+  continuationPosition: TwoColumnContinuationPosition
+): number {
+  if (continuationPosition === 'single') {
+    return 42
+  }
+
+  if (continuationPosition === 'start') {
+    return 38
+  }
+
+  if (continuationPosition === 'middle') {
+    return 12
+  }
+
+  return 18
+}
+
+function getTitleSuffix(viewMode: ExamPaperLayoutViewMode): string {
+  if (viewMode === 'answer-only') {
+    return ' - 답안'
+  }
+
+  if (viewMode === 'exam-only') {
+    return ' - 시험지'
+  }
+
+  return ''
 }
 
 function estimateChoiceFragmentUnits(
@@ -469,15 +506,9 @@ function createBodyFragments(section: TwoColumnSectionPlan) {
       continuationPosition,
       fragmentIndex: index,
       estimatedUnits: estimateSectionUnits(chunkText, {
-        charsPerLine: 38,
-        lineUnit: 23,
-        baseUnit: continuationPosition === 'single'
-          ? 42
-          : continuationPosition === 'start'
-            ? 38
-            : continuationPosition === 'middle'
-              ? 12
-              : 18,
+        charsPerLine: 34,
+        lineUnit: 24,
+        baseUnit: getBodyFragmentBaseUnit(continuationPosition),
       }),
       splittable: true,
       payload: {
@@ -645,11 +676,7 @@ export function buildExamPaperRenderOptions(examPaper: ExamPaperLayoutInput): Ex
     showQuestions: viewMode !== 'answer-only',
     showAnswers: viewMode !== 'exam-only',
     isDoubleColumn: columnLayout === 'double',
-    titleSuffix: viewMode === 'answer-only'
-      ? ' - 답안'
-      : viewMode === 'exam-only'
-        ? ' - 시험지'
-        : '',
+    titleSuffix: getTitleSuffix(viewMode),
     layoutSuffix: columnLayout === 'double' ? ' (2단)' : '',
   }
 }
@@ -674,26 +701,45 @@ export function buildQuestionSectionPlan(
       text: normalizeSectionText(question.questionText),
     })
 
-    BODY_SECTION_DEFINITIONS.forEach(({ sectionKey, resolveText }) => {
-      const bodyText = normalizeSectionText(resolveText(question))
+    if (options.isDoubleColumn) {
+      const flowBodyText = buildFlowBodyText(question)
 
-      if (!bodyText) {
-        return
+      if (flowBodyText) {
+        sections.push({
+          id: `question-${question.number}-body`,
+          questionNumber: question.number,
+          kind: 'body',
+          sectionKey: 'body',
+          estimatedUnits: estimateSectionUnits(flowBodyText, {
+            charsPerLine: 34,
+            lineUnit: 24,
+            baseUnit: 42,
+          }),
+          text: flowBodyText,
+        })
       }
+    } else {
+      BODY_SECTION_DEFINITIONS.forEach(({ sectionKey, resolveText }) => {
+        const bodyText = normalizeSectionText(resolveText(question))
 
-      sections.push({
-        id: `question-${question.number}-${sectionKey}`,
-        questionNumber: question.number,
-        kind: 'body',
-        sectionKey,
-        estimatedUnits: estimateSectionUnits(bodyText, {
-          charsPerLine: 38,
-          lineUnit: 23,
-          baseUnit: 42,
-        }),
-        text: bodyText,
+        if (!bodyText) {
+          return
+        }
+
+        sections.push({
+          id: `question-${question.number}-${sectionKey}`,
+          questionNumber: question.number,
+          kind: 'body',
+          sectionKey,
+          estimatedUnits: estimateSectionUnits(bodyText, {
+            charsPerLine: 34,
+            lineUnit: 24,
+            baseUnit: 42,
+          }),
+          text: bodyText,
+        })
       })
-    })
+    }
 
     if (Array.isArray(question.choices) && question.choices.length > 0) {
       const choiceText = question.choices

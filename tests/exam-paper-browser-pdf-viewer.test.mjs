@@ -164,8 +164,8 @@ test('exam paper PDF util uses the generated Pretendard TTF VFS bundle and share
   assert.match(pdfSource, /page\.columns\[0\]\.sectionIds/)
   assert.match(pdfSource, /questionChunkMap\.get\(sectionId\)\?\.node/)
   assert.match(pdfSource, /pageBreak: 'after'/)
-  assert.match(pdfSource, /buildDecoratedBoxNode/)
   assert.match(pdfSource, /buildPlainAnswerTextStack/)
+  assert.doesNotMatch(pdfSource, /buildDecoratedBoxNode/)
 })
 
 test('print template builder uses dedicated single-column groups and shared two-column preview output', () => {
@@ -244,6 +244,27 @@ function createLongAnswerOnlyExamPaper() {
   }
 }
 
+function createFlowBodyExamPaper() {
+  const longBody = [
+    regressionExamPaper.questions[0].questionTextForward,
+    regressionExamPaper.questions[0].passageText,
+    regressionExamPaper.questions[0].questionTextBackward,
+    regressionExamPaper.questions[0].passageText,
+  ].filter(Boolean).join(' ')
+
+  return {
+    ...regressionExamPaper,
+    viewMode: 'exam-only',
+    questions: [
+      {
+        ...regressionExamPaper.questions[0],
+        passageText: longBody,
+      },
+      ...regressionExamPaper.questions.slice(1, 3),
+    ],
+  }
+}
+
 async function getRuntimePreviewArtifactsForExamPaper(examPaper) {
   const {
     module: layoutContractModule,
@@ -308,6 +329,23 @@ test('answer-only two-column preview can continue a long explanation into later 
     previewHtml,
     /data-section-id="question-2-answer-part-2"[\s\S]*?<div class="answer-text-block">[\s\S]*?<div class="answer-text-line answer-text-explanation">Explanation sentence/
   )
+})
+
+test('two-column preview renders merged flow-body fragments without boxed passage wrappers', async () => {
+  const { previewPlan, previewHtml } = await getRuntimePreviewArtifactsForExamPaper(
+    createFlowBodyExamPaper()
+  )
+  const allSectionIds = previewPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
+
+  assert.equal(allSectionIds.some((sectionId) => sectionId.startsWith('question-1-forward')), false)
+  assert.equal(allSectionIds.some((sectionId) => sectionId.startsWith('question-1-passage')), false)
+  assert.equal(allSectionIds.some((sectionId) => sectionId.startsWith('question-1-backward')), false)
+  assert.equal(allSectionIds.includes('question-1-body-part-1'), true)
+  assert.equal(allSectionIds.some((sectionId) => sectionId.startsWith('question-1-body-part-2')), true)
+  assert.match(previewHtml, /data-section-id="question-1-body-part-1"/)
+  assert.match(previewHtml, /class="question-chunk question-body-chunk(?: chunk-linked-start)?"/)
+  assert.match(previewHtml, /class="flow-body-text"/)
+  assert.doesNotMatch(previewHtml, /class="text-box/)
 })
 
 test('single-column preview renders answer blocks as plain text with question labels', async () => {

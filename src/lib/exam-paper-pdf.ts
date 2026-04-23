@@ -124,37 +124,6 @@ function estimateTextHeight(text: string, charsPerLine: number, lineHeight: numb
   return base + (lineCount * lineHeight)
 }
 
-function createBoxLayout(borderColor = '#9ca3af') {
-  return {
-    hLineWidth: () => 1,
-    vLineWidth: () => 1,
-    hLineColor: () => borderColor,
-    vLineColor: () => borderColor,
-    paddingLeft: () => 10,
-    paddingRight: () => 15,
-    paddingTop: () => 10,
-    paddingBottom: () => 10,
-  }
-}
-
-function buildDecoratedBoxNode(
-  content: Record<string, unknown>,
-  marginBottom = 8,
-  border: [boolean, boolean, boolean, boolean] = [true, true, true, true]
-) {
-  return {
-    table: {
-      widths: ['*'],
-      body: [[{
-        ...content,
-        border,
-      }]],
-    },
-    layout: createBoxLayout(),
-    margin: [0, 0, 0, marginBottom],
-  }
-}
-
 function buildChoiceRows(rows: ExamPaperPdfChoice[]) {
   return rows.map((choice, index) => {
     const choiceText = `${choice.label} ${choice.text}`
@@ -238,20 +207,16 @@ function renderSectionPdfNode(
     const bodyText = sectionPlan.payload.type === 'body'
       ? sectionPlan.payload.text
       : ''
-    const border: [boolean, boolean, boolean, boolean] = sectionPlan.continuationPosition === 'single'
-      ? [true, true, true, true]
-      : sectionPlan.continuationPosition === 'start'
-        ? [true, true, true, false]
-        : sectionPlan.continuationPosition === 'middle'
-          ? [true, false, true, false]
-          : [true, false, true, true]
 
-    return buildDecoratedBoxNode({
-      text: buildInlineSegments(bodyText),
-      fontSize: 13,
-      lineHeight: 1.8,
-      color: '#374151',
-    }, sectionPlan.continuationPosition === 'single' || sectionPlan.continuationPosition === 'end' ? 8 : 0, border)
+    return {
+      stack: [{
+        text: buildInlineSegments(bodyText),
+        fontSize: 13,
+        lineHeight: 1.8,
+        color: '#374151',
+      }],
+      margin: [0, 0, 0, sectionPlan.continuationPosition === 'single' || sectionPlan.continuationPosition === 'end' ? 12 : 0],
+    }
   }
 
   if (sectionPlan.kind === 'choice') {
@@ -308,12 +273,15 @@ function renderSingleColumnBlockNode(block: SingleColumnBlock): Record<string, u
   }
 
   if (block.kind === 'body' && block.payload.type === 'body') {
-    return buildDecoratedBoxNode({
-      text: buildInlineSegments(block.payload.text),
-      fontSize: 13,
-      lineHeight: 1.8,
-      color: '#374151',
-    }, 10)
+    return {
+      stack: [{
+        text: buildInlineSegments(block.payload.text),
+        fontSize: 13,
+        lineHeight: 1.8,
+        color: '#374151',
+      }],
+      margin: [0, 0, 0, 10],
+    }
   }
 
   if (block.kind === 'choice-row' && block.payload.type === 'choice-row') {

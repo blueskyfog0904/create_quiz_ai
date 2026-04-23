@@ -178,18 +178,91 @@ test('shared layout contract exports the section planners needed for parity reco
   await getRequiredPlannerApi()
 })
 
-test('question 1 passage stays atomic while choices are allowed to split by row', async () => {
-  const { pdfPlan } = await buildRegressionPlans('exam-only')
-  const page1Ids = getPageSectionIds(pdfPlan, 0).flat()
+function createFlowBodyExamPaper() {
+  const longBody = [
+    regressionExamPaper.questions[0].questionTextForward,
+    regressionExamPaper.questions[0].passageText,
+    regressionExamPaper.questions[0].questionTextBackward,
+    regressionExamPaper.questions[0].passageText,
+  ].filter(Boolean).join(' ')
+
+  return {
+    ...regressionExamPaper,
+    viewMode: 'exam-only',
+    questions: [
+      {
+        ...regressionExamPaper.questions[0],
+        questionTextForward: regressionExamPaper.questions[0].questionTextForward,
+        passageText: longBody,
+        questionTextBackward: regressionExamPaper.questions[0].questionTextBackward,
+      },
+      ...regressionExamPaper.questions.slice(1, 3),
+    ],
+  }
+}
+
+test('question body merges forward/passage/backward into flow-body fragments before choices', async () => {
+  const {
+    buildExamPaperRenderOptions,
+    buildQuestionSectionPlan,
+    buildTwoColumnLayoutPlan,
+  } = await getRequiredPlannerApi()
+
+  const examPaper = createFlowBodyExamPaper()
+  const options = buildExamPaperRenderOptions(examPaper)
+  const questionPlans = examPaper.questions.map((question) =>
+    buildQuestionSectionPlan(question, options)
+  )
+  const pdfPlan = buildTwoColumnLayoutPlan({
+    questionPlans,
+    profile: 'shared-default',
+    target: 'pdf',
+    hasDescription: true,
+  })
   const allPageIds = pdfPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
 
-  assert.equal(page1Ids.includes('question-1-passage'), true)
-  assert.equal(page1Ids.some((sectionId) => sectionId.startsWith('question-1-passage-part-')), false)
+  assert.equal(allPageIds.some((sectionId) => sectionId.startsWith('question-1-forward')), false)
+  assert.equal(allPageIds.some((sectionId) => sectionId.startsWith('question-1-passage')), false)
+  assert.equal(allPageIds.some((sectionId) => sectionId.startsWith('question-1-backward')), false)
+  assert.equal(allPageIds.includes('question-1-body-part-1'), true)
+  assert.equal(allPageIds.some((sectionId) => sectionId.startsWith('question-1-body-part-2')), true)
   assert.equal(allPageIds.includes('question-1-choice-part-1'), true)
   assert.equal(allPageIds.includes('question-1-choice-part-5'), true)
 })
 
-test('buildQuestionSectionPlan normalizes questionTextBackward before storing sectionPlan.text', async () => {
+test('merged flow-body continuation uses same-page right before next-page left', async () => {
+  const {
+    buildExamPaperRenderOptions,
+    buildQuestionSectionPlan,
+    buildTwoColumnLayoutPlan,
+  } = await getRequiredPlannerApi()
+
+  const examPaper = createFlowBodyExamPaper()
+  const options = buildExamPaperRenderOptions(examPaper)
+  const questionPlans = examPaper.questions.map((question) =>
+    buildQuestionSectionPlan(question, options)
+  )
+  const pdfPlan = buildTwoColumnLayoutPlan({
+    questionPlans,
+    profile: 'shared-default',
+    target: 'pdf',
+    hasDescription: true,
+  })
+
+  const page1RightIds = getPageSectionIds(pdfPlan, 0)[1]
+  const page2LeftIds = getPageSectionIds(pdfPlan, 1)[0]
+
+  assert.equal(page1RightIds.includes('question-2-body-part-2'), true)
+  assert.equal(page2LeftIds[0], 'question-2-body-part-3')
+  assert.equal(page2LeftIds.includes('question-3-header'), true)
+  assert.equal(
+    page2LeftIds.indexOf('question-2-body-part-3') < page2LeftIds.indexOf('question-3-header'),
+    true,
+    'expected question 3 header to appear only after question 2 flow-body finishes on the next page left column'
+  )
+})
+
+test('buildQuestionSectionPlan folds normalized backward text into the merged double-column body flow', async () => {
   const { buildExamPaperRenderOptions, buildQuestionSectionPlan } = await getRequiredPlannerApi()
   const options = buildExamPaperRenderOptions({
     viewMode: 'exam-only',
@@ -200,19 +273,26 @@ test('buildQuestionSectionPlan normalizes questionTextBackward before storing se
     {
       number: 99,
       questionText: '다음 문장을 읽고 물음에 답하시오.',
+      questionTextForward: 'Forward prompt stays before the merged flow.',
+      passageText: 'Passage body stays in the same merged flow.',
       questionTextBackward: '  ↓   Backward prompt stays after normalization.  ',
     },
     options
   )
-  const backwardSection = sectionPlan.sections.find(
-    (section) => section.sectionKey === 'backward'
+  const bodySection = sectionPlan.sections.find(
+    (section) => section.sectionKey === 'body'
   )
 
-  assert.ok(backwardSection, 'expected backward section to be emitted when text exists')
+  assert.ok(bodySection, 'expected merged body section to be emitted when double-column body text exists')
   assert.equal(
-    backwardSection.text,
-    'Backward prompt stays after normalization.',
-    'expected backward text to drop the leading downward marker before sectionPlan.text is used'
+    bodySection.text?.includes('Backward prompt stays after normalization.'),
+    true,
+    'expected normalized backward text to be preserved inside the merged body flow'
+  )
+  assert.equal(
+    bodySection.text?.includes('↓'),
+    false,
+    'expected leading downward marker to be removed before merged body text is stored'
   )
 })
 

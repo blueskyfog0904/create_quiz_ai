@@ -237,7 +237,7 @@ function renderSingleColumnBlockHtml(
 
     return `
       <div class="single-column-block single-column-body" ${baseAttributes}>
-        <div class="text-box">
+        <div class="flow-body-text">
           ${renderInlineBracketUnderlineHtml(bodyText)}
         </div>
       </div>
@@ -373,8 +373,8 @@ function renderPlannedTwoColumnSectionHtml(
       estimatedHeight: sectionPlan.estimatedUnits,
       kind: 'body',
       html: `
-        <div class="question-chunk question-body-chunk" ${sectionAttributes}>
-          <div class="text-box${continuationClassName}">
+        <div class="question-chunk question-body-chunk${continuationClassName}" ${sectionAttributes}>
+          <div class="flow-body-text">
             ${renderInlineBracketUnderlineHtml(bodyText)}
           </div>
         </div>
@@ -629,29 +629,15 @@ export function buildExamPaperPrintHtml(
           font-weight: 700;
           margin-bottom: 4px;
         }
-        .text-box {
-          padding: 10px 15px;
-          border: 1px solid #9ca3af;
-          border-radius: 4px;
+        .flow-body-text {
           margin-bottom: 12px;
           font-size: 13px;
           line-height: 1.8;
           color: #374151;
         }
-        .text-box.chunk-linked-start {
-          border-bottom-left-radius: 0;
-          border-bottom-right-radius: 0;
+        .flow-body-text.chunk-linked-start,
+        .flow-body-text.chunk-linked-middle {
           margin-bottom: 0;
-        }
-        .text-box.chunk-linked-middle {
-          border-top: none;
-          border-radius: 0;
-          margin-bottom: 0;
-        }
-        .text-box.chunk-linked-end {
-          border-top: none;
-          border-top-left-radius: 0;
-          border-top-right-radius: 0;
         }
         .questions-container {
           ${isDoubleColumn ? `
@@ -687,6 +673,9 @@ export function buildExamPaperPrintHtml(
         }
         .question-chunk-anchor {
           margin-bottom: 12px;
+        }
+        .question-choice-chunk .choices {
+          margin-bottom: 0;
         }
         .question-choice-chunk .choice {
           margin-left: 0;

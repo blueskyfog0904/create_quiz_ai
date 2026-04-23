@@ -160,17 +160,14 @@ function createBlockElement(
   }
 
   if (block.kind === 'body' && block.payload.type === 'body') {
-    const textBox = document.createElement('div')
-    textBox.className = 'text-box'
-    textBox.style.padding = '10px 15px'
-    textBox.style.border = '1px solid #9ca3af'
-    textBox.style.borderRadius = '4px'
-    textBox.style.marginBottom = '12px'
-    textBox.style.fontSize = '13px'
-    textBox.style.lineHeight = '1.8'
-    textBox.style.color = '#374151'
-    textBox.innerHTML = renderInlineBracketUnderlineHtml(block.payload.text)
-    wrapper.appendChild(textBox)
+    const bodyText = document.createElement('div')
+    bodyText.className = 'flow-body-text'
+    bodyText.style.marginBottom = '12px'
+    bodyText.style.fontSize = '13px'
+    bodyText.style.lineHeight = '1.8'
+    bodyText.style.color = '#374151'
+    bodyText.innerHTML = renderInlineBracketUnderlineHtml(block.payload.text)
+    wrapper.appendChild(bodyText)
     return wrapper
   }
 

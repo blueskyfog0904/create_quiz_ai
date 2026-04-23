@@ -119,7 +119,7 @@ function createPage() {
 
 /**
  * @param {number} pageIndex
- * @param {{ slotCapacity?: number, firstPageSlotCapacity?: number, otherPageSlotCapacity?: number }} options
+ * @param {{ slotCapacity?: number, firstPageSlotCapacity?: number, otherPageSlotCapacity?: number, rebalanceEmptyRightColumn?: boolean }} options
  */
 function getSlotCapacity(pageIndex, options) {
   if (typeof options.slotCapacity === 'number') {
@@ -139,7 +139,7 @@ function getSlotCapacity(pageIndex, options) {
 
 /**
  * @param {QuestionChunkGroup[]} questionGroups
- * @param {{ slotCapacity?: number, firstPageSlotCapacity?: number, otherPageSlotCapacity?: number }} [options]
+ * @param {{ slotCapacity?: number, firstPageSlotCapacity?: number, otherPageSlotCapacity?: number, rebalanceEmptyRightColumn?: boolean }} [options]
  * @returns {TwoColumnPage[]}
  */
 export function paginateTwoColumnQuestionChunks(questionGroups, options = {}) {
