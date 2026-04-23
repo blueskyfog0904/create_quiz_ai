@@ -265,6 +265,23 @@ function createFlowBodyExamPaper() {
   }
 }
 
+function createLongExamWithAnswersExamPaper() {
+  return {
+    ...regressionExamPaper,
+    viewMode: 'exam-with-answers',
+    questions: [
+      regressionExamPaper.questions[0],
+      {
+        ...regressionExamPaper.questions[1],
+        explanation: Array.from({ length: 20 }, (_, index) => (
+          `Explanation sentence ${index + 1} explains in detail why the selected option is correct and how the supporting evidence accumulates across the passage.`
+        )).join(' '),
+      },
+      ...regressionExamPaper.questions.slice(2, 5),
+    ],
+  }
+}
+
 async function getRuntimePreviewArtifactsForExamPaper(examPaper) {
   const {
     module: layoutContractModule,
@@ -346,6 +363,18 @@ test('two-column preview renders merged flow-body fragments without boxed passag
   assert.match(previewHtml, /class="question-chunk question-body-chunk(?: chunk-linked-start)?"/)
   assert.match(previewHtml, /class="flow-body-text"/)
   assert.doesNotMatch(previewHtml, /class="text-box/)
+})
+
+test('exam-with-answers two-column preview can continue a long answer into multiple fragments', async () => {
+  const { previewPlan, previewHtml } = await getRuntimePreviewArtifactsForExamPaper(
+    createLongExamWithAnswersExamPaper()
+  )
+  const allSectionIds = previewPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
+
+  assert.equal(allSectionIds.includes('question-2-answer'), false)
+  assert.equal(allSectionIds.some((sectionId) => sectionId.startsWith('question-2-answer-part-')), true)
+  assert.match(previewHtml, /data-section-id="question-2-answer-part-1"/)
+  assert.match(previewHtml, /data-section-id="question-2-answer-part-2"/)
 })
 
 test('single-column preview renders answer blocks as plain text with question labels', async () => {

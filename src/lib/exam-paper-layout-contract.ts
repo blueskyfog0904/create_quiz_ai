@@ -82,7 +82,7 @@ export interface TwoColumnSectionPlan {
   answerText?: string
   explanationText?: string
   questionLabel?: string
-  allowContinuation?: boolean
+  allowContinuation?: false | 'answer-only' | 'exam-with-answers'
 }
 
 export interface TwoColumnQuestionSectionPlan {
@@ -155,6 +155,8 @@ const DEFAULT_COMPAT_LAYOUT_PROFILE_NAME: TwoColumnLayoutProfileName = 'shared-d
 const DEFAULT_COMPAT_LAYOUT_TARGET: TwoColumnLayoutTarget = 'preview'
 const DOUBLE_COLUMN_BOTTOM_GUARD_BAND_UNITS = 50
 const ANSWER_ONLY_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS = 300
+const EXAM_WITH_ANSWERS_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS = 360
+const DOUBLE_COLUMN_ANSWER_CONTINUATION_MIN_LENGTH = 420
 const DOUBLE_COLUMN_BODY_FRAGMENT_MIN_LENGTH = 420
 const DOUBLE_COLUMN_BODY_FRAGMENT_MAX_CHARS = 420
 const EXAM_PAPER_DEBUG_STORAGE_KEY = 'exam-paper-pdf-debug'
@@ -533,9 +535,12 @@ function createBodyFragments(section: TwoColumnSectionPlan) {
 }
 
 function createAnswerFragments(section: TwoColumnSectionPlan) {
+  const explanationMaxChars = section.allowContinuation === 'answer-only'
+    ? ANSWER_ONLY_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS
+    : EXAM_WITH_ANSWERS_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS
   const explanationChunks = splitTextIntoFlowChunks(
     section.explanationText ?? '',
-    ANSWER_ONLY_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS
+    explanationMaxChars
   )
   const chunks = explanationChunks.length > 0
     ? explanationChunks
@@ -665,6 +670,25 @@ function hasAnswerSections(questionPlan: TwoColumnQuestionSectionPlan) {
   return questionPlan.sections.some((section) => section.kind === 'answer')
 }
 
+function shouldAllowAnswerContinuation(
+  options: ExamPaperRenderOptions,
+  estimatedAnswerText: string
+): TwoColumnSectionPlan['allowContinuation'] {
+  if (!options.isDoubleColumn || !options.showAnswers) {
+    return false
+  }
+
+  if (options.viewMode === 'answer-only') {
+    return 'answer-only'
+  }
+
+  if (options.viewMode === 'exam-with-answers' && estimatedAnswerText.length >= DOUBLE_COLUMN_ANSWER_CONTINUATION_MIN_LENGTH) {
+    return 'exam-with-answers'
+  }
+
+  return false
+}
+
 export function buildExamPaperRenderOptions(examPaper: ExamPaperLayoutInput): ExamPaperRenderOptions {
   const viewMode: ExamPaperLayoutViewMode = examPaper.viewMode ||
     (examPaper.includeAnswers === false ? 'exam-only' : 'exam-with-answers')
@@ -786,7 +810,7 @@ export function buildQuestionSectionPlan(
         answerText,
         explanationText,
         questionLabel,
-        allowContinuation: options.viewMode === 'answer-only',
+        allowContinuation: shouldAllowAnswerContinuation(options, estimatedAnswerText),
       })
     }
   }

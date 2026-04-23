@@ -235,6 +235,24 @@ function createFlowBodyExamPaper(viewMode = 'exam-only') {
   }
 }
 
+function createLongExamWithAnswersExamPaper() {
+  return {
+    ...regressionExamPaper,
+    viewMode: 'exam-with-answers',
+    columnLayout: 'double',
+    questions: [
+      regressionExamPaper.questions[0],
+      {
+        ...regressionExamPaper.questions[1],
+        explanation: Array.from({ length: 20 }, (_, index) => (
+          `Explanation sentence ${index + 1} explains in detail why the selected option is correct and how the supporting evidence accumulates across the passage.`
+        )).join(' '),
+      },
+      ...regressionExamPaper.questions.slice(2, 5),
+    ],
+  }
+}
+
 test('saved PDF runtime renders flow-body fragments as plain text nodes instead of boxed passage tables', async () => {
   const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-only', createFlowBodyExamPaper())
   const allPageIds = layoutPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
@@ -285,7 +303,7 @@ test('saved PDF runtime splits choice rows into separate planner fragments with 
   })
 })
 
-test('saved PDF runtime keeps explanation as a single plain text answer block with question label', async () => {
+test('saved PDF runtime keeps explanation as a single plain text answer block with question label when continuation is not needed', async () => {
   const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-with-answers')
   const answerIds = layoutPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
 
@@ -299,6 +317,22 @@ test('saved PDF runtime keeps explanation as a single plain text answer block wi
   assert.equal(answerNode.stack[0].text, '1번')
   assert.match(answerNode.stack[1].text, /^정답:/)
   assert.match(answerNode.stack[2].text, /^해설:/)
+})
+
+
+test('saved PDF runtime can continue a long exam-with-answers explanation into multiple answer fragments', async () => {
+  const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-with-answers', createLongExamWithAnswersExamPaper())
+  const answerIds = layoutPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
+  const firstFragmentNode = findRenderedSection(layoutPlan, renderedPages, 'question-2-answer-part-1').node
+  const secondFragmentNode = findRenderedSection(layoutPlan, renderedPages, 'question-2-answer-part-2').node
+
+  assert.equal(answerIds.includes('question-2-answer'), false)
+  assert.equal(answerIds.includes('question-2-answer-part-1'), true)
+  assert.equal(answerIds.includes('question-2-answer-part-2'), true)
+  assert.equal(firstFragmentNode.stack[0].text, '2번')
+  assert.match(firstFragmentNode.stack[1].text, /^정답:/)
+  assert.equal(secondFragmentNode.stack.length, 1)
+  assert.equal(secondFragmentNode.stack[0].text.startsWith('Explanation sentence'), true)
 })
 
 test('answer-only two-column PDF keeps the question number attached inside the plain text answer block', async () => {

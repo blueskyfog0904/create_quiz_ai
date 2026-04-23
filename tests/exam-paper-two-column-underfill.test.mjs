@@ -19,6 +19,7 @@ const normalizeQuestionFieldModuleUrl = new URL(
 ).href
 
 const FIRST_PAGE_CAPACITY_WITH_DESCRIPTION = 1120
+const OTHER_PAGE_CAPACITY_WITH_GUARD_BAND = 1230
 const DOUBLE_GUARD_BAND_UNITS = 50
 const MAX_EXPECTED_FIRST_PAGE_RIGHT_SLACK = 200
 
@@ -36,6 +37,28 @@ async function loadRuntimeLayoutContractModule() {
 
 function sumColumnUnits(column) {
   return column.sections.reduce((sum, section) => sum + section.estimatedHeight, 0)
+}
+
+async function buildPreviewLayoutPlan(examPaper) {
+  const layoutContractModule = await loadRuntimeLayoutContractModule()
+  const renderOptions = layoutContractModule.buildExamPaperRenderOptions(examPaper)
+  const questionPlans = examPaper.questions.map((question) =>
+    layoutContractModule.buildQuestionSectionPlan(question, renderOptions)
+  )
+
+  return layoutContractModule.buildTwoColumnLayoutPlan({
+    questionPlans,
+    profile: 'shared-default',
+    target: 'preview',
+    hasDescription: true,
+  })
+}
+
+function createRegressionExamPaper(viewMode) {
+  return {
+    ...regressionExamPaper,
+    viewMode,
+  }
 }
 
 function createLongAnswerOnlyExamPaper() {
@@ -69,22 +92,25 @@ function createLongAnswerOnlyExamPaper() {
   }
 }
 
-test('exam-with-answers two-column keeps a bottom guard band on the first page right column', async () => {
-  const layoutContractModule = await loadRuntimeLayoutContractModule()
-  const examPaper = {
+function createLongExamWithAnswersExamPaper() {
+  return {
     ...regressionExamPaper,
     viewMode: 'exam-with-answers',
+    questions: [
+      regressionExamPaper.questions[0],
+      {
+        ...regressionExamPaper.questions[1],
+        explanation: Array.from({ length: 20 }, (_, index) => (
+          `Explanation sentence ${index + 1} explains in detail why the selected option is correct and how the supporting evidence accumulates across the passage.`
+        )).join(' '),
+      },
+      ...regressionExamPaper.questions.slice(2, 5),
+    ],
   }
-  const renderOptions = layoutContractModule.buildExamPaperRenderOptions(examPaper)
-  const questionPlans = examPaper.questions.map((question) =>
-    layoutContractModule.buildQuestionSectionPlan(question, renderOptions)
-  )
-  const layoutPlan = layoutContractModule.buildTwoColumnLayoutPlan({
-    questionPlans,
-    profile: 'shared-default',
-    target: 'preview',
-    hasDescription: true,
-  })
+}
+
+test('exam-with-answers two-column keeps a bottom guard band on the first page right column', async () => {
+  const layoutPlan = await buildPreviewLayoutPlan(createRegressionExamPaper('exam-with-answers'))
 
   const page1Right = layoutPlan.pages[0].columns[1]
   const page1RightUsedUnits = sumColumnUnits(page1Right)
@@ -101,18 +127,7 @@ test('exam-with-answers two-column keeps a bottom guard band on the first page r
 })
 
 test('answer-only two-column keeps a bottom guard band on the first page right column', async () => {
-  const layoutContractModule = await loadRuntimeLayoutContractModule()
-  const examPaper = createLongAnswerOnlyExamPaper()
-  const renderOptions = layoutContractModule.buildExamPaperRenderOptions(examPaper)
-  const questionPlans = examPaper.questions.map((question) =>
-    layoutContractModule.buildQuestionSectionPlan(question, renderOptions)
-  )
-  const layoutPlan = layoutContractModule.buildTwoColumnLayoutPlan({
-    questionPlans,
-    profile: 'shared-default',
-    target: 'preview',
-    hasDescription: true,
-  })
+  const layoutPlan = await buildPreviewLayoutPlan(createLongAnswerOnlyExamPaper())
 
   const page1Right = layoutPlan.pages[0].columns[1]
   const page1RightUsedUnits = sumColumnUnits(page1Right)
@@ -128,22 +143,27 @@ test('answer-only two-column keeps a bottom guard band on the first page right c
   )
 })
 
-test('exam-only two-column keeps a bottom guard band on the first page right column', async () => {
-  const layoutContractModule = await loadRuntimeLayoutContractModule()
-  const examPaper = {
-    ...regressionExamPaper,
-    viewMode: 'exam-only',
-  }
-  const renderOptions = layoutContractModule.buildExamPaperRenderOptions(examPaper)
-  const questionPlans = examPaper.questions.map((question) =>
-    layoutContractModule.buildQuestionSectionPlan(question, renderOptions)
+test('exam-with-answers two-column continues a long answer before leaving a large non-terminal gap', async () => {
+  const layoutPlan = await buildPreviewLayoutPlan(createLongExamWithAnswersExamPaper())
+
+  const page2Left = layoutPlan.pages[1].columns[0]
+  const page2Right = layoutPlan.pages[1].columns[1]
+  const page2LeftUsedUnits = sumColumnUnits(page2Left)
+  const page2RightUsedUnits = sumColumnUnits(page2Right)
+  const page2LeftSlack = OTHER_PAGE_CAPACITY_WITH_GUARD_BAND - page2LeftUsedUnits
+
+  assert.ok(
+    page2LeftSlack < 220,
+    `expected exam-with-answers page 2 left column to use most of the available space, got slack ${page2LeftSlack}`
   )
-  const layoutPlan = layoutContractModule.buildTwoColumnLayoutPlan({
-    questionPlans,
-    profile: 'shared-default',
-    target: 'preview',
-    hasDescription: true,
-  })
+  assert.ok(
+    page2RightUsedUnits <= OTHER_PAGE_CAPACITY_WITH_GUARD_BAND,
+    `expected exam-with-answers page 2 right column to avoid overflow after answer continuation, got ${page2RightUsedUnits}`
+  )
+})
+
+test('exam-only two-column keeps a bottom guard band on the first page right column', async () => {
+  const layoutPlan = await buildPreviewLayoutPlan(createRegressionExamPaper('exam-only'))
 
   const page1Right = layoutPlan.pages[0].columns[1]
   const page1RightUsedUnits = sumColumnUnits(page1Right)

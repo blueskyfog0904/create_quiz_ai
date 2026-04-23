@@ -312,7 +312,7 @@ test('preview/pdf parity keeps identical page grouping after removing first-page
   )
 })
 
-test('answer-only two-column fragments long answer text while exam-with-answers keeps answers atomic', async () => {
+test('two-column long answer text can fragment in both answer-only and exam-with-answers modes', async () => {
   const {
     buildExamPaperRenderOptions,
     buildQuestionSectionPlan,
@@ -350,8 +350,8 @@ test('answer-only two-column fragments long answer text while exam-with-answers 
   })
   const answeredIds = answeredLayout.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
 
-  assert.equal(answeredIds.includes('question-2-answer'), true)
-  assert.equal(answeredIds.some((sectionId) => sectionId.startsWith('question-2-answer-part-')), false)
+  assert.equal(answeredIds.includes('question-2-answer'), false)
+  assert.equal(answeredIds.some((sectionId) => sectionId.startsWith('question-2-answer-part-')), true)
 })
 
 test('answer-only two-column still splits overlong explanation sentences into multiple fragments', async () => {
