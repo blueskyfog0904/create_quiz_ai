@@ -10,6 +10,10 @@ const fileRenderScriptPath = new URL(
   '../scripts/render_pdf_file_with_pdfjs.cjs',
   import.meta.url
 )
+const routeVerifyScriptPath = new URL(
+  '../scripts/playwright_verify_pdf_workspace_route_profile.cjs',
+  import.meta.url
+)
 
 test('saved PDF PDF.js diagnostic script exists and uses PDF.js canvas rendering', () => {
   assert.equal(
@@ -40,4 +44,22 @@ test('local PDF render script exists and supports file-path driven PDF.js render
   assert.match(source, /pdfjs-dist\/build\/pdf\.mjs/)
   assert.match(source, /canvas\.toDataURL\('image\/png'\)/)
   assert.match(source, /output_saved_pdf_file_page/)
+})
+
+test('route verification script exists and audits all workspace mode/layout combinations', () => {
+  assert.equal(
+    existsSync(routeVerifyScriptPath),
+    true,
+    'expected route verification script to exist'
+  )
+
+  const source = readFileSync(routeVerifyScriptPath, 'utf8')
+
+  assert.match(source, /connectOverCDP/)
+  assert.match(source, /시험지\+답안|시험지\+답안/)
+  assert.match(source, /시험지/)
+  assert.match(source, /답안/)
+  assert.match(source, /1단/)
+  assert.match(source, /2단/)
+  assert.match(source, /output_route_verify_/)
 })
