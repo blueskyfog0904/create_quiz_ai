@@ -48,7 +48,17 @@ async function resolveChromeEndpoint(timeoutMs = 30000) {
 function detectChromeDebugEndpointsFromProcessList() {
   try {
     const output = execSync('ps -Ao pid,command', { encoding: 'utf8' })
-    const ports = [...output.matchAll(/--remote-debugging-port=(\d+)/g)]
+    const commands = output
+      .split('\n')
+      .slice(1)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => line.replace(/^\d+\s+/, ''))
+      .filter((command) => command.includes('--remote-debugging-port='))
+      .filter((command) => !command.includes('/Library/Caches/ms-playwright/mcp-chrome'))
+
+    const ports = commands
+      .flatMap((command) => [...command.matchAll(/--remote-debugging-port=(\d+)/g)])
       .map((match) => Number(match[1]))
       .filter((port) => Number.isInteger(port) && port > 0)
 
@@ -59,47 +69,182 @@ function detectChromeDebugEndpointsFromProcessList() {
 }
 
 async function clickButtonByText(page, label, rootSelector = 'button') {
-  await page.evaluate(({ labelText, selector }) => {
-    const button = Array.from(document.querySelectorAll(selector))
-      .find((entry) => entry.textContent?.trim() === labelText)
+  const button = page.locator(rootSelector).filter({ hasText: label }).first()
+  await button.waitFor({ state: 'visible', timeout: 5000 })
+  await button.click({ timeout: 5000 })
+}
 
-    if (!button) {
-      throw new Error(`Button not found: ${labelText}`)
+async function clickFirstAvailableButton(page, labels, rootSelector = 'button') {
+  let lastError = null
+
+  for (const label of labels) {
+    try {
+      await clickButtonByText(page, label, rootSelector)
+      return label
+    } catch (error) {
+      lastError = error
     }
+  }
 
-    button.click()
-  }, { labelText: label, selector: rootSelector })
+  throw lastError || new Error(`Buttons not found: ${labels.join(', ')}`)
 }
 
 async function ensureWorkspaceOpen(page) {
-  const dialogCount = await page.locator('[role="dialog"]').count()
-  if (dialogCount > 0) {
+  const dialogOpen = await page.evaluate(() => Boolean(document.querySelector('[role="dialog"]')))
+  if (dialogOpen) {
+    console.log('[workspace] dialog already open')
     return
   }
 
-  await clickButtonByText(page, '📄 PDF로 저장')
+  console.log('[workspace] opening dialog')
+  const openLabel = await clickFirstAvailableButton(page, ['📄 PDF로 저장', 'PDF로 저장', 'PDF 저장', 'PDF 저장 설정'])
+  console.log(`[workspace] clicked opener=${openLabel}`)
   await page.waitForTimeout(1200)
+  console.log('[workspace] dialog open wait complete')
+}
+
+function buildExpectedTitle(combo) {
+  const modeSuffix = combo.modeKey === 'answer-only'
+    ? ' - 답안'
+    : combo.modeKey === 'exam-only'
+      ? ' - 시험지'
+      : ''
+  const layoutSuffix = combo.layoutKey === 'double' ? ' (2단)' : ''
+  return `테스트${modeSuffix}${layoutSuffix}`
+}
+
+async function capturePreviewState(page, combo) {
+  const expectedTitle = buildExpectedTitle(combo)
+  const selector = combo.layoutKey === 'double' ? '[data-section-id]' : '[data-block-id]'
+
+  return page.evaluate(({ expectedTitleText, expectedLayoutLabel, selectorText }) => {
+    const dialog = document.querySelector('[role="dialog"]')
+    const overlayVisible = dialog?.textContent?.includes('PDF 미리보기를 갱신하고 있습니다') ?? false
+    const headerTitle = Array.from(dialog?.querySelectorAll('span') || [])
+      .find((entry) => entry.textContent?.trim() === expectedTitleText)
+      ?.textContent
+      ?.trim() || ''
+    const layoutChip = Array.from(dialog?.querySelectorAll('span') || [])
+      .find((entry) => entry.textContent?.trim() === expectedLayoutLabel)
+      ?.textContent
+      ?.trim() || ''
+
+    const iframe = document.querySelector('iframe[title="문제지 출력 미리보기"]')
+    const doc = iframe?.contentDocument
+    const frameTitle = doc?.querySelector('.preview-page h1')?.textContent?.trim() || ''
+    const docTitle = doc?.title?.trim() || ''
+    const nodeCount = doc?.querySelectorAll(selectorText).length || 0
+    const pageCount = doc?.querySelectorAll('.preview-page').length || 0
+
+    const missing = []
+    if (!dialog) missing.push('no-dialog')
+    if (overlayVisible) missing.push('overlay-visible')
+    if (headerTitle !== expectedTitleText) missing.push(`header-title:${headerTitle || '∅'}`)
+    if (layoutChip !== expectedLayoutLabel) missing.push(`layout-chip:${layoutChip || '∅'}`)
+    if (!doc) missing.push('no-iframe-doc')
+    if (frameTitle !== expectedTitleText) missing.push(`frame-title:${frameTitle || '∅'}`)
+    if (docTitle !== expectedTitleText) missing.push(`doc-title:${docTitle || '∅'}`)
+    if (nodeCount <= 0) missing.push(`node-count:${nodeCount}`)
+    if (pageCount <= 0) missing.push(`page-count:${pageCount}`)
+
+    return {
+      ready: missing.length === 0,
+      expectedTitle: expectedTitleText,
+      expectedLayoutLabel,
+      selector: selectorText,
+      overlayVisible,
+      headerTitle,
+      layoutChip,
+      frameTitle,
+      docTitle,
+      nodeCount,
+      pageCount,
+      missing,
+    }
+  }, {
+    expectedTitleText: expectedTitle,
+    expectedLayoutLabel: combo.layoutLabel,
+    selectorText: selector,
+  })
+}
+
+async function waitForWorkspacePreview(page, combo) {
+  const comboId = `${combo.modeKey}/${combo.layoutKey}`
+  const expectedSelector = combo.layoutKey === 'double' ? '[data-section-id]' : '[data-block-id]'
+  console.log(`[preview] start combo=${comboId}`)
+
+  const startedAt = Date.now()
+  let state = await capturePreviewState(page, combo)
+
+  while (!state.ready && Date.now() - startedAt < 15000) {
+    console.log(`[preview][wait][${comboId}]`, JSON.stringify(state))
+    await page.waitForTimeout(300)
+    state = await capturePreviewState(page, combo)
+  }
+
+  if (!state.ready) {
+    console.error(`[preview][timeout][${comboId}]`, JSON.stringify(state, null, 2))
+    throw new Error(`preview never ready for ${comboId}`)
+  }
+
+  let stableCount = 0
+  let previousSignature = null
+  let loop = 0
+  const maxLoop = 120
+
+  while (stableCount < 3 && loop < maxLoop) {
+    loop += 1
+    const signature = await page.evaluate(({ selector }) => {
+      const iframe = document.querySelector('iframe[title="문제지 출력 미리보기"]')
+      const doc = iframe?.contentDocument
+
+      if (!doc) {
+        return null
+      }
+
+      const frameTitle = doc.querySelector('.preview-page h1')?.textContent?.trim() || ''
+      const docTitle = doc.title?.trim() || ''
+      const pageCount = doc.querySelectorAll('.preview-page').length
+      const nodes = [...doc.querySelectorAll(selector)]
+      const nodeCount = nodes.length
+      const firstId = nodes[0]?.getAttribute('data-section-id') || nodes[0]?.getAttribute('data-block-id') || ''
+      const lastId = nodes.at(-1)?.getAttribute('data-section-id') || nodes.at(-1)?.getAttribute('data-block-id') || ''
+      return `${docTitle}::${frameTitle}::${pageCount}::${nodeCount}::${firstId}::${lastId}`
+    }, { selector: expectedSelector })
+
+    if (signature && signature === previousSignature) {
+      stableCount += 1
+    } else {
+      console.log(`[preview][stabilize][${comboId}] loop=${loop}`, JSON.stringify({ previousSignature, signature }))
+      previousSignature = signature
+      stableCount = 1
+    }
+
+    await page.waitForTimeout(250)
+  }
+
+  if (loop >= maxLoop) {
+    throw new Error(`preview did not stabilize for ${comboId}`)
+  }
 }
 
 async function collectComboMetrics(page, combo) {
+  console.log(`[combo] ensure workspace ${combo.modeKey}/${combo.layoutKey}`)
   await ensureWorkspaceOpen(page)
+  console.log(`[combo] click mode ${combo.modeKey}/${combo.layoutKey} -> ${combo.modeLabel}`)
   await clickButtonByText(page, combo.modeLabel, '[role="dialog"] button')
+  console.log(`[combo] click layout ${combo.modeKey}/${combo.layoutKey} -> ${combo.layoutLabel}`)
   await clickButtonByText(page, combo.layoutLabel, '[role="dialog"] button')
-  await page.waitForTimeout(1800)
+  console.log(`[combo] wait preview ${combo.modeKey}/${combo.layoutKey}`)
+  await waitForWorkspacePreview(page, combo)
 
   return await page.evaluate(async ({ comboValue }) => {
-    function sleep(ms) {
-      return new Promise((resolve) => setTimeout(resolve, ms))
-    }
-
     const iframe = document.querySelector('iframe[title="문제지 출력 미리보기"]')
     const doc = iframe?.contentDocument
 
     if (!doc) {
       return { ...comboValue, error: 'no iframe document' }
     }
-
-    await sleep(100)
 
     const isDouble = comboValue.layoutKey === 'double'
     const pages = [...doc.querySelectorAll('.preview-page')]
@@ -141,8 +286,12 @@ async function collectComboMetrics(page, combo) {
         : []
 
       const flags = []
+      const hasUnderfill = isDouble
+        ? columns.some((column) => !column.empty && column.bottomRemainingPx > 160)
+        : bottomRemainingPx > 160
+
       if (maxOverflowPx > 0) flags.push('overflow')
-      if (bottomRemainingPx > 160) flags.push('underfill')
+      if (hasUnderfill) flags.push('underfill')
       if (sections.length === 0) flags.push('empty-page')
       if (columns.some((column) => column.empty)) flags.push('empty-column')
 
@@ -207,6 +356,11 @@ async function main() {
   const targetUrl = process.argv[2] || DEFAULT_TARGET_URL
 
   let cdpEndpoint
+  let browser
+  let context
+  let page
+  let connectionMode = 'launch'
+
   try {
     const processEndpoints = detectChromeDebugEndpointsFromProcessList()
 
@@ -226,29 +380,46 @@ async function main() {
       cdpEndpoint = await resolveChromeEndpoint(2000)
     }
   } catch {
-    const chromeProcess = spawn('open', [
-      '-na',
-      'Google Chrome',
-      '--args',
-      `--remote-debugging-port=${REMOTE_DEBUGGING_PORTS[0]}`,
-      '--profile-directory=Default',
-      '--new-window',
-      targetUrl,
-    ], {
-      stdio: 'ignore',
-      detached: true,
-    })
+    try {
+      const chromeProcess = spawn('open', [
+        '-na',
+        'Google Chrome',
+        '--args',
+        `--remote-debugging-port=${REMOTE_DEBUGGING_PORTS[0]}`,
+        '--profile-directory=Default',
+        '--new-window',
+        targetUrl,
+      ], {
+        stdio: 'ignore',
+        detached: true,
+      })
 
-    chromeProcess.unref()
-    cdpEndpoint = await resolveChromeEndpoint()
+      chromeProcess.unref()
+      cdpEndpoint = await resolveChromeEndpoint()
+    } catch {
+      cdpEndpoint = null
+    }
   }
 
-  const browser = await chromium.connectOverCDP(cdpEndpoint)
-  const context = browser.contexts()[0]
-  const page = context.pages().find((entry) => entry.url().includes('/exam-papers/')) ||
-    context.pages()[0] ||
-    await context.newPage()
+  if (cdpEndpoint) {
+    try {
+      browser = await chromium.connectOverCDP(cdpEndpoint, { timeout: 30000 })
+      context = browser.contexts()[0]
+      page = await context.newPage()
+      connectionMode = 'cdp'
+    } catch (error) {
+      console.warn(`[route] CDP attach failed, falling back to isolated browser: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
 
+  if (!page) {
+    browser = await chromium.launch({ headless: true })
+    context = await browser.newContext()
+    page = await context.newPage()
+    connectionMode = 'launch'
+  }
+
+  console.log(`[route] opened fresh page for ${targetUrl} via ${connectionMode}`)
   await page.bringToFront()
   await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 30000 })
 
@@ -258,8 +429,11 @@ async function main() {
 
   const comboResults = []
   for (const combo of COMBOS) {
+    console.log(`[combo] begin ${combo.modeKey}/${combo.layoutKey}`)
     const metrics = await collectComboMetrics(page, combo)
+    console.log(`[combo] collected ${combo.modeKey}/${combo.layoutKey} pages=${metrics.pageCount} title=${metrics.title}`)
     const screenshots = await captureAnomalyScreenshots(page, combo, metrics)
+    console.log(`[combo] screenshots ${combo.modeKey}/${combo.layoutKey} count=${screenshots.length}`)
     comboResults.push({
       ...metrics,
       screenshots,
@@ -270,6 +444,7 @@ async function main() {
     targetUrl,
     pageUrl: page.url(),
     cdpEndpoint,
+    connectionMode,
     combos: comboResults,
   }
 
