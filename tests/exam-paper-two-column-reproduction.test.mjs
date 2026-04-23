@@ -127,7 +127,7 @@ async function buildPreviewHtml(examPaper) {
   return exportUtilsModule.buildExamPaperPrintHtml(examPaper)
 }
 
-async function analyzeDoublePreview(html) {
+async function analyzeDoublePreviewPages(html) {
   const { chromium } = await import('playwright')
   const browser = await chromium.launch({ headless: true })
 
@@ -150,6 +150,7 @@ async function analyzeDoublePreview(html) {
               kind: el.getAttribute('data-section-kind'),
               overflowPx: Number(Math.max(0, rect.bottom - pageRect.bottom).toFixed(2)),
               bottomRemainingPx: Number((columnRect.bottom - rect.bottom).toFixed(2)),
+              pageBottom: Number((rect.bottom - pageRect.top).toFixed(2)),
             }
           })
 
@@ -163,15 +164,31 @@ async function analyzeDoublePreview(html) {
           }
         })
 
+        const sectionNodes = [...pageEl.querySelectorAll('[data-section-id]')].map((el) => {
+          const rect = el.getBoundingClientRect()
+          return {
+            id: el.getAttribute('data-section-id'),
+            pageBottom: Number((rect.bottom - pageRect.top).toFixed(2)),
+          }
+        })
+        const maxPageBottom = sectionNodes.length ? Math.max(...sectionNodes.map((section) => section.pageBottom)) : 0
+
         return {
           page: pageIndex + 1,
+          sectionCount: sectionNodes.length,
+          bottomRemainingPx: Number((pageRect.height - maxPageBottom).toFixed(2)),
           columns,
         }
-      }).flatMap((page) => page.columns)
+      })
     })
   } finally {
     await browser.close()
   }
+}
+
+async function analyzeDoublePreview(html) {
+  const pages = await analyzeDoublePreviewPages(html)
+  return pages.flatMap((page) => page.columns)
 }
 
 test('answer-only double preview should not over-fragment a single long explanation', async () => {
@@ -213,5 +230,35 @@ test('exam-only double preview should keep segmentation bounded for the segmenta
     columns.every((column) => column.maxOverflowPx === 0),
     true,
     `expected no overflow for segmentation fixture, got ${JSON.stringify(columns, null, 2)}`
+  )
+})
+
+test('answer-only double preview should not leave a large final-page bottom gap', async () => {
+  const html = await buildPreviewHtml({
+    ...answerOnlyDoubleUnderfillFixture,
+    questions: [
+      ...answerOnlyDoubleUnderfillFixture.questions,
+      {
+        number: 3,
+        questionText: 'unused',
+        questionTextForward: null,
+        questionTextBackward: null,
+        passageText: null,
+        choices: [],
+        answer: '③',
+        explanation: Array.from({ length: 10 }, (_, index) => (
+          `Explanation sentence ${index + 1} extends the final answer-only page enough to expose large bottom whitespace if the last fragments spill too early.`
+        )).join(' '),
+      },
+    ],
+  })
+  const pages = await analyzeDoublePreviewPages(html)
+  const lastPage = pages.at(-1)
+
+  assert.ok(lastPage, 'expected at least one preview page')
+  assert.equal(
+    lastPage.bottomRemainingPx < 320,
+    true,
+    `expected final answer-only double preview page to keep bottom slack under 320px, got ${JSON.stringify(lastPage, null, 2)}`
   )
 })

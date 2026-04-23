@@ -349,14 +349,24 @@ function estimateAnswerFragmentUnits(
     answerText?: string
     explanationText?: string
   },
-  continuationPosition: TwoColumnContinuationPosition
-) {
+  continuationPosition: TwoColumnContinuationPosition,
+  continuationMode: false | 'answer-only' | 'exam-with-answers' = false
+): number {
+  const isAnswerOnlyContinuation = continuationMode === 'answer-only'
+  const isLeadingFragment = continuationPosition === 'single' || continuationPosition === 'start'
+
+  let baseUnit = isLeadingFragment ? 40 : 12
+
+  if (isAnswerOnlyContinuation) {
+    baseUnit = isLeadingFragment ? 36 : 10
+  }
+
   return estimateSectionUnits(
     [questionLabel, answerText ? `정답: ${answerText}` : '', explanationText].filter(Boolean).join('\n'),
     {
-      charsPerLine: 31,
-      lineUnit: 24,
-      baseUnit: continuationPosition === 'single' || continuationPosition === 'start' ? 40 : 12,
+      charsPerLine: isAnswerOnlyContinuation ? 34 : 31,
+      lineUnit: isAnswerOnlyContinuation ? 20 : 24,
+      baseUnit,
     }
   )
 }
@@ -563,7 +573,7 @@ function createAnswerFragments(section: TwoColumnSectionPlan) {
         questionLabel: isFirstFragment ? section.questionLabel : '',
         answerText: isFirstFragment ? section.answerText : '',
         explanationText: explanationChunk,
-      }, continuationPosition),
+      }, continuationPosition, section.allowContinuation),
       splittable: true,
       payload: {
         type: 'answer',
