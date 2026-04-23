@@ -154,7 +154,8 @@ interface ResolvedTwoColumnLayoutProfile {
 const DEFAULT_COMPAT_LAYOUT_PROFILE_NAME: TwoColumnLayoutProfileName = 'shared-default'
 const DEFAULT_COMPAT_LAYOUT_TARGET: TwoColumnLayoutTarget = 'preview'
 const DOUBLE_COLUMN_BOTTOM_GUARD_BAND_UNITS = 50
-const ANSWER_ONLY_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS = 160
+const DOUBLE_COLUMN_BODY_FRAGMENT_MAX_CHARS = 220
+const DOUBLE_COLUMN_EXPLANATION_FRAGMENT_MAX_CHARS = 120
 const EXAM_PAPER_DEBUG_STORAGE_KEY = 'exam-paper-pdf-debug'
 
 function isExamPaperDebugEnabled() {
@@ -298,6 +299,23 @@ function estimateChoiceFragmentUnits(
   })
 }
 
+function estimateBodyFragmentUnits(
+  text: string,
+  continuationPosition: TwoColumnContinuationPosition
+) {
+  return estimateSectionUnits(text, {
+    charsPerLine: 42,
+    lineUnit: 21,
+    baseUnit: continuationPosition === 'single'
+      ? 34
+      : continuationPosition === 'start'
+        ? 28
+        : continuationPosition === 'middle'
+          ? 10
+          : 18,
+  })
+}
+
 function estimateAnswerFragmentUnits(
   {
     questionLabel,
@@ -313,9 +331,15 @@ function estimateAnswerFragmentUnits(
   return estimateSectionUnits(
     [questionLabel, answerText ? `정답: ${answerText}` : '', explanationText].filter(Boolean).join('\n'),
     {
-      charsPerLine: 31,
-      lineUnit: 24,
-      baseUnit: continuationPosition === 'single' || continuationPosition === 'start' ? 40 : 12,
+      charsPerLine: 40,
+      lineUnit: 20,
+      baseUnit: continuationPosition === 'single'
+        ? 28
+        : continuationPosition === 'start'
+          ? 24
+          : continuationPosition === 'middle'
+            ? 8
+            : 14,
     }
   )
 }
@@ -443,10 +467,52 @@ function createChoiceFragments(section: TwoColumnSectionPlan) {
   })
 }
 
+function createBodyFragments(section: TwoColumnSectionPlan) {
+  const text = section.text ?? ''
+  const chunks = splitTextIntoFlowChunks(text, DOUBLE_COLUMN_BODY_FRAGMENT_MAX_CHARS)
+
+  if (chunks.length <= 1) {
+    return [createSingleFragmentFromSection(section)]
+  }
+
+  return chunks.map((chunkText, index) => {
+    const continuationPosition = getContinuationPosition(index, chunks.length)
+
+    const fragment = {
+      id: buildFragmentId(section.id, index, chunks.length),
+      sourceSectionId: section.id,
+      questionNumber: section.questionNumber,
+      kind: section.kind,
+      sectionKey: section.sectionKey,
+      continuationPosition,
+      fragmentIndex: index,
+      estimatedUnits: estimateBodyFragmentUnits(chunkText, continuationPosition),
+      splittable: true,
+      payload: {
+        type: 'body',
+        text: chunkText,
+      },
+    } satisfies TwoColumnFragmentPlan
+
+    logExamPaperDebug('body-fragment', {
+      questionNumber: section.questionNumber,
+      sourceSectionId: section.id,
+      fragmentId: fragment.id,
+      fragmentIndex: index,
+      fragmentCount: chunks.length,
+      continuationPosition,
+      estimatedUnits: fragment.estimatedUnits,
+      textLength: chunkText.length,
+    })
+
+    return fragment
+  })
+}
+
 function createAnswerFragments(section: TwoColumnSectionPlan) {
   const explanationChunks = splitTextIntoFlowChunks(
     section.explanationText ?? '',
-    ANSWER_ONLY_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS
+    DOUBLE_COLUMN_EXPLANATION_FRAGMENT_MAX_CHARS
   )
   const chunks = explanationChunks.length > 0
     ? explanationChunks
@@ -500,6 +566,10 @@ function createAnswerFragments(section: TwoColumnSectionPlan) {
 }
 
 function buildSectionFragments(section: TwoColumnSectionPlan) {
+  if (section.kind === 'body') {
+    return createBodyFragments(section)
+  }
+
   if (section.kind === 'choice') {
     return createChoiceFragments(section)
   }
@@ -678,7 +748,7 @@ export function buildQuestionSectionPlan(
         answerText,
         explanationText,
         questionLabel,
-        allowContinuation: options.viewMode === 'answer-only',
+        allowContinuation: options.columnLayout === 'double',
       })
     }
   }

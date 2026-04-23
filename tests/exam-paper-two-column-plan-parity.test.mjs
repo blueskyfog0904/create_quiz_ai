@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 
 import { regressionExamPaper } from './fixtures/exam-paper-two-column-regression.fixture.mjs'
+import { underfillExamPaper } from './fixtures/exam-paper-two-column-underfill.fixture.mjs'
 
 const sharedContractPath = new URL('../src/lib/exam-paper-layout-contract.ts', import.meta.url)
 const sharedContractSource = readFileSync(sharedContractPath, 'utf8')
@@ -123,6 +124,27 @@ function createLongAnswerOnlyExamPaper() {
   }
 }
 
+function createLongAnsweredExamPaper() {
+  return {
+    ...regressionExamPaper,
+    viewMode: 'exam-with-answers',
+    questions: [
+      {
+        number: 1,
+        questionText: 'unused in answered continuation regression',
+        questionTextForward: null,
+        questionTextBackward: null,
+        passageText: null,
+        choices: [],
+        answer: '①',
+        explanation: Array.from({ length: 40 }, (_, index) => (
+          `Explanation sentence ${index + 1} explains in detail why the selected option is correct and how the supporting evidence accumulates across the passage.`
+        )).join(' '),
+      },
+    ],
+  }
+}
+
 function createLongSentenceAnswerOnlyExamPaper() {
   const longSentence = [
     'This explanation intentionally uses a single overlong sentence to force the planner',
@@ -178,15 +200,40 @@ test('shared layout contract exports the section planners needed for parity reco
   await getRequiredPlannerApi()
 })
 
-test('question 1 passage stays atomic while choices are allowed to split by row', async () => {
+test('question 1 passage and choices can both split into continuation fragments in two-column mode', async () => {
   const { pdfPlan } = await buildRegressionPlans('exam-only')
   const page1Ids = getPageSectionIds(pdfPlan, 0).flat()
   const allPageIds = pdfPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
 
-  assert.equal(page1Ids.includes('question-1-passage'), true)
-  assert.equal(page1Ids.some((sectionId) => sectionId.startsWith('question-1-passage-part-')), false)
+  assert.equal(page1Ids.some((sectionId) => sectionId.startsWith('question-1-passage-part-')), true)
   assert.equal(allPageIds.includes('question-1-choice-part-1'), true)
   assert.equal(allPageIds.includes('question-1-choice-part-5'), true)
+})
+
+test('exam-only two-column can split a long passage into continuation fragments to reduce underfill', async () => {
+  const {
+    buildExamPaperRenderOptions,
+    buildQuestionSectionPlan,
+    buildTwoColumnLayoutPlan,
+  } = await getRequiredPlannerApi()
+
+  const examPaper = { ...underfillExamPaper }
+  const options = buildExamPaperRenderOptions(examPaper)
+  const questionPlans = examPaper.questions.map((question) =>
+    buildQuestionSectionPlan(question, options)
+  )
+  const layout = buildTwoColumnLayoutPlan({
+    questionPlans,
+    profile: 'shared-default',
+    target: 'preview',
+    hasDescription: true,
+  })
+  const allIds = layout.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
+
+  assert.ok(
+    allIds.some((sectionId) => sectionId.startsWith('question-1-passage-part-')),
+    'expected long passage to be split into continuation fragments'
+  )
 })
 
 test('buildQuestionSectionPlan normalizes questionTextBackward before storing sectionPlan.text', async () => {
@@ -216,11 +263,11 @@ test('buildQuestionSectionPlan normalizes questionTextBackward before storing se
   )
 })
 
-test('answered-mode first page still keeps question 1 answer on page 1 while using the shared bottom guard band', async () => {
+test('answered-mode first page still keeps the first answer fragment on page 1 while using the shared bottom guard band', async () => {
   const { pdfPlan } = await buildRegressionPlans('exam-with-answers')
   const page1RightIds = getPageSectionIds(pdfPlan, 0)[1]
 
-  assert.ok(page1RightIds.includes('question-1-answer'))
+  assert.ok(page1RightIds.some((sectionId) => sectionId.startsWith('question-1-answer-part-')))
 })
 
 test('preview/pdf parity keeps identical page grouping after removing first-page isolation', async () => {
@@ -232,7 +279,7 @@ test('preview/pdf parity keeps identical page grouping after removing first-page
   )
 })
 
-test('answer-only two-column fragments long answer text while exam-with-answers keeps answers atomic', async () => {
+test('answer-only and exam-with-answers both fragment long answers in two-column mode', async () => {
   const {
     buildExamPaperRenderOptions,
     buildQuestionSectionPlan,
@@ -270,8 +317,32 @@ test('answer-only two-column fragments long answer text while exam-with-answers 
   })
   const answeredIds = answeredLayout.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
 
-  assert.equal(answeredIds.includes('question-2-answer'), true)
-  assert.equal(answeredIds.some((sectionId) => sectionId.startsWith('question-2-answer-part-')), false)
+  assert.ok(answeredIds.includes('question-2-answer-part-1'))
+  assert.ok(answeredIds.some((sectionId) => sectionId.startsWith('question-2-answer-part-')))
+})
+
+test('exam-with-answers two-column can continue a long answer into later fragments when needed', async () => {
+  const {
+    buildExamPaperRenderOptions,
+    buildQuestionSectionPlan,
+    buildTwoColumnLayoutPlan,
+  } = await getRequiredPlannerApi()
+
+  const answeredExamPaper = createLongAnsweredExamPaper()
+  const answeredOptions = buildExamPaperRenderOptions(answeredExamPaper)
+  const answeredPlans = answeredExamPaper.questions.map((question) =>
+    buildQuestionSectionPlan(question, answeredOptions)
+  )
+  const answeredLayout = buildTwoColumnLayoutPlan({
+    questionPlans: answeredPlans,
+    profile: 'shared-default',
+    target: 'preview',
+    hasDescription: true,
+  })
+  const answeredIds = answeredLayout.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
+
+  assert.ok(answeredIds.includes('question-1-answer-part-1'))
+  assert.ok(answeredIds.some((sectionId) => sectionId.startsWith('question-1-answer-part-')))
 })
 
 test('answer-only two-column splits overlong explanation sentences more aggressively than the legacy 220-char chunk size', async () => {

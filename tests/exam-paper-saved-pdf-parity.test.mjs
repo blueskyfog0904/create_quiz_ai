@@ -211,24 +211,23 @@ test('saved PDF runtime pages preserve the shared planner section counts per pag
   })
 })
 
-test('saved PDF runtime keeps question 1 passage as a single boxed area', async () => {
+test('saved PDF runtime can split question 1 passage into linked boxed fragments', async () => {
   const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-only')
   const page1Ids = layoutPlan.pages[0].columns.flatMap((column) => column.sectionIds)
 
-  assert.equal(page1Ids.includes('question-1-passage'), true)
-  assert.equal(page1Ids.some((sectionId) => sectionId.startsWith('question-1-passage-part-')), false)
+  assert.equal(page1Ids.some((sectionId) => sectionId.startsWith('question-1-passage-part-')), true)
 
   const header = findRenderedSection(layoutPlan, renderedPages, 'question-1-header').node
-  const passage = findRenderedSection(layoutPlan, renderedPages, 'question-1-passage').node
-  const passageCell = passage.table.body[0][0]
+  const firstPassage = findRenderedSection(layoutPlan, renderedPages, 'question-1-passage-part-1').node
+  const firstPassageCell = firstPassage.table.body[0][0]
 
   assert.match(header.text, /^1\./)
   assert.equal(Array.isArray(header.stack), false)
   assert.equal(header.unbreakable, undefined)
-  assert.ok(passage.table)
-  assert.equal(Array.isArray(passage.stack), false)
-  assert.deepEqual(passage.margin, [0, 0, 0, 8])
-  assert.deepEqual(passageCell.border, [true, true, true, true])
+  assert.ok(firstPassage.table)
+  assert.equal(Array.isArray(firstPassage.stack), false)
+  assert.deepEqual(firstPassage.margin, [0, 0, 0, 0])
+  assert.deepEqual(firstPassageCell.border, [true, true, true, false])
 })
 
 test('saved PDF runtime splits choice rows into separate planner fragments with tight spacing', async () => {
@@ -249,20 +248,18 @@ test('saved PDF runtime splits choice rows into separate planner fragments with 
   })
 })
 
-test('saved PDF runtime keeps explanation as a single plain text answer block with question label', async () => {
+test('saved PDF runtime keeps the first answer fragment as a plain text block with question label', async () => {
   const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-with-answers')
   const answerIds = layoutPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
 
-  assert.equal(answerIds.includes('question-1-answer'), true)
-  assert.equal(answerIds.some((sectionId) => sectionId.startsWith('question-1-answer-part-')), false)
+  assert.equal(answerIds.includes('question-1-answer-part-1'), true)
 
-  const answerNode = findRenderedSection(layoutPlan, renderedPages, 'question-1-answer').node
+  const answerNode = findRenderedSection(layoutPlan, renderedPages, 'question-1-answer-part-1').node
   assert.equal(Array.isArray(answerNode.stack), true)
-  assert.equal(answerNode.stack.length, 3)
+  assert.ok(answerNode.stack.length >= 2)
   assert.equal(answerNode.table, undefined)
   assert.equal(answerNode.stack[0].text, '1번')
   assert.match(answerNode.stack[1].text, /^정답:/)
-  assert.match(answerNode.stack[2].text, /^해설:/)
 })
 
 test('answer-only two-column PDF keeps the question number attached inside the plain text answer block', async () => {
@@ -284,14 +281,19 @@ test('answer-only two-column PDF can continue a long explanation into later answ
   )
   const allSectionIds = layoutPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
   const firstFragmentNode = findRenderedSection(layoutPlan, renderedPages, 'question-2-answer-part-1').node
-  const secondFragmentNode = findRenderedSection(layoutPlan, renderedPages, 'question-2-answer-part-2').node
+  const laterFragmentId = allSectionIds.find((sectionId) => sectionId.startsWith('question-2-answer-part-') && sectionId !== 'question-2-answer-part-1')
+  assert.ok(laterFragmentId)
+  const laterFragmentNode = findRenderedSection(layoutPlan, renderedPages, laterFragmentId).node
 
   assert.ok(allSectionIds.includes('question-2-answer-part-1'))
-  assert.ok(allSectionIds.includes('question-2-answer-part-2'))
+  assert.ok(allSectionIds.some((sectionId) => sectionId.startsWith('question-2-answer-part-') && sectionId !== 'question-2-answer-part-1'))
   assert.equal(firstFragmentNode.stack[0].text, '2번')
   assert.match(firstFragmentNode.stack[1].text, /^정답:/)
-  assert.equal(secondFragmentNode.stack.length, 1)
-  assert.equal(secondFragmentNode.stack[0].text.startsWith('Explanation sentence'), true)
+  assert.ok(laterFragmentNode.stack.length >= 1)
+  assert.equal(
+    laterFragmentNode.stack.some((line) => typeof line.text === 'string' && line.text.trim().length > 0),
+    true
+  )
 })
 
 test('saved PDF runtime styles stay aligned with preview-facing typography', async () => {
