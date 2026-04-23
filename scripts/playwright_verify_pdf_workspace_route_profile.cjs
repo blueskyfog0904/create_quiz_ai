@@ -1,5 +1,5 @@
 const { chromium } = require('playwright')
-const { spawn } = require('child_process')
+const { spawn, execSync } = require('child_process')
 const { writeFileSync } = require('fs')
 const { resolve } = require('path')
 
@@ -43,6 +43,19 @@ async function resolveChromeEndpoint(timeoutMs = 30000) {
   throw new Error(
     `Remote debugging Chrome endpoint did not become ready in time. Tried ports: ${REMOTE_DEBUGGING_PORTS.join(', ')}`
   )
+}
+
+function detectChromeDebugEndpointsFromProcessList() {
+  try {
+    const output = execSync('ps -Ao pid,command', { encoding: 'utf8' })
+    const ports = [...output.matchAll(/--remote-debugging-port=(\d+)/g)]
+      .map((match) => Number(match[1]))
+      .filter((port) => Number.isInteger(port) && port > 0)
+
+    return [...new Set(ports)].map((port) => `http://127.0.0.1:${port}`)
+  } catch {
+    return []
+  }
 }
 
 async function clickButtonByText(page, label, rootSelector = 'button') {
@@ -169,12 +182,22 @@ async function captureAnomalyScreenshots(page, combo, comboResult) {
       process.cwd(),
       `output_route_verify_${combo.modeKey}_${combo.layoutKey}_page${pageEntry.page}.png`
     )
-    await frame.locator('.preview-page').nth(pageEntry.page - 1).screenshot({ path: outputPath })
-    outputs.push({
-      page: pageEntry.page,
-      outputPath,
-      flags: pageEntry.flags,
-    })
+    try {
+      const pageLocator = frame.locator('.preview-page').nth(pageEntry.page - 1)
+      await pageLocator.screenshot({ path: outputPath, timeout: 5000 })
+      outputs.push({
+        page: pageEntry.page,
+        outputPath,
+        flags: pageEntry.flags,
+      })
+    } catch (error) {
+      outputs.push({
+        page: pageEntry.page,
+        outputPath: null,
+        flags: [...pageEntry.flags, 'screenshot-failed'],
+        screenshotError: error instanceof Error ? error.message : String(error),
+      })
+    }
   }
 
   return outputs
@@ -185,7 +208,23 @@ async function main() {
 
   let cdpEndpoint
   try {
-    cdpEndpoint = await resolveChromeEndpoint(2000)
+    const processEndpoints = detectChromeDebugEndpointsFromProcessList()
+
+    for (const endpoint of processEndpoints) {
+      try {
+        const response = await fetch(`${endpoint}/json/version`)
+        if (response.ok) {
+          cdpEndpoint = endpoint
+          break
+        }
+      } catch {
+        // keep trying
+      }
+    }
+
+    if (!cdpEndpoint) {
+      cdpEndpoint = await resolveChromeEndpoint(2000)
+    }
   } catch {
     const chromeProcess = spawn('open', [
       '-na',
