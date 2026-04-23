@@ -239,5 +239,17 @@ export function paginateTwoColumnQuestionChunks(questionGroups, options = {}) {
     })
   })
 
-  return pages.filter((page) => page.left.length > 0 || page.right.length > 0)
+  const filteredPages = pages.filter((page) => page.left.length > 0 || page.right.length > 0)
+
+  if (options.rebalanceEmptyRightColumn) {
+    filteredPages.forEach((page) => {
+      if (page.right.length > 0 || page.left.length <= 1) {
+        return
+      }
+
+      page.right.push(page.left.pop())
+    })
+  }
+
+  return filteredPages
 }

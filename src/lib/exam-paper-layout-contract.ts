@@ -154,7 +154,9 @@ interface ResolvedTwoColumnLayoutProfile {
 const DEFAULT_COMPAT_LAYOUT_PROFILE_NAME: TwoColumnLayoutProfileName = 'shared-default'
 const DEFAULT_COMPAT_LAYOUT_TARGET: TwoColumnLayoutTarget = 'preview'
 const DOUBLE_COLUMN_BOTTOM_GUARD_BAND_UNITS = 50
-const ANSWER_ONLY_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS = 160
+const ANSWER_ONLY_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS = 300
+const DOUBLE_COLUMN_BODY_FRAGMENT_MIN_LENGTH = 900
+const DOUBLE_COLUMN_BODY_FRAGMENT_MAX_CHARS = 700
 const EXAM_PAPER_DEBUG_STORAGE_KEY = 'exam-paper-pdf-debug'
 
 function isExamPaperDebugEnabled() {
@@ -443,6 +445,62 @@ function createChoiceFragments(section: TwoColumnSectionPlan) {
   })
 }
 
+function createBodyFragments(section: TwoColumnSectionPlan) {
+  const sectionText = section.text ?? ''
+
+  if (sectionText.length < DOUBLE_COLUMN_BODY_FRAGMENT_MIN_LENGTH) {
+    return [createSingleFragmentFromSection(section)]
+  }
+
+  const chunks = splitTextIntoFlowChunks(sectionText, DOUBLE_COLUMN_BODY_FRAGMENT_MAX_CHARS)
+
+  if (chunks.length <= 1) {
+    return [createSingleFragmentFromSection(section)]
+  }
+
+  return chunks.map((chunkText, index) => {
+    const continuationPosition = getContinuationPosition(index, chunks.length)
+    const fragment = {
+      id: buildFragmentId(section.id, index, chunks.length),
+      sourceSectionId: section.id,
+      questionNumber: section.questionNumber,
+      kind: section.kind,
+      sectionKey: section.sectionKey,
+      continuationPosition,
+      fragmentIndex: index,
+      estimatedUnits: estimateSectionUnits(chunkText, {
+        charsPerLine: 38,
+        lineUnit: 23,
+        baseUnit: continuationPosition === 'single'
+          ? 42
+          : continuationPosition === 'start'
+            ? 38
+            : continuationPosition === 'middle'
+              ? 12
+              : 18,
+      }),
+      splittable: true,
+      payload: {
+        type: 'body',
+        text: chunkText,
+      },
+    } satisfies TwoColumnFragmentPlan
+
+    logExamPaperDebug('body-fragment', {
+      questionNumber: section.questionNumber,
+      sourceSectionId: section.id,
+      fragmentId: fragment.id,
+      fragmentIndex: index,
+      fragmentCount: chunks.length,
+      continuationPosition,
+      estimatedUnits: fragment.estimatedUnits,
+      textLength: chunkText.length,
+    })
+
+    return fragment
+  })
+}
+
 function createAnswerFragments(section: TwoColumnSectionPlan) {
   const explanationChunks = splitTextIntoFlowChunks(
     section.explanationText ?? '',
@@ -500,6 +558,10 @@ function createAnswerFragments(section: TwoColumnSectionPlan) {
 }
 
 function buildSectionFragments(section: TwoColumnSectionPlan) {
+  if (section.kind === 'body') {
+    return createBodyFragments(section)
+  }
+
   if (section.kind === 'choice') {
     return createChoiceFragments(section)
   }
@@ -733,6 +795,7 @@ export function buildTwoColumnLayoutPlan({
     columnLayout: 'double',
     firstPageSlotCapacity,
     otherPageSlotCapacity,
+    rebalanceEmptyRightColumn: true,
   })
 
   logExamPaperDebug('layout-plan', {
@@ -767,6 +830,7 @@ export function buildExamPaperLayoutPlan<TPayload>({
   firstPageSlotCapacity,
   otherPageSlotCapacity,
   slotCapacity,
+  rebalanceEmptyRightColumn = false,
 }: {
   questionPlans: ExamPaperQuestionPlan<TPayload>[]
   viewMode: ExamPaperLayoutViewMode
@@ -774,6 +838,7 @@ export function buildExamPaperLayoutPlan<TPayload>({
   firstPageSlotCapacity?: number
   otherPageSlotCapacity?: number
   slotCapacity?: number
+  rebalanceEmptyRightColumn?: boolean
 }): ExamPaperLayoutPlan<TPayload> {
   if (columnLayout !== 'double') {
     return {
@@ -809,6 +874,7 @@ export function buildExamPaperLayoutPlan<TPayload>({
       slotCapacity,
       firstPageSlotCapacity: resolvedFirstPageCapacity,
       otherPageSlotCapacity: resolvedOtherPageCapacity,
+      rebalanceEmptyRightColumn,
     }
   )
 

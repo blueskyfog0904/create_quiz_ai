@@ -274,7 +274,7 @@ test('answer-only two-column fragments long answer text while exam-with-answers 
   assert.equal(answeredIds.some((sectionId) => sectionId.startsWith('question-2-answer-part-')), false)
 })
 
-test('answer-only two-column splits overlong explanation sentences more aggressively than the legacy 220-char chunk size', async () => {
+test('answer-only two-column still splits overlong explanation sentences into multiple fragments', async () => {
   const {
     buildExamPaperRenderOptions,
     buildQuestionSectionPlan,
@@ -295,5 +295,5 @@ test('answer-only two-column splits overlong explanation sentences more aggressi
 
   const answerOnlyIds = answerOnlyLayout.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
   assert.ok(answerOnlyIds.includes('question-2-answer-part-1'))
-  assert.ok(answerOnlyIds.includes('question-2-answer-part-6'))
+  assert.ok(answerOnlyIds.includes('question-2-answer-part-4'))
 })
