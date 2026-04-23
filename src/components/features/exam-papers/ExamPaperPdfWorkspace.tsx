@@ -37,6 +37,10 @@ import {
 } from '@/lib/exam-paper-single-column-layout'
 import { measureSingleColumnPreviewPages } from '@/lib/exam-paper-single-column-measurement'
 import {
+  measureTwoColumnPreviewPages,
+  type MeasuredTwoColumnPreviewPage,
+} from '@/lib/exam-paper-two-column-measurement'
+import {
   buildExamPaperPdfBlob,
   buildExamPaperPdfFileName,
   downloadExamPaperPdf,
@@ -100,6 +104,7 @@ export function ExamPaperPdfWorkspace({
   const [isOpeningPdfTab, setIsOpeningPdfTab] = useState(false)
   const [previewHtml, setPreviewHtml] = useState('')
   const [singleColumnMeasuredPages, setSingleColumnMeasuredPages] = useState<SingleColumnPagePlan[] | null>(null)
+  const [twoColumnMeasuredPages, setTwoColumnMeasuredPages] = useState<MeasuredTwoColumnPreviewPage[] | null>(null)
 
   const exportPayload: ExamPaperPrintDocument = useMemo(() => ({
     title: examPaper.paper_title,
@@ -123,6 +128,7 @@ export function ExamPaperPdfWorkspace({
     setIsSavingPdf(false)
     setPreviewHtml('')
     setSingleColumnMeasuredPages(null)
+    setTwoColumnMeasuredPages(null)
   }, [initialColumnLayout, initialQuestions, initialViewMode])
 
   useEffect(() => {
@@ -157,13 +163,18 @@ export function ExamPaperPdfWorkspace({
             groupAnswerOnlyQuestion: viewMode === 'answer-only',
           })
           : null
+        const measuredTwoColumnPages = columnLayout === 'double'
+          ? measureTwoColumnPreviewPages(exportPayload)
+          : null
 
         if (!cancelled) {
           setSingleColumnMeasuredPages(measuredPages)
+          setTwoColumnMeasuredPages(measuredTwoColumnPages)
         }
 
         const html = buildExamPaperPrintHtml(exportPayload, {
           singleColumnMeasuredPages: measuredPages,
+          twoColumnMeasuredPages: measuredTwoColumnPages,
         })
         if (cancelled) return
 
@@ -238,6 +249,7 @@ export function ExamPaperPdfWorkspace({
         autoPrint: true,
         closeAfterPrint: true,
         singleColumnMeasuredPages,
+        twoColumnMeasuredPages,
       })
       toast.success('인쇄 창을 열었습니다.')
     } catch (error) {

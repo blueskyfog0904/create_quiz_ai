@@ -603,6 +603,12 @@ function toFragmentQuestionPlan(
   }
 }
 
+export function buildTwoColumnFragmentQuestionPlans(
+  questionPlans: TwoColumnQuestionSectionPlan[]
+): ExamPaperQuestionPlan<TwoColumnFragmentPlan>[] {
+  return questionPlans.map(toFragmentQuestionPlan)
+}
+
 function resolveTwoColumnLayoutProfile(
   profileName: TwoColumnLayoutProfileName = 'shared-default',
   target: TwoColumnLayoutTarget = 'preview',
@@ -798,7 +804,7 @@ export function buildTwoColumnLayoutPlan({
     resolvedProfile.otherPageSlotCapacity - DOUBLE_COLUMN_BOTTOM_GUARD_BAND_UNITS
   )
   const layoutPlan = buildExamPaperLayoutPlan<TwoColumnFragmentPlan>({
-    questionPlans: questionPlans.map(toFragmentQuestionPlan),
+    questionPlans: buildTwoColumnFragmentQuestionPlans(questionPlans),
     viewMode: includeAnswers ? 'exam-with-answers' : 'exam-only',
     columnLayout: 'double',
     firstPageSlotCapacity,

@@ -25,6 +25,10 @@ const singleColumnLayoutSource = readFileSync(
   new URL('../src/lib/exam-paper-single-column-layout.ts', import.meta.url),
   'utf8'
 )
+const twoColumnMeasurementSource = readFileSync(
+  new URL('../src/lib/exam-paper-two-column-measurement.ts', import.meta.url),
+  'utf8'
+)
 
 const libraryExportButtonsSource = readFileSync(
   new URL('../src/app/(dashboard)/library/exam-papers/[id]/export-buttons.tsx', import.meta.url),
@@ -89,7 +93,19 @@ async function loadRuntimeSingleColumnLayoutModule() {
   return `${pathToFileURL(tempModulePath).href}?t=${Date.now()}`
 }
 
-async function loadRuntimeExportUtilsModule(layoutContractModuleUrl, singleColumnLayoutModuleUrl) {
+async function loadRuntimeTwoColumnMeasurementModule(layoutContractModuleUrl) {
+  const tempDir = mkdtempSync(join(tmpdir(), 'exam-paper-browser-two-column-measurement-'))
+  const tempModulePath = join(tempDir, 'exam-paper-two-column-measurement.runtime.ts')
+  const runtimeSource = twoColumnMeasurementSource
+    .replace(/from '@\/lib\/exam-paper-layout-contract'/g, `from '${layoutContractModuleUrl}'`)
+    .replace(/from '@\/lib\/questions\/normalize-question-field'/g, `from '${normalizeQuestionFieldModuleUrl}'`)
+
+  writeFileSync(tempModulePath, runtimeSource)
+
+  return `${pathToFileURL(tempModulePath).href}?t=${Date.now()}`
+}
+
+async function loadRuntimeExportUtilsModule(layoutContractModuleUrl, singleColumnLayoutModuleUrl, twoColumnMeasurementModuleUrl) {
   const tempDir = mkdtempSync(join(tmpdir(), 'exam-paper-browser-export-utils-'))
   const tempModulePath = join(tempDir, 'export-utils.runtime.ts')
 
@@ -130,6 +146,10 @@ async function loadRuntimeExportUtilsModule(layoutContractModuleUrl, singleColum
     .replace(
       /from '@\/lib\/exam-paper-single-column-layout'/g,
       `from '${singleColumnLayoutModuleUrl}'`
+    )
+    .replace(
+      /from '@\/lib\/exam-paper-two-column-measurement'/g,
+      `from '${twoColumnMeasurementModuleUrl}'`
     )
     .replace(
       /from '@\/lib\/questions\/normalize-question-field'/g,
@@ -178,6 +198,7 @@ test('print template builder uses dedicated single-column groups and shared two-
   assert.match(exportUtilsSource, /preview-page/)
   assert.match(exportUtilsSource, /questions-container/)
   assert.match(exportUtilsSource, /column-count:\s*2/)
+  assert.match(exportUtilsSource, /twoColumnMeasuredPages/)
 })
 
 async function getRuntimePreviewArtifacts(viewMode) {
@@ -186,9 +207,11 @@ async function getRuntimePreviewArtifacts(viewMode) {
     moduleUrl: layoutContractModuleUrl,
   } = await loadRuntimeLayoutContractModule()
   const singleColumnLayoutModuleUrl = await loadRuntimeSingleColumnLayoutModule()
+  const twoColumnMeasurementModuleUrl = await loadRuntimeTwoColumnMeasurementModule(layoutContractModuleUrl)
   const exportUtilsModule = await loadRuntimeExportUtilsModule(
     layoutContractModuleUrl,
-    singleColumnLayoutModuleUrl
+    singleColumnLayoutModuleUrl,
+    twoColumnMeasurementModuleUrl
   )
 
   const examPaper = {
@@ -250,9 +273,11 @@ async function getRuntimePreviewArtifactsForExamPaper(examPaper) {
     moduleUrl: layoutContractModuleUrl,
   } = await loadRuntimeLayoutContractModule()
   const singleColumnLayoutModuleUrl = await loadRuntimeSingleColumnLayoutModule()
+  const twoColumnMeasurementModuleUrl = await loadRuntimeTwoColumnMeasurementModule(layoutContractModuleUrl)
   const exportUtilsModule = await loadRuntimeExportUtilsModule(
     layoutContractModuleUrl,
-    singleColumnLayoutModuleUrl
+    singleColumnLayoutModuleUrl,
+    twoColumnMeasurementModuleUrl
   )
 
   const renderOptions = layoutContractModule.buildExamPaperRenderOptions(examPaper)
@@ -315,9 +340,11 @@ test('single-column preview renders answer blocks as plain text with question la
     moduleUrl: layoutContractModuleUrl,
   } = await loadRuntimeLayoutContractModule()
   const singleColumnLayoutModuleUrl = await loadRuntimeSingleColumnLayoutModule()
+  const twoColumnMeasurementModuleUrl = await loadRuntimeTwoColumnMeasurementModule(layoutContractModuleUrl)
   const exportUtilsModule = await loadRuntimeExportUtilsModule(
     layoutContractModuleUrl,
-    singleColumnLayoutModuleUrl
+    singleColumnLayoutModuleUrl,
+    twoColumnMeasurementModuleUrl
   )
 
   const html = exportUtilsModule.buildExamPaperPrintHtml({
@@ -389,9 +416,20 @@ test('PDF workspace reseeds the preview state from the latest web question order
   )
 })
 
-test('PDF workspace measures single-column pages before building preview HTML', () => {
+test('PDF workspace measures both single and double-column pages before building preview HTML', () => {
   assert.match(workspaceSource, /measureSingleColumnPreviewPages/)
+  assert.match(workspaceSource, /measureTwoColumnPreviewPages/)
   assert.match(workspaceSource, /singleColumnMeasuredPages/)
+  assert.match(workspaceSource, /twoColumnMeasuredPages/)
   assert.match(workspaceSource, /columnLayout === 'single'/)
+  assert.match(workspaceSource, /columnLayout === 'double'/)
   assert.match(workspaceSource, /groupAnswerOnlyQuestion:\s*viewMode === 'answer-only'/)
+})
+
+test('two-column measurement utility keeps measured pages within fixed preview page height', () => {
+  assert.match(twoColumnMeasurementSource, /export function measureTwoColumnPreviewPages/)
+  assert.match(twoColumnMeasurementSource, /getBoundingClientRect\(\)/)
+  assert.match(twoColumnMeasurementSource, /maxBottom <= page\.clientHeight \+ 1/)
+  assert.match(twoColumnMeasurementSource, /two-column-column/)
+  assert.match(twoColumnMeasurementSource, /data-section-id/)
 })

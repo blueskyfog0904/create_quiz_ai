@@ -13,6 +13,7 @@ import {
   type SingleColumnBlock,
   type SingleColumnPagePlan,
 } from '@/lib/exam-paper-single-column-layout'
+import type { MeasuredTwoColumnPreviewPage } from '@/lib/exam-paper-two-column-measurement'
 import type {
   ExamPaperRenderOptions,
   ExamPaperSectionChunk,
@@ -101,6 +102,7 @@ interface ExamPaperPrintPreviewOptions {
   autoPrint?: boolean
   closeAfterPrint?: boolean
   singleColumnMeasuredPages?: SingleColumnPagePlan[] | null
+  twoColumnMeasuredPages?: MeasuredTwoColumnPreviewPage[] | null
 }
 
 interface HtmlPaginationChunk {
@@ -492,6 +494,7 @@ export function buildExamPaperPrintHtml(
     autoPrint = false,
     closeAfterPrint = false,
     singleColumnMeasuredPages = null,
+    twoColumnMeasuredPages = null,
   }: ExamPaperPrintPreviewOptions = {}
 ) {
   const renderOptions = buildExamPaperRenderOptions(examPaper)
@@ -511,7 +514,7 @@ export function buildExamPaperPrintHtml(
     : null
   // Shared page/column planning continues through buildExamPaperLayoutPlan inside the contract.
   const twoColumnChunkPages = isDoubleColumn
-    ? buildTwoColumnPreviewPages(examPaper, renderOptions)
+    ? twoColumnMeasuredPages ?? buildTwoColumnPreviewPages(examPaper, renderOptions)
     : null
   // 2-column preview pages render via helper markup using class="two-column-layout"
   // and class="two-column-column" once chunk-aware pagination is enabled.
@@ -786,6 +789,7 @@ export function openExamPaperPrintPreview(
     autoPrint = false,
     closeAfterPrint = false,
     singleColumnMeasuredPages = null,
+    twoColumnMeasuredPages = null,
   }: ExamPaperPrintPreviewOptions = {}
 ) {
   const printWindow = window.open('', '_blank')
@@ -799,6 +803,7 @@ export function openExamPaperPrintPreview(
       autoPrint,
       closeAfterPrint,
       singleColumnMeasuredPages,
+      twoColumnMeasuredPages,
     })
   )
   printWindow.document.close()
