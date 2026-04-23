@@ -4,6 +4,29 @@
  * @typedef {{ left: PaginationChunk[], right: PaginationChunk[] }} TwoColumnPage
  */
 
+const EXAM_PAPER_DEBUG_STORAGE_KEY = 'exam-paper-pdf-debug'
+
+function isExamPaperDebugEnabled() {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  try {
+    return window.__EXAM_PAPER_PDF_DEBUG__ === true ||
+      window.localStorage.getItem(EXAM_PAPER_DEBUG_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function logExamPaperDebug(event, payload) {
+  if (!isExamPaperDebugEnabled()) {
+    return
+  }
+
+  console.log(`[exam-paper:${event}]`, payload)
+}
+
 function splitWordsIntoChunks(text, maxChars) {
   const words = text.split(/\s+/).filter(Boolean)
   const chunks = []
@@ -152,6 +175,12 @@ export function paginateTwoColumnQuestionChunks(questionGroups, options = {}) {
     let overflow = usage[pageIndex][columnKey] - getSlotCapacity(pageIndex, options)
 
     while (overflow > 0) {
+      logExamPaperDebug('paginate-carry-overflow', {
+        pageIndex,
+        columnKey,
+        overflow,
+        slotCapacity: getSlotCapacity(pageIndex, options),
+      })
       moveToNextSlot()
       ensurePage(pageIndex)
       usage[pageIndex][columnKey] = overflow
@@ -165,7 +194,27 @@ export function paginateTwoColumnQuestionChunks(questionGroups, options = {}) {
     const currentUsage = usage[pageIndex][columnKey]
     const remaining = capacity - currentUsage
 
+    logExamPaperDebug('paginate-check', {
+      pageIndex,
+      columnKey,
+      chunkId: chunk.id,
+      kind: chunk.kind,
+      estimatedHeight: chunk.estimatedHeight,
+      currentUsage,
+      remaining,
+      capacity,
+    })
+
     if (currentUsage > 0 && chunk.estimatedHeight > remaining) {
+      logExamPaperDebug('paginate-move-next-slot', {
+        reason: 'chunk_exceeds_remaining',
+        pageIndex,
+        columnKey,
+        chunkId: chunk.id,
+        kind: chunk.kind,
+        estimatedHeight: chunk.estimatedHeight,
+        remaining,
+      })
       moveToNextSlot()
       placeChunk(chunk)
       return
@@ -173,6 +222,14 @@ export function paginateTwoColumnQuestionChunks(questionGroups, options = {}) {
 
     pages[pageIndex][columnKey].push(chunk)
     usage[pageIndex][columnKey] += chunk.estimatedHeight
+    logExamPaperDebug('paginate-placed', {
+      pageIndex,
+      columnKey,
+      chunkId: chunk.id,
+      kind: chunk.kind,
+      estimatedHeight: chunk.estimatedHeight,
+      usageAfter: usage[pageIndex][columnKey],
+    })
     carryOverflowUsageForward()
   }
 

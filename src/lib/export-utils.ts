@@ -302,8 +302,12 @@ type PreviewPlannedSection = TwoColumnFragmentPlan
 function buildPlannedSectionAttributes(sectionPlan: PreviewPlannedSection) {
   return [
     `data-section-id="${escapeHtml(sectionPlan.id)}"`,
+    `data-source-section-id="${escapeHtml(sectionPlan.sourceSectionId)}"`,
     `data-question-number="${sectionPlan.questionNumber}"`,
     `data-section-kind="${sectionPlan.kind}"`,
+    `data-estimated-height="${sectionPlan.estimatedUnits}"`,
+    `data-fragment-index="${sectionPlan.fragmentIndex}"`,
+    `data-continuation-position="${sectionPlan.continuationPosition}"`,
   ].join(' ')
 }
 

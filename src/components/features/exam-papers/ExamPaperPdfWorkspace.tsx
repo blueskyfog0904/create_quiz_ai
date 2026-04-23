@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Download,
   ExternalLink,
@@ -56,6 +56,25 @@ interface ExamPaperPdfWorkspaceProps {
   initialColumnLayout?: ExamPaperPdfColumnLayout
 }
 
+const EXAM_PAPER_DEBUG_STORAGE_KEY = 'exam-paper-pdf-debug'
+
+function isExamPaperDebugEnabled() {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  try {
+    const debugWindow = window as typeof window & {
+      __EXAM_PAPER_PDF_DEBUG__?: boolean
+    }
+
+    return debugWindow.__EXAM_PAPER_PDF_DEBUG__ === true ||
+      window.localStorage.getItem(EXAM_PAPER_DEBUG_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 function renumberQuestions(questions: ExamPaperPdfQuestion[]) {
   return questions.map((question, index) => ({
     ...question,
@@ -71,6 +90,7 @@ export function ExamPaperPdfWorkspace({
   initialViewMode,
   initialColumnLayout = 'single',
 }: ExamPaperPdfWorkspaceProps) {
+  const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [viewMode, setViewMode] = useState<ExamPaperPdfViewMode>(initialViewMode)
   const [columnLayout, setColumnLayout] = useState<ExamPaperPdfColumnLayout>(initialColumnLayout)
   const [questions, setQuestions] = useState<ExamPaperPdfQuestion[]>(() => renumberQuestions(initialQuestions))
@@ -225,6 +245,52 @@ export function ExamPaperPdfWorkspace({
       toast.error(error instanceof Error ? error.message : '인쇄 창을 여는 중 오류가 발생했습니다.')
     }
   }
+
+  const handlePreviewFrameLoad = useCallback(() => {
+    if (!isExamPaperDebugEnabled()) {
+      return
+    }
+
+    const iframe = iframeRef.current
+    const doc = iframe?.contentDocument
+
+    if (!iframe || !doc || columnLayout !== 'double') {
+      return
+    }
+
+    const diagnostics = [...doc.querySelectorAll('.preview-page')].flatMap((page, pageIndex) => (
+      [...page.querySelectorAll('.two-column-column')].flatMap((column, columnIndex) => {
+        const columnRect = column.getBoundingClientRect()
+
+        return [...column.querySelectorAll<HTMLElement>('[data-section-id]')].map((section) => {
+          const rect = section.getBoundingClientRect()
+
+          return {
+            pageIndex,
+            columnIndex,
+            sectionId: section.dataset.sectionId ?? '',
+            sourceSectionId: section.dataset.sourceSectionId ?? '',
+            questionNumber: section.dataset.questionNumber ?? '',
+            kind: section.dataset.sectionKind ?? '',
+            continuationPosition: section.dataset.continuationPosition ?? '',
+            fragmentIndex: Number(section.dataset.fragmentIndex ?? '-1'),
+            estimatedHeight: Number(section.dataset.estimatedHeight ?? '0'),
+            actualHeight: Number(rect.height.toFixed(2)),
+            top: Number((rect.top - columnRect.top).toFixed(2)),
+            bottom: Number((rect.bottom - columnRect.top).toFixed(2)),
+            columnHeight: Number(columnRect.height.toFixed(2)),
+            remainingSpace: Number((columnRect.bottom - rect.bottom).toFixed(2)),
+            overflowPx: Number(Math.max(0, rect.bottom - columnRect.bottom).toFixed(2)),
+          }
+        })
+      })
+    ))
+
+    console.groupCollapsed(`[exam-paper:preview-dom] ${previewTitle}`)
+    console.table(diagnostics)
+    console.log('full-diagnostics', diagnostics)
+    console.groupEnd()
+  }, [columnLayout, previewTitle])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -404,8 +470,10 @@ export function ExamPaperPdfWorkspace({
 
               {previewHtml ? (
                 <iframe
+                  ref={iframeRef}
                   title="문제지 출력 미리보기"
                   srcDoc={previewHtml}
+                  onLoad={handlePreviewFrameLoad}
                   className="h-full w-full border-0"
                 />
               ) : (

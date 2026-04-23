@@ -155,6 +155,32 @@ const DEFAULT_COMPAT_LAYOUT_PROFILE_NAME: TwoColumnLayoutProfileName = 'shared-d
 const DEFAULT_COMPAT_LAYOUT_TARGET: TwoColumnLayoutTarget = 'preview'
 const DOUBLE_COLUMN_BOTTOM_GUARD_BAND_UNITS = 50
 const ANSWER_ONLY_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS = 160
+const EXAM_PAPER_DEBUG_STORAGE_KEY = 'exam-paper-pdf-debug'
+
+function isExamPaperDebugEnabled() {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  try {
+    const debugWindow = window as typeof window & {
+      __EXAM_PAPER_PDF_DEBUG__?: boolean
+    }
+
+    return debugWindow.__EXAM_PAPER_PDF_DEBUG__ === true ||
+      window.localStorage.getItem(EXAM_PAPER_DEBUG_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function logExamPaperDebug(event: string, payload: Record<string, unknown>) {
+  if (!isExamPaperDebugEnabled()) {
+    return
+  }
+
+  console.log(`[exam-paper:${event}]`, payload)
+}
 
 const BODY_SECTION_DEFINITIONS = [
   {
@@ -384,7 +410,7 @@ function createChoiceFragments(section: TwoColumnSectionPlan) {
   return choiceRows.map((choiceRow, index) => {
     const continuationPosition = getContinuationPosition(index, choiceRows.length)
 
-    return {
+    const fragment = {
       id: buildFragmentId(section.id, index, choiceRows.length),
       sourceSectionId: section.id,
       questionNumber: section.questionNumber,
@@ -401,6 +427,19 @@ function createChoiceFragments(section: TwoColumnSectionPlan) {
         choiceEndIndex: index,
       },
     } satisfies TwoColumnFragmentPlan
+
+    logExamPaperDebug('choice-fragment', {
+      questionNumber: section.questionNumber,
+      sourceSectionId: section.id,
+      fragmentId: fragment.id,
+      fragmentIndex: index,
+      continuationPosition,
+      estimatedUnits: fragment.estimatedUnits,
+      choiceLabel: choiceRow.label,
+      choiceTextLength: choiceRow.text.length,
+    })
+
+    return fragment
   })
 }
 
@@ -418,7 +457,7 @@ function createAnswerFragments(section: TwoColumnSectionPlan) {
     const continuationPosition = getContinuationPosition(index, fragmentCount)
     const isFirstFragment = index === 0
 
-    return {
+    const fragment = {
       id: buildFragmentId(section.id, index, fragmentCount),
       sourceSectionId: section.id,
       questionNumber: section.questionNumber,
@@ -442,6 +481,21 @@ function createAnswerFragments(section: TwoColumnSectionPlan) {
         showAnswerLabel: isFirstFragment,
       },
     } satisfies TwoColumnFragmentPlan
+
+    logExamPaperDebug('answer-fragment', {
+      questionNumber: section.questionNumber,
+      sourceSectionId: section.id,
+      fragmentId: fragment.id,
+      fragmentIndex: index,
+      fragmentCount,
+      continuationPosition,
+      estimatedUnits: fragment.estimatedUnits,
+      answerTextLength: (isFirstFragment ? section.answerText : '')?.length ?? 0,
+      explanationTextLength: explanationChunk.length,
+      questionLabelLength: (isFirstFragment ? section.questionLabel : '')?.length ?? 0,
+    })
+
+    return fragment
   })
 }
 
@@ -629,6 +683,25 @@ export function buildQuestionSectionPlan(
     }
   }
 
+  if (isExamPaperDebugEnabled()) {
+    sections.forEach((section) => {
+      logExamPaperDebug('question-section', {
+        questionNumber: question.number,
+        viewMode: options.viewMode,
+        columnLayout: options.columnLayout,
+        id: section.id,
+        kind: section.kind,
+        sectionKey: section.sectionKey,
+        estimatedUnits: section.estimatedUnits,
+        textLength: section.text?.length ?? 0,
+        answerTextLength: section.answerText?.length ?? 0,
+        explanationTextLength: section.explanationText?.length ?? 0,
+        choiceCount: section.choiceRows?.length ?? 0,
+        allowContinuation: section.allowContinuation ?? false,
+      })
+    })
+  }
+
   return {
     questionNumber: question.number,
     sections,
@@ -660,6 +733,23 @@ export function buildTwoColumnLayoutPlan({
     columnLayout: 'double',
     firstPageSlotCapacity,
     otherPageSlotCapacity,
+  })
+
+  logExamPaperDebug('layout-plan', {
+    target,
+    profile,
+    hasDescription,
+    includeAnswers,
+    firstPageSlotCapacity,
+    otherPageSlotCapacity,
+    pages: layoutPlan.pages.map((page) => ({
+      pageIndex: page.pageIndex,
+      columns: page.columns.map((column) => ({
+        columnIndex: column.columnIndex,
+        sectionIds: column.sectionIds,
+        estimatedUnits: column.sections.reduce((sum, section) => sum + section.estimatedHeight, 0),
+      })),
+    })),
   })
 
   return {
