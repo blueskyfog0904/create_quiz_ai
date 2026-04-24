@@ -147,6 +147,36 @@ function extractPreviewPageSectionIds(html) {
   ))
 }
 
+function buildExpectedPreviewQuestionPlans(layoutContractModule, examPaper, renderOptions) {
+  if (renderOptions.viewMode !== 'exam-with-answers') {
+    return examPaper.questions.map((question) =>
+      layoutContractModule.buildQuestionSectionPlan(question, renderOptions)
+    )
+  }
+
+  const questionOptions = {
+    ...renderOptions,
+    viewMode: 'exam-only',
+    showQuestions: true,
+    showAnswers: false,
+  }
+  const answerOptions = {
+    ...renderOptions,
+    viewMode: 'answer-only',
+    showQuestions: false,
+    showAnswers: true,
+  }
+
+  return [
+    ...examPaper.questions.map((question) =>
+      layoutContractModule.buildQuestionSectionPlan(question, questionOptions)
+    ),
+    ...examPaper.questions.map((question) =>
+      layoutContractModule.buildQuestionSectionPlan(question, answerOptions)
+    ),
+  ]
+}
+
 test('exam paper PDF util uses the generated Pretendard TTF VFS bundle and shared PDF planner contract', () => {
   assert.match(pdfSource, /exam-paper-pdf-vfs/)
   assert.match(pdfSource, /Pretendard-Regular\.ttf/)
@@ -196,9 +226,7 @@ async function getRuntimePreviewArtifacts(viewMode) {
     viewMode,
   }
   const renderOptions = layoutContractModule.buildExamPaperRenderOptions(examPaper)
-  const questionPlans = examPaper.questions.map((question) =>
-    layoutContractModule.buildQuestionSectionPlan(question, renderOptions)
-  )
+  const questionPlans = buildExpectedPreviewQuestionPlans(layoutContractModule, examPaper, renderOptions)
   const previewPlan = layoutContractModule.buildTwoColumnLayoutPlan({
     questionPlans,
     profile: 'shared-default',
@@ -294,9 +322,7 @@ async function getRuntimePreviewArtifactsForExamPaper(examPaper) {
   )
 
   const renderOptions = layoutContractModule.buildExamPaperRenderOptions(examPaper)
-  const questionPlans = examPaper.questions.map((question) =>
-    layoutContractModule.buildQuestionSectionPlan(question, renderOptions)
-  )
+  const questionPlans = buildExpectedPreviewQuestionPlans(layoutContractModule, examPaper, renderOptions)
   const previewPlan = layoutContractModule.buildTwoColumnLayoutPlan({
     questionPlans,
     profile: 'shared-default',
@@ -395,7 +421,7 @@ test('single-column preview renders answer blocks as plain text with question la
 
   assert.match(
     html,
-    /data-block-id="question-1-answer"[\s\S]*?<div class="answer-text-block">[\s\S]*?<div class="answer-text-line answer-text-question">1번<\/div>[\s\S]*?<div class="answer-text-line answer-text-answer">정답:/
+    /data-block-id="question-1-answer-part-1"[\s\S]*?<div class="answer-text-block">[\s\S]*?<div class="answer-text-line answer-text-question">1번<\/div>[\s\S]*?<div class="answer-text-line answer-text-answer">정답:/
   )
   assert.doesNotMatch(html, /answer-only-section|answer-section/)
 })

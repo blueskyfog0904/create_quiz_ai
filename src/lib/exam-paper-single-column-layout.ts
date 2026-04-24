@@ -49,6 +49,7 @@ export interface SingleColumnQuestionGroups {
   promptBlocks: SingleColumnBlock[]
   choiceBlocks: SingleColumnBlock[]
   answerBlocks: SingleColumnBlock[]
+  placementMode?: 'default' | 'answer-fragments'
 }
 
 export interface SingleColumnPagePlan {
@@ -230,11 +231,32 @@ export function buildSingleColumnQuestionGroups(
   }
 }
 
+export function buildSingleColumnExamWithAnswersSeparatedGroups(
+  questions: SingleColumnQuestionLike[]
+): SingleColumnQuestionGroups[] {
+  const questionGroups = questions.map((question) => (
+    buildSingleColumnQuestionGroups(question, {
+      showQuestions: true,
+      showAnswers: false,
+    })
+  ))
+
+  const answerGroups = questions.map((question) => ({
+    ...buildSingleColumnQuestionGroups(question, {
+      showQuestions: false,
+      showAnswers: true,
+    }),
+    placementMode: 'answer-fragments' as const,
+  }))
+
+  return [...questionGroups, ...answerGroups]
+}
+
 export function buildSingleColumnPlacementSteps(
   group: SingleColumnQuestionGroups,
   { groupAnswerOnlyQuestion = false }: SingleColumnPlacementOptions = {}
 ): SingleColumnPlacementStep[] {
-  if (groupAnswerOnlyQuestion) {
+  if (group.placementMode === 'answer-fragments' || groupAnswerOnlyQuestion) {
     return [{
       type: 'answer-fragments',
       blocks: group.answerBlocks,

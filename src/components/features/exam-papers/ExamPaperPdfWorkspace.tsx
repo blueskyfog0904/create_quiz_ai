@@ -31,6 +31,7 @@ import {
   type ViewMode as ExamPaperPdfViewMode,
 } from '@/lib/export-utils'
 import {
+  buildSingleColumnExamWithAnswersSeparatedGroups,
   buildSingleColumnQuestionGroups,
 } from '@/lib/exam-paper-single-column-layout'
 import { measureSingleColumnPreviewPages } from '@/lib/exam-paper-single-column-measurement'
@@ -143,12 +144,14 @@ export function ExamPaperPdfWorkspace({
           ? measureSingleColumnPreviewPages({
             pageTitle: previewTitle,
             description: exportPayload.description,
-            questionGroups: exportPayload.questions.map((question) => (
-              buildSingleColumnQuestionGroups(question, {
-                showQuestions: viewMode !== 'answer-only',
-                showAnswers: viewMode !== 'exam-only',
-              })
-            )),
+            questionGroups: viewMode === 'exam-with-answers'
+              ? buildSingleColumnExamWithAnswersSeparatedGroups(exportPayload.questions)
+              : exportPayload.questions.map((question) => (
+                buildSingleColumnQuestionGroups(question, {
+                  showQuestions: viewMode !== 'answer-only',
+                  showAnswers: viewMode !== 'exam-only',
+                })
+              )),
             showQuestions: viewMode !== 'answer-only',
             groupAnswerOnlyQuestion: viewMode === 'answer-only',
           })

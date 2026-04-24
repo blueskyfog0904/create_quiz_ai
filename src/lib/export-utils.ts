@@ -9,6 +9,7 @@ import {
   buildTwoColumnLinearFragmentPlans,
 } from '@/lib/exam-paper-layout-contract'
 import {
+  buildSingleColumnExamWithAnswersSeparatedGroups,
   buildSingleColumnQuestionGroups,
   paginateSingleColumnQuestionGroups,
   type SingleColumnBlock,
@@ -284,18 +285,22 @@ function buildSingleColumnPreviewPages(
     showQuestions,
     showAnswers,
     groupAnswerOnlyQuestion,
+    separateExamWithAnswers = false,
   }: {
     showQuestions: boolean
     showAnswers: boolean
     groupAnswerOnlyQuestion: boolean
+    separateExamWithAnswers?: boolean
   }
 ) {
-  const questionGroups = examPaper.questions.map((question) => (
-    buildSingleColumnQuestionGroups(question, {
-      showQuestions,
-      showAnswers,
-    })
-  ))
+  const questionGroups = separateExamWithAnswers
+    ? buildSingleColumnExamWithAnswersSeparatedGroups(examPaper.questions)
+    : examPaper.questions.map((question) => (
+      buildSingleColumnQuestionGroups(question, {
+        showQuestions,
+        showAnswers,
+      })
+    ))
 
   return paginateSingleColumnQuestionGroups({
     questionGroups,
@@ -435,10 +440,41 @@ function mapPlannedSectionsToHtmlChunks(
   ))
 }
 
+function buildSeparatedExamWithAnswersQuestionPlans(
+  examPaper: ExamPaper,
+  renderOptions: ExamPaperRenderOptions
+) {
+  const questionOptions: ExamPaperRenderOptions = {
+    ...renderOptions,
+    viewMode: 'exam-only',
+    showQuestions: true,
+    showAnswers: false,
+  }
+  const answerOptions: ExamPaperRenderOptions = {
+    ...renderOptions,
+    viewMode: 'answer-only',
+    showQuestions: false,
+    showAnswers: true,
+  }
+
+  return {
+    questionPlans: examPaper.questions.map((question) =>
+      buildQuestionSectionPlan(question, questionOptions)
+    ),
+    answerPlans: examPaper.questions.map((question) =>
+      buildQuestionSectionPlan(question, answerOptions)
+    ),
+  }
+}
+
 export function buildTwoColumnPreviewChunks(
   examPaper: ExamPaper,
   renderOptions: ExamPaperRenderOptions
 ): HtmlPaginationChunk[] {
+  if (renderOptions.viewMode === 'exam-with-answers') {
+    return buildSeparatedExamWithAnswersTwoColumnChunks(examPaper, renderOptions)
+  }
+
   const questionPlans = examPaper.questions.map((question) => (
     buildQuestionSectionPlan(question, renderOptions)
   ))
@@ -450,10 +486,59 @@ export function buildTwoColumnPreviewChunks(
   ))
 }
 
+function buildSeparatedExamWithAnswersTwoColumnChunks(
+  examPaper: ExamPaper,
+  renderOptions: ExamPaperRenderOptions
+): HtmlPaginationChunk[] {
+  const { questionPlans, answerPlans } = buildSeparatedExamWithAnswersQuestionPlans(
+    examPaper,
+    renderOptions
+  )
+
+  const questionFragments = buildTwoColumnLinearFragmentPlans(questionPlans)
+  const answerFragments = buildTwoColumnLinearFragmentPlans(answerPlans)
+
+  return [
+    ...questionFragments.map((fragment) => renderPlannedTwoColumnSectionHtml(fragment, true)),
+    ...answerFragments.map((fragment) => renderPlannedTwoColumnSectionHtml(fragment, false)),
+  ]
+}
+
+function buildSeparatedTwoColumnPreviewPages(
+  examPaper: ExamPaper,
+  renderOptions: ExamPaperRenderOptions
+) {
+  const { questionPlans, answerPlans } = buildSeparatedExamWithAnswersQuestionPlans(
+    examPaper,
+    renderOptions
+  )
+  const layoutPlan = buildTwoColumnLayoutPlan({
+    questionPlans: [...questionPlans, ...answerPlans],
+    profile: 'shared-default',
+    target: 'preview',
+    hasDescription: Boolean(examPaper.description),
+  })
+
+  return layoutPlan.pages.map((page) => {
+    const [left, right] = page.columns.map((column) => (
+      mapPlannedSectionsToHtmlChunks(column.sections, renderOptions.showQuestions)
+    )) as [HtmlPaginationChunk[], HtmlPaginationChunk[]]
+
+    return {
+      left,
+      right,
+    }
+  })
+}
+
 function buildTwoColumnPreviewPages(
   examPaper: ExamPaper,
   renderOptions: ExamPaperRenderOptions
 ) {
+  if (renderOptions.viewMode === 'exam-with-answers') {
+    return buildSeparatedTwoColumnPreviewPages(examPaper, renderOptions)
+  }
+
   const questionPlans = examPaper.questions.map((question) =>
     buildQuestionSectionPlan(question, renderOptions)
   )
@@ -805,6 +890,7 @@ export function buildExamPaperPrintHtml(
       showQuestions,
       showAnswers,
       groupAnswerOnlyQuestion: !showQuestions && showAnswers,
+      separateExamWithAnswers: renderOptions.viewMode === 'exam-with-answers',
     })
     : null
   // Shared page/column planning continues through buildExamPaperLayoutPlan inside the contract.

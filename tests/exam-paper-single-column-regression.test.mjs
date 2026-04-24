@@ -167,8 +167,8 @@ test('single-column HTML preview uses block pagination and exposes choice-row bl
   assert.doesNotMatch(html, /class="two-column-layout"/)
   assert.match(html, /data-block-id="question-1-choice-row-1"/)
   assert.match(html, /data-block-kind="choice-row"/)
-  assert.match(html, /data-block-id="question-1-answer"/)
-  assert.match(html, /data-block-id="question-1-answer"[\s\S]*?1번[\s\S]*?정답:/)
+  assert.match(html, /data-block-id="question-1-answer-part-1"/)
+  assert.match(html, /data-block-id="question-1-answer-part-1"[\s\S]*?1번[\s\S]*?정답:/)
   assert.doesNotMatch(html, /answer-only-section|answer-section/)
 })
 

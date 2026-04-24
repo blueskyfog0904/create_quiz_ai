@@ -273,6 +273,32 @@ async function analyzeDoublePreview(html) {
   return pages.flatMap((page) => page.columns)
 }
 
+
+function extractOrderedSectionKindsFromHtml(html) {
+  return [...html.matchAll(/data-section-id="([^"]+)"[\s\S]*?data-section-kind="([^"]+)"/g)]
+    .map((match) => ({ id: match[1], kind: match[2] }))
+}
+
+function assertExamWithAnswersSectionsAreSeparated(html) {
+  const orderedKinds = extractOrderedSectionKindsFromHtml(html)
+  const lastQuestionIndex = Math.max(
+    orderedKinds.findLastIndex((item) => item.kind === 'header'),
+    orderedKinds.findLastIndex((item) => item.kind === 'body'),
+    orderedKinds.findLastIndex((item) => item.kind === 'choice')
+  )
+  const firstAnswerIndex = orderedKinds.findIndex((item) => item.kind === 'answer')
+
+  assert.ok(firstAnswerIndex > lastQuestionIndex, `expected all answers after all questions: ${JSON.stringify(orderedKinds)}`)
+}
+
+function assertNoDoublePreviewOverflow(pages) {
+  assert.equal(
+    pages.every((page) => page.columns.every((column) => column.maxOverflowPx === 0)),
+    true,
+    `expected no two-column overflow, got ${JSON.stringify(pages, null, 2)}`
+  )
+}
+
 function createScreenshotLikeExamWithAnswersExamPaper() {
   return {
     title: regressionExamPaper.title,
@@ -390,42 +416,22 @@ test('exam-with-answers double preview should not leave a screenshot-like first-
   )
 })
 
-test('exam-with-answers double preview should not orphan a realistic short answer onto a sparse next page', async () => {
-  const html = await buildPreviewHtml(createRealisticExamWithAnswersExamPaper())
-  const pages = await analyzeDoublePreviewPages(html)
-  const firstPage = pages[0]
-  const secondPage = pages[1]
-
-  assert.ok(firstPage, 'expected a first preview page')
-  assert.equal(
-    firstPage.bottomRemainingPx < 220,
-    true,
-    `expected realistic exam-with-answers first page bottom slack under 220px, got ${JSON.stringify(firstPage, null, 2)}`
-  )
-
-  if (secondPage) {
-    assert.equal(
-      secondPage.bottomRemainingPx < 1000,
-      true,
-      `expected realistic exam-with-answers sparse follow-up page slack under 1000px, got ${JSON.stringify(secondPage, null, 2)}`
-    )
-  }
-})
-
-test('exam-with-answers double preview should keep the real fixture pair closer to the bottom margin on page 1', async () => {
+test('exam-with-answers double preview places realistic answers after all question chunks without overflow', async () => {
   const html = await buildPreviewHtml(createRealisticExamWithAnswersExamPaper())
   const pages = await analyzeDoublePreviewPages(html)
   const firstPage = pages[0]
 
   assert.ok(firstPage, 'expected a first preview page')
+  assertExamWithAnswersSectionsAreSeparated(html)
+  assertNoDoublePreviewOverflow(pages)
   assert.equal(
-    firstPage.bottomRemainingPx < 220,
+    firstPage.bottomRemainingPx < 320,
     true,
-    `expected real exam-with-answers pair to keep first-page bottom slack under 220px, got ${JSON.stringify(firstPage, null, 2)}`
+    `expected separated realistic exam-with-answers first-page bottom slack under 320px, got ${JSON.stringify(firstPage, null, 2)}`
   )
 })
 
-test('exam-with-answers double preview should not leave a screenshot-like first-page bottom gap for the real fixture pair', async () => {
+test('exam-with-answers double preview keeps the screenshot-like real fixture pair separated without overflow', async () => {
   const html = await buildPreviewHtml({
     title: regressionExamPaper.title,
     description: regressionExamPaper.description,
@@ -440,14 +446,10 @@ test('exam-with-answers double preview should not leave a screenshot-like first-
     ],
   })
   const pages = await analyzeDoublePreviewPages(html)
-  const firstPage = pages[0]
 
-  assert.ok(firstPage, 'expected a first preview page')
-  assert.equal(
-    firstPage.bottomRemainingPx < 220,
-    true,
-    `expected screenshot-like exam-with-answers first page bottom slack under 220px, got ${JSON.stringify(firstPage, null, 2)}`
-  )
+  assert.ok(pages[0], 'expected a first preview page')
+  assertExamWithAnswersSectionsAreSeparated(html)
+  assertNoDoublePreviewOverflow(pages)
 })
 
 test('measured two-column preview should use rendered DOM heights before final pagination', async () => {
