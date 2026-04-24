@@ -773,7 +773,10 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
           margin-bottom: 0;
         }
         .question-chunk-anchor {
-          margin-bottom: 12px;
+          margin-bottom: 0;
+        }
+        .question-choice-chunk {
+          margin-bottom: 0;
         }
         .question-choice-chunk .choices {
           margin-bottom: 0;

@@ -293,9 +293,9 @@ function buildChoiceRowText(choice: TwoColumnLayoutChoiceLike) {
 
 function buildFlowBodyText(question: TwoColumnLayoutQuestionLike) {
   return BODY_SECTION_DEFINITIONS
-    .map(({ resolveText }) => normalizeSectionText(resolveText(question)))
+    .map(({ resolveText }) => normalizeSectionText(resolveText(question)).replace(/\s*\n+\s*/g, ' '))
     .filter(Boolean)
-    .join('\n\n')
+    .join('\n')
 }
 
 function getBodyFragmentBaseUnit(
