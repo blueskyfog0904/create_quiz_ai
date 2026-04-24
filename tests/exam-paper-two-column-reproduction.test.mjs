@@ -240,6 +240,8 @@ async function analyzeDoublePreviewPages(html) {
             page: pageIndex + 1,
             column: columnIndex + 1,
             sectionCount: sections.length,
+            firstId: sections.at(0)?.id ?? null,
+            firstKind: sections.at(0)?.kind ?? null,
             lastId: sections.at(-1)?.id ?? null,
             maxOverflowPx: sections.length ? Math.max(...sections.map((section) => section.overflowPx)) : 0,
             bottomRemainingPx: sections.length ? sections.at(-1).bottomRemainingPx : Number(columnRect.height.toFixed(2)),
@@ -296,6 +298,22 @@ function assertNoDoublePreviewOverflow(pages) {
     pages.every((page) => page.columns.every((column) => column.maxOverflowPx === 0)),
     true,
     `expected no two-column overflow, got ${JSON.stringify(pages, null, 2)}`
+  )
+}
+
+function assertHeaderStartingColumnsAreDense(page, maxSlackPx) {
+  const headerStartingColumns = page.columns.filter((column) => (
+    column.sectionCount > 0 && column.firstKind === 'header'
+  ))
+
+  assert.ok(
+    headerStartingColumns.length > 0,
+    `expected at least one header-starting column to validate, got ${JSON.stringify(page, null, 2)}`
+  )
+  assert.equal(
+    headerStartingColumns.every((column) => column.bottomRemainingPx < maxSlackPx),
+    true,
+    `expected every header-starting column to stay dense with slack under ${maxSlackPx}px, got ${JSON.stringify(headerStartingColumns, null, 2)}`
   )
 }
 
@@ -409,11 +427,7 @@ test('exam-with-answers double preview should not leave a screenshot-like first-
   const firstPage = pages[0]
 
   assert.ok(firstPage, 'expected a first preview page')
-  assert.equal(
-    firstPage.bottomRemainingPx < 320,
-    true,
-    `expected screenshot-like exam-with-answers first page bottom slack under 320px, got ${JSON.stringify(firstPage, null, 2)}`
-  )
+  assertHeaderStartingColumnsAreDense(firstPage, 80)
 })
 
 test('exam-with-answers double preview places realistic answers after all question chunks without overflow', async () => {
@@ -424,11 +438,7 @@ test('exam-with-answers double preview places realistic answers after all questi
   assert.ok(firstPage, 'expected a first preview page')
   assertExamWithAnswersSectionsAreSeparated(html)
   assertNoDoublePreviewOverflow(pages)
-  assert.equal(
-    firstPage.bottomRemainingPx < 320,
-    true,
-    `expected separated realistic exam-with-answers first-page bottom slack under 320px, got ${JSON.stringify(firstPage, null, 2)}`
-  )
+  assertHeaderStartingColumnsAreDense(firstPage, 80)
 })
 
 test('exam-with-answers double preview keeps the screenshot-like real fixture pair separated without overflow', async () => {

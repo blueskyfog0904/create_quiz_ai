@@ -363,6 +363,7 @@ function renderPlannedTwoColumnSectionHtml(
       kind: 'header',
       html: `
         <div class="question-chunk question-chunk-anchor" ${sectionAttributes}>
+          ${sectionPlan.questionNumber > 1 ? '<br class="question-separator-br">' : ''}
           ${showQuestions ? `
             <div class="question-text">
               ${sectionPlan.questionNumber}. ${escapeHtml(headerText)}
@@ -772,8 +773,15 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
         .question-body-chunk.chunk-linked-middle {
           margin-bottom: 0;
         }
+        .question-body-chunk.chunk-linked-start .flow-body-text,
+        .question-body-chunk.chunk-linked-middle .flow-body-text {
+          margin-bottom: 0;
+        }
         .question-chunk-anchor {
           margin-bottom: 0;
+        }
+        .two-column-column > .question-chunk-anchor:first-child > .question-separator-br {
+          display: none;
         }
         .question-choice-chunk {
           margin-bottom: 0;

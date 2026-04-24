@@ -113,6 +113,17 @@ function createSpacingExamPaper() {
       ],
       answer: '①',
       explanation: 'explanation',
+    }, {
+      number: 2,
+      questionText: '두 번째 문제입니다.',
+      questionTextForward: null,
+      passageText: 'Second question passage.',
+      questionTextBackward: null,
+      choices: [
+        { label: '①', text: 'second first option' },
+      ],
+      answer: '①',
+      explanation: 'second explanation',
     }],
   }
 }
@@ -144,5 +155,38 @@ test('two-column choices and header chunks use single-column vertical rhythm', a
     html,
     /\.question-chunk-anchor\s*\{\s*margin-bottom:\s*0;/,
     'expected two-column header chunk not to double the question-text margin before body text'
+  )
+  assert.match(
+    html,
+    /\.question-body-chunk\.chunk-linked-start \.flow-body-text,\s*\.question-body-chunk\.chunk-linked-middle \.flow-body-text\s*\{\s*margin-bottom:\s*0;/,
+    'expected linked two-column body chunks not to render as separated paragraphs'
+  )
+})
+
+test('question boundaries include one explicit br separator', async () => {
+  const html = await buildPreviewHtml(createSpacingExamPaper())
+
+  assert.match(
+    html,
+    /data-section-id="question-2-header"[\s\S]*?<br class="question-separator-br">[\s\S]*?<div class="question-text">/,
+    'expected a one-line br separator before the next two-column question header'
+  )
+  assert.match(
+    html,
+    /\.two-column-column > \.question-chunk-anchor:first-child > \.question-separator-br\s*\{\s*display:\s*none;/,
+    'expected the br separator to be hidden when a question header starts a column'
+  )
+})
+
+test('single-column question spacing does not receive the two-column br separator', async () => {
+  const html = await buildPreviewHtml({
+    ...createSpacingExamPaper(),
+    columnLayout: 'single',
+  })
+
+  assert.doesNotMatch(
+    html,
+    /single-column-header[\s\S]*?<br class="question-separator-br">/,
+    'expected single-column spacing to keep its existing margin-based rhythm'
   )
 })
