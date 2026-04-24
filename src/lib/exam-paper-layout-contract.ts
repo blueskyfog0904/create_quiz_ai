@@ -138,6 +138,10 @@ export interface TwoColumnFragmentPlan {
   payload: TwoColumnFragmentPayload
 }
 
+export interface TwoColumnFragmentBuildOptions {
+  splitBody: boolean
+}
+
 export interface BuildTwoColumnLayoutPlanInput {
   questionPlans: TwoColumnQuestionSectionPlan[]
   profile?: TwoColumnLayoutProfileName
@@ -293,7 +297,7 @@ function buildChoiceRowText(choice: TwoColumnLayoutChoiceLike) {
 
 function buildFlowBodyText(question: TwoColumnLayoutQuestionLike) {
   return BODY_SECTION_DEFINITIONS
-    .map(({ resolveText }) => normalizeSectionText(resolveText(question)).replace(/\s*\n+\s*/g, ' '))
+    .map(({ resolveText }) => normalizeSectionText(resolveText(question)))
     .filter(Boolean)
     .join('\n')
 }
@@ -610,8 +614,15 @@ function createAnswerFragments(section: TwoColumnSectionPlan) {
   })
 }
 
-function buildSectionFragments(section: TwoColumnSectionPlan) {
+function buildSectionFragments(
+  section: TwoColumnSectionPlan,
+  options: TwoColumnFragmentBuildOptions = { splitBody: true }
+) {
   if (section.kind === 'body') {
+    if (!options.splitBody) {
+      return [createSingleFragmentFromSection(section)]
+    }
+
     return createBodyFragments(section)
   }
 
@@ -638,20 +649,22 @@ function toLayoutFragment(
 }
 
 export function buildTwoColumnLinearFragmentPlans(
-  questionPlans: TwoColumnQuestionSectionPlan[]
+  questionPlans: TwoColumnQuestionSectionPlan[],
+  options: TwoColumnFragmentBuildOptions = { splitBody: true }
 ): TwoColumnFragmentPlan[] {
   return questionPlans.flatMap((questionPlan) => (
-    questionPlan.sections.flatMap(buildSectionFragments)
+    questionPlan.sections.flatMap((section) => buildSectionFragments(section, options))
   ))
 }
 
 function toFragmentQuestionPlan(
-  questionPlan: TwoColumnQuestionSectionPlan
+  questionPlan: TwoColumnQuestionSectionPlan,
+  options: TwoColumnFragmentBuildOptions = { splitBody: true }
 ): ExamPaperQuestionPlan<TwoColumnFragmentPlan> {
   return {
     questionNumber: questionPlan.questionNumber,
     sections: questionPlan.sections.flatMap((section) => (
-      buildSectionFragments(section).map(toLayoutFragment)
+      buildSectionFragments(section, options).map(toLayoutFragment)
     )),
   }
 }
@@ -886,7 +899,7 @@ export function buildTwoColumnLayoutPlan({
     resolvedProfile.otherPageSlotCapacity - DOUBLE_COLUMN_BOTTOM_GUARD_BAND_UNITS
   )
   const layoutPlan = buildExamPaperLayoutPlan<TwoColumnFragmentPlan>({
-    questionPlans: questionPlans.map(toFragmentQuestionPlan),
+    questionPlans: questionPlans.map((plan) => toFragmentQuestionPlan(plan)),
     viewMode: includeAnswers ? 'exam-with-answers' : 'exam-only',
     columnLayout: 'double',
     firstPageSlotCapacity,

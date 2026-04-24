@@ -102,7 +102,7 @@ function createSpacingExamPaper() {
       number: 1,
       questionText: '다음 글을 읽고 물음에 답하시오.',
       questionTextForward: 'Read the following passage.',
-      passageText: 'First paragraph should flow without a paragraph gap.\n\nSecond paragraph should continue like the single-column preview.',
+      passageText: 'First paragraph should flow without a paragraph gap. Second paragraph should continue like the single-column preview.',
       questionTextBackward: null,
       choices: [
         { label: '①', text: 'first option' },
@@ -128,18 +128,18 @@ function createSpacingExamPaper() {
   }
 }
 
-test('two-column flow body collapses English passage paragraph breaks to match single-column rhythm', async () => {
+test('two-column flow body does not add artificial paragraph breaks for contiguous Supabase passage text', async () => {
   const html = await buildPreviewHtml(createSpacingExamPaper())
 
   assert.doesNotMatch(
     html,
     /First paragraph should flow without a paragraph gap\.<br><br>\s*Second paragraph should continue/,
-    'expected two-column body text not to render blank paragraph breaks inside the English passage'
+    'expected two-column body text not to add blank paragraph breaks when source text has no paragraph breaks'
   )
   assert.match(
     html,
     /Read the following passage\.<br>\s*First paragraph should flow without a paragraph gap\. Second paragraph should continue/,
-    'expected prompt-to-passage spacing to use one line break, with passage paragraphs collapsed'
+    'expected prompt-to-passage spacing to use one line break, with contiguous passage text remaining contiguous'
   )
 })
 
@@ -158,8 +158,13 @@ test('two-column choices and header chunks use single-column vertical rhythm', a
   )
   assert.match(
     html,
-    /\.question-body-chunk\.chunk-linked-start \.flow-body-text,\s*\.question-body-chunk\.chunk-linked-middle \.flow-body-text\s*\{\s*margin-bottom:\s*0;/,
-    'expected linked two-column body chunks not to render as separated paragraphs'
+    /\.two-column-measured-body-flow\s*\{\s*margin-bottom:\s*0;/,
+    'expected measured two-column body flow groups not to add extra chunk margin'
+  )
+  assert.match(
+    html,
+    /\.two-column-measured-body-flow \.flow-body-text\s*\{\s*margin-bottom:\s*0;/,
+    'expected measured two-column body text not to render line groups as separated paragraphs'
   )
 })
 

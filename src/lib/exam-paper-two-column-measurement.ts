@@ -1,5 +1,8 @@
 import type { ExamPaper, HtmlPaginationChunk, TwoColumnMeasuredPagePlan } from '@/lib/export-utils'
-import { buildExamPaperTwoColumnMeasurementHtml } from '@/lib/export-utils'
+import {
+  buildExamPaperTwoColumnMeasurementHtml,
+  renderInlineBracketUnderlineHtml,
+} from '@/lib/export-utils'
 import { paginateMeasuredTwoColumnChunks } from '@/lib/exam-paper-pdf-pagination.js'
 
 interface MeasuredTwoColumnChunk extends HtmlPaginationChunk {
@@ -10,6 +13,12 @@ interface MeasurementResult {
   chunks: MeasuredTwoColumnChunk[]
   firstPageColumnHeightPx: number
   otherPageColumnHeightPx: number
+}
+
+interface MeasuredBodyLineChunkSlice {
+  bodyRawText: string
+  bodyStartOffset: number
+  bodyEndOffset: number
 }
 
 export async function buildMeasuredTwoColumnPreviewPages({
@@ -102,17 +111,204 @@ async function readMeasurementResult(
 
   return {
     chunks: [...firstColumn.querySelectorAll<HTMLElement>('[data-section-id]')]
-      .map((element) => ({
-        id: element.dataset.sectionId ?? '',
-        estimatedHeight: Number(element.dataset.estimatedHeight ?? '0'),
-        kind: normalizeChunkKind(element.dataset.sectionKind),
-        html: element.outerHTML,
-        measuredHeightPx: measureOuterHeight(element),
-      }))
+      .flatMap((element) => toMeasuredChunks(element))
       .filter((chunk) => chunk.id && chunk.measuredHeightPx > 0),
     firstPageColumnHeightPx: measureUsableColumnHeight(firstPage, firstColumn),
     otherPageColumnHeightPx: measureUsableColumnHeight(otherPage, otherColumn),
   }
+}
+
+function toMeasuredChunks(element: HTMLElement): MeasuredTwoColumnChunk[] {
+  const baseChunk: MeasuredTwoColumnChunk = {
+    id: element.dataset.sectionId ?? '',
+    estimatedHeight: Number(element.dataset.estimatedHeight ?? '0'),
+    kind: normalizeChunkKind(element.dataset.sectionKind),
+    html: element.outerHTML,
+    sourceSectionId: element.dataset.sourceSectionId ?? element.dataset.sectionId ?? undefined,
+    questionNumber: parseOptionalNumber(element.dataset.questionNumber),
+    measuredHeightPx: measureOuterHeight(element),
+  }
+
+  if (baseChunk.kind !== 'body') {
+    return [baseChunk]
+  }
+
+  return splitMeasuredBodyElementIntoLineChunks(element, baseChunk)
+}
+
+function splitMeasuredBodyElementIntoLineChunks(
+  element: HTMLElement,
+  baseChunk: MeasuredTwoColumnChunk
+): MeasuredTwoColumnChunk[] {
+  const rawText = decodeExactBodyRawText(element.dataset.bodyRawTextExact)
+    ?? element.dataset.bodyRawText
+    ?? ''
+  const flowElement = element.querySelector<HTMLElement>('.flow-body-text')
+
+  if (!flowElement || !rawText.trim()) {
+    return [{
+      ...baseChunk,
+      html: '',
+      bodyRawText: rawText,
+      bodyStartOffset: 0,
+      bodyEndOffset: rawText.length,
+      bodyLineIndex: 0,
+      bodyLineCount: 1,
+    }]
+  }
+
+  const lineHeightPx = resolveLineHeightPx(flowElement)
+  const flowRect = flowElement.getBoundingClientRect()
+  const trailingGapPx = Math.max(0, measureOuterHeight(element) - flowRect.height)
+  const lineSlices = measureBodyLines(rawText, flowElement)
+
+  return lineSlices.map((lineSlice, index) => ({
+    ...baseChunk,
+    id: `${baseChunk.id}-line-${index + 1}`,
+    html: '',
+    bodyRawText: lineSlice.bodyRawText,
+    bodyStartOffset: lineSlice.bodyStartOffset,
+    bodyEndOffset: lineSlice.bodyEndOffset,
+    bodyLineIndex: index,
+    bodyLineCount: lineSlices.length,
+    measuredHeightPx: lineHeightPx + (index === lineSlices.length - 1 ? trailingGapPx : 0),
+  }))
+}
+
+function measureBodyLines(
+  rawText: string,
+  referenceFlowElement: HTMLElement
+): MeasuredBodyLineChunkSlice[] {
+  const probe = createBodyLineMeasurementProbe(referenceFlowElement)
+  const lines: MeasuredBodyLineChunkSlice[] = []
+
+  try {
+    let startOffset = 0
+
+    while (startOffset < rawText.length) {
+      const remainingText = rawText.slice(startOffset)
+      const fittingOffset = findLargestFittingOffset(remainingText, probe)
+      const snappedOffset = snapOffsetToWordBoundary(remainingText, fittingOffset)
+      const relativeEndOffset = Math.max(1, snappedOffset || fittingOffset)
+      const endOffset = Math.min(rawText.length, startOffset + relativeEndOffset)
+      const bodyRawText = rawText.slice(startOffset, endOffset)
+
+      if (!bodyRawText) {
+        break
+      }
+
+      lines.push({
+        bodyRawText,
+        bodyStartOffset: startOffset,
+        bodyEndOffset: endOffset,
+      })
+      startOffset = endOffset
+    }
+  } finally {
+    probe.host.remove()
+  }
+
+  return lines.length > 0
+    ? lines
+    : [{
+      bodyRawText: rawText,
+      bodyStartOffset: 0,
+      bodyEndOffset: rawText.length,
+    }]
+}
+
+function createBodyLineMeasurementProbe(referenceFlowElement: HTMLElement) {
+  const doc = referenceFlowElement.ownerDocument
+  const view = doc.defaultView
+  const referenceStyle = view?.getComputedStyle(referenceFlowElement)
+  const referenceRect = referenceFlowElement.getBoundingClientRect()
+  const host = doc.createElement('div')
+  const probe = doc.createElement('div')
+
+  host.setAttribute('aria-hidden', 'true')
+  host.style.position = 'fixed'
+  host.style.left = '-10000px'
+  host.style.top = '0'
+  host.style.visibility = 'hidden'
+  host.style.pointerEvents = 'none'
+  host.style.width = `${referenceRect.width}px`
+
+  probe.className = 'flow-body-text'
+  probe.style.margin = '0'
+  probe.style.width = '100%'
+  probe.style.fontFamily = referenceStyle?.fontFamily ?? ''
+  probe.style.fontSize = referenceStyle?.fontSize ?? ''
+  probe.style.fontWeight = referenceStyle?.fontWeight ?? ''
+  probe.style.fontStyle = referenceStyle?.fontStyle ?? ''
+  probe.style.letterSpacing = referenceStyle?.letterSpacing ?? ''
+  probe.style.wordSpacing = referenceStyle?.wordSpacing ?? ''
+  probe.style.lineHeight = referenceStyle?.lineHeight ?? ''
+  probe.style.whiteSpace = referenceStyle?.whiteSpace ?? 'normal'
+  probe.style.wordBreak = referenceStyle?.wordBreak ?? 'normal'
+  probe.style.overflowWrap = referenceStyle?.overflowWrap ?? 'normal'
+  probe.style.textTransform = referenceStyle?.textTransform ?? 'none'
+  probe.style.hyphens = referenceStyle?.hyphens ?? 'manual'
+
+  host.appendChild(probe)
+  doc.body.appendChild(host)
+
+  return {
+    host,
+    probe,
+    maxSingleLineHeightPx: resolveLineHeightPx(referenceFlowElement) * 1.2,
+  }
+}
+
+function findLargestFittingOffset(
+  text: string,
+  probe: ReturnType<typeof createBodyLineMeasurementProbe>
+) {
+  let low = 1
+  let high = text.length
+  let best = 1
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2)
+
+    if (fitsSingleRenderedLine(text.slice(0, mid), probe)) {
+      best = mid
+      low = mid + 1
+      continue
+    }
+
+    high = mid - 1
+  }
+
+  return best
+}
+
+function fitsSingleRenderedLine(
+  text: string,
+  probe: ReturnType<typeof createBodyLineMeasurementProbe>
+) {
+  probe.probe.innerHTML = renderInlineBracketUnderlineHtml(text.trimEnd())
+
+  return probe.probe.getBoundingClientRect().height <= probe.maxSingleLineHeightPx
+}
+
+function snapOffsetToWordBoundary(text: string, offset: number) {
+  const newlineOffset = text.lastIndexOf('\n', offset - 1)
+
+  if (newlineOffset >= 0) {
+    return newlineOffset + 1
+  }
+
+  if (offset >= text.length) {
+    return text.length
+  }
+
+  for (let index = offset; index > 0; index -= 1) {
+    if (/\s/u.test(text[index - 1])) {
+      return index
+    }
+  }
+
+  return offset
 }
 
 function measureUsableColumnHeight(page: HTMLElement, column: HTMLElement) {
@@ -133,10 +329,43 @@ function measureOuterHeight(element: HTMLElement) {
   return rect.height + marginTop + marginBottom
 }
 
+function resolveLineHeightPx(element: HTMLElement) {
+  const style = element.ownerDocument.defaultView?.getComputedStyle(element)
+  const resolvedLineHeight = Number.parseFloat(style?.lineHeight ?? '')
+
+  if (Number.isFinite(resolvedLineHeight) && resolvedLineHeight > 0) {
+    return resolvedLineHeight
+  }
+
+  const fontSizePx = Number.parseFloat(style?.fontSize ?? '0') || 0
+  return fontSizePx > 0 ? fontSizePx * 1.6 : 0
+}
+
+function parseOptionalNumber(value: string | undefined) {
+  if (typeof value !== 'string' || !value) {
+    return undefined
+  }
+
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 function normalizeChunkKind(kind: string | undefined): HtmlPaginationChunk['kind'] {
   if (kind === 'header' || kind === 'body' || kind === 'choice' || kind === 'answer' || kind === 'explanation') {
     return kind
   }
 
   return 'body'
+}
+
+function decodeExactBodyRawText(value: string | undefined) {
+  if (typeof value !== 'string' || value.length === 0) {
+    return undefined
+  }
+
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return undefined
+  }
 }

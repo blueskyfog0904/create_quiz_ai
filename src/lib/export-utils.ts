@@ -19,6 +19,7 @@ import type {
   ExamPaperRenderOptions,
   ExamPaperSectionChunk,
   TwoColumnAnswerFragmentPayload,
+  TwoColumnFragmentBuildOptions,
   TwoColumnChoiceFragmentPayload,
   TwoColumnFragmentPlan,
 } from '@/lib/exam-paper-layout-contract'
@@ -111,6 +112,14 @@ export interface HtmlPaginationChunk {
   estimatedHeight: number
   kind: 'header' | 'body' | 'choice' | 'answer' | 'explanation'
   html: string
+  sourceSectionId?: string
+  questionNumber?: number
+  bodyRawText?: string
+  bodyStartOffset?: number
+  bodyEndOffset?: number
+  bodyLineIndex?: number
+  bodyLineCount?: number
+  measuredHeightPx?: number
 }
 
 export interface TwoColumnMeasuredPagePlan {
@@ -127,7 +136,11 @@ function escapeHtml(text: string): string {
     .replace(/'/g, '&#39;')
 }
 
-function renderInlineBracketUnderlineHtml(text: string | null | undefined): string {
+function encodeHtmlDataAttribute(text: string) {
+  return escapeHtml(encodeURIComponent(text))
+}
+
+export function renderInlineBracketUnderlineHtml(text: string | null | undefined): string {
   if (!text) return ''
 
   return splitBracketUnderlineSegments(text)
@@ -385,8 +398,11 @@ function renderPlannedTwoColumnSectionHtml(
       id: sectionPlan.id,
       estimatedHeight: sectionPlan.estimatedUnits,
       kind: 'body',
+      sourceSectionId: sectionPlan.sourceSectionId,
+      questionNumber: sectionPlan.questionNumber,
+      bodyRawText: bodyText,
       html: `
-        <div class="question-chunk question-body-chunk${continuationClassName}" ${sectionAttributes}>
+        <div class="question-chunk question-body-chunk${continuationClassName}" ${sectionAttributes} data-body-raw-text="${escapeHtml(bodyText)}" data-body-raw-text-exact="${encodeHtmlDataAttribute(bodyText)}">
           <div class="flow-body-text">
             ${renderInlineBracketUnderlineHtml(bodyText)}
           </div>
@@ -470,16 +486,17 @@ function buildSeparatedExamWithAnswersQuestionPlans(
 
 export function buildTwoColumnPreviewChunks(
   examPaper: ExamPaper,
-  renderOptions: ExamPaperRenderOptions
+  renderOptions: ExamPaperRenderOptions,
+  fragmentOptions: TwoColumnFragmentBuildOptions = { splitBody: true }
 ): HtmlPaginationChunk[] {
   if (renderOptions.viewMode === 'exam-with-answers') {
-    return buildSeparatedExamWithAnswersTwoColumnChunks(examPaper, renderOptions)
+    return buildSeparatedExamWithAnswersTwoColumnChunks(examPaper, renderOptions, fragmentOptions)
   }
 
   const questionPlans = examPaper.questions.map((question) => (
     buildQuestionSectionPlan(question, renderOptions)
   ))
-  const fragments = buildTwoColumnLinearFragmentPlans(questionPlans)
+  const fragments = buildTwoColumnLinearFragmentPlans(questionPlans, fragmentOptions)
 
   return fragments.map((fragment) => renderPlannedTwoColumnSectionHtml(
     fragment,
@@ -489,15 +506,16 @@ export function buildTwoColumnPreviewChunks(
 
 function buildSeparatedExamWithAnswersTwoColumnChunks(
   examPaper: ExamPaper,
-  renderOptions: ExamPaperRenderOptions
+  renderOptions: ExamPaperRenderOptions,
+  fragmentOptions: TwoColumnFragmentBuildOptions = { splitBody: true }
 ): HtmlPaginationChunk[] {
   const { questionPlans, answerPlans } = buildSeparatedExamWithAnswersQuestionPlans(
     examPaper,
     renderOptions
   )
 
-  const questionFragments = buildTwoColumnLinearFragmentPlans(questionPlans)
-  const answerFragments = buildTwoColumnLinearFragmentPlans(answerPlans)
+  const questionFragments = buildTwoColumnLinearFragmentPlans(questionPlans, fragmentOptions)
+  const answerFragments = buildTwoColumnLinearFragmentPlans(answerPlans, fragmentOptions)
 
   return [
     ...questionFragments.map((fragment) => renderPlannedTwoColumnSectionHtml(fragment, true)),
@@ -581,14 +599,117 @@ function renderTwoColumnMeasuredPagesHtml(
       ` : ''}
       <div class="two-column-layout">
         <div class="two-column-column">
-          ${page.columns[0].map((chunk) => chunk.html).join('')}
+          ${renderMeasuredColumnChunksHtml(page.columns[0])}
         </div>
         <div class="two-column-column">
-          ${page.columns[1].map((chunk) => chunk.html).join('')}
+          ${renderMeasuredColumnChunksHtml(page.columns[1])}
         </div>
       </div>
     </section>
   `).join('')
+}
+
+function isMeasuredBodyLineChunk(
+  chunk: HtmlPaginationChunk
+): chunk is HtmlPaginationChunk & {
+  sourceSectionId: string
+  bodyRawText: string
+  bodyStartOffset?: number
+  bodyEndOffset?: number
+  bodyLineIndex: number
+} {
+  return (
+    chunk.kind === 'body' &&
+    typeof chunk.bodyLineIndex === 'number' &&
+    typeof chunk.sourceSectionId === 'string' &&
+    chunk.sourceSectionId.length > 0 &&
+    typeof chunk.bodyRawText === 'string'
+  )
+}
+
+function renderMeasuredBodyLineGroupHtml(
+  chunks: Array<HtmlPaginationChunk & {
+    sourceSectionId: string
+    bodyRawText: string
+    bodyStartOffset?: number
+    bodyEndOffset?: number
+    bodyLineIndex: number
+  }>
+) {
+  if (chunks.length === 0) {
+    return ''
+  }
+
+  const firstChunk = chunks[0]
+  const orderedChunks = chunks.every((chunk) => typeof chunk.bodyStartOffset === 'number')
+    ? [...chunks].sort((left, right) => (
+      (left.bodyStartOffset ?? 0) - (right.bodyStartOffset ?? 0)
+    ))
+    : chunks
+  const joinedBodyText = orderedChunks
+    .map((chunk) => chunk.bodyRawText)
+    .join('')
+
+  return `
+      <div
+        class="question-chunk question-body-chunk two-column-measured-body-flow"
+        data-section-id="${escapeHtml(firstChunk.sourceSectionId)}"
+        data-source-section-id="${escapeHtml(firstChunk.sourceSectionId)}"
+        ${typeof firstChunk.questionNumber === 'number' ? `data-question-number="${firstChunk.questionNumber}"` : ''}
+        data-section-kind="body"
+        data-line-count="${chunks.length}"
+      >
+        <div class="flow-body-text">
+          ${renderInlineBracketUnderlineHtml(joinedBodyText)}
+        </div>
+      </div>
+    `
+}
+
+function renderMeasuredColumnChunksHtml(chunks: HtmlPaginationChunk[]) {
+  const htmlParts: string[] = []
+  let measuredBodyGroup: Array<HtmlPaginationChunk & {
+    sourceSectionId: string
+    bodyRawText: string
+    bodyStartOffset?: number
+    bodyEndOffset?: number
+    bodyLineIndex: number
+  }> = []
+
+  const flushMeasuredBodyGroup = () => {
+    if (measuredBodyGroup.length === 0) {
+      return
+    }
+
+    htmlParts.push(renderMeasuredBodyLineGroupHtml(measuredBodyGroup))
+    measuredBodyGroup = []
+  }
+
+  chunks.forEach((chunk) => {
+    if (isMeasuredBodyLineChunk(chunk)) {
+      if (
+        measuredBodyGroup.length === 0 ||
+        measuredBodyGroup[measuredBodyGroup.length - 1].sourceSectionId === chunk.sourceSectionId
+      ) {
+        measuredBodyGroup.push(chunk)
+        return
+      }
+
+      flushMeasuredBodyGroup()
+      measuredBodyGroup.push(chunk)
+      return
+    }
+
+    flushMeasuredBodyGroup()
+
+    if (chunk.html) {
+      htmlParts.push(chunk.html)
+    }
+  })
+
+  flushMeasuredBodyGroup()
+
+  return htmlParts.join('')
 }
 
 function renderTwoColumnChunkPaginatedHtml(
@@ -769,13 +890,14 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
           break-inside: avoid;
           page-break-inside: avoid;
         }
-        .question-body-chunk.chunk-linked-start,
-        .question-body-chunk.chunk-linked-middle {
+        .two-column-measured-body-flow {
           margin-bottom: 0;
         }
-        .question-body-chunk.chunk-linked-start .flow-body-text,
-        .question-body-chunk.chunk-linked-middle .flow-body-text {
+        .two-column-measured-body-flow .flow-body-text {
           margin-bottom: 0;
+        }
+        .question-chunk-anchor + .two-column-measured-body-flow .flow-body-text {
+          margin-top: 0;
         }
         .question-chunk-anchor {
           margin-bottom: 0;
@@ -845,7 +967,9 @@ export function buildExamPaperTwoColumnMeasurementHtml(examPaper: ExamPaper) {
     ...examPaper,
     columnLayout: 'double',
   })
-  const chunks = buildTwoColumnPreviewChunks(examPaper, renderOptions)
+  const chunks = buildTwoColumnPreviewChunks(examPaper, renderOptions, {
+    splitBody: false,
+  })
 
   return `
     <!DOCTYPE html>
