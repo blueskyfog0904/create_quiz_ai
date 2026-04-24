@@ -196,3 +196,85 @@ test('production measured preview preserves authored line breaks and underline s
     'expected regrouped measured body html to preserve the authored newline between body chunks'
   )
 })
+
+
+function createWeakBodyWordIsolationExamPaper() {
+  const intro = 'From an organizational viewpoint, the committee described the transition as a careful negotiation between local habit and shared responsibility, because each department interpreted the same directive through its own daily pressures and professional vocabulary.'
+  const base = 'The planning team reviewed the sequence of meetings, reports, and approvals so that every participant could see how small decisions in one office would alter the workload, timing, and confidence of another office across the institution.'
+  const reflection = 'Observers noted that the organization often moved from reflection to action in the next review, even when the broader educational purpose remained unsettled.'
+  const passageText = [intro, base, base, reflection].join(' ')
+
+  return {
+    title: 'Weak body word isolation regression',
+    description: undefined,
+    viewMode: 'exam-only',
+    columnLayout: 'double',
+    questions: Array.from({ length: 3 }, (_, index) => ({
+      number: index + 1,
+      questionText: '다음 글을 읽고 물음에 답하시오.',
+      questionTextForward: null,
+      passageText: `${passageText} ${passageText} ${passageText}`,
+      questionTextBackward: null,
+      choices: [
+        { label: '①', text: 'first option' },
+        { label: '②', text: 'second option' },
+        { label: '③', text: 'third option' },
+        { label: '④', text: 'fourth option' },
+        { label: '⑤', text: 'fifth option' },
+      ],
+      answer: '①',
+      explanation: 'explanation',
+    })),
+  }
+}
+
+async function readMeasuredBodyFlowEndings(html) {
+  return withBrowserPage(async (page) => {
+    await page.setContent(html, { waitUntil: 'domcontentloaded' })
+
+    return page.evaluate(() => (
+      Array.from(document.querySelectorAll('.two-column-measured-body-flow[data-question-number] .flow-body-text'))
+        .map((flowBodyText, blockIndex) => {
+          const bodyFlowBlock = flowBodyText.closest('.two-column-measured-body-flow[data-question-number]')
+          const questionNumber = Number.parseInt(bodyFlowBlock?.getAttribute('data-question-number') ?? '', 10)
+          const flowText = flowBodyText.textContent?.replace(/\s+/g, ' ').trim() ?? ''
+          const words = flowText.match(/[A-Za-z']+/g) ?? []
+
+          return {
+            blockIndex,
+            questionNumber,
+            lastWord: (words.at(-1) ?? '').toLowerCase(),
+            endingText: words.slice(-12).join(' '),
+          }
+        })
+    ))
+  })
+}
+
+test('measured two-column pagination does not leave a weak body word alone at a column break', async () => {
+  const result = await runProductionMeasuredPathInBrowser(createWeakBodyWordIsolationExamPaper())
+  const bodyFlowEndings = await readMeasuredBodyFlowEndings(result.html)
+  const question3FlowEndings = bodyFlowEndings.filter(({ questionNumber }) => questionNumber === 3)
+  const question3TheEndingBlocks = question3FlowEndings
+    .filter(({ lastWord }) => lastWord === 'the')
+    .map(({ questionNumber, lastWord, endingText }) => ({
+      questionNumber,
+      lastWord,
+      endingText,
+    }))
+
+  assert.ok(result.pageCount >= 2, `expected multi-page measured preview, received ${JSON.stringify(result)}`)
+  assert.ok(
+    result.bodyLineChunkCount > 20,
+    `expected long measured body text to create many line chunks, received ${JSON.stringify(result)}`
+  )
+  assert.ok(
+    question3FlowEndings.length >= 2,
+    `expected question 3 to span multiple measured body flow blocks, received ${JSON.stringify(question3FlowEndings)}`
+  )
+  assert.deepEqual(
+    question3TheEndingBlocks,
+    [],
+    `expected q3 measured body flow blocks to avoid ending on \"the\", received ${JSON.stringify(question3FlowEndings)}`
+  )
+})

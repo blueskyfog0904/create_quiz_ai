@@ -117,6 +117,61 @@ function createPage() {
   }
 }
 
+const WEAK_BODY_TRAILING_WORDS = new Set([
+  'a',
+  'an',
+  'the',
+  'of',
+  'to',
+  'in',
+  'on',
+  'for',
+  'with',
+  'and',
+  'or',
+  'but',
+  'as',
+  'by',
+  'from',
+])
+
+function isMeasuredBodyLineChunk(chunk) {
+  return (
+    chunk?.kind === 'body' &&
+    typeof chunk.bodyLineIndex === 'number' &&
+    Number.isFinite(chunk.bodyLineIndex) &&
+    typeof chunk.sourceSectionId === 'string' &&
+    chunk.sourceSectionId.length > 0 &&
+    typeof chunk.bodyRawText === 'string'
+  )
+}
+
+function getTextWords(text) {
+  return String(text || '').match(/[A-Za-z']+/g) ?? []
+}
+
+function getLastWord(text) {
+  const words = getTextWords(text)
+  return (words.at(-1) ?? '').toLowerCase()
+}
+
+function endsWithSentenceBoundary(text) {
+  return /[.!?]["')\]]*$/.test(String(text || '').trim())
+}
+
+function isWeakTrailingBodyText(text) {
+  return !endsWithSentenceBoundary(text) && WEAK_BODY_TRAILING_WORDS.has(getLastWord(text))
+}
+
+function getTrailingBodyLineChunk(chunks) {
+  const trailingChunk = chunks.at(-1)
+  return isMeasuredBodyLineChunk(trailingChunk) ? trailingChunk : null
+}
+
+function getTrailingBodyLineText(chunks) {
+  return getTrailingBodyLineChunk(chunks)?.bodyRawText ?? ''
+}
+
 /**
  * @param {number} pageIndex
  * @param {{ slotCapacity?: number, firstPageSlotCapacity?: number, otherPageSlotCapacity?: number, rebalanceEmptyRightColumn?: boolean }} options
@@ -283,6 +338,8 @@ export function paginateMeasuredTwoColumnChunks(chunks, options) {
     (index === 0 ? firstPageColumnHeightPx : otherPageColumnHeightPx) - bottomGuardPx
   )
 
+  const getChunkHeight = (chunk) => Math.ceil(chunk.measuredHeightPx || chunk.estimatedHeight || 0)
+
   const moveToNextSlot = () => {
     if (columnKey === 'left') {
       columnKey = 'right'
@@ -294,14 +351,60 @@ export function paginateMeasuredTwoColumnChunks(chunks, options) {
     columnKey = 'left'
   }
 
+  const rollbackWeakTrailingBodyLineChunk = (nextChunk) => {
+    if (!isMeasuredBodyLineChunk(nextChunk)) {
+      return false
+    }
+
+    ensurePage(pageIndex)
+    const currentColumnChunks = pages[pageIndex][columnKey]
+    const trailingBodyLineChunk = getTrailingBodyLineChunk(currentColumnChunks)
+
+    if (!trailingBodyLineChunk) {
+      return false
+    }
+
+    if (trailingBodyLineChunk.sourceSectionId !== nextChunk.sourceSectionId) {
+      return false
+    }
+
+    if (nextChunk.bodyLineIndex !== trailingBodyLineChunk.bodyLineIndex + 1) {
+      return false
+    }
+
+    if (!isWeakTrailingBodyText(getTrailingBodyLineText(currentColumnChunks))) {
+      return false
+    }
+
+    currentColumnChunks.pop()
+    usage[pageIndex][columnKey] = Math.max(
+      0,
+      usage[pageIndex][columnKey] - getChunkHeight(trailingBodyLineChunk)
+    )
+
+    moveToNextSlot()
+    ensurePage(pageIndex)
+    pages[pageIndex][columnKey].push(trailingBodyLineChunk)
+    usage[pageIndex][columnKey] += getChunkHeight(trailingBodyLineChunk)
+
+    return true
+  }
+
   chunks.forEach((chunk) => {
     ensurePage(pageIndex)
-    const height = Math.ceil(chunk.measuredHeightPx || chunk.estimatedHeight || 0)
-    const remaining = getCapacity(pageIndex) - usage[pageIndex][columnKey]
+    const height = getChunkHeight(chunk)
+    let remaining = getCapacity(pageIndex) - usage[pageIndex][columnKey]
 
     if (usage[pageIndex][columnKey] > 0 && height > remaining) {
-      moveToNextSlot()
+      rollbackWeakTrailingBodyLineChunk(chunk)
+
       ensurePage(pageIndex)
+      remaining = getCapacity(pageIndex) - usage[pageIndex][columnKey]
+
+      if (usage[pageIndex][columnKey] > 0 && height > remaining) {
+        moveToNextSlot()
+        ensurePage(pageIndex)
+      }
     }
 
     pages[pageIndex][columnKey].push(chunk)

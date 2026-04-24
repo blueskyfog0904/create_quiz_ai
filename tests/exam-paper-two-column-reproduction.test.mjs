@@ -42,6 +42,7 @@ async function analyzeDoublePreviewPages(html) {
               id: el.getAttribute('data-section-id'),
               kind: isMeasuredBodyFlow ? 'body-flow' : el.getAttribute('data-section-kind'),
               className,
+              text: (el.textContent || '').replace(/\s+/g, ' ').trim(),
               overflowPx: Number(Math.max(0, rect.bottom - pageRect.bottom).toFixed(2)),
               bottomRemainingPx: Number((columnRect.bottom - rect.bottom).toFixed(2)),
               pageBottom: Number((rect.bottom - pageRect.top).toFixed(2)),
@@ -109,6 +110,45 @@ function assertNoDoublePreviewOverflow(pages) {
     pages.every((page) => page.columns.every((column) => column.maxOverflowPx === 0)),
     true,
     `expected no two-column overflow, got ${JSON.stringify(pages, null, 2)}`
+  )
+}
+
+const weakBodyTailRegex = /\b(?:a|an|the|of|to|in|on|for|with|and|or|but|as|by|from)\b$/i
+
+function assertNoWeakBodyTailAtColumnBreak(pages) {
+  const weakTailColumns = pages.flatMap((page) => (
+    page.columns.flatMap((column) => {
+      const lastSection = column.sections.at(-1)
+      const isMeasuredBodyFlow = lastSection?.className?.includes('two-column-measured-body-flow')
+      const isBodyTail = lastSection && (lastSection.kind === 'body' || isMeasuredBodyFlow)
+
+      if (!isBodyTail) {
+        return []
+      }
+
+      const normalizedTail = (lastSection.text || '')
+        .replace(/["'”’)\]]+$/g, '')
+        .trim()
+
+      if (!weakBodyTailRegex.test(normalizedTail)) {
+        return []
+      }
+
+      return [{
+        page: page.page,
+        column: column.column,
+        id: lastSection.id,
+        kind: lastSection.kind,
+        className: lastSection.className,
+        tail: normalizedTail.slice(-80),
+      }]
+    })
+  ))
+
+  assert.equal(
+    weakTailColumns.length,
+    0,
+    `expected no weak body tail at a column break, got ${JSON.stringify(weakTailColumns, null, 2)}`
   )
 }
 
@@ -270,6 +310,7 @@ test('exam-with-answers double preview places realistic answers after all questi
   assertExamWithAnswersSectionsAreSeparated(html)
   assertNoDoublePreviewOverflow(pages)
   assertNoRepeatedBodyPartBlocks(pages)
+  assertNoWeakBodyTailAtColumnBreak(pages)
   assertHeaderStartingColumnsAreDense(firstPage, 80)
 })
 
@@ -312,6 +353,7 @@ test('measured two-column preview should use rendered DOM heights before final p
     true,
     `expected measured pagination to avoid column overflow, got ${JSON.stringify(measuredPages, null, 2)}`
   )
+  assertNoWeakBodyTailAtColumnBreak(measuredPages)
   assert.equal(
     measuredFirstPage.bottomRemainingPx < estimatedFirstPage.bottomRemainingPx,
     true,
