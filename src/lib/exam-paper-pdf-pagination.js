@@ -253,3 +253,65 @@ export function paginateTwoColumnQuestionChunks(questionGroups, options = {}) {
 
   return filteredPages
 }
+/**
+ * @param {Array<{ id: string, estimatedHeight?: number, measuredHeightPx?: number, kind?: string, html?: string }>} chunks
+ * @param {{ firstPageColumnHeightPx: number, otherPageColumnHeightPx: number, bottomGuardPx?: number }} options
+ * @returns {Array<{ pageIndex: number, columns: [unknown[], unknown[]] }>}
+ */
+export function paginateMeasuredTwoColumnChunks(chunks, options) {
+  const {
+    firstPageColumnHeightPx,
+    otherPageColumnHeightPx,
+    bottomGuardPx = 8,
+  } = options
+
+  const pages = [createPage()]
+  const usage = [{ left: 0, right: 0 }]
+  let pageIndex = 0
+  /** @type {'left' | 'right'} */
+  let columnKey = 'left'
+
+  const ensurePage = (index) => {
+    if (!pages[index]) {
+      pages[index] = createPage()
+      usage[index] = { left: 0, right: 0 }
+    }
+  }
+
+  const getCapacity = (index) => Math.max(
+    0,
+    (index === 0 ? firstPageColumnHeightPx : otherPageColumnHeightPx) - bottomGuardPx
+  )
+
+  const moveToNextSlot = () => {
+    if (columnKey === 'left') {
+      columnKey = 'right'
+      return
+    }
+
+    pageIndex += 1
+    ensurePage(pageIndex)
+    columnKey = 'left'
+  }
+
+  chunks.forEach((chunk) => {
+    ensurePage(pageIndex)
+    const height = Math.ceil(chunk.measuredHeightPx || chunk.estimatedHeight || 0)
+    const remaining = getCapacity(pageIndex) - usage[pageIndex][columnKey]
+
+    if (usage[pageIndex][columnKey] > 0 && height > remaining) {
+      moveToNextSlot()
+      ensurePage(pageIndex)
+    }
+
+    pages[pageIndex][columnKey].push(chunk)
+    usage[pageIndex][columnKey] += height
+  })
+
+  return pages
+    .filter((page) => page.left.length > 0 || page.right.length > 0)
+    .map((page, index) => ({
+      pageIndex: index,
+      columns: [page.left, page.right],
+    }))
+}

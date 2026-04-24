@@ -1,0 +1,142 @@
+import type { ExamPaper, HtmlPaginationChunk, TwoColumnMeasuredPagePlan } from '@/lib/export-utils'
+import { buildExamPaperTwoColumnMeasurementHtml } from '@/lib/export-utils'
+import { paginateMeasuredTwoColumnChunks } from '@/lib/exam-paper-pdf-pagination.js'
+
+interface MeasuredTwoColumnChunk extends HtmlPaginationChunk {
+  measuredHeightPx: number
+}
+
+interface MeasurementResult {
+  chunks: MeasuredTwoColumnChunk[]
+  firstPageColumnHeightPx: number
+  otherPageColumnHeightPx: number
+}
+
+export async function buildMeasuredTwoColumnPreviewPages({
+  examPaper,
+  signal,
+}: {
+  examPaper: ExamPaper
+  signal?: AbortSignal
+}): Promise<TwoColumnMeasuredPagePlan[]> {
+  if (typeof document === 'undefined') {
+    throw new Error('2단 DOM 측정 pagination은 브라우저 환경에서만 실행할 수 있습니다.')
+  }
+
+  const iframe = document.createElement('iframe')
+  iframe.setAttribute('aria-hidden', 'true')
+  iframe.tabIndex = -1
+  iframe.style.position = 'fixed'
+  iframe.style.left = '-10000px'
+  iframe.style.top = '0'
+  iframe.style.width = '220mm'
+  iframe.style.height = '310mm'
+  iframe.style.visibility = 'hidden'
+  iframe.style.pointerEvents = 'none'
+
+  document.body.appendChild(iframe)
+
+  try {
+    await writeMeasurementDocument(
+      iframe,
+      buildExamPaperTwoColumnMeasurementHtml(examPaper),
+      signal
+    )
+    const measured = await readMeasurementResult(iframe, signal)
+
+    return paginateMeasuredTwoColumnChunks(measured.chunks, {
+      firstPageColumnHeightPx: measured.firstPageColumnHeightPx,
+      otherPageColumnHeightPx: measured.otherPageColumnHeightPx,
+      bottomGuardPx: 8,
+    }) as TwoColumnMeasuredPagePlan[]
+  } finally {
+    iframe.remove()
+  }
+}
+
+async function writeMeasurementDocument(
+  iframe: HTMLIFrameElement,
+  html: string,
+  signal?: AbortSignal
+) {
+  if (signal?.aborted) {
+    throw new DOMException('Measurement aborted', 'AbortError')
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    iframe.onload = () => resolve()
+    iframe.onerror = () => reject(new Error('2단 측정 iframe 로드에 실패했습니다.'))
+    iframe.srcdoc = html
+  })
+
+  const doc = iframe.contentDocument
+  if (!doc) {
+    throw new Error('2단 측정 문서에 접근할 수 없습니다.')
+  }
+
+  await doc.fonts?.ready
+  await new Promise((resolve) => requestAnimationFrame(resolve))
+}
+
+async function readMeasurementResult(
+  iframe: HTMLIFrameElement,
+  signal?: AbortSignal
+): Promise<MeasurementResult> {
+  if (signal?.aborted) {
+    throw new DOMException('Measurement aborted', 'AbortError')
+  }
+
+  const doc = iframe.contentDocument
+  if (!doc) {
+    throw new Error('2단 측정 문서에 접근할 수 없습니다.')
+  }
+
+  const firstPage = doc.querySelector<HTMLElement>('.measurement-first-page')
+  const otherPage = doc.querySelector<HTMLElement>('.measurement-other-page')
+  const firstColumn = doc.querySelector<HTMLElement>('[data-measurement-column="first"]')
+  const otherColumn = doc.querySelector<HTMLElement>('[data-measurement-column="other"]')
+
+  if (!firstPage || !otherPage || !firstColumn || !otherColumn) {
+    throw new Error('2단 측정 DOM 구조가 올바르지 않습니다.')
+  }
+
+  return {
+    chunks: [...firstColumn.querySelectorAll<HTMLElement>('[data-section-id]')]
+      .map((element) => ({
+        id: element.dataset.sectionId ?? '',
+        estimatedHeight: Number(element.dataset.estimatedHeight ?? '0'),
+        kind: normalizeChunkKind(element.dataset.sectionKind),
+        html: element.outerHTML,
+        measuredHeightPx: measureOuterHeight(element),
+      }))
+      .filter((chunk) => chunk.id && chunk.measuredHeightPx > 0),
+    firstPageColumnHeightPx: measureUsableColumnHeight(firstPage, firstColumn),
+    otherPageColumnHeightPx: measureUsableColumnHeight(otherPage, otherColumn),
+  }
+}
+
+function measureUsableColumnHeight(page: HTMLElement, column: HTMLElement) {
+  const pageRect = page.getBoundingClientRect()
+  const columnRect = column.getBoundingClientRect()
+  const pageStyle = page.ownerDocument.defaultView?.getComputedStyle(page)
+  const paddingBottom = Number.parseFloat(pageStyle?.paddingBottom ?? '0') || 0
+
+  return Math.max(0, pageRect.bottom - paddingBottom - columnRect.top)
+}
+
+function measureOuterHeight(element: HTMLElement) {
+  const rect = element.getBoundingClientRect()
+  const style = element.ownerDocument.defaultView?.getComputedStyle(element)
+  const marginTop = Number.parseFloat(style?.marginTop ?? '0') || 0
+  const marginBottom = Number.parseFloat(style?.marginBottom ?? '0') || 0
+
+  return rect.height + marginTop + marginBottom
+}
+
+function normalizeChunkKind(kind: string | undefined): HtmlPaginationChunk['kind'] {
+  if (kind === 'header' || kind === 'body' || kind === 'choice' || kind === 'answer' || kind === 'explanation') {
+    return kind
+  }
+
+  return 'body'
+}

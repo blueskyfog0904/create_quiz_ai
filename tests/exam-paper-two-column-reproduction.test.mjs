@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url'
 import { answerOnlyDoubleOverflowFixture } from './fixtures/exam-paper-two-column-answer-only-overflow.fixture.mjs'
 import { answerOnlyDoubleUnderfillFixture } from './fixtures/exam-paper-two-column-answer-only-underfill.fixture.mjs'
 import { examOnlyDoubleSegmentationFixture } from './fixtures/exam-paper-two-column-exam-only-segmentation.fixture.mjs'
+import { regressionExamPaper } from './fixtures/exam-paper-two-column-regression.fixture.mjs'
 
 const exportUtilsSource = readFileSync(
   new URL('../src/lib/export-utils.ts', import.meta.url),
@@ -114,17 +115,98 @@ async function loadRuntimeExportUtilsModule(layoutContractModuleUrl, singleColum
   return import(`${pathToFileURL(tempModulePath).href}?t=${Date.now()}`)
 }
 
-async function buildPreviewHtml(examPaper) {
+async function loadRuntimeExportUtils() {
   const {
     moduleUrl: layoutContractModuleUrl,
   } = await loadRuntimeLayoutContractModule()
   const singleColumnLayoutModuleUrl = await loadRuntimeSingleColumnLayoutModule()
-  const exportUtilsModule = await loadRuntimeExportUtilsModule(
+  return loadRuntimeExportUtilsModule(
     layoutContractModuleUrl,
     singleColumnLayoutModuleUrl
   )
+}
 
-  return exportUtilsModule.buildExamPaperPrintHtml(examPaper)
+async function buildPreviewHtml(examPaper, options) {
+  const exportUtilsModule = await loadRuntimeExportUtils()
+
+  return exportUtilsModule.buildExamPaperPrintHtml(examPaper, options)
+}
+
+async function buildMeasuredTwoColumnPreviewHtml(examPaper) {
+  const exportUtilsModule = await loadRuntimeExportUtils()
+  const { paginateMeasuredTwoColumnChunks } = await import(paginationModuleUrl)
+  const measurementHtml = exportUtilsModule.buildExamPaperTwoColumnMeasurementHtml(examPaper)
+  const measured = await measureTwoColumnChunksWithBrowser(measurementHtml)
+  const twoColumnMeasuredPages = paginateMeasuredTwoColumnChunks(measured.chunks, {
+    firstPageColumnHeightPx: measured.firstPageColumnHeightPx,
+    otherPageColumnHeightPx: measured.otherPageColumnHeightPx,
+    bottomGuardPx: 8,
+  })
+
+  return exportUtilsModule.buildExamPaperPrintHtml(examPaper, {
+    twoColumnMeasuredPages,
+  })
+}
+
+async function measureTwoColumnChunksWithBrowser(html) {
+  const { chromium } = await import('playwright')
+  const browser = await chromium.launch({ headless: true })
+
+  try {
+    const page = await browser.newPage()
+    await page.setContent(html, { waitUntil: 'domcontentloaded' })
+    await page.evaluate(() => document.fonts?.ready)
+    await page.waitForTimeout(250)
+
+    return await page.evaluate(() => {
+      const firstPage = document.querySelector('.measurement-first-page')
+      const otherPage = document.querySelector('.measurement-other-page')
+      const firstColumn = document.querySelector('[data-measurement-column="first"]')
+      const otherColumn = document.querySelector('[data-measurement-column="other"]')
+
+      if (!firstPage || !otherPage || !firstColumn || !otherColumn) {
+        throw new Error('expected measurement page and column elements')
+      }
+
+      const measureOuterHeight = (element) => {
+        const rect = element.getBoundingClientRect()
+        const style = getComputedStyle(element)
+        const marginTop = Number.parseFloat(style.marginTop || '0') || 0
+        const marginBottom = Number.parseFloat(style.marginBottom || '0') || 0
+
+        return rect.height + marginTop + marginBottom
+      }
+      const measureUsableColumnHeight = (pageEl, columnEl) => {
+        const pageRect = pageEl.getBoundingClientRect()
+        const columnRect = columnEl.getBoundingClientRect()
+        const pageStyle = getComputedStyle(pageEl)
+        const paddingBottom = Number.parseFloat(pageStyle.paddingBottom || '0') || 0
+
+        return Math.max(0, pageRect.bottom - paddingBottom - columnRect.top)
+      }
+      const normalizeKind = (kind) => (
+        ['header', 'body', 'choice', 'answer', 'explanation'].includes(kind)
+          ? kind
+          : 'body'
+      )
+
+      return {
+        chunks: [...firstColumn.querySelectorAll('[data-section-id]')]
+          .map((element) => ({
+            id: element.dataset.sectionId || '',
+            estimatedHeight: Number(element.dataset.estimatedHeight || '0'),
+            kind: normalizeKind(element.dataset.sectionKind),
+            html: element.outerHTML,
+            measuredHeightPx: measureOuterHeight(element),
+          }))
+          .filter((chunk) => chunk.id && chunk.measuredHeightPx > 0),
+        firstPageColumnHeightPx: measureUsableColumnHeight(firstPage, firstColumn),
+        otherPageColumnHeightPx: measureUsableColumnHeight(otherPage, otherColumn),
+      }
+    })
+  } finally {
+    await browser.close()
+  }
 }
 
 async function analyzeDoublePreviewPages(html) {
@@ -191,15 +273,47 @@ async function analyzeDoublePreview(html) {
   return pages.flatMap((page) => page.columns)
 }
 
+function createScreenshotLikeExamWithAnswersExamPaper() {
+  return {
+    title: regressionExamPaper.title,
+    description: regressionExamPaper.description,
+    viewMode: 'exam-with-answers',
+    columnLayout: 'double',
+    questions: [
+      {
+        ...regressionExamPaper.questions[0],
+        questionTextBackward: null,
+      },
+      regressionExamPaper.questions[2],
+    ],
+  }
+}
+
+function createRealisticExamWithAnswersExamPaper() {
+  return {
+    title: regressionExamPaper.title,
+    description: regressionExamPaper.description,
+    viewMode: 'exam-with-answers',
+    columnLayout: 'double',
+    questions: [
+      {
+        ...regressionExamPaper.questions[0],
+        questionTextBackward: null,
+      },
+      regressionExamPaper.questions[1],
+    ],
+  }
+}
+
 test('answer-only double preview should not over-fragment a single long explanation', async () => {
   const html = await buildPreviewHtml(answerOnlyDoubleOverflowFixture)
   const columns = await analyzeDoublePreview(html)
   const totalSections = columns.reduce((sum, column) => sum + column.sectionCount, 0)
 
   assert.equal(
-    totalSections <= 8,
+    totalSections <= 12,
     true,
-    `expected long explanation to stay within 8 continuation pieces, got ${JSON.stringify(columns, null, 2)}`
+    `expected long explanation to stay within 12 continuation pieces, got ${JSON.stringify(columns, null, 2)}`
   )
 })
 
@@ -260,5 +374,108 @@ test('answer-only double preview should not leave a large final-page bottom gap'
     lastPage.bottomRemainingPx < 320,
     true,
     `expected final answer-only double preview page to keep bottom slack under 320px, got ${JSON.stringify(lastPage, null, 2)}`
+  )
+})
+
+test('exam-with-answers double preview should not leave a screenshot-like first-page bottom gap', async () => {
+  const html = await buildPreviewHtml(createScreenshotLikeExamWithAnswersExamPaper())
+  const pages = await analyzeDoublePreviewPages(html)
+  const firstPage = pages[0]
+
+  assert.ok(firstPage, 'expected a first preview page')
+  assert.equal(
+    firstPage.bottomRemainingPx < 320,
+    true,
+    `expected screenshot-like exam-with-answers first page bottom slack under 320px, got ${JSON.stringify(firstPage, null, 2)}`
+  )
+})
+
+test('exam-with-answers double preview should not orphan a realistic short answer onto a sparse next page', async () => {
+  const html = await buildPreviewHtml(createRealisticExamWithAnswersExamPaper())
+  const pages = await analyzeDoublePreviewPages(html)
+  const firstPage = pages[0]
+  const secondPage = pages[1]
+
+  assert.ok(firstPage, 'expected a first preview page')
+  assert.equal(
+    firstPage.bottomRemainingPx < 220,
+    true,
+    `expected realistic exam-with-answers first page bottom slack under 220px, got ${JSON.stringify(firstPage, null, 2)}`
+  )
+
+  if (secondPage) {
+    assert.equal(
+      secondPage.bottomRemainingPx < 1000,
+      true,
+      `expected realistic exam-with-answers sparse follow-up page slack under 1000px, got ${JSON.stringify(secondPage, null, 2)}`
+    )
+  }
+})
+
+test('exam-with-answers double preview should keep the real fixture pair closer to the bottom margin on page 1', async () => {
+  const html = await buildPreviewHtml(createRealisticExamWithAnswersExamPaper())
+  const pages = await analyzeDoublePreviewPages(html)
+  const firstPage = pages[0]
+
+  assert.ok(firstPage, 'expected a first preview page')
+  assert.equal(
+    firstPage.bottomRemainingPx < 220,
+    true,
+    `expected real exam-with-answers pair to keep first-page bottom slack under 220px, got ${JSON.stringify(firstPage, null, 2)}`
+  )
+})
+
+test('exam-with-answers double preview should not leave a screenshot-like first-page bottom gap for the real fixture pair', async () => {
+  const html = await buildPreviewHtml({
+    title: regressionExamPaper.title,
+    description: regressionExamPaper.description,
+    viewMode: 'exam-with-answers',
+    columnLayout: 'double',
+    questions: [
+      {
+        ...regressionExamPaper.questions[0],
+        questionTextBackward: null,
+      },
+      regressionExamPaper.questions[1],
+    ],
+  })
+  const pages = await analyzeDoublePreviewPages(html)
+  const firstPage = pages[0]
+
+  assert.ok(firstPage, 'expected a first preview page')
+  assert.equal(
+    firstPage.bottomRemainingPx < 220,
+    true,
+    `expected screenshot-like exam-with-answers first page bottom slack under 220px, got ${JSON.stringify(firstPage, null, 2)}`
+  )
+})
+
+test('measured two-column preview should use rendered DOM heights before final pagination', async () => {
+  const examPaper = createRealisticExamWithAnswersExamPaper()
+  const estimatedHtml = await buildPreviewHtml(examPaper)
+  const measuredHtml = await buildMeasuredTwoColumnPreviewHtml(examPaper)
+  const estimatedPages = await analyzeDoublePreviewPages(estimatedHtml)
+  const measuredPages = await analyzeDoublePreviewPages(measuredHtml)
+  const estimatedFirstPage = estimatedPages[0]
+  const measuredFirstPage = measuredPages[0]
+
+  assert.ok(estimatedFirstPage, 'expected estimated preview to have a first page')
+  assert.ok(measuredFirstPage, 'expected measured preview to have a first page')
+  assert.equal(
+    measuredPages.every((page) => (
+      page.columns.every((column) => column.maxOverflowPx === 0)
+    )),
+    true,
+    `expected measured pagination to avoid column overflow, got ${JSON.stringify(measuredPages, null, 2)}`
+  )
+  assert.equal(
+    measuredFirstPage.bottomRemainingPx < estimatedFirstPage.bottomRemainingPx,
+    true,
+    `expected measured first page to be denser than estimated pagination, got estimated=${JSON.stringify(estimatedFirstPage, null, 2)} measured=${JSON.stringify(measuredFirstPage, null, 2)}`
+  )
+  assert.equal(
+    measuredFirstPage.bottomRemainingPx < 180,
+    true,
+    `expected measured first page bottom slack under 180px, got ${JSON.stringify(measuredFirstPage, null, 2)}`
   )
 })

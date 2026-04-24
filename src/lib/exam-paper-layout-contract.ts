@@ -154,11 +154,11 @@ interface ResolvedTwoColumnLayoutProfile {
 const DEFAULT_COMPAT_LAYOUT_PROFILE_NAME: TwoColumnLayoutProfileName = 'shared-default'
 const DEFAULT_COMPAT_LAYOUT_TARGET: TwoColumnLayoutTarget = 'preview'
 const DOUBLE_COLUMN_BOTTOM_GUARD_BAND_UNITS = 50
-const ANSWER_ONLY_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS = 300
-const EXAM_WITH_ANSWERS_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS = 360
+const ANSWER_ONLY_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS = 220
+const EXAM_WITH_ANSWERS_DOUBLE_EXPLANATION_FRAGMENT_MAX_CHARS = 220
 const DOUBLE_COLUMN_ANSWER_CONTINUATION_MIN_LENGTH = 420
-const DOUBLE_COLUMN_BODY_FRAGMENT_MIN_LENGTH = 420
-const DOUBLE_COLUMN_BODY_FRAGMENT_MAX_CHARS = 420
+const DOUBLE_COLUMN_BODY_FRAGMENT_MIN_LENGTH = 240
+const DOUBLE_COLUMN_BODY_FRAGMENT_MAX_CHARS = 240
 const EXAM_PAPER_DEBUG_STORAGE_KEY = 'exam-paper-pdf-debug'
 
 function isExamPaperDebugEnabled() {
@@ -635,6 +635,14 @@ function toLayoutFragment(
     kind: fragment.kind,
     payload: fragment,
   }
+}
+
+export function buildTwoColumnLinearFragmentPlans(
+  questionPlans: TwoColumnQuestionSectionPlan[]
+): TwoColumnFragmentPlan[] {
+  return questionPlans.flatMap((questionPlan) => (
+    questionPlan.sections.flatMap(buildSectionFragments)
+  ))
 }
 
 function toFragmentQuestionPlan(

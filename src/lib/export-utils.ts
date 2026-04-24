@@ -6,6 +6,7 @@ import {
   buildExamPaperRenderOptions,
   buildQuestionSectionPlan,
   buildTwoColumnLayoutPlan,
+  buildTwoColumnLinearFragmentPlans,
 } from '@/lib/exam-paper-layout-contract'
 import {
   buildSingleColumnQuestionGroups,
@@ -101,13 +102,19 @@ interface ExamPaperPrintPreviewOptions {
   autoPrint?: boolean
   closeAfterPrint?: boolean
   singleColumnMeasuredPages?: SingleColumnPagePlan[] | null
+  twoColumnMeasuredPages?: TwoColumnMeasuredPagePlan[] | null
 }
 
-interface HtmlPaginationChunk {
+export interface HtmlPaginationChunk {
   id: string
   estimatedHeight: number
   kind: 'header' | 'body' | 'choice' | 'answer' | 'explanation'
   html: string
+}
+
+export interface TwoColumnMeasuredPagePlan {
+  pageIndex: number
+  columns: [HtmlPaginationChunk[], HtmlPaginationChunk[]]
 }
 
 function escapeHtml(text: string): string {
@@ -428,6 +435,21 @@ function mapPlannedSectionsToHtmlChunks(
   ))
 }
 
+export function buildTwoColumnPreviewChunks(
+  examPaper: ExamPaper,
+  renderOptions: ExamPaperRenderOptions
+): HtmlPaginationChunk[] {
+  const questionPlans = examPaper.questions.map((question) => (
+    buildQuestionSectionPlan(question, renderOptions)
+  ))
+  const fragments = buildTwoColumnLinearFragmentPlans(questionPlans)
+
+  return fragments.map((fragment) => renderPlannedTwoColumnSectionHtml(
+    fragment,
+    renderOptions.showQuestions
+  ))
+}
+
 function buildTwoColumnPreviewPages(
   examPaper: ExamPaper,
   renderOptions: ExamPaperRenderOptions
@@ -452,6 +474,35 @@ function buildTwoColumnPreviewPages(
       right,
     }
   })
+}
+
+function renderTwoColumnMeasuredPagesHtml(
+  examPaper: ExamPaper,
+  pages: TwoColumnMeasuredPagePlan[],
+  {
+    titleSuffix,
+    layoutSuffix,
+  }: {
+    titleSuffix: string
+    layoutSuffix: string
+  }
+) {
+  return pages.map((page, pageIndex) => `
+    <section class="preview-page">
+      ${pageIndex === 0 ? `
+        <h1>${escapeHtml(examPaper.title + titleSuffix + layoutSuffix)}</h1>
+        ${examPaper.description ? `<div class="description">${escapeHtml(examPaper.description)}</div>` : ''}
+      ` : ''}
+      <div class="two-column-layout">
+        <div class="two-column-column">
+          ${page.columns[0].map((chunk) => chunk.html).join('')}
+        </div>
+        <div class="two-column-column">
+          ${page.columns[1].map((chunk) => chunk.html).join('')}
+        </div>
+      </div>
+    </section>
+  `).join('')
 }
 
 function renderTwoColumnChunkPaginatedHtml(
@@ -486,46 +537,11 @@ function renderTwoColumnChunkPaginatedHtml(
   `).join('')
 }
 
-export function buildExamPaperPrintHtml(
-  examPaper: ExamPaper,
-  {
-    autoPrint = false,
-    closeAfterPrint = false,
-    singleColumnMeasuredPages = null,
-  }: ExamPaperPrintPreviewOptions = {}
-) {
-  const renderOptions = buildExamPaperRenderOptions(examPaper)
-  const {
-    showQuestions,
-    showAnswers,
-    isDoubleColumn,
-    titleSuffix,
-    layoutSuffix,
-  } = renderOptions
-  const singleColumnPages = !isDoubleColumn
-    ? singleColumnMeasuredPages ?? buildSingleColumnPreviewPages(examPaper, {
-      showQuestions,
-      showAnswers,
-      groupAnswerOnlyQuestion: !showQuestions && showAnswers,
-    })
-    : null
-  // Shared page/column planning continues through buildExamPaperLayoutPlan inside the contract.
-  const twoColumnChunkPages = isDoubleColumn
-    ? buildTwoColumnPreviewPages(examPaper, renderOptions)
-    : null
-  // 2-column preview pages render via helper markup using class="two-column-layout"
-  // and class="two-column-column" once chunk-aware pagination is enabled.
-
+function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
   return `
-    <!DOCTYPE html>
-    <html lang="ko">
-    <head>
-      <meta charset="UTF-8">
-      <title>${escapeHtml(examPaper.title + titleSuffix)}</title>
-      <style>
         @page {
           size: A4;
-          margin: 12mm;
+          margin: 0;
         }
         * {
           margin: 0;
@@ -697,13 +713,15 @@ export function buildExamPaperPrintHtml(
           }
           .preview-shell {
             display: block;
+            gap: 0;
           }
           .preview-page {
-            width: auto;
-            min-height: auto;
-            padding: 0;
+            width: 210mm;
+            height: 297mm;
+            padding: 12mm 10mm;
             margin: 0;
             box-shadow: none;
+            overflow: hidden;
             break-after: page;
             page-break-after: always;
           }
@@ -723,12 +741,96 @@ export function buildExamPaperPrintHtml(
             border-left: 1px solid #e5e7eb;
           }
         }
-      </style>
+  `
+}
+
+export function buildExamPaperTwoColumnMeasurementHtml(examPaper: ExamPaper) {
+  const renderOptions = buildExamPaperRenderOptions({
+    ...examPaper,
+    columnLayout: 'double',
+  })
+  const chunks = buildTwoColumnPreviewChunks(examPaper, renderOptions)
+
+  return `
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+      <meta charset="UTF-8">
+      <title>${escapeHtml(examPaper.title)} - measurement</title>
+      <style>${buildExamPaperPrintStyles(renderOptions)}</style>
+    </head>
+    <body>
+      <div class="preview-shell measurement-shell">
+        <section class="preview-page measurement-first-page">
+          <h1>${escapeHtml(examPaper.title + renderOptions.titleSuffix + renderOptions.layoutSuffix)}</h1>
+          ${examPaper.description ? `<div class="description">${escapeHtml(examPaper.description)}</div>` : ''}
+          <div class="two-column-layout measurement-layout">
+            <div class="two-column-column measurement-column" data-measurement-column="first">
+              ${chunks.map((chunk) => chunk.html).join('')}
+            </div>
+            <div class="two-column-column measurement-column"></div>
+          </div>
+        </section>
+        <section class="preview-page measurement-other-page">
+          <div class="two-column-layout measurement-layout">
+            <div class="two-column-column measurement-column" data-measurement-column="other"></div>
+            <div class="two-column-column measurement-column"></div>
+          </div>
+        </section>
+      </div>
+    </body>
+    </html>
+  `
+}
+
+export function buildExamPaperPrintHtml(
+  examPaper: ExamPaper,
+  {
+    autoPrint = false,
+    closeAfterPrint = false,
+    singleColumnMeasuredPages = null,
+    twoColumnMeasuredPages = null,
+  }: ExamPaperPrintPreviewOptions = {}
+) {
+  const renderOptions = buildExamPaperRenderOptions(examPaper)
+  const {
+    showQuestions,
+    showAnswers,
+    isDoubleColumn,
+    titleSuffix,
+    layoutSuffix,
+  } = renderOptions
+  const singleColumnPages = !isDoubleColumn
+    ? singleColumnMeasuredPages ?? buildSingleColumnPreviewPages(examPaper, {
+      showQuestions,
+      showAnswers,
+      groupAnswerOnlyQuestion: !showQuestions && showAnswers,
+    })
+    : null
+  // Shared page/column planning continues through buildExamPaperLayoutPlan inside the contract.
+  const twoColumnChunkPages = isDoubleColumn && !twoColumnMeasuredPages
+    ? buildTwoColumnPreviewPages(examPaper, renderOptions)
+    : null
+  // 2-column preview pages render via helper markup using class="two-column-layout"
+  // and class="two-column-column" once chunk-aware pagination is enabled.
+
+  return `
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+      <meta charset="UTF-8">
+      <title>${escapeHtml(examPaper.title + titleSuffix)}</title>
+      <style>${buildExamPaperPrintStyles(renderOptions)}</style>
     </head>
     <body>
       <div class="preview-shell">
       ${isDoubleColumn
-        ? renderTwoColumnChunkPaginatedHtml(examPaper, twoColumnChunkPages ?? [], {
+        ? twoColumnMeasuredPages
+          ? renderTwoColumnMeasuredPagesHtml(examPaper, twoColumnMeasuredPages, {
+            titleSuffix,
+            layoutSuffix,
+          })
+          : renderTwoColumnChunkPaginatedHtml(examPaper, twoColumnChunkPages ?? [], {
             titleSuffix,
             layoutSuffix,
           })
@@ -775,6 +877,7 @@ export function openExamPaperPrintPreview(
     autoPrint = false,
     closeAfterPrint = false,
     singleColumnMeasuredPages = null,
+    twoColumnMeasuredPages = null,
   }: ExamPaperPrintPreviewOptions = {}
 ) {
   const printWindow = window.open('', '_blank')
@@ -788,6 +891,7 @@ export function openExamPaperPrintPreview(
       autoPrint,
       closeAfterPrint,
       singleColumnMeasuredPages,
+      twoColumnMeasuredPages,
     })
   )
   printWindow.document.close()

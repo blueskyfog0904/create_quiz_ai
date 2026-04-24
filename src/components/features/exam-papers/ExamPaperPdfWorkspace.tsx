@@ -25,7 +25,6 @@ import {
 } from '@/components/ui/dialog'
 import {
   buildExamPaperPrintHtml,
-  openExamPaperPrintPreview,
   type ColumnLayout as ExamPaperPdfColumnLayout,
   type ExamPaper as ExamPaperPrintDocument,
   type Question as ExamPaperPdfQuestion,
@@ -33,15 +32,13 @@ import {
 } from '@/lib/export-utils'
 import {
   buildSingleColumnQuestionGroups,
-  type SingleColumnPagePlan,
 } from '@/lib/exam-paper-single-column-layout'
 import { measureSingleColumnPreviewPages } from '@/lib/exam-paper-single-column-measurement'
+import { buildMeasuredTwoColumnPreviewPages } from '@/lib/exam-paper-two-column-measurement'
 import {
-  buildExamPaperPdfBlob,
-  buildExamPaperPdfFileName,
-  downloadExamPaperPdf,
-  openExamPaperPdfInNewTab,
-} from '@/lib/exam-paper-pdf'
+  downloadExamPaperHtmlPdf,
+  openExamPaperHtmlPdfInNewTab,
+} from '@/lib/exam-paper-html-pdf'
 import { cn } from '@/lib/utils'
 
 interface ExamPaperPdfWorkspaceProps {
@@ -99,7 +96,6 @@ export function ExamPaperPdfWorkspace({
   const [isSavingPdf, setIsSavingPdf] = useState(false)
   const [isOpeningPdfTab, setIsOpeningPdfTab] = useState(false)
   const [previewHtml, setPreviewHtml] = useState('')
-  const [singleColumnMeasuredPages, setSingleColumnMeasuredPages] = useState<SingleColumnPagePlan[] | null>(null)
 
   const exportPayload: ExamPaperPrintDocument = useMemo(() => ({
     title: examPaper.paper_title,
@@ -122,7 +118,6 @@ export function ExamPaperPdfWorkspace({
     setIsOpeningPdfTab(false)
     setIsSavingPdf(false)
     setPreviewHtml('')
-    setSingleColumnMeasuredPages(null)
   }, [initialColumnLayout, initialQuestions, initialViewMode])
 
   useEffect(() => {
@@ -139,9 +134,10 @@ export function ExamPaperPdfWorkspace({
     }
 
     let cancelled = false
-    const timeoutId = window.setTimeout(async () => {
-      setIsGeneratingPreview(true)
+    const abortController = new AbortController()
+    setIsGeneratingPreview(true)
 
+    const timeoutId = window.setTimeout(async () => {
       try {
         const measuredPages = columnLayout === 'single'
           ? measureSingleColumnPreviewPages({
@@ -158,19 +154,24 @@ export function ExamPaperPdfWorkspace({
           })
           : null
 
-        if (!cancelled) {
-          setSingleColumnMeasuredPages(measuredPages)
-        }
+        const twoColumnMeasuredPages = columnLayout === 'double'
+          ? await buildMeasuredTwoColumnPreviewPages({
+            examPaper: exportPayload,
+            signal: abortController.signal,
+          })
+          : null
+
 
         const html = buildExamPaperPrintHtml(exportPayload, {
           singleColumnMeasuredPages: measuredPages,
+          twoColumnMeasuredPages,
         })
         if (cancelled) return
 
         setPreviewHtml(html)
       } catch (error) {
         console.error('PDF preview generation error:', error)
-        if (!cancelled) {
+        if (!cancelled && !abortController.signal.aborted) {
           toast.error('PDF 미리보기를 갱신하는 중 오류가 발생했습니다.')
         }
       } finally {
@@ -182,6 +183,7 @@ export function ExamPaperPdfWorkspace({
 
     return () => {
       cancelled = true
+      abortController.abort()
       window.clearTimeout(timeoutId)
     }
   }, [columnLayout, exportPayload, open, previewTitle, viewMode])
@@ -203,13 +205,20 @@ export function ExamPaperPdfWorkspace({
     syncWorkspaceToLatestProps()
   }
 
+  const assertReadyPreviewHtml = () => {
+    if (isGeneratingPreview || !previewHtml) {
+      throw new Error('PDF 미리보기가 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.')
+    }
+
+    return previewHtml
+  }
+
   const handleSavePdf = async () => {
     setIsSavingPdf(true)
 
     try {
-      const fileName = buildExamPaperPdfFileName(exportPayload)
-      const blob = await buildExamPaperPdfBlob(exportPayload)
-      await downloadExamPaperPdf(blob, fileName)
+      const html = assertReadyPreviewHtml()
+      await downloadExamPaperHtmlPdf({ html, fileName: `${previewTitle}.pdf` })
       toast.success('PDF 파일 다운로드를 시작했습니다.')
     } catch (error) {
       console.error('Direct PDF save error:', error)
@@ -223,7 +232,8 @@ export function ExamPaperPdfWorkspace({
     setIsOpeningPdfTab(true)
 
     try {
-      await openExamPaperPdfInNewTab(exportPayload)
+      const html = assertReadyPreviewHtml()
+      await openExamPaperHtmlPdfInNewTab({ html, fileName: `${previewTitle}.pdf` })
     } catch (error) {
       console.error('Direct PDF new tab error:', error)
       toast.error(error instanceof Error ? error.message : 'PDF 새 탭 열기 중 오류가 발생했습니다.')
@@ -234,11 +244,25 @@ export function ExamPaperPdfWorkspace({
 
   const handlePrint = () => {
     try {
-      openExamPaperPrintPreview(exportPayload, {
-        autoPrint: true,
-        closeAfterPrint: true,
-        singleColumnMeasuredPages,
-      })
+      const html = assertReadyPreviewHtml()
+      const printWindow = window.open('', '_blank')
+
+      if (!printWindow) {
+        throw new Error('팝업이 차단되어 인쇄 창을 열 수 없습니다.')
+      }
+
+      printWindow.document.open()
+      printWindow.document.write(html.replace('</body>', `
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 300);
+            }, 250);
+          };
+        </script>
+      </body>`))
+      printWindow.document.close()
       toast.success('인쇄 창을 열었습니다.')
     } catch (error) {
       console.error('Exam paper print preview error:', error)
@@ -312,7 +336,7 @@ export function ExamPaperPdfWorkspace({
                 type="button"
                 variant="outline"
                 className="gap-2"
-                disabled={isOpeningPdfTab || isSavingPdf}
+                disabled={isGeneratingPreview || isOpeningPdfTab || isSavingPdf}
                 onClick={handleOpenPdfInNewTab}
               >
                 {isOpeningPdfTab ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
@@ -322,6 +346,7 @@ export function ExamPaperPdfWorkspace({
                 type="button"
                 variant="outline"
                 className="gap-2"
+                disabled={isGeneratingPreview || !previewHtml}
                 onClick={handlePrint}
               >
                 <Printer className="h-4 w-4" />
@@ -330,7 +355,7 @@ export function ExamPaperPdfWorkspace({
               <Button
                 type="button"
                 className="gap-2"
-                disabled={isSavingPdf || isOpeningPdfTab}
+                disabled={isGeneratingPreview || isSavingPdf || isOpeningPdfTab}
                 onClick={handleSavePdf}
               >
                 {isSavingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}

@@ -462,3 +462,22 @@ test('PDF workspace measures single-column pages before building preview HTML', 
   assert.match(workspaceSource, /columnLayout === 'single'/)
   assert.match(workspaceSource, /groupAnswerOnlyQuestion:\s*viewMode === 'answer-only'/)
 })
+
+test('PDF workspace enters preview-pending mode immediately before the debounce delay elapses', () => {
+  assert.match(workspaceSource, /setIsGeneratingPreview\(true\)[\s\S]*?const timeoutId = window\.setTimeout/s)
+  assert.match(workspaceSource, /const abortController = new AbortController\(\)/)
+  assert.match(workspaceSource, /buildMeasuredTwoColumnPreviewPages/)
+  assert.match(workspaceSource, /twoColumnMeasuredPages/)
+  assert.match(
+    workspaceSource,
+    /disabled=\{isGeneratingPreview \|\| isOpeningPdfTab \|\| isSavingPdf\}/
+  )
+  assert.match(
+    workspaceSource,
+    /disabled=\{isGeneratingPreview \|\| isSavingPdf \|\| isOpeningPdfTab\}/
+  )
+  assert.match(
+    workspaceSource,
+    /<Button[\s\S]*?disabled=\{isGeneratingPreview \|\| !previewHtml\}[\s\S]*?>[\s\S]*?인쇄[\s\S]*?<\/Button>/
+  )
+})
