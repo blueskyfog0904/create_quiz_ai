@@ -232,6 +232,7 @@ async function getRuntimePreviewArtifacts(viewMode) {
     profile: 'shared-default',
     target: 'preview',
     hasDescription: true,
+    forceAnswerStartOnNewPage: renderOptions.viewMode === 'exam-with-answers',
   })
   const previewHtml = exportUtilsModule.buildExamPaperPrintHtml(examPaper)
 
@@ -328,6 +329,7 @@ async function getRuntimePreviewArtifactsForExamPaper(examPaper) {
     profile: 'shared-default',
     target: 'preview',
     hasDescription: true,
+    forceAnswerStartOnNewPage: renderOptions.viewMode === 'exam-with-answers',
   })
   const previewHtml = exportUtilsModule.buildExamPaperPrintHtml(examPaper)
 

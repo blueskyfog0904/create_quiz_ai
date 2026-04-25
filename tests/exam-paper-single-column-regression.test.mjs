@@ -185,7 +185,7 @@ test('single-column PDF document keeps prompt and answer groups atomic while cho
   const firstChoiceNode = contentNodes.find((node) => node.text?.startsWith('① '))
   const answerGroupNode = contentNodes.find((node) => (
     Array.isArray(node.stack) &&
-    node.stack.some((child) => Array.isArray(child.stack) && child.stack[0]?.text === '1번')
+    node.stack[0]?.text === '1번'
   ))
 
   assert.equal(Array.isArray(promptNode.stack), true)
@@ -193,6 +193,6 @@ test('single-column PDF document keeps prompt and answer groups atomic while cho
   assert.equal(promptNode.columns, undefined)
   assert.equal(firstChoiceNode.unbreakable, undefined)
   assert.ok(answerGroupNode)
-  assert.equal(answerGroupNode.unbreakable, true)
-  assert.equal(answerGroupNode.stack[0].stack[0].text, '1번')
+  assert.equal(answerGroupNode.pageBreak, 'before')
+  assert.equal(answerGroupNode.stack[0].text, '1번')
 })

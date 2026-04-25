@@ -324,7 +324,20 @@ export function measureSingleColumnPreviewPages({
       })
     }
 
+    let hasStartedAnswerFragmentGroups = false
+
     questionGroups.forEach((group) => {
+      if (
+        group.placementMode === 'answer-fragments' &&
+        !hasStartedAnswerFragmentGroups &&
+        measuredPages[pageIndex].blocks.length > 0
+      ) {
+        startNextPage()
+      }
+      if (group.placementMode === 'answer-fragments') {
+        hasStartedAnswerFragmentGroups = true
+      }
+
       buildSingleColumnPlacementSteps(group, {
         groupAnswerOnlyQuestion,
       }).forEach((step) => {

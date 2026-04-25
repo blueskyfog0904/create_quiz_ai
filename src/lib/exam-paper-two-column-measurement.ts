@@ -57,6 +57,7 @@ export async function buildMeasuredTwoColumnPreviewPages({
       firstPageColumnHeightPx: measured.firstPageColumnHeightPx,
       otherPageColumnHeightPx: measured.otherPageColumnHeightPx,
       bottomGuardPx: 8,
+      forceAnswerStartOnNewPage: examPaper.viewMode === 'exam-with-answers',
     }) as TwoColumnMeasuredPagePlan[]
   } finally {
     iframe.remove()

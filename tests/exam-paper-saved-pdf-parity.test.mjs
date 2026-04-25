@@ -114,14 +114,34 @@ async function buildRuntimeArtifacts(viewMode, examPaperOverride) {
     columnLayout: 'double',
   }
   const options = runtime.buildExamPaperRenderOptions(examPaper)
-  const questionPlans = examPaper.questions.map((question) =>
-    runtime.buildQuestionSectionPlan(question, options)
-  )
+  const questionPlans = options.viewMode === 'exam-with-answers'
+    ? [
+      ...examPaper.questions.map((question) =>
+        runtime.buildQuestionSectionPlan(question, {
+          ...options,
+          viewMode: 'exam-only',
+          showQuestions: true,
+          showAnswers: false,
+        })
+      ),
+      ...examPaper.questions.map((question) =>
+        runtime.buildQuestionSectionPlan(question, {
+          ...options,
+          viewMode: 'answer-only',
+          showQuestions: false,
+          showAnswers: true,
+        })
+      ),
+    ]
+    : examPaper.questions.map((question) =>
+      runtime.buildQuestionSectionPlan(question, options)
+    )
   const layoutPlan = runtime.buildTwoColumnLayoutPlan({
     questionPlans,
     profile: 'shared-default',
     target: 'pdf',
     hasDescription: Boolean(examPaper.description),
+    forceAnswerStartOnNewPage: options.viewMode === 'exam-with-answers',
   })
   const docDefinition = runtime.buildExamPaperPdfDocumentDefinition(examPaper)
   const renderedPages = docDefinition.content.slice(examPaper.description ? 2 : 1)
@@ -211,6 +231,20 @@ test('saved PDF runtime pages preserve the shared planner section counts per pag
   })
 })
 
+test('saved PDF runtime starts exam-with-answers answers on a new page', async () => {
+  const { layoutPlan } = await buildRuntimeArtifacts('exam-with-answers')
+  const lastQuestionPageIndex = Math.max(...layoutPlan.pages.map((page) => (
+    page.columns.some((column) => column.sections.some((section) => section.kind !== 'answer'))
+      ? page.pageIndex
+      : -1
+  )))
+  const firstAnswerPageIndex = layoutPlan.pages.find((page) => (
+    page.columns.some((column) => column.sections.some((section) => section.kind === 'answer'))
+  ))?.pageIndex ?? -1
+
+  assert.equal(firstAnswerPageIndex > lastQuestionPageIndex, true)
+})
+
 function createFlowBodyExamPaper(viewMode = 'exam-only') {
   const longBody = [
     regressionExamPaper.questions[0].questionTextForward,
@@ -279,7 +313,7 @@ test('saved PDF runtime keeps answer blocks after the last merged flow-body frag
   const lastBodyIndex = Math.max(...allSectionIds
     .map((sectionId, index) => sectionId.startsWith('question-1-body-part-') ? index : -1)
     .filter((index) => index >= 0))
-  const answerIndex = allSectionIds.indexOf('question-1-answer')
+  const answerIndex = allSectionIds.findIndex((sectionId) => sectionId.startsWith('question-1-answer'))
 
   assert.equal(lastBodyIndex >= 0, true)
   assert.equal(answerIndex > lastBodyIndex, true)
@@ -306,11 +340,11 @@ test('saved PDF runtime splits choice rows into separate planner fragments with 
 test('saved PDF runtime keeps explanation as a single plain text answer block with question label when continuation is not needed', async () => {
   const { layoutPlan, renderedPages } = await buildRuntimeArtifacts('exam-with-answers')
   const answerIds = layoutPlan.pages.flatMap((page) => page.columns.flatMap((column) => column.sectionIds))
+  const firstAnswerId = answerIds.find((sectionId) => sectionId.startsWith('question-1-answer'))
 
-  assert.equal(answerIds.includes('question-1-answer'), true)
-  assert.equal(answerIds.some((sectionId) => sectionId.startsWith('question-1-answer-part-')), false)
+  assert.equal(Boolean(firstAnswerId), true)
 
-  const answerNode = findRenderedSection(layoutPlan, renderedPages, 'question-1-answer').node
+  const answerNode = findRenderedSection(layoutPlan, renderedPages, firstAnswerId).node
   assert.equal(Array.isArray(answerNode.stack), true)
   assert.equal(answerNode.stack.length, 3)
   assert.equal(answerNode.table, undefined)

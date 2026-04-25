@@ -135,6 +135,13 @@ async function buildPreviewHtml(examPaper, options) {
   return exportUtils.buildExamPaperPrintHtml(examPaper, options)
 }
 
+
+function findPreviewPageIndexContaining(html, marker) {
+  const pages = html.split('<section class="preview-page">').slice(1)
+
+  return pages.findIndex((page) => page.includes(marker))
+}
+
 const examPaperQuestions = [
   {
     number: 1,
@@ -169,6 +176,12 @@ test('single-column exam-with-answers separates all questions before all answers
     hasDescription: false,
   })
   const blockKinds = pages.flatMap((page) => page.blocks.map((block) => `${block.questionNumber}:${block.kind}`))
+  const lastQuestionPageIndex = Math.max(
+    ...pages.map((page, pageIndex) => (
+      page.blocks.some((block) => block.kind !== 'answer') ? pageIndex : -1
+    ))
+  )
+  const firstAnswerPageIndex = pages.findIndex((page) => page.blocks.some((block) => block.kind === 'answer'))
 
   assert.deepEqual(blockKinds, [
     '1:header',
@@ -180,6 +193,10 @@ test('single-column exam-with-answers separates all questions before all answers
     '1:answer',
     '2:answer',
   ])
+  assert.ok(
+    firstAnswerPageIndex > lastQuestionPageIndex,
+    `expected single-column answers to start on a new page, got ${JSON.stringify(pages.map((page) => page.blockIds))}`
+  )
 })
 
 test('single-column separated answer fragments keep deterministic part ids for long explanations', async () => {
@@ -224,9 +241,16 @@ test('single-column exam-with-answers HTML renders all answers after the last qu
   const answer1Index = html.indexOf('data-block-id="question-1-answer')
   const answer2Index = html.indexOf('data-block-id="question-2-answer')
 
+  const question2ChoicePageIndex = findPreviewPageIndexContaining(html, 'data-block-id="question-2-choice-row-1"')
+  const answer1PageIndex = findPreviewPageIndexContaining(html, 'data-block-id="question-1-answer')
+
   assert.ok(question2ChoiceIndex > -1, 'expected question 2 choice block')
   assert.ok(answer1Index > question2ChoiceIndex, 'expected answer 1 after all question blocks')
   assert.ok(answer2Index > answer1Index, 'expected answer 2 after answer 1')
+  assert.ok(
+    answer1PageIndex > question2ChoicePageIndex,
+    `expected single-column answer HTML to start on a new page, got question page ${question2ChoicePageIndex}, answer page ${answer1PageIndex}`
+  )
 })
 
 test('two-column exam-with-answers chunks place all answers after all question chunks', async () => {
@@ -252,6 +276,20 @@ test('two-column exam-with-answers chunks place all answers after all question c
   )
 })
 
+test('two-column exam-with-answers HTML starts answers on a new page', async () => {
+  const html = await buildPreviewHtml({
+    title: 'Separated double html',
+    viewMode: 'exam-with-answers',
+    columnLayout: 'double',
+    questions: examPaperQuestions,
+  })
+  const question2ChoicePageIndex = findPreviewPageIndexContaining(html, 'data-section-id="question-2-choice"')
+  const answer1PageIndex = findPreviewPageIndexContaining(html, 'data-section-id="question-1-answer')
+
+  assert.ok(question2ChoicePageIndex >= 0, 'expected question 2 choice page')
+  assert.ok(answer1PageIndex > question2ChoicePageIndex, `expected two-column answers on a new page, got question page ${question2ChoicePageIndex}, answer page ${answer1PageIndex}`)
+})
+
 async function buildMeasuredTwoColumnPreviewHtml(examPaper) {
   const exportUtils = await loadRuntimeExportUtils()
   const { paginateMeasuredTwoColumnChunks } = await import(paginationModuleUrl)
@@ -261,6 +299,7 @@ async function buildMeasuredTwoColumnPreviewHtml(examPaper) {
     firstPageColumnHeightPx: measured.firstPageColumnHeightPx,
     otherPageColumnHeightPx: measured.otherPageColumnHeightPx,
     bottomGuardPx: 8,
+    forceAnswerStartOnNewPage: examPaper.viewMode === 'exam-with-answers',
   })
 
   return exportUtils.buildExamPaperPrintHtml(examPaper, {
@@ -338,13 +377,16 @@ async function extractOrderedSectionKinds(html) {
     await page.setContent(html, { waitUntil: 'domcontentloaded' })
     await page.waitForTimeout(250)
 
-    return await page.evaluate(() => (
-      [...document.querySelectorAll('[data-section-id]')].map((element) => ({
+    return await page.evaluate(() => {
+      const pages = [...document.querySelectorAll('.preview-page')]
+
+      return [...document.querySelectorAll('[data-section-id]')].map((element) => ({
         id: element.getAttribute('data-section-id'),
         kind: element.getAttribute('data-section-kind'),
         questionNumber: Number(element.getAttribute('data-question-number')),
+        pageIndex: pages.findIndex((pageElement) => pageElement.contains(element)),
       }))
-    ))
+    })
   } finally {
     await browser.close()
   }
@@ -366,5 +408,16 @@ test('measured two-column exam-with-answers final HTML renders answer section af
   )
   const firstAnswerIndex = orderedKinds.findIndex((item) => item.kind === 'answer')
 
+  const lastQuestionPageIndex = Math.max(
+    ...orderedKinds
+      .filter((item) => ['header', 'body', 'choice'].includes(item.kind))
+      .map((item) => item.pageIndex)
+  )
+  const firstAnswerPageIndex = orderedKinds[firstAnswerIndex]?.pageIndex ?? -1
+
   assert.ok(firstAnswerIndex > lastQuestionIndex, `expected all answers after all questions: ${JSON.stringify(orderedKinds)}`)
+  assert.ok(
+    firstAnswerPageIndex > lastQuestionPageIndex,
+    `expected measured two-column answers to start on a new page: ${JSON.stringify(orderedKinds)}`
+  )
 })

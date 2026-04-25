@@ -147,6 +147,7 @@ export interface BuildTwoColumnLayoutPlanInput {
   profile?: TwoColumnLayoutProfileName
   target?: TwoColumnLayoutTarget
   hasDescription?: boolean
+  forceAnswerStartOnNewPage?: boolean
 }
 
 interface ResolvedTwoColumnLayoutProfile {
@@ -884,6 +885,7 @@ export function buildTwoColumnLayoutPlan({
   profile = 'shared-default',
   target = 'preview',
   hasDescription = false,
+  forceAnswerStartOnNewPage = false,
 }: BuildTwoColumnLayoutPlanInput): ExamPaperLayoutPlan<
   TwoColumnFragmentPlan,
   TwoColumnSectionPlan
@@ -905,12 +907,14 @@ export function buildTwoColumnLayoutPlan({
     firstPageSlotCapacity,
     otherPageSlotCapacity,
     rebalanceEmptyRightColumn: true,
+    forceAnswerStartOnNewPage,
   })
 
   logExamPaperDebug('layout-plan', {
     target,
     profile,
     hasDescription,
+    forceAnswerStartOnNewPage,
     includeAnswers,
     firstPageSlotCapacity,
     otherPageSlotCapacity,
@@ -940,6 +944,7 @@ export function buildExamPaperLayoutPlan<TPayload>({
   otherPageSlotCapacity,
   slotCapacity,
   rebalanceEmptyRightColumn = false,
+  forceAnswerStartOnNewPage = false,
 }: {
   questionPlans: ExamPaperQuestionPlan<TPayload>[]
   viewMode: ExamPaperLayoutViewMode
@@ -948,6 +953,7 @@ export function buildExamPaperLayoutPlan<TPayload>({
   otherPageSlotCapacity?: number
   slotCapacity?: number
   rebalanceEmptyRightColumn?: boolean
+  forceAnswerStartOnNewPage?: boolean
 }): ExamPaperLayoutPlan<TPayload> {
   if (columnLayout !== 'double') {
     return {
@@ -984,6 +990,7 @@ export function buildExamPaperLayoutPlan<TPayload>({
       firstPageSlotCapacity: resolvedFirstPageCapacity,
       otherPageSlotCapacity: resolvedOtherPageCapacity,
       rebalanceEmptyRightColumn,
+      forceAnswerStartOnNewPage,
     }
   )
 

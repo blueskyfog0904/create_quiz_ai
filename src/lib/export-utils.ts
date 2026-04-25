@@ -536,6 +536,7 @@ function buildSeparatedTwoColumnPreviewPages(
     profile: 'shared-default',
     target: 'preview',
     hasDescription: Boolean(examPaper.description),
+    forceAnswerStartOnNewPage: true,
   })
 
   return layoutPlan.pages.map((page) => {

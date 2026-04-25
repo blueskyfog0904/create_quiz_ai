@@ -6,8 +6,10 @@ import {
   buildExamPaperRenderOptions,
   buildQuestionSectionPlan,
   buildTwoColumnLayoutPlan,
+  type ExamPaperRenderOptions,
   type TwoColumnFragmentPlan,
   type TwoColumnChoiceFragmentPayload,
+  type TwoColumnQuestionSectionPlan,
 } from '@/lib/exam-paper-layout-contract'
 import {
   buildSingleColumnQuestionGroups,
@@ -264,6 +266,79 @@ function buildQuestionChunksForTwoColumn(
   }))
 }
 
+function buildSeparatedExamWithAnswersPdfQuestionPlans(
+  examPaper: ExamPaperPdfDocument,
+  renderOptions: ExamPaperRenderOptions
+): TwoColumnQuestionSectionPlan[] {
+  const questionOptions: ExamPaperRenderOptions = {
+    ...renderOptions,
+    viewMode: 'exam-only',
+    showQuestions: true,
+    showAnswers: false,
+  }
+  const answerOptions: ExamPaperRenderOptions = {
+    ...renderOptions,
+    viewMode: 'answer-only',
+    showQuestions: false,
+    showAnswers: true,
+  }
+
+  return [
+    ...examPaper.questions.map((question) =>
+      buildQuestionSectionPlan(question, questionOptions)
+    ),
+    ...examPaper.questions.map((question) =>
+      buildQuestionSectionPlan(question, answerOptions)
+    ),
+  ]
+}
+
+function buildSingleColumnQuestionPdfNodes(
+  question: ExamPaperPdfQuestion,
+  questionIndex: number,
+  options: {
+    showQuestions: boolean
+    showAnswers: boolean
+    forcePageBreakBeforeFirstNode?: boolean
+  }
+): Record<string, unknown>[] {
+  const groups = buildSingleColumnQuestionGroups(question, {
+    showQuestions: options.showQuestions,
+    showAnswers: options.showAnswers,
+  })
+  const placementSteps = buildSingleColumnPlacementSteps(groups, {
+    groupAnswerOnlyQuestion: !options.showQuestions && options.showAnswers,
+  })
+
+  const nodes: Record<string, unknown>[] = placementSteps.flatMap((step, stepIndex) => {
+    if (step.type === 'atomic-group') {
+      if (step.blocks.length === 0) {
+        return []
+      }
+
+      return [{
+        stack: step.blocks.map((block) => renderSingleColumnBlockNode(block)),
+        unbreakable: true,
+        margin: [0, questionIndex === 0 && stepIndex === 0 ? 0 : 14, 0, 8],
+      }]
+    }
+
+    return step.blocks.map((block, index) => ({
+      ...renderSingleColumnBlockNode(block),
+      margin: [0, 0, 0, index === step.blocks.length - 1 ? 10 : 0],
+    }))
+  })
+
+  if (options.forcePageBreakBeforeFirstNode && nodes.length > 0) {
+    nodes[0] = {
+      ...nodes[0],
+      pageBreak: 'before',
+    }
+  }
+
+  return nodes
+}
+
 function renderSingleColumnBlockNode(block: SingleColumnBlock): Record<string, unknown> {
   if (block.kind === 'header' && block.payload.type === 'header') {
     return {
@@ -332,17 +407,20 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
   }
 
   if (columnLayout === 'double') {
-    const questionPlans = examPaper.questions.map((question) =>
-      buildQuestionSectionPlan(question, {
-        viewMode,
-        columnLayout,
-        showQuestions,
-        showAnswers,
-        isDoubleColumn: true,
-        titleSuffix,
-        layoutSuffix,
-      })
-    )
+    const renderOptions: ExamPaperRenderOptions = {
+      viewMode,
+      columnLayout,
+      showQuestions,
+      showAnswers,
+      isDoubleColumn: true,
+      titleSuffix,
+      layoutSuffix,
+    }
+    const questionPlans = viewMode === 'exam-with-answers'
+      ? buildSeparatedExamWithAnswersPdfQuestionPlans(examPaper, renderOptions)
+      : examPaper.questions.map((question) =>
+        buildQuestionSectionPlan(question, renderOptions)
+      )
     // Shared two-column parity path: buildTwoColumnLayoutPlan supersedes the older
     // buildExamPaperLayoutPlan-only PDF pagination lane while keeping local node rendering.
     const layoutPlan = buildTwoColumnLayoutPlan({
@@ -350,6 +428,7 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
       profile: 'shared-default',
       target: 'pdf',
       hasDescription: Boolean(examPaper.description),
+      forceAnswerStartOnNewPage: viewMode === 'exam-with-answers',
     })
     const questionChunkMap = new Map(
       layoutPlan.pages.flatMap((page) => (
@@ -426,34 +505,28 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
     } as unknown as import('pdfmake/interfaces').TDocumentDefinitions
   }
 
-  const singleColumnNodes = examPaper.questions.flatMap((question, questionIndex) => {
-    const groups = buildSingleColumnQuestionGroups(question, {
-      showQuestions,
-      showAnswers,
-    })
-    const placementSteps = buildSingleColumnPlacementSteps(groups, {
-      groupAnswerOnlyQuestion: !showQuestions && showAnswers,
-    })
-
-    return placementSteps.flatMap((step, stepIndex) => {
-      if (step.type === 'atomic-group') {
-        if (step.blocks.length === 0) {
-          return []
-        }
-
-        return [{
-          stack: step.blocks.map((block) => renderSingleColumnBlockNode(block)),
-          unbreakable: true,
-          margin: [0, questionIndex === 0 && stepIndex === 0 ? 0 : 14, 0, 8],
-        }]
-      }
-
-      return step.blocks.map((block, index) => ({
-        ...renderSingleColumnBlockNode(block),
-        margin: [0, 0, 0, index === step.blocks.length - 1 ? 10 : 0],
-      }))
-    })
-  })
+  const singleColumnNodes = viewMode === 'exam-with-answers'
+    ? [
+      ...examPaper.questions.flatMap((question, questionIndex) =>
+        buildSingleColumnQuestionPdfNodes(question, questionIndex, {
+          showQuestions: true,
+          showAnswers: false,
+        })
+      ),
+      ...examPaper.questions.flatMap((question, questionIndex) =>
+        buildSingleColumnQuestionPdfNodes(question, questionIndex, {
+          showQuestions: false,
+          showAnswers: true,
+          forcePageBreakBeforeFirstNode: questionIndex === 0,
+        })
+      ),
+    ]
+    : examPaper.questions.flatMap((question, questionIndex) =>
+      buildSingleColumnQuestionPdfNodes(question, questionIndex, {
+        showQuestions,
+        showAnswers,
+      })
+    )
 
   content.push(...singleColumnNodes)
 

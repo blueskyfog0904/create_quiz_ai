@@ -357,7 +357,20 @@ export function paginateSingleColumnQuestionGroups({
     })
   }
 
+  let hasStartedAnswerFragmentGroups = false
+
   questionGroups.forEach((group) => {
+    if (
+      group.placementMode === 'answer-fragments' &&
+      !hasStartedAnswerFragmentGroups &&
+      pages[pageIndex].blocks.length > 0
+    ) {
+      moveToNextPage()
+    }
+    if (group.placementMode === 'answer-fragments') {
+      hasStartedAnswerFragmentGroups = true
+    }
+
     buildSingleColumnPlacementSteps(group, {
       groupAnswerOnlyQuestion,
     }).forEach((step) => {

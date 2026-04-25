@@ -174,7 +174,7 @@ function getTrailingBodyLineText(chunks) {
 
 /**
  * @param {number} pageIndex
- * @param {{ slotCapacity?: number, firstPageSlotCapacity?: number, otherPageSlotCapacity?: number, rebalanceEmptyRightColumn?: boolean }} options
+ * @param {{ slotCapacity?: number, firstPageSlotCapacity?: number, otherPageSlotCapacity?: number, rebalanceEmptyRightColumn?: boolean, forceAnswerStartOnNewPage?: boolean }} options
  */
 function getSlotCapacity(pageIndex, options) {
   if (typeof options.slotCapacity === 'number') {
@@ -194,7 +194,7 @@ function getSlotCapacity(pageIndex, options) {
 
 /**
  * @param {QuestionChunkGroup[]} questionGroups
- * @param {{ slotCapacity?: number, firstPageSlotCapacity?: number, otherPageSlotCapacity?: number, rebalanceEmptyRightColumn?: boolean }} [options]
+ * @param {{ slotCapacity?: number, firstPageSlotCapacity?: number, otherPageSlotCapacity?: number, rebalanceEmptyRightColumn?: boolean, forceAnswerStartOnNewPage?: boolean }} [options]
  * @returns {TwoColumnPage[]}
  */
 export function paginateTwoColumnQuestionChunks(questionGroups, options = {}) {
@@ -212,15 +212,19 @@ export function paginateTwoColumnQuestionChunks(questionGroups, options = {}) {
     }
   }
 
+  const moveToNextPage = () => {
+    pageIndex += 1
+    ensurePage(pageIndex)
+    columnKey = 'left'
+  }
+
   const moveToNextSlot = () => {
     if (columnKey === 'left') {
       columnKey = 'right'
       return
     }
 
-    pageIndex += 1
-    ensurePage(pageIndex)
-    columnKey = 'left'
+    moveToNextPage()
   }
 
   const carryOverflowUsageForward = () => {
@@ -243,8 +247,30 @@ export function paginateTwoColumnQuestionChunks(questionGroups, options = {}) {
     }
   }
 
+  const hasCurrentPageContent = () => (
+    pages[pageIndex].left.length > 0 || pages[pageIndex].right.length > 0
+  )
+
+  let hasPlacedAnswerChunk = false
+
   const placeChunk = (chunk) => {
     ensurePage(pageIndex)
+
+    if (
+      options.forceAnswerStartOnNewPage &&
+      !hasPlacedAnswerChunk &&
+      chunk.kind === 'answer' &&
+      hasCurrentPageContent()
+    ) {
+      logExamPaperDebug('paginate-force-answer-new-page', {
+        pageIndex,
+        columnKey,
+        chunkId: chunk.id,
+      })
+      moveToNextPage()
+      ensurePage(pageIndex)
+    }
+
     const capacity = getSlotCapacity(pageIndex, options)
     const currentUsage = usage[pageIndex][columnKey]
     const remaining = capacity - currentUsage
@@ -277,6 +303,9 @@ export function paginateTwoColumnQuestionChunks(questionGroups, options = {}) {
 
     pages[pageIndex][columnKey].push(chunk)
     usage[pageIndex][columnKey] += chunk.estimatedHeight
+    if (chunk.kind === 'answer') {
+      hasPlacedAnswerChunk = true
+    }
     logExamPaperDebug('paginate-placed', {
       pageIndex,
       columnKey,
@@ -310,7 +339,7 @@ export function paginateTwoColumnQuestionChunks(questionGroups, options = {}) {
 }
 /**
  * @param {Array<{ id: string, estimatedHeight?: number, measuredHeightPx?: number, kind?: string, html?: string }>} chunks
- * @param {{ firstPageColumnHeightPx: number, otherPageColumnHeightPx: number, bottomGuardPx?: number }} options
+ * @param {{ firstPageColumnHeightPx: number, otherPageColumnHeightPx: number, bottomGuardPx?: number, forceAnswerStartOnNewPage?: boolean }} options
  * @returns {Array<{ pageIndex: number, columns: [unknown[], unknown[]] }>}
  */
 export function paginateMeasuredTwoColumnChunks(chunks, options) {
@@ -318,6 +347,7 @@ export function paginateMeasuredTwoColumnChunks(chunks, options) {
     firstPageColumnHeightPx,
     otherPageColumnHeightPx,
     bottomGuardPx = 8,
+    forceAnswerStartOnNewPage = false,
   } = options
 
   const pages = [createPage()]
@@ -340,15 +370,19 @@ export function paginateMeasuredTwoColumnChunks(chunks, options) {
 
   const getChunkHeight = (chunk) => Math.ceil(chunk.measuredHeightPx || chunk.estimatedHeight || 0)
 
+  const moveToNextPage = () => {
+    pageIndex += 1
+    ensurePage(pageIndex)
+    columnKey = 'left'
+  }
+
   const moveToNextSlot = () => {
     if (columnKey === 'left') {
       columnKey = 'right'
       return
     }
 
-    pageIndex += 1
-    ensurePage(pageIndex)
-    columnKey = 'left'
+    moveToNextPage()
   }
 
   const rollbackWeakTrailingBodyLineChunk = (nextChunk) => {
@@ -390,8 +424,25 @@ export function paginateMeasuredTwoColumnChunks(chunks, options) {
     return true
   }
 
+  const hasCurrentPageContent = () => (
+    pages[pageIndex].left.length > 0 || pages[pageIndex].right.length > 0
+  )
+
+  let hasPlacedAnswerChunk = false
+
   chunks.forEach((chunk) => {
     ensurePage(pageIndex)
+
+    if (
+      forceAnswerStartOnNewPage &&
+      !hasPlacedAnswerChunk &&
+      chunk.kind === 'answer' &&
+      hasCurrentPageContent()
+    ) {
+      moveToNextPage()
+      ensurePage(pageIndex)
+    }
+
     const height = getChunkHeight(chunk)
     let remaining = getCapacity(pageIndex) - usage[pageIndex][columnKey]
 
@@ -409,6 +460,9 @@ export function paginateMeasuredTwoColumnChunks(chunks, options) {
 
     pages[pageIndex][columnKey].push(chunk)
     usage[pageIndex][columnKey] += height
+    if (chunk.kind === 'answer') {
+      hasPlacedAnswerChunk = true
+    }
   })
 
   return pages
