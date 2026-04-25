@@ -138,8 +138,39 @@ test('two-column flow body does not add artificial paragraph breaks for contiguo
   )
   assert.match(
     html,
-    /Read the following passage\.<br>\s*First paragraph should flow without a paragraph gap\. Second paragraph should continue/,
-    'expected prompt-to-passage spacing to use one line break, with contiguous passage text remaining contiguous'
+    /First paragraph should flow without a paragraph gap\. Second paragraph should continue/,
+    'expected contiguous passage text to remain contiguous'
+  )
+})
+
+test('two-column forward and backward body text render with subtle divider styling', async () => {
+  const html = await buildPreviewHtml({
+    ...createSpacingExamPaper(),
+    questions: [{
+      ...createSpacingExamPaper().questions[0],
+      questionTextBackward: 'Choose the best answer based on the passage.',
+    }],
+  })
+
+  assert.match(
+    html,
+    /flow-body-segment flow-body-segment-forward flow-body-supplemental[\s\S]*?Read the following passage\./,
+    'expected question_text_forward to be rendered as a supplemental body segment'
+  )
+  assert.match(
+    html,
+    /flow-body-segment flow-body-segment-passage[\s\S]*?First paragraph should flow without a paragraph gap\. Second paragraph should continue/,
+    'expected passage_text to stay as the normal passage segment'
+  )
+  assert.match(
+    html,
+    /flow-body-segment flow-body-segment-backward flow-body-supplemental[\s\S]*?Choose the best answer based on the passage\./,
+    'expected question_text_backward to be rendered as a supplemental body segment'
+  )
+  assert.match(
+    html,
+    /\.flow-body-supplemental\s*\{[\s\S]*?border-top:\s*1px solid #d1d5db;[\s\S]*?border-bottom:\s*1px solid #d1d5db;/,
+    'expected supplemental segments to use subtle divider lines, not boxes'
   )
 })
 
@@ -193,5 +224,18 @@ test('single-column question spacing does not receive the two-column br separato
     html,
     /single-column-header[\s\S]*?<br class="question-separator-br">/,
     'expected single-column spacing to keep its existing margin-based rhythm'
+  )
+})
+
+test('single-column forward body text also uses subtle divider styling', async () => {
+  const html = await buildPreviewHtml({
+    ...createSpacingExamPaper(),
+    columnLayout: 'single',
+  })
+
+  assert.match(
+    html,
+    /single-column-body[\s\S]*?flow-body-segment flow-body-segment-forward flow-body-supplemental[\s\S]*?Read the following passage\./,
+    'expected single-column question_text_forward to use the same subtle divider styling'
   )
 })

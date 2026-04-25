@@ -161,11 +161,22 @@ function createBlockElement(
 
   if (block.kind === 'body' && block.payload.type === 'body') {
     const bodyText = document.createElement('div')
-    bodyText.className = 'flow-body-text'
+    const isSupplemental = block.payload.sectionKey === 'forward' || block.payload.sectionKey === 'backward'
+    bodyText.className = [
+      'flow-body-text',
+      'flow-body-segment',
+      `flow-body-segment-${block.payload.sectionKey}`,
+      isSupplemental ? 'flow-body-supplemental' : '',
+    ].filter(Boolean).join(' ')
     bodyText.style.marginBottom = '12px'
     bodyText.style.fontSize = '13px'
     bodyText.style.lineHeight = '1.8'
     bodyText.style.color = '#374151'
+    if (isSupplemental) {
+      bodyText.style.borderTop = '1px solid #d1d5db'
+      bodyText.style.borderBottom = '1px solid #d1d5db'
+      bodyText.style.padding = '5px 0'
+    }
     bodyText.innerHTML = renderInlineBracketUnderlineHtml(block.payload.text)
     wrapper.appendChild(bodyText)
     return wrapper

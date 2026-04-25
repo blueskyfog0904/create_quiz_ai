@@ -7,6 +7,7 @@ import {
   buildQuestionSectionPlan,
   buildTwoColumnLayoutPlan,
   type ExamPaperRenderOptions,
+  type TwoColumnBodyPart,
   type TwoColumnFragmentPlan,
   type TwoColumnChoiceFragmentPayload,
   type TwoColumnQuestionSectionPlan,
@@ -189,6 +190,35 @@ function buildPlainAnswerTextStack({
   return stack
 }
 
+function buildFlowBodyPdfStack(bodyText: string, bodyParts?: TwoColumnBodyPart[]) {
+  if (!bodyParts || bodyParts.every((part) => part.sectionKey === 'passage')) {
+    return [{
+      text: buildInlineSegments(bodyText),
+      fontSize: 13,
+      lineHeight: 1.8,
+      color: '#374151',
+    }]
+  }
+
+  return bodyParts.map((part) => {
+    const isSupplemental = part.sectionKey === 'forward' || part.sectionKey === 'backward'
+
+    return {
+      text: buildInlineSegments(part.text),
+      fontSize: 13,
+      lineHeight: 1.8,
+      color: '#374151',
+      margin: isSupplemental ? [0, 5, 0, 5] : [0, 0, 0, 0],
+      ...(isSupplemental
+        ? {
+          border: [false, true, false, true],
+          borderColor: ['#d1d5db', '#d1d5db', '#d1d5db', '#d1d5db'],
+        }
+        : {}),
+    }
+  })
+}
+
 function renderSectionPdfNode(
   sectionPlan: TwoColumnFragmentPlan
 ): Record<string, unknown> {
@@ -209,14 +239,12 @@ function renderSectionPdfNode(
     const bodyText = sectionPlan.payload.type === 'body'
       ? sectionPlan.payload.text
       : ''
+    const bodyParts = sectionPlan.payload.type === 'body'
+      ? sectionPlan.payload.bodyParts
+      : undefined
 
     return {
-      stack: [{
-        text: buildInlineSegments(bodyText),
-        fontSize: 13,
-        lineHeight: 1.8,
-        color: '#374151',
-      }],
+      stack: buildFlowBodyPdfStack(bodyText, bodyParts),
       margin: [0, 0, 0, sectionPlan.continuationPosition === 'single' || sectionPlan.continuationPosition === 'end' ? 12 : 0],
     }
   }
@@ -348,12 +376,21 @@ function renderSingleColumnBlockNode(block: SingleColumnBlock): Record<string, u
   }
 
   if (block.kind === 'body' && block.payload.type === 'body') {
+    const isSupplemental = block.payload.sectionKey === 'forward' || block.payload.sectionKey === 'backward'
+
     return {
       stack: [{
         text: buildInlineSegments(block.payload.text),
         fontSize: 13,
         lineHeight: 1.8,
         color: '#374151',
+        ...(isSupplemental
+          ? {
+            margin: [0, 5, 0, 5],
+            border: [false, true, false, true],
+            borderColor: ['#d1d5db', '#d1d5db', '#d1d5db', '#d1d5db'],
+          }
+          : {}),
       }],
       margin: [0, 0, 0, 10],
     }

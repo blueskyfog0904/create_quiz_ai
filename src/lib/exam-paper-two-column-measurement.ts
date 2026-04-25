@@ -4,9 +4,11 @@ import {
   renderInlineBracketUnderlineHtml,
 } from '@/lib/export-utils'
 import { paginateMeasuredTwoColumnChunks } from '@/lib/exam-paper-pdf-pagination.js'
+import type { TwoColumnBodyPart } from '@/lib/exam-paper-layout-contract'
 
 interface MeasuredTwoColumnChunk extends HtmlPaginationChunk {
   measuredHeightPx: number
+  bodyParts?: TwoColumnBodyPart[]
 }
 
 interface MeasurementResult {
@@ -127,6 +129,7 @@ function toMeasuredChunks(element: HTMLElement): MeasuredTwoColumnChunk[] {
     html: element.outerHTML,
     sourceSectionId: element.dataset.sourceSectionId ?? element.dataset.sectionId ?? undefined,
     questionNumber: parseOptionalNumber(element.dataset.questionNumber),
+    bodyParts: decodeBodyPartsDataAttribute(element.dataset.bodyParts),
     measuredHeightPx: measureOuterHeight(element),
   }
 
@@ -172,8 +175,51 @@ function splitMeasuredBodyElementIntoLineChunks(
     bodyEndOffset: lineSlice.bodyEndOffset,
     bodyLineIndex: index,
     bodyLineCount: lineSlices.length,
+    bodyParts: sliceBodyParts(baseChunk.bodyParts, lineSlice.bodyStartOffset, lineSlice.bodyEndOffset),
     measuredHeightPx: lineHeightPx + (index === lineSlices.length - 1 ? trailingGapPx : 0),
   }))
+}
+
+function decodeBodyPartsDataAttribute(value: string | undefined) {
+  if (!value) {
+    return undefined
+  }
+
+  try {
+    const parsed = JSON.parse(decodeURIComponent(value)) as TwoColumnBodyPart[]
+
+    return Array.isArray(parsed) ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function sliceBodyParts(
+  bodyParts: TwoColumnBodyPart[] | undefined,
+  startOffset: number,
+  endOffset: number
+) {
+  if (!bodyParts || bodyParts.length === 0) {
+    return undefined
+  }
+
+  const slicedParts = bodyParts.flatMap((part) => {
+    const start = Math.max(part.startOffset, startOffset)
+    const end = Math.min(part.endOffset, endOffset)
+
+    if (start >= end) {
+      return []
+    }
+
+    return [{
+      sectionKey: part.sectionKey,
+      text: part.text.slice(start - part.startOffset, end - part.startOffset),
+      startOffset: start - startOffset,
+      endOffset: end - startOffset,
+    }]
+  })
+
+  return slicedParts.length > 0 ? slicedParts : undefined
 }
 
 function measureBodyLines(

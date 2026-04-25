@@ -7,6 +7,7 @@ export type ExamPaperLayoutChunkKind = 'header' | 'body' | 'choice' | 'answer' |
 export type TwoColumnLayoutTarget = 'preview' | 'pdf'
 export type TwoColumnLayoutProfileName = 'shared-default'
 export type TwoColumnSectionKind = 'header' | 'body' | 'choice' | 'answer'
+export type TwoColumnBodySectionKey = 'forward' | 'passage' | 'backward'
 
 export interface ExamPaperLayoutInput {
   viewMode?: ExamPaperLayoutViewMode
@@ -78,6 +79,7 @@ export interface TwoColumnSectionPlan {
   sectionKey: string
   estimatedUnits: number
   text?: string
+  bodyParts?: TwoColumnBodyPart[]
   choiceRows?: TwoColumnLayoutChoiceLike[]
   answerText?: string
   explanationText?: string
@@ -100,6 +102,14 @@ export interface TwoColumnHeaderFragmentPayload {
 export interface TwoColumnBodyFragmentPayload {
   type: 'body'
   text: string
+  bodyParts?: TwoColumnBodyPart[]
+}
+
+export interface TwoColumnBodyPart {
+  sectionKey: TwoColumnBodySectionKey
+  text: string
+  startOffset: number
+  endOffset: number
 }
 
 export interface TwoColumnChoiceFragmentPayload {
@@ -296,11 +306,70 @@ function buildChoiceRowText(choice: TwoColumnLayoutChoiceLike) {
   return `${choice.label}${choice.text}`
 }
 
-function buildFlowBodyText(question: TwoColumnLayoutQuestionLike) {
-  return BODY_SECTION_DEFINITIONS
-    .map(({ resolveText }) => normalizeSectionText(resolveText(question)))
-    .filter(Boolean)
-    .join('\n')
+function buildFlowBodyParts(question: TwoColumnLayoutQuestionLike) {
+  const rawParts = BODY_SECTION_DEFINITIONS
+    .map(({ sectionKey, resolveText }) => ({
+      sectionKey,
+      text: normalizeSectionText(resolveText(question)),
+    }))
+    .filter(({ text }) => Boolean(text))
+
+  let offset = 0
+  const parts = rawParts.map((part, index) => {
+    if (index > 0) {
+      offset += 1
+    }
+
+    const startOffset = offset
+    offset += part.text.length
+
+    return {
+      ...part,
+      startOffset,
+      endOffset: offset,
+    }
+  })
+
+  return {
+    text: rawParts.map(({ text }) => text).join('\n'),
+    parts,
+  }
+}
+
+function sliceBodyPartsForFragment(
+  bodyParts: TwoColumnBodyPart[] | undefined,
+  fragmentText: string,
+  searchStartOffset: number
+) {
+  if (!bodyParts || bodyParts.length === 0 || !fragmentText) {
+    return undefined
+  }
+
+  const fullText = bodyParts.map((part) => part.text).join('\n')
+  const fragmentStartOffset = fullText.indexOf(fragmentText, searchStartOffset)
+
+  if (fragmentStartOffset < 0) {
+    return undefined
+  }
+
+  const fragmentEndOffset = fragmentStartOffset + fragmentText.length
+  const slicedParts = bodyParts.flatMap((part) => {
+    const startOffset = Math.max(part.startOffset, fragmentStartOffset)
+    const endOffset = Math.min(part.endOffset, fragmentEndOffset)
+
+    if (startOffset >= endOffset) {
+      return []
+    }
+
+    return [{
+      sectionKey: part.sectionKey,
+      text: part.text.slice(startOffset - part.startOffset, endOffset - part.startOffset),
+      startOffset: startOffset - fragmentStartOffset,
+      endOffset: endOffset - fragmentStartOffset,
+    }]
+  })
+
+  return slicedParts.length > 0 ? slicedParts : undefined
 }
 
 function getBodyFragmentBaseUnit(
@@ -419,6 +488,7 @@ function createSingleFragmentFromSection(section: TwoColumnSectionPlan): TwoColu
       payload: {
         type: 'body',
         text: section.text ?? '',
+        bodyParts: section.bodyParts,
       },
     }
   }
@@ -521,7 +591,14 @@ function createBodyFragments(section: TwoColumnSectionPlan) {
     return [createSingleFragmentFromSection(section)]
   }
 
+  let searchStartOffset = 0
+
   return chunks.map((chunkText, index) => {
+    const bodyParts = sliceBodyPartsForFragment(section.bodyParts, chunkText, searchStartOffset)
+    const chunkOffset = sectionText.indexOf(chunkText, searchStartOffset)
+    if (chunkOffset >= 0) {
+      searchStartOffset = chunkOffset + chunkText.length
+    }
     const continuationPosition = getContinuationPosition(index, chunks.length)
     const fragment = {
       id: buildFragmentId(section.id, index, chunks.length),
@@ -540,6 +617,7 @@ function createBodyFragments(section: TwoColumnSectionPlan) {
       payload: {
         type: 'body',
         text: chunkText,
+        bodyParts,
       },
     } satisfies TwoColumnFragmentPlan
 
@@ -765,20 +843,21 @@ export function buildQuestionSectionPlan(
     })
 
     if (options.isDoubleColumn) {
-      const flowBodyText = buildFlowBodyText(question)
+      const flowBody = buildFlowBodyParts(question)
 
-      if (flowBodyText) {
+      if (flowBody.text) {
         sections.push({
           id: `question-${question.number}-body`,
           questionNumber: question.number,
           kind: 'body',
           sectionKey: 'body',
-          estimatedUnits: estimateSectionUnits(flowBodyText, {
+          estimatedUnits: estimateSectionUnits(flowBody.text, {
             charsPerLine: 34,
             lineUnit: 24,
             baseUnit: 42,
           }),
-          text: flowBodyText,
+          text: flowBody.text,
+          bodyParts: flowBody.parts,
         })
       }
     } else {
