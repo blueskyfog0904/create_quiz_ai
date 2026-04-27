@@ -108,12 +108,12 @@ export function ExamPaperView({ questions: initialQuestions, examPaper }: ExamPa
       
       {questions.map((question, index) => (
         <div key={`question-${index}`} className="relative">
-          <div className="absolute -left-12 top-4">
+          <div className="absolute -left-16 top-4">
             <Select
               value={String(index + 1)}
               onValueChange={(value) => handleReorder(index, parseInt(value) - 1)}
             >
-              <SelectTrigger className="w-16 h-10 text-xl font-bold">
+              <SelectTrigger className="w-20 h-10 text-lg font-bold">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
