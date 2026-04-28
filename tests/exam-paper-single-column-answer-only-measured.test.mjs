@@ -209,6 +209,25 @@ class FakeDocument {
   }
 }
 
+
+test('single-column answer measurement mirrors print answer spacing and keeps a bottom guard', () => {
+  assert.match(
+    singleColumnMeasurementSource,
+    /answerBlock\.style\.marginTop\s*=\s*'4px'/,
+    'expected measured answer blocks to include the same top margin as print CSS'
+  )
+  assert.match(
+    singleColumnMeasurementSource,
+    /SINGLE_COLUMN_BOTTOM_GUARD_PX\s*=\s*8/,
+    'expected single-column measurement to reserve a small bottom guard against clipping'
+  )
+  assert.match(
+    singleColumnMeasurementSource,
+    /page\.scrollHeight\s*<=\s*page\.clientHeight\s*-\s*SINGLE_COLUMN_BOTTOM_GUARD_PX\s*\+\s*1/,
+    'expected page fitting to subtract the guard from usable height'
+  )
+})
+
 test('measured answer-only pagination lets long answer fragments continue across pages', async () => {
   const {
     buildSingleColumnQuestionGroups,

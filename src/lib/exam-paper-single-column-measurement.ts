@@ -6,6 +6,8 @@ import type {
 } from '@/lib/exam-paper-single-column-layout'
 import { buildSingleColumnPlacementSteps } from '@/lib/exam-paper-single-column-layout'
 
+const SINGLE_COLUMN_BOTTOM_GUARD_PX = 8
+
 interface MeasureSingleColumnPreviewPagesInput {
   description?: string | undefined
   pageTitle: string
@@ -204,6 +206,7 @@ function createBlockElement(
 
     const answerBlock = document.createElement('div')
     answerBlock.className = 'answer-text-block'
+    answerBlock.style.marginTop = '4px'
 
     if (block.payload.questionLabel) {
       const questionLabel = document.createElement('div')
@@ -288,7 +291,7 @@ function buildAnswerFragmentClassName(block: SingleColumnBlock) {
 }
 
 function pageFits(page: HTMLElement) {
-  return page.scrollHeight <= page.clientHeight + 1
+  return page.scrollHeight <= page.clientHeight - SINGLE_COLUMN_BOTTOM_GUARD_PX + 1
 }
 
 export function measureSingleColumnPreviewPages({
