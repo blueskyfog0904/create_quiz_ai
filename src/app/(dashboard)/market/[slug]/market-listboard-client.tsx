@@ -2,15 +2,13 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Eye, FileText, Lock, Sparkles } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Eye, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { WorkspaceLink } from '@/components/layout/workspace-link'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
 import { useLoginRedirect } from '@/hooks/use-login-redirect'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import type { MarketListboardAssetRow, MarketListboardRow } from '@/lib/market-items-server'
+import type { MarketListboardRow } from '@/lib/market-items-server'
 
 interface MarketListboardClientProps {
   categorySlug: string
@@ -37,14 +35,6 @@ function getAssetLabel(assetKind: AssetKind) {
   return assetKind === 'pdf' ? 'PDF' : 'HWP & PDF'
 }
 
-function formatExamMeta(row: MarketListboardRow) {
-  return [
-    row.examYear ? `${row.examYear}년` : null,
-    row.examMonth ? `${row.examMonth}월` : null,
-    row.gradeLevel,
-  ].filter(Boolean).join(' · ') || '시험 정보 미등록'
-}
-
 function getPurchaseErrorMessage(status: number, fallback?: string) {
   if (status === 401) {
     return '로그인이 필요합니다. 로그인 후 다시 결제해주세요.'
@@ -63,13 +53,6 @@ function getPurchaseErrorMessage(status: number, fallback?: string) {
   }
 
   return fallback || '선택 파일 결제에 실패했습니다.'
-}
-
-function getAssetStateLabel(asset: MarketListboardAssetRow, selected: boolean) {
-  if (asset.owned) return '보유'
-  if (!asset.available) return '미제공'
-  if (selected) return '선택됨'
-  return '구매 가능'
 }
 
 export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }: MarketListboardClientProps) {
@@ -114,16 +97,17 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
     for (const row of rows) {
       const hwpSelected = selectedSet.has(getSelectionKey(row.itemId, 'hwp')) && row.hwp.available && !row.hwp.owned
 
-      if (!hwpSelected && selectedSet.has(getSelectionKey(row.itemId, 'pdf')) && row.pdf.available && !row.pdf.owned) {
-        pdfCount += 1
-        totalCredits += row.pdf.price
-        selections.push({ itemId: row.itemId, assetKind: 'pdf' })
-      }
-
       if (hwpSelected) {
         hwpCount += 1
         totalCredits += row.hwp.price
         selections.push({ itemId: row.itemId, assetKind: 'hwp' })
+        continue
+      }
+
+      if (selectedSet.has(getSelectionKey(row.itemId, 'pdf')) && row.pdf.available && !row.pdf.owned) {
+        pdfCount += 1
+        totalCredits += row.pdf.price
+        selections.push({ itemId: row.itemId, assetKind: 'pdf' })
       }
     }
 
@@ -155,13 +139,16 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
     window.dispatchEvent(new CustomEvent('credit-balance-updated', { detail: { balance: payload.balance } }))
   }
 
-  const toggleSelection = (itemId: string, assetKind: AssetKind, checked: boolean) => {
+  const toggleSelection = (itemId: string, assetKind: AssetKind) => {
     const key = getSelectionKey(itemId, assetKind)
     const counterpartKey = getSelectionKey(itemId, assetKind === 'pdf' ? 'hwp' : 'pdf')
+
     setSelectedKeys((current) => {
-      const withoutCurrent = current.filter((value) => value !== key)
-      const withoutCounterpart = checked ? withoutCurrent.filter((value) => value !== counterpartKey) : withoutCurrent
-      return checked ? Array.from(new Set([...withoutCounterpart, key])) : withoutCounterpart
+      if (current.includes(key)) {
+        return current.filter((value) => value !== key)
+      }
+
+      return [...current.filter((value) => value !== counterpartKey), key]
     })
   }
 
@@ -217,76 +204,56 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
     })
   }
 
-  const renderAssetOption = (row: MarketListboardRow, assetKind: AssetKind, compact = false) => {
+  const renderAssetOption = (row: MarketListboardRow, assetKind: AssetKind) => {
     const asset = assetKind === 'pdf' ? row.pdf : row.hwp
     const key = getSelectionKey(row.itemId, assetKind)
     const selected = selectedKeys.includes(key) && asset.available && !asset.owned
     const disabled = asset.owned || !asset.available || isPending || isCheckingBalance
-    const stateLabel = getAssetStateLabel(asset, selected)
     const formatLabel = getAssetLabel(assetKind)
 
     if (asset.owned) {
       return (
-        <div
-          className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+        <span
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700"
           aria-label={`${row.title} ${formatLabel} 보유`}
         >
-          <span className="flex items-center gap-2 whitespace-nowrap font-semibold"><CheckCircle2 className="h-4 w-4" />{formatLabel}</span>
-          <span>보유</span>
-        </div>
+          {formatLabel} 보유
+        </span>
       )
     }
 
     if (!asset.available) {
       return (
-        <div
-          className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400"
+        <span
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-400"
           aria-label={`${row.title} ${formatLabel} 미제공`}
         >
-          <span className="flex items-center gap-2 whitespace-nowrap font-semibold"><Lock className="h-4 w-4" />{formatLabel}</span>
-          <span>미제공</span>
-        </div>
+          {formatLabel} 미제공
+        </span>
       )
     }
 
     return (
       <button
         type="button"
-        className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 ${selected ? 'border-slate-900 bg-slate-900 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50'}`}
+        className={`inline-flex h-8 shrink-0 items-center gap-2 rounded-full border px-3 text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 disabled:cursor-not-allowed disabled:opacity-60 ${selected ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50'}`}
         disabled={disabled}
-        aria-label={`${row.title} ${formatLabel} ${stateLabel}`}
+        aria-label={`${row.title} ${formatLabel} ${selected ? '선택됨' : '구매 가능'}`}
         aria-pressed={selected}
-        onClick={() => toggleSelection(row.itemId, assetKind, !selected)}
+        onClick={() => toggleSelection(row.itemId, assetKind)}
       >
-        <span className="flex items-center gap-2 whitespace-nowrap font-semibold">
-          <Checkbox
-            checked={selected}
-            disabled={disabled}
-            tabIndex={-1}
-            aria-hidden="true"
-            className={selected ? 'border-white data-[state=checked]:bg-white data-[state=checked]:text-slate-900' : undefined}
-          />
-          {formatLabel}
+        <span className={`h-3.5 w-3.5 rounded-[4px] border ${selected ? 'border-white bg-white shadow-inner' : 'border-slate-300 bg-white'}`}>
+          {selected ? <span className="block h-full w-full scale-50 rounded-[2px] bg-slate-950" /> : null}
         </span>
-        <span className={compact ? 'whitespace-nowrap text-xs font-semibold' : 'whitespace-nowrap font-semibold'}>{asset.price.toLocaleString()}C</span>
+        <span className="whitespace-nowrap font-semibold">{formatLabel}</span>
+        <span className={`whitespace-nowrap ${selected ? 'text-white/80' : 'text-slate-500'}`}>{asset.price.toLocaleString()}C</span>
       </button>
     )
   }
 
-  const renderRowBadges = (row: MarketListboardRow) => (
-    <div className="flex flex-wrap gap-1.5">
-      {row.sample.available ? (
-        <Badge variant="secondary" className="rounded-full bg-blue-50 text-blue-700 hover:bg-blue-50">
-          <Sparkles className="mr-1 h-3 w-3" />샘플 제공
-        </Badge>
-      ) : null}
-      <Badge variant="outline" className="rounded-full">PDF · HWP & PDF</Badge>
-    </div>
-  )
-
   if (rows.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed bg-slate-50/70 px-6 py-16 text-center">
+      <div className="rounded-xl border border-dashed bg-white px-6 py-16 text-center">
         <FileText className="mx-auto h-10 w-10 text-slate-300" />
         <p className="mt-4 font-semibold text-slate-800">검색 조건에 맞는 자료가 없습니다.</p>
         <p className="mt-2 text-sm text-slate-500">검색 조건을 초기화해보세요.</p>
@@ -299,105 +266,77 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
 
   return (
     <>
-      <div className="hidden overflow-hidden rounded-2xl border md:block">
-        <table className="min-w-full border-collapse text-sm">
-          <thead className="bg-slate-50 text-slate-500">
-            <tr>
-              <th className="w-[72px] px-4 py-3 text-center font-medium whitespace-nowrap">번호</th>
-              <th className="min-w-[340px] px-4 py-3 text-left font-medium">자료명</th>
-              <th className="w-[380px] px-4 py-3 text-left font-medium whitespace-nowrap">파일 선택</th>
-              <th className="w-[120px] px-4 py-3 text-center font-medium whitespace-nowrap">조회</th>
-              <th className="w-[140px] px-4 py-3 text-center font-medium whitespace-nowrap">게시일자</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pagedRows.map((row) => {
-              const href = `/market/${categorySlug}/items/${row.itemId}`
+      <div className="overflow-hidden rounded-xl border bg-white">
+        <div className="overflow-x-auto">
+          <table className="min-w-[1080px] w-full border-collapse text-sm">
+            <thead className="border-t-2 border-slate-950 bg-slate-50 text-slate-700">
+              <tr className="border-b">
+                <th className="w-[74px] px-3 py-3 text-center text-sm font-bold">번호</th>
+                <th className="px-3 py-3 text-left text-sm font-bold">자료명</th>
+                <th className="min-w-[410px] px-3 py-3 text-center text-sm font-bold">파일</th>
+                <th className="w-[92px] px-3 py-3 text-center text-sm font-bold">조회</th>
+                <th className="w-[126px] px-3 py-3 text-center text-sm font-bold">날짜</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pagedRows.map((row) => {
+                const href = `/market/${categorySlug}/items/${row.itemId}`
 
-              return (
-                <tr key={row.itemId} className="border-t bg-white transition-colors hover:bg-slate-50">
-                  <td className="px-4 py-5 text-center text-gray-600 whitespace-nowrap">{row.rowNumber}</td>
-                  <td className="px-4 py-5 align-top">
-                    <div className="space-y-2">
-                      <WorkspaceLink href={href} className="block font-semibold text-slate-950 hover:text-slate-700">
-                        {row.title}
-                      </WorkspaceLink>
-                      <div className="text-xs text-gray-500">{formatExamMeta(row)}</div>
-                      {renderRowBadges(row)}
-                    </div>
-                  </td>
-                  <td className="px-4 py-5 align-top">
-                    <div className="grid gap-2 lg:grid-cols-[minmax(120px,0.85fr)_minmax(180px,1.15fr)]">
-                      {renderAssetOption(row, 'pdf')}
-                      {renderAssetOption(row, 'hwp')}
-                    </div>
-                  </td>
-                  <td className="px-4 py-5 text-center text-gray-700 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5 text-slate-400" />{row.viewCount.toLocaleString()}</span>
-                  </td>
-                  <td className="px-4 py-5 text-center text-gray-700 whitespace-nowrap">{formatPublishedDate(row.publishedAt)}</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="space-y-3 md:hidden">
-        {pagedRows.map((row) => {
-          const href = `/market/${categorySlug}/items/${row.itemId}`
-
-          return (
-            <article key={row.itemId} className="rounded-2xl border bg-white p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 space-y-2">
-                  <div className="text-xs font-semibold text-slate-500">{row.rowNumber}번</div>
-                  <WorkspaceLink href={href} className="block font-semibold leading-6 text-slate-950">
-                    {row.title}
-                  </WorkspaceLink>
-                  <p className="text-xs text-slate-500">{formatExamMeta(row)}</p>
-                </div>
-                <div className="text-xs text-slate-500">조회 {row.viewCount.toLocaleString()}</div>
-              </div>
-              <div className="mt-3">{renderRowBadges(row)}</div>
-              <div className="mt-4 grid gap-2">
-                {renderAssetOption(row, 'pdf', true)}
-                {renderAssetOption(row, 'hwp', true)}
-              </div>
-              <div className="mt-4 flex items-center justify-between border-t pt-3 text-xs text-slate-500">
-                <span>{formatPublishedDate(row.publishedAt)}</span>
-                <WorkspaceLink href={href} className="font-medium text-slate-900">상세보기</WorkspaceLink>
-              </div>
-            </article>
-          )
-        })}
+                return (
+                  <tr key={row.itemId} className="border-b border-slate-200 bg-white transition hover:bg-slate-50/80">
+                    <td className="px-3 py-2 text-center text-slate-500">{row.rowNumber}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex min-w-0 items-center">
+                        <WorkspaceLink href={href} className="truncate font-semibold text-slate-900 hover:text-slate-600">
+                          {row.title}
+                        </WorkspaceLink>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-nowrap items-center justify-center gap-2">
+                        {renderAssetOption(row, 'pdf')}
+                        {renderAssetOption(row, 'hwp')}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-center text-slate-600">
+                      <span className="inline-flex items-center justify-center gap-1">
+                        <Eye className="h-3.5 w-3.5 text-slate-400" />{row.viewCount.toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-center text-slate-600">{formatPublishedDate(row.publishedAt)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="mt-4 space-y-4 pb-[env(safe-area-inset-bottom)]">
-        <div className="grid gap-3 rounded-xl border bg-gray-50/70 px-4 py-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
-          <div className="hidden md:block" />
-          <div className="overflow-x-auto pb-1">
-            <div className="flex min-w-max items-center justify-center gap-2">
-              <Button type="button" variant="outline" size="icon-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(1)} aria-label="첫 페이지">
-                <ChevronsLeft className="h-4 w-4" />
-              </Button>
-              <Button type="button" variant="outline" size="icon-sm" disabled={currentPage === 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} aria-label="이전 페이지">
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              {visiblePageNumbers.map((pageNumber) => (
-                <Button key={pageNumber} type="button" variant={pageNumber === currentPage ? 'default' : 'outline'} size="sm" onClick={() => setCurrentPage(pageNumber)} aria-label={`${pageNumber} 페이지`}>
-                  {pageNumber}
-                </Button>
-              ))}
-              <Button type="button" variant="outline" size="icon-sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} aria-label="다음 페이지">
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button type="button" variant="outline" size="icon-sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(totalPages)} aria-label="마지막 페이지">
-                <ChevronsRight className="h-4 w-4" />
-              </Button>
-            </div>
+        <div className="grid gap-3 rounded-xl border bg-white px-4 py-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
+          <div className="text-center text-xs text-slate-500 md:text-left">
+            총 {rows.length}건 · {currentPage}/{totalPages} 페이지
           </div>
-          <div className="flex items-center justify-end gap-2 text-sm text-gray-600">
+          <div className="flex flex-wrap items-center justify-center gap-1.5 justify-self-center">
+            <Button type="button" variant="ghost" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(1)} aria-label="첫 페이지">
+              첫 페이지
+            </Button>
+            <Button type="button" variant="ghost" size="icon-sm" disabled={currentPage === 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} aria-label="이전 페이지">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            {visiblePageNumbers.map((pageNumber) => (
+              <Button key={pageNumber} type="button" variant={pageNumber === currentPage ? 'default' : 'ghost'} size="sm" onClick={() => setCurrentPage(pageNumber)} aria-label={`${pageNumber} 페이지`}>
+                {pageNumber}
+              </Button>
+            ))}
+            <Button type="button" variant="ghost" size="icon-sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} aria-label="다음 페이지">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button type="button" variant="ghost" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(totalPages)} aria-label="마지막 페이지">
+              끝 페이지
+            </Button>
+          </div>
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-600 md:justify-end">
             <label htmlFor="market-rows-per-page">표시 개수</label>
             <select
               id="market-rows-per-page"

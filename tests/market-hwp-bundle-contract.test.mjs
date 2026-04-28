@@ -53,5 +53,6 @@ test('ui labels hwp paid option as pdf and hwp bundle on list and detail pages',
   assert.match(listboardClient, /HWP & PDF/)
   assert.match(itemActions, /HWP & PDF/)
   assert.match(listboardClient, /whitespace-nowrap/)
-  assert.match(listboardClient, /grid-cols-\[minmax\(120px,0\.85fr\)_minmax\(180px,1\.15fr\)\]/)
+  assert.match(listboardClient, /min-w-\[410px\]/)
+  assert.match(listboardClient, /flex-nowrap/)
 })

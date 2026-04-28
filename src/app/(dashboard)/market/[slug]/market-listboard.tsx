@@ -2,11 +2,8 @@ import { WorkspaceLink } from '@/components/layout/workspace-link'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import type { MarketListboardRow } from '@/lib/market-items-server'
-import type { Database } from '@/types/supabase'
+import type { MarketListboardRow, MarketMenuEntry } from '@/lib/market-items-server'
 import MarketListboardClient from './market-listboard-client'
-
-type MarketMenuEntry = Database['public']['Tables']['market_menu_entries']['Row']
 
 export interface MarketListboardFilters {
   year?: string
@@ -37,13 +34,14 @@ export default function MarketListboard({ category, rows, filters, isLoggedIn, r
     filters.title ? `"${filters.title}"` : null,
   ].filter(Boolean) as string[]
   const sampleCount = rows.filter((row) => row.sample.available).length
+  const workspaceLabel = category.workspace_subject === 'korean' ? '국어문제마켓' : '영어문제마켓'
 
   return (
     <div className="space-y-6">
       <div className="overflow-hidden rounded-2xl border bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-6 text-white shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-medium text-blue-100">영어문제마켓</p>
+            <p className="text-sm font-medium text-blue-100">{workspaceLabel}</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight">{category.title}</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-200">
               연도·월·학년별 모의고사 자료를 PDF/HWP로 선택해 바로 구매할 수 있습니다.
