@@ -20,6 +20,8 @@ interface MarketListboardProps {
   rows: MarketListboardRow[]
   filters: MarketListboardFilters
   isLoggedIn: boolean
+  resetHref?: string
+  variant?: 'default' | 'previewHeaderOnly'
   options: {
     years: number[]
     months: number[]
@@ -27,7 +29,7 @@ interface MarketListboardProps {
   }
 }
 
-export default function MarketListboard({ category, rows, filters, isLoggedIn, options }: MarketListboardProps) {
+export default function MarketListboard({ category, rows, filters, isLoggedIn, resetHref, variant = 'default', options }: MarketListboardProps) {
   const activeFilterChips = [
     filters.year ? `${filters.year}년` : null,
     filters.month ? `${filters.month}월` : null,
@@ -96,7 +98,7 @@ export default function MarketListboard({ category, rows, filters, isLoggedIn, o
             <div className="md:col-span-4 flex items-center gap-2">
               <Button type="submit">검색</Button>
               <Button type="button" variant="outline" asChild>
-                <WorkspaceLink href={`/market/${category.slug}`}>초기화</WorkspaceLink>
+                <WorkspaceLink href={resetHref ?? `/market/${category.slug}`}>초기화</WorkspaceLink>
               </Button>
             </div>
             {activeFilterChips.length > 0 ? (
@@ -111,20 +113,22 @@ export default function MarketListboard({ category, rows, filters, isLoggedIn, o
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <CardTitle>검색 결과</CardTitle>
-              <CardDescription>총 {rows.length}건의 자료를 확인할 수 있습니다.</CardDescription>
+      {variant === 'default' ? (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <CardTitle>검색 결과</CardTitle>
+                <CardDescription>총 {rows.length}건의 자료를 확인할 수 있습니다.</CardDescription>
+              </div>
+              <p className="text-xs text-gray-500">필요한 파일만 선택해 일괄 결제하세요.</p>
             </div>
-            <p className="text-xs text-gray-500">필요한 파일만 선택해 일괄 결제하세요.</p>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <MarketListboardClient categorySlug={category.slug} rows={rows} isLoggedIn={isLoggedIn} />
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            <MarketListboardClient categorySlug={category.slug} rows={rows} isLoggedIn={isLoggedIn} />
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   )
 }
