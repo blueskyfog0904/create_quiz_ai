@@ -1,4 +1,5 @@
-import Link from 'next/link'
+import { WorkspaceLink } from '@/components/layout/workspace-link'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import type { MarketListboardRow } from '@/lib/market-items-server'
@@ -27,17 +28,37 @@ interface MarketListboardProps {
 }
 
 export default function MarketListboard({ category, rows, filters, isLoggedIn, options }: MarketListboardProps) {
+  const activeFilterChips = [
+    filters.year ? `${filters.year}년` : null,
+    filters.month ? `${filters.month}월` : null,
+    filters.grade || null,
+    filters.title ? `"${filters.title}"` : null,
+  ].filter(Boolean) as string[]
+  const sampleCount = rows.filter((row) => row.sample.available).length
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">{category.title}</h1>
-        <p className="mt-2 text-gray-500">리스트보드에서 PDF/HWP를 선택한 뒤 바로 일괄 결제할 수 있습니다.</p>
+      <div className="overflow-hidden rounded-2xl border bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-6 text-white shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-sm font-medium text-blue-100">영어문제마켓</p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight">{category.title}</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-200">
+              연도·월·학년별 모의고사 자료를 PDF/HWP로 선택해 바로 구매할 수 있습니다.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge className="bg-white/15 text-white hover:bg-white/15">총 {rows.length}건</Badge>
+            <Badge className="bg-white/15 text-white hover:bg-white/15">PDF/HWP</Badge>
+            {sampleCount > 0 ? <Badge className="bg-white/15 text-white hover:bg-white/15">샘플 제공 {sampleCount}건</Badge> : null}
+          </div>
+        </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>문제 검색</CardTitle>
-          <CardDescription>년도, 월, 학년, 제목 키워드로 문제마켓 자료를 찾을 수 있습니다.</CardDescription>
+          <CardTitle>자료 찾기</CardTitle>
+          <CardDescription>원하는 연도, 월, 학년, 제목으로 자료를 빠르게 찾으세요.</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="grid gap-4 md:grid-cols-4">
@@ -75,17 +96,30 @@ export default function MarketListboard({ category, rows, filters, isLoggedIn, o
             <div className="md:col-span-4 flex items-center gap-2">
               <Button type="submit">검색</Button>
               <Button type="button" variant="outline" asChild>
-                <Link href={`/market/${category.slug}`}>초기화</Link>
+                <WorkspaceLink href={`/market/${category.slug}`}>초기화</WorkspaceLink>
               </Button>
             </div>
+            {activeFilterChips.length > 0 ? (
+              <div className="md:col-span-4 flex flex-wrap items-center gap-2 border-t pt-4">
+                <span className="text-xs font-medium text-gray-500">적용된 조건</span>
+                {activeFilterChips.map((chip) => (
+                  <Badge key={chip} variant="secondary" className="rounded-full">{chip}</Badge>
+                ))}
+              </div>
+            ) : null}
           </form>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>검색 결과</CardTitle>
-          <CardDescription>총 {rows.length}건</CardDescription>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <CardTitle>검색 결과</CardTitle>
+              <CardDescription>총 {rows.length}건의 자료를 확인할 수 있습니다.</CardDescription>
+            </div>
+            <p className="text-xs text-gray-500">필요한 파일만 선택해 일괄 결제하세요.</p>
+          </div>
         </CardHeader>
         <CardContent>
           <MarketListboardClient categorySlug={category.slug} rows={rows} isLoggedIn={isLoggedIn} />

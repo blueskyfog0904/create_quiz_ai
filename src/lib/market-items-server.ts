@@ -45,6 +45,11 @@ export interface MarketListboardAssetRow {
   fileName: string | null
 }
 
+export interface MarketListboardSampleRow {
+  available: boolean
+  fileName: string | null
+}
+
 export interface MarketListboardRow {
   itemId: string
   title: string
@@ -56,6 +61,7 @@ export interface MarketListboardRow {
   rowNumber: number
   pdf: MarketListboardAssetRow
   hwp: MarketListboardAssetRow
+  sample: MarketListboardSampleRow
 }
 
 export interface MarketItemListFilters {
@@ -334,7 +340,7 @@ export async function listPublishedMarketListboardRows(
       .from('market_item_files')
       .select('item_id, asset_kind, original_file_name')
       .in('item_id', itemIds)
-      .in('asset_kind', ['pdf', 'hwp'])
+      .in('asset_kind', ['pdf', 'hwp', 'sample'])
       .eq('is_active', true)
       .is('deleted_at', null)
       .eq('workspace_subject', menuEntry.workspace_subject),
@@ -358,18 +364,19 @@ export async function listPublishedMarketListboardRows(
     throw new Error(purchasesError.message)
   }
 
-  const fileMap = new Map<string, { pdf: string | null; hwp: string | null }>()
+  const fileMap = new Map<string, { pdf: string | null; hwp: string | null; sample: string | null }>()
   for (const file of files ?? []) {
-    const current = fileMap.get(file.item_id) ?? { pdf: null, hwp: null }
+    const current = fileMap.get(file.item_id) ?? { pdf: null, hwp: null, sample: null }
     if (file.asset_kind === 'pdf') current.pdf = file.original_file_name
     if (file.asset_kind === 'hwp') current.hwp = file.original_file_name
+    if (file.asset_kind === 'sample') current.sample = file.original_file_name
     fileMap.set(file.item_id, current)
   }
 
   const ownership = new Set((purchases ?? []).map((purchase) => `${purchase.item_id}:${purchase.asset_kind}`))
 
   return items.map((item, index) => {
-    const filesForItem = fileMap.get(item.id) ?? { pdf: null, hwp: null }
+    const filesForItem = fileMap.get(item.id) ?? { pdf: null, hwp: null, sample: null }
 
     return {
       itemId: item.id,
@@ -391,6 +398,10 @@ export async function listPublishedMarketListboardRows(
         owned: ownership.has(`${item.id}:hwp`),
         price: item.hwp_price,
         fileName: filesForItem.hwp,
+      },
+      sample: {
+        available: filesForItem.sample !== null,
+        fileName: filesForItem.sample,
       },
     }
   })

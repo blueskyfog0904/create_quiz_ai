@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import { CheckCircle2, FileDown, ShoppingCart, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,6 +22,9 @@ interface MarketItemActionsProps {
   hwpPrice: number
 }
 
+type PurchaseAssetKind = 'pdf' | 'hwp'
+type OptionState = 'instant' | 'owned' | 'available' | 'unavailable' | 'checking' | 'processing'
+
 function buildDownloadUrl(itemId: string, assetKind: 'sample' | 'pdf' | 'hwp') {
   return `/api/market/items/${itemId}/download?assetKind=${assetKind}`
 }
@@ -28,47 +33,105 @@ function formatCredits(value: number) {
   return value.toLocaleString('ko-KR')
 }
 
-const infoBlockClassName = 'mt-3 flex min-h-[104px] w-full max-w-[220px] flex-col justify-between rounded-xl border border-slate-200 px-4 py-3 shadow-sm'
+function getPurchaseErrorMessage(status: number, fallback?: string) {
+  if (status === 401) {
+    return '로그인이 필요합니다. 로그인 후 다시 구매해주세요.'
+  }
 
-function PriceBlock({ price }: { price: number }) {
-  return (
-    <div className={`${infoBlockClassName} bg-slate-50/80`}>
-      <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">구매가</p>
-      <div className="mt-1.5 flex items-end gap-1.5">
-        <span className="text-2xl font-bold leading-none text-slate-900">{formatCredits(price)}</span>
-        <span className="text-xs font-medium text-slate-500">크레딧</span>
-      </div>
-      <p className="mt-2 text-xs text-slate-500">구매 후 바로 다운로드할 수 있습니다.</p>
-    </div>
-  )
+  if (status === 402) {
+    return fallback || '크레딧이 부족합니다. 충전 후 다시 시도해주세요.'
+  }
+
+  if (status === 409) {
+    return fallback || '이미 구매한 파일입니다. 다운로드 상태를 새로고침합니다.'
+  }
+
+  if (status >= 500) {
+    return fallback || '서버 오류로 구매에 실패했습니다. 잠시 후 다시 시도해주세요.'
+  }
+
+  return fallback || '구매 처리에 실패했습니다.'
 }
 
-function FreeBlock() {
-  return (
-    <div className={`${infoBlockClassName} bg-sky-50/70`}>
-      <p className="text-[11px] font-medium uppercase tracking-wide text-sky-500">이용가</p>
-      <div className="mt-1.5 flex items-end gap-1.5">
-        <span className="text-2xl font-bold leading-none text-slate-900">무료</span>
-        <span className="text-xs font-medium text-slate-500">제공</span>
-      </div>
-      <p className="mt-2 text-xs text-slate-500">샘플 파일을 먼저 확인한 뒤 구매를 결정할 수 있습니다.</p>
-    </div>
-  )
-}
-
-function PurchaseStateBadge({ state }: { state: 'instant' | 'owned' | 'available' }) {
+function OptionStateBadge({ state }: { state: OptionState }) {
   if (state === 'instant') {
-    return <Badge variant="secondary">즉시 다운로드</Badge>
+    return <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-50">무료</Badge>
   }
 
   if (state === 'owned') {
-    return <Badge variant="secondary">구매 완료</Badge>
+    return <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50">구매 완료</Badge>
   }
 
+  if (state === 'checking') {
+    return <Badge variant="outline">잔액 확인 중</Badge>
+  }
+
+  if (state === 'processing') {
+    return <Badge variant="outline">구매 처리 중</Badge>
+  }
+
+  if (state === 'unavailable') {
+    return <Badge variant="outline" className="text-slate-400">미제공</Badge>
+  }
+
+  return <Badge variant="outline">미구매</Badge>
+}
+
+function FileOptionRow({
+  title,
+  description,
+  priceLabel,
+  state,
+  icon,
+  actionLabel,
+  href,
+  disabled,
+  onAction,
+}: {
+  title: string
+  description: string
+  priceLabel: string
+  state: OptionState
+  icon: ReactNode
+  actionLabel: string
+  href?: string
+  disabled?: boolean
+  onAction?: () => void
+}) {
+  const buttonClassName = state === 'available'
+    ? 'bg-rose-600 text-white hover:bg-rose-700'
+    : 'bg-secondary text-secondary-foreground hover:bg-secondary/85'
+
   return (
-    <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
-      미구매
-    </Badge>
+    <div className="rounded-2xl border bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+            {icon}
+          </div>
+          <div className="min-w-0">
+            <p className="font-semibold text-slate-950">{title}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+          </div>
+        </div>
+        <OptionStateBadge state={state} />
+      </div>
+      <div className="mt-4 flex items-end justify-between gap-3">
+        <div>
+          <p className="text-xs text-slate-500">이용가</p>
+          <p className="mt-1 text-lg font-bold text-slate-950">{priceLabel}</p>
+        </div>
+        {href ? (
+          <Button asChild className={`h-10 rounded-lg px-4 ${buttonClassName}`} disabled={disabled}>
+            <a href={href} aria-label={`${title} ${actionLabel}`}>{actionLabel}</a>
+          </Button>
+        ) : (
+          <Button className={`h-10 rounded-lg px-4 ${buttonClassName}`} disabled={disabled} onClick={onAction} aria-label={`${title} ${actionLabel}`}>
+            {actionLabel}
+          </Button>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -89,7 +152,7 @@ export default function MarketItemActions({
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [currentBalance, setCurrentBalance] = useState<number | null>(null)
   const [isCheckingBalance, setIsCheckingBalance] = useState(false)
-  const [pendingPurchaseKind, setPendingPurchaseKind] = useState<'pdf' | 'hwp' | null>(null)
+  const [pendingPurchaseKind, setPendingPurchaseKind] = useState<PurchaseAssetKind | null>(null)
   const viewTracked = useRef(false)
 
   const viewSessionKey = useMemo(() => `market-item:${itemId}`, [itemId])
@@ -128,7 +191,7 @@ export default function MarketItemActions({
     }
   }
 
-  const openPurchaseConfirmation = async (assetKind: 'pdf' | 'hwp') => {
+  const openPurchaseConfirmation = async (assetKind: PurchaseAssetKind) => {
     if (!isLoggedIn) {
       redirectToLogin()
       return
@@ -160,10 +223,10 @@ export default function MarketItemActions({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ assetKind: pendingPurchaseKind }),
         })
-        const payload = await response.json()
+        const payload = await response.json().catch(() => ({}))
 
         if (!response.ok || !payload.success) {
-          throw new Error(payload.error?.message || '구매 처리에 실패했습니다.')
+          throw new Error(getPurchaseErrorMessage(response.status, payload.error?.message))
         }
 
         if (typeof payload.balance === 'number') {
@@ -175,6 +238,7 @@ export default function MarketItemActions({
         router.refresh()
       } catch (error) {
         toast.error(error instanceof Error ? error.message : '구매 처리 중 오류가 발생했습니다.')
+        router.refresh()
       } finally {
         setPendingPurchaseKind(null)
       }
@@ -193,100 +257,54 @@ export default function MarketItemActions({
       ? 'HWP 파일을 크레딧으로 구매합니다.'
       : '문제마켓 자료를 크레딧으로 구매합니다.'
 
+  const getPaidOptionState = (assetKind: PurchaseAssetKind, owned: boolean, available: boolean): OptionState => {
+    if (owned) return 'owned'
+    if (!available) return 'unavailable'
+    if (pendingPurchaseKind === assetKind && isPending) return 'processing'
+    if (pendingPurchaseKind === assetKind && isCheckingBalance) return 'checking'
+    return 'available'
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm text-gray-500">샘플 파일</p>
-            {hasSample ? (
-              <FreeBlock />
-            ) : (
-              <p className="mt-3 text-lg font-semibold text-gray-900">미제공</p>
-            )}
-          </div>
-          {hasSample ? <PurchaseStateBadge state="instant" /> : null}
-        </div>
-        <Button
-          asChild={hasSample && isLoggedIn}
-          className="mt-4 h-10 w-full rounded-lg bg-secondary font-medium text-secondary-foreground hover:bg-secondary/85"
-          disabled={!hasSample}
-          onClick={!isLoggedIn && hasSample ? () => redirectToLogin() : undefined}
-        >
-          {hasSample ? (isLoggedIn ? <a href={buildDownloadUrl(itemId, 'sample')}>샘플 다운로드</a> : <span>샘플 다운로드</span>) : <span>샘플 없음</span>}
-        </Button>
-      </div>
+    <div className="space-y-3">
+      <FileOptionRow
+        title="샘플 PDF"
+        description={hasSample ? '구매 전 샘플 파일을 먼저 확인할 수 있습니다.' : '현재 제공되는 샘플 파일이 없습니다.'}
+        priceLabel="무료"
+        state={hasSample ? 'instant' : 'unavailable'}
+        icon={<Sparkles className="h-5 w-5" />}
+        actionLabel={hasSample ? '샘플 다운로드' : '샘플 없음'}
+        href={hasSample && isLoggedIn ? buildDownloadUrl(itemId, 'sample') : undefined}
+        disabled={!hasSample}
+        onAction={hasSample && !isLoggedIn ? () => redirectToLogin() : undefined}
+      />
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm text-gray-500">PDF</p>
-            {hasPdf ? (
-              <PriceBlock price={pdfPrice} />
-            ) : (
-              <p className="mt-3 text-lg font-semibold text-gray-900">미제공</p>
-            )}
-          </div>
-          {ownsPdf ? <PurchaseStateBadge state="owned" /> : hasPdf ? <PurchaseStateBadge state="available" /> : null}
-        </div>
-        {ownsPdf ? (
-          <Button
-            asChild
-            className="mt-4 h-10 w-full rounded-lg bg-secondary font-medium text-secondary-foreground hover:bg-secondary/85"
-          >
-            <a href={buildDownloadUrl(itemId, 'pdf')}>PDF 다운로드</a>
-          </Button>
-        ) : (
-          <Button
-            className="mt-4 h-10 w-full rounded-lg bg-rose-600 font-medium text-white hover:bg-rose-700"
-            disabled={!hasPdf || isPending || isCheckingBalance}
-            onClick={() => void openPurchaseConfirmation('pdf')}
-          >
-            {pendingPurchaseKind === 'pdf' && isPending
-              ? '구매 처리 중...'
-              : isCheckingBalance && pendingPurchaseKind === 'pdf'
-                ? '잔액 확인 중...'
-                : hasPdf
-                  ? 'PDF 구매하기'
-                  : 'PDF 없음'}
-          </Button>
-        )}
-      </div>
+      <FileOptionRow
+        title="PDF"
+        description={ownsPdf ? '구매 완료된 PDF 파일입니다.' : hasPdf ? '구매 후 바로 PDF를 다운로드할 수 있습니다.' : 'PDF 파일이 제공되지 않습니다.'}
+        priceLabel={hasPdf ? `${formatCredits(pdfPrice)} 크레딧` : '미제공'}
+        state={getPaidOptionState('pdf', ownsPdf, hasPdf)}
+        icon={ownsPdf ? <CheckCircle2 className="h-5 w-5" /> : <FileDown className="h-5 w-5" />}
+        actionLabel={ownsPdf ? 'PDF 다운로드' : hasPdf ? 'PDF 구매하기' : 'PDF 없음'}
+        href={ownsPdf ? buildDownloadUrl(itemId, 'pdf') : undefined}
+        disabled={!hasPdf || isPending || isCheckingBalance}
+        onAction={!ownsPdf && hasPdf ? () => void openPurchaseConfirmation('pdf') : undefined}
+      />
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm text-gray-500">HWP</p>
-            {hasHwp ? (
-              <PriceBlock price={hwpPrice} />
-            ) : (
-              <p className="mt-3 text-lg font-semibold text-gray-900">미제공</p>
-            )}
-          </div>
-          {ownsHwp ? <PurchaseStateBadge state="owned" /> : hasHwp ? <PurchaseStateBadge state="available" /> : null}
-        </div>
-        {ownsHwp ? (
-          <Button
-            asChild
-            className="mt-4 h-10 w-full rounded-lg bg-secondary font-medium text-secondary-foreground hover:bg-secondary/85"
-          >
-            <a href={buildDownloadUrl(itemId, 'hwp')}>HWP 다운로드</a>
-          </Button>
-        ) : (
-          <Button
-            className="mt-4 h-10 w-full rounded-lg bg-rose-600 font-medium text-white hover:bg-rose-700"
-            disabled={!hasHwp || isPending || isCheckingBalance}
-            onClick={() => void openPurchaseConfirmation('hwp')}
-          >
-            {pendingPurchaseKind === 'hwp' && isPending
-              ? '구매 처리 중...'
-              : isCheckingBalance && pendingPurchaseKind === 'hwp'
-                ? '잔액 확인 중...'
-                : hasHwp
-                  ? 'HWP 구매하기'
-                  : 'HWP 없음'}
-          </Button>
-        )}
+      <FileOptionRow
+        title="HWP"
+        description={ownsHwp ? '구매 완료된 HWP 파일입니다.' : hasHwp ? '구매 후 바로 HWP를 다운로드할 수 있습니다.' : 'HWP 파일이 제공되지 않습니다.'}
+        priceLabel={hasHwp ? `${formatCredits(hwpPrice)} 크레딧` : '미제공'}
+        state={getPaidOptionState('hwp', ownsHwp, hasHwp)}
+        icon={ownsHwp ? <CheckCircle2 className="h-5 w-5" /> : <ShoppingCart className="h-5 w-5" />}
+        actionLabel={ownsHwp ? 'HWP 다운로드' : hasHwp ? 'HWP 구매하기' : 'HWP 없음'}
+        href={ownsHwp ? buildDownloadUrl(itemId, 'hwp') : undefined}
+        disabled={!hasHwp || isPending || isCheckingBalance}
+        onAction={!ownsHwp && hasHwp ? () => void openPurchaseConfirmation('hwp') : undefined}
+      />
+
+      <div className="rounded-2xl border border-dashed bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
+        구매 후 바로 다운로드할 수 있으며, 구매한 파일은 <span className="font-semibold text-slate-700">영어 라이브러리 &gt; 구매자료</span>에서도 확인할 수 있습니다.
       </div>
 
       <CreditConfirmationDialog

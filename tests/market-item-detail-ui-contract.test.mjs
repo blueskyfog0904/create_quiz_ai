@@ -1,0 +1,43 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { readFileSync } from 'node:fs'
+
+const itemPage = readFileSync(
+  new URL('../src/app/(dashboard)/market/[slug]/items/[itemId]/page.tsx', import.meta.url),
+  'utf8'
+)
+const itemActions = readFileSync(
+  new URL('../src/app/(dashboard)/market/[slug]/items/[itemId]/market-item-actions.tsx', import.meta.url),
+  'utf8'
+)
+
+test('market item detail keeps a consistent product header and meta layout', () => {
+  assert.match(itemPage, /bg-gradient-to-br from-slate-950/)
+  assert.match(itemPage, /샘플 제공/)
+  assert.match(itemPage, /구매 완료 \{ownedCount\}건/)
+  assert.match(itemPage, /MetaSummaryItem/)
+  assert.match(itemPage, /lg:sticky lg:top-24/)
+})
+
+test('market item detail consolidates sample pdf hwp into one file option panel', () => {
+  assert.match(itemPage, /파일 선택/)
+  assert.match(itemPage, /샘플을 확인한 뒤 필요한 파일만 구매하세요/)
+  assert.match(itemActions, /function FileOptionRow/)
+  assert.match(itemActions, /샘플 PDF/)
+  assert.match(itemActions, /PDF 구매하기/)
+  assert.match(itemActions, /HWP 구매하기/)
+  assert.match(itemActions, /영어 라이브러리 &gt; 구매자료/)
+})
+
+test('market item detail action states and failure messages are explicit', () => {
+  assert.match(itemActions, /OptionState = 'instant' \| 'owned' \| 'available' \| 'unavailable' \| 'checking' \| 'processing'/)
+  assert.match(itemActions, /status === 401/)
+  assert.match(itemActions, /status === 402/)
+  assert.match(itemActions, /status === 409/)
+  assert.match(itemActions, /status >= 500/)
+})
+
+test('market item downloads preserve existing API URLs', () => {
+  assert.match(itemActions, /\/api\/market\/items\/\$\{itemId\}\/download\?assetKind=\$\{assetKind\}/)
+  assert.match(itemActions, /\/api\/market\/items\/\$\{itemId\}\/purchase/)
+})
