@@ -31,6 +31,11 @@ const singleColumnMeasurementSource = readFileSync(
   'utf8'
 )
 
+const twoColumnMeasurementSource = readFileSync(
+  new URL('../src/lib/exam-paper-two-column-measurement.ts', import.meta.url),
+  'utf8'
+)
+
 const libraryExportButtonsSource = readFileSync(
   new URL('../src/app/(dashboard)/library/exam-papers/[id]/export-buttons.tsx', import.meta.url),
   'utf8'
@@ -310,6 +315,26 @@ test('two-column PDF preview divider is anchored to the fixed page body', () => 
     exportUtilsSource,
     /\.two-column-column \+ \.two-column-column\s*\{[\s\S]*?border-left:\s*1px solid #e5e7eb;/,
     'expected the center divider not to depend on the right column content height'
+  )
+  assert.match(
+    exportUtilsSource,
+    /padding:\s*10mm 10mm 8mm;/,
+    'expected PDF preview pages to use the tighter first-pass page padding'
+  )
+  assert.match(
+    exportUtilsSource,
+    /--page-footer-height:\s*6mm;/,
+    'expected page footer reserve to use the tighter first-pass height'
+  )
+  assert.match(
+    exportUtilsSource,
+    /\.page-footer\s*\{[\s\S]*?padding-top:\s*1mm;/,
+    'expected page footer top padding to stay compact'
+  )
+  assert.match(
+    twoColumnMeasurementSource,
+    /bottomGuardPx:\s*4/,
+    'expected measured two-column pagination to use the tighter first-pass bottom guard'
   )
 })
 

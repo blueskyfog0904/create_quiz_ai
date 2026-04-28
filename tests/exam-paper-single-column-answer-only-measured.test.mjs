@@ -277,8 +277,8 @@ test('single-column answer measurement mirrors print answer spacing and keeps a 
   )
   assert.match(
     singleColumnMeasurementSource,
-    /SINGLE_COLUMN_BOTTOM_GUARD_PX\s*=\s*8/,
-    'expected single-column measurement to reserve a small bottom guard against clipping'
+    /SINGLE_COLUMN_BOTTOM_GUARD_PX\s*=\s*4/,
+    'expected single-column measurement to reserve a tighter bottom guard after adding page footer space'
   )
   assert.match(
     singleColumnMeasurementSource,

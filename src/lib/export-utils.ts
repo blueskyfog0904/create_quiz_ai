@@ -910,12 +910,12 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
           height: 297mm;
           background: #fff;
           box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
-          padding: 12mm 10mm;
+          padding: 10mm 10mm 8mm;
           overflow: hidden;
           position: relative;
           display: flex;
           flex-direction: column;
-          --page-footer-height: 9mm;
+          --page-footer-height: 6mm;
         }
         .page-heading {
           text-align: center;
@@ -946,7 +946,7 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
           display: flex;
           align-items: flex-end;
           justify-content: center;
-          padding-top: 2mm;
+          padding-top: 1mm;
           color: #666;
           font-size: 11px;
           line-height: 1;
@@ -1151,7 +1151,7 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
           .preview-page {
             width: 210mm;
             height: 297mm;
-            padding: 12mm 10mm;
+            padding: 10mm 10mm 8mm;
             margin: 0;
             box-shadow: none;
             overflow: hidden;

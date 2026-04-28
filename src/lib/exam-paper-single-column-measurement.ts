@@ -6,9 +6,9 @@ import type {
 } from '@/lib/exam-paper-single-column-layout'
 import { buildSingleColumnPlacementSteps } from '@/lib/exam-paper-single-column-layout'
 
-const SINGLE_COLUMN_BOTTOM_GUARD_PX = 8
+const SINGLE_COLUMN_BOTTOM_GUARD_PX = 4
 const SINGLE_COLUMN_PAGE_FIT_TOLERANCE_PX = 1
-const SINGLE_COLUMN_PAGE_FOOTER_HEIGHT = '9mm'
+const SINGLE_COLUMN_PAGE_FOOTER_HEIGHT = '6mm'
 const pageBodyByPage = new WeakMap<HTMLElement, HTMLElement>()
 
 interface MeasureSingleColumnPreviewPagesInput {
@@ -86,7 +86,7 @@ function createPageElement(
   page.className = 'preview-page'
   page.style.width = '210mm'
   page.style.height = '297mm'
-  page.style.padding = '12mm 10mm'
+  page.style.padding = '10mm 10mm 8mm'
   page.style.boxSizing = 'border-box'
   page.style.overflow = 'hidden'
   page.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif'
@@ -142,7 +142,7 @@ function createPageElement(
   pageFooter.style.display = 'flex'
   pageFooter.style.alignItems = 'flex-end'
   pageFooter.style.justifyContent = 'center'
-  pageFooter.style.paddingTop = '2mm'
+  pageFooter.style.paddingTop = '1mm'
   pageFooter.style.lineHeight = '1'
   const pageNumberEl = document.createElement('span')
   pageNumberEl.className = 'page-number'
