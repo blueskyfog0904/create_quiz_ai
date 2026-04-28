@@ -210,6 +210,23 @@ function renderQuestionChoicesHtml(choices: Choice[]) {
   `
 }
 
+function normalizeAnswerDisplayText(text: string | null | undefined) {
+  if (typeof text !== 'string') {
+    return ''
+  }
+
+  return text
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('\n')
+}
+
+function renderAnswerDisplayTextHtml(text: string) {
+  return escapeHtml(normalizeAnswerDisplayText(text)).replace(/\n/g, '<br>')
+}
+
 function renderPlainAnswerTextHtml(
   {
     questionLabel,
@@ -223,13 +240,39 @@ function renderPlainAnswerTextHtml(
     showAnswerLabel?: boolean
   }
 ) {
+  const normalizedExplanationText = normalizeAnswerDisplayText(explanationText)
+
   return `
     <div class="answer-text-block">
       ${questionLabel ? `<div class="answer-text-line answer-text-question">${escapeHtml(questionLabel)}</div>` : ''}
-      ${answerText ? `<div class="answer-text-line answer-text-answer">정답: ${escapeHtml(answerText)}</div>` : ''}
-      ${explanationText ? `<div class="answer-text-line answer-text-explanation">${showAnswerLabel ? '해설: ' : ''}${escapeHtml(explanationText).replace(/\n/g, '<br>')}</div>` : ''}
+      ${answerText ? `<div class="answer-text-line answer-text-answer">정답: ${renderAnswerDisplayTextHtml(answerText)}</div>` : ''}
+      ${normalizedExplanationText ? `<div class="answer-text-line answer-text-explanation">${showAnswerLabel ? '해설: ' : ''}${renderAnswerDisplayTextHtml(normalizedExplanationText)}</div>` : ''}
     </div>
   `
+}
+
+function buildSingleColumnAnswerFragmentClassName(block: SingleColumnBlock) {
+  if (block.kind !== 'answer' || block.payload.type !== 'answer') {
+    return ''
+  }
+
+  const fragmentCount = block.payload.fragmentCount ?? 1
+
+  if (fragmentCount <= 1) {
+    return ' answer-fragment-single'
+  }
+
+  const fragmentIndex = block.payload.fragmentIndex ?? 0
+
+  if (fragmentIndex === 0) {
+    return ' answer-fragment-start'
+  }
+
+  if (fragmentIndex === fragmentCount - 1) {
+    return ' answer-fragment-end'
+  }
+
+  return ' answer-fragment-middle'
 }
 
 function renderSingleColumnBlockHtml(
@@ -292,7 +335,7 @@ function renderSingleColumnBlockHtml(
   const explanationText = block.payload.type === 'answer' ? block.payload.explanationText : ''
 
   return `
-    <div class="single-column-block single-column-answer" ${baseAttributes}>
+    <div class="single-column-block single-column-answer${buildSingleColumnAnswerFragmentClassName(block)}" ${baseAttributes}>
       ${renderPlainAnswerTextHtml({
         questionLabel,
         answerText,
@@ -520,7 +563,7 @@ function renderPlannedTwoColumnSectionHtml(
     estimatedHeight: sectionPlan.estimatedUnits,
     kind: 'answer',
     html: `
-      <div class="question-chunk question-answer-chunk" ${sectionAttributes}>
+      <div class="question-chunk question-answer-chunk${continuationClassName}" ${sectionAttributes}>
         ${sectionPlan.payload.type === 'answer'
           ? renderAnswerFragmentHtml(sectionPlan.payload, sectionPlan)
           : ''}
@@ -915,7 +958,7 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
         }
         .answer-text-line {
           font-size: 12px;
-          line-height: 1.8;
+          line-height: 1.6;
           color: #111;
         }
         .answer-text-question {
@@ -1017,6 +1060,12 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
         }
         .question-choice-chunk .choice {
           margin-left: 0;
+        }
+        .single-column-answer.answer-fragment-start,
+        .single-column-answer.answer-fragment-middle,
+        .question-chunk[data-section-kind="answer"].chunk-linked-start,
+        .question-chunk[data-section-kind="answer"].chunk-linked-middle {
+          margin-bottom: 0;
         }
         .questions-container .question {
           ${isDoubleColumn ? `

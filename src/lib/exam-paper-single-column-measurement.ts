@@ -122,7 +122,7 @@ function createBlockElement(
   }
 ) {
   const wrapper = document.createElement('div')
-  wrapper.className = `single-column-block single-column-${block.kind}`
+  wrapper.className = `single-column-block single-column-${block.kind}${buildAnswerFragmentClassName(block)}`
   wrapper.setAttribute('data-block-id', block.id)
   wrapper.setAttribute('data-question-number', `${block.questionNumber}`)
   wrapper.setAttribute('data-block-kind', block.kind)
@@ -200,7 +200,7 @@ function createBlockElement(
   }
 
   if (block.kind === 'answer' && block.payload.type === 'answer') {
-    wrapper.style.marginBottom = '24px'
+    wrapper.style.marginBottom = isAnswerContinuationFragment(block) ? '0' : '24px'
 
     const answerBlock = document.createElement('div')
     answerBlock.className = 'answer-text-block'
@@ -229,8 +229,8 @@ function createBlockElement(
       const explanation = document.createElement('div')
       explanation.className = 'answer-text-line answer-text-explanation'
       explanation.style.fontSize = '12px'
-      explanation.style.lineHeight = '1.8'
-      explanation.innerHTML = `${block.payload.showAnswerLabel ? '해설: ' : ''}${escapeHtml(block.payload.explanationText).replace(/\n/g, '<br>')}`
+      explanation.style.lineHeight = '1.6'
+      explanation.innerHTML = `${block.payload.showAnswerLabel ? '해설: ' : ''}${escapeHtml(normalizeAnswerDisplayText(block.payload.explanationText)).replace(/\n/g, '<br>')}`
       answerBlock.appendChild(explanation)
     }
 
@@ -239,6 +239,52 @@ function createBlockElement(
   }
 
   return wrapper
+}
+
+function normalizeAnswerDisplayText(text: string | null | undefined) {
+  if (typeof text !== 'string') {
+    return ''
+  }
+
+  return text
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('\n')
+}
+
+function isAnswerContinuationFragment(block: SingleColumnBlock) {
+  return (
+    block.kind === 'answer' &&
+    block.payload.type === 'answer' &&
+    (block.payload.fragmentCount ?? 1) > 1 &&
+    (block.payload.fragmentIndex ?? 0) < (block.payload.fragmentCount ?? 1) - 1
+  )
+}
+
+function buildAnswerFragmentClassName(block: SingleColumnBlock) {
+  if (block.kind !== 'answer' || block.payload.type !== 'answer') {
+    return ''
+  }
+
+  const fragmentCount = block.payload.fragmentCount ?? 1
+
+  if (fragmentCount <= 1) {
+    return ' answer-fragment-single'
+  }
+
+  const fragmentIndex = block.payload.fragmentIndex ?? 0
+
+  if (fragmentIndex === 0) {
+    return ' answer-fragment-start'
+  }
+
+  if (fragmentIndex === fragmentCount - 1) {
+    return ' answer-fragment-end'
+  }
+
+  return ' answer-fragment-middle'
 }
 
 function pageFits(page: HTMLElement) {

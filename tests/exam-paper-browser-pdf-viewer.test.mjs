@@ -26,6 +26,11 @@ const singleColumnLayoutSource = readFileSync(
   'utf8'
 )
 
+const singleColumnMeasurementSource = readFileSync(
+  new URL('../src/lib/exam-paper-single-column-measurement.ts', import.meta.url),
+  'utf8'
+)
+
 const libraryExportButtonsSource = readFileSync(
   new URL('../src/app/(dashboard)/library/exam-papers/[id]/export-buttons.tsx', import.meta.url),
   'utf8'
@@ -348,6 +353,85 @@ test('two-column preview follows the shared planner page grouping for the regres
   )
 })
 
+
+function createAnswerOnlyDoubleBreakExamPaper(columnLayout = 'double') {
+  return {
+    title: 'Answer line break regression',
+    description: undefined,
+    viewMode: 'answer-only',
+    columnLayout,
+    questions: [{
+      number: 1,
+      questionText: 'unused in answer-only',
+      questionTextForward: null,
+      passageText: null,
+      questionTextBackward: null,
+      choices: [],
+      answer: '①, ④',
+      explanation: [
+        '정답: ①, ④',
+        '',
+        '① have a narrow perspective limited to their own department interests',
+        '',
+        '④ fail to perceive situations from other viewpoints',
+        '',
+        '오답:',
+        '',
+        '② develop a physical eye condition',
+      ].join('\n'),
+    }],
+  }
+}
+
+test('answer-only preview collapses redundant blank lines in explanations for both layouts', async () => {
+  const {
+    moduleUrl: layoutContractModuleUrl,
+  } = await loadRuntimeLayoutContractModule()
+  const singleColumnLayoutModuleUrl = await loadRuntimeSingleColumnLayoutModule()
+  const exportUtilsModule = await loadRuntimeExportUtilsModule(
+    layoutContractModuleUrl,
+    singleColumnLayoutModuleUrl
+  )
+
+  const singleHtml = exportUtilsModule.buildExamPaperPrintHtml(createAnswerOnlyDoubleBreakExamPaper('single'))
+  const doubleHtml = exportUtilsModule.buildExamPaperPrintHtml(createAnswerOnlyDoubleBreakExamPaper('double'))
+
+  assert.doesNotMatch(singleHtml, /answer-text-explanation[\s\S]*?<br>\s*<br>/)
+  assert.doesNotMatch(doubleHtml, /answer-text-explanation[\s\S]*?<br>\s*<br>/)
+  assert.match(
+    singleHtml,
+    /single-column-answer answer-fragment-start[\s\S]*?answer-fragment-middle[\s\S]*?answer-fragment-end/,
+    'expected single-column split answer fragments to carry continuation classes'
+  )
+  assert.match(
+    doubleHtml,
+    /question-chunk[^"]*chunk-linked-start[\s\S]*?data-section-kind="answer"[\s\S]*?question-chunk[^"]*chunk-linked-middle[\s\S]*?data-section-kind="answer"/,
+    'expected two-column split answer chunks to carry continuation classes'
+  )
+})
+
+test('answer-only explanation line height stays compact in print preview and measurement', () => {
+  assert.match(
+    exportUtilsSource,
+    /\.answer-text-line\s*\{[\s\S]*?line-height:\s*1\.6;/,
+    'expected answer text lines to avoid the old loose 1.8 line-height in print preview'
+  )
+  assert.doesNotMatch(
+    exportUtilsSource,
+    /\.answer-text-line\s*\{[\s\S]*?line-height:\s*1\.8;/,
+    'expected answer text lines not to keep the old loose line-height'
+  )
+  assert.match(
+    singleColumnMeasurementSource,
+    /explanation\.style\.lineHeight\s*=\s*'1\.6'/,
+    'expected single-column measurement to use the same compact explanation line-height'
+  )
+  assert.match(
+    pdfSource,
+    /lineHeight:\s*1\.6/,
+    'expected direct pdf answer explanation rendering to use compact line-height'
+  )
+})
 
 test('answer-only two-column preview prepends the question number inside each answer chunk', async () => {
   const { previewHtml } = await getRuntimePreviewArtifacts('answer-only')

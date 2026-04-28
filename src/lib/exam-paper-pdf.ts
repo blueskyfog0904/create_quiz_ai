@@ -157,6 +157,8 @@ function buildPlainAnswerTextStack({
   showAnswerLabel?: boolean
 }) {
   const stack: Array<Record<string, unknown>> = []
+  const normalizedAnswerText = normalizeAnswerDisplayText(answerText)
+  const normalizedExplanationText = normalizeAnswerDisplayText(explanationText)
 
   if (questionLabel) {
     stack.push({
@@ -168,26 +170,39 @@ function buildPlainAnswerTextStack({
     })
   }
 
-  if (answerText) {
+  if (normalizedAnswerText) {
     stack.push({
-      text: `정답: ${answerText}`,
+      text: `정답: ${normalizedAnswerText}`,
       fontSize: 12,
       bold: true,
       color: '#111',
-      margin: explanationText ? [0, 0, 0, 4] : [0, 0, 0, 0],
+      margin: normalizedExplanationText ? [0, 0, 0, 4] : [0, 0, 0, 0],
     })
   }
 
-  if (explanationText) {
+  if (normalizedExplanationText) {
     stack.push({
-      text: `${showAnswerLabel ? '해설: ' : ''}${explanationText}`,
+      text: `${showAnswerLabel ? '해설: ' : ''}${normalizedExplanationText}`,
       fontSize: 12,
       color: '#111',
-      lineHeight: 1.8,
+      lineHeight: 1.6,
     })
   }
 
   return stack
+}
+
+function normalizeAnswerDisplayText(text: string | null | undefined) {
+  if (typeof text !== 'string') {
+    return ''
+  }
+
+  return text
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('\n')
 }
 
 function buildFlowBodyPdfStack(bodyText: string, bodyParts?: TwoColumnBodyPart[]) {
