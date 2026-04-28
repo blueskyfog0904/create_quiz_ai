@@ -1,0 +1,298 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1776901737424,
+  "projectRoot": "/Users/mac/Documents/project/create_quiz_ai",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "next",
+        "version": "16.0.8",
+        "category": "fullstack"
+      },
+      {
+        "name": "react",
+        "version": "19.2.0",
+        "category": "frontend"
+      },
+      {
+        "name": "react-dom",
+        "version": "19.2.0",
+        "category": "frontend"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "npm run build",
+    "testCommand": null,
+    "lintCommand": "npm run lint",
+    "devCommand": "npm run dev",
+    "scripts": {
+      "dev": "next dev -p 4000",
+      "build": "next build",
+      "start": "next start -p 4000",
+      "lint": "eslint"
+    }
+  },
+  "conventions": {
+    "namingStyle": "camelCase",
+    "importStyle": "ES modules",
+    "testPattern": null,
+    "fileOrganization": "type-based"
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "public",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 8,
+      "lastAccessed": 1776901737412,
+      "keyFiles": [
+        "admin-menu-generate-regression-worker2.md",
+        "admin-menu-market-investigation-worker2.md",
+        "admin-menu-market-plan-worker1.md",
+        "admin-menu-market-ui-review-worker3.md",
+        "admin-menu-market-workspace-uniqueness-review-worker3.md"
+      ]
+    },
+    "downloadfile": {
+      "path": "downloadfile",
+      "purpose": null,
+      "fileCount": 9,
+      "lastAccessed": 1776901737415,
+      "keyFiles": [
+        "2025학년도 1학기 중간고사 (1).docx",
+        "2025학년도 1학기 중간고사 (2).pdf",
+        "2025학년도 1학기 중간고사 (2단).docx",
+        "2025학년도 1학기 중간고사.docx",
+        "관리자메뉴_메뉴등록_문제마켓문제등록_260320.pptx"
+      ]
+    },
+    "fonts": {
+      "path": "fonts",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1776901737415,
+      "keyFiles": []
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 6,
+      "lastAccessed": 1776901737415,
+      "keyFiles": [
+        "file.svg",
+        "globe.svg",
+        "next.svg",
+        "vercel.svg",
+        "window.svg"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 8,
+      "lastAccessed": 1776901737415,
+      "keyFiles": [
+        "backfill-missing-credit-transactions.sql",
+        "backfill-profile-credits-from-ledger.sql",
+        "check-credit-balance-mismatch.sql",
+        "kakao-auth-team.sh",
+        "playwright_check_pdf_workspace.cjs"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 1,
+      "lastAccessed": 1776901737415,
+      "keyFiles": [
+        "middleware.ts"
+      ]
+    },
+    "supabase": {
+      "path": "supabase",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1776901737415,
+      "keyFiles": []
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 50,
+      "lastAccessed": 1776901737416,
+      "keyFiles": [
+        "admin-sidebar-navigation.test.mjs",
+        "credit-balance-read-paths.test.mjs",
+        "credit-balance-source-of-truth.test.mjs",
+        "credit-mutation-routes.test.mjs",
+        "credit-mutation-snapshot-contract.test.mjs"
+      ]
+    },
+    "src/app": {
+      "path": "src/app",
+      "purpose": "Application code",
+      "fileCount": 7,
+      "lastAccessed": 1776901737420,
+      "keyFiles": [
+        "favicon.ico",
+        "globals.css",
+        "layout.tsx"
+      ]
+    },
+    "src/components": {
+      "path": "src/components",
+      "purpose": "UI components",
+      "fileCount": 0,
+      "lastAccessed": 1776901737421,
+      "keyFiles": []
+    },
+    "src/lib": {
+      "path": "src/lib",
+      "purpose": "Library code",
+      "fileCount": 48,
+      "lastAccessed": 1776901737421,
+      "keyFiles": [
+        "admin-sidebar-server.ts",
+        "admin-sidebar.ts",
+        "admin-workspace.ts"
+      ]
+    },
+    "src/types": {
+      "path": "src/types",
+      "purpose": "Type definitions",
+      "fileCount": 1,
+      "lastAccessed": 1776901737422,
+      "keyFiles": [
+        "supabase.ts"
+      ]
+    },
+    "supabase/migrations": {
+      "path": "supabase/migrations",
+      "purpose": "Database migrations",
+      "fileCount": 37,
+      "lastAccessed": 1776901737423,
+      "keyFiles": [
+        "0000_initial_schema.sql",
+        "0001_update_handle_new_user.sql",
+        "20250101000000_create_ai_models.sql"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "",
+      "accessCount": 6,
+      "lastAccessed": 1776740170355,
+      "type": "directory"
+    },
+    {
+      "path": "src/lib/export-utils.ts",
+      "accessCount": 4,
+      "lastAccessed": 1776740233158,
+      "type": "file"
+    },
+    {
+      "path": "src",
+      "accessCount": 2,
+      "lastAccessed": 1776740176063,
+      "type": "directory"
+    },
+    {
+      "path": "src/lib",
+      "accessCount": 2,
+      "lastAccessed": 1776740183894,
+      "type": "directory"
+    },
+    {
+      "path": "src/app/api/exam-papers/print-pdf/route.ts",
+      "accessCount": 2,
+      "lastAccessed": 1776740223766,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/exam-paper-pdf-pagination.js",
+      "accessCount": 2,
+      "lastAccessed": 1776740224111,
+      "type": "file"
+    },
+    {
+      "path": "src/components/features/exam-papers/ExamPaperPdfWorkspace.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1776740232860,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/exam-paper-pdf.ts",
+      "accessCount": 1,
+      "lastAccessed": 1776740172780,
+      "type": "file"
+    },
+    {
+      "path": "src/app/globals.css",
+      "accessCount": 1,
+      "lastAccessed": 1776740179373,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/exam-paper-print-pagination.js",
+      "accessCount": 1,
+      "lastAccessed": 1776740186173,
+      "type": "file"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-04-17-exam-paper-double-column-fix-plan.md",
+      "accessCount": 1,
+      "lastAccessed": 1776740193371,
+      "type": "file"
+    },
+    {
+      "path": ".omx/plans/exam-paper-pdf-2column-parity-loop-plan-20260420.md",
+      "accessCount": 1,
+      "lastAccessed": 1776740193943,
+      "type": "file"
+    },
+    {
+      "path": ".omx/plans/2026-04-20-exam-paper-two-column-web-parity-plan.md",
+      "accessCount": 1,
+      "lastAccessed": 1776740194012,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(grep -E \"^playwright$|^puppeteer$|html2canvas|html2pdf\")",
+      "Bash(npx playwright:*)",
+      "Read(//Users/mac/.cache/**)",
+      "Bash(node -e \"const { chromium } = require\\('playwright'\\); chromium.executablePath\\(\\).then\\(p => console.log\\(p\\)\\).catch\\(e => console.log\\('no path:', e.message\\)\\)\")",
+      "Bash(node:*)",
+      "Bash(ls:*)",
+      "WebFetch(domain:github.com)",
+      "Skill(update-config)",
+      "Bash(bash *)",
+      "Bash(npm install *)",
+      "Bash(command -v omc)",
+      "Bash(omc --version)",
+      "Bash(claude mcp *)",
+      "Bash(gh auth *)",
+      "Bash(gh api *)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "octo-browser"
+  ]
+}

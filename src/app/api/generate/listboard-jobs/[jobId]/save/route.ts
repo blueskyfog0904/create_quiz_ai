@@ -253,6 +253,9 @@ export async function POST(request: Request, { params }: RouteContext) {
       success: true,
       data: {
         jobId: job.id,
+        requestedCount: jobItemIds.length,
+        saveableCount: saveCandidates.length,
+        skippedCount: Math.max(jobItemIds.length - saveCandidates.length, 0),
         savedCount,
         failedCount,
         savedQuestionIds,

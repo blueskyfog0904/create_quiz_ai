@@ -68,6 +68,7 @@ export default function JobStatusClient({
   const savedCount = items.filter((item) => item.save_status === 'saved').length
   const saveFailedCount = items.filter((item) => item.save_status === 'save_failed').length
   const isGenerationInProgress = isStartingRun || !TERMINAL_JOB_STATUSES.includes(job.status)
+  const isPartialSuccess = completedCount > 0 && failedCount > 0
   const progressPercent = job.requested_generation_count > 0
     ? Math.round(((completedCount + failedCount) / job.requested_generation_count) * 100)
     : 0
@@ -82,6 +83,28 @@ export default function JobStatusClient({
   const saveableItemIds = useMemo(() => completedPreviewItems
     .filter(({ item }) => ['unsaved', 'save_failed'].includes(item.save_status))
     .map(({ item }) => item.id), [completedPreviewItems])
+  const canSaveCompletedItems = saveableItemIds.length > 0 && savingItemIds.length === 0
+  const canOpenPurchased = savedCount > 0
+  const retryInProgress = isRetrying || (job.status === 'running' && completedCount > 0)
+  const exceptionItems = useMemo(() => items
+    .filter((item) => item.status !== 'completed' || parseStagedGeneratedQuestion(item.generated_question) === null), [items])
+  const failedReasonGroups = useMemo(() => {
+    const groups = new Map<string, { message: string; count: number }>()
+
+    for (const item of exceptionItems.filter((currentItem) => currentItem.status === 'failed')) {
+      const message = item.error_message?.trim() || item.save_error_message?.trim() || '원인을 확인할 수 없는 오류'
+      const existing = groups.get(message)
+
+      if (existing) {
+        existing.count += 1
+        continue
+      }
+
+      groups.set(message, { message, count: 1 })
+    }
+
+    return Array.from(groups.values()).sort((left, right) => right.count - left.count)
+  }, [exceptionItems])
 
   const getDraftMeta = useCallback((itemId: string): DraftQuestionMeta => (
     draftQuestionMeta[itemId] ?? { rating: 0, tags: [] }
@@ -229,7 +252,16 @@ export default function JobStatusClient({
         throw new Error(data.error?.message || '실패 항목 재시도에 실패했습니다.')
       }
 
-      toast.success(`실패 항목 ${data.data.retriedCount}건 재시도를 시작했습니다.`)
+      if (data.data.failedRetries > 0) {
+        const retryFailureMessage = data.data.completedRetries > 0
+          ? `재시도 ${data.data.retriedCount}건 중 ${data.data.completedRetries}건 성공, ${data.data.failedRetries}건은 다시 실패했습니다.`
+          : `재시도 ${data.data.retriedCount}건이 다시 실패했습니다.`
+
+        toast.error(`${retryFailureMessage} 남은 실패 ${data.data.remainingFailedCount}건의 사유를 확인해주세요.`)
+      } else {
+        toast.success(`실패 항목 ${data.data.retriedCount}건 재시도를 완료했습니다.`)
+      }
+
       await refreshJob(true)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '재시도 중 오류가 발생했습니다.')
@@ -282,6 +314,10 @@ export default function JobStatusClient({
         toast.success(successMessage.replace('{count}', String(data.data.savedCount)))
       }
 
+      if (data.data.skippedCount > 0) {
+        toast.info(`요청한 ${data.data.requestedCount}건 중 ${data.data.skippedCount}건은 이미 저장되었거나 저장 대상이 아니어서 건너뛰었습니다.`)
+      }
+
       if (data.data.failedCount > 0) {
         toast.error(`${data.data.failedCount}건은 저장하지 못했습니다. 상태를 확인해주세요.`)
       }
@@ -309,6 +345,16 @@ export default function JobStatusClient({
         <div>
           <h1 className="text-3xl font-bold text-gray-900">문제 생성 결과 진행창</h1>
           <p className="mt-2 text-gray-500">{post.title} 게시글 기준 생성 결과를 확인하고 선택 저장할 수 있습니다.</p>
+          {isPartialSuccess ? (
+            <p className="mt-2 text-sm font-medium text-amber-700">
+              성공한 문제는 지금 저장할 수 있고, 실패한 문제는 재시도할 수 있습니다.
+            </p>
+          ) : null}
+          {retryInProgress ? (
+            <p className="mt-1 text-sm text-primary">
+              재시도 중에도 이미 생성된 문제는 계속 저장할 수 있습니다.
+            </p>
+          ) : null}
         </div>
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           <Button
@@ -339,7 +385,7 @@ export default function JobStatusClient({
           </Button>
           <Button
             onClick={() => router.push(`/library/purchased?jobId=${job.id}`)}
-            disabled={isGenerationInProgress || savedCount === 0}
+            disabled={!canOpenPurchased}
             className="shrink-0 whitespace-nowrap"
           >
             저장 문제 확인
@@ -407,25 +453,26 @@ export default function JobStatusClient({
       <Card className="sticky top-20 z-20 border-primary/20 shadow-sm">
         <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
-            <Button variant="outline" size="sm" onClick={toggleSelectAll} disabled={isGenerationInProgress || saveableItemIds.length === 0}>
+            <Button variant="outline" size="sm" onClick={toggleSelectAll} disabled={!canSaveCompletedItems}>
               {selectedItemIds.length === saveableItemIds.length && saveableItemIds.length > 0 ? '전체 해제' : '전체 선택'}
             </Button>
             <span>선택 {selectedItemIds.length}건</span>
             <span>저장 가능 {saveableItemIds.length}건</span>
             {isStartingRun ? <Badge variant="outline">작업 실행 중…</Badge> : null}
             {savedCount > 0 ? <Badge className="bg-emerald-100 text-emerald-700">{savedCount}건 저장됨</Badge> : null}
+            {retryInProgress && canSaveCompletedItems ? <Badge className="bg-primary/10 text-primary">완료 항목 저장 가능</Badge> : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               onClick={() => router.push(`/library/purchased?jobId=${job.id}`)}
-              disabled={isGenerationInProgress || savedCount === 0}
+              disabled={!canOpenPurchased}
             >
               영어문제 관리에서 보기
             </Button>
             <Button
               onClick={() => void handleSaveItems(selectedItemIds, '{count}개의 문제를 저장했습니다.')}
-              disabled={isGenerationInProgress || selectedItemIds.length === 0 || savingItemIds.length > 0}
+              disabled={!canSaveCompletedItems || selectedItemIds.length === 0}
             >
               {savingItemIds.length > 0 ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               선택한 문제 저장
@@ -454,7 +501,7 @@ export default function JobStatusClient({
                 saveStatus={item.save_status}
                 saveErrorMessage={item.save_error_message}
                 isSaving={savingItemIds.includes(item.id)}
-                disableActions={isGenerationInProgress}
+                disableActions={savingItemIds.includes(item.id)}
                 onRatingChange={(rating) => updateDraftMeta(item.id, { rating })}
                 onAddTag={(tag) => {
                   const nextTag = tag.trim()
@@ -488,16 +535,31 @@ export default function JobStatusClient({
         </section>
       ) : null}
 
-      {items.some((item) => item.status !== 'completed' || parseStagedGeneratedQuestion(item.generated_question) === null) ? (
+      {exceptionItems.length > 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>진행/예외 항목</CardTitle>
             <CardDescription>아직 검토할 수 없거나 재시도가 필요한 항목입니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {items
-              .filter((item) => item.status !== 'completed' || parseStagedGeneratedQuestion(item.generated_question) === null)
-              .map((item) => (
+            {failedReasonGroups.length > 0 ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <p className="font-medium text-amber-900">최근 실패 사유</p>
+                  <Badge className="w-fit bg-amber-100 text-amber-800">{failedCount}건 재시도 필요</Badge>
+                </div>
+                <ul className="mt-3 space-y-2 text-amber-900">
+                  {failedReasonGroups.slice(0, 3).map((group) => (
+                    <li key={group.message} className="flex items-start justify-between gap-3">
+                      <span className="leading-6">{group.message}</span>
+                      <span className="shrink-0 text-xs font-medium text-amber-700">{group.count}건</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-xs text-amber-700">같은 실패 사유가 반복되면 문항 정보를 확인한 뒤 다시 재시도하세요.</p>
+              </div>
+            ) : null}
+            {exceptionItems.map((item) => (
                 <div key={item.id} className="rounded-lg border px-4 py-3 text-sm">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="space-y-1">
@@ -534,9 +596,19 @@ export default function JobStatusClient({
       <Dialog open={showCompleteDialog} onOpenChange={setShowCompleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>문제 생성이 완료되었습니다.</DialogTitle>
+            <DialogTitle>
+              {isPartialSuccess
+                ? '일부 문제 생성이 실패했습니다.'
+                : failedCount > 0
+                  ? '문제 생성에 실패했습니다.'
+                  : '문제 생성이 완료되었습니다.'}
+            </DialogTitle>
             <DialogDescription>
-              생성 결과를 확인하고 필요한 문제를 저장할 수 있습니다.
+              {isPartialSuccess
+                ? '성공한 문제는 지금 저장할 수 있고, 실패한 문제는 재시도할 수 있습니다.'
+                : failedCount > 0
+                  ? '실패한 항목을 재시도해 다시 생성해 주세요.'
+                  : '생성 결과를 확인하고 필요한 문제를 저장할 수 있습니다.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

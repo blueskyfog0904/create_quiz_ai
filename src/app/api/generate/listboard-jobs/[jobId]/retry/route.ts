@@ -467,6 +467,8 @@ export async function POST(request: Request, { params }: RouteContext) {
       retriedCount: claimedItems.length,
       completedRetries,
       failedRetries,
+      remainingCompletedCount: completedCount,
+      remainingFailedCount: failedCount,
       status: finalStatus,
     },
     ...buildCreditBalanceResponseFields(snapshot),
@@ -477,6 +479,8 @@ export async function POST(request: Request, { params }: RouteContext) {
       retriedCount: claimedItems.length,
       completedRetries,
       failedRetries,
+      remainingCompletedCount: completedCount,
+      remainingFailedCount: failedCount,
       status: finalStatus,
     },
   })
