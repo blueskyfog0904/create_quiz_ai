@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Download,
   ExternalLink,
@@ -40,6 +40,11 @@ import {
   downloadExamPaperHtmlPdf,
   openExamPaperHtmlPdfInNewTab,
 } from '@/lib/exam-paper-html-pdf'
+import {
+  isNoopQuestionInsertion,
+  resolveInsertionIndexFromPointer,
+  resolveQuestionMoveIndex,
+} from '@/lib/exam-paper-pdf-workspace-drag'
 import { cn } from '@/lib/utils'
 
 interface ExamPaperPdfWorkspaceProps {
@@ -55,6 +60,10 @@ interface ExamPaperPdfWorkspaceProps {
 }
 
 const EXAM_PAPER_DEBUG_STORAGE_KEY = 'exam-paper-pdf-debug'
+
+type WorkspaceQuestion = ExamPaperPdfQuestion & {
+  workspaceId: string
+}
 
 function isExamPaperDebugEnabled() {
   if (typeof window === 'undefined') {
@@ -73,11 +82,52 @@ function isExamPaperDebugEnabled() {
   }
 }
 
-function renumberQuestions(questions: ExamPaperPdfQuestion[]) {
+function buildWorkspaceQuestionId(question: ExamPaperPdfQuestion, index: number) {
+  return [
+    'initial',
+    index,
+    question.number,
+    question.questionText.slice(0, 24),
+  ].join('-')
+}
+
+function toWorkspaceQuestions(initialQuestions: ExamPaperPdfQuestion[]) {
+  return renumberWorkspaceQuestions(initialQuestions.map((question, index) => ({
+    ...question,
+    workspaceId: buildWorkspaceQuestionId(question, index),
+  })))
+}
+
+function renumberWorkspaceQuestions(questions: WorkspaceQuestion[]) {
   return questions.map((question, index) => ({
     ...question,
     number: index + 1,
   }))
+}
+
+function toExamPaperQuestions(questions: WorkspaceQuestion[]): ExamPaperPdfQuestion[] {
+  return questions.map((question) => ({
+    number: question.number,
+    questionText: question.questionText,
+    questionTextForward: question.questionTextForward,
+    questionTextBackward: question.questionTextBackward,
+    passageText: question.passageText,
+    choices: question.choices,
+    answer: question.answer,
+    explanation: question.explanation,
+  }))
+}
+
+function QuestionDropIndicator() {
+  return (
+    <div className="pointer-events-none py-1" aria-hidden="true">
+      <div className="relative h-1 rounded-full bg-primary shadow-sm">
+        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground shadow-sm">
+          여기에 놓기
+        </span>
+      </div>
+    </div>
+  )
 }
 
 export function ExamPaperPdfWorkspace({
@@ -91,8 +141,9 @@ export function ExamPaperPdfWorkspace({
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [viewMode, setViewMode] = useState<ExamPaperPdfViewMode>(initialViewMode)
   const [columnLayout, setColumnLayout] = useState<ExamPaperPdfColumnLayout>(initialColumnLayout)
-  const [questions, setQuestions] = useState<ExamPaperPdfQuestion[]>(() => renumberQuestions(initialQuestions))
-  const [draggingQuestionId, setDraggingQuestionId] = useState<number | null>(null)
+  const [questions, setQuestions] = useState<WorkspaceQuestion[]>(() => toWorkspaceQuestions(initialQuestions))
+  const [draggingQuestionId, setDraggingQuestionId] = useState<string | null>(null)
+  const [dropInsertionIndex, setDropInsertionIndex] = useState<number | null>(null)
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
   const [isSavingPdf, setIsSavingPdf] = useState(false)
   const [isOpeningPdfTab, setIsOpeningPdfTab] = useState(false)
@@ -101,7 +152,7 @@ export function ExamPaperPdfWorkspace({
   const exportPayload: ExamPaperPrintDocument = useMemo(() => ({
     title: examPaper.paper_title,
     description: examPaper.description || undefined,
-    questions,
+    questions: toExamPaperQuestions(questions),
     viewMode,
     columnLayout,
   }), [columnLayout, examPaper.description, examPaper.paper_title, questions, viewMode])
@@ -113,8 +164,9 @@ export function ExamPaperPdfWorkspace({
   const syncWorkspaceToLatestProps = useCallback(() => {
     setViewMode(initialViewMode)
     setColumnLayout(initialColumnLayout)
-    setQuestions(renumberQuestions(initialQuestions))
+    setQuestions(toWorkspaceQuestions(initialQuestions))
     setDraggingQuestionId(null)
+    setDropInsertionIndex(null)
     setIsGeneratingPreview(false)
     setIsOpeningPdfTab(false)
     setIsSavingPdf(false)
@@ -197,11 +249,127 @@ export function ExamPaperPdfWorkspace({
     }
 
     setQuestions((current) => {
+      if (fromIndex < 0 || fromIndex >= current.length || toIndex < 0 || toIndex >= current.length) {
+        return current
+      }
+
       const next = [...current]
       const [moved] = next.splice(fromIndex, 1)
       next.splice(toIndex, 0, moved)
-      return renumberQuestions(next)
+      return renumberWorkspaceQuestions(next)
     })
+  }
+
+  const clearQuestionDragState = useCallback(() => {
+    setDraggingQuestionId(null)
+    setDropInsertionIndex(null)
+  }, [])
+
+  const draggingQuestionIndex = draggingQuestionId === null
+    ? -1
+    : questions.findIndex((item) => item.workspaceId === draggingQuestionId)
+
+  const shouldShowDropIndicator = (insertionIndex: number) => (
+    dropInsertionIndex === insertionIndex &&
+    draggingQuestionIndex >= 0 &&
+    !isNoopQuestionInsertion(draggingQuestionIndex, insertionIndex)
+  )
+
+  const isListEndDropIndicatorVisible = dropInsertionIndex === questions.length &&
+    shouldShowDropIndicator(questions.length)
+
+  const updateDropInsertionIndex = (insertionIndex: number) => {
+    if (draggingQuestionIndex < 0 || isNoopQuestionInsertion(draggingQuestionIndex, insertionIndex)) {
+      setDropInsertionIndex(null)
+      return
+    }
+
+    setDropInsertionIndex(insertionIndex)
+  }
+
+  const handleQuestionDragStart = (
+    event: DragEvent<HTMLDivElement>,
+    question: WorkspaceQuestion
+  ) => {
+    event.dataTransfer.effectAllowed = 'move'
+    setDraggingQuestionId(question.workspaceId)
+    setDropInsertionIndex(null)
+  }
+
+  const handleQuestionDragOver = (
+    event: DragEvent<HTMLDivElement>,
+    index: number
+  ) => {
+    if (draggingQuestionId === null) {
+      return
+    }
+
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const insertionIndex = resolveInsertionIndexFromPointer({
+      clientY: event.clientY,
+      itemTop: rect.top,
+      itemHeight: rect.height,
+      itemIndex: index,
+    })
+
+    updateDropInsertionIndex(insertionIndex)
+  }
+
+  const handleQuestionEndDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (draggingQuestionId === null) {
+      return
+    }
+
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    updateDropInsertionIndex(questions.length)
+  }
+
+  const handleQuestionDrop = (
+    event: DragEvent<HTMLDivElement>,
+    insertionIndex: number | null = dropInsertionIndex
+  ) => {
+    event.preventDefault()
+
+    if (draggingQuestionId === null) {
+      clearQuestionDragState()
+      return
+    }
+
+    const fromIndex = questions.findIndex((item) => item.workspaceId === draggingQuestionId)
+    const toIndex = resolveQuestionMoveIndex({
+      fromIndex,
+      insertionIndex,
+      totalCount: questions.length,
+    })
+
+    if (toIndex !== null) {
+      moveQuestion(fromIndex, toIndex)
+    }
+
+    clearQuestionDragState()
+  }
+
+  const handleQuestionOrderListDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const isStillInsideList =
+      event.clientX >= rect.left &&
+      event.clientX <= rect.right &&
+      event.clientY >= rect.top &&
+      event.clientY <= rect.bottom
+
+    if (isStillInsideList) {
+      return
+    }
+
+    setDropInsertionIndex(null)
+  }
+
+  const moveQuestionByKeyboard = (index: number, direction: -1 | 1) => {
+    moveQuestion(index, index + direction)
   }
 
   const resetWorkspace = () => {
@@ -434,37 +602,77 @@ export function ExamPaperPdfWorkspace({
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium text-gray-700">문제 순서</p>
-                        <span className="text-xs text-muted-foreground">드래그 후 놓으면 즉시 반영</span>
+                        <span className="text-xs text-muted-foreground" aria-live="polite">
+                          {draggingQuestionId === null ? '드래그 후 놓으면 즉시 반영' : '파란 삽입선 위치에 문제가 이동됩니다'}
+                        </span>
                       </div>
 
-                      <div className="space-y-2">
+                      <div
+                        className="space-y-1"
+                        role="list"
+                        onDragLeave={handleQuestionOrderListDragLeave}
+                      >
                         {questions.map((question, index) => (
                           <div
-                            key={question.number}
-                            draggable
-                            onDragStart={() => setDraggingQuestionId(question.number)}
-                            onDragOver={(event) => event.preventDefault()}
-                            onDrop={() => {
-                              if (draggingQuestionId === null) return
-                              const fromIndex = questions.findIndex((item) => item.number === draggingQuestionId)
-                              moveQuestion(fromIndex, index)
-                              setDraggingQuestionId(null)
-                            }}
-                            onDragEnd={() => setDraggingQuestionId(null)}
-                            className={cn(
-                              'flex cursor-grab items-start gap-3 rounded-lg border bg-white px-3 py-3 transition',
-                              draggingQuestionId === question.number && 'border-primary bg-primary/5 shadow-sm'
-                            )}
+                            key={question.workspaceId}
+                            role="listitem"
+                            aria-label={`${question.number}번 문제 순서 이동`}
                           >
-                            <div className="mt-0.5 rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
-                              {question.number}번
+                            {shouldShowDropIndicator(index) ? <QuestionDropIndicator /> : null}
+                            <div
+                              draggable
+                              onDragStart={(event) => handleQuestionDragStart(event, question)}
+                              onDragOver={(event) => handleQuestionDragOver(event, index)}
+                              onDrop={(event) => handleQuestionDrop(event)}
+                              onDragEnd={clearQuestionDragState}
+                              className={cn(
+                                'flex cursor-grab items-start gap-3 rounded-lg border bg-white px-3 py-3 transition',
+                                draggingQuestionId === question.workspaceId && 'scale-[0.98] cursor-grabbing border-primary border-dashed bg-primary/5 opacity-50 shadow-sm'
+                              )}
+                            >
+                              <div className="mt-0.5 rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
+                                {question.number}번
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="line-clamp-2 text-sm text-gray-700">{question.questionText}</p>
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs"
+                                    disabled={index === 0}
+                                    aria-label={`${question.number}번 문제 위로 이동`}
+                                    onClick={() => moveQuestionByKeyboard(index, -1)}
+                                  >
+                                    위로
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs"
+                                    disabled={index === questions.length - 1}
+                                    aria-label={`${question.number}번 문제 아래로 이동`}
+                                    onClick={() => moveQuestionByKeyboard(index, 1)}
+                                  >
+                                    아래로
+                                  </Button>
+                                </div>
+                              </div>
+                              <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                             </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="line-clamp-2 text-sm text-gray-700">{question.questionText}</p>
-                            </div>
-                            <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                           </div>
                         ))}
+                        <div
+                          data-drop-zone="question-order-end"
+                          onDragOver={handleQuestionEndDragOver}
+                          onDrop={(event) => handleQuestionDrop(event, questions.length)}
+                          onDragEnd={clearQuestionDragState}
+                          className="min-h-3"
+                        >
+                          {isListEndDropIndicatorVisible ? <QuestionDropIndicator /> : null}
+                        </div>
                       </div>
                     </div>
                   </CardContent>

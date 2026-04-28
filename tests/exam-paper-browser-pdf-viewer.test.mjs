@@ -476,7 +476,7 @@ test('preview pages keep a fixed A4 height instead of growing by content', () =>
 test('PDF workspace reseeds the preview state from the latest web question order whenever it opens', () => {
   assert.match(
     workspaceSource,
-    /const syncWorkspaceToLatestProps = useCallback\(\(\) => \{\s*setViewMode\(initialViewMode\)\s*setColumnLayout\(initialColumnLayout\)\s*setQuestions\(renumberQuestions\(initialQuestions\)\)\s*setDraggingQuestionId\(null\)/s
+    /const syncWorkspaceToLatestProps = useCallback\(\(\) => \{\s*setViewMode\(initialViewMode\)\s*setColumnLayout\(initialColumnLayout\)\s*setQuestions\(toWorkspaceQuestions\(initialQuestions\)\)\s*setDraggingQuestionId\(null\)\s*setDropInsertionIndex\(null\)/s
   )
   assert.match(
     workspaceSource,
