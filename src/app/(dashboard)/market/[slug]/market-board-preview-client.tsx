@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Eye, FileText, Sparkles } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Eye, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { WorkspaceLink } from '@/components/layout/workspace-link'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
@@ -26,14 +26,6 @@ function formatPublishedDate(value: string) {
     month: '2-digit',
     day: '2-digit',
   })
-}
-
-function formatExamMeta(row: MarketListboardRow) {
-  return [
-    row.examYear ? `${row.examYear}년` : null,
-    row.examMonth ? `${row.examMonth}월` : null,
-    row.gradeLevel,
-  ].filter(Boolean).join(' · ') || '시험 정보 미등록'
 }
 
 function getSelectionKey(itemId: string, assetKind: AssetKind) {
@@ -290,35 +282,26 @@ export default function MarketBoardPreviewClient({ categorySlug, rows, isLoggedI
 
                   return (
                     <tr key={row.itemId} className="border-b border-slate-200 bg-white transition hover:bg-slate-50/80">
-                      <td className="px-3 py-3 text-center text-slate-500">{row.rowNumber}</td>
-                      <td className="px-3 py-3">
-                        <div className="flex min-w-0 flex-col gap-1">
+                      <td className="px-3 py-2 text-center text-slate-500">{row.rowNumber}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex min-w-0 items-center">
                           <WorkspaceLink href={href} className="truncate font-semibold text-slate-900 hover:text-slate-600">
                             {row.title}
                           </WorkspaceLink>
-                          <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-                            <span>{formatExamMeta(row)}</span>
-                            {row.sample.available ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 font-medium text-blue-700">
-                                <Sparkles className="h-3 w-3" />샘플
-                              </span>
-                            ) : null}
-                            <span className="rounded-full border px-2 py-0.5 font-medium text-slate-600">PDF · HWP & PDF</span>
-                          </div>
                         </div>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-3 py-2">
                         <div className="flex flex-nowrap items-center justify-center gap-2">
                           {renderAssetChoice(row, 'pdf')}
                           {renderAssetChoice(row, 'hwp')}
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-center text-slate-600">
+                      <td className="px-3 py-2 text-center text-slate-600">
                         <span className="inline-flex items-center justify-center gap-1">
                           <Eye className="h-3.5 w-3.5 text-slate-400" />{row.viewCount.toLocaleString()}
                         </span>
                       </td>
-                      <td className="px-3 py-3 text-center text-slate-600">{formatPublishedDate(row.publishedAt)}</td>
+                      <td className="px-3 py-2 text-center text-slate-600">{formatPublishedDate(row.publishedAt)}</td>
                     </tr>
                   )
                 })}
