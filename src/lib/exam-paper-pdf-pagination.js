@@ -339,13 +339,14 @@ export function paginateTwoColumnQuestionChunks(questionGroups, options = {}) {
 }
 /**
  * @param {Array<{ id: string, estimatedHeight?: number, measuredHeightPx?: number, kind?: string, html?: string }>} chunks
- * @param {{ firstPageColumnHeightPx: number, otherPageColumnHeightPx: number, bottomGuardPx?: number, forceAnswerStartOnNewPage?: boolean }} options
+ * @param {{ firstPageColumnHeightPx: number, otherPageColumnHeightPx: number, answerStartPageColumnHeightPx?: number, bottomGuardPx?: number, forceAnswerStartOnNewPage?: boolean }} options
  * @returns {Array<{ pageIndex: number, columns: [unknown[], unknown[]] }>}
  */
 export function paginateMeasuredTwoColumnChunks(chunks, options) {
   const {
     firstPageColumnHeightPx,
     otherPageColumnHeightPx,
+    answerStartPageColumnHeightPx = firstPageColumnHeightPx,
     bottomGuardPx = 8,
     forceAnswerStartOnNewPage = false,
   } = options
@@ -363,10 +364,17 @@ export function paginateMeasuredTwoColumnChunks(chunks, options) {
     }
   }
 
-  const getCapacity = (index) => Math.max(
-    0,
-    (index === 0 ? firstPageColumnHeightPx : otherPageColumnHeightPx) - bottomGuardPx
-  )
+  let answerStartPageIndex = -1
+
+  const getCapacity = (index) => {
+    const columnHeight = index === 0
+      ? firstPageColumnHeightPx
+      : index === answerStartPageIndex
+        ? answerStartPageColumnHeightPx
+        : otherPageColumnHeightPx
+
+    return Math.max(0, columnHeight - bottomGuardPx)
+  }
 
   const getChunkHeight = (chunk) => Math.ceil(chunk.measuredHeightPx || chunk.estimatedHeight || 0)
 
@@ -441,6 +449,10 @@ export function paginateMeasuredTwoColumnChunks(chunks, options) {
     ) {
       moveToNextPage()
       ensurePage(pageIndex)
+    }
+
+    if (forceAnswerStartOnNewPage && !hasPlacedAnswerChunk && chunk.kind === 'answer') {
+      answerStartPageIndex = pageIndex
     }
 
     const height = getChunkHeight(chunk)

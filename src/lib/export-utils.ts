@@ -165,6 +165,18 @@ function renderPageFooterHtml(pageIndex: number) {
   `
 }
 
+function shouldRenderPageHeading(pageIndex: number, answerStartPageIndex: number) {
+  return pageIndex === 0 || pageIndex === answerStartPageIndex
+}
+
+function containsAnswerChunk(chunks: HtmlPaginationChunk[]) {
+  return chunks.some((chunk) => chunk.kind === 'answer')
+}
+
+function containsAnswerBlock(blocks: SingleColumnBlock[]) {
+  return blocks.some((block) => block.kind === 'answer')
+}
+
 function encodeHtmlDataAttribute(text: string) {
   return escapeHtml(encodeURIComponent(text))
 }
@@ -732,9 +744,13 @@ function renderTwoColumnMeasuredPagesHtml(
   examPaper: ExamPaper,
   pages: TwoColumnMeasuredPagePlan[]
 ) {
+  const answerStartPageIndex = examPaper.viewMode === 'exam-with-answers'
+    ? pages.findIndex((page) => page.columns.some((column) => containsAnswerChunk(column)))
+    : -1
+
   return pages.map((page, pageIndex) => `
     <section class="preview-page">
-      ${pageIndex === 0 ? renderExamPaperHeadingHtml(examPaper) : ''}
+      ${shouldRenderPageHeading(pageIndex, answerStartPageIndex) ? renderExamPaperHeadingHtml(examPaper) : ''}
       <div class="page-body two-column-page-body">
         <div class="two-column-layout">
           <div class="two-column-column">
@@ -863,9 +879,13 @@ function renderTwoColumnChunkPaginatedHtml(
     right: HtmlPaginationChunk[]
   }>
 ) {
+  const answerStartPageIndex = examPaper.viewMode === 'exam-with-answers'
+    ? paginatedPages.findIndex((page) => containsAnswerChunk(page.left) || containsAnswerChunk(page.right))
+    : -1
+
   return paginatedPages.map((page, pageIndex) => `
     <section class="preview-page">
-      ${pageIndex === 0 ? renderExamPaperHeadingHtml(examPaper) : ''}
+      ${shouldRenderPageHeading(pageIndex, answerStartPageIndex) ? renderExamPaperHeadingHtml(examPaper) : ''}
       <div class="page-body two-column-page-body">
         <div class="two-column-layout">
           <div class="two-column-column">
@@ -1268,9 +1288,15 @@ export function buildExamPaperPrintHtml(
         ? twoColumnMeasuredPages
           ? renderTwoColumnMeasuredPagesHtml(examPaper, twoColumnMeasuredPages)
           : renderTwoColumnChunkPaginatedHtml(examPaper, twoColumnChunkPages ?? [])
-        : (singleColumnPages ?? []).map((page, pageIndex) => `
+        : (() => {
+          const pages = singleColumnPages ?? []
+          const answerStartPageIndex = examPaper.viewMode === 'exam-with-answers'
+            ? pages.findIndex((page) => containsAnswerBlock(page.blocks))
+            : -1
+
+          return pages.map((page, pageIndex) => `
         <section class="preview-page">
-          ${pageIndex === 0 ? renderExamPaperHeadingHtml(examPaper) : ''}
+          ${shouldRenderPageHeading(pageIndex, answerStartPageIndex) ? renderExamPaperHeadingHtml(examPaper) : ''}
           <div class="page-body single-column-page-body">
             <div class="questions-container">
       ${page.blocks.map((block, blockIndex) => `
@@ -1283,7 +1309,8 @@ export function buildExamPaperPrintHtml(
           </div>
           ${renderPageFooterHtml(pageIndex)}
         </section>
-      `).join('')}
+      `).join('')
+        })()}
       </div>
       
       ${autoPrint ? `

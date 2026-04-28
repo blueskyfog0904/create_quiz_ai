@@ -136,10 +136,12 @@ async function buildPreviewHtml(examPaper, options) {
 }
 
 
-function findPreviewPageIndexContaining(html, marker) {
-  const pages = html.split('<section class="preview-page">').slice(1)
+function splitPreviewPages(html) {
+  return html.split('<section class="preview-page">').slice(1)
+}
 
-  return pages.findIndex((page) => page.includes(marker))
+function findPreviewPageIndexContaining(html, marker) {
+  return splitPreviewPages(html).findIndex((page) => page.includes(marker))
 }
 
 const examPaperQuestions = [
@@ -231,7 +233,7 @@ test('single-column separated answer fragments keep deterministic part ids for l
 test('single-column exam-with-answers HTML renders all answers after the last question choice', async () => {
   const html = await buildPreviewHtml({
     title: 'Separated single',
-    description: undefined,
+    description: 'Answer section title',
     viewMode: 'exam-with-answers',
     columnLayout: 'single',
     questions: examPaperQuestions,
@@ -250,6 +252,11 @@ test('single-column exam-with-answers HTML renders all answers after the last qu
   assert.ok(
     answer1PageIndex > question2ChoicePageIndex,
     `expected single-column answer HTML to start on a new page, got question page ${question2ChoicePageIndex}, answer page ${answer1PageIndex}`
+  )
+  assert.match(
+    splitPreviewPages(html)[answer1PageIndex],
+    /<h1[^>]*class="[^"]*\bpage-heading\b[^"]*">Separated single<span class="[^"]*\btitle-description\b[^"]*"> - \(Answer section title\)<\/span><\/h1>/,
+    'expected the single-column answer start page to repeat the inline exam title and description'
   )
 })
 
@@ -279,6 +286,7 @@ test('two-column exam-with-answers chunks place all answers after all question c
 test('two-column exam-with-answers HTML starts answers on a new page', async () => {
   const html = await buildPreviewHtml({
     title: 'Separated double html',
+    description: 'Answer section title',
     viewMode: 'exam-with-answers',
     columnLayout: 'double',
     questions: examPaperQuestions,
@@ -288,6 +296,11 @@ test('two-column exam-with-answers HTML starts answers on a new page', async () 
 
   assert.ok(question2ChoicePageIndex >= 0, 'expected question 2 choice page')
   assert.ok(answer1PageIndex > question2ChoicePageIndex, `expected two-column answers on a new page, got question page ${question2ChoicePageIndex}, answer page ${answer1PageIndex}`)
+  assert.match(
+    splitPreviewPages(html)[answer1PageIndex],
+    /<h1[^>]*class="[^"]*\bpage-heading\b[^"]*">Separated double html<span class="[^"]*\btitle-description\b[^"]*"> - \(Answer section title\)<\/span><\/h1>/,
+    'expected the two-column answer start page to repeat the inline exam title and description'
+  )
 })
 
 async function buildMeasuredTwoColumnPreviewHtml(examPaper) {
@@ -298,6 +311,7 @@ async function buildMeasuredTwoColumnPreviewHtml(examPaper) {
   const twoColumnMeasuredPages = paginateMeasuredTwoColumnChunks(measured.chunks, {
     firstPageColumnHeightPx: measured.firstPageColumnHeightPx,
     otherPageColumnHeightPx: measured.otherPageColumnHeightPx,
+    answerStartPageColumnHeightPx: measured.firstPageColumnHeightPx,
     bottomGuardPx: 8,
     forceAnswerStartOnNewPage: examPaper.viewMode === 'exam-with-answers',
   })
@@ -419,5 +433,10 @@ test('measured two-column exam-with-answers final HTML renders answer section af
   assert.ok(
     firstAnswerPageIndex > lastQuestionPageIndex,
     `expected measured two-column answers to start on a new page: ${JSON.stringify(orderedKinds)}`
+  )
+  assert.match(
+    splitPreviewPages(html)[firstAnswerPageIndex],
+    /<h1[^>]*class="[^"]*\bpage-heading\b[^"]*">Measured separated double<\/h1>/,
+    'expected measured two-column answer start page to repeat the exam title'
   )
 })

@@ -457,12 +457,12 @@ export function measureSingleColumnPreviewPages({
       blocks: [],
     })
 
-    const startNextPage = () => {
+    const startNextPage = ({ includeHeader = false }: { includeHeader?: boolean } = {}) => {
       pageIndex += 1
       pageContext = createPageElement(document, {
         pageTitle,
         description,
-        includeHeader: false,
+        includeHeader,
         pageNumber: pageIndex + 1,
       })
       host.appendChild(pageContext.page)
@@ -624,12 +624,13 @@ export function measureSingleColumnPreviewPages({
     let hasStartedAnswerFragmentGroups = false
 
     questionGroups.forEach((group) => {
+      const isFirstSeparatedAnswerGroup = group.placementMode === 'answer-fragments' && !hasStartedAnswerFragmentGroups
+
       if (
-        group.placementMode === 'answer-fragments' &&
-        !hasStartedAnswerFragmentGroups &&
+        isFirstSeparatedAnswerGroup &&
         measuredPages[pageIndex].blocks.length > 0
       ) {
-        startNextPage()
+        startNextPage({ includeHeader: true })
       }
       if (group.placementMode === 'answer-fragments') {
         hasStartedAnswerFragmentGroups = true
