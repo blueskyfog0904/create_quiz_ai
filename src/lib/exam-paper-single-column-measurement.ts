@@ -100,6 +100,7 @@ function createPageElement(
   if (includeHeader) {
     const normalizedDescription = normalizeInlineDescription(description)
     const title = document.createElement('h1')
+    title.className = 'page-heading'
     title.textContent = pageTitle
     if (normalizedDescription) {
       const descriptionSpan = document.createElement('span')

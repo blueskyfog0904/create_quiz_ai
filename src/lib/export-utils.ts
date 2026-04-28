@@ -143,6 +143,28 @@ function escapeHtml(text: string): string {
     .replace(/'/g, '&#39;')
 }
 
+function normalizeInlineDescription(description: string | undefined) {
+  if (typeof description !== 'string') {
+    return ''
+  }
+
+  return description.replace(/\s+/g, ' ').trim()
+}
+
+function renderExamPaperHeadingHtml(examPaper: ExamPaper) {
+  const description = normalizeInlineDescription(examPaper.description)
+
+  return `<h1 class="page-heading">${escapeHtml(examPaper.title)}${description ? `<span class="title-description"> - (${escapeHtml(description)})</span>` : ''}</h1>`
+}
+
+function renderPageFooterHtml(pageIndex: number) {
+  return `
+        <div class="page-footer">
+          <span class="page-number">- ${pageIndex + 1} -</span>
+        </div>
+  `
+}
+
 function encodeHtmlDataAttribute(text: string) {
   return escapeHtml(encodeURIComponent(text))
 }
@@ -712,18 +734,18 @@ function renderTwoColumnMeasuredPagesHtml(
 ) {
   return pages.map((page, pageIndex) => `
     <section class="preview-page">
-      ${pageIndex === 0 ? `
-        <h1>${escapeHtml(examPaper.title)}</h1>
-        ${examPaper.description ? `<div class="description">${escapeHtml(examPaper.description)}</div>` : ''}
-      ` : ''}
-      <div class="two-column-layout">
-        <div class="two-column-column">
-          ${renderMeasuredColumnChunksHtml(page.columns[0])}
-        </div>
-        <div class="two-column-column">
-          ${renderMeasuredColumnChunksHtml(page.columns[1])}
+      ${pageIndex === 0 ? renderExamPaperHeadingHtml(examPaper) : ''}
+      <div class="page-body two-column-page-body">
+        <div class="two-column-layout">
+          <div class="two-column-column">
+            ${renderMeasuredColumnChunksHtml(page.columns[0])}
+          </div>
+          <div class="two-column-column">
+            ${renderMeasuredColumnChunksHtml(page.columns[1])}
+          </div>
         </div>
       </div>
+      ${renderPageFooterHtml(pageIndex)}
     </section>
   `).join('')
 }
@@ -843,18 +865,18 @@ function renderTwoColumnChunkPaginatedHtml(
 ) {
   return paginatedPages.map((page, pageIndex) => `
     <section class="preview-page">
-      ${pageIndex === 0 ? `
-        <h1>${escapeHtml(examPaper.title)}</h1>
-        ${examPaper.description ? `<div class="description">${escapeHtml(examPaper.description)}</div>` : ''}
-      ` : ''}
-      <div class="two-column-layout">
-        <div class="two-column-column">
-          ${page.left.map((chunk) => chunk.html).join('')}
-        </div>
-        <div class="two-column-column">
-          ${page.right.map((chunk) => chunk.html).join('')}
+      ${pageIndex === 0 ? renderExamPaperHeadingHtml(examPaper) : ''}
+      <div class="page-body two-column-page-body">
+        <div class="two-column-layout">
+          <div class="two-column-column">
+            ${page.left.map((chunk) => chunk.html).join('')}
+          </div>
+          <div class="two-column-column">
+            ${page.right.map((chunk) => chunk.html).join('')}
+          </div>
         </div>
       </div>
+      ${renderPageFooterHtml(pageIndex)}
     </section>
   `).join('')
 }
@@ -890,19 +912,47 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
           box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
           padding: 12mm 10mm;
           overflow: hidden;
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          --page-footer-height: 9mm;
         }
-        h1 {
+        .page-heading {
           text-align: center;
           font-size: 24px;
           margin-bottom: 10px;
           color: #111;
           font-weight: 700;
         }
-        .description {
-          text-align: center;
-          color: #666;
-          margin-bottom: 30px;
+        .title-description {
           font-size: 14px;
+          font-weight: 400;
+          color: #666;
+        }
+        .page-body {
+          flex: 1 1 auto;
+          min-height: 0;
+        }
+        .single-column-page-body {
+          display: flex;
+          flex-direction: column;
+        }
+        .single-column-page-body .questions-container {
+          flex: 1 1 auto;
+          min-height: 0;
+        }
+        .page-footer {
+          flex: 0 0 var(--page-footer-height);
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          padding-top: 2mm;
+          color: #666;
+          font-size: 11px;
+          line-height: 1;
+        }
+        .page-number {
+          letter-spacing: 0.04em;
         }
         .question {
           margin-bottom: 24px;
@@ -1017,8 +1067,21 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
         .two-column-layout {
           display: grid;
           grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-          gap: 16px;
+          gap: 32px;
           align-items: start;
+          height: 100%;
+          position: relative;
+        }
+        .two-column-layout::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          left: 50%;
+          width: 1px;
+          background: #e5e7eb;
+          transform: translateX(-0.5px);
+          pointer-events: none;
         }
         .two-column-column {
           min-width: 0;
@@ -1026,8 +1089,7 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
           flex-direction: column;
         }
         .two-column-column + .two-column-column {
-          border-left: 1px solid #e5e7eb;
-          padding-left: 16px;
+          padding-left: 0;
         }
         .question-chunk {
           margin-bottom: 10px;
@@ -1093,6 +1155,9 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
             margin: 0;
             box-shadow: none;
             overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
             break-after: page;
             page-break-after: always;
           }
@@ -1107,9 +1172,6 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
               column-rule: 1px solid #e5e7eb;
               column-fill: auto;
             ` : ''}
-          }
-          .two-column-column + .two-column-column {
-            border-left: 1px solid #e5e7eb;
           }
         }
   `
@@ -1135,20 +1197,25 @@ export function buildExamPaperTwoColumnMeasurementHtml(examPaper: ExamPaper) {
     <body>
       <div class="preview-shell measurement-shell">
         <section class="preview-page measurement-first-page">
-          <h1>${escapeHtml(examPaper.title)}</h1>
-          ${examPaper.description ? `<div class="description">${escapeHtml(examPaper.description)}</div>` : ''}
-          <div class="two-column-layout measurement-layout">
-            <div class="two-column-column measurement-column" data-measurement-column="first">
-              ${chunks.map((chunk) => chunk.html).join('')}
+          ${renderExamPaperHeadingHtml(examPaper)}
+          <div class="page-body two-column-page-body measurement-page-body">
+            <div class="two-column-layout measurement-layout">
+              <div class="two-column-column measurement-column" data-measurement-column="first">
+                ${chunks.map((chunk) => chunk.html).join('')}
+              </div>
+              <div class="two-column-column measurement-column"></div>
             </div>
-            <div class="two-column-column measurement-column"></div>
           </div>
+          ${renderPageFooterHtml(0)}
         </section>
         <section class="preview-page measurement-other-page">
-          <div class="two-column-layout measurement-layout">
-            <div class="two-column-column measurement-column" data-measurement-column="other"></div>
-            <div class="two-column-column measurement-column"></div>
+          <div class="page-body two-column-page-body measurement-page-body">
+            <div class="two-column-layout measurement-layout">
+              <div class="two-column-column measurement-column" data-measurement-column="other"></div>
+              <div class="two-column-column measurement-column"></div>
+            </div>
           </div>
+          ${renderPageFooterHtml(1)}
         </section>
       </div>
     </body>
@@ -1203,18 +1270,18 @@ export function buildExamPaperPrintHtml(
           : renderTwoColumnChunkPaginatedHtml(examPaper, twoColumnChunkPages ?? [])
         : (singleColumnPages ?? []).map((page, pageIndex) => `
         <section class="preview-page">
-          ${pageIndex === 0 ? `
-            <h1>${escapeHtml(examPaper.title)}</h1>
-            ${examPaper.description ? `<div class="description">${escapeHtml(examPaper.description)}</div>` : ''}
-          ` : ''}
-          <div class="questions-container">
+          ${pageIndex === 0 ? renderExamPaperHeadingHtml(examPaper) : ''}
+          <div class="page-body single-column-page-body">
+            <div class="questions-container">
       ${page.blocks.map((block, blockIndex) => `
         ${renderSingleColumnBlockHtml(block, {
           showQuestions,
           isFirstBlockOnPage: blockIndex === 0,
         })}
       `).join('')}
+            </div>
           </div>
+          ${renderPageFooterHtml(pageIndex)}
         </section>
       `).join('')}
       </div>

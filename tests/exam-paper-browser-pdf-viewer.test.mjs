@@ -215,6 +215,179 @@ test('print template builder uses dedicated single-column groups and shared two-
   assert.match(exportUtilsSource, /column-count:\s*2/)
 })
 
+test('PDF preview renders inline title descriptions and page footers', async () => {
+  const {
+    moduleUrl: layoutContractModuleUrl,
+  } = await loadRuntimeLayoutContractModule()
+  const singleColumnLayoutModuleUrl = await loadRuntimeSingleColumnLayoutModule()
+  const exportUtilsModule = await loadRuntimeExportUtilsModule(
+    layoutContractModuleUrl,
+    singleColumnLayoutModuleUrl
+  )
+
+  const html = exportUtilsModule.buildExamPaperPrintHtml({
+    ...regressionExamPaper,
+    title: '테스트',
+    description: '  설명\n문구  ',
+    viewMode: 'exam-only',
+    columnLayout: 'double',
+  })
+
+  assert.match(
+    html,
+    /<h1[^>]*class="[^"]*\bpage-heading\b[^"]*">테스트<span class="[^"]*\btitle-description\b[^"]*"> - \(설명 문구\)<\/span><\/h1>/,
+    'expected the exam description to render inline next to the visible title'
+  )
+  assert.doesNotMatch(
+    html,
+    /<div class="description">/,
+    'expected the old separate description line to be removed from PDF pages'
+  )
+  const pageCount = html.match(/<section[^>]*class="[^"]*\bpreview-page\b[^"]*"/g)?.length ?? 0
+  const footerNumbers = Array.from(
+    html.matchAll(/<div class="[^"]*\bpage-footer\b[^"]*">\s*<span class="[^"]*\bpage-number\b[^"]*">- (\d+) -<\/span>\s*<\/div>/g),
+    (match) => Number(match[1])
+  )
+
+  assert.ok(pageCount > 0, 'expected preview HTML to contain at least one page')
+  assert.deepEqual(
+    footerNumbers,
+    Array.from({ length: pageCount }, (_, index) => index + 1),
+    'expected every PDF preview page to render a sequential in-page footer number'
+  )
+
+  const blankDescriptionHtml = exportUtilsModule.buildExamPaperPrintHtml({
+    ...regressionExamPaper,
+    title: '테스트',
+    description: '   \n  ',
+    viewMode: 'exam-only',
+    columnLayout: 'double',
+  })
+
+  assert.doesNotMatch(
+    blankDescriptionHtml,
+    /<h1[^>]*class="[^"]*\bpage-heading\b[^"]*">테스트<span class="[^"]*\btitle-description\b[^"]*"| - \(\)<\/span>/,
+    'expected blank descriptions not to render an empty inline suffix'
+  )
+
+  const singleColumnHtml = exportUtilsModule.buildExamPaperPrintHtml({
+    ...regressionExamPaper,
+    title: '테스트',
+    description: '설명 문구',
+    viewMode: 'exam-only',
+    columnLayout: 'single',
+  })
+  const singleColumnPageCount = singleColumnHtml.match(/<section[^>]*class="[^"]*\bpreview-page\b[^"]*"/g)?.length ?? 0
+  const singleColumnFooterNumbers = Array.from(
+    singleColumnHtml.matchAll(/<div class="[^"]*\bpage-footer\b[^"]*">\s*<span class="[^"]*\bpage-number\b[^"]*">- (\d+) -<\/span>\s*<\/div>/g),
+    (match) => Number(match[1])
+  )
+
+  assert.match(
+    singleColumnHtml,
+    /<h1[^>]*class="[^"]*\bpage-heading\b[^"]*">테스트<span class="[^"]*\btitle-description\b[^"]*"> - \(설명 문구\)<\/span><\/h1>/,
+    'expected single-column PDF preview to use the same inline title description'
+  )
+  assert.deepEqual(
+    singleColumnFooterNumbers,
+    Array.from({ length: singleColumnPageCount }, (_, index) => index + 1),
+    'expected every single-column PDF preview page to render a sequential footer number'
+  )
+})
+
+test('two-column PDF preview divider is anchored to the fixed page body', () => {
+  assert.match(
+    exportUtilsSource,
+    /\.page-body\s*\{[\s\S]*?flex:\s*1 1 auto;[\s\S]*?min-height:\s*0;/,
+    'expected page body to reserve fixed space between the heading and page footer'
+  )
+  assert.match(
+    exportUtilsSource,
+    /\.two-column-layout::before\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?top:\s*0;[\s\S]*?bottom:\s*0;/,
+    'expected the two-column divider to span the fixed page body height'
+  )
+  assert.doesNotMatch(
+    exportUtilsSource,
+    /\.two-column-column \+ \.two-column-column\s*\{[\s\S]*?border-left:\s*1px solid #e5e7eb;/,
+    'expected the center divider not to depend on the right column content height'
+  )
+})
+
+test('two-column PDF preview divider fills page body above the page footer in Chromium', async () => {
+  const {
+    moduleUrl: layoutContractModuleUrl,
+  } = await loadRuntimeLayoutContractModule()
+  const singleColumnLayoutModuleUrl = await loadRuntimeSingleColumnLayoutModule()
+  const exportUtilsModule = await loadRuntimeExportUtilsModule(
+    layoutContractModuleUrl,
+    singleColumnLayoutModuleUrl
+  )
+  const html = exportUtilsModule.buildExamPaperPrintHtml({
+    ...regressionExamPaper,
+    title: '테스트',
+    description: '설명',
+    viewMode: 'exam-only',
+    columnLayout: 'double',
+  })
+  const { chromium } = await import('playwright')
+  const browser = await chromium.launch({ headless: true })
+
+  try {
+    const page = await browser.newPage()
+    await page.setContent(html, { waitUntil: 'domcontentloaded' })
+    await page.evaluate(() => document.fonts?.ready)
+
+    const geometry = await page.evaluate(() => {
+      const firstPreviewPage = document.querySelector('.preview-page')
+      const pageBody = firstPreviewPage?.querySelector('.page-body')
+      const layout = firstPreviewPage?.querySelector('.two-column-layout')
+      const footer = firstPreviewPage?.querySelector('.page-footer')
+
+      if (!firstPreviewPage || !pageBody || !layout || !footer) {
+        throw new Error('expected preview page body, two-column layout, and footer')
+      }
+
+      const bodyRect = pageBody.getBoundingClientRect()
+      const layoutRect = layout.getBoundingClientRect()
+      const footerRect = footer.getBoundingClientRect()
+      const dividerStyle = getComputedStyle(layout, '::before')
+
+      return {
+        bodyTop: bodyRect.top,
+        bodyBottom: bodyRect.bottom,
+        layoutTop: layoutRect.top,
+        layoutBottom: layoutRect.bottom,
+        layoutHeight: layoutRect.height,
+        footerTop: footerRect.top,
+        dividerTop: dividerStyle.top,
+        dividerBottom: dividerStyle.bottom,
+        dividerHeight: Number.parseFloat(dividerStyle.height || '0') || 0,
+      }
+    })
+
+    assert.ok(
+      Math.abs(geometry.layoutTop - geometry.bodyTop) <= 1,
+      `expected divider layout to start with page body, got layoutTop=${geometry.layoutTop}, bodyTop=${geometry.bodyTop}`
+    )
+    assert.ok(
+      Math.abs(geometry.layoutBottom - geometry.bodyBottom) <= 1,
+      `expected divider layout to fill page body height, got layoutBottom=${geometry.layoutBottom}, bodyBottom=${geometry.bodyBottom}`
+    )
+    assert.ok(
+      geometry.layoutBottom <= geometry.footerTop + 1,
+      `expected divider layout to stop before footer, got layoutBottom=${geometry.layoutBottom}, footerTop=${geometry.footerTop}`
+    )
+    assert.equal(geometry.dividerTop, '0px')
+    assert.equal(geometry.dividerBottom, '0px')
+    assert.ok(
+      Math.abs(geometry.dividerHeight - geometry.layoutHeight) <= 1,
+      `expected divider pseudo-element height to match layout height, got dividerHeight=${geometry.dividerHeight}, layoutHeight=${geometry.layoutHeight}`
+    )
+  } finally {
+    await browser.close()
+  }
+})
+
 async function getRuntimePreviewArtifacts(viewMode) {
   const {
     module: layoutContractModule,
