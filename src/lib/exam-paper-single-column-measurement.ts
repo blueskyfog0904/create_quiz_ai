@@ -8,6 +8,8 @@ import { buildSingleColumnPlacementSteps } from '@/lib/exam-paper-single-column-
 
 const SINGLE_COLUMN_BOTTOM_GUARD_PX = 8
 const SINGLE_COLUMN_PAGE_FIT_TOLERANCE_PX = 1
+const SINGLE_COLUMN_PAGE_FOOTER_HEIGHT = '9mm'
+const pageBodyByPage = new WeakMap<HTMLElement, HTMLElement>()
 
 interface MeasureSingleColumnPreviewPagesInput {
   description?: string | undefined
@@ -24,6 +26,14 @@ function escapeHtml(text: string) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
+}
+
+function normalizeInlineDescription(description: string | undefined) {
+  if (!description) {
+    return ''
+  }
+
+  return description.replace(/\s+/g, ' ').trim()
 }
 
 function renderInlineBracketUnderlineHtml(text: string | null | undefined) {
@@ -64,10 +74,12 @@ function createPageElement(
     pageTitle,
     description,
     includeHeader,
+    pageNumber,
   }: {
     pageTitle: string
     description?: string
     includeHeader: boolean
+    pageNumber: number
   }
 ) {
   const page = document.createElement('section')
@@ -81,31 +93,64 @@ function createPageElement(
   page.style.lineHeight = '1.6'
   page.style.color = '#333'
   page.style.background = '#fff'
+  page.style.position = 'relative'
+  page.style.display = 'flex'
+  page.style.flexDirection = 'column'
 
   if (includeHeader) {
+    const normalizedDescription = normalizeInlineDescription(description)
     const title = document.createElement('h1')
     title.textContent = pageTitle
+    if (normalizedDescription) {
+      const descriptionSpan = document.createElement('span')
+      descriptionSpan.className = 'title-description'
+      descriptionSpan.textContent = ` - (${normalizedDescription})`
+      descriptionSpan.style.fontSize = '14px'
+      descriptionSpan.style.fontWeight = '400'
+      descriptionSpan.style.color = '#666'
+      title.appendChild(descriptionSpan)
+    }
     title.style.textAlign = 'center'
     title.style.fontSize = '24px'
     title.style.margin = '0 0 10px 0'
     title.style.color = '#111'
     title.style.fontWeight = '700'
     page.appendChild(title)
-
-    if (description) {
-      const descriptionEl = document.createElement('div')
-      descriptionEl.textContent = description
-      descriptionEl.style.textAlign = 'center'
-      descriptionEl.style.color = '#666'
-      descriptionEl.style.margin = '0 0 30px 0'
-      descriptionEl.style.fontSize = '14px'
-      page.appendChild(descriptionEl)
-    }
   }
+
+  const pageBody = document.createElement('div')
+  pageBody.className = 'page-body single-column-page-body'
+  pageBody.style.flex = '1 1 auto'
+  pageBody.style.minHeight = '0'
+  pageBody.style.overflow = 'hidden'
+  pageBody.style.display = 'flex'
+  pageBody.style.flexDirection = 'column'
 
   const questionsContainer = document.createElement('div')
   questionsContainer.className = 'questions-container'
-  page.appendChild(questionsContainer)
+  questionsContainer.style.flex = '1 1 auto'
+  questionsContainer.style.minHeight = '0'
+  pageBody.appendChild(questionsContainer)
+  page.appendChild(pageBody)
+  pageBodyByPage.set(page, pageBody)
+
+  const pageFooter = document.createElement('div')
+  pageFooter.className = 'page-footer'
+  pageFooter.style.flex = `0 0 ${SINGLE_COLUMN_PAGE_FOOTER_HEIGHT}`
+  pageFooter.style.height = SINGLE_COLUMN_PAGE_FOOTER_HEIGHT
+  pageFooter.style.display = 'flex'
+  pageFooter.style.alignItems = 'flex-end'
+  pageFooter.style.justifyContent = 'center'
+  pageFooter.style.paddingTop = '2mm'
+  pageFooter.style.lineHeight = '1'
+  const pageNumberEl = document.createElement('span')
+  pageNumberEl.className = 'page-number'
+  pageNumberEl.textContent = `- ${pageNumber} -`
+  pageNumberEl.style.fontSize = '11px'
+  pageNumberEl.style.color = '#6b7280'
+  pageNumberEl.style.letterSpacing = '0.04em'
+  pageFooter.appendChild(pageNumberEl)
+  page.appendChild(pageFooter)
 
   return {
     page,
@@ -292,7 +337,33 @@ function buildAnswerFragmentClassName(block: SingleColumnBlock) {
 }
 
 function getPageOverflowPx(page: HTMLElement, guardPx = 0) {
-  return page.scrollHeight - (page.clientHeight - guardPx)
+  const viewport = pageBodyByPage.get(page) ?? page
+  const viewportClientHeight = viewport === page
+    ? page.clientHeight
+    : measurePageBodyClientHeight(page, viewport)
+
+  return viewport.scrollHeight - (viewportClientHeight - guardPx)
+}
+
+function measurePageBodyClientHeight(page: HTMLElement, pageBody: HTMLElement) {
+  const siblingHeight = Array.from(page.children).reduce((height, child) => {
+    if (child === pageBody) {
+      return height
+    }
+    const element = child as HTMLElement
+
+    return height + Math.max(
+      element.clientHeight,
+      element.scrollHeight
+    )
+  }, 0)
+  const pageDerivedHeight = Math.max(0, page.clientHeight - siblingHeight)
+
+  if (pageDerivedHeight <= 0) {
+    return pageBody.clientHeight
+  }
+
+  return Math.min(pageBody.clientHeight || pageDerivedHeight, pageDerivedHeight)
 }
 
 function pageHardFits(page: HTMLElement) {
@@ -376,6 +447,7 @@ export function measureSingleColumnPreviewPages({
       pageTitle,
       description,
       includeHeader: true,
+      pageNumber: pageIndex + 1,
     })
     host.appendChild(pageContext.page)
     measuredPages.push({
@@ -390,6 +462,7 @@ export function measureSingleColumnPreviewPages({
         pageTitle,
         description,
         includeHeader: false,
+        pageNumber: pageIndex + 1,
       })
       host.appendChild(pageContext.page)
       measuredPages.push({

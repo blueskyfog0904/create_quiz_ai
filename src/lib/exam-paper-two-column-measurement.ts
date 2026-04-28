@@ -425,8 +425,32 @@ function measureUsableColumnHeight(page: HTMLElement, column: HTMLElement) {
   const columnRect = column.getBoundingClientRect()
   const pageStyle = page.ownerDocument.defaultView?.getComputedStyle(page)
   const paddingBottom = Number.parseFloat(pageStyle?.paddingBottom ?? '0') || 0
+  const pageBody = column.closest<HTMLElement>('.page-body')
+  const layout = column.closest<HTMLElement>('.two-column-layout')
+  const pageUsableBottom = pageRect.bottom - paddingBottom
+  const boundaryBottom = pageBody
+    ? pageBody.getBoundingClientRect().bottom
+    : resolveStretchedLayoutBottom(layout, columnRect.top, pageUsableBottom) ?? pageUsableBottom
 
-  return Math.max(0, pageRect.bottom - paddingBottom - columnRect.top)
+  return Math.max(0, boundaryBottom - columnRect.top)
+}
+
+function resolveStretchedLayoutBottom(
+  layout: HTMLElement | null,
+  columnTop: number,
+  pageUsableBottom: number
+) {
+  if (!layout) {
+    return undefined
+  }
+
+  const layoutRect = layout.getBoundingClientRect()
+  const layoutBottomIsWithinPage = layoutRect.bottom <= pageUsableBottom + 1
+  const layoutHasUsableHeight = layoutRect.bottom > columnTop + 1
+
+  return layoutBottomIsWithinPage && layoutHasUsableHeight
+    ? layoutRect.bottom
+    : undefined
 }
 
 function measureOuterHeight(element: HTMLElement) {
