@@ -24,5 +24,7 @@ test('board preview client presents a compact board-style list without productio
   assert.match(source, /자료명/, 'preview should include a title/material column')
   assert.match(source, /HWP & PDF/, 'preview should use the updated bundle label')
   assert.match(source, /border-t-2 border-slate-950/, 'preview table should use a strong board-like top divider')
+  assert.match(source, /min-w-\[410px\]/, 'file column should be wide enough to keep purchase options on one line')
+  assert.match(source, /flex-nowrap/, 'file choices should not wrap into multiple rows')
   assert.doesNotMatch(source, /api\/market\/purchases\/batch/, 'preview should not call the production batch purchase API')
 })

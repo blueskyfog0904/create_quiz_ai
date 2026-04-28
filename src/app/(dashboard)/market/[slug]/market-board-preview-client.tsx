@@ -124,7 +124,7 @@ export default function MarketBoardPreviewClient({ categorySlug, rows }: MarketB
     return (
       <button
         type="button"
-        className={`inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs transition ${checked ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50'}`}
+        className={`inline-flex h-8 shrink-0 items-center gap-2 rounded-full border px-3 text-xs transition ${checked ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50'}`}
         aria-pressed={checked}
         aria-label={`${row.title} ${label} ${asset.price.toLocaleString()} 크레딧 선택`}
         onClick={() => toggleSelection(row.itemId, assetKind)}
@@ -165,12 +165,12 @@ export default function MarketBoardPreviewClient({ categorySlug, rows }: MarketB
 
       <div className="overflow-hidden rounded-xl border bg-white">
         <div className="overflow-x-auto">
-          <table className="min-w-[980px] w-full border-collapse text-sm">
+          <table className="min-w-[1080px] w-full border-collapse text-sm">
             <thead className="border-t-2 border-slate-950 bg-slate-50 text-slate-700">
               <tr className="border-b">
                 <th className="w-[74px] px-3 py-3 text-center text-sm font-bold">번호</th>
                 <th className="px-3 py-3 text-left text-sm font-bold">자료명</th>
-                <th className="w-[310px] px-3 py-3 text-center text-sm font-bold">파일</th>
+                <th className="min-w-[410px] px-3 py-3 text-center text-sm font-bold">파일</th>
                 <th className="w-[92px] px-3 py-3 text-center text-sm font-bold">조회</th>
                 <th className="w-[126px] px-3 py-3 text-center text-sm font-bold">날짜</th>
               </tr>
@@ -199,7 +199,7 @@ export default function MarketBoardPreviewClient({ categorySlug, rows }: MarketB
                       </div>
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex flex-wrap items-center justify-center gap-2">
+                      <div className="flex flex-nowrap items-center justify-center gap-2">
                         {renderAssetChoice(row, 'pdf')}
                         {renderAssetChoice(row, 'hwp')}
                       </div>
