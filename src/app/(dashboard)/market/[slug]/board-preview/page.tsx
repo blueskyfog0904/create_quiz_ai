@@ -53,7 +53,7 @@ export default async function MarketBoardPreviewPage({ params, searchParams }: M
   return (
     <div className="space-y-6">
       <MarketListboard category={category} rows={rows} filters={filters} options={options} isLoggedIn={Boolean(user)} resetHref={`/market/${category.slug}/board-preview`} variant="previewHeaderOnly" />
-      <MarketBoardPreviewClient categorySlug={category.slug} rows={rows} />
+      <MarketBoardPreviewClient categorySlug={category.slug} rows={rows} isLoggedIn={Boolean(user)} />
     </div>
   )
 }
