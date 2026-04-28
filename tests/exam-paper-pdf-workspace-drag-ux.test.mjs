@@ -46,6 +46,8 @@ test('drag over computes an insertion boundary without mutating question order',
 test('drag UI renders real insertion zones including the list end and hides no-op indicators', () => {
   assert.match(workspaceSource, /QuestionDropIndicator/)
   assert.match(workspaceSource, /여기에 놓기/)
+  assert.match(workspaceSource, /bg-violet-500/)
+  assert.match(workspaceSource, /text-white/)
   assert.match(workspaceSource, /isNoopQuestionInsertion\(draggingQuestionIndex, insertionIndex\)/)
   assert.match(workspaceSource, /dropInsertionIndex === questions\.length/)
   assert.match(workspaceSource, /data-drop-zone="question-order-end"/)

@@ -121,8 +121,8 @@ function toExamPaperQuestions(questions: WorkspaceQuestion[]): ExamPaperPdfQuest
 function QuestionDropIndicator() {
   return (
     <div className="pointer-events-none py-1" aria-hidden="true">
-      <div className="relative h-1 rounded-full bg-primary shadow-sm">
-        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground shadow-sm">
+      <div className="relative h-1 rounded-full bg-violet-500 shadow-sm shadow-violet-500/30">
+        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm shadow-violet-500/30">
           여기에 놓기
         </span>
       </div>
