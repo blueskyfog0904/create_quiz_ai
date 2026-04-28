@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFileSync } from 'node:fs'
 
 import {
   loadRuntimeExportUtils,
@@ -250,6 +251,72 @@ async function readMeasuredBodyFlowEndings(html) {
     ))
   })
 }
+
+function createSplitSupplementalDividerExamPaper() {
+  const forwardSentence = 'Read this supplemental instruction carefully because it is intentionally long enough to span multiple columns while staying within the same forward section.'
+  const passageSentence = 'The main passage follows after the instruction and should not affect the divider continuity of the supplemental instruction.'
+
+  return {
+    title: 'Supplemental divider regression',
+    description: undefined,
+    viewMode: 'exam-only',
+    columnLayout: 'double',
+    questions: [{
+      number: 1,
+      questionText: '다음 글을 읽고 물음에 답하시오.',
+      questionTextForward: Array.from({ length: 80 }, () => forwardSentence).join(' '),
+      passageText: Array.from({ length: 4 }, () => passageSentence).join(' '),
+      questionTextBackward: null,
+      choices: [
+        { label: '①', text: 'first option' },
+        { label: '②', text: 'second option' },
+      ],
+      answer: '①',
+      explanation: 'explanation',
+    }],
+  }
+}
+
+test('measured supplemental body dividers continue across column breaks without duplicated full separators', async () => {
+  const result = await runProductionMeasuredPathInBrowser(createSplitSupplementalDividerExamPaper())
+  const forwardSegments = result.html.match(/flow-body-segment-forward[^"]*/g) ?? []
+
+  assert.ok(
+    forwardSegments.length >= 2,
+    `expected long forward text to span multiple measured flow blocks, received ${JSON.stringify(forwardSegments)}`
+  )
+  assert.ok(
+    forwardSegments.some((className) => className.includes('flow-body-supplemental-continued-start')),
+    `expected the first split supplemental fragment to drop its bottom divider, received ${JSON.stringify(forwardSegments)}`
+  )
+  assert.ok(
+    forwardSegments.some((className) => className.includes('flow-body-supplemental-continued-end')),
+    `expected the last split supplemental fragment to drop its top divider, received ${JSON.stringify(forwardSegments)}`
+  )
+  assert.doesNotMatch(
+    result.html,
+    /flow-body-segment-forward flow-body-supplemental"[\s\S]*?flow-body-segment-forward flow-body-supplemental"/,
+    'expected split forward fragments not to render multiple standalone full top-and-bottom divider blocks'
+  )
+})
+
+test('measured supplemental body lines reserve height for rendered divider padding and borders', () => {
+  const measurementSource = readFileSync(
+    new URL('../src/lib/exam-paper-two-column-measurement.ts', import.meta.url),
+    'utf8'
+  )
+
+  assert.match(
+    measurementSource,
+    /calculateSupplementalInsetForLine/,
+    'expected measured two-column line chunks to add supplemental divider padding and border height when paginating'
+  )
+  assert.match(
+    measurementSource,
+    /measuredHeightPx:\s*lineHeightPx \+ supplementalInsetPx/,
+    'expected measured body line height to include supplemental inset before pagination guards are applied'
+  )
+})
 
 test('measured two-column pagination does not leave a weak body word alone at a column break', async () => {
   const result = await runProductionMeasuredPathInBrowser(createWeakBodyWordIsolationExamPaper())

@@ -124,6 +124,11 @@ export interface HtmlPaginationChunk {
   measuredHeightPx?: number
 }
 
+interface RenderableTwoColumnBodyPart extends TwoColumnBodyPart {
+  sourcePartStartOffset?: number
+  sourcePartEndOffset?: number
+}
+
 export interface TwoColumnMeasuredPagePlan {
   pageIndex: number
   columns: [HtmlPaginationChunk[], HtmlPaginationChunk[]]
@@ -372,17 +377,21 @@ function encodeBodyPartsDataAttribute(bodyParts: TwoColumnBodyPart[] | undefined
   return encodeHtmlDataAttribute(JSON.stringify(bodyParts))
 }
 
-function renderFlowBodyTextHtml(bodyText: string, bodyParts?: TwoColumnBodyPart[]) {
+function renderFlowBodyTextHtml(bodyText: string, bodyParts?: RenderableTwoColumnBodyPart[]) {
   if (!bodyParts || bodyParts.every((part) => part.sectionKey === 'passage')) {
     return renderInlineBracketUnderlineHtml(bodyText)
   }
 
-  const normalizedBodyParts = bodyParts.reduce<TwoColumnBodyPart[]>((parts, part) => {
+  const normalizedBodyParts = bodyParts.reduce<RenderableTwoColumnBodyPart[]>((parts, part) => {
     const previousPart = parts.at(-1)
 
-    if (previousPart?.sectionKey === part.sectionKey) {
+    if (
+      previousPart?.sectionKey === part.sectionKey &&
+      previousPart.sourcePartStartOffset === part.sourcePartStartOffset &&
+      previousPart.sourcePartEndOffset === part.sourcePartEndOffset
+    ) {
       previousPart.text += part.text
-      previousPart.endOffset += part.text.length
+      previousPart.endOffset = part.endOffset
       return parts
     }
 
@@ -391,9 +400,7 @@ function renderFlowBodyTextHtml(bodyText: string, bodyParts?: TwoColumnBodyPart[
   }, [])
 
   return normalizedBodyParts.map((part) => {
-    const supplementalClassName = part.sectionKey === 'forward' || part.sectionKey === 'backward'
-      ? ' flow-body-supplemental'
-      : ''
+    const supplementalClassName = buildSupplementalFlowClassName(part)
 
     return `
       <div class="flow-body-segment flow-body-segment-${part.sectionKey}${supplementalClassName}">
@@ -401,6 +408,31 @@ function renderFlowBodyTextHtml(bodyText: string, bodyParts?: TwoColumnBodyPart[
       </div>
     `
   }).join('')
+}
+
+function buildSupplementalFlowClassName(part: RenderableTwoColumnBodyPart) {
+  if (part.sectionKey !== 'forward' && part.sectionKey !== 'backward') {
+    return ''
+  }
+
+  const sourceStartOffset = part.sourcePartStartOffset ?? part.startOffset
+  const sourceEndOffset = part.sourcePartEndOffset ?? part.endOffset
+  const continuesFromPrevious = part.startOffset > sourceStartOffset
+  const continuesToNext = part.endOffset < sourceEndOffset
+
+  if (continuesFromPrevious && continuesToNext) {
+    return ' flow-body-supplemental flow-body-supplemental-continued-middle'
+  }
+
+  if (continuesFromPrevious) {
+    return ' flow-body-supplemental flow-body-supplemental-continued-end'
+  }
+
+  if (continuesToNext) {
+    return ' flow-body-supplemental flow-body-supplemental-continued-start'
+  }
+
+  return ' flow-body-supplemental'
 }
 
 function renderPlannedTwoColumnSectionHtml(
@@ -909,6 +941,20 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
           border-bottom: 1px solid #d1d5db;
           padding: 5px 0;
           color: #374151;
+        }
+        .flow-body-supplemental-continued-start {
+          border-bottom: 0;
+          padding-bottom: 0;
+        }
+        .flow-body-supplemental-continued-middle {
+          border-top: 0;
+          border-bottom: 0;
+          padding-top: 0;
+          padding-bottom: 0;
+        }
+        .flow-body-supplemental-continued-end {
+          border-top: 0;
+          padding-top: 0;
         }
         .flow-body-text.chunk-linked-start,
         .flow-body-text.chunk-linked-middle {

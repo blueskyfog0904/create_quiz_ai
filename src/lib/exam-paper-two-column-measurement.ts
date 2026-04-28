@@ -6,9 +6,14 @@ import {
 import { paginateMeasuredTwoColumnChunks } from '@/lib/exam-paper-pdf-pagination.js'
 import type { TwoColumnBodyPart } from '@/lib/exam-paper-layout-contract'
 
+interface MeasuredTwoColumnBodyPart extends TwoColumnBodyPart {
+  sourcePartStartOffset?: number
+  sourcePartEndOffset?: number
+}
+
 interface MeasuredTwoColumnChunk extends HtmlPaginationChunk {
   measuredHeightPx: number
-  bodyParts?: TwoColumnBodyPart[]
+  bodyParts?: MeasuredTwoColumnBodyPart[]
 }
 
 interface MeasurementResult {
@@ -165,19 +170,28 @@ function splitMeasuredBodyElementIntoLineChunks(
   const flowRect = flowElement.getBoundingClientRect()
   const trailingGapPx = Math.max(0, measureOuterHeight(element) - flowRect.height)
   const lineSlices = measureBodyLines(rawText, flowElement)
+  const supplementalInset = measureSupplementalInset(flowElement)
 
-  return lineSlices.map((lineSlice, index) => ({
-    ...baseChunk,
-    id: `${baseChunk.id}-line-${index + 1}`,
-    html: '',
-    bodyRawText: lineSlice.bodyRawText,
-    bodyStartOffset: lineSlice.bodyStartOffset,
-    bodyEndOffset: lineSlice.bodyEndOffset,
-    bodyLineIndex: index,
-    bodyLineCount: lineSlices.length,
-    bodyParts: sliceBodyParts(baseChunk.bodyParts, lineSlice.bodyStartOffset, lineSlice.bodyEndOffset),
-    measuredHeightPx: lineHeightPx + (index === lineSlices.length - 1 ? trailingGapPx : 0),
-  }))
+  return lineSlices.map((lineSlice, index) => {
+    const supplementalInsetPx = calculateSupplementalInsetForLine(
+      baseChunk.bodyParts,
+      lineSlice,
+      supplementalInset
+    )
+
+    return {
+      ...baseChunk,
+      id: `${baseChunk.id}-line-${index + 1}`,
+      html: '',
+      bodyRawText: lineSlice.bodyRawText,
+      bodyStartOffset: lineSlice.bodyStartOffset,
+      bodyEndOffset: lineSlice.bodyEndOffset,
+      bodyLineIndex: index,
+      bodyLineCount: lineSlices.length,
+      bodyParts: sliceBodyParts(baseChunk.bodyParts, lineSlice.bodyStartOffset, lineSlice.bodyEndOffset),
+      measuredHeightPx: lineHeightPx + supplementalInsetPx + (index === lineSlices.length - 1 ? trailingGapPx : 0),
+    }
+  })
 }
 
 function decodeBodyPartsDataAttribute(value: string | undefined) {
@@ -195,7 +209,7 @@ function decodeBodyPartsDataAttribute(value: string | undefined) {
 }
 
 function sliceBodyParts(
-  bodyParts: TwoColumnBodyPart[] | undefined,
+  bodyParts: MeasuredTwoColumnBodyPart[] | undefined,
   startOffset: number,
   endOffset: number
 ) {
@@ -214,12 +228,60 @@ function sliceBodyParts(
     return [{
       sectionKey: part.sectionKey,
       text: part.text.slice(start - part.startOffset, end - part.startOffset),
-      startOffset: start - startOffset,
-      endOffset: end - startOffset,
+      startOffset: start,
+      endOffset: end,
+      sourcePartStartOffset: part.sourcePartStartOffset ?? part.startOffset,
+      sourcePartEndOffset: part.sourcePartEndOffset ?? part.endOffset,
     }]
   })
 
   return slicedParts.length > 0 ? slicedParts : undefined
+}
+
+function measureSupplementalInset(flowElement: HTMLElement) {
+  const supplementalElement = flowElement.querySelector<HTMLElement>('.flow-body-supplemental')
+  const view = flowElement.ownerDocument.defaultView
+  const style = supplementalElement ? view?.getComputedStyle(supplementalElement) : undefined
+
+  return {
+    startPx: (
+      parseCssPixelValue(style?.paddingTop)
+      + parseCssPixelValue(style?.borderTopWidth)
+    ),
+    endPx: (
+      parseCssPixelValue(style?.paddingBottom)
+      + parseCssPixelValue(style?.borderBottomWidth)
+    ),
+  }
+}
+
+function calculateSupplementalInsetForLine(
+  bodyParts: MeasuredTwoColumnBodyPart[] | undefined,
+  lineSlice: MeasuredBodyLineChunkSlice,
+  supplementalInset: { startPx: number; endPx: number }
+) {
+  if (!bodyParts || bodyParts.length === 0) {
+    return 0
+  }
+
+  return bodyParts.reduce((heightPx, part) => {
+    if (!isSupplementalBodyPart(part)) {
+      return heightPx
+    }
+
+    const intersectsLine = part.startOffset < lineSlice.bodyEndOffset && part.endOffset > lineSlice.bodyStartOffset
+
+    if (!intersectsLine) {
+      return heightPx
+    }
+
+    const startsInLine = part.startOffset >= lineSlice.bodyStartOffset && part.startOffset < lineSlice.bodyEndOffset
+    const endsInLine = part.endOffset > lineSlice.bodyStartOffset && part.endOffset <= lineSlice.bodyEndOffset
+
+    return heightPx
+      + (startsInLine ? supplementalInset.startPx : 0)
+      + (endsInLine ? supplementalInset.endPx : 0)
+  }, 0)
 }
 
 function measureBodyLines(
@@ -374,6 +436,15 @@ function measureOuterHeight(element: HTMLElement) {
   const marginBottom = Number.parseFloat(style?.marginBottom ?? '0') || 0
 
   return rect.height + marginTop + marginBottom
+}
+
+function parseCssPixelValue(value: string | undefined) {
+  const parsed = Number.parseFloat(value ?? '0')
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function isSupplementalBodyPart(part: TwoColumnBodyPart) {
+  return part.sectionKey === 'forward' || part.sectionKey === 'backward'
 }
 
 function resolveLineHeightPx(element: HTMLElement) {
