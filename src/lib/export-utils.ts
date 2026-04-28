@@ -633,19 +633,12 @@ function buildTwoColumnPreviewPages(
 
 function renderTwoColumnMeasuredPagesHtml(
   examPaper: ExamPaper,
-  pages: TwoColumnMeasuredPagePlan[],
-  {
-    titleSuffix,
-    layoutSuffix,
-  }: {
-    titleSuffix: string
-    layoutSuffix: string
-  }
+  pages: TwoColumnMeasuredPagePlan[]
 ) {
   return pages.map((page, pageIndex) => `
     <section class="preview-page">
       ${pageIndex === 0 ? `
-        <h1>${escapeHtml(examPaper.title + titleSuffix + layoutSuffix)}</h1>
+        <h1>${escapeHtml(examPaper.title)}</h1>
         ${examPaper.description ? `<div class="description">${escapeHtml(examPaper.description)}</div>` : ''}
       ` : ''}
       <div class="two-column-layout">
@@ -771,19 +764,12 @@ function renderTwoColumnChunkPaginatedHtml(
   paginatedPages: Array<{
     left: HtmlPaginationChunk[]
     right: HtmlPaginationChunk[]
-  }>,
-  {
-    titleSuffix,
-    layoutSuffix,
-  }: {
-    titleSuffix: string
-    layoutSuffix: string
-  }
+  }>
 ) {
   return paginatedPages.map((page, pageIndex) => `
     <section class="preview-page">
       ${pageIndex === 0 ? `
-        <h1>${escapeHtml(examPaper.title + titleSuffix + layoutSuffix)}</h1>
+        <h1>${escapeHtml(examPaper.title)}</h1>
         ${examPaper.description ? `<div class="description">${escapeHtml(examPaper.description)}</div>` : ''}
       ` : ''}
       <div class="two-column-layout">
@@ -1048,7 +1034,7 @@ export function buildExamPaperTwoColumnMeasurementHtml(examPaper: ExamPaper) {
     <body>
       <div class="preview-shell measurement-shell">
         <section class="preview-page measurement-first-page">
-          <h1>${escapeHtml(examPaper.title + renderOptions.titleSuffix + renderOptions.layoutSuffix)}</h1>
+          <h1>${escapeHtml(examPaper.title)}</h1>
           ${examPaper.description ? `<div class="description">${escapeHtml(examPaper.description)}</div>` : ''}
           <div class="two-column-layout measurement-layout">
             <div class="two-column-column measurement-column" data-measurement-column="first">
@@ -1084,7 +1070,6 @@ export function buildExamPaperPrintHtml(
     showAnswers,
     isDoubleColumn,
     titleSuffix,
-    layoutSuffix,
   } = renderOptions
   const singleColumnPages = !isDoubleColumn
     ? singleColumnMeasuredPages ?? buildSingleColumnPreviewPages(examPaper, {
@@ -1113,18 +1098,12 @@ export function buildExamPaperPrintHtml(
       <div class="preview-shell">
       ${isDoubleColumn
         ? twoColumnMeasuredPages
-          ? renderTwoColumnMeasuredPagesHtml(examPaper, twoColumnMeasuredPages, {
-            titleSuffix,
-            layoutSuffix,
-          })
-          : renderTwoColumnChunkPaginatedHtml(examPaper, twoColumnChunkPages ?? [], {
-            titleSuffix,
-            layoutSuffix,
-          })
+          ? renderTwoColumnMeasuredPagesHtml(examPaper, twoColumnMeasuredPages)
+          : renderTwoColumnChunkPaginatedHtml(examPaper, twoColumnChunkPages ?? [])
         : (singleColumnPages ?? []).map((page, pageIndex) => `
         <section class="preview-page">
           ${pageIndex === 0 ? `
-            <h1>${escapeHtml(examPaper.title + titleSuffix + layoutSuffix)}</h1>
+            <h1>${escapeHtml(examPaper.title)}</h1>
             ${examPaper.description ? `<div class="description">${escapeHtml(examPaper.description)}</div>` : ''}
           ` : ''}
           <div class="questions-container">
