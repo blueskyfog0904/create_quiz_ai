@@ -63,7 +63,7 @@ export async function buildMeasuredTwoColumnPreviewPages({
     return paginateMeasuredTwoColumnChunks(measured.chunks, {
       firstPageColumnHeightPx: measured.firstPageColumnHeightPx,
       otherPageColumnHeightPx: measured.otherPageColumnHeightPx,
-      bottomGuardPx: 4,
+      bottomGuardPx: 2,
       forceAnswerStartOnNewPage: examPaper.viewMode === 'exam-with-answers',
     }) as TwoColumnMeasuredPagePlan[]
   } finally {

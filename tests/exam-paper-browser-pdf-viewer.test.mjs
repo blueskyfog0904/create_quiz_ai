@@ -318,23 +318,23 @@ test('two-column PDF preview divider is anchored to the fixed page body', () => 
   )
   assert.match(
     exportUtilsSource,
-    /padding:\s*10mm 10mm 8mm;/,
-    'expected PDF preview pages to use the tighter first-pass page padding'
+    /padding:\s*8mm 8mm 5mm;/,
+    'expected PDF preview pages to use the medium-tight page padding'
   )
   assert.match(
     exportUtilsSource,
-    /--page-footer-height:\s*6mm;/,
-    'expected page footer reserve to use the tighter first-pass height'
+    /--page-footer-height:\s*4\.5mm;/,
+    'expected page footer reserve to use the medium-tight height'
   )
   assert.match(
     exportUtilsSource,
-    /\.page-footer\s*\{[\s\S]*?padding-top:\s*1mm;/,
+    /\.page-footer\s*\{[\s\S]*?padding-top:\s*0\.5mm;/,
     'expected page footer top padding to stay compact'
   )
   assert.match(
     twoColumnMeasurementSource,
-    /bottomGuardPx:\s*4/,
-    'expected measured two-column pagination to use the tighter first-pass bottom guard'
+    /bottomGuardPx:\s*2/,
+    'expected measured two-column pagination to use the medium-tight bottom guard'
   )
 })
 
