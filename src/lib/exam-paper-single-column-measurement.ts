@@ -7,6 +7,7 @@ import type {
 import { buildSingleColumnPlacementSteps } from '@/lib/exam-paper-single-column-layout'
 
 const SINGLE_COLUMN_BOTTOM_GUARD_PX = 8
+const SINGLE_COLUMN_PAGE_FIT_TOLERANCE_PX = 1
 
 interface MeasureSingleColumnPreviewPagesInput {
   description?: string | undefined
@@ -290,8 +291,69 @@ function buildAnswerFragmentClassName(block: SingleColumnBlock) {
   return ' answer-fragment-middle'
 }
 
-function pageFits(page: HTMLElement) {
-  return page.scrollHeight <= page.clientHeight - SINGLE_COLUMN_BOTTOM_GUARD_PX + 1
+function getPageOverflowPx(page: HTMLElement, guardPx = 0) {
+  return page.scrollHeight - (page.clientHeight - guardPx)
+}
+
+function pageHardFits(page: HTMLElement) {
+  return getPageOverflowPx(page) <= SINGLE_COLUMN_PAGE_FIT_TOLERANCE_PX
+}
+
+function pageGuardFits(page: HTMLElement, guardPx = SINGLE_COLUMN_BOTTOM_GUARD_PX) {
+  return getPageOverflowPx(page, guardPx) <= SINGLE_COLUMN_PAGE_FIT_TOLERANCE_PX
+}
+
+function isGuardOnlyOverflow(page: HTMLElement) {
+  return !pageGuardFits(page) && pageHardFits(page)
+}
+
+function isAnswerBlock(
+  block: SingleColumnBlock
+): block is SingleColumnBlock & { payload: Extract<SingleColumnBlock['payload'], { type: 'answer' }> } {
+  return block.kind === 'answer' && block.payload.type === 'answer'
+}
+
+function splitTextIntoMeasuredTokens(text: string): string[] {
+  return Array.from(text.match(/\S+\s*/g) ?? [])
+}
+
+function createMeasuredAnswerSplitBlock(
+  block: SingleColumnBlock,
+  {
+    text,
+    splitIndex,
+    splitCount,
+  }: {
+    text: string
+    splitIndex: number
+    splitCount: number
+  }
+): SingleColumnBlock {
+  if (!isAnswerBlock(block)) {
+    return block
+  }
+
+  const originalFragmentIndex = block.payload.fragmentIndex ?? 0
+  const originalFragmentCount = block.payload.fragmentCount ?? 1
+  const adjustedFragmentCount = originalFragmentCount + splitCount - 1
+  const adjustedFragmentIndex = originalFragmentIndex + splitIndex
+  const isFirstSplit = splitIndex === 0
+
+  return {
+    ...block,
+    id: splitCount > 1
+      ? `${block.id}-split-${splitIndex + 1}`
+      : block.id,
+    payload: {
+      ...block.payload,
+      questionLabel: isFirstSplit ? block.payload.questionLabel : '',
+      answerText: isFirstSplit ? block.payload.answerText : '',
+      explanationText: text,
+      fragmentIndex: adjustedFragmentIndex,
+      fragmentCount: adjustedFragmentCount,
+      showAnswerLabel: isFirstSplit ? block.payload.showAnswerLabel : false,
+    },
+  }
 }
 
 export function measureSingleColumnPreviewPages({
@@ -365,18 +427,119 @@ export function measureSingleColumnPreviewPages({
 
       const appended = blocks.map((block) => appendBlock(block))
 
-      if (!pageFits(pageContext.page) && measuredPages[pageIndex].blocks.length > blocks.length) {
+      if (!pageGuardFits(pageContext.page) && measuredPages[pageIndex].blocks.length > blocks.length) {
         appended.forEach(() => removeLastBlocks(1))
         startNextPage()
         blocks.forEach((block) => appendBlock(block))
       }
     }
 
-    const placeChoiceRows = (blocks: SingleColumnBlock[]) => {
-      blocks.forEach((block) => {
+    const canAppendAnswerBlockToCurrentPage = (block: SingleColumnBlock) => {
+      appendBlock(block)
+      const fits = pageHardFits(pageContext.page)
+      removeLastBlocks(1)
+      return fits
+    }
+
+    const placeSplitAnswerFragmentBlock = (block: SingleColumnBlock) => {
+      if (!isAnswerBlock(block)) {
+        appendBlock(block)
+        return
+      }
+
+      const tokens = splitTextIntoMeasuredTokens(block.payload.explanationText)
+
+      if (tokens.length <= 1) {
+        appendBlock(block)
+        return
+      }
+
+      const chunks: string[] = []
+      let remainingTokens = tokens
+
+      while (remainingTokens.length > 0) {
+        let low = 1
+        let high = remainingTokens.length
+        let bestFitCount = 0
+
+        while (low <= high) {
+          const mid = Math.floor((low + high) / 2)
+          const candidateText = remainingTokens.slice(0, mid).join('').trim()
+          const candidateBlock = createMeasuredAnswerSplitBlock(block, {
+            text: candidateText,
+            splitIndex: chunks.length,
+            splitCount: chunks.length + 1,
+          })
+
+          if (canAppendAnswerBlockToCurrentPage(candidateBlock)) {
+            bestFitCount = mid
+            low = mid + 1
+          } else {
+            high = mid - 1
+          }
+        }
+
+        if (bestFitCount === 0) {
+          if (measuredPages[pageIndex].blocks.length > 0) {
+            startNextPage()
+            continue
+          }
+
+          bestFitCount = 1
+        }
+
+        chunks.push(remainingTokens.slice(0, bestFitCount).join('').trim())
+        remainingTokens = remainingTokens.slice(bestFitCount)
+      }
+
+      chunks.forEach((chunk, index) => {
+        if (index > 0) {
+          startNextPage()
+        }
+
+        appendBlock(createMeasuredAnswerSplitBlock(block, {
+          text: chunk,
+          splitIndex: index,
+          splitCount: chunks.length,
+        }))
+      })
+    }
+
+    const placeAnswerFragmentBlock = (block: SingleColumnBlock) => {
+      appendBlock(block)
+
+      if (pageGuardFits(pageContext.page) || isGuardOnlyOverflow(pageContext.page)) {
+        return
+      }
+
+      if (measuredPages[pageIndex].blocks.length > 1) {
+        removeLastBlocks(1)
+        startNextPage()
         appendBlock(block)
 
-        if (!pageFits(pageContext.page) && measuredPages[pageIndex].blocks.length > 1) {
+        if (pageGuardFits(pageContext.page) || isGuardOnlyOverflow(pageContext.page)) {
+          return
+        }
+
+        removeLastBlocks(1)
+        placeSplitAnswerFragmentBlock(block)
+        return
+      }
+
+      removeLastBlocks(1)
+      placeSplitAnswerFragmentBlock(block)
+    }
+
+    const placeChoiceRows = (blocks: SingleColumnBlock[]) => {
+      blocks.forEach((block) => {
+        if (isAnswerBlock(block)) {
+          placeAnswerFragmentBlock(block)
+          return
+        }
+
+        appendBlock(block)
+
+        if (!pageGuardFits(pageContext.page) && measuredPages[pageIndex].blocks.length > 1) {
           removeLastBlocks(1)
           startNextPage()
           appendBlock(block)

@@ -433,6 +433,29 @@ test('answer-only explanation line height stays compact in print preview and mea
   )
 })
 
+test('single-column answer measurement separates guarded overflow from hard overflow', () => {
+  assert.match(
+    singleColumnMeasurementSource,
+    /function pageHardFits\(page: HTMLElement\)/,
+    'expected measured pagination to keep a hard-fit check for clipping prevention'
+  )
+  assert.match(
+    singleColumnMeasurementSource,
+    /function pageGuardFits\(page: HTMLElement,\s*guardPx = SINGLE_COLUMN_BOTTOM_GUARD_PX\)/,
+    'expected measured pagination to keep the bottom guard policy separate from hard fitting'
+  )
+  assert.match(
+    singleColumnMeasurementSource,
+    /function isGuardOnlyOverflow\(page: HTMLElement\)/,
+    'expected answer-only pagination to identify guard-only overflow'
+  )
+  assert.match(
+    singleColumnMeasurementSource,
+    /const placeAnswerFragmentBlock = \(block: SingleColumnBlock\) =>/,
+    'expected answer fragments to use a dedicated placement policy'
+  )
+})
+
 test('answer-only two-column preview prepends the question number inside each answer chunk', async () => {
   const { previewHtml } = await getRuntimePreviewArtifacts('answer-only')
 

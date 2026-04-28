@@ -63,6 +63,61 @@ function createLongAnswerOnlyQuestion() {
   }
 }
 
+function createGuardOnlyAnswerGroups() {
+  return [{
+    questionNumber: 1,
+    promptBlocks: [],
+    choiceBlocks: [],
+    answerBlocks: [
+      {
+        id: 'question-1-answer-part-1',
+        questionNumber: 1,
+        kind: 'answer',
+        estimatedHeight: 1,
+        payload: {
+          type: 'answer',
+          questionLabel: '1번',
+          answerText: '①',
+          explanationText: 'First answer fragment that nearly fills the guarded first page.',
+          fragmentIndex: 0,
+          fragmentCount: 3,
+          showAnswerLabel: true,
+        },
+      },
+      {
+        id: 'question-1-answer-part-2',
+        questionNumber: 1,
+        kind: 'answer',
+        estimatedHeight: 1,
+        payload: {
+          type: 'answer',
+          questionLabel: '',
+          answerText: '',
+          explanationText: 'TINY_GUARD_ONLY continuation',
+          fragmentIndex: 1,
+          fragmentCount: 3,
+          showAnswerLabel: false,
+        },
+      },
+      {
+        id: 'question-1-answer-part-3',
+        questionNumber: 1,
+        kind: 'answer',
+        estimatedHeight: 1,
+        payload: {
+          type: 'answer',
+          questionLabel: '',
+          answerText: '',
+          explanationText: 'Final answer fragment.',
+          fragmentIndex: 2,
+          fragmentCount: 3,
+          showAnswerLabel: false,
+        },
+      },
+    ],
+  }]
+}
+
 function parseSpacing(value) {
   if (!value) {
     return 0
@@ -184,6 +239,10 @@ class FakeElement {
     }
 
     if (this.className.includes('answer-text-explanation')) {
+      if (this.innerHTML.includes('TINY_GUARD_ONLY')) {
+        return 1
+      }
+
       return 120
     }
 
@@ -223,9 +282,52 @@ test('single-column answer measurement mirrors print answer spacing and keeps a 
   )
   assert.match(
     singleColumnMeasurementSource,
-    /page\.scrollHeight\s*<=\s*page\.clientHeight\s*-\s*SINGLE_COLUMN_BOTTOM_GUARD_PX\s*\+\s*1/,
-    'expected page fitting to subtract the guard from usable height'
+    /function pageHardFits\(page: HTMLElement\)/,
+    'expected measurement to distinguish hard page fitting from guarded fitting'
   )
+  assert.match(
+    singleColumnMeasurementSource,
+    /function pageGuardFits\(page: HTMLElement,\s*guardPx = SINGLE_COLUMN_BOTTOM_GUARD_PX\)/,
+    'expected guarded page fitting to retain the bottom guard policy'
+  )
+  assert.match(
+    singleColumnMeasurementSource,
+    /function isGuardOnlyOverflow\(page: HTMLElement\)/,
+    'expected answer fragment pagination to detect guard-only overflow separately'
+  )
+})
+
+test('measured answer-only pagination keeps guard-only continuation fragments on the current page', async () => {
+  const {
+    measureSingleColumnPreviewPages,
+  } = await loadRuntimeModules()
+
+  const fakeDocument = new FakeDocument()
+  const originalDocument = globalThis.document
+
+  Object.assign(globalThis, { document: fakeDocument })
+
+  try {
+    const pages = measureSingleColumnPreviewPages({
+      pageTitle: '테스트 - 답안',
+      description: undefined,
+      questionGroups: createGuardOnlyAnswerGroups(),
+      showQuestions: false,
+      groupAnswerOnlyQuestion: true,
+    })
+
+    assert.deepEqual(
+      pages[0].blockIds,
+      ['question-1-answer-part-1', 'question-1-answer-part-2'],
+      'expected a hard-fitting answer continuation to stay on the current page instead of leaving a large guarded underfill'
+    )
+  } finally {
+    if (typeof originalDocument === 'undefined') {
+      delete globalThis.document
+    } else {
+      Object.assign(globalThis, { document: originalDocument })
+    }
+  }
 })
 
 test('measured answer-only pagination lets long answer fragments continue across pages', async () => {
