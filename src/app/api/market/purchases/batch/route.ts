@@ -10,6 +10,9 @@ import {
 import {
   buildMarketPurchaseInsert,
   ensureMarketItemIsPurchasable,
+  getMarketPaidAssetLabel,
+  isMarketAssetCoveredByPurchaseKind,
+  normalizeMarketBundleSelections,
   type MarketPaidAssetKind,
 } from '@/lib/market-purchase'
 
@@ -66,9 +69,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const dedupedSelections = Array.from(
-      new Map(parsed.data.selections.map((selection) => [`${selection.itemId}:${selection.assetKind}`, selection])).values()
-    )
+    const dedupedSelections = normalizeMarketBundleSelections(parsed.data.selections)
 
     const purchaseTargets: Array<{
       itemId: string
@@ -79,11 +80,17 @@ export async function POST(request: NextRequest) {
     }> = []
 
     for (const selection of dedupedSelections) {
-      const existingPurchase = await findCompletedMarketPurchase(
-        user.id,
-        selection.itemId,
-        selection.assetKind
+      const purchaseKindsToCheck: MarketPaidAssetKind[] = selection.assetKind === 'pdf' ? ['pdf', 'hwp'] : ['hwp']
+      const existingPurchases = await Promise.all(
+        purchaseKindsToCheck.map((purchaseKind) => findCompletedMarketPurchase(
+          user.id,
+          selection.itemId,
+          purchaseKind
+        ))
       )
+      const existingPurchase = existingPurchases.find((purchase) => (
+        purchase && isMarketAssetCoveredByPurchaseKind(selection.assetKind, purchase.asset_kind as MarketPaidAssetKind)
+      ))
       if (existingPurchase) {
         return NextResponse.json({
           success: false,
@@ -145,7 +152,7 @@ export async function POST(request: NextRequest) {
       success: true,
       data: purchases,
       ...buildCreditBalanceResponseFields(snapshot),
-      message: `선택한 파일 ${purchaseTargets.length}건 구매가 완료되었습니다.`,
+      message: `선택한 파일 ${purchaseTargets.map((target) => getMarketPaidAssetLabel(target.assetKind)).join(', ')} 구매가 완료되었습니다.`,
     })
   } catch (error) {
     if (deductionResult) {

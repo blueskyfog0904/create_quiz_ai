@@ -33,6 +33,10 @@ function getSelectionKey(itemId: string, assetKind: AssetKind) {
   return `${itemId}:${assetKind}`
 }
 
+function getAssetLabel(assetKind: AssetKind) {
+  return assetKind === 'pdf' ? 'PDF' : 'PDF & HWP'
+}
+
 function formatExamMeta(row: MarketListboardRow) {
   return [
     row.examYear ? `${row.examYear}년` : null,
@@ -108,13 +112,15 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
     const selections: Array<{ itemId: string; assetKind: AssetKind }> = []
 
     for (const row of rows) {
-      if (selectedSet.has(getSelectionKey(row.itemId, 'pdf')) && row.pdf.available && !row.pdf.owned) {
+      const hwpSelected = selectedSet.has(getSelectionKey(row.itemId, 'hwp')) && row.hwp.available && !row.hwp.owned
+
+      if (!hwpSelected && selectedSet.has(getSelectionKey(row.itemId, 'pdf')) && row.pdf.available && !row.pdf.owned) {
         pdfCount += 1
         totalCredits += row.pdf.price
         selections.push({ itemId: row.itemId, assetKind: 'pdf' })
       }
 
-      if (selectedSet.has(getSelectionKey(row.itemId, 'hwp')) && row.hwp.available && !row.hwp.owned) {
+      if (hwpSelected) {
         hwpCount += 1
         totalCredits += row.hwp.price
         selections.push({ itemId: row.itemId, assetKind: 'hwp' })
@@ -151,9 +157,12 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
 
   const toggleSelection = (itemId: string, assetKind: AssetKind, checked: boolean) => {
     const key = getSelectionKey(itemId, assetKind)
-    setSelectedKeys((current) => checked
-      ? Array.from(new Set([...current, key]))
-      : current.filter((value) => value !== key))
+    const counterpartKey = getSelectionKey(itemId, assetKind === 'pdf' ? 'hwp' : 'pdf')
+    setSelectedKeys((current) => {
+      const withoutCurrent = current.filter((value) => value !== key)
+      const withoutCounterpart = checked ? withoutCurrent.filter((value) => value !== counterpartKey) : withoutCurrent
+      return checked ? Array.from(new Set([...withoutCounterpart, key])) : withoutCounterpart
+    })
   }
 
   const handlePurchaseClick = async () => {
@@ -214,7 +223,7 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
     const selected = selectedKeys.includes(key) && asset.available && !asset.owned
     const disabled = asset.owned || !asset.available || isPending || isCheckingBalance
     const stateLabel = getAssetStateLabel(asset, selected)
-    const formatLabel = assetKind.toUpperCase()
+    const formatLabel = getAssetLabel(assetKind)
 
     if (asset.owned) {
       return (
@@ -271,7 +280,7 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
           <Sparkles className="mr-1 h-3 w-3" />샘플 제공
         </Badge>
       ) : null}
-      <Badge variant="outline" className="rounded-full">PDF/HWP</Badge>
+      <Badge variant="outline" className="rounded-full">PDF · PDF & HWP</Badge>
     </div>
   )
 
@@ -411,7 +420,7 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1 text-sm text-gray-600">
                 <p className="font-semibold text-gray-900">선택 {selectionSummary.totalCount}건</p>
-                <p>PDF {selectionSummary.pdfCount}건 · HWP {selectionSummary.hwpCount}건</p>
+                <p>PDF {selectionSummary.pdfCount}건 · PDF & HWP {selectionSummary.hwpCount}건</p>
               </div>
               <div className="text-left sm:text-right">
                 <p className="text-xs text-gray-500">총 결제 금액</p>
@@ -443,7 +452,7 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
         currentBalance={currentBalance}
         isLoading={isPending || isCheckingBalance}
         title="선택 파일 결제 확인"
-        description={`PDF ${selectionSummary.pdfCount}건, HWP ${selectionSummary.hwpCount}건을 크레딧으로 구매합니다.`}
+        description={`PDF ${selectionSummary.pdfCount}건, PDF & HWP ${selectionSummary.hwpCount}건을 크레딧으로 구매합니다.`}
       />
     </>
   )

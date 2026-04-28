@@ -125,7 +125,7 @@ export default function MarketLibraryClient({
             <select value={assetFilter} onChange={(event) => setAssetFilter(event.target.value as AssetFilter)} className="flex h-10 w-full rounded-md border bg-white px-3 text-sm">
               <option value="all">전체</option>
               <option value="pdf">PDF 포함</option>
-              <option value="hwp">HWP 포함</option>
+              <option value="hwp">PDF & HWP 포함</option>
             </select>
           </div>
         </CardContent>
@@ -171,14 +171,14 @@ export default function MarketLibraryClient({
                         <TableCell>
                           <div className="flex flex-wrap gap-2">
                             <Badge variant={row.pdfOwned ? 'default' : 'outline'}>PDF {row.pdfOwned ? '보유' : '미보유'}</Badge>
-                            <Badge variant={row.hwpOwned ? 'default' : 'outline'}>HWP {row.hwpOwned ? '보유' : '미보유'}</Badge>
+                            <Badge variant={row.hwpOwned ? 'default' : 'outline'}>PDF & HWP {row.hwpOwned ? '보유' : '미보유'}</Badge>
                           </div>
                         </TableCell>
                         <TableCell>{formatDate(row.purchasedAt)}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-2">
                             {row.pdfOwned ? (row.pdfAvailable ? <Button asChild size="sm" variant="outline"><a href={row.pdfDownloadUrl || '#'}>PDF 다운로드</a></Button> : <Button size="sm" variant="outline" disabled>PDF 점검 중</Button>) : null}
-                            {row.hwpOwned ? (row.hwpAvailable ? <Button asChild size="sm" variant="outline"><a href={row.hwpDownloadUrl || '#'}>HWP 다운로드</a></Button> : <Button size="sm" variant="outline" disabled>HWP 점검 중</Button>) : null}
+                            {row.hwpOwned ? (row.hwpAvailable ? <Button asChild size="sm" variant="outline"><a href={row.hwpDownloadUrl || '#'}>HWP 다운로드</a></Button> : <Button size="sm" variant="outline" disabled>PDF & HWP 점검 중</Button>) : null}
                             {row.categorySlug ? <Button asChild size="sm"><WorkspaceLink href={`/market/${row.categorySlug}/items/${row.itemId}`} subject={workspaceSubject}>상세 보기</WorkspaceLink></Button> : null}
                           </div>
                         </TableCell>
@@ -203,12 +203,12 @@ export default function MarketLibraryClient({
 
                       <div className="flex flex-wrap gap-2">
                         <Badge variant={row.pdfOwned ? 'default' : 'outline'}>PDF {row.pdfOwned ? '보유' : '미보유'}</Badge>
-                        <Badge variant={row.hwpOwned ? 'default' : 'outline'}>HWP {row.hwpOwned ? '보유' : '미보유'}</Badge>
+                        <Badge variant={row.hwpOwned ? 'default' : 'outline'}>PDF & HWP {row.hwpOwned ? '보유' : '미보유'}</Badge>
                       </div>
 
                       <div className="grid gap-2">
                         {row.pdfOwned ? (row.pdfAvailable ? <Button asChild variant="outline"><a href={row.pdfDownloadUrl || '#'}>PDF 다운로드</a></Button> : <Button variant="outline" disabled>PDF 점검 중</Button>) : null}
-                        {row.hwpOwned ? (row.hwpAvailable ? <Button asChild variant="outline"><a href={row.hwpDownloadUrl || '#'}>HWP 다운로드</a></Button> : <Button variant="outline" disabled>HWP 점검 중</Button>) : null}
+                        {row.hwpOwned ? (row.hwpAvailable ? <Button asChild variant="outline"><a href={row.hwpDownloadUrl || '#'}>HWP 다운로드</a></Button> : <Button variant="outline" disabled>PDF & HWP 점검 중</Button>) : null}
                         {row.categorySlug ? <Button asChild><WorkspaceLink href={`/market/${row.categorySlug}/items/${row.itemId}`} subject={workspaceSubject}>상세 보기</WorkspaceLink></Button> : null}
                       </div>
                     </CardContent>

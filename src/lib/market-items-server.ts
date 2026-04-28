@@ -377,6 +377,7 @@ export async function listPublishedMarketListboardRows(
 
   return items.map((item, index) => {
     const filesForItem = fileMap.get(item.id) ?? { pdf: null, hwp: null, sample: null }
+    const pdfOwned = ownership.has(`${item.id}:pdf`) || ownership.has(`${item.id}:hwp`)
 
     return {
       itemId: item.id,
@@ -389,7 +390,7 @@ export async function listPublishedMarketListboardRows(
       rowNumber: items.length - index,
       pdf: {
         available: filesForItem.pdf !== null && item.pdf_price > 0,
-        owned: ownership.has(`${item.id}:pdf`),
+        owned: pdfOwned,
         price: item.pdf_price,
         fileName: filesForItem.pdf,
       },
@@ -1081,6 +1082,7 @@ export async function listMarketLibraryRowsForUser(
       const assetFiles = fileMap.get(itemId) ?? { pdf: null, hwp: null }
       const pdfPurchase = itemPurchases.find((purchase) => purchase.asset_kind === 'pdf') ?? null
       const hwpPurchase = itemPurchases.find((purchase) => purchase.asset_kind === 'hwp') ?? null
+      const effectivePdfPurchase = pdfPurchase ?? hwpPurchase
       const purchasedAt = itemPurchases
         .map((purchase) => purchase.purchased_at)
         .sort((a, b) => b.localeCompare(a))[0]
@@ -1100,13 +1102,13 @@ export async function listMarketLibraryRowsForUser(
         summary: item?.summary ?? null,
         purchasedAt,
         lastDownloadedAt,
-        pdfOwned: pdfPurchase !== null,
+        pdfOwned: effectivePdfPurchase !== null,
         hwpOwned: hwpPurchase !== null,
-        pdfPurchasedAt: pdfPurchase?.purchased_at ?? null,
+        pdfPurchasedAt: effectivePdfPurchase?.purchased_at ?? null,
         hwpPurchasedAt: hwpPurchase?.purchased_at ?? null,
-        pdfDownloadUrl: pdfPurchase ? `/api/market/items/${itemId}/download?assetKind=pdf` : null,
+        pdfDownloadUrl: effectivePdfPurchase ? `/api/market/items/${itemId}/download?assetKind=pdf` : null,
         hwpDownloadUrl: hwpPurchase ? `/api/market/items/${itemId}/download?assetKind=hwp` : null,
-        pdfAvailable: pdfPurchase !== null && assetFiles.pdf !== null,
+        pdfAvailable: effectivePdfPurchase !== null && assetFiles.pdf !== null,
         hwpAvailable: hwpPurchase !== null && assetFiles.hwp !== null,
         pdfFileName: assetFiles.pdf?.original_file_name ?? null,
         hwpFileName: assetFiles.hwp?.original_file_name ?? null,

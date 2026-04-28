@@ -33,6 +33,10 @@ function formatCredits(value: number) {
   return value.toLocaleString('ko-KR')
 }
 
+function getAssetLabel(assetKind: PurchaseAssetKind) {
+  return assetKind === 'pdf' ? 'PDF' : 'PDF & HWP'
+}
+
 function getPurchaseErrorMessage(status: number, fallback?: string) {
   if (status === 401) {
     return '로그인이 필요합니다. 로그인 후 다시 구매해주세요.'
@@ -234,7 +238,7 @@ export default function MarketItemActions({
           window.dispatchEvent(new CustomEvent('credit-balance-updated', { detail: { balance: payload.balance } }))
         }
 
-        toast.success(payload.message || `${pendingPurchaseKind.toUpperCase()} 구매가 완료되었습니다.`)
+        toast.success(payload.message || `${getAssetLabel(pendingPurchaseKind)} 구매가 완료되었습니다.`)
         router.refresh()
       } catch (error) {
         toast.error(error instanceof Error ? error.message : '구매 처리 중 오류가 발생했습니다.')
@@ -254,7 +258,7 @@ export default function MarketItemActions({
   const confirmationDescription = pendingPurchaseKind === 'pdf'
     ? 'PDF 파일을 크레딧으로 구매합니다.'
     : pendingPurchaseKind === 'hwp'
-      ? 'HWP 파일을 크레딧으로 구매합니다.'
+      ? 'PDF와 HWP 파일을 함께 크레딧으로 구매합니다.'
       : '문제마켓 자료를 크레딧으로 구매합니다.'
 
   const getPaidOptionState = (assetKind: PurchaseAssetKind, owned: boolean, available: boolean): OptionState => {
@@ -292,12 +296,12 @@ export default function MarketItemActions({
       />
 
       <FileOptionRow
-        title="HWP"
-        description={ownsHwp ? '구매 완료된 HWP 파일입니다.' : hasHwp ? '구매 후 바로 HWP를 다운로드할 수 있습니다.' : 'HWP 파일이 제공되지 않습니다.'}
+        title="PDF & HWP"
+        description={ownsHwp ? '구매 완료된 PDF & HWP 묶음입니다.' : hasHwp ? '구매 후 PDF와 HWP를 모두 다운로드할 수 있습니다.' : 'PDF & HWP 묶음이 제공되지 않습니다.'}
         priceLabel={hasHwp ? `${formatCredits(hwpPrice)} 크레딧` : '미제공'}
         state={getPaidOptionState('hwp', ownsHwp, hasHwp)}
         icon={ownsHwp ? <CheckCircle2 className="h-5 w-5" /> : <ShoppingCart className="h-5 w-5" />}
-        actionLabel={ownsHwp ? 'HWP 다운로드' : hasHwp ? 'HWP 구매하기' : 'HWP 없음'}
+        actionLabel={ownsHwp ? 'HWP 다운로드' : hasHwp ? 'PDF & HWP 구매하기' : 'PDF & HWP 없음'}
         href={ownsHwp ? buildDownloadUrl(itemId, 'hwp') : undefined}
         disabled={!hasHwp || isPending || isCheckingBalance}
         onAction={!ownsHwp && hasHwp ? () => void openPurchaseConfirmation('hwp') : undefined}

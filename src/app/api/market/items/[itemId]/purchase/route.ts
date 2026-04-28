@@ -11,6 +11,8 @@ import {
   buildMarketPurchaseInsert,
   deductCreditsForMarketPurchase,
   ensureMarketItemIsPurchasable,
+  getMarketPaidAssetLabel,
+  isMarketAssetCoveredByPurchaseKind,
   type MarketPaidAssetKind,
 } from '@/lib/market-purchase'
 
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         purchaseContext.price,
         purchaseContext.assetKind === 'pdf' ? 'market_purchase_pdf' : 'market_purchase_hwp',
         itemId,
-        `${purchaseContext.title} ${purchaseContext.assetKind.toUpperCase()} 구매 실패 환불`,
+        `${purchaseContext.title} ${getMarketPaidAssetLabel(purchaseContext.assetKind)} 구매 실패 환불`,
         deductionResult.consumptions,
         balanceBefore
       )
@@ -70,12 +72,18 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     }
 
     const { item, price } = await ensureMarketItemIsPurchasable(itemId, parsed.data.assetKind)
-    const existingPurchase = await findCompletedMarketPurchase(
-      user.id,
-      itemId,
-      parsed.data.assetKind,
-      item.workspace_subject
+    const purchaseKindsToCheck: MarketPaidAssetKind[] = parsed.data.assetKind === 'pdf' ? ['pdf', 'hwp'] : ['hwp']
+    const existingPurchases = await Promise.all(
+      purchaseKindsToCheck.map((purchaseKind) => findCompletedMarketPurchase(
+        user.id,
+        itemId,
+        purchaseKind,
+        item.workspace_subject
+      ))
     )
+    const existingPurchase = existingPurchases.find((purchase) => (
+      purchase && isMarketAssetCoveredByPurchaseKind(parsed.data.assetKind, purchase.asset_kind as MarketPaidAssetKind)
+    ))
     if (existingPurchase) {
       return NextResponse.json({
         success: false,
@@ -120,7 +128,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       success: true,
       data: purchase,
       ...buildCreditBalanceResponseFields(snapshot),
-      message: `${item.title} ${parsed.data.assetKind.toUpperCase()} 구매가 완료되었습니다.`,
+      message: `${item.title} ${getMarketPaidAssetLabel(parsed.data.assetKind)} 구매가 완료되었습니다.`,
     })
   } catch (error) {
     if (deductionResult) {

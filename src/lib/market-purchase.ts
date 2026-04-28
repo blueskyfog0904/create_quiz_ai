@@ -10,6 +10,34 @@ import {
 export type MarketPaidAssetKind = 'pdf' | 'hwp'
 export type MarketAssetKind = 'sample' | MarketPaidAssetKind
 
+export function getMarketPaidAssetLabel(assetKind: MarketPaidAssetKind) {
+  return assetKind === 'pdf' ? 'PDF' : 'PDF & HWP'
+}
+
+export function isMarketAssetCoveredByPurchaseKind(
+  downloadAssetKind: MarketPaidAssetKind,
+  purchasedAssetKind: MarketPaidAssetKind
+) {
+  return downloadAssetKind === purchasedAssetKind || (downloadAssetKind === 'pdf' && purchasedAssetKind === 'hwp')
+}
+
+export function normalizeMarketBundleSelections<T extends { itemId: string; assetKind: MarketPaidAssetKind }>(
+  selections: T[]
+) {
+  const hwpItemIds = new Set(selections.filter((selection) => selection.assetKind === 'hwp').map((selection) => selection.itemId))
+  const deduped = new Map<string, T>()
+
+  for (const selection of selections) {
+    if (selection.assetKind === 'pdf' && hwpItemIds.has(selection.itemId)) {
+      continue
+    }
+
+    deduped.set(`${selection.itemId}:${selection.assetKind}`, selection)
+  }
+
+  return Array.from(deduped.values())
+}
+
 export function buildMarketPurchaseResourceType(assetKind: MarketPaidAssetKind) {
   return assetKind === 'pdf' ? 'market_purchase_pdf' : 'market_purchase_hwp'
 }
@@ -50,7 +78,13 @@ export async function ensureUserDoesNotOwnMarketAsset(
   assetKind: MarketPaidAssetKind,
   workspaceSubject?: WorkspaceSubject
 ) {
-  const purchase = await findCompletedMarketPurchase(userId, itemId, assetKind, workspaceSubject)
+  const purchaseKindsToCheck: MarketPaidAssetKind[] = assetKind === 'pdf' ? ['pdf', 'hwp'] : ['hwp']
+  const purchases = await Promise.all(
+    purchaseKindsToCheck.map((purchaseKind) => findCompletedMarketPurchase(userId, itemId, purchaseKind, workspaceSubject))
+  )
+  const purchase = purchases.find((candidate) => (
+    candidate && isMarketAssetCoveredByPurchaseKind(assetKind, candidate.asset_kind as MarketPaidAssetKind)
+  ))
   if (purchase) {
     throw new Error('이미 구매한 파일입니다.')
   }
@@ -68,7 +102,7 @@ export async function deductCreditsForMarketPurchase(
     price,
     buildMarketPurchaseResourceType(assetKind),
     itemId,
-    `${itemTitle} ${assetKind.toUpperCase()} 구매`
+    `${itemTitle} ${getMarketPaidAssetLabel(assetKind)} 구매`
   )
 }
 

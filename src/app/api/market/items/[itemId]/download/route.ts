@@ -8,6 +8,7 @@ import {
   getPublishedMarketItemById,
   recordMarketDownloadEvent,
 } from '@/lib/market-items-server'
+import { isMarketAssetCoveredByPurchaseKind, type MarketPaidAssetKind } from '@/lib/market-purchase'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,7 +55,13 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
     let purchaseId: string | null = null
     if (assetKind !== 'sample') {
-      const purchase = await findCompletedMarketPurchase(user.id, itemId, assetKind, item.workspace_subject)
+      const purchaseCandidates: MarketPaidAssetKind[] = assetKind === 'pdf' ? ['pdf', 'hwp'] : ['hwp']
+      const purchases = await Promise.all(
+        purchaseCandidates.map((purchaseKind) => findCompletedMarketPurchase(user.id, itemId, purchaseKind, item.workspace_subject))
+      )
+      const purchase = purchases.find((candidate) => (
+        candidate && isMarketAssetCoveredByPurchaseKind(assetKind, candidate.asset_kind as MarketPaidAssetKind)
+      )) ?? null
       if (!purchase) {
         return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: '구매 후 다운로드할 수 있습니다.' } }, { status: 403 })
       }
