@@ -878,6 +878,9 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
           font-size: 13px;
           line-height: 1.8;
         }
+        .single-column-body + .single-column-choice-row {
+          margin-top: 8px;
+        }
         .single-column-answer {
           margin-bottom: 24px;
         }
@@ -1005,6 +1008,9 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
         }
         .question-choice-chunk {
           margin-bottom: 0;
+        }
+        .question-body-chunk + .question-choice-chunk {
+          margin-top: 8px;
         }
         .question-choice-chunk .choices {
           margin-bottom: 0;

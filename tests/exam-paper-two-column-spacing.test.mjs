@@ -174,6 +174,21 @@ test('two-column forward and backward body text render with subtle divider styli
   )
 })
 
+test('question choices start one visual line after the English body text', async () => {
+  const html = await buildPreviewHtml(createSpacingExamPaper())
+
+  assert.match(
+    html,
+    /\.question-body-chunk \+ \.question-choice-chunk\s*\{\s*margin-top:\s*8px;/,
+    'expected two-column choices to reserve a compact blank line after the body text'
+  )
+  assert.match(
+    html,
+    /\.single-column-body \+ \.single-column-choice-row\s*\{\s*margin-top:\s*8px;/,
+    'expected single-column choices to reserve the same compact blank line after the body text'
+  )
+})
+
 test('two-column choices and header chunks use single-column vertical rhythm', async () => {
   const html = await buildPreviewHtml(createSpacingExamPaper())
 
