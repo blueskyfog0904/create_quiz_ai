@@ -448,6 +448,22 @@ test('PDF save preview choice CSS keeps left indentation at zero and removes row
   )
 })
 
+test('single-column measurement typography stays aligned with print preview body and choice styles', () => {
+  const singleColumnMeasurementSource = readFileSync(
+    new URL('../src/lib/exam-paper-single-column-measurement.ts', import.meta.url),
+    'utf8'
+  )
+
+  assert.match(singleColumnMeasurementSource, /header\.style\.fontSize = '12px'/)
+  assert.match(singleColumnMeasurementSource, /header\.style\.marginBottom = '4px'/)
+  assert.match(singleColumnMeasurementSource, /header\.style\.lineHeight = '1\.6'/)
+  assert.match(singleColumnMeasurementSource, /bodyText\.style\.fontSize = '12px'/)
+  assert.match(singleColumnMeasurementSource, /bodyText\.style\.lineHeight = '1\.6'/)
+  assert.match(singleColumnMeasurementSource, /wrapper\.style\.fontSize = '12px'/)
+  assert.match(singleColumnMeasurementSource, /wrapper\.style\.lineHeight = '1\.6'/)
+  assert.match(singleColumnMeasurementSource, /label\.style\.fontWeight = '300'/)
+})
+
 test('library exam-paper export now opens the PDF workspace', () => {
   assert.match(libraryExportButtonsSource, /ExamPaperPdfWorkspace/)
   assert.match(libraryExportButtonsSource, /setIsPdfWorkspaceOpen\(true\)/)

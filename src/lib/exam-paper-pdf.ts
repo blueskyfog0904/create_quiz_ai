@@ -138,8 +138,8 @@ function buildChoiceRows(rows: ExamPaperPdfChoice[]) {
       node: {
         text: choiceText,
         margin: [0, 0, 0, 0],
-        fontSize: 13,
-        lineHeight: 1.8,
+        fontSize: 12,
+        lineHeight: 1.6,
       },
     }
   })
@@ -194,8 +194,8 @@ function buildFlowBodyPdfStack(bodyText: string, bodyParts?: TwoColumnBodyPart[]
   if (!bodyParts || bodyParts.every((part) => part.sectionKey === 'passage')) {
     return [{
       text: buildInlineSegments(bodyText),
-      fontSize: 13,
-      lineHeight: 1.8,
+      fontSize: 12,
+      lineHeight: 1.6,
       color: '#374151',
     }]
   }
@@ -205,8 +205,8 @@ function buildFlowBodyPdfStack(bodyText: string, bodyParts?: TwoColumnBodyPart[]
 
     return {
       text: buildInlineSegments(part.text),
-      fontSize: 13,
-      lineHeight: 1.8,
+      fontSize: 12,
+      lineHeight: 1.6,
       color: '#374151',
       margin: isSupplemental ? [0, 5, 0, 5] : [0, 0, 0, 0],
       ...(isSupplemental
@@ -231,7 +231,7 @@ function renderSectionPdfNode(
       id: `question-body-${sectionPlan.questionNumber}-header`,
       text: `${sectionPlan.questionNumber}. ${headerText}`,
       style: 'questionText',
-      margin: [0, 0, 0, 12],
+      margin: [0, 0, 0, 4],
     }
   }
 
@@ -381,8 +381,8 @@ function renderSingleColumnBlockNode(block: SingleColumnBlock): Record<string, u
     return {
       stack: [{
         text: buildInlineSegments(block.payload.text),
-        fontSize: 13,
-        lineHeight: 1.8,
+        fontSize: 12,
+        lineHeight: 1.6,
         color: '#374151',
         ...(isSupplemental
           ? {
@@ -392,7 +392,7 @@ function renderSingleColumnBlockNode(block: SingleColumnBlock): Record<string, u
           }
           : {}),
       }],
-      margin: [0, 0, 0, 10],
+      margin: [0, 0, 0, 12],
     }
   }
 
@@ -400,8 +400,8 @@ function renderSingleColumnBlockNode(block: SingleColumnBlock): Record<string, u
     return {
       text: `${block.payload.label} ${block.payload.text}`,
       margin: [0, 0, 0, 0],
-      fontSize: 13,
-      lineHeight: 1.8,
+      fontSize: 12,
+      lineHeight: 1.6,
     }
   }
 
@@ -519,14 +519,14 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
           margin: [0, 0, 0, 30],
         },
         questionText: {
-          fontSize: 14,
-          bold: true,
-          margin: [0, 0, 0, 12],
+          fontSize: 12,
+          bold: false,
+          margin: [0, 0, 0, 4],
         },
         boxedText: {
-          fontSize: 13,
-          lineHeight: 1.8,
-          margin: [0, 0, 0, 10],
+          fontSize: 12,
+          lineHeight: 1.6,
+          margin: [0, 0, 0, 12],
         },
         answer: {
           fontSize: 10,
@@ -590,14 +590,14 @@ function buildPdfDocumentDefinition(examPaper: ExamPaperPdfDocument) {
         margin: [0, 0, 0, 30],
       },
       questionText: {
-        fontSize: 14,
-        bold: true,
-        margin: [0, 0, 0, 12],
+        fontSize: 12,
+        bold: false,
+        margin: [0, 0, 0, 4],
       },
       boxedText: {
-        fontSize: 13,
-        lineHeight: 1.8,
-        margin: [0, 0, 0, 10],
+        fontSize: 12,
+        lineHeight: 1.6,
+        margin: [0, 0, 0, 12],
       },
       answer: {
         fontSize: 10,

@@ -144,10 +144,10 @@ function createBlockElement(
 
     if (showQuestions) {
       header.style.fontWeight = 'normal'
-      header.style.fontSize = '14px'
-      header.style.marginBottom = '12px'
+      header.style.fontSize = '12px'
+      header.style.marginBottom = '4px'
       header.style.color = '#111'
-      header.style.lineHeight = '1.8'
+      header.style.lineHeight = '1.6'
     } else {
       header.style.fontWeight = '700'
       header.style.fontSize = '16px'
@@ -169,8 +169,8 @@ function createBlockElement(
       isSupplemental ? 'flow-body-supplemental' : '',
     ].filter(Boolean).join(' ')
     bodyText.style.marginBottom = '12px'
-    bodyText.style.fontSize = '13px'
-    bodyText.style.lineHeight = '1.8'
+    bodyText.style.fontSize = '12px'
+    bodyText.style.lineHeight = '1.6'
     bodyText.style.color = '#374151'
     if (isSupplemental) {
       bodyText.style.borderTop = '1px solid #d1d5db'
@@ -186,13 +186,13 @@ function createBlockElement(
     wrapper.className += ' choice'
     wrapper.style.marginLeft = '0'
     wrapper.style.marginBottom = '0'
-    wrapper.style.fontSize = '13px'
-    wrapper.style.lineHeight = '1.8'
+    wrapper.style.fontSize = '12px'
+    wrapper.style.lineHeight = '1.6'
 
     const label = document.createElement('span')
     label.className = 'choice-label'
     label.textContent = block.payload.label
-    label.style.fontWeight = '600'
+    label.style.fontWeight = '300'
     label.style.marginRight = '5px'
     wrapper.appendChild(label)
     wrapper.append(block.payload.text)

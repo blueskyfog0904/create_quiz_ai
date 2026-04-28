@@ -857,22 +857,22 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
         }
         .question-text {
           font-weight: normal;
-          font-size: 14px;
-          margin-bottom: 12px;
+          font-size: 12px;
+          margin-bottom: 4px;
           color: #111;
-          line-height: 1.8;
+          line-height: 1.6;
         }
         .choices {
           margin-left: 0;
-          margin-bottom: 15px;
+          margin-bottom: 9px;
         }
         .choice {
           margin-bottom: 0;
-          font-size: 13px;
-          line-height: 1.8;
+          font-size: 12px;
+          line-height: 1.6;
         }
         .choice-label {
-          font-weight: 600;
+          font-weight: 300;
           margin-right: 5px;
         }
         .answer-text-block {
@@ -894,8 +894,8 @@ function buildExamPaperPrintStyles({ isDoubleColumn }: ExamPaperRenderOptions) {
         }
         .flow-body-text {
           margin-bottom: 12px;
-          font-size: 13px;
-          line-height: 1.8;
+          font-size: 12px;
+          line-height: 1.6;
           color: #374151;
         }
         .flow-body-segment {

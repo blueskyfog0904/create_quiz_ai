@@ -332,8 +332,8 @@ test('saved PDF runtime splits choice rows into separate planner fragments with 
 
   choiceNode.stack.forEach((row) => {
     assert.deepEqual(row.margin, [0, 0, 0, 0])
-    assert.equal(row.fontSize, 13)
-    assert.equal(row.lineHeight, 1.8)
+    assert.equal(row.fontSize, 12)
+    assert.equal(row.lineHeight, 1.6)
   })
 })
 
@@ -407,8 +407,8 @@ test('saved PDF runtime styles stay aligned with preview-facing typography', asy
   assert.deepEqual(docDefinition.styles.title.margin, [0, 0, 0, 10])
   assert.equal(docDefinition.styles.description.fontSize, 14)
   assert.deepEqual(docDefinition.styles.description.margin, [0, 0, 0, 30])
-  assert.equal(docDefinition.styles.questionText.fontSize, 14)
-  assert.deepEqual(docDefinition.styles.questionText.margin, [0, 0, 0, 12])
-  assert.equal(docDefinition.styles.boxedText.fontSize, 13)
-  assert.equal(docDefinition.styles.boxedText.lineHeight, 1.8)
+  assert.equal(docDefinition.styles.questionText.fontSize, 12)
+  assert.deepEqual(docDefinition.styles.questionText.margin, [0, 0, 0, 4])
+  assert.equal(docDefinition.styles.boxedText.fontSize, 12)
+  assert.equal(docDefinition.styles.boxedText.lineHeight, 1.6)
 })
