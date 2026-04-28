@@ -34,7 +34,7 @@ function formatCredits(value: number) {
 }
 
 function getAssetLabel(assetKind: PurchaseAssetKind) {
-  return assetKind === 'pdf' ? 'PDF' : 'PDF & HWP'
+  return assetKind === 'pdf' ? 'PDF' : 'HWP & PDF'
 }
 
 function getPurchaseErrorMessage(status: number, fallback?: string) {
@@ -296,12 +296,12 @@ export default function MarketItemActions({
       />
 
       <FileOptionRow
-        title="PDF & HWP"
-        description={ownsHwp ? '구매 완료된 PDF & HWP 묶음입니다.' : hasHwp ? '구매 후 PDF와 HWP를 모두 다운로드할 수 있습니다.' : 'PDF & HWP 묶음이 제공되지 않습니다.'}
+        title="HWP & PDF"
+        description={ownsHwp ? '구매 완료된 HWP & PDF 묶음입니다.' : hasHwp ? '구매 후 PDF와 HWP를 모두 다운로드할 수 있습니다.' : 'HWP & PDF 묶음이 제공되지 않습니다.'}
         priceLabel={hasHwp ? `${formatCredits(hwpPrice)} 크레딧` : '미제공'}
         state={getPaidOptionState('hwp', ownsHwp, hasHwp)}
         icon={ownsHwp ? <CheckCircle2 className="h-5 w-5" /> : <ShoppingCart className="h-5 w-5" />}
-        actionLabel={ownsHwp ? 'HWP 다운로드' : hasHwp ? 'PDF & HWP 구매하기' : 'PDF & HWP 없음'}
+        actionLabel={ownsHwp ? 'HWP 다운로드' : hasHwp ? 'HWP & PDF 구매하기' : 'HWP & PDF 없음'}
         href={ownsHwp ? buildDownloadUrl(itemId, 'hwp') : undefined}
         disabled={!hasHwp || isPending || isCheckingBalance}
         onAction={!ownsHwp && hasHwp ? () => void openPurchaseConfirmation('hwp') : undefined}

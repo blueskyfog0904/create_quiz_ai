@@ -30,7 +30,7 @@ const batchRoute = readFileSync(
 test('market purchase helpers define hwp as a pdf and hwp bundle while pdf remains standalone', () => {
   assert.match(marketPurchase, /isMarketAssetCoveredByPurchaseKind/)
   assert.match(marketPurchase, /downloadAssetKind === 'pdf' && purchasedAssetKind === 'hwp'/)
-  assert.match(marketPurchase, /getMarketPaidAssetLabel[\s\S]+PDF & HWP/)
+  assert.match(marketPurchase, /getMarketPaidAssetLabel[\s\S]+HWP & PDF/)
 })
 
 test('listboard effective ownership treats hwp purchase as owning pdf too', () => {
@@ -50,6 +50,8 @@ test('download route checks hwp ownership as fallback for pdf downloads', () => 
 })
 
 test('ui labels hwp paid option as pdf and hwp bundle on list and detail pages', () => {
-  assert.match(listboardClient, /PDF & HWP/)
-  assert.match(itemActions, /PDF & HWP/)
+  assert.match(listboardClient, /HWP & PDF/)
+  assert.match(itemActions, /HWP & PDF/)
+  assert.match(listboardClient, /whitespace-nowrap/)
+  assert.match(listboardClient, /grid-cols-\[minmax\(120px,0\.85fr\)_minmax\(180px,1\.15fr\)\]/)
 })

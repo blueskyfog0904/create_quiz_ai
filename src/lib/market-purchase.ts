@@ -11,7 +11,7 @@ export type MarketPaidAssetKind = 'pdf' | 'hwp'
 export type MarketAssetKind = 'sample' | MarketPaidAssetKind
 
 export function getMarketPaidAssetLabel(assetKind: MarketPaidAssetKind) {
-  return assetKind === 'pdf' ? 'PDF' : 'PDF & HWP'
+  return assetKind === 'pdf' ? 'PDF' : 'HWP & PDF'
 }
 
 export function isMarketAssetCoveredByPurchaseKind(

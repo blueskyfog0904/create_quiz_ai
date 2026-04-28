@@ -34,7 +34,7 @@ function getSelectionKey(itemId: string, assetKind: AssetKind) {
 }
 
 function getAssetLabel(assetKind: AssetKind) {
-  return assetKind === 'pdf' ? 'PDF' : 'PDF & HWP'
+  return assetKind === 'pdf' ? 'PDF' : 'HWP & PDF'
 }
 
 function formatExamMeta(row: MarketListboardRow) {
@@ -231,7 +231,7 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
           className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
           aria-label={`${row.title} ${formatLabel} 보유`}
         >
-          <span className="flex items-center gap-2 font-semibold"><CheckCircle2 className="h-4 w-4" />{formatLabel}</span>
+          <span className="flex items-center gap-2 whitespace-nowrap font-semibold"><CheckCircle2 className="h-4 w-4" />{formatLabel}</span>
           <span>보유</span>
         </div>
       )
@@ -243,7 +243,7 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
           className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400"
           aria-label={`${row.title} ${formatLabel} 미제공`}
         >
-          <span className="flex items-center gap-2 font-semibold"><Lock className="h-4 w-4" />{formatLabel}</span>
+          <span className="flex items-center gap-2 whitespace-nowrap font-semibold"><Lock className="h-4 w-4" />{formatLabel}</span>
           <span>미제공</span>
         </div>
       )
@@ -258,7 +258,7 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
         aria-pressed={selected}
         onClick={() => toggleSelection(row.itemId, assetKind, !selected)}
       >
-        <span className="flex items-center gap-2 font-semibold">
+        <span className="flex items-center gap-2 whitespace-nowrap font-semibold">
           <Checkbox
             checked={selected}
             disabled={disabled}
@@ -268,7 +268,7 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
           />
           {formatLabel}
         </span>
-        <span className={compact ? 'text-xs font-semibold' : 'font-semibold'}>{asset.price.toLocaleString()}C</span>
+        <span className={compact ? 'whitespace-nowrap text-xs font-semibold' : 'whitespace-nowrap font-semibold'}>{asset.price.toLocaleString()}C</span>
       </button>
     )
   }
@@ -280,7 +280,7 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
           <Sparkles className="mr-1 h-3 w-3" />샘플 제공
         </Badge>
       ) : null}
-      <Badge variant="outline" className="rounded-full">PDF · PDF & HWP</Badge>
+      <Badge variant="outline" className="rounded-full">PDF · HWP & PDF</Badge>
     </div>
   )
 
@@ -305,7 +305,7 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
             <tr>
               <th className="w-[72px] px-4 py-3 text-center font-medium whitespace-nowrap">번호</th>
               <th className="min-w-[340px] px-4 py-3 text-left font-medium">자료명</th>
-              <th className="w-[320px] px-4 py-3 text-left font-medium whitespace-nowrap">파일 선택</th>
+              <th className="w-[380px] px-4 py-3 text-left font-medium whitespace-nowrap">파일 선택</th>
               <th className="w-[120px] px-4 py-3 text-center font-medium whitespace-nowrap">조회</th>
               <th className="w-[140px] px-4 py-3 text-center font-medium whitespace-nowrap">게시일자</th>
             </tr>
@@ -327,7 +327,7 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
                     </div>
                   </td>
                   <td className="px-4 py-5 align-top">
-                    <div className="grid gap-2 lg:grid-cols-2">
+                    <div className="grid gap-2 lg:grid-cols-[minmax(120px,0.85fr)_minmax(180px,1.15fr)]">
                       {renderAssetOption(row, 'pdf')}
                       {renderAssetOption(row, 'hwp')}
                     </div>
@@ -420,7 +420,7 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1 text-sm text-gray-600">
                 <p className="font-semibold text-gray-900">선택 {selectionSummary.totalCount}건</p>
-                <p>PDF {selectionSummary.pdfCount}건 · PDF & HWP {selectionSummary.hwpCount}건</p>
+                <p>PDF {selectionSummary.pdfCount}건 · HWP & PDF {selectionSummary.hwpCount}건</p>
               </div>
               <div className="text-left sm:text-right">
                 <p className="text-xs text-gray-500">총 결제 금액</p>
@@ -452,7 +452,7 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
         currentBalance={currentBalance}
         isLoading={isPending || isCheckingBalance}
         title="선택 파일 결제 확인"
-        description={`PDF ${selectionSummary.pdfCount}건, PDF & HWP ${selectionSummary.hwpCount}건을 크레딧으로 구매합니다.`}
+        description={`PDF ${selectionSummary.pdfCount}건, HWP & PDF ${selectionSummary.hwpCount}건을 크레딧으로 구매합니다.`}
       />
     </>
   )

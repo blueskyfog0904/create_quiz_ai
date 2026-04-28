@@ -25,7 +25,7 @@ test('market item detail consolidates sample pdf hwp into one file option panel'
   assert.match(itemActions, /function FileOptionRow/)
   assert.match(itemActions, /샘플 PDF/)
   assert.match(itemActions, /PDF 구매하기/)
-  assert.match(itemActions, /PDF & HWP 구매하기/)
+  assert.match(itemActions, /HWP & PDF 구매하기/)
   assert.match(itemActions, /영어 라이브러리 &gt; 구매자료/)
 })
 

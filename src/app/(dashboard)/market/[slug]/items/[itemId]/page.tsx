@@ -74,7 +74,7 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
   const ownsHwp = purchases.some((purchase) => purchase.asset_kind === 'hwp')
   const sources = collectSources(item)
   const ownedCount = Number(ownsPdf) + Number(ownsHwp)
-  const fileLabels = [hasPdf ? 'PDF' : null, hasHwp ? 'PDF & HWP' : null].filter(Boolean).join(' · ') || '제공 파일 없음'
+  const fileLabels = [hasPdf ? 'PDF' : null, hasHwp ? 'HWP & PDF' : null].filter(Boolean).join(' · ') || '제공 파일 없음'
 
   return (
     <div className="space-y-6">
@@ -95,7 +95,7 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
             <div className="flex flex-wrap gap-2 lg:justify-end">
               {hasSample ? <Badge className="bg-white/15 text-white hover:bg-white/15"><Sparkles className="mr-1 h-3 w-3" />샘플 제공</Badge> : null}
               {hasPdf ? <Badge className="bg-white/15 text-white hover:bg-white/15">PDF</Badge> : null}
-              {hasHwp ? <Badge className="bg-white/15 text-white hover:bg-white/15">PDF & HWP</Badge> : null}
+              {hasHwp ? <Badge className="bg-white/15 text-white hover:bg-white/15">HWP & PDF</Badge> : null}
               {ownedCount > 0 ? <Badge className="bg-emerald-400/20 text-emerald-100 hover:bg-emerald-400/20">구매 완료 {ownedCount}건</Badge> : null}
             </div>
           </div>
@@ -133,7 +133,7 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
                       {user ? (
                         <div className="flex flex-wrap justify-end gap-2">
                           <Badge variant={ownsPdf ? 'default' : 'outline'}>PDF {ownsPdf ? '보유' : '미보유'}</Badge>
-                          <Badge variant={ownsHwp ? 'default' : 'outline'}>PDF & HWP {ownsHwp ? '보유' : '미보유'}</Badge>
+                          <Badge variant={ownsHwp ? 'default' : 'outline'}>HWP & PDF {ownsHwp ? '보유' : '미보유'}</Badge>
                         </div>
                       ) : (
                         <span className="text-sm font-medium text-gray-900">로그인 후 확인</span>
