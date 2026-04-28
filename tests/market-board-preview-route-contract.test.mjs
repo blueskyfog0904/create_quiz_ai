@@ -28,5 +28,7 @@ test('board preview client presents a compact board-style list with purchase con
   assert.match(source, /border-t-2 border-slate-950/, 'preview table should use a strong board-like top divider')
   assert.match(source, /min-w-\[410px\]/, 'file column should be wide enough to keep purchase options on one line')
   assert.match(source, /flex-nowrap/, 'file choices should not wrap into multiple rows')
+  assert.match(source, /md:grid-cols-\[1fr_auto_1fr\]/, 'pagination row should use balanced columns for centered navigation')
+  assert.match(source, /justify-self-center/, 'pagination controls should be centered in the board')
   assert.match(source, /api\/market\/purchases\/batch/, 'preview should submit selected files to the batch purchase API')
 })

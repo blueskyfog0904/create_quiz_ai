@@ -327,11 +327,11 @@ export default function MarketBoardPreviewClient({ categorySlug, rows, isLoggedI
           </div>
         </div>
 
-        <div className="flex flex-col items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3 sm:flex-row">
-          <div className="text-xs text-slate-500">
+        <div className="grid gap-3 rounded-xl border bg-white px-4 py-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
+          <div className="text-center text-xs text-slate-500 md:text-left">
             총 {rows.length}건 · {currentPage}/{totalPages} 페이지
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-1.5">
+          <div className="flex flex-wrap items-center justify-center gap-1.5 justify-self-center">
             <Button type="button" variant="ghost" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(1)} aria-label="첫 페이지">
               첫 페이지
             </Button>
@@ -350,6 +350,7 @@ export default function MarketBoardPreviewClient({ categorySlug, rows, isLoggedI
               끝 페이지
             </Button>
           </div>
+          <div className="hidden md:block" />
         </div>
 
         <div className="sticky bottom-3 z-10 flex justify-end md:static">
