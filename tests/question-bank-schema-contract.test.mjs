@@ -65,6 +65,15 @@ const assertPolicy = (sql, tableName, pattern, message) => {
   assert.ok(blocks.some((block) => pattern.test(block)), message)
 }
 
+const assertBefore = (text, earlierPattern, laterPattern, message) => {
+  const earlierIndex = text.search(earlierPattern)
+  const laterIndex = text.search(laterPattern)
+
+  assert.notEqual(earlierIndex, -1, `${message}: missing validation pattern`)
+  assert.notEqual(laterIndex, -1, `${message}: missing cast pattern`)
+  assert.ok(earlierIndex < laterIndex, message)
+}
+
 test('Task 0 prerequisite migrations exist before Task 1 and Task 1 documents ownership', () => {
   assert.equal(existsSync(new URL(mainMigrationName, migrationsDir)), true)
 
@@ -215,6 +224,40 @@ test('main migration contains required constants, error messages, and bank visib
   }
 
   assertPolicy(mainSql, 'questions', /for\s+select\s+to\s+authenticated[\s\S]*source\s*=\s*'admin_uploaded'[\s\S]*workspace_subject/i, 'questions need authenticated read-only admin_uploaded bank policy')
+})
+
+
+test('RPCs validate JSON UUID, integer, rating, and tags before casts', () => {
+  const randomBlock = findFunctionBlock(mainSql, 'create_random_bank_exam_paper')
+  const createBlock = findFunctionBlock(mainSql, 'create_admin_bank_question')
+  const bulkBlock = findFunctionBlock(mainSql, 'create_admin_bank_questions_bulk')
+  const updateBlock = findFunctionBlock(mainSql, 'update_admin_bank_question')
+  const auditBlock = findFunctionBlock(mainSql, 'admin_audit_question_bank_metadata')
+  const candidatesBlock = findFunctionBlock(mainSql, 'admin_list_question_bank_backfill_candidates')
+
+  assert.match(randomBlock, /jsonb_typeof\(value\)\s*<>\s*'object'/i)
+  assertBefore(randomBlock, /value->>'problemTypeId'[\s\S]*~\*\s*'\^\[0-9a-f\]\{8\}/i, /value->>'problemTypeId'\)::uuid/i, 'p_type_counts problemTypeId must be uuid-validated before cast')
+  assertBefore(randomBlock, /value->>'count'[\s\S]*~\s*'\^\[0-9\]\+\$'/i, /value->>'count'\)::integer/i, 'p_type_counts count must be integer-validated before cast')
+
+  assert.match(createBlock, /p_question\s*\?\s*'problem_type_id'[\s\S]*not[\s\S]*~\*/i)
+  assert.match(createBlock, /p_question\s*\?\s*'rating'[\s\S]*not[\s\S]*~\s*'\^\[0-9\]\+\$'/i)
+  assert.match(createBlock, /p_question\s*\?\s*'tags'[\s\S]*jsonb_typeof\(p_question->'tags'\)\s*<>\s*'array'/i)
+  assertBefore(createBlock, /p_question\s*\?\s*'tags'[\s\S]*jsonb_typeof\(p_question->'tags'\)\s*<>\s*'array'/i, /jsonb_array_elements_text\(p_question->'tags'\)/i, 'create question tags must be array-validated before expansion')
+
+  assert.match(bulkBlock, /v_item->>'yearId'[\s\S]*~\*/i)
+  assert.match(bulkBlock, /v_item->>'bookId'[\s\S]*~\*/i)
+  assert.match(bulkBlock, /v_question\s*\?\s*'tags'[\s\S]*jsonb_typeof\(v_question->'tags'\)\s*<>\s*'array'/i)
+  assertBefore(bulkBlock, /v_item->>'yearId'[\s\S]*~\*/i, /v_item->>'yearId'\)::uuid/i, 'bulk yearId must be uuid-validated before cast')
+  assertBefore(bulkBlock, /v_item->>'bookId'[\s\S]*~\*/i, /v_item->>'bookId'\)::uuid/i, 'bulk bookId must be uuid-validated before cast')
+
+  assert.match(updateBlock, /p_question_patch\s*\?\s*'problem_type_id'[\s\S]*not[\s\S]*~\*/i)
+  assert.match(updateBlock, /p_question_patch\s*\?\s*'rating'[\s\S]*not[\s\S]*~\s*'\^\[0-9\]\+\$'/i)
+  assert.match(updateBlock, /p_question_patch\s*\?\s*'tags'[\s\S]*jsonb_typeof\(p_question_patch->'tags'\)\s*<>\s*'array'/i)
+
+  assert.match(auditBlock, /p_filter->>'yearId'[\s\S]*~\*/i)
+  assert.match(auditBlock, /p_filter->>'bookId'[\s\S]*~\*/i)
+  assert.match(candidatesBlock, /p_filter->>'yearId'[\s\S]*~\*/i)
+  assert.match(candidatesBlock, /p_filter->>'bookId'[\s\S]*~\*/i)
 })
 
 test('saved-copy unique index lives in separate migration with executable duplicate preflight', () => {

@@ -215,7 +215,7 @@ declare
   v_user_id uuid := auth.uid();
   v_exam_paper_id uuid;
   v_selected_question_ids uuid[] := '{}';
-  v_total_count integer := 0;
+  v_total_count bigint := 0;
   v_type_count integer := 0;
   v_distinct_type_count integer := 0;
   v_limit constant integer := 100; -- MAX_RANDOM_EXAM_QUESTION_COUNT
@@ -229,6 +229,23 @@ begin
   end if;
 
   if jsonb_typeof(p_type_counts) <> 'array' then
+    raise exception 'INVALID_SCOPE';
+  end if;
+
+  if exists (
+    select 1
+    from jsonb_array_elements(p_type_counts) value
+    where jsonb_typeof(value) <> 'object'
+       or (value->>'problemTypeId') is null
+       or not ((value->>'problemTypeId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+       or (value->>'count') is null
+       or not ((value->>'count') ~ '^[0-9]+$')
+       or length(value->>'count') > 9
+       or case
+         when (value->>'count') ~ '^[0-9]+$' and length(value->>'count') <= 9 then (value->>'count')::integer <= 0
+         else true
+       end
+  ) then
     raise exception 'INVALID_SCOPE';
   end if;
 
@@ -256,13 +273,7 @@ begin
   into v_type_count, v_distinct_type_count, v_total_count
   from requested;
 
-  if v_type_count = 0 or exists (
-    select 1
-    from jsonb_array_elements(p_type_counts) value
-    where (value->>'problemTypeId') is null
-       or (value->>'count') is null
-       or (value->>'count')::integer <= 0
-  ) then
+  if v_type_count = 0 then
     raise exception 'INVALID_SCOPE';
   end if;
 
@@ -421,6 +432,27 @@ begin
     raise exception 'INACTIVE_DIMENSION';
   end if;
 
+
+  if p_question ? 'problem_type_id'
+    and nullif(p_question->>'problem_type_id', '') is not null
+    and not ((p_question->>'problem_type_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+    raise exception 'INVALID_SCOPE';
+  end if;
+
+  if p_question ? 'rating' and nullif(p_question->>'rating', '') is not null then
+    if not ((p_question->>'rating') ~ '^[0-9]+$') or length(p_question->>'rating') > 1 then
+      raise exception 'INVALID_SCOPE';
+    end if;
+
+    if (p_question->>'rating')::integer not between 0 and 3 then
+      raise exception 'INVALID_SCOPE';
+    end if;
+  end if;
+
+  if p_question ? 'tags' and jsonb_typeof(p_question->'tags') <> 'array' then
+    raise exception 'INVALID_SCOPE';
+  end if;
+
   insert into public.questions(
     user_id,
     source,
@@ -515,12 +547,46 @@ begin
   end if;
 
   for v_item in select value from jsonb_array_elements(p_questions) value loop
+    if jsonb_typeof(v_item) <> 'object'
+      or (v_item->>'yearId') is null
+      or not ((v_item->>'yearId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+      or (v_item->>'bookId') is null
+      or not ((v_item->>'bookId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+      raise exception 'INVALID_SCOPE';
+    end if;
+
+    v_question := coalesce(v_item->'question', '{}'::jsonb);
+
+    if jsonb_typeof(v_question) <> 'object' then
+      raise exception 'INVALID_SCOPE';
+    end if;
+
+    if v_question ? 'problem_type_id'
+      and nullif(v_question->>'problem_type_id', '') is not null
+      and not ((v_question->>'problem_type_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+      raise exception 'INVALID_SCOPE';
+    end if;
+
+    if v_question ? 'rating' and nullif(v_question->>'rating', '') is not null then
+      if not ((v_question->>'rating') ~ '^[0-9]+$') or length(v_question->>'rating') > 1 then
+        raise exception 'INVALID_SCOPE';
+      end if;
+
+      if (v_question->>'rating')::integer not between 0 and 3 then
+        raise exception 'INVALID_SCOPE';
+      end if;
+    end if;
+
+    if v_question ? 'tags' and jsonb_typeof(v_question->'tags') <> 'array' then
+      raise exception 'INVALID_SCOPE';
+    end if;
+
     if not exists (
       select 1
       from public.question_bank_years y
       join public.question_bank_books b on b.workspace_subject = y.workspace_subject
-      where y.id = nullif(v_item->>'yearId', '')::uuid
-        and b.id = nullif(v_item->>'bookId', '')::uuid
+      where y.id = (v_item->>'yearId')::uuid
+        and b.id = (v_item->>'bookId')::uuid
         and y.workspace_subject = p_workspace_subject
         and b.workspace_subject = p_workspace_subject
         and y.is_active = true
@@ -590,8 +656,8 @@ begin
     values (
       v_question_id,
       p_workspace_subject,
-      nullif(v_item->>'yearId', '')::uuid,
-      nullif(v_item->>'bookId', '')::uuid
+      (v_item->>'yearId')::uuid,
+      (v_item->>'bookId')::uuid
     );
 
     v_inserted_ids := array_append(v_inserted_ids, v_question_id);
@@ -655,6 +721,27 @@ begin
       and b.is_active = true
   ) then
     raise exception 'INACTIVE_DIMENSION';
+  end if;
+
+
+  if p_question_patch ? 'problem_type_id'
+    and nullif(p_question_patch->>'problem_type_id', '') is not null
+    and not ((p_question_patch->>'problem_type_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+    raise exception 'INVALID_SCOPE';
+  end if;
+
+  if p_question_patch ? 'rating' and nullif(p_question_patch->>'rating', '') is not null then
+    if not ((p_question_patch->>'rating') ~ '^[0-9]+$') or length(p_question_patch->>'rating') > 1 then
+      raise exception 'INVALID_SCOPE';
+    end if;
+
+    if (p_question_patch->>'rating')::integer not between 0 and 3 then
+      raise exception 'INVALID_SCOPE';
+    end if;
+  end if;
+
+  if p_question_patch ? 'tags' and jsonb_typeof(p_question_patch->'tags') <> 'array' then
+    raise exception 'INVALID_SCOPE';
   end if;
 
   update public.questions q
@@ -878,6 +965,21 @@ begin
     raise exception 'INVALID_SCOPE';
   end if;
 
+
+  if jsonb_typeof(coalesce(p_filter, '{}'::jsonb)) <> 'object' then
+    raise exception 'INVALID_SCOPE';
+  end if;
+
+  if nullif(p_filter->>'yearId', '') is not null
+    and not ((p_filter->>'yearId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+    raise exception 'INVALID_SCOPE';
+  end if;
+
+  if nullif(p_filter->>'bookId', '') is not null
+    and not ((p_filter->>'bookId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+    raise exception 'INVALID_SCOPE';
+  end if;
+
   return query
   with admin_originals as (
     select q.id
@@ -971,6 +1073,21 @@ begin
   end if;
 
   if p_workspace_subject not in ('english', 'korean') then
+    raise exception 'INVALID_SCOPE';
+  end if;
+
+
+  if jsonb_typeof(coalesce(p_filter, '{}'::jsonb)) <> 'object' then
+    raise exception 'INVALID_SCOPE';
+  end if;
+
+  if nullif(p_filter->>'yearId', '') is not null
+    and not ((p_filter->>'yearId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+    raise exception 'INVALID_SCOPE';
+  end if;
+
+  if nullif(p_filter->>'bookId', '') is not null
+    and not ((p_filter->>'bookId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
     raise exception 'INVALID_SCOPE';
   end if;
 

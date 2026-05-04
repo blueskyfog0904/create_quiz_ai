@@ -47,6 +47,44 @@ const expectRpcError = async (promise, expectedMessage) => {
   assert.match(error.message, new RegExp(expectedMessage))
 }
 
+
+const upsertQuestionBankYear = async (service, { label, sortOrder, isActive }) => {
+  const { data, error } = await service
+    .from('question_bank_years')
+    .upsert({
+      workspace_subject: workspaceSubject,
+      year: nextYear(),
+      label,
+      sort_order: sortOrder,
+      is_active: isActive
+    }, { onConflict: 'workspace_subject,year' })
+    .select('id')
+    .single()
+
+  assert.ifError(error)
+
+  return data
+}
+
+const upsertQuestionBankBook = async (service, { name, slug, description, sortOrder, isActive }) => {
+  const { data, error } = await service
+    .from('question_bank_books')
+    .upsert({
+      workspace_subject: workspaceSubject,
+      name,
+      slug,
+      description,
+      sort_order: sortOrder,
+      is_active: isActive
+    }, { onConflict: 'workspace_subject,slug' })
+    .select('id')
+    .single()
+
+  assert.ifError(error)
+
+  return data
+}
+
 const ensureSeedProfile = async (service, userId, isAdmin) => {
   const { error } = await service
     .from('profiles')
@@ -103,19 +141,16 @@ if (!RUN_INTEGRATION || missingEnv.length > 0) {
 
 integrationTest('RLS allows active dimension reads and blocks inactive/write access for normal users', async () => {
   const { service, user } = await createSeedContext()
-  const { data: activeYear, error: activeYearError } = await service
-    .from('question_bank_years')
-    .insert({ workspace_subject: workspaceSubject, year: nextYear(), label: `${runId} active year`, sort_order: 1, is_active: true })
-    .select('id')
-    .single()
-  const { data: inactiveYear, error: inactiveYearError } = await service
-    .from('question_bank_years')
-    .insert({ workspace_subject: workspaceSubject, year: nextYear(), label: `${runId} inactive year`, sort_order: 2, is_active: false })
-    .select('id')
-    .single()
-
-  assert.ifError(activeYearError)
-  assert.ifError(inactiveYearError)
+  const activeYear = await upsertQuestionBankYear(service, {
+    label: `${runId} active year`,
+    sortOrder: 1,
+    isActive: true
+  })
+  const inactiveYear = await upsertQuestionBankYear(service, {
+    label: `${runId} inactive year`,
+    sortOrder: 2,
+    isActive: false
+  })
 
   const { data: visibleYears, error: visibleError } = await user
     .from('question_bank_years')
@@ -208,19 +243,18 @@ integrationTest('normal users can read admin_uploaded bank questions but cannot 
 
 integrationTest('admin create/update/bulk/backfill/copy/random-exam RPC flow preserves metadata and field parity', async () => {
   const { service, user, admin, problemTypeId } = await createSeedContext()
-  const { data: year, error: yearError } = await service
-    .from('question_bank_years')
-    .insert({ workspace_subject: workspaceSubject, year: nextYear(), label: `${runId} 2027`, sort_order: 1, is_active: true })
-    .select('id')
-    .single()
-  const { data: book, error: bookError } = await service
-    .from('question_bank_books')
-    .insert({ workspace_subject: workspaceSubject, name: `${runId} book`, slug: `${runId}-book`, description: 'integration seed book', sort_order: 1, is_active: true })
-    .select('id')
-    .single()
-
-  assert.ifError(yearError)
-  assert.ifError(bookError)
+  const year = await upsertQuestionBankYear(service, {
+    label: `${runId} 2027`,
+    sortOrder: 1,
+    isActive: true
+  })
+  const book = await upsertQuestionBankBook(service, {
+    name: `${runId} book`,
+    slug: `${runId}-book`,
+    description: 'integration seed book',
+    sortOrder: 1,
+    isActive: true
+  })
 
   const baseQuestion = {
     question_text: `${runId} question`,
@@ -350,19 +384,18 @@ integrationTest('admin create/update/bulk/backfill/copy/random-exam RPC flow pre
 
 integrationTest('bulk upload rolls back valid rows when any row is invalid', async () => {
   const { service, admin, problemTypeId } = await createSeedContext()
-  const { data: year, error: yearError } = await service
-    .from('question_bank_years')
-    .insert({ workspace_subject: workspaceSubject, year: nextYear(), label: `${runId} bulk year`, sort_order: 1, is_active: true })
-    .select('id')
-    .single()
-  const { data: inactiveBook, error: inactiveBookError } = await service
-    .from('question_bank_books')
-    .insert({ workspace_subject: workspaceSubject, name: `${runId} inactive bulk book`, slug: `${runId}-inactive-bulk-book`, description: 'inactive integration seed book', sort_order: 1, is_active: false })
-    .select('id')
-    .single()
-
-  assert.ifError(yearError)
-  assert.ifError(inactiveBookError)
+  const year = await upsertQuestionBankYear(service, {
+    label: `${runId} bulk year`,
+    sortOrder: 1,
+    isActive: true
+  })
+  const inactiveBook = await upsertQuestionBankBook(service, {
+    name: `${runId} inactive bulk book`,
+    slug: `${runId}-inactive-bulk-book`,
+    description: 'inactive integration seed book',
+    sortOrder: 1,
+    isActive: false
+  })
 
   await expectRpcError(admin.rpc('create_admin_bank_questions_bulk', {
     p_workspace_subject: workspaceSubject,
