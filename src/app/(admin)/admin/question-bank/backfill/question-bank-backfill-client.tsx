@@ -90,6 +90,30 @@ export default function QuestionBankBackfillClient({ workspaceSubject }: Questio
     return `/api/admin/question-bank/backfill?${params.toString()}`
   }, [workspaceSubject, pagination.limit, pagination.offset, search, filterYearId, filterBookId, problemTypeId])
 
+  const resetOffset = () => {
+    setPagination((current) => current.offset === 0 ? current : { ...current, offset: 0 })
+  }
+
+  const updateSearch = (value: string) => {
+    setSearch(value)
+    resetOffset()
+  }
+
+  const updateFilterYearId = (value: string) => {
+    setFilterYearId(value)
+    resetOffset()
+  }
+
+  const updateFilterBookId = (value: string) => {
+    setFilterBookId(value)
+    resetOffset()
+  }
+
+  const updateProblemTypeId = (value: string) => {
+    setProblemTypeId(value)
+    resetOffset()
+  }
+
   const loadBackfillState = useCallback(async () => {
     setIsLoading(true)
     setErrorMessage(null)
@@ -114,7 +138,7 @@ export default function QuestionBankBackfillClient({ workspaceSubject }: Questio
           ? current
           : nextPagination
       ))
-    } catch (error) {
+    } catch {
       setErrorMessage('문제은행 백필 감사 정보를 불러오지 못했습니다.')
     } finally {
       setIsLoading(false)
@@ -197,7 +221,7 @@ export default function QuestionBankBackfillClient({ workspaceSubject }: Questio
       if (!dryRun) {
         await loadBackfillState()
       }
-    } catch (error) {
+    } catch {
       setErrorMessage('문제은행 백필 요청을 완료하지 못했습니다.')
     } finally {
       setIsSubmitting(false)
@@ -260,19 +284,19 @@ export default function QuestionBankBackfillClient({ workspaceSubject }: Questio
           <div className="grid gap-3 md:grid-cols-4">
             <div className="space-y-1">
               <Label htmlFor="backfill-search">검색</Label>
-              <Input id="backfill-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="문항 내용" />
+              <Input id="backfill-search" value={search} onChange={(event) => updateSearch(event.target.value)} placeholder="문항 내용" />
             </div>
             <div className="space-y-1">
               <Label htmlFor="filter-year-id">필터 yearId</Label>
-              <Input id="filter-year-id" value={filterYearId} onChange={(event) => setFilterYearId(event.target.value)} />
+              <Input id="filter-year-id" value={filterYearId} onChange={(event) => updateFilterYearId(event.target.value)} />
             </div>
             <div className="space-y-1">
               <Label htmlFor="filter-book-id">필터 bookId</Label>
-              <Input id="filter-book-id" value={filterBookId} onChange={(event) => setFilterBookId(event.target.value)} />
+              <Input id="filter-book-id" value={filterBookId} onChange={(event) => updateFilterBookId(event.target.value)} />
             </div>
             <div className="space-y-1">
               <Label htmlFor="filter-problem-type-id">problemTypeId</Label>
-              <Input id="filter-problem-type-id" value={problemTypeId} onChange={(event) => setProblemTypeId(event.target.value)} />
+              <Input id="filter-problem-type-id" value={problemTypeId} onChange={(event) => updateProblemTypeId(event.target.value)} />
             </div>
           </div>
 

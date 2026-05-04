@@ -256,8 +256,14 @@ test('RPCs validate JSON UUID, integer, rating, and tags before casts', () => {
 
   assert.match(auditBlock, /p_filter->>'yearId'[\s\S]*~\*/i)
   assert.match(auditBlock, /p_filter->>'bookId'[\s\S]*~\*/i)
+  assert.match(auditBlock, /p_filter->>'problemTypeId'[\s\S]*~\*/i)
+  assertBefore(auditBlock, /p_filter->>'problemTypeId'[\s\S]*~\*/i, /p_filter->>'problemTypeId'\s*,\s*''\)::uuid/i, 'audit problemTypeId must be uuid-validated before cast')
+  assert.match(auditBlock, /q\.problem_type_id\s*=\s*nullif\(p_filter->>'problemTypeId'/i)
   assert.match(candidatesBlock, /p_filter->>'yearId'[\s\S]*~\*/i)
   assert.match(candidatesBlock, /p_filter->>'bookId'[\s\S]*~\*/i)
+  assert.match(candidatesBlock, /p_filter->>'problemTypeId'[\s\S]*~\*/i)
+  assertBefore(candidatesBlock, /p_filter->>'problemTypeId'[\s\S]*~\*/i, /p_filter->>'problemTypeId'\s*,\s*''\)::uuid/i, 'candidate problemTypeId must be uuid-validated before cast')
+  assert.match(candidatesBlock, /q\.problem_type_id\s*=\s*nullif\(p_filter->>'problemTypeId'/i)
 })
 
 test('saved-copy unique index lives in separate migration with executable duplicate preflight', () => {

@@ -980,12 +980,18 @@ begin
     raise exception 'INVALID_SCOPE';
   end if;
 
+  if nullif(p_filter->>'problemTypeId', '') is not null
+    and not ((p_filter->>'problemTypeId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+    raise exception 'INVALID_SCOPE';
+  end if;
+
   return query
   with admin_originals as (
     select q.id
     from public.questions q
     where q.workspace_subject = p_workspace_subject
       and q.source = 'admin_uploaded'
+      and (nullif(p_filter->>'problemTypeId', '') is null or q.problem_type_id = nullif(p_filter->>'problemTypeId', '')::uuid)
       and (
         nullif(p_filter->>'yearId', '') is null
         or exists (
@@ -1007,16 +1013,18 @@ begin
   ), saved_copies as (
     select q.id, q.shared_question_id
     from public.questions q
+    join admin_originals ao on ao.id = q.shared_question_id
     where q.workspace_subject = p_workspace_subject
       and q.source = 'from_community'
       and q.shared_question_id is not null
   ), duplicate_groups as (
-    select user_id, workspace_subject, shared_question_id
-    from public.questions
-    where workspace_subject = p_workspace_subject
-      and source = 'from_community'
-      and shared_question_id is not null
-    group by user_id, workspace_subject, shared_question_id
+    select q.user_id, q.workspace_subject, q.shared_question_id
+    from public.questions q
+    join admin_originals ao on ao.id = q.shared_question_id
+    where q.workspace_subject = p_workspace_subject
+      and q.source = 'from_community'
+      and q.shared_question_id is not null
+    group by q.user_id, q.workspace_subject, q.shared_question_id
     having count(*) > 1
   ), mismatched as (
     select sc.id
@@ -1030,7 +1038,7 @@ begin
   select
     (select count(*)::integer from admin_originals ao left join public.question_bank_question_metadata m on m.question_id = ao.id where m.question_id is null),
     (select count(*)::integer from saved_copies),
-    (select count(*)::integer from public.questions q where q.workspace_subject = p_workspace_subject and q.source = 'ai_generated'),
+    (select count(*)::integer from public.questions q where q.workspace_subject = p_workspace_subject and q.source = 'ai_generated' and (nullif(p_filter->>'problemTypeId', '') is null or q.problem_type_id = nullif(p_filter->>'problemTypeId', '')::uuid)),
     (select count(*)::integer from duplicate_groups),
     (select count(*)::integer from admin_originals ao left join public.question_bank_question_metadata m on m.question_id = ao.id where m.question_id is null),
     (select count(*)::integer from saved_copies sc left join public.question_bank_question_metadata m on m.question_id = sc.id where m.question_id is null),
@@ -1091,6 +1099,11 @@ begin
     raise exception 'INVALID_SCOPE';
   end if;
 
+  if nullif(p_filter->>'problemTypeId', '') is not null
+    and not ((p_filter->>'problemTypeId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then
+    raise exception 'INVALID_SCOPE';
+  end if;
+
   return query
   with candidates as (
     select
@@ -1106,6 +1119,7 @@ begin
     where q.workspace_subject = p_workspace_subject
       and q.source = 'admin_uploaded'
       and (nullif(p_filter->>'search', '') is null or q.question_text ilike '%' || (p_filter->>'search') || '%')
+      and (nullif(p_filter->>'problemTypeId', '') is null or q.problem_type_id = nullif(p_filter->>'problemTypeId', '')::uuid)
       and (nullif(p_filter->>'yearId', '') is null or m.year_id = nullif(p_filter->>'yearId', '')::uuid)
       and (nullif(p_filter->>'bookId', '') is null or m.book_id = nullif(p_filter->>'bookId', '')::uuid)
     order by q.created_at desc, q.id desc

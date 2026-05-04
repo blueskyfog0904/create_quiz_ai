@@ -70,10 +70,12 @@ test('question bank backfill API validates batch payload and supports dry-run an
 
   assert.match(routeSource, /BACKFILL_BATCH_SIZE\s*=\s*500/)
   assert.match(routeSource, /max\(BACKFILL_BATCH_SIZE|length\s*>\s*BACKFILL_BATCH_SIZE/)
+  assert.match(routeSource, /new Set\(ids\)\.size === ids\.length/)
   assert.match(routeSource, /dryRun/)
   assert.match(routeSource, /backfill_question_bank_metadata/)
+  assert.match(routeSource, /p_limit:\s*1[\s\S]*p_offset:\s*0/)
 
-  for (const code of ['ADMIN_REQUIRED', 'AUTH_REQUIRED', 'INVALID_SCOPE', 'INACTIVE_DIMENSION', 'INVALID_SOURCE', 'BACKFILL_BATCH_TOO_LARGE']) {
+  for (const code of ['ADMIN_REQUIRED', 'AUTH_REQUIRED', 'INVALID_SCOPE', 'INACTIVE_DIMENSION', 'INVALID_SOURCE', 'DUPLICATE_BACKFILL_TARGET', 'BACKFILL_BATCH_TOO_LARGE']) {
     assert.match(routeSource, new RegExp(code))
   }
   assert.match(routeSource, /status:\s*400/)
@@ -112,6 +114,9 @@ test('question bank backfill UI exposes audit summary, selection, dry-run/apply,
   }
 
   assert.match(clientSource, /sourceQuestionIds/)
+  assert.match(clientSource, /resetOffset/)
+  assert.match(clientSource, /setPagination\(\(current\) => current\.offset === 0 \? current : \{ \.\.\.current, offset: 0 \}\)/)
+  assert.match(clientSource, /updateProblemTypeId/)
   assert.match(clientSource, /yearId/)
   assert.match(clientSource, /bookId/)
   assert.match(clientSource, /dryRun/)

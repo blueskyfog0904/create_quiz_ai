@@ -8,7 +8,10 @@ const BACKFILL_BATCH_SIZE = 500
 const uuidSchema = z.string().trim().uuid('UUID 형식이 올바르지 않습니다')
 
 const backfillRequestSchema = z.object({
-  sourceQuestionIds: z.array(uuidSchema).min(1, '백필할 문제를 선택해주세요').max(BACKFILL_BATCH_SIZE, '한 번에 최대 500개까지 백필할 수 있습니다'),
+  sourceQuestionIds: z.array(uuidSchema)
+    .min(1, '백필할 문제를 선택해주세요')
+    .max(BACKFILL_BATCH_SIZE, '한 번에 최대 500개까지 백필할 수 있습니다')
+    .refine((ids) => new Set(ids).size === ids.length, '중복된 백필 대상이 포함되어 있습니다'),
   yearId: uuidSchema,
   bookId: uuidSchema,
   dryRun: z.boolean().default(true),
@@ -78,6 +81,7 @@ function getRpcStatus(message?: string) {
     || message.includes('INACTIVE_DIMENSION')
     || message.includes('INVALID_SOURCE')
     || message.includes('BACKFILL_BATCH_TOO_LARGE')
+    || message.includes('DUPLICATE_BACKFILL_TARGET')
   ) {
     return 400
   }
@@ -132,7 +136,23 @@ export async function GET(request: Request) {
     }
 
     const candidates = candidateData ?? []
-    const firstCandidate = candidates[0]
+    let firstCandidate = candidates[0]
+
+    if (!firstCandidate && offset > 0) {
+      const { data: totalProbeData, error: totalProbeError } = await supabase.rpc('admin_list_question_bank_backfill_candidates', {
+        p_workspace_subject: workspaceSubject,
+        p_filter: filterJson,
+        p_limit: 1,
+        p_offset: 0,
+      })
+
+      if (totalProbeError) {
+        return rpcErrorResponse(totalProbeError)
+      }
+
+      firstCandidate = totalProbeData?.[0]
+    }
+
     const total = typeof firstCandidate?.total_count === 'number'
       ? firstCandidate.total_count
       : Number(firstCandidate?.total_count ?? 0)
@@ -146,7 +166,7 @@ export async function GET(request: Request) {
         total,
       },
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
