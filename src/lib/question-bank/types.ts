@@ -28,6 +28,7 @@ export interface RandomExamTypeCount {
 export interface RandomExamValidationError {
   code:
     | 'missing_title'
+    | 'empty_type_counts'
     | 'invalid_problem_type_id'
     | 'invalid_count'
     | 'duplicate_problem_type'

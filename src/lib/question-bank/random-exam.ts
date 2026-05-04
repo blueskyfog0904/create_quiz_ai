@@ -64,6 +64,10 @@ function findDuplicateValues(values: string[]): string[] {
 export function normalizeTypeCountPayload(payload: unknown): RandomExamTypeCount[] {
   if (Array.isArray(payload)) {
     return payload.flatMap((row) => {
+      if (!row || typeof row !== 'object') {
+        return []
+      }
+
       const typeCount = row as TypeCountRow
       const problemTypeId = toCleanString(typeCount.problemTypeId ?? typeCount.problem_type_id)
 
@@ -96,6 +100,10 @@ export function normalizeAvailabilityRows(rows: unknown): QuestionBankAvailabili
   }
 
   return rows.flatMap((row) => {
+    if (!row || typeof row !== 'object') {
+      return []
+    }
+
     const availability = row as AvailabilityRow
     const problemTypeId = toCleanString(availability.problemTypeId ?? availability.problem_type_id)
 
@@ -138,6 +146,14 @@ export function validateRandomExamRequest({
       code: 'missing_title',
       field: 'title',
       message: '제목을 입력해주세요.',
+    })
+  }
+
+  if (normalizedTypeCounts.length === 0) {
+    errors.push({
+      code: 'empty_type_counts',
+      field: 'typeCounts',
+      message: '문항을 1개 이상 선택해주세요.',
     })
   }
 

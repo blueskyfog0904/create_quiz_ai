@@ -66,6 +66,38 @@ test('rejects non-positive requested counts', () => {
   ])
 })
 
+test('rejects empty type counts as zero requested questions', () => {
+  const result = validateRandomExamRequest({
+    title: 'Random exam',
+    typeCounts: [],
+    availability: [],
+  })
+
+  assert.equal(result.isValid, false)
+  assert.deepEqual(result.errors, [
+    {
+      code: 'empty_type_counts',
+      field: 'typeCounts',
+      message: '문항을 1개 이상 선택해주세요.',
+    },
+  ])
+})
+
+test('ignores malformed type count and availability rows without throwing', () => {
+  assert.deepEqual(normalizeTypeCountPayload([null]), [])
+  assert.deepEqual(normalizeAvailabilityRows([null]), [])
+
+  assert.doesNotThrow(() => {
+    const result = validateRandomExamRequest({
+      title: 'Random exam',
+      typeCounts: [null, { problemTypeId: grammarTypeId, count: 1 }],
+      availability: [null, { problemTypeId: grammarTypeId, availableCount: 2 }],
+    })
+
+    assert.equal(result.isValid, true)
+  })
+})
+
 test('rejects duplicate problem type ids', () => {
   const result = validateRandomExamRequest({
     title: 'Random exam',
