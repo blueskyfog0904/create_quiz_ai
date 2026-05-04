@@ -1,11 +1,18 @@
 export interface QuestionBankYear {
   id: string
-  title: string
+  year: number
+  label: string
+  sort: number
+  isActive: boolean
 }
 
 export interface QuestionBankBook {
   id: string
-  title: string
+  name: string
+  slug: string
+  description: string | null
+  sort: number
+  isActive: boolean
 }
 
 export interface QuestionBankAvailability {

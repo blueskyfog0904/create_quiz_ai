@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFileSync } from 'node:fs'
 
 import {
   MAX_RANDOM_EXAM_QUESTION_COUNT,
@@ -8,6 +9,16 @@ import {
   normalizeTypeCountPayload,
   validateRandomExamRequest,
 } from '../src/lib/question-bank/random-exam.ts'
+
+const typesSource = readFileSync(
+  new URL('../src/lib/question-bank/types.ts', import.meta.url),
+  'utf8'
+)
+
+function readInterfaceBody(name) {
+  const match = typesSource.match(new RegExp(String.raw`export interface ${name} \{([\s\S]*?)\n\}`))
+  return match?.[1] ?? ''
+}
 
 const grammarTypeId = '11111111-1111-4111-8111-111111111111'
 const vocabTypeId = '22222222-2222-4222-8222-222222222222'
@@ -118,4 +129,17 @@ test('UI max count equals normalized availability', () => {
   ])
   assert.equal(getMaxCountForProblemType(availability, grammarTypeId), 7)
   assert.equal(getMaxCountForProblemType(availability, '33333333-3333-4333-8333-333333333333'), 0)
+})
+
+test('question bank year and book types expose Task 1 DB/API fields', () => {
+  const yearBody = readInterfaceBody('QuestionBankYear')
+  const bookBody = readInterfaceBody('QuestionBankBook')
+
+  for (const field of ['id', 'year', 'label', 'sort', 'isActive']) {
+    assert.match(yearBody, new RegExp(String.raw`\b${field}\b`))
+  }
+
+  for (const field of ['id', 'name', 'slug', 'description', 'sort', 'isActive']) {
+    assert.match(bookBody, new RegExp(String.raw`\b${field}\b`))
+  }
 })
