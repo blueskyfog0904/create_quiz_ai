@@ -7,7 +7,7 @@ import type { Database } from '@/types/supabase'
 const yearUpdateSchema = z.object({
   workspace_subject: z.enum(['english', 'korean']).optional(),
   subject: z.enum(['english', 'korean']).optional(),
-  year: z.coerce.number().int().min(1900).max(2100).optional(),
+  year: z.coerce.number().int().min(2000).max(2100).optional(),
   label: z.string().trim().min(1, '연도 라벨은 필수입니다').optional(),
   sort_order: z.coerce.number().int().optional(),
   is_active: z.boolean().optional(),

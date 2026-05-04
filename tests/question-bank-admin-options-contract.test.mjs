@@ -72,6 +72,8 @@ test('year admin routes validate payload, scope writes, and map duplicate confli
     assert.match(itemSource, new RegExp(String.raw`${field}:`))
   }
 
+  assert.match(collectionSource, /year:[\s\S]*\.min\(2000\)[\s\S]*\.max\(2100\)/)
+  assert.match(itemSource, /year:[\s\S]*\.min\(2000\)[\s\S]*\.max\(2100\)/)
   assert.match(collectionSource, /from\(\s*['"]question_bank_years['"]\s*\)/)
   assert.match(itemSource, /from\(\s*['"]question_bank_years['"]\s*\)/)
   assert.match(itemSource, /searchParams\.get\(\s*['"]subject['"]\s*\)|workspace_subject|\bsubject\b/)
