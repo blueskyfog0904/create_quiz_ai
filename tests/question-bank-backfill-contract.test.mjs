@@ -127,6 +127,6 @@ test('question bank backfill UI exposes audit summary, selection, dry-run/apply,
 test('admin sidebar includes question bank backfill menu item by default', () => {
   const source = readSource(sidebarPath)
 
-  assert.match(source, /['"]\/admin\/question-bank\/backfill['"]/) 
+  assert.match(source, /['"]\/admin\/question-bank\/backfill['"]/)
   assert.match(source, /문제은행 백필/)
 })
