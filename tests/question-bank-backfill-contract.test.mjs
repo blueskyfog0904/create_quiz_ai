@@ -65,6 +65,9 @@ test('question bank backfill API validates batch payload and supports dry-run an
     assert.match(routeSource, new RegExp(field))
   }
 
+  assert.match(routeSource, /z\.string\(\)\.trim\(\)\.uuid\(/)
+  assert.doesNotMatch(routeSource, /\[0-9a-f\]\{8\}-\[0-9a-f\]\{4\}-\[0-9a-f\]\{4\}-\[0-9a-f\]\{12\}/i)
+
   assert.match(routeSource, /BACKFILL_BATCH_SIZE\s*=\s*500/)
   assert.match(routeSource, /max\(BACKFILL_BATCH_SIZE|length\s*>\s*BACKFILL_BATCH_SIZE/)
   assert.match(routeSource, /dryRun/)

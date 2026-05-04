@@ -5,7 +5,7 @@ import { z } from 'zod'
 import type { Json } from '@/types/supabase'
 
 const BACKFILL_BATCH_SIZE = 500
-const uuidSchema = z.string().trim().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'UUID 형식이 올바르지 않습니다')
+const uuidSchema = z.string().trim().uuid('UUID 형식이 올바르지 않습니다')
 
 const backfillRequestSchema = z.object({
   sourceQuestionIds: z.array(uuidSchema).min(1, '백필할 문제를 선택해주세요').max(BACKFILL_BATCH_SIZE, '한 번에 최대 500개까지 백필할 수 있습니다'),
