@@ -79,6 +79,10 @@ export async function PATCH(
     if (parsed.sort_order !== undefined) payload.sort_order = parsed.sort_order
     if (parsed.is_active !== undefined) payload.is_active = parsed.is_active
 
+    if (Object.keys(payload).length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+    }
+
     const { data, error } = await supabase
       .from('question_bank_years')
       .update(payload)

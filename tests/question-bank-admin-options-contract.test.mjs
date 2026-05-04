@@ -47,6 +47,12 @@ function assertSoftDeactivate(source) {
   assert.doesNotMatch(uncommented, /\.delete\s*\(\s*\)/)
 }
 
+function assertRejectsEmptyUpdatePayload(source) {
+  assert.match(source, /Object\.keys\(payload\)\.length\s*===\s*0/)
+  assert.match(source, /No fields to update/)
+  assert.match(source, /status:\s*400/)
+}
+
 test('admin question bank dimension routes export required handlers and require admins', () => {
   const yearsSource = readSource(routePaths.years)
   const yearSource = readSource(routePaths.year)
@@ -81,6 +87,7 @@ test('year admin routes validate payload, scope writes, and map duplicate confli
   assert.match(itemSource, /eq\(\s*['"]workspace_subject['"]\s*,\s*workspaceSubject\s*\)/)
   assertDuplicateMapsToConflict(collectionSource)
   assertDuplicateMapsToConflict(itemSource)
+  assertRejectsEmptyUpdatePayload(itemSource)
   assertSoftDeactivate(itemSource)
 })
 
@@ -102,6 +109,7 @@ test('book admin routes validate payload including slug, scope writes, and map d
   assert.match(itemSource, /eq\(\s*['"]workspace_subject['"]\s*,\s*workspaceSubject\s*\)/)
   assertDuplicateMapsToConflict(collectionSource)
   assertDuplicateMapsToConflict(itemSource)
+  assertRejectsEmptyUpdatePayload(itemSource)
   assertSoftDeactivate(itemSource)
 })
 
