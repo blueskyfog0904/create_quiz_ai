@@ -20,6 +20,8 @@ const skipReason = RUN_INTEGRATION
 
 const workspaceSubject = 'english'
 const runId = `qb-${Date.now()}-${Math.random().toString(16).slice(2)}`
+let nextQuestionBankYear = 2000
+const nextYear = () => nextQuestionBankYear++
 
 const createSupabase = (key) => createClient(process.env.SUPABASE_URL, key, {
   auth: {
@@ -103,12 +105,12 @@ integrationTest('RLS allows active dimension reads and blocks inactive/write acc
   const { service, user } = await createSeedContext()
   const { data: activeYear, error: activeYearError } = await service
     .from('question_bank_years')
-    .insert({ workspace_subject: workspaceSubject, label: `${runId} active year`, sort_order: 1, is_active: true })
+    .insert({ workspace_subject: workspaceSubject, year: nextYear(), label: `${runId} active year`, sort_order: 1, is_active: true })
     .select('id')
     .single()
   const { data: inactiveYear, error: inactiveYearError } = await service
     .from('question_bank_years')
-    .insert({ workspace_subject: workspaceSubject, label: `${runId} inactive year`, sort_order: 2, is_active: false })
+    .insert({ workspace_subject: workspaceSubject, year: nextYear(), label: `${runId} inactive year`, sort_order: 2, is_active: false })
     .select('id')
     .single()
 
@@ -125,7 +127,7 @@ integrationTest('RLS allows active dimension reads and blocks inactive/write acc
 
   const { error: writeError } = await user
     .from('question_bank_years')
-    .insert({ workspace_subject: workspaceSubject, label: `${runId} forbidden`, sort_order: 9, is_active: true })
+    .insert({ workspace_subject: workspaceSubject, year: nextYear(), label: `${runId} forbidden`, sort_order: 9, is_active: true })
 
   assert.ok(writeError, 'normal users must not write years')
 })
@@ -208,12 +210,12 @@ integrationTest('admin create/update/bulk/backfill/copy/random-exam RPC flow pre
   const { service, user, admin, problemTypeId } = await createSeedContext()
   const { data: year, error: yearError } = await service
     .from('question_bank_years')
-    .insert({ workspace_subject: workspaceSubject, label: `${runId} 2027`, sort_order: 1, is_active: true })
+    .insert({ workspace_subject: workspaceSubject, year: nextYear(), label: `${runId} 2027`, sort_order: 1, is_active: true })
     .select('id')
     .single()
   const { data: book, error: bookError } = await service
     .from('question_bank_books')
-    .insert({ workspace_subject: workspaceSubject, label: `${runId} book`, sort_order: 1, is_active: true })
+    .insert({ workspace_subject: workspaceSubject, name: `${runId} book`, slug: `${runId}-book`, description: 'integration seed book', sort_order: 1, is_active: true })
     .select('id')
     .single()
 
@@ -350,12 +352,12 @@ integrationTest('bulk upload rolls back valid rows when any row is invalid', asy
   const { service, admin, problemTypeId } = await createSeedContext()
   const { data: year, error: yearError } = await service
     .from('question_bank_years')
-    .insert({ workspace_subject: workspaceSubject, label: `${runId} bulk year`, sort_order: 1, is_active: true })
+    .insert({ workspace_subject: workspaceSubject, year: nextYear(), label: `${runId} bulk year`, sort_order: 1, is_active: true })
     .select('id')
     .single()
   const { data: inactiveBook, error: inactiveBookError } = await service
     .from('question_bank_books')
-    .insert({ workspace_subject: workspaceSubject, label: `${runId} inactive bulk book`, sort_order: 1, is_active: false })
+    .insert({ workspace_subject: workspaceSubject, name: `${runId} inactive bulk book`, slug: `${runId}-inactive-bulk-book`, description: 'inactive integration seed book', sort_order: 1, is_active: false })
     .select('id')
     .single()
 

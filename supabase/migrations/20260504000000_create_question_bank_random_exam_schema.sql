@@ -10,33 +10,29 @@
 create table if not exists public.question_bank_years (
   id uuid default uuid_generate_v4() primary key,
   workspace_subject text not null check (workspace_subject in ('english', 'korean')),
+  year integer not null check (year between 2000 and 2100),
   label text not null,
   sort_order integer not null default 0,
   is_active boolean not null default true,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  constraint question_bank_years_workspace_year_key unique (workspace_subject, year),
+  constraint question_bank_years_id_workspace_subject_key unique (id, workspace_subject)
 );
 
 create table if not exists public.question_bank_books (
   id uuid default uuid_generate_v4() primary key,
   workspace_subject text not null check (workspace_subject in ('english', 'korean')),
-  label text not null,
+  name text not null,
+  slug text not null check (slug ~ '^[a-z0-9][a-z0-9-]*$'),
+  description text,
   sort_order integer not null default 0,
   is_active boolean not null default true,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
-create table if not exists public.question_bank_question_metadata (
-  id uuid default uuid_generate_v4() primary key,
-  question_id uuid not null references public.questions(id) on delete cascade,
-  source_question_id uuid references public.questions(id) on delete cascade,
-  workspace_subject text not null check (workspace_subject in ('english', 'korean')),
-  year_id uuid not null references public.question_bank_years(id) on delete restrict,
-  book_id uuid not null references public.question_bank_books(id) on delete restrict,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  constraint question_bank_question_metadata_question_unique unique (question_id)
+  constraint question_bank_books_workspace_name_key unique (workspace_subject, name),
+  constraint question_bank_books_workspace_slug_key unique (workspace_subject, slug),
+  constraint question_bank_books_id_workspace_subject_key unique (id, workspace_subject)
 );
 
 alter table public.questions
@@ -60,6 +56,27 @@ begin
   end if;
 end $$;
 
+create table if not exists public.question_bank_question_metadata (
+  question_id uuid not null primary key,
+  workspace_subject text not null check (workspace_subject in ('english', 'korean')),
+  year_id uuid not null,
+  book_id uuid not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  constraint question_bank_question_metadata_question_workspace_fkey
+    foreign key (question_id, workspace_subject)
+    references public.questions(id, workspace_subject)
+    on delete cascade,
+  constraint question_bank_question_metadata_year_workspace_fkey
+    foreign key (year_id, workspace_subject)
+    references public.question_bank_years(id, workspace_subject)
+    on delete restrict,
+  constraint question_bank_question_metadata_book_workspace_fkey
+    foreign key (book_id, workspace_subject)
+    references public.question_bank_books(id, workspace_subject)
+    on delete restrict
+);
+
 create index if not exists idx_question_bank_years_workspace_active
   on public.question_bank_years(workspace_subject, is_active, sort_order);
 
@@ -71,9 +88,6 @@ create index if not exists idx_questions_bank_candidate_lookup
 
 create index if not exists idx_qb_metadata_scope_lookup
   on public.question_bank_question_metadata(workspace_subject, year_id, book_id, question_id);
-
-create index if not exists idx_qb_metadata_source_question
-  on public.question_bank_question_metadata(source_question_id, workspace_subject);
 
 alter table public.question_bank_years enable row level security;
 alter table public.question_bank_books enable row level security;
@@ -298,7 +312,7 @@ begin
     p_title,
     v_user_id,
     p_workspace_subject,
-    'question_bank_random',
+    'random_bank',
     jsonb_build_object(
       'yearId', p_year_id,
       'bookId', p_book_id,
@@ -457,12 +471,11 @@ begin
 
   insert into public.question_bank_question_metadata(
     question_id,
-    source_question_id,
     workspace_subject,
     year_id,
     book_id
   )
-  values (v_question_id, v_question_id, p_workspace_subject, p_year_id, p_book_id);
+  values (v_question_id, p_workspace_subject, p_year_id, p_book_id);
 
   return v_question_id;
 end;
@@ -570,13 +583,11 @@ begin
 
     insert into public.question_bank_question_metadata(
       question_id,
-      source_question_id,
       workspace_subject,
       year_id,
       book_id
     )
     values (
-      v_question_id,
       v_question_id,
       p_workspace_subject,
       nullif(v_item->>'yearId', '')::uuid,
@@ -671,15 +682,13 @@ begin
 
   insert into public.question_bank_question_metadata(
     question_id,
-    source_question_id,
     workspace_subject,
     year_id,
     book_id
   )
-  values (p_question_id, p_question_id, p_workspace_subject, p_year_id, p_book_id)
+  values (p_question_id, p_workspace_subject, p_year_id, p_book_id)
   on conflict (question_id) do update
   set
-    source_question_id = excluded.source_question_id,
     workspace_subject = excluded.workspace_subject,
     year_id = excluded.year_id,
     book_id = excluded.book_id,
@@ -687,19 +696,17 @@ begin
 
   insert into public.question_bank_question_metadata(
     question_id,
-    source_question_id,
     workspace_subject,
     year_id,
     book_id
   )
-  select q.id, p_question_id, p_workspace_subject, p_year_id, p_book_id
+  select q.id, p_workspace_subject, p_year_id, p_book_id
   from public.questions q
   where q.source = 'from_community'
     and q.shared_question_id = p_question_id
     and q.workspace_subject = p_workspace_subject
   on conflict (question_id) do update
   set
-    source_question_id = excluded.source_question_id,
     workspace_subject = excluded.workspace_subject,
     year_id = excluded.year_id,
     book_id = excluded.book_id,
@@ -798,19 +805,17 @@ begin
   if not p_dry_run then
     insert into public.question_bank_question_metadata(
       question_id,
-      source_question_id,
       workspace_subject,
       year_id,
       book_id
     )
-    select q.id, q.id, p_workspace_subject, p_year_id, p_book_id
+    select q.id, p_workspace_subject, p_year_id, p_book_id
     from public.questions q
     where q.id = any(coalesce(p_source_question_ids, '{}'))
       and q.workspace_subject = p_workspace_subject
       and q.source = 'admin_uploaded'
     on conflict (question_id) do update
     set
-      source_question_id = excluded.source_question_id,
       workspace_subject = excluded.workspace_subject,
       year_id = excluded.year_id,
       book_id = excluded.book_id,
@@ -818,19 +823,17 @@ begin
 
     insert into public.question_bank_question_metadata(
       question_id,
-      source_question_id,
       workspace_subject,
       year_id,
       book_id
     )
-    select q.id, q.shared_question_id, p_workspace_subject, p_year_id, p_book_id
+    select q.id, p_workspace_subject, p_year_id, p_book_id
     from public.questions q
     where q.shared_question_id = any(coalesce(p_source_question_ids, '{}'))
       and q.workspace_subject = p_workspace_subject
       and q.source = 'from_community'
     on conflict (question_id) do update
     set
-      source_question_id = excluded.source_question_id,
       workspace_subject = excluded.workspace_subject,
       year_id = excluded.year_id,
       book_id = excluded.book_id,
@@ -1148,14 +1151,12 @@ begin
       else
         insert into public.question_bank_question_metadata(
           question_id,
-          source_question_id,
           workspace_subject,
           year_id,
           book_id
         )
         select
           v_saved_question_id,
-          v_admin_question_id,
           m.workspace_subject,
           m.year_id,
           m.book_id
@@ -1219,7 +1220,7 @@ returns table(
   year_id uuid,
   year_label text,
   book_id uuid,
-  book_label text,
+  book_name text,
   total_count bigint
 )
 language plpgsql
@@ -1257,14 +1258,14 @@ begin
       m.year_id,
       y.label as year_label,
       m.book_id,
-      b.label as book_label,
+      b.name as book_name,
       count(*) over () as total_count
     from public.questions q
     left join public.problem_types pt on pt.id = q.problem_type_id
     left join public.profiles p on p.id = q.user_id
     left join public.question_bank_question_metadata m on m.question_id = q.id
-    left join public.question_bank_years y on y.id = m.year_id
-    left join public.question_bank_books b on b.id = m.book_id
+    left join public.question_bank_years y on y.id = m.year_id and y.workspace_subject = m.workspace_subject
+    left join public.question_bank_books b on b.id = m.book_id and b.workspace_subject = m.workspace_subject
     where q.workspace_subject = p_workspace_subject
       and q.source = v_source
       and (p_year_id is null or m.year_id = p_year_id)
@@ -1310,7 +1311,7 @@ begin
     f.year_id,
     f.year_label,
     f.book_id,
-    f.book_label,
+    f.book_name,
     f.total_count
   from filtered f
   order by

@@ -1430,27 +1430,33 @@ export type Database = {
       question_bank_books: {
         Row: {
           created_at: string
+          description: string | null
           id: string
           is_active: boolean
-          label: string
+          name: string
+          slug: string
           sort_order: number
           updated_at: string
           workspace_subject: string
         }
         Insert: {
           created_at?: string
+          description?: string | null
           id?: string
           is_active?: boolean
-          label: string
+          name: string
+          slug: string
           sort_order?: number
           updated_at?: string
           workspace_subject: string
         }
         Update: {
           created_at?: string
+          description?: string | null
           id?: string
           is_active?: boolean
-          label?: string
+          name?: string
+          slug?: string
           sort_order?: number
           updated_at?: string
           workspace_subject?: string
@@ -1461,9 +1467,7 @@ export type Database = {
         Row: {
           book_id: string
           created_at: string
-          id: string
           question_id: string
-          source_question_id: string | null
           updated_at: string
           workspace_subject: string
           year_id: string
@@ -1471,9 +1475,7 @@ export type Database = {
         Insert: {
           book_id: string
           created_at?: string
-          id?: string
           question_id: string
-          source_question_id?: string | null
           updated_at?: string
           workspace_subject: string
           year_id: string
@@ -1481,41 +1483,32 @@ export type Database = {
         Update: {
           book_id?: string
           created_at?: string
-          id?: string
           question_id?: string
-          source_question_id?: string | null
           updated_at?: string
           workspace_subject?: string
           year_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "question_bank_question_metadata_book_id_fkey"
-            columns: ["book_id"]
+            foreignKeyName: "question_bank_question_metadata_book_workspace_fkey"
+            columns: ["book_id", "workspace_subject"]
             isOneToOne: false
             referencedRelation: "question_bank_books"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "workspace_subject"]
           },
           {
-            foreignKeyName: "question_bank_question_metadata_question_id_fkey"
-            columns: ["question_id"]
+            foreignKeyName: "question_bank_question_metadata_question_workspace_fkey"
+            columns: ["question_id", "workspace_subject"]
             isOneToOne: true
             referencedRelation: "questions"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "workspace_subject"]
           },
           {
-            foreignKeyName: "question_bank_question_metadata_source_question_id_fkey"
-            columns: ["source_question_id"]
-            isOneToOne: false
-            referencedRelation: "questions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "question_bank_question_metadata_year_id_fkey"
-            columns: ["year_id"]
+            foreignKeyName: "question_bank_question_metadata_year_workspace_fkey"
+            columns: ["year_id", "workspace_subject"]
             isOneToOne: false
             referencedRelation: "question_bank_years"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "workspace_subject"]
           },
         ]
       }
@@ -1528,6 +1521,7 @@ export type Database = {
           sort_order: number
           updated_at: string
           workspace_subject: string
+          year: number
         }
         Insert: {
           created_at?: string
@@ -1537,6 +1531,7 @@ export type Database = {
           sort_order?: number
           updated_at?: string
           workspace_subject: string
+          year: number
         }
         Update: {
           created_at?: string
@@ -1546,6 +1541,7 @@ export type Database = {
           sort_order?: number
           updated_at?: string
           workspace_subject?: string
+          year?: number
         }
         Relationships: []
       }
@@ -2027,7 +2023,7 @@ export type Database = {
         Returns: {
           answer: string
           book_id: string | null
-          book_label: string | null
+          book_name: string | null
           choices: Json
           created_at: string
           difficulty: string | null

@@ -91,9 +91,37 @@ test('creates question bank dimension and metadata tables with expected RLS shap
     assert.match(mainSql, new RegExp(`alter\\s+table\\s+public\\.${tableName}\\s+enable\\s+row\\s+level\\s+security`, 'i'))
   }
 
+  const yearsTable = withoutComments(findCreateTableBlock(mainSql, 'question_bank_years'))
+  const booksTable = withoutComments(findCreateTableBlock(mainSql, 'question_bank_books'))
   const metadataTable = withoutComments(findCreateTableBlock(mainSql, 'question_bank_question_metadata'))
+
+  assert.ok(yearsTable.length > 0, 'years table block should be present')
+  assert.match(yearsTable, /id\s+uuid[\s\S]*primary\s+key/i)
+  assert.match(yearsTable, /workspace_subject\s+text\s+not\s+null\s+check\s*\(\s*workspace_subject\s+in\s*\(\s*'english'\s*,\s*'korean'\s*\)\s*\)/i)
+  assert.match(yearsTable, /year\s+integer\s+not\s+null\s+check\s*\(\s*year\s+between\s+2000\s+and\s+2100\s*\)/i)
+  assert.match(yearsTable, /label\s+text\s+not\s+null/i)
+  assert.match(yearsTable, /unique\s*\(\s*workspace_subject\s*,\s*year\s*\)/i)
+  assert.match(yearsTable, /unique\s*\(\s*id\s*,\s*workspace_subject\s*\)/i)
+
+  assert.ok(booksTable.length > 0, 'books table block should be present')
+  assert.match(booksTable, /id\s+uuid[\s\S]*primary\s+key/i)
+  assert.match(booksTable, /workspace_subject\s+text\s+not\s+null\s+check\s*\(\s*workspace_subject\s+in\s*\(\s*'english'\s*,\s*'korean'\s*\)\s*\)/i)
+  assert.match(booksTable, /name\s+text\s+not\s+null/i)
+  assert.match(booksTable, /slug\s+text\s+not\s+null\s+check\s*\(\s*slug\s*~\s*'\^\[a-z0-9\]\[a-z0-9-\]\*\$'\s*\)/i)
+  assert.match(booksTable, /description\s+text/i)
+  assert.match(booksTable, /unique\s*\(\s*workspace_subject\s*,\s*name\s*\)/i)
+  assert.match(booksTable, /unique\s*\(\s*workspace_subject\s*,\s*slug\s*\)/i)
+  assert.match(booksTable, /unique\s*\(\s*id\s*,\s*workspace_subject\s*\)/i)
+  assert.doesNotMatch(booksTable, /label\s+text\s+not\s+null/i)
+
   assert.ok(metadataTable.length > 0, 'metadata table block should be present')
+  assert.match(metadataTable, /question_id\s+uuid\s+not\s+null[\s\S]*primary\s+key/i)
+  assert.doesNotMatch(metadataTable, /\bid\s+uuid\b/i)
+  assert.doesNotMatch(metadataTable, /\bsource_question_id\b/i)
   assert.doesNotMatch(metadataTable, /\bproblem_type_id\b/i)
+  assert.match(metadataTable, /foreign\s+key\s*\(\s*question_id\s*,\s*workspace_subject\s*\)\s+references\s+public\.questions\s*\(\s*id\s*,\s*workspace_subject\s*\)/i)
+  assert.match(metadataTable, /foreign\s+key\s*\(\s*year_id\s*,\s*workspace_subject\s*\)\s+references\s+public\.question_bank_years\s*\(\s*id\s*,\s*workspace_subject\s*\)/i)
+  assert.match(metadataTable, /foreign\s+key\s*\(\s*book_id\s*,\s*workspace_subject\s*\)\s+references\s+public\.question_bank_books\s*\(\s*id\s*,\s*workspace_subject\s*\)/i)
 
   assertPolicy(mainSql, 'question_bank_years', /for\s+select\s+to\s+authenticated[\s\S]*\bis_active\s*=\s*true/i, 'years need authenticated active-only select policy')
   assertPolicy(mainSql, 'question_bank_books', /for\s+select\s+to\s+authenticated[\s\S]*\bis_active\s*=\s*true/i, 'books need authenticated active-only select policy')
@@ -151,6 +179,8 @@ test('random exam RPC uses current table contracts and fixed constraints', () =>
 
   assert.match(block, /MAX_RANDOM_EXAM_QUESTION_COUNT/i)
   assert.match(block, /insert\s+into\s+public\.exam_papers[\s\S]*paper_title[\s\S]*generation_mode[\s\S]*generation_criteria/i)
+  assert.match(block, /'random_bank'/i)
+  assert.doesNotMatch(block, /'question_bank_random'/i)
   assert.match(block, /insert\s+into\s+public\.exam_paper_items[\s\S]*number[\s\S]*order_index[\s\S]*workspace_subject/i)
   assert.match(block, /source\s*=\s*'from_community'/i)
   assert.match(block, /shared_question_id/i)
@@ -162,6 +192,16 @@ test('random exam RPC uses current table contracts and fixed constraints', () =>
   ]) {
     assert.match(block, new RegExp(message, 'i'))
   }
+})
+
+
+test('admin list RPC returns book_name from question_bank_books.name', () => {
+  const block = findFunctionBlock(mainSql, 'admin_list_bank_questions')
+
+  assert.match(block, /book_name\s+text/i)
+  assert.match(block, /b\.name\s+as\s+book_name/i)
+  assert.doesNotMatch(block, /book_label\s+text/i)
+  assert.doesNotMatch(block, /b\.label\s+as\s+book_label/i)
 })
 
 test('main migration contains required constants, error messages, and bank visibility policy', () => {
