@@ -3,53 +3,79 @@ import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 
+async function requireAdminUser(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile?.is_admin) {
+    return { error: NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 }) }
+  }
+
+  return { user }
+}
+
 export async function GET(request: Request) {
   try {
-    // 1. Check authentication and admin status
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const admin = await requireAdminUser(supabase)
+
+    if (admin.error) {
+      return admin.error
     }
-    
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single()
-    
-    if (!profile?.is_admin) {
-      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-    }
-    
+
     const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
 
-    // 2. Fetch problem types from database
-    const { data: problemTypes, error: problemTypesError } = await supabase
-      .from('problem_types')
-      .select('id, type_name')
-      .eq('is_active', true)
-      .eq('workspace_subject', workspaceSubject)
-      .order('type_name')
-    
-    if (problemTypesError) {
-      console.error('[Template] Error fetching problem types:', problemTypesError)
-      return NextResponse.json({ error: 'Failed to fetch problem types' }, { status: 500 })
+    const [{ data: problemTypes, error: problemTypesError }, { data: years, error: yearsError }, { data: books, error: booksError }] = await Promise.all([
+      supabase
+        .from('problem_types')
+        .select('id, type_name')
+        .eq('is_active', true)
+        .eq('workspace_subject', workspaceSubject)
+        .order('type_name'),
+      supabase
+        .from('question_bank_years')
+        .select('id, year, label, is_active')
+        .eq('workspace_subject', workspaceSubject)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+        .order('year', { ascending: false }),
+      supabase
+        .from('question_bank_books')
+        .select('id, slug, name, is_active')
+        .eq('workspace_subject', workspaceSubject)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true }),
+    ])
+
+    if (problemTypesError || yearsError || booksError) {
+      console.error('[Template] Metadata fetch error:', problemTypesError || yearsError || booksError)
+      return NextResponse.json({ error: 'Failed to fetch template metadata' }, { status: 500 })
     }
-    
-    // 3. Create workbook with two sheets
+
     const workbook = XLSX.utils.book_new()
-    
-    // Sheet 1: 문제 입력 (Main sheet with sample data)
+    const firstYear = years?.[0]
+    const firstBook = books?.[0]
+
     const mainSheetHeaders = [
+      'year',
+      'bookSlug',
       '문제유형',
       '지문',
       '문제앞텍스트',
       '문제내용',
       '문제뒤텍스트',
-      'option', // option 컬럼 (JSON 배열 형식 또는 쉼표 구분 문자열)
-      '선택지1', // 기존 방식도 유지 (option이 없을 경우 사용)
+      'option',
+      '선택지1',
       '선택지2',
       '선택지3',
       '선택지4',
@@ -62,18 +88,19 @@ export async function GET(request: Request) {
       '출처1',
       '출처2',
       '출처3',
-      '출처4'
+      '출처4',
     ]
-    
-    // Sample data row
+
     const sampleData = [
+      firstYear?.year || '2025',
+      firstBook?.slug || 'sample-book',
       problemTypes && problemTypes.length > 0 ? problemTypes[0].type_name : '문장삽입형 문제',
       'The development of technology has changed the way we communicate. (A) However, not all changes have been positive. (B) Social media, for example, has made it easier to stay connected with friends and family. (C) On the other hand, it has also led to concerns about privacy and mental health.',
-      '', // 문제앞텍스트 (선택)
+      '',
       '주어진 글 다음에 이어질 글의 순서로 가장 적절한 것은?',
-      '', // 문제뒤텍스트 (선택)
-      '["(A)-(C)-(B)", "(B)-(A)-(C)", "(B)-(C)-(A)", "(C)-(A)-(B)", "(C)-(B)-(A)"]', // option 컬럼 예시 (JSON 배열 형식)
-      '(A)-(C)-(B)', // 기존 방식 (option이 없을 경우 사용)
+      '',
+      '["(A)-(C)-(B)", "(B)-(A)-(C)", "(B)-(C)-(A)", "(C)-(A)-(B)", "(C)-(B)-(A)"]',
+      '(A)-(C)-(B)',
       '(B)-(A)-(C)',
       '(B)-(C)-(A)',
       '(C)-(A)-(B)',
@@ -82,67 +109,77 @@ export async function GET(request: Request) {
       '글의 흐름상 기술 발전의 긍정적 측면을 먼저 언급한 후(B), 부정적 측면으로 전환(C)하고, 마지막으로 균형 잡힌 시각(A)으로 마무리하는 것이 자연스럽습니다.',
       '고1',
       '중',
-      '모의고사', // 출처종류
-      '2023년 3월', // 출처1
-      '31번', // 출처2
-      '', // 출처3
-      '' // 출처4
+      '모의고사',
+      '2023년 3월',
+      '31번',
+      '',
+      '',
     ]
-    
-    const mainSheetData = [mainSheetHeaders, sampleData]
-    const mainSheet = XLSX.utils.aoa_to_sheet(mainSheetData)
-    
-    // Set column widths for better readability
+
+    const guidanceData = [
+      ['필수 메타데이터 안내'],
+      ['year', '연도목록 시트의 활성 연도 숫자를 입력하거나 yearId 컬럼을 추가해 ID를 직접 입력할 수 있습니다.'],
+      ['bookSlug', '교재목록 시트의 활성 교재 slug를 입력하거나 bookId 컬럼을 추가해 ID를 직접 입력할 수 있습니다.'],
+      ['book', 'bookSlug 대신 교재명을 입력해도 됩니다.'],
+    ]
+
+    const mainSheet = XLSX.utils.aoa_to_sheet([mainSheetHeaders, sampleData])
     mainSheet['!cols'] = [
-      { wch: 20 },  // 문제유형
-      { wch: 50 },  // 지문
-      { wch: 30 },  // 문제앞텍스트
-      { wch: 40 },  // 문제내용
-      { wch: 30 },  // 문제뒤텍스트
-      { wch: 60 },  // option (JSON 배열 형식)
-      { wch: 20 },  // 선택지1
-      { wch: 20 },  // 선택지2
-      { wch: 20 },  // 선택지3
-      { wch: 20 },  // 선택지4
-      { wch: 20 },  // 선택지5
-      { wch: 8 },   // 정답
-      { wch: 50 },  // 해설
-      { wch: 10 },  // 학년
-      { wch: 10 },  // 난이도
-      { wch: 15 },  // 출처종류
-      { wch: 15 },  // 출처1
-      { wch: 15 },  // 출처2
-      { wch: 15 },  // 출처3
-      { wch: 15 },  // 출처4
+      { wch: 10 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 50 },
+      { wch: 30 },
+      { wch: 40 },
+      { wch: 30 },
+      { wch: 60 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 8 },
+      { wch: 50 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
     ]
-    
     XLSX.utils.book_append_sheet(workbook, mainSheet, '문제입력')
-    
-    // Sheet 2: 문제유형목록 (Reference sheet)
-    const refSheetHeaders = ['문제유형ID', '문제유형이름']
-    const refSheetData = [refSheetHeaders]
-    
-    if (problemTypes) {
-      problemTypes.forEach(type => {
-        refSheetData.push([type.id, type.type_name])
-      })
-    }
-    
-    const refSheet = XLSX.utils.aoa_to_sheet(refSheetData)
-    refSheet['!cols'] = [
-      { wch: 40 },  // 문제유형ID
-      { wch: 30 },  // 문제유형이름
-    ]
-    
-    XLSX.utils.book_append_sheet(workbook, refSheet, '문제유형목록')
-    
-    // 4. Generate Excel buffer
-    const excelBuffer = XLSX.write(workbook, { 
-      type: 'buffer', 
-      bookType: 'xlsx' 
+
+    const guidanceSheet = XLSX.utils.aoa_to_sheet(guidanceData)
+    guidanceSheet['!cols'] = [{ wch: 18 }, { wch: 90 }]
+    XLSX.utils.book_append_sheet(workbook, guidanceSheet, '작성안내')
+
+    const typeSheet = XLSX.utils.aoa_to_sheet([
+      ['문제유형ID', '문제유형이름'],
+      ...(problemTypes || []).map((type) => [type.id, type.type_name]),
+    ])
+    typeSheet['!cols'] = [{ wch: 40 }, { wch: 30 }]
+    XLSX.utils.book_append_sheet(workbook, typeSheet, '문제유형목록')
+
+    const yearsSheet = XLSX.utils.aoa_to_sheet([
+      ['yearId', 'year', 'label', 'is_active'],
+      ...(years || []).map((year) => [year.id, year.year, year.label, year.is_active]),
+    ])
+    yearsSheet['!cols'] = [{ wch: 40 }, { wch: 10 }, { wch: 20 }, { wch: 10 }]
+    XLSX.utils.book_append_sheet(workbook, yearsSheet, '연도목록')
+
+    const booksSheet = XLSX.utils.aoa_to_sheet([
+      ['bookId', 'bookSlug', 'book', 'is_active'],
+      ...(books || []).map((book) => [book.id, book.slug, book.name, book.is_active]),
+    ])
+    booksSheet['!cols'] = [{ wch: 40 }, { wch: 20 }, { wch: 30 }, { wch: 10 }]
+    XLSX.utils.book_append_sheet(workbook, booksSheet, '교재목록')
+
+    const excelBuffer = XLSX.write(workbook, {
+      type: 'buffer',
+      bookType: 'xlsx',
     })
-    
-    // 5. Return as downloadable file
+
     return new NextResponse(excelBuffer, {
       status: 200,
       headers: {
@@ -150,12 +187,8 @@ export async function GET(request: Request) {
         'Content-Disposition': 'attachment; filename="question_upload_template.xlsx"',
       },
     })
-    
   } catch (error) {
     console.error('[Template] Error:', error)
-    return NextResponse.json({ 
-      error: 'Internal server error' 
-    }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-

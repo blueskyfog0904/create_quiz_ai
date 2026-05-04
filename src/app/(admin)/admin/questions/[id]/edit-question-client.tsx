@@ -39,7 +39,11 @@ interface Question {
   passage_text: string | null
   grade_level: string | null
   difficulty: string | null
-  source: string | null
+  source_type: string | null
+  source_1: string | null
+  source_2: string | null
+  source_3: string | null
+  source_4: string | null
   created_at: string
   updated_at: string
   problem_type_id: string | null
@@ -52,13 +56,35 @@ interface EditQuestionClientProps {
   workspaceSubject: WorkspaceSubject
 }
 
+interface QuestionBankMetadata {
+  yearId: string
+  bookId: string
+}
+
+interface QuestionBankYear {
+  id: string
+  year: number
+  label: string | null
+  is_active?: boolean | null
+}
+
+interface QuestionBankBook {
+  id: string
+  slug: string
+  name: string
+  is_active?: boolean | null
+}
+
 const gradeLevels = ['중1', '중2', '중3', '고1', '고2', '고3']
 const difficulties = ['하', '중', '상']
+const NONE_SELECT_VALUE = '__none__'
 
 export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestionClientProps) {
   const router = useRouter()
   const [question, setQuestion] = useState<Question | null>(null)
   const [problemTypes, setProblemTypes] = useState<Array<{ id: string; type_name: string }>>([])
+  const [bankYears, setBankYears] = useState<QuestionBankYear[]>([])
+  const [bankBooks, setBankBooks] = useState<QuestionBankBook[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -81,7 +107,13 @@ export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestio
     grade_level: '',
     difficulty: '',
     problem_type_id: '',
-    source: '',
+    yearId: '',
+    bookId: '',
+    source_type: '',
+    source_1: '',
+    source_2: '',
+    source_3: '',
+    source_4: '',
   })
 
   useEffect(() => {
@@ -90,19 +122,34 @@ export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestio
         setLoading(true)
         
         // Fetch question and problem types in parallel
-        const [questionRes, typesRes] = await Promise.all([
+        const [questionRes, typesRes, yearsRes, booksRes] = await Promise.all([
           fetch(withAdminWorkspaceSubject(`/api/admin/questions/${questionId}`, workspaceSubject)),
           fetch(withAdminWorkspaceSubject('/api/admin/problem-types', workspaceSubject)),
+          fetch(withAdminWorkspaceSubject('/api/admin/question-bank/years', workspaceSubject)),
+          fetch(withAdminWorkspaceSubject('/api/admin/question-bank/books', workspaceSubject)),
         ])
 
         if (!questionRes.ok) throw new Error('Failed to fetch question')
         
-        const { question: fetchedQuestion } = await questionRes.json()
+        const { question: fetchedQuestion, questionBankMetadata } = await questionRes.json() as {
+          question: Question
+          questionBankMetadata: QuestionBankMetadata | null
+        }
         
         let types: Array<{ id: string; type_name: string }> = []
         if (typesRes.ok) {
           const typesData = await typesRes.json()
           types = typesData.types || typesData || []
+        }
+
+        if (yearsRes.ok) {
+          const yearsData = await yearsRes.json()
+          setBankYears((yearsData.years || []).filter((year: QuestionBankYear) => year.is_active !== false))
+        }
+
+        if (booksRes.ok) {
+          const booksData = await booksRes.json()
+          setBankBooks((booksData.books || []).filter((book: QuestionBankBook) => book.is_active !== false))
         }
 
         setQuestion(fetchedQuestion)
@@ -126,7 +173,13 @@ export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestio
           grade_level: fetchedQuestion.grade_level || '',
           difficulty: fetchedQuestion.difficulty || '',
           problem_type_id: fetchedQuestion.problem_type_id || '',
-          source: fetchedQuestion.source || '',
+          yearId: questionBankMetadata?.yearId || '',
+          bookId: questionBankMetadata?.bookId || '',
+          source_type: fetchedQuestion.source_type || '',
+          source_1: fetchedQuestion.source_1 || '',
+          source_2: fetchedQuestion.source_2 || '',
+          source_3: fetchedQuestion.source_3 || '',
+          source_4: fetchedQuestion.source_4 || '',
         })
         
         setError(null)
@@ -165,6 +218,13 @@ export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestio
   const handleSave = async () => {
     try {
       setSaving(true)
+
+      if (!formData.yearId) {
+        throw new Error('연도를 선택해주세요.')
+      }
+      if (!formData.bookId) {
+        throw new Error('교재를 선택해주세요.')
+      }
       
       const response = await fetch(withAdminWorkspaceSubject(`/api/admin/questions/${questionId}`, workspaceSubject), {
         method: 'PATCH',
@@ -180,7 +240,13 @@ export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestio
           grade_level: formData.grade_level || null,
           difficulty: formData.difficulty || null,
           problem_type_id: formData.problem_type_id || null,
-          source: formData.source || null,
+          yearId: formData.yearId,
+          bookId: formData.bookId,
+          source_type: formData.source_type || null,
+          source_1: formData.source_1 || null,
+          source_2: formData.source_2 || null,
+          source_3: formData.source_3 || null,
+          source_4: formData.source_4 || null,
         }),
       })
 
@@ -418,16 +484,50 @@ export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestio
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
+                <Label>연도 *</Label>
+                <Select
+                  value={formData.yearId}
+                  onValueChange={(value) => setFormData({ ...formData, yearId: value })}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="연도 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bankYears.map((year) => (
+                      <SelectItem key={year.id} value={year.id}>{year.label || year.year}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>교재 *</Label>
+                <Select
+                  value={formData.bookId}
+                  onValueChange={(value) => setFormData({ ...formData, bookId: value })}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="교재 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bankBooks.map((book) => (
+                      <SelectItem key={book.id} value={book.id}>{book.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
                 <Label>학년</Label>
                 <Select
-                  value={formData.grade_level}
-                  onValueChange={(value) => setFormData({ ...formData, grade_level: value })}
+                  value={formData.grade_level || NONE_SELECT_VALUE}
+                  onValueChange={(value) => setFormData({ ...formData, grade_level: value === NONE_SELECT_VALUE ? '' : value })}
                 >
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="학년 선택" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">선택 안함</SelectItem>
+                    <SelectItem value={NONE_SELECT_VALUE}>선택 안함</SelectItem>
                     {gradeLevels.map((level) => (
                       <SelectItem key={level} value={level}>{level}</SelectItem>
                     ))}
@@ -438,14 +538,14 @@ export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestio
               <div>
                 <Label>난이도</Label>
                 <Select
-                  value={formData.difficulty}
-                  onValueChange={(value) => setFormData({ ...formData, difficulty: value })}
+                  value={formData.difficulty || NONE_SELECT_VALUE}
+                  onValueChange={(value) => setFormData({ ...formData, difficulty: value === NONE_SELECT_VALUE ? '' : value })}
                 >
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="난이도 선택" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">선택 안함</SelectItem>
+                    <SelectItem value={NONE_SELECT_VALUE}>선택 안함</SelectItem>
                     {difficulties.map((d) => (
                       <SelectItem key={d} value={d}>{d}</SelectItem>
                     ))}
@@ -456,14 +556,14 @@ export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestio
               <div>
                 <Label>문제 유형</Label>
                 <Select
-                  value={formData.problem_type_id}
-                  onValueChange={(value) => setFormData({ ...formData, problem_type_id: value })}
+                  value={formData.problem_type_id || NONE_SELECT_VALUE}
+                  onValueChange={(value) => setFormData({ ...formData, problem_type_id: value === NONE_SELECT_VALUE ? '' : value })}
                 >
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="유형 선택" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">선택 안함</SelectItem>
+                    <SelectItem value={NONE_SELECT_VALUE}>선택 안함</SelectItem>
                     {problemTypes.map((type) => (
                       <SelectItem key={type.id} value={type.id}>{type.type_name}</SelectItem>
                     ))}
@@ -471,13 +571,32 @@ export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestio
                 </Select>
               </div>
 
-              <div>
-                <Label>출처</Label>
+              <div className="space-y-3 pt-2 border-t">
+                <Label>출처 정보</Label>
                 <Input
-                  placeholder="예: 2024 수능, 교과서..."
-                  value={formData.source}
-                  onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-                  className="mt-1"
+                  placeholder="출처 종류 예: 모의고사, 수능"
+                  value={formData.source_type}
+                  onChange={(e) => setFormData({ ...formData, source_type: e.target.value })}
+                />
+                <Input
+                  placeholder="출처 1 예: 2023년 3월"
+                  value={formData.source_1}
+                  onChange={(e) => setFormData({ ...formData, source_1: e.target.value })}
+                />
+                <Input
+                  placeholder="출처 2 예: 31번"
+                  value={formData.source_2}
+                  onChange={(e) => setFormData({ ...formData, source_2: e.target.value })}
+                />
+                <Input
+                  placeholder="출처 3"
+                  value={formData.source_3}
+                  onChange={(e) => setFormData({ ...formData, source_3: e.target.value })}
+                />
+                <Input
+                  placeholder="출처 4"
+                  value={formData.source_4}
+                  onChange={(e) => setFormData({ ...formData, source_4: e.target.value })}
                 />
               </div>
             </CardContent>
@@ -518,4 +637,3 @@ export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestio
     </div>
   )
 }
-
