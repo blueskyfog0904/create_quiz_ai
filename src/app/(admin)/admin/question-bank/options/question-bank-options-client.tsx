@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -83,7 +83,7 @@ export default function QuestionBankOptionsClient({ workspaceSubject }: Question
   const yearEndpoint = `/api/admin/question-bank/years?subject=${workspaceSubject}`
   const bookEndpoint = `/api/admin/question-bank/books?subject=${workspaceSubject}`
 
-  const loadOptions = async () => {
+  const loadOptions = useCallback(async () => {
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -106,16 +106,16 @@ export default function QuestionBankOptionsClient({ workspaceSubject }: Question
 
       setYears(yearBody.years ?? [])
       setBooks(bookBody.books ?? [])
-    } catch (error) {
+    } catch {
       setErrorMessage('문제은행 설정을 불러오지 못했습니다.')
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [bookEndpoint, yearEndpoint])
 
   useEffect(() => {
     loadOptions()
-  }, [workspaceSubject])
+  }, [loadOptions])
 
   const saveYear = async (id?: string) => {
     const form = id ? yearEditForm : yearForm
