@@ -36,9 +36,24 @@ interface AdminUploadClientProps {
   workspaceSubject: WorkspaceSubject
 }
 
+interface QuestionBankYear {
+  id: string
+  year: number
+  label: string | null
+  is_active?: boolean | null
+}
+
+interface QuestionBankBook {
+  id: string
+  slug: string
+  name: string
+  is_active?: boolean | null
+}
+
 // Parsed question from Excel file
 interface ParsedQuestion {
   id: string
+  clientRowId: string
   problem_type_id: string
   problem_type_name: string
   passage_text: string
@@ -50,6 +65,8 @@ interface ParsedQuestion {
   explanation: string
   grade_level: string
   difficulty: string
+  yearId: string
+  bookId: string
   isValid: boolean
   errorMessage?: string
   source_type?: string
@@ -107,6 +124,8 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
   // Source Configs
   const [sourceConfigs, setSourceConfigs] = useState<SourceConfig[]>([])
   const [activeSourceConfig, setActiveSourceConfig] = useState<SourceConfig | null>(null)
+  const [bankYears, setBankYears] = useState<QuestionBankYear[]>([])
+  const [bankBooks, setBankBooks] = useState<QuestionBankBook[]>([])
   
   // Single upload form state
   const [formData, setFormData] = useState({
@@ -120,6 +139,8 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
     difficulty: undefined as string | undefined,
     grade_level: undefined as string | undefined,
     problem_type_id: '',
+    yearId: '',
+    bookId: '',
     source_type: '',
     source_1: '',
     source_2: '',
@@ -159,6 +180,33 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
       fetchAllProblemTypes()
     }
   }, [isDialogOpen, fetchAllProblemTypes])
+
+  // Fetch active question bank year/book metadata
+  useEffect(() => {
+    const fetchQuestionBankMetadata = async () => {
+      try {
+        const [yearsResponse, booksResponse] = await Promise.all([
+          fetch(withAdminWorkspaceSubject('/api/admin/question-bank/years', workspaceSubject)),
+          fetch(withAdminWorkspaceSubject('/api/admin/question-bank/books', workspaceSubject)),
+        ])
+
+        if (yearsResponse.ok) {
+          const yearsData = await yearsResponse.json()
+          setBankYears((yearsData.years || []).filter((year: QuestionBankYear) => year.is_active !== false))
+        }
+
+        if (booksResponse.ok) {
+          const booksData = await booksResponse.json()
+          setBankBooks((booksData.books || []).filter((book: QuestionBankBook) => book.is_active !== false))
+        }
+      } catch (error) {
+        console.error('Failed to fetch question bank metadata:', error)
+        toast.error('문제은행 연도/교재 목록을 불러오는데 실패했습니다.')
+      }
+    }
+
+    fetchQuestionBankMetadata()
+  }, [workspaceSubject])
 
   // Fetch source configs
   useEffect(() => {
@@ -467,6 +515,8 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
     if (!q.problem_type_id) return false
     if (!q.question_text.trim()) return false
     if (!q.answer.trim()) return false
+    if (!q.yearId) return false
+    if (!q.bookId) return false
     // 선택지는 선택사항이므로 검증 제거
     return true
   }
@@ -483,152 +533,104 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
     toast.success('모든 문제가 목록에서 제거되었습니다.')
   }
   
+  const formatParsedQuestionForUpload = (question: ParsedQuestion) => {
+    const circledNumbers = ['①', '②', '③', '④', '⑤']
+    const validChoices = question.choices.filter(c => c.trim())
+    const formattedChoices = validChoices.length > 0
+      ? validChoices.map((choice, index) => ({
+          label: circledNumbers[index],
+          text: choice,
+        }))
+      : []
+
+    let formattedAnswer = question.answer.trim()
+    if (formattedAnswer.includes(',')) {
+      formattedAnswer = formattedAnswer
+        .split(',')
+        .map(ans => {
+          const num = parseInt(ans.trim())
+          if (!isNaN(num) && num >= 1 && num <= 5) {
+            return circledNumbers[num - 1]
+          }
+          return ans.trim()
+        })
+        .join(', ')
+    } else {
+      const answerNum = parseInt(formattedAnswer)
+      if (!isNaN(answerNum) && answerNum >= 1 && answerNum <= 5) {
+        formattedAnswer = circledNumbers[answerNum - 1]
+      }
+    }
+
+    return {
+      question_text: question.question_text,
+      question_text_forward: question.question_text_forward || undefined,
+      question_text_backward: question.question_text_backward || undefined,
+      passage_text: question.passage_text || undefined,
+      answer: formattedAnswer,
+      choices: formattedChoices,
+      explanation: question.explanation || undefined,
+      difficulty: question.difficulty || undefined,
+      grade_level: question.grade_level || undefined,
+      problem_type_id: question.problem_type_id,
+      source_type: question.source_type,
+      source_1: question.source_1,
+      source_2: question.source_2,
+      source_3: question.source_3,
+      source_4: question.source_4,
+    }
+  }
+
   // Bulk save all parsed questions
   const handleBulkSave = async () => {
     const validQuestions = parsedQuestions.filter(q => q.isValid)
-    
+
     if (validQuestions.length === 0) {
       toast.error('업로드할 유효한 문제가 없습니다.')
       return
     }
-    
+
     setIsBulkSaving(true)
-    
-    const circledNumbers = ['①', '②', '③', '④', '⑤']
-    let successCount = 0
-    let failCount = 0
-    
-    for (const question of validQuestions) {
-      try {
-        console.log('[Client Bulk Save] Processing question:', {
-          id: question.id,
-          question_text: question.question_text,
-          originalChoices: question.choices,
-          originalChoicesLength: question.choices.length,
-          originalChoicesType: typeof question.choices,
-          originalChoicesIsArray: Array.isArray(question.choices)
-        })
-        
-        // Format choices (선택사항 - 빈 배열도 허용)
-        const validChoices = question.choices.filter(c => c.trim())
-        console.log('[Client Bulk Save] Valid choices after filter:', {
-          validChoices,
-          validChoicesLength: validChoices.length,
-          originalChoicesLength: question.choices.length
-        })
-        
-        // 빈 배열도 DB에 저장 (null 대신 빈 배열)
-        const formattedChoices = validChoices.length > 0
-          ? validChoices.map((choice, index) => ({
-              label: circledNumbers[index],
-              text: choice
-            }))
-          : [] // 빈 배열로 저장
-        
-        console.log('[Client Bulk Save] Formatted choices:', {
-          formattedChoices,
-          formattedChoicesLength: formattedChoices.length,
-          formattedChoicesType: typeof formattedChoices,
-          formattedChoicesIsArray: Array.isArray(formattedChoices),
-          formattedChoicesJSON: JSON.stringify(formattedChoices)
-        })
-        
-        // Format answer - support multiple answers separated by comma
-        let formattedAnswer = question.answer.trim()
-        // Check if it contains comma (multiple answers)
-        if (formattedAnswer.includes(',')) {
-          // Split by comma, convert each number to circled number, and join back
-          formattedAnswer = formattedAnswer
-            .split(',')
-            .map(ans => {
-              const num = parseInt(ans.trim())
-              if (!isNaN(num) && num >= 1 && num <= 5) {
-                return circledNumbers[num - 1]
-              }
-              return ans.trim() // Keep as-is if not a valid number
-            })
-            .join(', ')
-        } else {
-          // Single answer
-          const answerNum = parseInt(formattedAnswer)
-          if (!isNaN(answerNum) && answerNum >= 1 && answerNum <= 5) {
-            formattedAnswer = circledNumbers[answerNum - 1]
-          }
-        }
-        
-        const requestBody = {
-          question_text: question.question_text,
-          question_text_forward: question.question_text_forward || undefined,
-          question_text_backward: question.question_text_backward || undefined,
-          passage_text: question.passage_text || undefined,
-          answer: formattedAnswer,
-          choices: formattedChoices,
-          explanation: question.explanation || undefined,
-          difficulty: question.difficulty || undefined,
-          grade_level: question.grade_level || undefined,
-          problem_type_id: question.problem_type_id,
-          source_type: question.source_type,
-          source_1: question.source_1,
-          source_2: question.source_2,
-          source_3: question.source_3,
-          source_4: question.source_4,
-        }
-        
-        console.log('[Client Bulk Save] Request body:', JSON.stringify(requestBody, null, 2))
-        console.log('[Client Bulk Save] Request body choices:', {
-          choices: requestBody.choices,
-          choicesType: typeof requestBody.choices,
-          choicesIsArray: Array.isArray(requestBody.choices),
-          choicesLength: Array.isArray(requestBody.choices) ? requestBody.choices.length : 'N/A',
-          choicesJSON: JSON.stringify(requestBody.choices)
-        })
-        
-        const response = await fetch(withAdminWorkspaceSubject('/api/admin/questions/upload', workspaceSubject), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
-        })
-        
-        const responseData = await response.json().catch(() => ({}))
-        console.log('[Client Bulk Save] Response status:', response.status)
-        console.log('[Client Bulk Save] Response data:', JSON.stringify(responseData, null, 2))
-        
-        if (response.ok) {
-          console.log('[Client Bulk Save] Question saved successfully:', question.id)
-          successCount++
-        } else {
-          console.error('[Client Bulk Save] Failed to save question:', {
-            questionId: question.id,
-            status: response.status,
-            error: responseData.error,
-            details: responseData.details
-          })
-          failCount++
-        }
-      } catch (error: unknown) {
-        console.error('[Client Bulk Save] Exception while saving question:', {
-          questionId: question.id,
-          error: getErrorMessage(error),
-          stack: error instanceof Error ? error.stack : undefined
-        })
-        failCount++
+
+    try {
+      const response = await fetch(withAdminWorkspaceSubject('/api/admin/questions/upload', workspaceSubject), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questions: validQuestions.map((question) => ({
+            question: formatParsedQuestionForUpload(question),
+            yearId: question.yearId,
+            bookId: question.bookId,
+            clientRowId: question.clientRowId,
+          })),
+        }),
+      })
+
+      const responseData = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(responseData.error || '문제 업로드에 실패했습니다.')
       }
-    }
-    
-    setIsBulkSaving(false)
-    
-    if (successCount > 0) {
-      toast.success(`${successCount}개의 문제가 성공적으로 업로드되었습니다.`)
-      // Remove successfully uploaded questions
-      setParsedQuestions([])
-      router.refresh()
-    }
-    
-    if (failCount > 0) {
-      toast.error(`${failCount}개의 문제 업로드에 실패했습니다.`)
+
+      const insertedCount = responseData.result?.inserted_count ?? validQuestions.length
+      const failedCount = responseData.result?.failed_count ?? 0
+
+      if (insertedCount > 0) {
+        toast.success(`${insertedCount}개의 문제가 성공적으로 업로드되었습니다.`)
+        setParsedQuestions([])
+        router.refresh()
+      }
+
+      if (failedCount > 0) {
+        toast.error(`${failedCount}개의 문제 업로드에 실패했습니다.`)
+      }
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error))
+    } finally {
+      setIsBulkSaving(false)
     }
   }
-  
+
   // Single upload submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -643,6 +645,12 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
       }
       if (!formData.problem_type_id) {
         throw new Error('문제 유형을 선택해주세요.')
+      }
+      if (!formData.yearId) {
+        throw new Error('연도를 선택해주세요.')
+      }
+      if (!formData.bookId) {
+        throw new Error('교재를 선택해주세요.')
       }
       
       console.log('[Client Single Upload] ====== START SINGLE UPLOAD ======')
@@ -761,6 +769,8 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
         difficulty: undefined,
         grade_level: undefined,
         problem_type_id: '',
+        yearId: '',
+        bookId: '',
         source_type: '',
         source_1: '',
         source_2: '',
@@ -957,6 +967,45 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
                   </Select>
                 </div>
                 
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>연도 *</Label>
+                    <Select
+                      value={question.yearId}
+                      onValueChange={(value) => handleUpdateParsedQuestion(question.id, 'yearId', value)}
+                    >
+                      <SelectTrigger className={!question.yearId ? 'border-red-300' : ''}>
+                        <SelectValue placeholder="연도 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {bankYears.map((year) => (
+                          <SelectItem key={year.id} value={year.id}>
+                            {year.label || year.year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>교재 *</Label>
+                    <Select
+                      value={question.bookId}
+                      onValueChange={(value) => handleUpdateParsedQuestion(question.id, 'bookId', value)}
+                    >
+                      <SelectTrigger className={!question.bookId ? 'border-red-300' : ''}>
+                        <SelectValue placeholder="교재 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {bankBooks.map((book) => (
+                          <SelectItem key={book.id} value={book.id}>
+                            {book.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 {/* Passage */}
                 <div className="space-y-2">
                   <Label>지문 (선택)</Label>
@@ -1202,6 +1251,46 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
               </Select>
             </div>
             
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="yearId">연도 *</Label>
+                <Select
+                  value={formData.yearId}
+                  onValueChange={(value) => setFormData({ ...formData, yearId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="연도 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bankYears.map((year) => (
+                      <SelectItem key={year.id} value={year.id}>
+                        {year.label || year.year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bookId">교재 *</Label>
+                <Select
+                  value={formData.bookId}
+                  onValueChange={(value) => setFormData({ ...formData, bookId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="교재 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bankBooks.map((book) => (
+                      <SelectItem key={book.id} value={book.id}>
+                        {book.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             {/* Passage Text */}
             <div className="space-y-2">
               <Label htmlFor="passage_text">지문 (선택)</Label>

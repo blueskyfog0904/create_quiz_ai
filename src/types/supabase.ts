@@ -238,6 +238,7 @@ export type Database = {
           number: number
           order_index: number
           question_id: string
+          workspace_subject: string
         }
         Insert: {
           created_at?: string
@@ -246,6 +247,7 @@ export type Database = {
           number: number
           order_index: number
           question_id: string
+          workspace_subject?: string
         }
         Update: {
           created_at?: string
@@ -254,6 +256,7 @@ export type Database = {
           number?: number
           order_index?: number
           question_id?: string
+          workspace_subject?: string
         }
         Relationships: [
           {
@@ -276,26 +279,35 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          generation_criteria: Json | null
+          generation_mode: string | null
           id: string
           paper_title: string
           updated_at: string
           user_id: string
+          workspace_subject: string
         }
         Insert: {
           created_at?: string
           description?: string | null
+          generation_criteria?: Json | null
+          generation_mode?: string | null
           id?: string
           paper_title: string
           updated_at?: string
           user_id: string
+          workspace_subject?: string
         }
         Update: {
           created_at?: string
           description?: string | null
+          generation_criteria?: Json | null
+          generation_mode?: string | null
           id?: string
           paper_title?: string
           updated_at?: string
           user_id?: string
+          workspace_subject?: string
         }
         Relationships: [
           {
@@ -1415,6 +1427,124 @@ export type Database = {
         }
         Relationships: []
       }
+      question_bank_books: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          slug: string
+          sort_order: number
+          updated_at: string
+          workspace_subject: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+          workspace_subject: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+          workspace_subject?: string
+        }
+        Relationships: []
+      }
+      question_bank_question_metadata: {
+        Row: {
+          book_id: string
+          created_at: string
+          question_id: string
+          updated_at: string
+          workspace_subject: string
+          year_id: string
+        }
+        Insert: {
+          book_id: string
+          created_at?: string
+          question_id: string
+          updated_at?: string
+          workspace_subject: string
+          year_id: string
+        }
+        Update: {
+          book_id?: string
+          created_at?: string
+          question_id?: string
+          updated_at?: string
+          workspace_subject?: string
+          year_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "question_bank_question_metadata_book_workspace_fkey"
+            columns: ["book_id", "workspace_subject"]
+            isOneToOne: false
+            referencedRelation: "question_bank_books"
+            referencedColumns: ["id", "workspace_subject"]
+          },
+          {
+            foreignKeyName: "question_bank_question_metadata_question_workspace_fkey"
+            columns: ["question_id", "workspace_subject"]
+            isOneToOne: true
+            referencedRelation: "questions"
+            referencedColumns: ["id", "workspace_subject"]
+          },
+          {
+            foreignKeyName: "question_bank_question_metadata_year_workspace_fkey"
+            columns: ["year_id", "workspace_subject"]
+            isOneToOne: false
+            referencedRelation: "question_bank_years"
+            referencedColumns: ["id", "workspace_subject"]
+          },
+        ]
+      }
+      question_bank_years: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          updated_at: string
+          workspace_subject: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          updated_at?: string
+          workspace_subject: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          updated_at?: string
+          workspace_subject?: string
+          year?: number
+        }
+        Relationships: []
+      }
       questions: {
         Row: {
           answer: string
@@ -1445,6 +1575,7 @@ export type Database = {
           tags: string[] | null
           updated_at: string
           user_id: string
+          workspace_subject: string
         }
         Insert: {
           answer: string
@@ -1475,6 +1606,7 @@ export type Database = {
           tags?: string[] | null
           updated_at?: string
           user_id: string
+          workspace_subject?: string
         }
         Update: {
           answer?: string
@@ -1505,6 +1637,7 @@ export type Database = {
           tags?: string[] | null
           updated_at?: string
           user_id?: string
+          workspace_subject?: string
         }
         Relationships: [
           {
@@ -1860,7 +1993,166 @@ export type Database = {
         }
         Returns: number
       }
+      admin_audit_question_bank_metadata: {
+        Args: { p_filter?: Json; p_workspace_subject: string }
+        Returns: {
+          affected_saved_copy_count: number
+          duplicate_saved_copy_group_count: number
+          excluded_ai_generated_count: number
+          mismatched_saved_copy_metadata_count: number
+          missing_admin_original_metadata_count: number
+          missing_saved_copy_metadata_count: number
+          unassigned_admin_original_count: number
+        }[]
+      }
+      admin_list_bank_questions: {
+        Args: {
+          p_book_id?: string | null
+          p_difficulty?: string | null
+          p_grade_level?: string | null
+          p_limit?: number
+          p_offset?: number
+          p_problem_type_id?: string | null
+          p_search?: string | null
+          p_sort_by?: string
+          p_sort_order?: string
+          p_source?: string | null
+          p_workspace_subject: string
+          p_year_id?: string | null
+        }
+        Returns: {
+          answer: string
+          book_id: string | null
+          book_name: string | null
+          choices: Json
+          created_at: string
+          difficulty: string | null
+          explanation: string | null
+          grade_level: string | null
+          id: string
+          passage_text: string | null
+          problem_type_id: string | null
+          problem_types: Json | null
+          profiles: Json
+          question_text: string
+          question_text_backward: string | null
+          question_text_forward: string | null
+          rating: number | null
+          source: string | null
+          source_1: string | null
+          source_2: string | null
+          source_3: string | null
+          source_4: string | null
+          source_type: string | null
+          tags: string[] | null
+          total_count: number
+          updated_at: string
+          user_id: string
+          year_id: string | null
+          year_label: string | null
+        }[]
+      }
+      admin_list_question_bank_backfill_candidates: {
+        Args: {
+          p_filter?: Json
+          p_limit?: number
+          p_offset?: number
+          p_workspace_subject: string
+        }
+        Returns: {
+          affected_saved_copy_count: number
+          current_book_id: string | null
+          current_year_id: string | null
+          has_saved_copy_mismatch: boolean
+          missing_metadata: boolean
+          problem_type_id: string | null
+          question_id: string
+          question_text: string
+          total_count: number
+        }[]
+      }
+      backfill_question_bank_metadata: {
+        Args: {
+          p_book_id: string
+          p_dry_run?: boolean
+          p_source_question_ids: string[]
+          p_workspace_subject: string
+          p_year_id: string
+        }
+        Returns: {
+          admin_updated_count: number
+          copied_updated_count: number
+        }[]
+      }
+      copy_admin_questions_to_user_bank: {
+        Args: {
+          p_admin_question_ids: string[]
+          p_target_user_id: string
+          p_workspace_subject: string
+        }
+        Returns: {
+          saved_count: number
+          saved_question_ids: string[]
+          skipped_count: number
+        }[]
+      }
+      create_admin_bank_question: {
+        Args: {
+          p_book_id: string
+          p_question: Json
+          p_workspace_subject: string
+          p_year_id: string
+        }
+        Returns: string
+      }
+      create_admin_bank_questions_bulk: {
+        Args: { p_questions: Json; p_workspace_subject: string }
+        Returns: {
+          failed_count: number
+          inserted_count: number
+          inserted_question_ids: string[]
+          row_errors: Json
+        }[]
+      }
+      create_random_bank_exam_paper: {
+        Args: {
+          p_book_id: string
+          p_title: string
+          p_type_counts: Json
+          p_workspace_subject: string
+          p_year_id: string
+        }
+        Returns: {
+          exam_paper_id: string
+          selected_question_ids: string[]
+          total_count: number
+        }[]
+      }
+      get_question_bank_availability: {
+        Args: {
+          p_book_id: string
+          p_workspace_subject: string
+          p_year_id: string
+        }
+        Returns: {
+          available_count: number
+          problem_type_id: string
+        }[]
+      }
       is_admin: { Args: never; Returns: boolean }
+      update_admin_bank_question: {
+        Args: {
+          p_book_id: string
+          p_question_id: string
+          p_question_patch: Json
+          p_workspace_subject: string
+          p_year_id: string
+        }
+        Returns: {
+          copied_updated_count: number
+          question_id: string
+        }[]
+      }
       refund_credits: {
         Args: {
           p_amount: number
