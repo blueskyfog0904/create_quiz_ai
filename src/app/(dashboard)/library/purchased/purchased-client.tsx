@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { QuestionActionBar, QuestionGrid, CreateExamDialog } from '@/components/features/bank/question-list'
+import { RandomExamDialog } from '@/components/features/question-bank/random-exam-dialog'
 import { Database } from '@/types/supabase'
 import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -101,6 +102,7 @@ export function PurchasedClient({
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([])
   const [scale, setScale] = useState(100)
   const [isExamDialogOpen, setIsExamDialogOpen] = useState(false)
+  const [isRandomExamDialogOpen, setIsRandomExamDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const subjectQuery = `?subject=${workspaceSubject}`
@@ -359,9 +361,14 @@ export function PurchasedClient({
               </button>
             </div>
           </div>
-          <Link href={`/generate${subjectQuery}`}>
-            <Button size="sm">+ 새 문제 생성</Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setIsRandomExamDialogOpen(true)}>
+              랜덤 문제지 생성
+            </Button>
+            <Link href={`/generate${subjectQuery}`}>
+              <Button size="sm">+ 새 문제 생성</Button>
+            </Link>
+          </div>
         </div>
 
         {/* Collapsible Filter Section */}
@@ -696,6 +703,14 @@ export function PurchasedClient({
         onOpenChange={setIsExamDialogOpen}
         selectedCount={selectedQuestionIds.length}
         onConfirm={handleCreateExamPaper}
+      />
+
+      {/* Random Exam Dialog */}
+      <RandomExamDialog
+        open={isRandomExamDialogOpen}
+        onOpenChange={setIsRandomExamDialogOpen}
+        problemTypes={problemTypes}
+        workspaceSubject={workspaceSubject}
       />
 
       {/* Delete Confirmation Dialog */}
