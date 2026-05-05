@@ -77,8 +77,10 @@ const copiedFieldParityColumns = [
 const plain = (value) => JSON.parse(JSON.stringify(value))
 
 test('save-from-community routes delegate copy semantics to metadata-preserving RPC', () => {
+  assert.match(routeSource, /import\s+\{\s*createAdminClient\s*\}\s+from\s+['"]@\/lib\/supabase\/bypass['"]/)
+
   for (const block of [postBlock, putBlock]) {
-    assert.match(block, /\.rpc\('copy_admin_questions_to_user_bank',\s*\{[\s\S]*p_workspace_subject:\s*workspaceSubject[\s\S]*p_admin_question_ids:/)
+    assert.match(block, /createAdminClient\(\)[\s\S]*\.rpc\('copy_admin_questions_to_user_bank',\s*\{[\s\S]*p_workspace_subject:\s*workspaceSubject[\s\S]*p_admin_question_ids:[\s\S]*p_target_user_id:\s*user\.id/)
   }
 
   assert.doesNotMatch(routeSource, /\.from\('questions'\)\s*\n\s*\.insert\(/)
@@ -113,6 +115,7 @@ test('save-from-community routes use RPC counts and saved IDs as final save trut
     assert.match(block, /saved_count/)
     assert.match(block, /skipped_count/)
     assert.match(block, /saved_question_ids/)
+    assert.match(block, /p_target_user_id:\s*user\.id/)
   }
 
   assert.match(postBlock, /const savedCount = rpcResult\?\.saved_count \?\? 0/)

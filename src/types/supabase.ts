@@ -2087,6 +2087,7 @@ export type Database = {
       copy_admin_questions_to_user_bank: {
         Args: {
           p_admin_question_ids: string[]
+          p_target_user_id: string
           p_workspace_subject: string
         }
         Returns: {

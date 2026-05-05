@@ -285,18 +285,25 @@ integrationTest('admin create/update/bulk/backfill/copy/random-exam RPC flow pre
   assert.ifError(createError)
   assert.ok(adminQuestionId)
 
-  const { data: copyResult, error: copyError } = await user.rpc('copy_admin_questions_to_user_bank', {
+  await expectRpcError(user.rpc('copy_admin_questions_to_user_bank', {
     p_workspace_subject: workspaceSubject,
     p_admin_question_ids: [adminQuestionId]
+  }), 'permission denied|SERVICE_ROLE_REQUIRED')
+
+  const { data: copyResult, error: copyError } = await service.rpc('copy_admin_questions_to_user_bank', {
+    p_workspace_subject: workspaceSubject,
+    p_admin_question_ids: [adminQuestionId],
+    p_target_user_id: userId
   })
 
   assert.ifError(copyError)
   assert.equal(copyResult[0].saved_count, 1)
   assert.equal(copyResult[0].skipped_count, 0)
 
-  const { data: duplicateCopy, error: duplicateError } = await user.rpc('copy_admin_questions_to_user_bank', {
+  const { data: duplicateCopy, error: duplicateError } = await service.rpc('copy_admin_questions_to_user_bank', {
     p_workspace_subject: workspaceSubject,
-    p_admin_question_ids: [adminQuestionId]
+    p_admin_question_ids: [adminQuestionId],
+    p_target_user_id: userId
   })
 
   assert.ifError(duplicateError)

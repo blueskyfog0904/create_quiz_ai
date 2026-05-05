@@ -35,7 +35,8 @@ const fixedErrorMessages = [
   'DUPLICATE_BACKFILL_TARGET',
   'BACKFILL_BATCH_TOO_LARGE',
   'BULK_UPLOAD_BATCH_TOO_LARGE',
-  'DUPLICATE_SAVED_QUESTIONS_EXIST'
+  'DUPLICATE_SAVED_QUESTIONS_EXIST',
+  'SERVICE_ROLE_REQUIRED'
 ]
 
 const migrationFilenames = readdirSync(migrationsDir).sort()
@@ -177,9 +178,18 @@ test('defines all RPCs with security-definer auth and function grants', () => {
     assert.ok(block.length > 0, `${name} should be defined`)
     assert.match(block, /security\s+definer/i, `${name} should be security definer`)
     assert.match(block, /set\s+search_path\s*=\s*public\s*,\s*pg_temp/i, `${name} should pin search_path`)
-    assert.match(block, /auth\.uid\s*\(\s*\)/i, `${name} should check auth.uid()`)
     assert.match(mainSql, new RegExp(`revoke\\s+all\\s+on\\s+function\\s+public\\.${name}\\s*\\([\\s\\S]*?\\)\\s+from\\s+public`, 'i'), `${name} should revoke public execute`)
-    assert.match(mainSql, new RegExp(`grant\\s+execute\\s+on\\s+function\\s+public\\.${name}\\s*\\([\\s\\S]*?\\)\\s+to\\s+authenticated`, 'i'), `${name} should grant authenticated execute`)
+
+    if (name === 'copy_admin_questions_to_user_bank') {
+      assert.match(block, /p_target_user_id\s+uuid/i, `${name} should receive a server-controlled target user`)
+      assert.match(block, /auth\.role\s*\(\s*\)\s*<>\s*'service_role'/i, `${name} should require service role callers`)
+      assert.match(block, /SERVICE_ROLE_REQUIRED/i, `${name} should reject direct authenticated callers`)
+      assert.match(mainSql, /grant\s+execute\s+on\s+function\s+public\.copy_admin_questions_to_user_bank\s*\(\s*text\s*,\s*uuid\[\]\s*,\s*uuid\s*\)\s+to\s+service_role/i)
+      assert.doesNotMatch(mainSql, /grant\s+execute\s+on\s+function\s+public\.copy_admin_questions_to_user_bank\s*\(\s*text\s*,\s*uuid\[\]\s*,\s*uuid\s*\)\s+to\s+authenticated/i)
+    } else {
+      assert.match(block, /auth\.uid\s*\(\s*\)/i, `${name} should check auth.uid()`)
+      assert.match(mainSql, new RegExp(`grant\\s+execute\\s+on\\s+function\\s+public\\.${name}\\s*\\([\\s\\S]*?\\)\\s+to\\s+authenticated`, 'i'), `${name} should grant authenticated execute`)
+    }
   }
 })
 

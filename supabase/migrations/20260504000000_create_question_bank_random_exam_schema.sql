@@ -5,7 +5,7 @@
 -- Fixed errors: AUTH_REQUIRED, ADMIN_REQUIRED, INVALID_SCOPE, INACTIVE_DIMENSION, INVALID_SOURCE,
 -- DUPLICATE_TYPE, COUNT_LIMIT_EXCEEDED, INSUFFICIENT_QUESTIONS, NO_METADATA,
 -- DUPLICATE_BACKFILL_TARGET, BACKFILL_BATCH_TOO_LARGE, BULK_UPLOAD_BATCH_TOO_LARGE,
--- DUPLICATE_SAVED_QUESTIONS_EXIST.
+-- DUPLICATE_SAVED_QUESTIONS_EXIST, SERVICE_ROLE_REQUIRED.
 
 create table if not exists public.question_bank_years (
   id uuid default uuid_generate_v4() primary key,
@@ -1159,9 +1159,12 @@ begin
 end;
 $$;
 
+drop function if exists public.copy_admin_questions_to_user_bank(text, uuid[]);
+
 create or replace function public.copy_admin_questions_to_user_bank(
   p_workspace_subject text,
-  p_admin_question_ids uuid[]
+  p_admin_question_ids uuid[],
+  p_target_user_id uuid
 )
 returns table(saved_count integer, skipped_count integer, saved_question_ids uuid[])
 language plpgsql
@@ -1169,13 +1172,17 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
-  v_user_id uuid := auth.uid();
+  v_user_id uuid := p_target_user_id;
   v_admin_question_id uuid;
   v_saved_question_id uuid;
   v_saved_ids uuid[] := '{}';
   v_saved_count integer := 0;
   v_skipped_count integer := 0;
 begin
+  if auth.role() <> 'service_role' then
+    raise exception 'SERVICE_ROLE_REQUIRED';
+  end if;
+
   if v_user_id is null then
     raise exception 'AUTH_REQUIRED';
   end if;
@@ -1486,8 +1493,9 @@ grant execute on function public.admin_audit_question_bank_metadata(text, jsonb)
 revoke all on function public.admin_list_question_bank_backfill_candidates(text, jsonb, integer, integer) from public;
 grant execute on function public.admin_list_question_bank_backfill_candidates(text, jsonb, integer, integer) to authenticated;
 
-revoke all on function public.copy_admin_questions_to_user_bank(text, uuid[]) from public;
-grant execute on function public.copy_admin_questions_to_user_bank(text, uuid[]) to authenticated;
+revoke all on function public.copy_admin_questions_to_user_bank(text, uuid[], uuid) from public;
+revoke all on function public.copy_admin_questions_to_user_bank(text, uuid[], uuid) from authenticated;
+grant execute on function public.copy_admin_questions_to_user_bank(text, uuid[], uuid) to service_role;
 
 revoke all on function public.admin_list_bank_questions(text, uuid, uuid, uuid, text, text, text, text, text, text, integer, integer) from public;
 grant execute on function public.admin_list_bank_questions(text, uuid, uuid, uuid, text, text, text, text, text, text, integer, integer) to authenticated;

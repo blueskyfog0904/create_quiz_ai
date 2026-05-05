@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/bypass'
 import { NextResponse } from 'next/server'
 import { DEFAULT_WORKSPACE_SUBJECT } from '@/lib/workspace-subject'
 import { z } from 'zod'
@@ -197,6 +198,8 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
+    const rpcClient = createAdminClient()
+
     try {
       deductionResult = await CreditService.deductCredits(
         user.id,
@@ -216,12 +219,10 @@ export async function POST(request: Request) {
       )
     }
 
-    const rpcClient = supabase as unknown as {
-      rpc: (fn: string, params: Record<string, unknown>) => Promise<{ data: unknown; error: RpcError | null }>
-    }
     const { data: rpcData, error: rpcError } = await rpcClient.rpc('copy_admin_questions_to_user_bank', {
       p_workspace_subject: workspaceSubject,
       p_admin_question_ids: [question_id],
+      p_target_user_id: user.id,
     })
 
     if (rpcError) {
@@ -390,6 +391,8 @@ export async function PUT(request: Request) {
       }, { status: 400 })
     }
 
+    const rpcClient = createAdminClient()
+
     const totalCost = targetQuestionIds.length * COST_PER_IMPORT
     chargedCount = targetQuestionIds.length
     try {
@@ -407,12 +410,10 @@ export async function PUT(request: Request) {
       }, 402, snapshot)
     }
 
-    const rpcClient = supabase as unknown as {
-      rpc: (fn: string, params: Record<string, unknown>) => Promise<{ data: unknown; error: RpcError | null }>
-    }
     const { data: rpcData, error: rpcError } = await rpcClient.rpc('copy_admin_questions_to_user_bank', {
       p_workspace_subject: workspaceSubject,
       p_admin_question_ids: targetQuestionIds,
+      p_target_user_id: user.id,
     })
 
     if (rpcError) {
