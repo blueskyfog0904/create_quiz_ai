@@ -19,6 +19,22 @@ export default async function AdminQuestionsPage({ searchParams }: AdminQuestion
     .eq('workspace_subject', workspaceSubject)
     .order('type_name')
 
+  const { data: questionBankYears } = await supabase
+    .from('question_bank_years')
+    .select('id, label')
+    .eq('workspace_subject', workspaceSubject)
+    .eq('is_active', true)
+    .order('sort_order')
+    .order('label')
+
+  const { data: questionBankBooks } = await supabase
+    .from('question_bank_books')
+    .select('id, name')
+    .eq('workspace_subject', workspaceSubject)
+    .eq('is_active', true)
+    .order('sort_order')
+    .order('name')
+
   const gradeLevels = ['중1', '중2', '중3', '고1', '고2', '고3']
   const difficulties = ['하', '중', '상']
 
@@ -33,9 +49,10 @@ export default async function AdminQuestionsPage({ searchParams }: AdminQuestion
         problemTypes={problemTypes || []}
         gradeLevels={gradeLevels}
         difficulties={difficulties}
+        questionBankYears={questionBankYears || []}
+        questionBankBooks={questionBankBooks || []}
         workspaceSubject={workspaceSubject}
       />
     </div>
   )
 }
-

@@ -53,6 +53,10 @@ interface Question {
   problem_type_id: string | null
   problem_types: { type_name: string } | null
   profiles: { id: string; name: string | null; email: string | null } | null
+  year_id: string | null
+  year_label: string | null
+  book_id: string | null
+  book_name: string | null
 }
 
 interface ProblemType {
@@ -60,10 +64,22 @@ interface ProblemType {
   type_name: string
 }
 
+interface QuestionBankYear {
+  id: string
+  label: string
+}
+
+interface QuestionBankBook {
+  id: string
+  name: string
+}
+
 interface QuestionsClientProps {
   problemTypes: ProblemType[]
   gradeLevels: string[]
   difficulties: string[]
+  questionBankYears: QuestionBankYear[]
+  questionBankBooks: QuestionBankBook[]
   workspaceSubject: WorkspaceSubject
 }
 
@@ -71,6 +87,8 @@ export function QuestionsClient({
   problemTypes,
   gradeLevels,
   difficulties,
+  questionBankYears,
+  questionBankBooks,
   workspaceSubject,
 }: QuestionsClientProps) {
   const router = useRouter()
@@ -88,6 +106,8 @@ export function QuestionsClient({
   const [gradeLevel, setGradeLevel] = useState('')
   const [difficulty, setDifficulty] = useState('')
   const [problemTypeId, setProblemTypeId] = useState('')
+  const [yearId, setYearId] = useState('')
+  const [bookId, setBookId] = useState('')
   const [sortBy, setSortBy] = useState('created_at')
   const [sortOrder, setSortOrder] = useState('desc')
 
@@ -118,6 +138,8 @@ export function QuestionsClient({
       if (gradeLevel) params.set('grade_level', gradeLevel)
       if (difficulty) params.set('difficulty', difficulty)
       if (problemTypeId) params.set('problem_type_id', problemTypeId)
+      if (yearId) params.set('year_id', yearId)
+      if (bookId) params.set('book_id', bookId)
       params.set('subject', workspaceSubject)
 
       const response = await fetch(`/api/admin/questions?${params}`)
@@ -131,7 +153,7 @@ export function QuestionsClient({
     } finally {
       setLoading(false)
     }
-  }, [pagination.page, pagination.limit, search, gradeLevel, difficulty, problemTypeId, sortBy, sortOrder, workspaceSubject])
+  }, [pagination.page, pagination.limit, search, gradeLevel, difficulty, problemTypeId, yearId, bookId, sortBy, sortOrder, workspaceSubject])
 
   useEffect(() => {
     fetchQuestions()
@@ -140,7 +162,6 @@ export function QuestionsClient({
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     setPagination(prev => ({ ...prev, page: 1 }))
-    fetchQuestions()
   }
 
   const handleDelete = async () => {
@@ -167,11 +188,28 @@ export function QuestionsClient({
     }
   }
 
+  const handleFilterChange = (
+    key: 'gradeLevel' | 'difficulty' | 'problemTypeId' | 'yearId' | 'bookId',
+    value: string
+  ) => {
+    const nextValue = value === '__all__' ? '' : value
+
+    if (key === 'gradeLevel') setGradeLevel(nextValue)
+    if (key === 'difficulty') setDifficulty(nextValue)
+    if (key === 'problemTypeId') setProblemTypeId(nextValue)
+    if (key === 'yearId') setYearId(nextValue)
+    if (key === 'bookId') setBookId(nextValue)
+
+    setPagination(prev => ({ ...prev, page: 1 }))
+  }
+
   const resetFilters = () => {
     setSearch('')
     setGradeLevel('')
     setDifficulty('')
     setProblemTypeId('')
+    setYearId('')
+    setBookId('')
     setSortBy('created_at')
     setSortOrder('desc')
     setPagination(prev => ({ ...prev, page: 1 }))
@@ -215,8 +253,8 @@ export function QuestionsClient({
             <Filter className="h-4 w-4 text-gray-400" />
             <span className="text-sm font-medium text-gray-700">필터</span>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <Select value={gradeLevel || "__all__"} onValueChange={(v) => setGradeLevel(v === "__all__" ? "" : v)}>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
+            <Select value={gradeLevel || "__all__"} onValueChange={(v) => handleFilterChange('gradeLevel', v)}>
               <SelectTrigger>
                 <SelectValue placeholder="학년" />
               </SelectTrigger>
@@ -228,7 +266,7 @@ export function QuestionsClient({
               </SelectContent>
             </Select>
 
-            <Select value={difficulty || "__all__"} onValueChange={(v) => setDifficulty(v === "__all__" ? "" : v)}>
+            <Select value={difficulty || "__all__"} onValueChange={(v) => handleFilterChange('difficulty', v)}>
               <SelectTrigger>
                 <SelectValue placeholder="난이도" />
               </SelectTrigger>
@@ -240,7 +278,7 @@ export function QuestionsClient({
               </SelectContent>
             </Select>
 
-            <Select value={problemTypeId || "__all__"} onValueChange={(v) => setProblemTypeId(v === "__all__" ? "" : v)}>
+            <Select value={problemTypeId || "__all__"} onValueChange={(v) => handleFilterChange('problemTypeId', v)}>
               <SelectTrigger>
                 <SelectValue placeholder="문제 유형" />
               </SelectTrigger>
@@ -251,6 +289,36 @@ export function QuestionsClient({
                 ))}
               </SelectContent>
             </Select>
+
+            <div className="space-y-1">
+              <span className="text-xs font-medium text-gray-600">연도</span>
+              <Select value={yearId || "__all__"} onValueChange={(v) => handleFilterChange('yearId', v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="연도" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">전체 연도</SelectItem>
+                  {questionBankYears.map((year) => (
+                    <SelectItem key={year.id} value={year.id}>{year.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-xs font-medium text-gray-600">교재</span>
+              <Select value={bookId || "__all__"} onValueChange={(v) => handleFilterChange('bookId', v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="교재" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">전체 교재</SelectItem>
+                  {questionBankBooks.map((book) => (
+                    <SelectItem key={book.id} value={book.id}>{book.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             <Select value={sortBy} onValueChange={setSortBy}>
               <SelectTrigger>
@@ -318,7 +386,7 @@ export function QuestionsClient({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                       {question.grade_level && (
                         <Badge variant="secondary">{question.grade_level}</Badge>
                       )}
@@ -339,6 +407,16 @@ export function QuestionsClient({
                       {question.problem_types && (
                         <Badge variant="outline" className="border-blue-300 text-blue-600">
                           {question.problem_types.type_name}
+                        </Badge>
+                      )}
+                      {question.year_label && (
+                        <Badge variant="outline" className="border-purple-300 text-purple-600">
+                          연도: {question.year_label}
+                        </Badge>
+                      )}
+                      {question.book_name && (
+                        <Badge variant="outline" className="border-indigo-300 text-indigo-600">
+                          교재: {question.book_name}
                         </Badge>
                       )}
                     </div>
@@ -509,6 +587,12 @@ export function QuestionsClient({
                 {previewDialog.question.problem_types && (
                   <Badge variant="outline">{previewDialog.question.problem_types.type_name}</Badge>
                 )}
+                {previewDialog.question.year_label && (
+                  <Badge variant="outline">연도: {previewDialog.question.year_label}</Badge>
+                )}
+                {previewDialog.question.book_name && (
+                  <Badge variant="outline">교재: {previewDialog.question.book_name}</Badge>
+                )}
               </div>
             </div>
           )}
@@ -518,7 +602,7 @@ export function QuestionsClient({
             </Button>
             {previewDialog.question && (
               <Button onClick={() => {
-                router.push(`/admin/questions/${previewDialog.question?.id}`)
+                router.push(withAdminWorkspaceSubject(`/admin/questions/${previewDialog.question?.id}`, workspaceSubject))
                 setPreviewDialog({ open: false, question: null })
               }}>
                 수정하기
@@ -530,4 +614,3 @@ export function QuestionsClient({
     </div>
   )
 }
-
