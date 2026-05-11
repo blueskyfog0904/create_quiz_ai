@@ -38,6 +38,7 @@ interface QuestionRow {
   yearId?: string
   bookId?: string
   year?: string | number
+  교재명?: string
   bookSlug?: string
   book?: string
 }
@@ -162,9 +163,9 @@ function resolveQuestionBankMetadata(row: QuestionRow, years: BankYear[], books:
       throw new Error(`교재 ID "${bookId}"을(를) 찾을 수 없거나 비활성 상태입니다.`)
     }
   } else {
-    const bookValue = row.bookSlug?.trim() || row.book?.trim() || ''
+    const bookValue = row.교재명?.trim() || row.book?.trim() || row.bookSlug?.trim() || ''
     if (!bookValue) {
-      throw new Error('bookSlug/book 또는 bookId가 필요합니다.')
+      throw new Error('교재명/book/bookSlug 또는 bookId가 필요합니다.')
     }
     resolvedBook = books.find((book) => book.slug === bookValue || book.name === bookValue)
     if (!resolvedBook) {

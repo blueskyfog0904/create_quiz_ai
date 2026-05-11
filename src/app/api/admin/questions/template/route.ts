@@ -50,7 +50,7 @@ export async function GET(request: Request) {
         .order('year', { ascending: false }),
       supabase
         .from('question_bank_books')
-        .select('id, slug, name, is_active')
+        .select('id, name, is_active')
         .eq('workspace_subject', workspaceSubject)
         .eq('is_active', true)
         .order('sort_order', { ascending: true })
@@ -68,7 +68,7 @@ export async function GET(request: Request) {
 
     const mainSheetHeaders = [
       'year',
-      'bookSlug',
+      '교재명',
       '문제유형',
       '지문',
       '문제앞텍스트',
@@ -93,7 +93,7 @@ export async function GET(request: Request) {
 
     const sampleData = [
       firstYear?.year || '2025',
-      firstBook?.slug || 'sample-book',
+      firstBook?.name || '수능특강',
       problemTypes && problemTypes.length > 0 ? problemTypes[0].type_name : '문장삽입형 문제',
       'The development of technology has changed the way we communicate. (A) However, not all changes have been positive. (B) Social media, for example, has made it easier to stay connected with friends and family. (C) On the other hand, it has also led to concerns about privacy and mental health.',
       '',
@@ -119,8 +119,8 @@ export async function GET(request: Request) {
     const guidanceData = [
       ['필수 메타데이터 안내'],
       ['year', '연도목록 시트의 활성 연도 숫자를 입력하거나 yearId 컬럼을 추가해 ID를 직접 입력할 수 있습니다.'],
-      ['bookSlug', '교재목록 시트의 활성 교재 slug를 입력하거나 bookId 컬럼을 추가해 ID를 직접 입력할 수 있습니다.'],
-      ['book', 'bookSlug 대신 교재명을 입력해도 됩니다.'],
+      ['교재명', '교재목록 시트의 활성 교재명을 그대로 입력합니다. bookId 컬럼을 추가해 ID를 직접 입력할 수도 있습니다.'],
+      ['문제유형', '문제유형목록 시트의 문제유형이름을 그대로 입력합니다. ID가 아니라 이름을 입력해야 합니다.'],
     ]
 
     const mainSheet = XLSX.utils.aoa_to_sheet([mainSheetHeaders, sampleData])
@@ -169,10 +169,10 @@ export async function GET(request: Request) {
     XLSX.utils.book_append_sheet(workbook, yearsSheet, '연도목록')
 
     const booksSheet = XLSX.utils.aoa_to_sheet([
-      ['bookId', 'bookSlug', 'book', 'is_active'],
-      ...(books || []).map((book) => [book.id, book.slug, book.name, book.is_active]),
+      ['bookId', '교재명', 'is_active'],
+      ...(books || []).map((book) => [book.id, book.name, book.is_active]),
     ])
-    booksSheet['!cols'] = [{ wch: 40 }, { wch: 20 }, { wch: 30 }, { wch: 10 }]
+    booksSheet['!cols'] = [{ wch: 40 }, { wch: 30 }, { wch: 10 }]
     XLSX.utils.book_append_sheet(workbook, booksSheet, '교재목록')
 
     const excelBuffer = XLSX.write(workbook, {

@@ -62,7 +62,7 @@ test('admin upload route maps RPC error contracts to HTTP statuses', () => {
 test('bulk upload route remains parse-only and resolves active year/book metadata', () => {
   assert.doesNotMatch(bulkUploadRoute, /\.rpc\('create_admin_bank_question/)
   assert.doesNotMatch(bulkUploadRoute, /\.from\('questions'\)\s*\n\s*\.insert/)
-  assert.match(bulkUploadRoute, /interface QuestionRow[\s\S]*yearId[\s\S]*bookId[\s\S]*bookSlug[\s\S]*year[\s\S]*book/s)
+  assert.match(bulkUploadRoute, /interface QuestionRow[\s\S]*yearId[\s\S]*bookId[\s\S]*year[\s\S]*교재명[\s\S]*bookSlug[\s\S]*book/s)
   assert.match(bulkUploadRoute, /interface ParsedQuestion[\s\S]*yearId[\s\S]*bookId[\s\S]*clientRowId/s)
   assert.match(bulkUploadRoute, /\.from\('question_bank_years'\)/)
   assert.match(bulkUploadRoute, /\.from\('question_bank_books'\)/)
@@ -72,20 +72,25 @@ test('bulk upload route remains parse-only and resolves active year/book metadat
   assert.match(bulkUploadRoute, /let resolvedBook/)
   assert.match(bulkUploadRoute, /if \(yearId\)[\s\S]*else[\s\S]*yearValue/)
   assert.match(bulkUploadRoute, /if \(bookId\)[\s\S]*else[\s\S]*bookValue/)
+  assert.match(bulkUploadRoute, /row\.교재명\?\.trim\(\)[\s\S]*row\.book\?\.trim\(\)[\s\S]*row\.bookSlug\?\.trim\(\)/)
   assert.match(bulkUploadRoute, /errorMessage/)
 })
 
-test('template route documents year and book columns with active reference sheets', () => {
+test('template route documents year, book name, and problem-type-name columns with active reference sheets', () => {
   assert.match(templateRoute, /'year'/)
-  assert.match(templateRoute, /'bookSlug'/)
+  assert.match(templateRoute, /'교재명'/)
+  assert.doesNotMatch(templateRoute, /mainSheetHeaders[\s\S]*'bookSlug'[\s\S]*\]/)
   assert.match(templateRoute, /question_bank_years/)
   assert.match(templateRoute, /question_bank_books/)
   assert.match(templateRoute, /is_active/)
   assert.match(templateRoute, /연도목록|교재목록/)
+  assert.match(templateRoute, /문제유형목록 시트의 문제유형이름/)
+  assert.match(templateRoute, /교재목록 시트의 활성 교재명/)
   assert.match(templateRoute, /XLSX\.utils\.aoa_to_sheet\(\[mainSheetHeaders,\s*sampleData\]\)/)
   assert.doesNotMatch(templateRoute, /aoa_to_sheet\(\[mainSheetHeaders,\s*sampleData,\s*\[\],\s*\.\.\.guidanceData\]\)/)
   assert.match(templateRoute, /guidanceSheet/)
   assert.match(templateRoute, /book_append_sheet\(workbook,\s*guidanceSheet,\s*'작성안내'\)/)
+  assert.match(templateRoute, /\['bookId', '교재명', 'is_active'\]/)
 })
 
 test('edit route reads metadata and patches through update_admin_bank_question RPC', () => {
