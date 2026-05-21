@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
-import { Loader2, Pencil, Plus, Trash2, Upload } from 'lucide-react'
+import { EyeOff, Loader2, Pencil, Plus, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -154,6 +154,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const [editingFiles, setEditingFiles] = useState<MarketItemFile[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [isArchiving, setIsArchiving] = useState(false)
+  const [hidingItemId, setHidingItemId] = useState<string | null>(null)
   const [requiresFinalRegistration, setRequiresFinalRegistration] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<MarketItem | null>(null)
   const [uploadingKinds, setUploadingKinds] = useState<string[]>([])
@@ -479,6 +480,52 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       toast.error(error instanceof Error ? error.message : '문제마켓 상품 완전 삭제 중 오류가 발생했습니다.')
     } finally {
       setIsArchiving(false)
+    }
+  }
+
+  const handleHideFromList = async (item: MarketItem) => {
+    if (item.status === 'hidden') {
+      toast.message('이미 숨김 상태인 상품입니다.')
+      return
+    }
+
+    setHidingItemId(item.id)
+    try {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${item.id}`, workspaceSubject), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          menuEntryId: item.menu_entry_id,
+          title: item.title,
+          summary: item.summary || '',
+          description: item.description || '',
+          thumbnailUrl: item.thumbnail_url || '',
+          examYear: item.exam_year,
+          examMonth: item.exam_month,
+          gradeLevel: item.grade_level || '',
+          pdfPrice: item.pdf_price,
+          hwpPrice: item.hwp_price,
+          status: 'hidden',
+          isActive: item.is_active,
+        }),
+      })
+      const payload = await response.json()
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || '문제마켓 상품 숨김 처리에 실패했습니다.')
+      }
+
+      await refreshItems(item.menu_entry_id)
+      if (form.id === item.id) {
+        setForm(buildEditForm(payload.data as MarketItem))
+        setRequiresFinalRegistration(false)
+      }
+      toast.success('문제마켓 상품을 숨김 처리했습니다.')
+      router.refresh()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '문제마켓 상품 숨김 처리 중 오류가 발생했습니다.')
+    } finally {
+      setHidingItemId(null)
     }
   }
 
@@ -1054,6 +1101,18 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                           <div className="flex justify-end gap-1">
                             <Button type="button" variant="ghost" size="icon" onClick={() => void loadItemDetail(item.id)}>
                               <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`${item.title} 숨김 처리`}
+                              title="숨김"
+                              className="text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                              disabled={hidingItemId === item.id || item.status === 'hidden'}
+                              onClick={() => void handleHideFromList(item)}
+                            >
+                              {hidingItemId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <EyeOff className="h-4 w-4" />}
                             </Button>
                             <Button
                               type="button"
