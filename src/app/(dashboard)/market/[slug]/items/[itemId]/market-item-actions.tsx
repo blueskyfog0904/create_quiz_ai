@@ -9,10 +9,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
 import { useLoginRedirect } from '@/hooks/use-login-redirect'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import MarketSamplePreviewDialog from './market-sample-preview-dialog'
 
 interface MarketItemActionsProps {
   itemId: string
-  hasSample: boolean
+  hasSamplePages: boolean
+  hasLegacySample: boolean
   hasPdf: boolean
   hasHwp: boolean
   isLoggedIn: boolean
@@ -20,12 +23,14 @@ interface MarketItemActionsProps {
   ownsHwp: boolean
   pdfPrice: number
   hwpPrice: number
+  samplePageCount: number
+  workspaceSubject: WorkspaceSubject
 }
 
 type PurchaseAssetKind = 'pdf' | 'hwp'
 type OptionState = 'instant' | 'owned' | 'available' | 'unavailable' | 'checking' | 'processing'
 
-function buildDownloadUrl(itemId: string, assetKind: 'sample' | 'pdf' | 'hwp') {
+function buildDownloadUrl(itemId: string, assetKind: 'pdf' | 'hwp') {
   return `/api/market/items/${itemId}/download?assetKind=${assetKind}`
 }
 
@@ -141,7 +146,8 @@ function FileOptionRow({
 
 export default function MarketItemActions({
   itemId,
-  hasSample,
+  hasSamplePages,
+  hasLegacySample,
   hasPdf,
   hasHwp,
   isLoggedIn,
@@ -149,6 +155,8 @@ export default function MarketItemActions({
   ownsHwp,
   pdfPrice,
   hwpPrice,
+  samplePageCount,
+  workspaceSubject,
 }: MarketItemActionsProps) {
   const router = useRouter()
   const { redirectToLogin } = useLoginRedirect()
@@ -157,6 +165,7 @@ export default function MarketItemActions({
   const [currentBalance, setCurrentBalance] = useState<number | null>(null)
   const [isCheckingBalance, setIsCheckingBalance] = useState(false)
   const [pendingPurchaseKind, setPendingPurchaseKind] = useState<PurchaseAssetKind | null>(null)
+  const [isSamplePreviewOpen, setIsSamplePreviewOpen] = useState(false)
   const viewTracked = useRef(false)
 
   const viewSessionKey = useMemo(() => `market-item:${itemId}`, [itemId])
@@ -269,18 +278,30 @@ export default function MarketItemActions({
     return 'available'
   }
 
+  const openSamplePreview = () => {
+    if (!isLoggedIn) {
+      redirectToLogin()
+      return
+    }
+
+    setIsSamplePreviewOpen(true)
+  }
+
   return (
     <div className="space-y-3">
       <FileOptionRow
-        title="샘플 PDF"
-        description={hasSample ? '구매 전 샘플 파일을 먼저 확인할 수 있습니다.' : '현재 제공되는 샘플 파일이 없습니다.'}
+        title="샘플 미리보기"
+        description={hasSamplePages
+          ? `PDF 첫 1~3페이지 JPG 샘플 ${samplePageCount}장을 확인할 수 있습니다.`
+          : hasLegacySample
+            ? '기존 샘플 PDF는 판매용 PDF 재업로드 후 JPG 미리보기로 대체됩니다.'
+            : '현재 제공되는 샘플 JPG가 없습니다.'}
         priceLabel="무료"
-        state={hasSample ? 'instant' : 'unavailable'}
+        state={hasSamplePages ? 'instant' : 'unavailable'}
         icon={<Sparkles className="h-5 w-5" />}
-        actionLabel={hasSample ? '샘플 다운로드' : '샘플 없음'}
-        href={hasSample && isLoggedIn ? buildDownloadUrl(itemId, 'sample') : undefined}
-        disabled={!hasSample}
-        onAction={hasSample && !isLoggedIn ? () => redirectToLogin() : undefined}
+        actionLabel={hasSamplePages ? '샘플 미리보기' : '샘플 없음'}
+        disabled={!hasSamplePages}
+        onAction={hasSamplePages ? openSamplePreview : undefined}
       />
 
       <FileOptionRow
@@ -324,6 +345,13 @@ export default function MarketItemActions({
         isLoading={isPending || isCheckingBalance}
         title="문제마켓 구매 확인"
         description={confirmationDescription}
+      />
+
+      <MarketSamplePreviewDialog
+        itemId={itemId}
+        workspaceSubject={workspaceSubject}
+        open={isSamplePreviewOpen}
+        onOpenChange={setIsSamplePreviewOpen}
       />
     </div>
   )

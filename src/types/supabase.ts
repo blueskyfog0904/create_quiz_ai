@@ -839,6 +839,88 @@ export type Database = {
           },
         ]
       }
+      market_item_sample_pages: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          file_size_bytes: number
+          height_px: number | null
+          id: string
+          is_active: boolean
+          item_id: string
+          mime_type: string
+          original_file_name: string
+          page_number: number
+          source_file_id: string | null
+          storage_bucket: string
+          storage_path: string
+          version: number
+          width_px: number | null
+          workspace_subject: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          file_size_bytes: number
+          height_px?: number | null
+          id?: string
+          is_active?: boolean
+          item_id: string
+          mime_type?: string
+          original_file_name: string
+          page_number: number
+          source_file_id?: string | null
+          storage_bucket: string
+          storage_path: string
+          version?: number
+          width_px?: number | null
+          workspace_subject?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          file_size_bytes?: number
+          height_px?: number | null
+          id?: string
+          is_active?: boolean
+          item_id?: string
+          mime_type?: string
+          original_file_name?: string
+          page_number?: number
+          source_file_id?: string | null
+          storage_bucket?: string
+          storage_path?: string
+          version?: number
+          width_px?: number | null
+          workspace_subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_item_sample_pages_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_item_sample_pages_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "market_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_item_sample_pages_source_file_id_fkey"
+            columns: ["source_file_id"]
+            isOneToOne: false
+            referencedRelation: "market_item_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       market_item_view_events: {
         Row: {
           created_at: string

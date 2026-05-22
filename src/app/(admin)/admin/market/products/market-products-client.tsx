@@ -57,7 +57,7 @@ interface MarketItemFormState {
   isActive: boolean
 }
 
-const MARKET_ASSET_KINDS = ['sample', 'pdf', 'hwp'] as const
+const MARKET_ASSET_KINDS = ['pdf', 'hwp'] as const
 type MarketUploadAssetKind = typeof MARKET_ASSET_KINDS[number]
 
 const MARKET_STATUS_LABELS: Record<MarketItemFormState['status'], string> = {
@@ -165,7 +165,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const [selectedFiles, setSelectedFiles] = useState<Partial<Record<MarketUploadAssetKind, File>>>({})
   const [dragActiveKinds, setDragActiveKinds] = useState<MarketUploadAssetKind[]>([])
   const fileInputRefs = useRef<Record<MarketUploadAssetKind, HTMLInputElement | null>>({
-    sample: null,
     pdf: null,
     hwp: null,
   })
@@ -605,7 +604,11 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       }
 
       clearSelectedFile(assetKind)
-      return { success: true as const, message: `${assetKind.toUpperCase()} 파일을 업로드했습니다.`, itemId: targetItemId }
+      const samplePageCount = Number(payload.data?.samplePageCount ?? 0)
+      const message = assetKind === 'pdf'
+        ? `PDF 파일을 업로드하고 샘플 JPG ${samplePageCount}장을 생성했습니다.`
+        : `${assetKind.toUpperCase()} 파일을 업로드했습니다.`
+      return { success: true as const, message, itemId: targetItemId }
     } catch (error) {
       return {
         success: false as const,
@@ -856,8 +859,8 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                     <p className="font-medium text-gray-900">파일 업로드</p>
                     <p className="text-sm text-gray-500">
                       {form.id
-                        ? '샘플 PDF, 판매용 PDF, HWP를 각각 최신 버전으로 교체할 수 있습니다.'
-                        : '파일을 먼저 업로드할 수 있으며, 첫 업로드 시 상품이 임시 저장됩니다.'}
+                        ? 'PDF 업로드 시 첫 1~3페이지가 JPG 샘플로 자동 생성됩니다. HWP는 별도로 교체할 수 있습니다.'
+                        : '파일을 먼저 업로드할 수 있으며, 첫 PDF 업로드 시 상품이 임시 저장되고 JPG 샘플이 자동 생성됩니다.'}
                     </p>
                   </div>
                   <Button
@@ -882,6 +885,14 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                       </TableRow>
                     </TableHeader>
                     <TableBody>
+                      <TableRow key="file-row-sample-pages">
+                        <TableCell>샘플 JPG</TableCell>
+                        <TableCell>PDF 업로드 시 첫 1~3페이지 자동 생성</TableCell>
+                        <TableCell className="text-center">-</TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline">자동 생성</Badge>
+                        </TableCell>
+                      </TableRow>
                       {MARKET_ASSET_KINDS.map((assetKind) => {
                         const currentFile = activeFileMap.get(assetKind)
 

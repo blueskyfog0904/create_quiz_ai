@@ -19,11 +19,12 @@ test('market item detail keeps a consistent product header and meta layout', () 
   assert.match(itemPage, /lg:sticky lg:top-24/)
 })
 
-test('market item detail consolidates sample pdf hwp into one file option panel', () => {
+test('market item detail consolidates sample preview pdf hwp into one file option panel', () => {
   assert.match(itemPage, /파일 선택/)
   assert.match(itemPage, /샘플을 확인한 뒤 필요한 파일만 구매하세요/)
   assert.match(itemActions, /function FileOptionRow/)
-  assert.match(itemActions, /샘플 PDF/)
+  assert.match(itemActions, /샘플 미리보기/)
+  assert.match(itemActions, /1~3페이지 JPG/)
   assert.match(itemActions, /PDF 구매하기/)
   assert.match(itemActions, /HWP & PDF 구매하기/)
   assert.match(itemActions, /영어 라이브러리 &gt; 구매자료/)
@@ -37,7 +38,8 @@ test('market item detail action states and failure messages are explicit', () =>
   assert.match(itemActions, /status >= 500/)
 })
 
-test('market item downloads preserve existing API URLs', () => {
+test('market item downloads preserve existing paid file API URLs', () => {
   assert.match(itemActions, /\/api\/market\/items\/\$\{itemId\}\/download\?assetKind=\$\{assetKind\}/)
+  assert.doesNotMatch(itemActions, /buildDownloadUrl\(itemId, 'sample'\)/)
   assert.match(itemActions, /\/api\/market\/items\/\$\{itemId\}\/purchase/)
 })

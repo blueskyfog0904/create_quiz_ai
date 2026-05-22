@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { listActiveMarketItemSamplePagesForItems } from '@/lib/market-sample-pages-server'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/supabase'
 
@@ -48,6 +49,7 @@ export interface MarketListboardAssetRow {
 export interface MarketListboardSampleRow {
   available: boolean
   fileName: string | null
+  pageCount: number
 }
 
 export interface MarketListboardRow {
@@ -335,7 +337,7 @@ export async function listPublishedMarketListboardRows(
   }
 
   const itemIds = items.map((item) => item.id)
-  const [{ data: files, error: filesError }, { data: purchases, error: purchasesError }] = await Promise.all([
+  const [{ data: files, error: filesError }, { data: purchases, error: purchasesError }, samplePageMap] = await Promise.all([
     supabase
       .from('market_item_files')
       .select('item_id, asset_kind, original_file_name')
@@ -354,6 +356,7 @@ export async function listPublishedMarketListboardRows(
         .in('asset_kind', ['pdf', 'hwp'])
         .eq('workspace_subject', menuEntry.workspace_subject)
       : Promise.resolve({ data: [], error: null }),
+    listActiveMarketItemSamplePagesForItems(itemIds, menuEntry.workspace_subject),
   ])
 
   if (filesError) {
@@ -377,6 +380,7 @@ export async function listPublishedMarketListboardRows(
 
   return items.map((item, index) => {
     const filesForItem = fileMap.get(item.id) ?? { pdf: null, hwp: null, sample: null }
+    const samplePages = samplePageMap.get(item.id) ?? []
     const pdfOwned = ownership.has(`${item.id}:pdf`) || ownership.has(`${item.id}:hwp`)
 
     return {
@@ -401,8 +405,9 @@ export async function listPublishedMarketListboardRows(
         fileName: filesForItem.hwp,
       },
       sample: {
-        available: filesForItem.sample !== null,
+        available: samplePages.length > 0 || filesForItem.sample !== null,
         fileName: filesForItem.sample,
+        pageCount: samplePages.length,
       },
     }
   })

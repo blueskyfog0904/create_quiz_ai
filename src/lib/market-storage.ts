@@ -10,6 +10,8 @@ export interface MarketUploadDescriptor {
   type?: string | null
 }
 
+export const MARKET_SAMPLE_PAGE_MIME_TYPE = 'image/jpeg'
+
 function normalizeFileName(value: string) {
   return value.trim().replace(/\s+/g, '-').replace(/[^a-zA-Z0-9._-]+/g, '-')
 }
@@ -19,7 +21,7 @@ export function getMarketFileExtension(fileName: string): string {
   return segments.length > 1 ? segments[segments.length - 1] : ''
 }
 
-export function assertMarketUploadIsAllowed(file: MarketUploadDescriptor, assetKind: 'sample' | 'pdf' | 'hwp') {
+export function assertMarketUploadIsAllowed(file: MarketUploadDescriptor, assetKind: 'pdf' | 'hwp') {
   const extension = getMarketFileExtension(file.name)
 
   if (!extension) {
@@ -28,10 +30,6 @@ export function assertMarketUploadIsAllowed(file: MarketUploadDescriptor, assetK
 
   if (!MARKET_ALLOWED_EXTENSIONS.includes(extension as MarketAllowedExtension)) {
     throw new Error('문제마켓 업로드는 PDF 또는 HWP 파일만 지원합니다.')
-  }
-
-  if (assetKind === 'sample' && extension !== 'pdf') {
-    throw new Error('샘플 파일은 PDF만 허용합니다.')
   }
 
   if (assetKind === 'pdf' && extension !== 'pdf') {
@@ -51,10 +49,21 @@ export function assertMarketUploadIsAllowed(file: MarketUploadDescriptor, assetK
 export function buildMarketStoragePath(
   workspaceSubject: WorkspaceSubject,
   itemId: string,
-  assetKind: 'sample' | 'pdf' | 'hwp',
+  assetKind: 'pdf' | 'hwp',
   fileName: string
 ) {
   const safeName = normalizeFileName(fileName)
   const timestamp = Date.now()
   return `market/${workspaceSubject}/${itemId}/${assetKind}/${timestamp}-${safeName}`
+}
+
+export function buildMarketSamplePageStoragePath(
+  workspaceSubject: WorkspaceSubject,
+  itemId: string,
+  sourceFileId: string,
+  pageNumber: number,
+  fileName: string
+) {
+  const safeName = normalizeFileName(fileName)
+  return `market/${workspaceSubject}/${itemId}/sample-pages/${sourceFileId}/page-${String(pageNumber).padStart(3, '0')}-${safeName}`
 }

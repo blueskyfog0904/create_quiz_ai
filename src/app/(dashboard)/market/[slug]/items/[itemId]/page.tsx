@@ -9,6 +9,7 @@ import {
   listCompletedMarketPurchasesForItem,
   listMarketItemFiles,
 } from '@/lib/market-items-server'
+import { listActiveMarketItemSamplePages } from '@/lib/market-sample-pages-server'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { WorkspaceLink } from '@/components/layout/workspace-link'
@@ -64,10 +65,13 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
   }
 
   const files = await listMarketItemFiles(item.id, false, item.workspace_subject)
+  const samplePages = await listActiveMarketItemSamplePages(item.id, item.workspace_subject)
   const purchases = user
     ? await listCompletedMarketPurchasesForItem(user.id, item.id, item.workspace_subject)
     : []
-  const hasSample = files.some((file) => file.asset_kind === 'sample')
+  const hasSamplePages = samplePages.length > 0
+  const hasLegacySample = files.some((file) => file.asset_kind === 'sample')
+  const hasSample = hasSamplePages || hasLegacySample
   const hasPdf = files.some((file) => file.asset_kind === 'pdf')
   const hasHwp = files.some((file) => file.asset_kind === 'hwp')
   const ownsPdf = purchases.some((purchase) => purchase.asset_kind === 'pdf' || purchase.asset_kind === 'hwp')
@@ -180,14 +184,17 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
               <CardContent>
                 <MarketItemActions
                   hasHwp={hasHwp}
+                  hasLegacySample={hasLegacySample}
                   hasPdf={hasPdf}
-                  hasSample={hasSample}
+                  hasSamplePages={hasSamplePages}
                   hwpPrice={item.hwp_price}
                   itemId={item.id}
                   isLoggedIn={Boolean(user)}
                   ownsHwp={ownsHwp}
                   ownsPdf={ownsPdf}
                   pdfPrice={item.pdf_price}
+                  samplePageCount={samplePages.length}
+                  workspaceSubject={item.workspace_subject}
                 />
               </CardContent>
             </Card>

@@ -2,7 +2,15 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { getMarketItemById, replaceMarketItemFile } from '@/lib/market-items-server'
-import { MARKET_STORAGE_BUCKET, assertMarketUploadIsAllowed, buildMarketStoragePath } from '@/lib/market-storage'
+import { generateMarketPdfSamplePages } from '@/lib/market-pdf-sample-generator'
+import { replaceMarketItemSamplePages } from '@/lib/market-sample-pages-server'
+import {
+  MARKET_SAMPLE_PAGE_MIME_TYPE,
+  MARKET_STORAGE_BUCKET,
+  assertMarketUploadIsAllowed,
+  buildMarketSamplePageStoragePath,
+  buildMarketStoragePath,
+} from '@/lib/market-storage'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,8 +60,8 @@ export async function POST(request: Request, { params }: RouteContext) {
     const assetKindValue = formData.get('assetKind')
     const fileValue = formData.get('file')
 
-    if (assetKindValue !== 'sample' && assetKindValue !== 'pdf' && assetKindValue !== 'hwp') {
-      return NextResponse.json({ success: false, error: { code: 'INVALID_ASSET_KIND', message: 'assetKind는 sample/pdf/hwp 중 하나여야 합니다.' } }, { status: 400 })
+    if (assetKindValue !== 'pdf' && assetKindValue !== 'hwp') {
+      return NextResponse.json({ success: false, error: { code: 'INVALID_ASSET_KIND', message: 'assetKind는 pdf/hwp 중 하나여야 합니다.' } }, { status: 400 })
     }
 
     if (!(fileValue instanceof File)) {
@@ -69,6 +77,9 @@ export async function POST(request: Request, { params }: RouteContext) {
     const adminSupabase = createAdminClient()
     const storagePath = buildMarketStoragePath(item.workspace_subject, item.id, assetKindValue, fileValue.name)
     const fileBuffer = Buffer.from(await fileValue.arrayBuffer())
+    const generatedSamplePages = assetKindValue === 'pdf'
+      ? await generateMarketPdfSamplePages(fileBuffer, fileValue.name)
+      : []
 
     const { error: uploadError } = await adminSupabase
       .storage
@@ -99,8 +110,64 @@ export async function POST(request: Request, { params }: RouteContext) {
       checksum: null,
       created_by: user.id,
     })
+    if (!savedFile) {
+      throw new Error('문제마켓 파일 메타데이터 저장에 실패했습니다.')
+    }
 
-    return NextResponse.json({ success: true, data: savedFile }, { status: 201 })
+    let samplePageCount = 0
+    let sampleGenerationStatus: 'not_applicable' | 'generated' = 'not_applicable'
+    if (assetKindValue === 'pdf') {
+      const uploadedSamplePages = []
+      for (const page of generatedSamplePages) {
+        const sampleStoragePath = buildMarketSamplePageStoragePath(
+          item.workspace_subject,
+          item.id,
+          savedFile.id,
+          page.pageNumber,
+          page.fileName
+        )
+        const { error: sampleUploadError } = await adminSupabase
+          .storage
+          .from(MARKET_STORAGE_BUCKET)
+          .upload(sampleStoragePath, page.buffer, {
+            contentType: MARKET_SAMPLE_PAGE_MIME_TYPE,
+            upsert: false,
+          })
+
+        if (sampleUploadError) {
+          throw new Error(sampleUploadError.message)
+        }
+
+        uploadedSamplePages.push({
+          pageNumber: page.pageNumber,
+          storageBucket: MARKET_STORAGE_BUCKET,
+          storagePath: sampleStoragePath,
+          originalFileName: page.fileName,
+          mimeType: page.mimeType,
+          fileSizeBytes: page.fileSizeBytes,
+          widthPx: page.widthPx,
+          heightPx: page.heightPx,
+        })
+      }
+
+      await replaceMarketItemSamplePages(item.id, {
+        sourceFileId: savedFile.id,
+        workspaceSubject: item.workspace_subject,
+        createdBy: user.id,
+        pages: uploadedSamplePages,
+      })
+      samplePageCount = uploadedSamplePages.length
+      sampleGenerationStatus = 'generated'
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        savedFile,
+        samplePageCount,
+        sampleGenerationStatus,
+      },
+    }, { status: 201 })
   } catch (error) {
     return NextResponse.json({
       success: false,

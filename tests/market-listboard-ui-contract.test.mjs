@@ -18,8 +18,8 @@ const marketItemsServer = readFileSync(
 test('market listboard rows expose sample metadata without making sample purchasable', () => {
   assert.match(marketItemsServer, /MarketListboardSampleRow/)
   assert.match(marketItemsServer, /sample:\s*MarketListboardSampleRow/)
-  assert.match(marketItemsServer, /'pdf', 'hwp', 'sample'/)
-  assert.match(marketItemsServer, /sample:\s*\{\s*available:/s)
+  assert.match(marketItemsServer, /listActiveMarketItemSamplePagesForItems/)
+  assert.match(marketItemsServer, /sample:\s*\{\s*available:[\s\S]+pageCount:/)
   assert.doesNotMatch(listboardClient, /assetKind:\s*'sample'/)
 })
 
