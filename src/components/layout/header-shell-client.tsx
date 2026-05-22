@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils'
 import { isWorkspaceSubject, parseWorkspaceSubjectFromPath, stripWorkspacePrefix, type WorkspaceSubject } from '@/lib/workspace-subject'
 import type { HeaderMenuItem } from '@/lib/header-navigation'
 
-const headerDropdownContentClassName = 'w-52 rounded-xl border-slate-200 bg-white p-2 text-slate-900 shadow-xl shadow-slate-200/70'
+const headerDropdownContentClassName = 'w-52 rounded-xl border-slate-200 bg-white p-2 text-slate-900 shadow-md shadow-slate-900/10'
 const headerDropdownItemClassName = 'rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition-colors focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900'
 const headerDropdownSeparatorClassName = 'my-1 bg-slate-200'
 const subjectNavButtonClassName = 'shrink-0 gap-1 rounded-full border border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-100 hover:text-slate-900'

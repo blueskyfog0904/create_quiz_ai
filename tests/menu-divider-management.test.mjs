@@ -58,6 +58,11 @@ test('header second-level menus also honor divider metadata', () => {
   assert.match(headerClientSource, /shouldRenderWorkspaceChildDivider/)
 })
 
+test('header dropdown uses a subtle shadow to avoid halo over body content', () => {
+  assert.match(headerShellSource, /shadow-md shadow-slate-900\/10/)
+  assert.doesNotMatch(headerShellSource, /headerDropdownContentClassName = '.*shadow-xl shadow-slate-200\/70/)
+})
+
 test('market and library sidebars use the shared second-level sidebar component', () => {
   assert.match(marketSidebarSource, /WorkspaceSecondLevelSidebar/)
   assert.match(librarySidebarSource, /WorkspaceSecondLevelSidebar/)
