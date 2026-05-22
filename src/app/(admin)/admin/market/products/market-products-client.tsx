@@ -155,6 +155,9 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const [isSaving, setIsSaving] = useState(false)
   const [isArchiving, setIsArchiving] = useState(false)
   const [hidingItemId, setHidingItemId] = useState<string | null>(null)
+  const [hiddenItemIds, setHiddenItemIds] = useState(() => initialItems
+    .filter((item) => item.status === 'hidden')
+    .map((item) => item.id))
   const [requiresFinalRegistration, setRequiresFinalRegistration] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<MarketItem | null>(null)
   const [uploadingKinds, setUploadingKinds] = useState<string[]>([])
@@ -186,6 +189,16 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     setSelectedFiles({})
     setDragActiveKinds([])
     setRequiresFinalRegistration(false)
+  }
+
+  const setHiddenOverride = (itemId: string, isHidden: boolean) => {
+    setHiddenItemIds((current) => {
+      if (isHidden) {
+        return current.includes(itemId) ? current : [...current, itemId]
+      }
+
+      return current.filter((currentItemId) => currentItemId !== itemId)
+    })
   }
 
   const refreshItems = async (menuEntryId?: string) => {
@@ -292,6 +305,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       const detail = await fetchItemDetail(payload.data.id)
       setSelectedMenuEntryId(detail.item.menu_entry_id)
       setForm(buildEditForm(detail.item))
+      setHiddenOverride(detail.item.id, detail.item.status === 'hidden')
       setEditingFiles(detail.files || [])
       if (!options.preserveSelections) {
         setSelectedFiles({})
@@ -484,7 +498,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   }
 
   const handleHideFromList = async (item: MarketItem) => {
-    if (item.status === 'hidden') {
+    if (item.status === 'hidden' || hiddenItemIds.includes(item.id)) {
       toast.message('이미 숨김 상태인 상품입니다.')
       return
     }
@@ -515,6 +529,12 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
         throw new Error(payload.error?.message || '문제마켓 상품 숨김 처리에 실패했습니다.')
       }
 
+      setHiddenOverride(item.id, true)
+      setItems((current) => current.map((currentItem) => (
+        currentItem.id === item.id
+          ? { ...currentItem, status: 'hidden' }
+          : currentItem
+      )))
       await refreshItems(item.menu_entry_id)
       if (form.id === item.id) {
         setForm(buildEditForm(payload.data as MarketItem))
@@ -1076,57 +1096,61 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredItems.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <p className="font-medium text-gray-900">{item.title}</p>
-                            <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-                              {item.summary ? <span>{item.summary}</span> : null}
-                              {item.grade_level ? <Badge variant="secondary">{item.grade_level}</Badge> : null}
-                              {!item.is_active ? <Badge variant="destructive">비활성</Badge> : null}
+                    filteredItems.map((item) => {
+                      const isHidden = item.status === 'hidden' || hiddenItemIds.includes(item.id)
+
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <p className="font-medium text-gray-900">{item.title}</p>
+                              <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                                {item.summary ? <span>{item.summary}</span> : null}
+                                {item.grade_level ? <Badge variant="secondary">{item.grade_level}</Badge> : null}
+                                {!item.is_active ? <Badge variant="destructive">비활성</Badge> : null}
+                              </div>
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{menuTitleMap.get(item.menu_entry_id) || '-'}</TableCell>
-                        <TableCell className="text-center text-sm">
-                          <div>PDF {item.pdf_price}C</div>
-                          <div>HWP {item.hwp_price}C</div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="outline">{MARKET_STATUS_LABELS[item.status as MarketItemFormState['status']] ?? item.status}</Badge>
-                        </TableCell>
-                        <TableCell className="text-center text-sm text-gray-600">{formatDateTime(item.created_at)}</TableCell>
-                        <TableCell>
-                          <div className="flex justify-end gap-1">
-                            <Button type="button" variant="ghost" size="icon" onClick={() => void loadItemDetail(item.id)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              aria-label={`${item.title} 숨김 처리`}
-                              title="숨김"
-                              className="text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                              disabled={hidingItemId === item.id || item.status === 'hidden'}
-                              onClick={() => void handleHideFromList(item)}
-                            >
-                              {hidingItemId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <EyeOff className="h-4 w-4" />}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                              onClick={() => setDeleteTarget(item)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                          </TableCell>
+                          <TableCell>{menuTitleMap.get(item.menu_entry_id) || '-'}</TableCell>
+                          <TableCell className="text-center text-sm">
+                            <div>PDF {item.pdf_price}C</div>
+                            <div>HWP {item.hwp_price}C</div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline">{MARKET_STATUS_LABELS[item.status as MarketItemFormState['status']] ?? item.status}</Badge>
+                          </TableCell>
+                          <TableCell className="text-center text-sm text-gray-600">{formatDateTime(item.created_at)}</TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-1">
+                              <Button type="button" variant="ghost" size="icon" onClick={() => void loadItemDetail(item.id)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`${item.title} 숨김 처리`}
+                                title="숨김"
+                                className="text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                                disabled={hidingItemId === item.id || isHidden}
+                                onClick={() => void handleHideFromList(item)}
+                              >
+                                {hidingItemId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <EyeOff className="h-4 w-4" />}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                                onClick={() => setDeleteTarget(item)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
                   )}
                 </TableBody>
               </Table>
