@@ -7,25 +7,34 @@ const marketProductsClient = readFileSync(
   'utf8'
 )
 
-test('admin market products list exposes a hide action that patches item status to hidden', () => {
+test('admin market products list exposes a visibility action that patches item status', () => {
+  assert.match(marketProductsClient, /Eye, EyeOff/, 'list action should render hide and unhide icons')
   assert.match(marketProductsClient, /EyeOff/, 'list action should render a hide icon')
-  assert.match(marketProductsClient, /handleHideFromList/, 'list should have a dedicated hide handler')
-  assert.match(marketProductsClient, /status:\s*'hidden'/, 'hide handler should set hidden status')
+  assert.match(marketProductsClient, /handleVisibilityFromList/, 'list should have a dedicated visibility toggle handler')
+  assert.match(marketProductsClient, /status:\s*nextStatus/, 'visibility handler should set the computed next status')
   assert.match(marketProductsClient, /method:\s*'PATCH'/, 'hide handler should update the existing item')
-  assert.match(marketProductsClient, /aria-label=\{`\$\{item\.title\} 숨김 처리`\}/, 'hide icon should be accessible')
+  assert.match(marketProductsClient, /숨김 처리/, 'hide icon should be accessible')
 })
 
-test('admin market products list disables hide action immediately after a successful hide', () => {
+test('admin market products list toggles hidden items back to published', () => {
   assert.match(marketProductsClient, /hiddenItemIds/, 'list should track locally hidden item ids')
-  assert.match(marketProductsClient, /setHiddenOverride\(item\.id,\s*true\)/, 'successful hide should mark the item hidden locally')
+  assert.match(
+    marketProductsClient,
+    /const nextStatus = isHidden \? 'published' : 'hidden'/,
+    'visibility action should publish hidden rows and hide visible rows'
+  )
+  assert.match(marketProductsClient, /status:\s*nextStatus/, 'visibility handler should patch the computed next status')
+  assert.match(marketProductsClient, /setHiddenOverride\(item\.id,\s*nextStatus === 'hidden'\)/, 'local hidden override should follow the computed next status')
   assert.match(
     marketProductsClient,
     /const isHidden = item\.status === 'hidden' \|\| hiddenItemIds\.includes\(item\.id\)/,
-    'row disabled state should include the local hidden override'
+    'row display state should include the local hidden override'
   )
   assert.match(
     marketProductsClient,
-    /disabled=\{hidingItemId === item\.id \|\| isHidden\}/,
-    'hide button should be disabled for locally hidden rows'
+    /aria-label=\{isHidden \? `\$\{item\.title\} 숨김 해제` : `\$\{item\.title\} 숨김 처리`\}/,
+    'hidden rows should expose an unhide action'
   )
+  assert.match(marketProductsClient, /disabled=\{hidingItemId === item\.id\}/, 'hidden rows should not disable the visibility button')
+  assert.doesNotMatch(marketProductsClient, /disabled=\{hidingItemId === item\.id \|\| isHidden\}/, 'hidden rows should remain clickable for unhide')
 })

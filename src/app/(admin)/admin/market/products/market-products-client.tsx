@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
-import { EyeOff, Loader2, Pencil, Plus, Trash2, Upload } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Pencil, Plus, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -497,11 +497,9 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     }
   }
 
-  const handleHideFromList = async (item: MarketItem) => {
-    if (item.status === 'hidden' || hiddenItemIds.includes(item.id)) {
-      toast.message('이미 숨김 상태인 상품입니다.')
-      return
-    }
+  const handleVisibilityFromList = async (item: MarketItem) => {
+    const isHidden = item.status === 'hidden' || hiddenItemIds.includes(item.id)
+    const nextStatus = isHidden ? 'published' : 'hidden'
 
     setHidingItemId(item.id)
     try {
@@ -519,20 +517,20 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
           gradeLevel: item.grade_level || '',
           pdfPrice: item.pdf_price,
           hwpPrice: item.hwp_price,
-          status: 'hidden',
+          status: nextStatus,
           isActive: item.is_active,
         }),
       })
       const payload = await response.json()
 
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error?.message || '문제마켓 상품 숨김 처리에 실패했습니다.')
+        throw new Error(payload.error?.message || '문제마켓 상품 상태 변경에 실패했습니다.')
       }
 
-      setHiddenOverride(item.id, true)
+      setHiddenOverride(item.id, nextStatus === 'hidden')
       setItems((current) => current.map((currentItem) => (
         currentItem.id === item.id
-          ? { ...currentItem, status: 'hidden' }
+          ? { ...currentItem, status: nextStatus }
           : currentItem
       )))
       await refreshItems(item.menu_entry_id)
@@ -540,10 +538,10 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
         setForm(buildEditForm(payload.data as MarketItem))
         setRequiresFinalRegistration(false)
       }
-      toast.success('문제마켓 상품을 숨김 처리했습니다.')
+      toast.success(isHidden ? '문제마켓 상품 숨김을 해제했습니다.' : '문제마켓 상품을 숨김 처리했습니다.')
       router.refresh()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '문제마켓 상품 숨김 처리 중 오류가 발생했습니다.')
+      toast.error(error instanceof Error ? error.message : '문제마켓 상품 상태 변경 중 오류가 발생했습니다.')
     } finally {
       setHidingItemId(null)
     }
@@ -1129,13 +1127,15 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                aria-label={`${item.title} 숨김 처리`}
-                                title="숨김"
+                                aria-label={isHidden ? `${item.title} 숨김 해제` : `${item.title} 숨김 처리`}
+                                title={isHidden ? '숨김 해제' : '숨김'}
                                 className="text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                                disabled={hidingItemId === item.id || isHidden}
-                                onClick={() => void handleHideFromList(item)}
+                                disabled={hidingItemId === item.id}
+                                onClick={() => void handleVisibilityFromList(item)}
                               >
-                                {hidingItemId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <EyeOff className="h-4 w-4" />}
+                                {hidingItemId === item.id
+                                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                                  : isHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                               </Button>
                               <Button
                                 type="button"
