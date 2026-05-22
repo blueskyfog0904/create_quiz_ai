@@ -7,6 +7,8 @@ import { resolveWorkspaceSubject } from '@/lib/workspace-subject'
 
 export const dynamic = 'force-dynamic'
 
+const SAMPLE_PAGE_SIGNED_URL_TTL_SECONDS = 60 * 5
+
 interface RouteContext {
   params: Promise<{ itemId: string }>
 }
@@ -28,12 +30,13 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     }
 
     const samplePages = await listActiveMarketItemSamplePages(item.id, item.workspace_subject)
+    const expiresAt = new Date(Date.now() + SAMPLE_PAGE_SIGNED_URL_TTL_SECONDS * 1000).toISOString()
     const adminSupabase = createAdminClient()
     const pages = await Promise.all(samplePages.map(async (page) => {
       const { data, error } = await adminSupabase
         .storage
         .from(page.storage_bucket)
-        .createSignedUrl(page.storage_path, 60 * 5)
+        .createSignedUrl(page.storage_path, SAMPLE_PAGE_SIGNED_URL_TTL_SECONDS)
 
       if (error || !data?.signedUrl) {
         throw new Error(error?.message || '샘플 이미지 URL 생성에 실패했습니다.')
@@ -42,12 +45,13 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       return {
         pageNumber: page.page_number,
         signedUrl: data.signedUrl,
+        fileSizeBytes: page.file_size_bytes,
         widthPx: page.width_px,
         heightPx: page.height_px,
       }
     }))
 
-    return NextResponse.json({ success: true, pages })
+    return NextResponse.json({ success: true, pages, expiresAt })
   } catch (error) {
     return NextResponse.json({
       success: false,

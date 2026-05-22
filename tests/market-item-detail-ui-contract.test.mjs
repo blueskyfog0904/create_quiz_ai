@@ -43,3 +43,16 @@ test('market item downloads preserve existing paid file API URLs', () => {
   assert.doesNotMatch(itemActions, /buildDownloadUrl\(itemId, 'sample'\)/)
   assert.match(itemActions, /\/api\/market\/items\/\$\{itemId\}\/purchase/)
 })
+
+test('market item sample preview prefetch intent is wired only for eligible users', () => {
+  assert.match(itemActions, /onIntent\?: \(\) => void/)
+  assert.match(itemActions, /onFocus=\{onIntent\}/)
+  assert.match(itemActions, /onMouseEnter=\{onIntent\}/)
+  assert.match(itemActions, /onTouchStart=\{onIntent\}/)
+  assert.match(itemActions, /const \[samplePreviewPrefetchKey, setSamplePreviewPrefetchKey\] = useState\(0\)/)
+  assert.match(itemActions, /const prefetchSamplePreview = \(\) => \{/)
+  assert.match(itemActions, /!isLoggedIn \|\| !hasSamplePages/)
+  assert.match(itemActions, /setSamplePreviewPrefetchKey\(\(value\) => value \+ 1\)/)
+  assert.match(itemActions, /onIntent=\{hasSamplePages \? prefetchSamplePreview : undefined\}/)
+  assert.match(itemActions, /prefetchKey=\{samplePreviewPrefetchKey\}/)
+})

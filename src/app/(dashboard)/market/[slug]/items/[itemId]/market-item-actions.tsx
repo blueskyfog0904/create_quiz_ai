@@ -96,6 +96,7 @@ function FileOptionRow({
   href,
   disabled,
   onAction,
+  onIntent,
 }: {
   title: string
   description: string
@@ -106,6 +107,7 @@ function FileOptionRow({
   href?: string
   disabled?: boolean
   onAction?: () => void
+  onIntent?: () => void
 }) {
   const buttonClassName = state === 'available'
     ? 'bg-rose-600 text-white hover:bg-rose-700'
@@ -135,7 +137,15 @@ function FileOptionRow({
             <a href={href} aria-label={`${title} ${actionLabel}`}>{actionLabel}</a>
           </Button>
         ) : (
-          <Button className={`h-10 rounded-lg px-4 ${buttonClassName}`} disabled={disabled} onClick={onAction} aria-label={`${title} ${actionLabel}`}>
+          <Button
+            className={`h-10 rounded-lg px-4 ${buttonClassName}`}
+            disabled={disabled}
+            onClick={onAction}
+            onFocus={onIntent}
+            onMouseEnter={onIntent}
+            onTouchStart={onIntent}
+            aria-label={`${title} ${actionLabel}`}
+          >
             {actionLabel}
           </Button>
         )}
@@ -166,6 +176,7 @@ export default function MarketItemActions({
   const [isCheckingBalance, setIsCheckingBalance] = useState(false)
   const [pendingPurchaseKind, setPendingPurchaseKind] = useState<PurchaseAssetKind | null>(null)
   const [isSamplePreviewOpen, setIsSamplePreviewOpen] = useState(false)
+  const [samplePreviewPrefetchKey, setSamplePreviewPrefetchKey] = useState(0)
   const viewTracked = useRef(false)
 
   const viewSessionKey = useMemo(() => `market-item:${itemId}`, [itemId])
@@ -287,6 +298,14 @@ export default function MarketItemActions({
     setIsSamplePreviewOpen(true)
   }
 
+  const prefetchSamplePreview = () => {
+    if (!isLoggedIn || !hasSamplePages) {
+      return
+    }
+
+    setSamplePreviewPrefetchKey((value) => value + 1)
+  }
+
   return (
     <div className="space-y-3">
       <FileOptionRow
@@ -302,6 +321,7 @@ export default function MarketItemActions({
         actionLabel={hasSamplePages ? '샘플 미리보기' : '샘플 없음'}
         disabled={!hasSamplePages}
         onAction={hasSamplePages ? openSamplePreview : undefined}
+        onIntent={hasSamplePages ? prefetchSamplePreview : undefined}
       />
 
       <FileOptionRow
@@ -351,6 +371,7 @@ export default function MarketItemActions({
         itemId={itemId}
         workspaceSubject={workspaceSubject}
         open={isSamplePreviewOpen}
+        prefetchKey={samplePreviewPrefetchKey}
         onOpenChange={setIsSamplePreviewOpen}
       />
     </div>
