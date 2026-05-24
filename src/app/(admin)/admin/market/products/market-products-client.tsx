@@ -52,6 +52,12 @@ interface MarketItemFormState {
   examYear: string
   examMonth: string
   gradeLevel: string
+  sourceType: string
+  source1: string
+  source2: string
+  source3: string
+  source4: string
+  questionCount: string
   pdfPrice: string
   hwpPrice: string
   status: 'draft' | 'published' | 'hidden' | 'archived'
@@ -87,6 +93,12 @@ function buildEmptyForm(menuEntryId = ''): MarketItemFormState {
     examYear: '',
     examMonth: '',
     gradeLevel: '',
+    sourceType: '',
+    source1: '',
+    source2: '',
+    source3: '',
+    source4: '',
+    questionCount: '',
     pdfPrice: '0',
     hwpPrice: '0',
     status: 'draft',
@@ -106,6 +118,12 @@ function buildEditForm(item: MarketItem): MarketItemFormState {
     examYear: item.exam_year ? String(item.exam_year) : '',
     examMonth: item.exam_month ? String(item.exam_month) : '',
     gradeLevel: item.grade_level || '',
+    sourceType: item.source_type || '',
+    source1: item.source_1 || '',
+    source2: item.source_2 || '',
+    source3: item.source_3 || '',
+    source4: item.source_4 || '',
+    questionCount: item.question_count !== null && item.question_count !== undefined ? String(item.question_count) : '',
     pdfPrice: String(item.pdf_price),
     hwpPrice: String(item.hwp_price),
     status: item.status as MarketItemFormState['status'],
@@ -270,6 +288,12 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     examYear: form.examYear ? Number(form.examYear) : null,
     examMonth: form.examMonth ? Number(form.examMonth) : null,
     gradeLevel: form.gradeLevel,
+    sourceType: form.sourceType,
+    source1: form.source1,
+    source2: form.source2,
+    source3: form.source3,
+    source4: form.source4,
+    questionCount: form.questionCount ? Number(form.questionCount) : null,
     pdfPrice: Number(form.pdfPrice || 0),
     hwpPrice: Number(form.hwpPrice || 0),
     status: statusOverride ?? form.status,
@@ -807,6 +831,60 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
               <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} className="min-h-[140px]" />
             </div>
 
+            <div className="space-y-3 rounded-lg border p-4">
+              <div>
+                <p className="font-medium text-gray-900">자료 정보</p>
+                <p className="text-sm text-gray-500">상세 페이지 자료 정보 카드에 노출되는 값을 입력합니다. 과목과 등록일자는 자동으로 표시됩니다.</p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>과목</Label>
+                  <Input value={workspaceSubject === 'korean' ? '국어' : '영어'} disabled />
+                </div>
+                <div className="space-y-2">
+                  <Label>학년</Label>
+                  <select
+                    value={form.gradeLevel}
+                    onChange={(event) => setForm((current) => ({ ...current, gradeLevel: event.target.value }))}
+                    className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
+                  >
+                    <option value="">전체</option>
+                    {LISTBOARD_GRADE_OPTIONS.map((grade) => (
+                      <option key={grade} value={grade}>{grade}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>자료유형</Label>
+                  <Input value={form.sourceType} onChange={(event) => setForm((current) => ({ ...current, sourceType: event.target.value }))} placeholder="예: 모의고사" />
+                </div>
+                <div className="space-y-2">
+                  <Label>문항 수</Label>
+                  <Input type="number" min={0} value={form.questionCount} onChange={(event) => setForm((current) => ({ ...current, questionCount: event.target.value }))} placeholder="예: 24" />
+                </div>
+                <div className="space-y-2">
+                  <Label>출처 1</Label>
+                  <Input value={form.source1} onChange={(event) => setForm((current) => ({ ...current, source1: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>출처 2</Label>
+                  <Input value={form.source2} onChange={(event) => setForm((current) => ({ ...current, source2: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>출처 3</Label>
+                  <Input value={form.source3} onChange={(event) => setForm((current) => ({ ...current, source3: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>출처 4</Label>
+                  <Input value={form.source4} onChange={(event) => setForm((current) => ({ ...current, source4: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>등록일자</Label>
+                  <Input value={form.id ? '기존 등록일자 유지' : '저장 시 자동 기록'} disabled />
+                </div>
+              </div>
+            </div>
+
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>PDF 가격</Label>
@@ -819,19 +897,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>학년</Label>
-                <select
-                  value={form.gradeLevel}
-                  onChange={(event) => setForm((current) => ({ ...current, gradeLevel: event.target.value }))}
-                  className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
-                >
-                  <option value="">전체</option>
-                  {LISTBOARD_GRADE_OPTIONS.map((grade) => (
-                    <option key={grade} value={grade}>{grade}</option>
-                  ))}
-                </select>
-              </div>
               <div className="space-y-2">
                 <Label>연도</Label>
                 <select

@@ -515,7 +515,7 @@ export async function getActiveMarketItemFile(
 export async function createMarketItem(
   input: Pick<TablesInsert<'market_items'>,
     'menu_entry_id' | 'title' | 'summary' | 'description' | 'thumbnail_url' | 'exam_year' | 'exam_month' |
-    'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' |
+    'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'question_count' |
     'pdf_price' | 'hwp_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'draft_source' | 'created_by' | 'updated_by'>
 ) {
   const supabase = getAdminSupabase()
@@ -541,6 +541,7 @@ export async function createMarketItem(
     source_2: normalizeNullableText(input.source_2),
     source_3: normalizeNullableText(input.source_3),
     source_4: normalizeNullableText(input.source_4),
+    question_count: input.question_count ?? null,
     pdf_price: normalized.pdfPrice,
     hwp_price: normalized.hwpPrice,
     sort_order: input.sort_order ?? 0,
@@ -569,7 +570,7 @@ export async function updateMarketItem(
   id: string,
   input: Pick<TablesUpdate<'market_items'>,
     'title' | 'summary' | 'description' | 'thumbnail_url' | 'exam_year' | 'exam_month' |
-    'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'menu_entry_id' |
+    'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'question_count' | 'menu_entry_id' |
     'pdf_price' | 'hwp_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'draft_source' | 'updated_by'>
 ) {
   const supabase = getAdminSupabase()
@@ -616,6 +617,7 @@ export async function updateMarketItem(
     source_2: normalizeNullableText(input.source_2 ?? current.source_2),
     source_3: normalizeNullableText(input.source_3 ?? current.source_3),
     source_4: normalizeNullableText(input.source_4 ?? current.source_4),
+    question_count: input.question_count === undefined ? current.question_count : input.question_count,
     pdf_price: normalized.pdfPrice,
     hwp_price: normalized.hwpPrice,
     sort_order: input.sort_order ?? current.sort_order,

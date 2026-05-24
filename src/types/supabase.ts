@@ -979,6 +979,7 @@ export type Database = {
           menu_entry_id: string
           pdf_price: number
           published_at: string | null
+          question_count: number | null
           sort_order: number
           source_1: string | null
           source_2: string | null
@@ -1008,6 +1009,7 @@ export type Database = {
           menu_entry_id: string
           pdf_price?: number
           published_at?: string | null
+          question_count?: number | null
           sort_order?: number
           source_1?: string | null
           source_2?: string | null
@@ -1037,6 +1039,7 @@ export type Database = {
           menu_entry_id?: string
           pdf_price?: number
           published_at?: string | null
+          question_count?: number | null
           sort_order?: number
           source_1?: string | null
           source_2?: string | null

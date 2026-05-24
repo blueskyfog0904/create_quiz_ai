@@ -22,20 +22,31 @@ interface MarketItemDetailPageProps {
 }
 
 const formatDate = (value?: string | null) => value ? value.slice(0, 10) : '-'
-const formatExamLabel = (year?: number | null, month?: number | null) => {
-  if (!year && !month) {
-    return '-'
-  }
-
-  return [year ? `${year}년` : null, month ? `${month}월` : null].filter(Boolean).join(' ')
-}
-
 const collectSources = (item: Awaited<ReturnType<typeof getPublishedMarketItemById>>) => {
   if (!item) {
     return []
   }
 
   return [item.source_1, item.source_2, item.source_3, item.source_4].filter(Boolean) as string[]
+}
+
+const resolveWorkspaceSubjectLabel = (subject: string) => subject === 'korean' ? '국어' : '영어'
+
+const formatSourcesLabel = (sources: string[]) => sources.length > 0 ? sources.join(' · ') : '-'
+
+const resolveQuestionCountLabel = (item: Awaited<ReturnType<typeof getPublishedMarketItemById>>) => {
+  if (!item) {
+    return '-'
+  }
+
+  if (item.question_count !== null && item.question_count !== undefined) {
+    return `${item.question_count}문항`
+  }
+
+  const text = [item.title, item.summary, item.description].filter(Boolean).join(' ')
+  const match = text.match(/(\d+)\s*(?:문제|문항)/)
+
+  return match ? `${match[1]}문항` : '-'
 }
 
 function MetaSummaryItem({ icon, label, value }: { icon: ReactNode; label: string; value: string | number }) {
@@ -81,6 +92,14 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
   const ownedCount = Number(ownsPdf) + Number(ownsHwp)
   const fileLabels = [hasPdf ? 'PDF' : null, hasHwp ? 'HWP & PDF' : null].filter(Boolean).join(' · ') || '제공 파일 없음'
   const subjectTheme = getWorkspaceSubjectTheme(item.workspace_subject)
+  const materialInfoRows = [
+    { label: '과목', value: resolveWorkspaceSubjectLabel(item.workspace_subject) },
+    { label: '학년', value: item.grade_level || '-' },
+    { label: '출처', value: formatSourcesLabel(sources) },
+    { label: '자료유형', value: item.source_type || category.title || '-' },
+    { label: '문항 수', value: resolveQuestionCountLabel(item) },
+    { label: '등록일자', value: formatDate(item.created_at) },
+  ]
 
   return (
     <div className="space-y-6">
@@ -116,57 +135,21 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
 
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr),360px]">
             <div className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <Card className="border-dashed bg-slate-50/60">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg"><FileText className="h-5 w-5 text-slate-500" />시험 정보</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm text-gray-600">
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-gray-500">시험 회차</span>
-                      <span className="font-medium text-gray-900">{formatExamLabel(item.exam_year, item.exam_month)}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-gray-500">출제 타입</span>
-                      <span className="font-medium text-gray-900">{item.source_type || '-'}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-gray-500">카테고리</span>
-                      <span className="font-medium text-gray-900">{category.title}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-gray-500">보유 상태</span>
-                      {user ? (
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <Badge variant={ownsPdf ? 'default' : 'outline'}>PDF {ownsPdf ? '보유' : '미보유'}</Badge>
-                          <Badge variant={ownsHwp ? 'default' : 'outline'}>HWP & PDF {ownsHwp ? '보유' : '미보유'}</Badge>
-                        </div>
-                      ) : (
-                        <span className="text-sm font-medium text-gray-900">로그인 후 확인</span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-dashed bg-slate-50/60">
-                  <CardHeader>
-                    <CardTitle className="text-lg">출처</CardTitle>
-                  </CardHeader>
-                  <CardContent className="text-sm leading-6 text-gray-600">
-                    {sources.length > 0 ? (
-                      <ul className="space-y-2">
-                        {sources.map((source, index) => (
-                          <li key={`${source}-${index}`} className="rounded-xl border bg-white px-3 py-2 text-gray-700">
-                            {source}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="rounded-xl border border-dashed bg-white px-3 py-6 text-center text-gray-500">등록된 출처 정보가 없습니다.</p>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
+              <Card className="border-dashed bg-slate-50/60">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg"><FileText className="h-5 w-5 text-slate-500" />자료 정보</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <dl className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                    {materialInfoRows.map((row) => (
+                      <div key={row.label} className="rounded-xl border bg-white px-3 py-3">
+                        <dt className="text-xs font-medium text-gray-500">{row.label}</dt>
+                        <dd className="mt-2 break-words text-sm font-semibold text-gray-900">{row.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </CardContent>
+              </Card>
 
               <Card className="border-dashed bg-slate-50/60">
                 <CardHeader>
