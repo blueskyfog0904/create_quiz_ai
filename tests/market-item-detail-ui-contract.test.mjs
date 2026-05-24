@@ -13,7 +13,11 @@ const itemActions = readFileSync(
 
 test('market item detail keeps a consistent product header and meta layout', () => {
   assert.match(itemPage, /<Card className="overflow-hidden border-slate-200 pt-0">/)
-  assert.match(itemPage, /bg-gradient-to-br from-slate-950/)
+  assert.match(itemPage, /getWorkspaceSubjectTheme/)
+  assert.match(itemPage, /const subjectTheme = getWorkspaceSubjectTheme\(item\.workspace_subject\)/)
+  assert.match(itemPage, /\$\{subjectTheme\.marketHeroClass\}/)
+  assert.match(itemPage, /\$\{subjectTheme\.marketHeroMutedTextClass\}/)
+  assert.doesNotMatch(itemPage, /bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800/)
   assert.match(itemPage, /샘플 제공/)
   assert.match(itemPage, /구매 완료 \{ownedCount\}건/)
   assert.match(itemPage, /MetaSummaryItem/)

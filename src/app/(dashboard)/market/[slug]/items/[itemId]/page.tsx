@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { CalendarDays, Eye, FileArchive, FileText, GraduationCap, PackageCheck, Sparkles } from 'lucide-react'
 import { getUser } from '@/lib/auth'
 import { resolveWorkspaceSubject } from '@/lib/workspace-subject'
+import { getWorkspaceSubjectTheme } from '@/lib/workspace-theme'
 import {
   getVisibleMarketMenuEntryBySlugForWorkspace,
   getPublishedMarketItemById,
@@ -79,20 +80,21 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
   const sources = collectSources(item)
   const ownedCount = Number(ownsPdf) + Number(ownsHwp)
   const fileLabels = [hasPdf ? 'PDF' : null, hasHwp ? 'HWP & PDF' : null].filter(Boolean).join(' · ') || '제공 파일 없음'
+  const subjectTheme = getWorkspaceSubjectTheme(item.workspace_subject)
 
   return (
     <div className="space-y-6">
       <Card className="overflow-hidden border-slate-200 pt-0">
-        <CardHeader className="border-b bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 py-8 text-white">
+        <CardHeader className={`border-b ${subjectTheme.marketHeroClass} py-8 text-white`}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2 text-sm text-slate-300">
+              <div className={`flex flex-wrap items-center gap-2 text-sm ${subjectTheme.marketHeroMutedTextClass}`}>
                 <span>문제마켓</span>
                 <span>/</span>
                 <WorkspaceLink className="hover:text-white" href={`/market/${category.slug}`}>{category.title}</WorkspaceLink>
               </div>
               <CardTitle className="max-w-4xl text-3xl leading-tight tracking-tight text-white">{item.title}</CardTitle>
-              <CardDescription className="max-w-3xl text-slate-200">
+              <CardDescription className={`max-w-3xl ${subjectTheme.marketHeroMutedTextClass}`}>
                 {item.summary || '샘플을 확인한 뒤 PDF/HWP 자료를 선택해 구매할 수 있습니다.'}
               </CardDescription>
             </div>

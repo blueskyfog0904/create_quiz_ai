@@ -48,6 +48,15 @@ test('market listboard keeps workspace-aware navigation and filter chips', () =>
   assert.match(listboardServer, /자료 찾기/)
 })
 
+test('market listboard hero consumes subject-aware workspace theme classes', () => {
+  assert.match(listboardServer, /getWorkspaceSubjectTheme/)
+  assert.match(listboardServer, /const subjectTheme = getWorkspaceSubjectTheme\(category\.workspace_subject\)/)
+  assert.match(listboardServer, /\$\{subjectTheme\.marketHeroClass\}/)
+  assert.match(listboardServer, /\$\{subjectTheme\.marketHeroLabelClass\}/)
+  assert.doesNotMatch(listboardServer, /bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800/)
+  assert.doesNotMatch(listboardServer, /text-blue-100/)
+})
+
 test('market listboard uses the shared compact board UI for every market slug', () => {
   assert.match(listboardClient, /border-t-2 border-slate-950/, 'board should use the strong top divider')
   assert.match(listboardClient, /min-w-\[1080px\]/, 'board should keep enough horizontal room for market columns')
