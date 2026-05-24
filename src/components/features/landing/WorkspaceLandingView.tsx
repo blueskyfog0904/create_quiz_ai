@@ -80,8 +80,8 @@ export function WorkspaceLandingView({
               </span>
             </Badge>
 
-            <div className="mt-6 grid gap-10 lg:grid-cols-[1.4fr_0.9fr] lg:items-end">
-              <div>
+            <div className="mt-6 grid gap-10 lg:grid-cols-[1.4fr_0.9fr] lg:items-start">
+              <div className="lg:pt-6">
                 <h1
                   className="font-bold tracking-tight whitespace-pre-line word-keep-all"
                   style={getLandingFontSizeStyle(config.fontSteps.hero.title, { mobileRem: 2.25, desktopRem: 3.75, lineHeight: 1.05 })}
