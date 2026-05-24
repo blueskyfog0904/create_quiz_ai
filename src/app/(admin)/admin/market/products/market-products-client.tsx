@@ -34,6 +34,7 @@ import {
 import type { MarketItem, MarketItemFile } from '@/lib/market-items-server'
 import { LISTBOARD_GRADE_OPTIONS } from '@/lib/generate-menu'
 import type { MarketMenuEntryAdminRow } from '@/lib/market-menu'
+import AdminMarketSamplePreviewDialog from './admin-market-sample-preview-dialog'
 
 interface MarketProductsClientProps {
   menuEntries: MarketMenuEntryAdminRow[]
@@ -161,6 +162,8 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     .map((item) => item.id))
   const [requiresFinalRegistration, setRequiresFinalRegistration] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<MarketItem | null>(null)
+  const [isSamplePreviewOpen, setIsSamplePreviewOpen] = useState(false)
+  const [samplePreviewItemId, setSamplePreviewItemId] = useState<string | null>(null)
   const [uploadingKinds, setUploadingKinds] = useState<string[]>([])
   const [isBulkUploading, setIsBulkUploading] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<Partial<Record<MarketUploadAssetKind, File>>>({})
@@ -189,6 +192,8 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     setSelectedFiles({})
     setDragActiveKinds([])
     setRequiresFinalRegistration(false)
+    setIsSamplePreviewOpen(false)
+    setSamplePreviewItemId(null)
   }
 
   const setHiddenOverride = (itemId: string, isHidden: boolean) => {
@@ -694,6 +699,10 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const activeFileMap = useMemo(() => {
     return new Map(editingFiles.filter((file) => file.is_active).map((file) => [file.asset_kind, file]))
   }, [editingFiles])
+  const activePdfFile = activeFileMap.get('pdf')
+  const isPdfUploading = uploadingKinds.includes('pdf')
+  const canOpenSamplePreview = Boolean(form.id && activePdfFile && !isPdfUploading && !isBulkUploading)
+  const samplePreviewStatusLabel = isPdfUploading ? '샘플 생성 중' : activePdfFile ? '확인 가능' : 'PDF 없음'
 
   return (
     <div className="space-y-6">
@@ -888,10 +897,33 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                     <TableBody>
                       <TableRow key="file-row-sample-pages">
                         <TableCell>샘플 JPG</TableCell>
-                        <TableCell>PDF 업로드 시 첫 1~3페이지 자동 생성</TableCell>
+                        <TableCell>
+                          <div className="space-y-2">
+                            <div>
+                              <p>PDF 업로드 시 첫 1~3페이지 자동 생성</p>
+                              <p className="text-xs text-gray-500">PDF 파일 교체 시 샘플도 함께 갱신됩니다.</p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={!canOpenSamplePreview}
+                              aria-label={`${form.title || '문제마켓 상품'} 샘플 JPG 확인`}
+                              onClick={() => {
+                                if (!form.id) {
+                                  return
+                                }
+                                setSamplePreviewItemId(form.id)
+                                setIsSamplePreviewOpen(true)
+                              }}
+                            >
+                              샘플 확인
+                            </Button>
+                          </div>
+                        </TableCell>
                         <TableCell className="text-center">-</TableCell>
                         <TableCell className="text-center">
-                          <Badge variant="outline">자동 생성</Badge>
+                          <Badge variant={activePdfFile ? 'outline' : 'secondary'}>{samplePreviewStatusLabel}</Badge>
                         </TableCell>
                       </TableRow>
                       {MARKET_ASSET_KINDS.map((assetKind) => {
@@ -1170,6 +1202,19 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
           </CardContent>
         </Card>
       </div>
+
+      <AdminMarketSamplePreviewDialog
+        itemId={samplePreviewItemId}
+        itemTitle={form.title || '문제마켓 상품'}
+        open={isSamplePreviewOpen}
+        workspaceSubject={workspaceSubject}
+        onOpenChange={(open) => {
+          setIsSamplePreviewOpen(open)
+          if (!open) {
+            setSamplePreviewItemId(null)
+          }
+        }}
+      />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isArchiving && setDeleteTarget(null)}>
         <AlertDialogContent>
