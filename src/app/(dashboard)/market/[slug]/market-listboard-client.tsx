@@ -23,11 +23,12 @@ type AssetKind = 'pdf' | 'hwp'
 const PER_PAGE_OPTIONS = [10, 20, 30] as const
 
 function formatPublishedDate(value: string) {
-  return new Date(value).toLocaleDateString('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  })
+  const date = new Date(value)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+
+  return `${year}.${month}.${day}`
 }
 
 function getSelectionKey(itemId: string, assetKind: AssetKind) {
@@ -316,7 +317,7 @@ export default function MarketListboardClient({ categorySlug, workspaceSubject, 
             <thead className="border-t-2 border-slate-950 bg-slate-50 text-slate-700">
               <tr className="border-b">
                 <th className="w-[74px] px-3 py-3 text-center text-sm font-bold">번호</th>
-                <th className="px-3 py-3 text-left text-sm font-bold">자료명</th>
+                <th className="px-3 py-3 text-center text-sm font-bold">자료명</th>
                 <th className="min-w-[410px] px-3 py-3 text-center text-sm font-bold">파일</th>
                 <th className="w-[96px] px-3 py-3 text-center text-sm font-bold">샘플</th>
                 <th className="w-[92px] px-3 py-3 text-center text-sm font-bold">조회</th>
@@ -351,7 +352,7 @@ export default function MarketListboardClient({ categorySlug, workspaceSubject, 
                         <Eye className="h-3.5 w-3.5 text-slate-400" />{row.viewCount.toLocaleString()}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-center text-slate-600">{formatPublishedDate(row.publishedAt)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-center text-slate-600">{formatPublishedDate(row.publishedAt)}</td>
                   </tr>
                 )
               })}

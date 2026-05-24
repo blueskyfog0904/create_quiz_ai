@@ -61,6 +61,27 @@ test('market listboard uses the shared compact board UI for every market slug', 
   assert.doesNotMatch(listboardClient, /게시판형 디자인 테스트/, 'production component should not contain preview-only copy')
 })
 
+test('market listboard follows board-style alignment and one-line date display', () => {
+  assert.match(
+    listboardClient,
+    /<th className="px-3 py-3 text-center text-sm font-bold">자료명<\/th>/,
+    'title header should be centered like a board header'
+  )
+  assert.match(
+    listboardClient,
+    /<td className="px-3 py-2">\s*<div className="flex min-w-0 items-center">/,
+    'title body should stay left-aligned for readable long titles'
+  )
+  assert.match(listboardClient, /String\(date\.getMonth\(\) \+ 1\)\.padStart\(2, '0'\)/)
+  assert.match(listboardClient, /\$\{year\}\.\$\{month\}\.\$\{day\}/)
+  assert.doesNotMatch(listboardClient, /toLocaleDateString\('ko-KR'/)
+  assert.match(
+    listboardClient,
+    /<td className="px-3 py-2 whitespace-nowrap text-center text-slate-600">\{formatPublishedDate\(row\.publishedAt\)\}<\/td>/,
+    'date cell should not wrap at spaces'
+  )
+})
+
 test('market listboard purchase tray and failure states are explicit', () => {
   assert.match(listboardClient, /선택 파일 결제/)
   assert.match(listboardClient, /CreditConfirmationDialog/)
