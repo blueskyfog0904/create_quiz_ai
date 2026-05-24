@@ -87,6 +87,16 @@ function getDefaultExamYear() {
   return String(new Date().getFullYear())
 }
 
+function formatCreditInputValue(value: string | number | null | undefined) {
+  const digits = String(value ?? '').replace(/\D/g, '').replace(/^0+(?=\d)/, '')
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+}
+
+function parseCreditInputValue(value: string) {
+  const digits = value.replace(/\D/g, '')
+  return digits ? Number(digits) : 0
+}
+
 function buildEmptyForm(menuEntryId = ''): MarketItemFormState {
   return {
     menuEntryId,
@@ -128,8 +138,8 @@ function buildEditForm(item: MarketItem): MarketItemFormState {
     source3: item.source_3 || '',
     source4: item.source_4 || '',
     questionCount: item.question_count !== null && item.question_count !== undefined ? String(item.question_count) : '',
-    pdfPrice: String(item.pdf_price),
-    hwpPrice: String(item.hwp_price),
+    pdfPrice: formatCreditInputValue(item.pdf_price),
+    hwpPrice: formatCreditInputValue(item.hwp_price),
     status: item.status as MarketItemFormState['status'],
     draftSource: item.draft_source === 'auto_upload' ? 'auto_upload' : 'manual',
     isActive: item.is_active,
@@ -302,8 +312,8 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     source3: form.source3,
     source4: form.source4,
     questionCount: form.questionCount ? Number(form.questionCount) : null,
-    pdfPrice: Number(form.pdfPrice || 0),
-    hwpPrice: Number(form.hwpPrice || 0),
+    pdfPrice: parseCreditInputValue(form.pdfPrice),
+    hwpPrice: parseCreditInputValue(form.hwpPrice),
     status: statusOverride ?? form.status,
     draftSource,
     isActive: form.isActive,
@@ -896,11 +906,23 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>PDF 가격</Label>
-                <Input type="number" min={0} value={form.pdfPrice} onChange={(event) => setForm((current) => ({ ...current, pdfPrice: event.target.value }))} />
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={form.pdfPrice}
+                  placeholder="예: 1,000"
+                  onChange={(event) => setForm((current) => ({ ...current, pdfPrice: formatCreditInputValue(event.target.value) }))}
+                />
               </div>
               <div className="space-y-2">
                 <Label>HWP 가격</Label>
-                <Input type="number" min={0} value={form.hwpPrice} onChange={(event) => setForm((current) => ({ ...current, hwpPrice: event.target.value }))} />
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={form.hwpPrice}
+                  placeholder="예: 1,000"
+                  onChange={(event) => setForm((current) => ({ ...current, hwpPrice: formatCreditInputValue(event.target.value) }))}
+                />
               </div>
             </div>
 
