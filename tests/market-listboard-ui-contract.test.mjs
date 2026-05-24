@@ -23,6 +23,21 @@ test('market listboard rows expose sample metadata without making sample purchas
   assert.doesNotMatch(listboardClient, /assetKind:\s*'sample'/)
 })
 
+test('market listboard provides sample preview column after file column', () => {
+  assert.match(listboardClient, /MarketSamplePreviewDialog/)
+  assert.match(listboardClient, /workspaceSubject/)
+  assert.match(listboardClient, /samplePreviewItemId/)
+  assert.match(listboardClient, /setSamplePreviewItemId\(itemId\)/)
+  assert.match(listboardClient, /openSamplePreview\(row\.itemId\)/)
+  assert.match(listboardClient, /row\.sample\.available/)
+  assert.match(
+    listboardClient,
+    /<th className="min-w-\[410px\][\s\S]+>파일<\/th>[\s\S]+<th className="w-\[96px\][\s\S]+>샘플<\/th>/
+  )
+  assert.match(listboardClient, /aria-label=\{`\$\{row\.title\} 샘플보기`\}/)
+  assert.match(listboardClient, /샘플보기/)
+})
+
 test('market listboard keeps workspace-aware navigation and filter chips', () => {
   assert.match(listboardServer, /WorkspaceLink/)
   assert.match(listboardClient, /WorkspaceLink/)

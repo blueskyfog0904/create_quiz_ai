@@ -123,7 +123,7 @@ export default function MarketListboard({ category, rows, filters, isLoggedIn, r
             </div>
           </CardHeader>
           <CardContent>
-            <MarketListboardClient categorySlug={category.slug} rows={rows} isLoggedIn={isLoggedIn} />
+            <MarketListboardClient categorySlug={category.slug} workspaceSubject={category.workspace_subject} rows={rows} isLoggedIn={isLoggedIn} />
           </CardContent>
         </Card>
       ) : null}

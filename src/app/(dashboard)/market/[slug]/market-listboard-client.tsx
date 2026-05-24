@@ -2,16 +2,19 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Eye, FileText } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Eye, FileSearch, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { WorkspaceLink } from '@/components/layout/workspace-link'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
 import { useLoginRedirect } from '@/hooks/use-login-redirect'
 import { Button } from '@/components/ui/button'
 import type { MarketListboardRow } from '@/lib/market-items-server'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import MarketSamplePreviewDialog from './items/[itemId]/market-sample-preview-dialog'
 
 interface MarketListboardClientProps {
   categorySlug: string
+  workspaceSubject: WorkspaceSubject
   rows: MarketListboardRow[]
   isLoggedIn: boolean
 }
@@ -55,7 +58,7 @@ function getPurchaseErrorMessage(status: number, fallback?: string) {
   return fallback || '선택 파일 결제에 실패했습니다.'
 }
 
-export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }: MarketListboardClientProps) {
+export default function MarketListboardClient({ categorySlug, workspaceSubject, rows, isLoggedIn }: MarketListboardClientProps) {
   const router = useRouter()
   const { redirectToLogin } = useLoginRedirect()
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
@@ -65,6 +68,9 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
   const [isPending, startTransition] = useTransition()
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState<number>(10)
+  const [samplePreviewItemId, setSamplePreviewItemId] = useState<string | null>(null)
+  const [samplePreviewPrefetchKey, setSamplePreviewPrefetchKey] = useState(0)
+  const [isSamplePreviewOpen, setIsSamplePreviewOpen] = useState(false)
 
   const totalPages = Math.max(1, Math.ceil(rows.length / rowsPerPage))
 
@@ -204,6 +210,16 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
     })
   }
 
+  const prefetchSamplePreview = (itemId: string) => {
+    setSamplePreviewItemId(itemId)
+    setSamplePreviewPrefetchKey((key) => key + 1)
+  }
+
+  const openSamplePreview = (itemId: string) => {
+    setSamplePreviewItemId(itemId)
+    setIsSamplePreviewOpen(true)
+  }
+
   const renderAssetOption = (row: MarketListboardRow, assetKind: AssetKind) => {
     const asset = assetKind === 'pdf' ? row.pdf : row.hwp
     const key = getSelectionKey(row.itemId, assetKind)
@@ -251,6 +267,34 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
     )
   }
 
+  const renderSamplePreviewButton = (row: MarketListboardRow) => {
+    if (!row.sample.available) {
+      return (
+        <span
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-300"
+          aria-label={`${row.title} 샘플 없음`}
+          title="샘플 없음"
+        >
+          <FileSearch className="h-4 w-4" aria-hidden="true" />
+        </span>
+      )
+    }
+
+    return (
+      <button
+        type="button"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-500 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+        aria-label={`${row.title} 샘플보기`}
+        title="샘플보기"
+        onFocus={() => prefetchSamplePreview(row.itemId)}
+        onMouseEnter={() => prefetchSamplePreview(row.itemId)}
+        onClick={() => openSamplePreview(row.itemId)}
+      >
+        <FileSearch className="h-4 w-4" aria-hidden="true" />
+      </button>
+    )
+  }
+
   if (rows.length === 0) {
     return (
       <div className="rounded-xl border border-dashed bg-white px-6 py-16 text-center">
@@ -274,6 +318,7 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
                 <th className="w-[74px] px-3 py-3 text-center text-sm font-bold">번호</th>
                 <th className="px-3 py-3 text-left text-sm font-bold">자료명</th>
                 <th className="min-w-[410px] px-3 py-3 text-center text-sm font-bold">파일</th>
+                <th className="w-[96px] px-3 py-3 text-center text-sm font-bold">샘플</th>
                 <th className="w-[92px] px-3 py-3 text-center text-sm font-bold">조회</th>
                 <th className="w-[126px] px-3 py-3 text-center text-sm font-bold">날짜</th>
               </tr>
@@ -297,6 +342,9 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
                         {renderAssetOption(row, 'pdf')}
                         {renderAssetOption(row, 'hwp')}
                       </div>
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {renderSamplePreviewButton(row)}
                     </td>
                     <td className="px-3 py-2 text-center text-slate-600">
                       <span className="inline-flex items-center justify-center gap-1">
@@ -393,6 +441,16 @@ export default function MarketListboardClient({ categorySlug, rows, isLoggedIn }
         title="선택 파일 결제 확인"
         description={`PDF ${selectionSummary.pdfCount}건, HWP & PDF ${selectionSummary.hwpCount}건을 크레딧으로 구매합니다.`}
       />
+      {samplePreviewItemId ? (
+        <MarketSamplePreviewDialog
+          key={samplePreviewItemId}
+          itemId={samplePreviewItemId}
+          workspaceSubject={workspaceSubject}
+          open={isSamplePreviewOpen}
+          prefetchKey={samplePreviewPrefetchKey}
+          onOpenChange={setIsSamplePreviewOpen}
+        />
+      ) : null}
     </>
   )
 }
