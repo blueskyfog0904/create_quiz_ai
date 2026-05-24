@@ -1138,14 +1138,14 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                           }
                           handleSelectedFile(assetKind, droppedFiles[0])
                         }}
-                        className={`rounded-md border border-dashed px-4 py-4 text-left transition ${
+                        className={`flex min-h-32 flex-col justify-center rounded-md border border-dashed px-4 py-4 text-left transition ${
                           isUploadDisabled
                             ? 'cursor-not-allowed bg-gray-50 text-gray-400'
                             : isDragActive
                               ? 'border-primary bg-primary/5'
-                              : selectedFile
+                              : selectedFile || currentFile
                                 ? 'border-emerald-300 bg-emerald-50/60'
-                                : 'cursor-pointer hover:border-primary/50 hover:bg-gray-50'
+                                : 'cursor-pointer border-red-200 bg-red-50/40 hover:border-red-300 hover:bg-red-50'
                         }`}
                       >
                         <p className="text-sm font-medium text-gray-900">

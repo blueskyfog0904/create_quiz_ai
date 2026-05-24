@@ -20,6 +20,14 @@ test('admin product upload area exposes a generated sample preview action', () =
   assert.match(adminProductsClient, /uploadingKinds\.includes\('pdf'\)/)
 })
 
+test('admin product upload drop zones show larger red empty state and green ready state', () => {
+  assert.match(adminProductsClient, /min-h-32/)
+  assert.match(adminProductsClient, /border-red-200 bg-red-50\/40/)
+  assert.match(adminProductsClient, /hover:border-red-300 hover:bg-red-50/)
+  assert.match(adminProductsClient, /selectedFile \|\| currentFile/)
+  assert.match(adminProductsClient, /border-emerald-300 bg-emerald-50\/60/)
+})
+
 test('admin sample preview dialog fetches fresh admin signed sample urls', () => {
   assert.ok(existsSync(dialogPath), 'admin sample preview dialog should exist')
   assert.match(dialog, /\/api\/admin\/market\/items\/\$\{itemId\}\/sample-pages/)
