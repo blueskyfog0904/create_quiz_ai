@@ -516,7 +516,7 @@ export async function createMarketItem(
   input: Pick<TablesInsert<'market_items'>,
     'menu_entry_id' | 'title' | 'summary' | 'description' | 'thumbnail_url' | 'exam_year' | 'exam_month' |
     'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' |
-    'pdf_price' | 'hwp_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'created_by' | 'updated_by'>
+    'pdf_price' | 'hwp_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'draft_source' | 'created_by' | 'updated_by'>
 ) {
   const supabase = getAdminSupabase()
   const normalized = validateMarketItemInput(input)
@@ -545,6 +545,7 @@ export async function createMarketItem(
     hwp_price: normalized.hwpPrice,
     sort_order: input.sort_order ?? 0,
     status: input.status ?? 'draft',
+    draft_source: input.draft_source ?? 'manual',
     is_active: input.is_active ?? true,
     published_at: (input.status ?? 'draft') === 'published' ? (input.published_at ?? new Date().toISOString()) : null,
     created_by: input.created_by ?? null,
@@ -569,7 +570,7 @@ export async function updateMarketItem(
   input: Pick<TablesUpdate<'market_items'>,
     'title' | 'summary' | 'description' | 'thumbnail_url' | 'exam_year' | 'exam_month' |
     'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'menu_entry_id' |
-    'pdf_price' | 'hwp_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'updated_by'>
+    'pdf_price' | 'hwp_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'draft_source' | 'updated_by'>
 ) {
   const supabase = getAdminSupabase()
   const current = await getMarketItemById(id)
@@ -619,6 +620,7 @@ export async function updateMarketItem(
     hwp_price: normalized.hwpPrice,
     sort_order: input.sort_order ?? current.sort_order,
     status: nextStatus,
+    draft_source: input.draft_source ?? current.draft_source,
     is_active: input.is_active ?? current.is_active,
     published_at: nextStatus === 'published'
       ? (input.published_at ?? current.published_at ?? new Date().toISOString())

@@ -92,6 +92,30 @@ export async function listActiveMarketItemSamplePagesForItems(
   return pageMap
 }
 
+export async function listMarketItemSamplePagesForCleanup(
+  itemId: string,
+  workspaceSubject?: WorkspaceSubject
+): Promise<MarketItemSamplePage[]> {
+  const supabase = createAdminClient()
+  let query = supabase
+    .from('market_item_sample_pages')
+    .select('*')
+    .eq('item_id', itemId)
+    .order('version', { ascending: false })
+    .order('page_number', { ascending: true })
+
+  if (workspaceSubject) {
+    query = query.eq('workspace_subject', workspaceSubject)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return withWorkspaceSubjects(data)
+}
+
 export async function replaceMarketItemSamplePages(
   itemId: string,
   input: ReplaceMarketItemSamplePageInput

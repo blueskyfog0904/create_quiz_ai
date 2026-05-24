@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
-import { createAdminClient } from '@/lib/supabase/bypass'
 import { createClient } from '@/lib/supabase/server'
+import { hardDeleteMarketItemWithAssets } from '@/lib/market-item-cleanup'
 import { getMarketItemById, listMarketItemFiles, updateMarketItem } from '@/lib/market-items-server'
 
 export const dynamic = 'force-dynamic'
@@ -25,6 +25,7 @@ const MarketItemUpdateSchema = z.object({
   hwpPrice: z.number().int().min(0),
   sortOrder: z.number().int().min(0).optional(),
   status: z.enum(['draft', 'published', 'hidden', 'archived']).optional(),
+  draftSource: z.enum(['manual', 'auto_upload']).optional(),
   isActive: z.boolean().optional(),
 })
 
@@ -132,6 +133,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       hwp_price: parsed.data.hwpPrice,
       sort_order: parsed.data.sortOrder,
       status: parsed.data.status,
+      draft_source: parsed.data.draftSource,
       is_active: parsed.data.isActive,
       updated_by: user.id,
     })
@@ -167,37 +169,10 @@ export async function DELETE(_: Request, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
 
-    const adminSupabase = createAdminClient()
-    const files = await listMarketItemFiles(id, true, workspaceSubject)
-    const storageTargets = new Map<string, string[]>()
-
-    for (const file of files) {
-      const currentPaths = storageTargets.get(file.storage_bucket) ?? []
-      currentPaths.push(file.storage_path)
-      storageTargets.set(file.storage_bucket, currentPaths)
-    }
-
-    for (const [bucket, paths] of storageTargets.entries()) {
-      const uniquePaths = Array.from(new Set(paths.filter(Boolean)))
-      if (uniquePaths.length === 0) {
-        continue
-      }
-
-      const { error: storageError } = await adminSupabase.storage.from(bucket).remove(uniquePaths)
-      if (storageError) {
-        throw new Error(storageError.message)
-      }
-    }
-
-    const { error } = await adminSupabase
-      .from('market_items')
-      .delete()
-      .eq('id', id)
-      .eq('workspace_subject', item.workspace_subject)
-
-    if (error) {
-      throw new Error(error.message)
-    }
+    await hardDeleteMarketItemWithAssets({
+      itemId: id,
+      workspaceSubject: item.workspace_subject,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

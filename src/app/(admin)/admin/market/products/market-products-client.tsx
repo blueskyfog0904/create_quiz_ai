@@ -55,6 +55,7 @@ interface MarketItemFormState {
   pdfPrice: string
   hwpPrice: string
   status: 'draft' | 'published' | 'hidden' | 'archived'
+  draftSource: 'manual' | 'auto_upload'
   isActive: boolean
 }
 
@@ -89,6 +90,7 @@ function buildEmptyForm(menuEntryId = ''): MarketItemFormState {
     pdfPrice: '0',
     hwpPrice: '0',
     status: 'draft',
+    draftSource: 'manual',
     isActive: true,
   }
 }
@@ -107,6 +109,7 @@ function buildEditForm(item: MarketItem): MarketItemFormState {
     pdfPrice: String(item.pdf_price),
     hwpPrice: String(item.hwp_price),
     status: item.status as MarketItemFormState['status'],
+    draftSource: item.draft_source === 'auto_upload' ? 'auto_upload' : 'manual',
     isActive: item.is_active,
   }
 }
@@ -146,6 +149,7 @@ interface PersistFormOptions {
   preserveSelections?: boolean
   skipSuccessToast?: boolean
   targetId?: string
+  draftSource?: 'manual' | 'auto_upload'
 }
 
 export default function MarketProductsClient({ menuEntries, initialItems, workspaceSubject }: MarketProductsClientProps) {
@@ -246,7 +250,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     setEditingFiles(detail.files || [])
     setSelectedFiles({})
     setDragActiveKinds([])
-    setRequiresFinalRegistration(false)
+    setRequiresFinalRegistration(detail.item.status === 'draft' && detail.item.draft_source === 'auto_upload')
   }
 
   const refreshEditingFiles = async (id: string) => {
@@ -254,7 +258,10 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     setEditingFiles(detail.files || [])
   }
 
-  const buildRequestBody = (statusOverride?: MarketItemFormState['status']) => ({
+  const buildRequestBody = (
+    statusOverride?: MarketItemFormState['status'],
+    draftSource: 'manual' | 'auto_upload' = form.draftSource
+  ) => ({
     menuEntryId: form.menuEntryId,
     title: form.title,
     summary: form.summary,
@@ -266,6 +273,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     pdfPrice: Number(form.pdfPrice || 0),
     hwpPrice: Number(form.hwpPrice || 0),
     status: statusOverride ?? form.status,
+    draftSource,
     isActive: form.isActive,
   })
 
@@ -294,7 +302,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       const response = await fetch(withAdminWorkspaceSubject(targetId ? `/api/admin/market/items/${targetId}` : '/api/admin/market/items', workspaceSubject), {
         method: targetId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildRequestBody(statusOverride)),
+        body: JSON.stringify(buildRequestBody(statusOverride, options.draftSource)),
       })
       const payload = await response.json()
 
@@ -333,7 +341,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
 
   const handleSubmit = async () => {
     if (form.id) {
-      const result = await persistForm()
+      const result = await persistForm(undefined, { draftSource: 'manual' })
       if (result) {
         setRequiresFinalRegistration(false)
       }
@@ -353,6 +361,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       const createdItem = await persistForm(initialStatus, {
         preserveSelections: true,
         skipSuccessToast: true,
+        draftSource: 'manual',
       })
 
       if (!createdItem) {
@@ -388,6 +397,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
           preserveSelections: true,
           skipSuccessToast: true,
           targetId: createdItem.id,
+          draftSource: 'manual',
         })
         if (publishedItem) {
           setRequiresFinalRegistration(false)
@@ -419,6 +429,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     const createdItem = await persistForm('draft', {
       preserveSelections: true,
       skipSuccessToast: true,
+      draftSource: 'auto_upload',
     })
 
     if (!createdItem) {
@@ -426,19 +437,19 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     }
 
     setRequiresFinalRegistration(true)
-    setForm((current) => ({ ...current, status: desiredStatus }))
+    setForm((current) => ({ ...current, status: desiredStatus, draftSource: 'auto_upload' }))
     toast.success('파일 업로드를 위해 상품을 임시 저장했습니다. 업로드 후 상품 등록을 완료해주세요.')
     return createdItem.id
   }
 
   const handleStatusAction = async (status: MarketItemFormState['status']) => {
     if (!form.id) {
-      setForm((current) => ({ ...current, status }))
+      setForm((current) => ({ ...current, status, draftSource: 'manual' }))
       toast.message(`상태를 ${status}(으)로 설정했습니다. 저장하면 반영됩니다.`)
       return
     }
 
-    await persistForm(status)
+    await persistForm(status, { draftSource: 'manual' })
   }
 
   const handleArchive = async () => {
@@ -446,7 +457,12 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       return
     }
 
-    if (!window.confirm('이 상품을 완전 삭제하시겠습니까? DB 데이터와 업로드된 파일이 모두 삭제되며 되돌릴 수 없습니다.')) {
+    const isCancellingAutoUploadDraft = form.draftSource === 'auto_upload'
+    const confirmMessage = isCancellingAutoUploadDraft
+      ? '상품 등록을 완료하지 않고 업로드 파일을 삭제할까요? 임시 상품과 생성된 샘플 JPG가 모두 삭제되며 되돌릴 수 없습니다.'
+      : '이 상품을 완전 삭제하시겠습니까? DB 데이터와 업로드된 파일이 모두 삭제되며 되돌릴 수 없습니다.'
+
+    if (!window.confirm(confirmMessage)) {
       return
     }
 
@@ -463,7 +479,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
 
       await refreshItems(form.menuEntryId)
       resetForm(form.menuEntryId)
-      toast.success('문제마켓 상품을 완전 삭제했습니다.')
+      toast.success(isCancellingAutoUploadDraft ? '임시 업로드 파일을 삭제했습니다.' : '문제마켓 상품을 완전 삭제했습니다.')
       router.refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '문제마켓 상품 완전 삭제 중 오류가 발생했습니다.')
@@ -523,6 +539,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
           pdfPrice: item.pdf_price,
           hwpPrice: item.hwp_price,
           status: nextStatus,
+          draftSource: 'manual',
           isActive: item.is_active,
         }),
       })
@@ -535,7 +552,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       setHiddenOverride(item.id, nextStatus === 'hidden')
       setItems((current) => current.map((currentItem) => (
         currentItem.id === item.id
-          ? { ...currentItem, status: nextStatus }
+          ? { ...currentItem, status: nextStatus, draft_source: 'manual' }
           : currentItem
       )))
       await refreshItems(item.menu_entry_id)
@@ -703,6 +720,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const isPdfUploading = uploadingKinds.includes('pdf')
   const canOpenSamplePreview = Boolean(form.id && activePdfFile && !isPdfUploading && !isBulkUploading)
   const samplePreviewStatusLabel = isPdfUploading ? '샘플 생성 중' : activePdfFile ? '확인 가능' : 'PDF 없음'
+  const isAutoUploadDraft = Boolean(form.id && form.draftSource === 'auto_upload')
 
   return (
     <div className="space-y-6">
@@ -1077,6 +1095,13 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                 })}
               </div>
 
+              {isAutoUploadDraft ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <p className="font-semibold">임시 업로드 상태</p>
+                  <p className="mt-1">상품 등록을 완료하지 않고 업로드 파일을 삭제하려면 등록 취소 및 파일 삭제를 눌러주세요.</p>
+                </div>
+              ) : null}
+
             <div className="sticky bottom-4 z-10 -mx-2 rounded-xl border bg-white/95 px-2 py-3 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-white/85">
               <div className="flex flex-col gap-2 sm:flex-row">
               <Button
@@ -1105,7 +1130,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
               {form.id ? (
                 <Button type="button" variant="destructive" disabled={isArchiving || isBulkUploading} onClick={handleArchive}>
                   {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                  완전 삭제
+                  {isAutoUploadDraft ? '등록 취소 및 파일 삭제' : '완전 삭제'}
                 </Button>
               ) : null}
               </div>

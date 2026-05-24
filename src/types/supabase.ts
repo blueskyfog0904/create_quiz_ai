@@ -969,6 +969,7 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           description: string | null
+          draft_source: string
           exam_month: number | null
           exam_year: number | null
           grade_level: string | null
@@ -997,6 +998,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           description?: string | null
+          draft_source?: string
           exam_month?: number | null
           exam_year?: number | null
           grade_level?: string | null
@@ -1025,6 +1027,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           description?: string | null
+          draft_source?: string
           exam_month?: number | null
           exam_year?: number | null
           grade_level?: string | null

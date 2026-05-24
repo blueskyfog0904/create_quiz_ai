@@ -25,6 +25,7 @@ const MarketItemSchema = z.object({
   hwpPrice: z.number().int().min(0),
   sortOrder: z.number().int().min(0).optional(),
   status: z.enum(['draft', 'published', 'hidden', 'archived']).optional(),
+  draftSource: z.enum(['manual', 'auto_upload']).optional(),
   isActive: z.boolean().optional(),
 })
 
@@ -126,6 +127,7 @@ export async function POST(request: Request) {
       hwp_price: parsed.data.hwpPrice,
       sort_order: parsed.data.sortOrder ?? 0,
       status: parsed.data.status ?? 'draft',
+      draft_source: parsed.data.draftSource,
       is_active: parsed.data.isActive ?? true,
       created_by: user.id,
       updated_by: user.id,
