@@ -32,10 +32,6 @@ type MarketPdfSampleBrowserGlobal = typeof globalThis & {
   __marketPdfSamplePdfjsErrorHandler?: (event: ErrorEvent) => void
 }
 
-const MARKET_SAMPLE_PAGE_TARGET_BYTES = 100 * 1024
-const MARKET_SAMPLE_PAGE_RENDER_SCALES = [1, 0.85, 0.7] as const
-const MARKET_SAMPLE_PAGE_JPEG_QUALITIES = [0.72, 0.64, 0.56, 0.48, 0.4, 0.32] as const
-
 function buildSampleFileName(sourceFileName: string, pageNumber: number) {
   const baseName = sourceFileName.replace(/\.[^.]+$/, '') || 'sample'
   return `${baseName}-sample-page-${String(pageNumber).padStart(3, '0')}.jpg`
@@ -116,21 +112,11 @@ export async function generateMarketPdfSamplePages(
         ])
       })
 
-      const renderedPages = await page.evaluate(async ({ pdfBase64, workerUrl, maxPages, renderScales, jpegQualities, targetBytes }) => {
+      const renderedPages = await page.evaluate(async ({ pdfBase64, workerUrl, maxPages }) => {
         const browserGlobal = globalThis as MarketPdfSampleBrowserGlobal
         const pdfjsLib = browserGlobal.__marketPdfSamplePdfjsLib
         if (!pdfjsLib) {
           throw new Error('PDF.js 모듈을 로드하지 못했습니다.')
-        }
-
-        function getDataUrlByteLength(dataUrl: string) {
-          const base64 = dataUrl.split(',')[1] ?? ''
-          const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0
-          return Math.floor((base64.length * 3) / 4) - padding
-        }
-
-        function selectSampleJpegDataUrl(dataUrls: { dataUrl: string, sizeBytes: number, widthPx: number, heightPx: number }[], targetBytes: number) {
-          return dataUrls.find((dataUrl) => dataUrl.sizeBytes <= targetBytes) ?? dataUrls[dataUrls.length - 1]
         }
 
         pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
@@ -145,8 +131,7 @@ export async function generateMarketPdfSamplePages(
         const pages = []
         for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
           const pdfPage = await pdf.getPage(pageNumber)
-          const baseScale = renderScales[0] ?? 1
-          const viewport = pdfPage.getViewport({ scale: baseScale })
+          const viewport = pdfPage.getViewport({ scale: 1.5 })
           const canvas = document.createElement('canvas')
           canvas.width = Math.ceil(viewport.width)
           canvas.height = Math.ceil(viewport.height)
@@ -158,47 +143,11 @@ export async function generateMarketPdfSamplePages(
           context.fillStyle = '#fff'
           context.fillRect(0, 0, canvas.width, canvas.height)
           await pdfPage.render({ canvasContext: context, viewport }).promise
-
-          const candidates = []
-          compressionLoop:
-          for (const renderScale of renderScales) {
-            const scaleRatio = renderScale / baseScale
-            const targetCanvas = scaleRatio === 1
-              ? canvas
-              : document.createElement('canvas')
-            if (targetCanvas !== canvas) {
-              targetCanvas.width = Math.max(1, Math.round(canvas.width * scaleRatio))
-              targetCanvas.height = Math.max(1, Math.round(canvas.height * scaleRatio))
-              const targetContext = targetCanvas.getContext('2d', { alpha: false })
-              if (!targetContext) {
-                throw new Error('샘플 JPG canvas를 축소하지 못했습니다.')
-              }
-              targetContext.fillStyle = '#fff'
-              targetContext.fillRect(0, 0, targetCanvas.width, targetCanvas.height)
-              targetContext.drawImage(canvas, 0, 0, targetCanvas.width, targetCanvas.height)
-            }
-
-            for (const jpegQuality of jpegQualities) {
-              const dataUrl = targetCanvas.toDataURL('image/jpeg', jpegQuality)
-              const sizeBytes = getDataUrlByteLength(dataUrl)
-              candidates.push({
-                dataUrl,
-                sizeBytes,
-                widthPx: targetCanvas.width,
-                heightPx: targetCanvas.height,
-              })
-              if (sizeBytes <= targetBytes) {
-                break compressionLoop
-              }
-            }
-          }
-
-          const selectedSample = selectSampleJpegDataUrl(candidates, targetBytes)
           pages.push({
             pageNumber,
-            widthPx: selectedSample.widthPx,
-            heightPx: selectedSample.heightPx,
-            dataUrl: selectedSample.dataUrl,
+            widthPx: canvas.width,
+            heightPx: canvas.height,
+            dataUrl: canvas.toDataURL('image/jpeg', 0.9),
           })
         }
 
@@ -207,9 +156,6 @@ export async function generateMarketPdfSamplePages(
         pdfBase64: pdfBuffer.toString('base64'),
         workerUrl: moduleHandles.workerUrl,
         maxPages,
-        renderScales: MARKET_SAMPLE_PAGE_RENDER_SCALES,
-        jpegQualities: MARKET_SAMPLE_PAGE_JPEG_QUALITIES,
-        targetBytes: MARKET_SAMPLE_PAGE_TARGET_BYTES,
       })
 
       return renderedPages.map((page) => {
