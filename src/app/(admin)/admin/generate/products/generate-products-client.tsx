@@ -95,6 +95,7 @@ interface GeneratePostItemFormState {
 }
 
 const MIN_EXAM_YEAR = 2000
+const MAX_EXAM_YEAR = 2050
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1))
 const CSV_ACCEPT_VALUE = '.csv,.xlsx'
 
@@ -167,7 +168,7 @@ function getDefaultExamDate() {
   }
 }
 
-function buildExamYearOptions(baseYear = new Date().getFullYear()) {
+function buildExamYearOptions(baseYear = MAX_EXAM_YEAR) {
   return Array.from({ length: Math.max(baseYear - MIN_EXAM_YEAR + 1, 1) }, (_, index) => String(baseYear - index))
 }
 
@@ -258,7 +259,7 @@ export default function GenerateProductsClient({
     ]
     const baseYear = Math.max(
       ...candidateYears.map((value) => Number(value)).filter((value) => Number.isFinite(value)),
-      Number(getDefaultExamDate().examYear)
+      MAX_EXAM_YEAR
     )
 
     return buildExamYearOptions(baseYear)
