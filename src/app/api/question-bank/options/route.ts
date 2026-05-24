@@ -25,6 +25,14 @@ type QuestionBankBookRow = {
   is_active: boolean
 }
 
+type QuestionBankProblemTypeRow = {
+  id: string
+  type_name: string
+  description: string | null
+  sort_order: number
+  is_active: boolean
+}
+
 function resolveRequestedWorkspaceSubject(searchParams: URLSearchParams): WorkspaceSubject | null {
   const requestedSubject = searchParams.get('workspaceSubject') ?? searchParams.get('subject')
 
@@ -56,6 +64,17 @@ function mapBook(row: QuestionBankBookRow) {
   }
 }
 
+function mapProblemType(row: QuestionBankProblemTypeRow) {
+  return {
+    id: row.id,
+    type_name: row.type_name,
+    description: row.description,
+    sort: row.sort_order,
+    is_active: row.is_active,
+    isActive: row.is_active,
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const supabase = await createClient()
@@ -71,7 +90,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unsupported workspace subject' }, { status: 400 })
     }
 
-    const [yearsResult, booksResult] = await Promise.all([
+    const [yearsResult, booksResult, problemTypesResult] = await Promise.all([
       supabase
         .from('question_bank_years')
         .select('id, year, label, sort_order, is_active')
@@ -84,17 +103,24 @@ export async function GET(request: Request) {
         .eq('workspace_subject', workspaceSubject)
         .eq('is_active', true)
         .order('sort_order', { ascending: true }),
+      supabase
+        .from('question_bank_problem_types')
+        .select('id, type_name, description, sort_order, is_active')
+        .eq('workspace_subject', workspaceSubject)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true }),
     ])
 
-    if (yearsResult.error || booksResult.error) {
-      console.error('[Question Bank Options] Failed to fetch dimensions:', yearsResult.error ?? booksResult.error)
+    if (yearsResult.error || booksResult.error || problemTypesResult.error) {
+      console.error('[Question Bank Options] Failed to fetch dimensions:', yearsResult.error ?? booksResult.error ?? problemTypesResult.error)
       return NextResponse.json({ error: 'Failed to fetch question bank options' }, { status: 500 })
     }
 
     const years = (yearsResult.data ?? []).map(mapYear)
     const books = (booksResult.data ?? []).map(mapBook)
+    const problemTypes = (problemTypesResult.data ?? []).map(mapProblemType)
 
-    return NextResponse.json({ years, books })
+    return NextResponse.json({ years, books, problemTypes })
   } catch (error) {
     console.error('[Question Bank Options] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

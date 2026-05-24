@@ -16,12 +16,13 @@ function assertAuthenticatedRoute(source) {
   assert.match(source, /status:\s*401/)
 }
 
-test('options route queries active workspace-scoped years and books ordered by sort_order', () => {
+test('options route queries active workspace-scoped years, books, and bank problem types ordered by sort_order', () => {
   const source = readRouteSource(optionsRoutePath)
 
   assertAuthenticatedRoute(source)
   assert.match(source, /from\(\s*['"]question_bank_years['"]\s*\)/)
   assert.match(source, /from\(\s*['"]question_bank_books['"]\s*\)/)
+  assert.match(source, /from\(\s*['"]question_bank_problem_types['"]\s*\)/)
   assert.match(source, /eq\(\s*['"]workspace_subject['"]\s*,\s*workspaceSubject\s*\)/)
   assert.match(source, /eq\(\s*['"]is_active['"]\s*,\s*true\s*\)/)
   assert.match(source, /order\(\s*['"]sort_order['"]\s*,\s*\{\s*ascending:\s*true\s*\}\s*\)/)
@@ -29,7 +30,7 @@ test('options route queries active workspace-scoped years and books ordered by s
   assert.match(source, /DEFAULT_WORKSPACE_SUBJECT/)
 })
 
-test('options route returns Task 2 camelCase years and books fields without an extra wrapper', () => {
+test('options route returns Task 2 camelCase years, books, and bank problem types fields without an extra wrapper', () => {
   const source = readRouteSource(optionsRoutePath)
 
   for (const field of ['id', 'year', 'label', 'sort', 'isActive']) {
@@ -42,7 +43,11 @@ test('options route returns Task 2 camelCase years and books fields without an e
 
   assert.match(source, /sort:\s*[^\n]+\.sort_order/)
   assert.match(source, /isActive:\s*[^\n]+\.is_active/)
-  assert.match(source, /NextResponse\.json\(\s*\{\s*years\s*,\s*books\s*\}/)
+  for (const field of ['id', 'type_name', 'description', 'sort', 'isActive']) {
+    assert.match(source, new RegExp(String.raw`\b${field}:`))
+  }
+
+  assert.match(source, /NextResponse\.json\(\s*\{\s*years\s*,\s*books\s*,\s*problemTypes\s*\}/)
 })
 
 test('availability route delegates counting only to get_question_bank_availability RPC', () => {

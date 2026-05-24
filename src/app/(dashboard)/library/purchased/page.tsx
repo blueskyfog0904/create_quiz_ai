@@ -75,34 +75,81 @@ export default async function PurchasedPage({ searchParams }: PurchasedPageProps
     }
   }
 
-  const { data: questions, error: questionsError } = await questionsQuery
+  const { data: rawQuestions, error: questionsError } = await questionsQuery
 
   if (questionsError) {
     console.error('Error fetching questions:', questionsError)
   }
 
-  const { data: problemTypes, error: typesError } = await supabase
-    .from('problem_types')
-    .select('id, type_name')
-    .eq('is_active', true)
-    .eq('workspace_subject', workspaceSubject)
-    .order('type_name')
+  const questionIds = (rawQuestions ?? []).map((question) => question.id)
+  const { data: metadataRows } = questionIds.length > 0
+    ? await supabase
+      .from('question_bank_question_metadata')
+      .select('question_id, bank_problem_type_id')
+      .in('question_id', questionIds)
+      .eq('workspace_subject', workspaceSubject)
+    : { data: [] }
+  const bankProblemTypeIds = Array.from(new Set((metadataRows ?? [])
+    .map((row) => row.bank_problem_type_id)
+    .filter((id): id is string => Boolean(id))))
+  const { data: bankProblemTypeRows } = bankProblemTypeIds.length > 0
+    ? await supabase
+      .from('question_bank_problem_types')
+      .select('id, type_name')
+      .in('id', bankProblemTypeIds)
+      .eq('workspace_subject', workspaceSubject)
+    : { data: [] }
+  const metadataByQuestionId = new Map((metadataRows ?? []).map((row) => [row.question_id, row]))
+  const bankProblemTypeById = new Map((bankProblemTypeRows ?? []).map((row) => [row.id, row]))
+  const questions = (rawQuestions ?? []).map((question) => {
+    const metadata = metadataByQuestionId.get(question.id)
+    const bankProblemType = metadata?.bank_problem_type_id
+      ? bankProblemTypeById.get(metadata.bank_problem_type_id)
+      : null
 
-  if (typesError) {
-    console.error('Error fetching problem types:', typesError)
+    if (question.source !== 'from_community' || !metadata?.bank_problem_type_id) {
+      return question
+    }
+
+    return {
+      ...question,
+      problem_type_id: metadata.bank_problem_type_id,
+      problem_types: bankProblemType ? { type_name: bankProblemType.type_name } : null,
+    }
+  })
+
+  const [{ data: aiProblemTypes, error: aiTypesError }, { data: bankProblemTypes, error: bankTypesError }] = await Promise.all([
+    supabase
+      .from('problem_types')
+      .select('id, type_name')
+      .eq('is_active', true)
+      .eq('workspace_subject', workspaceSubject)
+      .order('type_name'),
+    supabase
+      .from('question_bank_problem_types')
+      .select('id, type_name')
+      .eq('is_active', true)
+      .eq('workspace_subject', workspaceSubject)
+      .order('type_name'),
+  ])
+
+  if (aiTypesError || bankTypesError) {
+    console.error('Error fetching problem types:', aiTypesError ?? bankTypesError)
   }
 
+  const problemTypes = [...(aiProblemTypes ?? []), ...(bankProblemTypes ?? [])]
+
   const gradeLevels = Array.from(
-    new Set(questions?.map((question) => question.grade_level).filter(Boolean))
+    new Set(questions.map((question) => question.grade_level).filter(Boolean))
   ).sort()
 
   const difficulties = Array.from(
-    new Set(questions?.map((question) => question.difficulty).filter(Boolean))
+    new Set(questions.map((question) => question.difficulty).filter(Boolean))
   ).sort()
 
   return (
     <PurchasedClient
-      questions={questions || []}
+      questions={questions}
       problemTypes={problemTypes || []}
       gradeLevels={gradeLevels}
       difficulties={difficulties}

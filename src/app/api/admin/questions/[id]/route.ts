@@ -21,6 +21,7 @@ const updateQuestionSchema = z.object({
   explanation: z.string().nullable().optional(),
   difficulty: z.string().nullable().optional(),
   grade_level: z.string().nullable().optional(),
+  bankProblemTypeId: z.string().uuid().nullable().optional(),
   problem_type_id: z.string().uuid().nullable().optional(),
   source_type: z.string().nullable().optional(),
   source_1: z.string().nullable().optional(),
@@ -80,7 +81,8 @@ function sanitizeQuestionPatch(input: z.infer<typeof updateQuestionSchema>) {
   if (input.explanation !== undefined) patch.explanation = input.explanation
   if (input.difficulty !== undefined) patch.difficulty = input.difficulty
   if (input.grade_level !== undefined) patch.grade_level = input.grade_level
-  if (input.problem_type_id !== undefined) patch.problem_type_id = input.problem_type_id
+  if (input.bankProblemTypeId !== undefined) patch.bankProblemTypeId = input.bankProblemTypeId
+  else if (input.problem_type_id !== undefined) patch.bankProblemTypeId = input.problem_type_id
   if (input.source_type !== undefined) patch.source_type = input.source_type
   if (input.source_1 !== undefined) patch.source_1 = input.source_1
   if (input.source_2 !== undefined) patch.source_2 = input.source_2
@@ -110,7 +112,6 @@ export async function GET(
       .from('questions')
       .select(`
         *,
-        problem_types (id, type_name),
         profiles:user_id (id, name, email)
       `)
       .eq('id', id)
@@ -124,7 +125,7 @@ export async function GET(
 
     const { data: metadata, error: metadataError } = await supabase
       .from('question_bank_question_metadata')
-      .select('year_id, book_id')
+      .select('year_id, book_id, bank_problem_type_id')
       .eq('question_id', id)
       .eq('workspace_subject', workspaceSubject)
       .maybeSingle()
@@ -134,12 +135,27 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch question metadata' }, { status: 500 })
     }
 
+    const bankProblemTypeId = metadata?.bank_problem_type_id ?? null
+    const { data: bankProblemType } = bankProblemTypeId
+      ? await supabase
+        .from('question_bank_problem_types')
+        .select('id, type_name')
+        .eq('id', bankProblemTypeId)
+        .eq('workspace_subject', workspaceSubject)
+        .maybeSingle()
+      : { data: null }
+    const questionWithBankType = {
+      ...question,
+      problem_type_id: bankProblemTypeId ?? question.problem_type_id,
+      problem_types: bankProblemType ? { id: bankProblemType.id, type_name: bankProblemType.type_name } : null,
+    }
     const questionBankMetadata = metadata ? {
       yearId: metadata.year_id,
       bookId: metadata.book_id,
+      bankProblemTypeId,
     } : null
 
-    return NextResponse.json({ question, questionBankMetadata }, { status: 200 })
+    return NextResponse.json({ question: questionWithBankType, questionBankMetadata }, { status: 200 })
   } catch (error) {
     console.error('[Admin Get Question] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -246,7 +262,6 @@ export async function PATCH(
       .from('questions')
       .select(`
         *,
-        problem_types (id, type_name),
         profiles:user_id (id, name, email)
       `)
       .eq('id', id)
@@ -258,10 +273,25 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to fetch updated question' }, { status: 500 })
     }
 
+    const bankProblemTypeId = questionPatch.bankProblemTypeId as string | null | undefined
+    const { data: bankProblemType } = bankProblemTypeId
+      ? await supabase
+        .from('question_bank_problem_types')
+        .select('id, type_name')
+        .eq('id', bankProblemTypeId)
+        .eq('workspace_subject', workspaceSubject)
+        .maybeSingle()
+      : { data: null }
+    const questionWithBankType = {
+      ...question,
+      problem_type_id: bankProblemTypeId ?? question.problem_type_id,
+      problem_types: bankProblemType ? { id: bankProblemType.id, type_name: bankProblemType.type_name } : null,
+    }
+
     return NextResponse.json({
       success: true,
-      question,
-      questionBankMetadata: { yearId, bookId },
+      question: questionWithBankType,
+      questionBankMetadata: { yearId, bookId, bankProblemTypeId: bankProblemTypeId ?? null },
       copied_updated_count: copiedUpdatedCount,
     }, { status: 200 })
   } catch (error) {

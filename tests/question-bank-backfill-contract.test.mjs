@@ -128,5 +128,5 @@ test('admin sidebar includes question bank backfill menu item by default', () =>
   const source = readSource(sidebarPath)
 
   assert.match(source, /['"]\/admin\/question-bank\/backfill['"]/)
-  assert.match(source, /문제은행 백필/)
+  assert.match(source, /데이터 감사·백필/)
 })

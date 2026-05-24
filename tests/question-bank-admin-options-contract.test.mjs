@@ -138,6 +138,6 @@ test('admin sidebar includes default question bank options menu item', () => {
   const source = readSource(sidebarPath)
 
   assert.match(source, /['"]\/admin\/question-bank\/options['"]/)
-  assert.match(source, /문제은행 설정/)
+  assert.match(source, /연도·교재 설정/)
   assert.match(source, /icon:\s*['"](?:settings|database|bookOpen)['"]/)
 })

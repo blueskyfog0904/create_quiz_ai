@@ -42,7 +42,8 @@ const questionSchema = z.object({
   explanation: z.string().optional().nullable(),
   difficulty: z.string().optional().nullable(),
   grade_level: z.string().optional().nullable(),
-  problem_type_id: z.string().uuid('Invalid problem type ID'),
+  bankProblemTypeId: z.string().uuid('Invalid question bank problem type ID'),
+  problem_type_id: z.string().uuid('Invalid problem type ID').optional(),
   source_type: z.string().optional().nullable(),
   source_1: z.string().optional().nullable(),
   source_2: z.string().optional().nullable(),
@@ -82,7 +83,7 @@ function sanitizeQuestionPayload(input: Record<string, unknown>) {
     explanation: removeHtmlTags(typeof sanitized.explanation === 'string' ? sanitized.explanation : undefined),
     difficulty: typeof sanitized.difficulty === 'string' && sanitized.difficulty ? sanitized.difficulty : null,
     grade_level: typeof sanitized.grade_level === 'string' && sanitized.grade_level ? sanitized.grade_level : null,
-    problem_type_id: sanitized.problem_type_id,
+    bankProblemTypeId: typeof sanitized.bankProblemTypeId === 'string' ? sanitized.bankProblemTypeId : sanitized.problem_type_id,
     source_type: removeHtmlTags(typeof sanitized.source_type === 'string' ? sanitized.source_type : undefined),
     source_1: removeHtmlTags(typeof sanitized.source_1 === 'string' ? sanitized.source_1 : undefined),
     source_2: removeHtmlTags(typeof sanitized.source_2 === 'string' ? sanitized.source_2 : undefined),
@@ -146,6 +147,7 @@ export async function POST(request: Request) {
         question: sanitizeQuestionPayload(question),
         yearId,
         bookId,
+        bankProblemTypeId: question.bankProblemTypeId,
         clientRowId,
       }))
 

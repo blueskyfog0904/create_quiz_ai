@@ -4,9 +4,13 @@ import { readFileSync } from 'node:fs'
 import '../src/components/features/passages/node-test-register.mjs'
 
 import {
+  ADMIN_QUESTION_BANK_MENU_HREFS,
   DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG,
+  moveAdminSidebarHref,
+  moveAdminSidebarNavigationNode,
   normalizeAdminSidebarNavigationConfig,
   resolveAdminSidebarMenuItems,
+  resolveAdminSidebarNavigationNodes,
 } from '../src/lib/admin-sidebar.ts'
 
 const adminSidebarSource = readFileSync(
@@ -58,19 +62,145 @@ test('resolveAdminSidebarMenuItems applies saved order and subject-specific labe
   assert.equal(items.some((item) => item.href === '/admin/users'), true)
 })
 
+test('resolveAdminSidebarNavigationNodes groups question bank admin services under one parent', () => {
+  const nodes = resolveAdminSidebarNavigationNodes('english', {
+    items: [
+      '/admin/questions/upload',
+      '/admin/users',
+      '/admin/questions',
+      '/admin/question-bank/problem-types',
+      '/admin/question-bank/options',
+      '/admin/question-bank/backfill',
+    ],
+  })
+
+  const questionBankNode = nodes.find((node) => node.type === 'group' && node.id === 'questionBank')
+
+  assert.ok(questionBankNode)
+  assert.equal(questionBankNode.name, '문제은행')
+  assert.equal(questionBankNode.icon, 'database')
+  assert.deepEqual(
+    questionBankNode.items.map((item) => item.href),
+    [
+      '/admin/questions/upload',
+      '/admin/questions',
+      '/admin/question-bank/problem-types',
+      '/admin/question-bank/options',
+      '/admin/question-bank/backfill',
+    ]
+  )
+  assert.deepEqual([...ADMIN_QUESTION_BANK_MENU_HREFS], [
+    '/admin/questions',
+    '/admin/questions/upload',
+    '/admin/question-bank/options',
+    '/admin/question-bank/problem-types',
+    '/admin/question-bank/backfill',
+  ])
+  assert.equal(nodes.some((node) => node.type === 'item' && node.item.href === '/admin/questions'), false)
+  assert.equal(nodes.some((node) => node.type === 'item' && node.item.href === '/admin/questions/upload'), false)
+})
+
+test('resolveAdminSidebarMenuItems remains a flat compatibility resolver', () => {
+  const items = resolveAdminSidebarMenuItems('english', {
+    items: ['/admin/questions', '/admin/questions/upload'],
+  })
+
+  assert.equal(Array.isArray(items), true)
+  assert.equal(items[0].href, '/admin/questions')
+  assert.equal(items[1].href, '/admin/questions/upload')
+  assert.equal(items.some((item) => item.name === '문제 목록'), true)
+  assert.equal(items.some((item) => item.name === '문제 업로드'), true)
+})
+
+test('moveAdminSidebarNavigationNode moves the question bank group as one href block', () => {
+  const items = [
+    '/admin',
+    '/admin/questions',
+    '/admin/questions/upload',
+    '/admin/question-bank/options',
+    '/admin/question-bank/problem-types',
+    '/admin/question-bank/backfill',
+    '/admin/passages',
+  ]
+  const nodes = resolveAdminSidebarNavigationNodes('english', { items })
+  const moved = moveAdminSidebarNavigationNode(items, nodes, 'questionBank', 'down')
+
+  assert.deepEqual(moved.slice(0, 2), ['/admin', '/admin/passages'])
+  assert.deepEqual(moved.slice(2, 7), [...ADMIN_QUESTION_BANK_MENU_HREFS])
+  assert.equal(Array.isArray(moved), true)
+})
+
+test('moveAdminSidebarNavigationNode condenses scattered question bank hrefs into one moved block', () => {
+  const items = [
+    '/admin/questions/upload',
+    '/admin/users',
+    '/admin/questions',
+    '/admin/question-bank/problem-types',
+    '/admin/question-bank/options',
+    '/admin/question-bank/backfill',
+    '/admin/passages',
+  ]
+  const nodes = resolveAdminSidebarNavigationNodes('english', { items })
+  const moved = moveAdminSidebarNavigationNode(items, nodes, 'questionBank', 'down')
+  const nonQuestionBankHrefs = moved.filter((href) => !ADMIN_QUESTION_BANK_MENU_HREFS.includes(href))
+
+  assert.deepEqual(moved.slice(0, 6), [
+    '/admin/users',
+    '/admin/questions/upload',
+    '/admin/questions',
+    '/admin/question-bank/problem-types',
+    '/admin/question-bank/options',
+    '/admin/question-bank/backfill',
+  ])
+  assert.deepEqual(nonQuestionBankHrefs.slice(0, 2), ['/admin/users', '/admin/passages'])
+  assert.equal(new Set(moved).size, moved.length)
+})
+
+test('moveAdminSidebarHref reorders only question bank child href peers', () => {
+  const items = [
+    '/admin',
+    '/admin/questions',
+    '/admin/questions/upload',
+    '/admin/question-bank/options',
+    '/admin/passages',
+  ]
+  const moved = moveAdminSidebarHref(
+    items,
+    '/admin/questions/upload',
+    ['/admin/questions', '/admin/questions/upload', '/admin/question-bank/options'],
+    'up'
+  )
+
+  assert.deepEqual(moved, [
+    '/admin',
+    '/admin/questions/upload',
+    '/admin/questions',
+    '/admin/question-bank/options',
+    '/admin/passages',
+  ])
+})
+
 test('admin sidebar server wrapper preloads navigation configs for both subjects', () => {
   assert.match(adminSidebarSource, /getAdminSidebarNavigationConfig\('english'\)/)
   assert.match(adminSidebarSource, /getAdminSidebarNavigationConfig\('korean'\)/)
   assert.match(adminSidebarSource, /AdminSidebarClient/)
 })
 
-test('admin sidebar client preserves subject query on every admin link', () => {
+test('admin sidebar client renders grouped question bank navigation and preserves subject query', () => {
+  assert.match(adminSidebarClientSource, /resolveAdminSidebarNavigationNodes/)
+  assert.match(adminSidebarClientSource, /aria-current=\{active \? 'page' : undefined\}/)
   assert.match(adminSidebarClientSource, /href=\{withAdminWorkspaceSubject\(item\.href, workspaceSubject\)\}/)
   assert.doesNotMatch(adminSidebarClientSource, /subjectScopedAdminHrefs/)
 })
 
-test('menu management exposes admin sidebar ordering controls and save action', () => {
+test('menu management presents question bank entries as an admin sidebar group without changing storage shape', () => {
   assert.match(menuManagementSource, /관리자 패널 메뉴 순서/)
+  assert.match(menuManagementSource, /resolveAdminSidebarNavigationNodes/)
+  assert.match(menuManagementSource, /문제은행/)
   assert.match(menuManagementSource, /saveAdminSidebarNavigationConfigAction/)
   assert.match(menuManagementSource, /관리자 패널 순서 저장/)
+  assert.match(menuManagementSource, /handleMoveAdminSidebarNode/)
+  assert.match(menuManagementSource, /handleMoveAdminSidebarChild/)
+  assert.match(menuManagementSource, /aria-label=\{`\$\{node\.name\} 대메뉴 위로 이동`\}/)
+  assert.match(menuManagementSource, /aria-label=\{`\$\{node\.name\} \$\{item\.name\} 위로 이동`\}/)
 })

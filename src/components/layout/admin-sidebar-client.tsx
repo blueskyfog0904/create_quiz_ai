@@ -9,7 +9,8 @@ import { cn } from '@/lib/utils'
 import { resolveAdminWorkspaceSubject, withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import {
   adminSidebarIconComponents,
-  resolveAdminSidebarMenuItems,
+  resolveAdminSidebarNavigationNodes,
+  type AdminSidebarMenuItem,
   type AdminSidebarNavigationConfig,
 } from '@/lib/admin-sidebar'
 import { AdminWorkspaceSwitcher } from './admin-workspace-switcher'
@@ -23,16 +24,46 @@ export function AdminSidebarClient({ navigationConfigs }: AdminSidebarClientProp
   const searchParams = useSearchParams()
   const [collapsed, setCollapsed] = useState(false)
   const workspaceSubject = resolveAdminWorkspaceSubject(searchParams.get('subject'))
-  const resolvedMenuItems = useMemo(
-    () => resolveAdminSidebarMenuItems(workspaceSubject, navigationConfigs[workspaceSubject]),
+  const resolvedNavigationNodes = useMemo(
+    () => resolveAdminSidebarNavigationNodes(workspaceSubject, navigationConfigs[workspaceSubject]),
     [navigationConfigs, workspaceSubject]
   )
 
-  const isActive = (item: (typeof resolvedMenuItems)[number]) => {
+  const isActive = (item: AdminSidebarMenuItem) => {
     if (item.exact) {
       return pathname === item.href
     }
     return pathname.startsWith(item.href)
+  }
+
+  const renderMenuLink = (item: AdminSidebarMenuItem, variant: 'root' | 'child' = 'root') => {
+    const Icon = adminSidebarIconComponents[item.icon]
+    const active = isActive(item)
+
+    return (
+      <Link
+        key={item.href}
+        href={withAdminWorkspaceSubject(item.href, workspaceSubject)}
+        aria-current={active ? 'page' : undefined}
+        className={cn(
+          'flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors',
+          variant === 'child' && !collapsed && 'py-2 pl-3',
+          active ? 'bg-orange-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+          collapsed && 'md:justify-center md:px-2'
+        )}
+        title={collapsed ? item.name : undefined}
+        onClick={() => {
+          if (window.innerWidth < 768) {
+            setCollapsed(true)
+          }
+        }}
+      >
+        <Icon className={cn('h-5 w-5 flex-shrink-0', variant === 'child' && !collapsed && 'h-4 w-4')} />
+        <span className={cn('text-sm font-medium', collapsed && 'md:hidden')}>
+          {item.name}
+        </span>
+      </Link>
+    )
   }
 
   return (
@@ -77,31 +108,31 @@ export function AdminSidebarClient({ navigationConfigs }: AdminSidebarClientProp
         </div>
 
         <nav className="space-y-1 p-2">
-          {resolvedMenuItems.map((item) => {
-            const Icon = adminSidebarIconComponents[item.icon]
-            const active = isActive(item)
+          {resolvedNavigationNodes.map((node) => {
+            if (node.type === 'item') {
+              return renderMenuLink(node.item)
+            }
 
             return (
-              <Link
-                key={item.href}
-                href={withAdminWorkspaceSubject(item.href, workspaceSubject)}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors',
-                  active ? 'bg-orange-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white',
-                  collapsed && 'md:justify-center md:px-2'
-                )}
-                title={collapsed ? item.name : undefined}
-                onClick={() => {
-                  if (window.innerWidth < 768) {
-                    setCollapsed(true)
-                  }
-                }}
-              >
-                <Icon className="h-5 w-5 flex-shrink-0" />
-                <span className={cn('text-sm font-medium', collapsed && 'md:hidden')}>
-                  {item.name}
-                </span>
-              </Link>
+              <div key={node.id} className="space-y-1" role="group" aria-label={`${node.name} 메뉴`}>
+                {!collapsed ? (
+                  <div
+                    className={cn(
+                      'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold',
+                      node.items.some((item) => isActive(item)) ? 'text-orange-300' : 'text-slate-400'
+                    )}
+                  >
+                    {(() => {
+                      const Icon = adminSidebarIconComponents[node.icon]
+                      return <Icon className="h-5 w-5 flex-shrink-0" />
+                    })()}
+                    <span>{node.name}</span>
+                  </div>
+                ) : null}
+                <div className={cn('space-y-1', !collapsed && 'ml-4 border-l border-slate-700 pl-2')}>
+                  {node.items.map((item) => renderMenuLink(item, 'child'))}
+                </div>
+              </div>
             )
           })}
         </nav>

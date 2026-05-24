@@ -47,6 +47,31 @@ export interface AdminSidebarNavigationConfig {
   items: string[]
 }
 
+export const ADMIN_QUESTION_BANK_MENU_HREFS = [
+  '/admin/questions',
+  '/admin/questions/upload',
+  '/admin/question-bank/options',
+  '/admin/question-bank/problem-types',
+  '/admin/question-bank/backfill',
+] as const
+
+const ADMIN_QUESTION_BANK_MENU_HREF_SET = new Set<string>(ADMIN_QUESTION_BANK_MENU_HREFS)
+
+export interface AdminSidebarMenuGroupNode {
+  type: 'group'
+  id: 'questionBank'
+  name: string
+  icon: AdminSidebarIconName
+  items: AdminSidebarMenuItem[]
+}
+
+export interface AdminSidebarMenuItemNode {
+  type: 'item'
+  item: AdminSidebarMenuItem
+}
+
+export type AdminSidebarNavigationNode = AdminSidebarMenuGroupNode | AdminSidebarMenuItemNode
+
 export const DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG: AdminSidebarNavigationConfig = {
   items: [
     '/admin',
@@ -56,10 +81,11 @@ export const DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG: AdminSidebarNavigationConf
     '/admin/generate/products',
     '/admin/problem-types',
     '/admin/questions',
+    '/admin/questions/upload',
     '/admin/question-bank/options',
+    '/admin/question-bank/problem-types',
     '/admin/question-bank/backfill',
     '/admin/passages',
-    '/admin/questions/upload',
     '/admin/users',
     '/admin/roles',
     '/admin/support',
@@ -97,11 +123,12 @@ function getDefaultAdminSidebarMenuItems(workspaceSubject: WorkspaceSubject): Ad
     { name: '문제마켓 상품 관리', href: '/admin/market/products', icon: 'upload' },
     { name: '문제생성 상품 관리', href: '/admin/generate/products', icon: 'bookOpen' },
     { name: 'AI 문제 유형 관리', href: '/admin/problem-types', icon: 'settings' },
-    { name: '문제은행 관리', href: '/admin/questions', icon: 'database', exact: true },
-    { name: '문제은행 설정', href: '/admin/question-bank/options', icon: 'settings' },
-    { name: '문제은행 백필', href: '/admin/question-bank/backfill', icon: 'database' },
-    { name: workspaceSubject === 'english' ? '영어지문 관리' : '국어지문 관리', href: '/admin/passages', icon: 'bookOpen' },
+    { name: '문제 목록', href: '/admin/questions', icon: 'database', exact: true },
     { name: '문제 업로드', href: '/admin/questions/upload', icon: 'upload' },
+    { name: '연도·교재 설정', href: '/admin/question-bank/options', icon: 'settings' },
+    { name: '문제유형 설정', href: '/admin/question-bank/problem-types', icon: 'settings' },
+    { name: '데이터 감사·백필', href: '/admin/question-bank/backfill', icon: 'database' },
+    { name: workspaceSubject === 'english' ? '영어지문 관리' : '국어지문 관리', href: '/admin/passages', icon: 'bookOpen' },
     { name: '사용자 관리', href: '/admin/users', icon: 'users' },
     { name: '회원가입 관리', href: '/admin/roles', icon: 'userCog' },
     { name: '고객지원 관리', href: '/admin/support', icon: 'messageSquare' },
@@ -150,4 +177,106 @@ export function resolveAdminSidebarMenuItems(
   return normalizedConfig.items
     .map((href) => defaultItemsByHref.get(href))
     .filter((item): item is AdminSidebarMenuItem => Boolean(item))
+}
+
+export function resolveAdminSidebarNavigationNodes(
+  workspaceSubject: WorkspaceSubject,
+  config?: AdminSidebarNavigationConfig | null
+): AdminSidebarNavigationNode[] {
+  const items = resolveAdminSidebarMenuItems(workspaceSubject, config)
+  const questionBankItems = items.filter((item) => ADMIN_QUESTION_BANK_MENU_HREF_SET.has(item.href))
+  const firstQuestionBankIndex = items.findIndex((item) => ADMIN_QUESTION_BANK_MENU_HREF_SET.has(item.href))
+
+  if (questionBankItems.length === 0 || firstQuestionBankIndex < 0) {
+    return items.map((item) => ({ type: 'item', item }))
+  }
+
+  const nodes: AdminSidebarNavigationNode[] = []
+
+  items.forEach((item, index) => {
+    if (ADMIN_QUESTION_BANK_MENU_HREF_SET.has(item.href)) {
+      if (index === firstQuestionBankIndex) {
+        nodes.push({
+          type: 'group',
+          id: 'questionBank',
+          name: '문제은행',
+          icon: 'database',
+          items: questionBankItems,
+        })
+      }
+      return
+    }
+
+    nodes.push({ type: 'item', item })
+  })
+
+  return nodes
+}
+
+function getAdminSidebarNodeKey(node: AdminSidebarNavigationNode) {
+  return node.type === 'group' ? node.id : node.item.href
+}
+
+function getAdminSidebarNodeHrefs(node: AdminSidebarNavigationNode) {
+  return node.type === 'group' ? node.items.map((item) => item.href) : [node.item.href]
+}
+
+export function moveAdminSidebarHref(
+  items: string[],
+  href: string,
+  peerHrefs: readonly string[],
+  direction: 'up' | 'down'
+) {
+  const currentPeerIndex = peerHrefs.indexOf(href)
+  const nextPeerIndex = direction === 'up' ? currentPeerIndex - 1 : currentPeerIndex + 1
+
+  if (currentPeerIndex < 0 || nextPeerIndex < 0 || nextPeerIndex >= peerHrefs.length) {
+    return items
+  }
+
+  const currentIndex = items.indexOf(href)
+  const nextIndex = items.indexOf(peerHrefs[nextPeerIndex])
+
+  if (currentIndex < 0 || nextIndex < 0) {
+    return items
+  }
+
+  const nextItems = [...items]
+  const currentHref = nextItems[currentIndex]
+  nextItems[currentIndex] = nextItems[nextIndex]
+  nextItems[nextIndex] = currentHref
+  return nextItems
+}
+
+export function moveAdminSidebarNavigationNode(
+  items: string[],
+  nodes: AdminSidebarNavigationNode[],
+  nodeKey: string,
+  direction: 'up' | 'down'
+) {
+  const currentNodeIndex = nodes.findIndex((node) => getAdminSidebarNodeKey(node) === nodeKey)
+  const targetNodeIndex = direction === 'up' ? currentNodeIndex - 1 : currentNodeIndex + 1
+
+  if (currentNodeIndex < 0 || targetNodeIndex < 0 || targetNodeIndex >= nodes.length) {
+    return items
+  }
+
+  const currentHrefs = getAdminSidebarNodeHrefs(nodes[currentNodeIndex])
+  const targetHrefs = getAdminSidebarNodeHrefs(nodes[targetNodeIndex])
+  const currentHrefSet = new Set(currentHrefs)
+  const withoutCurrent = items.filter((href) => !currentHrefSet.has(href))
+  const targetIndexes = targetHrefs
+    .map((href) => withoutCurrent.indexOf(href))
+    .filter((index) => index >= 0)
+
+  if (targetIndexes.length === 0) {
+    return items
+  }
+
+  const insertIndex = direction === 'up'
+    ? Math.min(...targetIndexes)
+    : Math.max(...targetIndexes) + 1
+  const nextItems = [...withoutCurrent]
+  nextItems.splice(insertIndex, 0, ...currentHrefs)
+  return nextItems
 }

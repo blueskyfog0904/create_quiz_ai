@@ -1545,8 +1545,42 @@ export type Database = {
         }
         Relationships: []
       }
+      question_bank_problem_types: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          sort_order: number
+          type_name: string
+          updated_at: string
+          workspace_subject: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          type_name: string
+          updated_at?: string
+          workspace_subject: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          type_name?: string
+          updated_at?: string
+          workspace_subject?: string
+        }
+        Relationships: []
+      }
       question_bank_question_metadata: {
         Row: {
+          bank_problem_type_id: string
           book_id: string
           created_at: string
           question_id: string
@@ -1555,6 +1589,7 @@ export type Database = {
           year_id: string
         }
         Insert: {
+          bank_problem_type_id: string
           book_id: string
           created_at?: string
           question_id: string
@@ -1563,6 +1598,7 @@ export type Database = {
           year_id: string
         }
         Update: {
+          bank_problem_type_id?: string
           book_id?: string
           created_at?: string
           question_id?: string
@@ -1571,6 +1607,13 @@ export type Database = {
           year_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "question_bank_metadata_bank_type_workspace_fkey"
+            columns: ["bank_problem_type_id", "workspace_subject"]
+            isOneToOne: false
+            referencedRelation: "question_bank_problem_types"
+            referencedColumns: ["id", "workspace_subject"]
+          },
           {
             foreignKeyName: "question_bank_question_metadata_book_workspace_fkey"
             columns: ["book_id", "workspace_subject"]

@@ -83,7 +83,7 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
   return (
     <div className="space-y-6">
       <Card className="overflow-hidden border-slate-200 pt-0">
-        <CardHeader className="border-b bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white">
+        <CardHeader className="border-b bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 py-8 text-white">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2 text-sm text-slate-300">

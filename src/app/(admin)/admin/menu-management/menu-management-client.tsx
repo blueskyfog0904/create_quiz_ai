@@ -61,8 +61,14 @@ import {
   type HeaderNavigationConfig,
 } from '@/lib/header-navigation'
 import {
-  resolveAdminSidebarMenuItems,
+  moveAdminSidebarHref,
+  moveAdminSidebarNavigationNode,
+  resolveAdminSidebarNavigationNodes,
+  type AdminSidebarMenuGroupNode,
+  type AdminSidebarMenuItem,
+  type AdminSidebarMenuItemNode,
   type AdminSidebarNavigationConfig,
+  type AdminSidebarNavigationNode,
 } from '@/lib/admin-sidebar'
 import {
   buildGenerateMenuHref,
@@ -304,8 +310,8 @@ export default function MenuManagementClient({
   const libraryParent = useMemo(() => getMenuParentByHref(config.items, '/library'), [config.items])
   const libraryMenuChildren = libraryParent?.children ?? []
   const hasUnsavedChanges = JSON.stringify({ ...config, logoText }) !== JSON.stringify(savedConfig)
-  const adminSidebarItems = useMemo(
-    () => resolveAdminSidebarMenuItems(workspaceSubject, adminSidebarConfig),
+  const adminSidebarNavigationNodes = useMemo(
+    () => resolveAdminSidebarNavigationNodes(workspaceSubject, adminSidebarConfig),
     [adminSidebarConfig, workspaceSubject]
   )
   const hasUnsavedAdminSidebarChanges = JSON.stringify(adminSidebarConfig) !== JSON.stringify(savedAdminSidebarConfig)
@@ -414,9 +420,29 @@ export default function MenuManagementClient({
     }))
   }
 
-  const handleMoveAdminSidebarItem = (index: number, direction: 'up' | 'down') => {
+  const getAdminSidebarNodeKey = (node: AdminSidebarNavigationNode) => (
+    node.type === 'group' ? node.id : node.item.href
+  )
+
+  const handleMoveAdminSidebarNode = (node: AdminSidebarMenuGroupNode | AdminSidebarMenuItemNode, direction: 'up' | 'down') => {
     setAdminSidebarConfig((current) => ({
-      items: moveArrayItem(current.items, index, direction),
+      items: moveAdminSidebarNavigationNode(
+        current.items,
+        adminSidebarNavigationNodes,
+        getAdminSidebarNodeKey(node),
+        direction
+      ),
+    }))
+  }
+
+  const handleMoveAdminSidebarChild = (groupNode: AdminSidebarMenuGroupNode, item: AdminSidebarMenuItem, direction: 'up' | 'down') => {
+    setAdminSidebarConfig((current) => ({
+      items: moveAdminSidebarHref(
+        current.items,
+        item.href,
+        groupNode.items.map((groupItem) => groupItem.href),
+        direction
+      ),
     }))
   }
 
@@ -954,30 +980,75 @@ export default function MenuManagementClient({
                 <TableRow>
                   <TableHead>메뉴명</TableHead>
                   <TableHead>기준 경로</TableHead>
-                  <TableHead className="w-[160px] text-right">순서 조정</TableHead>
+                  <TableHead>표시 그룹</TableHead>
+                  <TableHead className="w-[180px] text-right">순서 조정</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {adminSidebarItems.map((item, index) => (
-                  <TableRow key={item.href}>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="text-gray-600">{item.href}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => handleMoveAdminSidebarItem(index, 'up')} disabled={index === 0}>
-                          <ArrowUp className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleMoveAdminSidebarItem(index, 'down')} disabled={index === adminSidebarItems.length - 1}>
-                          <ArrowDown className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {adminSidebarNavigationNodes.map((node, nodeIndex) => {
+                  if (node.type === 'item') {
+                    return (
+                      <TableRow key={node.item.href}>
+                        <TableCell className="font-medium">{node.item.name}</TableCell>
+                        <TableCell className="text-gray-600">{node.item.href}</TableCell>
+                        <TableCell className="text-gray-500">기본</TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="icon" aria-label={`${node.item.name} 위로 이동`} onClick={() => handleMoveAdminSidebarNode(node, 'up')} disabled={nodeIndex === 0}>
+                              <ArrowUp className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" aria-label={`${node.item.name} 아래로 이동`} onClick={() => handleMoveAdminSidebarNode(node, 'down')} disabled={nodeIndex === adminSidebarNavigationNodes.length - 1}>
+                              <ArrowDown className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  }
+
+                  return (
+                    <Fragment key={node.id}>
+                      <TableRow className="bg-slate-50">
+                        <TableCell className="font-semibold text-slate-900">{node.name}</TableCell>
+                        <TableCell className="text-gray-500">대메뉴</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">소메뉴 {node.items.length}개</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="icon" aria-label={`${node.name} 대메뉴 위로 이동`} onClick={() => handleMoveAdminSidebarNode(node, 'up')} disabled={nodeIndex === 0}>
+                              <ArrowUp className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" aria-label={`${node.name} 대메뉴 아래로 이동`} onClick={() => handleMoveAdminSidebarNode(node, 'down')} disabled={nodeIndex === adminSidebarNavigationNodes.length - 1}>
+                              <ArrowDown className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {node.items.map((item, index) => (
+                        <TableRow key={item.href}>
+                          <TableCell className="pl-8 font-medium">{item.name}</TableCell>
+                          <TableCell className="text-gray-600">{item.href}</TableCell>
+                          <TableCell className="text-gray-500">{node.name}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button variant="ghost" size="icon" aria-label={`${node.name} ${item.name} 위로 이동`} onClick={() => handleMoveAdminSidebarChild(node, item, 'up')} disabled={index === 0}>
+                                <ArrowUp className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" aria-label={`${node.name} ${item.name} 아래로 이동`} onClick={() => handleMoveAdminSidebarChild(node, item, 'down')} disabled={index === node.items.length - 1}>
+                                <ArrowDown className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </Fragment>
+                  )
+                })}
               </TableBody>
             </Table>
           </div>
-          <p className="mt-3 text-sm text-gray-500">영어/국어 관리 대상별로 서로 다른 순서를 저장합니다.</p>
+          <p className="mt-3 text-sm text-gray-500">영어/국어 관리 대상별로 서로 다른 순서를 저장합니다. 문제은행 대메뉴는 위/아래 버튼으로 block 이동하고, 하위 메뉴는 문제은행 내부에서만 순서를 조정합니다. 저장값은 기존처럼 href 순서 배열만 사용합니다.</p>
         </CardContent>
       </Card>
 

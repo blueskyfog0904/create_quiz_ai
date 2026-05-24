@@ -48,6 +48,8 @@ test('RandomExamDialog displays bounded max availability and count controls per 
   const source = readSource(dialogPath, 'random exam dialog component')
 
   assert.match(source, /problemTypes\.filter\([\s\S]*is_active|activeProblemTypes/)
+  assert.match(source, /problemTypeId/)
+  assert.match(source, /availableCount/)
   assert.match(source, /getMaxCountForProblemType\(/)
   assert.match(source, /최대\s*\{[^}]+\}\s*문항|`최대 \$\{[^}]+\}문항`/)
   assert.match(source, /aria-label=\{`[^`]*감소[^`]*`\}|aria-label="[^"]*감소[^"]*"/)

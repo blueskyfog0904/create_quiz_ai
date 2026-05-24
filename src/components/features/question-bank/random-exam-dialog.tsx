@@ -72,6 +72,7 @@ export function RandomExamDialog({
   const [title, setTitle] = useState('')
   const [years, setYears] = useState<QuestionBankYear[]>([])
   const [books, setBooks] = useState<QuestionBankBook[]>([])
+  const [optionProblemTypes, setOptionProblemTypes] = useState<ProblemType[]>([])
   const [selectedYearId, setSelectedYearId] = useState('')
   const [selectedBookId, setSelectedBookId] = useState('')
   const [availability, setAvailability] = useState<QuestionBankAvailability[]>([])
@@ -82,10 +83,11 @@ export function RandomExamDialog({
   const [optionsError, setOptionsError] = useState<string | null>(null)
   const [availabilityError, setAvailabilityError] = useState<string | null>(null)
 
-  const activeProblemTypes = useMemo(
-    () => problemTypes.filter((problemType) => problemType.is_active !== false),
-    [problemTypes]
-  )
+  const activeProblemTypes = useMemo(() => {
+    const bankProblemTypes = optionProblemTypes.length > 0 ? optionProblemTypes : problemTypes
+
+    return bankProblemTypes.filter((problemType) => problemType.is_active !== false)
+  }, [optionProblemTypes, problemTypes])
 
   const positiveTypeCounts = useMemo(
     () => typeCounts.filter((typeCount) => typeCount.count > 0),
@@ -126,6 +128,7 @@ export function RandomExamDialog({
       setOptionsError(null)
       setYears([])
       setBooks([])
+      setOptionProblemTypes([])
 
       try {
         const optionsParams = new URLSearchParams()
@@ -140,6 +143,7 @@ export function RandomExamDialog({
         if (!isCancelled) {
           setYears(Array.isArray(data.years) ? data.years : [])
           setBooks(Array.isArray(data.books) ? data.books : [])
+          setOptionProblemTypes(Array.isArray(data.problemTypes) ? data.problemTypes : [])
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : '문제은행 옵션을 불러오지 못했습니다.'
@@ -285,6 +289,7 @@ export function RandomExamDialog({
       setSelectedBookId('')
       setAvailability([])
       setTypeCounts([])
+      setOptionProblemTypes([])
       router.push(`/library/exam-papers/${data.examPaperId}?subject=${workspaceSubject}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '랜덤 문제지 생성에 실패했습니다.')
@@ -385,15 +390,16 @@ export function RandomExamDialog({
             {selectedYearId && selectedBookId && !isLoadingAvailability ? (
               <div className="space-y-2">
                 {activeProblemTypes.map((problemType) => {
-                  const maxCount = getMaxCountForProblemType(availability, problemType.id)
+                  const availableCount = getMaxCountForProblemType(availability, problemType.id)
+                  const maxCount = availableCount
                   const count = getCurrentCount(problemType.id)
-                  const disabled = maxCount === 0
+                  const disabled = availableCount === 0
 
                   return (
                     <div key={problemType.id} className="flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="text-sm font-medium">{problemType.type_name}</p>
-                        <p className="mt-1 text-xs text-gray-500">최대 {maxCount}문항</p>
+                        <p className="mt-1 text-xs text-gray-500">최대 {availableCount}문항</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Button

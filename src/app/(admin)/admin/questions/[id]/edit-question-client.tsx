@@ -59,6 +59,7 @@ interface EditQuestionClientProps {
 interface QuestionBankMetadata {
   yearId: string
   bookId: string
+  bankProblemTypeId?: string | null
 }
 
 interface QuestionBankYear {
@@ -124,7 +125,7 @@ export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestio
         // Fetch question and problem types in parallel
         const [questionRes, typesRes, yearsRes, booksRes] = await Promise.all([
           fetch(withAdminWorkspaceSubject(`/api/admin/questions/${questionId}`, workspaceSubject)),
-          fetch(withAdminWorkspaceSubject('/api/admin/problem-types', workspaceSubject)),
+          fetch(withAdminWorkspaceSubject('/api/admin/question-bank/problem-types', workspaceSubject)),
           fetch(withAdminWorkspaceSubject('/api/admin/question-bank/years', workspaceSubject)),
           fetch(withAdminWorkspaceSubject('/api/admin/question-bank/books', workspaceSubject)),
         ])
@@ -139,7 +140,7 @@ export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestio
         let types: Array<{ id: string; type_name: string }> = []
         if (typesRes.ok) {
           const typesData = await typesRes.json()
-          types = typesData.types || typesData || []
+          types = typesData.problemTypes || typesData.types || typesData || []
         }
 
         if (yearsRes.ok) {
@@ -172,7 +173,7 @@ export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestio
           explanation: fetchedQuestion.explanation || '',
           grade_level: fetchedQuestion.grade_level || '',
           difficulty: fetchedQuestion.difficulty || '',
-          problem_type_id: fetchedQuestion.problem_type_id || '',
+          problem_type_id: questionBankMetadata?.bankProblemTypeId || fetchedQuestion.problem_type_id || '',
           yearId: questionBankMetadata?.yearId || '',
           bookId: questionBankMetadata?.bookId || '',
           source_type: fetchedQuestion.source_type || '',
@@ -239,7 +240,7 @@ export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestio
           explanation: formData.explanation || null,
           grade_level: formData.grade_level || null,
           difficulty: formData.difficulty || null,
-          problem_type_id: formData.problem_type_id || null,
+          bankProblemTypeId: formData.problem_type_id || null,
           yearId: formData.yearId,
           bookId: formData.bookId,
           source_type: formData.source_type || null,

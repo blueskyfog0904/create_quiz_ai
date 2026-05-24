@@ -15,10 +15,13 @@ function removeHtmlTags(text: string | null | undefined): string {
 }
 
 interface QuestionRow {
+  bankProblemTypeId?: string
   문제유형: string
   지문?: string
+  지문앞텍스트?: string
   문제앞텍스트?: string
   문제내용: string
+  지문뒤텍스트?: string
   문제뒤텍스트?: string
   option?: string | unknown
   선택지1?: string
@@ -46,6 +49,7 @@ interface QuestionRow {
 interface ParsedQuestion {
   id: string
   clientRowId: string
+  bankProblemTypeId: string
   problem_type_id: string
   problem_type_name: string
   passage_text: string
@@ -77,6 +81,7 @@ interface ParseResult {
 
 type BankYear = { id: string, year: number, label: string | null, is_active: boolean | null }
 type BankBook = { id: string, slug: string, name: string, is_active: boolean | null }
+type BankProblemType = { id: string, type_name: string, is_active: boolean | null }
 
 async function requireAdminUser(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user } } = await supabase.auth.getUser()
@@ -135,6 +140,16 @@ function parseChoices(row: QuestionRow) {
     .filter(Boolean)
 }
 
+function getQuestionTextForward(row: QuestionRow) {
+  const text = row.지문앞텍스트 ?? row.문제앞텍스트
+  return text ? removeHtmlTags(String(text)) : ''
+}
+
+function getQuestionTextBackward(row: QuestionRow) {
+  const text = row.지문뒤텍스트 ?? row.문제뒤텍스트
+  return text ? removeHtmlTags(String(text)) : ''
+}
+
 function resolveQuestionBankMetadata(row: QuestionRow, years: BankYear[], books: BankBook[]) {
   const yearId = typeof row.yearId === 'string' ? row.yearId.trim() : ''
   const bookId = typeof row.bookId === 'string' ? row.bookId.trim() : ''
@@ -182,12 +197,13 @@ function buildPartialQuestion(row: QuestionRow, rowNumber: number, error: unknow
   return {
     id: `parsed-${rowNumber}-${Date.now()}`,
     clientRowId,
+    bankProblemTypeId: problemTypeInfo?.id || (typeof row.bankProblemTypeId === 'string' ? row.bankProblemTypeId : ''),
     problem_type_id: problemTypeInfo?.id || '',
     problem_type_name: problemTypeInfo?.name || row.문제유형 || '',
     passage_text: row.지문 ? removeHtmlTags(String(row.지문)) : '',
     question_text: row.문제내용 ? removeHtmlTags(String(row.문제내용)) : '',
-    question_text_forward: row.문제앞텍스트 ? removeHtmlTags(String(row.문제앞텍스트)) : '',
-    question_text_backward: row.문제뒤텍스트 ? removeHtmlTags(String(row.문제뒤텍스트)) : '',
+    question_text_forward: getQuestionTextForward(row),
+    question_text_backward: getQuestionTextBackward(row),
     choices: parseChoices(row),
     answer: row.정답 ? removeHtmlTags(String(row.정답)) : '',
     explanation: row.해설 ? removeHtmlTags(String(row.해설)) : '',
@@ -240,8 +256,8 @@ export async function POST(request: Request) {
 
     const [{ data: problemTypes, error: problemTypesError }, { data: years, error: yearsError }, { data: books, error: booksError }] = await Promise.all([
       supabase
-        .from('problem_types')
-        .select('id, type_name')
+        .from('question_bank_problem_types')
+        .select('id, type_name, is_active')
         .eq('is_active', true)
         .eq('workspace_subject', workspaceSubject),
       supabase
@@ -262,8 +278,10 @@ export async function POST(request: Request) {
     }
 
     const problemTypeMap = new Map<string, { id: string, name: string }>()
-    problemTypes?.forEach((type) => {
+    const problemTypeIdMap = new Map<string, { id: string, name: string }>()
+    ;(problemTypes as BankProblemType[] | null)?.forEach((type) => {
       problemTypeMap.set(type.type_name, { id: type.id, name: type.type_name })
+      problemTypeIdMap.set(type.id, { id: type.id, name: type.type_name })
     })
 
     const results: ParseResult[] = []
@@ -274,13 +292,16 @@ export async function POST(request: Request) {
       const row = rows[i]
       const rowNumber = i + 2
       const clientRowId = `row-${rowNumber}`
-      const problemTypeInfo = problemTypeMap.get(row.문제유형)
+      const bankProblemTypeId = typeof row.bankProblemTypeId === 'string' ? row.bankProblemTypeId.trim() : ''
+      const problemTypeInfo = bankProblemTypeId
+        ? problemTypeIdMap.get(bankProblemTypeId)
+        : problemTypeMap.get(row.문제유형)
 
       try {
-        if (!row.문제유형) throw new Error('문제유형이 필요합니다.')
+        if (!bankProblemTypeId && !row.문제유형) throw new Error('문제유형이 필요합니다.')
         if (!row.문제내용) throw new Error('문제내용이 필요합니다.')
         if (row.정답 === undefined || row.정답 === null || row.정답 === '') throw new Error('정답이 필요합니다.')
-        if (!problemTypeInfo) throw new Error(`문제유형 "${row.문제유형}"을(를) 찾을 수 없습니다.`)
+        if (!problemTypeInfo) throw new Error(`문제유형 "${bankProblemTypeId || row.문제유형}"을(를) 찾을 수 없습니다.`)
 
         const { yearId, bookId } = resolveQuestionBankMetadata(row, years || [], books || [])
         const gradeLevel = row.학년 && validGradeLevels.includes(String(row.학년).trim()) ? String(row.학년).trim() : ''
@@ -292,12 +313,13 @@ export async function POST(request: Request) {
           question: {
             id: `parsed-${rowNumber}-${Date.now()}`,
             clientRowId,
+            bankProblemTypeId: problemTypeInfo.id,
             problem_type_id: problemTypeInfo.id,
             problem_type_name: problemTypeInfo.name,
             passage_text: row.지문 ? removeHtmlTags(String(row.지문)) : '',
             question_text: removeHtmlTags(String(row.문제내용)),
-            question_text_forward: row.문제앞텍스트 ? removeHtmlTags(String(row.문제앞텍스트)) : '',
-            question_text_backward: row.문제뒤텍스트 ? removeHtmlTags(String(row.문제뒤텍스트)) : '',
+            question_text_forward: getQuestionTextForward(row),
+            question_text_backward: getQuestionTextBackward(row),
             choices: parseChoices(row),
             answer: removeHtmlTags(String(row.정답)),
             explanation: row.해설 ? removeHtmlTags(String(row.해설)) : '',

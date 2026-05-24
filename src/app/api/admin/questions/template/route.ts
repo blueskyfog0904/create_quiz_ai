@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import { QUESTION_UPLOAD_TEMPLATE_HEADERS } from '@/lib/question-bank/filled-template'
 
 async function requireAdminUser(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user } } = await supabase.auth.getUser()
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
 
     const [{ data: problemTypes, error: problemTypesError }, { data: years, error: yearsError }, { data: books, error: booksError }] = await Promise.all([
       supabase
-        .from('problem_types')
+        .from('question_bank_problem_types')
         .select('id, type_name')
         .eq('is_active', true)
         .eq('workspace_subject', workspaceSubject)
@@ -66,34 +67,12 @@ export async function GET(request: Request) {
     const firstYear = years?.[0]
     const firstBook = books?.[0]
 
-    const mainSheetHeaders = [
-      'year',
-      '교재명',
-      '문제유형',
-      '지문',
-      '문제앞텍스트',
-      '문제내용',
-      '문제뒤텍스트',
-      'option',
-      '선택지1',
-      '선택지2',
-      '선택지3',
-      '선택지4',
-      '선택지5',
-      '정답',
-      '해설',
-      '학년',
-      '난이도',
-      '출처종류',
-      '출처1',
-      '출처2',
-      '출처3',
-      '출처4',
-    ]
+    const mainSheetHeaders = [...QUESTION_UPLOAD_TEMPLATE_HEADERS]
 
     const sampleData = [
       firstYear?.year || '2025',
       firstBook?.name || '수능특강',
+      problemTypes && problemTypes.length > 0 ? problemTypes[0].id : '',
       problemTypes && problemTypes.length > 0 ? problemTypes[0].type_name : '문장삽입형 문제',
       'The development of technology has changed the way we communicate. (A) However, not all changes have been positive. (B) Social media, for example, has made it easier to stay connected with friends and family. (C) On the other hand, it has also led to concerns about privacy and mental health.',
       '',
@@ -120,13 +99,15 @@ export async function GET(request: Request) {
       ['필수 메타데이터 안내'],
       ['year', '연도목록 시트의 활성 연도 숫자를 입력하거나 yearId 컬럼을 추가해 ID를 직접 입력할 수 있습니다.'],
       ['교재명', '교재목록 시트의 활성 교재명을 그대로 입력합니다. bookId 컬럼을 추가해 ID를 직접 입력할 수도 있습니다.'],
-      ['문제유형', '문제유형목록 시트의 문제유형이름을 그대로 입력합니다. ID가 아니라 이름을 입력해야 합니다.'],
+      ['bankProblemTypeId', '문제은행유형목록 시트의 bankProblemTypeId를 입력하면 문제유형 이름보다 우선합니다.'],
+      ['문제유형', '문제유형목록 시트의 문제유형이름을 그대로 입력합니다. bankProblemTypeId가 없을 때 이름으로 찾습니다.'],
     ]
 
     const mainSheet = XLSX.utils.aoa_to_sheet([mainSheetHeaders, sampleData])
     mainSheet['!cols'] = [
       { wch: 10 },
       { wch: 20 },
+      { wch: 40 },
       { wch: 20 },
       { wch: 50 },
       { wch: 30 },
@@ -155,11 +136,11 @@ export async function GET(request: Request) {
     XLSX.utils.book_append_sheet(workbook, guidanceSheet, '작성안내')
 
     const typeSheet = XLSX.utils.aoa_to_sheet([
-      ['문제유형ID', '문제유형이름'],
+      ['bankProblemTypeId', '문제유형이름'],
       ...(problemTypes || []).map((type) => [type.id, type.type_name]),
     ])
     typeSheet['!cols'] = [{ wch: 40 }, { wch: 30 }]
-    XLSX.utils.book_append_sheet(workbook, typeSheet, '문제유형목록')
+    XLSX.utils.book_append_sheet(workbook, typeSheet, '문제은행유형목록')
 
     const yearsSheet = XLSX.utils.aoa_to_sheet([
       ['yearId', 'year', 'label', 'is_active'],

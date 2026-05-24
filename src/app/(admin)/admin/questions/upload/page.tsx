@@ -11,9 +11,9 @@ export default async function AdminUploadPage({ searchParams }: AdminUploadPageP
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const workspaceSubject = resolveAdminWorkspaceSubject(resolvedSearchParams?.subject)
   
-  // Fetch all active problem types
+  // Fetch all active question-bank problem types
   const { data: problemTypes } = await supabase
-    .from('problem_types')
+    .from('question_bank_problem_types')
     .select('*')
     .eq('is_active', true)
     .eq('workspace_subject', workspaceSubject)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, type ChangeEvent, type DragEvent, type FormEvent } from 'react'
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.'
@@ -54,6 +54,7 @@ interface QuestionBankBook {
 interface ParsedQuestion {
   id: string
   clientRowId: string
+  bankProblemTypeId?: string
   problem_type_id: string
   problem_type_name: string
   passage_text: string
@@ -74,6 +75,10 @@ interface ParsedQuestion {
   source_2?: string
   source_3?: string
   source_4?: string
+  conversionStatus?: 'valid' | 'needs_review' | 'invalid'
+  confidence?: number
+  warnings?: string[]
+  sourceSnippet?: string
 }
 
 interface BulkParseResponse {
@@ -112,7 +117,15 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false)
   const [parsedQuestions, setParsedQuestions] = useState<ParsedQuestion[]>([])
   const [dragActive, setDragActive] = useState(false)
+  const [isAnalyzingHwpx, setIsAnalyzingHwpx] = useState(false)
+  const [isDownloadingFilledTemplate, setIsDownloadingFilledTemplate] = useState(false)
+  const [hwpxYearId, setHwpxYearId] = useState('')
+  const [hwpxBookId, setHwpxBookId] = useState('')
+  const [hwpxDefaultGradeLevel, setHwpxDefaultGradeLevel] = useState('')
+  const [hwpxDefaultDifficulty, setHwpxDefaultDifficulty] = useState('')
+  const [hwpxSourceType, setHwpxSourceType] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const hwpxFileInputRef = useRef<HTMLInputElement>(null)
   
   // Problem Type Management states
   const [allProblemTypes, setAllProblemTypes] = useState<ProblemType[]>([])
@@ -162,10 +175,10 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
   const fetchAllProblemTypes = useCallback(async () => {
     setIsLoadingTypes(true)
     try {
-      const response = await fetch(withAdminWorkspaceSubject('/api/admin/problem-types', workspaceSubject))
+      const response = await fetch(withAdminWorkspaceSubject('/api/admin/question-bank/problem-types', workspaceSubject))
       if (!response.ok) throw new Error('Failed to fetch')
       const data = await response.json()
-      setAllProblemTypes(data.types || [])
+      setAllProblemTypes(data.problemTypes || [])
     } catch (error) {
       console.error('Error fetching problem types:', error)
       toast.error('문제 유형 목록을 불러오는데 실패했습니다.')
@@ -264,7 +277,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
     
     setIsAddingProblemType(true)
     try {
-      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/problem-types/${editingType.id}`, workspaceSubject), {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/question-bank/problem-types/${editingType.id}`, workspaceSubject), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -294,7 +307,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
   const handleDeleteProblemType = async (id: string) => {
     setIsDeleting(true)
     try {
-      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/problem-types/${id}`, workspaceSubject), {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/question-bank/problem-types/${id}`, workspaceSubject), {
         method: 'DELETE',
       })
       
@@ -345,7 +358,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
         throw new Error('문제 유형 이름을 입력해주세요.')
       }
       
-      const response = await fetch(withAdminWorkspaceSubject('/api/admin/problem-types', workspaceSubject), {
+      const response = await fetch(withAdminWorkspaceSubject('/api/admin/question-bank/problem-types', workspaceSubject), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newProblemType),
@@ -440,7 +453,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
     }
   }
   
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       handleFileParse(file)
@@ -451,7 +464,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
     }
   }
   
-  const handleDrag = (e: React.DragEvent) => {
+  const handleDrag = (e: DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     if (e.type === 'dragenter' || e.type === 'dragover') {
@@ -461,7 +474,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
     }
   }
   
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = (e: DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setDragActive(false)
@@ -478,16 +491,117 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
       handleFileParse(file)
     }
   }
+
+  const hasRequiredParsedFields = (question: ParsedQuestion) => Boolean(
+    (question.bankProblemTypeId || question.problem_type_id) &&
+    question.question_text.trim() &&
+    question.answer.trim() &&
+    question.yearId &&
+    question.bookId
+  )
+
+  const handleMarkHwpxQuestionReviewed = (questionId: string) => {
+    setParsedQuestions(current => current.map((question) => {
+      if (question.id !== questionId) return question
+      if (!hasRequiredParsedFields(question)) {
+        return { ...question, isValid: false, conversionStatus: 'invalid', errorMessage: '필수 항목을 먼저 입력해주세요.' }
+      }
+      return { ...question, isValid: true, conversionStatus: 'valid', errorMessage: undefined, warnings: [] }
+    }))
+  }
+
+  const handleHwpxAnalyze = async (file: File) => {
+    if (!hwpxYearId || !hwpxBookId) {
+      toast.error('연도와 교재를 선택해주세요.')
+      return
+    }
+
+    setIsAnalyzingHwpx(true)
+    setParsedQuestions([])
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('yearId', hwpxYearId)
+      formData.append('bookId', hwpxBookId)
+      formData.append('defaultGradeLevel', hwpxDefaultGradeLevel)
+      formData.append('defaultDifficulty', hwpxDefaultDifficulty)
+      formData.append('sourceType', hwpxSourceType)
+
+      const response = await fetch(withAdminWorkspaceSubject('/api/admin/questions/hwpx-analyze', workspaceSubject), {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'HWPX 분석에 실패했습니다.')
+      }
+
+      setParsedQuestions(data.questions || [])
+      toast.success(`HWPX 분석 결과 ${data.summary?.total || 0}개의 문제 초안을 만들었습니다. 저장 전 반드시 검수해주세요.`)
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error))
+    } finally {
+      setIsAnalyzingHwpx(false)
+      if (hwpxFileInputRef.current) hwpxFileInputRef.current.value = ''
+    }
+  }
+
+  const handleHwpxFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) handleHwpxAnalyze(file)
+  }
+
+  const handleDownloadFilledTemplate = async () => {
+    if (parsedQuestions.length === 0) {
+      toast.error('다운로드할 분석 결과가 없습니다.')
+      return
+    }
+
+    setIsDownloadingFilledTemplate(true)
+    try {
+      const response = await fetch(withAdminWorkspaceSubject('/api/admin/questions/filled-template', workspaceSubject), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questions: parsedQuestions }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || '채워진 템플릿 다운로드에 실패했습니다.')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'question_upload_template_filled.xlsx'
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      toast.success('채워진 템플릿이 다운로드되었습니다.')
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error))
+    } finally {
+      setIsDownloadingFilledTemplate(false)
+    }
+  }
   
   // Update parsed question
   const handleUpdateParsedQuestion = (id: string, field: string, value: string | string[]) => {
     setParsedQuestions(prev => prev.map(q => {
       if (q.id === id) {
         const updated = { ...q, [field]: value }
-        // Revalidate
-        updated.isValid = validateParsedQuestion(updated)
+        // Revalidate. HWPX needs_review rows remain blocked until explicit review approval.
+        const structurallyValid = validateParsedQuestion(updated)
+        updated.isValid = structurallyValid && updated.conversionStatus !== 'needs_review'
         if (updated.isValid) {
           updated.errorMessage = undefined
+        } else if (structurallyValid && updated.conversionStatus === 'needs_review') {
+          updated.errorMessage = 'AI 분석 결과 검수 완료가 필요합니다.'
         }
         return updated
       }
@@ -501,9 +615,12 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
         const newChoices = [...q.choices]
         newChoices[choiceIndex] = value
         const updated = { ...q, choices: newChoices }
-        updated.isValid = validateParsedQuestion(updated)
+        const structurallyValid = validateParsedQuestion(updated)
+        updated.isValid = structurallyValid && updated.conversionStatus !== 'needs_review'
         if (updated.isValid) {
           updated.errorMessage = undefined
+        } else if (structurallyValid && updated.conversionStatus === 'needs_review') {
+          updated.errorMessage = 'AI 분석 결과 검수 완료가 필요합니다.'
         }
         return updated
       }
@@ -572,7 +689,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
       explanation: question.explanation || undefined,
       difficulty: question.difficulty || undefined,
       grade_level: question.grade_level || undefined,
-      problem_type_id: question.problem_type_id,
+      bankProblemTypeId: question.bankProblemTypeId || question.problem_type_id,
       source_type: question.source_type,
       source_1: question.source_1,
       source_2: question.source_2,
@@ -601,6 +718,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
             question: formatParsedQuestionForUpload(question),
             yearId: question.yearId,
             bookId: question.bookId,
+            bankProblemTypeId: question.bankProblemTypeId || question.problem_type_id,
             clientRowId: question.clientRowId,
           })),
         }),
@@ -632,7 +750,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
   }
 
   // Single upload submit
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
     
@@ -725,6 +843,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
         source_2: formData.source_2 || undefined,
         source_3: formData.source_3 || undefined,
         source_4: formData.source_4 || undefined,
+        bankProblemTypeId: formData.problem_type_id,
       }
       
       console.log('[Client Single Upload] Request body:', JSON.stringify(requestBody, null, 2))
@@ -786,10 +905,83 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
   }
 
   const validCount = parsedQuestions.filter(q => q.isValid).length
-  const invalidCount = parsedQuestions.filter(q => !q.isValid).length
+  const needsReviewCount = parsedQuestions.filter(q => q.conversionStatus === 'needs_review').length
+  const invalidCount = parsedQuestions.filter(q => !q.isValid && q.conversionStatus !== 'needs_review').length
   
   return (
     <>
+      {/* HWPX AI Template Conversion Section */}
+      <Card className="mb-8 border-blue-200 bg-blue-50/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Upload className="h-5 w-5" />
+            AI 템플릿 변환
+          </CardTitle>
+          <CardDescription>
+            HWPX 파일에서 텍스트를 추출해 AI가 문제은행 업로드 초안을 만듭니다. 문서 내용은 AI provider로 전송되며, 저장 전 반드시 검수해야 합니다.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>연도 *</Label>
+              <Select value={hwpxYearId} onValueChange={setHwpxYearId}>
+                <SelectTrigger><SelectValue placeholder="연도 선택" /></SelectTrigger>
+                <SelectContent>
+                  {bankYears.map((year) => (
+                    <SelectItem key={year.id} value={year.id}>{year.label || year.year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>교재 *</Label>
+              <Select value={hwpxBookId} onValueChange={setHwpxBookId}>
+                <SelectTrigger><SelectValue placeholder="교재 선택" /></SelectTrigger>
+                <SelectContent>
+                  {bankBooks.map((book) => (
+                    <SelectItem key={book.id} value={book.id}>{book.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label>기본 학년</Label>
+              <Select value={hwpxDefaultGradeLevel} onValueChange={setHwpxDefaultGradeLevel}>
+                <SelectTrigger><SelectValue placeholder="선택 안 함" /></SelectTrigger>
+                <SelectContent>
+                  {gradeLevels.map((grade) => (
+                    <SelectItem key={grade} value={grade}>{grade}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>기본 난이도</Label>
+              <Select value={hwpxDefaultDifficulty} onValueChange={setHwpxDefaultDifficulty}>
+                <SelectTrigger><SelectValue placeholder="선택 안 함" /></SelectTrigger>
+                <SelectContent>
+                  {difficulties.map((difficulty) => (
+                    <SelectItem key={difficulty} value={difficulty}>{difficulty}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>기본 출처종류</Label>
+              <Input value={hwpxSourceType} onChange={(event) => setHwpxSourceType(event.target.value)} placeholder="예: 수능특강" />
+            </div>
+          </div>
+          <input ref={hwpxFileInputRef} type="file" accept=".hwpx" onChange={handleHwpxFileChange} className="hidden" />
+          <Button type="button" onClick={() => hwpxFileInputRef.current?.click()} disabled={isAnalyzingHwpx || !hwpxYearId || !hwpxBookId}>
+            {isAnalyzingHwpx ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+            HWPX 업로드 후 AI 분석
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Bulk Upload Section */}
       <Card className="mb-8">
         <CardHeader>
@@ -883,6 +1075,12 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
                 <span className="text-sm text-green-600">유효</span>
                 <p className="text-xl font-bold text-green-600">{validCount}개</p>
               </div>
+              {needsReviewCount > 0 && (
+                <div>
+                  <span className="text-sm text-amber-600">검수 필요</span>
+                  <p className="text-xl font-bold text-amber-600">{needsReviewCount}개</p>
+                </div>
+              )}
               {invalidCount > 0 && (
                 <div>
                   <span className="text-sm text-red-600">오류</span>
@@ -891,6 +1089,14 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
               )}
             </div>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleDownloadFilledTemplate}
+                disabled={isDownloadingFilledTemplate || parsedQuestions.length === 0}
+              >
+                {isDownloadingFilledTemplate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                채워진 템플릿 다운로드
+              </Button>
               <Button 
                 variant="outline" 
                 onClick={handleClearAllParsed}
@@ -923,6 +1129,12 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <CardTitle className="text-lg">문제 {index + 1}</CardTitle>
+                    {question.conversionStatus && (
+                      <Badge variant={question.conversionStatus === 'valid' ? 'default' : question.conversionStatus === 'needs_review' ? 'secondary' : 'destructive'}>
+                        {question.conversionStatus === 'valid' ? 'AI 검수 완료' : question.conversionStatus === 'needs_review' ? '검수 필요' : '변환 오류'}
+                      </Badge>
+                    )}
+                    {typeof question.confidence === 'number' && <Badge variant="outline">신뢰도 {Math.round(question.confidence * 100)}%</Badge>}
                     {!question.isValid && (
                       <div className="flex items-center gap-1 text-red-600 text-sm">
                         <AlertCircle className="h-4 w-4" />
@@ -941,6 +1153,26 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
+                {question.warnings && question.warnings.length > 0 && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    <p className="font-medium">AI 경고</p>
+                    <ul className="mt-1 list-disc pl-5">
+                      {question.warnings.map((warning, warningIndex) => <li key={warningIndex}>{warning}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {question.sourceSnippet && (
+                  <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+                    <p className="font-medium text-slate-900">원문 스니펫</p>
+                    <p className="mt-1 whitespace-pre-wrap">{question.sourceSnippet}</p>
+                  </div>
+                )}
+                {question.conversionStatus === 'needs_review' && (
+                  <Button type="button" variant="outline" onClick={() => handleMarkHwpxQuestionReviewed(question.id)}>
+                    검수 완료
+                  </Button>
+                )}
+
                 {/* Problem Type */}
                 <div className="space-y-2">
                   <Label>문제 유형 *</Label>
@@ -1187,6 +1419,14 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
               <span className="font-bold text-green-600 ml-1">{validCount}</span>개 업로드 가능
             </p>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleDownloadFilledTemplate}
+                disabled={isDownloadingFilledTemplate || parsedQuestions.length === 0}
+              >
+                {isDownloadingFilledTemplate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                채워진 템플릿 다운로드
+              </Button>
               <Button 
                 variant="outline" 
                 onClick={handleClearAllParsed}
