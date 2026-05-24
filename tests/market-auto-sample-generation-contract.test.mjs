@@ -49,7 +49,16 @@ test('pdf sample generator paints a white background before jpg export', () => {
   assert.match(sampleGenerator, /fillRect\(0, 0, canvas\.width, canvas\.height\)/)
   assert.ok(
     sampleGenerator.indexOf('fillRect(0, 0, canvas.width, canvas.height)') <
-      sampleGenerator.indexOf("toDataURL('image/jpeg', 0.9)"),
+      sampleGenerator.indexOf("targetCanvas.toDataURL('image/jpeg', jpegQuality)"),
     'white background fill should happen before JPG export'
   )
+})
+
+test('pdf sample generator targets about 100KB per JPG sample page', () => {
+  assert.match(sampleGenerator, /const MARKET_SAMPLE_PAGE_TARGET_BYTES = 100 \* 1024/)
+  assert.match(sampleGenerator, /const MARKET_SAMPLE_PAGE_JPEG_QUALITIES = \[/)
+  assert.match(sampleGenerator, /const MARKET_SAMPLE_PAGE_RENDER_SCALES = \[/)
+  assert.match(sampleGenerator, /selectSampleJpegDataUrl/)
+  assert.match(sampleGenerator, /sizeBytes <= targetBytes/)
+  assert.doesNotMatch(sampleGenerator, /toDataURL\('image\/jpeg', 0\.9\)/)
 })
