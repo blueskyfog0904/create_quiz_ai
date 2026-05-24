@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { ReactNode } from 'react'
-import { CalendarDays, Eye, FileArchive, FileText, GraduationCap, PackageCheck, Sparkles } from 'lucide-react'
+import { CalendarDays, Eye, FileArchive, GraduationCap, PackageCheck, Sparkles } from 'lucide-react'
 import { getUser } from '@/lib/auth'
 import { resolveWorkspaceSubject } from '@/lib/workspace-subject'
 import { getWorkspaceSubjectTheme } from '@/lib/workspace-theme'
@@ -135,30 +135,20 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
 
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr),360px]">
             <div className="space-y-6">
-              <Card className="border-dashed bg-slate-50/60">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg"><FileText className="h-5 w-5 text-slate-500" />자료 정보</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <dl className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-                    {materialInfoRows.map((row) => (
-                      <div key={row.label} className="rounded-xl border bg-white px-3 py-3">
-                        <dt className="text-xs font-medium text-gray-500">{row.label}</dt>
-                        <dd className="mt-2 break-words text-sm font-semibold text-gray-900">{row.value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </CardContent>
-              </Card>
-
-              <Card className="border-dashed bg-slate-50/60">
-                <CardHeader>
-                  <CardTitle className="text-lg">상세 설명</CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm leading-7 text-gray-600">
+              <section className="space-y-5 rounded-2xl bg-white">
+                <h2 className="text-lg font-semibold text-gray-900">자료 정보</h2>
+                <dl className="grid gap-x-10 gap-y-5 md:grid-cols-2 rounded-2xl bg-slate-50 px-5 py-5 text-sm">
+                  {materialInfoRows.map((row) => (
+                    <div key={row.label} className="flex gap-6">
+                      <dt className="min-w-[72px] text-gray-500">{row.label}</dt>
+                      <dd className="break-words font-medium text-gray-800">{row.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <div className="whitespace-pre-line rounded-2xl bg-slate-50 px-5 py-5 text-sm leading-8 text-gray-600">
                   {item.description || '상세 설명은 아직 등록되지 않았습니다.'}
-                </CardContent>
-              </Card>
+                </div>
+              </section>
             </div>
 
             <Card className="h-fit lg:sticky lg:top-24">
