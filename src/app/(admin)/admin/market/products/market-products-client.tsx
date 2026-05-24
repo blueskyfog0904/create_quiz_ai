@@ -83,6 +83,10 @@ function buildExamYearOptions(baseYear = MAX_EXAM_YEAR) {
   return Array.from({ length: Math.max(baseYear - MIN_EXAM_YEAR + 1, 1) }, (_, index) => String(baseYear - index))
 }
 
+function getDefaultExamYear() {
+  return String(new Date().getFullYear())
+}
+
 function buildEmptyForm(menuEntryId = ''): MarketItemFormState {
   return {
     menuEntryId,
@@ -90,7 +94,7 @@ function buildEmptyForm(menuEntryId = ''): MarketItemFormState {
     summary: '',
     description: '',
     thumbnailUrl: '',
-    examYear: '',
+    examYear: getDefaultExamYear(),
     examMonth: '',
     gradeLevel: '',
     sourceType: '',
@@ -207,6 +211,10 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     () => MARKET_ASSET_KINDS.filter((assetKind) => Boolean(selectedFiles[assetKind])),
     [selectedFiles]
   )
+
+  const focusCurrentExamYear = () => {
+    setForm((current) => current.examYear ? current : { ...current, examYear: getDefaultExamYear() })
+  }
 
   const resetForm = (menuEntryId = selectedMenuEntryId) => {
     setForm(buildEmptyForm(menuEntryId))
@@ -901,6 +909,8 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                 <Label>연도</Label>
                 <select
                   value={form.examYear}
+                  onMouseDown={focusCurrentExamYear}
+                  onFocus={focusCurrentExamYear}
                   onChange={(event) => setForm((current) => ({ ...current, examYear: event.target.value }))}
                   className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
                 >

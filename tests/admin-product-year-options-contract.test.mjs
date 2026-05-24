@@ -18,6 +18,15 @@ test('admin market product year options extend to 2050', () => {
   assert.doesNotMatch(marketProductsClient, /buildExamYearOptions\(baseYear = new Date\(\)\.getFullYear\(\)\)/)
 })
 
+test('admin market product year select defaults blank forms to the current year before opening', () => {
+  assert.match(marketProductsClient, /function getDefaultExamYear\(\)/)
+  assert.match(marketProductsClient, /examYear: getDefaultExamYear\(\)/)
+  assert.match(marketProductsClient, /const focusCurrentExamYear = \(\) => \{/)
+  assert.match(marketProductsClient, /examYear: getDefaultExamYear\(\)/)
+  assert.match(marketProductsClient, /onMouseDown=\{focusCurrentExamYear\}/)
+  assert.match(marketProductsClient, /onFocus=\{focusCurrentExamYear\}/)
+})
+
 test('admin generate product year options extend to 2050', () => {
   assert.match(generateProductsClient, /const MAX_EXAM_YEAR = 2050/)
   assert.match(generateProductsClient, /function buildExamYearOptions\(baseYear = MAX_EXAM_YEAR\)/)
