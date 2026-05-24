@@ -36,3 +36,9 @@ test('admin upload UI marks only upload-created drafts as auto_upload and explic
   assert.match(adminProductsClient, /requiresFinalRegistration/)
   assert.match(adminProductsClient, /등록 취소 및 파일 삭제/)
 })
+
+test('admin product form returns to a blank new-product form after registration completes', () => {
+  assert.match(adminProductsClient, /if \(requiresFinalRegistration\) {\s*resetForm\(result\.menu_entry_id\)\s*return\s*}/s)
+  assert.match(adminProductsClient, /toast\.success\('문제마켓 상품을 생성했습니다\.'\)\s*setRequiresFinalRegistration\(false\)\s*resetForm\(createdItem\.menu_entry_id\)/s)
+  assert.match(adminProductsClient, /toast\.success\(`상품 등록과 파일 \$\{successCount\}개 업로드를 완료했습니다\.`\)\s*setRequiresFinalRegistration\(false\)\s*resetForm\(createdItem\.menu_entry_id\)/s)
+})

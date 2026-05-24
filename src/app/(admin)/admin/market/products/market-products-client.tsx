@@ -385,6 +385,10 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     if (form.id) {
       const result = await persistForm(undefined, { draftSource: 'manual' })
       if (result) {
+        if (requiresFinalRegistration) {
+          resetForm(result.menu_entry_id)
+          return
+        }
         setRequiresFinalRegistration(false)
       }
       return
@@ -415,6 +419,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       if (uploadTargets.length === 0) {
         toast.success('문제마켓 상품을 생성했습니다.')
         setRequiresFinalRegistration(false)
+        resetForm(createdItem.menu_entry_id)
         return
       }
 
@@ -443,11 +448,15 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
         })
         if (publishedItem) {
           setRequiresFinalRegistration(false)
+        } else {
+          return
         }
       }
 
       if (failedCount === 0) {
         toast.success(`상품 등록과 파일 ${successCount}개 업로드를 완료했습니다.`)
+        setRequiresFinalRegistration(false)
+        resetForm(createdItem.menu_entry_id)
         return
       }
 
