@@ -920,9 +920,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                   ))}
                 </select>
               </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>월</Label>
                 <select
@@ -936,6 +933,9 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>상태</Label>
                 <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as MarketItemFormState['status'] }))} className="flex h-10 w-full rounded-md border bg-white px-3 text-sm">

@@ -27,6 +27,17 @@ test('admin market product year select defaults blank forms to the current year 
   assert.match(marketProductsClient, /onFocus=\{focusCurrentExamYear\}/)
 })
 
+test('admin market product schedule controls are aligned in paired rows', () => {
+  assert.match(
+    marketProductsClient,
+    /<div className="grid gap-4 md:grid-cols-2">\s*<div className="space-y-2">\s*<Label>연도<\/Label>[\s\S]*?<\/select>\s*<\/div>\s*<div className="space-y-2">\s*<Label>월<\/Label>/
+  )
+  assert.match(
+    marketProductsClient,
+    /<div className="grid gap-4 md:grid-cols-2">\s*<div className="space-y-2">\s*<Label>상태<\/Label>[\s\S]*?<\/select>\s*<\/div>\s*<div className="flex items-end">\s*<div className="flex h-10 w-full items-center justify-between rounded-md border px-3">[\s\S]*?활성화/
+  )
+})
+
 test('admin generate product year options extend to 2050', () => {
   assert.match(generateProductsClient, /const MAX_EXAM_YEAR = 2050/)
   assert.match(generateProductsClient, /function buildExamYearOptions\(baseYear = MAX_EXAM_YEAR\)/)
