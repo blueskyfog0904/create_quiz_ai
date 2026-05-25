@@ -1,3 +1,10 @@
+export const MAX_SAMPLE_PAGE_PIXELS = 12_000_000
+export const MAX_SAMPLE_PAGE_DIMENSION_PX = 5_000
+export const MAX_GENERATED_SAMPLE_PAGE_BYTES = 3 * 1024 * 1024
+export const MAX_GENERATED_SAMPLE_TOTAL_BYTES = 9 * 1024 * 1024
+export const SAMPLE_PDF_DOCUMENT_LOAD_TIMEOUT_MS = 10_000
+export const SAMPLE_PDF_PAGE_RENDER_TIMEOUT_MS = 10_000
+
 export interface GeneratedMarketSamplePage {
   pageNumber: number
   fileName: string
@@ -112,7 +119,7 @@ export async function generateMarketPdfSamplePages(
         ])
       })
 
-      const renderedPages = await page.evaluate(async ({ pdfBase64, workerUrl, maxPages }) => {
+      const renderedPages = await page.evaluate(async ({ pdfBase64, workerUrl, maxPages, limits }) => {
         const browserGlobal = globalThis as MarketPdfSampleBrowserGlobal
         const pdfjsLib = browserGlobal.__marketPdfSamplePdfjsLib
         if (!pdfjsLib) {
@@ -126,12 +133,22 @@ export async function generateMarketPdfSamplePages(
           data[index] = binary.charCodeAt(index)
         }
 
-        const pdf = await pdfjsLib.getDocument({ data }).promise
+        const pdf = await Promise.race([
+          pdfjsLib.getDocument({ data }).promise,
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('샘플 PDF 문서 로드 시간이 초과되었습니다.')), limits.documentLoadTimeoutMs)),
+        ])
         const pageCount = Math.min(Math.max(maxPages, 0), pdf.numPages)
         const pages = []
         for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
           const pdfPage = await pdf.getPage(pageNumber)
-          const viewport = pdfPage.getViewport({ scale: 1.5 })
+          const baseViewport = pdfPage.getViewport({ scale: 1.5 })
+          const dimensionScale = Math.min(1, limits.maxDimensionPx / Math.max(baseViewport.width, baseViewport.height))
+          const pixelScale = Math.min(1, Math.sqrt(limits.maxPagePixels / Math.max(baseViewport.width * baseViewport.height, 1)))
+          const safeScale = Math.max(0.1, Math.min(dimensionScale, pixelScale))
+          const viewport = safeScale < 1 ? pdfPage.getViewport({ scale: 1.5 * safeScale }) : baseViewport
+          if (viewport.width * viewport.height > limits.maxPagePixels || Math.max(viewport.width, viewport.height) > limits.maxDimensionPx) {
+            throw new Error('샘플 PDF 페이지 크기가 허용 범위를 초과했습니다.')
+          }
           const canvas = document.createElement('canvas')
           canvas.width = Math.ceil(viewport.width)
           canvas.height = Math.ceil(viewport.height)
@@ -142,7 +159,10 @@ export async function generateMarketPdfSamplePages(
 
           context.fillStyle = '#fff'
           context.fillRect(0, 0, canvas.width, canvas.height)
-          await pdfPage.render({ canvasContext: context, viewport }).promise
+          await Promise.race([
+            pdfPage.render({ canvasContext: context, viewport }).promise,
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('샘플 PDF 페이지 렌더링 시간이 초과되었습니다.')), limits.pageRenderTimeoutMs)),
+          ])
           pages.push({
             pageNumber,
             widthPx: canvas.width,
@@ -156,10 +176,24 @@ export async function generateMarketPdfSamplePages(
         pdfBase64: pdfBuffer.toString('base64'),
         workerUrl: moduleHandles.workerUrl,
         maxPages,
+        limits: {
+          maxPagePixels: MAX_SAMPLE_PAGE_PIXELS,
+          maxDimensionPx: MAX_SAMPLE_PAGE_DIMENSION_PX,
+          documentLoadTimeoutMs: SAMPLE_PDF_DOCUMENT_LOAD_TIMEOUT_MS,
+          pageRenderTimeoutMs: SAMPLE_PDF_PAGE_RENDER_TIMEOUT_MS,
+        },
       })
 
+      let totalGeneratedBytes = 0
       return renderedPages.map((page) => {
         const buffer = dataUrlToBuffer(page.dataUrl)
+        totalGeneratedBytes += buffer.byteLength
+        if (buffer.byteLength > MAX_GENERATED_SAMPLE_PAGE_BYTES) {
+          throw new Error('샘플 JPG 페이지 용량이 허용 범위를 초과했습니다.')
+        }
+        if (totalGeneratedBytes > MAX_GENERATED_SAMPLE_TOTAL_BYTES) {
+          throw new Error('샘플 JPG 전체 용량이 허용 범위를 초과했습니다.')
+        }
         return {
           pageNumber: page.pageNumber,
           fileName: buildSampleFileName(sourceFileName, page.pageNumber),

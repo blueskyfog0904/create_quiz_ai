@@ -83,14 +83,16 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
     : []
   const hasSamplePages = samplePages.length > 0
   const hasLegacySample = files.some((file) => file.asset_kind === 'sample')
-  const hasSample = hasSamplePages || hasLegacySample
+  const hasSample = hasSamplePages
   const hasPdf = files.some((file) => file.asset_kind === 'pdf')
   const hasHwp = files.some((file) => file.asset_kind === 'hwp')
+  const hasZip = files.some((file) => file.asset_kind === 'zip')
   const ownsPdf = purchases.some((purchase) => purchase.asset_kind === 'pdf' || purchase.asset_kind === 'hwp')
   const ownsHwp = purchases.some((purchase) => purchase.asset_kind === 'hwp')
+  const ownsZip = purchases.some((purchase) => purchase.asset_kind === 'zip')
   const sources = collectSources(item)
-  const ownedCount = Number(ownsPdf) + Number(ownsHwp)
-  const fileLabels = [hasPdf ? 'PDF' : null, hasHwp ? 'HWP & PDF' : null].filter(Boolean).join(' · ') || '제공 파일 없음'
+  const ownedCount = Number(ownsPdf) + Number(ownsHwp) + Number(ownsZip)
+  const fileLabels = [hasPdf ? 'PDF' : null, hasHwp ? 'HWP & PDF' : null, hasZip ? 'ZIP' : null].filter(Boolean).join(' · ') || '제공 파일 없음'
   const subjectTheme = getWorkspaceSubjectTheme(item.workspace_subject)
   const materialInfoRows = [
     { label: '과목', value: resolveWorkspaceSubjectLabel(item.workspace_subject) },
@@ -121,6 +123,7 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
               {hasSample ? <Badge className="bg-white/15 text-white hover:bg-white/15"><Sparkles className="mr-1 h-3 w-3" />샘플 제공</Badge> : null}
               {hasPdf ? <Badge className="bg-white/15 text-white hover:bg-white/15">PDF</Badge> : null}
               {hasHwp ? <Badge className="bg-white/15 text-white hover:bg-white/15">HWP & PDF</Badge> : null}
+              {hasZip ? <Badge className="bg-white/15 text-white hover:bg-white/15">ZIP</Badge> : null}
               {ownedCount > 0 ? <Badge className="bg-emerald-400/20 text-emerald-100 hover:bg-emerald-400/20">구매 완료 {ownedCount}건</Badge> : null}
             </div>
           </div>
@@ -161,14 +164,17 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
                   hasHwp={hasHwp}
                   hasLegacySample={hasLegacySample}
                   hasPdf={hasPdf}
+                  hasZip={hasZip}
                   hasSamplePages={hasSamplePages}
                   hwpPrice={item.hwp_price}
                   itemId={item.id}
                   isLoggedIn={Boolean(user)}
                   ownsHwp={ownsHwp}
                   ownsPdf={ownsPdf}
+                  ownsZip={ownsZip}
                   pdfPrice={item.pdf_price}
                   samplePageCount={samplePages.length}
+                  zipPrice={item.zip_price}
                   workspaceSubject={item.workspace_subject}
                 />
               </CardContent>

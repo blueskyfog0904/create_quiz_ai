@@ -29,14 +29,19 @@ export interface MarketLibraryRow {
   lastDownloadedAt: string | null
   pdfOwned: boolean
   hwpOwned: boolean
+  zipOwned: boolean
   pdfPurchasedAt: string | null
   hwpPurchasedAt: string | null
+  zipPurchasedAt: string | null
   pdfDownloadUrl: string | null
   hwpDownloadUrl: string | null
+  zipDownloadUrl: string | null
   pdfAvailable: boolean
   hwpAvailable: boolean
+  zipAvailable: boolean
   pdfFileName: string | null
   hwpFileName: string | null
+  zipFileName: string | null
 }
 
 export interface MarketListboardAssetRow {
@@ -63,12 +68,13 @@ export interface MarketListboardRow {
   rowNumber: number
   pdf: MarketListboardAssetRow
   hwp: MarketListboardAssetRow
+  zip: MarketListboardAssetRow
   sample: MarketListboardSampleRow
 }
 
 export interface MarketItemListFilters {
   search?: string
-  assetKind?: 'pdf' | 'hwp' | 'sample' | 'all'
+  assetKind?: 'pdf' | 'hwp' | 'zip' | 'sample' | 'all'
   gradeLevel?: string
   examYear?: number
   examMonth?: number
@@ -209,6 +215,7 @@ function validateMarketItemInput(input: {
   title?: string | null
   pdf_price?: number | null
   hwp_price?: number | null
+  zip_price?: number | null
 }) {
   const title = normalizeText(input.title)
   if (!title) {
@@ -221,11 +228,13 @@ function validateMarketItemInput(input: {
 
   ensureNonNegativeInteger(input.pdf_price ?? 0, 'PDF 가격')
   ensureNonNegativeInteger(input.hwp_price ?? 0, 'HWP 가격')
+  ensureNonNegativeInteger(input.zip_price ?? 0, 'ZIP 가격')
 
   return {
     title,
     pdfPrice: input.pdf_price ?? 0,
     hwpPrice: input.hwp_price ?? 0,
+    zipPrice: input.zip_price ?? 0,
   }
 }
 
@@ -302,10 +311,14 @@ export async function listPublishedMarketItems(menuEntryId: string, filters: Mar
     query = query.gt('hwp_price', 0)
   }
 
+  if (filters.assetKind === 'zip') {
+    query = query.gt('zip_price', 0)
+  }
+
   if (filters.sort === 'views') {
     query = query.order('view_count', { ascending: false }).order('published_at', { ascending: false })
   } else if (filters.sort === 'price_asc') {
-    query = query.order('pdf_price', { ascending: true }).order('hwp_price', { ascending: true })
+    query = query.order('pdf_price', { ascending: true }).order('hwp_price', { ascending: true }).order('zip_price', { ascending: true })
   } else {
     query = query.order('published_at', { ascending: false }).order('created_at', { ascending: false })
   }
@@ -342,7 +355,7 @@ export async function listPublishedMarketListboardRows(
       .from('market_item_files')
       .select('item_id, asset_kind, original_file_name')
       .in('item_id', itemIds)
-      .in('asset_kind', ['pdf', 'hwp', 'sample'])
+      .in('asset_kind', ['pdf', 'hwp', 'zip'])
       .eq('is_active', true)
       .is('deleted_at', null)
       .eq('workspace_subject', menuEntry.workspace_subject),
@@ -353,7 +366,7 @@ export async function listPublishedMarketListboardRows(
         .eq('user_id', userId)
         .eq('status', 'completed')
         .in('item_id', itemIds)
-        .in('asset_kind', ['pdf', 'hwp'])
+        .in('asset_kind', ['pdf', 'hwp', 'zip'])
         .eq('workspace_subject', menuEntry.workspace_subject)
       : Promise.resolve({ data: [], error: null }),
     listActiveMarketItemSamplePagesForItems(itemIds, menuEntry.workspace_subject),
@@ -367,21 +380,22 @@ export async function listPublishedMarketListboardRows(
     throw new Error(purchasesError.message)
   }
 
-  const fileMap = new Map<string, { pdf: string | null; hwp: string | null; sample: string | null }>()
+  const fileMap = new Map<string, { pdf: string | null; hwp: string | null; zip: string | null }>()
   for (const file of files ?? []) {
-    const current = fileMap.get(file.item_id) ?? { pdf: null, hwp: null, sample: null }
+    const current = fileMap.get(file.item_id) ?? { pdf: null, hwp: null, zip: null }
     if (file.asset_kind === 'pdf') current.pdf = file.original_file_name
     if (file.asset_kind === 'hwp') current.hwp = file.original_file_name
-    if (file.asset_kind === 'sample') current.sample = file.original_file_name
+    if (file.asset_kind === 'zip') current.zip = file.original_file_name
     fileMap.set(file.item_id, current)
   }
 
   const ownership = new Set((purchases ?? []).map((purchase) => `${purchase.item_id}:${purchase.asset_kind}`))
 
   return items.map((item, index) => {
-    const filesForItem = fileMap.get(item.id) ?? { pdf: null, hwp: null, sample: null }
+    const filesForItem = fileMap.get(item.id) ?? { pdf: null, hwp: null, zip: null }
     const samplePages = samplePageMap.get(item.id) ?? []
     const pdfOwned = ownership.has(`${item.id}:pdf`) || ownership.has(`${item.id}:hwp`)
+    const zipOwned = ownership.has(`${item.id}:zip`)
 
     return {
       itemId: item.id,
@@ -404,13 +418,19 @@ export async function listPublishedMarketListboardRows(
         price: item.hwp_price,
         fileName: filesForItem.hwp,
       },
+      zip: {
+        available: filesForItem.zip !== null && item.zip_price > 0,
+        owned: zipOwned,
+        price: item.zip_price,
+        fileName: filesForItem.zip,
+      },
       sample: {
-        available: samplePages.length > 0 || filesForItem.sample !== null,
-        fileName: filesForItem.sample,
+        available: samplePages.length > 0,
+        fileName: samplePages[0]?.original_file_name ?? null,
         pageCount: samplePages.length,
       },
     }
-  })
+  }).filter((row) => filters.assetKind === 'sample' ? row.sample.available : true)
 }
 
 export async function getMarketItemById(id: string, workspaceSubject?: WorkspaceSubject): Promise<MarketItem | null> {
@@ -487,7 +507,7 @@ export async function listMarketItemFiles(
 
 export async function getActiveMarketItemFile(
   itemId: string,
-  assetKind: 'sample' | 'pdf' | 'hwp',
+  assetKind: 'sample' | 'pdf' | 'hwp' | 'zip',
   workspaceSubject?: WorkspaceSubject
 ): Promise<MarketItemFile | null> {
   const supabase = getAdminSupabase()
@@ -516,7 +536,7 @@ export async function createMarketItem(
   input: Pick<TablesInsert<'market_items'>,
     'menu_entry_id' | 'title' | 'summary' | 'description' | 'thumbnail_url' | 'exam_year' | 'exam_month' |
     'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'question_count' |
-    'pdf_price' | 'hwp_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'draft_source' | 'created_by' | 'updated_by'>
+    'pdf_price' | 'hwp_price' | 'zip_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'draft_source' | 'created_by' | 'updated_by'>
 ) {
   const supabase = getAdminSupabase()
   const normalized = validateMarketItemInput(input)
@@ -544,6 +564,7 @@ export async function createMarketItem(
     question_count: input.question_count ?? null,
     pdf_price: normalized.pdfPrice,
     hwp_price: normalized.hwpPrice,
+    zip_price: normalized.zipPrice,
     sort_order: input.sort_order ?? 0,
     status: input.status ?? 'draft',
     draft_source: input.draft_source ?? 'manual',
@@ -571,7 +592,7 @@ export async function updateMarketItem(
   input: Pick<TablesUpdate<'market_items'>,
     'title' | 'summary' | 'description' | 'thumbnail_url' | 'exam_year' | 'exam_month' |
     'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'question_count' | 'menu_entry_id' |
-    'pdf_price' | 'hwp_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'draft_source' | 'updated_by'>
+    'pdf_price' | 'hwp_price' | 'zip_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'draft_source' | 'updated_by'>
 ) {
   const supabase = getAdminSupabase()
   const current = await getMarketItemById(id)
@@ -598,6 +619,7 @@ export async function updateMarketItem(
     title: input.title ?? current.title,
     pdf_price: input.pdf_price ?? current.pdf_price,
     hwp_price: input.hwp_price ?? current.hwp_price,
+    zip_price: input.zip_price ?? current.zip_price,
   })
 
   const nextStatus = input.status ?? current.status
@@ -620,6 +642,7 @@ export async function updateMarketItem(
     question_count: input.question_count === undefined ? current.question_count : input.question_count,
     pdf_price: normalized.pdfPrice,
     hwp_price: normalized.hwpPrice,
+    zip_price: normalized.zipPrice,
     sort_order: input.sort_order ?? current.sort_order,
     status: nextStatus,
     draft_source: input.draft_source ?? current.draft_source,
@@ -671,7 +694,7 @@ export async function archiveMarketItem(id: string, updatedBy?: string | null) {
 
 export async function replaceMarketItemFile(
   itemId: string,
-  assetKind: 'sample' | 'pdf' | 'hwp',
+  assetKind: 'sample' | 'pdf' | 'hwp' | 'zip',
   input: Pick<TablesInsert<'market_item_files'>,
     'storage_bucket' | 'storage_path' | 'original_file_name' | 'mime_type' | 'file_size_bytes' | 'checksum' | 'created_by'>
 ) {
@@ -780,7 +803,7 @@ export async function listCompletedMarketPurchasesForUser(
 export async function findCompletedMarketPurchase(
   userId: string,
   itemId: string,
-  assetKind: 'pdf' | 'hwp',
+  assetKind: 'pdf' | 'hwp' | 'zip',
   workspaceSubject?: WorkspaceSubject
 ) {
   const supabase = getAdminSupabase()
@@ -903,11 +926,47 @@ export async function createMarketPurchases(inputs: MarketPurchaseInsert[]): Pro
 }
 
 
+export async function rollbackMarketPurchases(purchaseIds: string[], userId: string): Promise<void> {
+  const ids = Array.from(new Set(purchaseIds.filter(Boolean)))
+  if (ids.length === 0) {
+    return
+  }
+
+  const supabase = getAdminSupabase()
+  const { data: downloadEvents, error: eventsError } = await supabase
+    .from('market_download_events')
+    .select('purchase_id')
+    .in('purchase_id', ids)
+
+  if (eventsError) {
+    throw new Error(eventsError.message)
+  }
+
+  const lockedPurchaseIds = new Set((downloadEvents ?? [])
+    .map((event) => event.purchase_id)
+    .filter((value): value is string => Boolean(value)))
+  const rollbackIds = ids.filter((id) => !lockedPurchaseIds.has(id))
+  if (rollbackIds.length === 0) {
+    return
+  }
+
+  const { error } = await supabase
+    .from('market_purchases')
+    .delete()
+    .eq('user_id', userId)
+    .in('id', rollbackIds)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+
 export async function recordMarketDownloadEvent(input: MarketDownloadEventInsert): Promise<MarketDownloadEvent> {
   const supabase = getAdminSupabase()
   const [item, file, purchase] = await Promise.all([
     getMarketItemById(input.item_id),
-    getActiveMarketItemFile(input.item_id, input.asset_kind as 'sample' | 'pdf' | 'hwp'),
+    getActiveMarketItemFile(input.item_id, input.asset_kind as 'sample' | 'pdf' | 'hwp' | 'zip'),
     input.purchase_id ? (
       supabase
         .from('market_purchases')
@@ -1061,11 +1120,12 @@ export async function listMarketLibraryRowsForUser(
   const itemMap = new Map(withWorkspaceSubjects(items).map((item) => [item.id, item]))
   const menuMap = new Map(withWorkspaceSubjects(menuEntries).map((entry) => [entry.id, entry]))
 
-  const fileMap = new Map<string, { pdf: MarketItemFile | null; hwp: MarketItemFile | null }>()
+  const fileMap = new Map<string, { pdf: MarketItemFile | null; hwp: MarketItemFile | null; zip: MarketItemFile | null }>()
   for (const file of withWorkspaceSubjects(files)) {
-    const current = fileMap.get(file.item_id) ?? { pdf: null, hwp: null }
+    const current = fileMap.get(file.item_id) ?? { pdf: null, hwp: null, zip: null }
     if (file.asset_kind === 'pdf') current.pdf = file
     if (file.asset_kind === 'hwp') current.hwp = file
+    if (file.asset_kind === 'zip') current.zip = file
     fileMap.set(file.item_id, current)
   }
 
@@ -1088,9 +1148,10 @@ export async function listMarketLibraryRowsForUser(
     .map(([itemId, itemPurchases]) => {
       const item = itemMap.get(itemId)
       const menu = item ? menuMap.get(item.menu_entry_id) : null
-      const assetFiles = fileMap.get(itemId) ?? { pdf: null, hwp: null }
+      const assetFiles = fileMap.get(itemId) ?? { pdf: null, hwp: null, zip: null }
       const pdfPurchase = itemPurchases.find((purchase) => purchase.asset_kind === 'pdf') ?? null
       const hwpPurchase = itemPurchases.find((purchase) => purchase.asset_kind === 'hwp') ?? null
+      const zipPurchase = itemPurchases.find((purchase) => purchase.asset_kind === 'zip') ?? null
       const effectivePdfPurchase = pdfPurchase ?? hwpPurchase
       const purchasedAt = itemPurchases
         .map((purchase) => purchase.purchased_at)
@@ -1099,6 +1160,7 @@ export async function listMarketLibraryRowsForUser(
       const lastDownloadedAt = [
         latestDownloadMap.get(`${itemId}:pdf`) ?? null,
         latestDownloadMap.get(`${itemId}:hwp`) ?? null,
+        latestDownloadMap.get(`${itemId}:zip`) ?? null,
       ]
         .filter((value): value is string => Boolean(value))
         .sort((a, b) => b.localeCompare(a))[0] ?? null
@@ -1113,14 +1175,19 @@ export async function listMarketLibraryRowsForUser(
         lastDownloadedAt,
         pdfOwned: effectivePdfPurchase !== null,
         hwpOwned: hwpPurchase !== null,
+        zipOwned: zipPurchase !== null,
         pdfPurchasedAt: effectivePdfPurchase?.purchased_at ?? null,
         hwpPurchasedAt: hwpPurchase?.purchased_at ?? null,
+        zipPurchasedAt: zipPurchase?.purchased_at ?? null,
         pdfDownloadUrl: effectivePdfPurchase ? `/api/market/items/${itemId}/download?assetKind=pdf` : null,
         hwpDownloadUrl: hwpPurchase ? `/api/market/items/${itemId}/download?assetKind=hwp` : null,
+        zipDownloadUrl: zipPurchase ? `/api/market/items/${itemId}/download?assetKind=zip` : null,
         pdfAvailable: effectivePdfPurchase !== null && assetFiles.pdf !== null,
         hwpAvailable: hwpPurchase !== null && assetFiles.hwp !== null,
+        zipAvailable: zipPurchase !== null && assetFiles.zip !== null,
         pdfFileName: assetFiles.pdf?.original_file_name ?? null,
         hwpFileName: assetFiles.hwp?.original_file_name ?? null,
+        zipFileName: assetFiles.zip?.original_file_name ?? null,
       }
     })
     .sort((a, b) => b.purchasedAt.localeCompare(a.purchasedAt))

@@ -7,11 +7,20 @@ import {
   getMarketItemById,
 } from '@/lib/market-items-server'
 
-export type MarketPaidAssetKind = 'pdf' | 'hwp'
+export type MarketPaidAssetKind = 'pdf' | 'hwp' | 'zip'
 export type MarketAssetKind = 'sample' | MarketPaidAssetKind
 
 export function getMarketPaidAssetLabel(assetKind: MarketPaidAssetKind) {
-  return assetKind === 'pdf' ? 'PDF' : 'HWP & PDF'
+  if (assetKind === 'pdf') return 'PDF'
+  if (assetKind === 'hwp') return 'HWP & PDF'
+  return 'ZIP'
+}
+
+export function getMarketPurchaseKindsToCheck(assetKind: MarketPaidAssetKind): MarketPaidAssetKind[] {
+  if (assetKind === 'pdf') return ['pdf', 'hwp']
+  if (assetKind === 'hwp') return ['hwp']
+  if (assetKind === 'zip') return ['zip']
+  return ['zip']
 }
 
 export function isMarketAssetCoveredByPurchaseKind(
@@ -39,14 +48,18 @@ export function normalizeMarketBundleSelections<T extends { itemId: string; asse
 }
 
 export function buildMarketPurchaseResourceType(assetKind: MarketPaidAssetKind) {
-  return assetKind === 'pdf' ? 'market_purchase_pdf' : 'market_purchase_hwp'
+  if (assetKind === 'pdf') return 'market_purchase_pdf'
+  if (assetKind === 'hwp') return 'market_purchase_hwp'
+  return 'market_purchase_zip'
 }
 
 export function resolveMarketAssetPrice(
-  item: { pdf_price: number; hwp_price: number },
+  item: { pdf_price: number; hwp_price: number; zip_price: number },
   assetKind: MarketPaidAssetKind
 ) {
-  return assetKind === 'pdf' ? item.pdf_price : item.hwp_price
+  if (assetKind === 'pdf') return item.pdf_price
+  if (assetKind === 'hwp') return item.hwp_price
+  return item.zip_price
 }
 
 export async function ensureMarketItemIsPurchasable(
@@ -78,7 +91,7 @@ export async function ensureUserDoesNotOwnMarketAsset(
   assetKind: MarketPaidAssetKind,
   workspaceSubject?: WorkspaceSubject
 ) {
-  const purchaseKindsToCheck: MarketPaidAssetKind[] = assetKind === 'pdf' ? ['pdf', 'hwp'] : ['hwp']
+  const purchaseKindsToCheck = getMarketPurchaseKindsToCheck(assetKind)
   const purchases = await Promise.all(
     purchaseKindsToCheck.map((purchaseKind) => findCompletedMarketPurchase(userId, itemId, purchaseKind, workspaceSubject))
   )

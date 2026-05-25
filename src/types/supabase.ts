@@ -978,6 +978,7 @@ export type Database = {
           is_active: boolean
           menu_entry_id: string
           pdf_price: number
+          zip_price: number
           published_at: string | null
           question_count: number | null
           sort_order: number
@@ -1008,6 +1009,7 @@ export type Database = {
           is_active?: boolean
           menu_entry_id: string
           pdf_price?: number
+          zip_price?: number
           published_at?: string | null
           question_count?: number | null
           sort_order?: number
@@ -1038,6 +1040,7 @@ export type Database = {
           is_active?: boolean
           menu_entry_id?: string
           pdf_price?: number
+          zip_price?: number
           published_at?: string | null
           question_count?: number | null
           sort_order?: number

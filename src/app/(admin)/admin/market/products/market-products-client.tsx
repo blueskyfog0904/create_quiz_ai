@@ -60,12 +60,13 @@ interface MarketItemFormState {
   questionCount: string
   pdfPrice: string
   hwpPrice: string
+  zipPrice: string
   status: 'draft' | 'published' | 'hidden' | 'archived'
   draftSource: 'manual' | 'auto_upload'
   isActive: boolean
 }
 
-const MARKET_ASSET_KINDS = ['pdf', 'hwp'] as const
+const MARKET_ASSET_KINDS = ['pdf', 'hwp', 'zip'] as const
 type MarketUploadAssetKind = typeof MARKET_ASSET_KINDS[number]
 
 const MARKET_STATUS_LABELS: Record<MarketItemFormState['status'], string> = {
@@ -115,6 +116,7 @@ function buildEmptyForm(menuEntryId = ''): MarketItemFormState {
     questionCount: '',
     pdfPrice: '0',
     hwpPrice: '0',
+    zipPrice: '0',
     status: 'draft',
     draftSource: 'manual',
     isActive: true,
@@ -140,6 +142,7 @@ function buildEditForm(item: MarketItem): MarketItemFormState {
     questionCount: item.question_count !== null && item.question_count !== undefined ? String(item.question_count) : '',
     pdfPrice: formatCreditInputValue(item.pdf_price),
     hwpPrice: formatCreditInputValue(item.hwp_price),
+    zipPrice: formatCreditInputValue(item.zip_price),
     status: item.status as MarketItemFormState['status'],
     draftSource: item.draft_source === 'auto_upload' ? 'auto_upload' : 'manual',
     isActive: item.is_active,
@@ -167,14 +170,25 @@ function formatDateTime(value?: string | null) {
 }
 
 function getAssetAcceptValue(assetKind: MarketUploadAssetKind) {
-  return assetKind === 'hwp' ? '.hwp' : '.pdf'
+  if (assetKind === 'hwp') return '.hwp'
+  if (assetKind === 'zip') return '.zip'
+  return '.pdf'
 }
 
 function isAllowedAssetFile(file: File, assetKind: MarketUploadAssetKind) {
   const fileName = file.name.toLowerCase()
-  return assetKind === 'hwp'
-    ? fileName.endsWith('.hwp')
-    : fileName.endsWith('.pdf')
+  if (assetKind === 'hwp') return fileName.endsWith('.hwp')
+  if (assetKind === 'zip') return fileName.endsWith('.zip')
+  return fileName.endsWith('.pdf')
+}
+
+interface AdminSamplePage {
+  id: string
+  pageNumber: number
+  signedUrl: string
+  fileSizeBytes: number | null
+  widthPx: number | null
+  heightPx: number | null
 }
 
 interface PersistFormOptions {
@@ -200,6 +214,9 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const [deleteTarget, setDeleteTarget] = useState<MarketItem | null>(null)
   const [isSamplePreviewOpen, setIsSamplePreviewOpen] = useState(false)
   const [samplePreviewItemId, setSamplePreviewItemId] = useState<string | null>(null)
+  const [samplePages, setSamplePages] = useState<AdminSamplePage[]>([])
+  const [isSampleSourceUploading, setIsSampleSourceUploading] = useState(false)
+  const [deletingSamplePageId, setDeletingSamplePageId] = useState<string | null>(null)
   const [uploadingKinds, setUploadingKinds] = useState<string[]>([])
   const [isBulkUploading, setIsBulkUploading] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<Partial<Record<MarketUploadAssetKind, File>>>({})
@@ -207,7 +224,9 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const fileInputRefs = useRef<Record<MarketUploadAssetKind, HTMLInputElement | null>>({
     pdf: null,
     hwp: null,
+    zip: null,
   })
+  const sampleSourceInputRef = useRef<HTMLInputElement | null>(null)
 
   const filteredItems = useMemo(() => (
     selectedMenuEntryId
@@ -232,6 +251,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     setSelectedFiles({})
     setDragActiveKinds([])
     setRequiresFinalRegistration(false)
+    setSamplePages([])
     setIsSamplePreviewOpen(false)
     setSamplePreviewItemId(null)
   }
@@ -278,12 +298,24 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     return payload.data as { item: MarketItem; files: MarketItemFile[] }
   }
 
+  const fetchItemSamplePages = async (id: string) => {
+    const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${id}/sample-pages`, workspaceSubject), { cache: 'no-store' })
+    const payload = await response.json()
+
+    if (!response.ok || !payload.success) {
+      throw new Error(payload.error?.message || '샘플 JPG 목록을 불러오지 못했습니다.')
+    }
+
+    return (payload.pages || []) as AdminSamplePage[]
+  }
+
   const loadItemDetail = async (id: string) => {
     const detail = await fetchItemDetail(id)
 
     setSelectedMenuEntryId(detail.item.menu_entry_id)
     setForm(buildEditForm(detail.item))
     setEditingFiles(detail.files || [])
+    setSamplePages(await fetchItemSamplePages(id))
     setSelectedFiles({})
     setDragActiveKinds([])
     setRequiresFinalRegistration(detail.item.status === 'draft' && detail.item.draft_source === 'auto_upload')
@@ -292,6 +324,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const refreshEditingFiles = async (id: string) => {
     const detail = await fetchItemDetail(id)
     setEditingFiles(detail.files || [])
+    setSamplePages(await fetchItemSamplePages(id))
   }
 
   const buildRequestBody = (
@@ -314,6 +347,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     questionCount: form.questionCount ? Number(form.questionCount) : null,
     pdfPrice: parseCreditInputValue(form.pdfPrice),
     hwpPrice: parseCreditInputValue(form.hwpPrice),
+    zipPrice: parseCreditInputValue(form.zipPrice),
     status: statusOverride ?? form.status,
     draftSource,
     isActive: form.isActive,
@@ -589,6 +623,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
           gradeLevel: item.grade_level || '',
           pdfPrice: item.pdf_price,
           hwpPrice: item.hwp_price,
+          zipPrice: item.zip_price,
           status: nextStatus,
           draftSource: 'manual',
           isActive: item.is_active,
@@ -764,13 +799,79 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     }
   }
 
+
+  const handleSampleSourceUpload = async (file?: File | null) => {
+    if (!file) {
+      return
+    }
+
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('샘플 PDF에는 PDF 파일만 선택할 수 있습니다.')
+      return
+    }
+
+    const targetItemId = form.id ?? await ensureDraftItemForUpload()
+    if (!targetItemId) {
+      return
+    }
+
+    setIsSampleSourceUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/sample-pages/source`, workspaceSubject), {
+        method: 'POST',
+        body: formData,
+      })
+      const payload = await response.json()
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || '샘플 PDF 업로드에 실패했습니다.')
+      }
+
+      setSamplePages((payload.pages || []) as AdminSamplePage[])
+      toast.success(`샘플 JPG ${(payload.pages || []).length}장을 생성했습니다.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '샘플 PDF 업로드 중 오류가 발생했습니다.')
+    } finally {
+      setIsSampleSourceUploading(false)
+      if (sampleSourceInputRef.current) {
+        sampleSourceInputRef.current.value = ''
+      }
+    }
+  }
+
+  const handleDeleteSamplePage = async (pageId: string) => {
+    if (!form.id) {
+      return
+    }
+
+    setDeletingSamplePageId(pageId)
+    try {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}/sample-pages/${pageId}`, workspaceSubject), {
+        method: 'DELETE',
+      })
+      const payload = await response.json()
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || '샘플 JPG 삭제에 실패했습니다.')
+      }
+
+      setSamplePages((payload.pages || []) as AdminSamplePage[])
+      toast.success('샘플 JPG를 삭제했습니다.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '샘플 JPG 삭제 중 오류가 발생했습니다.')
+    } finally {
+      setDeletingSamplePageId(null)
+    }
+  }
+
   const activeFileMap = useMemo(() => {
     return new Map(editingFiles.filter((file) => file.is_active).map((file) => [file.asset_kind, file]))
   }, [editingFiles])
-  const activePdfFile = activeFileMap.get('pdf')
   const isPdfUploading = uploadingKinds.includes('pdf')
-  const canOpenSamplePreview = Boolean(form.id && activePdfFile && !isPdfUploading && !isBulkUploading)
-  const samplePreviewStatusLabel = isPdfUploading ? '샘플 생성 중' : activePdfFile ? '확인 가능' : 'PDF 없음'
+  const canOpenSamplePreview = Boolean(form.id && samplePages.length > 0 && !isPdfUploading && !isBulkUploading)
+  const samplePreviewStatusLabel = isPdfUploading || isSampleSourceUploading ? '샘플 생성 중' : samplePages.length > 0 ? '확인 가능' : '샘플 없음'
   const isAutoUploadDraft = Boolean(form.id && form.draftSource === 'auto_upload')
 
   return (
@@ -912,7 +1013,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <Label>PDF 가격</Label>
                 <Input
@@ -931,6 +1032,16 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                   value={form.hwpPrice}
                   placeholder="예: 1,000"
                   onChange={(event) => setForm((current) => ({ ...current, hwpPrice: formatCreditInputValue(event.target.value) }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>ZIP 가격</Label>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={form.zipPrice}
+                  placeholder="예: 1,000"
+                  onChange={(event) => setForm((current) => ({ ...current, zipPrice: formatCreditInputValue(event.target.value) }))}
                 />
               </div>
             </div>
@@ -993,8 +1104,8 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                     <p className="font-medium text-gray-900">파일 업로드</p>
                     <p className="text-sm text-gray-500">
                       {form.id
-                        ? 'PDF 업로드 시 첫 1~3페이지가 JPG 샘플로 자동 생성됩니다. HWP는 별도로 교체할 수 있습니다.'
-                        : '파일을 먼저 업로드할 수 있으며, 첫 PDF 업로드 시 상품이 임시 저장되고 JPG 샘플이 자동 생성됩니다.'}
+                        ? 'PDF 업로드 시 첫 1~3페이지가 JPG 샘플로 자동 생성됩니다. HWP와 ZIP은 별도로 교체할 수 있습니다.'
+                        : '파일을 먼저 업로드할 수 있으며, 첫 PDF 업로드 시 상품이 임시 저장되고 JPG 샘플이 자동 생성됩니다. ZIP은 별도 샘플 PDF를 업로드하세요.'}
                     </p>
                   </div>
                   <Button
@@ -1043,11 +1154,52 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                             >
                               샘플 확인
                             </Button>
+                            <input
+                              ref={sampleSourceInputRef}
+                              type="file"
+                              className="hidden"
+                              accept=".pdf,application/pdf"
+                              disabled={isSampleSourceUploading}
+                              onChange={(event) => void handleSampleSourceUpload(event.target.files?.[0])}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={isSampleSourceUploading}
+                              onClick={() => sampleSourceInputRef.current?.click()}
+                            >
+                              {isSampleSourceUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                              샘플 PDF 업로드
+                            </Button>
+                            {samplePages.length > 0 ? (
+                              <div className="flex flex-wrap gap-2 pt-2">
+                                {samplePages.map((page) => (
+                                  <div key={page.id} className="relative h-20 w-16 overflow-hidden rounded border bg-slate-50">
+                                    <div
+                                      aria-label={`샘플 ${page.pageNumber}페이지`}
+                                      role="img"
+                                      className="h-full w-full bg-cover bg-center"
+                                      style={{ backgroundImage: `url(${page.signedUrl})` }}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white"
+                                      disabled={deletingSamplePageId === page.id}
+                                      aria-label={`${page.pageNumber}페이지 샘플 삭제`}
+                                      onClick={() => void handleDeleteSamplePage(page.id)}
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
                         </TableCell>
                         <TableCell className="text-center">-</TableCell>
                         <TableCell className="text-center">
-                          <Badge variant={activePdfFile ? 'outline' : 'secondary'}>{samplePreviewStatusLabel}</Badge>
+                          <Badge variant={samplePages.length > 0 ? 'outline' : 'secondary'}>{samplePreviewStatusLabel}</Badge>
                         </TableCell>
                       </TableRow>
                       {MARKET_ASSET_KINDS.map((assetKind) => {
@@ -1076,7 +1228,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                   const selectedFile = selectedFiles[assetKind]
                   const isDragActive = dragActiveKinds.includes(assetKind)
                   const isUploadDisabled = isUploading || isBulkUploading
-                  const allowDescription = assetKind === 'hwp' ? '.hwp 파일만 업로드할 수 있습니다.' : '.pdf 파일만 업로드할 수 있습니다.'
+                  const allowDescription = assetKind === 'hwp' ? '.hwp 파일만 업로드할 수 있습니다.' : assetKind === 'zip' ? '.zip 파일만 업로드할 수 있습니다.' : '.pdf 파일만 업로드할 수 있습니다.'
 
                   return (
                     <div key={assetKind} className="space-y-2 rounded-md border p-3">
@@ -1286,8 +1438,9 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                           </TableCell>
                           <TableCell>{menuTitleMap.get(item.menu_entry_id) || '-'}</TableCell>
                           <TableCell className="text-center text-sm">
-                            <div>PDF {item.pdf_price}C</div>
-                            <div>HWP {item.hwp_price}C</div>
+                            <div>PDF {item.pdf_price.toLocaleString()}C</div>
+                            <div>HWP {item.hwp_price.toLocaleString()}C</div>
+                            <div>ZIP {item.zip_price.toLocaleString()}C</div>
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge variant="outline">{MARKET_STATUS_LABELS[item.status as MarketItemFormState['status']] ?? item.status}</Badge>

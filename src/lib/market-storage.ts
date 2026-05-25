@@ -1,7 +1,7 @@
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 export const MARKET_STORAGE_BUCKET = 'market-files'
-export const MARKET_ALLOWED_EXTENSIONS = ['pdf', 'hwp'] as const
+export const MARKET_ALLOWED_EXTENSIONS = ['pdf', 'hwp', 'zip'] as const
 export type MarketAllowedExtension = typeof MARKET_ALLOWED_EXTENSIONS[number]
 
 export interface MarketUploadDescriptor {
@@ -11,6 +11,7 @@ export interface MarketUploadDescriptor {
 }
 
 export const MARKET_SAMPLE_PAGE_MIME_TYPE = 'image/jpeg'
+export const MAX_SAMPLE_SOURCE_PDF_SIZE = 30 * 1024 * 1024
 
 function normalizeFileName(value: string) {
   return value.trim().replace(/\s+/g, '-').replace(/[^a-zA-Z0-9._-]+/g, '-')
@@ -21,7 +22,7 @@ export function getMarketFileExtension(fileName: string): string {
   return segments.length > 1 ? segments[segments.length - 1] : ''
 }
 
-export function assertMarketUploadIsAllowed(file: MarketUploadDescriptor, assetKind: 'pdf' | 'hwp') {
+export function assertMarketUploadIsAllowed(file: MarketUploadDescriptor, assetKind: 'pdf' | 'hwp' | 'zip') {
   const extension = getMarketFileExtension(file.name)
 
   if (!extension) {
@@ -29,7 +30,7 @@ export function assertMarketUploadIsAllowed(file: MarketUploadDescriptor, assetK
   }
 
   if (!MARKET_ALLOWED_EXTENSIONS.includes(extension as MarketAllowedExtension)) {
-    throw new Error('문제마켓 업로드는 PDF 또는 HWP 파일만 지원합니다.')
+    throw new Error('문제마켓 업로드는 PDF, HWP 또는 ZIP 파일만 지원합니다.')
   }
 
   if (assetKind === 'pdf' && extension !== 'pdf') {
@@ -38,6 +39,10 @@ export function assertMarketUploadIsAllowed(file: MarketUploadDescriptor, assetK
 
   if (assetKind === 'hwp' && extension !== 'hwp') {
     throw new Error('HWP 자산에는 HWP 파일만 업로드할 수 있습니다.')
+  }
+
+  if (assetKind === 'zip' && extension !== 'zip') {
+    throw new Error('ZIP 자산에는 ZIP 파일만 업로드할 수 있습니다.')
   }
 
   const maxFileSizeBytes = 100 * 1024 * 1024
@@ -49,7 +54,7 @@ export function assertMarketUploadIsAllowed(file: MarketUploadDescriptor, assetK
 export function buildMarketStoragePath(
   workspaceSubject: WorkspaceSubject,
   itemId: string,
-  assetKind: 'pdf' | 'hwp',
+  assetKind: 'pdf' | 'hwp' | 'zip',
   fileName: string
 ) {
   const safeName = normalizeFileName(fileName)
@@ -66,4 +71,27 @@ export function buildMarketSamplePageStoragePath(
 ) {
   const safeName = normalizeFileName(fileName)
   return `market/${workspaceSubject}/${itemId}/sample-pages/${sourceFileId}/page-${String(pageNumber).padStart(3, '0')}-${safeName}`
+}
+
+export function assertSampleSourcePdfUploadIsAllowed(file: MarketUploadDescriptor) {
+  const extension = getMarketFileExtension(file.name)
+
+  if (extension !== 'pdf') {
+    throw new Error('샘플 PDF 업로드에는 PDF 파일만 사용할 수 있습니다.')
+  }
+
+  if (file.size > MAX_SAMPLE_SOURCE_PDF_SIZE) {
+    throw new Error('샘플 PDF는 30MB 이하만 업로드할 수 있습니다.')
+  }
+}
+
+export function buildMarketManualSamplePageStoragePath(
+  workspaceSubject: WorkspaceSubject,
+  itemId: string,
+  batchId: string,
+  pageNumber: number,
+  fileName: string
+) {
+  const safeName = normalizeFileName(fileName)
+  return `market/${workspaceSubject}/${itemId}/sample-pages/manual/${batchId}/page-${String(pageNumber).padStart(3, '0')}-${safeName}`
 }

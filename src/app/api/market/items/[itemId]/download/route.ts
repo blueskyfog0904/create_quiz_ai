@@ -5,10 +5,9 @@ import {
   findCompletedMarketPurchase,
   getMarketItemById,
   getActiveMarketItemFile,
-  getPublishedMarketItemById,
   recordMarketDownloadEvent,
 } from '@/lib/market-items-server'
-import { isMarketAssetCoveredByPurchaseKind, type MarketPaidAssetKind } from '@/lib/market-purchase'
+import { getMarketPurchaseKindsToCheck, isMarketAssetCoveredByPurchaseKind, type MarketPaidAssetKind } from '@/lib/market-purchase'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,16 +30,14 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   }
 
   const assetKind = request.nextUrl.searchParams.get('assetKind')
-  if (assetKind !== 'sample' && assetKind !== 'pdf' && assetKind !== 'hwp') {
-    return NextResponse.json({ success: false, error: { code: 'INVALID_ASSET_KIND', message: 'assetKind는 sample/pdf/hwp 중 하나여야 합니다.' } }, { status: 400 })
+  if (assetKind !== 'pdf' && assetKind !== 'hwp' && assetKind !== 'zip') {
+    return NextResponse.json({ success: false, error: { code: 'INVALID_ASSET_KIND', message: 'assetKind는 pdf/hwp/zip 중 하나여야 합니다.' } }, { status: 400 })
   }
 
   try {
-    const item = assetKind === 'sample'
-      ? await getPublishedMarketItemById(itemId)
-      : await getMarketItemById(itemId)
+    const item = await getMarketItemById(itemId)
 
-    if (item && assetKind !== 'sample' && item.deleted_at !== null) {
+    if (item && item.deleted_at !== null) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
 
@@ -54,19 +51,17 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     }
 
     let purchaseId: string | null = null
-    if (assetKind !== 'sample') {
-      const purchaseCandidates: MarketPaidAssetKind[] = assetKind === 'pdf' ? ['pdf', 'hwp'] : ['hwp']
-      const purchases = await Promise.all(
-        purchaseCandidates.map((purchaseKind) => findCompletedMarketPurchase(user.id, itemId, purchaseKind, item.workspace_subject))
-      )
-      const purchase = purchases.find((candidate) => (
-        candidate && isMarketAssetCoveredByPurchaseKind(assetKind, candidate.asset_kind as MarketPaidAssetKind)
-      )) ?? null
-      if (!purchase) {
-        return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: '구매 후 다운로드할 수 있습니다.' } }, { status: 403 })
-      }
-      purchaseId = purchase.id
+    const purchaseCandidates = getMarketPurchaseKindsToCheck(assetKind as MarketPaidAssetKind)
+    const purchases = await Promise.all(
+      purchaseCandidates.map((purchaseKind) => findCompletedMarketPurchase(user.id, itemId, purchaseKind, item.workspace_subject))
+    )
+    const purchase = purchases.find((candidate) => (
+      candidate && isMarketAssetCoveredByPurchaseKind(assetKind as MarketPaidAssetKind, candidate.asset_kind as MarketPaidAssetKind)
+    )) ?? null
+    if (!purchase) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: '구매 후 다운로드할 수 있습니다.' } }, { status: 403 })
     }
+    purchaseId = purchase.id
 
     const adminSupabase = createAdminClient()
     const { data, error } = await adminSupabase

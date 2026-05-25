@@ -60,8 +60,8 @@ export async function POST(request: Request, { params }: RouteContext) {
     const assetKindValue = formData.get('assetKind')
     const fileValue = formData.get('file')
 
-    if (assetKindValue !== 'pdf' && assetKindValue !== 'hwp') {
-      return NextResponse.json({ success: false, error: { code: 'INVALID_ASSET_KIND', message: 'assetKind는 pdf/hwp 중 하나여야 합니다.' } }, { status: 400 })
+    if (assetKindValue !== 'pdf' && assetKindValue !== 'hwp' && assetKindValue !== 'zip') {
+      return NextResponse.json({ success: false, error: { code: 'INVALID_ASSET_KIND', message: 'assetKind는 pdf/hwp/zip 중 하나여야 합니다.' } }, { status: 400 })
     }
 
     if (!(fileValue instanceof File)) {

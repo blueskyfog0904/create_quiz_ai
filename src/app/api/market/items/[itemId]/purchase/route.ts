@@ -9,9 +9,11 @@ import {
 } from '@/lib/market-items-server'
 import {
   buildMarketPurchaseInsert,
+  buildMarketPurchaseResourceType,
   deductCreditsForMarketPurchase,
   ensureMarketItemIsPurchasable,
   getMarketPaidAssetLabel,
+  getMarketPurchaseKindsToCheck,
   isMarketAssetCoveredByPurchaseKind,
   type MarketPaidAssetKind,
 } from '@/lib/market-purchase'
@@ -19,7 +21,7 @@ import {
 export const dynamic = 'force-dynamic'
 
 const BodySchema = z.object({
-  assetKind: z.enum(['pdf', 'hwp']),
+  assetKind: z.enum(['pdf', 'hwp', 'zip']),
 })
 
 interface RouteContext {
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       return await CreditService.refundCredits(
         user.id,
         purchaseContext.price,
-        purchaseContext.assetKind === 'pdf' ? 'market_purchase_pdf' : 'market_purchase_hwp',
+        buildMarketPurchaseResourceType(purchaseContext.assetKind),
         itemId,
         `${purchaseContext.title} ${getMarketPaidAssetLabel(purchaseContext.assetKind)} 구매 실패 환불`,
         deductionResult.consumptions,
@@ -72,7 +74,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     }
 
     const { item, price } = await ensureMarketItemIsPurchasable(itemId, parsed.data.assetKind)
-    const purchaseKindsToCheck: MarketPaidAssetKind[] = parsed.data.assetKind === 'pdf' ? ['pdf', 'hwp'] : ['hwp']
+    const purchaseKindsToCheck = getMarketPurchaseKindsToCheck(parsed.data.assetKind)
     const existingPurchases = await Promise.all(
       purchaseKindsToCheck.map((purchaseKind) => findCompletedMarketPurchase(
         user.id,

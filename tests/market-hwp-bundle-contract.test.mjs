@@ -43,10 +43,11 @@ test('batch purchase normalizes pdf plus hwp selections to only the bundle targe
   assert.match(batchRoute, /normalizeMarketBundleSelections\(parsed\.data\.selections\)/)
 })
 
-test('download route checks hwp ownership as fallback for pdf downloads', () => {
+test('download route uses shared entitlement helper so hwp still covers pdf while zip stays independent', () => {
   assert.match(downloadRoute, /isMarketAssetCoveredByPurchaseKind/)
-  assert.match(downloadRoute, /assetKind === 'pdf'/)
-  assert.match(downloadRoute, /'hwp'/)
+  assert.match(downloadRoute, /getMarketPurchaseKindsToCheck/)
+  assert.match(marketPurchase, /assetKind === 'pdf'[\s\S]+\['pdf', 'hwp'\]/)
+  assert.match(marketPurchase, /assetKind === 'zip'[\s\S]+\['zip'\]/)
 })
 
 test('ui labels hwp paid option as pdf and hwp bundle on list and detail pages', () => {

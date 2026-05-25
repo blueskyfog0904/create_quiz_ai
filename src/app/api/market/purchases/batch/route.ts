@@ -6,11 +6,13 @@ import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot } from '@/li
 import {
   createMarketPurchases,
   findCompletedMarketPurchase,
+  rollbackMarketPurchases,
 } from '@/lib/market-items-server'
 import {
   buildMarketPurchaseInsert,
   ensureMarketItemIsPurchasable,
   getMarketPaidAssetLabel,
+  getMarketPurchaseKindsToCheck,
   isMarketAssetCoveredByPurchaseKind,
   normalizeMarketBundleSelections,
   type MarketPaidAssetKind,
@@ -21,7 +23,7 @@ export const dynamic = 'force-dynamic'
 const BodySchema = z.object({
   selections: z.array(z.object({
     itemId: z.uuid(),
-    assetKind: z.enum(['pdf', 'hwp']),
+    assetKind: z.enum(['pdf', 'hwp', 'zip']),
   })).min(1, '최소 1개 이상의 파일을 선택해주세요.'),
 })
 
@@ -36,6 +38,7 @@ export async function POST(request: NextRequest) {
   const balanceBefore = await CreditService.getBalance(user.id)
   let deductionResult: Awaited<ReturnType<typeof CreditService.deductCredits>> | null = null
   let totalPrice = 0
+  let createdPurchaseIds: string[] = []
 
   const rollback = async () => {
     if (!deductionResult || totalPrice <= 0) {
@@ -80,7 +83,7 @@ export async function POST(request: NextRequest) {
     }> = []
 
     for (const selection of dedupedSelections) {
-      const purchaseKindsToCheck: MarketPaidAssetKind[] = selection.assetKind === 'pdf' ? ['pdf', 'hwp'] : ['hwp']
+      const purchaseKindsToCheck = getMarketPurchaseKindsToCheck(selection.assetKind)
       const existingPurchases = await Promise.all(
         purchaseKindsToCheck.map((purchaseKind) => findCompletedMarketPurchase(
           user.id,
@@ -145,6 +148,7 @@ export async function POST(request: NextRequest) {
         credit_resource_id: target.itemId,
       }))
     )
+    createdPurchaseIds = purchases.map((purchase) => purchase.id)
 
     const snapshot = await getCreditBalanceSnapshot(user.id, supabase)
 
@@ -155,7 +159,18 @@ export async function POST(request: NextRequest) {
       message: `선택한 파일 ${purchaseTargets.map((target) => getMarketPaidAssetLabel(target.assetKind)).join(', ')} 구매가 완료되었습니다.`,
     })
   } catch (error) {
+    let purchaseRollbackError: Error | null = null
     if (deductionResult) {
+      if (createdPurchaseIds.length > 0) {
+        try {
+          await rollbackMarketPurchases(createdPurchaseIds, user.id)
+        } catch (rollbackError) {
+          purchaseRollbackError = rollbackError instanceof Error
+            ? rollbackError
+            : new Error('구매 내역 롤백에 실패했습니다.')
+          console.error('Failed to rollback market purchases after batch purchase failure', purchaseRollbackError)
+        }
+      }
       await rollback()
     } else {
       await CreditService.getBalance(user.id)
@@ -166,7 +181,9 @@ export async function POST(request: NextRequest) {
       success: false,
       error: {
         code: 'INTERNAL_SERVER_ERROR',
-        message: error instanceof Error ? error.message : '문제마켓 일괄 구매 처리에 실패했습니다.',
+        message: purchaseRollbackError
+          ? `${error instanceof Error ? error.message : '문제마켓 일괄 구매 처리에 실패했습니다.'} 구매 내역 롤백 실패: ${purchaseRollbackError.message}`
+          : error instanceof Error ? error.message : '문제마켓 일괄 구매 처리에 실패했습니다.',
       },
       ...buildCreditBalanceResponseFields(snapshot),
     }, { status: 500 })

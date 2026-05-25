@@ -46,12 +46,12 @@ export default function MarketListboard({ category, rows, filters, isLoggedIn, r
             <p className={`text-sm font-medium ${subjectTheme.marketHeroLabelClass}`}>{workspaceLabel}</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight">{category.title}</h1>
             <p className={`mt-3 max-w-2xl text-sm leading-6 ${subjectTheme.marketHeroMutedTextClass}`}>
-              연도·월·학년별 모의고사 자료를 PDF/HWP로 선택해 바로 구매할 수 있습니다.
+              연도·월·학년별 모의고사 자료를 PDF/HWP/ZIP으로 선택해 바로 구매할 수 있습니다.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Badge className="bg-white/15 text-white hover:bg-white/15">총 {rows.length}건</Badge>
-            <Badge className="bg-white/15 text-white hover:bg-white/15">PDF/HWP</Badge>
+            <Badge className="bg-white/15 text-white hover:bg-white/15">PDF/HWP/ZIP</Badge>
             {sampleCount > 0 ? <Badge className="bg-white/15 text-white hover:bg-white/15">샘플 제공 {sampleCount}건</Badge> : null}
           </div>
         </div>

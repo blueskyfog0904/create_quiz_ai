@@ -9,7 +9,7 @@ export type MarketItemSamplePage = Tables<'market_item_sample_pages'> & WithWork
 type MarketItemSamplePageInsert = TablesInsert<'market_item_sample_pages'> & WithOptionalWorkspaceSubject
 
 interface ReplaceMarketItemSamplePageInput {
-  sourceFileId: string
+  sourceFileId: string | null
   workspaceSubject: WorkspaceSubject
   createdBy?: string | null
   pages: Array<{
@@ -26,6 +26,17 @@ interface ReplaceMarketItemSamplePageInput {
 
 function normalizeWorkspaceSubject(value?: string | null): WorkspaceSubject {
   return value === 'korean' ? 'korean' : DEFAULT_WORKSPACE_SUBJECT
+}
+
+function withWorkspaceSubject<T extends object>(row: T | null): (T & WithWorkspaceSubject) | null {
+  if (!row) {
+    return null
+  }
+
+  return {
+    ...row,
+    workspace_subject: normalizeWorkspaceSubject((row as { workspace_subject?: string | null }).workspace_subject),
+  }
 }
 
 function withWorkspaceSubjects<T extends object>(rows: T[] | null | undefined): Array<T & WithWorkspaceSubject> {
@@ -123,7 +134,7 @@ export async function replaceMarketItemSamplePages(
   const supabase = createAdminClient()
   const { data: item, error: itemError } = await supabase
     .from('market_items')
-    .select('id')
+    .select('id, workspace_subject')
     .eq('id', itemId)
     .maybeSingle()
 
@@ -195,4 +206,59 @@ export async function replaceMarketItemSamplePages(
   }
 
   return withWorkspaceSubjects(data)
+}
+
+
+export async function getActiveMarketItemSamplePageById(
+  pageId: string,
+  workspaceSubject?: WorkspaceSubject
+): Promise<MarketItemSamplePage | null> {
+  const supabase = createAdminClient()
+  let query = supabase
+    .from('market_item_sample_pages')
+    .select('*')
+    .eq('id', pageId)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+
+  if (workspaceSubject) {
+    query = query.eq('workspace_subject', workspaceSubject)
+  }
+
+  const { data, error } = await query.maybeSingle()
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return withWorkspaceSubject(data)
+}
+
+export async function deactivateMarketItemSamplePage(
+  pageId: string,
+  itemId: string,
+  workspaceSubject: WorkspaceSubject
+): Promise<MarketItemSamplePage | null> {
+  const supabase = createAdminClient()
+  const page = await getActiveMarketItemSamplePageById(pageId, workspaceSubject)
+  if (!page || page.item_id !== itemId) {
+    return null
+  }
+
+  const { data, error } = await supabase
+    .from('market_item_sample_pages')
+    .update({
+      is_active: false,
+      deleted_at: new Date().toISOString(),
+    })
+    .eq('id', pageId)
+    .eq('item_id', itemId)
+    .eq('workspace_subject', workspaceSubject)
+    .select('*')
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return withWorkspaceSubject(data)
 }

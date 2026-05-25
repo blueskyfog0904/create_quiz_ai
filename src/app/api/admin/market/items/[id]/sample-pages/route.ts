@@ -66,6 +66,7 @@ export async function GET(request: Request, { params }: RouteContext) {
       }
 
       return {
+        id: page.id,
         pageNumber: page.page_number,
         signedUrl: data.signedUrl,
         fileSizeBytes: page.file_size_bytes,

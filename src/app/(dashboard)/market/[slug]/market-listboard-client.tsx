@@ -19,7 +19,7 @@ interface MarketListboardClientProps {
   isLoggedIn: boolean
 }
 
-type AssetKind = 'pdf' | 'hwp'
+type AssetKind = 'pdf' | 'hwp' | 'zip'
 const PER_PAGE_OPTIONS = [10, 20, 30] as const
 
 function formatPublishedDate(value: string) {
@@ -36,7 +36,9 @@ function getSelectionKey(itemId: string, assetKind: AssetKind) {
 }
 
 function getAssetLabel(assetKind: AssetKind) {
-  return assetKind === 'pdf' ? 'PDF' : 'HWP & PDF'
+  if (assetKind === 'pdf') return 'PDF'
+  if (assetKind === 'hwp') return 'HWP & PDF'
+  return 'ZIP'
 }
 
 function getPurchaseErrorMessage(status: number, fallback?: string) {
@@ -98,10 +100,18 @@ export default function MarketListboardClient({ categorySlug, workspaceSubject, 
     const selectedSet = new Set(selectedKeys)
     let pdfCount = 0
     let hwpCount = 0
+    let zipCount = 0
     let totalCredits = 0
     const selections: Array<{ itemId: string; assetKind: AssetKind }> = []
 
     for (const row of rows) {
+      const zipSelected = selectedSet.has(getSelectionKey(row.itemId, 'zip')) && row.zip.available && !row.zip.owned
+      if (zipSelected) {
+        zipCount += 1
+        totalCredits += row.zip.price
+        selections.push({ itemId: row.itemId, assetKind: 'zip' })
+      }
+
       const hwpSelected = selectedSet.has(getSelectionKey(row.itemId, 'hwp')) && row.hwp.available && !row.hwp.owned
 
       if (hwpSelected) {
@@ -122,7 +132,8 @@ export default function MarketListboardClient({ categorySlug, workspaceSubject, 
       pdfCount,
       hwpCount,
       totalCredits,
-      totalCount: pdfCount + hwpCount,
+      zipCount,
+      totalCount: pdfCount + hwpCount + zipCount,
       selections,
     }
   }, [rows, selectedKeys])
@@ -148,14 +159,14 @@ export default function MarketListboardClient({ categorySlug, workspaceSubject, 
 
   const toggleSelection = (itemId: string, assetKind: AssetKind) => {
     const key = getSelectionKey(itemId, assetKind)
-    const counterpartKey = getSelectionKey(itemId, assetKind === 'pdf' ? 'hwp' : 'pdf')
+    const counterpartKey = assetKind === 'zip' ? null : getSelectionKey(itemId, assetKind === 'pdf' ? 'hwp' : 'pdf')
 
     setSelectedKeys((current) => {
       if (current.includes(key)) {
         return current.filter((value) => value !== key)
       }
 
-      return [...current.filter((value) => value !== counterpartKey), key]
+      return [...current.filter((value) => counterpartKey ? value !== counterpartKey : true), key]
     })
   }
 
@@ -222,7 +233,7 @@ export default function MarketListboardClient({ categorySlug, workspaceSubject, 
   }
 
   const renderAssetOption = (row: MarketListboardRow, assetKind: AssetKind) => {
-    const asset = assetKind === 'pdf' ? row.pdf : row.hwp
+    const asset = assetKind === 'pdf' ? row.pdf : assetKind === 'hwp' ? row.hwp : row.zip
     const key = getSelectionKey(row.itemId, assetKind)
     const selected = selectedKeys.includes(key) && asset.available && !asset.owned
     const disabled = asset.owned || !asset.available || isPending || isCheckingBalance
@@ -342,6 +353,7 @@ export default function MarketListboardClient({ categorySlug, workspaceSubject, 
                       <div className="flex flex-nowrap items-center justify-center gap-2">
                         {renderAssetOption(row, 'pdf')}
                         {renderAssetOption(row, 'hwp')}
+                        {renderAssetOption(row, 'zip')}
                       </div>
                     </td>
                     <td className="px-3 py-2 text-center">
@@ -408,7 +420,7 @@ export default function MarketListboardClient({ categorySlug, workspaceSubject, 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1 text-sm text-gray-600">
                 <p className="font-semibold text-gray-900">선택 {selectionSummary.totalCount}건</p>
-                <p>PDF {selectionSummary.pdfCount}건 · HWP & PDF {selectionSummary.hwpCount}건</p>
+                <p>PDF {selectionSummary.pdfCount}건 · HWP & PDF {selectionSummary.hwpCount}건 · ZIP {selectionSummary.zipCount}건</p>
               </div>
               <div className="text-left sm:text-right">
                 <p className="text-xs text-gray-500">총 결제 금액</p>

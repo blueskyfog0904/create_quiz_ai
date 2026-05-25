@@ -15,8 +15,9 @@ test('admin product upload area exposes a generated sample preview action', () =
   assert.match(adminProductsClient, /samplePreviewItemId/)
   assert.match(adminProductsClient, /샘플 확인/)
   assert.match(adminProductsClient, /샘플 생성 중/)
-  assert.match(adminProductsClient, /PDF 없음/)
-  assert.match(adminProductsClient, /activeFileMap\.get\('pdf'\)/)
+  assert.match(adminProductsClient, /샘플 없음/)
+  assert.match(adminProductsClient, /samplePages\.length/)
+  assert.match(adminProductsClient, /샘플 PDF 업로드/)
   assert.match(adminProductsClient, /uploadingKinds\.includes\('pdf'\)/)
 })
 

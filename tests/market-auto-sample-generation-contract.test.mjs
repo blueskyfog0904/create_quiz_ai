@@ -19,17 +19,20 @@ const sampleGenerator = readFileSync(
   'utf8'
 )
 
-test('admin product uploads expose only pdf and hwp manual upload slots', () => {
-  assert.match(adminProductsClient, /const MARKET_ASSET_KINDS = \['pdf', 'hwp'\] as const/)
-  assert.doesNotMatch(adminProductsClient, /const MARKET_ASSET_KINDS = \['sample', 'pdf', 'hwp'\] as const/)
+test('admin product uploads expose pdf hwp and zip manual upload slots plus separate sample pdf source', () => {
+  assert.match(adminProductsClient, /const MARKET_ASSET_KINDS = \['pdf', 'hwp', 'zip'\] as const/)
+  assert.doesNotMatch(adminProductsClient, /const MARKET_ASSET_KINDS = \['sample', 'pdf', 'hwp', 'zip'\] as const/)
   assert.doesNotMatch(adminProductsClient, /fileInputRefs[\s\S]*sample:\s*null/)
+  assert.match(adminProductsClient, /샘플 PDF 업로드/)
+  assert.match(adminProductsClient, /zipPrice/)
+  assert.match(adminProductsClient, /ZIP 가격/)
   assert.match(adminProductsClient, /PDF 업로드 시 첫 1~3페이지가 JPG 샘플로 자동 생성됩니다/)
   assert.match(adminProductsClient, /샘플 JPG/)
 })
 
-test('admin product upload route treats sample pages as a pdf-derived artifact', () => {
-  assert.match(adminUploadRoute, /assetKindValue !== 'pdf' && assetKindValue !== 'hwp'/)
-  assert.doesNotMatch(adminUploadRoute, /assetKindValue !== 'sample' && assetKindValue !== 'pdf' && assetKindValue !== 'hwp'/)
+test('admin product upload route treats sample pages as a pdf-derived artifact and zip as paid-only asset', () => {
+  assert.match(adminUploadRoute, /assetKindValue !== 'pdf' && assetKindValue !== 'hwp' && assetKindValue !== 'zip'/)
+  assert.doesNotMatch(adminUploadRoute, /assetKindValue !== 'sample' && assetKindValue !== 'pdf' && assetKindValue !== 'hwp' && assetKindValue !== 'zip'/)
   assert.match(adminUploadRoute, /generateMarketPdfSamplePages/)
   assert.match(adminUploadRoute, /replaceMarketItemSamplePages/)
   assert.match(adminUploadRoute, /if \(assetKindValue === 'pdf'\)/)
@@ -37,11 +40,13 @@ test('admin product upload route treats sample pages as a pdf-derived artifact',
   assert.match(adminUploadRoute, /sampleGenerationStatus/)
 })
 
-test('market storage has a dedicated sample page path builder without widening paid asset uploads', () => {
+test('market storage has dedicated sample page path builders and paid pdf hwp zip uploads', () => {
   assert.match(marketStorage, /buildMarketSamplePageStoragePath/)
   assert.match(marketStorage, /sample-pages/)
   assert.match(marketStorage, /image\/jpeg/)
-  assert.match(marketStorage, /assetKind:\s*'pdf' \| 'hwp'/)
+  assert.match(marketStorage, /assetKind:\s*'pdf' \| 'hwp' \| 'zip'/)
+  assert.match(marketStorage, /buildMarketManualSamplePageStoragePath/)
+  assert.match(marketStorage, /MAX_SAMPLE_SOURCE_PDF_SIZE/)
 })
 
 test('pdf sample generator paints a white background before jpg export', () => {

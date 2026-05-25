@@ -18,19 +18,22 @@ interface MarketItemActionsProps {
   hasLegacySample: boolean
   hasPdf: boolean
   hasHwp: boolean
+  hasZip: boolean
   isLoggedIn: boolean
   ownsPdf: boolean
   ownsHwp: boolean
+  ownsZip: boolean
   pdfPrice: number
   hwpPrice: number
+  zipPrice: number
   samplePageCount: number
   workspaceSubject: WorkspaceSubject
 }
 
-type PurchaseAssetKind = 'pdf' | 'hwp'
+type PurchaseAssetKind = 'pdf' | 'hwp' | 'zip'
 type OptionState = 'instant' | 'owned' | 'available' | 'unavailable' | 'checking' | 'processing'
 
-function buildDownloadUrl(itemId: string, assetKind: 'pdf' | 'hwp') {
+function buildDownloadUrl(itemId: string, assetKind: 'pdf' | 'hwp' | 'zip') {
   return `/api/market/items/${itemId}/download?assetKind=${assetKind}`
 }
 
@@ -39,7 +42,9 @@ function formatCredits(value: number) {
 }
 
 function getAssetLabel(assetKind: PurchaseAssetKind) {
-  return assetKind === 'pdf' ? 'PDF' : 'HWP & PDF'
+  if (assetKind === 'pdf') return 'PDF'
+  if (assetKind === 'hwp') return 'HWP & PDF'
+  return 'ZIP'
 }
 
 function getPurchaseErrorMessage(status: number, fallback?: string) {
@@ -160,11 +165,14 @@ export default function MarketItemActions({
   hasLegacySample,
   hasPdf,
   hasHwp,
+  hasZip,
   isLoggedIn,
   ownsPdf,
   ownsHwp,
+  ownsZip,
   pdfPrice,
   hwpPrice,
+  zipPrice,
   samplePageCount,
   workspaceSubject,
 }: MarketItemActionsProps) {
@@ -273,13 +281,17 @@ export default function MarketItemActions({
     ? pdfPrice
     : pendingPurchaseKind === 'hwp'
       ? hwpPrice
-      : 0
+      : pendingPurchaseKind === 'zip'
+        ? zipPrice
+        : 0
 
   const confirmationDescription = pendingPurchaseKind === 'pdf'
     ? 'PDF 파일을 크레딧으로 구매합니다.'
     : pendingPurchaseKind === 'hwp'
       ? 'PDF와 HWP 파일을 함께 크레딧으로 구매합니다.'
-      : '문제마켓 자료를 크레딧으로 구매합니다.'
+      : pendingPurchaseKind === 'zip'
+        ? 'ZIP 파일을 크레딧으로 구매합니다.'
+        : '문제마켓 자료를 크레딧으로 구매합니다.'
 
   const getPaidOptionState = (assetKind: PurchaseAssetKind, owned: boolean, available: boolean): OptionState => {
     if (owned) return 'owned'
@@ -346,6 +358,17 @@ export default function MarketItemActions({
         href={ownsHwp ? buildDownloadUrl(itemId, 'hwp') : undefined}
         disabled={!hasHwp || isPending || isCheckingBalance}
         onAction={!ownsHwp && hasHwp ? () => void openPurchaseConfirmation('hwp') : undefined}
+      />
+      <FileOptionRow
+        title="ZIP"
+        description={ownsZip ? '구매 완료된 ZIP 파일입니다.' : hasZip ? '구매 후 ZIP 파일을 다운로드할 수 있습니다.' : 'ZIP 파일이 제공되지 않습니다.'}
+        priceLabel={hasZip ? `${formatCredits(zipPrice)} 크레딧` : '미제공'}
+        state={getPaidOptionState('zip', ownsZip, hasZip)}
+        icon={ownsZip ? <CheckCircle2 className="h-5 w-5" /> : <FileDown className="h-5 w-5" />}
+        actionLabel={ownsZip ? 'ZIP 다운로드' : hasZip ? 'ZIP 구매하기' : 'ZIP 없음'}
+        href={ownsZip ? buildDownloadUrl(itemId, 'zip') : undefined}
+        disabled={!hasZip || isPending || isCheckingBalance}
+        onAction={!ownsZip && hasZip ? () => void openPurchaseConfirmation('zip') : undefined}
       />
 
       <div className="rounded-2xl border border-dashed bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">

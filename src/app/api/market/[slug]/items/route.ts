@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 
 const QuerySchema = z.object({
   search: z.string().trim().optional(),
-  assetKind: z.enum(['all', 'sample', 'pdf', 'hwp']).optional(),
+  assetKind: z.enum(['all', 'sample', 'pdf', 'hwp', 'zip']).optional(),
   gradeLevel: z.string().trim().optional(),
   examYear: z.coerce.number().int().optional(),
   examMonth: z.coerce.number().int().min(1).max(12).optional(),
