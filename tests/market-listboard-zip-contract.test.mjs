@@ -24,3 +24,9 @@ test('market listboard client exposes zip as an independent selectable file kind
   assert.match(listClient, /PDF[\s\S]+HWP & PDF[\s\S]+ZIP/)
   assert.match(listServer, /zip|ZIP/)
 })
+
+test('market listboard hides unavailable paid file options instead of showing unavailable pills', () => {
+  assert.match(listClient, /if \(!asset\.available\) \{\s*return null\s*\}/)
+  assert.doesNotMatch(listClient, /\{formatLabel\} 미제공/)
+  assert.doesNotMatch(listClient, /\$\{row\.title\} \$\{formatLabel\} 미제공/)
+})

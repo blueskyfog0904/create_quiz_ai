@@ -336,40 +336,46 @@ export default function MarketItemActions({
         onIntent={hasSamplePages ? prefetchSamplePreview : undefined}
       />
 
-      <FileOptionRow
-        title="PDF"
-        description={ownsPdf ? '구매 완료된 PDF 파일입니다.' : hasPdf ? '구매 후 바로 PDF를 다운로드할 수 있습니다.' : 'PDF 파일이 제공되지 않습니다.'}
-        priceLabel={hasPdf ? `${formatCredits(pdfPrice)} 크레딧` : '미제공'}
-        state={getPaidOptionState('pdf', ownsPdf, hasPdf)}
-        icon={ownsPdf ? <CheckCircle2 className="h-5 w-5" /> : <FileDown className="h-5 w-5" />}
-        actionLabel={ownsPdf ? 'PDF 다운로드' : hasPdf ? 'PDF 구매하기' : 'PDF 없음'}
-        href={ownsPdf ? buildDownloadUrl(itemId, 'pdf') : undefined}
-        disabled={!hasPdf || isPending || isCheckingBalance}
-        onAction={!ownsPdf && hasPdf ? () => void openPurchaseConfirmation('pdf') : undefined}
-      />
+      {(hasPdf || ownsPdf) ? (
+        <FileOptionRow
+          title="PDF"
+          description={ownsPdf ? '구매 완료된 PDF 파일입니다.' : '구매 후 바로 PDF를 다운로드할 수 있습니다.'}
+          priceLabel={`${formatCredits(pdfPrice)} 크레딧`}
+          state={getPaidOptionState('pdf', ownsPdf, hasPdf)}
+          icon={ownsPdf ? <CheckCircle2 className="h-5 w-5" /> : <FileDown className="h-5 w-5" />}
+          actionLabel={ownsPdf ? 'PDF 다운로드' : 'PDF 구매하기'}
+          href={ownsPdf ? buildDownloadUrl(itemId, 'pdf') : undefined}
+          disabled={!hasPdf || isPending || isCheckingBalance}
+          onAction={!ownsPdf && hasPdf ? () => void openPurchaseConfirmation('pdf') : undefined}
+        />
+      ) : null}
 
-      <FileOptionRow
-        title="HWP & PDF"
-        description={ownsHwp ? '구매 완료된 HWP & PDF 묶음입니다.' : hasHwp ? '구매 후 PDF와 HWP를 모두 다운로드할 수 있습니다.' : 'HWP & PDF 묶음이 제공되지 않습니다.'}
-        priceLabel={hasHwp ? `${formatCredits(hwpPrice)} 크레딧` : '미제공'}
-        state={getPaidOptionState('hwp', ownsHwp, hasHwp)}
-        icon={ownsHwp ? <CheckCircle2 className="h-5 w-5" /> : <ShoppingCart className="h-5 w-5" />}
-        actionLabel={ownsHwp ? 'HWP 다운로드' : hasHwp ? 'HWP & PDF 구매하기' : 'HWP & PDF 없음'}
-        href={ownsHwp ? buildDownloadUrl(itemId, 'hwp') : undefined}
-        disabled={!hasHwp || isPending || isCheckingBalance}
-        onAction={!ownsHwp && hasHwp ? () => void openPurchaseConfirmation('hwp') : undefined}
-      />
-      <FileOptionRow
-        title="ZIP"
-        description={ownsZip ? '구매 완료된 ZIP 파일입니다.' : hasZip ? '구매 후 ZIP 파일을 다운로드할 수 있습니다.' : 'ZIP 파일이 제공되지 않습니다.'}
-        priceLabel={hasZip ? `${formatCredits(zipPrice)} 크레딧` : '미제공'}
-        state={getPaidOptionState('zip', ownsZip, hasZip)}
-        icon={ownsZip ? <CheckCircle2 className="h-5 w-5" /> : <FileDown className="h-5 w-5" />}
-        actionLabel={ownsZip ? 'ZIP 다운로드' : hasZip ? 'ZIP 구매하기' : 'ZIP 없음'}
-        href={ownsZip ? buildDownloadUrl(itemId, 'zip') : undefined}
-        disabled={!hasZip || isPending || isCheckingBalance}
-        onAction={!ownsZip && hasZip ? () => void openPurchaseConfirmation('zip') : undefined}
-      />
+      {(hasHwp || ownsHwp) ? (
+        <FileOptionRow
+          title="HWP & PDF"
+          description={ownsHwp ? '구매 완료된 HWP & PDF 묶음입니다.' : '구매 후 PDF와 HWP를 모두 다운로드할 수 있습니다.'}
+          priceLabel={`${formatCredits(hwpPrice)} 크레딧`}
+          state={getPaidOptionState('hwp', ownsHwp, hasHwp)}
+          icon={ownsHwp ? <CheckCircle2 className="h-5 w-5" /> : <ShoppingCart className="h-5 w-5" />}
+          actionLabel={ownsHwp ? 'HWP 다운로드' : 'HWP & PDF 구매하기'}
+          href={ownsHwp ? buildDownloadUrl(itemId, 'hwp') : undefined}
+          disabled={!hasHwp || isPending || isCheckingBalance}
+          onAction={!ownsHwp && hasHwp ? () => void openPurchaseConfirmation('hwp') : undefined}
+        />
+      ) : null}
+      {(hasZip || ownsZip) ? (
+        <FileOptionRow
+          title="ZIP"
+          description={ownsZip ? '구매 완료된 ZIP 파일입니다.' : '구매 후 ZIP 파일을 다운로드할 수 있습니다.'}
+          priceLabel={`${formatCredits(zipPrice)} 크레딧`}
+          state={getPaidOptionState('zip', ownsZip, hasZip)}
+          icon={ownsZip ? <CheckCircle2 className="h-5 w-5" /> : <FileDown className="h-5 w-5" />}
+          actionLabel={ownsZip ? 'ZIP 다운로드' : 'ZIP 구매하기'}
+          href={ownsZip ? buildDownloadUrl(itemId, 'zip') : undefined}
+          disabled={!hasZip || isPending || isCheckingBalance}
+          onAction={!ownsZip && hasZip ? () => void openPurchaseConfirmation('zip') : undefined}
+        />
+      ) : null}
 
       <div className="rounded-2xl border border-dashed bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
         구매 후 바로 다운로드할 수 있으며, 구매한 파일은 <span className="font-semibold text-slate-700">영어 라이브러리 &gt; 구매자료</span>에서도 확인할 수 있습니다.

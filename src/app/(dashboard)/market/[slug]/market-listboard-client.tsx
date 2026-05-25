@@ -251,14 +251,7 @@ export default function MarketListboardClient({ categorySlug, workspaceSubject, 
     }
 
     if (!asset.available) {
-      return (
-        <span
-          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-400"
-          aria-label={`${row.title} ${formatLabel} 미제공`}
-        >
-          {formatLabel} 미제공
-        </span>
-      )
+      return null
     }
 
     return (

@@ -20,6 +20,8 @@ test('market item detail keeps a consistent product header and meta layout', () 
   assert.doesNotMatch(itemPage, /bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800/)
   assert.match(itemPage, /샘플 제공/)
   assert.match(itemPage, /구매 완료 \{ownedCount\}건/)
+  assert.doesNotMatch(itemPage, /PDF\/HWP 자료/)
+  assert.match(itemPage, /필요한 자료 파일/)
   assert.match(itemPage, /MetaSummaryItem/)
   assert.match(itemPage, /lg:sticky lg:top-24/)
 })
@@ -65,6 +67,18 @@ test('market item detail consolidates sample preview pdf hwp into one file optio
   assert.match(itemActions, /PDF 구매하기/)
   assert.match(itemActions, /HWP & PDF 구매하기/)
   assert.match(itemActions, /영어 라이브러리 &gt; 구매자료/)
+})
+
+test('market item detail hides unavailable paid file rows', () => {
+  assert.match(itemActions, /\{\(hasPdf \|\| ownsPdf\) \? \(/)
+  assert.match(itemActions, /\{\(hasHwp \|\| ownsHwp\) \? \(/)
+  assert.match(itemActions, /\{\(hasZip \|\| ownsZip\) \? \(/)
+  assert.doesNotMatch(itemActions, /PDF 없음/)
+  assert.doesNotMatch(itemActions, /HWP & PDF 없음/)
+  assert.doesNotMatch(itemActions, /ZIP 없음/)
+  assert.doesNotMatch(itemActions, /priceLabel=\{hasPdf \? `\$\{formatCredits\(pdfPrice\)\} 크레딧` : '미제공'\}/)
+  assert.doesNotMatch(itemActions, /priceLabel=\{hasHwp \? `\$\{formatCredits\(hwpPrice\)\} 크레딧` : '미제공'\}/)
+  assert.doesNotMatch(itemActions, /priceLabel=\{hasZip \? `\$\{formatCredits\(zipPrice\)\} 크레딧` : '미제공'\}/)
 })
 
 test('market item detail action states and failure messages are explicit', () => {

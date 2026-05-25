@@ -116,7 +116,7 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
               </div>
               <CardTitle className="max-w-4xl text-3xl leading-tight tracking-tight text-white">{item.title}</CardTitle>
               <CardDescription className={`max-w-3xl ${subjectTheme.marketHeroMutedTextClass}`}>
-                {item.summary || '샘플을 확인한 뒤 PDF/HWP 자료를 선택해 구매할 수 있습니다.'}
+                {item.summary || '샘플을 확인한 뒤 필요한 자료 파일을 선택해 구매할 수 있습니다.'}
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2 lg:justify-end">
