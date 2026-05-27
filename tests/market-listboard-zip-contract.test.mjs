@@ -30,3 +30,13 @@ test('market listboard hides unavailable paid file options instead of showing un
   assert.doesNotMatch(listClient, /\{formatLabel\} 미제공/)
   assert.doesNotMatch(listClient, /\$\{row\.title\} \$\{formatLabel\} 미제공/)
 })
+
+
+test('market listboard purchase success uses a centered confirmation dialog instead of a toast', () => {
+  assert.match(listClient, /MarketPurchaseCompleteDialog/)
+  assert.match(listClient, /const \[purchaseCompleteMessage, setPurchaseCompleteMessage\] = useState<string \| null>\(null\)/)
+  assert.match(listClient, /setPurchaseCompleteMessage\(payload\.message \|\| '선택한 파일 구매가 완료되었습니다\.'\)/)
+  assert.doesNotMatch(listClient, /toast\.success\(payload\.message/)
+  assert.match(listClient, /message=\{purchaseCompleteMessage\}/)
+  assert.match(listClient, /onClose=\{\(\) => setPurchaseCompleteMessage\(null\)\}/)
+})

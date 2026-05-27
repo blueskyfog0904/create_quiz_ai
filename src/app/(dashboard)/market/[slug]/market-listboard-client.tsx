@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import type { MarketListboardRow } from '@/lib/market-items-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import MarketSamplePreviewDialog from './items/[itemId]/market-sample-preview-dialog'
+import MarketPurchaseCompleteDialog from './market-purchase-complete-dialog'
 
 interface MarketListboardClientProps {
   categorySlug: string
@@ -72,6 +73,7 @@ export default function MarketListboardClient({ categorySlug, workspaceSubject, 
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState<number>(10)
   const [samplePreviewItemId, setSamplePreviewItemId] = useState<string | null>(null)
+  const [purchaseCompleteMessage, setPurchaseCompleteMessage] = useState<string | null>(null)
   const [samplePreviewPrefetchKey, setSamplePreviewPrefetchKey] = useState(0)
   const [isSamplePreviewOpen, setIsSamplePreviewOpen] = useState(false)
 
@@ -213,7 +215,7 @@ export default function MarketListboardClient({ categorySlug, workspaceSubject, 
         }
 
         setSelectedKeys([])
-        toast.success(payload.message || '선택한 파일 구매가 완료되었습니다.')
+        setPurchaseCompleteMessage(payload.message || '선택한 파일 구매가 완료되었습니다.')
         router.refresh()
       } catch (error) {
         toast.error(error instanceof Error ? error.message : '선택 파일 결제 중 오류가 발생했습니다.')
@@ -447,6 +449,11 @@ export default function MarketListboardClient({ categorySlug, workspaceSubject, 
         title="선택 파일 결제 확인"
         description={`PDF ${selectionSummary.pdfCount}건, HWP & PDF ${selectionSummary.hwpCount}건을 크레딧으로 구매합니다.`}
       />
+      <MarketPurchaseCompleteDialog
+        message={purchaseCompleteMessage}
+        onClose={() => setPurchaseCompleteMessage(null)}
+      />
+
       {samplePreviewItemId ? (
         <MarketSamplePreviewDialog
           key={samplePreviewItemId}

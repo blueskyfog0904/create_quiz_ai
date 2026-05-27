@@ -11,6 +11,7 @@ import { CreditConfirmationDialog } from '@/components/features/credits/credit-c
 import { useLoginRedirect } from '@/hooks/use-login-redirect'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import MarketSamplePreviewDialog from './market-sample-preview-dialog'
+import MarketPurchaseCompleteDialog from '../../market-purchase-complete-dialog'
 
 interface MarketItemActionsProps {
   itemId: string
@@ -183,6 +184,7 @@ export default function MarketItemActions({
   const [currentBalance, setCurrentBalance] = useState<number | null>(null)
   const [isCheckingBalance, setIsCheckingBalance] = useState(false)
   const [pendingPurchaseKind, setPendingPurchaseKind] = useState<PurchaseAssetKind | null>(null)
+  const [purchaseCompleteMessage, setPurchaseCompleteMessage] = useState<string | null>(null)
   const [isSamplePreviewOpen, setIsSamplePreviewOpen] = useState(false)
   const [samplePreviewPrefetchKey, setSamplePreviewPrefetchKey] = useState(0)
   const viewTracked = useRef(false)
@@ -266,7 +268,7 @@ export default function MarketItemActions({
           window.dispatchEvent(new CustomEvent('credit-balance-updated', { detail: { balance: payload.balance } }))
         }
 
-        toast.success(payload.message || `${getAssetLabel(pendingPurchaseKind)} 구매가 완료되었습니다.`)
+        setPurchaseCompleteMessage(payload.message || `${getAssetLabel(pendingPurchaseKind)} 구매가 완료되었습니다.`)
         router.refresh()
       } catch (error) {
         toast.error(error instanceof Error ? error.message : '구매 처리 중 오류가 발생했습니다.')
@@ -394,6 +396,11 @@ export default function MarketItemActions({
         isLoading={isPending || isCheckingBalance}
         title="문제마켓 구매 확인"
         description={confirmationDescription}
+      />
+
+      <MarketPurchaseCompleteDialog
+        message={purchaseCompleteMessage}
+        onClose={() => setPurchaseCompleteMessage(null)}
       />
 
       <MarketSamplePreviewDialog

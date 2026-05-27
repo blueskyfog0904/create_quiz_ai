@@ -81,6 +81,16 @@ test('market item detail hides unavailable paid file rows', () => {
   assert.doesNotMatch(itemActions, /priceLabel=\{hasZip \? `\$\{formatCredits\(zipPrice\)\} 크레딧` : '미제공'\}/)
 })
 
+
+test('market item purchase success uses a centered confirmation dialog instead of a toast', () => {
+  assert.match(itemActions, /MarketPurchaseCompleteDialog/)
+  assert.match(itemActions, /const \[purchaseCompleteMessage, setPurchaseCompleteMessage\] = useState<string \| null>\(null\)/)
+  assert.match(itemActions, /setPurchaseCompleteMessage\(payload\.message \|\| `\$\{getAssetLabel\(pendingPurchaseKind\)\} 구매가 완료되었습니다\.`\)/)
+  assert.doesNotMatch(itemActions, /toast\.success\(payload\.message/)
+  assert.match(itemActions, /message=\{purchaseCompleteMessage\}/)
+  assert.match(itemActions, /onClose=\{\(\) => setPurchaseCompleteMessage\(null\)\}/)
+})
+
 test('market item detail action states and failure messages are explicit', () => {
   assert.match(itemActions, /OptionState = 'instant' \| 'owned' \| 'available' \| 'unavailable' \| 'checking' \| 'processing'/)
   assert.match(itemActions, /status === 401/)
