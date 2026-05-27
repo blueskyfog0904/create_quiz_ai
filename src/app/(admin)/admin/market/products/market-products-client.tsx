@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -212,6 +213,9 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     .map((item) => item.id))
   const [requiresFinalRegistration, setRequiresFinalRegistration] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<MarketItem | null>(null)
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
+  const [bulkDeleteTargetIds, setBulkDeleteTargetIds] = useState<string[] | null>(null)
+  const [isBulkActionRunning, setIsBulkActionRunning] = useState(false)
   const [isSamplePreviewOpen, setIsSamplePreviewOpen] = useState(false)
   const [samplePreviewItemId, setSamplePreviewItemId] = useState<string | null>(null)
   const [samplePages, setSamplePages] = useState<AdminSamplePage[]>([])
@@ -234,6 +238,13 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       : items
   ), [items, selectedMenuEntryId])
 
+  const selectedItems = useMemo(() => filteredItems.filter((item) => selectedItemIds.includes(item.id)), [filteredItems, selectedItemIds])
+  const allFilteredSelected = filteredItems.length > 0 && filteredItems.every((item) => selectedItemIds.includes(item.id))
+  const someFilteredSelected = selectedItems.length > 0 && !allFilteredSelected
+  const bulkDeleteTargetItems = useMemo(
+    () => items.filter((item) => (bulkDeleteTargetIds ?? []).includes(item.id)),
+    [bulkDeleteTargetIds, items]
+  )
   const menuTitleMap = useMemo(() => new Map(menuEntries.map((entry) => [entry.id, entry.title])), [menuEntries])
   const examYearOptions = useMemo(() => buildExamYearOptions(), [])
   const selectedAssetKinds = useMemo(
@@ -256,6 +267,28 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     setSamplePreviewItemId(null)
   }
 
+  const toggleItemSelection = (itemId: string) => {
+    setSelectedItemIds((current) => current.includes(itemId)
+      ? current.filter((currentItemId) => currentItemId !== itemId)
+      : [...current, itemId])
+  }
+
+  const toggleFilteredSelection = () => {
+    const filteredIds = filteredItems.map((item) => item.id)
+    if (filteredIds.length === 0) {
+      return
+    }
+
+    setSelectedItemIds((current) => {
+      const shouldClearFilteredItems = filteredIds.every((itemId) => current.includes(itemId))
+      if (shouldClearFilteredItems) {
+        return current.filter((itemId) => !filteredIds.includes(itemId))
+      }
+
+      return Array.from(new Set([...current, ...filteredIds]))
+    })
+  }
+
   const setHiddenOverride = (itemId: string, isHidden: boolean) => {
     setHiddenItemIds((current) => {
       if (isHidden) {
@@ -265,6 +298,29 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       return current.filter((currentItemId) => currentItemId !== itemId)
     })
   }
+
+  const buildItemPatchBody = (item: MarketItem, nextStatus: MarketItemFormState['status']) => ({
+    menuEntryId: item.menu_entry_id,
+    title: item.title,
+    summary: item.summary || '',
+    description: item.description || '',
+    thumbnailUrl: item.thumbnail_url || '',
+    examYear: item.exam_year,
+    examMonth: item.exam_month,
+    gradeLevel: item.grade_level || '',
+    sourceType: item.source_type || '',
+    source1: item.source_1 || '',
+    source2: item.source_2 || '',
+    source3: item.source_3 || '',
+    source4: item.source_4 || '',
+    questionCount: item.question_count,
+    pdfPrice: item.pdf_price,
+    hwpPrice: item.hwp_price,
+    zipPrice: item.zip_price,
+    status: nextStatus,
+    draftSource: 'manual',
+    isActive: item.is_active,
+  })
 
   const refreshItems = async (menuEntryId?: string) => {
     const targetMenuEntryId = menuEntryId ?? selectedMenuEntryId
@@ -593,6 +649,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       if (form.id === deleteTarget.id) {
         resetForm(deleteTarget.menu_entry_id)
       }
+      setSelectedItemIds((current) => current.filter((itemId) => itemId !== deleteTarget.id))
       setDeleteTarget(null)
       toast.success('문제마켓 상품을 완전 삭제했습니다.')
       router.refresh()
@@ -612,22 +669,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${item.id}`, workspaceSubject), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          menuEntryId: item.menu_entry_id,
-          title: item.title,
-          summary: item.summary || '',
-          description: item.description || '',
-          thumbnailUrl: item.thumbnail_url || '',
-          examYear: item.exam_year,
-          examMonth: item.exam_month,
-          gradeLevel: item.grade_level || '',
-          pdfPrice: item.pdf_price,
-          hwpPrice: item.hwp_price,
-          zipPrice: item.zip_price,
-          status: nextStatus,
-          draftSource: 'manual',
-          isActive: item.is_active,
-        }),
+        body: JSON.stringify(buildItemPatchBody(item, nextStatus)),
       })
       const payload = await response.json()
 
@@ -652,6 +694,126 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       toast.error(error instanceof Error ? error.message : '문제마켓 상품 상태 변경 중 오류가 발생했습니다.')
     } finally {
       setHidingItemId(null)
+    }
+  }
+
+  const handleBulkVisibility = async () => {
+    const targetItems = selectedItems
+    if (targetItems.length === 0) {
+      return
+    }
+
+    setIsBulkActionRunning(true)
+    try {
+      const results = await Promise.allSettled(targetItems.map(async (item) => {
+        const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${item.id}`, workspaceSubject), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...buildItemPatchBody(item, 'hidden'), status: 'hidden' }),
+        })
+        const payload = await response.json()
+
+        if (!response.ok || !payload.success) {
+          throw new Error(payload.error?.message || `${item.title} 숨김 처리에 실패했습니다.`)
+        }
+
+        return payload.data as MarketItem
+      }))
+
+      const successIds = targetItems
+        .filter((_, index) => results[index].status === 'fulfilled')
+        .map((item) => item.id)
+      const failedIds = targetItems
+        .filter((_, index) => results[index].status === 'rejected')
+        .map((item) => item.id)
+      const successMenuEntryIds = Array.from(new Set(targetItems
+        .filter((item) => successIds.includes(item.id))
+        .map((item) => item.menu_entry_id)))
+
+      successIds.forEach((itemId) => setHiddenOverride(itemId, true))
+      setItems((current) => current.map((item) => successIds.includes(item.id)
+        ? { ...item, status: 'hidden', draft_source: 'manual' }
+        : item))
+
+      const updatedItems = results
+        .filter((result): result is PromiseFulfilledResult<MarketItem> => result.status === 'fulfilled')
+        .map((result) => result.value)
+      const updatedFormItem = updatedItems.find((item) => item.id === form.id)
+      if (updatedFormItem) {
+        setForm(buildEditForm(updatedFormItem))
+        setRequiresFinalRegistration(false)
+      }
+
+      await Promise.all(successMenuEntryIds.map((menuEntryId) => refreshItems(menuEntryId)))
+      setSelectedItemIds(failedIds)
+
+      if (successIds.length > 0) {
+        toast.success(`선택한 상품 ${successIds.length}개를 숨김 처리했습니다.`)
+      }
+      if (failedIds.length > 0) {
+        toast.error(`선택한 상품 ${failedIds.length}개 숨김 처리에 실패했습니다.`)
+      }
+      router.refresh()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '선택한 상품 숨김 처리 중 오류가 발생했습니다.')
+    } finally {
+      setIsBulkActionRunning(false)
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    const targetItems = bulkDeleteTargetItems
+    if (!bulkDeleteTargetIds || targetItems.length === 0) {
+      return
+    }
+
+    setIsBulkActionRunning(true)
+    try {
+      const results = await Promise.allSettled(targetItems.map(async (item) => {
+        const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${item.id}`, workspaceSubject), {
+          method: 'DELETE',
+        })
+        const payload = await response.json()
+
+        if (!response.ok || !payload.success) {
+          throw new Error(payload.error?.message || `${item.title} 완전 삭제에 실패했습니다.`)
+        }
+
+        return item
+      }))
+
+      const successIds = targetItems
+        .filter((_, index) => results[index].status === 'fulfilled')
+        .map((item) => item.id)
+      const failedIds = targetItems
+        .filter((_, index) => results[index].status === 'rejected')
+        .map((item) => item.id)
+      const successMenuEntryIds = Array.from(new Set(targetItems
+        .filter((item) => successIds.includes(item.id))
+        .map((item) => item.menu_entry_id)))
+
+      setItems((current) => current.filter((item) => !successIds.includes(item.id)))
+      setHiddenItemIds((current) => current.filter((itemId) => !successIds.includes(itemId)))
+      setSelectedItemIds(failedIds)
+      setBulkDeleteTargetIds(null)
+
+      if (form.id && successIds.includes(form.id)) {
+        resetForm(form.menuEntryId)
+      }
+
+      await Promise.all(successMenuEntryIds.map((menuEntryId) => refreshItems(menuEntryId)))
+
+      if (successIds.length > 0) {
+        toast.success(`선택한 상품 ${successIds.length}개를 완전 삭제했습니다.`)
+      }
+      if (failedIds.length > 0) {
+        toast.error(`선택한 상품 ${failedIds.length}개 완전 삭제에 실패했습니다.`)
+      }
+      router.refresh()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '선택한 상품 완전 삭제 중 오류가 발생했습니다.')
+    } finally {
+      setIsBulkActionRunning(false)
     }
   }
 
@@ -901,6 +1063,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
             onChange={(event) => {
               const nextMenuEntryId = event.target.value
               setSelectedMenuEntryId(nextMenuEntryId)
+              setSelectedItemIds([])
               setForm((current) => current.id
                 ? { ...current, menuEntryId: nextMenuEntryId }
                 : buildEmptyForm(nextMenuEntryId))
@@ -1398,13 +1561,46 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
 
         <Card>
           <CardHeader>
-            <CardTitle>상품 목록</CardTitle>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle>상품 목록</CardTitle>
+                <p className="mt-1 text-sm text-gray-500">선택 {selectedItems.length}개</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={selectedItems.length === 0 || isBulkActionRunning}
+                  onClick={() => void handleBulkVisibility()}
+                >
+                  {isBulkActionRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <EyeOff className="mr-2 h-4 w-4" />}
+                  선택 숨김
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={selectedItems.length === 0 || isBulkActionRunning}
+                  onClick={() => setBulkDeleteTargetIds(selectedItems.map((item) => item.id))}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  선택 삭제
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="rounded-lg border bg-white">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[52px] text-center">
+                      <Checkbox
+                        aria-label="상품 전체 선택"
+                        checked={allFilteredSelected ? true : someFilteredSelected ? 'indeterminate' : false}
+                        disabled={filteredItems.length === 0 || isBulkActionRunning}
+                        onCheckedChange={() => toggleFilteredSelection()}
+                      />
+                    </TableHead>
                     <TableHead>제목</TableHead>
                     <TableHead>카테고리</TableHead>
                     <TableHead className="text-center">가격</TableHead>
@@ -1416,7 +1612,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                 <TableBody>
                   {filteredItems.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="py-10 text-center text-sm text-gray-500">
+                      <TableCell colSpan={7} className="py-10 text-center text-sm text-gray-500">
                         등록된 상품이 없습니다.
                       </TableCell>
                     </TableRow>
@@ -1426,6 +1622,14 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
 
                       return (
                         <TableRow key={item.id}>
+                          <TableCell className="text-center">
+                            <Checkbox
+                              aria-label={`${item.title} 선택`}
+                              checked={selectedItemIds.includes(item.id)}
+                              disabled={isBulkActionRunning}
+                              onCheckedChange={() => toggleItemSelection(item.id)}
+                            />
+                          </TableCell>
                           <TableCell>
                             <div className="space-y-1">
                               <p className="font-medium text-gray-900">{item.title}</p>
@@ -1516,6 +1720,37 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
               onClick={handleDeleteFromList}
             >
               {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              완전 삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!bulkDeleteTargetIds} onOpenChange={(open) => !open && !isBulkActionRunning && setBulkDeleteTargetIds(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>선택한 문제마켓 상품 {bulkDeleteTargetIds?.length ?? 0}개를 완전 삭제할까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              DB 데이터와 업로드된 파일이 모두 삭제되며 되돌릴 수 없습니다.
+              {bulkDeleteTargetItems.length > 0 ? (
+                <span className="mt-2 block text-gray-700">
+                  {bulkDeleteTargetItems.slice(0, 3).map((item) => item.title).join(', ')}
+                  {bulkDeleteTargetItems.length > 3 ? ` 외 ${bulkDeleteTargetItems.length - 3}개` : ''}
+                </span>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkActionRunning}>취소</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={isBulkActionRunning}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleBulkDelete()
+              }}
+            >
+              {isBulkActionRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               완전 삭제
             </AlertDialogAction>
           </AlertDialogFooter>
