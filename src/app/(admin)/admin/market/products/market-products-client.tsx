@@ -131,7 +131,7 @@ function buildEmptyForm(menuEntryId = ''): MarketItemFormState {
     pdfPrice: '0',
     hwpPrice: '0',
     zipPrice: '0',
-    status: 'draft',
+    status: 'published',
     draftSource: 'manual',
     isActive: true,
   }
@@ -706,14 +706,18 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       return null
     }
 
+    const nextStatus = statusOverride ?? form.status
+    if (nextStatus === 'published' && options.draftSource !== 'auto_upload' && bundleForm.enabled && parseCreditInputValue(bundleForm.priceCredits) <= 0) {
+      toast.error('전체구매 가격을 설정해주세요')
+      return null
+    }
+
     setIsSaving(true)
     try {
       const targetId = options.targetId ?? form.id
       const previousMenuEntryId = targetId
         ? items.find((item) => item.id === targetId)?.menu_entry_id
         : null
-      const nextStatus = statusOverride ?? form.status
-
       const response = await fetch(withAdminWorkspaceSubject(targetId ? `/api/admin/market/items/${targetId}` : '/api/admin/market/items', workspaceSubject), {
         method: targetId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },

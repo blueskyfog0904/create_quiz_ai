@@ -41,6 +41,12 @@ test('market detail action panel renders subproduct cards and bundle card before
   assert.match(itemActions, /download\?fileId=\$\{fileId\}/)
 })
 
+test('market detail action buttons use one fixed width for sample and purchase actions', () => {
+  assert.match(itemActions, /MARKET_ACTION_BUTTON_CLASS/)
+  assert.match(itemActions, /w-40/)
+  assert.match(itemActions, /MARKET_PURCHASE_BUTTON_CLASS/)
+})
+
 test('market library includes v2 entitlements and download buttons alongside legacy rows', () => {
   assert.match(marketItemsServer, /market_entitlements/)
   assert.match(marketItemsServer, /v2DownloadFiles/)

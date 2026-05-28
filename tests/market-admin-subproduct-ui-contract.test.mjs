@@ -46,6 +46,12 @@ test('admin product form renders subproduct, file-add, bundle, and arbitrary sam
   assert.doesNotMatch(adminProductsClient, /ZIP 가격/)
 })
 
+test('admin product form defaults new items to published and blocks enabled bundle without a price', () => {
+  assert.match(adminProductsClient, /function buildEmptyForm[\s\S]+status: 'published'/)
+  assert.match(adminProductsClient, /전체구매 가격을 설정해주세요/)
+  assert.match(adminProductsClient, /nextStatus === 'published'[\s\S]+options\.draftSource !== 'auto_upload'[\s\S]+bundleForm\.enabled[\s\S]+parseCreditInputValue\(bundleForm\.priceCredits\) <= 0/)
+})
+
 test('admin product form adds paid file draft rows before upload instead of auto-rendering every file type', () => {
   assert.match(adminProductsClient, /SubproductFileDraftState/)
   assert.match(adminProductsClient, /subproductFileDrafts/)

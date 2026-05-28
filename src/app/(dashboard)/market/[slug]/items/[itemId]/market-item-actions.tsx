@@ -41,6 +41,9 @@ type V2PurchaseIntent =
   | { purchaseType: 'subproduct'; subproductId: string; title: string; priceCredits: number }
   | { purchaseType: 'bundle'; bundleOptionId: string; title: string; priceCredits: number }
 
+const MARKET_ACTION_BUTTON_CLASS = 'h-10 w-40 justify-center rounded-lg px-4'
+const MARKET_PURCHASE_BUTTON_CLASS = `${MARKET_ACTION_BUTTON_CLASS} bg-rose-600 text-white hover:bg-rose-700`
+
 function buildDownloadUrl(itemId: string, assetKind: 'pdf' | 'hwp' | 'zip') {
   return `/api/market/items/${itemId}/download?assetKind=${assetKind}`
 }
@@ -150,12 +153,12 @@ function FileOptionRow({
           <p className="mt-1 text-lg font-bold text-slate-950">{priceLabel}</p>
         </div>
         {href ? (
-          <Button asChild className={`h-10 rounded-lg px-4 ${buttonClassName}`} disabled={disabled}>
+          <Button asChild className={`${MARKET_ACTION_BUTTON_CLASS} ${buttonClassName}`} disabled={disabled}>
             <a href={href} aria-label={`${title} ${actionLabel}`}>{actionLabel}</a>
           </Button>
         ) : (
           <Button
-            className={`h-10 rounded-lg px-4 ${buttonClassName}`}
+            className={`${MARKET_ACTION_BUTTON_CLASS} ${buttonClassName}`}
             disabled={disabled}
             onClick={onAction}
             onFocus={onIntent}
@@ -417,7 +420,7 @@ export default function MarketItemActions({
               </div>
               {bundleOption.owned ? renderDownloadButtons(downloadFiles) : (
                 <Button
-                  className="h-10 rounded-lg bg-rose-600 px-4 text-white hover:bg-rose-700"
+                  className={MARKET_PURCHASE_BUTTON_CLASS}
                   disabled={isPending || isCheckingBalance}
                   onClick={() => void openV2PurchaseConfirmation({
                     purchaseType: 'bundle',
@@ -460,7 +463,7 @@ export default function MarketItemActions({
                 </div>
                 {subproduct.owned ? renderDownloadButtons(ownedFiles) : (
                   <Button
-                    className="h-10 rounded-lg bg-rose-600 px-4 text-white hover:bg-rose-700"
+                    className={MARKET_PURCHASE_BUTTON_CLASS}
                     disabled={isPending || isCheckingBalance}
                     onClick={() => void openV2PurchaseConfirmation({
                       purchaseType: 'subproduct',
