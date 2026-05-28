@@ -260,7 +260,7 @@ function buildEmptySubproductDraft(categoryId = ''): SubproductDraftState {
 
 function buildEmptyBundleForm(): BundleFormState {
   return {
-    enabled: false,
+    enabled: true,
     label: '전체 한번에 구매하기',
     description: '',
     priceCredits: '0',
@@ -332,6 +332,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const [selectedSampleSourceFile, setSelectedSampleSourceFile] = useState<File | null>(null)
   const [sampleDraftToken, setSampleDraftToken] = useState<string | null>(null)
   const [isSampleSourceDragActive, setIsSampleSourceDragActive] = useState(false)
+  const [samplePageDragId, setSamplePageDragId] = useState<string | null>(null)
   const [isSampleSourceUploading, setIsSampleSourceUploading] = useState(false)
   const [deletingSamplePageId, setDeletingSamplePageId] = useState<string | null>(null)
   const [subproductCategories, setSubproductCategories] = useState<MarketSubproductCategory[]>([])
@@ -355,7 +356,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const [isSubproductSaving, setIsSubproductSaving] = useState(false)
   const [subproductUploadingKeys, setSubproductUploadingKeys] = useState<string[]>([])
   const [subproductDragActiveKeys, setSubproductDragActiveKeys] = useState<string[]>([])
-  const [isBundleSaving, setIsBundleSaving] = useState(false)
   const sampleSourceInputRef = useRef<HTMLInputElement | null>(null)
 
   const filteredItems = useMemo(() => (
@@ -484,6 +484,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     setSelectedSampleSourceFile(null)
     setSampleDraftToken(null)
     setIsSampleSourceDragActive(false)
+    setSamplePageDragId(null)
     if (sampleSourceInputRef.current) {
       sampleSourceInputRef.current.value = ''
     }
@@ -603,6 +604,43 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     return (payload.pages || []) as AdminSamplePage[]
   }
 
+  const persistSamplePageOrder = async (itemId: string) => {
+    if (samplePages.length === 0) {
+      return
+    }
+
+    const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/sample-pages`, workspaceSubject), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pageIds: samplePages.map((page) => page.id) }),
+    })
+    const payload = await response.json()
+
+    if (!response.ok || !payload.success) {
+      throw new Error(payload.error?.message || '샘플 이미지 순서 저장에 실패했습니다.')
+    }
+  }
+
+  const persistBundleOption = async (itemId: string) => {
+    const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/bundle-option`, workspaceSubject), {
+      method: bundleForm.enabled ? 'PATCH' : 'DELETE',
+      headers: bundleForm.enabled ? { 'Content-Type': 'application/json' } : undefined,
+      body: bundleForm.enabled
+        ? JSON.stringify({
+          label: bundleForm.label || '전체 한번에 구매하기',
+          description: bundleForm.description,
+          priceCredits: parseCreditInputValue(bundleForm.priceCredits),
+          isActive: true,
+        })
+        : undefined,
+    })
+    const payload = await response.json()
+
+    if (!response.ok || !payload.success) {
+      throw new Error(payload.error?.message || '전체구매 옵션 저장에 실패했습니다.')
+    }
+  }
+
   const loadItemDetail = async (id: string) => {
     const detail = await fetchItemDetail(id)
 
@@ -613,6 +651,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     setSelectedSampleSourceFile(null)
     setSampleDraftToken(null)
     setIsSampleSourceDragActive(false)
+    setSamplePageDragId(null)
     if (sampleSourceInputRef.current) {
       sampleSourceInputRef.current.value = ''
     }
@@ -625,7 +664,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const refreshEditingFiles = async (id: string) => {
     const detail = await fetchItemDetail(id)
     applyItemDetail(detail)
-    setSamplePages(await fetchItemSamplePages(id))
   }
 
   const buildRequestBody = (
@@ -691,6 +729,10 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       await refreshItems(form.menuEntryId)
       if (previousMenuEntryId && previousMenuEntryId !== form.menuEntryId) {
         await refreshItems(previousMenuEntryId)
+      }
+      if (options.draftSource !== 'auto_upload') {
+        await persistSamplePageOrder(payload.data.id)
+        await persistBundleOption(payload.data.id)
       }
       const detail = await fetchItemDetail(payload.data.id)
       setSelectedMenuEntryId(detail.item.menu_entry_id)
@@ -1112,6 +1154,65 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     }
   }
 
+  const handleDeleteAllSamplePages = async () => {
+    if (!form.id || samplePages.length === 0) {
+      return
+    }
+
+    if (!window.confirm('생성된 샘플 이미지를 모두 삭제할까요?')) {
+      return
+    }
+
+    setDeletingSamplePageId('__all__')
+    const deletedPageIds: string[] = []
+    try {
+      for (const page of samplePages) {
+        const deleteUrl = page.draftToken
+          ? `/api/admin/market/items/${form.id}/sample-pages/${page.id}?draftToken=${encodeURIComponent(page.draftToken)}`
+          : `/api/admin/market/items/${form.id}/sample-pages/${page.id}`
+        const response = await fetch(withAdminWorkspaceSubject(deleteUrl, workspaceSubject), {
+          method: 'DELETE',
+        })
+        const payload = await response.json()
+
+        if (!response.ok || !payload.success) {
+          throw new Error(payload.error?.message || '샘플 JPG 전체 삭제에 실패했습니다.')
+        }
+        deletedPageIds.push(page.id)
+      }
+
+      setSamplePages((current) => current.filter((page) => !deletedPageIds.includes(page.id)))
+      setSampleDraftToken(null)
+      toast.success('샘플 이미지를 모두 삭제했습니다.')
+    } catch (error) {
+      if (deletedPageIds.length > 0) {
+        setSamplePages((current) => current.filter((page) => !deletedPageIds.includes(page.id)))
+      }
+      toast.error(error instanceof Error ? error.message : '샘플 JPG 전체 삭제 중 오류가 발생했습니다.')
+    } finally {
+      setDeletingSamplePageId(null)
+    }
+  }
+
+  const handleMoveSamplePage = (sourcePageId: string, targetPageId: string) => {
+    if (sourcePageId === targetPageId) {
+      return
+    }
+
+    setSamplePages((current) => {
+      const sourceIndex = current.findIndex((page) => page.id === sourcePageId)
+      const targetIndex = current.findIndex((page) => page.id === targetPageId)
+      if (sourceIndex < 0 || targetIndex < 0) {
+        return current
+      }
+
+      const next = [...current]
+      const [movedPage] = next.splice(sourceIndex, 1)
+      next.splice(targetIndex, 0, movedPage)
+      return next
+    })
+  }
+
   const resetCategorySettingsForm = () => {
     setEditingCategoryId(null)
     setCategorySettingsForm(buildEmptyCategorySettingsForm())
@@ -1484,41 +1585,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     }
   }
 
-  const handleSaveBundleOption = async () => {
-    const targetItemId = form.id ?? await ensureDraftItemForUpload()
-    if (!targetItemId) {
-      return
-    }
-
-    setIsBundleSaving(true)
-    try {
-      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/bundle-option`, workspaceSubject), {
-        method: bundleForm.enabled ? 'PATCH' : 'DELETE',
-        headers: bundleForm.enabled ? { 'Content-Type': 'application/json' } : undefined,
-        body: bundleForm.enabled
-          ? JSON.stringify({
-            label: bundleForm.label || '전체 한번에 구매하기',
-            description: bundleForm.description,
-            priceCredits: parseCreditInputValue(bundleForm.priceCredits),
-            isActive: true,
-          })
-          : undefined,
-      })
-      const payload = await response.json()
-
-      if (!response.ok || !payload.success) {
-        throw new Error(payload.error?.message || '전체구매 옵션 저장에 실패했습니다.')
-      }
-
-      await refreshEditingFiles(targetItemId)
-      toast.success(bundleForm.enabled ? '전체구매 옵션을 저장했습니다.' : '전체구매 옵션을 비활성화했습니다.')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '전체구매 옵션 저장 중 오류가 발생했습니다.')
-    } finally {
-      setIsBundleSaving(false)
-    }
-  }
-
   const canOpenSamplePreview = Boolean(form.id && samplePages.length > 0 && !isSampleSourceUploading)
   const samplePreviewStatusLabel = isSampleSourceUploading ? '샘플 생성 중' : samplePages.length > 0 ? '확인 가능' : '샘플 없음'
   const isAutoUploadDraft = Boolean(form.id && form.draftSource === 'auto_upload')
@@ -1786,6 +1852,15 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                   <Button
                     type="button"
                     variant="outline"
+                    disabled={samplePages.length === 0 || deletingSamplePageId === '__all__'}
+                    onClick={() => void handleDeleteAllSamplePages()}
+                  >
+                    {deletingSamplePageId === '__all__' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                    샘플 이미지 전체 삭제
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
                     disabled={isSampleSourceUploading || !selectedSampleSourceFile}
                     onClick={() => void handleGenerateSampleImages()}
                   >
@@ -1813,7 +1888,30 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
               {samplePages.length > 0 ? (
                 <div className="flex flex-wrap gap-3 pt-2">
                   {samplePages.map((page) => (
-                    <div key={page.id} className="relative h-24 w-20 overflow-hidden rounded border bg-slate-50 shadow-sm">
+                    <div
+                      key={page.id}
+                      draggable
+                      onDragStart={(event) => {
+                        setSamplePageDragId(page.id)
+                        event.dataTransfer.effectAllowed = 'move'
+                      }}
+                      onDragOver={(event) => {
+                        event.preventDefault()
+                        event.dataTransfer.dropEffect = 'move'
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault()
+                        if (samplePageDragId) {
+                          handleMoveSamplePage(samplePageDragId, page.id)
+                        }
+                        setSamplePageDragId(null)
+                      }}
+                      onDragEnd={() => setSamplePageDragId(null)}
+                      className={`relative h-24 w-20 cursor-move overflow-hidden rounded border bg-slate-50 shadow-sm transition ${
+                        samplePageDragId === page.id ? 'scale-95 opacity-60' : ''
+                      }`}
+                      title="드래그해서 샘플 이미지 순서를 변경할 수 있습니다."
+                    >
                       <div
                         aria-label={`샘플 ${page.pageNumber}페이지`}
                         role="img"
@@ -1824,7 +1922,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                       <button
                         type="button"
                         className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white"
-                        disabled={deletingSamplePageId === page.id}
+                        disabled={deletingSamplePageId === page.id || deletingSamplePageId === '__all__'}
                         aria-label={`${page.pageNumber}페이지 샘플 삭제`}
                         onClick={() => void handleDeleteSamplePage(page)}
                       >
@@ -2076,7 +2174,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
               <div className="flex items-center justify-between rounded-md border px-3 py-2">
                 <div>
                   <p className="text-sm font-medium text-gray-900">전체구매 옵션 사용</p>
-                  <p className="text-xs text-gray-500">꺼두면 사용자 상세페이지에 전체구매 카드가 노출되지 않습니다.</p>
+                  <p className="text-xs text-gray-500">기본값은 사용이며, 꺼두면 사용자 상세페이지에 전체구매 카드가 노출되지 않습니다.</p>
                 </div>
                 <Switch checked={bundleForm.enabled} onCheckedChange={(checked) => setBundleForm((current) => ({ ...current, enabled: checked }))} />
               </div>
@@ -2100,12 +2198,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                   <Label>전체구매 설명</Label>
                   <Textarea disabled={!bundleForm.enabled} value={bundleForm.description} onChange={(event) => setBundleForm((current) => ({ ...current, description: event.target.value }))} className="min-h-[72px]" />
                 </div>
-              </div>
-              <div className="flex justify-end">
-                <Button type="button" variant="outline" disabled={isBundleSaving} onClick={() => void handleSaveBundleOption()}>
-                  {isBundleSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  전체구매 옵션 저장
-                </Button>
               </div>
             </div>
 

@@ -3,7 +3,10 @@ import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { createClient } from '@/lib/supabase/server'
 import { getMarketItemById } from '@/lib/market-items-server'
-import { listActiveMarketItemSamplePages } from '@/lib/market-sample-pages-server'
+import {
+  listActiveMarketItemSamplePages,
+  updateMarketItemSamplePageDisplayOrder,
+} from '@/lib/market-sample-pages-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -82,6 +85,46 @@ export async function GET(request: Request, { params }: RouteContext) {
       error: {
         code: 'INTERNAL_SERVER_ERROR',
         message: error instanceof Error ? error.message : '샘플 페이지를 불러오지 못했습니다.',
+      },
+    }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: Request, { params }: RouteContext) {
+  const { user, isAdmin } = await requireAdminUser()
+  const { id } = await params
+  const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
+
+  if (!user) {
+    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
+  }
+
+  if (!isAdmin) {
+    return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: '관리자 권한이 필요합니다.' } }, { status: 403 })
+  }
+
+  try {
+    const body = await request.json()
+    const pageIds = Array.isArray(body?.pageIds)
+      ? body.pageIds.filter((pageId: unknown) => typeof pageId === 'string' && pageId.trim())
+      : []
+    if (pageIds.length === 0) {
+      return NextResponse.json({ success: false, error: { code: 'INVALID_INPUT', message: '정렬할 샘플 페이지가 없습니다.' } }, { status: 400 })
+    }
+
+    const item = await getMarketItemById(id, workspaceSubject)
+    if (!item) {
+      return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
+    }
+
+    await updateMarketItemSamplePageDisplayOrder(item.id, pageIds, item.workspace_subject)
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: error instanceof Error ? error.message : '샘플 페이지 순서 저장에 실패했습니다.',
       },
     }, { status: 500 })
   }

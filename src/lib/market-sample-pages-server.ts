@@ -75,6 +75,7 @@ export async function listActiveMarketItemSamplePages(
     .eq('item_id', itemId)
     .eq('is_active', true)
     .is('deleted_at', null)
+    .order('display_order', { ascending: true })
     .order('page_number', { ascending: true })
 
   if (workspaceSubject) {
@@ -105,6 +106,7 @@ export async function listActiveMarketItemSamplePagesForItems(
     .eq('workspace_subject', workspaceSubject)
     .eq('is_active', true)
     .is('deleted_at', null)
+    .order('display_order', { ascending: true })
     .order('page_number', { ascending: true })
 
   if (error) {
@@ -406,4 +408,29 @@ export async function deactivateMarketItemSamplePage(
   }
 
   return withWorkspaceSubject(data)
+}
+
+export async function updateMarketItemSamplePageDisplayOrder(
+  itemId: string,
+  pageIds: string[],
+  workspaceSubject: WorkspaceSubject
+): Promise<void> {
+  if (pageIds.length === 0) {
+    return
+  }
+
+  const supabase = createAdminClient()
+  for (const [index, pageId] of pageIds.entries()) {
+    const { error } = await supabase
+      .from('market_item_sample_pages')
+      .update({ display_order: index + 1 })
+      .eq('id', pageId)
+      .eq('item_id', itemId)
+      .eq('workspace_subject', workspaceSubject)
+      .is('deleted_at', null)
+
+    if (error) {
+      throw new Error(error.message)
+    }
+  }
 }

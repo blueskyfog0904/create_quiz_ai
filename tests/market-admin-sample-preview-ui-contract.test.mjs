@@ -6,6 +6,14 @@ const adminProductsClient = readFileSync(
   new URL('../src/app/(admin)/admin/market/products/market-products-client.tsx', import.meta.url),
   'utf8'
 )
+const adminSamplePagesRoute = readFileSync(
+  new URL('../src/app/api/admin/market/items/[id]/sample-pages/route.ts', import.meta.url),
+  'utf8'
+)
+const samplePagesServer = readFileSync(
+  new URL('../src/lib/market-sample-pages-server.ts', import.meta.url),
+  'utf8'
+)
 const dialogPath = new URL('../src/app/(admin)/admin/market/products/admin-market-sample-preview-dialog.tsx', import.meta.url)
 const dialog = existsSync(dialogPath) ? readFileSync(dialogPath, 'utf8') : ''
 
@@ -33,6 +41,13 @@ test('admin product upload area exposes a generated sample preview action', () =
   assert.match(adminProductsClient, /draftToken/)
   assert.match(adminProductsClient, /isSampleSourceUploading/)
   assert.match(adminProductsClient, /samplePageSelection/)
+  assert.match(adminProductsClient, /샘플 이미지 전체 삭제/)
+  assert.match(adminProductsClient, /handleDeleteAllSamplePages/)
+  assert.match(adminProductsClient, /handleMoveSamplePage/)
+  assert.match(adminProductsClient, /samplePageDragId/)
+  assert.match(adminProductsClient, /draggable/)
+  assert.match(adminProductsClient, /persistSamplePageOrder/)
+  assert.match(adminProductsClient, /body: JSON\.stringify\(\{ pageIds: samplePages\.map\(\(page\) => page\.id\) \}\)/)
 
   const selectSampleSourceFileHandler = extractBetween(
     adminProductsClient,
@@ -51,6 +66,22 @@ test('admin product upload area exposes a generated sample preview action', () =
   assert.match(sampleDropHandler, /handleSelectSampleSourceFile\(event\.dataTransfer\.files\?\.\[0\]\)/)
   assert.doesNotMatch(sampleDropHandler, /handleGenerateSampleImages/)
   assert.match(adminProductsClient, /current\.filter\(\(currentPage\) => currentPage\.draftToken\)/)
+
+  const refreshEditingFilesHandler = extractBetween(
+    adminProductsClient,
+    'const refreshEditingFiles',
+    'const buildRequestBody'
+  )
+  assert.doesNotMatch(refreshEditingFilesHandler, /setSamplePages/)
+})
+
+test('admin sample pages can persist manual thumbnail order', () => {
+  assert.match(adminSamplePagesRoute, /export async function PATCH/)
+  assert.match(adminSamplePagesRoute, /pageIds/)
+  assert.match(adminSamplePagesRoute, /updateMarketItemSamplePageDisplayOrder/)
+  assert.match(samplePagesServer, /export async function updateMarketItemSamplePageDisplayOrder/)
+  assert.match(samplePagesServer, /display_order: index \+ 1/)
+  assert.match(samplePagesServer, /\.order\('display_order'/)
 })
 
 test('admin product file draft drop zones show larger red empty state before upload', () => {
