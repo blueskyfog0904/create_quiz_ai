@@ -62,6 +62,26 @@ test('market detail uses smart indigo action buttons and file option icons', () 
   assert.doesNotMatch(itemActions, /bg-rose-600/)
 })
 
+test('market detail uses soft status badges and green download actions', () => {
+  assert.match(itemActions, /MARKET_BADGE_FREE_CLASS/)
+  assert.match(itemActions, /MARKET_BADGE_AVAILABLE_CLASS/)
+  assert.match(itemActions, /MARKET_BADGE_OWNED_CLASS/)
+  assert.match(itemActions, /MARKET_DOWNLOAD_BUTTON_CLASS/)
+  assert.match(itemActions, /className=\{MARKET_BADGE_FREE_CLASS\}>무료/)
+  assert.match(itemActions, /className=\{MARKET_BADGE_AVAILABLE_CLASS\}>미구매/)
+  assert.match(itemActions, /className=\{MARKET_BADGE_OWNED_CLASS\}>구매 완료/)
+  assert.match(itemActions, /Download/)
+  assert.match(itemActions, /buttonClassName\?: string/)
+  assert.match(itemActions, /buttonClassName \?\?/)
+  assert.match(itemActions, /className=\{MARKET_DOWNLOAD_BUTTON_CLASS\}/)
+  assert.match(itemActions, /buttonClassName=\{ownsPdf \? MARKET_DOWNLOAD_BUTTON_CLASS : undefined\}/)
+  assert.match(itemActions, /buttonClassName=\{ownsHwp \? MARKET_DOWNLOAD_BUTTON_CLASS : undefined\}/)
+  assert.match(itemActions, /buttonClassName=\{ownsZip \? MARKET_DOWNLOAD_BUTTON_CLASS : undefined\}/)
+  assert.match(itemActions, /buildV2DownloadUrl\(itemId, file\.id\)/)
+  const downloadClassUses = itemActions.match(/MARKET_DOWNLOAD_BUTTON_CLASS/g) ?? []
+  assert.ok(downloadClassUses.length >= 5)
+})
+
 test('market library includes v2 entitlements and download buttons alongside legacy rows', () => {
   assert.match(marketItemsServer, /market_entitlements/)
   assert.match(marketItemsServer, /v2DownloadFiles/)

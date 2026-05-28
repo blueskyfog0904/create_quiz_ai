@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Eye, FileArchive, FileCheck2, FileStack, FileText, ShoppingCart } from 'lucide-react'
+import { Download, Eye, FileArchive, FileCheck2, FileStack, FileText, ShoppingCart } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -47,6 +47,10 @@ const MARKET_PRIMARY_BUTTON_CLASS = `${MARKET_ACTION_BUTTON_CLASS} bg-indigo-600
 const MARKET_OUTLINE_BUTTON_CLASS = `${MARKET_ACTION_BUTTON_CLASS} border border-indigo-500 bg-white text-indigo-600 hover:bg-indigo-50 active:border-indigo-800 active:text-indigo-800`
 const MARKET_DISABLED_BUTTON_CLASS = `${MARKET_ACTION_BUTTON_CLASS} bg-slate-200 text-slate-400 hover:bg-slate-200`
 const MARKET_OPTION_ICON_CLASS = 'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600'
+const MARKET_BADGE_FREE_CLASS = 'rounded-full border border-[#E0E7FF] bg-[#F8FAFF] px-3 py-1 text-xs font-medium text-[#4F46E5] hover:bg-[#F8FAFF]'
+const MARKET_BADGE_AVAILABLE_CLASS = 'rounded-full border border-[#E4E7EB] bg-[#F4F6F9] px-3 py-1 text-xs font-medium text-[#475569] hover:bg-[#F4F6F9]'
+const MARKET_BADGE_OWNED_CLASS = 'rounded-full border border-[#D1FAE5] bg-[#ECFDF5] px-3 py-1 text-xs font-medium text-[#065F46] hover:bg-[#ECFDF5]'
+const MARKET_DOWNLOAD_BUTTON_CLASS = 'h-9 min-w-36 justify-center gap-2 rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 text-sm font-medium text-emerald-700 hover:bg-emerald-100 active:bg-emerald-200 focus-visible:ring-emerald-200'
 
 function buildDownloadUrl(itemId: string, assetKind: 'pdf' | 'hwp' | 'zip') {
   return `/api/market/items/${itemId}/download?assetKind=${assetKind}`
@@ -123,11 +127,11 @@ function getPurchaseErrorMessage(status: number, fallback?: string) {
 
 function OptionStateBadge({ state }: { state: OptionState }) {
   if (state === 'instant') {
-    return <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-50">무료</Badge>
+    return <Badge variant="secondary" className={MARKET_BADGE_FREE_CLASS}>무료</Badge>
   }
 
   if (state === 'owned') {
-    return <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50">구매 완료</Badge>
+    return <Badge variant="secondary" className={MARKET_BADGE_OWNED_CLASS}>구매 완료</Badge>
   }
 
   if (state === 'checking') {
@@ -142,7 +146,7 @@ function OptionStateBadge({ state }: { state: OptionState }) {
     return <Badge variant="outline" className="text-slate-400">미제공</Badge>
   }
 
-  return <Badge variant="outline">미구매</Badge>
+  return <Badge variant="secondary" className={MARKET_BADGE_AVAILABLE_CLASS}>미구매</Badge>
 }
 
 function FileOptionRow({
@@ -155,6 +159,7 @@ function FileOptionRow({
   actionIcon,
   href,
   disabled,
+  buttonClassName,
   onAction,
   onIntent,
 }: {
@@ -167,10 +172,11 @@ function FileOptionRow({
   actionIcon?: ReactNode
   href?: string
   disabled?: boolean
+  buttonClassName?: string
   onAction?: () => void
   onIntent?: () => void
 }) {
-  const buttonClassName = state === 'unavailable' ? MARKET_DISABLED_BUTTON_CLASS : MARKET_OUTLINE_BUTTON_CLASS
+  const resolvedButtonClassName = buttonClassName ?? (state === 'unavailable' ? MARKET_DISABLED_BUTTON_CLASS : MARKET_OUTLINE_BUTTON_CLASS)
 
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -190,7 +196,7 @@ function FileOptionRow({
           <p className="mt-1 text-lg font-bold text-slate-950">{priceLabel}</p>
         </div>
         {href ? (
-          <Button asChild className={buttonClassName} disabled={disabled}>
+          <Button asChild className={resolvedButtonClassName} disabled={disabled}>
             <a href={href} aria-label={`${title} ${actionLabel}`}>
               {actionIcon}
               {actionLabel}
@@ -198,7 +204,7 @@ function FileOptionRow({
           </Button>
         ) : (
           <Button
-            className={buttonClassName}
+            className={resolvedButtonClassName}
             disabled={disabled}
             onClick={onAction}
             onFocus={onIntent}
@@ -432,8 +438,9 @@ export default function MarketItemActions({
     const renderDownloadButtons = (files: MarketSubproductDownloadFile[]) => (
       <div className="flex flex-wrap justify-end gap-2">
         {files.map((file) => (
-          <Button key={file.id} asChild size="sm" variant="outline">
+          <Button key={file.id} asChild className={MARKET_DOWNLOAD_BUTTON_CLASS}>
             <a href={buildV2DownloadUrl(itemId, file.id)} aria-label={`${file.fileTypeLabel} 다운로드`}>
+              <Download className="h-4 w-4" />
               {file.fileTypeLabel} 다운로드
             </a>
           </Button>
@@ -565,9 +572,10 @@ export default function MarketItemActions({
           state={getPaidOptionState('pdf', ownsPdf, hasPdf)}
           icon={ownsPdf ? <MarketOptionIcon kind="default" /> : <MarketOptionIcon kind="pdf" />}
           actionLabel={ownsPdf ? 'PDF 다운로드' : 'PDF 구매하기'}
-          actionIcon={ownsPdf ? <CheckCircle2 className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
+          actionIcon={ownsPdf ? <Download className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
           href={ownsPdf ? buildDownloadUrl(itemId, 'pdf') : undefined}
           disabled={!hasPdf || isPending || isCheckingBalance}
+          buttonClassName={ownsPdf ? MARKET_DOWNLOAD_BUTTON_CLASS : undefined}
           onAction={!ownsPdf && hasPdf ? () => void openPurchaseConfirmation('pdf') : undefined}
         />
       ) : null}
@@ -580,9 +588,10 @@ export default function MarketItemActions({
           state={getPaidOptionState('hwp', ownsHwp, hasHwp)}
           icon={ownsHwp ? <MarketOptionIcon kind="default" /> : <MarketOptionIcon kind="hwp" />}
           actionLabel={ownsHwp ? 'HWP 다운로드' : 'HWP & PDF 구매하기'}
-          actionIcon={ownsHwp ? <CheckCircle2 className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
+          actionIcon={ownsHwp ? <Download className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
           href={ownsHwp ? buildDownloadUrl(itemId, 'hwp') : undefined}
           disabled={!hasHwp || isPending || isCheckingBalance}
+          buttonClassName={ownsHwp ? MARKET_DOWNLOAD_BUTTON_CLASS : undefined}
           onAction={!ownsHwp && hasHwp ? () => void openPurchaseConfirmation('hwp') : undefined}
         />
       ) : null}
@@ -594,9 +603,10 @@ export default function MarketItemActions({
           state={getPaidOptionState('zip', ownsZip, hasZip)}
           icon={ownsZip ? <MarketOptionIcon kind="default" /> : <MarketOptionIcon kind="zip" />}
           actionLabel={ownsZip ? 'ZIP 다운로드' : 'ZIP 구매하기'}
-          actionIcon={ownsZip ? <CheckCircle2 className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
+          actionIcon={ownsZip ? <Download className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
           href={ownsZip ? buildDownloadUrl(itemId, 'zip') : undefined}
           disabled={!hasZip || isPending || isCheckingBalance}
+          buttonClassName={ownsZip ? MARKET_DOWNLOAD_BUTTON_CLASS : undefined}
           onAction={!ownsZip && hasZip ? () => void openPurchaseConfirmation('zip') : undefined}
         />
       ) : null}
