@@ -43,8 +43,23 @@ test('market detail action panel renders subproduct cards and bundle card before
 
 test('market detail action buttons use one fixed width for sample and purchase actions', () => {
   assert.match(itemActions, /MARKET_ACTION_BUTTON_CLASS/)
-  assert.match(itemActions, /w-40/)
-  assert.match(itemActions, /MARKET_PURCHASE_BUTTON_CLASS/)
+  assert.match(itemActions, /w-44/)
+  assert.match(itemActions, /MARKET_PRIMARY_BUTTON_CLASS/)
+  assert.match(itemActions, /MARKET_OUTLINE_BUTTON_CLASS/)
+})
+
+test('market detail uses smart indigo action buttons and file option icons', () => {
+  assert.match(itemActions, /bg-indigo-600/)
+  assert.match(itemActions, /hover:bg-indigo-700/)
+  assert.match(itemActions, /active:bg-indigo-800/)
+  assert.match(itemActions, /border-indigo-500/)
+  assert.match(itemActions, /text-indigo-600/)
+  assert.match(itemActions, /focus-visible:ring-indigo-300/)
+  assert.match(itemActions, /Eye/)
+  assert.match(itemActions, /ShoppingCart/)
+  assert.match(itemActions, /MarketOptionIcon/)
+  assert.match(itemActions, /getSubproductIconKind/)
+  assert.doesNotMatch(itemActions, /bg-rose-600/)
 })
 
 test('market library includes v2 entitlements and download buttons alongside legacy rows', () => {
