@@ -6,6 +6,7 @@ import { getMarketItemById } from '@/lib/market-items-server'
 import {
   deactivateMarketItemSamplePage,
   listActiveMarketItemSamplePages,
+  removeDraftMarketItemSamplePage,
 } from '@/lib/market-sample-pages-server'
 
 export const dynamic = 'force-dynamic'
@@ -63,7 +64,9 @@ async function buildSignedPages(itemId: string, workspaceSubject: 'english' | 'k
 export async function DELETE(request: Request, { params }: RouteContext) {
   const { user, isAdmin } = await requireAdminUser()
   const { id, pageId } = await params
-  const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
+  const searchParams = new URL(request.url).searchParams
+  const workspaceSubject = resolveAdminWorkspaceSubject(searchParams.get('subject'))
+  const draftToken = searchParams.get('draftToken')
 
   if (!user) {
     return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
@@ -79,7 +82,9 @@ export async function DELETE(request: Request, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
 
-    const deletedPage = await deactivateMarketItemSamplePage(pageId, item.id, item.workspace_subject)
+    const deletedPage = draftToken
+      ? await removeDraftMarketItemSamplePage(pageId, item.id, draftToken, item.workspace_subject)
+      : await deactivateMarketItemSamplePage(pageId, item.id, item.workspace_subject)
     if (!deletedPage) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '샘플 페이지를 찾을 수 없습니다.' } }, { status: 404 })
     }
@@ -90,7 +95,7 @@ export async function DELETE(request: Request, { params }: RouteContext) {
       .remove([deletedPage.storage_path])
       .catch(() => undefined)
 
-    const pages = await buildSignedPages(item.id, item.workspace_subject)
+    const pages = draftToken ? [] : await buildSignedPages(item.id, item.workspace_subject)
     return NextResponse.json({ success: true, pages })
   } catch (error) {
     return NextResponse.json({

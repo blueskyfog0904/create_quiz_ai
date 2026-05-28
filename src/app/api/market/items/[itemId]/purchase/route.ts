@@ -10,18 +10,36 @@ import {
 import {
   buildMarketPurchaseInsert,
   buildMarketPurchaseResourceType,
+  createMarketV2PurchaseWithCompensation,
   deductCreditsForMarketPurchase,
   ensureMarketItemIsPurchasable,
   getMarketPaidAssetLabel,
   getMarketPurchaseKindsToCheck,
+  isMarketV2PurchaseEnabled,
   isMarketAssetCoveredByPurchaseKind,
   type MarketPaidAssetKind,
+  type MarketV2PurchaseType,
 } from '@/lib/market-purchase'
 
 export const dynamic = 'force-dynamic'
 
-const BodySchema = z.object({
+const LegacyBodySchema = z.object({
   assetKind: z.enum(['pdf', 'hwp', 'zip']),
+})
+
+const V2BodySchema = z.object({
+  purchaseType: z.enum(['subproduct', 'bundle']),
+  subproductId: z.string().uuid().optional(),
+  bundleOptionId: z.string().uuid().optional(),
+  idempotencyKey: z.string().trim().min(1).max(120).optional(),
+}).superRefine((value, ctx) => {
+  if (value.purchaseType === 'subproduct' && !value.subproductId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['subproductId'], message: '서브상품을 선택해주세요.' })
+  }
+
+  if (value.purchaseType === 'bundle' && !value.bundleOptionId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['bundleOptionId'], message: '전체구매 옵션을 선택해주세요.' })
+  }
 })
 
 interface RouteContext {
@@ -37,18 +55,33 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
   }
 
+  const body = await request.json().catch(() => null)
+
+  if (body && typeof body === 'object' && 'purchaseType' in body) {
+    return handleMarketV2Purchase(user.id, itemId, body)
+  }
+
+  return handleLegacyMarketPurchase(user.id, itemId, body, supabase)
+}
+
+async function handleLegacyMarketPurchase(
+  userId: string,
+  itemId: string,
+  body: unknown,
+  supabase: Awaited<ReturnType<typeof createClient>>
+) {
   let deductionResult: Awaited<ReturnType<typeof deductCreditsForMarketPurchase>> | null = null
   let purchaseContext: { assetKind: MarketPaidAssetKind; price: number; title: string } | null = null
-  const balanceBefore = await CreditService.getBalance(user.id)
+  const balanceBefore = await CreditService.getBalance(userId)
 
   const rollback = async () => {
     if (!deductionResult || !purchaseContext) {
-      return CreditService.getBalance(user.id)
+      return CreditService.getBalance(userId)
     }
 
     try {
       return await CreditService.refundCredits(
-        user.id,
+        userId,
         purchaseContext.price,
         buildMarketPurchaseResourceType(purchaseContext.assetKind),
         itemId,
@@ -57,14 +90,13 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         balanceBefore
       )
     } catch {
-      const fallbackSnapshot = await getCreditBalanceSnapshot(user.id, supabase)
+      const fallbackSnapshot = await getCreditBalanceSnapshot(userId, supabase)
       return fallbackSnapshot.displayBalance
     }
   }
 
   try {
-    const body = await request.json()
-    const parsed = BodySchema.safeParse(body)
+    const parsed = LegacyBodySchema.safeParse(body)
 
     if (!parsed.success) {
       return NextResponse.json({
@@ -77,7 +109,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     const purchaseKindsToCheck = getMarketPurchaseKindsToCheck(parsed.data.assetKind)
     const existingPurchases = await Promise.all(
       purchaseKindsToCheck.map((purchaseKind) => findCompletedMarketPurchase(
-        user.id,
+        userId,
         itemId,
         purchaseKind,
         item.workspace_subject
@@ -101,14 +133,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     try {
       deductionResult = await deductCreditsForMarketPurchase(
-        user.id,
+        userId,
         item.id,
         item.title,
         parsed.data.assetKind,
         price
       )
     } catch (error) {
-      const snapshot = await getCreditBalanceSnapshot(user.id, supabase)
+      const snapshot = await getCreditBalanceSnapshot(userId, supabase)
       return NextResponse.json({
         success: false,
         error: {
@@ -120,11 +152,11 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     }
 
     const purchase = await createMarketPurchase({
-      ...buildMarketPurchaseInsert(user.id, item.id, parsed.data.assetKind, price, item.workspace_subject),
+      ...buildMarketPurchaseInsert(userId, item.id, parsed.data.assetKind, price, item.workspace_subject),
       credit_resource_id: item.id,
     })
 
-    const snapshot = await getCreditBalanceSnapshot(user.id, supabase)
+    const snapshot = await getCreditBalanceSnapshot(userId, supabase)
 
     return NextResponse.json({
       success: true,
@@ -136,9 +168,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     if (deductionResult) {
       await rollback()
     } else {
-      await CreditService.getBalance(user.id)
+      await CreditService.getBalance(userId)
     }
-    const snapshot = await getCreditBalanceSnapshot(user.id, supabase)
+    const snapshot = await getCreditBalanceSnapshot(userId, supabase)
     return NextResponse.json({
       success: false,
       error: {
@@ -147,5 +179,64 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       },
       ...buildCreditBalanceResponseFields(snapshot),
     }, { status: 500 })
+  }
+}
+
+async function handleMarketV2Purchase(userId: string, itemId: string, body: unknown) {
+  const supabase = await createClient()
+  const parsed = V2BodySchema.safeParse(body)
+
+  if (!parsed.success) {
+    return NextResponse.json({
+      success: false,
+      error: { code: 'INVALID_INPUT', message: parsed.error.issues[0]?.message || '구매 요청이 올바르지 않습니다.' },
+    }, { status: 400 })
+  }
+
+  if (!isMarketV2PurchaseEnabled()) {
+    return NextResponse.json({
+      success: false,
+      error: { code: 'V2_PURCHASE_DISABLED', message: '현재 새 구매 기능이 일시 중지되어 있습니다.' },
+    }, { status: 503 })
+  }
+
+  const balanceBefore = await CreditService.getBalance(userId)
+
+  try {
+    const result = await createMarketV2PurchaseWithCompensation({
+      userId,
+      itemId,
+      purchaseType: parsed.data.purchaseType as MarketV2PurchaseType,
+      subproductId: parsed.data.subproductId,
+      bundleOptionId: parsed.data.bundleOptionId,
+      idempotencyKey: parsed.data.idempotencyKey ?? null,
+      balanceBefore,
+    })
+
+    const snapshot = await getCreditBalanceSnapshot(userId, supabase)
+    const purchaseLabel = parsed.data.purchaseType === 'bundle' ? '전체구매' : '서브상품'
+
+    return NextResponse.json({
+      success: true,
+      data: result.order,
+      alreadyCompleted: result.alreadyCompleted,
+      purchaseType: parsed.data.purchaseType,
+      priceCredits: result.priceCredits,
+      ...buildCreditBalanceResponseFields(snapshot),
+      message: `${result.itemTitle} ${purchaseLabel} 구매가 완료되었습니다.`,
+    })
+  } catch (error) {
+    const snapshot = await getCreditBalanceSnapshot(userId, supabase)
+    const message = error instanceof Error ? error.message : '문제마켓 구매 처리에 실패했습니다.'
+    const status = /크레딧|부족/.test(message) ? 402 : /이미/.test(message) ? 409 : 500
+
+    return NextResponse.json({
+      success: false,
+      error: {
+        code: status === 402 ? 'INSUFFICIENT_CREDITS' : status === 409 ? 'ALREADY_PURCHASED' : 'INTERNAL_SERVER_ERROR',
+        message,
+      },
+      ...buildCreditBalanceResponseFields(snapshot),
+    }, { status })
   }
 }

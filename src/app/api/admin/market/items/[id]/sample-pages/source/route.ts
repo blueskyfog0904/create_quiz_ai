@@ -4,8 +4,8 @@ import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { createClient } from '@/lib/supabase/server'
 import { getMarketItemById } from '@/lib/market-items-server'
-import { generateMarketPdfSamplePages } from '@/lib/market-pdf-sample-generator'
-import { replaceMarketItemSamplePages } from '@/lib/market-sample-pages-server'
+import { generateMarketPdfSamplePages, parseMarketSamplePageSelection } from '@/lib/market-pdf-sample-generator'
+import { appendDraftMarketItemSamplePages } from '@/lib/market-sample-pages-server'
 import {
   MARKET_SAMPLE_PAGE_MIME_TYPE,
   MARKET_STORAGE_BUCKET,
@@ -88,9 +88,12 @@ export async function POST(request: Request, { params }: RouteContext) {
     }
 
     const fileBuffer = Buffer.from(await fileValue.arrayBuffer())
-    const generatedSamplePages = await generateMarketPdfSamplePages(fileBuffer, fileValue.name)
+    const requestedPages = formData.get('pages') ?? formData.get('pageNumbers') ?? '1,2,3'
+    const pageNumbers = parseMarketSamplePageSelection(String(requestedPages))
+    const generatedSamplePages = await generateMarketPdfSamplePages(fileBuffer, fileValue.name, pageNumbers)
     const adminSupabase = createAdminClient()
     const batchId = randomUUID()
+    const draftToken = String(formData.get('draftToken') || randomUUID())
     const uploadedSamplePages = []
     const uploadedStoragePaths: string[] = []
 
@@ -128,8 +131,10 @@ export async function POST(request: Request, { params }: RouteContext) {
         })
       }
 
-      const savedPages = await replaceMarketItemSamplePages(item.id, {
+      const savedPages = await appendDraftMarketItemSamplePages(item.id, {
         sourceFileId: null,
+        sourceBatchId: batchId,
+        draftToken,
         workspaceSubject: item.workspace_subject,
         createdBy: user.id,
         pages: uploadedSamplePages,
@@ -155,7 +160,7 @@ export async function POST(request: Request, { params }: RouteContext) {
         }
       }))
 
-      return NextResponse.json({ success: true, pages }, { status: 201 })
+      return NextResponse.json({ success: true, draftToken, sourceBatchId: batchId, pages }, { status: 201 })
     } catch (error) {
       if (uploadedStoragePaths.length > 0) {
         await adminSupabase.storage.from(MARKET_STORAGE_BUCKET).remove(uploadedStoragePaths).catch(() => undefined)

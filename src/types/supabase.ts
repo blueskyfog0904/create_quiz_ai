@@ -507,6 +507,7 @@ export type Database = {
       }
       generate_listboard_post_items: {
         Row: {
+          committed_at: string | null
           created_at: string
           created_by: string | null
           deleted_at: string | null
@@ -520,6 +521,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          committed_at?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -770,6 +772,366 @@ export type Database = {
           },
         ]
       }
+      market_subproduct_categories: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          slug: string
+          sort_order: number
+          updated_at: string
+          workspace_subject: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+          workspace_subject: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+          workspace_subject?: string
+        }
+        Relationships: []
+      }
+      market_file_types: {
+        Row: {
+          code: string
+          created_at: string
+          deleted_at: string | null
+          extension: string
+          id: string
+          is_active: boolean
+          label: string
+          mime_allowlist: string[]
+          sort_order: number
+          updated_at: string
+          workspace_subject: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          deleted_at?: string | null
+          extension: string
+          id?: string
+          is_active?: boolean
+          label: string
+          mime_allowlist?: string[]
+          sort_order?: number
+          updated_at?: string
+          workspace_subject: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          deleted_at?: string | null
+          extension?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          mime_allowlist?: string[]
+          sort_order?: number
+          updated_at?: string
+          workspace_subject?: string
+        }
+        Relationships: []
+      }
+      market_item_subproducts: {
+        Row: {
+          category_id: string
+          created_at: string
+          deleted_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          item_id: string
+          price_credits: number
+          sort_order: number
+          title: string
+          updated_at: string
+          workspace_subject: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          item_id: string
+          price_credits?: number
+          sort_order?: number
+          title: string
+          updated_at?: string
+          workspace_subject: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          item_id?: string
+          price_credits?: number
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          workspace_subject?: string
+        }
+        Relationships: []
+      }
+      market_subproduct_files: {
+        Row: {
+          checksum: string | null
+          content_type: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          file_size_bytes: number | null
+          file_type_id: string
+          id: string
+          is_active: boolean
+          item_id: string
+          original_file_name: string
+          sort_order: number
+          storage_bucket: string
+          storage_path: string
+          subproduct_id: string
+          updated_at: string
+          version: number
+          workspace_subject: string
+        }
+        Insert: {
+          checksum?: string | null
+          content_type?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          file_size_bytes?: number | null
+          file_type_id: string
+          id?: string
+          is_active?: boolean
+          item_id: string
+          original_file_name: string
+          sort_order?: number
+          storage_bucket: string
+          storage_path: string
+          subproduct_id: string
+          updated_at?: string
+          version?: number
+          workspace_subject: string
+        }
+        Update: {
+          checksum?: string | null
+          content_type?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          file_size_bytes?: number | null
+          file_type_id?: string
+          id?: string
+          is_active?: boolean
+          item_id?: string
+          original_file_name?: string
+          sort_order?: number
+          storage_bucket?: string
+          storage_path?: string
+          subproduct_id?: string
+          updated_at?: string
+          version?: number
+          workspace_subject?: string
+        }
+        Relationships: []
+      }
+      market_item_bundle_options: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          item_id: string
+          label: string
+          price_credits: number
+          updated_at: string
+          workspace_subject: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          item_id: string
+          label?: string
+          price_credits?: number
+          updated_at?: string
+          workspace_subject: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          item_id?: string
+          label?: string
+          price_credits?: number
+          updated_at?: string
+          workspace_subject?: string
+        }
+        Relationships: []
+      }
+      market_purchase_orders: {
+        Row: {
+          charged_credits: number
+          created_at: string
+          id: string
+          idempotency_key: string | null
+          item_id: string
+          legacy_purchase_id: string | null
+          original_price_credits: number
+          purchase_type: string
+          status: string
+          updated_at: string
+          user_id: string
+          workspace_subject: string
+        }
+        Insert: {
+          charged_credits?: number
+          created_at?: string
+          id?: string
+          idempotency_key?: string | null
+          item_id: string
+          legacy_purchase_id?: string | null
+          original_price_credits?: number
+          purchase_type: string
+          status?: string
+          updated_at?: string
+          user_id: string
+          workspace_subject: string
+        }
+        Update: {
+          charged_credits?: number
+          created_at?: string
+          id?: string
+          idempotency_key?: string | null
+          item_id?: string
+          legacy_purchase_id?: string | null
+          original_price_credits?: number
+          purchase_type?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+          workspace_subject?: string
+        }
+        Relationships: []
+      }
+      market_purchase_lines: {
+        Row: {
+          bundle_option_id: string | null
+          created_at: string
+          id: string
+          item_id: string
+          line_type: string
+          order_id: string
+          price_credits: number
+          status: string
+          subproduct_id: string | null
+          updated_at: string
+          workspace_subject: string
+        }
+        Insert: {
+          bundle_option_id?: string | null
+          created_at?: string
+          id?: string
+          item_id: string
+          line_type: string
+          order_id: string
+          price_credits?: number
+          status?: string
+          subproduct_id?: string | null
+          updated_at?: string
+          workspace_subject: string
+        }
+        Update: {
+          bundle_option_id?: string | null
+          created_at?: string
+          id?: string
+          item_id?: string
+          line_type?: string
+          order_id?: string
+          price_credits?: number
+          status?: string
+          subproduct_id?: string | null
+          updated_at?: string
+          workspace_subject?: string
+        }
+        Relationships: []
+      }
+      market_entitlements: {
+        Row: {
+          created_at: string
+          file_id: string | null
+          id: string
+          item_id: string
+          legacy_asset_kind: string | null
+          scope: string
+          source_order_id: string | null
+          source_purchase_id: string | null
+          status: string
+          subproduct_id: string | null
+          updated_at: string
+          user_id: string
+          workspace_subject: string
+        }
+        Insert: {
+          created_at?: string
+          file_id?: string | null
+          id?: string
+          item_id: string
+          legacy_asset_kind?: string | null
+          scope: string
+          source_order_id?: string | null
+          source_purchase_id?: string | null
+          status?: string
+          subproduct_id?: string | null
+          updated_at?: string
+          user_id: string
+          workspace_subject: string
+        }
+        Update: {
+          created_at?: string
+          file_id?: string | null
+          id?: string
+          item_id?: string
+          legacy_asset_kind?: string | null
+          scope?: string
+          source_order_id?: string | null
+          source_purchase_id?: string | null
+          status?: string
+          subproduct_id?: string | null
+          updated_at?: string
+          user_id?: string
+          workspace_subject?: string
+        }
+        Relationships: []
+      }
       market_item_files: {
         Row: {
           asset_kind: string
@@ -841,9 +1203,12 @@ export type Database = {
       }
       market_item_sample_pages: {
         Row: {
+          committed_at: string | null
           created_at: string
           created_by: string | null
           deleted_at: string | null
+          display_order: number
+          draft_token: string | null
           file_size_bytes: number
           height_px: number | null
           id: string
@@ -852,7 +1217,9 @@ export type Database = {
           mime_type: string
           original_file_name: string
           page_number: number
+          source_batch_id: string | null
           source_file_id: string | null
+          status: string
           storage_bucket: string
           storage_path: string
           version: number
@@ -860,9 +1227,12 @@ export type Database = {
           workspace_subject: string
         }
         Insert: {
+          committed_at?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
+          display_order?: number
+          draft_token?: string | null
           file_size_bytes: number
           height_px?: number | null
           id?: string
@@ -871,7 +1241,9 @@ export type Database = {
           mime_type?: string
           original_file_name: string
           page_number: number
+          source_batch_id?: string | null
           source_file_id?: string | null
+          status?: string
           storage_bucket: string
           storage_path: string
           version?: number
@@ -879,9 +1251,12 @@ export type Database = {
           workspace_subject?: string
         }
         Update: {
+          committed_at?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
+          display_order?: number
+          draft_token?: string | null
           file_size_bytes?: number
           height_px?: number | null
           id?: string
@@ -890,7 +1265,9 @@ export type Database = {
           mime_type?: string
           original_file_name?: string
           page_number?: number
+          source_batch_id?: string | null
           source_file_id?: string | null
+          status?: string
           storage_bucket?: string
           storage_path?: string
           version?: number

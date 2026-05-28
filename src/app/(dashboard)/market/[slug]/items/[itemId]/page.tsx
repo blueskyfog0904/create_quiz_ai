@@ -7,6 +7,9 @@ import { getWorkspaceSubjectTheme } from '@/lib/workspace-theme'
 import {
   getVisibleMarketMenuEntryBySlugForWorkspace,
   getPublishedMarketItemById,
+  getMarketBundlePublicSummary,
+  listMarketSubproductDownloadFilesForUser,
+  listMarketSubproductPublicSummaries,
   listCompletedMarketPurchasesForItem,
   listMarketItemFiles,
 } from '@/lib/market-items-server'
@@ -78,6 +81,11 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
 
   const files = await listMarketItemFiles(item.id, false, item.workspace_subject)
   const samplePages = await listActiveMarketItemSamplePages(item.id, item.workspace_subject)
+  const subproducts = await listMarketSubproductPublicSummaries(item.id, user?.id, item.workspace_subject)
+  const bundleOption = await getMarketBundlePublicSummary(item.id, user?.id, item.workspace_subject)
+  const downloadFiles = user
+    ? await listMarketSubproductDownloadFilesForUser(user.id, item.id, item.workspace_subject)
+    : []
   const purchases = user
     ? await listCompletedMarketPurchasesForItem(user.id, item.id, item.workspace_subject)
     : []
@@ -87,12 +95,17 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
   const hasPdf = files.some((file) => file.asset_kind === 'pdf')
   const hasHwp = files.some((file) => file.asset_kind === 'hwp')
   const hasZip = files.some((file) => file.asset_kind === 'zip')
-  const ownsPdf = purchases.some((purchase) => purchase.asset_kind === 'pdf' || purchase.asset_kind === 'hwp')
+  const ownsPdf = purchases.some((purchase) => purchase.asset_kind === 'pdf')
   const ownsHwp = purchases.some((purchase) => purchase.asset_kind === 'hwp')
   const ownsZip = purchases.some((purchase) => purchase.asset_kind === 'zip')
   const sources = collectSources(item)
-  const ownedCount = Number(ownsPdf) + Number(ownsHwp) + Number(ownsZip)
-  const fileLabels = [hasPdf ? 'PDF' : null, hasHwp ? 'HWP & PDF' : null, hasZip ? 'ZIP' : null].filter(Boolean).join(' · ') || '제공 파일 없음'
+  const v2OwnedCount = subproducts.filter((subproduct) => subproduct.owned).length + Number(Boolean(bundleOption?.owned))
+  const ownedCount = Number(ownsPdf) + Number(ownsHwp) + Number(ownsZip) + v2OwnedCount
+  const v2FileLabels = Array.from(new Set(subproducts.flatMap((subproduct) => subproduct.fileTypes.map((fileType) => fileType.label))))
+  const fileLabels = (v2FileLabels.length > 0
+    ? v2FileLabels
+    : [hasPdf ? 'PDF' : null, hasHwp ? 'HWP & PDF' : null, hasZip ? 'ZIP' : null].filter(Boolean)
+  ).join(' · ') || '제공 파일 없음'
   const subjectTheme = getWorkspaceSubjectTheme(item.workspace_subject)
   const materialInfoRows = [
     { label: '과목', value: resolveWorkspaceSubjectLabel(item.workspace_subject) },
@@ -166,6 +179,8 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
                   hasPdf={hasPdf}
                   hasZip={hasZip}
                   hasSamplePages={hasSamplePages}
+                  bundleOption={bundleOption}
+                  downloadFiles={downloadFiles}
                   hwpPrice={item.hwp_price}
                   itemId={item.id}
                   isLoggedIn={Boolean(user)}
@@ -174,6 +189,7 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
                   ownsZip={ownsZip}
                   pdfPrice={item.pdf_price}
                   samplePageCount={samplePages.length}
+                  subproducts={subproducts}
                   zipPrice={item.zip_price}
                   workspaceSubject={item.workspace_subject}
                 />

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
@@ -25,6 +25,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   Table,
   TableBody,
   TableCell,
@@ -32,7 +40,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import type { MarketItem, MarketItemFile } from '@/lib/market-items-server'
+import type {
+  MarketFileType,
+  MarketItem,
+  MarketItemBundleOption,
+  MarketItemFile,
+  MarketItemSubproduct,
+  MarketSubproductCategory,
+  MarketSubproductFile,
+} from '@/lib/market-items-server'
 import { LISTBOARD_GRADE_OPTIONS } from '@/lib/generate-menu'
 import type { MarketMenuEntryAdminRow } from '@/lib/market-menu'
 import AdminMarketSamplePreviewDialog from './admin-market-sample-preview-dialog'
@@ -66,9 +82,6 @@ interface MarketItemFormState {
   draftSource: 'manual' | 'auto_upload'
   isActive: boolean
 }
-
-const MARKET_ASSET_KINDS = ['pdf', 'hwp', 'zip'] as const
-type MarketUploadAssetKind = typeof MARKET_ASSET_KINDS[number]
 
 const MARKET_STATUS_LABELS: Record<MarketItemFormState['status'], string> = {
   draft: '임시저장',
@@ -170,19 +183,6 @@ function formatDateTime(value?: string | null) {
   return new Date(value).toLocaleString('ko-KR')
 }
 
-function getAssetAcceptValue(assetKind: MarketUploadAssetKind) {
-  if (assetKind === 'hwp') return '.hwp'
-  if (assetKind === 'zip') return '.zip'
-  return '.pdf'
-}
-
-function isAllowedAssetFile(file: File, assetKind: MarketUploadAssetKind) {
-  const fileName = file.name.toLowerCase()
-  if (assetKind === 'hwp') return fileName.endsWith('.hwp')
-  if (assetKind === 'zip') return fileName.endsWith('.zip')
-  return fileName.endsWith('.pdf')
-}
-
 interface AdminSamplePage {
   id: string
   pageNumber: number
@@ -190,6 +190,7 @@ interface AdminSamplePage {
   fileSizeBytes: number | null
   widthPx: number | null
   heightPx: number | null
+  draftToken?: string | null
 }
 
 interface PersistFormOptions {
@@ -199,12 +200,120 @@ interface PersistFormOptions {
   draftSource?: 'manual' | 'auto_upload'
 }
 
+interface MarketItemDetailPayload {
+  item: MarketItem
+  files: MarketItemFile[]
+  subproducts: MarketItemSubproduct[]
+  subproductFiles: MarketSubproductFile[]
+  bundleOption: MarketItemBundleOption | null
+}
+
+interface SubproductDraftState {
+  categoryId: string
+  title: string
+  description: string
+  priceCredits: string
+}
+
+interface SubproductFileDraftState {
+  id: string
+  subproductId: string
+  fileTypeId: string
+  fileName?: string
+}
+
+interface BundleFormState {
+  enabled: boolean
+  label: string
+  description: string
+  priceCredits: string
+}
+
+interface CategorySettingsFormState {
+  name: string
+  slug: string
+  description: string
+  sortOrder: string
+  isActive: boolean
+}
+
+interface FileTypeSettingsFormState {
+  code: string
+  label: string
+  extension: string
+  mimeAllowlist: string
+  sortOrder: string
+  isActive: boolean
+}
+
+const MANAGE_SUBPRODUCT_CATEGORIES_VALUE = '__manage_subproduct_categories__'
+const MANAGE_FILE_TYPES_VALUE = '__manage_file_types__'
+
+function buildEmptySubproductDraft(categoryId = ''): SubproductDraftState {
+  return {
+    categoryId,
+    title: '',
+    description: '',
+    priceCredits: '0',
+  }
+}
+
+function buildEmptyBundleForm(): BundleFormState {
+  return {
+    enabled: false,
+    label: '전체 한번에 구매하기',
+    description: '',
+    priceCredits: '0',
+  }
+}
+
+function buildEmptyCategorySettingsForm(): CategorySettingsFormState {
+  return {
+    name: '',
+    slug: '',
+    description: '',
+    sortOrder: '0',
+    isActive: true,
+  }
+}
+
+function buildCategorySettingsForm(category: MarketSubproductCategory): CategorySettingsFormState {
+  return {
+    name: category.name,
+    slug: category.slug,
+    description: category.description || '',
+    sortOrder: String(category.sort_order ?? 0),
+    isActive: category.is_active,
+  }
+}
+
+function buildEmptyFileTypeSettingsForm(): FileTypeSettingsFormState {
+  return {
+    code: '',
+    label: '',
+    extension: '',
+    mimeAllowlist: '',
+    sortOrder: '0',
+    isActive: true,
+  }
+}
+
+function buildFileTypeSettingsForm(fileType: MarketFileType): FileTypeSettingsFormState {
+  return {
+    code: fileType.code,
+    label: fileType.label,
+    extension: fileType.extension,
+    mimeAllowlist: (fileType.mime_allowlist || []).join('\n'),
+    sortOrder: String(fileType.sort_order ?? 0),
+    isActive: fileType.is_active,
+  }
+}
+
 export default function MarketProductsClient({ menuEntries, initialItems, workspaceSubject }: MarketProductsClientProps) {
   const router = useRouter()
   const [selectedMenuEntryId, setSelectedMenuEntryId] = useState(menuEntries[0]?.id || '')
   const [items, setItems] = useState(initialItems)
   const [form, setForm] = useState<MarketItemFormState>(buildEmptyForm(menuEntries[0]?.id || ''))
-  const [editingFiles, setEditingFiles] = useState<MarketItemFile[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [isArchiving, setIsArchiving] = useState(false)
   const [hidingItemId, setHidingItemId] = useState<string | null>(null)
@@ -219,17 +328,34 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const [isSamplePreviewOpen, setIsSamplePreviewOpen] = useState(false)
   const [samplePreviewItemId, setSamplePreviewItemId] = useState<string | null>(null)
   const [samplePages, setSamplePages] = useState<AdminSamplePage[]>([])
+  const [samplePageSelection, setSamplePageSelection] = useState('1,2,3')
+  const [selectedSampleSourceFile, setSelectedSampleSourceFile] = useState<File | null>(null)
+  const [sampleDraftToken, setSampleDraftToken] = useState<string | null>(null)
+  const [isSampleSourceDragActive, setIsSampleSourceDragActive] = useState(false)
   const [isSampleSourceUploading, setIsSampleSourceUploading] = useState(false)
   const [deletingSamplePageId, setDeletingSamplePageId] = useState<string | null>(null)
-  const [uploadingKinds, setUploadingKinds] = useState<string[]>([])
-  const [isBulkUploading, setIsBulkUploading] = useState(false)
-  const [selectedFiles, setSelectedFiles] = useState<Partial<Record<MarketUploadAssetKind, File>>>({})
-  const [dragActiveKinds, setDragActiveKinds] = useState<MarketUploadAssetKind[]>([])
-  const fileInputRefs = useRef<Record<MarketUploadAssetKind, HTMLInputElement | null>>({
-    pdf: null,
-    hwp: null,
-    zip: null,
-  })
+  const [subproductCategories, setSubproductCategories] = useState<MarketSubproductCategory[]>([])
+  const [fileTypes, setFileTypes] = useState<MarketFileType[]>([])
+  const [subproducts, setSubproducts] = useState<MarketItemSubproduct[]>([])
+  const [subproductFiles, setSubproductFiles] = useState<MarketSubproductFile[]>([])
+  const [bundleOption, setBundleOption] = useState<MarketItemBundleOption | null>(null)
+  const [subproductDraft, setSubproductDraft] = useState<SubproductDraftState>(buildEmptySubproductDraft())
+  const [subproductFileDrafts, setSubproductFileDrafts] = useState<SubproductFileDraftState[]>([])
+  const [bundleForm, setBundleForm] = useState<BundleFormState>(buildEmptyBundleForm())
+  const [isCategorySettingsOpen, setIsCategorySettingsOpen] = useState(false)
+  const [categorySettingsForm, setCategorySettingsForm] = useState<CategorySettingsFormState>(buildEmptyCategorySettingsForm())
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
+  const [isCategorySettingsSaving, setIsCategorySettingsSaving] = useState(false)
+  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null)
+  const [isFileTypeSettingsOpen, setIsFileTypeSettingsOpen] = useState(false)
+  const [fileTypeSettingsForm, setFileTypeSettingsForm] = useState<FileTypeSettingsFormState>(buildEmptyFileTypeSettingsForm())
+  const [editingFileTypeId, setEditingFileTypeId] = useState<string | null>(null)
+  const [isFileTypeSettingsSaving, setIsFileTypeSettingsSaving] = useState(false)
+  const [deletingFileTypeId, setDeletingFileTypeId] = useState<string | null>(null)
+  const [isSubproductSaving, setIsSubproductSaving] = useState(false)
+  const [subproductUploadingKeys, setSubproductUploadingKeys] = useState<string[]>([])
+  const [subproductDragActiveKeys, setSubproductDragActiveKeys] = useState<string[]>([])
+  const [isBundleSaving, setIsBundleSaving] = useState(false)
   const sampleSourceInputRef = useRef<HTMLInputElement | null>(null)
 
   const filteredItems = useMemo(() => (
@@ -247,22 +373,120 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   )
   const menuTitleMap = useMemo(() => new Map(menuEntries.map((entry) => [entry.id, entry.title])), [menuEntries])
   const examYearOptions = useMemo(() => buildExamYearOptions(), [])
-  const selectedAssetKinds = useMemo(
-    () => MARKET_ASSET_KINDS.filter((assetKind) => Boolean(selectedFiles[assetKind])),
-    [selectedFiles]
+  const activeSubproductCategories = useMemo(
+    () => subproductCategories.filter((category) => category.is_active),
+    [subproductCategories]
   )
+  const activeFileTypes = useMemo(
+    () => fileTypes.filter((fileType) => fileType.is_active),
+    [fileTypes]
+  )
+  const subproductFilesBySubproductId = useMemo(() => {
+    const fileMap = new Map<string, MarketSubproductFile[]>()
+    subproductFiles
+      .filter((file) => file.is_active)
+      .forEach((file) => {
+        const current = fileMap.get(file.subproduct_id) || []
+        fileMap.set(file.subproduct_id, [...current, file])
+      })
+
+    return fileMap
+  }, [subproductFiles])
 
   const focusCurrentExamYear = () => {
     setForm((current) => current.examYear ? current : { ...current, examYear: getDefaultExamYear() })
   }
 
+  const reloadUploadTaxonomy = useCallback(async () => {
+    const [categoryResponse, fileTypeResponse] = await Promise.all([
+      fetch(withAdminWorkspaceSubject('/api/admin/market/subproduct-categories', workspaceSubject), { cache: 'no-store' }),
+      fetch(withAdminWorkspaceSubject('/api/admin/market/file-types', workspaceSubject), { cache: 'no-store' }),
+    ])
+    const [categoryPayload, fileTypePayload] = await Promise.all([
+      categoryResponse.json(),
+      fileTypeResponse.json(),
+    ])
+
+    if (!categoryResponse.ok || !categoryPayload.success) {
+      throw new Error(categoryPayload.error?.message || '서브상품 카테고리 목록을 불러오지 못했습니다.')
+    }
+    if (!fileTypeResponse.ok || !fileTypePayload.success) {
+      throw new Error(fileTypePayload.error?.message || '파일 유형 목록을 불러오지 못했습니다.')
+    }
+
+    const nextCategories = (categoryPayload.data || []) as MarketSubproductCategory[]
+    const nextFileTypes = (fileTypePayload.data || []) as MarketFileType[]
+    const nextActiveCategories = nextCategories.filter((category) => category.is_active)
+    const nextActiveFileTypes = nextFileTypes.filter((fileType) => fileType.is_active)
+
+    setSubproductCategories(nextCategories)
+    setFileTypes(nextFileTypes)
+    setSubproductDraft((current) => nextActiveCategories.some((category) => category.id === current.categoryId)
+      ? current
+      : { ...current, categoryId: nextActiveCategories[0]?.id || '' })
+    setSubproductFileDrafts((current) => {
+      let changed = false
+      const nextDrafts = current.map((draft) => {
+        if (!draft.fileTypeId || nextActiveFileTypes.some((fileType) => fileType.id === draft.fileTypeId)) {
+          return draft
+        }
+
+        changed = true
+        return { ...draft, fileTypeId: nextActiveFileTypes[0]?.id || '' }
+      })
+
+      return changed ? nextDrafts : current
+    })
+
+    return { categories: nextCategories, fileTypes: nextFileTypes }
+  }, [workspaceSubject])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadUploadTaxonomy = async () => {
+      try {
+        const { categories } = await reloadUploadTaxonomy()
+        if (!isMounted) {
+          return
+        }
+
+        setSubproductDraft((current) => current.categoryId
+          ? current
+          : buildEmptySubproductDraft(categories.find((category) => category.is_active)?.id || categories[0]?.id || ''))
+      } catch (error) {
+        if (isMounted) {
+          toast.error(error instanceof Error ? error.message : '서브상품 설정을 불러오지 못했습니다.')
+        }
+      }
+    }
+
+    void loadUploadTaxonomy()
+
+    return () => {
+      isMounted = false
+    }
+  }, [reloadUploadTaxonomy])
+
   const resetForm = (menuEntryId = selectedMenuEntryId) => {
     setForm(buildEmptyForm(menuEntryId))
-    setEditingFiles([])
-    setSelectedFiles({})
-    setDragActiveKinds([])
+    setSubproducts([])
+    setSubproductFiles([])
+    setBundleOption(null)
+    setBundleForm(buildEmptyBundleForm())
+    setSubproductDraft(buildEmptySubproductDraft(activeSubproductCategories[0]?.id || subproductCategories[0]?.id || ''))
+    setSubproductFileDrafts([])
+    setSubproductUploadingKeys([])
+    setSubproductDragActiveKeys([])
     setRequiresFinalRegistration(false)
     setSamplePages([])
+    setSamplePageSelection('1,2,3')
+    setSelectedSampleSourceFile(null)
+    setSampleDraftToken(null)
+    setIsSampleSourceDragActive(false)
+    if (sampleSourceInputRef.current) {
+      sampleSourceInputRef.current.value = ''
+    }
     setIsSamplePreviewOpen(false)
     setSamplePreviewItemId(null)
   }
@@ -351,7 +575,21 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       throw new Error(payload.error?.message || '문제마켓 상품 상세를 불러오지 못했습니다.')
     }
 
-    return payload.data as { item: MarketItem; files: MarketItemFile[] }
+    return payload.data as MarketItemDetailPayload
+  }
+
+  const applyItemDetail = (detail: MarketItemDetailPayload) => {
+    setSubproducts(detail.subproducts || [])
+    setSubproductFiles(detail.subproductFiles || [])
+    setBundleOption(detail.bundleOption || null)
+    setBundleForm(detail.bundleOption
+      ? {
+        enabled: detail.bundleOption.is_active,
+        label: detail.bundleOption.label || '전체 한번에 구매하기',
+        description: detail.bundleOption.description || '',
+        priceCredits: formatCreditInputValue(detail.bundleOption.price_credits),
+      }
+      : buildEmptyBundleForm())
   }
 
   const fetchItemSamplePages = async (id: string) => {
@@ -370,16 +608,23 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
 
     setSelectedMenuEntryId(detail.item.menu_entry_id)
     setForm(buildEditForm(detail.item))
-    setEditingFiles(detail.files || [])
+    applyItemDetail(detail)
     setSamplePages(await fetchItemSamplePages(id))
-    setSelectedFiles({})
-    setDragActiveKinds([])
+    setSelectedSampleSourceFile(null)
+    setSampleDraftToken(null)
+    setIsSampleSourceDragActive(false)
+    if (sampleSourceInputRef.current) {
+      sampleSourceInputRef.current.value = ''
+    }
+    setSubproductFileDrafts([])
+    setSubproductUploadingKeys([])
+    setSubproductDragActiveKeys([])
     setRequiresFinalRegistration(detail.item.status === 'draft' && detail.item.draft_source === 'auto_upload')
   }
 
   const refreshEditingFiles = async (id: string) => {
     const detail = await fetchItemDetail(id)
-    setEditingFiles(detail.files || [])
+    applyItemDetail(detail)
     setSamplePages(await fetchItemSamplePages(id))
   }
 
@@ -451,10 +696,21 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       setSelectedMenuEntryId(detail.item.menu_entry_id)
       setForm(buildEditForm(detail.item))
       setHiddenOverride(detail.item.id, detail.item.status === 'hidden')
-      setEditingFiles(detail.files || [])
-      if (!options.preserveSelections) {
-        setSelectedFiles({})
-        setDragActiveKinds([])
+      applyItemDetail(detail)
+      if (sampleDraftToken && options.draftSource !== 'auto_upload') {
+        const commitResponse = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${detail.item.id}/samples/commit`, workspaceSubject), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ draftToken: sampleDraftToken }),
+        })
+        const commitPayload = await commitResponse.json()
+
+        if (!commitResponse.ok || !commitPayload.success) {
+          throw new Error(commitPayload.error?.message || '샘플 JPG 확정에 실패했습니다.')
+        }
+
+        setSampleDraftToken(null)
+        setSamplePages(await fetchItemSamplePages(detail.item.id))
       }
       if (!options.skipSuccessToast) {
         toast.success(targetId
@@ -484,80 +740,9 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       return
     }
 
-    const uploadTargets = MARKET_ASSET_KINDS
-      .map((assetKind) => ({ assetKind, file: selectedFiles[assetKind] }))
-      .filter((target): target is { assetKind: MarketUploadAssetKind; file: File } => Boolean(target.file))
-
-    const desiredStatus = form.status
-    const shouldDelayPublish = desiredStatus === 'published' && uploadTargets.length > 0
-    const initialStatus = shouldDelayPublish ? 'draft' : desiredStatus
-
-    setIsBulkUploading(true)
-    try {
-      const createdItem = await persistForm(initialStatus, {
-        preserveSelections: true,
-        skipSuccessToast: true,
-        draftSource: 'manual',
-      })
-
-      if (!createdItem) {
-        return
-      }
-
-      setRequiresFinalRegistration(true)
-
-      if (uploadTargets.length === 0) {
-        toast.success('문제마켓 상품을 생성했습니다.')
-        setRequiresFinalRegistration(false)
-        resetForm(createdItem.menu_entry_id)
-        return
-      }
-
-      let successCount = 0
-      let failedCount = 0
-
-      for (const target of uploadTargets) {
-        const result = await uploadAssetFile(target.assetKind, target.file, createdItem.id)
-        if (result.success) {
-          successCount += 1
-        } else {
-          failedCount += 1
-          toast.error(`${target.assetKind.toUpperCase()}: ${result.message}`)
-        }
-      }
-
-      await refreshItems(createdItem.menu_entry_id)
-      await refreshEditingFiles(createdItem.id)
-
-      if (shouldDelayPublish && failedCount === 0) {
-        const publishedItem = await persistForm('published', {
-          preserveSelections: true,
-          skipSuccessToast: true,
-          targetId: createdItem.id,
-          draftSource: 'manual',
-        })
-        if (publishedItem) {
-          setRequiresFinalRegistration(false)
-        } else {
-          return
-        }
-      }
-
-      if (failedCount === 0) {
-        toast.success(`상품 등록과 파일 ${successCount}개 업로드를 완료했습니다.`)
-        setRequiresFinalRegistration(false)
-        resetForm(createdItem.menu_entry_id)
-        return
-      }
-
-      if (shouldDelayPublish) {
-        toast.message(`상품은 생성되었지만 일부 파일 업로드에 실패해 ${MARKET_STATUS_LABELS.draft} 상태로 유지됩니다.`)
-        return
-      }
-
-      toast.message(`상품은 생성되었지만 파일 ${failedCount}개 업로드에 실패했습니다.`)
-    } finally {
-      setIsBulkUploading(false)
+    const createdItem = await persistForm(undefined, { draftSource: 'manual' })
+    if (createdItem) {
+      resetForm(createdItem.menu_entry_id)
     }
   }
 
@@ -817,158 +1002,31 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     }
   }
 
-  const setDragActive = (assetKind: MarketUploadAssetKind, active: boolean) => {
-    setDragActiveKinds((current) => active
-      ? current.includes(assetKind) ? current : [...current, assetKind]
-      : current.filter((kind) => kind !== assetKind))
-  }
-
-  const clearSelectedFile = (assetKind: MarketUploadAssetKind) => {
-    setSelectedFiles((current) => {
-      const next = { ...current }
-      delete next[assetKind]
-      return next
-    })
-
-    const input = fileInputRefs.current[assetKind]
-    if (input) {
-      input.value = ''
-    }
-  }
-
-  const handleSelectedFile = (assetKind: MarketUploadAssetKind, file?: File | null) => {
-    if (!file) {
-      return
-    }
-
-    if (!isAllowedAssetFile(file, assetKind)) {
-      toast.error(`${assetKind.toUpperCase()} 자산에는 ${getAssetAcceptValue(assetKind)} 파일만 선택할 수 있습니다.`)
-      return
-    }
-
-    setSelectedFiles((current) => ({
-      ...current,
-      [assetKind]: file,
-    }))
-  }
-
-  const uploadAssetFile = async (assetKind: MarketUploadAssetKind, file: File, itemIdOverride?: string) => {
-    const targetItemId = itemIdOverride ?? form.id ?? await ensureDraftItemForUpload()
-    if (!targetItemId) {
-      return { success: false as const, message: '파일 업로드 전에 상품을 먼저 저장해주세요.' }
-    }
-
-    setUploadingKinds((current) => [...current, assetKind])
-    try {
-      const formData = new FormData()
-      formData.append('assetKind', assetKind)
-      formData.append('file', file)
-
-      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/files`, workspaceSubject), {
-        method: 'POST',
-        body: formData,
-      })
-      const payload = await response.json()
-
-      if (!response.ok || !payload.success) {
-        throw new Error(payload.error?.message || '문제마켓 파일 업로드에 실패했습니다.')
-      }
-
-      clearSelectedFile(assetKind)
-      const samplePageCount = Number(payload.data?.samplePageCount ?? 0)
-      const message = assetKind === 'pdf'
-        ? `PDF 파일을 업로드하고 샘플 JPG ${samplePageCount}장을 생성했습니다.`
-        : `${assetKind.toUpperCase()} 파일을 업로드했습니다.`
-      return { success: true as const, message, itemId: targetItemId }
-    } catch (error) {
-      return {
-        success: false as const,
-        message: error instanceof Error ? error.message : '문제마켓 파일 업로드 중 오류가 발생했습니다.',
-        itemId: targetItemId,
-      }
-    } finally {
-      setUploadingKinds((current) => current.filter((kind) => kind !== assetKind))
-    }
-  }
-
-  const handleUpload = async (assetKind: MarketUploadAssetKind) => {
-    const file = selectedFiles[assetKind]
-    if (!file) {
-      toast.error('업로드할 파일을 선택해주세요.')
-      return
-    }
-
-    const result = await uploadAssetFile(assetKind, file)
-    if (result.success) {
-      await refreshItems(form.menuEntryId)
-      if (result.itemId) {
-        await refreshEditingFiles(result.itemId)
-      }
-      toast.success(result.message)
-      return
-    }
-
-    toast.error(result.message)
-  }
-
-  const handleUploadAll = async () => {
-    const uploadTargets = MARKET_ASSET_KINDS
-      .map((assetKind) => ({ assetKind, file: selectedFiles[assetKind] }))
-      .filter((target): target is { assetKind: MarketUploadAssetKind; file: File } => Boolean(target.file))
-
-    if (uploadTargets.length === 0) {
-      toast.error('업로드할 파일을 먼저 선택해주세요.')
-      return
-    }
-
-    setIsBulkUploading(true)
-    let successCount = 0
-    let failedCount = 0
-    let latestItemId: string | null = form.id ?? null
-
-    try {
-      for (const target of uploadTargets) {
-        const result = await uploadAssetFile(target.assetKind, target.file, latestItemId ?? undefined)
-        if (result.itemId) {
-          latestItemId = result.itemId
-        }
-        if (result.success) {
-          successCount += 1
-        } else {
-          failedCount += 1
-          toast.error(`${target.assetKind.toUpperCase()}: ${result.message}`)
-        }
-      }
-
-      await refreshItems(form.menuEntryId)
-      if (latestItemId) {
-        await refreshEditingFiles(latestItemId)
-      }
-
-      if (failedCount === 0) {
-        toast.success(`선택한 ${successCount}개 파일 업로드를 완료했습니다.`)
-        return
-      }
-
-      if (successCount === 0) {
-        toast.error('선택한 파일 업로드에 실패했습니다.')
-        return
-      }
-
-      toast.message(`${successCount}개 업로드 성공, ${failedCount}개 실패했습니다.`)
-    } finally {
-      setIsBulkUploading(false)
-    }
-  }
-
-
-  const handleSampleSourceUpload = async (file?: File | null) => {
+  const handleSelectSampleSourceFile = (file?: File | null) => {
     if (!file) {
       return
     }
 
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       toast.error('샘플 PDF에는 PDF 파일만 선택할 수 있습니다.')
+      setSelectedSampleSourceFile(null)
+      if (sampleSourceInputRef.current) {
+        sampleSourceInputRef.current.value = ''
+      }
+      return
+    }
+
+    setSelectedSampleSourceFile(file)
+  }
+
+  const handleGenerateSampleImages = async () => {
+    if (!selectedSampleSourceFile) {
+      toast.error('샘플 PDF를 먼저 선택해주세요.')
+      return
+    }
+
+    if (!samplePageSelection.trim()) {
+      toast.error('샘플로 생성할 페이지 번호를 입력해주세요.')
       return
     }
 
@@ -980,7 +1038,11 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     setIsSampleSourceUploading(true)
     try {
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', selectedSampleSourceFile)
+      formData.append('pages', samplePageSelection)
+      if (sampleDraftToken) {
+        formData.append('draftToken', sampleDraftToken)
+      }
       const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/sample-pages/source`, workspaceSubject), {
         method: 'POST',
         body: formData,
@@ -988,13 +1050,20 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       const payload = await response.json()
 
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error?.message || '샘플 PDF 업로드에 실패했습니다.')
+        throw new Error(payload.error?.message || '샘플 이미지 생성에 실패했습니다.')
       }
 
-      setSamplePages((payload.pages || []) as AdminSamplePage[])
+      const nextDraftToken = String(payload.draftToken || sampleDraftToken || '')
+      const generatedPages = ((payload.pages || []) as AdminSamplePage[]).map((page) => ({
+        ...page,
+        draftToken: nextDraftToken,
+      }))
+      setSampleDraftToken(nextDraftToken || null)
+      setSamplePages((current) => [...current, ...generatedPages])
+      setSelectedSampleSourceFile(null)
       toast.success(`샘플 JPG ${(payload.pages || []).length}장을 생성했습니다.`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '샘플 PDF 업로드 중 오류가 발생했습니다.')
+      toast.error(error instanceof Error ? error.message : '샘플 이미지 생성 중 오류가 발생했습니다.')
     } finally {
       setIsSampleSourceUploading(false)
       if (sampleSourceInputRef.current) {
@@ -1003,14 +1072,18 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     }
   }
 
-  const handleDeleteSamplePage = async (pageId: string) => {
+  const handleDeleteSamplePage = async (page: AdminSamplePage) => {
     if (!form.id) {
       return
     }
 
-    setDeletingSamplePageId(pageId)
+    const deleteUrl = page.draftToken
+      ? `/api/admin/market/items/${form.id}/sample-pages/${page.id}?draftToken=${encodeURIComponent(page.draftToken)}`
+      : `/api/admin/market/items/${form.id}/sample-pages/${page.id}`
+
+    setDeletingSamplePageId(page.id)
     try {
-      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}/sample-pages/${pageId}`, workspaceSubject), {
+      const response = await fetch(withAdminWorkspaceSubject(deleteUrl, workspaceSubject), {
         method: 'DELETE',
       })
       const payload = await response.json()
@@ -1019,7 +1092,18 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
         throw new Error(payload.error?.message || '샘플 JPG 삭제에 실패했습니다.')
       }
 
-      setSamplePages((payload.pages || []) as AdminSamplePage[])
+      if (page.draftToken) {
+        setSamplePages((current) => current.filter((currentPage) => currentPage.id !== page.id))
+        if (!samplePages.some((currentPage) => currentPage.id !== page.id && currentPage.draftToken === page.draftToken)) {
+          setSampleDraftToken((currentToken) => currentToken === page.draftToken ? null : currentToken)
+        }
+      } else {
+        const activePages = (payload.pages || []) as AdminSamplePage[]
+        setSamplePages((current) => [
+          ...activePages,
+          ...current.filter((currentPage) => currentPage.draftToken),
+        ])
+      }
       toast.success('샘플 JPG를 삭제했습니다.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '샘플 JPG 삭제 중 오류가 발생했습니다.')
@@ -1028,12 +1112,415 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     }
   }
 
-  const activeFileMap = useMemo(() => {
-    return new Map(editingFiles.filter((file) => file.is_active).map((file) => [file.asset_kind, file]))
-  }, [editingFiles])
-  const isPdfUploading = uploadingKinds.includes('pdf')
-  const canOpenSamplePreview = Boolean(form.id && samplePages.length > 0 && !isPdfUploading && !isBulkUploading)
-  const samplePreviewStatusLabel = isPdfUploading || isSampleSourceUploading ? '샘플 생성 중' : samplePages.length > 0 ? '확인 가능' : '샘플 없음'
+  const resetCategorySettingsForm = () => {
+    setEditingCategoryId(null)
+    setCategorySettingsForm(buildEmptyCategorySettingsForm())
+  }
+
+  const resetFileTypeSettingsForm = () => {
+    setEditingFileTypeId(null)
+    setFileTypeSettingsForm(buildEmptyFileTypeSettingsForm())
+  }
+
+  const handleEditCategorySettings = (category: MarketSubproductCategory) => {
+    setEditingCategoryId(category.id)
+    setCategorySettingsForm(buildCategorySettingsForm(category))
+  }
+
+  const handleEditFileTypeSettings = (fileType: MarketFileType) => {
+    setEditingFileTypeId(fileType.id)
+    setFileTypeSettingsForm(buildFileTypeSettingsForm(fileType))
+  }
+
+  const handleSaveCategorySettings = async () => {
+    if (!categorySettingsForm.name.trim() || !categorySettingsForm.slug.trim()) {
+      toast.error('카테고리 이름과 slug를 입력해주세요.')
+      return
+    }
+
+    setIsCategorySettingsSaving(true)
+    try {
+      const isEditing = Boolean(editingCategoryId)
+      const response = await fetch(withAdminWorkspaceSubject(
+        editingCategoryId
+          ? `/api/admin/market/subproduct-categories/${editingCategoryId}`
+          : '/api/admin/market/subproduct-categories',
+        workspaceSubject
+      ), {
+        method: editingCategoryId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: categorySettingsForm.name,
+          slug: categorySettingsForm.slug,
+          description: categorySettingsForm.description,
+          sortOrder: Number(categorySettingsForm.sortOrder || 0),
+          isActive: categorySettingsForm.isActive,
+        }),
+      })
+      const payload = await response.json()
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || '서브상품 카테고리 저장에 실패했습니다.')
+      }
+
+      await reloadUploadTaxonomy()
+      resetCategorySettingsForm()
+      toast.success(isEditing ? '서브상품 카테고리를 수정했습니다.' : '서브상품 카테고리를 추가했습니다.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '서브상품 카테고리 저장 중 오류가 발생했습니다.')
+    } finally {
+      setIsCategorySettingsSaving(false)
+    }
+  }
+
+  const handleDeleteCategorySettings = async (categoryId: string) => {
+    if (!window.confirm('이 서브상품 카테고리를 삭제할까요? 사용 중인 카테고리는 삭제할 수 없습니다.')) {
+      return
+    }
+
+    setDeletingCategoryId(categoryId)
+    try {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/subproduct-categories/${categoryId}`, workspaceSubject), {
+        method: 'DELETE',
+      })
+      const payload = await response.json()
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || '서브상품 카테고리 삭제에 실패했습니다.')
+      }
+
+      await reloadUploadTaxonomy()
+      if (editingCategoryId === categoryId) {
+        resetCategorySettingsForm()
+      }
+      toast.success('서브상품 카테고리를 삭제했습니다.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '서브상품 카테고리 삭제 중 오류가 발생했습니다.')
+    } finally {
+      setDeletingCategoryId(null)
+    }
+  }
+
+  const handleSaveFileTypeSettings = async () => {
+    if (!fileTypeSettingsForm.code.trim() || !fileTypeSettingsForm.label.trim() || !fileTypeSettingsForm.extension.trim()) {
+      toast.error('파일 유형 코드, 표시명, 확장자를 입력해주세요.')
+      return
+    }
+
+    setIsFileTypeSettingsSaving(true)
+    try {
+      const isEditing = Boolean(editingFileTypeId)
+      const response = await fetch(withAdminWorkspaceSubject(
+        editingFileTypeId
+          ? `/api/admin/market/file-types/${editingFileTypeId}`
+          : '/api/admin/market/file-types',
+        workspaceSubject
+      ), {
+        method: editingFileTypeId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: fileTypeSettingsForm.code,
+          label: fileTypeSettingsForm.label,
+          extension: fileTypeSettingsForm.extension.replace(/^\./, ''),
+          mimeAllowlist: fileTypeSettingsForm.mimeAllowlist
+            .split(/\n|,/)
+            .map((mime) => mime.trim())
+            .filter(Boolean),
+          sortOrder: Number(fileTypeSettingsForm.sortOrder || 0),
+          isActive: fileTypeSettingsForm.isActive,
+        }),
+      })
+      const payload = await response.json()
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || '파일 유형 저장에 실패했습니다.')
+      }
+
+      await reloadUploadTaxonomy()
+      resetFileTypeSettingsForm()
+      toast.success(isEditing ? '파일 유형을 수정했습니다.' : '파일 유형을 추가했습니다.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '파일 유형 저장 중 오류가 발생했습니다.')
+    } finally {
+      setIsFileTypeSettingsSaving(false)
+    }
+  }
+
+  const handleDeleteFileTypeSettings = async (fileTypeId: string) => {
+    if (!window.confirm('이 파일 유형을 삭제할까요? 사용 중인 파일 유형은 삭제할 수 없습니다.')) {
+      return
+    }
+
+    setDeletingFileTypeId(fileTypeId)
+    try {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/file-types/${fileTypeId}`, workspaceSubject), {
+        method: 'DELETE',
+      })
+      const payload = await response.json()
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || '파일 유형 삭제에 실패했습니다.')
+      }
+
+      await reloadUploadTaxonomy()
+      if (editingFileTypeId === fileTypeId) {
+        resetFileTypeSettingsForm()
+      }
+      toast.success('파일 유형을 삭제했습니다.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '파일 유형 삭제 중 오류가 발생했습니다.')
+    } finally {
+      setDeletingFileTypeId(null)
+    }
+  }
+
+  const getSubproductCategoryName = (categoryId: string) => (
+    subproductCategories.find((category) => category.id === categoryId)?.name || '서브상품'
+  )
+
+  const getFileTypeLabel = (fileTypeId: string) => (
+    fileTypes.find((fileType) => fileType.id === fileTypeId)?.label || '파일'
+  )
+
+  const getFileTypeAcceptValue = (fileType: MarketFileType) => (
+    fileType.extension.startsWith('.') ? fileType.extension : `.${fileType.extension}`
+  )
+
+  const isAllowedSubproductFile = (file: File, fileType: MarketFileType) => (
+    file.name.toLowerCase().endsWith(getFileTypeAcceptValue(fileType).toLowerCase())
+  )
+
+  const buildFileDraftId = () => (
+    globalThis.crypto?.randomUUID?.() || `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  )
+
+  const getUsedFileTypeIdsForSubproduct = (subproductId: string, draftIdToExclude?: string) => new Set([
+    ...(subproductFilesBySubproductId.get(subproductId) || []).map((file) => file.file_type_id),
+    ...subproductFileDrafts
+      .filter((draft) => draft.subproductId === subproductId && draft.id !== draftIdToExclude && draft.fileTypeId)
+      .map((draft) => draft.fileTypeId),
+  ])
+
+  const getAvailableFileTypesForSubproduct = (subproductId: string, draftIdToExclude?: string) => {
+    const usedFileTypeIds = getUsedFileTypeIdsForSubproduct(subproductId, draftIdToExclude)
+    return activeFileTypes.filter((fileType) => !usedFileTypeIds.has(fileType.id))
+  }
+
+  const handleAddSubproductFileDraft = (subproductId: string) => {
+    const defaultFileTypeId = getAvailableFileTypesForSubproduct(subproductId)[0]?.id || ''
+    if (!defaultFileTypeId) {
+      toast.error('추가할 수 있는 파일 유형이 없습니다. 기존 파일을 제거하거나 파일 유형을 추가해주세요.')
+      return
+    }
+
+    setSubproductFileDrafts((current) => [
+      ...current,
+      {
+        id: buildFileDraftId(),
+        subproductId,
+        fileTypeId: defaultFileTypeId,
+      },
+    ])
+  }
+
+  const handleUpdateSubproductFileDraft = (draftId: string, patch: Partial<SubproductFileDraftState>) => {
+    setSubproductFileDrafts((current) => current.map((draft) => draft.id === draftId ? { ...draft, ...patch } : draft))
+  }
+
+  const handleRemoveSubproductFileDraft = (draftId: string) => {
+    setSubproductFileDrafts((current) => current.filter((draft) => draft.id !== draftId))
+    setSubproductUploadingKeys((current) => current.filter((key) => key !== draftId))
+    setSubproductDragActiveKeys((current) => current.filter((key) => key !== draftId))
+  }
+
+  const setSubproductDragActive = (key: string, active: boolean) => {
+    setSubproductDragActiveKeys((current) => active
+      ? current.includes(key) ? current : [...current, key]
+      : current.filter((currentKey) => currentKey !== key))
+  }
+
+  const handleCreateSubproduct = async () => {
+    if (!subproductDraft.categoryId) {
+      toast.error('서브상품 카테고리를 선택해주세요.')
+      return
+    }
+    if (!subproductDraft.title.trim()) {
+      toast.error('서브상품명을 입력해주세요.')
+      return
+    }
+
+    const targetItemId = form.id ?? await ensureDraftItemForUpload()
+    if (!targetItemId) {
+      return
+    }
+
+    setIsSubproductSaving(true)
+    try {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/subproducts`, workspaceSubject), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          categoryId: subproductDraft.categoryId,
+          title: subproductDraft.title,
+          description: subproductDraft.description,
+          priceCredits: parseCreditInputValue(subproductDraft.priceCredits),
+          isActive: true,
+        }),
+      })
+      const payload = await response.json()
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || '서브상품 추가에 실패했습니다.')
+      }
+
+      await refreshEditingFiles(targetItemId)
+      setSubproductDraft(buildEmptySubproductDraft(subproductDraft.categoryId))
+      toast.success('서브상품을 추가했습니다.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '서브상품 추가 중 오류가 발생했습니다.')
+    } finally {
+      setIsSubproductSaving(false)
+    }
+  }
+
+  const handleDeleteSubproduct = async (subproductId: string) => {
+    if (!form.id) {
+      return
+    }
+
+    if (!window.confirm('이 서브상품과 연결된 파일을 삭제하시겠습니까?')) {
+      return
+    }
+
+    setIsSubproductSaving(true)
+    try {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}/subproducts/${subproductId}`, workspaceSubject), {
+        method: 'DELETE',
+      })
+      const payload = await response.json()
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || '서브상품 삭제에 실패했습니다.')
+      }
+
+      await refreshEditingFiles(form.id)
+      setSubproductFileDrafts((current) => current.filter((draft) => draft.subproductId !== subproductId))
+      toast.success('서브상품을 삭제했습니다.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '서브상품 삭제 중 오류가 발생했습니다.')
+    } finally {
+      setIsSubproductSaving(false)
+    }
+  }
+
+  const handleSubproductFileUpload = async (subproductId: string, fileTypeId: string, file?: File | null, draftId?: string) => {
+    if (!form.id || !file) {
+      return
+    }
+
+    if (!fileTypeId) {
+      toast.error('파일 유형을 선택해주세요.')
+      return
+    }
+
+    const fileType = fileTypes.find((currentFileType) => currentFileType.id === fileTypeId)
+    if (!fileType) {
+      toast.error('파일 유형을 찾을 수 없습니다.')
+      return
+    }
+    if (!isAllowedSubproductFile(file, fileType)) {
+      toast.error(`${fileType.label} 파일에는 ${getFileTypeAcceptValue(fileType)} 파일만 업로드할 수 있습니다.`)
+      return
+    }
+
+    const uploadKey = draftId || `${subproductId}:${fileTypeId}`
+    setSubproductUploadingKeys((current) => [...current, uploadKey])
+    try {
+      const formData = new FormData()
+      formData.append('fileTypeId', fileTypeId)
+      formData.append('file', file)
+
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}/subproducts/${subproductId}/files`, workspaceSubject), {
+        method: 'POST',
+        body: formData,
+      })
+      const payload = await response.json()
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || '서브상품 파일 업로드에 실패했습니다.')
+      }
+
+      await refreshEditingFiles(form.id)
+      if (draftId) {
+        handleRemoveSubproductFileDraft(draftId)
+      }
+      toast.success(`${fileType.label} 파일을 업로드했습니다.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '서브상품 파일 업로드 중 오류가 발생했습니다.')
+    } finally {
+      setSubproductUploadingKeys((current) => current.filter((currentKey) => currentKey !== uploadKey))
+    }
+  }
+
+  const handleDeleteSubproductFile = async (subproductId: string, fileId: string) => {
+    if (!form.id) {
+      return
+    }
+
+    try {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}/subproducts/${subproductId}/files/${fileId}`, workspaceSubject), {
+        method: 'DELETE',
+      })
+      const payload = await response.json()
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || '서브상품 파일 삭제에 실패했습니다.')
+      }
+
+      await refreshEditingFiles(form.id)
+      toast.success('서브상품 파일을 삭제했습니다.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '서브상품 파일 삭제 중 오류가 발생했습니다.')
+    }
+  }
+
+  const handleSaveBundleOption = async () => {
+    const targetItemId = form.id ?? await ensureDraftItemForUpload()
+    if (!targetItemId) {
+      return
+    }
+
+    setIsBundleSaving(true)
+    try {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/bundle-option`, workspaceSubject), {
+        method: bundleForm.enabled ? 'PATCH' : 'DELETE',
+        headers: bundleForm.enabled ? { 'Content-Type': 'application/json' } : undefined,
+        body: bundleForm.enabled
+          ? JSON.stringify({
+            label: bundleForm.label || '전체 한번에 구매하기',
+            description: bundleForm.description,
+            priceCredits: parseCreditInputValue(bundleForm.priceCredits),
+            isActive: true,
+          })
+          : undefined,
+      })
+      const payload = await response.json()
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || '전체구매 옵션 저장에 실패했습니다.')
+      }
+
+      await refreshEditingFiles(targetItemId)
+      toast.success(bundleForm.enabled ? '전체구매 옵션을 저장했습니다.' : '전체구매 옵션을 비활성화했습니다.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '전체구매 옵션 저장 중 오류가 발생했습니다.')
+    } finally {
+      setIsBundleSaving(false)
+    }
+  }
+
+  const canOpenSamplePreview = Boolean(form.id && samplePages.length > 0 && !isSampleSourceUploading)
+  const samplePreviewStatusLabel = isSampleSourceUploading ? '샘플 생성 중' : samplePages.length > 0 ? '확인 가능' : '샘플 없음'
   const isAutoUploadDraft = Boolean(form.id && form.draftSource === 'auto_upload')
 
   return (
@@ -1176,37 +1663,9 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label>PDF 가격</Label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  value={form.pdfPrice}
-                  placeholder="예: 1,000"
-                  onChange={(event) => setForm((current) => ({ ...current, pdfPrice: formatCreditInputValue(event.target.value) }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>HWP 가격</Label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  value={form.hwpPrice}
-                  placeholder="예: 1,000"
-                  onChange={(event) => setForm((current) => ({ ...current, hwpPrice: formatCreditInputValue(event.target.value) }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>ZIP 가격</Label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  value={form.zipPrice}
-                  placeholder="예: 1,000"
-                  onChange={(event) => setForm((current) => ({ ...current, zipPrice: formatCreditInputValue(event.target.value) }))}
-                />
-              </div>
+            <div className="rounded-lg border bg-slate-50/60 p-4 text-sm text-gray-600">
+              <p className="font-medium text-gray-900">판매 구성 안내</p>
+              <p className="mt-1">PDF/HWP/ZIP 개별 가격은 더 이상 여기에서 직접 판매하지 않습니다. 아래 서브상품에 파일을 여러 개 연결하고, 서브상품별 가격 또는 전체 한번에 구매하기 가격을 설정하세요.</p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -1262,259 +1721,393 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
             </div>
 
             <div className="space-y-3 rounded-lg border p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-gray-900">파일 업로드</p>
-                    <p className="text-sm text-gray-500">
-                      {form.id
-                        ? 'PDF 업로드 시 첫 1~3페이지가 JPG 샘플로 자동 생성됩니다. HWP와 ZIP은 별도로 교체할 수 있습니다.'
-                        : '파일을 먼저 업로드할 수 있으며, 첫 PDF 업로드 시 상품이 임시 저장되고 JPG 샘플이 자동 생성됩니다. ZIP은 별도 샘플 PDF를 업로드하세요.'}
-                    </p>
-                  </div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium text-gray-900">샘플 생성</p>
+                  <p className="text-sm text-gray-500">샘플 PDF를 별도로 업로드하고, 샘플로 사용할 페이지 번호만 JPG로 생성합니다.</p>
+                </div>
+                <Badge variant={samplePages.length > 0 ? 'outline' : 'secondary'}>{samplePreviewStatusLabel}</Badge>
+              </div>
+
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>샘플 페이지</Label>
+                  <Input
+                    value={samplePageSelection}
+                    onChange={(event) => setSamplePageSelection(event.target.value)}
+                    placeholder="예: 1,5,7"
+                  />
+                  <p className="text-xs text-gray-500">쉼표로 페이지 번호를 입력합니다. 예: 1,5,7</p>
+                </div>
+                <input
+                  ref={sampleSourceInputRef}
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,application/pdf"
+                  disabled={isSampleSourceUploading}
+                  onChange={(event) => handleSelectSampleSourceFile(event.target.files?.[0])}
+                />
+                <label
+                  onDragEnter={(event) => {
+                    if (isSampleSourceUploading) return
+                    event.preventDefault()
+                    setIsSampleSourceDragActive(true)
+                  }}
+                  onDragOver={(event) => {
+                    if (isSampleSourceUploading) return
+                    event.preventDefault()
+                    setIsSampleSourceDragActive(true)
+                  }}
+                  onDragLeave={(event) => {
+                    if (isSampleSourceUploading) return
+                    event.preventDefault()
+                    setIsSampleSourceDragActive(false)
+                  }}
+                  onDrop={(event) => {
+                    if (isSampleSourceUploading) return
+                    event.preventDefault()
+                    setIsSampleSourceDragActive(false)
+                    handleSelectSampleSourceFile(event.dataTransfer.files?.[0])
+                  }}
+                  className={`flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed px-4 py-4 text-center transition ${
+                    isSampleSourceDragActive
+                      ? 'border-primary bg-primary/5'
+                      : 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100'
+                  }`}
+                  onClick={() => sampleSourceInputRef.current?.click()}
+                >
+                  <Upload className="mb-2 h-5 w-5 text-slate-500" />
+                  <p className="text-sm font-medium text-gray-900">샘플 PDF를 드래그앤드롭하거나 클릭해서 선택하세요.</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {selectedSampleSourceFile ? `선택 파일: ${selectedSampleSourceFile.name}` : 'PDF를 선택한 뒤 샘플 이미지 생성 버튼을 클릭해야 JPG가 생성됩니다.'}
+                  </p>
+                </label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                   <Button
                     type="button"
-                    variant="default"
-                    disabled={isBulkUploading || selectedAssetKinds.length === 0 || uploadingKinds.length > 0}
-                    onClick={() => void handleUploadAll()}
+                    variant="outline"
+                    disabled={isSampleSourceUploading || !selectedSampleSourceFile}
+                    onClick={() => void handleGenerateSampleImages()}
                   >
-                    {isBulkUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                    모두 업로드
+                    {isSampleSourceUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                    샘플 이미지 생성
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!canOpenSamplePreview}
+                    aria-label={`${form.title || '문제마켓 상품'} 샘플 JPG 확인`}
+                    onClick={() => {
+                      if (!form.id) {
+                        return
+                      }
+                      setSamplePreviewItemId(form.id)
+                      setIsSamplePreviewOpen(true)
+                    }}
+                  >
+                    샘플 확인
                   </Button>
                 </div>
+              </div>
 
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>자산</TableHead>
-                        <TableHead>현재 파일</TableHead>
-                        <TableHead className="text-center">버전</TableHead>
-                        <TableHead className="text-center">상태</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow key="file-row-sample-pages">
-                        <TableCell>샘플 JPG</TableCell>
-                        <TableCell>
-                          <div className="space-y-2">
-                            <div>
-                              <p>PDF 업로드 시 첫 1~3페이지 자동 생성</p>
-                              <p className="text-xs text-gray-500">PDF 파일 교체 시 샘플도 함께 갱신됩니다.</p>
+              {samplePages.length > 0 ? (
+                <div className="flex flex-wrap gap-3 pt-2">
+                  {samplePages.map((page) => (
+                    <div key={page.id} className="relative h-24 w-20 overflow-hidden rounded border bg-slate-50 shadow-sm">
+                      <div
+                        aria-label={`샘플 ${page.pageNumber}페이지`}
+                        role="img"
+                        className="h-full w-full bg-cover bg-center"
+                        style={{ backgroundImage: `url(${page.signedUrl})` }}
+                      />
+                      <Badge className="absolute bottom-1 left-1 bg-black/60 text-white hover:bg-black/60">p.{page.pageNumber}</Badge>
+                      <button
+                        type="button"
+                        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white"
+                        disabled={deletingSamplePageId === page.id}
+                        aria-label={`${page.pageNumber}페이지 샘플 삭제`}
+                        onClick={() => void handleDeleteSamplePage(page)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-md border border-dashed bg-slate-50 px-4 py-6 text-center text-sm text-gray-500">
+                  아직 생성된 샘플 JPG가 없습니다.
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4 rounded-lg border p-4">
+              <div>
+                <p className="font-medium text-gray-900">서브상품 구성</p>
+                <p className="text-sm text-gray-500">서브상품추가+로 판매 단위를 만들고, 각 서브상품 안에서 파일추가+로 PDF/HWP/ZIP 등 파일을 여러 개 업로드합니다.</p>
+              </div>
+
+              <div className="rounded-md border bg-slate-50/60 p-3">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="font-medium text-gray-900">서브상품 추가+</p>
+                  <Badge variant="outline">{subproducts.length}개</Badge>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>서브상품 카테고리</Label>
+                    <select
+                      value={subproductDraft.categoryId}
+                      onChange={(event) => {
+                        if (event.target.value === MANAGE_SUBPRODUCT_CATEGORIES_VALUE) {
+                          setIsCategorySettingsOpen(true)
+                          return
+                        }
+
+                        setSubproductDraft((current) => ({ ...current, categoryId: event.target.value }))
+                      }}
+                      className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
+                    >
+                      <option value="">카테고리 선택</option>
+                      {activeSubproductCategories.map((category) => (
+                        <option key={category.id} value={category.id}>{category.name}</option>
+                      ))}
+                      <option value={MANAGE_SUBPRODUCT_CATEGORIES_VALUE}>설정하기</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>서브상품 가격</Label>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      value={subproductDraft.priceCredits}
+                      placeholder="예: 1,000"
+                      onChange={(event) => setSubproductDraft((current) => ({ ...current, priceCredits: formatCreditInputValue(event.target.value) }))}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>서브상품명</Label>
+                    <Input value={subproductDraft.title} onChange={(event) => setSubproductDraft((current) => ({ ...current, title: event.target.value }))} placeholder="예: PDF+해설 묶음" />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>서브상품 설명</Label>
+                    <Textarea value={subproductDraft.description} onChange={(event) => setSubproductDraft((current) => ({ ...current, description: event.target.value }))} className="min-h-[72px]" />
+                  </div>
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <Button type="button" disabled={isSubproductSaving || activeSubproductCategories.length === 0} onClick={() => void handleCreateSubproduct()}>
+                    {isSubproductSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                    서브상품 추가
+                  </Button>
+                </div>
+              </div>
+
+              {subproducts.length === 0 ? (
+                <div className="rounded-md border border-dashed bg-white px-4 py-8 text-center text-sm text-gray-500">
+                  아직 등록된 서브상품이 없습니다. 먼저 서브상품을 추가한 뒤 파일을 업로드하세요.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {subproducts.map((subproduct) => {
+                    const filesForSubproduct = subproductFilesBySubproductId.get(subproduct.id) || []
+
+                    return (
+                      <div key={subproduct.id} className="space-y-3 rounded-md border bg-white p-3">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="secondary">{getSubproductCategoryName(subproduct.category_id)}</Badge>
+                              <p className="font-semibold text-gray-900">{subproduct.title}</p>
+                              <Badge variant={subproduct.is_active ? 'outline' : 'secondary'}>{subproduct.is_active ? '활성' : '비활성'}</Badge>
                             </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              disabled={!canOpenSamplePreview}
-                              aria-label={`${form.title || '문제마켓 상품'} 샘플 JPG 확인`}
-                              onClick={() => {
-                                if (!form.id) {
-                                  return
-                                }
-                                setSamplePreviewItemId(form.id)
-                                setIsSamplePreviewOpen(true)
-                              }}
-                            >
-                              샘플 확인
-                            </Button>
-                            <input
-                              ref={sampleSourceInputRef}
-                              type="file"
-                              className="hidden"
-                              accept=".pdf,application/pdf"
-                              disabled={isSampleSourceUploading}
-                              onChange={(event) => void handleSampleSourceUpload(event.target.files?.[0])}
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              disabled={isSampleSourceUploading}
-                              onClick={() => sampleSourceInputRef.current?.click()}
-                            >
-                              {isSampleSourceUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                              샘플 PDF 업로드
-                            </Button>
-                            {samplePages.length > 0 ? (
-                              <div className="flex flex-wrap gap-2 pt-2">
-                                {samplePages.map((page) => (
-                                  <div key={page.id} className="relative h-20 w-16 overflow-hidden rounded border bg-slate-50">
-                                    <div
-                                      aria-label={`샘플 ${page.pageNumber}페이지`}
-                                      role="img"
-                                      className="h-full w-full bg-cover bg-center"
-                                      style={{ backgroundImage: `url(${page.signedUrl})` }}
-                                    />
-                                    <button
-                                      type="button"
-                                      className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white"
-                                      disabled={deletingSamplePageId === page.id}
-                                      aria-label={`${page.pageNumber}페이지 샘플 삭제`}
-                                      onClick={() => void handleDeleteSamplePage(page.id)}
-                                    >
-                                      ×
-                                    </button>
+                            <p className="mt-1 text-sm text-gray-500">{subproduct.description || '설명이 없습니다.'}</p>
+                            <p className="mt-1 text-sm font-medium text-gray-900">{formatCreditInputValue(subproduct.price_credits)} 크레딧 · 파일 {filesForSubproduct.length}개</p>
+                          </div>
+                          <Button type="button" variant="outline" size="sm" disabled={isSubproductSaving} onClick={() => void handleDeleteSubproduct(subproduct.id)}>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            삭제
+                          </Button>
+                        </div>
+
+                        <div className="space-y-3">
+                          {filesForSubproduct.length > 0 ? (
+                            <div className="space-y-2 rounded-md border bg-slate-50/70 p-3">
+                              <p className="text-sm font-medium text-gray-900">업로드된 파일</p>
+                              <div className="space-y-2">
+                                {filesForSubproduct.map((file) => (
+                                  <div key={file.id} className="flex flex-col gap-2 rounded-md border bg-white px-3 py-2 text-sm md:flex-row md:items-center md:justify-between">
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <Badge variant="outline">{getFileTypeLabel(file.file_type_id)}</Badge>
+                                        <span className="truncate font-medium text-gray-900">{file.original_file_name}</span>
+                                        <Badge variant="secondary">v{file.version}</Badge>
+                                      </div>
+                                      <p className="mt-1 text-xs text-gray-500">{formatFileSize(file.file_size_bytes)} · {formatDateTime(file.created_at)}</p>
+                                    </div>
+                                    <Button type="button" variant="ghost" size="sm" onClick={() => void handleDeleteSubproductFile(subproduct.id, file.id)}>
+                                      제거
+                                    </Button>
                                   </div>
                                 ))}
                               </div>
-                            ) : null}
+                            </div>
+                          ) : (
+                            <div className="rounded-md border border-dashed bg-slate-50 px-4 py-6 text-center text-sm text-gray-500">
+                              아직 업로드된 파일이 없습니다. 파일 추가+ 버튼으로 필요한 파일을 하나씩 업로드하세요.
+                            </div>
+                          )}
+
+                          <div className="flex justify-end">
+                            <Button type="button" variant="outline" size="sm" disabled={activeFileTypes.length === 0} onClick={() => handleAddSubproductFileDraft(subproduct.id)}>
+                              <Plus className="mr-2 h-4 w-4" />
+                              파일 추가+
+                            </Button>
                           </div>
-                        </TableCell>
-                        <TableCell className="text-center">-</TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant={samplePages.length > 0 ? 'outline' : 'secondary'}>{samplePreviewStatusLabel}</Badge>
-                        </TableCell>
-                      </TableRow>
-                      {MARKET_ASSET_KINDS.map((assetKind) => {
-                        const currentFile = activeFileMap.get(assetKind)
 
-                        return (
-                          <TableRow key={`file-row-${assetKind}`}>
-                            <TableCell className="uppercase">{assetKind}</TableCell>
-                            <TableCell>{currentFile?.original_file_name || '미업로드'}</TableCell>
-                            <TableCell className="text-center">{currentFile ? `v${currentFile.version}` : '-'}</TableCell>
-                            <TableCell className="text-center">
-                              <Badge variant={currentFile ? 'outline' : 'secondary'}>
-                                {currentFile ? '활성 파일' : '없음'}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
+                          {activeFileTypes.length === 0 ? (
+                            <div className="rounded-md border border-dashed bg-slate-50 px-4 py-6 text-center text-sm text-gray-500">
+                              등록된 파일 유형이 없습니다. 파일 유형 설정에서 PDF/HWP/ZIP 등의 유형을 먼저 등록하세요.
+                            </div>
+                          ) : null}
 
-                {MARKET_ASSET_KINDS.map((assetKind) => {
-                  const currentFile = activeFileMap.get(assetKind)
-                  const isUploading = uploadingKinds.includes(assetKind)
-                  const selectedFile = selectedFiles[assetKind]
-                  const isDragActive = dragActiveKinds.includes(assetKind)
-                  const isUploadDisabled = isUploading || isBulkUploading
-                  const allowDescription = assetKind === 'hwp' ? '.hwp 파일만 업로드할 수 있습니다.' : assetKind === 'zip' ? '.zip 파일만 업로드할 수 있습니다.' : '.pdf 파일만 업로드할 수 있습니다.'
+                          {subproductFileDrafts.filter((draft) => draft.subproductId === subproduct.id).map((draft) => {
+                            const selectedFileType = activeFileTypes.find((fileType) => fileType.id === draft.fileTypeId)
+                            const availableFileTypes = getAvailableFileTypesForSubproduct(subproduct.id, draft.id)
+                            const isUploading = subproductUploadingKeys.includes(draft.id)
+                            const isDragActive = subproductDragActiveKeys.includes(draft.id)
+                            const inputId = `subproduct-file-draft-${draft.id}`
 
-                  return (
-                    <div key={assetKind} className="space-y-2 rounded-md border p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="font-medium uppercase">{assetKind}</p>
-                          <p className="text-xs text-gray-500">현재 파일: {currentFile?.original_file_name || '없음'}</p>
+                            return (
+                              <div key={draft.id} className="space-y-3 rounded-md border p-3">
+                                <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                                  <div className="flex-1 space-y-2">
+                                    <Label>파일 유형</Label>
+                                    <select
+                                      value={draft.fileTypeId}
+                                      disabled={isUploading}
+                                      onChange={(event) => {
+                                        if (event.target.value === MANAGE_FILE_TYPES_VALUE) {
+                                          setIsFileTypeSettingsOpen(true)
+                                          return
+                                        }
+
+                                        handleUpdateSubproductFileDraft(draft.id, { fileTypeId: event.target.value })
+                                      }}
+                                      className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
+                                    >
+                                      <option value="">파일 유형 선택</option>
+                                      {availableFileTypes.map((fileType) => (
+                                        <option key={fileType.id} value={fileType.id}>{fileType.label}</option>
+                                      ))}
+                                      <option value={MANAGE_FILE_TYPES_VALUE}>설정하기</option>
+                                    </select>
+                                  </div>
+                                  <Button type="button" variant="ghost" size="sm" disabled={isUploading} onClick={() => handleRemoveSubproductFileDraft(draft.id)}>
+                                    row 삭제
+                                  </Button>
+                                </div>
+                                <input
+                                  id={inputId}
+                                  type="file"
+                                  className="hidden"
+                                  accept={selectedFileType ? getFileTypeAcceptValue(selectedFileType) : undefined}
+                                  disabled={isUploading || !selectedFileType}
+                                  onChange={(event) => void handleSubproductFileUpload(subproduct.id, draft.fileTypeId, event.target.files?.[0], draft.id)}
+                                />
+                                <label
+                                  htmlFor={selectedFileType && !isUploading ? inputId : undefined}
+                                  onDragEnter={(event) => {
+                                    if (isUploading || !selectedFileType) return
+                                    event.preventDefault()
+                                    setSubproductDragActive(draft.id, true)
+                                  }}
+                                  onDragOver={(event) => {
+                                    if (isUploading || !selectedFileType) return
+                                    event.preventDefault()
+                                    setSubproductDragActive(draft.id, true)
+                                  }}
+                                  onDragLeave={(event) => {
+                                    if (isUploading || !selectedFileType) return
+                                    event.preventDefault()
+                                    setSubproductDragActive(draft.id, false)
+                                  }}
+                                  onDrop={(event) => {
+                                    if (isUploading || !selectedFileType) return
+                                    event.preventDefault()
+                                    setSubproductDragActive(draft.id, false)
+                                    const droppedFiles = Array.from(event.dataTransfer.files || [])
+                                    if (droppedFiles.length === 0) return
+                                    if (droppedFiles.length > 1) {
+                                      toast.message('여러 파일이 드롭되었지만 첫 번째 파일만 업로드합니다.')
+                                    }
+                                    void handleSubproductFileUpload(subproduct.id, draft.fileTypeId, droppedFiles[0], draft.id)
+                                  }}
+                                  className={`flex min-h-32 flex-col justify-center rounded-md border border-dashed px-4 py-4 text-left transition ${
+                                    isUploading
+                                      ? 'cursor-not-allowed bg-gray-50 text-gray-400'
+                                      : !selectedFileType
+                                        ? 'cursor-not-allowed bg-gray-50 text-gray-400'
+                                        : isDragActive
+                                          ? 'cursor-pointer border-primary bg-primary/5'
+                                          : 'cursor-pointer border-red-200 bg-red-50/40 hover:border-red-300 hover:bg-red-50'
+                                  }`}
+                                >
+                                  <p className="text-sm font-medium text-gray-900">드래그앤드랍 또는 클릭하여 업로드</p>
+                                  <p className="mt-1 text-xs text-gray-500">{selectedFileType ? `허용 형식: ${getFileTypeAcceptValue(selectedFileType)}` : '파일 유형을 먼저 선택해주세요.'}</p>
+                                  {isUploading ? <p className="mt-2 text-xs text-gray-500">업로드 중입니다...</p> : null}
+                                </label>
+                              </div>
+                            )
+                          })}
                         </div>
-                        {currentFile ? <Badge variant="outline">v{currentFile.version}</Badge> : <Badge variant="secondary">미업로드</Badge>}
                       </div>
-                      <div className="grid gap-2 text-xs text-gray-500 md:grid-cols-3">
-                        <p>용량: {formatFileSize(currentFile?.file_size_bytes)}</p>
-                        <p>등록일: {formatDateTime(currentFile?.created_at)}</p>
-                        <p className="truncate">경로: {currentFile?.storage_path || '-'}</p>
-                      </div>
-                      <input
-                        ref={(node) => {
-                          fileInputRefs.current[assetKind] = node
-                        }}
-                        type="file"
-                        className="hidden"
-                        accept={getAssetAcceptValue(assetKind)}
-                        disabled={isUploadDisabled}
-                        onChange={(event) => handleSelectedFile(assetKind, event.target.files?.[0])}
-                      />
-                      <div
-                        role="button"
-                        tabIndex={isUploadDisabled ? -1 : 0}
-                        onClick={() => {
-                          if (isUploadDisabled) return
-                          const input = fileInputRefs.current[assetKind]
-                          if (!input) return
-                          input.value = ''
-                          input.click()
-                        }}
-                        onKeyDown={(event) => {
-                          if (isUploadDisabled) return
-                          if (event.key !== 'Enter' && event.key !== ' ') return
-                          event.preventDefault()
-                          const input = fileInputRefs.current[assetKind]
-                          if (!input) return
-                          input.value = ''
-                          input.click()
-                        }}
-                        onDragEnter={(event) => {
-                          if (isUploadDisabled) return
-                          event.preventDefault()
-                          setDragActive(assetKind, true)
-                        }}
-                        onDragOver={(event) => {
-                          if (isUploadDisabled) return
-                          event.preventDefault()
-                          setDragActive(assetKind, true)
-                        }}
-                        onDragLeave={(event) => {
-                          if (isUploadDisabled) return
-                          event.preventDefault()
-                          setDragActive(assetKind, false)
-                        }}
-                        onDrop={(event) => {
-                          if (isUploadDisabled) return
-                          event.preventDefault()
-                          setDragActive(assetKind, false)
-                          const droppedFiles = Array.from(event.dataTransfer.files || [])
-                          if (droppedFiles.length === 0) return
-                          if (droppedFiles.length > 1) {
-                            toast.message('여러 파일이 드롭되었지만 첫 번째 파일만 선택합니다.')
-                          }
-                          handleSelectedFile(assetKind, droppedFiles[0])
-                        }}
-                        className={`flex min-h-32 flex-col justify-center rounded-md border border-dashed px-4 py-4 text-left transition ${
-                          isUploadDisabled
-                            ? 'cursor-not-allowed bg-gray-50 text-gray-400'
-                            : isDragActive
-                              ? 'border-primary bg-primary/5'
-                              : selectedFile || currentFile
-                                ? 'border-emerald-300 bg-emerald-50/60'
-                                : 'cursor-pointer border-red-200 bg-red-50/40 hover:border-red-300 hover:bg-red-50'
-                        }`}
-                      >
-                        <p className="text-sm font-medium text-gray-900">
-                          {!form.id
-                            ? '상품 등록 전에 파일을 먼저 업로드할 수 있습니다.'
-                            : isDragActive
-                              ? '여기에 파일을 놓으세요.'
-                              : '파일을 드래그하여 놓거나, 파일선택 버튼으로 업로드할 파일을 고르세요.'}
-                        </p>
-                        <p className="mt-1 text-xs text-gray-500">
-                          {selectedFile
-                            ? `선택 파일: ${selectedFile.name} (${formatFileSize(selectedFile.size)})`
-                            : `허용 형식: ${allowDescription}`}
-                        </p>
-                      </div>
-                      <div className="flex flex-col gap-2 md:flex-row md:justify-end">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={isUploadDisabled}
-                          onClick={() => {
-                            const input = fileInputRefs.current[assetKind]
-                            if (!input) return
-                            input.value = ''
-                            input.click()
-                          }}
-                        >
-                          파일선택
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={!selectedFile || isUploadDisabled}
-                          onClick={() => {
-                            void handleUpload(assetKind)
-                          }}
-                        >
-                          {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                          업로드
-                        </Button>
-                      </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3 rounded-lg border p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium text-gray-900">전체 한번에 구매하기</p>
+                  <p className="text-sm text-gray-500">옵션을 켜고 금액을 입력하면 등록된 서브상품의 모든 파일을 한 번에 구매할 수 있습니다.</p>
+                </div>
+                {bundleOption ? <Badge variant="outline">저장됨</Badge> : <Badge variant="secondary">미설정</Badge>}
               </div>
+              <div className="flex items-center justify-between rounded-md border px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">전체구매 옵션 사용</p>
+                  <p className="text-xs text-gray-500">꺼두면 사용자 상세페이지에 전체구매 카드가 노출되지 않습니다.</p>
+                </div>
+                <Switch checked={bundleForm.enabled} onCheckedChange={(checked) => setBundleForm((current) => ({ ...current, enabled: checked }))} />
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>표시명</Label>
+                  <Input disabled={!bundleForm.enabled} value={bundleForm.label} onChange={(event) => setBundleForm((current) => ({ ...current, label: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>전체구매 가격</Label>
+                  <Input
+                    disabled={!bundleForm.enabled}
+                    type="text"
+                    inputMode="numeric"
+                    value={bundleForm.priceCredits}
+                    placeholder="예: 10,000"
+                    onChange={(event) => setBundleForm((current) => ({ ...current, priceCredits: formatCreditInputValue(event.target.value) }))}
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>전체구매 설명</Label>
+                  <Textarea disabled={!bundleForm.enabled} value={bundleForm.description} onChange={(event) => setBundleForm((current) => ({ ...current, description: event.target.value }))} className="min-h-[72px]" />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button type="button" variant="outline" disabled={isBundleSaving} onClick={() => void handleSaveBundleOption()}>
+                  {isBundleSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  전체구매 옵션 저장
+                </Button>
+              </div>
+            </div>
 
               {isAutoUploadDraft ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -1527,29 +2120,27 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
               <div className="flex flex-col gap-2 sm:flex-row">
               <Button
                 onClick={handleSubmit}
-                disabled={isSaving || isBulkUploading}
+                disabled={isSaving}
                 className="h-11 flex-1 text-base font-semibold shadow-sm"
               >
-                {isSaving || isBulkUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {form.id
                   ? requiresFinalRegistration
                     ? '상품 등록'
                     : '상품 저장'
-                  : selectedAssetKinds.length > 0
-                    ? (isBulkUploading ? '상품 등록 및 파일 업로드 중...' : '상품 등록 및 파일 업로드')
-                    : '상품 등록'}
+                  : '상품 등록'}
               </Button>
-              <Button type="button" variant="secondary" disabled={isSaving || isBulkUploading} onClick={() => void handleStatusAction('draft')}>
+              <Button type="button" variant="secondary" disabled={isSaving} onClick={() => void handleStatusAction('draft')}>
                 임시저장
               </Button>
-              <Button type="button" variant="outline" disabled={isSaving || isBulkUploading} onClick={() => void handleStatusAction('hidden')}>
+              <Button type="button" variant="outline" disabled={isSaving} onClick={() => void handleStatusAction('hidden')}>
                 숨김
               </Button>
-              <Button type="button" variant="outline" disabled={isSaving || isBulkUploading} onClick={() => void handleStatusAction('published')}>
+              <Button type="button" variant="outline" disabled={isSaving} onClick={() => void handleStatusAction('published')}>
                 공개
               </Button>
               {form.id ? (
-                <Button type="button" variant="destructive" disabled={isArchiving || isBulkUploading} onClick={handleArchive}>
+                <Button type="button" variant="destructive" disabled={isArchiving} onClick={handleArchive}>
                   {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
                   {isAutoUploadDraft ? '등록 취소 및 파일 삭제' : '완전 삭제'}
                 </Button>
@@ -1703,6 +2294,157 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
           }
         }}
       />
+
+
+      <Dialog open={isCategorySettingsOpen} onOpenChange={(open) => {
+        setIsCategorySettingsOpen(open)
+        if (!open) {
+          resetCategorySettingsForm()
+        }
+      }}>
+        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>서브상품 카테고리 설정</DialogTitle>
+            <DialogDescription>서브상품 카테고리를 추가, 수정, 삭제할 수 있습니다. 사용 중인 카테고리는 삭제가 제한될 수 있습니다.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-900">카테고리 목록</p>
+              <div className="space-y-2">
+                {subproductCategories.length === 0 ? (
+                  <div className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-gray-500">등록된 카테고리가 없습니다.</div>
+                ) : subproductCategories.map((category) => (
+                  <div key={category.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-gray-900">{category.name}</span>
+                        <Badge variant={category.is_active ? 'outline' : 'secondary'}>{category.is_active ? '활성' : '비활성'}</Badge>
+                      </div>
+                      <p className="truncate text-xs text-gray-500">{category.slug} · 정렬 {category.sort_order}</p>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <Button type="button" variant="ghost" size="sm" onClick={() => handleEditCategorySettings(category)}>수정</Button>
+                      <Button type="button" variant="ghost" size="sm" className="text-red-600 hover:bg-red-50 hover:text-red-700" disabled={deletingCategoryId === category.id} onClick={() => void handleDeleteCategorySettings(category.id)}>
+                        {deletingCategoryId === category.id ? <Loader2 className="h-4 w-4 animate-spin" /> : '삭제'}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-3 rounded-md border bg-slate-50/60 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium text-gray-900">{editingCategoryId ? '카테고리 수정' : '카테고리 추가'}</p>
+                {editingCategoryId ? <Button type="button" variant="ghost" size="sm" onClick={resetCategorySettingsForm}>새로 추가</Button> : null}
+              </div>
+              <div className="space-y-2">
+                <Label>이름</Label>
+                <Input value={categorySettingsForm.name} onChange={(event) => setCategorySettingsForm((current) => ({ ...current, name: event.target.value }))} placeholder="예: 워크북" />
+              </div>
+              <div className="space-y-2">
+                <Label>slug</Label>
+                <Input value={categorySettingsForm.slug} onChange={(event) => setCategorySettingsForm((current) => ({ ...current, slug: event.target.value }))} placeholder="예: workbook" />
+              </div>
+              <div className="space-y-2">
+                <Label>설명</Label>
+                <Textarea value={categorySettingsForm.description} onChange={(event) => setCategorySettingsForm((current) => ({ ...current, description: event.target.value }))} className="min-h-[72px]" />
+              </div>
+              <div className="space-y-2">
+                <Label>정렬 순서</Label>
+                <Input type="number" min={0} value={categorySettingsForm.sortOrder} onChange={(event) => setCategorySettingsForm((current) => ({ ...current, sortOrder: event.target.value }))} />
+              </div>
+              <div className="flex items-center justify-between rounded-md border bg-white px-3 py-2">
+                <Label>활성화</Label>
+                <Switch checked={categorySettingsForm.isActive} onCheckedChange={(checked) => setCategorySettingsForm((current) => ({ ...current, isActive: checked }))} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsCategorySettingsOpen(false)}>닫기</Button>
+            <Button type="button" disabled={isCategorySettingsSaving} onClick={() => void handleSaveCategorySettings()}>
+              {isCategorySettingsSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              저장
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isFileTypeSettingsOpen} onOpenChange={(open) => {
+        setIsFileTypeSettingsOpen(open)
+        if (!open) {
+          resetFileTypeSettingsForm()
+        }
+      }}>
+        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>파일 유형 설정</DialogTitle>
+            <DialogDescription>서브상품에 업로드할 파일 유형을 추가, 수정, 삭제할 수 있습니다.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-900">파일 유형 목록</p>
+              <div className="space-y-2">
+                {fileTypes.length === 0 ? (
+                  <div className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-gray-500">등록된 파일 유형이 없습니다.</div>
+                ) : fileTypes.map((fileType) => (
+                  <div key={fileType.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-gray-900">{fileType.label}</span>
+                        <Badge variant={fileType.is_active ? 'outline' : 'secondary'}>{fileType.is_active ? '활성' : '비활성'}</Badge>
+                      </div>
+                      <p className="truncate text-xs text-gray-500">{fileType.code} · .{fileType.extension} · 정렬 {fileType.sort_order}</p>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <Button type="button" variant="ghost" size="sm" onClick={() => handleEditFileTypeSettings(fileType)}>수정</Button>
+                      <Button type="button" variant="ghost" size="sm" className="text-red-600 hover:bg-red-50 hover:text-red-700" disabled={deletingFileTypeId === fileType.id} onClick={() => void handleDeleteFileTypeSettings(fileType.id)}>
+                        {deletingFileTypeId === fileType.id ? <Loader2 className="h-4 w-4 animate-spin" /> : '삭제'}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-3 rounded-md border bg-slate-50/60 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium text-gray-900">{editingFileTypeId ? '파일 유형 수정' : '파일 유형 추가'}</p>
+                {editingFileTypeId ? <Button type="button" variant="ghost" size="sm" onClick={resetFileTypeSettingsForm}>새로 추가</Button> : null}
+              </div>
+              <div className="space-y-2">
+                <Label>코드</Label>
+                <Input value={fileTypeSettingsForm.code} onChange={(event) => setFileTypeSettingsForm((current) => ({ ...current, code: event.target.value }))} placeholder="예: pdf" />
+              </div>
+              <div className="space-y-2">
+                <Label>표시명</Label>
+                <Input value={fileTypeSettingsForm.label} onChange={(event) => setFileTypeSettingsForm((current) => ({ ...current, label: event.target.value }))} placeholder="예: PDF" />
+              </div>
+              <div className="space-y-2">
+                <Label>확장자</Label>
+                <Input value={fileTypeSettingsForm.extension} onChange={(event) => setFileTypeSettingsForm((current) => ({ ...current, extension: event.target.value }))} placeholder="예: pdf" />
+              </div>
+              <div className="space-y-2">
+                <Label>MIME 허용 목록</Label>
+                <Textarea value={fileTypeSettingsForm.mimeAllowlist} onChange={(event) => setFileTypeSettingsForm((current) => ({ ...current, mimeAllowlist: event.target.value }))} className="min-h-[72px]" placeholder="한 줄 또는 쉼표로 구분" />
+              </div>
+              <div className="space-y-2">
+                <Label>정렬 순서</Label>
+                <Input type="number" min={0} value={fileTypeSettingsForm.sortOrder} onChange={(event) => setFileTypeSettingsForm((current) => ({ ...current, sortOrder: event.target.value }))} />
+              </div>
+              <div className="flex items-center justify-between rounded-md border bg-white px-3 py-2">
+                <Label>활성화</Label>
+                <Switch checked={fileTypeSettingsForm.isActive} onCheckedChange={(checked) => setFileTypeSettingsForm((current) => ({ ...current, isActive: checked }))} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsFileTypeSettingsOpen(false)}>닫기</Button>
+            <Button type="button" disabled={isFileTypeSettingsSaving} onClick={() => void handleSaveFileTypeSettings()}>
+              {isFileTypeSettingsSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              저장
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isArchiving && setDeleteTarget(null)}>
         <AlertDialogContent>

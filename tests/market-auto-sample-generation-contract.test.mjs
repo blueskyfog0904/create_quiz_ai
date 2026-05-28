@@ -19,25 +19,28 @@ const sampleGenerator = readFileSync(
   'utf8'
 )
 
-test('admin product uploads expose pdf hwp and zip manual upload slots plus separate sample pdf source', () => {
-  assert.match(adminProductsClient, /const MARKET_ASSET_KINDS = \['pdf', 'hwp', 'zip'\] as const/)
+test('admin product uploads use v2 subproduct file slots plus separate sample pdf source', () => {
+  assert.match(adminProductsClient, /MarketFileType/)
+  assert.match(adminProductsClient, /fileTypes/)
+  assert.match(adminProductsClient, /파일추가/)
   assert.doesNotMatch(adminProductsClient, /const MARKET_ASSET_KINDS = \['sample', 'pdf', 'hwp', 'zip'\] as const/)
-  assert.doesNotMatch(adminProductsClient, /fileInputRefs[\s\S]*sample:\s*null/)
-  assert.match(adminProductsClient, /샘플 PDF 업로드/)
+  assert.match(adminProductsClient, /샘플 이미지 생성/)
+  assert.match(adminProductsClient, /selectedSampleSourceFile/)
+  assert.match(adminProductsClient, /formData\.append\('draftToken', sampleDraftToken\)/)
+  assert.match(adminProductsClient, /\/samples\/commit/)
   assert.match(adminProductsClient, /zipPrice/)
-  assert.match(adminProductsClient, /ZIP 가격/)
-  assert.match(adminProductsClient, /PDF 업로드 시 첫 1~3페이지가 JPG 샘플로 자동 생성됩니다/)
+  assert.doesNotMatch(adminProductsClient, /PDF 업로드 시 첫 1~3페이지가 JPG 샘플로 자동 생성됩니다/)
   assert.match(adminProductsClient, /샘플 JPG/)
 })
 
-test('admin product upload route treats sample pages as a pdf-derived artifact and zip as paid-only asset', () => {
+test('admin product upload route keeps paid pdf uploads separate from sample generation', () => {
   assert.match(adminUploadRoute, /assetKindValue !== 'pdf' && assetKindValue !== 'hwp' && assetKindValue !== 'zip'/)
   assert.doesNotMatch(adminUploadRoute, /assetKindValue !== 'sample' && assetKindValue !== 'pdf' && assetKindValue !== 'hwp' && assetKindValue !== 'zip'/)
-  assert.match(adminUploadRoute, /generateMarketPdfSamplePages/)
-  assert.match(adminUploadRoute, /replaceMarketItemSamplePages/)
-  assert.match(adminUploadRoute, /if \(assetKindValue === 'pdf'\)/)
-  assert.match(adminUploadRoute, /samplePageCount/)
-  assert.match(adminUploadRoute, /sampleGenerationStatus/)
+  assert.doesNotMatch(adminUploadRoute, /generateMarketPdfSamplePages/)
+  assert.doesNotMatch(adminUploadRoute, /replaceMarketItemSamplePages/)
+  assert.doesNotMatch(adminUploadRoute, /samplePageCount/)
+  assert.doesNotMatch(adminUploadRoute, /sampleGenerationStatus/)
+  assert.match(adminUploadRoute, /savedFile/)
 })
 
 test('market storage has dedicated sample page path builders and paid pdf hwp zip uploads', () => {

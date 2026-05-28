@@ -91,12 +91,11 @@ test('market listboard follows board-style alignment and one-line date display',
   )
 })
 
-test('market listboard purchase tray and failure states are explicit', () => {
-  assert.match(listboardClient, /선택 파일 결제/)
-  assert.match(listboardClient, /CreditConfirmationDialog/)
-  assert.match(listboardClient, /api\/market\/purchases\/batch/)
-  assert.match(listboardClient, /status === 401/)
-  assert.match(listboardClient, /status === 402/)
-  assert.match(listboardClient, /status === 409/)
-  assert.match(listboardClient, /status >= 500/)
+test('market listboard removes direct purchase tray and sends purchase flow to detail page', () => {
+  assert.doesNotMatch(listboardClient, /선택 파일 결제/)
+  assert.doesNotMatch(listboardClient, /CreditConfirmationDialog/)
+  assert.doesNotMatch(listboardClient, /api\/market\/purchases\/batch/)
+  assert.doesNotMatch(listboardClient, /status === 402/)
+  assert.match(listboardClient, /상세에서 구매/)
+  assert.match(listboardClient, /WorkspaceLink/)
 })

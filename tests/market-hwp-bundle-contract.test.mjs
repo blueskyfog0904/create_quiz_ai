@@ -27,27 +27,32 @@ const batchRoute = readFileSync(
   'utf8'
 )
 
-test('market purchase helpers define hwp as a pdf and hwp bundle while pdf remains standalone', () => {
+test('market purchase helpers treat paid asset kinds as exact-match entitlements', () => {
   assert.match(marketPurchase, /isMarketAssetCoveredByPurchaseKind/)
-  assert.match(marketPurchase, /downloadAssetKind === 'pdf' && purchasedAssetKind === 'hwp'/)
+  assert.doesNotMatch(marketPurchase, /downloadAssetKind === 'pdf' && purchasedAssetKind === 'hwp'/)
+  assert.match(marketPurchase, /return downloadAssetKind === purchasedAssetKind/)
   assert.match(marketPurchase, /getMarketPaidAssetLabel[\s\S]+HWP & PDF/)
 })
 
-test('listboard effective ownership treats hwp purchase as owning pdf too', () => {
+test('listboard effective ownership does not treat hwp purchase as owning pdf', () => {
   assert.match(listboardServer, /pdfOwned/)
-  assert.match(listboardServer, /ownership\.has\(`\$\{item\.id\}:pdf`\) \|\| ownership\.has\(`\$\{item\.id\}:hwp`\)/)
+  assert.doesNotMatch(listboardServer, /ownership\.has\(`\$\{item\.id\}:pdf`\) \|\| ownership\.has\(`\$\{item\.id\}:hwp`\)/)
+  assert.match(listboardServer, /const pdfOwned = ownership\.has\(`\$\{item\.id\}:pdf`\)/)
 })
 
-test('batch purchase normalizes pdf plus hwp selections to only the bundle target', () => {
+test('legacy bundle normalization remains exact-match and listboard batch purchase is deprecated', () => {
   assert.match(marketPurchase, /normalizeMarketBundleSelections/)
-  assert.match(batchRoute, /normalizeMarketBundleSelections\(parsed\.data\.selections\)/)
+  assert.match(batchRoute, /BATCH_PURCHASE_DEPRECATED/)
+  assert.doesNotMatch(batchRoute, /normalizeMarketBundleSelections\(parsed\.data\.selections\)/)
+  assert.doesNotMatch(marketPurchase, /assetKind === 'pdf' && hwpItemIds\.has/)
 })
 
-test('download route uses shared entitlement helper so hwp still covers pdf while zip stays independent', () => {
+test('download route uses shared exact-match entitlement helper so zip stays independent', () => {
   assert.match(downloadRoute, /isMarketAssetCoveredByPurchaseKind/)
   assert.match(downloadRoute, /getMarketPurchaseKindsToCheck/)
-  assert.match(marketPurchase, /assetKind === 'pdf'[\s\S]+\['pdf', 'hwp'\]/)
-  assert.match(marketPurchase, /assetKind === 'zip'[\s\S]+\['zip'\]/)
+  assert.doesNotMatch(marketPurchase, /assetKind === 'pdf'[\s\S]+\['pdf', 'hwp'\]/)
+  assert.match(marketPurchase, /return \[assetKind\]/)
+  assert.match(marketPurchase, /return \[assetKind\]/)
 })
 
 test('ui labels hwp paid option as pdf and hwp bundle on list and detail pages', () => {

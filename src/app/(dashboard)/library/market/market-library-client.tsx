@@ -73,6 +73,7 @@ export default function MarketLibraryClient({
   }, [assetFilter, rows, search, sort])
 
   const downloadableCount = rows.filter((row) => row.pdfAvailable || row.hwpAvailable || row.zipAvailable).length
+  const v2DownloadableCount = rows.filter((row) => row.v2DownloadFiles.length > 0).length
   const latestPurchaseDate = rows.length > 0 ? rows.map((row) => row.purchasedAt).sort((a, b) => b.localeCompare(a))[0] : null
 
   return (
@@ -101,7 +102,7 @@ export default function MarketLibraryClient({
             <CardTitle className="text-base">다운로드 가능 상품</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-gray-900">{downloadableCount}</p>
+            <p className="text-3xl font-bold text-gray-900">{downloadableCount + v2DownloadableCount}</p>
           </CardContent>
         </Card>
         <Card>
@@ -178,6 +179,7 @@ export default function MarketLibraryClient({
                             <Badge variant={row.pdfOwned ? 'default' : 'outline'}>PDF {row.pdfOwned ? '보유' : '미보유'}</Badge>
                             <Badge variant={row.hwpOwned ? 'default' : 'outline'}>HWP & PDF {row.hwpOwned ? '보유' : '미보유'}</Badge>
                             <Badge variant={row.zipOwned ? 'default' : 'outline'}>ZIP {row.zipOwned ? '보유' : '미보유'}</Badge>
+                            {row.v2OwnedLabels.length > 0 ? <Badge variant="secondary">서브상품/전체구매 {row.v2OwnedLabels.join(' · ')}</Badge> : null}
                           </div>
                         </TableCell>
                         <TableCell>{formatDate(row.purchasedAt)}</TableCell>
@@ -186,6 +188,11 @@ export default function MarketLibraryClient({
                             {row.pdfOwned ? (row.pdfAvailable ? <Button asChild size="sm" variant="outline"><a href={row.pdfDownloadUrl || '#'}>PDF 다운로드</a></Button> : <Button size="sm" variant="outline" disabled>PDF 점검 중</Button>) : null}
                             {row.hwpOwned ? (row.hwpAvailable ? <Button asChild size="sm" variant="outline"><a href={row.hwpDownloadUrl || '#'}>HWP 다운로드</a></Button> : <Button size="sm" variant="outline" disabled>HWP & PDF 점검 중</Button>) : null}
                             {row.zipOwned ? (row.zipAvailable ? <Button asChild size="sm" variant="outline"><a href={row.zipDownloadUrl || '#'}>ZIP 다운로드</a></Button> : <Button size="sm" variant="outline" disabled>ZIP 점검 중</Button>) : null}
+                            {row.v2DownloadFiles.map((file) => (
+                              <Button key={file.id} asChild size="sm" variant="outline">
+                                <a href={file.downloadUrl}>{file.fileTypeLabel} 다운로드</a>
+                              </Button>
+                            ))}
                             {row.categorySlug ? <Button asChild size="sm"><WorkspaceLink href={`/market/${row.categorySlug}/items/${row.itemId}`} subject={workspaceSubject}>상세 보기</WorkspaceLink></Button> : null}
                           </div>
                         </TableCell>
@@ -212,12 +219,18 @@ export default function MarketLibraryClient({
                         <Badge variant={row.pdfOwned ? 'default' : 'outline'}>PDF {row.pdfOwned ? '보유' : '미보유'}</Badge>
                         <Badge variant={row.hwpOwned ? 'default' : 'outline'}>HWP & PDF {row.hwpOwned ? '보유' : '미보유'}</Badge>
                         <Badge variant={row.zipOwned ? 'default' : 'outline'}>ZIP {row.zipOwned ? '보유' : '미보유'}</Badge>
+                        {row.v2OwnedLabels.length > 0 ? <Badge variant="secondary">서브상품/전체구매 {row.v2OwnedLabels.join(' · ')}</Badge> : null}
                       </div>
 
                       <div className="grid gap-2">
                         {row.pdfOwned ? (row.pdfAvailable ? <Button asChild variant="outline"><a href={row.pdfDownloadUrl || '#'}>PDF 다운로드</a></Button> : <Button variant="outline" disabled>PDF 점검 중</Button>) : null}
                         {row.hwpOwned ? (row.hwpAvailable ? <Button asChild variant="outline"><a href={row.hwpDownloadUrl || '#'}>HWP 다운로드</a></Button> : <Button variant="outline" disabled>HWP & PDF 점검 중</Button>) : null}
                         {row.zipOwned ? (row.zipAvailable ? <Button asChild variant="outline"><a href={row.zipDownloadUrl || '#'}>ZIP 다운로드</a></Button> : <Button variant="outline" disabled>ZIP 점검 중</Button>) : null}
+                        {row.v2DownloadFiles.map((file) => (
+                          <Button key={file.id} asChild variant="outline">
+                            <a href={file.downloadUrl}>{file.fileTypeLabel} 다운로드</a>
+                          </Button>
+                        ))}
                         {row.categorySlug ? <Button asChild><WorkspaceLink href={`/market/${row.categorySlug}/items/${row.itemId}`} subject={workspaceSubject}>상세 보기</WorkspaceLink></Button> : null}
                       </div>
                     </CardContent>

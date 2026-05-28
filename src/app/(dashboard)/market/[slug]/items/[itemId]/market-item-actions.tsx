@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
 import { useLoginRedirect } from '@/hooks/use-login-redirect'
+import type { MarketBundlePublicSummary, MarketSubproductDownloadFile, MarketSubproductPublicSummary } from '@/lib/market-items-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import MarketSamplePreviewDialog from './market-sample-preview-dialog'
 import MarketPurchaseCompleteDialog from '../../market-purchase-complete-dialog'
@@ -29,13 +30,23 @@ interface MarketItemActionsProps {
   zipPrice: number
   samplePageCount: number
   workspaceSubject: WorkspaceSubject
+  subproducts?: MarketSubproductPublicSummary[]
+  bundleOption?: MarketBundlePublicSummary | null
+  downloadFiles?: MarketSubproductDownloadFile[]
 }
 
 type PurchaseAssetKind = 'pdf' | 'hwp' | 'zip'
 type OptionState = 'instant' | 'owned' | 'available' | 'unavailable' | 'checking' | 'processing'
+type V2PurchaseIntent =
+  | { purchaseType: 'subproduct'; subproductId: string; title: string; priceCredits: number }
+  | { purchaseType: 'bundle'; bundleOptionId: string; title: string; priceCredits: number }
 
 function buildDownloadUrl(itemId: string, assetKind: 'pdf' | 'hwp' | 'zip') {
   return `/api/market/items/${itemId}/download?assetKind=${assetKind}`
+}
+
+function buildV2DownloadUrl(itemId: string, fileId: string) {
+  return `/api/market/items/${itemId}/download?fileId=${fileId}`
 }
 
 function formatCredits(value: number) {
@@ -176,6 +187,9 @@ export default function MarketItemActions({
   zipPrice,
   samplePageCount,
   workspaceSubject,
+  subproducts = [],
+  bundleOption = null,
+  downloadFiles = [],
 }: MarketItemActionsProps) {
   const router = useRouter()
   const { redirectToLogin } = useLoginRedirect()
@@ -184,6 +198,7 @@ export default function MarketItemActions({
   const [currentBalance, setCurrentBalance] = useState<number | null>(null)
   const [isCheckingBalance, setIsCheckingBalance] = useState(false)
   const [pendingPurchaseKind, setPendingPurchaseKind] = useState<PurchaseAssetKind | null>(null)
+  const [pendingV2PurchaseIntent, setPendingV2PurchaseIntent] = useState<V2PurchaseIntent | null>(null)
   const [purchaseCompleteMessage, setPurchaseCompleteMessage] = useState<string | null>(null)
   const [isSamplePreviewOpen, setIsSamplePreviewOpen] = useState(false)
   const [samplePreviewPrefetchKey, setSamplePreviewPrefetchKey] = useState(0)
@@ -232,6 +247,7 @@ export default function MarketItemActions({
     }
 
     setPendingPurchaseKind(assetKind)
+    setPendingV2PurchaseIntent(null)
     setIsCheckingBalance(true)
     try {
       await fetchBalance()
@@ -244,18 +260,51 @@ export default function MarketItemActions({
     }
   }
 
+  const openV2PurchaseConfirmation = async (intent: V2PurchaseIntent) => {
+    if (!isLoggedIn) {
+      redirectToLogin()
+      return
+    }
+
+    setPendingPurchaseKind(null)
+    setPendingV2PurchaseIntent(intent)
+    setIsCheckingBalance(true)
+    try {
+      await fetchBalance()
+      setShowConfirmation(true)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '크레딧 확인에 실패했습니다.')
+      setPendingV2PurchaseIntent(null)
+    } finally {
+      setIsCheckingBalance(false)
+    }
+  }
+
   const handleConfirmPurchase = () => {
-    if (!pendingPurchaseKind) {
+    if (!pendingPurchaseKind && !pendingV2PurchaseIntent) {
       return
     }
 
     setShowConfirmation(false)
     startTransition(async () => {
       try {
+        const requestBody = pendingV2PurchaseIntent
+          ? pendingV2PurchaseIntent.purchaseType === 'subproduct'
+            ? {
+              purchaseType: 'subproduct',
+              subproductId: pendingV2PurchaseIntent.subproductId,
+              idempotencyKey: `${itemId}:subproduct:${pendingV2PurchaseIntent.subproductId}:${Date.now()}`,
+            }
+            : {
+              purchaseType: 'bundle',
+              bundleOptionId: pendingV2PurchaseIntent.bundleOptionId,
+              idempotencyKey: `${itemId}:bundle:${pendingV2PurchaseIntent.bundleOptionId}:${Date.now()}`,
+            }
+          : { assetKind: pendingPurchaseKind }
         const response = await fetch(`/api/market/items/${itemId}/purchase`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ assetKind: pendingPurchaseKind }),
+          body: JSON.stringify(requestBody),
         })
         const payload = await response.json().catch(() => ({}))
 
@@ -268,18 +317,24 @@ export default function MarketItemActions({
           window.dispatchEvent(new CustomEvent('credit-balance-updated', { detail: { balance: payload.balance } }))
         }
 
-        setPurchaseCompleteMessage(payload.message || `${getAssetLabel(pendingPurchaseKind)} 구매가 완료되었습니다.`)
+        const fallbackMessage = pendingV2PurchaseIntent
+          ? `${pendingV2PurchaseIntent.title} 구매가 완료되었습니다.`
+          : `${getAssetLabel(pendingPurchaseKind as PurchaseAssetKind)} 구매가 완료되었습니다.`
+        setPurchaseCompleteMessage(payload.message || fallbackMessage)
         router.refresh()
       } catch (error) {
         toast.error(error instanceof Error ? error.message : '구매 처리 중 오류가 발생했습니다.')
         router.refresh()
       } finally {
         setPendingPurchaseKind(null)
+        setPendingV2PurchaseIntent(null)
       }
     })
   }
 
-  const requiredCredits = pendingPurchaseKind === 'pdf'
+  const requiredCredits = pendingV2PurchaseIntent
+    ? pendingV2PurchaseIntent.priceCredits
+    : pendingPurchaseKind === 'pdf'
     ? pdfPrice
     : pendingPurchaseKind === 'hwp'
       ? hwpPrice
@@ -287,7 +342,9 @@ export default function MarketItemActions({
         ? zipPrice
         : 0
 
-  const confirmationDescription = pendingPurchaseKind === 'pdf'
+  const confirmationDescription = pendingV2PurchaseIntent
+    ? `${pendingV2PurchaseIntent.title} 자료를 크레딧으로 구매합니다.`
+    : pendingPurchaseKind === 'pdf'
     ? 'PDF 파일을 크레딧으로 구매합니다.'
     : pendingPurchaseKind === 'hwp'
       ? 'PDF와 HWP 파일을 함께 크레딧으로 구매합니다.'
@@ -320,6 +377,111 @@ export default function MarketItemActions({
     setSamplePreviewPrefetchKey((value) => value + 1)
   }
 
+  const renderV2PurchaseOptions = () => {
+    const filesBySubproduct = new Map<string, MarketSubproductDownloadFile[]>()
+    for (const file of downloadFiles) {
+      const current = filesBySubproduct.get(file.subproductId) ?? []
+      current.push(file)
+      filesBySubproduct.set(file.subproductId, current)
+    }
+
+    const renderDownloadButtons = (files: MarketSubproductDownloadFile[]) => (
+      <div className="flex flex-wrap justify-end gap-2">
+        {files.map((file) => (
+          <Button key={file.id} asChild size="sm" variant="outline">
+            <a href={buildV2DownloadUrl(itemId, file.id)} aria-label={`${file.fileTypeLabel} 다운로드`}>
+              {file.fileTypeLabel} 다운로드
+            </a>
+          </Button>
+        ))}
+      </div>
+    )
+
+    return (
+      <div className="space-y-3">
+        {bundleOption ? (
+          <div className="rounded-2xl border bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-semibold text-slate-950">{bundleOption.label || '전체 한번에 구매하기'}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  {bundleOption.description || '전체 한번에 구매하기로 구매시 모든 서브상품을 다운받을 수 있습니다.'}
+                </p>
+              </div>
+              <OptionStateBadge state={bundleOption.owned ? 'owned' : 'available'} />
+            </div>
+            <div className="mt-4 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-xs text-slate-500">이용가</p>
+                <p className="mt-1 text-lg font-bold text-slate-950">{formatCredits(bundleOption.priceCredits)} 크레딧</p>
+              </div>
+              {bundleOption.owned ? renderDownloadButtons(downloadFiles) : (
+                <Button
+                  className="h-10 rounded-lg bg-rose-600 px-4 text-white hover:bg-rose-700"
+                  disabled={isPending || isCheckingBalance}
+                  onClick={() => void openV2PurchaseConfirmation({
+                    purchaseType: 'bundle',
+                    bundleOptionId: bundleOption.id,
+                    title: bundleOption.label || '전체 한번에 구매하기',
+                    priceCredits: bundleOption.priceCredits,
+                  })}
+                >
+                  전체 한번에 구매하기
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        {subproducts.map((subproduct) => {
+          const ownedFiles = filesBySubproduct.get(subproduct.id) ?? []
+          const fileTypeLabels = subproduct.fileTypes.map((fileType) => fileType.label).join(' · ') || '파일'
+
+          return (
+            <div key={subproduct.id} className="rounded-2xl border bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold text-slate-950">{subproduct.title}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    {subproduct.description || `${subproduct.categoryName} · ${fileTypeLabels}`}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {subproduct.fileTypes.map((fileType) => (
+                      <Badge key={fileType.id} variant="outline" className="text-[11px]">{fileType.label}</Badge>
+                    ))}
+                  </div>
+                </div>
+                <OptionStateBadge state={subproduct.owned ? 'owned' : 'available'} />
+              </div>
+              <div className="mt-4 flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-xs text-slate-500">이용가</p>
+                  <p className="mt-1 text-lg font-bold text-slate-950">{formatCredits(subproduct.priceCredits)} 크레딧</p>
+                </div>
+                {subproduct.owned ? renderDownloadButtons(ownedFiles) : (
+                  <Button
+                    className="h-10 rounded-lg bg-rose-600 px-4 text-white hover:bg-rose-700"
+                    disabled={isPending || isCheckingBalance}
+                    onClick={() => void openV2PurchaseConfirmation({
+                      purchaseType: 'subproduct',
+                      subproductId: subproduct.id,
+                      title: subproduct.title,
+                      priceCredits: subproduct.priceCredits,
+                  })}
+                >
+                    {subproduct.title} 구매하기
+                  </Button>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  const hasV2PurchaseOptions = subproducts.length > 0 || bundleOption !== null
+
   return (
     <div className="space-y-3">
       <FileOptionRow
@@ -337,6 +499,9 @@ export default function MarketItemActions({
         onAction={hasSamplePages ? openSamplePreview : undefined}
         onIntent={hasSamplePages ? prefetchSamplePreview : undefined}
       />
+
+      {hasV2PurchaseOptions ? renderV2PurchaseOptions() : (
+        <>
 
       {(hasPdf || ownsPdf) ? (
         <FileOptionRow
@@ -378,6 +543,8 @@ export default function MarketItemActions({
           onAction={!ownsZip && hasZip ? () => void openPurchaseConfirmation('zip') : undefined}
         />
       ) : null}
+        </>
+      )}
 
       <div className="rounded-2xl border border-dashed bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
         구매 후 바로 다운로드할 수 있으며, 구매한 파일은 <span className="font-semibold text-slate-700">영어 라이브러리 &gt; 구매자료</span>에서도 확인할 수 있습니다.
@@ -389,6 +556,7 @@ export default function MarketItemActions({
           if (isPending) return
           setShowConfirmation(false)
           setPendingPurchaseKind(null)
+          setPendingV2PurchaseIntent(null)
         }}
         onConfirm={handleConfirmPurchase}
         requiredAmount={requiredCredits}

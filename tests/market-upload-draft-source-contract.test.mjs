@@ -39,6 +39,6 @@ test('admin upload UI marks only upload-created drafts as auto_upload and explic
 
 test('admin product form returns to a blank new-product form after registration completes', () => {
   assert.match(adminProductsClient, /if \(requiresFinalRegistration\) {\s*resetForm\(result\.menu_entry_id\)\s*return\s*}/s)
-  assert.match(adminProductsClient, /toast\.success\('문제마켓 상품을 생성했습니다\.'\)\s*setRequiresFinalRegistration\(false\)\s*resetForm\(createdItem\.menu_entry_id\)/s)
-  assert.match(adminProductsClient, /toast\.success\(`상품 등록과 파일 \$\{successCount\}개 업로드를 완료했습니다\.`\)\s*setRequiresFinalRegistration\(false\)\s*resetForm\(createdItem\.menu_entry_id\)/s)
+  assert.match(adminProductsClient, /const createdItem = await persistForm\(undefined, \{ draftSource: 'manual' \}\)[\s\S]+resetForm\(createdItem\.menu_entry_id\)/)
+  assert.doesNotMatch(adminProductsClient, /상품 등록 및 파일 업로드/)
 })

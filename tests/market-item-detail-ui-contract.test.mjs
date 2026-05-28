@@ -85,7 +85,8 @@ test('market item detail hides unavailable paid file rows', () => {
 test('market item purchase success uses a centered confirmation dialog instead of a toast', () => {
   assert.match(itemActions, /MarketPurchaseCompleteDialog/)
   assert.match(itemActions, /const \[purchaseCompleteMessage, setPurchaseCompleteMessage\] = useState<string \| null>\(null\)/)
-  assert.match(itemActions, /setPurchaseCompleteMessage\(payload\.message \|\| `\$\{getAssetLabel\(pendingPurchaseKind\)\} 구매가 완료되었습니다\.`\)/)
+  assert.match(itemActions, /const fallbackMessage = pendingV2PurchaseIntent/)
+  assert.match(itemActions, /setPurchaseCompleteMessage\(payload\.message \|\| fallbackMessage\)/)
   assert.doesNotMatch(itemActions, /toast\.success\(payload\.message/)
   assert.match(itemActions, /message=\{purchaseCompleteMessage\}/)
   assert.match(itemActions, /onClose=\{\(\) => setPurchaseCompleteMessage\(null\)\}/)

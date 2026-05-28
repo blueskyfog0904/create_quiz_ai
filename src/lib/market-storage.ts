@@ -10,6 +10,12 @@ export interface MarketUploadDescriptor {
   type?: string | null
 }
 
+export interface MarketSubproductUploadFileType {
+  code: string
+  extension: string
+  mime_allowlist?: string[] | null
+}
+
 export const MARKET_SAMPLE_PAGE_MIME_TYPE = 'image/jpeg'
 export const MAX_SAMPLE_SOURCE_PDF_SIZE = 30 * 1024 * 1024
 
@@ -60,6 +66,46 @@ export function buildMarketStoragePath(
   const safeName = normalizeFileName(fileName)
   const timestamp = Date.now()
   return `market/${workspaceSubject}/${itemId}/${assetKind}/${timestamp}-${safeName}`
+}
+
+export function assertMarketSubproductUploadIsAllowed(
+  file: MarketUploadDescriptor,
+  fileType: MarketSubproductUploadFileType
+) {
+  const extension = getMarketFileExtension(file.name)
+  const expectedExtension = fileType.extension.replace(/^\./, '').toLowerCase()
+
+  if (!extension) {
+    throw new Error('파일 확장자를 확인할 수 없습니다.')
+  }
+
+  if (extension !== expectedExtension) {
+    throw new Error(`${fileType.code.toUpperCase()} 파일 유형에는 .${expectedExtension} 파일만 업로드할 수 있습니다.`)
+  }
+
+  const allowedMimeTypes = fileType.mime_allowlist ?? []
+  if (allowedMimeTypes.length > 0 && file.type && !allowedMimeTypes.includes(file.type)) {
+    throw new Error(`${fileType.code.toUpperCase()} 파일 유형에 허용되지 않는 MIME 타입입니다.`)
+  }
+
+  const maxFileSizeBytes = 100 * 1024 * 1024
+  if (file.size > maxFileSizeBytes) {
+    throw new Error('문제마켓 파일은 100MB 이하만 업로드할 수 있습니다.')
+  }
+}
+
+export function buildMarketSubproductStoragePath(
+  workspaceSubject: WorkspaceSubject,
+  itemId: string,
+  subproductId: string,
+  fileTypeCode: string,
+  version: number,
+  fileName: string
+) {
+  const safeName = normalizeFileName(fileName)
+  const safeCode = normalizeFileName(fileTypeCode.toLowerCase())
+  const timestamp = Date.now()
+  return `market/${workspaceSubject}/${itemId}/subproducts/${subproductId}/${safeCode}/v${version}/${timestamp}-${safeName}`
 }
 
 export function buildMarketSamplePageStoragePath(

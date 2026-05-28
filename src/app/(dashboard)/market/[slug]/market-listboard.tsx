@@ -46,7 +46,7 @@ export default function MarketListboard({ category, rows, filters, isLoggedIn, r
             <p className={`text-sm font-medium ${subjectTheme.marketHeroLabelClass}`}>{workspaceLabel}</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight">{category.title}</h1>
             <p className={`mt-3 max-w-2xl text-sm leading-6 ${subjectTheme.marketHeroMutedTextClass}`}>
-              연도·월·학년별 모의고사 자료를 PDF/HWP/ZIP으로 선택해 바로 구매할 수 있습니다.
+              연도·월·학년별 자료를 확인하고 상세페이지에서 필요한 파일을 구매할 수 있습니다.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -121,7 +121,7 @@ export default function MarketListboard({ category, rows, filters, isLoggedIn, r
                 <CardTitle>검색 결과</CardTitle>
                 <CardDescription>총 {rows.length}건의 자료를 확인할 수 있습니다.</CardDescription>
               </div>
-              <p className="text-xs text-gray-500">필요한 파일만 선택해 일괄 결제하세요.</p>
+              <p className="text-xs text-gray-500">샘플을 확인한 뒤 상세페이지에서 구매하세요.</p>
             </div>
           </CardHeader>
           <CardContent>

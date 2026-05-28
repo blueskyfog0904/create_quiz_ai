@@ -18,8 +18,10 @@ test('market schema and generated types include zip price and zip asset constrai
 
 test('admin product form persists zip price and exposes a zip upload slot', () => {
   assert.match(adminClient, /zipPrice/)
-  assert.match(adminClient, /const MARKET_ASSET_KINDS = \['pdf', 'hwp', 'zip'\] as const/)
-  assert.match(adminClient, /ZIP 가격|zipPrice/)
+  assert.match(adminClient, /MarketFileType/)
+  assert.match(adminClient, /fileTypes/)
+  assert.match(adminClient, /getFileTypeAcceptValue/)
+  assert.match(adminClient, /파일추가/)
   assert.match(adminCreateRoute, /zipPrice/)
   assert.match(adminCreateRoute, /zip_price/)
   assert.match(adminUpdateRoute, /zipPrice/)
@@ -31,5 +33,7 @@ test('market storage and admin file route allow zip as a paid asset without samp
   assert.match(storage, /assetKind:\s*'pdf' \| 'hwp' \| 'zip'/)
   assert.match(storage, /ZIP 자산에는 ZIP 파일만 업로드할 수 있습니다\.|zip[\s\S]+extension !== 'zip'/)
   assert.match(filesRoute, /assetKindValue !== 'pdf' && assetKindValue !== 'hwp' && assetKindValue !== 'zip'/)
-  assert.match(filesRoute, /assetKindValue === 'pdf'\s*\?\s*await generateMarketPdfSamplePages/)
+  assert.doesNotMatch(filesRoute, /generateMarketPdfSamplePages/)
+  assert.doesNotMatch(filesRoute, /replaceMarketItemSamplePages/)
+  assert.doesNotMatch(filesRoute, /sampleGenerationStatus/)
 })

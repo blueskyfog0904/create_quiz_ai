@@ -53,11 +53,40 @@ function dataUrlToBuffer(dataUrl: string) {
   return Buffer.from(base64, 'base64')
 }
 
+export function parseMarketSamplePageSelection(input: string, maxPageCount?: number): number[] {
+  const pageNumbers = input
+    .split(',')
+    .map((value) => Number.parseInt(value.trim(), 10))
+    .filter((value) => Number.isFinite(value))
+  const dedupedPageNumbers = Array.from(new Set(pageNumbers))
+
+  if (dedupedPageNumbers.length === 0) {
+    throw new Error('샘플로 생성할 페이지 번호를 입력해주세요.')
+  }
+
+  for (const pageNumber of dedupedPageNumbers) {
+    if (pageNumber < 1) {
+      throw new Error('샘플 페이지 번호는 1 이상의 정수여야 합니다.')
+    }
+
+    if (maxPageCount !== undefined && pageNumber > maxPageCount) {
+      throw new Error('샘플 페이지 번호가 PDF 전체 페이지 수를 초과했습니다.')
+    }
+  }
+
+  return dedupedPageNumbers
+}
+
+function buildDefaultSamplePageNumbers(maxPages: number) {
+  return Array.from({ length: Math.max(maxPages, 0) }, (_, index) => index + 1)
+}
+
 export async function generateMarketPdfSamplePages(
   pdfBuffer: Buffer,
   sourceFileName: string,
-  maxPages = 3
+  pageSelection: number | number[] = 3
 ): Promise<GeneratedMarketSamplePage[]> {
+  const pageNumbers = Array.isArray(pageSelection) ? pageSelection : buildDefaultSamplePageNumbers(pageSelection)
   const [{ chromium }, { readFile }, { createRequire }] = await Promise.all([
     import('playwright'),
     import('node:fs/promises'),
@@ -119,7 +148,7 @@ export async function generateMarketPdfSamplePages(
         ])
       })
 
-      const renderedPages = await page.evaluate(async ({ pdfBase64, workerUrl, maxPages, limits }) => {
+      const renderedPages = await page.evaluate(async ({ pdfBase64, workerUrl, pageNumbers, limits }) => {
         const browserGlobal = globalThis as MarketPdfSampleBrowserGlobal
         const pdfjsLib = browserGlobal.__marketPdfSamplePdfjsLib
         if (!pdfjsLib) {
@@ -137,9 +166,12 @@ export async function generateMarketPdfSamplePages(
           pdfjsLib.getDocument({ data }).promise,
           new Promise<never>((_, reject) => setTimeout(() => reject(new Error('샘플 PDF 문서 로드 시간이 초과되었습니다.')), limits.documentLoadTimeoutMs)),
         ])
-        const pageCount = Math.min(Math.max(maxPages, 0), pdf.numPages)
         const pages = []
-        for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+        for (const pageNumber of pageNumbers) {
+          if (pageNumber < 1 || pageNumber > pdf.numPages) {
+            throw new Error('샘플 페이지 번호가 PDF 전체 페이지 수를 초과했습니다.')
+          }
+
           const pdfPage = await pdf.getPage(pageNumber)
           const baseViewport = pdfPage.getViewport({ scale: 1.5 })
           const dimensionScale = Math.min(1, limits.maxDimensionPx / Math.max(baseViewport.width, baseViewport.height))
@@ -175,7 +207,7 @@ export async function generateMarketPdfSamplePages(
       }, {
         pdfBase64: pdfBuffer.toString('base64'),
         workerUrl: moduleHandles.workerUrl,
-        maxPages,
+        pageNumbers: pageNumbers,
         limits: {
           maxPagePixels: MAX_SAMPLE_PAGE_PIXELS,
           maxDimensionPx: MAX_SAMPLE_PAGE_DIMENSION_PX,

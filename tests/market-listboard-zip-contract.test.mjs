@@ -17,11 +17,13 @@ test('market list api and server rows support zip and sample-pages-only sample f
   assert.match(itemsServer, /listActiveMarketItemSamplePagesForItems/)
 })
 
-test('market listboard client exposes zip as an independent selectable file kind', () => {
+test('market listboard client exposes zip as an independent detail-purchase file kind', () => {
   assert.match(listClient, /zip/)
   assert.match(listClient, /ZIP/)
-  assert.match(listClient, /zipCount|selectionSummary[\s\S]+zip/)
   assert.match(listClient, /PDF[\s\S]+HWP & PDF[\s\S]+ZIP/)
+  assert.match(listClient, /상세에서 구매/)
+  assert.doesNotMatch(listClient, /zipCount/)
+  assert.doesNotMatch(listClient, /selectionSummary/)
   assert.match(listServer, /zip|ZIP/)
 })
 
@@ -32,11 +34,9 @@ test('market listboard hides unavailable paid file options instead of showing un
 })
 
 
-test('market listboard purchase success uses a centered confirmation dialog instead of a toast', () => {
-  assert.match(listClient, /MarketPurchaseCompleteDialog/)
-  assert.match(listClient, /const \[purchaseCompleteMessage, setPurchaseCompleteMessage\] = useState<string \| null>\(null\)/)
-  assert.match(listClient, /setPurchaseCompleteMessage\(payload\.message \|\| '선택한 파일 구매가 완료되었습니다\.'\)/)
+test('market listboard no longer owns purchase success UI because purchases happen on detail pages', () => {
+  assert.doesNotMatch(listClient, /MarketPurchaseCompleteDialog/)
+  assert.doesNotMatch(listClient, /purchaseCompleteMessage/)
   assert.doesNotMatch(listClient, /toast\.success\(payload\.message/)
-  assert.match(listClient, /message=\{purchaseCompleteMessage\}/)
-  assert.match(listClient, /onClose=\{\(\) => setPurchaseCompleteMessage\(null\)\}/)
+  assert.doesNotMatch(listClient, /api\/market\/purchases\/batch/)
 })

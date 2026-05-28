@@ -1,5 +1,9 @@
 import { createAdminClient } from '@/lib/supabase/bypass'
-import { getMarketItemById, listMarketItemFiles } from '@/lib/market-items-server'
+import {
+  getMarketItemById,
+  listMarketItemFiles,
+  listMarketSubproductFilesForAdmin,
+} from '@/lib/market-items-server'
 import { listMarketItemSamplePagesForCleanup } from '@/lib/market-sample-pages-server'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
 import type { MarketItem } from '@/lib/market-items-server'
@@ -53,9 +57,14 @@ export async function collectMarketItemStorageTargets(
 ): Promise<MarketStorageTargetMap> {
   const targets: MarketStorageTargetMap = new Map()
   const files = await listMarketItemFiles(itemId, true, workspaceSubject)
+  const subproductFiles = await listMarketSubproductFilesForAdmin(itemId, undefined, workspaceSubject)
   const samplePages = await listMarketItemSamplePagesForCleanup(itemId, workspaceSubject)
 
   for (const file of files) {
+    addStorageTarget(targets, file.storage_bucket, file.storage_path)
+  }
+
+  for (const file of subproductFiles) {
     addStorageTarget(targets, file.storage_bucket, file.storage_path)
   }
 
@@ -88,7 +97,12 @@ async function getItemsWithHistory(itemIds: string[], workspaceSubject: Workspac
   }
 
   const adminSupabase = createAdminClient()
-  const [{ data: purchases, error: purchasesError }, { data: downloads, error: downloadsError }] = await Promise.all([
+  const [
+    { data: purchases, error: purchasesError },
+    { data: downloads, error: downloadsError },
+    { data: orders, error: ordersError },
+    { data: entitlements, error: entitlementsError },
+  ] = await Promise.all([
     adminSupabase
       .from('market_purchases')
       .select('item_id')
@@ -99,19 +113,32 @@ async function getItemsWithHistory(itemIds: string[], workspaceSubject: Workspac
       .select('item_id')
       .in('item_id', itemIds)
       .eq('workspace_subject', workspaceSubject),
+    adminSupabase
+      .from('market_purchase_orders')
+      .select('item_id')
+      .in('item_id', itemIds)
+      .eq('workspace_subject', workspaceSubject),
+    adminSupabase
+      .from('market_entitlements')
+      .select('item_id')
+      .in('item_id', itemIds)
+      .eq('workspace_subject', workspaceSubject),
   ])
 
-  if (purchasesError) {
-    throw new Error(purchasesError.message)
+  const queryError = purchasesError ?? downloadsError ?? ordersError ?? entitlementsError
+  if (queryError) {
+    throw new Error(queryError.message)
   }
 
-  if (downloadsError) {
-    throw new Error(downloadsError.message)
-  }
+  const v2HistoryIds = [
+    ...(orders ?? []).map((order) => order.item_id),
+    ...(entitlements ?? []).map((entitlement) => entitlement.item_id),
+  ]
 
   return new Set([
     ...(purchases ?? []).map((purchase) => purchase.item_id),
     ...(downloads ?? []).map((download) => download.item_id),
+    ...v2HistoryIds,
   ])
 }
 

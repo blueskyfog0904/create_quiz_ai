@@ -17,19 +17,19 @@ test('market purchase helpers model zip as an independent paid asset', () => {
   assert.match(purchase, /assetKind === 'zip'[\s\S]+\['zip'\]/)
 })
 
-test('purchase batch and download routes accept zip and use shared entitlement helpers', () => {
-  assert.match(batchRoute, /z\.enum\(\['pdf', 'hwp', 'zip'\]\)/)
+test('detail purchase and download routes accept zip while batch purchase is deprecated', () => {
+  assert.match(batchRoute, /BATCH_PURCHASE_DEPRECATED/)
+  assert.match(batchRoute, /status:\s*410/)
   assert.match(purchaseRoute, /z\.enum\(\['pdf', 'hwp', 'zip'\]\)/)
   assert.match(downloadRoute, /assetKind !== 'pdf' && assetKind !== 'hwp' && assetKind !== 'zip'/)
   assert.doesNotMatch(downloadRoute, /assetKind !== 'sample'/)
-  assert.match(batchRoute, /findCoveringMarketPurchase|getMarketPurchaseKindsToCheck/)
   assert.match(downloadRoute, /findCoveringMarketPurchase|getMarketPurchaseKindsToCheck/)
 })
 
-test('batch purchase rollback removes purchase rows created before a later failure', () => {
+test('legacy rollback helper remains available for non-listboard flows', () => {
   assert.match(itemsServer, /rollbackMarketPurchases/)
   assert.match(itemsServer, /market_download_events/)
   assert.match(itemsServer, /purchase_id/)
-  assert.match(batchRoute, /createdPurchaseIds/)
-  assert.match(batchRoute, /rollbackMarketPurchases/)
+  assert.doesNotMatch(batchRoute, /createdPurchaseIds/)
+  assert.doesNotMatch(batchRoute, /rollbackMarketPurchases/)
 })

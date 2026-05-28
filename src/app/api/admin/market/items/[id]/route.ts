@@ -3,7 +3,14 @@ import { z } from 'zod'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { createClient } from '@/lib/supabase/server'
 import { hardDeleteMarketItemWithAssets } from '@/lib/market-item-cleanup'
-import { getMarketItemById, listMarketItemFiles, updateMarketItem } from '@/lib/market-items-server'
+import {
+  getMarketItemBundleOptionForAdmin,
+  getMarketItemById,
+  listMarketItemFiles,
+  listMarketItemSubproductsForAdmin,
+  listMarketSubproductFilesForAdmin,
+  updateMarketItem,
+} from '@/lib/market-items-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,9 +81,14 @@ export async function GET(_: Request, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
 
-    const files = await listMarketItemFiles(id, true, workspaceSubject)
+    const [files, subproducts, subproductFiles, bundleOption] = await Promise.all([
+      listMarketItemFiles(id, true, workspaceSubject),
+      listMarketItemSubproductsForAdmin(id, workspaceSubject),
+      listMarketSubproductFilesForAdmin(id, undefined, workspaceSubject),
+      getMarketItemBundleOptionForAdmin(id, workspaceSubject),
+    ])
 
-    return NextResponse.json({ success: true, data: { item, files } })
+    return NextResponse.json({ success: true, data: { item, files, subproducts, subproductFiles, bundleOption } })
   } catch (error) {
     return NextResponse.json({
       success: false,
