@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog'
 
 interface SamplePagePreview {
+  id: string
   pageNumber: number
   signedUrl: string
   fileSizeBytes: number | null
@@ -52,16 +53,16 @@ export default function AdminMarketSamplePreviewDialog({
   onOpenChange,
 }: AdminMarketSamplePreviewDialogProps) {
   const [pages, setPages] = useState<SamplePagePreview[]>([])
-  const [selectedPageNumber, setSelectedPageNumber] = useState<number | null>(null)
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const selectedPage = pages.find((page) => page.pageNumber === selectedPageNumber) ?? pages[0] ?? null
+  const selectedPage = pages.find((page) => page.id === selectedPageId) ?? pages[0] ?? null
 
   const loadSamplePages = useCallback(async () => {
     if (!itemId) {
       setPages([])
-      setSelectedPageNumber(null)
+      setSelectedPageId(null)
       return
     }
 
@@ -80,10 +81,10 @@ export default function AdminMarketSamplePreviewDialog({
 
       const nextPages = (payload.pages ?? []) as SamplePagePreview[]
       setPages(nextPages)
-      setSelectedPageNumber(nextPages[0]?.pageNumber ?? null)
+      setSelectedPageId(nextPages[0]?.id ?? null)
     } catch (error) {
       setPages([])
-      setSelectedPageNumber(null)
+      setSelectedPageId(null)
       setErrorMessage(error instanceof Error ? error.message : '샘플 JPG를 불러오지 못했습니다.')
     } finally {
       setIsLoading(false)
@@ -127,13 +128,13 @@ export default function AdminMarketSamplePreviewDialog({
             <div className="flex gap-2 overflow-x-auto lg:flex-col lg:overflow-visible">
               {pages.map((page) => (
                 <button
-                  key={page.pageNumber}
+                  key={page.id}
                   type="button"
-                  aria-pressed={selectedPageNumber === page.pageNumber}
+                  aria-pressed={selectedPageId === page.id}
                   aria-label={`샘플 페이지 ${page.pageNumber} 보기`}
-                  onClick={() => setSelectedPageNumber(page.pageNumber)}
+                  onClick={() => setSelectedPageId(page.id)}
                   className={`rounded-lg border p-2 text-left text-xs transition ${
-                    selectedPageNumber === page.pageNumber
+                    selectedPageId === page.id
                       ? 'border-primary ring-2 ring-primary/40'
                       : 'hover:border-primary/50'
                   }`}

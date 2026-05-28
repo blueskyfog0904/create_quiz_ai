@@ -12,6 +12,10 @@ const itemActions = readFileSync(
   new URL('../src/app/(dashboard)/market/[slug]/items/[itemId]/market-item-actions.tsx', import.meta.url),
   'utf8'
 )
+const sampleDialog = readFileSync(
+  new URL('../src/app/(dashboard)/market/[slug]/items/[itemId]/market-sample-preview-dialog.tsx', import.meta.url),
+  'utf8'
+)
 
 test('market sample pages api returns ordered signed jpg preview urls', () => {
   assert.ok(existsSync(routePath), 'sample pages route should exist')
@@ -19,6 +23,7 @@ test('market sample pages api returns ordered signed jpg preview urls', () => {
   assert.match(route, /getPublishedMarketItemById/)
   assert.match(route, /createSignedUrl/)
   assert.match(route, /signedUrl/)
+  assert.match(route, /id: page\.id/)
   assert.match(route, /pageNumber/)
   assert.match(route, /widthPx/)
   assert.match(route, /heightPx/)
@@ -40,4 +45,10 @@ test('market item detail uses generated sample page preview instead of sample pd
   assert.match(itemActions, /1~3페이지 JPG/)
   assert.doesNotMatch(itemActions, /title="샘플 PDF"/)
   assert.doesNotMatch(itemActions, /buildDownloadUrl\(itemId, 'sample'\)/)
+})
+
+test('market sample preview dialog uses stable sample page ids for react keys', () => {
+  assert.match(sampleDialog, /id: string/)
+  assert.match(sampleDialog, /key=\{page\.id\}/)
+  assert.doesNotMatch(sampleDialog, /key=\{page\.pageNumber\}/)
 })

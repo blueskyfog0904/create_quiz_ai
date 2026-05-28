@@ -20,6 +20,7 @@ interface MarketSamplePreviewDialogProps {
 }
 
 interface SamplePage {
+  id: string
   pageNumber: number
   signedUrl: string
   fileSizeBytes: number | null
@@ -162,7 +163,7 @@ export default function MarketSamplePreviewDialog({
         ) : (
           <div className="space-y-4">
             {pages.map((page, index) => (
-              <figure key={page.pageNumber} className="overflow-hidden rounded-xl border bg-white">
+              <figure key={page.id} className="overflow-hidden rounded-xl border bg-white">
                 <figcaption className="border-b bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700">
                   샘플 페이지 {page.pageNumber}
                 </figcaption>

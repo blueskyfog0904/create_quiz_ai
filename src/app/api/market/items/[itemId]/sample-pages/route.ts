@@ -43,6 +43,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       }
 
       return {
+        id: page.id,
         pageNumber: page.page_number,
         signedUrl: data.signedUrl,
         fileSizeBytes: page.file_size_bytes,
