@@ -19,6 +19,14 @@ const sampleGenerator = readFileSync(
   'utf8'
 )
 
+function extractBetween(source, start, end) {
+  const startIndex = source.indexOf(start)
+  assert.notEqual(startIndex, -1, `${start} should exist`)
+  const endIndex = source.indexOf(end, startIndex)
+  assert.notEqual(endIndex, -1, `${end} should exist after ${start}`)
+  return source.slice(startIndex, endIndex)
+}
+
 test('admin product uploads use v2 subproduct file slots plus separate sample pdf source', () => {
   assert.match(adminProductsClient, /MarketFileType/)
   assert.match(adminProductsClient, /fileTypes/)
@@ -26,7 +34,9 @@ test('admin product uploads use v2 subproduct file slots plus separate sample pd
   assert.doesNotMatch(adminProductsClient, /const MARKET_ASSET_KINDS = \['sample', 'pdf', 'hwp', 'zip'\] as const/)
   assert.match(adminProductsClient, /샘플 이미지 생성/)
   assert.match(adminProductsClient, /selectedSampleSourceFile/)
-  assert.match(adminProductsClient, /formData\.append\('draftToken', sampleDraftToken\)/)
+  assert.match(adminProductsClient, /draftToken: sampleDraftToken/)
+  assert.match(adminProductsClient, /uploadToSignedUrl/)
+  assert.doesNotMatch(adminProductsClient, /formData\.append\('file', selectedSampleSourceFile\)/)
   assert.match(adminProductsClient, /\/samples\/commit/)
   assert.match(adminProductsClient, /zipPrice/)
   assert.doesNotMatch(adminProductsClient, /PDF 업로드 시 첫 1~3페이지가 JPG 샘플로 자동 생성됩니다/)
@@ -52,20 +62,27 @@ test('market storage has dedicated sample page path builders and paid pdf hwp zi
   assert.match(marketStorage, /MAX_SAMPLE_SOURCE_PDF_SIZE/)
 })
 
-test('pdf sample generator paints a white background before jpg export', () => {
-  assert.match(sampleGenerator, /fillStyle = '#fff'/)
-  assert.match(sampleGenerator, /fillRect\(0, 0, canvas\.width, canvas\.height\)/)
+test('admin client pdf renderer paints a white background before jpg export', () => {
+  const renderer = extractBetween(
+    adminProductsClient,
+    'async function renderSamplePdfPages',
+    'interface PersistFormOptions'
+  )
+
+  assert.match(renderer, /fillStyle = '#fff'/)
+  assert.match(renderer, /fillRect\(0, 0, canvas\.width, canvas\.height\)/)
   assert.ok(
-    sampleGenerator.indexOf('fillRect(0, 0, canvas.width, canvas.height)') <
-      sampleGenerator.indexOf("toDataURL('image/jpeg', 0.9)"),
+    renderer.indexOf('fillRect(0, 0, canvas.width, canvas.height)') <
+      renderer.indexOf('canvasToJpegBlob(canvas, 0.9)'),
     'white background fill should happen before JPG export'
   )
 })
 
-test('pdf sample generator uses the original high quality jpg export', () => {
-  assert.match(sampleGenerator, /getViewport\(\{ scale: 1\.5 \}\)/)
-  assert.match(sampleGenerator, /toDataURL\('image\/jpeg', 0\.9\)/)
+test('admin client pdf renderer uses high quality jpg export', () => {
+  assert.match(adminProductsClient, /getViewport\(\{ scale: 1\.5 \}\)/)
+  assert.match(adminProductsClient, /canvas\.toBlob\([\s\S]*'image\/jpeg'[\s\S]*0\.9/)
   assert.doesNotMatch(sampleGenerator, /MARKET_SAMPLE_PAGE_TARGET_BYTES/)
   assert.doesNotMatch(sampleGenerator, /selectSampleJpegDataUrl/)
   assert.doesNotMatch(sampleGenerator, /sizeBytes <= targetBytes/)
+  assert.doesNotMatch(sampleGenerator, /playwright|chromium\.launch/)
 })

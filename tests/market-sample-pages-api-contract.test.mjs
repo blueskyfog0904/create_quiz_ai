@@ -25,6 +25,8 @@ test('market sample pages api returns ordered signed jpg preview urls', () => {
   assert.match(route, /signedUrl/)
   assert.match(route, /id: page\.id/)
   assert.match(route, /pageNumber/)
+  assert.match(route, /originalFileName/)
+  assert.match(route, /original_file_name/)
   assert.match(route, /widthPx/)
   assert.match(route, /heightPx/)
 })
@@ -50,5 +52,7 @@ test('market item detail uses generated sample page preview instead of sample pd
 test('market sample preview dialog uses stable sample page ids for react keys', () => {
   assert.match(sampleDialog, /id: string/)
   assert.match(sampleDialog, /key=\{page\.id\}/)
+  assert.match(sampleDialog, /originalFileName: string \| null/)
+  assert.match(sampleDialog, /formatSamplePageLabel\(page\)/)
   assert.doesNotMatch(sampleDialog, /key=\{page\.pageNumber\}/)
 })

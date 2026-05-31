@@ -3,18 +3,65 @@ import test from 'node:test'
 import { existsSync, readFileSync } from 'node:fs'
 
 const sourcePath = new URL('../src/app/api/admin/market/items/[id]/sample-pages/source/route.ts', import.meta.url)
+const finalizePath = new URL('../src/app/api/admin/market/items/[id]/sample-pages/source/finalize/route.ts', import.meta.url)
 const deletePath = new URL('../src/app/api/admin/market/items/[id]/sample-pages/[pageId]/route.ts', import.meta.url)
 const sourceRoute = existsSync(sourcePath) ? readFileSync(sourcePath, 'utf8') : ''
+const finalizeRoute = existsSync(finalizePath) ? readFileSync(finalizePath, 'utf8') : ''
 const deleteRoute = existsSync(deletePath) ? readFileSync(deletePath, 'utf8') : ''
 
-test('admin sample source upload is admin and workspace gated', () => {
-  assert.ok(existsSync(sourcePath), 'source upload route should exist')
+test('admin sample source route issues signed upload targets without receiving pdf binaries', () => {
+  assert.ok(existsSync(sourcePath), 'source upload target route should exist')
   assert.match(sourceRoute, /UNAUTHORIZED/)
   assert.match(sourceRoute, /FORBIDDEN/)
   assert.match(sourceRoute, /resolveAdminWorkspaceSubject/)
   assert.match(sourceRoute, /getMarketItemById/)
   assert.match(sourceRoute, /workspace_subject|workspaceSubject/)
-  assert.match(sourceRoute, /application\/pdf|\.pdf|PDF/)
+  assert.match(sourceRoute, /request\.json\(\)/)
+  assert.match(sourceRoute, /zod|from 'zod'|from "zod"|z\./)
+  assert.match(sourceRoute, /createSignedUploadUrl/)
+  assert.match(sourceRoute, /sourceBatchId/)
+  assert.match(sourceRoute, /draftToken/)
+  assert.match(sourceRoute, /uploadTargets/)
+  assert.match(sourceRoute, /storagePath/)
+  assert.match(sourceRoute, /token/)
+  assert.match(sourceRoute, /MAX_GENERATED_SAMPLE_PAGE_BYTES/)
+  assert.match(sourceRoute, /MAX_GENERATED_SAMPLE_TOTAL_BYTES/)
+  assert.match(sourceRoute, /MAX_GENERATED_SAMPLE_PAGE_COUNT/)
+  assert.match(sourceRoute, /MAX_SAMPLE_ORIGINAL_FILE_NAME_LENGTH/)
+  assert.match(sourceRoute, /recordManualSampleUploadTargetsForCleanup/)
+  assert.doesNotMatch(sourceRoute, /request\.formData\(\)/)
+  assert.doesNotMatch(sourceRoute, /instanceof File/)
+  assert.doesNotMatch(sourceRoute, /Buffer\.from\(await fileValue\.arrayBuffer\(\)\)/)
+  assert.doesNotMatch(sourceRoute, /generateMarketPdfSamplePages/)
+  assert.doesNotMatch(sourceRoute, /\.upload\(/)
+  assert.doesNotMatch(sourceRoute, /appendDraftMarketItemSamplePages/)
+})
+
+test('admin sample source finalize route validates storage objects before draft rows', () => {
+  assert.ok(existsSync(finalizePath), 'source finalize route should exist')
+  assert.match(finalizeRoute, /UNAUTHORIZED/)
+  assert.match(finalizeRoute, /FORBIDDEN/)
+  assert.match(finalizeRoute, /resolveAdminWorkspaceSubject/)
+  assert.match(finalizeRoute, /getMarketItemById/)
+  assert.match(finalizeRoute, /appendDraftMarketItemSamplePages/)
+  assert.match(finalizeRoute, /deleteRemovedManualSampleUploadTargets/)
+  assert.match(finalizeRoute, /createSignedUrl/)
+  assert.match(finalizeRoute, /\.info\(/)
+  assert.match(finalizeRoute, /\.download\(/)
+  assert.match(finalizeRoute, /readJpegDimensions/)
+  assert.match(finalizeRoute, /Uint8Array/)
+  assert.match(finalizeRoute, /buildMarketManualSamplePageStoragePath/)
+  assert.match(finalizeRoute, /expectedStoragePath/)
+  assert.match(finalizeRoute, /storagePath !== expectedStoragePath/)
+  assert.match(finalizeRoute, /sourceBatchId/)
+  assert.match(finalizeRoute, /cleanup_upload_batch/)
+  assert.match(finalizeRoute, /item_id.*workspace_subject.*storage_path|workspace_subject.*storage_path|storage_path/)
+  assert.match(finalizeRoute, /markDraftMarketItemSamplePagesAsRemoved/)
+  assert.match(finalizeRoute, /createdBy|created_by/)
+  assert.doesNotMatch(finalizeRoute, /request\.formData\(\)/)
+  assert.doesNotMatch(finalizeRoute, /Buffer\.from/)
+  assert.doesNotMatch(finalizeRoute, /generateMarketPdfSamplePages/)
+  assert.doesNotMatch(finalizeRoute, /createSignedUploadUrl/)
 })
 
 test('admin sample page delete verifies item ownership before deleting storage', () => {

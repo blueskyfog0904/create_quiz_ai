@@ -16,6 +16,8 @@ test('auto-upload draft cleanup route is server-only, cron-secret gated, and dry
   assert.match(route, /olderThanHours/)
   assert.match(route, /limit/)
   assert.match(route, /cleanupAutoUploadDraftMarketItems/)
+  assert.match(route, /cleanupRemovedManualSampleUploadTargets/)
+  assert.match(route, /manualSampleUploadTargets/)
 })
 
 test('cleanup helper uses positive allowlist and purchase/download exclusions', () => {

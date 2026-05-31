@@ -31,7 +31,7 @@ function containsDynamicImport(node) {
   return found
 }
 
-test('pdf sample generator does not dynamically import modules inside Playwright page.evaluate callbacks', () => {
+test('pdf sample generator no longer depends on Playwright page evaluate callbacks', () => {
   const sourceFile = ts.createSourceFile(
     'market-pdf-sample-generator.ts',
     sampleGenerator,
@@ -63,6 +63,9 @@ test('pdf sample generator does not dynamically import modules inside Playwright
 
   visit(sourceFile)
 
+  assert.doesNotMatch(sampleGenerator, /playwright/)
+  assert.doesNotMatch(sampleGenerator, /chromium\.launch/)
+  assert.doesNotMatch(sampleGenerator, /page\.evaluate/)
   assert.deepEqual(
     offenders,
     [],

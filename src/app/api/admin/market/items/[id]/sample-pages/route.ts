@@ -71,6 +71,7 @@ export async function GET(request: Request, { params }: RouteContext) {
       return {
         id: page.id,
         pageNumber: page.page_number,
+        originalFileName: page.original_file_name ?? null,
         signedUrl: data.signedUrl,
         fileSizeBytes: page.file_size_bytes,
         widthPx: page.width_px,

@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { ReactNode } from 'react'
-import { CalendarDays, Eye, FileArchive, GraduationCap, PackageCheck, Sparkles } from 'lucide-react'
+import { CalendarDays, Eye, FileArchive, GraduationCap, PackageCheck } from 'lucide-react'
 import { getUser } from '@/lib/auth'
 import { resolveWorkspaceSubject } from '@/lib/workspace-subject'
 import { getWorkspaceSubjectTheme } from '@/lib/workspace-theme'
@@ -14,9 +14,7 @@ import {
   listMarketItemFiles,
 } from '@/lib/market-items-server'
 import { listActiveMarketItemSamplePages } from '@/lib/market-sample-pages-server'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { WorkspaceLink } from '@/components/layout/workspace-link'
 import MarketItemActions from './market-item-actions'
 
 interface MarketItemDetailPageProps {
@@ -91,7 +89,6 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
     : []
   const hasSamplePages = samplePages.length > 0
   const hasLegacySample = files.some((file) => file.asset_kind === 'sample')
-  const hasSample = hasSamplePages
   const hasPdf = files.some((file) => file.asset_kind === 'pdf')
   const hasHwp = files.some((file) => file.asset_kind === 'hwp')
   const hasZip = files.some((file) => file.asset_kind === 'zip')
@@ -99,8 +96,6 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
   const ownsHwp = purchases.some((purchase) => purchase.asset_kind === 'hwp')
   const ownsZip = purchases.some((purchase) => purchase.asset_kind === 'zip')
   const sources = collectSources(item)
-  const v2OwnedCount = subproducts.filter((subproduct) => subproduct.owned).length + Number(Boolean(bundleOption?.owned))
-  const ownedCount = Number(ownsPdf) + Number(ownsHwp) + Number(ownsZip) + v2OwnedCount
   const v2FileLabels = Array.from(new Set(subproducts.flatMap((subproduct) => subproduct.fileTypes.map((fileType) => fileType.label))))
   const fileLabels = (v2FileLabels.length > 0
     ? v2FileLabels
@@ -122,22 +117,7 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
         <CardHeader className={`border-b ${subjectTheme.marketHeroClass} py-8 text-white`}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-3">
-              <div className={`flex flex-wrap items-center gap-2 text-sm ${subjectTheme.marketHeroMutedTextClass}`}>
-                <span>문제마켓</span>
-                <span>/</span>
-                <WorkspaceLink className="hover:text-white" href={`/market/${category.slug}`}>{category.title}</WorkspaceLink>
-              </div>
               <CardTitle className="max-w-4xl text-3xl leading-tight tracking-tight text-white">{item.title}</CardTitle>
-              <CardDescription className={`max-w-3xl ${subjectTheme.marketHeroMutedTextClass}`}>
-                {item.summary || '샘플을 확인한 뒤 필요한 자료 파일을 선택해 구매할 수 있습니다.'}
-              </CardDescription>
-            </div>
-            <div className="flex flex-wrap gap-2 lg:justify-end">
-              {hasSample ? <Badge className="bg-white/15 text-white hover:bg-white/15"><Sparkles className="mr-1 h-3 w-3" />샘플 제공</Badge> : null}
-              {hasPdf ? <Badge className="bg-white/15 text-white hover:bg-white/15">PDF</Badge> : null}
-              {hasHwp ? <Badge className="bg-white/15 text-white hover:bg-white/15">HWP & PDF</Badge> : null}
-              {hasZip ? <Badge className="bg-white/15 text-white hover:bg-white/15">ZIP</Badge> : null}
-              {ownedCount > 0 ? <Badge className="bg-emerald-400/20 text-emerald-100 hover:bg-emerald-400/20">구매 완료 {ownedCount}건</Badge> : null}
             </div>
           </div>
         </CardHeader>

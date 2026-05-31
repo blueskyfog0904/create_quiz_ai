@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { MARKET_STORAGE_BUCKET } from '@/lib/market-storage'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
 import type { Tables, TablesInsert } from '@/types/supabase'
 
@@ -40,6 +41,17 @@ interface DraftMarketItemSamplePageInput {
     widthPx?: number | null
     heightPx?: number | null
   }>
+}
+
+type ManualSampleUploadTargetCleanupInput = DraftMarketItemSamplePageInput
+
+export interface RemovedManualSampleUploadCleanupResult {
+  dryRun: boolean
+  cutoff: string
+  scanned: number
+  removedStorageObjects: number
+  deletedMetadataRows: number
+  skippedReferenced: number
 }
 
 function normalizeWorkspaceSubject(value?: string | null): WorkspaceSubject {
@@ -298,6 +310,74 @@ export async function appendDraftMarketItemSamplePages(
   return withWorkspaceSubjects(data)
 }
 
+export async function recordManualSampleUploadTargetsForCleanup(
+  itemId: string,
+  input: ManualSampleUploadTargetCleanupInput
+): Promise<MarketItemSamplePage[]> {
+  if (input.pages.length === 0) {
+    return []
+  }
+
+  const supabase = createAdminClient()
+  const deletedAt = new Date().toISOString()
+  const payload: MarketItemSamplePageInsert[] = input.pages.map((page, index) => ({
+    item_id: itemId,
+    source_file_id: input.sourceFileId ?? null,
+    workspace_subject: input.workspaceSubject,
+    page_number: page.pageNumber,
+    storage_bucket: page.storageBucket,
+    storage_path: page.storagePath,
+    original_file_name: page.originalFileName,
+    mime_type: page.mimeType,
+    file_size_bytes: page.fileSizeBytes,
+    width_px: page.widthPx ?? null,
+    height_px: page.heightPx ?? null,
+    version: 1,
+    is_active: false,
+    status: 'removed',
+    draft_token: input.draftToken,
+    source_batch_id: input.sourceBatchId,
+    display_order: index + 1,
+    created_by: input.createdBy ?? null,
+    deleted_at: deletedAt,
+  }))
+
+  const { data, error } = await supabase
+    .from('market_item_sample_pages')
+    .insert(payload as TablesInsert<'market_item_sample_pages'>[])
+    .select('*')
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return withWorkspaceSubjects(data)
+}
+
+export async function deleteRemovedManualSampleUploadTargets(
+  itemId: string,
+  input: {
+    workspaceSubject: WorkspaceSubject
+    sourceBatchId: string
+    draftToken: string
+  }
+) {
+  const supabase = createAdminClient()
+  const { error } = await supabase
+    .from('market_item_sample_pages')
+    .delete()
+    .eq('item_id', itemId)
+    .eq('workspace_subject', input.workspaceSubject)
+    .eq('source_batch_id', input.sourceBatchId)
+    .eq('draft_token', input.draftToken)
+    .eq('status', 'removed')
+    .not('deleted_at', 'is', null)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
 export async function commitDraftMarketItemSamplePages(
   itemId: string,
   draftToken: string,
@@ -353,6 +433,156 @@ export async function removeDraftMarketItemSamplePage(
   }
 
   return withWorkspaceSubject(data)
+}
+
+export async function markDraftMarketItemSamplePagesAsRemoved(
+  itemId: string,
+  input: {
+    workspaceSubject: WorkspaceSubject
+    draftToken: string
+    sourceBatchId: string
+    createdBy: string
+  }
+): Promise<MarketItemSamplePage[]> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('market_item_sample_pages')
+    .update({
+      status: 'removed',
+      is_active: false,
+      deleted_at: new Date().toISOString(),
+    })
+    .eq('item_id', itemId)
+    .eq('workspace_subject', input.workspaceSubject)
+    .eq('draft_token', input.draftToken)
+    .eq('source_batch_id', input.sourceBatchId)
+    .eq('created_by', input.createdBy)
+    .eq('status', 'draft')
+    .select('*')
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return withWorkspaceSubjects(data)
+}
+
+export async function hasActiveOrDraftMarketItemSamplePageStoragePath(
+  itemId: string,
+  workspaceSubject: WorkspaceSubject,
+  storagePath: string
+): Promise<boolean> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('market_item_sample_pages')
+    .select('id, status, is_active')
+    .eq('item_id', itemId)
+    .eq('workspace_subject', workspaceSubject)
+    .eq('storage_path', storagePath)
+    .is('deleted_at', null)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data ?? []).some((page) => page.is_active || page.status === 'draft')
+}
+
+async function listReferencedActiveOrDraftStoragePaths(
+  workspaceSubject: WorkspaceSubject,
+  storagePaths: string[]
+) {
+  const uniqueStoragePaths = Array.from(new Set(storagePaths))
+  if (uniqueStoragePaths.length === 0) {
+    return new Set<string>()
+  }
+
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('market_item_sample_pages')
+    .select('storage_path, status, is_active')
+    .eq('workspace_subject', workspaceSubject)
+    .in('storage_path', uniqueStoragePaths)
+    .is('deleted_at', null)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return new Set((data ?? [])
+    .filter((page) => page.is_active || page.status === 'draft')
+    .map((page) => page.storage_path)
+    .filter(Boolean))
+}
+
+export async function cleanupRemovedManualSampleUploadTargets(input: {
+  workspaceSubject?: WorkspaceSubject
+  olderThanHours?: number
+  limit?: number
+  dryRun?: boolean
+}): Promise<RemovedManualSampleUploadCleanupResult> {
+  const workspaceSubject = input.workspaceSubject ?? DEFAULT_WORKSPACE_SUBJECT
+  const olderThanHours = Math.max(input.olderThanHours ?? 24, 1)
+  const limit = Math.min(Math.max(input.limit ?? 200, 1), 1000)
+  const dryRun = input.dryRun ?? true
+  const cutoff = new Date(Date.now() - olderThanHours * 60 * 60 * 1000).toISOString()
+  const supabase = createAdminClient()
+
+  const { data, error } = await supabase
+    .from('market_item_sample_pages')
+    .select('id, storage_bucket, storage_path')
+    .eq('workspace_subject', workspaceSubject)
+    .eq('status', 'removed')
+    .eq('storage_bucket', MARKET_STORAGE_BUCKET)
+    .like('storage_path', `market/${workspaceSubject}/%/sample-pages/manual/%`)
+    .not('source_batch_id', 'is', null)
+    .not('deleted_at', 'is', null)
+    .lt('deleted_at', cutoff)
+    .order('deleted_at', { ascending: true })
+    .limit(limit)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const rows = data ?? []
+  const storagePaths = rows.map((row) => row.storage_path).filter(Boolean)
+  const referencedStoragePaths = await listReferencedActiveOrDraftStoragePaths(workspaceSubject, storagePaths)
+  const removableStoragePaths = Array.from(new Set(storagePaths.filter((storagePath) => !referencedStoragePaths.has(storagePath))))
+  const metadataRowIds = rows.map((row) => row.id).filter(Boolean)
+
+  if (!dryRun) {
+    if (removableStoragePaths.length > 0) {
+      const { error: removeError } = await supabase
+        .storage
+        .from(MARKET_STORAGE_BUCKET)
+        .remove(removableStoragePaths)
+
+      if (removeError) {
+        throw new Error(removeError.message)
+      }
+    }
+
+    if (metadataRowIds.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('market_item_sample_pages')
+        .delete()
+        .in('id', metadataRowIds)
+
+      if (deleteError) {
+        throw new Error(deleteError.message)
+      }
+    }
+  }
+
+  return {
+    dryRun,
+    cutoff,
+    scanned: rows.length,
+    removedStorageObjects: dryRun ? 0 : removableStoragePaths.length,
+    deletedMetadataRows: dryRun ? 0 : metadataRowIds.length,
+    skippedReferenced: storagePaths.length - removableStoragePaths.length,
+  }
 }
 
 

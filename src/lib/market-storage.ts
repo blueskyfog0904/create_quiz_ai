@@ -20,7 +20,12 @@ export const MARKET_SAMPLE_PAGE_MIME_TYPE = 'image/jpeg'
 export const MAX_SAMPLE_SOURCE_PDF_SIZE = 30 * 1024 * 1024
 
 function normalizeFileName(value: string) {
-  return value.trim().replace(/\s+/g, '-').replace(/[^a-zA-Z0-9._-]+/g, '-')
+  return value
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/\.+/g, '.')
+    .replace(/^\.+|\.+$/g, '') || 'file'
 }
 
 export function getMarketFileExtension(fileName: string): string {
@@ -140,4 +145,30 @@ export function buildMarketManualSamplePageStoragePath(
 ) {
   const safeName = normalizeFileName(fileName)
   return `market/${workspaceSubject}/${itemId}/sample-pages/manual/${batchId}/page-${String(pageNumber).padStart(3, '0')}-${safeName}`
+}
+
+export function buildMarketManualSamplePageStoragePrefix(
+  workspaceSubject: WorkspaceSubject,
+  itemId: string,
+  batchId: string
+) {
+  return `market/${workspaceSubject}/${itemId}/sample-pages/manual/${batchId}/`
+}
+
+export function isSafeManualSampleStoragePath(
+  storagePath: string,
+  workspaceSubject: WorkspaceSubject,
+  itemId: string,
+  batchId: string
+) {
+  const expectedPrefix = buildMarketManualSamplePageStoragePrefix(workspaceSubject, itemId, batchId)
+  if (!storagePath.startsWith(expectedPrefix)) {
+    return false
+  }
+
+  if (storagePath.startsWith('/') || storagePath.includes('..')) {
+    return false
+  }
+
+  return storagePath.split('/').every((segment) => segment.length > 0)
 }

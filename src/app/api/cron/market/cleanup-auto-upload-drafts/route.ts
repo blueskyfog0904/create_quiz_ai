@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { cleanupAutoUploadDraftMarketItems } from '@/lib/market-item-cleanup'
+import { cleanupRemovedManualSampleUploadTargets } from '@/lib/market-sample-pages-server'
 import { resolveWorkspaceSubject } from '@/lib/workspace-subject'
 
 export const dynamic = 'force-dynamic'
@@ -35,14 +36,21 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
+    const workspaceSubject = resolveWorkspaceSubject(parsed.data.subject)
     const result = await cleanupAutoUploadDraftMarketItems({
-      workspaceSubject: resolveWorkspaceSubject(parsed.data.subject),
+      workspaceSubject,
+      olderThanHours: parsed.data.olderThanHours,
+      limit: parsed.data.limit,
+      dryRun: parsed.data.dryRun ?? true,
+    })
+    const manualSampleUploadTargets = await cleanupRemovedManualSampleUploadTargets({
+      workspaceSubject,
       olderThanHours: parsed.data.olderThanHours,
       limit: parsed.data.limit,
       dryRun: parsed.data.dryRun ?? true,
     })
 
-    return NextResponse.json({ success: true, data: result })
+    return NextResponse.json({ success: true, data: { autoUploadDrafts: result, manualSampleUploadTargets } })
   } catch (error) {
     return NextResponse.json({
       success: false,

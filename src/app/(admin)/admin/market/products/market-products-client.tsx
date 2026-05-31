@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { Eye, EyeOff, Loader2, Pencil, Plus, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
@@ -40,6 +41,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  MAX_GENERATED_SAMPLE_PAGE_BYTES,
+  MAX_GENERATED_SAMPLE_TOTAL_BYTES,
+  MAX_SAMPLE_PAGE_DIMENSION_PX,
+  MAX_SAMPLE_PAGE_PIXELS,
+  SAMPLE_PDF_DOCUMENT_LOAD_TIMEOUT_MS,
+  SAMPLE_PDF_PAGE_RENDER_TIMEOUT_MS,
+  buildMarketSamplePageFileName,
+  parseMarketSamplePageSelection,
+} from '@/lib/market-pdf-sample-generator'
 import type {
   MarketFileType,
   MarketItem,
@@ -193,6 +204,136 @@ interface AdminSamplePage {
   draftToken?: string | null
 }
 
+type SampleGenerationStep = 'idle' | 'rendering' | 'requesting_upload_targets' | 'uploading' | 'finalizing'
+
+interface RenderedSamplePage {
+  pageNumber: number
+  originalFileName: string
+  mimeType: 'image/jpeg'
+  blob: Blob
+  fileSizeBytes: number
+  widthPx: number
+  heightPx: number
+}
+
+interface SampleUploadTarget {
+  pageNumber: number
+  storagePath: string
+  token: string
+  originalFileName: string
+  mimeType: 'image/jpeg'
+  fileSizeBytes: number
+  widthPx: number
+  heightPx: number
+}
+
+interface SampleUploadTargetResponse {
+  success?: boolean
+  draftToken?: string
+  sourceBatchId?: string
+  bucket?: string
+  uploadTargets?: SampleUploadTarget[]
+  error?: { message?: string }
+}
+
+interface SampleFinalizeResponse {
+  success?: boolean
+  draftToken?: string
+  pages?: AdminSamplePage[]
+  error?: { message?: string }
+}
+
+function canvasToJpegBlob(canvas: HTMLCanvasElement, quality = 0.9): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('샘플 JPG 데이터를 생성하지 못했습니다.'))
+        return
+      }
+
+      resolve(blob)
+    }, 'image/jpeg', quality)
+  })
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(message)), timeoutMs)
+    }),
+  ])
+}
+
+async function renderSamplePdfPages(file: File, samplePageSelection: string): Promise<RenderedSamplePage[]> {
+  const pdfjsLib = await import('pdfjs-dist')
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).toString()
+
+  const arrayBuffer = await file.arrayBuffer()
+  const pdf = await withTimeout(
+    pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise,
+    SAMPLE_PDF_DOCUMENT_LOAD_TIMEOUT_MS,
+    '샘플 PDF 문서 로드 시간이 초과되었습니다.'
+  )
+  const renderedPages: RenderedSamplePage[] = []
+  let totalGeneratedBytes = 0
+
+  try {
+    const pageNumbers = parseMarketSamplePageSelection(samplePageSelection, pdf.numPages)
+    for (const pageNumber of pageNumbers) {
+      const pdfPage = await pdf.getPage(pageNumber)
+      const baseViewport = pdfPage.getViewport({ scale: 1.5 })
+      const dimensionScale = Math.min(1, MAX_SAMPLE_PAGE_DIMENSION_PX / Math.max(baseViewport.width, baseViewport.height))
+      const pixelScale = Math.min(1, Math.sqrt(MAX_SAMPLE_PAGE_PIXELS / Math.max(baseViewport.width * baseViewport.height, 1)))
+      const safeScale = Math.max(0.1, Math.min(dimensionScale, pixelScale))
+      const viewport = safeScale < 1 ? pdfPage.getViewport({ scale: 1.5 * safeScale }) : baseViewport
+
+      if (viewport.width * viewport.height > MAX_SAMPLE_PAGE_PIXELS || Math.max(viewport.width, viewport.height) > MAX_SAMPLE_PAGE_DIMENSION_PX) {
+        throw new Error('샘플 PDF 페이지 크기가 허용 범위를 초과했습니다.')
+      }
+
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.ceil(viewport.width)
+      canvas.height = Math.ceil(viewport.height)
+      const context = canvas.getContext('2d', { alpha: false })
+      if (!context) {
+        throw new Error('샘플 JPG canvas를 생성하지 못했습니다.')
+      }
+
+      context.fillStyle = '#fff'
+      context.fillRect(0, 0, canvas.width, canvas.height)
+      await withTimeout(
+        pdfPage.render({ canvas, canvasContext: context, viewport }).promise,
+        SAMPLE_PDF_PAGE_RENDER_TIMEOUT_MS,
+        '샘플 PDF 페이지 렌더링 시간이 초과되었습니다.'
+      )
+
+      const blob = await canvasToJpegBlob(canvas, 0.9)
+      totalGeneratedBytes += blob.size
+      if (blob.size > MAX_GENERATED_SAMPLE_PAGE_BYTES) {
+        throw new Error('샘플 JPG 페이지 용량이 허용 범위를 초과했습니다.')
+      }
+      if (totalGeneratedBytes > MAX_GENERATED_SAMPLE_TOTAL_BYTES) {
+        throw new Error('샘플 JPG 전체 용량이 허용 범위를 초과했습니다.')
+      }
+
+      renderedPages.push({
+        pageNumber,
+        originalFileName: buildMarketSamplePageFileName(file.name, pageNumber),
+        mimeType: 'image/jpeg',
+        blob,
+        fileSizeBytes: blob.size,
+        widthPx: canvas.width,
+        heightPx: canvas.height,
+      })
+    }
+
+    return renderedPages
+  } finally {
+    await pdf.destroy()
+  }
+}
+
 interface PersistFormOptions {
   preserveSelections?: boolean
   skipSuccessToast?: boolean
@@ -334,6 +475,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const [isSampleSourceDragActive, setIsSampleSourceDragActive] = useState(false)
   const [samplePageDragId, setSamplePageDragId] = useState<string | null>(null)
   const [isSampleSourceUploading, setIsSampleSourceUploading] = useState(false)
+  const [sampleGenerationStep, setSampleGenerationStep] = useState<SampleGenerationStep>('idle')
   const [deletingSamplePageId, setDeletingSamplePageId] = useState<string | null>(null)
   const [subproductCategories, setSubproductCategories] = useState<MarketSubproductCategory[]>([])
   const [fileTypes, setFileTypes] = useState<MarketFileType[]>([])
@@ -485,6 +627,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     setSampleDraftToken(null)
     setIsSampleSourceDragActive(false)
     setSamplePageDragId(null)
+    setSampleGenerationStep('idle')
     if (sampleSourceInputRef.current) {
       sampleSourceInputRef.current.value = ''
     }
@@ -1082,36 +1225,114 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     }
 
     setIsSampleSourceUploading(true)
+    setSampleGenerationStep('rendering')
+    let cleanupSourceBatchId: string | null = null
+    const uploadedStoragePaths: string[] = []
     try {
-      const formData = new FormData()
-      formData.append('file', selectedSampleSourceFile)
-      formData.append('pages', samplePageSelection)
-      if (sampleDraftToken) {
-        formData.append('draftToken', sampleDraftToken)
-      }
+      const renderedPages = await renderSamplePdfPages(selectedSampleSourceFile, samplePageSelection)
+
+      setSampleGenerationStep('requesting_upload_targets')
       const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/sample-pages/source`, workspaceSubject), {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          draftToken: sampleDraftToken || undefined,
+          pages: renderedPages.map((page) => ({
+            pageNumber: page.pageNumber,
+            originalFileName: page.originalFileName,
+            mimeType: page.mimeType,
+            fileSizeBytes: page.fileSizeBytes,
+            widthPx: page.widthPx,
+            heightPx: page.heightPx,
+          })),
+        }),
       })
-      const payload = await response.json()
+      const payload = await response.json() as SampleUploadTargetResponse
 
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error?.message || '샘플 이미지 생성에 실패했습니다.')
+        throw new Error(payload.error?.message || '샘플 이미지 업로드 URL 생성에 실패했습니다.')
       }
 
-      const nextDraftToken = String(payload.draftToken || sampleDraftToken || '')
-      const generatedPages = ((payload.pages || []) as AdminSamplePage[]).map((page) => ({
+      if (!payload.draftToken || !payload.sourceBatchId || !payload.bucket || !payload.uploadTargets) {
+        throw new Error('샘플 이미지 업로드 URL 응답이 올바르지 않습니다.')
+      }
+
+      cleanupSourceBatchId = payload.sourceBatchId
+      const renderedPageMap = new Map(renderedPages.map((page) => [page.pageNumber, page]))
+      const supabase = createBrowserSupabaseClient()
+
+      setSampleGenerationStep('uploading')
+      for (const uploadTarget of payload.uploadTargets) {
+        const renderedPage = renderedPageMap.get(uploadTarget.pageNumber)
+        if (!renderedPage) {
+          throw new Error('샘플 JPG와 업로드 URL을 매칭하지 못했습니다.')
+        }
+
+        const { error: uploadError } = await supabase
+          .storage
+          .from(payload.bucket)
+          .uploadToSignedUrl(uploadTarget.storagePath, uploadTarget.token, renderedPage.blob, {
+            contentType: 'image/jpeg',
+          })
+
+        if (uploadError) {
+          throw new Error(uploadError.message)
+        }
+
+        uploadedStoragePaths.push(uploadTarget.storagePath)
+      }
+
+      setSampleGenerationStep('finalizing')
+      const finalizeResponse = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/sample-pages/source/finalize`, workspaceSubject), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'finalize_upload',
+          draftToken: payload.draftToken,
+          sourceBatchId: payload.sourceBatchId,
+          pages: payload.uploadTargets.map((page) => ({
+            pageNumber: page.pageNumber,
+            originalFileName: page.originalFileName,
+            mimeType: page.mimeType,
+            fileSizeBytes: page.fileSizeBytes,
+            widthPx: page.widthPx,
+            heightPx: page.heightPx,
+            storagePath: page.storagePath,
+          })),
+        }),
+      })
+      const finalizePayload = await finalizeResponse.json() as SampleFinalizeResponse
+
+      if (!finalizeResponse.ok || !finalizePayload.success) {
+        throw new Error(finalizePayload.error?.message || '샘플 이미지 저장에 실패했습니다.')
+      }
+
+      const nextDraftToken = String(finalizePayload.draftToken || payload.draftToken || sampleDraftToken || '')
+      const generatedPages = (finalizePayload.pages || []).map((page) => ({
         ...page,
         draftToken: nextDraftToken,
       }))
       setSampleDraftToken(nextDraftToken || null)
       setSamplePages((current) => [...current, ...generatedPages])
       setSelectedSampleSourceFile(null)
-      toast.success(`샘플 JPG ${(payload.pages || []).length}장을 생성했습니다.`)
+      toast.success(`샘플 JPG ${generatedPages.length}장을 생성했습니다.`)
     } catch (error) {
+      if (cleanupSourceBatchId && uploadedStoragePaths.length > 0) {
+        await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/sample-pages/source/finalize`, workspaceSubject), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'cleanup_upload_batch',
+            sourceBatchId: cleanupSourceBatchId,
+            storagePaths: uploadedStoragePaths,
+          }),
+        }).catch(() => undefined)
+      }
+
       toast.error(error instanceof Error ? error.message : '샘플 이미지 생성 중 오류가 발생했습니다.')
     } finally {
       setIsSampleSourceUploading(false)
+      setSampleGenerationStep('idle')
       if (sampleSourceInputRef.current) {
         sampleSourceInputRef.current.value = ''
       }
@@ -1590,7 +1811,16 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   }
 
   const canOpenSamplePreview = Boolean(form.id && samplePages.length > 0 && !isSampleSourceUploading)
-  const samplePreviewStatusLabel = isSampleSourceUploading ? '샘플 생성 중' : samplePages.length > 0 ? '확인 가능' : '샘플 없음'
+  const sampleGenerationStatusLabel = sampleGenerationStep === 'rendering'
+    ? 'PDF 렌더링 중'
+    : sampleGenerationStep === 'requesting_upload_targets'
+      ? '업로드 준비 중'
+      : sampleGenerationStep === 'uploading'
+        ? '업로드 중'
+        : sampleGenerationStep === 'finalizing'
+          ? '저장 중'
+          : '샘플 생성 중'
+  const samplePreviewStatusLabel = isSampleSourceUploading ? sampleGenerationStatusLabel : samplePages.length > 0 ? '확인 가능' : '샘플 없음'
   const isAutoUploadDraft = Boolean(form.id && form.draftSource === 'auto_upload')
 
   return (
@@ -1794,7 +2024,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-medium text-gray-900">샘플 생성</p>
-                  <p className="text-sm text-gray-500">샘플 PDF를 별도로 업로드하고, 샘플로 사용할 페이지 번호만 JPG로 생성합니다.</p>
+                  <p className="text-sm text-gray-500">브라우저에서 샘플 JPG를 생성한 뒤 업로드합니다. 샘플로 사용할 페이지 번호만 JPG로 생성합니다.</p>
                 </div>
                 <Badge variant={samplePages.length > 0 ? 'outline' : 'secondary'}>{samplePreviewStatusLabel}</Badge>
               </div>

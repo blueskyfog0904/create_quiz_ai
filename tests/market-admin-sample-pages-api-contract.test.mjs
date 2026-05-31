@@ -20,6 +20,8 @@ test('admin sample pages api returns short lived signed jpg preview urls', () =>
   assert.match(route, /ADMIN_SAMPLE_PAGE_SIGNED_URL_TTL_SECONDS = 60 \* 5/)
   assert.match(route, /expiresAt/)
   assert.match(route, /pageNumber/)
+  assert.match(route, /originalFileName/)
+  assert.match(route, /original_file_name/)
   assert.match(route, /signedUrl/)
   assert.match(route, /fileSizeBytes/)
   assert.match(route, /widthPx/)

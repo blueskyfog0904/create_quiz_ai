@@ -19,6 +19,7 @@ import {
 interface SamplePagePreview {
   id: string
   pageNumber: number
+  originalFileName: string | null
   signedUrl: string
   fileSizeBytes: number | null
   widthPx: number | null
@@ -33,6 +34,45 @@ interface AdminMarketSamplePreviewDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
+const SAMPLE_PAGE_GENERATED_FILE_NAME_SUFFIX_PATTERN = /-sample-page-\d+\.jpe?g$/i
+const SAMPLE_FILE_GROUP_STYLES = [
+  {
+    barClassName: 'border-l-4 border-l-amber-400',
+    labelClassName: 'border-amber-200 bg-amber-50 text-amber-900',
+    badgeClassName: 'bg-amber-100 text-amber-950',
+  },
+  {
+    barClassName: 'border-l-4 border-l-sky-400',
+    labelClassName: 'border-sky-200 bg-sky-50 text-sky-900',
+    badgeClassName: 'bg-sky-200 text-sky-950',
+  },
+  {
+    barClassName: 'border-l-4 border-l-emerald-400',
+    labelClassName: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+    badgeClassName: 'bg-emerald-200 text-emerald-950',
+  },
+  {
+    barClassName: 'border-l-4 border-l-violet-400',
+    labelClassName: 'border-violet-200 bg-violet-50 text-violet-900',
+    badgeClassName: 'bg-violet-200 text-violet-950',
+  },
+  {
+    barClassName: 'border-l-4 border-l-rose-400',
+    labelClassName: 'border-rose-200 bg-rose-50 text-rose-900',
+    badgeClassName: 'bg-rose-200 text-rose-950',
+  },
+  {
+    barClassName: 'border-l-4 border-l-cyan-400',
+    labelClassName: 'border-cyan-200 bg-cyan-50 text-cyan-900',
+    badgeClassName: 'bg-cyan-200 text-cyan-950',
+  },
+] as const
+
+interface SampleFileGroupMeta {
+  groupNumber: number
+  styleIndex: number
+}
+
 function formatFileSize(bytes?: number | null) {
   if (!bytes) {
     return '-'
@@ -43,6 +83,42 @@ function formatFileSize(bytes?: number | null) {
   }
 
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+}
+
+function getSampleSourceDisplayFileName(originalFileName?: string | null) {
+  const displayFileName = originalFileName
+    ?.replace(SAMPLE_PAGE_GENERATED_FILE_NAME_SUFFIX_PATTERN, '')
+    .trim()
+  return displayFileName || null
+}
+
+function getSampleFileGroupStyle(styleIndex: number) {
+  return SAMPLE_FILE_GROUP_STYLES[styleIndex % SAMPLE_FILE_GROUP_STYLES.length]
+}
+
+function buildSampleFileGroupMeta(pages: SamplePagePreview[]) {
+  const sampleFileGroupMetaByName = new Map<string, SampleFileGroupMeta>()
+  for (const page of pages) {
+    const displayFileName = getSampleSourceDisplayFileName(page.originalFileName)
+    if (!displayFileName || sampleFileGroupMetaByName.has(displayFileName)) {
+      continue
+    }
+
+    const groupNumber = sampleFileGroupMetaByName.size + 1
+    sampleFileGroupMetaByName.set(displayFileName, {
+      groupNumber,
+      styleIndex: groupNumber - 1,
+    })
+  }
+
+  return sampleFileGroupMetaByName
+}
+
+function formatSamplePageLabel(page: Pick<SamplePagePreview, 'originalFileName' | 'pageNumber'>) {
+  const displayFileName = getSampleSourceDisplayFileName(page.originalFileName)
+  return displayFileName
+    ? `'${displayFileName}' 샘플 페이지 ${page.pageNumber}`
+    : `샘플 페이지 ${page.pageNumber}`
 }
 
 export default function AdminMarketSamplePreviewDialog({
@@ -58,6 +134,10 @@ export default function AdminMarketSamplePreviewDialog({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const selectedPage = pages.find((page) => page.id === selectedPageId) ?? pages[0] ?? null
+  const sampleFileGroupMetaByName = buildSampleFileGroupMeta(pages)
+  const selectedDisplayFileName = selectedPage ? getSampleSourceDisplayFileName(selectedPage.originalFileName) : null
+  const selectedSampleFileGroupMeta = selectedDisplayFileName ? sampleFileGroupMetaByName.get(selectedDisplayFileName) : null
+  const selectedSampleFileGroupStyle = getSampleFileGroupStyle(selectedSampleFileGroupMeta?.styleIndex ?? 0)
 
   const loadSamplePages = useCallback(async () => {
     if (!itemId) {
@@ -105,7 +185,7 @@ export default function AdminMarketSamplePreviewDialog({
         <DialogHeader>
           <DialogTitle>샘플 JPG 확인</DialogTitle>
           <DialogDescription>
-            [{itemTitle}] 판매용 PDF에서 자동 생성된 첫 1~3페이지 JPG 샘플입니다.
+            [{itemTitle}] 등록된 샘플 JPG를 파일명과 페이지 번호로 확인하세요.
           </DialogDescription>
         </DialogHeader>
 
@@ -126,42 +206,63 @@ export default function AdminMarketSamplePreviewDialog({
         ) : (
           <div className="grid gap-4 lg:grid-cols-[160px,minmax(0,1fr)]">
             <div className="flex gap-2 overflow-x-auto lg:flex-col lg:overflow-visible">
-              {pages.map((page) => (
-                <button
-                  key={page.id}
-                  type="button"
-                  aria-pressed={selectedPageId === page.id}
-                  aria-label={`샘플 페이지 ${page.pageNumber} 보기`}
-                  onClick={() => setSelectedPageId(page.id)}
-                  className={`rounded-lg border p-2 text-left text-xs transition ${
-                    selectedPageId === page.id
-                      ? 'border-primary ring-2 ring-primary/40'
-                      : 'hover:border-primary/50'
-                  }`}
-                >
-                  <img
-                    src={page.signedUrl}
-                    alt={`샘플 페이지 ${page.pageNumber}`}
-                    className="aspect-[3/4] w-28 rounded bg-gray-100 object-cover lg:w-full"
-                    loading={page.pageNumber === 1 ? 'eager' : 'lazy'}
-                  />
-                  <span className="mt-2 block font-medium">{page.pageNumber}p</span>
-                  <span className="block text-gray-500">{formatFileSize(page.fileSizeBytes)}</span>
-                </button>
-              ))}
+              {pages.map((page) => {
+                const samplePageLabel = formatSamplePageLabel(page)
+                const displayFileName = getSampleSourceDisplayFileName(page.originalFileName)
+                const sampleFileGroupMeta = displayFileName ? sampleFileGroupMetaByName.get(displayFileName) : null
+                const sampleFileGroupStyle = getSampleFileGroupStyle(sampleFileGroupMeta?.styleIndex ?? 0)
+                return (
+                  <button
+                    key={page.id}
+                    type="button"
+                    aria-pressed={selectedPageId === page.id}
+                    aria-label={`${samplePageLabel} 보기`}
+                    onClick={() => setSelectedPageId(page.id)}
+                    className={`rounded-lg border p-2 text-left text-xs transition ${
+                      selectedPageId === page.id
+                        ? 'border-primary ring-2 ring-primary/40'
+                        : 'hover:border-primary/50'
+                    }`}
+                  >
+                    <img
+                      src={page.signedUrl}
+                      alt={samplePageLabel}
+                      className="aspect-[3/4] w-28 rounded bg-gray-100 object-cover lg:w-full"
+                      loading={page.pageNumber === 1 ? 'eager' : 'lazy'}
+                    />
+                    <span className={`mt-2 flex flex-wrap items-center gap-1 break-words rounded-md border px-2 py-1 font-semibold ${sampleFileGroupStyle.barClassName} ${sampleFileGroupStyle.labelClassName}`}>
+                      {sampleFileGroupMeta ? (
+                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${sampleFileGroupStyle.badgeClassName}`}>
+                          파일 {sampleFileGroupMeta.groupNumber}
+                        </span>
+                      ) : null}
+                      <span className="min-w-0 break-words">{samplePageLabel}</span>
+                    </span>
+                    <span className="block text-gray-500">{formatFileSize(page.fileSizeBytes)}</span>
+                  </button>
+                )
+              })}
             </div>
 
             {selectedPage ? (
               <figure className="rounded-lg border bg-gray-50 p-3">
                 <img
                   src={selectedPage.signedUrl}
-                  alt={`샘플 페이지 ${selectedPage.pageNumber}`}
+                  alt={formatSamplePageLabel(selectedPage)}
                   width={selectedPage.widthPx ?? undefined}
                   height={selectedPage.heightPx ?? undefined}
                   className="mx-auto max-h-[68vh] w-auto rounded bg-white object-contain shadow-sm"
                 />
                 <figcaption className="mt-3 text-center text-sm text-gray-600">
-                  샘플 페이지 {selectedPage.pageNumber} · {formatFileSize(selectedPage.fileSizeBytes)}
+                  <span className={`inline-flex max-w-full flex-wrap items-center justify-center gap-2 break-words rounded-full border px-3 py-1 font-semibold ${selectedSampleFileGroupStyle.barClassName} ${selectedSampleFileGroupStyle.labelClassName}`}>
+                    {selectedSampleFileGroupMeta ? (
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${selectedSampleFileGroupStyle.badgeClassName}`}>
+                        파일 {selectedSampleFileGroupMeta.groupNumber}
+                      </span>
+                    ) : null}
+                    <span className="min-w-0 break-words">{formatSamplePageLabel(selectedPage)}</span>
+                  </span>
+                  <span className="mt-2 block">{formatFileSize(selectedPage.fileSizeBytes)}</span>
                 </figcaption>
               </figure>
             ) : null}

@@ -5,6 +5,22 @@
       "args": [
         "/Users/mac/.config/octo/mcp-browser-server.js"
       ]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--headless",
+        "--caps=devtools"
+      ],
+      "env": {
+        "npm_config_cache": "/Users/donald/Documents/project/create_quiz_ai/.npm-cache"
+      }
+    },
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=kzcweelnzhcmiuvjgeyi&read_only=true"
     }
   }
 }
