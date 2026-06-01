@@ -1,21 +1,14 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Badge } from '@/components/ui/badge'
+import type { KeyboardEvent } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { WorkspaceLink } from '@/components/layout/workspace-link'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import type { MarketLibraryRow } from '@/lib/market-items-server'
-import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import { withWorkspacePrefix, type WorkspaceSubject } from '@/lib/workspace-subject'
 
 interface MarketLibraryClientProps {
   rows: MarketLibraryRow[]
@@ -24,11 +17,15 @@ interface MarketLibraryClientProps {
 }
 
 type SortOption = 'latest' | 'name'
-type AssetFilter = 'all' | 'pdf' | 'hwp' | 'zip'
 
 function formatDate(value?: string | null) {
   if (!value) return '-'
-  return new Date(value).toLocaleDateString('ko-KR')
+  const date = new Date(value)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+
+  return `${year}.${month}.${day}`
 }
 
 export default function MarketLibraryClient({
@@ -36,26 +33,14 @@ export default function MarketLibraryClient({
   workspaceSubject,
   browseMarketHref,
 }: MarketLibraryClientProps) {
+  const router = useRouter()
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortOption>('latest')
-  const [assetFilter, setAssetFilter] = useState<AssetFilter>('all')
 
   const filteredRows = useMemo(() => {
     const keyword = search.trim().toLowerCase()
     const nextRows = rows.filter((row) => {
       if (keyword && !(`${row.title} ${row.categoryTitle} ${row.summary || ''}`.toLowerCase().includes(keyword))) {
-        return false
-      }
-
-      if (assetFilter === 'pdf' && !row.pdfOwned) {
-        return false
-      }
-
-      if (assetFilter === 'hwp' && !row.hwpOwned) {
-        return false
-      }
-
-      if (assetFilter === 'zip' && !row.zipOwned) {
         return false
       }
 
@@ -70,7 +55,19 @@ export default function MarketLibraryClient({
     })
 
     return nextRows
-  }, [assetFilter, rows, search, sort])
+  }, [rows, search, sort])
+
+  const navigateToDetail = (detailHref: string | null) => {
+    if (!detailHref) return
+    router.push(withWorkspacePrefix(workspaceSubject, detailHref))
+  }
+
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, detailHref: string | null) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      navigateToDetail(detailHref)
+    }
+  }
 
   const downloadableCount = rows.filter((row) => row.pdfAvailable || row.hwpAvailable || row.zipAvailable).length
   const v2DownloadableCount = rows.filter((row) => row.v2DownloadFiles.length > 0).length
@@ -121,17 +118,11 @@ export default function MarketLibraryClient({
           <CardDescription>상품명 검색과 최소 필터를 제공합니다.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr),180px,180px]">
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr),180px]">
             <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="상품명 검색" />
             <select value={sort} onChange={(event) => setSort(event.target.value as SortOption)} className="flex h-10 w-full rounded-md border bg-white px-3 text-sm">
               <option value="latest">최근 구매순</option>
               <option value="name">이름순</option>
-            </select>
-            <select value={assetFilter} onChange={(event) => setAssetFilter(event.target.value as AssetFilter)} className="flex h-10 w-full rounded-md border bg-white px-3 text-sm">
-              <option value="all">전체</option>
-              <option value="pdf">PDF 포함</option>
-              <option value="hwp">HWP & PDF 포함</option>
-              <option value="zip">ZIP 포함</option>
             </select>
           </div>
         </CardContent>
@@ -152,92 +143,57 @@ export default function MarketLibraryClient({
               </Button>
             </div>
           ) : (
-            <>
-              <div className="hidden md:block overflow-hidden rounded-xl border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>상품 정보</TableHead>
-                      <TableHead>카테고리</TableHead>
-                      <TableHead>구매 상태</TableHead>
-                      <TableHead>구매일</TableHead>
-                      <TableHead>액션</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredRows.map((row) => (
-                      <TableRow key={row.itemId}>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <p className="font-medium text-gray-900">{row.title}</p>
-                            {row.summary ? <p className="text-xs text-gray-500">{row.summary}</p> : null}
-                          </div>
-                        </TableCell>
-                        <TableCell>{row.categoryTitle}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant={row.pdfOwned ? 'default' : 'outline'}>PDF {row.pdfOwned ? '보유' : '미보유'}</Badge>
-                            <Badge variant={row.hwpOwned ? 'default' : 'outline'}>HWP & PDF {row.hwpOwned ? '보유' : '미보유'}</Badge>
-                            <Badge variant={row.zipOwned ? 'default' : 'outline'}>ZIP {row.zipOwned ? '보유' : '미보유'}</Badge>
-                            {row.v2OwnedLabels.length > 0 ? <Badge variant="secondary">서브상품/전체구매 {row.v2OwnedLabels.join(' · ')}</Badge> : null}
-                          </div>
-                        </TableCell>
-                        <TableCell>{formatDate(row.purchasedAt)}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-2">
-                            {row.pdfOwned ? (row.pdfAvailable ? <Button asChild size="sm" variant="outline"><a href={row.pdfDownloadUrl || '#'}>PDF 다운로드</a></Button> : <Button size="sm" variant="outline" disabled>PDF 점검 중</Button>) : null}
-                            {row.hwpOwned ? (row.hwpAvailable ? <Button asChild size="sm" variant="outline"><a href={row.hwpDownloadUrl || '#'}>HWP 다운로드</a></Button> : <Button size="sm" variant="outline" disabled>HWP & PDF 점검 중</Button>) : null}
-                            {row.zipOwned ? (row.zipAvailable ? <Button asChild size="sm" variant="outline"><a href={row.zipDownloadUrl || '#'}>ZIP 다운로드</a></Button> : <Button size="sm" variant="outline" disabled>ZIP 점검 중</Button>) : null}
-                            {row.v2DownloadFiles.map((file) => (
-                              <Button key={file.id} asChild size="sm" variant="outline">
-                                <a href={file.downloadUrl}>{file.fileTypeLabel} 다운로드</a>
-                              </Button>
-                            ))}
-                            {row.categorySlug ? <Button asChild size="sm"><WorkspaceLink href={`/market/${row.categorySlug}/items/${row.itemId}`} subject={workspaceSubject}>상세 보기</WorkspaceLink></Button> : null}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+            <div className="overflow-hidden rounded-xl border bg-white">
+              <div className="overflow-x-auto sm:overflow-visible">
+                <table className="w-full table-fixed border-collapse text-sm">
+                  <thead className="border-t-2 border-slate-950 bg-slate-50 text-slate-700">
+                    <tr className="border-b">
+                      <th className="w-[46px] px-2 py-3 text-center text-sm font-bold whitespace-nowrap sm:w-[64px] sm:px-3">번호</th>
+                      <th className="w-[96px] px-2 py-3 text-center text-sm font-bold whitespace-nowrap sm:w-[120px] sm:px-3">카테고리</th>
+                      <th className="px-2 py-3 text-center text-sm font-bold whitespace-nowrap sm:px-3">상품 정보</th>
+                      <th className="w-[88px] px-2 py-3 text-center text-sm font-bold whitespace-nowrap sm:w-[112px] sm:px-3">구매일</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRows.map((row, index) => {
+                      const detailHref = row.categorySlug ? `/market/${row.categorySlug}/items/${row.itemId}` : null
+
+                      return (
+                        <tr
+                          key={row.itemId}
+                          role={detailHref ? 'link' : undefined}
+                          tabIndex={detailHref ? 0 : undefined}
+                          onClick={() => navigateToDetail(detailHref)}
+                          onKeyDown={(event) => handleRowKeyDown(event, detailHref)}
+                          className={`border-b border-slate-200 bg-white transition hover:bg-slate-50/80 ${detailHref ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-900' : ''}`}
+                        >
+                          <td className="px-2 py-2 text-center text-slate-500 whitespace-nowrap sm:px-3">{index + 1}</td>
+                          <td className="px-2 py-2 text-center text-slate-600 whitespace-nowrap sm:px-3">{row.categoryTitle}</td>
+                          <td className="min-w-0 px-2 py-2 sm:px-3">
+                            <div className="min-w-0">
+                              {detailHref ? (
+                                <WorkspaceLink
+                                  href={detailHref}
+                                  subject={workspaceSubject}
+                                  className="block min-w-0 truncate font-semibold text-slate-900 hover:text-slate-600"
+                                  onClick={(event) => event.stopPropagation()}
+                                >
+                                  {row.title}
+                                </WorkspaceLink>
+                              ) : (
+                                <span className="block min-w-0 truncate font-semibold text-slate-900">{row.title}</span>
+                              )}
+                              {row.summary ? <p className="mt-1 truncate text-xs text-slate-500">{row.summary}</p> : null}
+                            </div>
+                          </td>
+                          <td className="px-2 py-2 whitespace-nowrap text-center text-slate-600 sm:px-3">{formatDate(row.purchasedAt)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
-
-              <div className="grid gap-4 md:hidden">
-                {filteredRows.map((row) => (
-                  <Card key={row.itemId}>
-                    <CardContent className="space-y-4 pt-6">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="font-semibold text-gray-900">{row.title}</p>
-                          <Badge>구매 완료</Badge>
-                        </div>
-                        <p className="text-sm text-gray-500">{row.categoryTitle} · {formatDate(row.purchasedAt)}</p>
-                        {row.summary ? <p className="text-sm text-gray-600">{row.summary}</p> : null}
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant={row.pdfOwned ? 'default' : 'outline'}>PDF {row.pdfOwned ? '보유' : '미보유'}</Badge>
-                        <Badge variant={row.hwpOwned ? 'default' : 'outline'}>HWP & PDF {row.hwpOwned ? '보유' : '미보유'}</Badge>
-                        <Badge variant={row.zipOwned ? 'default' : 'outline'}>ZIP {row.zipOwned ? '보유' : '미보유'}</Badge>
-                        {row.v2OwnedLabels.length > 0 ? <Badge variant="secondary">서브상품/전체구매 {row.v2OwnedLabels.join(' · ')}</Badge> : null}
-                      </div>
-
-                      <div className="grid gap-2">
-                        {row.pdfOwned ? (row.pdfAvailable ? <Button asChild variant="outline"><a href={row.pdfDownloadUrl || '#'}>PDF 다운로드</a></Button> : <Button variant="outline" disabled>PDF 점검 중</Button>) : null}
-                        {row.hwpOwned ? (row.hwpAvailable ? <Button asChild variant="outline"><a href={row.hwpDownloadUrl || '#'}>HWP 다운로드</a></Button> : <Button variant="outline" disabled>HWP & PDF 점검 중</Button>) : null}
-                        {row.zipOwned ? (row.zipAvailable ? <Button asChild variant="outline"><a href={row.zipDownloadUrl || '#'}>ZIP 다운로드</a></Button> : <Button variant="outline" disabled>ZIP 점검 중</Button>) : null}
-                        {row.v2DownloadFiles.map((file) => (
-                          <Button key={file.id} asChild variant="outline">
-                            <a href={file.downloadUrl}>{file.fileTypeLabel} 다운로드</a>
-                          </Button>
-                        ))}
-                        {row.categorySlug ? <Button asChild><WorkspaceLink href={`/market/${row.categorySlug}/items/${row.itemId}`} subject={workspaceSubject}>상세 보기</WorkspaceLink></Button> : null}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </>
+            </div>
           )}
         </CardContent>
       </Card>

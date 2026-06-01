@@ -82,11 +82,12 @@ test('market detail uses soft status badges and green download actions', () => {
   assert.ok(downloadClassUses.length >= 5)
 })
 
-test('market library includes v2 entitlements and download buttons alongside legacy rows', () => {
+test('market library keeps v2 entitlement data source but sends users to detail for downloads', () => {
   assert.match(marketItemsServer, /market_entitlements/)
   assert.match(marketItemsServer, /v2DownloadFiles/)
   assert.match(marketItemsServer, /listMarketSubproductDownloadFilesForUser/)
-  assert.match(libraryClient, /v2DownloadFiles/)
-  assert.match(libraryClient, /서브상품\/전체구매/)
-  assert.match(libraryClient, /file\.downloadUrl/)
+  assert.match(itemActions, /buildV2DownloadUrl\(itemId, file\.id\)/)
+  assert.doesNotMatch(libraryClient, /file\.downloadUrl/)
+  assert.doesNotMatch(libraryClient, /v2OwnedLabels/)
+  assert.doesNotMatch(libraryClient, /서브상품\/전체구매/)
 })
