@@ -31,6 +31,7 @@ interface TextbookGenerateClientProps {
 interface GeneratedQuestionData {
   question: Question
   rawResponse: string
+  generationRunId?: string | null
 }
 
 export default function TextbookGenerateClient({
@@ -108,6 +109,7 @@ export default function TextbookGenerateClient({
           passage,
           problemTypeId: problemType.id,
           workspaceSubject,
+          generationSource: 'textbook',
         }),
         signal: abortControllerRef.current.signal,
       })
@@ -129,6 +131,7 @@ export default function TextbookGenerateClient({
       setGeneratedQuestion({
         question: data.data,
         rawResponse: data.rawAiResponse,
+        generationRunId: data.generationRunId,
       })
       setShowCompleteDialog(true)
       toast.success('교재형 문제가 생성되었습니다.')
@@ -154,6 +157,7 @@ export default function TextbookGenerateClient({
           passage,
           problemTypeId: problemType.id,
           rawAiResponse: generatedQuestion.rawResponse,
+          generationRunId: generatedQuestion.generationRunId,
           tags: [],
           rating: 0,
           workspaceSubject,

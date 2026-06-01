@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/bypass'
 import type { TablesInsert } from '@/types/supabase'
 import { parseStagedGeneratedQuestion } from '@/lib/questions/generated-question-staging'
 import { normalizeQuestionTextBackward } from '@/lib/questions/normalize-question-field'
+import { linkLatestAiQuestionGenerationRunForJobItem } from '@/lib/ai/question-generation-run-logs'
 import {
   resolveGenerateWorkspaceSubject,
   type WorkspaceSubject,
@@ -233,6 +234,12 @@ export async function POST(request: Request, { params }: RouteContext) {
 
         savedCount += 1
         savedQuestionIds.push(savedQuestion.id)
+        await linkLatestAiQuestionGenerationRunForJobItem({
+          questionId: savedQuestion.id,
+          userId: user.id,
+          workspaceSubject,
+          listboardJobItemId: lockedItem.id,
+        })
       } catch (error) {
         failedCount += 1
         await adminSupabase

@@ -3,11 +3,14 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { QuestionSchema } from '@/lib/ai/types'
 import { normalizeQuestionTextBackward } from '@/lib/questions/normalize-question-field'
+import { linkAiQuestionGenerationRunToQuestion } from '@/lib/ai/question-generation-run-logs'
 
 const SaveQuestionSchema = z.object({
   question: QuestionSchema,
   passage: z.string().optional(),
   problemTypeId: z.string().uuid(),
+  workspaceSubject: z.enum(['english', 'korean']).optional(),
+  generationRunId: z.string().uuid().optional(),
   rawAiResponse: z.string().optional(),
   questionTextForward: z.string().optional(),
   questionTextBackward: z.string().optional(),
@@ -40,6 +43,8 @@ export async function POST(request: Request) {
       question,
       passage,
       problemTypeId,
+      workspaceSubject = 'english',
+      generationRunId,
       rawAiResponse,
       questionTextForward,
       questionTextBackward,
@@ -84,6 +89,7 @@ export async function POST(request: Request) {
       .from('questions')
       .insert({
         user_id: user.id,
+        workspace_subject: workspaceSubject,
         question_text: question.questionText,
         question_text_forward: forwardText ?? null,
         question_text_backward: backwardText ?? null,
@@ -110,6 +116,17 @@ export async function POST(request: Request) {
             success: false, 
             error: { code: 'DB_ERROR', message: 'Failed to save question' } 
         }, { status: 500 })
+    }
+
+    if (generationRunId) {
+      await linkAiQuestionGenerationRunToQuestion({
+        generationRunId,
+        questionId: data.id,
+        userId: user.id,
+        workspaceSubject,
+        problemTypeId,
+        allowedSources: ['single', 'multi', 'textbook'],
+      })
     }
 
     return NextResponse.json({ success: true, data })

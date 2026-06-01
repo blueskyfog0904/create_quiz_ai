@@ -11,6 +11,7 @@ import {
   getLoopFailureCode,
   runQuestionGenerationReviewLoop,
 } from '@/lib/ai/question-generation-workflow'
+import { AiQuestionGenerationRunLogError, logAiQuestionGenerationRun } from '@/lib/ai/question-generation-run-logs'
 
 export const dynamic = 'force-dynamic'
 
@@ -236,8 +237,12 @@ export async function POST(request: Request, { params }: RouteContext) {
       .eq('id', jobItem.id)
       .eq('workspace_subject', workspaceSubject)
 
+    let loopResult: Awaited<ReturnType<typeof runQuestionGenerationReviewLoop>> | null = null
+    let modelConfig: ReturnType<typeof buildQuestionGenerationConfigFromProblemType>['modelConfig'] | null = null
+
     try {
       const generationConfig = buildQuestionGenerationConfigFromProblemType(problemType)
+      modelConfig = generationConfig.modelConfig ?? null
       if (!generationConfig.modelConfig) {
         throw Object.assign(
           new Error(generationConfig.error?.message || '문제 검토 API 제공자와 모델을 먼저 설정해주세요.'),
@@ -245,13 +250,13 @@ export async function POST(request: Request, { params }: RouteContext) {
         )
       }
 
-      const loopResult = await runQuestionGenerationReviewLoop({
+      loopResult = await runQuestionGenerationReviewLoop({
         passage: postItem.passage_text,
         workspaceSubject,
         promptBundle: generationConfig.promptBundle,
         modelConfig: generationConfig.modelConfig,
-        includeTrace: false,
-        traceMode: 'none',
+        includeTrace: true,
+        traceMode: 'admin_full',
       })
 
       if (loopResult.status !== 'passed' || !loopResult.finalQuestion) {
@@ -283,6 +288,31 @@ export async function POST(request: Request, { params }: RouteContext) {
         throw new Error(completeUpdateError.message)
       }
 
+      await logAiQuestionGenerationRun({
+        userId: user.id,
+        workspaceSubject,
+        source: 'listboard_run',
+        problemTypeId: problemType.id,
+        problemTypeName: problemType.type_name,
+        listboardJobId: job.id,
+        listboardJobItemId: jobItem.id,
+        status: loopResult.status,
+        stopReason: loopResult.stopReason,
+        input: {
+          passageLength: postItem.passage_text.length,
+          postId: job.post_id,
+          postItemId: jobItem.post_item_id,
+          problemTypeId: problemType.id,
+          workspaceSubject,
+        },
+        modelConfig,
+        finalQuestion: loopResult.finalQuestion,
+        lastQuestion: loopResult.lastQuestion ?? null,
+        finalReview: loopResult.finalReview ?? null,
+        attempts: loopResult.attempts,
+        creditCharged: COST_PER_GENERATION,
+      })
+
       completedCount += 1
     } catch (error) {
       failedCount += 1
@@ -295,6 +325,7 @@ export async function POST(request: Request, { params }: RouteContext) {
           save_status: 'unsaved',
           saved_at: null,
           save_error_message: null,
+          credit_charged: 0,
           error_code: error && typeof error === 'object' && 'code' in error && isReviewLoopFailureCode(error.code)
             ? error.code
             : 'GENERATION_FAILED',
@@ -307,6 +338,35 @@ export async function POST(request: Request, { params }: RouteContext) {
       if (failedUpdateError) {
         console.error('Failed to persist batch generation failure state:', failedUpdateError)
       }
+
+      if (error instanceof AiQuestionGenerationRunLogError) {
+        throw error
+      }
+
+      await logAiQuestionGenerationRun({
+        userId: user.id,
+        workspaceSubject,
+        source: 'listboard_run',
+        problemTypeId: problemType.id,
+        problemTypeName: problemType.type_name,
+        listboardJobId: job.id,
+        listboardJobItemId: jobItem.id,
+        status: loopResult?.status ?? 'generation_failed',
+        stopReason: loopResult?.stopReason ?? (error instanceof Error ? error.message : 'AI 문제 생성 중 오류가 발생했습니다.'),
+        input: {
+          passageLength: postItem.passage_text.length,
+          postId: job.post_id,
+          postItemId: jobItem.post_item_id,
+          problemTypeId: problemType.id,
+          workspaceSubject,
+        },
+        modelConfig,
+        finalQuestion: loopResult?.finalQuestion ?? null,
+        lastQuestion: loopResult?.lastQuestion ?? null,
+        finalReview: loopResult?.finalReview ?? null,
+        attempts: loopResult?.attempts ?? [],
+        creditCharged: 0,
+      })
     }
 
     await adminSupabase

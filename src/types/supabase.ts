@@ -95,6 +95,117 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_question_generation_runs: {
+        Row: {
+          attempts: Json
+          created_at: string
+          credit_charged: number
+          expires_at: string | null
+          final_question: Json | null
+          final_review: Json | null
+          id: string
+          input: Json
+          last_question: Json | null
+          listboard_job_id: string | null
+          listboard_job_item_id: string | null
+          model_config: Json
+          problem_type_id: string | null
+          problem_type_name: string | null
+          question_id: string | null
+          redaction_flags: Json
+          source: string
+          status: string
+          stop_reason: string | null
+          truncated_flags: Json
+          user_id: string | null
+          workspace_subject: string
+        }
+        Insert: {
+          attempts?: Json
+          created_at?: string
+          credit_charged?: number
+          expires_at?: string | null
+          final_question?: Json | null
+          final_review?: Json | null
+          id?: string
+          input?: Json
+          last_question?: Json | null
+          listboard_job_id?: string | null
+          listboard_job_item_id?: string | null
+          model_config?: Json
+          problem_type_id?: string | null
+          problem_type_name?: string | null
+          question_id?: string | null
+          redaction_flags?: Json
+          source: string
+          status: string
+          stop_reason?: string | null
+          truncated_flags?: Json
+          user_id?: string | null
+          workspace_subject?: string
+        }
+        Update: {
+          attempts?: Json
+          created_at?: string
+          credit_charged?: number
+          expires_at?: string | null
+          final_question?: Json | null
+          final_review?: Json | null
+          id?: string
+          input?: Json
+          last_question?: Json | null
+          listboard_job_id?: string | null
+          listboard_job_item_id?: string | null
+          model_config?: Json
+          problem_type_id?: string | null
+          problem_type_name?: string | null
+          question_id?: string | null
+          redaction_flags?: Json
+          source?: string
+          status?: string
+          stop_reason?: string | null
+          truncated_flags?: Json
+          user_id?: string | null
+          workspace_subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_question_generation_runs_listboard_job_id_fkey"
+            columns: ["listboard_job_id"]
+            isOneToOne: false
+            referencedRelation: "generate_listboard_generation_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_question_generation_runs_listboard_job_item_id_fkey"
+            columns: ["listboard_job_item_id"]
+            isOneToOne: false
+            referencedRelation: "generate_listboard_generation_job_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_question_generation_runs_problem_type_id_fkey"
+            columns: ["problem_type_id"]
+            isOneToOne: false
+            referencedRelation: "problem_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_question_generation_runs_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_question_generation_runs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_consumption: {
         Row: {
           amount: number
@@ -395,6 +506,7 @@ export type Database = {
           started_at: string | null
           status: string
           updated_at: string
+          workspace_subject: string
         }
         Insert: {
           attempt_count?: number
@@ -417,6 +529,7 @@ export type Database = {
           started_at?: string | null
           status?: string
           updated_at?: string
+          workspace_subject?: string
         }
         Update: {
           attempt_count?: number
@@ -439,6 +552,7 @@ export type Database = {
           started_at?: string | null
           status?: string
           updated_at?: string
+          workspace_subject?: string
         }
         Relationships: [
           {
@@ -499,6 +613,7 @@ export type Database = {
           status: string
           updated_at: string
           user_id: string
+          workspace_subject: string
         }
         Insert: {
           cancelled_count?: number
@@ -520,6 +635,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id: string
+          workspace_subject?: string
         }
         Update: {
           cancelled_count?: number
@@ -541,6 +657,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string
+          workspace_subject?: string
         }
         Relationships: [
           {

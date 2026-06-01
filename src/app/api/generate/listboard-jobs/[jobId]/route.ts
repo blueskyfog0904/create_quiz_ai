@@ -24,7 +24,7 @@ export async function GET(request: Request, { params }: RouteContext) {
 
   const { data: job, error: jobError } = await supabase
     .from('generate_listboard_generation_jobs')
-    .select('*')
+    .select('id,post_id,user_id,status,selected_problem_type_ids,requested_item_count,requested_type_count,requested_generation_count,completed_count,failed_count,cancelled_count,credit_reserved,credit_charged,started_at,finished_at,created_at,updated_at,workspace_subject')
     .eq('id', jobId)
     .eq('user_id', user.id)
     .eq('workspace_subject', workspaceSubject)
@@ -36,7 +36,7 @@ export async function GET(request: Request, { params }: RouteContext) {
 
   const { data: jobItems, error: jobItemsError } = await supabase
     .from('generate_listboard_generation_job_items')
-    .select('*')
+    .select('id,job_id,post_id,post_item_id,problem_type_id,status,question_id,error_code,error_message,credit_charged,attempt_count,started_at,finished_at,created_at,updated_at,generated_question,raw_ai_response,save_status,saved_at,save_error_message,workspace_subject')
     .eq('job_id', job.id)
     .eq('workspace_subject', workspaceSubject)
     .order('created_at')

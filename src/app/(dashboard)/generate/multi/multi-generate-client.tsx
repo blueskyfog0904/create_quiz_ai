@@ -31,6 +31,7 @@ interface MultiGenerateClientProps {
 interface GeneratedQuestionData {
   question: Question
   rawResponse: string
+  generationRunId?: string | null
   problemType: ProblemType
   tags: string[]
   rating: number
@@ -325,6 +326,7 @@ export default function MultiGenerateClient({ problemTypes, workspaceSubject, is
               passage,
               problemTypeId: typeId,
               workspaceSubject,
+              generationSource: 'multi',
             }),
             signal // Pass the abort signal
           })
@@ -346,6 +348,7 @@ export default function MultiGenerateClient({ problemTypes, workspaceSubject, is
             newMap.set(typeId, {
               question: data.data,
               rawResponse: data.rawAiResponse,
+              generationRunId: data.generationRunId,
               problemType: problemType!,
               tags: selectedPassage?.tags || [], // Inherit tags from passage
               rating: 0
@@ -466,6 +469,7 @@ export default function MultiGenerateClient({ problemTypes, workspaceSubject, is
           passage,
           problemTypeId: typeId,
           rawAiResponse: questionData.rawResponse,
+          generationRunId: questionData.generationRunId,
           passageId: selectedPassage?.id,
           workspaceSubject,
         })
@@ -528,6 +532,7 @@ export default function MultiGenerateClient({ problemTypes, workspaceSubject, is
               passage,
               problemTypeId: typeId,
               rawAiResponse: questionData.rawResponse,
+              generationRunId: questionData.generationRunId,
               passageId: selectedPassage?.id,
               tags: questionData.tags,    // Send tags
               rating: questionData.rating, // Send rating

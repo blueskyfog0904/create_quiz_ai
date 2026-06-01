@@ -10,6 +10,7 @@ import {
   buildQuestionGenerationConfigFromProblemType,
   runQuestionGenerationReviewLoop,
 } from '@/lib/ai/question-generation-workflow'
+import { logAiQuestionGenerationRun } from '@/lib/ai/question-generation-run-logs'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +21,7 @@ const GenerateRequestSchema = z.object({
   passage: z.string().max(3500, 'Passage must be under 3500 characters'),
   problemTypeId: z.string().uuid(),
   workspaceSubject: z.enum(['english', 'korean']).optional(),
+  generationSource: z.enum(['single', 'multi', 'textbook']).optional(),
   includeTrace: z.boolean().optional(),
   maxAttempts: z.number().int().min(1).max(5).optional(),
 })
@@ -152,6 +154,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { passage, problemTypeId } = validation.data
+    const generationSource = validation.data.generationSource || 'single'
     const workspaceSubject = resolveGenerateWorkspaceSubject({
       workspaceSubject: validation.data.workspaceSubject,
       referer: request.headers.get('referer'),
@@ -227,16 +230,54 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const loopResult = await runQuestionGenerationReviewLoop({
-      passage,
-      workspaceSubject,
-      promptBundle: generationConfig.promptBundle,
-      modelConfig: generationConfig.modelConfig,
-      maxAttempts: DEFAULT_MAX_REVIEW_ATTEMPTS,
-      includeTrace: false,
-      traceMode: 'none',
-      signal: request.signal,
-    })
+    let loopResult: Awaited<ReturnType<typeof runQuestionGenerationReviewLoop>>
+    try {
+      loopResult = await runQuestionGenerationReviewLoop({
+        passage,
+        workspaceSubject,
+        promptBundle: generationConfig.promptBundle,
+        modelConfig: generationConfig.modelConfig,
+        maxAttempts: DEFAULT_MAX_REVIEW_ATTEMPTS,
+        includeTrace: true,
+        traceMode: 'admin_full',
+        signal: request.signal,
+      })
+    } catch (error) {
+      const isCancelledError = isCancellationError(error, request.signal.aborted)
+      await logAiQuestionGenerationRun({
+        userId: user.id,
+        workspaceSubject,
+        source: generationSource,
+        problemTypeId,
+        problemTypeName: problemType.type_name,
+        status: isCancelledError ? 'cancelled' : 'generation_failed',
+        stopReason: getErrorMessage(error),
+        input: {
+          passageLength: passage.length,
+          problemTypeId,
+          generationSource,
+          workspaceSubject,
+        },
+        modelConfig: generationConfig.modelConfig,
+        finalQuestion: null,
+        lastQuestion: null,
+        finalReview: null,
+        attempts: [],
+        creditCharged: 0,
+      })
+      const snapshot = await getCurrentSnapshot()
+      return jsonWithBalanceSnapshot(
+        {
+          success: false,
+          error: {
+            code: isCancelledError ? 'GENERATION_CANCELLED' : 'AI_GENERATION_FAILED',
+            message: isCancelledError ? '문제 생성이 중단되었습니다.' : 'AI 문제 생성 중 오류가 발생했습니다.'
+          }
+        },
+        isCancelledError ? 408 : 500,
+        snapshot
+      )
+    }
 
     if (isCancelled()) {
       const currentBalance = await getCurrentBalance(user.id)
@@ -248,6 +289,27 @@ export async function POST(request: NextRequest) {
     }
 
     if (loopResult.status !== 'passed' || !loopResult.finalQuestion) {
+      await logAiQuestionGenerationRun({
+        userId: user.id,
+        workspaceSubject,
+        source: generationSource,
+        problemTypeId,
+        problemTypeName: problemType.type_name,
+        status: loopResult.status,
+        stopReason: loopResult.stopReason,
+        input: {
+          passageLength: passage.length,
+          problemTypeId,
+          generationSource,
+          workspaceSubject,
+        },
+        modelConfig: generationConfig.modelConfig,
+        finalQuestion: loopResult.finalQuestion ?? null,
+        lastQuestion: loopResult.lastQuestion ?? null,
+        finalReview: loopResult.finalReview ?? null,
+        attempts: loopResult.attempts,
+        creditCharged: 0,
+      })
       const snapshot = await getCurrentSnapshot()
       return jsonWithBalanceSnapshot(
         {
@@ -281,6 +343,7 @@ export async function POST(request: NextRequest) {
           snapshot
         )
       }
+
     } catch (error: unknown) {
       const snapshot = await getCurrentSnapshot()
       return jsonWithBalanceSnapshot(
@@ -296,6 +359,46 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    let generationRunId: string | null = null
+    try {
+      generationRunId = await logAiQuestionGenerationRun({
+        userId: user.id,
+        workspaceSubject,
+        source: generationSource,
+        problemTypeId,
+        problemTypeName: problemType.type_name,
+        status: loopResult.status,
+        stopReason: loopResult.stopReason,
+        input: {
+          passageLength: passage.length,
+          problemTypeId,
+          generationSource,
+          workspaceSubject,
+        },
+        modelConfig: generationConfig.modelConfig,
+        finalQuestion: loopResult.finalQuestion,
+        lastQuestion: loopResult.lastQuestion ?? null,
+        finalReview: loopResult.finalReview ?? null,
+        attempts: loopResult.attempts,
+        creditCharged: COST_PER_GENERATION,
+      })
+    } catch (error) {
+      await rollbackGenerationCredit()
+      const snapshot = await getCurrentSnapshot()
+      console.error('Failed to persist AI question generation run log:', error)
+      return jsonWithBalanceSnapshot(
+        {
+          success: false,
+          error: {
+            code: 'AI_GENERATION_LOG_FAILED',
+            message: 'AI 생성 로그 저장에 실패해 생성 결과를 완료할 수 없습니다.'
+          }
+        },
+        500,
+        snapshot
+      )
+    }
+
     const snapshot = await getCurrentSnapshot()
     return jsonWithBalanceSnapshot(
       {
@@ -305,6 +408,7 @@ export async function POST(request: NextRequest) {
         review: loopResult.finalReview,
         status: loopResult.status,
         stopReason: loopResult.stopReason,
+        generationRunId,
       },
       200,
       snapshot

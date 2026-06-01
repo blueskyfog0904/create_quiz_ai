@@ -66,15 +66,22 @@ test('admin sidebar includes AI API connection management near AI problem type s
   const defaultItems = DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG.items
   const problemTypeIndex = defaultItems.indexOf('/admin/problem-types')
   const connectionIndex = defaultItems.indexOf('/admin/ai-connections')
+  const generationRunsIndex = defaultItems.indexOf('/admin/ai-question-generation-runs')
   const items = resolveAdminSidebarMenuItems('english')
   const connectionItem = items.find((item) => item.href === '/admin/ai-connections')
+  const generationRunsItem = items.find((item) => item.href === '/admin/ai-question-generation-runs')
 
   assert.notEqual(problemTypeIndex, -1)
   assert.notEqual(connectionIndex, -1)
+  assert.notEqual(generationRunsIndex, -1)
   assert.equal(connectionIndex, problemTypeIndex + 1)
+  assert.equal(generationRunsIndex, connectionIndex + 1)
   assert.ok(connectionItem)
   assert.equal(connectionItem.name, 'AI API 연결 관리')
   assert.equal(connectionItem.icon, 'settings')
+  assert.ok(generationRunsItem)
+  assert.equal(generationRunsItem.name, 'AI 생성 로그')
+  assert.equal(generationRunsItem.icon, 'fileText')
 })
 
 test('resolveAdminSidebarNavigationNodes groups question bank admin services under one parent', () => {

@@ -32,6 +32,7 @@ interface GenerateClientProps {
 interface GeneratedQuestionData {
   question: Question
   rawResponse: string
+  generationRunId?: string | null
   problemType: ProblemType
   tags: string[]
   rating: number
@@ -234,6 +235,7 @@ export default function GenerateClient({ problemType, workspaceSubject, isLogged
       setGeneratedQuestion({
         question: data.data,
         rawResponse: data.rawAiResponse,
+        generationRunId: data.generationRunId,
         problemType: problemType,
         tags: selectedPassage?.tags || [],
         rating: 0
@@ -316,6 +318,7 @@ export default function GenerateClient({ problemType, workspaceSubject, isLogged
           passage,
           problemTypeId: problemType.id,
           rawAiResponse: generatedQuestion.rawResponse,
+          generationRunId: generatedQuestion.generationRunId,
           passageId: selectedPassage?.id,
           tags: generatedQuestion.tags,
           rating: generatedQuestion.rating,

@@ -27,11 +27,15 @@ test('review route is admin-only and does not trust client-supplied prompt field
   assert.doesNotMatch(reviewRouteSource, /reviewPrompt:\s*z\.string/)
 })
 
-test('public generate route never exposes full trace payloads', () => {
-  assert.match(generateRouteSource, /traceMode:\s*'none'/)
-  assert.match(generateRouteSource, /includeTrace:\s*false/)
-  assert.doesNotMatch(generateRouteSource, /attempts:\s*loopResult\.attempts/)
-  assert.doesNotMatch(generateRouteSource, /lastQuestion:\s*loopResult\.lastQuestion/)
+test('public generate route stores server-side trace logs without exposing full trace payloads', () => {
+  assert.match(generateRouteSource, /logAiQuestionGenerationRun/)
+  assert.match(generateRouteSource, /traceMode:\s*'admin_full'/)
+  assert.match(generateRouteSource, /includeTrace:\s*true/)
+  assert.match(generateRouteSource, /generationRunId/)
+  assert.match(generateRouteSource, /attempts:\s*loopResult\.attempts/)
+  assert.match(generateRouteSource, /lastQuestion:\s*loopResult\.lastQuestion/)
+  assert.doesNotMatch(generateRouteSource, /return jsonWithBalance(?:Snapshot)?\([\s\S]{0,500}attempts:\s*loopResult\.attempts/)
+  assert.doesNotMatch(generateRouteSource, /return jsonWithBalance(?:Snapshot)?\([\s\S]{0,500}lastQuestion:\s*loopResult\.lastQuestion/)
   assert.doesNotMatch(generateRouteSource, /success:\s*false,[\s\S]{0,240}review:\s*loopResult\.finalReview/)
   assert.doesNotMatch(generateRouteSource, /renderedReviewPrompt/)
   assert.doesNotMatch(generateRouteSource, /renderedGenerationPrompt/)
