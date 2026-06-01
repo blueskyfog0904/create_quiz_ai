@@ -23,6 +23,7 @@ const ProblemTypeSchema = z.object({
   prompt_template: z.string().min(10, "Prompt template is too short"),
   output_format: z.string().optional(),
   review_prompt_template: z.string().optional(),
+  review_output_format: z.string().optional(),
   is_active: z.boolean().optional()
 }).refine((data) => {
   const hasReviewProvider = Boolean(data.review_provider)
@@ -59,6 +60,7 @@ export async function createProblemType(_prevState: unknown, formData: FormData)
     prompt_template: formData.get('prompt_template'),
     output_format: formData.get('output_format'),
     review_prompt_template: formData.get('review_prompt_template'),
+    review_output_format: formData.get('review_output_format'),
     is_active: formData.get('is_active') === 'on'
   }
 
@@ -84,6 +86,7 @@ export async function createProblemType(_prevState: unknown, formData: FormData)
       prompt_template: validated.data.prompt_template,
       output_format: validated.data.output_format || null,
       review_prompt_template: validated.data.review_prompt_template || null,
+      review_output_format: validated.data.review_output_format || null,
       is_active: validated.data.is_active,
     })
 
@@ -109,6 +112,7 @@ export async function updateProblemType(id: string, _prevState: unknown, formDat
     prompt_template: formData.get('prompt_template'),
     output_format: formData.get('output_format'),
     review_prompt_template: formData.get('review_prompt_template'),
+    review_output_format: formData.get('review_output_format'),
     is_active: formData.get('is_active') === 'on'
   }
 
@@ -134,6 +138,7 @@ export async function updateProblemType(id: string, _prevState: unknown, formDat
       prompt_template: validated.data.prompt_template,
       output_format: validated.data.output_format || null,
       review_prompt_template: validated.data.review_prompt_template || null,
+      review_output_format: validated.data.review_output_format || null,
       is_active: validated.data.is_active,
     })
     .eq('id', id)

@@ -27,9 +27,9 @@ export const DEFAULT_REVIEW_PROMPT = `너는 영어 교육 평가 문항 검토�
 2. 선택지와 정답 형식이 응답 구조 프롬프트를 따르는가
 3. 해설이 정답을 설명하기에 충분한가
 4. 학년/난이도 조건에 맞는가
-5. JSON 필수 필드가 누락되지 않았는가
+5. 응답 구조 프롬프트에서 요구한 필수 항목이 누락되지 않았는가`
 
-반드시 다음 JSON 형식으로만 응답하세요.
+export const DEFAULT_REVIEW_RESPONSE_STRUCTURE_PROMPT = `반드시 다음 JSON 형식으로만 검토 결과를 반환하세요.
 {
   "passed": true,
   "feedback": "통과 또는 미통과 사유",
@@ -43,3 +43,42 @@ export const DEFAULT_REVIEW_PROMPT = `너는 영어 교육 평가 문항 검토�
   ],
   "score": 100
 }`
+
+const LEGACY_REVIEW_RESPONSE_STRUCTURE_MARKER = '반드시 다음 JSON 형식으로만 응답하세요.'
+
+export function splitReviewPromptTemplate(
+  reviewPromptTemplate?: string | null,
+  reviewOutputFormat?: string | null
+) {
+  const reviewPrompt = reviewPromptTemplate?.trim()
+  const reviewResponseStructurePrompt = reviewOutputFormat?.trim()
+
+  if (!reviewPrompt) {
+    return {
+      reviewPrompt: DEFAULT_REVIEW_PROMPT,
+      reviewResponseStructurePrompt: reviewResponseStructurePrompt || DEFAULT_REVIEW_RESPONSE_STRUCTURE_PROMPT,
+    }
+  }
+
+  if (reviewResponseStructurePrompt) {
+    return { reviewPrompt, reviewResponseStructurePrompt }
+  }
+
+  const markerIndex = reviewPrompt.indexOf(LEGACY_REVIEW_RESPONSE_STRUCTURE_MARKER)
+  if (markerIndex === -1) {
+    return {
+      reviewPrompt,
+      reviewResponseStructurePrompt: DEFAULT_REVIEW_RESPONSE_STRUCTURE_PROMPT,
+    }
+  }
+
+  const legacyResponseStructurePrompt = reviewPrompt
+    .slice(markerIndex)
+    .replace(LEGACY_REVIEW_RESPONSE_STRUCTURE_MARKER, '반드시 다음 JSON 형식으로만 검토 결과를 반환하세요.')
+    .trim()
+
+  return {
+    reviewPrompt: reviewPrompt.slice(0, markerIndex).trim(),
+    reviewResponseStructurePrompt: legacyResponseStructurePrompt || DEFAULT_REVIEW_RESPONSE_STRUCTURE_PROMPT,
+  }
+}

@@ -7,7 +7,10 @@ import {
   ReviewResult,
   ReviewResultSchema,
 } from './types'
-import { DEFAULT_RESPONSE_STRUCTURE_PROMPT, DEFAULT_REVIEW_PROMPT } from './question-prompts'
+import {
+  DEFAULT_RESPONSE_STRUCTURE_PROMPT,
+  splitReviewPromptTemplate,
+} from './question-prompts'
 
 export const DEFAULT_MAX_REVIEW_ATTEMPTS = 3
 export const MAX_ADMIN_REVIEW_ATTEMPTS = 5
@@ -28,6 +31,7 @@ export type QuestionPromptBundle = {
   generationPrompt: string
   responseStructurePrompt: string
   reviewPrompt: string
+  reviewResponseStructurePrompt: string
 }
 
 export type QuestionGenerationModelConfig = {
@@ -47,6 +51,7 @@ type ProblemTypePromptSource = {
   prompt_template: string
   output_format?: string | null
   review_prompt_template?: string | null
+  review_output_format?: string | null
   provider?: string | null
   model_name?: string | null
   generation_provider?: string | null
@@ -188,10 +193,13 @@ const pushLog = (
 }
 
 export function buildPromptBundleFromProblemType(problemType: ProblemTypePromptSource): QuestionPromptBundle {
+  const reviewPrompts = splitReviewPromptTemplate(problemType.review_prompt_template, problemType.review_output_format)
+
   return {
     generationPrompt: problemType.prompt_template,
     responseStructurePrompt: problemType.output_format?.trim() || DEFAULT_RESPONSE_STRUCTURE_PROMPT,
-    reviewPrompt: problemType.review_prompt_template?.trim() || DEFAULT_REVIEW_PROMPT,
+    reviewPrompt: reviewPrompts.reviewPrompt,
+    reviewResponseStructurePrompt: reviewPrompts.reviewResponseStructurePrompt,
   }
 }
 
@@ -348,20 +356,13 @@ ${input.passage}
 【생성된 문제】
 ${JSON.stringify(input.generatedQuestion, null, 2)}
 
-반드시 다음 JSON 형식으로만 검토 결과를 반환하세요.
-{
-  "passed": true,
-  "feedback": "통과 또는 미통과 사유",
-  "issues": [
-    {
-      "severity": "info",
-      "message": "검토 의견",
-      "field": "선택 필드명",
-      "suggestion": "선택 수정 제안"
-    }
-  ],
-  "score": 100
-}
+================================================================================
+📦 검토 후 응답 구조 프롬프트 시작
+================================================================================
+${input.promptBundle.reviewResponseStructurePrompt}
+================================================================================
+📦 검토 후 응답 구조 프롬프트 끝
+================================================================================
 `
 }
 
@@ -664,6 +665,8 @@ export async function runQuestionGenerationReviewLoop(
         payload: {
           generationPrompt: input.promptBundle.generationPrompt,
           responseStructurePrompt: input.promptBundle.responseStructurePrompt,
+          reviewPrompt: input.promptBundle.reviewPrompt,
+          reviewResponseStructurePrompt: input.promptBundle.reviewResponseStructurePrompt,
           generatedQuestion: generation.data,
         },
         rawText: reviewPrompt,

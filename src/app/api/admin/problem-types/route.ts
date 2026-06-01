@@ -57,6 +57,7 @@ const problemTypeSchema = z.object({
   review_model_name: z.string().nullable().optional(),
   output_format: z.string().optional(),
   review_prompt_template: z.string().optional(),
+  review_output_format: z.string().optional(),
   is_active: z.boolean().optional(),
 }).refine((data) => {
   const generationProvider = data.generation_provider || (data.provider !== 'admin' ? data.provider : undefined)
@@ -139,6 +140,7 @@ export async function POST(request: Request) {
       prompt_template: generationProvider ? validatedData.prompt_template! : 'N/A (Admin uploaded)',
       output_format: generationProvider ? (validatedData.output_format || null) : null,
       review_prompt_template: generationProvider ? (validatedData.review_prompt_template || null) : null,
+      review_output_format: generationProvider ? (validatedData.review_output_format || null) : null,
     }
     
     const { data: problemType, error } = await supabase

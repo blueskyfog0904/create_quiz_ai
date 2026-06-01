@@ -1830,6 +1830,7 @@ export type Database = {
           prompt_template: string
           provider: string
           review_model_name: string | null
+          review_output_format: string | null
           review_provider: string | null
           review_prompt_template: string | null
           type_name: string
@@ -1848,6 +1849,7 @@ export type Database = {
           prompt_template: string
           provider: string
           review_model_name?: string | null
+          review_output_format?: string | null
           review_provider?: string | null
           review_prompt_template?: string | null
           type_name: string
@@ -1866,6 +1868,7 @@ export type Database = {
           prompt_template?: string
           provider?: string
           review_model_name?: string | null
+          review_output_format?: string | null
           review_provider?: string | null
           review_prompt_template?: string | null
           type_name?: string

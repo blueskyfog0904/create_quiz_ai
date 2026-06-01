@@ -24,7 +24,10 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { ArrowLeft, Save, FileJson, Copy, Check } from 'lucide-react'
 import { Database } from '@/types/supabase'
-import { DEFAULT_RESPONSE_STRUCTURE_PROMPT, DEFAULT_REVIEW_PROMPT } from '@/lib/ai/question-prompts'
+import {
+  DEFAULT_RESPONSE_STRUCTURE_PROMPT,
+  splitReviewPromptTemplate,
+} from '@/lib/ai/question-prompts'
 
 const RESPONSE_STRUCTURE_EXAMPLE = `다음은 문제 생성 API 응답에서 반환해야 하는 JSON 구조입니다.
 이 형식에 맞게 응답해주세요.
@@ -100,6 +103,7 @@ interface ProblemTypeFormClientProps {
 
 export default function ProblemTypeFormClient({ problemType, workspaceSubject }: ProblemTypeFormClientProps) {
   const router = useRouter()
+  const reviewPrompts = splitReviewPromptTemplate(problemType.review_prompt_template, problemType.review_output_format)
   const [saving, setSaving] = useState(false)
   const [generationProvider, setGenerationProvider] = useState(problemType.generation_provider || problemType.provider || 'openai')
   const [generationModelName, setGenerationModelName] = useState(problemType.generation_model_name || problemType.model_name || 'gpt-4o')
@@ -302,7 +306,17 @@ export default function ProblemTypeFormClient({ problemType, workspaceSubject }:
                 id="review_prompt_template"
                 name="review_prompt_template"
                 className="font-mono text-sm min-h-[180px]"
-                defaultValue={problemType.review_prompt_template || DEFAULT_REVIEW_PROMPT}
+                defaultValue={reviewPrompts.reviewPrompt}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="review_output_format">검토 후 응답 구조 프롬프트</Label>
+              <Textarea
+                id="review_output_format"
+                name="review_output_format"
+                className="font-mono text-sm min-h-[180px]"
+                defaultValue={reviewPrompts.reviewResponseStructurePrompt}
               />
             </div>
 

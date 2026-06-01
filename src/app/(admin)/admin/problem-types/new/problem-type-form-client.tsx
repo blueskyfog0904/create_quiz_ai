@@ -23,7 +23,11 @@ import { ProviderSelector } from '@/components/admin/provider-selector'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { ArrowLeft, Save, FileJson, Copy, Check } from 'lucide-react'
-import { DEFAULT_RESPONSE_STRUCTURE_PROMPT, DEFAULT_REVIEW_PROMPT } from '@/lib/ai/question-prompts'
+import {
+  DEFAULT_RESPONSE_STRUCTURE_PROMPT,
+  DEFAULT_REVIEW_PROMPT,
+  DEFAULT_REVIEW_RESPONSE_STRUCTURE_PROMPT,
+} from '@/lib/ai/question-prompts'
 
 const RESPONSE_STRUCTURE_EXAMPLE = `다음은 문제 생성 API 응답에서 반환해야 하는 JSON 구조입니다.
 이 형식에 맞게 응답해주세요.
@@ -299,6 +303,16 @@ export default function ProblemTypeFormClient({ workspaceSubject }: ProblemTypeF
                 name="review_prompt_template"
                 className="font-mono text-sm min-h-[180px]"
                 defaultValue={DEFAULT_REVIEW_PROMPT}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="review_output_format">검토 후 응답 구조 프롬프트</Label>
+              <Textarea
+                id="review_output_format"
+                name="review_output_format"
+                className="font-mono text-sm min-h-[180px]"
+                defaultValue={DEFAULT_REVIEW_RESPONSE_STRUCTURE_PROMPT}
               />
             </div>
 
