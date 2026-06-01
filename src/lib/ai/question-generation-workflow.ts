@@ -57,6 +57,12 @@ type ProblemTypePromptSource = {
 
 type TraceMode = 'none' | 'admin_full'
 type JsonRecord = Record<string, unknown>
+type ReviewFeedbackPayload = {
+  passed: boolean
+  feedback: string
+  issues: ReviewResult['issues']
+  score?: number
+}
 
 export type RunQuestionGenerationReviewLoopInput = {
   passage: string
@@ -281,7 +287,7 @@ export function buildQuestionRegenerationPrompt(input: {
   difficulty: string
   workspaceSubject: 'english' | 'korean'
   previousQuestion: Question
-  feedback: string
+  reviewFeedbackPayload: ReviewFeedbackPayload
 }) {
   return `
 ${buildQuestionGenerationPrompt(input)}
@@ -297,12 +303,13 @@ ${JSON.stringify(input.previousQuestion, null, 2)}
 ================================================================================
 🧭 검토 피드백 시작
 ================================================================================
-${input.feedback}
+${JSON.stringify(input.reviewFeedbackPayload, null, 2)}
 ================================================================================
 🧭 검토 피드백 끝
 ================================================================================
 
-검토 피드백을 반영하되, 지문과 원래 문제 생성 조건을 벗어나지 말고 같은 JSON 구조로 새 문제를 다시 생성하세요.
+위 검토 결과의 feedback + issues 전체 값을 모두 반영하되, 지문과 원래 문제 생성 조건을 벗어나지 말고 같은 JSON 구조로 새 문제를 다시 생성하세요.
+issues 배열의 field, message, suggestion을 누락하지 말고 각각의 지적 사항을 해결하세요.
 `
 }
 
@@ -499,7 +506,7 @@ export async function runQuestionGenerationReviewLoop(
   const loopDeadlineAt = Date.now() + DEFAULT_LOOP_TIMEOUT_MS
   const attempts: QuestionGenerationAttemptLog[] = []
   let previousQuestion: Question | undefined
-  let feedback: string | undefined
+  let reviewFeedbackPayload: ReviewFeedbackPayload | undefined
   let rawGenerationResponse: string | undefined
   let rawReviewResponse: string | undefined
   let finalReview: ReviewResult | undefined
@@ -534,7 +541,7 @@ export async function runQuestionGenerationReviewLoop(
     const startedAt = Date.now()
     const phase = attemptNo === 1 ? 'generation' : 'regeneration'
     const event = attemptNo === 1 ? 'generation_request_prompt' : 'regeneration_request_prompt'
-    const prompt = previousQuestion && feedback !== undefined
+    const prompt = previousQuestion && reviewFeedbackPayload !== undefined
       ? buildQuestionRegenerationPrompt({
         promptBundle: input.promptBundle,
         passage: input.passage,
@@ -542,7 +549,7 @@ export async function runQuestionGenerationReviewLoop(
         difficulty: input.difficulty,
         workspaceSubject: input.workspaceSubject,
         previousQuestion,
-        feedback,
+        reviewFeedbackPayload,
       })
       : buildQuestionGenerationPrompt(input)
 
@@ -755,7 +762,12 @@ export async function runQuestionGenerationReviewLoop(
       }
     }
 
-    feedback = reviewResult.review.feedback.trim() || FALLBACK_REVIEW_FEEDBACK
+    reviewFeedbackPayload = {
+      passed: reviewResult.review.passed,
+      feedback: reviewResult.review.feedback.trim() || FALLBACK_REVIEW_FEEDBACK,
+      issues: reviewResult.review.issues,
+      score: reviewResult.review.score,
+    }
 
     if (includeTrace) {
       pushLog(attempts, {
@@ -766,7 +778,10 @@ export async function runQuestionGenerationReviewLoop(
         status: 'success',
         payload: {
           previousQuestion: generation.data,
-          feedback,
+          feedback: reviewFeedbackPayload.feedback,
+          issues: reviewResult.review.issues,
+          score: reviewResult.review.score,
+          fullReview: reviewResult.review,
         },
       })
     }

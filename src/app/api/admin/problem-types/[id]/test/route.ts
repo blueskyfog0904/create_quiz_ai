@@ -7,6 +7,7 @@ import {
   runQuestionGenerationReviewLoop,
 } from '@/lib/ai/question-generation-workflow'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import type { Json } from '@/types/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +23,10 @@ const TestRequestSchema = z.object({
 interface RouteContext {
   params: Promise<{ id: string }>
 }
+
+const toJson = (value: unknown): Json => (
+  value === undefined ? null : JSON.parse(JSON.stringify(value))
+)
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
@@ -85,9 +90,59 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     signal: request.signal,
   })
 
+  const { data: testRun, error: testRunError } = await supabase
+    .from('problem_type_test_runs')
+    .insert({
+      problem_type_id: id,
+      user_id: user.id,
+      workspace_subject: workspaceSubject,
+      status: loopResult.status,
+      stop_reason: loopResult.stopReason,
+      input: toJson({
+        passage: validation.data.passage,
+        passageId: validation.data.passageId,
+        gradeLevel: validation.data.gradeLevel,
+        difficulty: validation.data.difficulty,
+        maxAttempts: validation.data.maxAttempts,
+        workspaceSubject,
+      }),
+      model_config: toJson(generationConfig.modelConfig),
+      final_question: toJson(loopResult.finalQuestion),
+      last_question: toJson(loopResult.lastQuestion),
+      final_review: toJson(loopResult.finalReview),
+      attempts: toJson(loopResult.attempts),
+      raw_generation_response: loopResult.rawGenerationResponse,
+      raw_review_response: loopResult.rawReviewResponse,
+    })
+    .select('id')
+    .single()
+
+  if (testRunError || !testRun) {
+    return NextResponse.json({
+      success: false,
+      status: loopResult.status,
+      finalQuestion: loopResult.finalQuestion,
+      lastQuestion: loopResult.lastQuestion,
+      finalReview: loopResult.finalReview,
+      attempts: loopResult.attempts,
+      stopReason: loopResult.stopReason,
+      error: {
+        code: 'TEST_LOG_SAVE_FAILED',
+        message: testRunError?.message || '테스트 로그 저장에 실패했습니다.',
+      },
+    }, { status: 500 })
+  }
+
+  const testRunId = testRun.id
+  const logLocation = `/api/admin/problem-types/${id}/test-runs/${testRunId}`
+  const logDownloadUrl = `/api/admin/problem-types/${id}/test-runs/${testRunId}/download`
+
   return NextResponse.json({
     success: loopResult.status === 'passed',
     status: loopResult.status,
+    testRunId,
+    logLocation,
+    logDownloadUrl,
     finalQuestion: loopResult.finalQuestion,
     lastQuestion: loopResult.lastQuestion,
     finalReview: loopResult.finalReview,

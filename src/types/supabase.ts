@@ -1874,6 +1874,75 @@ export type Database = {
         }
         Relationships: []
       }
+      problem_type_test_runs: {
+        Row: {
+          attempts: Json
+          created_at: string
+          final_question: Json | null
+          final_review: Json | null
+          id: string
+          input: Json
+          last_question: Json | null
+          model_config: Json
+          problem_type_id: string
+          raw_generation_response: string | null
+          raw_review_response: string | null
+          status: string
+          stop_reason: string | null
+          user_id: string
+          workspace_subject: string
+        }
+        Insert: {
+          attempts?: Json
+          created_at?: string
+          final_question?: Json | null
+          final_review?: Json | null
+          id?: string
+          input?: Json
+          last_question?: Json | null
+          model_config?: Json
+          problem_type_id: string
+          raw_generation_response?: string | null
+          raw_review_response?: string | null
+          status: string
+          stop_reason?: string | null
+          user_id: string
+          workspace_subject?: string
+        }
+        Update: {
+          attempts?: Json
+          created_at?: string
+          final_question?: Json | null
+          final_review?: Json | null
+          id?: string
+          input?: Json
+          last_question?: Json | null
+          model_config?: Json
+          problem_type_id?: string
+          raw_generation_response?: string | null
+          raw_review_response?: string | null
+          status?: string
+          stop_reason?: string | null
+          user_id?: string
+          workspace_subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "problem_type_test_runs_problem_type_id_fkey"
+            columns: ["problem_type_id"]
+            isOneToOne: false
+            referencedRelation: "problem_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "problem_type_test_runs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           address: string | null

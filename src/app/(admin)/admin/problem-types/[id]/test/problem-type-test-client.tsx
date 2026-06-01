@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Loader2, Play } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, Play } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,12 +36,25 @@ type ProblemType = Database['public']['Tables']['problem_types']['Row']
 type TestResponse = {
   success: boolean
   status: string
+  testRunId?: string
+  logLocation?: string
+  logDownloadUrl?: string
   finalQuestion?: Question
   lastQuestion?: Question
   finalReview?: ReviewResult
   attempts?: QuestionGenerationAttemptLog[]
   stopReason?: string
   error?: { message?: string }
+}
+
+type TestRunSummary = {
+  id: string
+  status: string
+  stopReason?: string | null
+  attemptCount: number
+  createdAt: string
+  logLocation: string
+  downloadUrl: string
 }
 
 interface ProblemTypeTestClientProps {
@@ -57,6 +70,7 @@ export default function ProblemTypeTestClient({ problemType, workspaceSubject }:
   const [selectorOpen, setSelectorOpen] = useState(false)
   const [testing, setTesting] = useState(false)
   const [result, setResult] = useState<TestResponse | null>(null)
+  const [recentRuns, setRecentRuns] = useState<TestRunSummary[]>([])
 
   const groupedLogs = useMemo(() => {
     const logs = result?.attempts ?? []
@@ -71,6 +85,18 @@ export default function ProblemTypeTestClient({ problemType, workspaceSubject }:
     setPassage(selectedPassage.content || '')
     toast.success('기존 등록 지문을 불러왔습니다')
   }
+
+  const loadRecentRuns = useCallback(async () => {
+    const response = await fetch(`/api/admin/problem-types/${problemType.id}/test-runs`)
+    if (!response.ok) return
+
+    const data = await response.json()
+    setRecentRuns(Array.isArray(data.runs) ? data.runs : [])
+  }, [problemType.id])
+
+  useEffect(() => {
+    void loadRecentRuns()
+  }, [loadRecentRuns])
 
   const handleRunTest = async () => {
     if (!passage.trim()) {
@@ -99,6 +125,7 @@ export default function ProblemTypeTestClient({ problemType, workspaceSubject }:
       }
 
       setResult(data)
+      void loadRecentRuns()
       if (data.success) {
         toast.success('문제 생성-검토 루프가 통과되었습니다')
       } else {
@@ -206,6 +233,32 @@ export default function ProblemTypeTestClient({ problemType, workspaceSubject }:
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {result.testRunId && (
+              <div className="rounded border bg-muted/20 p-4 text-sm">
+                <p className="font-medium">로그 저장 위치</p>
+                <p className="mt-1 text-muted-foreground">로그 ID: {result.testRunId}</p>
+                {result.logLocation && (
+                  <p className="mt-1 break-all text-muted-foreground">상세 위치: {result.logLocation}</p>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {result.logLocation && (
+                    <Button asChild variant="outline" size="sm">
+                      <a href={result.logLocation} target="_blank" rel="noreferrer">
+                        상세 JSON 보기
+                      </a>
+                    </Button>
+                  )}
+                  {result.logDownloadUrl && (
+                    <Button asChild variant="outline" size="sm">
+                      <a href={result.logDownloadUrl} download>
+                        <Download className="mr-2 h-4 w-4" />
+                        JSON 다운로드
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
             {result.finalReview && (
               <div className="rounded border p-4 text-sm">
                 <p className="font-medium">검토 결과: {result.finalReview.passed ? '통과' : '미통과'}</p>
@@ -254,6 +307,43 @@ export default function ProblemTypeTestClient({ problemType, workspaceSubject }:
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>최근 테스트 로그</CardTitle>
+          <CardDescription>저장된 문제 생성 테스트 로그 위치를 확인하고 JSON으로 다운로드합니다.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {recentRuns.length === 0 ? (
+            <p className="text-sm text-muted-foreground">저장된 테스트 로그가 없습니다.</p>
+          ) : (
+            <div className="space-y-2">
+              {recentRuns.map((run) => (
+                <div key={run.id} className="flex flex-col gap-3 rounded border p-3 text-sm md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="font-medium">{new Date(run.createdAt).toLocaleString('ko-KR')} · {run.status}</p>
+                    <p className="text-muted-foreground">
+                      로그 ID: {run.id} · 반복 기록 {run.attemptCount}개 · 중단 사유: {run.stopReason || '-'}
+                    </p>
+                    <p className="break-all text-muted-foreground">위치: {run.logLocation}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button asChild variant="outline" size="sm">
+                      <a href={run.logLocation} target="_blank" rel="noreferrer">상세 JSON 보기</a>
+                    </Button>
+                    <Button asChild variant="outline" size="sm">
+                      <a href={run.downloadUrl} download>
+                        <Download className="mr-2 h-4 w-4" />
+                        JSON 다운로드
+                      </a>
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <PassageSelectorModal
         open={selectorOpen}

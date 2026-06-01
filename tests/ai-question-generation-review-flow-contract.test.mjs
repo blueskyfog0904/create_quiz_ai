@@ -36,7 +36,7 @@ test('review loop parses review booleans strictly and regenerates with empty fee
   const workflowSource = readSource(workflowPath)
   assert.match(workflowSource, /normalizeReviewPassed/)
   assert.doesNotMatch(workflowSource, /Boolean\(candidate\.passed/)
-  assert.match(workflowSource, /feedback\s*!==\s*undefined/)
+  assert.match(workflowSource, /reviewFeedbackPayload\s*!==\s*undefined/)
   assert.match(workflowSource, /미통과.*피드백/)
 })
 
