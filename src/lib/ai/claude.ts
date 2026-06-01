@@ -51,7 +51,6 @@ export class ClaudeAdapter implements AIAdapter {
         body: JSON.stringify({
           model: params.modelName,
           max_tokens: params.maxTokens ?? 1500,
-          temperature: params.temperature ?? 0.2,
           messages: [
             {
               role: 'user',
@@ -97,10 +96,7 @@ export class ClaudeAdapter implements AIAdapter {
   }
 
   async generate(params: GenerateParams): Promise<AIResponse> {
-    const rawResult = await this.generateRaw({
-      ...params,
-      temperature: params.temperature ?? 0.7,
-    })
+    const rawResult = await this.generateRaw(params)
 
     if (!rawResult.success || !rawResult.rawResponse) {
       return rawResult
