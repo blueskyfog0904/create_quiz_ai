@@ -1,6 +1,18 @@
 import OpenAI from 'openai'
-import { AIAdapter, AIResponse, GenerateParams, QuestionSchema } from './types'
+import { AIAdapter, AIResponse, AITextResponse, GenerateParams, QuestionSchema } from './types'
 import { normalizeQuestionTextBackward } from '../questions/normalize-question-field'
+
+function isAbortError(error: unknown) {
+  return (
+    (error instanceof DOMException && error.name === 'AbortError') ||
+    (error instanceof Error && error.name === 'AbortError') ||
+    (error instanceof Error && error.message === 'Generation cancelled')
+  )
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback
+}
 
 export class OpenAIAdapter implements AIAdapter {
   private client: OpenAI | null = null
@@ -11,6 +23,51 @@ export class OpenAIAdapter implements AIAdapter {
       this.client = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
       })
+    }
+  }
+
+  async generateRaw(params: GenerateParams): Promise<AITextResponse> {
+    if (!this.client) {
+      return {
+        success: false,
+        error: 'OpenAI API key is not configured. Please use Gemini provider instead.'
+      }
+    }
+
+    try {
+      const response = await this.client.chat.completions.create({
+        model: params.modelName,
+        messages: [
+          { role: 'system', content: 'You are a helpful assistant that returns strictly valid JSON.' },
+          { role: 'user', content: params.prompt }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: params.temperature ?? 0.2,
+        max_tokens: params.maxTokens ?? 1500,
+      }, {
+        signal: params.signal
+      })
+
+      const rawContent = response.choices[0].message.content
+
+      if (!rawContent) {
+        return { success: false, error: 'No content returned from OpenAI' }
+      }
+
+      return {
+        success: true,
+        rawResponse: rawContent
+      }
+    } catch (error: unknown) {
+      if (isAbortError(error)) {
+        throw error
+      }
+
+      console.error('OpenAI API Error:', error)
+      return {
+        success: false,
+        error: getErrorMessage(error, 'Unknown OpenAI error')
+      }
     }
   }
 
@@ -46,7 +103,7 @@ export class OpenAIAdapter implements AIAdapter {
       let parsedJson
       try {
         parsedJson = JSON.parse(rawContent)
-      } catch (e) {
+      } catch {
         return { success: false, rawResponse: rawContent, error: 'Failed to parse JSON response' }
       }
 
@@ -81,20 +138,15 @@ export class OpenAIAdapter implements AIAdapter {
         rawResponse: rawContent
       }
 
-    } catch (error: any) {
-      const isAbortError =
-        (error instanceof DOMException && error.name === 'AbortError') ||
-        (error instanceof Error && error.name === 'AbortError') ||
-        (error instanceof Error && error.message === 'Generation cancelled')
-
-      if (isAbortError) {
+    } catch (error: unknown) {
+      if (isAbortError(error)) {
         throw error
       }
 
       console.error('OpenAI API Error:', error)
       return {
         success: false,
-        error: error.message || 'Unknown OpenAI error'
+        error: getErrorMessage(error, 'Unknown OpenAI error')
       }
     }
   }

@@ -13,6 +13,8 @@ const ProblemTypeSchema = z.object({
   provider: z.enum(['openai', 'gemini']),
   model_name: z.string().min(1, "Model name is required"),
   prompt_template: z.string().min(10, "Prompt template is too short"),
+  output_format: z.string().optional(),
+  review_prompt_template: z.string().optional(),
   is_active: z.boolean().optional()
 })
 
@@ -38,6 +40,8 @@ export async function createProblemType(_prevState: unknown, formData: FormData)
     provider: formData.get('provider'),
     model_name: formData.get('model_name'),
     prompt_template: formData.get('prompt_template'),
+    output_format: formData.get('output_format'),
+    review_prompt_template: formData.get('review_prompt_template'),
     is_active: formData.get('is_active') === 'on'
   }
 
@@ -72,6 +76,8 @@ export async function updateProblemType(id: string, _prevState: unknown, formDat
     provider: formData.get('provider'),
     model_name: formData.get('model_name'),
     prompt_template: formData.get('prompt_template'),
+    output_format: formData.get('output_format'),
+    review_prompt_template: formData.get('review_prompt_template'),
     is_active: formData.get('is_active') === 'on'
   }
 

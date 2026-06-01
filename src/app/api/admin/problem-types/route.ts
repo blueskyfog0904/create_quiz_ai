@@ -52,6 +52,7 @@ const problemTypeSchema = z.object({
   provider: z.enum(['gemini', 'openai', 'admin'], { message: 'Provider must be gemini, openai, or admin' }),
   model_name: z.string().optional(),
   output_format: z.string().optional(),
+  review_prompt_template: z.string().optional(),
   is_active: z.boolean().optional(),
 }).refine((data) => {
   // If provider is not 'admin', require prompt_template and model_name
@@ -104,6 +105,7 @@ export async function POST(request: Request) {
       model_name: validatedData.provider !== 'admin' ? validatedData.model_name! : 'admin',
       prompt_template: validatedData.provider !== 'admin' ? validatedData.prompt_template! : 'N/A (Admin uploaded)',
       output_format: validatedData.provider !== 'admin' ? (validatedData.output_format || null) : null,
+      review_prompt_template: validatedData.provider !== 'admin' ? (validatedData.review_prompt_template || null) : null,
     }
     
     const { data: problemType, error } = await supabase

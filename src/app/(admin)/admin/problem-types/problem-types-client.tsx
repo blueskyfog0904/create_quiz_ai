@@ -102,6 +102,10 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
     router.push(withAdminWorkspaceSubject(`/admin/problem-types/${id}/edit`, workspaceSubject))
   }
 
+  const handleTest = (id: string) => {
+    router.push(withAdminWorkspaceSubject(`/admin/problem-types/${id}/test`, workspaceSubject))
+  }
+
   const handleOpenBulkDialog = () => {
     if (aiTypeCount === 0) {
       toast.error('변경할 AI 문제 유형이 없습니다')
@@ -270,6 +274,7 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
             <CardContent>
               <p className="text-sm text-gray-500 line-clamp-2 mb-4">{type.description}</p>
               <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleTest(type.id)}>테스트</Button>
                 <Button variant="outline" size="sm" onClick={() => handleEdit(type.id)}>수정</Button>
                 <Button variant="destructive" size="sm" onClick={() => handleDelete(type.id)}>삭제</Button>
               </div>

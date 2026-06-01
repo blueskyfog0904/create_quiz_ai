@@ -6,6 +6,11 @@ import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 const updateProblemTypeSchema = z.object({
   type_name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
+  prompt_template: z.string().optional(),
+  provider: z.enum(['gemini', 'openai', 'admin']).optional(),
+  model_name: z.string().optional(),
+  output_format: z.string().nullable().optional(),
+  review_prompt_template: z.string().nullable().optional(),
   is_active: z.boolean().optional(),
 })
 
@@ -90,6 +95,21 @@ export async function PATCH(
     }
     if (validatedData.description !== undefined) {
       updateData.description = validatedData.description
+    }
+    if (validatedData.prompt_template !== undefined) {
+      updateData.prompt_template = validatedData.prompt_template
+    }
+    if (validatedData.provider !== undefined) {
+      updateData.provider = validatedData.provider
+    }
+    if (validatedData.model_name !== undefined) {
+      updateData.model_name = validatedData.model_name
+    }
+    if (validatedData.output_format !== undefined) {
+      updateData.output_format = validatedData.output_format
+    }
+    if (validatedData.review_prompt_template !== undefined) {
+      updateData.review_prompt_template = validatedData.review_prompt_template
     }
     if (validatedData.is_active !== undefined) {
       updateData.is_active = validatedData.is_active
@@ -178,5 +198,4 @@ export async function DELETE(
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-
 

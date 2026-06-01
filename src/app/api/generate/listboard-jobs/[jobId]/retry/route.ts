@@ -2,63 +2,23 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { CreditService } from '@/lib/credits'
-import { AIGenerationService } from '@/lib/ai'
-import type { AIProvider } from '@/lib/ai/types'
 import { stagedGeneratedQuestionToJson } from '@/lib/questions/generated-question-staging'
 import { resolveGenerateWorkspaceSubject } from '@/app/(dashboard)/generate/workspace-subject'
 import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot } from '@/lib/credit-balance'
+import type { AIProvider } from '@/lib/ai/types'
+import {
+  buildPromptBundleFromProblemType,
+  getLoopFailureCode,
+  runQuestionGenerationReviewLoop,
+} from '@/lib/ai/question-generation-workflow'
 
 export const dynamic = 'force-dynamic'
 
 const COST_PER_GENERATION = 100
+const REVIEW_LOOP_FAILURE_CODES = ['MAX_ATTEMPTS_REACHED', 'REVIEW_FAILED', 'GENERATION_FAILED', 'GENERATION_TIMEOUT'] as const
 
-const getGradeLevelKorean = (grade: string): string => {
-  const gradeMap: Record<string, string> = {
-    '1학년': '고등학교 1학년',
-    '고1': '고등학교 1학년',
-    'High1': '고등학교 1학년',
-    '2학년': '고등학교 2학년',
-    '고2': '고등학교 2학년',
-    'High2': '고등학교 2학년',
-    '3학년': '고등학교 3학년',
-    '고3': '고등학교 3학년',
-    'High3': '고등학교 3학년',
-  }
-  return gradeMap[grade] ?? grade
-}
-
-const getDifficultyKorean = (difficulty: string): string => {
-  const diffMap: Record<string, string> = {
-    Low: '하',
-    Medium: '중',
-    High: '상',
-    하: '하',
-    중: '중',
-    상: '상',
-  }
-  return diffMap[difficulty] ?? difficulty
-}
-
-const buildPrompt = (promptTemplate: string, passage: string, gradeLevel: string, difficulty: string) => `
-================================================================================
-📝 PROMPT TEMPLATE 시작
-================================================================================
-
-${promptTemplate}
-
-================================================================================
-📝 PROMPT TEMPLATE 끝
-================================================================================
-
-위 PROMPT TEMPLATE 규칙을 적용해서 아래에 입력된 지문에 대한 문제, 보기, 답안, 해설을 만들어줘.
-
-【문제 생성 조건】
-- 학년의 난이도는 대한민국의 ${getGradeLevelKorean(gradeLevel)} 수준이야.
-- 문제의 난이도는 위에서 설정한 학년의 수준에서 상, 중, 하 중 ${getDifficultyKorean(difficulty)}의 난이도로 설정해줘.
-
-【지문】
-${passage}
-`
+const isReviewLoopFailureCode = (code: unknown): code is typeof REVIEW_LOOP_FAILURE_CODES[number] =>
+  typeof code === 'string' && (REVIEW_LOOP_FAILURE_CODES as readonly string[]).includes(code)
 
 const getRefundConsumptions = (
   consumptions: Array<{ sourceId: string; amount: number }>,
@@ -357,24 +317,31 @@ export async function POST(request: Request, { params }: RouteContext) {
       .eq('workspace_subject', workspaceSubject)
 
     try {
-      const result = await AIGenerationService.generate({
+      const loopResult = await runQuestionGenerationReviewLoop({
+        passage: postItem.passage_text,
+        gradeLevel,
+        difficulty,
+        workspaceSubject,
+        promptBundle: buildPromptBundleFromProblemType(problemType),
         provider: problemType.provider as AIProvider,
         modelName: problemType.model_name,
-        prompt: buildPrompt(problemType.prompt_template, postItem.passage_text, gradeLevel, difficulty),
-        maxTokens: 16000,
-        temperature: 0.7,
+        includeTrace: false,
+        traceMode: 'none',
       })
 
-      if (!result.success || !result.data) {
-        throw new Error(result.error || 'AI 문제 생성에 실패했습니다.')
+      if (loopResult.status !== 'passed' || !loopResult.finalQuestion) {
+        throw Object.assign(
+          new Error(loopResult.stopReason || 'AI 문제 생성 검토에 실패했습니다.'),
+          { code: getLoopFailureCode(loopResult.status) }
+        )
       }
 
       const { error: completeUpdateError } = await adminSupabase
         .from('generate_listboard_generation_job_items')
         .update({
           status: 'completed',
-          generated_question: stagedGeneratedQuestionToJson(result.data),
-          raw_ai_response: result.rawResponse ?? null,
+          generated_question: stagedGeneratedQuestionToJson(loopResult.finalQuestion),
+          raw_ai_response: loopResult.rawGenerationResponse ?? null,
           question_id: null,
           save_status: 'unsaved',
           saved_at: null,
@@ -403,7 +370,9 @@ export async function POST(request: Request, { params }: RouteContext) {
           save_status: 'unsaved',
           saved_at: null,
           save_error_message: null,
-          error_code: 'GENERATION_FAILED',
+          error_code: error && typeof error === 'object' && 'code' in error && isReviewLoopFailureCode(error.code)
+            ? error.code
+            : 'GENERATION_FAILED',
           error_message: error instanceof Error ? error.message : 'AI 문제 생성 중 오류가 발생했습니다.',
           finished_at: new Date().toISOString(),
         })

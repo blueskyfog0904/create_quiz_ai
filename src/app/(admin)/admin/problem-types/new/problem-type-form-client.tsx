@@ -23,6 +23,7 @@ import { ProviderSelector } from '@/components/admin/provider-selector'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { ArrowLeft, Save, FileJson, Copy, Check } from 'lucide-react'
+import { DEFAULT_RESPONSE_STRUCTURE_PROMPT, DEFAULT_REVIEW_PROMPT } from '@/lib/ai/question-prompts'
 
 const RESPONSE_STRUCTURE_EXAMPLE = `다음은 문제 생성 API 응답에서 반환해야 하는 JSON 구조입니다.
 이 형식에 맞게 응답해주세요.
@@ -224,7 +225,7 @@ export default function ProblemTypeFormClient({ workspaceSubject }: ProblemTypeF
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="prompt_template">프롬프트 템플릿 *</Label>
+              <Label htmlFor="prompt_template">문제 생성 프롬프트 *</Label>
               <Textarea 
                 id="prompt_template" 
                 name="prompt_template" 
@@ -233,6 +234,26 @@ export default function ProblemTypeFormClient({ workspaceSubject }: ProblemTypeF
                 required 
               />
               <p className="text-xs text-gray-500">사용 가능한 변수: {"{{PASSAGE}}, {{GRADE_LEVEL}}, {{DIFFICULTY}}"}</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="output_format">응답 구조 프롬프트</Label>
+              <Textarea
+                id="output_format"
+                name="output_format"
+                className="font-mono text-sm min-h-[180px]"
+                defaultValue={DEFAULT_RESPONSE_STRUCTURE_PROMPT}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="review_prompt_template">문제 검토 프롬프트</Label>
+              <Textarea
+                id="review_prompt_template"
+                name="review_prompt_template"
+                className="font-mono text-sm min-h-[180px]"
+                defaultValue={DEFAULT_REVIEW_PROMPT}
+              />
             </div>
 
             <div className="flex justify-end gap-2 pt-4">

@@ -1773,8 +1773,10 @@ export type Database = {
           output_format: string | null
           prompt_template: string
           provider: string
+          review_prompt_template: string | null
           type_name: string
           updated_at: string
+          workspace_subject: string
         }
         Insert: {
           created_at?: string
@@ -1785,8 +1787,10 @@ export type Database = {
           output_format?: string | null
           prompt_template: string
           provider: string
+          review_prompt_template?: string | null
           type_name: string
           updated_at?: string
+          workspace_subject?: string
         }
         Update: {
           created_at?: string
@@ -1797,8 +1801,10 @@ export type Database = {
           output_format?: string | null
           prompt_template?: string
           provider?: string
+          review_prompt_template?: string | null
           type_name?: string
           updated_at?: string
+          workspace_subject?: string
         }
         Relationships: []
       }

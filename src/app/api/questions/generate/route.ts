@@ -1,12 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { AIGenerationService } from '@/lib/ai'
-import { AIProvider } from '@/lib/ai/types'
 import { CreditService } from '@/lib/credits'
 import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot, type CreditBalanceSnapshot } from '@/lib/credit-balance'
 import { randomUUID } from 'crypto'
 import { resolveGenerateWorkspaceSubject } from '@/app/(dashboard)/generate/workspace-subject'
+import type { AIProvider } from '@/lib/ai/types'
+import {
+  DEFAULT_MAX_REVIEW_ATTEMPTS,
+  buildPromptBundleFromProblemType,
+  runQuestionGenerationReviewLoop,
+} from '@/lib/ai/question-generation-workflow'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,11 +18,13 @@ const COST_PER_GENERATION = 100
 const CREDIT_BALANCE_HEADER = 'x-credit-balance'
 
 const GenerateRequestSchema = z.object({
-  passage: z.string().max(3500, 'Passage must be under 3500 characters'), // increased for buffer, UI enforces 3000
+  passage: z.string().max(3500, 'Passage must be under 3500 characters'),
   gradeLevel: z.string(),
   difficulty: z.string(),
   problemTypeId: z.string().uuid(),
   workspaceSubject: z.enum(['english', 'korean']).optional(),
+  includeTrace: z.boolean().optional(),
+  maxAttempts: z.number().int().min(1).max(5).optional(),
 })
 
 const jsonWithBalance = (
@@ -75,7 +81,6 @@ const isCancellationError = (error: unknown, requestCancelled: boolean) => {
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
 
-  // 1. Auth Check
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return jsonWithBalance(
@@ -119,7 +124,6 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // 2. Validation
     let body: unknown
 
     try {
@@ -156,7 +160,6 @@ export async function POST(request: NextRequest) {
       referer: request.headers.get('referer'),
     })
 
-    // 3. Fetch Problem Type
     const { data: problemType, error: dbError } = await supabase
       .from('problem_types')
       .select('*')
@@ -211,69 +214,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 4. Construct Prompt
-    const getGradeLevelKorean = (grade: string): string => {
-      const gradeMap: { [key: string]: string } = {
-        '고1': '고등학교 1학년',
-        'High1': '고등학교 1학년',
-        '고2': '고등학교 2학년',
-        'High2': '고등학교 2학년',
-        '고3': '고등학교 3학년',
-        'High3': '고등학교 3학년',
-        '중1': '중학교 1학년',
-        'Middle1': '중학교 1학년',
-        '중2': '중학교 2학년',
-        'Middle2': '중학교 2학년',
-        '중3': '중학교 3학년',
-        'Middle3': '중학교 3학년'
-      }
-      return gradeMap[grade] || grade
-    }
-
-    // Helper function to convert difficulty to Korean
-    const getDifficultyKorean = (diff: string): string => {
-      const diffMap: { [key: string]: string } = {
-        '상': '상',
-        'High': '상',
-        '중': '중',
-        'Medium': '중',
-        '하': '하',
-        'Low': '하'
-      }
-      return diffMap[diff] || diff
-    }
-
-    const gradeLevelKorean = getGradeLevelKorean(gradeLevel)
-    const difficultyKorean = getDifficultyKorean(difficulty)
-
-    const prompt = `
-================================================================================
-📝 PROMPT TEMPLATE 시작
-================================================================================
-
-${problemType.prompt_template}
-
-================================================================================
-📝 PROMPT TEMPLATE 끝
-================================================================================
-
-위 PROMPT TEMPLATE 규칙을 적용해서 아래에 입력된 지문에 대한 문제, 보기, 답안, 해설을 만들어줘.
-
-【문제 생성 조건】
-- 학년의 난이도는 대한민국의 ${gradeLevelKorean} 수준이야.
-- 문제의 난이도는 위에서 설정한 학년의 수준에서 상, 중, 하 중 ${difficultyKorean}의 난이도로 설정해줘.
-
-【지문】
-${passage}
-`
-
-    const result = await AIGenerationService.generate({
+    const loopResult = await runQuestionGenerationReviewLoop({
+      passage,
+      gradeLevel,
+      difficulty,
+      workspaceSubject,
+      promptBundle: buildPromptBundleFromProblemType(problemType),
       provider: problemType.provider as AIProvider,
       modelName: problemType.model_name,
-      prompt,
-      maxTokens: 16000,
-      temperature: 0.7,
-      signal: request.signal
+      maxAttempts: DEFAULT_MAX_REVIEW_ATTEMPTS,
+      includeTrace: false,
+      traceMode: 'none',
+      signal: request.signal,
     })
 
     if (isCancelled()) {
@@ -285,20 +237,20 @@ ${passage}
       )
     }
 
-    if (!result.success) {
-      console.error('AI Generation Error:', result.error, result.rawResponse)
+    if (loopResult.status !== 'passed' || !loopResult.finalQuestion) {
       const snapshot = await getCurrentSnapshot()
       return jsonWithBalanceSnapshot(
         {
           success: false,
-          error: { code: 'AI_ERROR', message: 'AI 문제 생성 중 오류가 발생했습니다.' }
+          status: loopResult.status,
+          stopReason: loopResult.stopReason,
+          error: { code: 'AI_REVIEW_FAILED', message: 'AI 문제 검토를 통과하지 못했습니다.' }
         },
         500,
         snapshot
       )
     }
 
-    // 6. Deduct credits only after AI generation succeeds
     try {
       deductionResult = await CreditService.deductCredits(
         user.id,
@@ -334,13 +286,15 @@ ${passage}
       )
     }
 
-    // 6. Return Result
     const snapshot = await getCurrentSnapshot()
     return jsonWithBalanceSnapshot(
       {
         success: true,
-        data: result.data,
-        rawAiResponse: result.rawResponse
+        data: loopResult.finalQuestion,
+        rawAiResponse: loopResult.rawGenerationResponse,
+        review: loopResult.finalReview,
+        status: loopResult.status,
+        stopReason: loopResult.stopReason,
       },
       200,
       snapshot
