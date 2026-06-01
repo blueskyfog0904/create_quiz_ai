@@ -183,7 +183,6 @@ export default function MarketLibraryClient({
                               ) : (
                                 <span className="block min-w-0 truncate font-semibold text-slate-900">{row.title}</span>
                               )}
-                              {row.summary ? <p className="mt-1 truncate text-xs text-slate-500">{row.summary}</p> : null}
                             </div>
                           </td>
                           <td className="px-2 py-2 whitespace-nowrap text-center text-slate-600 sm:px-3">{formatDate(row.purchasedAt)}</td>

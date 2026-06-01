@@ -49,6 +49,11 @@ test('market library purchase history uses compact board table without status or
   assert.match(libraryClient, /\{index \+ 1\}/)
 })
 
+test('market library purchase history shows product title only in product info cell', () => {
+  assert.match(libraryClient, /\{row\.title\}/)
+  assert.doesNotMatch(libraryClient, /row\.summary \? <p/)
+})
+
 test('market library rows navigate to subject-aware market item detail', () => {
   assert.match(libraryClient, /`\/market\/\$\{row\.categorySlug\}\/items\/\$\{row\.itemId\}`/)
   assert.match(libraryClient, /WorkspaceLink/)
