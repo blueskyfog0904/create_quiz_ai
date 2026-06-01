@@ -33,7 +33,7 @@ const PROVIDER_LABELS: Record<ProviderName, string> = {
 const PROVIDER_DESCRIPTIONS: Record<ProviderName, string> = {
   openai: 'Authorization Bearer 방식으로 OpenAI API를 호출합니다.',
   gemini: 'x-goog-api-key 헤더로 Gemini API를 호출합니다.',
-  claude: 'x-api-key와 anthropic-version 헤더로 Claude Messages API를 호출합니다.',
+  claude: 'x-api-key와 anthropic-version 헤더로 Claude Models API를 호출합니다.',
 }
 
 export default function AIConnectionsClient() {

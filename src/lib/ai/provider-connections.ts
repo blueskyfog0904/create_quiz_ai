@@ -266,20 +266,16 @@ export async function testProviderConnection(provider: AIProvider) {
           'x-goog-api-key': config.apiKey,
         },
       })
-    } else {
-      response = await fetch(`${config.baseUrl}/v1/messages`, {
-        method: 'POST',
+    } else if (provider === 'claude') {
+      response = await fetch(`${config.baseUrl}/v1/models`, {
         headers: {
           'content-type': 'application/json',
           'x-api-key': config.apiKey,
           'anthropic-version': config.anthropicVersion || '2023-06-01',
         },
-        body: JSON.stringify({
-          model: 'claude-3-haiku-20240307',
-          max_tokens: 1,
-          messages: [{ role: 'user', content: 'ping' }],
-        }),
       })
+    } else {
+      throw new Error('Unsupported AI provider.')
     }
 
     if (!response.ok) {

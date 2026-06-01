@@ -49,6 +49,16 @@ test('provider connection library encrypts keys and keeps env fallback per offic
   assert.doesNotMatch(source, /return\s+\{[\s\S]{0,200}apiKey:[\s\S]{0,200}\}/)
 })
 
+test('Claude connection test validates credentials through the current Models API without hardcoded message models', () => {
+  const source = readSource(connectionsLibPath)
+  const clientSource = readSource(connectionsClientPath)
+
+  assert.match(source, /provider === 'claude'[\s\S]{0,500}\/v1\/models/)
+  assert.doesNotMatch(source, /claude-3-haiku-20240307/)
+  assert.doesNotMatch(source, /provider === 'claude'[\s\S]{0,500}\/v1\/messages/)
+  assert.match(clientSource, /Claude Models API/)
+})
+
 test('admin AI connection UI and APIs expose provider-specific fields without returning plaintext keys', () => {
   for (const path of [connectionsPagePath, connectionsClientPath, connectionsRoutePath, connectionProviderRoutePath, connectionTestRoutePath]) {
     assert.equal(existsSync(new URL(`../${path}`, import.meta.url)), true, `${path} should exist`)
