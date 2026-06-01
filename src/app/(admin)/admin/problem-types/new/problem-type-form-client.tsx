@@ -97,14 +97,20 @@ interface ProblemTypeFormClientProps {
 export default function ProblemTypeFormClient({ workspaceSubject }: ProblemTypeFormClientProps) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
-  const [provider, setProvider] = useState('')
-  const [modelName, setModelName] = useState('')
+  const [generationProvider, setGenerationProvider] = useState('')
+  const [generationModelName, setGenerationModelName] = useState('')
+  const [reviewProvider, setReviewProvider] = useState('')
+  const [reviewModelName, setReviewModelName] = useState('')
   const [copied, setCopied] = useState(false)
 
-  // Provider 변경 시 모델 이름 초기화 (ModelSelector에서 자동으로 첫 번째 모델 선택)
-  const handleProviderChange = (newProvider: string) => {
-    setProvider(newProvider)
-    setModelName('') // ModelSelector에서 자동으로 첫 번째 모델 선택
+  const handleGenerationProviderChange = (newProvider: string) => {
+    setGenerationProvider(newProvider)
+    setGenerationModelName('')
+  }
+
+  const handleReviewProviderChange = (newProvider: string) => {
+    setReviewProvider(newProvider)
+    setReviewModelName('')
   }
 
   const handleCopyExample = async () => {
@@ -121,21 +127,28 @@ export default function ProblemTypeFormClient({ workspaceSubject }: ProblemTypeF
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     
-    if (!provider) {
-      toast.error('AI 제공자를 선택해주세요')
+    if (!generationProvider) {
+      toast.error('문제 생성 API 제공자를 선택해주세요')
       return
     }
     
-    if (!modelName) {
-      toast.error('모델 이름을 선택해주세요')
+    if (!generationModelName) {
+      toast.error('문제 생성 API 모델 이름을 선택해주세요')
+      return
+    }
+
+    if ((reviewProvider && !reviewModelName) || (!reviewProvider && reviewModelName)) {
+      toast.error('문제 검토 API 제공자와 모델은 함께 선택해주세요')
       return
     }
     
     try {
       setSaving(true)
       const formData = new FormData(e.currentTarget)
-      formData.set('provider', provider)
-      formData.set('model_name', modelName)
+      formData.set('generation_provider', generationProvider)
+      formData.set('generation_model_name', generationModelName)
+      formData.set('review_provider', reviewProvider)
+      formData.set('review_model_name', reviewModelName)
       const result = await createProblemType(null, formData)
       if (result?.error) {
         toast.error(result.error)
@@ -202,25 +215,58 @@ export default function ProblemTypeFormClient({ workspaceSubject }: ProblemTypeF
               <Input id="description" name="description" placeholder="문제 유형에 대한 설명을 입력하세요" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="provider">AI 제공자 *</Label>
-                <ProviderSelector
-                  value={provider}
-                  onValueChange={handleProviderChange}
-                  required
-                />
-                <input type="hidden" name="provider" value={provider} />
+            <div className="space-y-4 rounded-lg border p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">문제 생성 API 설정</h3>
+                <p className="text-xs text-gray-500 mt-1">문제를 처음 생성하거나 피드백 기반으로 재생성할 때 사용할 모델입니다.</p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="model_name">모델 이름 *</Label>
-                <ModelSelector
-                  value={modelName}
-                  onValueChange={setModelName}
-                  provider={provider}
-                  required
-                />
-                <input type="hidden" name="model_name" value={modelName} />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="generation_provider">문제 생성 API 제공자 *</Label>
+                  <ProviderSelector
+                    value={generationProvider}
+                    onValueChange={handleGenerationProviderChange}
+                    required
+                  />
+                  <input type="hidden" name="generation_provider" value={generationProvider} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="generation_model_name">문제 생성 API 모델 이름 *</Label>
+                  <ModelSelector
+                    value={generationModelName}
+                    onValueChange={setGenerationModelName}
+                    provider={generationProvider}
+                    required
+                  />
+                  <input type="hidden" name="generation_model_name" value={generationModelName} />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 rounded-lg border p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">문제 검토 API 설정</h3>
+                <p className="text-xs text-gray-500 mt-1">생성된 문제를 검토하고 재생성 피드백을 만들 때 사용할 모델입니다.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="review_provider">문제 검토 API 제공자</Label>
+                  <ProviderSelector
+                    value={reviewProvider}
+                    onValueChange={handleReviewProviderChange}
+                    allowEmpty
+                  />
+                  <input type="hidden" name="review_provider" value={reviewProvider} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="review_model_name">문제 검토 API 모델 이름</Label>
+                  <ModelSelector
+                    value={reviewModelName}
+                    onValueChange={setReviewModelName}
+                    provider={reviewProvider}
+                  />
+                  <input type="hidden" name="review_model_name" value={reviewModelName} />
+                </div>
               </div>
             </div>
 

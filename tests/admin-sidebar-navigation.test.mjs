@@ -62,6 +62,21 @@ test('resolveAdminSidebarMenuItems applies saved order and subject-specific labe
   assert.equal(items.some((item) => item.href === '/admin/users'), true)
 })
 
+test('admin sidebar includes AI API connection management near AI problem type settings', () => {
+  const defaultItems = DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG.items
+  const problemTypeIndex = defaultItems.indexOf('/admin/problem-types')
+  const connectionIndex = defaultItems.indexOf('/admin/ai-connections')
+  const items = resolveAdminSidebarMenuItems('english')
+  const connectionItem = items.find((item) => item.href === '/admin/ai-connections')
+
+  assert.notEqual(problemTypeIndex, -1)
+  assert.notEqual(connectionIndex, -1)
+  assert.equal(connectionIndex, problemTypeIndex + 1)
+  assert.ok(connectionItem)
+  assert.equal(connectionItem.name, 'AI API 연결 관리')
+  assert.equal(connectionItem.icon, 'settings')
+})
+
 test('resolveAdminSidebarNavigationNodes groups question bank admin services under one parent', () => {
   const nodes = resolveAdminSidebarNavigationNodes('english', {
     items: [

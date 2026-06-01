@@ -1,7 +1,7 @@
 
 import { z } from 'zod'
 
-export type AIProvider = 'openai' | 'gemini'
+export type AIProvider = 'openai' | 'gemini' | 'claude'
 
 export interface GenerateParams {
   provider: AIProvider

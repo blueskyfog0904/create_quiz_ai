@@ -51,7 +51,7 @@ test('review loop has provider and whole-loop timeout guards', () => {
 
 test('questions generate route delegates generation to bounded review loop and keeps public trace hidden', () => {
   assert.match(generateRouteSource, /runQuestionGenerationReviewLoop/)
-  assert.match(generateRouteSource, /buildPromptBundleFromProblemType/)
+  assert.match(generateRouteSource, /buildQuestionGenerationConfigFromProblemType/)
   assert.match(generateRouteSource, /DEFAULT_MAX_REVIEW_ATTEMPTS/)
   assert.match(generateRouteSource, /status:\s*loopResult\.status/)
   assert.match(generateRouteSource, /review:\s*loopResult\.finalReview/)
@@ -62,7 +62,7 @@ test('questions generate route delegates generation to bounded review loop and k
 test('listboard run and retry routes use the same review loop for generated items', () => {
   for (const source of [listboardRunRouteSource, listboardRetryRouteSource]) {
     assert.match(source, /runQuestionGenerationReviewLoop/)
-    assert.match(source, /buildPromptBundleFromProblemType/)
+    assert.match(source, /buildQuestionGenerationConfigFromProblemType/)
     assert.match(source, /MAX_ATTEMPTS_REACHED|REVIEW_FAILED/)
     assert.match(source, /loopResult\.finalQuestion/)
     assert.match(source, /loopResult\.rawGenerationResponse/)

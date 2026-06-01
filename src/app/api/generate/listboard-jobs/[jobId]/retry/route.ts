@@ -5,9 +5,8 @@ import { CreditService } from '@/lib/credits'
 import { stagedGeneratedQuestionToJson } from '@/lib/questions/generated-question-staging'
 import { resolveGenerateWorkspaceSubject } from '@/app/(dashboard)/generate/workspace-subject'
 import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot } from '@/lib/credit-balance'
-import type { AIProvider } from '@/lib/ai/types'
 import {
-  buildPromptBundleFromProblemType,
+  buildQuestionGenerationConfigFromProblemType,
   getLoopFailureCode,
   runQuestionGenerationReviewLoop,
 } from '@/lib/ai/question-generation-workflow'
@@ -15,7 +14,7 @@ import {
 export const dynamic = 'force-dynamic'
 
 const COST_PER_GENERATION = 100
-const REVIEW_LOOP_FAILURE_CODES = ['MAX_ATTEMPTS_REACHED', 'REVIEW_FAILED', 'GENERATION_FAILED', 'GENERATION_TIMEOUT'] as const
+const REVIEW_LOOP_FAILURE_CODES = ['MAX_ATTEMPTS_REACHED', 'REVIEW_FAILED', 'GENERATION_FAILED', 'GENERATION_TIMEOUT', 'REVIEW_MODEL_NOT_CONFIGURED'] as const
 
 const isReviewLoopFailureCode = (code: unknown): code is typeof REVIEW_LOOP_FAILURE_CODES[number] =>
   typeof code === 'string' && (REVIEW_LOOP_FAILURE_CODES as readonly string[]).includes(code)
@@ -317,14 +316,21 @@ export async function POST(request: Request, { params }: RouteContext) {
       .eq('workspace_subject', workspaceSubject)
 
     try {
+      const generationConfig = buildQuestionGenerationConfigFromProblemType(problemType)
+      if (!generationConfig.modelConfig) {
+        throw Object.assign(
+          new Error(generationConfig.error?.message || '문제 검토 API 제공자와 모델을 먼저 설정해주세요.'),
+          { code: generationConfig.error?.code || 'REVIEW_MODEL_NOT_CONFIGURED' }
+        )
+      }
+
       const loopResult = await runQuestionGenerationReviewLoop({
         passage: postItem.passage_text,
         gradeLevel,
         difficulty,
         workspaceSubject,
-        promptBundle: buildPromptBundleFromProblemType(problemType),
-        provider: problemType.provider as AIProvider,
-        modelName: problemType.model_name,
+        promptBundle: generationConfig.promptBundle,
+        modelConfig: generationConfig.modelConfig,
         includeTrace: false,
         traceMode: 'none',
       })

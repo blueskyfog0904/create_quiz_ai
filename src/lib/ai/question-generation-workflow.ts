@@ -30,10 +30,29 @@ export type QuestionPromptBundle = {
   reviewPrompt: string
 }
 
+export type QuestionGenerationModelConfig = {
+  generationProvider: AIProvider
+  generationModelName: string
+  reviewProvider: AIProvider
+  reviewModelName: string
+}
+
+export type QuestionGenerationConfigErrorCode =
+  | 'GENERATION_MODEL_NOT_CONFIGURED'
+  | 'REVIEW_MODEL_NOT_CONFIGURED'
+
+export const REVIEW_MODEL_NOT_CONFIGURED_MESSAGE = '문제 검토 API 제공자와 모델을 먼저 설정해주세요.'
+
 type ProblemTypePromptSource = {
   prompt_template: string
   output_format?: string | null
   review_prompt_template?: string | null
+  provider?: string | null
+  model_name?: string | null
+  generation_provider?: string | null
+  generation_model_name?: string | null
+  review_provider?: string | null
+  review_model_name?: string | null
 }
 
 type TraceMode = 'none' | 'admin_full'
@@ -45,8 +64,7 @@ export type RunQuestionGenerationReviewLoopInput = {
   difficulty: string
   workspaceSubject: 'english' | 'korean'
   promptBundle: QuestionPromptBundle
-  provider: AIProvider
-  modelName: string
+  modelConfig: QuestionGenerationModelConfig
   maxAttempts?: number
   includeTrace?: boolean
   traceMode?: TraceMode
@@ -168,6 +186,51 @@ export function buildPromptBundleFromProblemType(problemType: ProblemTypePromptS
     generationPrompt: problemType.prompt_template,
     responseStructurePrompt: problemType.output_format?.trim() || DEFAULT_RESPONSE_STRUCTURE_PROMPT,
     reviewPrompt: problemType.review_prompt_template?.trim() || DEFAULT_REVIEW_PROMPT,
+  }
+}
+
+const isAIProvider = (provider?: string | null): provider is AIProvider => (
+  provider === 'openai' || provider === 'gemini' || provider === 'claude'
+)
+
+export function buildQuestionGenerationConfigFromProblemType(problemType: ProblemTypePromptSource): {
+  promptBundle: QuestionPromptBundle
+  modelConfig?: QuestionGenerationModelConfig
+  error?: { code: QuestionGenerationConfigErrorCode; message: string }
+} {
+  const generationProvider = problemType.generation_provider || problemType.provider
+  const generationModelName = problemType.generation_model_name || problemType.model_name
+  const reviewProvider = problemType.review_provider
+  const reviewModelName = problemType.review_model_name
+
+  if (!isAIProvider(generationProvider) || !generationModelName?.trim()) {
+    return {
+      promptBundle: buildPromptBundleFromProblemType(problemType),
+      error: {
+        code: 'GENERATION_MODEL_NOT_CONFIGURED',
+        message: '문제 생성 API 제공자와 모델을 먼저 설정해주세요.',
+      },
+    }
+  }
+
+  if (!isAIProvider(reviewProvider) || !reviewModelName?.trim()) {
+    return {
+      promptBundle: buildPromptBundleFromProblemType(problemType),
+      error: {
+        code: 'REVIEW_MODEL_NOT_CONFIGURED',
+        message: REVIEW_MODEL_NOT_CONFIGURED_MESSAGE,
+      },
+    }
+  }
+
+  return {
+    promptBundle: buildPromptBundleFromProblemType(problemType),
+    modelConfig: {
+      generationProvider,
+      generationModelName,
+      reviewProvider,
+      reviewModelName,
+    },
   }
 }
 
@@ -517,8 +580,8 @@ export async function runQuestionGenerationReviewLoop(
     let generation: Awaited<ReturnType<typeof AIGenerationService.generate>>
     try {
       generation = await AIGenerationService.generate({
-        provider: input.provider,
-        modelName: input.modelName,
+        provider: input.modelConfig.generationProvider,
+        modelName: input.modelConfig.generationModelName,
         prompt,
         maxTokens: 16000,
         temperature: 0.7,
@@ -614,8 +677,8 @@ export async function runQuestionGenerationReviewLoop(
         difficulty: input.difficulty,
         workspaceSubject: input.workspaceSubject,
         generatedQuestion: generation.data,
-        provider: input.provider,
-        modelName: input.modelName,
+        provider: input.modelConfig.reviewProvider,
+        modelName: input.modelConfig.reviewModelName,
         signal: reviewSignal.signal,
       })
     } catch (error) {

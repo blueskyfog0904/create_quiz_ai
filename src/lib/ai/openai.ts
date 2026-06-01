@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import { AIAdapter, AIResponse, AITextResponse, GenerateParams, QuestionSchema } from './types'
 import { normalizeQuestionTextBackward } from '../questions/normalize-question-field'
+import { getProviderRuntimeConfig } from './provider-connections'
 
 function isAbortError(error: unknown) {
   return (
@@ -15,27 +16,30 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 export class OpenAIAdapter implements AIAdapter {
-  private client: OpenAI | null = null
+  private async createClient() {
+    const config = await getProviderRuntimeConfig('openai')
+    if (!config) return null
 
-  constructor() {
-    // Only initialize if API key is available
-    if (process.env.OPENAI_API_KEY) {
-      this.client = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      })
-    }
+    return new OpenAI({
+      apiKey: config.apiKey,
+      baseURL: config.baseUrl,
+      organization: config.organizationId,
+      project: config.projectId,
+    })
   }
 
   async generateRaw(params: GenerateParams): Promise<AITextResponse> {
-    if (!this.client) {
+    const client = await this.createClient()
+
+    if (!client) {
       return {
         success: false,
-        error: 'OpenAI API key is not configured. Please use Gemini provider instead.'
+        error: 'OpenAI API key is not configured.'
       }
     }
 
     try {
-      const response = await this.client.chat.completions.create({
+      const response = await client.chat.completions.create({
         model: params.modelName,
         messages: [
           { role: 'system', content: 'You are a helpful assistant that returns strictly valid JSON.' },
@@ -72,15 +76,16 @@ export class OpenAIAdapter implements AIAdapter {
   }
 
   async generate(params: GenerateParams): Promise<AIResponse> {
-    // Check if client is initialized
-    if (!this.client) {
+    const client = await this.createClient()
+
+    if (!client) {
       return {
         success: false,
-        error: 'OpenAI API key is not configured. Please use Gemini provider instead.'
+        error: 'OpenAI API key is not configured.'
       }
     }
     try {
-      const response = await this.client.chat.completions.create({
+      const response = await client.chat.completions.create({
         model: params.modelName,
         messages: [
           { role: 'system', content: 'You are a helpful assistant that generates English quiz questions in JSON format.' },

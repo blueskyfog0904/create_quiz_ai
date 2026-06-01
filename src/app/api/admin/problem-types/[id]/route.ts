@@ -7,8 +7,12 @@ const updateProblemTypeSchema = z.object({
   type_name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
   prompt_template: z.string().optional(),
-  provider: z.enum(['gemini', 'openai', 'admin']).optional(),
+  provider: z.enum(['gemini', 'openai', 'claude', 'admin']).optional(),
   model_name: z.string().optional(),
+  generation_provider: z.enum(['gemini', 'openai', 'claude']).nullable().optional(),
+  generation_model_name: z.string().nullable().optional(),
+  review_provider: z.enum(['gemini', 'openai', 'claude']).nullable().optional(),
+  review_model_name: z.string().nullable().optional(),
   output_format: z.string().nullable().optional(),
   review_prompt_template: z.string().nullable().optional(),
   is_active: z.boolean().optional(),
@@ -105,6 +109,24 @@ export async function PATCH(
     if (validatedData.model_name !== undefined) {
       updateData.model_name = validatedData.model_name
     }
+    if (validatedData.generation_provider !== undefined) {
+      updateData.generation_provider = validatedData.generation_provider
+      if (validatedData.generation_provider) {
+        updateData.provider = validatedData.generation_provider
+      }
+    }
+    if (validatedData.generation_model_name !== undefined) {
+      updateData.generation_model_name = validatedData.generation_model_name
+      if (validatedData.generation_model_name) {
+        updateData.model_name = validatedData.generation_model_name
+      }
+    }
+    if (validatedData.review_provider !== undefined) {
+      updateData.review_provider = validatedData.review_provider
+    }
+    if (validatedData.review_model_name !== undefined) {
+      updateData.review_model_name = validatedData.review_model_name
+    }
     if (validatedData.output_format !== undefined) {
       updateData.output_format = validatedData.output_format
     }
@@ -198,4 +220,3 @@ export async function DELETE(
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-

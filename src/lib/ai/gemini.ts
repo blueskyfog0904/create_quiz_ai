@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai'
 import { AIAdapter, AIResponse, AITextResponse, GenerateParams, QuestionSchema } from './types'
 import { normalizeQuestionTextBackward } from '../questions/normalize-question-field'
+import { getProviderRuntimeConfig } from './provider-connections'
 
 function isAbortError(error: unknown) {
   return (
@@ -15,17 +16,22 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 export class GeminiAdapter implements AIAdapter {
-  private client: GoogleGenerativeAI
-
-  constructor() {
-    this.client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-  }
-
   private getDebugEnabled() {
     return process.env.AI_DEBUG_LOGS === 'true'
   }
 
   async generateRaw(params: GenerateParams): Promise<AITextResponse> {
+    const config = await getProviderRuntimeConfig('gemini')
+
+    if (!config) {
+      return {
+        success: false,
+        error: 'Gemini API key is not configured.'
+      }
+    }
+
+    const client = new GoogleGenerativeAI(config.apiKey)
+
     try {
       if (this.getDebugEnabled()) {
         console.info('[Gemini] Request metadata:', {
@@ -36,7 +42,7 @@ export class GeminiAdapter implements AIAdapter {
         })
       }
 
-      const model = this.client.getGenerativeModel({
+      const model = client.getGenerativeModel({
         model: params.modelName,
         generationConfig: {
           responseMimeType: 'application/json',

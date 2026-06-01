@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import type { AIProvider } from '@/lib/ai/types'
 import {
   MAX_ADMIN_REVIEW_ATTEMPTS,
-  buildPromptBundleFromProblemType,
+  buildQuestionGenerationConfigFromProblemType,
   runQuestionGenerationReviewLoop,
 } from '@/lib/ai/question-generation-workflow'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
@@ -62,14 +61,24 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제 유형을 찾을 수 없습니다.' } }, { status: 404 })
   }
 
+  const generationConfig = buildQuestionGenerationConfigFromProblemType(problemType)
+  if (!generationConfig.modelConfig) {
+    return NextResponse.json({
+      success: false,
+      error: {
+        code: generationConfig.error?.code || 'REVIEW_MODEL_NOT_CONFIGURED',
+        message: generationConfig.error?.message || '문제 검토 API 제공자와 모델을 먼저 설정해주세요.',
+      },
+    }, { status: 409 })
+  }
+
   const loopResult = await runQuestionGenerationReviewLoop({
     passage: validation.data.passage,
     gradeLevel: validation.data.gradeLevel,
     difficulty: validation.data.difficulty,
     workspaceSubject,
-    promptBundle: buildPromptBundleFromProblemType(problemType),
-    provider: problemType.provider as AIProvider,
-    modelName: problemType.model_name,
+    promptBundle: generationConfig.promptBundle,
+    modelConfig: generationConfig.modelConfig,
     maxAttempts: validation.data.maxAttempts,
     includeTrace: true,
     traceMode: 'admin_full',

@@ -41,6 +41,60 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_provider_connections: {
+        Row: {
+          anthropic_version: string | null
+          api_key_last4: string | null
+          base_url: string | null
+          created_at: string
+          display_name: string
+          encrypted_api_key: string | null
+          id: string
+          is_enabled: boolean
+          last_error: string | null
+          last_test_status: string | null
+          last_tested_at: string | null
+          organization_id: string | null
+          project_id: string | null
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          anthropic_version?: string | null
+          api_key_last4?: string | null
+          base_url?: string | null
+          created_at?: string
+          display_name: string
+          encrypted_api_key?: string | null
+          id?: string
+          is_enabled?: boolean
+          last_error?: string | null
+          last_test_status?: string | null
+          last_tested_at?: string | null
+          organization_id?: string | null
+          project_id?: string | null
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          anthropic_version?: string | null
+          api_key_last4?: string | null
+          base_url?: string | null
+          created_at?: string
+          display_name?: string
+          encrypted_api_key?: string | null
+          id?: string
+          is_enabled?: boolean
+          last_error?: string | null
+          last_test_status?: string | null
+          last_tested_at?: string | null
+          organization_id?: string | null
+          project_id?: string | null
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       credit_consumption: {
         Row: {
           amount: number
@@ -1767,12 +1821,16 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          generation_model_name: string | null
+          generation_provider: string | null
           id: string
           is_active: boolean | null
           model_name: string
           output_format: string | null
           prompt_template: string
           provider: string
+          review_model_name: string | null
+          review_provider: string | null
           review_prompt_template: string | null
           type_name: string
           updated_at: string
@@ -1781,12 +1839,16 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string | null
+          generation_model_name?: string | null
+          generation_provider?: string | null
           id?: string
           is_active?: boolean | null
           model_name: string
           output_format?: string | null
           prompt_template: string
           provider: string
+          review_model_name?: string | null
+          review_provider?: string | null
           review_prompt_template?: string | null
           type_name: string
           updated_at?: string
@@ -1795,12 +1857,16 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string | null
+          generation_model_name?: string | null
+          generation_provider?: string | null
           id?: string
           is_active?: boolean | null
           model_name?: string
           output_format?: string | null
           prompt_template?: string
           provider?: string
+          review_model_name?: string | null
+          review_provider?: string | null
           review_prompt_template?: string | null
           type_name?: string
           updated_at?: string

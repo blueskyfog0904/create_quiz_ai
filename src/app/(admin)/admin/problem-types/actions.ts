@@ -6,16 +6,30 @@ import { z } from 'zod'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { DEFAULT_WORKSPACE_SUBJECT, withWorkspacePrefix, type WorkspaceSubject } from '@/lib/workspace-subject'
 
+const AIProviderSchema = z.enum(['openai', 'gemini', 'claude'])
+const OptionalAIProviderSchema = z.preprocess(
+  (value) => value === '' ? undefined : value,
+  AIProviderSchema.optional()
+)
+
 const ProblemTypeSchema = z.object({
   workspace_subject: z.enum(['english', 'korean']).optional(),
   type_name: z.string().min(1, "Type name is required"),
   description: z.string().optional(),
-  provider: z.enum(['openai', 'gemini']),
-  model_name: z.string().min(1, "Model name is required"),
+  generation_provider: AIProviderSchema,
+  generation_model_name: z.string().min(1, "Generation model name is required"),
+  review_provider: OptionalAIProviderSchema,
+  review_model_name: z.string().optional(),
   prompt_template: z.string().min(10, "Prompt template is too short"),
   output_format: z.string().optional(),
   review_prompt_template: z.string().optional(),
   is_active: z.boolean().optional()
+}).refine((data) => {
+  const hasReviewProvider = Boolean(data.review_provider)
+  const hasReviewModel = Boolean(data.review_model_name?.trim())
+  return hasReviewProvider === hasReviewModel
+}, {
+  message: '문제 검토 API 제공자와 모델은 함께 입력해주세요.',
 })
 
 function revalidateProblemTypePaths(workspaceSubject: WorkspaceSubject) {
@@ -35,10 +49,13 @@ export async function createProblemType(_prevState: unknown, formData: FormData)
   // We rely on RLS to enforce admin check, but we could also check profile here.
   
   const rawData = {
+    workspace_subject: formData.get('workspace_subject'),
     type_name: formData.get('type_name'),
     description: formData.get('description'),
-    provider: formData.get('provider'),
-    model_name: formData.get('model_name'),
+    generation_provider: formData.get('generation_provider'),
+    generation_model_name: formData.get('generation_model_name'),
+    review_provider: formData.get('review_provider'),
+    review_model_name: formData.get('review_model_name'),
     prompt_template: formData.get('prompt_template'),
     output_format: formData.get('output_format'),
     review_prompt_template: formData.get('review_prompt_template'),
@@ -55,8 +72,19 @@ export async function createProblemType(_prevState: unknown, formData: FormData)
   const { error } = await supabase
     .from('problem_types')
     .insert({
-      ...validated.data,
       workspace_subject: workspaceSubject,
+      type_name: validated.data.type_name,
+      description: validated.data.description || null,
+      provider: validated.data.generation_provider,
+      model_name: validated.data.generation_model_name,
+      generation_provider: validated.data.generation_provider,
+      generation_model_name: validated.data.generation_model_name,
+      review_provider: validated.data.review_provider || null,
+      review_model_name: validated.data.review_model_name?.trim() || null,
+      prompt_template: validated.data.prompt_template,
+      output_format: validated.data.output_format || null,
+      review_prompt_template: validated.data.review_prompt_template || null,
+      is_active: validated.data.is_active,
     })
 
   if (error) {
@@ -71,10 +99,13 @@ export async function updateProblemType(id: string, _prevState: unknown, formDat
   const supabase = await createClient()
 
   const rawData = {
+    workspace_subject: formData.get('workspace_subject'),
     type_name: formData.get('type_name'),
     description: formData.get('description'),
-    provider: formData.get('provider'),
-    model_name: formData.get('model_name'),
+    generation_provider: formData.get('generation_provider'),
+    generation_model_name: formData.get('generation_model_name'),
+    review_provider: formData.get('review_provider'),
+    review_model_name: formData.get('review_model_name'),
     prompt_template: formData.get('prompt_template'),
     output_format: formData.get('output_format'),
     review_prompt_template: formData.get('review_prompt_template'),
@@ -91,8 +122,19 @@ export async function updateProblemType(id: string, _prevState: unknown, formDat
   const { error } = await supabase
     .from('problem_types')
     .update({
-      ...validated.data,
       workspace_subject: workspaceSubject,
+      type_name: validated.data.type_name,
+      description: validated.data.description || null,
+      provider: validated.data.generation_provider,
+      model_name: validated.data.generation_model_name,
+      generation_provider: validated.data.generation_provider,
+      generation_model_name: validated.data.generation_model_name,
+      review_provider: validated.data.review_provider || null,
+      review_model_name: validated.data.review_model_name?.trim() || null,
+      prompt_template: validated.data.prompt_template,
+      output_format: validated.data.output_format || null,
+      review_prompt_template: validated.data.review_prompt_template || null,
+      is_active: validated.data.is_active,
     })
     .eq('id', id)
     .eq('workspace_subject', workspaceSubject)

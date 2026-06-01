@@ -28,9 +28,10 @@ interface ProviderSelectorProps {
   value?: string
   onValueChange: (value: string) => void
   required?: boolean
+  allowEmpty?: boolean
 }
 
-export function ProviderSelector({ value, onValueChange, required }: ProviderSelectorProps) {
+export function ProviderSelector({ value, onValueChange, required, allowEmpty }: ProviderSelectorProps) {
   const [providers, setProviders] = useState<Provider[]>([])
   const [loading, setLoading] = useState(true)
   const [manageOpen, setManageOpen] = useState(false)
@@ -50,7 +51,7 @@ export function ProviderSelector({ value, onValueChange, required }: ProviderSel
       } else {
         setProviders(result.data || [])
       }
-    } catch (error: any) {
+    } catch {
       toast.error('제공자 목록을 불러오는데 실패했습니다')
     } finally {
       setLoading(false)
@@ -63,13 +64,13 @@ export function ProviderSelector({ value, onValueChange, required }: ProviderSel
 
   // 첫 번째 provider 자동 선택 (초기 로드 시에만)
   useEffect(() => {
-    if (!loading && providers.length > 0 && !value) {
+    if (!allowEmpty && !loading && providers.length > 0 && !value) {
       const sortedProviders = [...providers].sort((a, b) => a.display_order - b.display_order)
       if (sortedProviders.length > 0) {
         onValueChange(sortedProviders[0].name)
       }
     }
-  }, [loading, providers, value, onValueChange])
+  }, [allowEmpty, loading, providers, value, onValueChange])
 
   // Provider 추가
   const handleAddProvider = async () => {
@@ -99,7 +100,7 @@ export function ProviderSelector({ value, onValueChange, required }: ProviderSel
         setNewProviderOrder(1)
         fetchProviders()
       }
-    } catch (error: any) {
+    } catch {
       toast.error('제공자 추가에 실패했습니다')
     }
   }
@@ -135,7 +136,7 @@ export function ProviderSelector({ value, onValueChange, required }: ProviderSel
           onValueChange(editingProvider.name.trim())
         }
       }
-    } catch (error: any) {
+    } catch {
       toast.error('제공자 수정에 실패했습니다')
     }
   }
@@ -169,7 +170,7 @@ export function ProviderSelector({ value, onValueChange, required }: ProviderSel
           }
         }
       }
-    } catch (error: any) {
+    } catch {
       toast.error('제공자 삭제에 실패했습니다')
     }
   }
@@ -208,7 +209,7 @@ export function ProviderSelector({ value, onValueChange, required }: ProviderSel
       ])
 
       fetchProviders()
-    } catch (error: any) {
+    } catch {
       toast.error('순서 변경에 실패했습니다')
     }
   }
@@ -217,11 +218,18 @@ export function ProviderSelector({ value, onValueChange, required }: ProviderSel
 
   return (
     <div className="flex gap-2">
-      <Select value={value || undefined} onValueChange={onValueChange} required={required}>
+      <Select
+        value={value || undefined}
+        onValueChange={(nextValue) => onValueChange(nextValue === '__none__' ? '' : nextValue)}
+        required={required}
+      >
         <SelectTrigger className="flex-1">
           <SelectValue placeholder="제공자 선택" />
         </SelectTrigger>
         <SelectContent>
+          {allowEmpty && (
+            <SelectItem value="__none__">선택 안 함</SelectItem>
+          )}
           {loading ? (
             <SelectItem value="__loading__" disabled>로딩 중...</SelectItem>
           ) : sortedProviders.length === 0 ? (

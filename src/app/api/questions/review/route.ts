@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import type { AIProvider } from '@/lib/ai/types'
 import { QuestionSchema } from '@/lib/ai/types'
-import { buildPromptBundleFromProblemType, reviewGeneratedQuestion } from '@/lib/ai/question-generation-workflow'
+import { buildQuestionGenerationConfigFromProblemType, reviewGeneratedQuestion } from '@/lib/ai/question-generation-workflow'
 import { resolveGenerateWorkspaceSubject } from '@/app/(dashboard)/generate/workspace-subject'
 
 export const dynamic = 'force-dynamic'
@@ -59,15 +58,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제 유형을 찾을 수 없습니다.' } }, { status: 404 })
   }
 
+  const generationConfig = buildQuestionGenerationConfigFromProblemType(problemType)
+  if (!generationConfig.modelConfig) {
+    return NextResponse.json({
+      success: false,
+      error: {
+        code: generationConfig.error?.code || 'REVIEW_MODEL_NOT_CONFIGURED',
+        message: generationConfig.error?.message || '문제 검토 API 제공자와 모델을 먼저 설정해주세요.',
+      },
+    }, { status: 409 })
+  }
+
   const result = await reviewGeneratedQuestion({
-    promptBundle: buildPromptBundleFromProblemType(problemType),
+    promptBundle: generationConfig.promptBundle,
     passage: validation.data.passage || '',
     gradeLevel: validation.data.gradeLevel || '',
     difficulty: validation.data.difficulty || '',
     workspaceSubject,
     generatedQuestion: validation.data.generatedQuestion,
-    provider: problemType.provider as AIProvider,
-    modelName: problemType.model_name,
+    provider: generationConfig.modelConfig.reviewProvider,
+    modelName: generationConfig.modelConfig.reviewModelName,
     signal: request.signal,
   })
 

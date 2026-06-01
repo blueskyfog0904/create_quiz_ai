@@ -49,24 +49,37 @@ const problemTypeSchema = z.object({
   type_name: z.string().min(1, 'Problem type name is required'),
   description: z.string().optional(),
   prompt_template: z.string().optional(),
-  provider: z.enum(['gemini', 'openai', 'admin'], { message: 'Provider must be gemini, openai, or admin' }),
+  provider: z.enum(['gemini', 'openai', 'claude', 'admin']).optional(),
   model_name: z.string().optional(),
+  generation_provider: z.enum(['gemini', 'openai', 'claude']).optional(),
+  generation_model_name: z.string().optional(),
+  review_provider: z.enum(['gemini', 'openai', 'claude']).nullable().optional(),
+  review_model_name: z.string().nullable().optional(),
   output_format: z.string().optional(),
   review_prompt_template: z.string().optional(),
   is_active: z.boolean().optional(),
 }).refine((data) => {
-  // If provider is not 'admin', require prompt_template and model_name
+  const generationProvider = data.generation_provider || (data.provider !== 'admin' ? data.provider : undefined)
+  const generationModelName = data.generation_model_name || data.model_name
+
   if (data.provider !== 'admin') {
     return data.prompt_template && data.prompt_template.trim().length > 0 &&
-           data.model_name && data.model_name.trim().length > 0
+           generationProvider &&
+           generationModelName && generationModelName.trim().length > 0
   }
   return true
 }, {
-  message: 'Prompt template and model name are required for AI providers',
+  message: 'Prompt template, generation provider, and generation model name are required for AI providers',
+}).refine((data) => {
+  const hasReviewProvider = Boolean(data.review_provider)
+  const hasReviewModel = Boolean(data.review_model_name?.trim())
+  return hasReviewProvider === hasReviewModel
+}, {
+  message: '문제 검토 API 제공자와 모델은 함께 입력해주세요.',
 })
 
 const bulkModelUpdateSchema = z.object({
-  provider: z.enum(['gemini', 'openai']),
+  provider: z.enum(['gemini', 'openai', 'claude']),
   model_name: z.string().min(1, 'Model name is required'),
 })
 
@@ -94,18 +107,24 @@ export async function POST(request: Request) {
     const body = await request.json()
     const validatedData = problemTypeSchema.parse(body)
     const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
+    const generationProvider = validatedData.generation_provider || (validatedData.provider !== 'admin' ? validatedData.provider : undefined)
+    const generationModelName = validatedData.generation_model_name || validatedData.model_name
     
     // 3. Insert problem type into database
     const insertData: Database['public']['Tables']['problem_types']['Insert'] & { workspace_subject: string } = {
       workspace_subject: workspaceSubject,
       type_name: validatedData.type_name,
       description: validatedData.description || null,
-      provider: validatedData.provider,
+      provider: generationProvider || 'admin',
       is_active: validatedData.is_active !== undefined ? validatedData.is_active : true,
-      model_name: validatedData.provider !== 'admin' ? validatedData.model_name! : 'admin',
-      prompt_template: validatedData.provider !== 'admin' ? validatedData.prompt_template! : 'N/A (Admin uploaded)',
-      output_format: validatedData.provider !== 'admin' ? (validatedData.output_format || null) : null,
-      review_prompt_template: validatedData.provider !== 'admin' ? (validatedData.review_prompt_template || null) : null,
+      model_name: generationModelName || 'admin',
+      generation_provider: generationProvider || null,
+      generation_model_name: generationModelName || null,
+      review_provider: validatedData.review_provider || null,
+      review_model_name: validatedData.review_model_name?.trim() || null,
+      prompt_template: generationProvider ? validatedData.prompt_template! : 'N/A (Admin uploaded)',
+      output_format: generationProvider ? (validatedData.output_format || null) : null,
+      review_prompt_template: generationProvider ? (validatedData.review_prompt_template || null) : null,
     }
     
     const { data: problemType, error } = await supabase
@@ -187,10 +206,12 @@ export async function PATCH(request: Request) {
       .update({
         provider: validatedData.provider,
         model_name: validatedData.model_name,
+        generation_provider: validatedData.provider,
+        generation_model_name: validatedData.model_name,
         updated_at: new Date().toISOString(),
       })
       .eq('workspace_subject', workspaceSubject)
-      .in('provider', ['openai', 'gemini'])
+      .in('provider', ['openai', 'gemini', 'claude'])
       .select('id')
 
     if (updateError) {

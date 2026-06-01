@@ -1,11 +1,13 @@
 import { OpenAIAdapter } from './openai'
 import { GeminiAdapter } from './gemini'
+import { ClaudeAdapter } from './claude'
 import { AIAdapter, AIResponse, AITextResponse, GenerateParams } from './types'
 
 export class AIGenerationService {
   private static adapters: Record<string, AIAdapter> = {
     openai: new OpenAIAdapter(),
     gemini: new GeminiAdapter(),
+    claude: new ClaudeAdapter(),
   }
 
   static async generate(params: GenerateParams): Promise<AIResponse> {

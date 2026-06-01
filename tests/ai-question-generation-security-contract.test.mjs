@@ -21,7 +21,7 @@ test('review route is admin-only and does not trust client-supplied prompt field
   assert.match(reviewRouteSource, /status:\s*403/)
   assert.match(reviewRouteSource, /problemTypeId/)
   assert.match(reviewRouteSource, /generatedQuestion/)
-  assert.match(reviewRouteSource, /buildPromptBundleFromProblemType/)
+  assert.match(reviewRouteSource, /buildQuestionGenerationConfigFromProblemType/)
   assert.doesNotMatch(reviewRouteSource, /generationPrompt:\s*z\.string/)
   assert.doesNotMatch(reviewRouteSource, /responseStructurePrompt:\s*z\.string/)
   assert.doesNotMatch(reviewRouteSource, /reviewPrompt:\s*z\.string/)

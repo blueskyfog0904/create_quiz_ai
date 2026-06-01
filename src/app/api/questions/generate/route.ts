@@ -5,10 +5,9 @@ import { CreditService } from '@/lib/credits'
 import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot, type CreditBalanceSnapshot } from '@/lib/credit-balance'
 import { randomUUID } from 'crypto'
 import { resolveGenerateWorkspaceSubject } from '@/app/(dashboard)/generate/workspace-subject'
-import type { AIProvider } from '@/lib/ai/types'
 import {
   DEFAULT_MAX_REVIEW_ATTEMPTS,
-  buildPromptBundleFromProblemType,
+  buildQuestionGenerationConfigFromProblemType,
   runQuestionGenerationReviewLoop,
 } from '@/lib/ai/question-generation-workflow'
 
@@ -191,6 +190,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const generationConfig = buildQuestionGenerationConfigFromProblemType(problemType)
+    if (!generationConfig.modelConfig) {
+      const snapshot = await getCurrentSnapshot()
+      return jsonWithBalanceSnapshot(
+        {
+          success: false,
+          error: {
+            code: generationConfig.error?.code || 'REVIEW_MODEL_NOT_CONFIGURED',
+            message: generationConfig.error?.message || '문제 검토 API 제공자와 모델을 먼저 설정해주세요.',
+          },
+        },
+        409,
+        snapshot
+      )
+    }
+
     const preBalance = balanceBeforeGeneration
     if (preBalance === undefined || preBalance < COST_PER_GENERATION) {
       const snapshot = await getCurrentSnapshot()
@@ -219,9 +234,8 @@ export async function POST(request: NextRequest) {
       gradeLevel,
       difficulty,
       workspaceSubject,
-      promptBundle: buildPromptBundleFromProblemType(problemType),
-      provider: problemType.provider as AIProvider,
-      modelName: problemType.model_name,
+      promptBundle: generationConfig.promptBundle,
+      modelConfig: generationConfig.modelConfig,
       maxAttempts: DEFAULT_MAX_REVIEW_ATTEMPTS,
       includeTrace: false,
       traceMode: 'none',
