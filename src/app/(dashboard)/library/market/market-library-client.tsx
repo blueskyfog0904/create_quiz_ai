@@ -57,6 +57,11 @@ export default function MarketLibraryClient({
     return nextRows
   }, [rows, search, sort])
 
+  const purchaseOrderByItemId = useMemo(() => {
+    const orderedRows = rows.slice().sort((a, b) => b.purchasedAt.localeCompare(a.purchasedAt))
+    return new Map(orderedRows.map((row, index) => [row.itemId, index + 1]))
+  }, [rows])
+
   const navigateToDetail = (detailHref: string | null) => {
     if (!detailHref) return
     router.push(withWorkspacePrefix(workspaceSubject, detailHref))
@@ -167,7 +172,7 @@ export default function MarketLibraryClient({
                           onKeyDown={(event) => handleRowKeyDown(event, detailHref)}
                           className={`border-b border-slate-200 bg-white transition hover:bg-slate-50/80 ${detailHref ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-900' : ''}`}
                         >
-                          <td className="px-2 py-2 text-center text-slate-500 whitespace-nowrap sm:px-3">{index + 1}</td>
+                          <td className="px-2 py-2 text-center text-slate-500 whitespace-nowrap sm:px-3">{purchaseOrderByItemId.get(row.itemId) ?? index + 1}</td>
                           <td className="px-2 py-2 text-center text-slate-600 whitespace-nowrap sm:px-3">{row.categoryTitle}</td>
                           <td className="min-w-0 px-2 py-2 sm:px-3">
                             <div className="min-w-0">

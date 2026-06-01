@@ -46,7 +46,12 @@ test('market library purchase history uses compact board table without status or
   assert.equal((headerBlock.match(/<th(?:\s|>)/g) ?? []).length, 4)
   assert.match(headerBlock, /번호[\s\S]+카테고리[\s\S]+상품 정보[\s\S]+구매일/)
   assert.match(libraryClient, /filteredRows\.map\(\(row, index\)/)
-  assert.match(libraryClient, /\{index \+ 1\}/)
+})
+
+test('market library purchase history numbers rows by purchase date order', () => {
+  assert.match(libraryClient, /purchaseOrderByItemId/)
+  assert.match(libraryClient, /rows\.slice\(\)\.sort\(\(a, b\) => b\.purchasedAt\.localeCompare\(a\.purchasedAt\)\)/)
+  assert.match(libraryClient, /purchaseOrderByItemId\.get\(row\.itemId\) \?\? index \+ 1/)
 })
 
 test('market library purchase history shows product title only in product info cell', () => {
