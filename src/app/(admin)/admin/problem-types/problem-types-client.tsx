@@ -32,7 +32,7 @@ import { Database } from '@/types/supabase'
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
 type AIModel = Database['public']['Tables']['ai_models']['Row']
-type AIProvider = 'openai' | 'gemini'
+type AIProvider = 'openai' | 'gemini' | 'claude'
 
 interface ProblemTypesClientProps {
   initialTypes: ProblemType[]
@@ -45,44 +45,70 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
   const [bulkUpdating, setBulkUpdating] = useState(false)
-  const [bulkProvider, setBulkProvider] = useState<AIProvider>('openai')
-  const [bulkModelName, setBulkModelName] = useState('')
+  const [bulkGenerationProvider, setBulkGenerationProvider] = useState<AIProvider>('openai')
+  const [bulkGenerationModelName, setBulkGenerationModelName] = useState('')
+  const [bulkReviewProvider, setBulkReviewProvider] = useState<AIProvider>('openai')
+  const [bulkReviewModelName, setBulkReviewModelName] = useState('')
 
   const aiTypeCount = useMemo(
-    () => initialTypes.filter((type) => type.provider === 'openai' || type.provider === 'gemini').length,
+    () => initialTypes.filter((type) => ['openai', 'gemini', 'claude'].includes(type.generation_provider || type.provider)).length,
     [initialTypes]
   )
 
   const providerOptions = useMemo(() => {
-    const providers = (['openai', 'gemini'] as const).filter((provider) =>
+    const providers = (['openai', 'gemini', 'claude'] as const).filter((provider) =>
       initialModels.some((model) => model.provider === provider)
     )
-    return providers.length > 0 ? providers : (['openai', 'gemini'] as const)
+    return providers.length > 0 ? providers : (['openai', 'gemini', 'claude'] as const)
   }, [initialModels])
 
-  const filteredModels = useMemo(
+  const generationModels = useMemo(
     () => initialModels
-      .filter((model) => model.provider === bulkProvider)
+      .filter((model) => model.provider === bulkGenerationProvider)
       .sort((a, b) => a.display_order - b.display_order),
-    [initialModels, bulkProvider]
+    [initialModels, bulkGenerationProvider]
+  )
+
+  const reviewModels = useMemo(
+    () => initialModels
+      .filter((model) => model.provider === bulkReviewProvider)
+      .sort((a, b) => a.display_order - b.display_order),
+    [initialModels, bulkReviewProvider]
   )
 
   useEffect(() => {
-    if (providerOptions.length > 0 && !providerOptions.includes(bulkProvider)) {
-      setBulkProvider(providerOptions[0])
+    if (providerOptions.length > 0 && !providerOptions.includes(bulkGenerationProvider)) {
+      setBulkGenerationProvider(providerOptions[0])
       return
     }
 
-    if (filteredModels.length === 0) {
-      setBulkModelName('')
+    if (generationModels.length === 0) {
+      setBulkGenerationModelName('')
       return
     }
 
-    const currentModelExists = filteredModels.some((model) => model.name === bulkModelName)
+    const currentModelExists = generationModels.some((model) => model.name === bulkGenerationModelName)
     if (!currentModelExists) {
-      setBulkModelName(filteredModels[0].name)
+      setBulkGenerationModelName(generationModels[0].name)
     }
-  }, [providerOptions, bulkProvider, filteredModels, bulkModelName])
+  }, [providerOptions, bulkGenerationProvider, generationModels, bulkGenerationModelName])
+
+  useEffect(() => {
+    if (providerOptions.length > 0 && !providerOptions.includes(bulkReviewProvider)) {
+      setBulkReviewProvider(providerOptions[0])
+      return
+    }
+
+    if (reviewModels.length === 0) {
+      setBulkReviewModelName('')
+      return
+    }
+
+    const currentModelExists = reviewModels.some((model) => model.name === bulkReviewModelName)
+    if (!currentModelExists) {
+      setBulkReviewModelName(reviewModels[0].name)
+    }
+  }, [providerOptions, bulkReviewProvider, reviewModels, bulkReviewModelName])
 
   const handleDelete = async (id: string) => {
     if (!confirm("이 문제 유형을 정말 삭제하시겠습니까?")) return
@@ -114,23 +140,40 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
     setBulkDialogOpen(true)
   }
 
-  const handleProviderChange = (value: string) => {
-    if (value === 'openai' || value === 'gemini') {
-      setBulkProvider(value)
-      setBulkModelName('')
+  const getProviderLabel = (provider: AIProvider) => {
+    if (provider === 'openai') return 'OpenAI'
+    if (provider === 'gemini') return 'Gemini'
+    return 'Claude'
+  }
+
+  const handleGenerationProviderChange = (value: string) => {
+    if (value === 'openai' || value === 'gemini' || value === 'claude') {
+      setBulkGenerationProvider(value)
+      setBulkGenerationModelName('')
+    }
+  }
+
+  const handleReviewProviderChange = (value: string) => {
+    if (value === 'openai' || value === 'gemini' || value === 'claude') {
+      setBulkReviewProvider(value)
+      setBulkReviewModelName('')
     }
   }
 
   const handleOpenConfirm = () => {
-    if (!bulkModelName) {
-      toast.error('변경할 모델을 선택해주세요')
+    if (!bulkGenerationModelName) {
+      toast.error('문제 생성 API 모델을 선택해주세요')
+      return
+    }
+    if (!bulkReviewModelName) {
+      toast.error('문제 검토 API 모델을 선택해주세요')
       return
     }
     setBulkConfirmOpen(true)
   }
 
   const handleBulkUpdate = async () => {
-    if (!bulkModelName) return
+    if (!bulkGenerationModelName || !bulkReviewModelName) return
 
     try {
       setBulkUpdating(true)
@@ -139,8 +182,10 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          provider: bulkProvider,
-          model_name: bulkModelName,
+          generation_provider: bulkGenerationProvider,
+          generation_model_name: bulkGenerationModelName,
+          review_provider: bulkReviewProvider,
+          review_model_name: bulkReviewModelName,
         }),
       })
 
@@ -150,7 +195,7 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
         throw new Error(result.error || '일괄 변경에 실패했습니다')
       }
 
-      toast.success(`${result.updated_count ?? 0}개 AI 문제 유형의 모델을 일괄 변경했습니다`)
+      toast.success(`${result.updated_count ?? 0}개 AI 문제 유형의 생성/검토 모델을 일괄 변경했습니다`)
       setBulkConfirmOpen(false)
       setBulkDialogOpen(false)
       router.refresh()
@@ -182,45 +227,91 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
           <DialogHeader>
             <DialogTitle>AI 모델 일괄 변경</DialogTitle>
             <DialogDescription>
-              등록된 AI 문제 유형 {aiTypeCount}개의 제공자/모델을 한 번에 변경합니다.
+              등록된 AI 문제 유형 {aiTypeCount}개의 문제 생성 API와 문제 검토 API 모델을 한 번에 변경합니다.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>AI 제공자</Label>
-              <Select value={bulkProvider} onValueChange={handleProviderChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="제공자 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  {providerOptions.map((provider) => (
-                    <SelectItem key={provider} value={provider}>
-                      {provider === 'openai' ? 'OpenAI' : 'Gemini'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="space-y-3 rounded-lg border p-4">
+              <h3 className="text-sm font-semibold">문제 생성 API</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>제공자</Label>
+                  <Select value={bulkGenerationProvider} onValueChange={handleGenerationProviderChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="제공자 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {providerOptions.map((provider) => (
+                        <SelectItem key={provider} value={provider}>
+                          {getProviderLabel(provider)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>모델 이름</Label>
+                  <Select value={bulkGenerationModelName || undefined} onValueChange={setBulkGenerationModelName}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="모델 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {generationModels.length === 0 ? (
+                        <SelectItem value="__empty__" disabled>선택 가능한 모델이 없습니다</SelectItem>
+                      ) : (
+                        generationModels.map((model) => (
+                          <SelectItem key={model.id} value={model.name}>
+                            {model.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>모델 이름</Label>
-              <Select value={bulkModelName || undefined} onValueChange={setBulkModelName}>
-                <SelectTrigger>
-                  <SelectValue placeholder="모델 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredModels.length === 0 ? (
-                    <SelectItem value="__empty__" disabled>선택 가능한 모델이 없습니다</SelectItem>
-                  ) : (
-                    filteredModels.map((model) => (
-                      <SelectItem key={model.id} value={model.name}>
-                        {model.name}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+            <div className="space-y-3 rounded-lg border p-4">
+              <h3 className="text-sm font-semibold">문제 검토 API</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>제공자</Label>
+                  <Select value={bulkReviewProvider} onValueChange={handleReviewProviderChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="제공자 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {providerOptions.map((provider) => (
+                        <SelectItem key={provider} value={provider}>
+                          {getProviderLabel(provider)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>모델 이름</Label>
+                  <Select value={bulkReviewModelName || undefined} onValueChange={setBulkReviewModelName}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="모델 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {reviewModels.length === 0 ? (
+                        <SelectItem value="__empty__" disabled>선택 가능한 모델이 없습니다</SelectItem>
+                      ) : (
+                        reviewModels.map((model) => (
+                          <SelectItem key={model.id} value={model.name}>
+                            {model.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -228,7 +319,7 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
             <Button variant="outline" onClick={() => setBulkDialogOpen(false)} disabled={bulkUpdating}>
               취소
             </Button>
-            <Button onClick={handleOpenConfirm} disabled={!bulkModelName || bulkUpdating}>
+            <Button onClick={handleOpenConfirm} disabled={!bulkGenerationModelName || !bulkReviewModelName || bulkUpdating}>
               일괄 변경 적용
             </Button>
           </DialogFooter>
@@ -240,7 +331,8 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
           <AlertDialogHeader>
             <AlertDialogTitle>일괄 변경을 적용할까요?</AlertDialogTitle>
             <AlertDialogDescription>
-              등록된 AI 문제 유형 {aiTypeCount}개의 모델을 {bulkProvider} / {bulkModelName}으로 변경합니다.
+              등록된 AI 문제 유형 {aiTypeCount}개의 문제 생성 API를 {getProviderLabel(bulkGenerationProvider)} / {bulkGenerationModelName},
+              문제 검토 API를 {getProviderLabel(bulkReviewProvider)} / {bulkReviewModelName}으로 변경합니다.
               기존 설정은 덮어써집니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -269,7 +361,10 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
                   {type.is_active ? '활성' : '비활성'}
                 </span>
               </CardTitle>
-              <CardDescription>{type.provider} / {type.model_name}</CardDescription>
+              <CardDescription className="space-y-1">
+                <span className="block">생성: {type.generation_provider || type.provider} / {type.generation_model_name || type.model_name}</span>
+                <span className="block">검토: {type.review_provider && type.review_model_name ? `${type.review_provider} / ${type.review_model_name}` : '미설정'}</span>
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-gray-500 line-clamp-2 mb-4">{type.description}</p>

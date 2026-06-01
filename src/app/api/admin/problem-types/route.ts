@@ -79,8 +79,22 @@ const problemTypeSchema = z.object({
 })
 
 const bulkModelUpdateSchema = z.object({
-  provider: z.enum(['gemini', 'openai', 'claude']),
-  model_name: z.string().min(1, 'Model name is required'),
+  provider: z.enum(['gemini', 'openai', 'claude']).optional(),
+  model_name: z.string().optional(),
+  generation_provider: z.enum(['gemini', 'openai', 'claude']).optional(),
+  generation_model_name: z.string().optional(),
+  review_provider: z.enum(['gemini', 'openai', 'claude']).optional(),
+  review_model_name: z.string().optional(),
+}).refine((data) => {
+  const generationProvider = data.generation_provider || data.provider
+  const generationModelName = data.generation_model_name || data.model_name
+  return Boolean(generationProvider && generationModelName?.trim())
+}, {
+  message: '문제 생성 API 제공자와 모델은 필수입니다.',
+}).refine((data) => {
+  return Boolean(data.review_provider && data.review_model_name?.trim())
+}, {
+  message: '문제 검토 API 제공자와 모델은 필수입니다.',
 })
 
 export async function POST(request: Request) {
@@ -183,31 +197,54 @@ export async function PATCH(request: Request) {
     const body = await request.json()
     const validatedData = bulkModelUpdateSchema.parse(body)
     const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
+    const generationProvider = validatedData.generation_provider || validatedData.provider!
+    const generationModelName = (validatedData.generation_model_name || validatedData.model_name)!.trim()
+    const reviewProvider = validatedData.review_provider!
+    const reviewModelName = validatedData.review_model_name!.trim()
 
-    // 선택한 provider/model 조합의 존재 여부 검증
-    const { data: model, error: modelError } = await supabase
+    // 선택한 문제 생성 provider/model 조합의 존재 여부 검증
+    const { data: generationModel, error: generationModelError } = await supabase
       .from('ai_models')
       .select('id')
-      .eq('provider', validatedData.provider)
-      .eq('name', validatedData.model_name)
+      .eq('provider', generationProvider)
+      .eq('name', generationModelName)
       .maybeSingle()
 
-    if (modelError) {
-      console.error('[Admin Problem Types] Model validation error:', modelError)
-      return NextResponse.json({ error: 'Failed to validate target model' }, { status: 500 })
+    if (generationModelError) {
+      console.error('[Admin Problem Types] Generation model validation error:', generationModelError)
+      return NextResponse.json({ error: 'Failed to validate generation model' }, { status: 500 })
     }
 
-    if (!model) {
-      return NextResponse.json({ error: '선택한 제공자에 해당 모델이 존재하지 않습니다.' }, { status: 400 })
+    if (!generationModel) {
+      return NextResponse.json({ error: '선택한 문제 생성 API 제공자에 해당 모델이 존재하지 않습니다.' }, { status: 400 })
+    }
+
+    // 선택한 문제 검토 provider/model 조합의 존재 여부 검증
+    const { data: reviewModel, error: reviewModelError } = await supabase
+      .from('ai_models')
+      .select('id')
+      .eq('provider', reviewProvider)
+      .eq('name', reviewModelName)
+      .maybeSingle()
+
+    if (reviewModelError) {
+      console.error('[Admin Problem Types] Review model validation error:', reviewModelError)
+      return NextResponse.json({ error: 'Failed to validate review model' }, { status: 500 })
+    }
+
+    if (!reviewModel) {
+      return NextResponse.json({ error: '선택한 문제 검토 API 제공자에 해당 모델이 존재하지 않습니다.' }, { status: 400 })
     }
 
     const { data: updatedTypes, error: updateError } = await supabase
       .from('problem_types')
       .update({
-        provider: validatedData.provider,
-        model_name: validatedData.model_name,
-        generation_provider: validatedData.provider,
-        generation_model_name: validatedData.model_name,
+        provider: generationProvider,
+        model_name: generationModelName,
+        generation_provider: generationProvider,
+        generation_model_name: generationModelName,
+        review_provider: reviewProvider,
+        review_model_name: reviewModelName,
         updated_at: new Date().toISOString(),
       })
       .eq('workspace_subject', workspaceSubject)
@@ -222,8 +259,10 @@ export async function PATCH(request: Request) {
     return NextResponse.json({
       success: true,
       updated_count: updatedTypes?.length ?? 0,
-      provider: validatedData.provider,
-      model_name: validatedData.model_name,
+      generation_provider: generationProvider,
+      generation_model_name: generationModelName,
+      review_provider: reviewProvider,
+      review_model_name: reviewModelName,
     })
   } catch (error) {
     console.error('[Admin Problem Types] Bulk update error:', error)

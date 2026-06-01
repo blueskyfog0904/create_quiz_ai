@@ -1,0 +1,32 @@
+insert into public.ai_models (name, provider, display_order)
+values
+  ('gpt-5.2', 'openai', 1),
+  ('gpt-5.2-pro', 'openai', 2),
+  ('gpt-5-mini', 'openai', 3),
+  ('gpt-5-nano', 'openai', 4),
+  ('gpt-4.1', 'openai', 5),
+  ('gpt-4.1-mini', 'openai', 6),
+  ('gpt-4o', 'openai', 7),
+  ('gemini-3.1-pro-preview', 'gemini', 1),
+  ('gemini-3-pro-preview', 'gemini', 2),
+  ('gemini-3-flash-preview', 'gemini', 3),
+  ('gemini-2.5-pro', 'gemini', 4),
+  ('gemini-2.5-flash', 'gemini', 5),
+  ('gemini-2.5-flash-lite', 'gemini', 6),
+  ('gemini-2.0-flash', 'gemini', 7),
+  ('gemini-2.0-flash-lite', 'gemini', 8),
+  ('claude-opus-4-8', 'claude', 1),
+  ('claude-opus-4-7', 'claude', 2),
+  ('claude-sonnet-4-6', 'claude', 3),
+  ('claude-opus-4-6', 'claude', 4),
+  ('claude-opus-4-5-20251101', 'claude', 5),
+  ('claude-haiku-4-5-20251001', 'claude', 6),
+  ('claude-sonnet-4-5-20250929', 'claude', 7),
+  ('claude-opus-4-1-20250805', 'claude', 8),
+  ('gpt-4-turbo', 'openai', 90),
+  ('gpt-3.5-turbo', 'openai', 91),
+  ('gemini-pro', 'gemini', 90),
+  ('gemini-1.5-pro', 'gemini', 91)
+on conflict (name, provider) do update
+set display_order = excluded.display_order,
+    updated_at = now();

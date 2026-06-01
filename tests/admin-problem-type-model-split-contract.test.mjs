@@ -6,6 +6,7 @@ const readSource = (path) => readFileSync(new URL(`../${path}`, import.meta.url)
 
 const newFormSource = readSource('src/app/(admin)/admin/problem-types/new/problem-type-form-client.tsx')
 const editFormSource = readSource('src/app/(admin)/admin/problem-types/[id]/edit/problem-type-form-client.tsx')
+const listClientSource = readSource('src/app/(admin)/admin/problem-types/problem-types-client.tsx')
 const actionsSource = readSource('src/app/(admin)/admin/problem-types/actions.ts')
 const createRouteSource = readSource('src/app/api/admin/problem-types/route.ts')
 const updateRouteSource = readSource('src/app/api/admin/problem-types/[id]/route.ts')
@@ -43,6 +44,20 @@ test('problem type admin APIs validate split provider fields and accept claude',
     assert.match(source, /review_model_name/)
     assert.match(source, /claude/)
   }
+})
+
+test('problem type bulk model update changes generation and review API settings together', () => {
+  assert.match(listClientSource, /bulkGenerationProvider/)
+  assert.match(listClientSource, /bulkGenerationModelName/)
+  assert.match(listClientSource, /bulkReviewProvider/)
+  assert.match(listClientSource, /bulkReviewModelName/)
+  assert.match(listClientSource, /generation_provider:\s*bulkGenerationProvider/)
+  assert.match(listClientSource, /generation_model_name:\s*bulkGenerationModelName/)
+  assert.match(listClientSource, /review_provider:\s*bulkReviewProvider/)
+  assert.match(listClientSource, /review_model_name:\s*bulkReviewModelName/)
+  assert.match(createRouteSource, /generation_provider:[\s\S]*review_provider:[\s\S]*review_model_name:/)
+  assert.match(createRouteSource, /review_provider:\s*reviewProvider/)
+  assert.match(createRouteSource, /review_model_name:\s*reviewModelName/)
 })
 
 test('problem type migration backfills only generation config and leaves review config nullable', () => {
