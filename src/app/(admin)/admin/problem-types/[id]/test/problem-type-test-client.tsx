@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Download, Loader2, Play } from 'lucide-react'
 import { toast } from 'sonner'
@@ -56,6 +56,22 @@ type TestRunSummary = {
   downloadUrl: string
 }
 
+type TestRunDetail = {
+  id: string
+  status: string
+  stopReason?: string | null
+  finalQuestion?: Question | null
+  lastQuestion?: Question | null
+  finalReview?: ReviewResult | null
+  attempts?: QuestionGenerationAttemptLog[] | null
+}
+
+type TestRunDetailResponse = {
+  success: boolean
+  run?: TestRunDetail
+  error?: { message?: string }
+}
+
 interface ProblemTypeTestClientProps {
   problemType: ProblemType
   workspaceSubject: WorkspaceSubject
@@ -68,6 +84,8 @@ export default function ProblemTypeTestClient({ problemType, workspaceSubject }:
   const [testing, setTesting] = useState(false)
   const [result, setResult] = useState<TestResponse | null>(null)
   const [recentRuns, setRecentRuns] = useState<TestRunSummary[]>([])
+  const [selectedTestRunId, setSelectedTestRunId] = useState<string | null>(null)
+  const [loadingTestRunId, setLoadingTestRunId] = useState<string | null>(null)
 
   const groupedLogs = useMemo(() => {
     const logs = result?.attempts ?? []
@@ -94,6 +112,46 @@ export default function ProblemTypeTestClient({ problemType, workspaceSubject }:
   useEffect(() => {
     void loadRecentRuns()
   }, [loadRecentRuns])
+
+  const handleLoadTestRun = async (run: TestRunSummary) => {
+    try {
+      setLoadingTestRunId(run.id)
+      const response = await fetch(run.logLocation)
+      const data: TestRunDetailResponse = await response.json()
+
+      if (!response.ok || !data.run) {
+        throw new Error(data.error?.message || '테스트 로그를 불러오지 못했습니다')
+      }
+
+      const loadedRun = data.run
+      setSelectedTestRunId(loadedRun.id)
+      setResult({
+        success: loadedRun.status === 'passed',
+        status: loadedRun.status,
+        testRunId: loadedRun.id,
+        logLocation: run.logLocation,
+        logDownloadUrl: run.downloadUrl,
+        finalQuestion: loadedRun.finalQuestion ?? undefined,
+        lastQuestion: loadedRun.lastQuestion ?? undefined,
+        finalReview: loadedRun.finalReview ?? undefined,
+        attempts: Array.isArray(loadedRun.attempts) ? loadedRun.attempts : [],
+        stopReason: loadedRun.stopReason ?? undefined,
+      })
+      requestAnimationFrame(() => {
+        document.getElementById('test-result-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '테스트 로그를 불러오는 중 오류가 발생했습니다')
+    } finally {
+      setLoadingTestRunId(null)
+    }
+  }
+
+  const handleRecentRunKeyDown = (event: KeyboardEvent<HTMLDivElement>, run: TestRunSummary) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    void handleLoadTestRun(run)
+  }
 
   const handleRunTest = async () => {
     if (!passage.trim()) {
@@ -203,7 +261,7 @@ export default function ProblemTypeTestClient({ problemType, workspaceSubject }:
       </Card>
 
       {result && (
-        <Card>
+        <Card id="test-result-section">
           <CardHeader>
             <CardTitle>테스트 결과</CardTitle>
             <CardDescription>
@@ -289,7 +347,7 @@ export default function ProblemTypeTestClient({ problemType, workspaceSubject }:
       <Card>
         <CardHeader>
           <CardTitle>최근 테스트 로그</CardTitle>
-          <CardDescription>저장된 문제 생성 테스트 로그 위치를 확인하고 JSON으로 다운로드합니다.</CardDescription>
+          <CardDescription>저장된 테스트 로그를 클릭해 진행 내역을 다시 확인하고 JSON으로 다운로드합니다.</CardDescription>
         </CardHeader>
         <CardContent>
           {recentRuns.length === 0 ? (
@@ -297,19 +355,31 @@ export default function ProblemTypeTestClient({ problemType, workspaceSubject }:
           ) : (
             <div className="space-y-2">
               {recentRuns.map((run) => (
-                <div key={run.id} className="flex flex-col gap-3 rounded border p-3 text-sm md:flex-row md:items-center md:justify-between">
+                <div
+                  key={run.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleLoadTestRun(run)}
+                  onKeyDown={(event) => handleRecentRunKeyDown(event, run)}
+                  className={`flex cursor-pointer flex-col gap-3 rounded border p-3 text-sm transition hover:bg-muted/30 md:flex-row md:items-center md:justify-between ${
+                    selectedTestRunId === run.id ? 'border-primary bg-primary/5' : ''
+                  }`}
+                >
                   <div>
                     <p className="font-medium">{new Date(run.createdAt).toLocaleString('ko-KR')} · {run.status}</p>
                     <p className="text-muted-foreground">
                       로그 ID: {run.id} · 반복 기록 {run.attemptCount}개 · 중단 사유: {run.stopReason || '-'}
                     </p>
                     <p className="break-all text-muted-foreground">위치: {run.logLocation}</p>
+                    {loadingTestRunId === run.id && (
+                      <p className="mt-1 text-xs text-primary">진행 내역 불러오는 중...</p>
+                    )}
                   </div>
                   <div className="flex gap-2">
-                    <Button asChild variant="outline" size="sm">
+                    <Button asChild variant="outline" size="sm" onClick={(event) => event.stopPropagation()}>
                       <a href={run.logLocation} target="_blank" rel="noreferrer">상세 JSON 보기</a>
                     </Button>
-                    <Button asChild variant="outline" size="sm">
+                    <Button asChild variant="outline" size="sm" onClick={(event) => event.stopPropagation()}>
                       <a href={run.downloadUrl} download>
                         <Download className="mr-2 h-4 w-4" />
                         JSON 다운로드
