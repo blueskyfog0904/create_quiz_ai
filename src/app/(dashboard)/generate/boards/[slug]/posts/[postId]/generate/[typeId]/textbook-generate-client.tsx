@@ -7,8 +7,6 @@ import { Loader2, ArrowLeft, BookOpen } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { QuestionPreview } from '@/components/features/quiz/question-preview'
@@ -16,7 +14,6 @@ import { CreditConfirmationDialog } from '@/components/features/credits/credit-c
 import { useLoginRedirect } from '@/hooks/use-login-redirect'
 import type { Database } from '@/types/supabase'
 import type { Question } from '@/lib/ai/types'
-import { LISTBOARD_GRADE_OPTIONS, normalizeListboardGradeLevel } from '@/lib/generate-menu'
 import type { WorkspaceSubject } from '../../../../../../workspace-subject'
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
@@ -46,8 +43,6 @@ export default function TextbookGenerateClient({
   const router = useRouter()
   const { redirectToLogin } = useLoginRedirect()
   const abortControllerRef = useRef<AbortController | null>(null)
-  const [gradeLevel, setGradeLevel] = useState(normalizeListboardGradeLevel(post.grade_level) || '1학년')
-  const [difficulty, setDifficulty] = useState('Medium')
   const [currentBalance, setCurrentBalance] = useState<number | null>(null)
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [isCheckingBalance, setIsCheckingBalance] = useState(false)
@@ -111,8 +106,6 @@ export default function TextbookGenerateClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           passage,
-          gradeLevel,
-          difficulty,
           problemTypeId: problemType.id,
           workspaceSubject,
         }),
@@ -159,8 +152,6 @@ export default function TextbookGenerateClient({
         body: JSON.stringify({
           question: generatedQuestion.question,
           passage,
-          gradeLevel,
-          difficulty,
           problemTypeId: problemType.id,
           rawAiResponse: generatedQuestion.rawResponse,
           tags: [],
@@ -221,33 +212,7 @@ export default function TextbookGenerateClient({
         <CardHeader>
           <CardTitle>문제 생성 옵션</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="grade-level">학년</Label>
-              <Select value={gradeLevel} onValueChange={(value) => setGradeLevel(value as typeof gradeLevel)}>
-                <SelectTrigger id="grade-level"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {LISTBOARD_GRADE_OPTIONS.map((grade) => (
-                    <SelectItem key={grade} value={grade}>{grade}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="difficulty">난이도</Label>
-              <Select value={difficulty} onValueChange={setDifficulty}>
-                <SelectTrigger id="difficulty"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Low">하</SelectItem>
-                  <SelectItem value="Medium">중</SelectItem>
-                  <SelectItem value="High">상</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <Button onClick={handleGenerateClick} disabled={isCheckingBalance || isGenerating} className="w-full text-base h-11">
+        <CardContent className="space-y-4">          <Button onClick={handleGenerateClick} disabled={isCheckingBalance || isGenerating} className="w-full text-base h-11">
             {isCheckingBalance ? '잔액 확인 중...' : isGenerating ? '문제 생성 중...' : '교재형 문제 생성 시작 (100 크레딧)'}
           </Button>
         </CardContent>

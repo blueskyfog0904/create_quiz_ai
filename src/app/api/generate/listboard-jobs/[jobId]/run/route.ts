@@ -18,8 +18,6 @@ const COST_PER_GENERATION = 100
 const REVIEW_LOOP_FAILURE_CODES = ['MAX_ATTEMPTS_REACHED', 'REVIEW_FAILED', 'GENERATION_FAILED', 'GENERATION_TIMEOUT', 'REVIEW_MODEL_NOT_CONFIGURED'] as const
 
 const RunListboardJobSchema = z.object({
-  gradeLevel: z.string().min(1),
-  difficulty: z.string().min(1),
   workspaceSubject: z.enum(['english', 'korean']).optional(),
 })
 
@@ -74,8 +72,6 @@ export async function POST(request: Request, { params }: RouteContext) {
     workspaceSubject: validation.data.workspaceSubject,
     referer: request.headers.get('referer'),
   })
-  const { gradeLevel, difficulty } = validation.data
-
   const { data: job, error: jobError } = await supabase
     .from('generate_listboard_generation_jobs')
     .select('*')
@@ -251,8 +247,6 @@ export async function POST(request: Request, { params }: RouteContext) {
 
       const loopResult = await runQuestionGenerationReviewLoop({
         passage: postItem.passage_text,
-        gradeLevel,
-        difficulty,
         workspaceSubject,
         promptBundle: generationConfig.promptBundle,
         modelConfig: generationConfig.modelConfig,

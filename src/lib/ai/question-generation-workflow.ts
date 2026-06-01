@@ -71,8 +71,6 @@ type ReviewFeedbackPayload = {
 
 export type RunQuestionGenerationReviewLoopInput = {
   passage: string
-  gradeLevel: string
-  difficulty: string
   workspaceSubject: 'english' | 'korean'
   promptBundle: QuestionPromptBundle
   modelConfig: QuestionGenerationModelConfig
@@ -91,39 +89,6 @@ export type RunQuestionGenerationReviewLoopResult = {
   rawReviewResponse?: string
   attempts: QuestionGenerationAttemptLog[]
   stopReason: string
-}
-
-const getGradeLevelKorean = (grade: string): string => {
-  const gradeMap: Record<string, string> = {
-    '1학년': '고등학교 1학년',
-    고1: '고등학교 1학년',
-    High1: '고등학교 1학년',
-    Middle1: '중학교 1학년',
-    중1: '중학교 1학년',
-    '2학년': '고등학교 2학년',
-    고2: '고등학교 2학년',
-    High2: '고등학교 2학년',
-    Middle2: '중학교 2학년',
-    중2: '중학교 2학년',
-    '3학년': '고등학교 3학년',
-    고3: '고등학교 3학년',
-    High3: '고등학교 3학년',
-    Middle3: '중학교 3학년',
-    중3: '중학교 3학년',
-  }
-  return gradeMap[grade] ?? grade
-}
-
-const getDifficultyKorean = (difficulty: string): string => {
-  const diffMap: Record<string, string> = {
-    Low: '하',
-    Medium: '중',
-    High: '상',
-    하: '하',
-    중: '중',
-    상: '상',
-  }
-  return diffMap[difficulty] ?? difficulty
 }
 
 const maybePayload = (traceMode: TraceMode, payload: unknown) => (
@@ -251,8 +216,6 @@ export function buildQuestionGenerationConfigFromProblemType(problemType: Proble
 export function buildQuestionGenerationPrompt(input: {
   promptBundle: QuestionPromptBundle
   passage: string
-  gradeLevel: string
-  difficulty: string
   workspaceSubject: 'english' | 'korean'
 }) {
   return `
@@ -277,8 +240,6 @@ ${input.promptBundle.responseStructurePrompt}
 
 【문제 생성 조건】
 - 과목 영역: ${input.workspaceSubject}
-- 학년의 난이도는 대한민국의 ${getGradeLevelKorean(input.gradeLevel)} 수준입니다.
-- 문제의 난이도는 위에서 설정한 학년의 수준에서 상, 중, 하 중 ${getDifficultyKorean(input.difficulty)}의 난이도입니다.
 
 【지문 시작】
 ${input.passage}
@@ -291,8 +252,6 @@ ${input.passage}
 export function buildQuestionRegenerationPrompt(input: {
   promptBundle: QuestionPromptBundle
   passage: string
-  gradeLevel: string
-  difficulty: string
   workspaceSubject: 'english' | 'korean'
   previousQuestion: Question
   reviewFeedbackPayload: ReviewFeedbackPayload
@@ -324,8 +283,6 @@ issues 배열의 field, message, suggestion을 누락하지 말고 각각의 지
 export function buildQuestionReviewPrompt(input: {
   promptBundle: QuestionPromptBundle
   passage: string
-  gradeLevel: string
-  difficulty: string
   workspaceSubject: 'english' | 'korean'
   generatedQuestion: Question
 }) {
@@ -346,8 +303,6 @@ ${input.promptBundle.responseStructurePrompt}
 
 【문제 생성 조건】
 - 과목 영역: ${input.workspaceSubject}
-- 학년: ${getGradeLevelKorean(input.gradeLevel)}
-- 난이도: ${getDifficultyKorean(input.difficulty)}
 
 【지문 시작】
 ${input.passage}
@@ -392,8 +347,6 @@ const normalizeReviewPassed = (value: unknown) => {
 export async function reviewGeneratedQuestion(input: {
   promptBundle: QuestionPromptBundle
   passage: string
-  gradeLevel: string
-  difficulty: string
   workspaceSubject: 'english' | 'korean'
   generatedQuestion: Question
   provider: AIProvider
@@ -546,8 +499,6 @@ export async function runQuestionGenerationReviewLoop(
       ? buildQuestionRegenerationPrompt({
         promptBundle: input.promptBundle,
         passage: input.passage,
-        gradeLevel: input.gradeLevel,
-        difficulty: input.difficulty,
         workspaceSubject: input.workspaceSubject,
         previousQuestion,
         reviewFeedbackPayload,
@@ -562,8 +513,6 @@ export async function runQuestionGenerationReviewLoop(
         title: '문제 생성 시작',
         status: 'success',
         payload: maybePayload(traceMode, {
-          gradeLevel: input.gradeLevel,
-          difficulty: input.difficulty,
           workspaceSubject: input.workspaceSubject,
         }),
       })
@@ -649,8 +598,6 @@ export async function runQuestionGenerationReviewLoop(
     const reviewPrompt = buildQuestionReviewPrompt({
       promptBundle: input.promptBundle,
       passage: input.passage,
-      gradeLevel: input.gradeLevel,
-      difficulty: input.difficulty,
       workspaceSubject: input.workspaceSubject,
       generatedQuestion: generation.data,
     })
@@ -683,8 +630,6 @@ export async function runQuestionGenerationReviewLoop(
       reviewResult = await reviewGeneratedQuestion({
         promptBundle: input.promptBundle,
         passage: input.passage,
-        gradeLevel: input.gradeLevel,
-        difficulty: input.difficulty,
         workspaceSubject: input.workspaceSubject,
         generatedQuestion: generation.data,
         provider: input.modelConfig.reviewProvider,

@@ -18,8 +18,6 @@ const CREDIT_BALANCE_HEADER = 'x-credit-balance'
 
 const GenerateRequestSchema = z.object({
   passage: z.string().max(3500, 'Passage must be under 3500 characters'),
-  gradeLevel: z.string(),
-  difficulty: z.string(),
   problemTypeId: z.string().uuid(),
   workspaceSubject: z.enum(['english', 'korean']).optional(),
   includeTrace: z.boolean().optional(),
@@ -153,7 +151,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { passage, gradeLevel, difficulty, problemTypeId } = validation.data
+    const { passage, problemTypeId } = validation.data
     const workspaceSubject = resolveGenerateWorkspaceSubject({
       workspaceSubject: validation.data.workspaceSubject,
       referer: request.headers.get('referer'),
@@ -231,8 +229,6 @@ export async function POST(request: NextRequest) {
 
     const loopResult = await runQuestionGenerationReviewLoop({
       passage,
-      gradeLevel,
-      difficulty,
       workspaceSubject,
       promptBundle: generationConfig.promptBundle,
       modelConfig: generationConfig.modelConfig,

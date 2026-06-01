@@ -14,8 +14,6 @@ export const dynamic = 'force-dynamic'
 const TestRequestSchema = z.object({
   passage: z.string().min(1).max(3500),
   passageId: z.string().uuid().optional(),
-  gradeLevel: z.string().min(1),
-  difficulty: z.string().min(1),
   workspaceSubject: z.enum(['english', 'korean']).optional(),
   maxAttempts: z.number().int().min(1).max(MAX_ADMIN_REVIEW_ATTEMPTS).optional(),
 })
@@ -79,8 +77,6 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   const loopResult = await runQuestionGenerationReviewLoop({
     passage: validation.data.passage,
-    gradeLevel: validation.data.gradeLevel,
-    difficulty: validation.data.difficulty,
     workspaceSubject,
     promptBundle: generationConfig.promptBundle,
     modelConfig: generationConfig.modelConfig,
@@ -101,8 +97,6 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       input: toJson({
         passage: validation.data.passage,
         passageId: validation.data.passageId,
-        gradeLevel: validation.data.gradeLevel,
-        difficulty: validation.data.difficulty,
         maxAttempts: validation.data.maxAttempts,
         workspaceSubject,
       }),

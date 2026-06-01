@@ -7,8 +7,6 @@ import { toast } from 'sonner'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
 import { useLoginRedirect } from '@/hooks/use-login-redirect'
 import type { Database } from '@/types/supabase'
@@ -29,12 +27,6 @@ interface BoardPostClientProps {
 }
 
 const CREDIT_COST_PER_GENERATION = 100
-const GRADE_OPTIONS = ['1학년', '2학년', '3학년'] as const
-const DIFFICULTY_OPTIONS = [
-  { value: 'Low', label: '하' },
-  { value: 'Medium', label: '중' },
-  { value: 'High', label: '상' },
-] as const
 
 export default function BoardPostClient({
   board,
@@ -52,8 +44,6 @@ export default function BoardPostClient({
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [isCheckingBalance, setIsCheckingBalance] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [gradeLevel, setGradeLevel] = useState(post.grade_level || '1학년')
-  const [difficulty, setDifficulty] = useState('Medium')
 
   const selectedItems = useMemo(
     () => items.filter((item) => selectedPostItemIds.includes(item.id)),
@@ -156,8 +146,6 @@ export default function BoardPostClient({
           postId: post.id,
           postItemIds: selectedPostItemIds,
           problemTypeIds: selectedProblemTypeIds,
-          gradeLevel,
-          difficulty,
           workspaceSubject,
         }),
       })
@@ -168,11 +156,7 @@ export default function BoardPostClient({
       }
 
       toast.success('문제 생성 작업을 등록했습니다.')
-      const params = new URLSearchParams({
-        gradeLevel,
-        difficulty,
-      })
-      router.push(`/generate/boards/${board.slug}/posts/${post.id}/jobs/${data.data.jobId}?${params.toString()}`)
+      router.push(`/generate/boards/${board.slug}/posts/${post.id}/jobs/${data.data.jobId}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '문제 생성 작업 생성 중 오류가 발생했습니다.')
     } finally {
@@ -215,41 +199,6 @@ export default function BoardPostClient({
           <div className="rounded-md border border-rose-100 bg-rose-50/80 px-4 py-3">
             <p className="text-xs text-gray-500">예상 차감 크레딧</p>
             <p className="mt-1 text-lg font-semibold text-rose-700">{requiredCredits.toLocaleString()}</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>생성 옵션</CardTitle>
-          <CardDescription>선택한 모든 문제 유형/문항 조합에 동일한 옵션이 적용됩니다.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="grade-level">학년</Label>
-            <Select value={gradeLevel} onValueChange={setGradeLevel}>
-              <SelectTrigger id="grade-level">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {GRADE_OPTIONS.map((grade) => (
-                  <SelectItem key={grade} value={grade}>{grade}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="difficulty">난이도</Label>
-            <Select value={difficulty} onValueChange={setDifficulty}>
-              <SelectTrigger id="difficulty">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DIFFICULTY_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </CardContent>
       </Card>
@@ -345,7 +294,7 @@ export default function BoardPostClient({
         currentBalance={currentBalance}
         isLoading={isSubmitting || isCheckingBalance}
         title="문제 생성 확인"
-        description={`학년 ${gradeLevel}, 난이도 ${DIFFICULTY_OPTIONS.find((option) => option.value === difficulty)?.label ?? difficulty} 기준으로 총 ${requestedGenerationCount}건의 생성 작업을 실행합니다.`}
+        description={`총 ${requestedGenerationCount}건의 생성 작업을 실행합니다.`}
       />
     </div>
   )

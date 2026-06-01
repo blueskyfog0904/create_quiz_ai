@@ -28,8 +28,6 @@ interface JobStatusClientProps {
   board: GenerateMenuEntry
   post: GenerateListboardPost
   initialJob: GenerateListboardGenerationJob
-  initialGradeLevel?: string
-  initialDifficulty?: string
   initialItems: JobStatusItem[]
   workspaceSubject: WorkspaceSubject
 }
@@ -45,8 +43,6 @@ export default function JobStatusClient({
   board,
   post,
   initialJob,
-  initialGradeLevel,
-  initialDifficulty,
   initialItems,
   workspaceSubject,
 }: JobStatusClientProps) {
@@ -196,8 +192,6 @@ export default function JobStatusClient({
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            gradeLevel: initialGradeLevel || post.grade_level || '1학년',
-            difficulty: initialDifficulty || 'Medium',
             workspaceSubject,
           }),
         })
@@ -216,7 +210,7 @@ export default function JobStatusClient({
     }
 
     void startRun()
-  }, [job.id, job.status, initialDifficulty, initialGradeLevel, post.grade_level, refreshJob, workspaceSubject])
+  }, [job.id, job.status, refreshJob, workspaceSubject])
 
   useEffect(() => {
     if (!hasStartedRunRef.current) {

@@ -16,8 +16,6 @@ const CreateListboardJobSchema = z.object({
   postId: z.string().uuid(),
   postItemIds: z.array(z.string().uuid()).min(1),
   problemTypeIds: z.array(z.string().uuid()).min(1),
-  gradeLevel: z.string().min(1),
-  difficulty: z.string().min(1),
   workspaceSubject: z.enum(['english', 'korean']).optional(),
 })
 
@@ -52,7 +50,7 @@ export async function POST(request: Request) {
 
     const { data: post, error: postError } = await supabase
       .from('generate_listboard_posts')
-      .select('id, title, grade_level')
+      .select('id, title')
       .eq('id', validation.data.postId)
       .eq('workspace_subject', workspaceSubject)
       .eq('status', 'published')
@@ -178,8 +176,6 @@ export async function POST(request: Request) {
         requiredCredits,
         postTitle: post.title,
         status: 'queued',
-        gradeLevel: validation.data.gradeLevel || post.grade_level || '1학년',
-        difficulty: validation.data.difficulty,
       },
     })
   } catch (error) {

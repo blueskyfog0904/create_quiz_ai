@@ -26,7 +26,7 @@ export const DEFAULT_REVIEW_PROMPT = `너는 영어 교육 평가 문항 검토�
 1. 문제와 정답이 지문에 근거하는가
 2. 선택지와 정답 형식이 응답 구조 프롬프트를 따르는가
 3. 해설이 정답을 설명하기에 충분한가
-4. 학년/난이도 조건에 맞는가
+4. 문제 유형 지시와 지문 조건에 맞는가
 5. 응답 구조 프롬프트에서 요구한 필수 항목이 누락되지 않았는가`
 
 export const DEFAULT_REVIEW_RESPONSE_STRUCTURE_PROMPT = `반드시 다음 JSON 형식으로만 검토 결과를 반환하세요.

@@ -48,9 +48,7 @@ const RESPONSE_STRUCTURE_EXAMPLE = `다음은 문제 생성 API 응답에서 반
     { "label": "⑤", "text": "다섯 번째 선택지 내용" }
   ],
   "answer": "정답 (예: ①, ②, ③, ④, ⑤)",
-  "explanation": "정답 해설 (선택사항, 없으면 null)",
-  "difficulty": "난이도 (Low, Medium, High 중 하나)",
-  "grade_level": "학년 (예: Middle1, Middle2, Middle3, High1, High2, High3)"
+  "explanation": "정답 해설 (선택사항, 없으면 null)"
 }
 
 ---
@@ -79,8 +77,6 @@ choices 필드 규칙:
 | choices | O | array | 선택지 배열 (빈 배열 가능) |
 | answer | O | string | 정답 |
 | explanation | X | string/null | 해설 |
-| difficulty | X | string | 난이도 (Low/Medium/High) |
-| grade_level | X | string | 학년 |
 
 ---
 복수 문제 응답시:

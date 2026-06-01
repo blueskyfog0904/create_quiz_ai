@@ -262,8 +262,6 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   const postItemMap = new Map((postItems ?? []).map((item) => [item.id, item]))
   const problemTypeMap = new Map((problemTypes ?? []).map((type) => [type.id, type]))
-  const gradeLevel = job.grade_level || '1학년'
-  const difficulty = job.difficulty || 'Medium'
   let completedRetries = 0
   let failedRetries = 0
 
@@ -326,8 +324,6 @@ export async function POST(request: Request, { params }: RouteContext) {
 
       const loopResult = await runQuestionGenerationReviewLoop({
         passage: postItem.passage_text,
-        gradeLevel,
-        difficulty,
         workspaceSubject,
         promptBundle: generationConfig.promptBundle,
         modelConfig: generationConfig.modelConfig,

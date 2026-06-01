@@ -6,7 +6,6 @@ import { ArrowLeft, Download, Loader2, Play } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
@@ -64,8 +63,6 @@ interface ProblemTypeTestClientProps {
 
 export default function ProblemTypeTestClient({ problemType, workspaceSubject }: ProblemTypeTestClientProps) {
   const [passage, setPassage] = useState('')
-  const [gradeLevel, setGradeLevel] = useState('High1')
-  const [difficulty, setDifficulty] = useState('Medium')
   const [maxAttempts, setMaxAttempts] = useState('3')
   const [selectorOpen, setSelectorOpen] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -112,8 +109,6 @@ export default function ProblemTypeTestClient({ problemType, workspaceSubject }:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           passage,
-          gradeLevel,
-          difficulty,
           maxAttempts: Number(maxAttempts),
           workspaceSubject,
         }),
@@ -183,23 +178,6 @@ export default function ProblemTypeTestClient({ problemType, workspaceSubject }:
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label>학년</Label>
-              <Input value={gradeLevel} onChange={(event) => setGradeLevel(event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>난이도</Label>
-              <Select value={difficulty} onValueChange={setDifficulty}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Low">하</SelectItem>
-                  <SelectItem value="Medium">중</SelectItem>
-                  <SelectItem value="High">상</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <div className="space-y-2">
               <Label>최대 반복</Label>
               <Select value={maxAttempts} onValueChange={setMaxAttempts}>

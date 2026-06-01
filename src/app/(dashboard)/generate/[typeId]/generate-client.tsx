@@ -2,7 +2,6 @@
 
 import { useState, useRef, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -50,9 +49,6 @@ export default function GenerateClient({ problemType, workspaceSubject, isLogged
   const abortControllerRef = useRef<AbortController | null>(null)
 
   const [viewMode, setViewMode] = useState<'FORM' | 'RESULT'>('FORM')
-  
-  const [gradeLevel, setGradeLevel] = useState('High1')
-  const [difficulty, setDifficulty] = useState('Medium')
   
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -216,8 +212,6 @@ export default function GenerateClient({ problemType, workspaceSubject, isLogged
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           passage,
-          gradeLevel,
-          difficulty,
           problemTypeId: problemType.id,
           workspaceSubject,
         }),
@@ -320,8 +314,6 @@ export default function GenerateClient({ problemType, workspaceSubject, isLogged
         body: JSON.stringify({
           question: generatedQuestion.question,
           passage,
-          gradeLevel,
-          difficulty,
           problemTypeId: problemType.id,
           rawAiResponse: generatedQuestion.rawResponse,
           passageId: selectedPassage?.id,
@@ -454,42 +446,6 @@ export default function GenerateClient({ problemType, workspaceSubject, isLogged
                             </div>
                         )}
                     </div>
-                </div>
-
-                <div className="border-t my-4" />
-
-                {/* Grade and Difficulty */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="grade">학년</Label>
-                    <Select value={gradeLevel} onValueChange={setGradeLevel} disabled={isGenerationBusy}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Middle1">중1</SelectItem>
-                        <SelectItem value="Middle2">중2</SelectItem>
-                        <SelectItem value="Middle3">중3</SelectItem>
-                        <SelectItem value="High1">고1</SelectItem>
-                        <SelectItem value="High2">고2</SelectItem>
-                        <SelectItem value="High3">고3</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="difficulty">난이도</Label>
-                    <Select value={difficulty} onValueChange={setDifficulty} disabled={isGenerationBusy}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Low">하</SelectItem>
-                        <SelectItem value="Medium">중</SelectItem>
-                        <SelectItem value="High">상</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
 
                 <Button 

@@ -7,8 +7,6 @@ import { normalizeQuestionTextBackward } from '@/lib/questions/normalize-questio
 const SaveQuestionSchema = z.object({
   question: QuestionSchema,
   passage: z.string().optional(),
-  gradeLevel: z.string(),
-  difficulty: z.string(),
   problemTypeId: z.string().uuid(),
   rawAiResponse: z.string().optional(),
   questionTextForward: z.string().optional(),
@@ -41,8 +39,6 @@ export async function POST(request: Request) {
     const {
       question,
       passage,
-      gradeLevel,
-      difficulty,
       problemTypeId,
       rawAiResponse,
       questionTextForward,
@@ -95,8 +91,8 @@ export async function POST(request: Request) {
         answer: question.answer,
         explanation: toDbNull(question.explanation) || null,
         passage_text: passageText,
-        grade_level: gradeLevel,
-        difficulty: difficulty,
+        grade_level: null,
+        difficulty: null,
         problem_type_id: problemTypeId,
         raw_ai_response: rawAiResponse,
         source: 'ai_generated',
@@ -118,7 +114,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, data })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Save API Error:', error)
     return NextResponse.json({ 
       success: false, 

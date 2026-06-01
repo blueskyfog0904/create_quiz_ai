@@ -14,7 +14,7 @@ type GenerateListboardGenerationJobItem = WorkspaceScoped<Database['public']['Ta
 
 interface GenerateBoardJobPageProps {
   params: Promise<{ slug: string; postId: string; jobId: string }>
-  searchParams: Promise<{ gradeLevel?: string; difficulty?: string; subject?: string }>
+  searchParams: Promise<{ subject?: string }>
 }
 
 export default async function GenerateBoardJobPage({ params, searchParams }: GenerateBoardJobPageProps) {
@@ -90,8 +90,6 @@ export default async function GenerateBoardJobPage({ params, searchParams }: Gen
       board={board}
       post={post}
       initialJob={job}
-      initialGradeLevel={resolvedSearchParams.gradeLevel}
-      initialDifficulty={resolvedSearchParams.difficulty}
       initialItems={jobItems.map((item) => ({
         ...item,
         question_number: postItemMap.get(item.post_item_id) ?? '-',

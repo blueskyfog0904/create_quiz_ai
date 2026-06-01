@@ -11,8 +11,6 @@ const ReviewRequestSchema = z.object({
   problemTypeId: z.string().uuid(),
   workspaceSubject: z.enum(['english', 'korean']).optional(),
   passage: z.string().max(3500).optional(),
-  gradeLevel: z.string().optional(),
-  difficulty: z.string().optional(),
   generatedQuestion: QuestionSchema,
   rawGenerationResponse: z.string().optional(),
 })
@@ -72,8 +70,6 @@ export async function POST(request: NextRequest) {
   const result = await reviewGeneratedQuestion({
     promptBundle: generationConfig.promptBundle,
     passage: validation.data.passage || '',
-    gradeLevel: validation.data.gradeLevel || '',
-    difficulty: validation.data.difficulty || '',
     workspaceSubject,
     generatedQuestion: validation.data.generatedQuestion,
     provider: generationConfig.modelConfig.reviewProvider,

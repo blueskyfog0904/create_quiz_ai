@@ -2,7 +2,6 @@
 
 import { useState, useRef, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -63,8 +62,6 @@ export default function MultiGenerateClient({ problemTypes, workspaceSubject, is
 
   const [viewMode, setViewMode] = useState<'FORM' | 'RESULT'>('FORM')
   
-  const [gradeLevel, setGradeLevel] = useState('High1')
-  const [difficulty, setDifficulty] = useState('Medium')
   const [selectedTypeIds, setSelectedTypeIds] = useState<string[]>([])
   
   const [isGenerating, setIsGenerating] = useState(false)
@@ -326,8 +323,6 @@ export default function MultiGenerateClient({ problemTypes, workspaceSubject, is
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               passage,
-              gradeLevel,
-              difficulty,
               problemTypeId: typeId,
               workspaceSubject,
             }),
@@ -469,8 +464,6 @@ export default function MultiGenerateClient({ problemTypes, workspaceSubject, is
         body: JSON.stringify({
           question: questionData.question,
           passage,
-          gradeLevel,
-          difficulty,
           problemTypeId: typeId,
           rawAiResponse: questionData.rawResponse,
           passageId: selectedPassage?.id,
@@ -533,8 +526,6 @@ export default function MultiGenerateClient({ problemTypes, workspaceSubject, is
             body: JSON.stringify({
               question: questionData.question,
               passage,
-              gradeLevel,
-              difficulty,
               problemTypeId: typeId,
               rawAiResponse: questionData.rawResponse,
               passageId: selectedPassage?.id,
@@ -695,47 +686,6 @@ export default function MultiGenerateClient({ problemTypes, workspaceSubject, is
                         )}
                     </div>
                 </div>
-
-                <div className="border-t my-4" />
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>생성 옵션</CardTitle>
-                    <p className="text-sm text-gray-500">선택한 모든 문제 유형 조합에 동일한 옵션이 적용됩니다.</p>
-                  </CardHeader>
-                  <CardContent className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="grade">학년</Label>
-                      <Select value={gradeLevel} onValueChange={setGradeLevel} disabled={isGenerationBusy}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Middle1">중1</SelectItem>
-                          <SelectItem value="Middle2">중2</SelectItem>
-                          <SelectItem value="Middle3">중3</SelectItem>
-                          <SelectItem value="High1">고1</SelectItem>
-                          <SelectItem value="High2">고2</SelectItem>
-                          <SelectItem value="High3">고3</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="difficulty">난이도</Label>
-                      <Select value={difficulty} onValueChange={setDifficulty} disabled={isGenerationBusy}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Low">하</SelectItem>
-                          <SelectItem value="Medium">중</SelectItem>
-                          <SelectItem value="High">상</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </CardContent>
-                </Card>
 
                 <Card>
                   <CardHeader>
