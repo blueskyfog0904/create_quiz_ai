@@ -25,6 +25,7 @@ import Link from 'next/link'
 import { ArrowLeft, Save, FileJson, Copy, Check } from 'lucide-react'
 import { Database } from '@/types/supabase'
 import {
+  DEFAULT_REGENERATION_REQUEST_PROMPT,
   DEFAULT_RESPONSE_STRUCTURE_PROMPT,
   splitReviewPromptTemplate,
 } from '@/lib/ai/question-prompts'
@@ -313,6 +314,16 @@ export default function ProblemTypeFormClient({ problemType, workspaceSubject }:
                 name="review_output_format"
                 className="font-mono text-sm min-h-[180px]"
                 defaultValue={reviewPrompts.reviewResponseStructurePrompt}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="regeneration_prompt_template">미통과시 문제생성 요청 프롬프트</Label>
+              <Textarea
+                id="regeneration_prompt_template"
+                name="regeneration_prompt_template"
+                className="font-mono text-sm min-h-[180px]"
+                defaultValue={problemType.regeneration_prompt_template || DEFAULT_REGENERATION_REQUEST_PROMPT}
               />
             </div>
 

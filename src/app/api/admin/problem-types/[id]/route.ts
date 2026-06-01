@@ -16,6 +16,7 @@ const updateProblemTypeSchema = z.object({
   output_format: z.string().nullable().optional(),
   review_prompt_template: z.string().nullable().optional(),
   review_output_format: z.string().nullable().optional(),
+  regeneration_prompt_template: z.string().nullable().optional(),
   is_active: z.boolean().optional(),
 })
 
@@ -136,6 +137,9 @@ export async function PATCH(
     }
     if (validatedData.review_output_format !== undefined) {
       updateData.review_output_format = validatedData.review_output_format
+    }
+    if (validatedData.regeneration_prompt_template !== undefined) {
+      updateData.regeneration_prompt_template = validatedData.regeneration_prompt_template
     }
     if (validatedData.is_active !== undefined) {
       updateData.is_active = validatedData.is_active

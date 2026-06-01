@@ -8,6 +8,7 @@ import {
   ReviewResultSchema,
 } from './types'
 import {
+  DEFAULT_REGENERATION_REQUEST_PROMPT,
   DEFAULT_RESPONSE_STRUCTURE_PROMPT,
   splitReviewPromptTemplate,
 } from './question-prompts'
@@ -32,6 +33,7 @@ export type QuestionPromptBundle = {
   responseStructurePrompt: string
   reviewPrompt: string
   reviewResponseStructurePrompt: string
+  regenerationPrompt: string
 }
 
 export type QuestionGenerationModelConfig = {
@@ -52,6 +54,7 @@ type ProblemTypePromptSource = {
   output_format?: string | null
   review_prompt_template?: string | null
   review_output_format?: string | null
+  regeneration_prompt_template?: string | null
   provider?: string | null
   model_name?: string | null
   generation_provider?: string | null
@@ -165,6 +168,7 @@ export function buildPromptBundleFromProblemType(problemType: ProblemTypePromptS
     responseStructurePrompt: problemType.output_format?.trim() || DEFAULT_RESPONSE_STRUCTURE_PROMPT,
     reviewPrompt: reviewPrompts.reviewPrompt,
     reviewResponseStructurePrompt: reviewPrompts.reviewResponseStructurePrompt,
+    regenerationPrompt: problemType.regeneration_prompt_template?.trim() || DEFAULT_REGENERATION_REQUEST_PROMPT,
   }
 }
 
@@ -258,6 +262,14 @@ export function buildQuestionRegenerationPrompt(input: {
 }) {
   return `
 ${buildQuestionGenerationPrompt(input)}
+
+================================================================================
+🔁 미통과시 문제생성 요청 프롬프트 시작
+================================================================================
+${input.promptBundle.regenerationPrompt}
+================================================================================
+🔁 미통과시 문제생성 요청 프롬프트 끝
+================================================================================
 
 ================================================================================
 🔁 이전 생성 문제 시작

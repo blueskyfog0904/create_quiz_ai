@@ -24,6 +24,7 @@ const ProblemTypeSchema = z.object({
   output_format: z.string().optional(),
   review_prompt_template: z.string().optional(),
   review_output_format: z.string().optional(),
+  regeneration_prompt_template: z.string().optional(),
   is_active: z.boolean().optional()
 }).refine((data) => {
   const hasReviewProvider = Boolean(data.review_provider)
@@ -61,6 +62,7 @@ export async function createProblemType(_prevState: unknown, formData: FormData)
     output_format: formData.get('output_format'),
     review_prompt_template: formData.get('review_prompt_template'),
     review_output_format: formData.get('review_output_format'),
+    regeneration_prompt_template: formData.get('regeneration_prompt_template'),
     is_active: formData.get('is_active') === 'on'
   }
 
@@ -87,6 +89,7 @@ export async function createProblemType(_prevState: unknown, formData: FormData)
       output_format: validated.data.output_format || null,
       review_prompt_template: validated.data.review_prompt_template || null,
       review_output_format: validated.data.review_output_format || null,
+      regeneration_prompt_template: validated.data.regeneration_prompt_template || null,
       is_active: validated.data.is_active,
     })
 
@@ -113,6 +116,7 @@ export async function updateProblemType(id: string, _prevState: unknown, formDat
     output_format: formData.get('output_format'),
     review_prompt_template: formData.get('review_prompt_template'),
     review_output_format: formData.get('review_output_format'),
+    regeneration_prompt_template: formData.get('regeneration_prompt_template'),
     is_active: formData.get('is_active') === 'on'
   }
 
@@ -139,6 +143,7 @@ export async function updateProblemType(id: string, _prevState: unknown, formDat
       output_format: validated.data.output_format || null,
       review_prompt_template: validated.data.review_prompt_template || null,
       review_output_format: validated.data.review_output_format || null,
+      regeneration_prompt_template: validated.data.regeneration_prompt_template || null,
       is_active: validated.data.is_active,
     })
     .eq('id', id)

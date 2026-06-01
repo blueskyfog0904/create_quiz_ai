@@ -29,12 +29,22 @@ test('question review workflow renders the review response structure as a separa
   assert.match(workflowSource, /input\.promptBundle\.reviewResponseStructurePrompt/)
 })
 
+test('regeneration prompt is a separate configurable prompt for failed review retries', () => {
+  assert.match(promptSource, /export const DEFAULT_REGENERATION_REQUEST_PROMPT/)
+  assert.match(promptSource, /미통과.*상세 피드백/)
+  assert.match(workflowSource, /regenerationPrompt/)
+  assert.match(workflowSource, /미통과시 문제생성 요청 프롬프트 시작/)
+  assert.match(workflowSource, /input\.promptBundle\.regenerationPrompt/)
+})
+
 test('problem type forms expose separate review prompt and review response structure fields', () => {
   for (const source of [newFormSource, editFormSource]) {
     assert.match(source, /문제 검토 프롬프트/)
     assert.match(source, /검토 후 응답 구조 프롬프트/)
+    assert.match(source, /미통과시 문제생성 요청 프롬프트/)
     assert.match(source, /name="review_prompt_template"/)
     assert.match(source, /name="review_output_format"/)
+    assert.match(source, /name="regeneration_prompt_template"/)
   }
   assert.match(newFormSource, /DEFAULT_REVIEW_RESPONSE_STRUCTURE_PROMPT/)
   assert.match(editFormSource, /splitReviewPromptTemplate/)
@@ -43,9 +53,12 @@ test('problem type forms expose separate review prompt and review response struc
 test('problem type actions and APIs persist review_output_format', () => {
   for (const source of [actionsSource, createRouteSource, updateRouteSource]) {
     assert.match(source, /review_output_format/)
+    assert.match(source, /regeneration_prompt_template/)
   }
   assert.match(supabaseTypesSource, /review_output_format: string \| null/)
   assert.match(supabaseTypesSource, /review_output_format\?: string \| null/)
+  assert.match(supabaseTypesSource, /regeneration_prompt_template: string \| null/)
+  assert.match(supabaseTypesSource, /regeneration_prompt_template\?: string \| null/)
 })
 
 test('migration adds review_output_format column to problem_types', () => {
@@ -56,4 +69,14 @@ test('migration adds review_output_format column to problem_types', () => {
   const migrationSource = readFileSync(new URL(`../supabase/migrations/${migrationName}`, import.meta.url), 'utf8')
   assert.match(migrationSource, /add column if not exists review_output_format text/)
   assert.match(migrationSource, /comment on column public\.problem_types\.review_output_format/)
+})
+
+test('migration adds regeneration_prompt_template column to problem_types', () => {
+  const migrationName = readdirSync(migrationsDir).find((name) => name.includes('add_problem_type_regeneration_prompt'))
+  assert.ok(migrationName, 'add_problem_type_regeneration_prompt migration should exist')
+  assert.equal(existsSync(new URL(`../supabase/migrations/${migrationName}`, import.meta.url)), true)
+
+  const migrationSource = readFileSync(new URL(`../supabase/migrations/${migrationName}`, import.meta.url), 'utf8')
+  assert.match(migrationSource, /add column if not exists regeneration_prompt_template text/)
+  assert.match(migrationSource, /comment on column public\.problem_types\.regeneration_prompt_template/)
 })
