@@ -224,54 +224,56 @@ export default function MarketSamplePreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-3xl">
-        <DialogHeader>
+      <DialogContent className="max-h-[88vh] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+        <DialogHeader className="shrink-0 border-b px-6 py-4 pr-12">
           <DialogTitle>샘플 미리보기</DialogTitle>
           <DialogDescription>판매자가 등록한 샘플 JPG를 확인하세요.</DialogDescription>
         </DialogHeader>
 
-        {isLoading ? (
-          <div className="rounded-xl border border-dashed py-10 text-center text-sm text-slate-500">샘플 이미지를 불러오는 중입니다...</div>
-        ) : errorMessage ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{errorMessage}</div>
-        ) : pages.length === 0 ? (
-          <div className="rounded-xl border border-dashed py-10 text-center text-sm text-slate-500">등록된 샘플 JPG가 없습니다.</div>
-        ) : (
-          <div className="space-y-4">
-            {pages.map((page, index) => {
-              const samplePageLabel = formatSamplePageLabel(page)
-              const displayFileName = getSampleSourceDisplayFileName(page.originalFileName)
-              const sampleFileGroupMeta = displayFileName ? sampleFileGroupMetaByName.get(displayFileName) : null
-              const sampleFileGroupStyle = getSampleFileGroupStyle(sampleFileGroupMeta?.styleIndex ?? 0)
-              return (
-                <figure key={page.id} className="overflow-hidden rounded-xl border bg-white">
-                  <figcaption className={`flex flex-wrap items-center gap-2 break-words border-b px-4 py-2 text-sm font-semibold ${sampleFileGroupStyle.barClassName} ${sampleFileGroupStyle.labelClassName}`}>
-                    {sampleFileGroupMeta ? (
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${sampleFileGroupStyle.badgeClassName}`}>
-                        파일 {sampleFileGroupMeta.groupNumber}
-                      </span>
-                    ) : null}
-                    <span className="min-w-0 flex-1 break-words">{samplePageLabel}</span>
-                  </figcaption>
-                  {/* eslint-disable-next-line @next/next/no-img-element -- Signed Supabase preview URLs are short-lived and not suitable for Next image optimization. */}
-                  <img
-                    src={page.signedUrl}
-                    alt={samplePageLabel}
-                    width={page.widthPx ?? undefined}
-                    height={page.heightPx ?? undefined}
-                    loading={index === 0 ? 'eager' : 'lazy'}
-                    decoding="async"
-                    fetchPriority={index === 0 ? 'high' : 'low'}
-                    className="h-auto w-full"
-                  />
-                </figure>
-              )
-            })}
-          </div>
-        )}
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          {isLoading ? (
+            <div className="rounded-xl border border-dashed py-10 text-center text-sm text-slate-500">샘플 이미지를 불러오는 중입니다...</div>
+          ) : errorMessage ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{errorMessage}</div>
+          ) : pages.length === 0 ? (
+            <div className="rounded-xl border border-dashed py-10 text-center text-sm text-slate-500">등록된 샘플 JPG가 없습니다.</div>
+          ) : (
+            <div className="space-y-4">
+              {pages.map((page, index) => {
+                const samplePageLabel = formatSamplePageLabel(page)
+                const displayFileName = getSampleSourceDisplayFileName(page.originalFileName)
+                const sampleFileGroupMeta = displayFileName ? sampleFileGroupMetaByName.get(displayFileName) : null
+                const sampleFileGroupStyle = getSampleFileGroupStyle(sampleFileGroupMeta?.styleIndex ?? 0)
+                return (
+                  <figure key={page.id} className="overflow-hidden rounded-xl border bg-white">
+                    <figcaption className={`flex flex-wrap items-center gap-2 break-words border-b px-4 py-2 text-sm font-semibold ${sampleFileGroupStyle.barClassName} ${sampleFileGroupStyle.labelClassName}`}>
+                      {sampleFileGroupMeta ? (
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${sampleFileGroupStyle.badgeClassName}`}>
+                          파일 {sampleFileGroupMeta.groupNumber}
+                        </span>
+                      ) : null}
+                      <span className="min-w-0 flex-1 break-words">{samplePageLabel}</span>
+                    </figcaption>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- Signed Supabase preview URLs are short-lived and not suitable for Next image optimization. */}
+                    <img
+                      src={page.signedUrl}
+                      alt={samplePageLabel}
+                      width={page.widthPx ?? undefined}
+                      height={page.heightPx ?? undefined}
+                      loading={index === 0 ? 'eager' : 'lazy'}
+                      decoding="async"
+                      fetchPriority={index === 0 ? 'high' : 'low'}
+                      className="h-auto w-full"
+                    />
+                  </figure>
+                )
+              })}
+            </div>
+          )}
 
-        <div className="flex justify-end">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>닫기</Button>
+          <div className="mt-4 flex justify-end">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>닫기</Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
