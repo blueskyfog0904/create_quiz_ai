@@ -29,6 +29,12 @@ test('market item detail keeps a consistent product header and meta layout', () 
   assert.match(itemPage, /lg:sticky lg:top-24/)
 })
 
+test('market item hero title uses the full header width', () => {
+  assert.match(itemPage, /<div className="w-full space-y-3">/)
+  assert.match(itemPage, /<CardTitle className="w-full text-3xl leading-tight tracking-tight text-white">\{item\.title\}<\/CardTitle>/)
+  assert.doesNotMatch(itemPage, /CardTitle className="max-w-4xl/)
+})
+
 
 test('market item detail shows one full-width material information card', () => {
   assert.match(itemPage, /자료 정보/)

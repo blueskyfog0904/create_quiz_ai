@@ -116,8 +116,8 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
       <Card className="overflow-hidden border-slate-200 pt-0">
         <CardHeader className={`border-b ${subjectTheme.marketHeroClass} py-8 text-white`}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-3">
-              <CardTitle className="max-w-4xl text-3xl leading-tight tracking-tight text-white">{item.title}</CardTitle>
+            <div className="w-full space-y-3">
+              <CardTitle className="w-full text-3xl leading-tight tracking-tight text-white">{item.title}</CardTitle>
             </div>
           </div>
         </CardHeader>
