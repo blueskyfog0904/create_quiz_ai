@@ -351,7 +351,6 @@ interface MarketItemDetailPayload {
 
 interface SubproductDraftState {
   categoryId: string
-  title: string
   description: string
   priceCredits: string
 }
@@ -393,7 +392,6 @@ const MANAGE_FILE_TYPES_VALUE = '__manage_file_types__'
 function buildEmptySubproductDraft(categoryId = ''): SubproductDraftState {
   return {
     categoryId,
-    title: '',
     description: '',
     priceCredits: '0',
   }
@@ -1670,10 +1668,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       toast.error('서브상품 카테고리를 선택해주세요.')
       return
     }
-    if (!subproductDraft.title.trim()) {
-      toast.error('서브상품명을 입력해주세요.')
-      return
-    }
 
     const targetItemId = form.id ?? await ensureDraftItemForUpload()
     if (!targetItemId) {
@@ -1687,7 +1681,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           categoryId: subproductDraft.categoryId,
-          title: subproductDraft.title,
           description: subproductDraft.description,
           priceCredits: parseCreditInputValue(subproductDraft.priceCredits),
           isActive: true,
@@ -2216,10 +2209,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                     />
                   </div>
                   <div className="space-y-2 md:col-span-2">
-                    <Label>서브상품명</Label>
-                    <Input value={subproductDraft.title} onChange={(event) => setSubproductDraft((current) => ({ ...current, title: event.target.value }))} placeholder="예: PDF+해설 묶음" />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
                     <Label>서브상품 설명</Label>
                     <Textarea value={subproductDraft.description} onChange={(event) => setSubproductDraft((current) => ({ ...current, description: event.target.value }))} className="min-h-[72px]" />
                   </div>
@@ -2246,8 +2235,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
-                              <Badge variant="secondary">{getSubproductCategoryName(subproduct.category_id)}</Badge>
-                              <p className="font-semibold text-gray-900">{subproduct.title}</p>
+                              <p className="font-semibold text-gray-900">{getSubproductCategoryName(subproduct.category_id)}</p>
                               <Badge variant={subproduct.is_active ? 'outline' : 'secondary'}>{subproduct.is_active ? '활성' : '비활성'}</Badge>
                             </div>
                             <p className="mt-1 text-sm text-gray-500">{subproduct.description || '설명이 없습니다.'}</p>

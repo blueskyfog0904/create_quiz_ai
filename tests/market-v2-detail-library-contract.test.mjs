@@ -93,6 +93,12 @@ test('market detail names v2 download buttons by subproduct title', () => {
   assert.doesNotMatch(itemActions, /\{file\.fileTypeLabel\} 다운로드/)
 })
 
+test('market detail resolves v2 subproduct labels from category names first', () => {
+  assert.match(marketItemsServer, /function resolveMarketSubproductDisplayTitle/)
+  assert.match(marketItemsServer, /resolveMarketSubproductDisplayTitle\(category\?\.name, subproduct\.title\)/)
+  assert.match(marketItemsServer, /resolveMarketSubproductDisplayTitle\(categoryMap\.get\(subproduct\.category_id\), subproduct\.title\)/)
+})
+
 test('market library keeps v2 entitlement data source but sends users to detail for downloads', () => {
   assert.match(marketItemsServer, /market_entitlements/)
   assert.match(marketItemsServer, /v2DownloadFiles/)

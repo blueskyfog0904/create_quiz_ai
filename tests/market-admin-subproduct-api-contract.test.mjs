@@ -30,6 +30,14 @@ test('admin subproduct API exposes guarded CRUD routes below an item', () => {
   assert.match(subproductsRoute + subproductRoute, /getMarketItemById/)
 })
 
+test('admin subproduct API derives the subproduct title from its category', () => {
+  assert.doesNotMatch(subproductsRoute, /title:\s*z\.string\(\)\.trim\(\)\.min\(1\)/)
+  assert.doesNotMatch(subproductRoute, /title:\s*z\.string\(\)\.trim\(\)\.min\(1\)\.optional\(\)/)
+  assert.doesNotMatch(subproductsRoute + subproductRoute, /title:\s*parsed\.data\.title/)
+  assert.match(lib, /title:\s*category\.name/)
+  assert.match(lib, /payload\.title = category\.name/)
+})
+
 test('admin subproduct file API uploads through v2 storage and cleans up metadata on delete', () => {
   assert.notEqual(filesRoute, '', 'subproduct files collection route should exist')
   assert.notEqual(fileRoute, '', 'subproduct file item route should exist')

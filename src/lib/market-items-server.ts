@@ -272,6 +272,10 @@ function normalizeNullableText(value?: string | null) {
   return normalized.length > 0 ? normalized : null
 }
 
+function resolveMarketSubproductDisplayTitle(categoryName?: string | null, fallbackTitle?: string | null) {
+  return normalizeText(categoryName) || normalizeText(fallbackTitle) || '서브상품'
+}
+
 function ensureNonNegativeInteger(value: number | null | undefined, label: string) {
   if (value === null || value === undefined || !Number.isInteger(value) || value < 0) {
     throw new Error(`${label}은(는) 0 이상의 정수여야 합니다.`)
@@ -728,7 +732,6 @@ export async function createMarketItemSubproduct(input: {
   itemId: string
   workspaceSubject?: WorkspaceSubject
   categoryId: string
-  title: string
   description?: string | null
   priceCredits?: number
   sortOrder?: number
@@ -746,17 +749,13 @@ export async function createMarketItemSubproduct(input: {
   }
   assertMatchingWorkspaceSubject('서브상품 카테고리', item.workspace_subject, category.workspace_subject)
 
-  const title = normalizeText(input.title)
-  if (!title) {
-    throw new Error('서브상품 제목을 입력해주세요.')
-  }
   ensureNonNegativeInteger(input.priceCredits ?? 0, '서브상품 가격')
 
   const payload: MarketItemSubproductInsert = {
     item_id: item.id,
     workspace_subject: item.workspace_subject,
     category_id: category.id,
-    title,
+    title: category.name,
     description: normalizeNullableText(input.description),
     price_credits: input.priceCredits ?? 0,
     sort_order: input.sortOrder ?? 0,
@@ -782,7 +781,6 @@ export async function updateMarketItemSubproduct(
   input: {
     workspaceSubject?: WorkspaceSubject
     categoryId?: string
-    title?: string | null
     description?: string | null
     priceCredits?: number
     sortOrder?: number
@@ -803,13 +801,7 @@ export async function updateMarketItemSubproduct(
     }
     assertMatchingWorkspaceSubject('서브상품 카테고리', existing.workspace_subject, category.workspace_subject)
     payload.category_id = category.id
-  }
-  if (input.title !== undefined) {
-    const title = normalizeText(input.title)
-    if (!title) {
-      throw new Error('서브상품 제목을 입력해주세요.')
-    }
-    payload.title = title
+    payload.title = category.name
   }
   if (input.description !== undefined) payload.description = normalizeNullableText(input.description)
   if (input.priceCredits !== undefined) {
@@ -1501,7 +1493,7 @@ export async function listMarketSubproductPublicSummaries(
       categoryId: subproduct.category_id,
       categoryName: category?.name ?? '분류 없음',
       categorySlug: category?.slug ?? 'uncategorized',
-      title: subproduct.title,
+      title: resolveMarketSubproductDisplayTitle(category?.name, subproduct.title),
       description: subproduct.description,
       priceCredits: subproduct.price_credits,
       sortOrder: subproduct.sort_order,
@@ -1838,7 +1830,7 @@ export async function listMarketSubproductDownloadFilesForUser(
   const [subproductResult, fileTypeResult] = await Promise.all([
     supabase
       .from('market_item_subproducts')
-      .select('id, title')
+      .select('id, title, category_id')
       .in('id', Array.from(new Set(files.map((file) => file.subproduct_id))))
       .eq('workspace_subject', item.workspace_subject),
     supabase
@@ -1856,7 +1848,24 @@ export async function listMarketSubproductDownloadFilesForUser(
     throw new Error(fileTypeResult.error.message)
   }
 
-  const subproductMap = new Map((subproductResult.data ?? []).map((subproduct) => [subproduct.id, subproduct.title]))
+  const categoryIds = Array.from(new Set((subproductResult.data ?? []).map((subproduct) => subproduct.category_id)))
+  const categoryResult = categoryIds.length > 0
+    ? await supabase
+      .from('market_subproduct_categories')
+      .select('id, name')
+      .in('id', categoryIds)
+      .eq('workspace_subject', item.workspace_subject)
+    : { data: [], error: null }
+
+  if (categoryResult.error) {
+    throw new Error(categoryResult.error.message)
+  }
+
+  const categoryMap = new Map((categoryResult.data ?? []).map((category) => [category.id, category.name]))
+  const subproductMap = new Map((subproductResult.data ?? []).map((subproduct) => [
+    subproduct.id,
+    resolveMarketSubproductDisplayTitle(categoryMap.get(subproduct.category_id), subproduct.title),
+  ]))
   const fileTypeMap = new Map((fileTypeResult.data ?? []).map((fileType) => [fileType.id, fileType]))
 
   return files

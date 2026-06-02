@@ -39,11 +39,19 @@ test('admin product form renders subproduct, file-add, bundle, and arbitrary sam
   assert.doesNotMatch(adminProductsClient, /handleSaveBundleOption/)
   assert.match(adminProductsClient, /샘플 페이지/)
   assert.match(adminProductsClient, /samplePageSelection/)
-  assert.match(adminProductsClient, /formData\.append\('pages', samplePageSelection\)/)
+  assert.match(adminProductsClient, /renderSamplePdfPages\(selectedSampleSourceFile, samplePageSelection\)/)
   assert.doesNotMatch(adminProductsClient, /모두 업로드/)
   assert.doesNotMatch(adminProductsClient, /PDF 가격/)
   assert.doesNotMatch(adminProductsClient, /HWP 가격/)
   assert.doesNotMatch(adminProductsClient, /ZIP 가격/)
+})
+
+test('admin product form uses the selected subproduct category as the display name', () => {
+  assert.match(adminProductsClient, /서브상품 카테고리/)
+  assert.doesNotMatch(adminProductsClient, /서브상품명/)
+  assert.doesNotMatch(adminProductsClient, /subproductDraft\.title/)
+  assert.doesNotMatch(adminProductsClient, /title: subproductDraft\.title/)
+  assert.match(adminProductsClient, /getSubproductCategoryName\(subproduct\.category_id\)/)
 })
 
 test('admin product form defaults new items to published and blocks enabled bundle without a price', () => {
