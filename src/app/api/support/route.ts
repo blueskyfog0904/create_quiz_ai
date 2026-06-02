@@ -1,6 +1,29 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { sendSlackNotification } from '@/lib/slack'
+
+const CreateTicketSchema = z.object({
+  categoryId: z.string().uuid({ message: '문의 카테고리를 선택해주세요.' }),
+  subject: z.string().trim().min(1, '제목을 입력해주세요.'),
+  message: z.string().trim().min(1, '내용을 입력해주세요.'),
+})
+
+const UpdateTicketSchema = z.object({
+  ticketId: z.string().uuid(),
+  categoryId: z.string().uuid({ message: '문의 카테고리를 선택해주세요.' }),
+  subject: z.string().trim().min(1, '제목을 입력해주세요.'),
+  message: z.string().trim().min(1, '내용을 입력해주세요.'),
+})
+
+function getCategoryName(snapshot: unknown) {
+  if (snapshot && typeof snapshot === 'object' && 'name' in snapshot) {
+    const name = (snapshot as { name?: unknown }).name
+    return typeof name === 'string' && name.trim() ? name : '미분류'
+  }
+
+  return '미분류'
+}
 
 // POST - Create new support ticket
 export async function POST(request: NextRequest) {
@@ -15,26 +38,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
-    const { subject, message } = body
+    const body = await request.json().catch(() => null)
+    const parsed = CreateTicketSchema.safeParse(body)
 
-    if (!subject?.trim() || !message?.trim()) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: '제목과 내용을 모두 입력해주세요.' },
+        { error: parsed.error.issues[0]?.message || '문의 내용을 확인해주세요.' },
         { status: 400 }
       )
     }
 
-    const { data: ticket, error } = await supabase
-      .from('support_tickets')
-      .insert({
-        user_id: user.id,
-        subject: subject.trim(),
-        message: message.trim(),
-        status: 'pending'
-      })
-      .select()
-      .single()
+    const { data: ticket, error } = await supabase.rpc('create_support_ticket', {
+      p_category_id: parsed.data.categoryId,
+      p_subject: parsed.data.subject,
+      p_message: parsed.data.message,
+    })
 
     if (error) {
       throw error
@@ -50,6 +68,7 @@ export async function POST(request: NextRequest) {
     // Send Slack Notification
     const userName = profile?.name || user.email || 'Unknown User'
     const userContact = profile?.phone || profile?.email || 'No contact info'
+    const categoryName = getCategoryName(ticket?.category_snapshot)
     
     // Format Date: yyyy-mm-dd-hh-mm
     const now = new Date()
@@ -60,23 +79,24 @@ export async function POST(request: NextRequest) {
       {
         '보낸 시간': formattedDate,
         '사용자': `${userName} (${userContact})`,
-        '제목': subject,
-        '내용': message
+        '카테고리': categoryName,
+        '제목': parsed.data.subject,
+        '내용': parsed.data.message,
       }
     )
 
     return NextResponse.json({ success: true, ticket })
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Support ticket creation error:', error)
     return NextResponse.json(
-      { error: error.message || '문의 등록에 실패했습니다.' },
+      { error: error instanceof Error ? error.message : '문의 등록에 실패했습니다.' },
       { status: 500 }
     )
   }
 }
 
-// PATCH - Admin reply
+// PATCH - Admin reply compatibility endpoint. New admin UI uses /api/admin/support/tickets/[id].
 export async function PATCH(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -108,7 +128,7 @@ export async function PATCH(request: NextRequest) {
       .update({
         admin_response: adminResponse,
         status: status || 'resolved',
-        responded_at: new Date().toISOString()
+        responded_at: new Date().toISOString(),
       })
       .eq('id', ticketId)
       .select()
@@ -129,10 +149,10 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true, ticket })
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Support ticket update error:', error)
     return NextResponse.json(
-      { error: error.message || '답변 등록 실패' },
+      { error: error instanceof Error ? error.message : '답변 등록 실패' },
       { status: 500 }
     )
   }
@@ -146,40 +166,19 @@ export async function PUT(request: NextRequest) {
 
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const body = await request.json()
-    const { ticketId, subject, message } = body
+    const body = await request.json().catch(() => null)
+    const parsed = UpdateTicketSchema.safeParse(body)
 
-    if (!ticketId || !subject?.trim() || !message?.trim()) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message || 'Missing fields' }, { status: 400 })
     }
 
-    // 1. Check if ticket exists and belongs to user
-    const { data: ticket, error: fetchError } = await supabase
-      .from('support_tickets')
-      .select('status')
-      .eq('id', ticketId)
-      .eq('user_id', user.id)
-      .single()
-
-    if (fetchError || !ticket) {
-      return NextResponse.json({ error: 'Ticket not found' }, { status: 404 })
-    }
-
-    // 2. Check if ticket is pending
-    if (ticket.status !== 'pending') {
-      return NextResponse.json({ error: '답변이 완료된 문의는 수정할 수 없습니다.' }, { status: 400 })
-    }
-
-    // 3. Update ticket
-    const { error } = await supabase
-      .from('support_tickets')
-      .update({
-        subject: subject.trim(),
-        message: message.trim(),
-        // Optional: Update created_at or add updated_at if schema supports it
-      })
-      .eq('id', ticketId)
-      .eq('user_id', user.id)
+    const { error } = await supabase.rpc('update_own_pending_support_ticket', {
+      p_ticket_id: parsed.data.ticketId,
+      p_category_id: parsed.data.categoryId,
+      p_subject: parsed.data.subject,
+      p_message: parsed.data.message,
+    })
 
     if (error) {
       throw error
@@ -187,16 +186,14 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ success: true })
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Support ticket update error:', error)
     return NextResponse.json(
-      { error: error.message || '수정 실패' },
+      { error: error instanceof Error ? error.message : '수정 실패' },
       { status: 500 }
     )
   }
 }
-
-
 
 // DELETE - User soft delete ticket
 export async function DELETE(request: NextRequest) {
@@ -213,24 +210,20 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Missing ticket ID' }, { status: 400 })
     }
 
-    // Soft delete: Update is_deleted_by_user = true
-    const { error } = await supabase
-      .from('support_tickets')
-      .update({ is_deleted_by_user: true })
-      .eq('id', id)
-      .eq('user_id', user.id)
+    const { error } = await supabase.rpc('soft_delete_own_support_ticket', {
+      p_ticket_id: id,
+    })
 
     if (error) {
-      throw error // This will be caught by catch block
+      throw error
     }
 
     return NextResponse.json({ success: true })
 
-
-  } catch (error: any) {
+  } catch (error) {
     console.error('Support ticket delete error:', JSON.stringify(error, null, 2))
     return NextResponse.json(
-      { error: error.message || '삭제 실패', details: JSON.stringify(error) }, // Add details for debugging
+      { error: error instanceof Error ? error.message : '삭제 실패', details: JSON.stringify(error) },
       { status: 500 }
     )
   }

@@ -2710,9 +2710,80 @@ export type Database = {
         }
         Relationships: []
       }
+      support_ticket_categories: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          description: string | null
+          guide_items: Json
+          help_text: string | null
+          id: string
+          is_active: boolean
+          message_placeholder: string | null
+          name: string
+          slug: string
+          sort_order: number
+          subject_placeholder: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          guide_items?: Json
+          help_text?: string | null
+          id?: string
+          is_active?: boolean
+          message_placeholder?: string | null
+          name: string
+          slug: string
+          sort_order?: number
+          subject_placeholder?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          guide_items?: Json
+          help_text?: string | null
+          id?: string
+          is_active?: boolean
+          message_placeholder?: string | null
+          name?: string
+          slug?: string
+          sort_order?: number
+          subject_placeholder?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_ticket_categories_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_ticket_categories_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_tickets: {
         Row: {
           admin_response: string | null
+          category_id: string | null
+          category_snapshot: Json | null
           created_at: string
           id: string
           is_deleted_by_user: boolean | null
@@ -2725,6 +2796,8 @@ export type Database = {
         }
         Insert: {
           admin_response?: string | null
+          category_id?: string | null
+          category_snapshot?: Json | null
           created_at?: string
           id?: string
           is_deleted_by_user?: boolean | null
@@ -2737,6 +2810,8 @@ export type Database = {
         }
         Update: {
           admin_response?: string | null
+          category_id?: string | null
+          category_snapshot?: Json | null
           created_at?: string
           id?: string
           is_deleted_by_user?: boolean | null
@@ -2748,6 +2823,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "support_tickets_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "support_ticket_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "support_tickets_user_id_profiles_fkey"
             columns: ["user_id"]
@@ -2878,6 +2960,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_support_ticket: {
+        Args: {
+          p_category_id: string
+          p_message: string
+          p_subject: string
+        }
+        Returns: Database["public"]["Tables"]["support_tickets"]["Row"]
+      }
+      soft_delete_own_support_ticket: {
+        Args: { p_ticket_id: string }
+        Returns: Database["public"]["Tables"]["support_tickets"]["Row"]
+      }
+      update_own_pending_support_ticket: {
+        Args: {
+          p_category_id: string
+          p_message: string
+          p_subject: string
+          p_ticket_id: string
+        }
+        Returns: Database["public"]["Tables"]["support_tickets"]["Row"]
+      }
       consume_credits: {
         Args: {
           p_amount: number
