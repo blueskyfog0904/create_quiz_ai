@@ -58,7 +58,7 @@ export default function MarketLibraryClient({
   }, [rows, search, sort])
 
   const purchaseOrderByItemId = useMemo(() => {
-    const orderedRows = rows.slice().sort((a, b) => b.purchasedAt.localeCompare(a.purchasedAt))
+    const orderedRows = rows.slice().sort((a, b) => a.purchasedAt.localeCompare(b.purchasedAt))
     return new Map(orderedRows.map((row, index) => [row.itemId, index + 1]))
   }, [rows])
 

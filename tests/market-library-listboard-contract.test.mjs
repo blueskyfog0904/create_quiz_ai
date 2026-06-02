@@ -48,9 +48,10 @@ test('market library purchase history uses compact board table without status or
   assert.match(libraryClient, /filteredRows\.map\(\(row, index\)/)
 })
 
-test('market library purchase history numbers rows by purchase date order', () => {
+test('market library purchase history numbers rows from oldest purchase date', () => {
   assert.match(libraryClient, /purchaseOrderByItemId/)
-  assert.match(libraryClient, /rows\.slice\(\)\.sort\(\(a, b\) => b\.purchasedAt\.localeCompare\(a\.purchasedAt\)\)/)
+  assert.match(libraryClient, /rows\.slice\(\)\.sort\(\(a, b\) => a\.purchasedAt\.localeCompare\(b\.purchasedAt\)\)/)
+  assert.doesNotMatch(libraryClient, /rows\.slice\(\)\.sort\(\(a, b\) => b\.purchasedAt\.localeCompare\(a\.purchasedAt\)\)/)
   assert.match(libraryClient, /purchaseOrderByItemId\.get\(row\.itemId\) \?\? index \+ 1/)
 })
 
