@@ -50,3 +50,13 @@ test('support pages pass categories and render category-first UX with admin filt
   assert.match(adminSupportClient, /categoryFilter/)
   assert.match(adminSupportClient, /soft delete|숨김|삭제/)
 })
+
+
+test('user support inquiry form uses the redesigned guided card layout', () => {
+  assert.match(userSupportClient, /getGuideCardMeta/)
+  assert.match(userSupportClient, /selectedCategoryHelpId/)
+  assert.match(userSupportClient, /rounded-2xl[^"]*bg-slate-950/)
+  assert.match(userSupportClient, /grid-cols-1 md:grid-cols-2/)
+  assert.match(userSupportClient, /aria-describedby/)
+  assert.match(userSupportClient, /구매한 자료명|환불 요청 사유/)
+})

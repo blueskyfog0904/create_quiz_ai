@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ElementType } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, MessageCircle, Clock, CheckCircle, AlertCircle, Trash2, Pencil } from 'lucide-react'
+import { Loader2, MessageCircle, Clock, CheckCircle, AlertCircle, Trash2, Pencil, Info, FileText, CalendarDays, Download, MessageSquare, CreditCard, UserCircle, Lightbulb } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,6 +41,55 @@ function getTicketCategoryName(ticket: SupportTicket) {
   return ticket.support_ticket_categories?.name || '미분류'
 }
 
+type GuideCardMeta = {
+  icon: ElementType
+  title: string
+  description: string
+}
+
+function getGuideCardMeta(item: string, index: number): GuideCardMeta {
+  const exactGuideCards: Record<string, GuideCardMeta> = {
+    '구매한 자료명': { icon: FileText, title: item, description: '어떤 자료인지 정확한 확인이 필요합니다.' },
+    '환불 요청 사유': { icon: MessageSquare, title: item, description: '환불을 요청하시는 사유를 자세히 알려주세요.' },
+  }
+  const exactGuideCard = exactGuideCards[item]
+
+  if (exactGuideCard) return exactGuideCard
+
+  const normalized = item.replaceAll(' ', '')
+
+  if (normalized.includes('자료명') || normalized.includes('상품명')) {
+    return { icon: FileText, title: item, description: '어떤 자료인지 정확한 확인이 필요합니다.' }
+  }
+
+  if (normalized.includes('구매일') || normalized.includes('결제일') || normalized.includes('시간')) {
+    return { icon: CalendarDays, title: item, description: '정확한 날짜를 알려주시면 확인이 빠릅니다.' }
+  }
+
+  if (normalized.includes('다운로드')) {
+    return { icon: Download, title: item, description: '자료를 다운로드하셨는지 알려주세요.' }
+  }
+
+  if (normalized.includes('환불') || normalized.includes('사유')) {
+    return { icon: MessageSquare, title: item, description: '요청하시는 사유를 자세히 알려주세요.' }
+  }
+
+  if (normalized.includes('결제') || normalized.includes('크레딧')) {
+    return { icon: CreditCard, title: item, description: '결제 또는 크레딧 내역 확인에 필요합니다.' }
+  }
+
+  if (normalized.includes('계정') || normalized.includes('이메일')) {
+    return { icon: UserCircle, title: item, description: '계정 확인을 위해 정확히 입력해주세요.' }
+  }
+
+  const fallbackIcons = [FileText, CalendarDays, Download, MessageSquare, Lightbulb]
+  return {
+    icon: fallbackIcons[index % fallbackIcons.length],
+    title: item,
+    description: '문의 확인에 필요한 정보를 입력해주세요.',
+  }
+}
+
 export function SupportClient({ tickets, categories, userId }: SupportClientProps) {
   const router = useRouter()
   const [selectedCategoryId, setSelectedCategoryId] = useState(categories[0]?.id || '')
@@ -56,6 +105,7 @@ export function SupportClient({ tickets, categories, userId }: SupportClientProp
   const editCategory = categories.find((category) => category.id === editCategoryId)
   const selectedGuideItems = getGuideItems(selectedCategory)
   const editGuideItems = getGuideItems(editCategory)
+  const selectedCategoryHelpId = selectedCategory ? 'support-category-help' : undefined
 
   const getStatusBadge = (status: string | null) => {
     switch (status) {
@@ -185,68 +235,112 @@ export function SupportClient({ tickets, categories, userId }: SupportClientProp
 
   return (
     <div className="space-y-6" data-user-id={userId}>
-      <Card>
-        <CardHeader>
-          <CardTitle>1:1 문의하기</CardTitle>
-          <CardDescription>
-            문의 카테고리를 먼저 선택하면 필요한 정보와 작성 가이드를 확인할 수 있습니다.
-          </CardDescription>
+      <Card className="overflow-hidden border-slate-200 bg-white shadow-sm">
+        <CardHeader className="border-b border-slate-100 bg-white p-0">
+          <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-sm">
+              <MessageCircle className="h-8 w-8" />
+            </div>
+            <div className="space-y-1">
+              <CardTitle className="text-xl font-bold text-slate-950">1:1 문의하기</CardTitle>
+              <CardDescription className="text-sm text-slate-500">
+                문의 카테고리를 먼저 선택하면 필요한 정보와 작성 가이드를 확인할 수 있습니다.
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="support-category">문의 카테고리</Label>
-              <select
-                id="support-category"
-                value={selectedCategoryId}
-                onChange={(e) => setSelectedCategoryId(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                required
-              >
-                <option value="" disabled>문의 유형을 선택해주세요</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>{category.name}</option>
-                ))}
-              </select>
+        <CardContent className="p-6">
+          <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="support-category" className="font-semibold text-slate-900">문의 카테고리</Label>
+                <select
+                  id="support-category"
+                  value={selectedCategoryId}
+                  onChange={(e) => setSelectedCategoryId(e.target.value)}
+                  aria-describedby={selectedCategoryHelpId}
+                  className="flex h-12 w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-900 ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2"
+                  required
+                >
+                  <option value="" disabled>문의 유형을 선택해주세요</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </select>
+              </div>
+
               {selectedCategory && (
-                <div className="rounded-lg border bg-gray-50 p-3 text-sm text-gray-600">
-                  {selectedCategory.help_text || selectedCategory.description || '선택한 문의 유형에 맞춰 내용을 작성해주세요.'}
+                <div
+                  id="support-category-help"
+                  className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-slate-700"
+                >
+                  <div className="flex gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-950 text-white">
+                      <Info className="h-4 w-4" />
+                    </div>
+                    <p className="pt-1 text-sm font-semibold leading-6 text-slate-900">
+                      {selectedCategory.help_text || selectedCategory.description || '선택한 문의 유형에 맞춰 내용을 작성해주세요.'}
+                    </p>
+                  </div>
+
                   {selectedGuideItems.length > 0 && (
-                    <ul className="mt-2 list-disc space-y-1 pl-5">
-                      {selectedGuideItems.map((item) => <li key={item}>{item}</li>)}
-                    </ul>
+                    <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {selectedGuideItems.map((item, index) => {
+                        const guide = getGuideCardMeta(item, index)
+                        const GuideIcon = guide.icon
+
+                        return (
+                          <div key={item} className="flex items-start gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-950 text-white">
+                              <GuideIcon className="h-5 w-5" />
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm font-bold text-slate-950">{guide.title}</p>
+                              <p className="text-xs leading-5 text-slate-500">{guide.description}</p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   )}
                 </div>
               )}
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="subject">제목</Label>
-              <Input
-                id="subject"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder={selectedCategory?.subject_placeholder || '문의 제목을 입력해주세요'}
-                required
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="subject" className="font-semibold text-slate-900">제목</Label>
+                <Input
+                  id="subject"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  aria-describedby={selectedCategoryHelpId}
+                  placeholder={selectedCategory?.subject_placeholder || '문의 제목을 입력해주세요'}
+                  className="h-12 rounded-lg border-slate-200"
+                  required
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="message">내용</Label>
-              <Textarea
-                id="message"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder={selectedCategory?.message_placeholder || '문의 내용을 자세히 작성해주세요'}
-                className="min-h-[150px]"
-                required
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="message" className="font-semibold text-slate-900">내용</Label>
+                <Textarea
+                  id="message"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  aria-describedby={selectedCategoryHelpId}
+                  placeholder={selectedCategory?.message_placeholder || '문의 내용을 자세히 작성해주세요'}
+                  className="min-h-[190px] rounded-lg border-slate-200"
+                  required
+                />
+              </div>
 
-            <Button type="submit" disabled={isSubmitting || categories.length === 0}>
-              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              문의 등록하기
-            </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting || categories.length === 0}
+                className="w-full bg-slate-950 px-7 text-white hover:bg-slate-800 sm:w-auto"
+              >
+                {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                문의 등록하기
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>
