@@ -85,6 +85,14 @@ test('market detail uses soft status badges and green download actions', () => {
   assert.ok(downloadClassUses.length >= 5)
 })
 
+test('market detail names v2 download buttons by subproduct title', () => {
+  assert.match(itemActions, /const downloadLabel = `\$\{file\.subproductTitle\} 다운로드`/)
+  assert.match(itemActions, /aria-label=\{downloadLabel\}/)
+  assert.match(itemActions, /\{downloadLabel\}/)
+  assert.doesNotMatch(itemActions, /aria-label=\{`\$\{file\.fileTypeLabel\} 다운로드`\}/)
+  assert.doesNotMatch(itemActions, /\{file\.fileTypeLabel\} 다운로드/)
+})
+
 test('market library keeps v2 entitlement data source but sends users to detail for downloads', () => {
   assert.match(marketItemsServer, /market_entitlements/)
   assert.match(marketItemsServer, /v2DownloadFiles/)

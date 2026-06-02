@@ -501,14 +501,18 @@ export default function MarketItemActions({
 
       return (
         <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
-          {files.map((file) => (
-            <Button key={file.id} asChild className={MARKET_DOWNLOAD_BUTTON_CLASS}>
-              <a href={buildV2DownloadUrl(itemId, file.id)} aria-label={`${file.fileTypeLabel} 다운로드`}>
-                <Download className="h-4 w-4" />
-                {file.fileTypeLabel} 다운로드
-              </a>
-            </Button>
-          ))}
+          {files.map((file) => {
+            const downloadLabel = `${file.subproductTitle} 다운로드`
+
+            return (
+              <Button key={file.id} asChild className={MARKET_DOWNLOAD_BUTTON_CLASS}>
+                <a href={buildV2DownloadUrl(itemId, file.id)} aria-label={downloadLabel}>
+                  <Download className="h-4 w-4" />
+                  {downloadLabel}
+                </a>
+              </Button>
+            )
+          })}
         </div>
       )
     }
