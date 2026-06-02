@@ -61,15 +61,44 @@ test('market item detail shows one full-width material information card', () => 
   assert.doesNotMatch(itemPage, /CardTitle className="text-lg">상세 설명/)
 })
 
-test('market item detail consolidates sample preview pdf hwp into one file option panel', () => {
-  assert.match(itemPage, /파일 선택/)
-  assert.match(itemPage, /샘플을 확인한 뒤 필요한 파일만 구매하세요/)
+test('market item detail separates sample preview from purchase options', () => {
+  assert.match(itemPage, /구매 옵션/)
+  assert.match(itemPage, /무료 샘플과 전체 패키지, 개별 상품을 구분해 확인하세요/)
   assert.match(itemActions, /function FileOptionRow/)
-  assert.match(itemActions, /샘플 미리보기/)
-  assert.match(itemActions, /1~3페이지 JPG/)
+  assert.match(itemActions, /무료 샘플/)
+  assert.match(itemActions, /무료 샘플 미리보기/)
+  assert.match(itemActions, /구매 전 PDF 첫 \$\{samplePageCount\}쪽을 확인할 수 있어요/)
+  assert.match(itemActions, /구매 전 확인/)
+  assert.match(itemActions, /샘플 보기/)
+  assert.match(itemActions, /샘플 준비 중/)
   assert.match(itemActions, /PDF 구매하기/)
   assert.match(itemActions, /HWP & PDF 구매하기/)
-  assert.match(itemActions, /영어 라이브러리 &gt; 구매자료/)
+  assert.match(itemActions, /libraryPurchaseLabel/)
+  assert.match(itemActions, /국어 라이브러리 > 구매자료/)
+  assert.match(itemActions, /영어 라이브러리 > 구매자료/)
+  assert.doesNotMatch(itemActions, /title="샘플 미리보기"[\s\S]*priceLabel="무료"/)
+})
+
+test('market item detail presents bundle as a package containing subproducts', () => {
+  assert.match(itemActions, /전체 패키지/)
+  assert.match(itemActions, /추천/)
+  assert.match(itemActions, /전체 포함/)
+  assert.match(itemActions, /\{subproducts\.length\}개 자료/)
+  assert.match(itemActions, /한 번 구매하면 아래 개별 자료 \$\{subproducts\.length\}개를 모두 다운로드할 수 있습니다\./)
+  assert.match(itemActions, /포함 자료/)
+  assert.match(itemActions, /subproducts\.map\(\(subproduct\)/)
+  assert.match(itemActions, /subproduct\.title/)
+  assert.match(itemActions, /전체 패키지 구매/)
+  assert.match(itemActions, /포함 상품 정보가 아직 표시되지 않습니다\./)
+})
+
+test('market item detail shows individual subproducts as lower-emphasis alternatives', () => {
+  assert.match(itemActions, /또는 필요한 자료만/)
+  assert.match(itemActions, /개별 자료 선택 구매/)
+  assert.match(itemActions, /전체 패키지가 필요 없다면 원하는 자료만 구매하세요/)
+  assert.match(itemActions, /개별가/)
+  assert.match(itemActions, /이 자료만 구매/)
+  assert.match(itemActions, /패키지 포함/)
 })
 
 test('market item detail hides unavailable paid file rows', () => {
@@ -96,7 +125,7 @@ test('market item purchase success uses a centered confirmation dialog instead o
 })
 
 test('market item detail action states and failure messages are explicit', () => {
-  assert.match(itemActions, /OptionState = 'instant' \| 'owned' \| 'available' \| 'unavailable' \| 'checking' \| 'processing'/)
+  assert.match(itemActions, /OptionState = 'instant' \| 'owned' \| 'included' \| 'available' \| 'unavailable' \| 'checking' \| 'processing'/)
   assert.match(itemActions, /status === 401/)
   assert.match(itemActions, /status === 402/)
   assert.match(itemActions, /status === 409/)

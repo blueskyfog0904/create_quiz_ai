@@ -28,22 +28,25 @@ test('market detail page loads v2 subproduct and bundle summaries for the action
   assert.match(itemPage, /downloadFiles=\{downloadFiles\}/)
 })
 
-test('market detail action panel renders subproduct cards and bundle card before legacy fallback', () => {
+test('market detail action panel renders bundle package and individual alternatives before legacy fallback', () => {
   assert.match(itemActions, /subproducts\?: MarketSubproductPublicSummary\[\]/)
   assert.match(itemActions, /bundleOption\?: MarketBundlePublicSummary \| null/)
   assert.match(itemActions, /renderV2PurchaseOptions/)
-  assert.match(itemActions, /전체 한번에 구매하기/)
-  assert.match(itemActions, /전체 한번에 구매하기로 구매시 모든 서브상품을 다운받을 수 있습니다\./)
-  assert.match(itemActions, /\{subproduct\.title\} 구매하기/)
+  assert.match(itemActions, /전체 패키지/)
+  assert.match(itemActions, /전체 포함/)
+  assert.match(itemActions, /포함 자료/)
+  assert.match(itemActions, /개별 자료 선택 구매/)
+  assert.match(itemActions, /이 자료만 구매/)
   assert.match(itemActions, /setPendingV2PurchaseIntent\(null\)/)
   assert.match(itemActions, /purchaseType: 'subproduct'/)
   assert.match(itemActions, /purchaseType: 'bundle'/)
   assert.match(itemActions, /download\?fileId=\$\{fileId\}/)
 })
 
-test('market detail action buttons use one fixed width for sample and purchase actions', () => {
+test('market detail action buttons are responsive for sample and purchase actions', () => {
   assert.match(itemActions, /MARKET_ACTION_BUTTON_CLASS/)
-  assert.match(itemActions, /w-44/)
+  assert.match(itemActions, /w-full/)
+  assert.match(itemActions, /sm:w-44/)
   assert.match(itemActions, /MARKET_PRIMARY_BUTTON_CLASS/)
   assert.match(itemActions, /MARKET_OUTLINE_BUTTON_CLASS/)
 })

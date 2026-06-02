@@ -149,8 +149,8 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
 
             <Card className="h-fit lg:sticky lg:top-24">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg"><PackageCheck className="h-5 w-5 text-slate-500" />파일 선택</CardTitle>
-                <CardDescription>샘플을 확인한 뒤 필요한 파일만 구매하세요.</CardDescription>
+                <CardTitle className="flex items-center gap-2 text-lg"><PackageCheck className="h-5 w-5 text-slate-500" />구매 옵션</CardTitle>
+                <CardDescription>무료 샘플과 전체 패키지, 개별 상품을 구분해 확인하세요.</CardDescription>
               </CardHeader>
               <CardContent>
                 <MarketItemActions
