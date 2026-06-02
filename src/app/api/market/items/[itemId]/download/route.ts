@@ -8,6 +8,7 @@ import {
   getActiveMarketSubproductFileForDownload,
   listMarketV2EntitlementsForItem,
   recordMarketDownloadEvent,
+  recordMarketV2DownloadEvent,
 } from '@/lib/market-items-server'
 import {
   findMarketSubproductFileV2Entitlement,
@@ -15,6 +16,7 @@ import {
   isMarketAssetCoveredByPurchaseKind,
   type MarketPaidAssetKind,
 } from '@/lib/market-purchase'
+import { hasPendingMarketRefundRequestForTarget } from '@/lib/market-refunds'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +27,10 @@ interface RouteContext {
 function getIpAddress(request: NextRequest) {
   const forwarded = request.headers.get('x-forwarded-for')
   return forwarded?.split(',')[0]?.trim() || null
+}
+
+function getUserAgent(request: NextRequest) {
+  return request.headers.get('user-agent')
 }
 
 export async function GET(request: NextRequest, { params }: RouteContext) {
@@ -67,6 +73,22 @@ async function handleMarketV2Download(
       return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: '구매 후 다운로드할 수 있습니다.' } }, { status: 403 })
     }
 
+    if (!entitlement.source_order_id) {
+      return NextResponse.json({ success: false, error: { code: 'INVALID_ENTITLEMENT', message: '다운로드 권한의 구매 정보를 확인할 수 없습니다.' } }, { status: 500 })
+    }
+
+    const hasPendingRefund = await hasPendingMarketRefundRequestForTarget({
+      targetKind: 'v2_order',
+      orderId: entitlement.source_order_id,
+    })
+
+    if (hasPendingRefund) {
+      return NextResponse.json({
+        success: false,
+        error: { code: 'PENDING_REFUND', message: '환불 요청이 접수되어 심사 중입니다. 심사 중에는 다운로드할 수 없습니다.' },
+      }, { status: 403 })
+    }
+
     const adminSupabase = createAdminClient()
     const { data, error } = await adminSupabase
       .storage
@@ -81,6 +103,20 @@ async function handleMarketV2Download(
         error: { code: 'SIGNED_URL_FAILED', message: error?.message || '다운로드 URL 생성에 실패했습니다.' },
       }, { status: 500 })
     }
+
+    await recordMarketV2DownloadEvent({
+      event_target_type: 'subproduct_file',
+      asset_kind: 'subproduct_file',
+      item_id: itemId,
+      subproduct_file_id: file.id,
+      order_id: entitlement.source_order_id,
+      entitlement_id: entitlement.id,
+      user_id: userId,
+      ip_address: getIpAddress(request),
+      user_agent: getUserAgent(request),
+      signed_url_expires_at: new Date(Date.now() + (60 * 5 * 1000)).toISOString(),
+      workspace_subject: file.workspace_subject,
+    })
 
     return NextResponse.redirect(data.signedUrl)
   } catch (error) {
@@ -128,6 +164,18 @@ async function handleLegacyMarketDownload(request: NextRequest, userId: string, 
       return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: '구매 후 다운로드할 수 있습니다.' } }, { status: 403 })
     }
     purchaseId = purchase.id
+
+    const hasPendingRefund = await hasPendingMarketRefundRequestForTarget({
+      targetKind: 'legacy_purchase',
+      legacyPurchaseId: purchaseId,
+    })
+
+    if (hasPendingRefund) {
+      return NextResponse.json({
+        success: false,
+        error: { code: 'PENDING_REFUND', message: '환불 요청이 접수되어 심사 중입니다. 심사 중에는 다운로드할 수 없습니다.' },
+      }, { status: 403 })
+    }
 
     const adminSupabase = createAdminClient()
     const { data, error } = await adminSupabase

@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import type { KeyboardEvent } from 'react'
+import type { KeyboardEvent, MouseEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,6 +17,7 @@ interface MarketLibraryClientProps {
 }
 
 type SortOption = 'latest' | 'name'
+type RefundTarget = MarketLibraryRow['refundTargets'][number]
 
 function formatDate(value?: string | null) {
   if (!value) return '-'
@@ -36,6 +37,7 @@ export default function MarketLibraryClient({
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortOption>('latest')
+  const [refundSubmitting, setRefundSubmitting] = useState<string | null>(null)
 
   const filteredRows = useMemo(() => {
     const keyword = search.trim().toLowerCase()
@@ -71,6 +73,46 @@ export default function MarketLibraryClient({
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
       navigateToDetail(detailHref)
+    }
+  }
+
+  const handleRefundRequest = async (
+    event: MouseEvent<HTMLButtonElement>,
+    target: RefundTarget
+  ) => {
+    event.stopPropagation()
+
+    if (target.status !== 'available') {
+      alert(target.reason ?? '현재 환불 신청할 수 없습니다.')
+      return
+    }
+
+    if (!confirm(`${target.label} 환불을 신청하시겠습니까? 다운로드 URL이 발급된 경우 환불이 불가합니다.`)) {
+      return
+    }
+
+    setRefundSubmitting(target.targetId)
+    try {
+      const response = await fetch('/api/market/refunds', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetKind: target.targetKind,
+          targetId: target.targetId,
+        }),
+      })
+      const result = await response.json().catch(() => null)
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error?.message ?? '환불 신청 처리에 실패했습니다.')
+      }
+
+      alert('환불 신청이 접수되었습니다.')
+      router.refresh()
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '환불 신청 처리에 실패했습니다.')
+    } finally {
+      setRefundSubmitting(null)
     }
   }
 
@@ -187,6 +229,24 @@ export default function MarketLibraryClient({
                                 </WorkspaceLink>
                               ) : (
                                 <span className="block min-w-0 truncate font-semibold text-slate-900">{row.title}</span>
+                              )}
+                              {row.refundTargets.length > 0 && (
+                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                  <span>다운로드 URL이 발급된 경우 환불이 불가합니다.</span>
+                                  {row.refundTargets.map((target) => (
+                                    <Button
+                                      key={`${target.targetKind}:${target.targetId}`}
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={refundSubmitting === target.targetId || target.status === 'pending' || target.status === 'approved'}
+                                      title={target.reason ?? undefined}
+                                      onClick={(event) => handleRefundRequest(event, target)}
+                                    >
+                                      {target.status === 'pending' ? '환불 심사중' : '환불 신청'}
+                                    </Button>
+                                  ))}
+                                </div>
                               )}
                             </div>
                           </td>

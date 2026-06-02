@@ -7,6 +7,7 @@ import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { RefundsClient } from './refunds-client'
+import { MarketRefundsClient } from './market-refunds-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,10 +48,19 @@ export default async function AdminRefundsPage() {
     const approvedCount = requests?.filter(r => r.status === 'approved').length || 0
     const rejectedCount = requests?.filter(r => r.status === 'rejected').length || 0
 
+    const { data: marketRefundRequests } = await supabase
+        .from('market_refund_requests')
+        .select('*')
+        .order('created_at', { ascending: false })
+
     return (
-        <RefundsClient
-            requests={requests || []}
-            stats={{ pendingCount, approvedCount, rejectedCount }}
-        />
+        <div className="space-y-8">
+            <RefundsClient
+                requests={requests || []}
+                stats={{ pendingCount, approvedCount, rejectedCount }}
+            />
+            <h2 className="sr-only">문제마켓 환불</h2>
+            <MarketRefundsClient requests={marketRefundRequests || []} />
+        </div>
     )
 }

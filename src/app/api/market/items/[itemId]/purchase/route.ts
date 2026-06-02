@@ -154,6 +154,7 @@ async function handleLegacyMarketPurchase(
     const purchase = await createMarketPurchase({
       ...buildMarketPurchaseInsert(userId, item.id, parsed.data.assetKind, price, item.workspace_subject),
       credit_resource_id: item.id,
+      credit_consumptions: deductionResult.consumptions,
     })
 
     const snapshot = await getCreditBalanceSnapshot(userId, supabase)

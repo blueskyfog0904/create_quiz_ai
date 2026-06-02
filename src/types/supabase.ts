@@ -885,34 +885,59 @@ export type Database = {
         Row: {
           asset_kind: string
           created_at: string
-          file_id: string
+          entitlement_id: string | null
+          event_target_type: string | null
+          file_id: string | null
           id: string
           ip_address: string | null
           item_id: string
+          order_id: string | null
           purchase_id: string | null
+          signed_url_expires_at: string | null
+          subproduct_file_id: string | null
+          user_agent: string | null
           user_id: string
         }
         Insert: {
           asset_kind: string
           created_at?: string
-          file_id: string
+          entitlement_id?: string | null
+          event_target_type?: string | null
+          file_id?: string | null
           id?: string
           ip_address?: string | null
           item_id: string
+          order_id?: string | null
           purchase_id?: string | null
+          signed_url_expires_at?: string | null
+          subproduct_file_id?: string | null
+          user_agent?: string | null
           user_id: string
         }
         Update: {
           asset_kind?: string
           created_at?: string
-          file_id?: string
+          entitlement_id?: string | null
+          event_target_type?: string | null
+          file_id?: string | null
           id?: string
           ip_address?: string | null
           item_id?: string
+          order_id?: string | null
           purchase_id?: string | null
+          signed_url_expires_at?: string | null
+          subproduct_file_id?: string | null
+          user_agent?: string | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "market_download_events_entitlement_id_fkey"
+            columns: ["entitlement_id"]
+            isOneToOne: false
+            referencedRelation: "market_entitlements"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "market_download_events_file_id_fkey"
             columns: ["file_id"]
@@ -928,10 +953,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "market_download_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "market_purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "market_download_events_purchase_id_fkey"
             columns: ["purchase_id"]
             isOneToOne: false
             referencedRelation: "market_purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_download_events_subproduct_file_id_fkey"
+            columns: ["subproduct_file_id"]
+            isOneToOne: false
+            referencedRelation: "market_subproduct_files"
             referencedColumns: ["id"]
           },
           {
@@ -1171,6 +1210,7 @@ export type Database = {
       market_purchase_orders: {
         Row: {
           charged_credits: number
+          credit_consumptions: Json | null
           created_at: string
           id: string
           idempotency_key: string | null
@@ -1185,6 +1225,7 @@ export type Database = {
         }
         Insert: {
           charged_credits?: number
+          credit_consumptions?: Json | null
           created_at?: string
           id?: string
           idempotency_key?: string | null
@@ -1199,6 +1240,7 @@ export type Database = {
         }
         Update: {
           charged_credits?: number
+          credit_consumptions?: Json | null
           created_at?: string
           id?: string
           idempotency_key?: string | null
@@ -1302,6 +1344,102 @@ export type Database = {
           workspace_subject?: string
         }
         Relationships: []
+      }
+      market_refund_requests: {
+        Row: {
+          admin_note: string | null
+          approved_refund_credits: number | null
+          created_at: string
+          eligibility_snapshot: Json
+          id: string
+          item_id: string
+          legacy_purchase_id: string | null
+          order_id: string | null
+          processed_at: string | null
+          processed_by: string | null
+          reason: string | null
+          requested_refund_credits: number
+          status: string
+          target_kind: string
+          updated_at: string
+          user_id: string
+          workspace_subject: string
+        }
+        Insert: {
+          admin_note?: string | null
+          approved_refund_credits?: number | null
+          created_at?: string
+          eligibility_snapshot?: Json
+          id?: string
+          item_id: string
+          legacy_purchase_id?: string | null
+          order_id?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          reason?: string | null
+          requested_refund_credits: number
+          status?: string
+          target_kind: string
+          updated_at?: string
+          user_id: string
+          workspace_subject: string
+        }
+        Update: {
+          admin_note?: string | null
+          approved_refund_credits?: number | null
+          created_at?: string
+          eligibility_snapshot?: Json
+          id?: string
+          item_id?: string
+          legacy_purchase_id?: string | null
+          order_id?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          reason?: string | null
+          requested_refund_credits?: number
+          status?: string
+          target_kind?: string
+          updated_at?: string
+          user_id?: string
+          workspace_subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_refund_requests_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "market_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_refund_requests_legacy_purchase_id_fkey"
+            columns: ["legacy_purchase_id"]
+            isOneToOne: false
+            referencedRelation: "market_purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_refund_requests_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "market_purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_refund_requests_processed_by_fkey"
+            columns: ["processed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_refund_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       market_item_files: {
         Row: {
@@ -1678,6 +1816,7 @@ export type Database = {
         Row: {
           asset_kind: string
           created_at: string
+          credit_consumptions: Json | null
           credit_resource_id: string | null
           credit_resource_type: string
           id: string
@@ -1692,6 +1831,7 @@ export type Database = {
         Insert: {
           asset_kind: string
           created_at?: string
+          credit_consumptions?: Json | null
           credit_resource_id?: string | null
           credit_resource_type: string
           id?: string
@@ -1706,6 +1846,7 @@ export type Database = {
         Update: {
           asset_kind?: string
           created_at?: string
+          credit_consumptions?: Json | null
           credit_resource_id?: string | null
           credit_resource_type?: string
           id?: string

@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { listActiveMarketItemSamplePagesForItems } from '@/lib/market-sample-pages-server'
+import { getMarketRefundEligibility } from '@/lib/market-refunds'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/supabase'
 
@@ -20,6 +21,7 @@ export type MarketItemBundleOption = Tables<'market_item_bundle_options'> & With
 export type MarketPurchaseOrder = Tables<'market_purchase_orders'> & WithWorkspaceSubject
 export type MarketPurchaseLine = Tables<'market_purchase_lines'> & WithWorkspaceSubject
 export type MarketEntitlement = Tables<'market_entitlements'> & WithWorkspaceSubject
+export type MarketRefundRequest = Tables<'market_refund_requests'> & WithWorkspaceSubject
 
 type MarketItemInsert = TablesInsert<'market_items'> & WithOptionalWorkspaceSubject
 type MarketItemFileInsert = TablesInsert<'market_item_files'> & WithOptionalWorkspaceSubject
@@ -38,6 +40,18 @@ type MarketItemBundleOptionUpdate = TablesUpdate<'market_item_bundle_options'> &
 type MarketPurchaseOrderInsert = TablesInsert<'market_purchase_orders'> & WithOptionalWorkspaceSubject
 type MarketPurchaseLineInsert = TablesInsert<'market_purchase_lines'> & WithOptionalWorkspaceSubject
 type MarketEntitlementInsert = TablesInsert<'market_entitlements'> & WithOptionalWorkspaceSubject
+
+export interface MarketLibraryRefundTarget {
+  targetKind: 'legacy_purchase' | 'v2_order'
+  targetId: string
+  label: string
+  requestedRefundCredits: number
+  purchasedAt: string
+  refundableUntil: string
+  downloadCount: number
+  status: 'available' | 'blocked' | 'pending' | 'approved' | 'rejected' | 'canceled' | 'failed'
+  reason: string | null
+}
 
 export interface MarketLibraryRow {
   itemId: string
@@ -65,6 +79,7 @@ export interface MarketLibraryRow {
   v2BundleOwned: boolean
   v2OwnedLabels: string[]
   v2DownloadFiles: MarketSubproductDownloadFile[]
+  refundTargets: MarketLibraryRefundTarget[]
 }
 
 export interface MarketListboardAssetRow {
@@ -150,6 +165,13 @@ export interface MarketItemListFilters {
 
 function normalizeWorkspaceSubject(value?: string | null): WorkspaceSubject {
   return value === 'korean' ? 'korean' : DEFAULT_WORKSPACE_SUBJECT
+}
+
+function getMarketAssetKindLabel(assetKind: string) {
+  if (assetKind === 'pdf') return '문제(PDF)'
+  if (assetKind === 'hwp') return '문제(HWP)'
+  if (assetKind === 'zip') return 'ZIP'
+  return assetKind
 }
 
 function withWorkspaceSubject<T extends object>(row: T | null): (T & WithWorkspaceSubject) | null {
@@ -1689,9 +1711,13 @@ export async function listMarketV2EntitlementsForItem(
 
 export async function createMarketPurchaseOrder(input: MarketPurchaseOrderInsert): Promise<MarketPurchaseOrder> {
   const supabase = getAdminSupabase()
+  const payload: MarketPurchaseOrderInsert = {
+    ...input,
+    credit_consumptions: input.credit_consumptions ?? null,
+  }
   const { data, error } = await supabase
     .from('market_purchase_orders')
-    .insert(input as TablesInsert<'market_purchase_orders'>)
+    .insert(payload as TablesInsert<'market_purchase_orders'>)
     .select('*')
     .single()
 
@@ -2223,6 +2249,7 @@ export async function createMarketPurchase(input: MarketPurchaseInsert): Promise
   const payload: MarketPurchaseInsert = {
     ...input,
     workspace_subject: workspaceSubject,
+    credit_consumptions: input.credit_consumptions ?? null,
   }
 
   const { data, error } = await supabase
@@ -2357,6 +2384,29 @@ export async function recordMarketDownloadEvent(input: MarketDownloadEventInsert
   const payload: MarketDownloadEventInsert = {
     ...input,
     workspace_subject: workspaceSubject,
+  }
+
+  const { data, error } = await supabase
+    .from('market_download_events')
+    .insert(payload as TablesInsert<'market_download_events'>)
+    .select('*')
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return withWorkspaceSubject(data)!
+}
+
+export async function recordMarketV2DownloadEvent(input: MarketDownloadEventInsert): Promise<MarketDownloadEvent> {
+  const supabase = getAdminSupabase()
+  const payload: MarketDownloadEventInsert = {
+    ...input,
+    event_target_type: 'subproduct_file',
+    subproduct_file_id: input.subproduct_file_id,
+    file_id: null,
+    purchase_id: null,
   }
 
   const { data, error } = await supabase
@@ -2528,6 +2578,80 @@ export async function listMarketLibraryRowsForUser(
     await listMarketSubproductDownloadFilesForUser(userId, itemId, workspaceSubject),
   ] as const))
   const v2DownloadFileMap = new Map(v2DownloadFileEntries)
+  const v2OrderIds = Array.from(new Set(entitlementRows
+    .map((entitlement) => entitlement.source_order_id)
+    .filter((value): value is string => Boolean(value))))
+
+  let v2OrderRows: MarketPurchaseOrder[] = []
+  if (v2OrderIds.length > 0) {
+    const { data: v2Orders, error: v2OrdersError } = await supabase
+      .from('market_purchase_orders')
+      .select('*')
+      .in('id', v2OrderIds)
+      .eq('user_id', userId)
+      .eq('workspace_subject', workspaceSubject)
+
+    if (v2OrdersError) {
+      throw new Error(v2OrdersError.message)
+    }
+
+    v2OrderRows = withWorkspaceSubjects(v2Orders)
+  }
+
+  const groupedOrders = new Map<string, MarketPurchaseOrder[]>()
+  for (const order of v2OrderRows) {
+    const current = groupedOrders.get(order.item_id) ?? []
+    current.push(order)
+    groupedOrders.set(order.item_id, current)
+  }
+
+  const refundTargetEntries = await Promise.all(itemIds.map(async (itemId) => {
+    const itemPurchases = groupedPurchases.get(itemId) ?? []
+    const itemOrders = groupedOrders.get(itemId) ?? []
+    const targets = await Promise.all([
+      ...itemPurchases.map(async (purchase) => {
+        const eligibility = await getMarketRefundEligibility({
+          userId,
+          targetKind: 'legacy_purchase',
+          targetId: purchase.id,
+        })
+
+        return {
+          targetKind: 'legacy_purchase' as const,
+          targetId: purchase.id,
+          label: getMarketAssetKindLabel(purchase.asset_kind),
+          requestedRefundCredits: eligibility.requestedRefundCredits,
+          purchasedAt: eligibility.purchasedAt,
+          refundableUntil: eligibility.refundDeadline,
+          downloadCount: eligibility.downloadCount,
+          status: eligibility.status,
+          reason: eligibility.reason,
+        }
+      }),
+      ...itemOrders.map(async (order) => {
+        const eligibility = await getMarketRefundEligibility({
+          userId,
+          targetKind: 'v2_order',
+          targetId: order.id,
+        })
+
+        return {
+          targetKind: 'v2_order' as const,
+          targetId: order.id,
+          label: order.purchase_type === 'bundle' ? '전체구매' : '서브상품',
+          requestedRefundCredits: eligibility.requestedRefundCredits,
+          purchasedAt: eligibility.purchasedAt,
+          refundableUntil: eligibility.refundDeadline,
+          downloadCount: eligibility.downloadCount,
+          status: eligibility.status,
+          reason: eligibility.reason,
+        }
+      }),
+    ])
+
+    return [itemId, targets] as const
+  }))
+  const refundTargets = new Map(refundTargetEntries)
 
   return itemIds
     .map((itemId) => {
@@ -2585,6 +2709,7 @@ export async function listMarketLibraryRowsForUser(
         v2BundleOwned,
         v2OwnedLabels,
         v2DownloadFiles,
+        refundTargets: refundTargets.get(itemId) ?? [],
       }
     })
     .sort((a, b) => b.purchasedAt.localeCompare(a.purchasedAt))

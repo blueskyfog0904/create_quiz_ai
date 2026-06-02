@@ -27,10 +27,12 @@ export interface MarketV2SubproductFileTarget {
 }
 
 export interface MarketV2EntitlementLike {
+  id?: string
   item_id: string
   scope: string
   subproduct_id: string | null
   file_id: string | null
+  source_order_id?: string | null
   status?: string | null
 }
 
@@ -298,6 +300,7 @@ export async function createMarketV2PurchaseWithCompensation(input: {
       idempotency_key: input.idempotencyKey ?? null,
       original_price_credits: priceCredits,
       charged_credits: priceCredits,
+      credit_consumptions: deductionResult.consumptions,
       status: 'completed',
     })
 
