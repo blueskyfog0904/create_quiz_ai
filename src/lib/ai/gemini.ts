@@ -2,6 +2,7 @@ import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/ge
 import { AIAdapter, AIResponse, AITextResponse, GenerateParams, QuestionSchema } from './types'
 import { normalizeQuestionTextBackward } from '../questions/normalize-question-field'
 import { getProviderRuntimeConfig } from './provider-connections'
+import { parseAiJsonResponse } from './json-response-parser'
 
 function isAbortError(error: unknown) {
   return (
@@ -127,28 +128,24 @@ export class GeminiAdapter implements AIAdapter {
 
     const rawContent = rawResult.rawResponse
 
-    let parsedJson
-    try {
-      parsedJson = JSON.parse(rawContent)
-    } catch (error: unknown) {
-      console.error('[Gemini] JSON parse error:', getErrorMessage(error, 'Unknown JSON parse error'))
-      console.error('[Gemini] Raw content preview:', rawContent.substring(0, 500))
+    const parsed = parseAiJsonResponse(rawContent, { arrayMode: 'first' })
+
+    if (parsed.success === false) {
+      if (parsed.code === 'AI_JSON_EMPTY_ARRAY') {
+        return { success: false, rawResponse: rawContent, error: 'AI가 빈 배열을 반환했습니다.' }
+      }
+
+      console.error('[Gemini] JSON parse error:', parsed.error)
       return { success: false, rawResponse: rawContent, error: 'AI 응답을 JSON으로 파싱할 수 없습니다.' }
     }
 
-    if (Array.isArray(parsedJson)) {
-      console.warn('[Gemini] AI returned an array. Extracting first item.')
-      if (parsedJson.length === 0) {
-        return { success: false, rawResponse: rawContent, error: 'AI가 빈 배열을 반환했습니다.' }
-      }
-      parsedJson = parsedJson[0]
-    }
+    const parsedJson = parsed.data as Record<string, unknown>
 
     const mappedJson = {
       questionText: parsedJson.questionText || parsedJson.question_text,
       questionTextForward: parsedJson.questionTextForward || parsedJson.question_text_forward || null,
       questionTextBackward: normalizeQuestionTextBackward(
-        parsedJson.questionTextBackward || parsedJson.question_text_backward
+        (parsedJson.questionTextBackward || parsedJson.question_text_backward) as string | null | undefined
       ),
       passageText: parsedJson.passageText || parsedJson.passage_text || null,
       choices: parsedJson.choices || [],

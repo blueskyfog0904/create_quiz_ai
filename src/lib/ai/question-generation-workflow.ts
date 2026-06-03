@@ -11,6 +11,7 @@ import {
   resolveProblemTypePromptBundle,
   type ProblemTypeDefaultPrompt,
 } from './problem-type-default-prompts'
+import { parseAiJsonResponse } from './json-response-parser'
 
 // Review prompt splitting is centralized in resolveProblemTypePromptBundle via splitReviewPromptTemplate.
 // buildQuestionReviewPrompt consumes input.promptBundle.reviewResponseStructurePrompt after that resolution.
@@ -374,8 +375,12 @@ ${reviewResponseStructureSection}
 }
 
 const normalizeReviewResult = (rawResponse: string) => {
-  const parsed = JSON.parse(rawResponse)
-  const rawCandidate = Array.isArray(parsed) ? parsed[0] : parsed
+  const parsed = parseAiJsonResponse(rawResponse, { arrayMode: 'first' })
+  if (parsed.success === false) {
+    throw new Error(parsed.error)
+  }
+
+  const rawCandidate = parsed.data
   const candidate = isRecord(rawCandidate) ? rawCandidate : {}
   const normalized = {
     passed: normalizeReviewPassed(candidate.passed ?? candidate.pass ?? candidate.is_passed),

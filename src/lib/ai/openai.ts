@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { AIAdapter, AIResponse, AITextResponse, GenerateParams, QuestionSchema } from './types'
 import { normalizeQuestionTextBackward } from '../questions/normalize-question-field'
 import { getProviderRuntimeConfig } from './provider-connections'
+import { parseAiJsonResponse } from './json-response-parser'
 
 function isAbortError(error: unknown) {
   return (
@@ -104,20 +105,20 @@ export class OpenAIAdapter implements AIAdapter {
         return { success: false, error: 'No content returned from OpenAI' }
       }
 
-      // Parse JSON
-      let parsedJson
-      try {
-        parsedJson = JSON.parse(rawContent)
-      } catch {
+      const parsed = parseAiJsonResponse(rawContent, { arrayMode: 'reject' })
+
+      if (parsed.success === false) {
         return { success: false, rawResponse: rawContent, error: 'Failed to parse JSON response' }
       }
+
+      const parsedJson = parsed.data as Record<string, unknown>
 
       // Map snake_case to camelCase for schema validation
       const mappedJson = {
         questionText: parsedJson.questionText || parsedJson.question_text,
         questionTextForward: parsedJson.questionTextForward || parsedJson.question_text_forward || null,
         questionTextBackward: normalizeQuestionTextBackward(
-          parsedJson.questionTextBackward || parsedJson.question_text_backward
+          (parsedJson.questionTextBackward || parsedJson.question_text_backward) as string | null | undefined
         ),
         passageText: parsedJson.passageText || parsedJson.passage_text || null,
         choices: parsedJson.choices || [],
