@@ -94,6 +94,9 @@ export async function GET(request: Request) {
       if (signupMode) {
         nextUrl.searchParams.set('signup', '1')
       }
+      if (!signupMode) {
+        nextUrl.searchParams.set('login', 'success')
+      }
       return NextResponse.redirect(nextUrl.toString())
     }
 

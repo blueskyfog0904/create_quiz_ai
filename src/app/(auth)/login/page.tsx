@@ -63,8 +63,9 @@ function LoginContent() {
         const { data: { session } } = await supabase.auth.getSession()
         
         if (session) {
-          toast.success('로그인이 되었습니다.')
-          window.location.assign(next)
+          const nextUrl = new URL(next, window.location.origin)
+          nextUrl.searchParams.set('login', 'success')
+          window.location.assign(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`)
         } else {
           toast.error('세션을 확인할 수 없습니다. 다시 시도해주세요.')
           setIsLoading(false)
