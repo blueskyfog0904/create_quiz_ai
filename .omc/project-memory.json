@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1776901737424,
+  "lastScanned": 1780292765496,
   "projectRoot": "/Users/mac/Documents/project/create_quiz_ai",
   "techStack": {
     "languages": [
@@ -26,6 +26,11 @@
         "name": "next",
         "version": "16.0.8",
         "category": "fullstack"
+      },
+      {
+        "name": "playwright",
+        "version": "1.59.1",
+        "category": "testing"
       },
       {
         "name": "react",
@@ -80,7 +85,7 @@
       "path": "docs",
       "purpose": "Documentation",
       "fileCount": 8,
-      "lastAccessed": 1776901737412,
+      "lastAccessed": 1780292765465,
       "keyFiles": [
         "admin-menu-generate-regression-worker2.md",
         "admin-menu-market-investigation-worker2.md",
@@ -93,7 +98,7 @@
       "path": "downloadfile",
       "purpose": null,
       "fileCount": 9,
-      "lastAccessed": 1776901737415,
+      "lastAccessed": 1780292765466,
       "keyFiles": [
         "2025학년도 1학기 중간고사 (1).docx",
         "2025학년도 1학기 중간고사 (2).pdf",
@@ -106,14 +111,14 @@
       "path": "fonts",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1776901737415,
+      "lastAccessed": 1780292765475,
       "keyFiles": []
     },
     "public": {
       "path": "public",
       "purpose": "Public files",
       "fileCount": 6,
-      "lastAccessed": 1776901737415,
+      "lastAccessed": 1780292765477,
       "keyFiles": [
         "file.svg",
         "globe.svg",
@@ -125,8 +130,8 @@
     "scripts": {
       "path": "scripts",
       "purpose": "Build/utility scripts",
-      "fileCount": 8,
-      "lastAccessed": 1776901737415,
+      "fileCount": 11,
+      "lastAccessed": 1780292765477,
       "keyFiles": [
         "backfill-missing-credit-transactions.sql",
         "backfill-profile-credits-from-ledger.sql",
@@ -139,7 +144,7 @@
       "path": "src",
       "purpose": "Source code",
       "fileCount": 1,
-      "lastAccessed": 1776901737415,
+      "lastAccessed": 1780292765478,
       "keyFiles": [
         "middleware.ts"
       ]
@@ -148,27 +153,27 @@
       "path": "supabase",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1776901737415,
+      "lastAccessed": 1780292765479,
       "keyFiles": []
     },
     "tests": {
       "path": "tests",
       "purpose": "Test files",
-      "fileCount": 50,
-      "lastAccessed": 1776901737416,
+      "fileCount": 131,
+      "lastAccessed": 1780292765479,
       "keyFiles": [
-        "admin-sidebar-navigation.test.mjs",
-        "credit-balance-read-paths.test.mjs",
-        "credit-balance-source-of-truth.test.mjs",
-        "credit-mutation-routes.test.mjs",
-        "credit-mutation-snapshot-contract.test.mjs"
+        "admin-ai-model-management-contract.test.mjs",
+        "admin-ai-provider-connections-contract.test.mjs",
+        "admin-problem-type-model-split-contract.test.mjs",
+        "admin-problem-type-test-page-contract.test.mjs",
+        "admin-product-year-options-contract.test.mjs"
       ]
     },
     "src/app": {
       "path": "src/app",
       "purpose": "Application code",
       "fileCount": 7,
-      "lastAccessed": 1776901737420,
+      "lastAccessed": 1780292765485,
       "keyFiles": [
         "favicon.ico",
         "globals.css",
@@ -179,14 +184,14 @@
       "path": "src/components",
       "purpose": "UI components",
       "fileCount": 0,
-      "lastAccessed": 1776901737421,
+      "lastAccessed": 1780292765485,
       "keyFiles": []
     },
     "src/lib": {
       "path": "src/lib",
       "purpose": "Library code",
-      "fileCount": 48,
-      "lastAccessed": 1776901737421,
+      "fileCount": 56,
+      "lastAccessed": 1780292765486,
       "keyFiles": [
         "admin-sidebar-server.ts",
         "admin-sidebar.ts",
@@ -197,7 +202,7 @@
       "path": "src/types",
       "purpose": "Type definitions",
       "fileCount": 1,
-      "lastAccessed": 1776901737422,
+      "lastAccessed": 1780292765489,
       "keyFiles": [
         "supabase.ts"
       ]
@@ -205,8 +210,8 @@
     "supabase/migrations": {
       "path": "supabase/migrations",
       "purpose": "Database migrations",
-      "fileCount": 37,
-      "lastAccessed": 1776901737423,
+      "fileCount": 56,
+      "lastAccessed": 1780292765493,
       "keyFiles": [
         "0000_initial_schema.sql",
         "0001_update_handle_new_user.sql",
@@ -291,6 +296,48 @@
       "path": ".omx/plans/2026-04-20-exam-paper-two-column-web-parity-plan.md",
       "accessCount": 1,
       "lastAccessed": 1776740194012,
+      "type": "file"
+    },
+    {
+      "path": "src/app/(admin)/admin/ai-connections/page.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1780292893498,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/ai/provider-connections.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780292893756,
+      "type": "file"
+    },
+    {
+      "path": "src/app/(admin)/admin/ai-connections/ai-connections-client.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1780292898651,
+      "type": "file"
+    },
+    {
+      "path": "src/app/api/admin/ai-models/route.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780292907409,
+      "type": "file"
+    },
+    {
+      "path": "supabase/migrations/20260601031000_seed_current_ai_models.sql",
+      "accessCount": 1,
+      "lastAccessed": 1780292907789,
+      "type": "file"
+    },
+    {
+      "path": "supabase/migrations/20250101000000_create_ai_models.sql",
+      "accessCount": 1,
+      "lastAccessed": 1780292935061,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/supabase/bypass.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780292935601,
       "type": "file"
     }
   ],

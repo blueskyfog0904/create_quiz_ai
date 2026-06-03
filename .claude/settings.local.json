@@ -17,7 +17,10 @@
       "Bash(omc --version)",
       "Bash(claude mcp *)",
       "Bash(gh auth *)",
-      "Bash(gh api *)"
+      "Bash(gh api *)",
+      "Bash(npx supabase *)",
+      "Bash(cp /tmp/seed_claude.mjs ./seed_claude_tmp.mjs)",
+      "Bash(rm -f ./seed_claude_tmp.mjs)"
     ]
   },
   "enableAllProjectMcpServers": true,
