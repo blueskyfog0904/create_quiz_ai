@@ -36,7 +36,9 @@ export default async function ProblemTypesPage({ searchParams }: ProblemTypesPag
     .from('problem_types')
     .select('*')
     .eq('workspace_subject', workspaceSubject)
+    .order('sort_order', { ascending: true })
     .order('created_at', { ascending: false })
+    .order('id', { ascending: true })
 
   const { data: aiModels } = await supabase
     .from('ai_models')

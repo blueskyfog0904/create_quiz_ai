@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
-import { deleteProblemType } from './actions'
+import { deleteProblemType, updateProblemTypeSortOrder } from './actions'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
@@ -56,6 +57,8 @@ export default function ProblemTypesClient({
   const [bulkUpdating, setBulkUpdating] = useState(false)
   const [selectedTypeIds, setSelectedTypeIds] = useState<string[]>([])
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [sortOrderValues, setSortOrderValues] = useState<Record<string, string>>({})
+  const [savingSortOrderIds, setSavingSortOrderIds] = useState<string[]>([])
   const [bulkGenerationProvider, setBulkGenerationProvider] = useState<AIProvider>('openai')
   const [bulkGenerationModelName, setBulkGenerationModelName] = useState('')
   const [bulkReviewProvider, setBulkReviewProvider] = useState<AIProvider>('openai')
@@ -125,6 +128,9 @@ export default function ProblemTypesClient({
   useEffect(() => {
     const typeIds = new Set(initialTypes.map((type) => type.id))
     setSelectedTypeIds((current) => current.filter((id) => typeIds.has(id)))
+    setSortOrderValues(Object.fromEntries(
+      initialTypes.map((type) => [type.id, String(type.sort_order ?? 0)])
+    ))
   }, [initialTypes])
 
   const toggleSelectedType = (id: string) => {
@@ -142,6 +148,30 @@ export default function ProblemTypesClient({
       toast.success("문제 유형이 삭제되었습니다")
       setSelectedTypeIds((current) => current.filter((typeId) => typeId !== id))
       router.refresh()
+    }
+  }
+
+  const handleSaveSortOrder = async (id: string) => {
+    const rawValue = sortOrderValues[id] ?? '0'
+    const nextSortOrder = Number(rawValue)
+
+    if (!Number.isInteger(nextSortOrder) || nextSortOrder < 0) {
+      toast.error('번호는 0 이상의 정수로 입력해주세요')
+      return
+    }
+
+    setSavingSortOrderIds((current) => [...current, id])
+    try {
+      const result = await updateProblemTypeSortOrder(id, workspaceSubject, nextSortOrder)
+      if (result?.error) {
+        toast.error(result.error)
+        return
+      }
+
+      toast.success('번호가 저장되었습니다')
+      router.refresh()
+    } finally {
+      setSavingSortOrderIds((current) => current.filter((typeId) => typeId !== id))
     }
   }
 
@@ -427,6 +457,37 @@ export default function ProblemTypesClient({
                   disabled={bulkDeleting}
                   className="mt-1"
                 />
+                <div className="space-y-1">
+                  <Label htmlFor={`sort-order-${type.id}`} className="text-xs text-gray-500">번호</Label>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      id={`sort-order-${type.id}`}
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={sortOrderValues[type.id] ?? String(type.sort_order ?? 0)}
+                      onChange={(event) => setSortOrderValues((current) => ({
+                        ...current,
+                        [type.id]: event.target.value,
+                      }))}
+                      className="h-8 w-16 text-center tabular-nums"
+                      disabled={savingSortOrderIds.includes(type.id)}
+                      aria-label={`${type.type_name} 번호`}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleSaveSortOrder(type.id)}
+                      disabled={
+                        savingSortOrderIds.includes(type.id) ||
+                        (sortOrderValues[type.id] ?? String(type.sort_order ?? 0)) === String(type.sort_order ?? 0)
+                      }
+                    >
+                      {savingSortOrderIds.includes(type.id) ? '저장 중...' : '저장'}
+                    </Button>
+                  </div>
+                </div>
                 <CardTitle className="flex flex-1 justify-between gap-3">
                   <span>{type.type_name}</span>
                   <span className={`text-xs px-2 py-1 rounded ${type.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>

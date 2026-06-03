@@ -8,6 +8,7 @@ const promptModeSchema = z.enum(['default', 'custom', 'disabled'])
 const updateProblemTypeSchema = z.object({
   type_name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
+  sort_order: z.coerce.number().int().min(0).optional(),
   prompt_template: z.string().optional(),
   provider: z.enum(['gemini', 'openai', 'claude', 'admin']).optional(),
   model_name: z.string().optional(),
@@ -113,6 +114,9 @@ export async function PATCH(
     }
     if (validatedData.description !== undefined) {
       updateData.description = validatedData.description
+    }
+    if (validatedData.sort_order !== undefined) {
+      updateData.sort_order = validatedData.sort_order
     }
     if (validatedData.prompt_template !== undefined) {
       updateData.prompt_template = validatedData.prompt_template

@@ -293,10 +293,22 @@ export default function ProblemTypeFormClient({ workspaceSubject, defaultPrompts
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <input type="hidden" name="workspace_subject" value={workspaceSubject} />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="type_name">유형 이름 *</Label>
                 <Input id="type_name" name="type_name" required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sort_order">번호</Label>
+                <Input
+                  id="sort_order"
+                  name="sort_order"
+                  type="number"
+                  min={0}
+                  step={1}
+                  defaultValue={0}
+                  placeholder="예: 1"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="is_active">상태</Label>

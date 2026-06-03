@@ -2135,6 +2135,7 @@ export type Database = {
           review_provider: string | null
           review_prompt_template: string | null
           review_prompt_template_mode: string
+          sort_order: number
           type_name: string
           updated_at: string
           workspace_subject: string
@@ -2159,6 +2160,7 @@ export type Database = {
           review_provider?: string | null
           review_prompt_template?: string | null
           review_prompt_template_mode?: string
+          sort_order?: number
           type_name: string
           updated_at?: string
           workspace_subject?: string
@@ -2183,6 +2185,7 @@ export type Database = {
           review_provider?: string | null
           review_prompt_template?: string | null
           review_prompt_template_mode?: string
+          sort_order?: number
           type_name?: string
           updated_at?: string
           workspace_subject?: string

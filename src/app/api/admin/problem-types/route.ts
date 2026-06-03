@@ -33,7 +33,9 @@ export async function GET(request: Request) {
       .from('problem_types')
       .select('*')
       .eq('workspace_subject', workspaceSubject)
+      .order('sort_order', { ascending: true })
       .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
     
     if (error) {
       console.error('[Admin Problem Types] Database error:', error)
@@ -50,6 +52,7 @@ export async function GET(request: Request) {
 const problemTypeSchema = z.object({
   type_name: z.string().min(1, 'Problem type name is required'),
   description: z.string().optional(),
+  sort_order: z.coerce.number().int().min(0).optional(),
   prompt_template: z.string().optional(),
   provider: z.enum(['gemini', 'openai', 'claude', 'admin']).optional(),
   model_name: z.string().optional(),
@@ -143,6 +146,7 @@ export async function POST(request: Request) {
       workspace_subject: workspaceSubject,
       type_name: validatedData.type_name,
       description: validatedData.description || null,
+      sort_order: validatedData.sort_order ?? 0,
       provider: generationProvider || 'admin',
       is_active: validatedData.is_active !== undefined ? validatedData.is_active : true,
       model_name: generationModelName || 'admin',

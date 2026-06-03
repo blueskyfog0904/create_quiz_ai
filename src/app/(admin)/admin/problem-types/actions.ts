@@ -18,6 +18,7 @@ const ProblemTypeSchema = z.object({
   workspace_subject: z.enum(['english', 'korean']).optional(),
   type_name: z.string().min(1, 'Type name is required'),
   description: z.string().optional(),
+  sort_order: z.coerce.number().int().min(0).default(0),
   generation_provider: AIProviderSchema,
   generation_model_name: z.string().min(1, 'Generation model name is required'),
   review_provider: OptionalAIProviderSchema,
@@ -70,6 +71,7 @@ const readProblemTypeFormData = (formData: FormData) => ({
   workspace_subject: formData.get('workspace_subject'),
   type_name: formData.get('type_name'),
   description: formData.get('description'),
+  sort_order: formData.get('sort_order'),
   generation_provider: formData.get('generation_provider'),
   generation_model_name: formData.get('generation_model_name'),
   review_provider: formData.get('review_provider'),
@@ -90,6 +92,7 @@ const buildProblemTypePayload = (data: z.infer<typeof ProblemTypeSchema>, worksp
   workspace_subject: workspaceSubject,
   type_name: data.type_name,
   description: data.description || null,
+  sort_order: data.sort_order,
   provider: data.generation_provider,
   model_name: data.generation_model_name,
   generation_provider: data.generation_provider,
@@ -187,6 +190,36 @@ export async function deleteProblemType(id: string) {
   }
 
   revalidateProblemTypePaths(workspaceSubject)
+  return { success: true }
+}
+
+export async function updateProblemTypeSortOrder(
+  id: string,
+  workspaceSubject: WorkspaceSubject,
+  sortOrder: number
+) {
+  const supabase = await createClient()
+  const validated = z.coerce.number().int().min(0).safeParse(sortOrder)
+
+  if (!validated.success) {
+    return { error: '번호는 0 이상의 정수로 입력해주세요' }
+  }
+
+  const resolvedWorkspaceSubject = resolveAdminWorkspaceSubject(workspaceSubject)
+  const { error } = await supabase
+    .from('problem_types')
+    .update({
+      sort_order: validated.data,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('workspace_subject', resolvedWorkspaceSubject)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidateProblemTypePaths(resolvedWorkspaceSubject)
   return { success: true }
 }
 
