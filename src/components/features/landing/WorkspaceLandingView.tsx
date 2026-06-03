@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import type { WorkspaceLandingConfig } from '@/lib/landing-page'
+import { workspaceHref } from '@/lib/workspace-routes'
 import {
   getWorkspaceLandingFeatureGridClassName,
   getWorkspaceLandingWorkflowGridClassName,
@@ -29,6 +30,25 @@ interface WorkspaceLandingViewProps {
   subject: WorkspaceSubject
   config: WorkspaceLandingConfig
   quickEntry: WorkspaceLandingQuickEntry
+}
+
+function getWorkspaceLandingFeatureHref(
+  subject: WorkspaceSubject,
+  index: number,
+  quickEntry: WorkspaceLandingQuickEntry
+) {
+  if (subject === 'korean') {
+    return index === 2
+      ? workspaceHref(subject, 'libraryMarket')
+      : quickEntry.primaryHref
+  }
+
+  if (index === 0) return quickEntry.primaryHref
+  if (index === 1) return quickEntry.secondaryHref ?? workspaceHref(subject, 'market')
+  if (index === 2) return workspaceHref(subject, 'libraryPurchased')
+  if (index === 3) return workspaceHref(subject, 'libraryExamPapers')
+
+  return workspaceHref(subject, 'home')
 }
 
 export function WorkspaceLandingView({
@@ -170,30 +190,38 @@ export function WorkspaceLandingView({
         </div>
 
         <div className={featureGridClassName}>
-          {config.features.map((feature) => {
+          {config.features.map((feature, index) => {
             const Icon = landingIconComponents[feature.icon]
+            const featureHref = getWorkspaceLandingFeatureHref(subject, index, quickEntry)
 
             return (
-              <Card key={feature.title} className="relative overflow-hidden border-slate-200 bg-white py-0 shadow-md shadow-slate-200/60">
-                <div className={`absolute inset-0 bg-gradient-to-br ${theme.cardAccentClass}`} />
-                <CardContent className="relative p-6">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg">
-                    <Icon className="h-6 w-6" />
-                  </div>
-                  <h3
-                    className="mt-5 font-semibold text-slate-900 word-keep-all"
-                    style={getLandingFontSizeStyle(config.fontSteps.featureSection.title, { mobileRem: 1.25, lineHeight: 1.3 })}
-                  >
-                    {feature.title}
-                  </h3>
-                  <p
-                    className="mt-3 text-slate-600 whitespace-pre-line word-keep-all"
-                    style={getLandingFontSizeStyle(config.fontSteps.featureSection.description, { mobileRem: 0.875, lineHeight: 1.7 })}
-                  >
-                    {feature.description}
-                  </p>
-                </CardContent>
-              </Card>
+              <Link
+                key={feature.title}
+                href={featureHref}
+                aria-label={`${feature.title} 페이지로 이동`}
+                className="group block h-full rounded-3xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+              >
+                <Card className="relative h-full overflow-hidden border-slate-200 bg-white py-0 shadow-md shadow-slate-200/60 transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-lg">
+                  <div className={`absolute inset-0 bg-gradient-to-br ${theme.cardAccentClass}`} />
+                  <CardContent className="relative p-6">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg">
+                      <Icon className="h-6 w-6" />
+                    </div>
+                    <h3
+                      className="mt-5 font-semibold text-slate-900 word-keep-all"
+                      style={getLandingFontSizeStyle(config.fontSteps.featureSection.title, { mobileRem: 1.25, lineHeight: 1.3 })}
+                    >
+                      {feature.title}
+                    </h3>
+                    <p
+                      className="mt-3 text-slate-600 whitespace-pre-line word-keep-all"
+                      style={getLandingFontSizeStyle(config.fontSteps.featureSection.description, { mobileRem: 0.875, lineHeight: 1.7 })}
+                    >
+                      {feature.description}
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
             )
           })}
         </div>
