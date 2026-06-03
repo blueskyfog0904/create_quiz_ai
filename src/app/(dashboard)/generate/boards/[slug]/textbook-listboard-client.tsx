@@ -52,9 +52,9 @@ export default function TextbookListboardClient({ boardSlug, posts }: TextbookLi
               <tr className="border-b">
                 <th className="w-[46px] px-2 py-3 text-center text-sm font-bold whitespace-nowrap sm:w-[64px] sm:px-3">번호</th>
                 <th className="px-2 py-3 text-center text-sm font-bold whitespace-nowrap sm:px-3">자료명</th>
-                <th className="w-[74px] px-2 py-3 text-center text-sm font-bold whitespace-nowrap sm:w-[96px] sm:px-3">년도</th>
-                <th className="w-[64px] px-2 py-3 text-center text-sm font-bold whitespace-nowrap sm:w-[82px] sm:px-3">월</th>
-                <th className="w-[74px] px-2 py-3 text-center text-sm font-bold whitespace-nowrap sm:w-[96px] sm:px-3">학년</th>
+                <th className="w-[74px] px-2 py-3 text-center text-sm font-bold whitespace-nowrap sm:w-[108px] sm:px-3">년도</th>
+                <th className="w-[64px] px-2 py-3 text-center text-sm font-bold whitespace-nowrap sm:w-[92px] sm:px-3">월</th>
+                <th className="w-[74px] px-2 py-3 text-center text-sm font-bold whitespace-nowrap sm:w-[108px] sm:px-3">학년</th>
               </tr>
             </thead>
             <tbody>

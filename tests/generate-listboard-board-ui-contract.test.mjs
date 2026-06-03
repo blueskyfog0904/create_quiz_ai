@@ -20,6 +20,16 @@ test('generate listboard table uses the same compact board shell as market listb
   assert.doesNotMatch(textbookListboardClient, /isStripedRow/)
 })
 
+test('generate listboard balances title and metadata column widths', () => {
+  assert.match(textbookListboardClient, /<th className="px-2 py-3 text-center text-sm font-bold whitespace-nowrap sm:px-3">자료명<\/th>/)
+  assert.match(textbookListboardClient, /w-\[74px\][\s\S]+sm:w-\[108px\][\s\S]+년도/)
+  assert.match(textbookListboardClient, /w-\[64px\][\s\S]+sm:w-\[92px\][\s\S]+월/)
+  assert.match(textbookListboardClient, /w-\[74px\][\s\S]+sm:w-\[108px\][\s\S]+학년/)
+  assert.doesNotMatch(textbookListboardClient, /sm:w-\[96px\][\s\S]+년도/)
+  assert.doesNotMatch(textbookListboardClient, /sm:w-\[82px\][\s\S]+월/)
+  assert.doesNotMatch(textbookListboardClient, /sm:w-\[96px\][\s\S]+학년/)
+})
+
 test('generate listboard pagination follows market listboard pagination layout', () => {
   assert.match(textbookListboardClient, /mt-4 space-y-4 pb-\[env\(safe-area-inset-bottom\)\]/)
   assert.match(textbookListboardClient, /md:grid-cols-\[1fr_auto_1fr\]/)
