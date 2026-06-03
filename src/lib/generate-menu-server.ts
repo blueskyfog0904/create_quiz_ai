@@ -442,6 +442,29 @@ export async function listGenerateListboardPostsForAdmin(menuEntryId: string, wo
   return data ?? []
 }
 
+export async function getGenerateListboardPostForAdmin(postId: string, workspaceSubject?: WorkspaceSubject): Promise<GenerateListboardPost> {
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('generate_listboard_posts')
+    .select('*')
+    .eq('id', postId)
+    .is('deleted_at', null)
+    .single()
+
+  if (error || !data) {
+    throw new Error('게시글을 찾을 수 없습니다.')
+  }
+
+  const post = data as WorkspaceScopedGenerateListboardPost
+  if (workspaceSubject && post.workspace_subject !== workspaceSubject) {
+    throw new Error('선택한 작업 공간과 게시글이 일치하지 않습니다.')
+  }
+
+  await assertListboardEntry(post.menu_entry_id)
+
+  return post
+}
+
 export async function getGenerateMenuEntryBySlug(slug: string, workspaceSubject: WorkspaceSubject = 'english') {
   const supabase = getAdminSupabase()
   const { data, error } = await supabase

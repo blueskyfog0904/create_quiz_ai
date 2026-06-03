@@ -1,7 +1,9 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import * as XLSX from 'xlsx'
 import { Download, Loader2, Pencil, Plus, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
@@ -12,7 +14,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,20 +41,13 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
-  createGenerateListboardPostItemAction,
-  createGenerateListboardPostWithItemsAction,
-  getGenerateListboardPostItemsAction,
-  getGenerateListboardPostsAction,
-  updateGenerateListboardPostAction,
-  updateGenerateListboardPostItemAction,
   archiveGenerateListboardPostAction,
-  archiveGenerateListboardPostItemAction,
+  createGenerateListboardPostWithItemsAction,
+  getGenerateListboardPostsAction,
 } from '@/app/(admin)/admin/menu-management/actions'
 import {
   LISTBOARD_GRADE_OPTIONS,
-  normalizeListboardGradeLevel,
   type GenerateListboardPost,
-  type GenerateListboardPostItem,
   type GenerateMenuEntryAdminRow,
 } from '@/lib/generate-menu'
 
@@ -72,25 +66,14 @@ interface GeneratePostCsvItem {
 }
 
 interface GeneratePostFormState {
-  id?: string
   menuEntryId: string
   title: string
-  passageText: string
   csvFileName: string
   csvItems: GeneratePostCsvItem[]
   examYear: string
   examMonth: string
   gradeLevel: string
   status: 'draft' | 'published' | 'archived'
-  isActive: boolean
-}
-
-interface GeneratePostItemFormState {
-  clientId: string
-  id?: string
-  questionNumber: string
-  passageText: string
-  sortOrder: number
   isActive: boolean
 }
 
@@ -178,7 +161,6 @@ function buildEmptyGeneratePostForm(menuEntryId: string): GeneratePostFormState 
   return {
     menuEntryId,
     title: '',
-    passageText: '',
     csvFileName: '',
     csvItems: [],
     examYear,
@@ -189,46 +171,13 @@ function buildEmptyGeneratePostForm(menuEntryId: string): GeneratePostFormState 
   }
 }
 
-function buildGeneratePostForm(post: GenerateListboardPost): GeneratePostFormState {
-  const { examYear, examMonth } = getDefaultExamDate()
-
-  return {
-    id: post.id,
-    menuEntryId: post.menu_entry_id,
-    title: post.title,
-    passageText: post.passage_text,
-    csvFileName: '',
-    csvItems: [],
-    examYear: post.exam_year ? String(post.exam_year) : examYear,
-    examMonth: post.exam_month ? String(post.exam_month) : examMonth,
-    gradeLevel: normalizeListboardGradeLevel(post.grade_level) || '',
-    status: post.status as GeneratePostFormState['status'],
-    isActive: post.is_active,
-  }
-}
-
-function buildGeneratePostItemForm(item?: GenerateListboardPostItem, index = 0): GeneratePostItemFormState {
-  return {
-    clientId: item?.id ?? crypto.randomUUID(),
-    id: item?.id,
-    questionNumber: item?.question_number ?? '',
-    passageText: item?.passage_text ?? '',
-    sortOrder: item?.sort_order ?? (index + 1) * 10,
-    isActive: item?.is_active ?? true,
-  }
-}
-
-function getRepresentativePassageText(items: GeneratePostItemFormState[]) {
-  const representativeItem = items.find((item) => item.isActive) ?? items[0]
-  return representativeItem?.passageText ?? ''
-}
-
 export default function GenerateProductsClient({
   generateMenuEntries: initialGenerateMenuEntries,
   initialGeneratePosts,
   initialSelectedBoardId,
   workspaceSubject,
 }: GenerateProductsClientProps) {
+  const router = useRouter()
   const [generateMenuEntries, setGenerateMenuEntries] = useState(initialGenerateMenuEntries)
   const [selectedBoardId, setSelectedBoardId] = useState(initialSelectedBoardId || '')
   const [generatePosts, setGeneratePosts] = useState(initialGeneratePosts)
@@ -237,14 +186,9 @@ export default function GenerateProductsClient({
   const [postForm, setPostForm] = useState<GeneratePostFormState>(buildEmptyGeneratePostForm(initialSelectedBoardId || ''))
   const [isSavingPost, setIsSavingPost] = useState(false)
   const [archivePostTarget, setArchivePostTarget] = useState<GenerateListboardPost | null>(null)
-  const [postItems, setPostItems] = useState<GeneratePostItemFormState[]>([])
-  const [isLoadingPostItems, setIsLoadingPostItems] = useState(false)
-  const [savingPostItemClientIds, setSavingPostItemClientIds] = useState<string[]>([])
-  const [archivePostItemTarget, setArchivePostItemTarget] = useState<GeneratePostItemFormState | null>(null)
   const [selectedCsvFile, setSelectedCsvFile] = useState<File | null>(null)
   const [isCsvDragActive, setIsCsvDragActive] = useState(false)
   const [isApplyingCsv, setIsApplyingCsv] = useState(false)
-  const activePostItemsRequestRef = useRef<string | null>(null)
   const csvInputRef = useRef<HTMLInputElement | null>(null)
 
   const listboardEntries = useMemo(
@@ -285,10 +229,7 @@ export default function GenerateProductsClient({
   }
 
   const closePostDialog = () => {
-    activePostItemsRequestRef.current = null
-    setIsLoadingPostItems(false)
     setPostForm(buildEmptyGeneratePostForm(selectedBoard?.id || ''))
-    setPostItems([])
     setSelectedCsvFile(null)
     setIsCsvDragActive(false)
     setIsPostDialogOpen(false)
@@ -300,40 +241,10 @@ export default function GenerateProductsClient({
       return
     }
 
-    activePostItemsRequestRef.current = null
-    setIsLoadingPostItems(false)
     setPostForm(buildEmptyGeneratePostForm(selectedBoard.id))
-    setPostItems([])
     setSelectedCsvFile(null)
     setIsCsvDragActive(false)
     setIsPostDialogOpen(true)
-  }
-
-  const openEditPostDialog = async (post: GenerateListboardPost) => {
-    activePostItemsRequestRef.current = post.id
-    setPostForm(buildGeneratePostForm(post))
-    setIsPostDialogOpen(true)
-    setSelectedCsvFile(null)
-    setIsCsvDragActive(false)
-
-    setIsLoadingPostItems(true)
-    try {
-      const response = await getGenerateListboardPostItemsAction(post.id, workspaceSubject)
-      if (activePostItemsRequestRef.current !== post.id) {
-        return
-      }
-      setPostItems(response.data.map((item, index) => buildGeneratePostItemForm(item, index)))
-    } catch (error) {
-      if (activePostItemsRequestRef.current !== post.id) {
-        return
-      }
-      setPostItems([])
-      toast.error(error instanceof Error ? error.message : '문항 목록을 불러오지 못했습니다.')
-    } finally {
-      if (activePostItemsRequestRef.current === post.id) {
-        setIsLoadingPostItems(false)
-      }
-    }
   }
 
   const clearSelectedCsvFile = () => {
@@ -381,106 +292,6 @@ export default function GenerateProductsClient({
     }
   }
 
-  const handleAddPostItemRow = () => {
-    setPostItems((current) => [...current, buildGeneratePostItemForm(undefined, current.length)])
-  }
-
-  const handleRemoveUnsavedPostItemRow = (clientId: string) => {
-    setPostItems((current) => current.filter((item) => item.clientId !== clientId))
-  }
-
-  const handleChangePostItem = (
-    clientId: string,
-    field: 'questionNumber' | 'passageText' | 'sortOrder' | 'isActive',
-    value: string | number | boolean
-  ) => {
-    setPostItems((current) => current.map((item) => item.clientId === clientId ? {
-      ...item,
-      [field]: value,
-    } : item))
-  }
-
-  const handleSavePostItem = async (item: GeneratePostItemFormState) => {
-    if (!postForm.id) {
-      toast.error('문항을 저장할 게시글 정보가 없습니다.')
-      return
-    }
-
-    setSavingPostItemClientIds((current) => [...current, item.clientId])
-    try {
-      if (item.id) {
-        const response = await updateGenerateListboardPostItemAction(item.id, {
-          question_number: item.questionNumber,
-          passage_text: item.passageText,
-          sort_order: item.sortOrder,
-          is_active: item.isActive,
-        }, workspaceSubject)
-
-        setPostItems((current) => {
-          const nextItems = current.map((candidate, index) => candidate.clientId === item.clientId
-            ? buildGeneratePostItemForm(response.data, index)
-            : candidate)
-          const nextPassageText = getRepresentativePassageText(nextItems)
-          setPostForm((prev) => ({ ...prev, passageText: nextPassageText }))
-          if (postForm.id) {
-            setGeneratePosts((posts) => posts.map((post) => post.id === postForm.id ? { ...post, passage_text: nextPassageText } : post))
-          }
-          return nextItems
-        })
-        toast.success(`문항 ${response.data.question_number}번을 수정했습니다.`)
-      } else {
-        const response = await createGenerateListboardPostItemAction({
-          post_id: postForm.id,
-          question_number: item.questionNumber,
-          passage_text: item.passageText,
-          sort_order: item.sortOrder,
-          is_active: item.isActive,
-        }, workspaceSubject)
-
-        setPostItems((current) => {
-          const nextItems = current.map((candidate, index) => candidate.clientId === item.clientId
-            ? buildGeneratePostItemForm(response.data, index)
-            : candidate)
-          const nextPassageText = getRepresentativePassageText(nextItems)
-          setPostForm((prev) => ({ ...prev, passageText: nextPassageText }))
-          if (postForm.id) {
-            setGeneratePosts((posts) => posts.map((post) => post.id === postForm.id ? { ...post, passage_text: nextPassageText } : post))
-          }
-          return nextItems
-        })
-        toast.success(`문항 ${response.data.question_number}번을 추가했습니다.`)
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '문항 저장에 실패했습니다.')
-    } finally {
-      setSavingPostItemClientIds((current) => current.filter((clientId) => clientId !== item.clientId))
-    }
-  }
-
-  const handleArchivePostItem = async () => {
-    if (!archivePostItemTarget?.id) return
-
-    setSavingPostItemClientIds((current) => [...current, archivePostItemTarget.clientId])
-    try {
-      await archiveGenerateListboardPostItemAction(archivePostItemTarget.id, workspaceSubject)
-      setPostItems((current) => {
-        const nextItems = current.filter((item) => item.clientId !== archivePostItemTarget.clientId)
-        const nextPassageText = getRepresentativePassageText(nextItems)
-        setPostForm((prev) => ({ ...prev, passageText: nextPassageText }))
-        if (postForm.id) {
-          setGeneratePosts((posts) => posts.map((post) => post.id === postForm.id ? { ...post, passage_text: nextPassageText || post.passage_text } : post))
-        }
-        return nextItems
-      })
-      toast.success(`문항 ${archivePostItemTarget.questionNumber || ''}번을 보관했습니다.`)
-      setArchivePostItemTarget(null)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '문항 보관에 실패했습니다.')
-    } finally {
-      setSavingPostItemClientIds((current) => current.filter((clientId) => clientId !== archivePostItemTarget.clientId))
-    }
-  }
-
   const handleSubmitPost = async () => {
     if (!postForm.menuEntryId) {
       toast.error('리스트보드를 선택해주세요.')
@@ -489,46 +300,28 @@ export default function GenerateProductsClient({
 
     setIsSavingPost(true)
     try {
-      const payload = {
+      if (postForm.csvItems.length === 0) {
+        throw new Error('게시글 생성 시 CSV 파일 업로드가 필요합니다.')
+      }
+
+      const response = await createGenerateListboardPostWithItemsAction({
         menu_entry_id: postForm.menuEntryId,
         title: postForm.title,
-        passage_text: postForm.passageText,
         exam_year: postForm.examYear ? Number(postForm.examYear) : null,
         exam_month: postForm.examMonth ? Number(postForm.examMonth) : null,
         grade_level: postForm.gradeLevel || null,
         status: postForm.status,
         is_active: postForm.isActive,
-      } as const
+      }, postForm.csvItems.map((item) => ({
+        question_number: item.questionNumber,
+        passage_text: item.passageText,
+        sort_order: item.sortOrder,
+        is_active: item.isActive,
+      })), workspaceSubject)
 
-      if (postForm.id) {
-        const response = await updateGenerateListboardPostAction(postForm.id, payload, workspaceSubject)
-        setGeneratePosts((current) => current.map((post) => post.id === postForm.id ? response.data : post))
-        toast.success('게시글을 수정했습니다.')
-      } else {
-        if (postForm.csvItems.length === 0) {
-          throw new Error('게시글 생성 시 CSV 파일 업로드가 필요합니다.')
-        }
-
-        const response = await createGenerateListboardPostWithItemsAction({
-          menu_entry_id: payload.menu_entry_id,
-          title: payload.title,
-          exam_year: payload.exam_year,
-          exam_month: payload.exam_month,
-          grade_level: payload.grade_level,
-          status: payload.status,
-          is_active: payload.is_active,
-        }, postForm.csvItems.map((item) => ({
-          question_number: item.questionNumber,
-          passage_text: item.passageText,
-          sort_order: item.sortOrder,
-          is_active: item.isActive,
-        })), workspaceSubject)
-
-        setGeneratePosts((current) => [response.data.post, ...current])
-        persistGenerateEntryState(generateMenuEntries.map((entry) => entry.id === postForm.menuEntryId ? { ...entry, postCount: entry.postCount + 1 } : entry))
-        toast.success(`게시글과 ${response.data.items.length}개 문항을 등록했습니다.`)
-      }
-
+      setGeneratePosts((current) => [response.data.post, ...current])
+      persistGenerateEntryState(generateMenuEntries.map((entry) => entry.id === postForm.menuEntryId ? { ...entry, postCount: entry.postCount + 1 } : entry))
+      toast.success(`게시글과 ${response.data.items.length}개 문항을 등록했습니다.`)
       closePostDialog()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '게시글 저장에 실패했습니다.')
@@ -621,7 +414,7 @@ export default function GenerateProductsClient({
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => void openEditPostDialog(post)}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => router.push(withAdminWorkspaceSubject(`/admin/generate/products/${post.id}/edit`, workspaceSubject))}><Pencil className="h-4 w-4" /></Button>
                           <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => setArchivePostTarget(post)}><Trash2 className="h-4 w-4" /></Button>
                         </div>
                       </TableCell>
@@ -637,7 +430,7 @@ export default function GenerateProductsClient({
       <Dialog open={isPostDialogOpen} onOpenChange={(open) => !open && closePostDialog()}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{postForm.id ? '리스트보드 게시글 수정' : '리스트보드 게시글 추가'}</DialogTitle>
+            <DialogTitle>리스트보드 게시글 추가</DialogTitle>
             <DialogDescription>교재형 문제생성에 사용할 지문/메타데이터를 관리합니다.</DialogDescription>
           </DialogHeader>
 
@@ -709,231 +502,125 @@ export default function GenerateProductsClient({
               </div>
             </div>
 
-            {postForm.id ? (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="passage-text">대표 지문 내용</Label>
-                  <Textarea id="passage-text" value={postForm.passageText} onChange={(event) => setPostForm((current) => ({ ...current, passageText: event.target.value }))} className="min-h-[160px]" />
-                  <p className="text-sm text-gray-500">기존 게시글 호환용 대표 지문입니다. 아래에서 문항 행 단위 수정도 가능합니다.</p>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="post-csv-file">CSV / 엑셀 업로드</Label>
+                <input
+                  ref={csvInputRef}
+                  id="post-csv-file"
+                  type="file"
+                  accept={CSV_ACCEPT_VALUE}
+                  className="hidden"
+                  disabled={isApplyingCsv}
+                  onChange={(event) => handleSelectedCsvFile(event.target.files?.[0])}
+                />
+                <div
+                  role="button"
+                  tabIndex={isApplyingCsv ? -1 : 0}
+                  onClick={() => {
+                    if (isApplyingCsv) return
+                    if (!csvInputRef.current) return
+                    csvInputRef.current.value = ''
+                    csvInputRef.current.click()
+                  }}
+                  onKeyDown={(event) => {
+                    if (isApplyingCsv) return
+                    if (event.key !== 'Enter' && event.key !== ' ') return
+                    event.preventDefault()
+                    if (!csvInputRef.current) return
+                    csvInputRef.current.value = ''
+                    csvInputRef.current.click()
+                  }}
+                  onDragEnter={(event) => {
+                    if (isApplyingCsv) return
+                    event.preventDefault()
+                    setIsCsvDragActive(true)
+                  }}
+                  onDragOver={(event) => {
+                    if (isApplyingCsv) return
+                    event.preventDefault()
+                    setIsCsvDragActive(true)
+                  }}
+                  onDragLeave={(event) => {
+                    if (isApplyingCsv) return
+                    event.preventDefault()
+                    setIsCsvDragActive(false)
+                  }}
+                  onDrop={(event) => {
+                    if (isApplyingCsv) return
+                    event.preventDefault()
+                    setIsCsvDragActive(false)
+                    const droppedFiles = Array.from(event.dataTransfer.files || [])
+                    if (droppedFiles.length === 0) return
+                    if (droppedFiles.length > 1) {
+                      toast.message('여러 파일이 드롭되었지만 첫 번째 파일만 선택합니다.')
+                    }
+                    handleSelectedCsvFile(droppedFiles[0])
+                  }}
+                  className={`rounded-md border border-dashed px-4 py-4 text-left transition ${
+                    isApplyingCsv
+                      ? 'cursor-not-allowed bg-gray-50 text-gray-400'
+                      : isCsvDragActive
+                        ? 'border-primary bg-primary/5'
+                        : selectedCsvFile
+                          ? 'border-emerald-300 bg-emerald-50/60'
+                          : 'cursor-pointer hover:border-primary/50 hover:bg-gray-50'
+                  }`}
+                >
+                  <p className="text-sm font-medium text-gray-900">
+                    {isCsvDragActive
+                      ? '여기에 파일을 놓으세요.'
+                      : '파일을 드래그하여 놓거나, 파일선택 버튼으로 업로드할 파일을 고르세요.'}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {selectedCsvFile
+                      ? `선택 파일: ${selectedCsvFile.name}`
+                      : '첫 번째 열은 question_number, 두 번째 열은 passage_text 형식이어야 합니다.'}
+                  </p>
                 </div>
-
-                <div className="space-y-3 rounded-lg border p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="font-medium text-gray-900">문항 행 관리</h3>
-                      <p className="text-sm text-gray-500">question_number / passage_text 기준으로 문항을 수정하거나 추가할 수 있습니다.</p>
-                    </div>
-                    <Button type="button" variant="outline" onClick={handleAddPostItemRow}>
-                      <Plus className="mr-2 h-4 w-4" />문항 추가
-                    </Button>
-                  </div>
-
-                  {isLoadingPostItems ? (
-                    <div className="flex items-center justify-center py-8 text-sm text-gray-500">
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />문항 불러오는 중...
-                    </div>
-                  ) : postItems.length === 0 ? (
-                    <div className="rounded-md border border-dashed py-8 text-center text-sm text-gray-500">
-                      등록된 문항이 없습니다. 새 문항을 추가해주세요.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {postItems.map((item) => {
-                        const isSavingItem = savingPostItemClientIds.includes(item.clientId)
-
-                        return (
-                          <div key={item.clientId} className="space-y-3 rounded-md border p-3">
-                            <div className="grid gap-3 md:grid-cols-[140px,1fr,120px]">
-                              <div className="space-y-2">
-                                <Label>문항 번호</Label>
-                                <Input
-                                  value={item.questionNumber}
-                                  onChange={(event) => handleChangePostItem(item.clientId, 'questionNumber', event.target.value)}
-                                  placeholder="예: 18"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>지문 내용</Label>
-                                <Textarea
-                                  value={item.passageText}
-                                  onChange={(event) => handleChangePostItem(item.clientId, 'passageText', event.target.value)}
-                                  className="min-h-[140px]"
-                                />
-                              </div>
-                              <div className="space-y-3">
-                                <div className="space-y-2">
-                                  <Label>정렬 순서</Label>
-                                  <Input
-                                    type="number"
-                                    value={item.sortOrder}
-                                    onChange={(event) => handleChangePostItem(item.clientId, 'sortOrder', Number(event.target.value) || 0)}
-                                  />
-                                </div>
-                                <div className="flex h-10 items-center gap-3 rounded-md border px-3">
-                                  <Switch
-                                    checked={item.isActive}
-                                    onCheckedChange={(checked) => handleChangePostItem(item.clientId, 'isActive', checked)}
-                                  />
-                                  <span className="text-sm text-gray-700">{item.isActive ? '활성' : '비활성'}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-end gap-2">
-                              {item.id ? (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                                  onClick={() => setArchivePostItemTarget(item)}
-                                  disabled={isSavingItem}
-                                >
-                                  보관
-                                </Button>
-                              ) : (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  className="text-gray-600 hover:bg-gray-100"
-                                  onClick={() => handleRemoveUnsavedPostItemRow(item.clientId)}
-                                  disabled={isSavingItem}
-                                >
-                                  행 제거
-                                </Button>
-                              )}
-                              <Button type="button" onClick={() => void handleSavePostItem(item)} disabled={isSavingItem}>
-                                {isSavingItem ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                {item.id ? '문항 저장' : '문항 추가'}
-                              </Button>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="post-csv-file">CSV / 엑셀 업로드</Label>
-                  <input
-                    ref={csvInputRef}
-                    id="post-csv-file"
-                    type="file"
-                    accept={CSV_ACCEPT_VALUE}
-                    className="hidden"
+                <div className="flex flex-col gap-2 md:flex-row md:justify-end">
+                  <Button type="button" variant="outline" asChild>
+                    <a href="/samples/generate-listboard-posts-sample.csv" download>
+                      <Download className="mr-2 h-4 w-4" />
+                      CSV/엑셀 샘플파일
+                    </a>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
                     disabled={isApplyingCsv}
-                    onChange={(event) => handleSelectedCsvFile(event.target.files?.[0])}
-                  />
-                  <div
-                    role="button"
-                    tabIndex={isApplyingCsv ? -1 : 0}
                     onClick={() => {
-                      if (isApplyingCsv) return
                       if (!csvInputRef.current) return
                       csvInputRef.current.value = ''
                       csvInputRef.current.click()
                     }}
-                    onKeyDown={(event) => {
-                      if (isApplyingCsv) return
-                      if (event.key !== 'Enter' && event.key !== ' ') return
-                      event.preventDefault()
-                      if (!csvInputRef.current) return
-                      csvInputRef.current.value = ''
-                      csvInputRef.current.click()
-                    }}
-                    onDragEnter={(event) => {
-                      if (isApplyingCsv) return
-                      event.preventDefault()
-                      setIsCsvDragActive(true)
-                    }}
-                    onDragOver={(event) => {
-                      if (isApplyingCsv) return
-                      event.preventDefault()
-                      setIsCsvDragActive(true)
-                    }}
-                    onDragLeave={(event) => {
-                      if (isApplyingCsv) return
-                      event.preventDefault()
-                      setIsCsvDragActive(false)
-                    }}
-                    onDrop={(event) => {
-                      if (isApplyingCsv) return
-                      event.preventDefault()
-                      setIsCsvDragActive(false)
-                      const droppedFiles = Array.from(event.dataTransfer.files || [])
-                      if (droppedFiles.length === 0) return
-                      if (droppedFiles.length > 1) {
-                        toast.message('여러 파일이 드롭되었지만 첫 번째 파일만 선택합니다.')
-                      }
-                      handleSelectedCsvFile(droppedFiles[0])
-                    }}
-                    className={`rounded-md border border-dashed px-4 py-4 text-left transition ${
-                      isApplyingCsv
-                        ? 'cursor-not-allowed bg-gray-50 text-gray-400'
-                        : isCsvDragActive
-                          ? 'border-primary bg-primary/5'
-                          : selectedCsvFile
-                            ? 'border-emerald-300 bg-emerald-50/60'
-                            : 'cursor-pointer hover:border-primary/50 hover:bg-gray-50'
-                    }`}
                   >
-                    <p className="text-sm font-medium text-gray-900">
-                      {isCsvDragActive
-                        ? '여기에 파일을 놓으세요.'
-                        : '파일을 드래그하여 놓거나, 파일선택 버튼으로 업로드할 파일을 고르세요.'}
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {selectedCsvFile
-                        ? `선택 파일: ${selectedCsvFile.name}`
-                        : '첫 번째 열은 question_number, 두 번째 열은 passage_text 형식이어야 합니다.'}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-2 md:flex-row md:justify-end">
-                    <Button type="button" variant="outline" asChild>
-                      <a href="/samples/generate-listboard-posts-sample.csv" download>
-                        <Download className="mr-2 h-4 w-4" />
-                        CSV/엑셀 샘플파일
-                      </a>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={isApplyingCsv}
-                      onClick={() => {
-                        if (!csvInputRef.current) return
-                        csvInputRef.current.value = ''
-                        csvInputRef.current.click()
-                      }}
-                    >
-                      파일선택
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="default"
-                      disabled={!selectedCsvFile || isApplyingCsv}
-                      onClick={() => void handlePostCsvFileApply()}
-                    >
-                      {isApplyingCsv ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                      업로드
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="rounded-md border bg-gray-50 px-3 py-3 text-sm text-gray-700">
-                  {postForm.csvItems.length > 0 ? (
-                    <div className="space-y-1">
-                      <p><span className="font-medium">업로드 파일:</span> {postForm.csvFileName}</p>
-                      <p><span className="font-medium">문항 수:</span> {postForm.csvItems.length}개</p>
-                      <p className="text-xs text-gray-500">미리보기: {postForm.csvItems.slice(0, 5).map((item) => item.questionNumber).join(', ')}{postForm.csvItems.length > 5 ? ' ...' : ''}</p>
-                    </div>
-                  ) : (
-                    <p>아직 업로드된 파일이 없습니다.</p>
-                  )}
+                    파일선택
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="default"
+                    disabled={!selectedCsvFile || isApplyingCsv}
+                    onClick={() => void handlePostCsvFileApply()}
+                  >
+                    {isApplyingCsv ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                    업로드
+                  </Button>
                 </div>
               </div>
-            )}
+
+              <div className="rounded-md border bg-gray-50 px-3 py-3 text-sm text-gray-700">
+                {postForm.csvItems.length > 0 ? (
+                  <div className="space-y-1">
+                    <p><span className="font-medium">업로드 파일:</span> {postForm.csvFileName}</p>
+                    <p><span className="font-medium">문항 수:</span> {postForm.csvItems.length}개</p>
+                    <p className="text-xs text-gray-500">미리보기: {postForm.csvItems.slice(0, 5).map((item) => item.questionNumber).join(', ')}{postForm.csvItems.length > 5 ? ' ...' : ''}</p>
+                  </div>
+                ) : (
+                  <p>아직 업로드된 파일이 없습니다.</p>
+                )}
+              </div>
+            </div>
 
             <div className="flex items-center gap-3 rounded-md border px-3 py-2">
               <Switch checked={postForm.isActive} onCheckedChange={(checked) => setPostForm((current) => ({ ...current, isActive: checked }))} />
@@ -962,21 +649,6 @@ export default function GenerateProductsClient({
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleArchivePost}>보관</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={!!archivePostItemTarget} onOpenChange={(open) => !open && setArchivePostItemTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>문항을 보관할까요?</AlertDialogTitle>
-            <AlertDialogDescription>
-              <span className="font-medium">[{archivePostItemTarget?.questionNumber || '-'}번]</span> 문항은 게시글 상세와 생성 대상에서 숨겨집니다.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleArchivePostItem}>보관</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
