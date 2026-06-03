@@ -87,7 +87,7 @@ export default function MarketLibraryClient({
       return
     }
 
-    if (!confirm(`${target.label} 환불을 신청하시겠습니까? 구매 후 7일 이내이거나 다운로드 이력이 없으면 환불 신청할 수 있습니다.`)) {
+    if (!confirm(`${target.label} 환불을 신청하시겠습니까?`)) {
       return
     }
 
@@ -205,8 +205,6 @@ export default function MarketLibraryClient({
                     {filteredRows.map((row, index) => {
                       const detailHref = row.categorySlug ? `/market/${row.categorySlug}/items/${row.itemId}` : null
                       const refundTarget = row.refundTargets.find((target) => target.status === 'available')
-                        ?? row.refundTargets.find((target) => target.status === 'pending')
-                        ?? row.refundTargets[0]
                         ?? null
 
                       return (
@@ -222,34 +220,34 @@ export default function MarketLibraryClient({
                           <td className="px-2 py-2 text-center text-slate-600 whitespace-nowrap sm:px-3">{row.categoryTitle}</td>
                           <td className="min-w-0 px-2 py-2 sm:px-3">
                             <div className="min-w-0">
-                              {detailHref ? (
-                                <WorkspaceLink
-                                  href={detailHref}
-                                  subject={workspaceSubject}
-                                  className="block min-w-0 truncate font-semibold text-slate-900 hover:text-slate-600"
-                                  onClick={(event) => event.stopPropagation()}
-                                >
-                                  {row.title}
-                                </WorkspaceLink>
-                              ) : (
-                                <span className="block min-w-0 truncate font-semibold text-slate-900">{row.title}</span>
-                              )}
-                              {refundTarget && (
-                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                                  <span>구매 후 7일 이내이거나 다운로드 이력이 없으면 환불 신청할 수 있습니다.</span>
+                              <div className="flex items-center gap-2">
+                                {detailHref ? (
+                                  <WorkspaceLink
+                                    href={detailHref}
+                                    subject={workspaceSubject}
+                                    className="min-w-0 truncate font-semibold text-slate-900 hover:text-slate-600"
+                                    onClick={(event) => event.stopPropagation()}
+                                  >
+                                    {row.title}
+                                  </WorkspaceLink>
+                                ) : (
+                                  <span className="min-w-0 truncate font-semibold text-slate-900">{row.title}</span>
+                                )}
+                                {refundTarget && (
                                   <Button
                                     key={`${refundTarget.targetKind}:${refundTarget.targetId}`}
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    disabled={!refundTarget || refundSubmitting === refundTarget.targetId || refundTarget.status !== 'available'}
+                                    className="shrink-0"
+                                    disabled={refundSubmitting === refundTarget.targetId}
                                     title={refundTarget.reason ?? undefined}
                                     onClick={(event) => handleRefundRequest(event, refundTarget)}
                                   >
-                                    {refundTarget.status === 'pending' ? '환불 심사중' : '환불 신청'}
+                                    환불 신청
                                   </Button>
-                                </div>
-                              )}
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td className="px-2 py-2 whitespace-nowrap text-center text-slate-600 sm:px-3">{formatDate(row.purchasedAt)}</td>
