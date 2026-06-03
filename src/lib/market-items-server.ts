@@ -286,12 +286,21 @@ function getAdminSupabase() {
 }
 
 function normalizeText(value?: string | null) {
-  return value?.trim() ?? ''
+  return value?.normalize('NFC').trim() ?? ''
 }
 
 function normalizeNullableText(value?: string | null) {
   const normalized = normalizeText(value)
   return normalized.length > 0 ? normalized : null
+}
+
+function getNormalizedTextSearchVariants(value?: string | null) {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return []
+  }
+
+  return Array.from(new Set([normalized, normalized.normalize('NFD')]))
 }
 
 function resolveMarketSubproductDisplayTitle(categoryName?: string | null, fallbackTitle?: string | null) {
@@ -1153,8 +1162,11 @@ export async function listPublishedMarketItems(menuEntryId: string, filters: Mar
     menuEntry.workspace_subject
   )
 
-  if (filters.search) {
-    query = query.ilike('title', `%${filters.search.trim()}%`)
+  const searchVariants = getNormalizedTextSearchVariants(filters.search)
+  if (searchVariants.length === 1) {
+    query = query.ilike('title', `%${searchVariants[0]}%`)
+  } else if (searchVariants.length > 1) {
+    query = query.or(searchVariants.map((search) => `title.ilike.%${search}%`).join(','))
   }
 
   if (filters.gradeLevel) {

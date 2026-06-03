@@ -51,6 +51,12 @@ test('market listboard keeps workspace-aware navigation and filter chips', () =>
   assert.match(listboardServer, /자료 찾기/)
 })
 
+test('market listboard title search handles composed and decomposed Korean text', () => {
+  assert.match(marketItemsServer, /return value\?\.normalize\('NFC'\)\.trim\(\) \?\? ''/)
+  assert.match(marketItemsServer, /const searchVariants = getNormalizedTextSearchVariants\(filters\.search\)/)
+  assert.match(marketItemsServer, /searchVariants\.map\(\(search\) => `title\.ilike\.%\$\{search\}%`\)\.join\(','\)/)
+})
+
 test('market listboard hero consumes subject-aware workspace theme classes', () => {
   assert.match(listboardServer, /getWorkspaceSubjectTheme/)
   assert.match(listboardServer, /const subjectTheme = getWorkspaceSubjectTheme\(category\.workspace_subject\)/)

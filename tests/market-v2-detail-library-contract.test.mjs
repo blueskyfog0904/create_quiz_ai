@@ -51,6 +51,12 @@ test('market detail action buttons are responsive for sample and purchase action
   assert.match(itemActions, /MARKET_OUTLINE_BUTTON_CLASS/)
 })
 
+test('market detail hides the description box when no detail description is registered', () => {
+  assert.match(itemPage, /const detailDescription = item\.description\?\.trim\(\) \?\? ''/)
+  assert.match(itemPage, /\{detailDescription \? \(/)
+  assert.doesNotMatch(itemPage, /상세 설명은 아직 등록되지 않았습니다\./)
+})
+
 test('market detail uses smart indigo action buttons and file option icons', () => {
   assert.match(itemActions, /bg-indigo-600/)
   assert.match(itemActions, /hover:bg-indigo-700/)

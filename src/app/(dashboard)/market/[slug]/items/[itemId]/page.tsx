@@ -101,6 +101,7 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
     ? v2FileLabels
     : [hasPdf ? 'PDF' : null, hasHwp ? 'HWP & PDF' : null, hasZip ? 'ZIP' : null].filter(Boolean)
   ).join(' · ') || '제공 파일 없음'
+  const detailDescription = item.description?.trim() ?? ''
   const subjectTheme = getWorkspaceSubjectTheme(item.workspace_subject)
   const materialInfoRows = [
     { label: '과목', value: resolveWorkspaceSubjectLabel(item.workspace_subject) },
@@ -141,9 +142,11 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
                     </div>
                   ))}
                 </dl>
-                <div className="whitespace-pre-line rounded-2xl bg-slate-50 px-5 py-5 text-sm leading-8 text-gray-600">
-                  {item.description || '상세 설명은 아직 등록되지 않았습니다.'}
-                </div>
+                {detailDescription ? (
+                  <div className="whitespace-pre-line rounded-2xl bg-slate-50 px-5 py-5 text-sm leading-8 text-gray-600">
+                    {detailDescription}
+                  </div>
+                ) : null}
               </section>
             </div>
 
