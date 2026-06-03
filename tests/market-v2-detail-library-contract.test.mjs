@@ -91,12 +91,15 @@ test('market detail uses soft status badges and green download actions', () => {
   assert.ok(downloadClassUses.length >= 5)
 })
 
-test('market detail names v2 download buttons by subproduct title', () => {
-  assert.match(itemActions, /const downloadLabel = `\$\{file\.subproductTitle\} 다운로드`/)
+test('market detail names v2 download buttons by each file type within the subproduct', () => {
+  assert.match(itemActions, /function getMarketDownloadButtonLabel\(file: MarketSubproductDownloadFile\)/)
+  assert.match(itemActions, /file\.fileTypeLabel\.trim\(\) \|\| '파일'/)
+  assert.match(itemActions, /const typedTitle = subproductTitle\.replace/)
+  assert.match(itemActions, /`\(\$\{fileTypeLabel\}\)`/)
+  assert.match(itemActions, /const downloadLabel = getMarketDownloadButtonLabel\(file\)/)
   assert.match(itemActions, /aria-label=\{downloadLabel\}/)
   assert.match(itemActions, /\{downloadLabel\}/)
-  assert.doesNotMatch(itemActions, /aria-label=\{`\$\{file\.fileTypeLabel\} 다운로드`\}/)
-  assert.doesNotMatch(itemActions, /\{file\.fileTypeLabel\} 다운로드/)
+  assert.doesNotMatch(itemActions, /const downloadLabel = `\$\{file\.subproductTitle\} 다운로드`/)
 })
 
 test('market detail resolves v2 subproduct labels from category names first', () => {

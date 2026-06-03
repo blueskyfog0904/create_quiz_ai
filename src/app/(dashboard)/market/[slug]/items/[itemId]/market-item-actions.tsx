@@ -83,6 +83,17 @@ function getSubproductIconKind(subproduct: MarketSubproductPublicSummary): Marke
   return 'default'
 }
 
+function getMarketDownloadButtonLabel(file: MarketSubproductDownloadFile) {
+  const fileTypeLabel = file.fileTypeLabel.trim() || '파일'
+  const subproductTitle = file.subproductTitle.trim() || '자료'
+  const typedTitle = subproductTitle.replace(/\s*[\(（][^\)）]*[\)）]\s*$/, `(${fileTypeLabel})`)
+  const labelTitle = typedTitle === subproductTitle
+    ? `${subproductTitle}(${fileTypeLabel})`
+    : typedTitle
+
+  return `${labelTitle} 다운로드`
+}
+
 function MarketOptionIcon({ kind }: { kind: MarketOptionIconKind }) {
   if (kind === 'sample') {
     return (
@@ -502,7 +513,7 @@ export default function MarketItemActions({
       return (
         <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
           {files.map((file) => {
-            const downloadLabel = `${file.subproductTitle} 다운로드`
+            const downloadLabel = getMarketDownloadButtonLabel(file)
 
             return (
               <Button key={file.id} asChild className={MARKET_DOWNLOAD_BUTTON_CLASS}>
