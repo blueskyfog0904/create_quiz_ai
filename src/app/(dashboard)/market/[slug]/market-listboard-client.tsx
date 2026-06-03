@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, Eye, FileSearch, FileText } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileSearch, FileText } from 'lucide-react'
 import { WorkspaceLink } from '@/components/layout/workspace-link'
 import { Button } from '@/components/ui/button'
 import type { MarketListboardRow } from '@/lib/market-items-server'
@@ -132,9 +132,7 @@ export default function MarketListboardClient({ categorySlug, workspaceSubject, 
                       {renderSamplePreviewButton(row)}
                     </td>
                     <td className="px-2 py-2 text-center text-slate-600 sm:px-3">
-                      <span className="inline-flex items-center justify-center gap-0.5 sm:gap-1">
-                        <Eye className="h-3.5 w-3.5 text-slate-400" />{row.viewCount.toLocaleString()}
-                      </span>
+                      {row.viewCount.toLocaleString()}
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap text-center text-slate-600 sm:px-3">{formatPublishedDate(row.publishedAt)}</td>
                   </tr>

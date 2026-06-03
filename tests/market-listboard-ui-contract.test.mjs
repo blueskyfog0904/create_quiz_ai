@@ -103,6 +103,12 @@ test('market listboard follows board-style alignment and one-line date display',
   )
 })
 
+test('market listboard view column renders only the numeric view count', () => {
+  assert.doesNotMatch(listboardClient, /import \{[^}]*Eye[^}]*\} from 'lucide-react'/)
+  assert.doesNotMatch(listboardClient, /<Eye className="h-3\.5 w-3\.5 text-slate-400" \/>/)
+  assert.match(listboardClient, /\{row\.viewCount\.toLocaleString\(\)\}/)
+})
+
 test('market listboard removes direct purchase tray and sends purchase flow to detail page', () => {
   assert.doesNotMatch(listboardClient, /선택 파일 결제/)
   assert.doesNotMatch(listboardClient, /CreditConfirmationDialog/)
