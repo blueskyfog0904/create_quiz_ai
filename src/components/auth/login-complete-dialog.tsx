@@ -16,11 +16,14 @@ export function LoginCompleteDialog() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const isOpen = searchParams.get('login') === 'success'
+  const isLoginComplete = searchParams.get('login') === 'success'
+  const isLogoutComplete = searchParams.get('logout') === 'success'
+  const isOpen = isLoginComplete || isLogoutComplete
 
   const handleClose = () => {
     const nextParams = new URLSearchParams(searchParams.toString())
     nextParams.delete('login')
+    nextParams.delete('logout')
     const nextSearch = nextParams.toString()
     const nextHash = window.location.hash
     const nextUrl = `${pathname}${nextSearch ? `?${nextSearch}` : ''}${nextHash}`
@@ -35,9 +38,13 @@ export function LoginCompleteDialog() {
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
             <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
           </div>
-          <DialogTitle>로그인 완료</DialogTitle>
+          {isLogoutComplete ? (
+            <DialogTitle>로그아웃 완료</DialogTitle>
+          ) : (
+            <DialogTitle>로그인 완료</DialogTitle>
+          )}
           <DialogDescription className="text-center leading-6">
-            로그인이 완료되었습니다.
+            {isLogoutComplete ? '로그아웃되었습니다.' : '로그인이 완료되었습니다.'}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="sm:justify-center">

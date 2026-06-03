@@ -17,6 +17,15 @@ const rootTemplate = readFileSync(
 const dialogPath = new URL('../src/components/auth/login-complete-dialog.tsx', import.meta.url)
 const loginCompleteDialog = existsSync(dialogPath) ? readFileSync(dialogPath, 'utf8') : ''
 
+const headerClient = readFileSync(
+  new URL('../src/components/layout/header-client.tsx', import.meta.url),
+  'utf8'
+)
+const logoutButton = readFileSync(
+  new URL('../src/components/layout/logout-button.tsx', import.meta.url),
+  'utf8'
+)
+
 test('email login redirects with a one-time login success signal instead of pre-redirect toast', () => {
   assert.match(loginPage, /const nextUrl = new URL\(next, window\.location\.origin\)/)
   assert.match(loginPage, /nextUrl\.searchParams\.set\('login', 'success'\)/)
@@ -46,4 +55,20 @@ test('login completion dialog uses the shared success dialog pattern and clears 
   assert.match(loginCompleteDialog, /로그인이 완료되었습니다\./)
   assert.match(loginCompleteDialog, /nextParams\.delete\('login'\)/)
   assert.match(loginCompleteDialog, /router\.replace\(nextUrl, \{ scroll: false \}\)/)
+})
+
+test('header logout redirects with a one-time logout success signal', () => {
+  assert.match(headerClient, /window\.location\.href = '\/login\?logout=success'/)
+  assert.doesNotMatch(headerClient, /toast\.success\('로그아웃되었습니다\.'\)/)
+})
+
+test('standalone logout button redirects with the same logout success signal instead of pre-redirect toast', () => {
+  assert.match(logoutButton, /window\.location\.href = '\/login\?logout=success'/)
+  assert.doesNotMatch(logoutButton, /toast\.success\('로그아웃되었습니다\.'\)/)
+})
+
+test('auth completion dialog also supports logout completion copy and clears the logout signal', () => {
+  assert.match(loginCompleteDialog, /searchParams\.get\('logout'\) === 'success'/)
+  assert.match(loginCompleteDialog, /로그아웃되었습니다\./)
+  assert.match(loginCompleteDialog, /nextParams\.delete\('logout'\)/)
 })

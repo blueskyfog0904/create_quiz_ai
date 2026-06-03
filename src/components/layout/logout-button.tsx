@@ -1,12 +1,10 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useState } from 'react'
 
 export function LogoutButton() {
-  const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
 
   const handleLogout = async () => {
@@ -22,12 +20,11 @@ export function LogoutButton() {
         throw new Error('로그아웃에 실패했습니다.')
       }
 
-      toast.success('로그아웃되었습니다.')
       // Force full page reload to clear all state
-      window.location.href = '/login'
-    } catch (error: any) {
+      window.location.href = '/login?logout=success'
+    } catch (error: unknown) {
       console.error('Logout error:', error)
-      toast.error(error.message)
+      toast.error(error instanceof Error ? error.message : '로그아웃에 실패했습니다.')
     } finally {
       setIsLoading(false)
     }
@@ -44,4 +41,3 @@ export function LogoutButton() {
     </Button>
   )
 }
-

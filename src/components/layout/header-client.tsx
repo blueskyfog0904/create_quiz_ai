@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -65,7 +65,6 @@ export function HeaderClient({
   workspaceSubject = 'english',
   isMobile = false,
 }: HeaderClientProps) {
-  const router = useRouter()
   const pathname = usePathname() ?? '/'
   const searchParams = useSearchParams()
   const [isOpen, setIsOpen] = useState(false)
@@ -106,8 +105,7 @@ export function HeaderClient({
   const handleLogout = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.push('/')
-    router.refresh()
+    window.location.href = '/login?logout=success'
   }
 
   useEffect(() => {
