@@ -10,6 +10,7 @@ import {
   buildQuestionGenerationConfigFromProblemType,
   runQuestionGenerationReviewLoop,
 } from '@/lib/ai/question-generation-workflow'
+import { getProblemTypeDefaultPrompts } from '@/lib/ai/problem-type-default-prompts'
 import { logAiQuestionGenerationRun } from '@/lib/ai/question-generation-run-logs'
 
 export const dynamic = 'force-dynamic'
@@ -179,6 +180,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const defaultPrompts = await getProblemTypeDefaultPrompts(supabase, workspaceSubject)
+
     if (!problemType.is_active) {
       const snapshot = await getCurrentSnapshot()
       return jsonWithBalance(
@@ -191,7 +194,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const generationConfig = buildQuestionGenerationConfigFromProblemType(problemType)
+    const generationConfig = buildQuestionGenerationConfigFromProblemType(problemType, { defaultPrompts })
     if (!generationConfig.modelConfig) {
       const snapshot = await getCurrentSnapshot()
       return jsonWithBalanceSnapshot(

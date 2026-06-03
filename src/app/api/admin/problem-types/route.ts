@@ -4,6 +4,8 @@ import { z } from 'zod'
 import { Database } from '@/types/supabase'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 
+const promptModeSchema = z.enum(['default', 'custom', 'disabled']).default('custom')
+
 // GET - 전체 문제 유형 리스트 조회
 export async function GET(request: Request) {
   try {
@@ -56,9 +58,13 @@ const problemTypeSchema = z.object({
   review_provider: z.enum(['gemini', 'openai', 'claude']).nullable().optional(),
   review_model_name: z.string().nullable().optional(),
   output_format: z.string().optional(),
+  output_format_mode: promptModeSchema,
   review_prompt_template: z.string().optional(),
+  review_prompt_template_mode: promptModeSchema,
   review_output_format: z.string().optional(),
+  review_output_format_mode: promptModeSchema,
   regeneration_prompt_template: z.string().optional(),
+  regeneration_prompt_template_mode: promptModeSchema,
   is_active: z.boolean().optional(),
 }).refine((data) => {
   const generationProvider = data.generation_provider || (data.provider !== 'admin' ? data.provider : undefined)
@@ -78,6 +84,12 @@ const problemTypeSchema = z.object({
   return hasReviewProvider === hasReviewModel
 }, {
   message: '문제 검토 API 제공자와 모델은 함께 입력해주세요.',
+}).refine((data) => {
+  if (!data.review_provider || !data.review_model_name?.trim()) return true
+  return data.review_prompt_template_mode !== 'disabled' &&
+    data.review_output_format_mode !== 'disabled'
+}, {
+  message: '문제 검토 API를 사용하려면 문제 검토 프롬프트와 검토 후 응답구조 프롬프트를 기본값 사용 또는 개별 수정으로 설정해주세요.',
 })
 
 const bulkModelUpdateSchema = z.object({
@@ -140,9 +152,13 @@ export async function POST(request: Request) {
       review_model_name: validatedData.review_model_name?.trim() || null,
       prompt_template: generationProvider ? validatedData.prompt_template! : 'N/A (Admin uploaded)',
       output_format: generationProvider ? (validatedData.output_format || null) : null,
+      output_format_mode: validatedData.output_format_mode,
       review_prompt_template: generationProvider ? (validatedData.review_prompt_template || null) : null,
+      review_prompt_template_mode: validatedData.review_prompt_template_mode,
       review_output_format: generationProvider ? (validatedData.review_output_format || null) : null,
+      review_output_format_mode: validatedData.review_output_format_mode,
       regeneration_prompt_template: generationProvider ? (validatedData.regeneration_prompt_template || null) : null,
+      regeneration_prompt_template_mode: validatedData.regeneration_prompt_template_mode,
     }
     
     const { data: problemType, error } = await supabase

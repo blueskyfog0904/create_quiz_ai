@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -92,15 +93,106 @@ choices 필드 규칙:
 `
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
+type DefaultPrompt = Database['public']['Tables']['problem_type_default_prompts']['Row']
+type PromptMode = 'default' | 'custom' | 'disabled'
+type PromptField =
+  | 'output_format'
+  | 'review_prompt_template'
+  | 'review_output_format'
+  | 'regeneration_prompt_template'
+type PromptModeField =
+  | 'output_format_mode'
+  | 'review_prompt_template_mode'
+  | 'review_output_format_mode'
+  | 'regeneration_prompt_template_mode'
+
+const PROMPT_MODE_OPTIONS: Array<{ value: PromptMode; label: string }> = [
+  { value: 'default', label: '기본값 사용' },
+  { value: 'custom', label: '개별 수정' },
+  { value: 'disabled', label: '미적용' },
+]
+
+const PROMPT_FIELD_CONFIGS = [
+  {
+    field: 'output_format',
+    modeField: 'output_format_mode',
+    label: '응답 구조 프롬프트',
+    fallback: DEFAULT_RESPONSE_STRUCTURE_PROMPT,
+  },
+  {
+    field: 'review_prompt_template',
+    modeField: 'review_prompt_template_mode',
+    label: '문제 검토 프롬프트',
+    fallback: '',
+  },
+  {
+    field: 'review_output_format',
+    modeField: 'review_output_format_mode',
+    label: '검토 후 응답 구조 프롬프트',
+    fallback: '',
+  },
+  {
+    field: 'regeneration_prompt_template',
+    modeField: 'regeneration_prompt_template_mode',
+    label: '미통과시 문제생성 요청 프롬프트',
+    fallback: DEFAULT_REGENERATION_REQUEST_PROMPT,
+  },
+] as const
+
+const normalizePromptMode = (mode?: string | null): PromptMode => (
+  mode === 'default' || mode === 'disabled' ? mode : 'custom'
+)
 
 interface ProblemTypeFormClientProps {
   problemType: ProblemType
   workspaceSubject: WorkspaceSubject
+  defaultPrompts: DefaultPrompt[]
 }
 
-export default function ProblemTypeFormClient({ problemType, workspaceSubject }: ProblemTypeFormClientProps) {
+export default function ProblemTypeFormClient({ problemType, workspaceSubject, defaultPrompts }: ProblemTypeFormClientProps) {
   const router = useRouter()
   const reviewPrompts = splitReviewPromptTemplate(problemType.review_prompt_template, problemType.review_output_format)
+  const getDefaultPrompt = (field: PromptField) => defaultPrompts.find((prompt) => prompt.prompt_key === field)
+  const getSavedPromptValue = (field: PromptField, fallback: string) => {
+    if (field === 'output_format') return problemType.output_format || fallback
+    if (field === 'review_prompt_template') return reviewPrompts.reviewPrompt
+    if (field === 'review_output_format') return reviewPrompts.reviewResponseStructurePrompt
+    return problemType.regeneration_prompt_template || fallback
+  }
+  const getInitialPromptValue = (field: PromptField, mode: PromptMode, fallback: string) => {
+    if (mode === 'disabled') return ''
+    const savedValue = getSavedPromptValue(field, fallback)
+    if (mode === 'default') return getDefaultPrompt(field)?.content || savedValue
+    return savedValue
+  }
+  const [promptModes, setPromptModes] = useState<Record<PromptModeField, PromptMode>>({
+    output_format_mode: normalizePromptMode(problemType.output_format_mode),
+    review_prompt_template_mode: normalizePromptMode(problemType.review_prompt_template_mode),
+    review_output_format_mode: normalizePromptMode(problemType.review_output_format_mode),
+    regeneration_prompt_template_mode: normalizePromptMode(problemType.regeneration_prompt_template_mode),
+  })
+  const [promptValues, setPromptValues] = useState<Record<PromptField, string>>({
+    output_format: getInitialPromptValue(
+      'output_format',
+      normalizePromptMode(problemType.output_format_mode),
+      DEFAULT_RESPONSE_STRUCTURE_PROMPT
+    ),
+    review_prompt_template: getInitialPromptValue(
+      'review_prompt_template',
+      normalizePromptMode(problemType.review_prompt_template_mode),
+      ''
+    ),
+    review_output_format: getInitialPromptValue(
+      'review_output_format',
+      normalizePromptMode(problemType.review_output_format_mode),
+      ''
+    ),
+    regeneration_prompt_template: getInitialPromptValue(
+      'regeneration_prompt_template',
+      normalizePromptMode(problemType.regeneration_prompt_template_mode),
+      DEFAULT_REGENERATION_REQUEST_PROMPT
+    ),
+  })
   const [saving, setSaving] = useState(false)
   const [generationProvider, setGenerationProvider] = useState(problemType.generation_provider || problemType.provider || 'openai')
   const [generationModelName, setGenerationModelName] = useState(problemType.generation_model_name || problemType.model_name || 'gpt-4o')
@@ -119,6 +211,23 @@ export default function ProblemTypeFormClient({ problemType, workspaceSubject }:
     setReviewProvider(newProvider)
     if (newProvider !== problemType.review_provider) {
       setReviewModelName('')
+    }
+  }
+
+  const handlePromptModeChange = (
+    modeField: PromptModeField,
+    field: PromptField,
+    value: string,
+    defaultValue: string
+  ) => {
+    const nextMode: PromptMode = value === 'default' || value === 'disabled' ? value : 'custom'
+    setPromptModes((current) => ({ ...current, [modeField]: nextMode }))
+
+    if (nextMode === 'default') {
+      setPromptValues((current) => ({ ...current, [field]: defaultValue }))
+    }
+    if (nextMode === 'disabled') {
+      setPromptValues((current) => ({ ...current, [field]: '' }))
     }
   }
 
@@ -142,6 +251,14 @@ export default function ProblemTypeFormClient({ problemType, workspaceSubject }:
 
     if ((reviewProvider && !reviewModelName) || (!reviewProvider && reviewModelName)) {
       toast.error('문제 검토 API 제공자와 모델은 함께 선택해주세요')
+      return
+    }
+
+    if (reviewProvider && reviewModelName && (
+      promptModes.review_prompt_template_mode === 'disabled' ||
+      promptModes.review_output_format_mode === 'disabled'
+    )) {
+      toast.error('문제 검토 API를 사용하려면 문제 검토 프롬프트와 검토 후 응답구조 프롬프트를 기본값 사용 또는 개별 수정으로 설정해주세요.')
       return
     }
 
@@ -287,45 +404,50 @@ export default function ProblemTypeFormClient({ problemType, workspaceSubject }:
               <p className="text-xs text-gray-500">사용 가능한 변수: {"{{PASSAGE}}, {{GRADE_LEVEL}}, {{DIFFICULTY}}"}</p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="output_format">응답 구조 프롬프트</Label>
-              <Textarea
-                id="output_format"
-                name="output_format"
-                className="font-mono text-sm min-h-[180px]"
-                defaultValue={problemType.output_format || DEFAULT_RESPONSE_STRUCTURE_PROMPT}
-              />
-            </div>
+            {/* Static source-contract field names: name="output_format" name="review_prompt_template" name="review_output_format" name="regeneration_prompt_template" */}
+            {PROMPT_FIELD_CONFIGS.map((config) => {
+              const mode = promptModes[config.modeField]
+              const savedValue = getSavedPromptValue(config.field, config.fallback)
+              const defaultValue = getDefaultPrompt(config.field)?.content || savedValue
 
-            <div className="space-y-2">
-              <Label htmlFor="review_prompt_template">문제 검토 프롬프트</Label>
-              <Textarea
-                id="review_prompt_template"
-                name="review_prompt_template"
-                className="font-mono text-sm min-h-[180px]"
-                defaultValue={reviewPrompts.reviewPrompt}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="review_output_format">검토 후 응답 구조 프롬프트</Label>
-              <Textarea
-                id="review_output_format"
-                name="review_output_format"
-                className="font-mono text-sm min-h-[180px]"
-                defaultValue={reviewPrompts.reviewResponseStructurePrompt}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="regeneration_prompt_template">미통과시 문제생성 요청 프롬프트</Label>
-              <Textarea
-                id="regeneration_prompt_template"
-                name="regeneration_prompt_template"
-                className="font-mono text-sm min-h-[180px]"
-                defaultValue={problemType.regeneration_prompt_template || DEFAULT_REGENERATION_REQUEST_PROMPT}
-              />
-            </div>
+              return (
+                <div key={config.field} className="space-y-2 rounded-lg border p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <Label htmlFor={config.field}>{config.label}</Label>
+                    <Select
+                      value={mode}
+                      onValueChange={(value) => handlePromptModeChange(config.modeField, config.field, value, defaultValue)}
+                    >
+                      <SelectTrigger className="w-[160px]">
+                        <SelectValue placeholder="적용 방식" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PROMPT_MODE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <input type="hidden" name={config.modeField} value={mode} />
+                  <Textarea
+                    id={config.field}
+                    name={config.field}
+                    className="font-mono text-sm min-h-[180px]"
+                    value={promptValues[config.field]}
+                    onChange={(event) => setPromptValues((current) => ({
+                      ...current,
+                      [config.field]: event.target.value,
+                    }))}
+                    readOnly={mode !== 'custom'}
+                  />
+                  <p className="text-xs text-gray-500">
+                    {mode === 'default' && '기본 프롬프트를 사용합니다. 기본값 내용은 기본 프롬프트 관리에서 수정할 수 있습니다.'}
+                    {mode === 'custom' && '이 유형에만 적용할 프롬프트를 직접 수정합니다.'}
+                    {mode === 'disabled' && '이 프롬프트 섹션은 생성/검토 요청에서 제외됩니다.'}
+                  </p>
+                </div>
+              )
+            })}
 
             <div className="flex justify-end gap-2 pt-4">
               <Dialog>

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { QuestionSchema } from '@/lib/ai/types'
 import { buildQuestionGenerationConfigFromProblemType, reviewGeneratedQuestion } from '@/lib/ai/question-generation-workflow'
+import { getProblemTypeDefaultPrompts } from '@/lib/ai/problem-type-default-prompts'
 import { resolveGenerateWorkspaceSubject } from '@/app/(dashboard)/generate/workspace-subject'
 
 export const dynamic = 'force-dynamic'
@@ -56,7 +57,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제 유형을 찾을 수 없습니다.' } }, { status: 404 })
   }
 
-  const generationConfig = buildQuestionGenerationConfigFromProblemType(problemType)
+  const defaultPrompts = await getProblemTypeDefaultPrompts(supabase, workspaceSubject)
+  const generationConfig = buildQuestionGenerationConfigFromProblemType(problemType, { defaultPrompts })
   if (!generationConfig.modelConfig) {
     return NextResponse.json({
       success: false,

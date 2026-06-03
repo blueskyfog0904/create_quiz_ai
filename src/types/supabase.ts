@@ -2075,6 +2075,45 @@ export type Database = {
         }
         Relationships: []
       }
+      problem_type_default_prompts: {
+        Row: {
+          content: string
+          created_at: string
+          description: string | null
+          display_name: string
+          id: string
+          is_enabled: boolean
+          prompt_key: string
+          sort_order: number
+          updated_at: string
+          workspace_subject: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          description?: string | null
+          display_name: string
+          id?: string
+          is_enabled?: boolean
+          prompt_key: string
+          sort_order?: number
+          updated_at?: string
+          workspace_subject: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          description?: string | null
+          display_name?: string
+          id?: string
+          is_enabled?: boolean
+          prompt_key?: string
+          sort_order?: number
+          updated_at?: string
+          workspace_subject?: string
+        }
+        Relationships: []
+      }
       problem_types: {
         Row: {
           created_at: string
@@ -2085,13 +2124,17 @@ export type Database = {
           is_active: boolean | null
           model_name: string
           output_format: string | null
+          output_format_mode: string
           prompt_template: string
           provider: string
           regeneration_prompt_template: string | null
+          regeneration_prompt_template_mode: string
           review_model_name: string | null
           review_output_format: string | null
+          review_output_format_mode: string
           review_provider: string | null
           review_prompt_template: string | null
+          review_prompt_template_mode: string
           type_name: string
           updated_at: string
           workspace_subject: string
@@ -2105,13 +2148,17 @@ export type Database = {
           is_active?: boolean | null
           model_name: string
           output_format?: string | null
+          output_format_mode?: string
           prompt_template: string
           provider: string
           regeneration_prompt_template?: string | null
+          regeneration_prompt_template_mode?: string
           review_model_name?: string | null
           review_output_format?: string | null
+          review_output_format_mode?: string
           review_provider?: string | null
           review_prompt_template?: string | null
+          review_prompt_template_mode?: string
           type_name: string
           updated_at?: string
           workspace_subject?: string
@@ -2125,13 +2172,17 @@ export type Database = {
           is_active?: boolean | null
           model_name?: string
           output_format?: string | null
+          output_format_mode?: string
           prompt_template?: string
           provider?: string
           regeneration_prompt_template?: string | null
+          regeneration_prompt_template_mode?: string
           review_model_name?: string | null
           review_output_format?: string | null
+          review_output_format_mode?: string
           review_provider?: string | null
           review_prompt_template?: string | null
+          review_prompt_template_mode?: string
           type_name?: string
           updated_at?: string
           workspace_subject?: string

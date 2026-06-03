@@ -43,12 +43,19 @@ export default async function ProblemTypesPage({ searchParams }: ProblemTypesPag
     .select('*')
     .order('display_order', { ascending: true })
 
+  const { data: defaultPrompts } = await supabase
+    .from('problem_type_default_prompts')
+    .select('*')
+    .eq('workspace_subject', workspaceSubject)
+    .order('sort_order', { ascending: true })
+
   return (
     <div className="container mx-auto py-8">
       <h1 className="text-3xl font-bold mb-6">문제 유형 관리 · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
       <ProblemTypesClient
         initialTypes={types || []}
         initialModels={aiModels || []}
+        initialDefaultPrompts={defaultPrompts || []}
         workspaceSubject={workspaceSubject}
       />
     </div>

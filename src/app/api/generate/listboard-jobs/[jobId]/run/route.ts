@@ -11,6 +11,7 @@ import {
   getLoopFailureCode,
   runQuestionGenerationReviewLoop,
 } from '@/lib/ai/question-generation-workflow'
+import { getProblemTypeDefaultPrompts } from '@/lib/ai/problem-type-default-prompts'
 import { AiQuestionGenerationRunLogError, logAiQuestionGenerationRun } from '@/lib/ai/question-generation-run-logs'
 
 export const dynamic = 'force-dynamic'
@@ -193,6 +194,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   ])
 
   const postItemMap = new Map((postItems ?? []).map((item) => [item.id, item]))
+  const defaultPrompts = await getProblemTypeDefaultPrompts(supabase, workspaceSubject)
   const problemTypeMap = new Map((problemTypes ?? []).map((type) => [type.id, type]))
 
   let completedCount = 0
@@ -241,7 +243,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     let modelConfig: ReturnType<typeof buildQuestionGenerationConfigFromProblemType>['modelConfig'] | null = null
 
     try {
-      const generationConfig = buildQuestionGenerationConfigFromProblemType(problemType)
+      const generationConfig = buildQuestionGenerationConfigFromProblemType(problemType, { defaultPrompts })
       modelConfig = generationConfig.modelConfig ?? null
       if (!generationConfig.modelConfig) {
         throw Object.assign(

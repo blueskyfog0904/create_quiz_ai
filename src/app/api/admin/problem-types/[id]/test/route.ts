@@ -6,6 +6,7 @@ import {
   buildQuestionGenerationConfigFromProblemType,
   runQuestionGenerationReviewLoop,
 } from '@/lib/ai/question-generation-workflow'
+import { getProblemTypeDefaultPrompts } from '@/lib/ai/problem-type-default-prompts'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import type { Json } from '@/types/supabase'
 
@@ -64,7 +65,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제 유형을 찾을 수 없습니다.' } }, { status: 404 })
   }
 
-  const generationConfig = buildQuestionGenerationConfigFromProblemType(problemType)
+  const defaultPrompts = await getProblemTypeDefaultPrompts(supabase, workspaceSubject)
+  const generationConfig = buildQuestionGenerationConfigFromProblemType(problemType, { defaultPrompts })
   if (!generationConfig.modelConfig) {
     return NextResponse.json({
       success: false,

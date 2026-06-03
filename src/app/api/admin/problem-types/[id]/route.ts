@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 
+const promptModeSchema = z.enum(['default', 'custom', 'disabled'])
+
 const updateProblemTypeSchema = z.object({
   type_name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
@@ -14,10 +16,20 @@ const updateProblemTypeSchema = z.object({
   review_provider: z.enum(['gemini', 'openai', 'claude']).nullable().optional(),
   review_model_name: z.string().nullable().optional(),
   output_format: z.string().nullable().optional(),
+  output_format_mode: promptModeSchema.optional(),
   review_prompt_template: z.string().nullable().optional(),
+  review_prompt_template_mode: promptModeSchema.optional(),
   review_output_format: z.string().nullable().optional(),
+  review_output_format_mode: promptModeSchema.optional(),
   regeneration_prompt_template: z.string().nullable().optional(),
+  regeneration_prompt_template_mode: promptModeSchema.optional(),
   is_active: z.boolean().optional(),
+}).refine((data) => {
+  if (!data.review_provider || !data.review_model_name?.trim()) return true
+  return data.review_prompt_template_mode !== 'disabled' &&
+    data.review_output_format_mode !== 'disabled'
+}, {
+  message: '문제 검토 API를 사용하려면 문제 검토 프롬프트와 검토 후 응답구조 프롬프트를 기본값 사용 또는 개별 수정으로 설정해주세요.',
 })
 
 // GET - 단일 문제 유형 조회
@@ -132,14 +144,26 @@ export async function PATCH(
     if (validatedData.output_format !== undefined) {
       updateData.output_format = validatedData.output_format
     }
+    if (validatedData.output_format_mode !== undefined) {
+      updateData.output_format_mode = validatedData.output_format_mode
+    }
     if (validatedData.review_prompt_template !== undefined) {
       updateData.review_prompt_template = validatedData.review_prompt_template
+    }
+    if (validatedData.review_prompt_template_mode !== undefined) {
+      updateData.review_prompt_template_mode = validatedData.review_prompt_template_mode
     }
     if (validatedData.review_output_format !== undefined) {
       updateData.review_output_format = validatedData.review_output_format
     }
+    if (validatedData.review_output_format_mode !== undefined) {
+      updateData.review_output_format_mode = validatedData.review_output_format_mode
+    }
     if (validatedData.regeneration_prompt_template !== undefined) {
       updateData.regeneration_prompt_template = validatedData.regeneration_prompt_template
+    }
+    if (validatedData.regeneration_prompt_template_mode !== undefined) {
+      updateData.regeneration_prompt_template_mode = validatedData.regeneration_prompt_template_mode
     }
     if (validatedData.is_active !== undefined) {
       updateData.is_active = validatedData.is_active

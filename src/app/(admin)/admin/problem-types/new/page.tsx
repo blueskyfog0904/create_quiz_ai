@@ -29,9 +29,15 @@ export default async function NewProblemTypePage({ searchParams }: NewProblemTyp
     redirect('/')
   }
 
+  const { data: defaultPrompts } = await supabase
+    .from('problem_type_default_prompts')
+    .select('*')
+    .eq('workspace_subject', workspaceSubject)
+    .order('sort_order', { ascending: true })
+
   return (
     <div className="container mx-auto py-8">
-      <ProblemTypeFormClient workspaceSubject={workspaceSubject} />
+      <ProblemTypeFormClient workspaceSubject={workspaceSubject} defaultPrompts={defaultPrompts || []} />
     </div>
   )
 }

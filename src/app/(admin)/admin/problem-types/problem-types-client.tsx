@@ -30,18 +30,26 @@ import {
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
 import { Database } from '@/types/supabase'
+import { DefaultPromptSettingsDialog } from './default-prompt-settings-dialog'
 
 type ProblemType = Database['public']['Tables']['problem_types']['Row']
 type AIModel = Database['public']['Tables']['ai_models']['Row']
+type DefaultPrompt = Database['public']['Tables']['problem_type_default_prompts']['Row']
 type AIProvider = 'openai' | 'gemini' | 'claude'
 
 interface ProblemTypesClientProps {
   initialTypes: ProblemType[]
   initialModels: AIModel[]
+  initialDefaultPrompts: DefaultPrompt[]
   workspaceSubject: WorkspaceSubject
 }
 
-export default function ProblemTypesClient({ initialTypes, initialModels, workspaceSubject }: ProblemTypesClientProps) {
+export default function ProblemTypesClient({
+  initialTypes,
+  initialModels,
+  initialDefaultPrompts,
+  workspaceSubject,
+}: ProblemTypesClientProps) {
   const router = useRouter()
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
@@ -265,6 +273,12 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
           >
             AI 모델 일괄 변경
           </Button>
+          <div aria-label="기본 프롬프트 관리">
+            <DefaultPromptSettingsDialog
+              initialDefaultPrompts={initialDefaultPrompts}
+              workspaceSubject={workspaceSubject}
+            />
+          </div>
           <Button onClick={handleCreate}>새 유형 추가</Button>
         </div>
       </div>

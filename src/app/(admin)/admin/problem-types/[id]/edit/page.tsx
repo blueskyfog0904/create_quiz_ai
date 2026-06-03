@@ -43,9 +43,19 @@ export default async function EditProblemTypePage({ params, searchParams }: Page
     redirect(`/admin/problem-types?subject=${workspaceSubject}`)
   }
 
+  const { data: defaultPrompts } = await supabase
+    .from('problem_type_default_prompts')
+    .select('*')
+    .eq('workspace_subject', workspaceSubject)
+    .order('sort_order', { ascending: true })
+
   return (
     <div className="container mx-auto py-8">
-      <ProblemTypeFormClient problemType={problemType} workspaceSubject={workspaceSubject} />
+      <ProblemTypeFormClient
+        problemType={problemType}
+        workspaceSubject={workspaceSubject}
+        defaultPrompts={defaultPrompts || []}
+      />
     </div>
   )
 }
