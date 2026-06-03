@@ -62,7 +62,7 @@ export function WorkspaceLandingView({
   const featureGridClassName = getWorkspaceLandingFeatureGridClassName(config.features.length)
   const workflowGridClassName = getWorkspaceLandingWorkflowGridClassName(config.steps.length)
   const guideButton = (
-    <div className="rounded-2xl border border-white/20 bg-white/12 p-3 shadow-lg shadow-slate-900/10 ring-1 ring-white/15 backdrop-blur-sm">
+    <div className="group/guide rounded-2xl border border-white/20 bg-white/12 p-3 shadow-lg shadow-slate-900/10 ring-1 ring-white/15 backdrop-blur-sm transition-all duration-200 ease-out hover:border-white/30 hover:bg-white/15 hover:ring-white/25">
       <div className="flex items-center justify-between gap-3">
         <Badge className="border-white/20 bg-white/15 text-white">
           <Sparkles className="h-3.5 w-3.5" />
@@ -75,11 +75,11 @@ export function WorkspaceLandingView({
       <Button
         asChild
         size="lg"
-        className={`mt-3 w-full justify-between ${theme.ctaButtonClass}`}
+        className={`mt-3 w-full justify-between transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-900/15 focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-700 ${theme.ctaButtonClass}`}
       >
         <a href={config.guide.url} target="_blank" rel="noreferrer noopener">
           {config.guide.label}
-          <ArrowUpRight className="h-4 w-4" />
+          <ArrowUpRight className="h-4 w-4 transition-transform duration-200 group-hover/guide:translate-x-0.5 group-hover/guide:-translate-y-0.5" />
         </a>
       </Button>
     </div>
@@ -150,17 +150,17 @@ export function WorkspaceLandingView({
                   </p>
                   <Separator className="my-5 bg-white/15" />
                   <div className="flex flex-col gap-3">
-                    <Link href={primaryHref}>
-                      <Button size="lg" variant="outline" className="w-full justify-between border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white">
+                    <Link href={primaryHref} className="group/entry rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-700">
+                      <Button size="lg" variant="outline" className="w-full justify-between border-white/25 bg-white/5 text-white shadow-sm shadow-slate-900/10 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/15 hover:text-white hover:shadow-lg hover:shadow-slate-900/15">
                         {quickEntry.primaryLabel}
-                        <ArrowRight className="h-4 w-4" />
+                        <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/entry:translate-x-0.5" />
                       </Button>
                     </Link>
                     {secondaryHref && quickEntry.secondaryLabel ? (
-                      <Link href={secondaryHref}>
-                        <Button size="lg" variant="outline" className="w-full justify-between border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white">
+                      <Link href={secondaryHref} className="group/entry rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-700">
+                        <Button size="lg" variant="outline" className="w-full justify-between border-white/25 bg-white/5 text-white shadow-sm shadow-slate-900/10 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/15 hover:text-white hover:shadow-lg hover:shadow-slate-900/15">
                           {quickEntry.secondaryLabel}
-                          <ArrowRight className="h-4 w-4" />
+                          <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/entry:translate-x-0.5" />
                         </Button>
                       </Link>
                     ) : null}
@@ -199,12 +199,12 @@ export function WorkspaceLandingView({
                 key={feature.title}
                 href={featureHref}
                 aria-label={`${feature.title} 페이지로 이동`}
-                className="group block h-full rounded-3xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+                className="group block h-full rounded-3xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
               >
-                <Card className="relative h-full overflow-hidden border-slate-200 bg-white py-0 shadow-md shadow-slate-200/60 transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-lg">
-                  <div className={`absolute inset-0 bg-gradient-to-br ${theme.cardAccentClass}`} />
+                <Card className="relative h-full overflow-hidden border-slate-200 bg-white py-0 shadow-md shadow-slate-200/60 transition-all duration-200 ease-out group-hover:-translate-y-0.5 group-hover:border-sky-200 group-hover:shadow-xl group-hover:shadow-sky-100/70">
+                  <div className={`absolute inset-0 bg-gradient-to-br opacity-80 transition-opacity duration-200 group-hover:opacity-100 ${theme.cardAccentClass}`} />
                   <CardContent className="relative p-6">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg transition-all duration-200 ease-out group-hover:bg-blue-600 group-hover:shadow-blue-200/70">
                       <Icon className="h-6 w-6" />
                     </div>
                     <h3

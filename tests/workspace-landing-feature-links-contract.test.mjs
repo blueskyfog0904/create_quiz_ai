@@ -22,3 +22,15 @@ test('workspace landing feature cards render as accessible links', () => {
   assert.match(workspaceLandingView, /group block h-full rounded-3xl/)
   assert.match(workspaceLandingView, /group-hover:-translate-y-0\.5/)
 })
+
+test('workspace landing linked areas communicate clickability with hover and focus states', () => {
+  assert.match(workspaceLandingView, /group\/entry rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white\/70 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-700/)
+  assert.match(workspaceLandingView, /hover:-translate-y-0\.5 hover:border-white\/40 hover:bg-white\/15 hover:text-white hover:shadow-lg/)
+  assert.match(workspaceLandingView, /group-hover\/entry:translate-x-0\.5/)
+  assert.match(workspaceLandingView, /group\/guide rounded-2xl[\s\S]+hover:border-white\/30 hover:bg-white\/15 hover:ring-white\/25/)
+  assert.match(workspaceLandingView, /group-hover\/guide:translate-x-0\.5 group-hover\/guide:-translate-y-0\.5/)
+  assert.match(workspaceLandingView, /focus-visible:ring-sky-500/)
+  assert.match(workspaceLandingView, /group-hover:border-sky-200 group-hover:shadow-xl group-hover:shadow-sky-100\/70/)
+  assert.match(workspaceLandingView, /opacity-80 transition-opacity duration-200 group-hover:opacity-100/)
+  assert.match(workspaceLandingView, /group-hover:bg-blue-600 group-hover:shadow-blue-200\/70/)
+})
