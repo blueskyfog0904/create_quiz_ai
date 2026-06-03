@@ -106,8 +106,12 @@ test('admin sample pages can persist manual thumbnail order', () => {
 
 test('admin product file draft drop zones show larger red empty state before upload', () => {
   assert.match(adminProductsClient, /min-h-32/)
+  assert.match(adminProductsClient, /isUploading[\s\S]+\? 'cursor-not-allowed border-emerald-300 bg-emerald-50 text-emerald-700'/)
+  assert.match(adminProductsClient, /!selectedFileType[\s\S]+\? 'cursor-not-allowed border-red-200 bg-red-50\/40 text-red-700'/)
   assert.match(adminProductsClient, /border-red-200 bg-red-50\/40/)
   assert.match(adminProductsClient, /hover:border-red-300 hover:bg-red-50/)
+  assert.match(adminProductsClient, /isUploading \? 'text-emerald-900' : 'text-red-900'/)
+  assert.match(adminProductsClient, /isUploading \? 'text-emerald-700' : 'text-red-700'/)
   assert.match(adminProductsClient, /selectedFileType/)
   assert.match(adminProductsClient, /업로드된 파일/)
   assert.match(adminProductsClient, /handleRemoveSubproductFileDraft/)

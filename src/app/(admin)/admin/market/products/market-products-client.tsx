@@ -2364,17 +2364,17 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                                   }}
                                   className={`flex min-h-32 flex-col justify-center rounded-md border border-dashed px-4 py-4 text-left transition ${
                                     isUploading
-                                      ? 'cursor-not-allowed bg-gray-50 text-gray-400'
+                                      ? 'cursor-not-allowed border-emerald-300 bg-emerald-50 text-emerald-700'
                                       : !selectedFileType
-                                        ? 'cursor-not-allowed bg-gray-50 text-gray-400'
+                                        ? 'cursor-not-allowed border-red-200 bg-red-50/40 text-red-700'
                                         : isDragActive
                                           ? 'cursor-pointer border-primary bg-primary/5'
                                           : 'cursor-pointer border-red-200 bg-red-50/40 hover:border-red-300 hover:bg-red-50'
                                   }`}
                                 >
-                                  <p className="text-sm font-medium text-gray-900">드래그앤드랍 또는 클릭하여 업로드</p>
-                                  <p className="mt-1 text-xs text-gray-500">{selectedFileType ? `허용 형식: ${getFileTypeAcceptValue(selectedFileType)}` : '파일 유형을 먼저 선택해주세요.'}</p>
-                                  {isUploading ? <p className="mt-2 text-xs text-gray-500">업로드 중입니다...</p> : null}
+                                  <p className={`text-sm font-medium ${isUploading ? 'text-emerald-900' : 'text-red-900'}`}>드래그앤드랍 또는 클릭하여 업로드</p>
+                                  <p className={`mt-1 text-xs ${isUploading ? 'text-emerald-700' : 'text-red-700'}`}>{selectedFileType ? `허용 형식: ${getFileTypeAcceptValue(selectedFileType)}` : '파일 유형을 먼저 선택해주세요.'}</p>
+                                  {isUploading ? <p className="mt-2 text-xs text-emerald-700">업로드 중입니다...</p> : null}
                                 </label>
                               </div>
                             )
