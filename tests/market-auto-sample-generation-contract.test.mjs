@@ -43,6 +43,13 @@ test('admin product uploads use v2 subproduct file slots plus separate sample pd
   assert.match(adminProductsClient, /샘플 JPG/)
 })
 
+test('admin sample pdf drop zone uses distinct colors when a source file is selected', () => {
+  assert.match(adminProductsClient, /selectedSampleSourceFile\s*\?\s*'border-emerald-300 bg-emerald-50 hover:border-emerald-400 hover:bg-emerald-100'/)
+  assert.match(adminProductsClient, /selectedSampleSourceFile\s*\?\s*'text-emerald-700'\s*:\s*'text-slate-500'/)
+  assert.match(adminProductsClient, /selectedSampleSourceFile\s*\?\s*'text-emerald-900'\s*:\s*'text-gray-900'/)
+  assert.match(adminProductsClient, /selectedSampleSourceFile\s*\?\s*'text-emerald-700'\s*:\s*'text-gray-500'/)
+})
+
 test('admin product upload route keeps paid pdf uploads separate from sample generation', () => {
   assert.match(adminUploadRoute, /assetKindValue !== 'pdf' && assetKindValue !== 'hwp' && assetKindValue !== 'zip'/)
   assert.doesNotMatch(adminUploadRoute, /assetKindValue !== 'sample' && assetKindValue !== 'pdf' && assetKindValue !== 'hwp' && assetKindValue !== 'zip'/)

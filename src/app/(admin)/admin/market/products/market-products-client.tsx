@@ -2065,13 +2065,15 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                   className={`flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed px-4 py-4 text-center transition ${
                     isSampleSourceDragActive
                       ? 'border-primary bg-primary/5'
+                      : selectedSampleSourceFile
+                        ? 'border-emerald-300 bg-emerald-50 hover:border-emerald-400 hover:bg-emerald-100'
                       : 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100'
                   }`}
                   onClick={() => sampleSourceInputRef.current?.click()}
                 >
-                  <Upload className="mb-2 h-5 w-5 text-slate-500" />
-                  <p className="text-sm font-medium text-gray-900">샘플 PDF를 드래그앤드롭하거나 클릭해서 선택하세요.</p>
-                  <p className="mt-1 text-xs text-gray-500">
+                  <Upload className={`mb-2 h-5 w-5 ${selectedSampleSourceFile ? 'text-emerald-700' : 'text-slate-500'}`} />
+                  <p className={`text-sm font-medium ${selectedSampleSourceFile ? 'text-emerald-900' : 'text-gray-900'}`}>샘플 PDF를 드래그앤드롭하거나 클릭해서 선택하세요.</p>
+                  <p className={`mt-1 text-xs ${selectedSampleSourceFile ? 'text-emerald-700' : 'text-gray-500'}`}>
                     {selectedSampleSourceFile ? `선택 파일: ${selectedSampleSourceFile.name}` : 'PDF를 선택한 뒤 샘플 이미지 생성 버튼을 클릭해야 JPG가 생성됩니다.'}
                   </p>
                 </label>
