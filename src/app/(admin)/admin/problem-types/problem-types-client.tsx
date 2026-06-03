@@ -7,6 +7,7 @@ import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { deleteProblemType } from './actions'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
@@ -45,6 +46,8 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
   const [bulkUpdating, setBulkUpdating] = useState(false)
+  const [selectedTypeIds, setSelectedTypeIds] = useState<string[]>([])
+  const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkGenerationProvider, setBulkGenerationProvider] = useState<AIProvider>('openai')
   const [bulkGenerationModelName, setBulkGenerationModelName] = useState('')
   const [bulkReviewProvider, setBulkReviewProvider] = useState<AIProvider>('openai')
@@ -54,6 +57,7 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
     () => initialTypes.filter((type) => ['openai', 'gemini', 'claude'].includes(type.generation_provider || type.provider)).length,
     [initialTypes]
   )
+  const selectedTypeCount = selectedTypeIds.length
 
   const providerOptions = useMemo(() => {
     const providers = (['openai', 'gemini', 'claude'] as const).filter((provider) =>
@@ -110,6 +114,17 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
     }
   }, [providerOptions, bulkReviewProvider, reviewModels, bulkReviewModelName])
 
+  useEffect(() => {
+    const typeIds = new Set(initialTypes.map((type) => type.id))
+    setSelectedTypeIds((current) => current.filter((id) => typeIds.has(id)))
+  }, [initialTypes])
+
+  const toggleSelectedType = (id: string) => {
+    setSelectedTypeIds((current) =>
+      current.includes(id) ? current.filter((typeId) => typeId !== id) : [...current, id]
+    )
+  }
+
   const handleDelete = async (id: string) => {
     if (!confirm("이 문제 유형을 정말 삭제하시겠습니까?")) return
     const result = await deleteProblemType(id)
@@ -117,6 +132,31 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
       toast.error(result.error)
     } else {
       toast.success("문제 유형이 삭제되었습니다")
+      setSelectedTypeIds((current) => current.filter((typeId) => typeId !== id))
+      router.refresh()
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedTypeIds.length === 0 || bulkDeleting) return
+    if (!confirm(`선택한 문제 유형 ${selectedTypeIds.length}개를 삭제하시겠습니까?`)) return
+
+    setBulkDeleting(true)
+    try {
+      for (const id of selectedTypeIds) {
+        const result = await deleteProblemType(id)
+        if (result?.error) {
+          throw new Error(result.error)
+        }
+      }
+
+      toast.success(`문제 유형 ${selectedTypeIds.length}개가 삭제되었습니다`)
+      setSelectedTypeIds([])
+      router.refresh()
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : '선택한 문제 유형 삭제에 실패했습니다')
+    } finally {
+      setBulkDeleting(false)
     }
   }
 
@@ -211,6 +251,13 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">등록된 유형</h2>
         <div className="flex flex-col gap-2">
+          <Button
+            variant="destructive"
+            onClick={() => void handleBulkDelete()}
+            disabled={selectedTypeCount === 0 || bulkDeleting}
+          >
+            {bulkDeleting ? '삭제 중...' : `선택 삭제${selectedTypeCount > 0 ? ` (${selectedTypeCount})` : ''}`}
+          </Button>
           <Button
             variant="outline"
             onClick={handleOpenBulkDialog}
@@ -353,14 +400,26 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {initialTypes.map((type) => (
-          <Card key={type.id}>
+          <Card
+            key={type.id}
+            className={selectedTypeIds.includes(type.id) ? 'border-primary ring-1 ring-primary/30' : undefined}
+          >
             <CardHeader>
-              <CardTitle className="flex justify-between">
-                <span>{type.type_name}</span>
-                <span className={`text-xs px-2 py-1 rounded ${type.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                  {type.is_active ? '활성' : '비활성'}
-                </span>
-              </CardTitle>
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  checked={selectedTypeIds.includes(type.id)}
+                  onCheckedChange={() => toggleSelectedType(type.id)}
+                  aria-label={`${type.type_name} 선택`}
+                  disabled={bulkDeleting}
+                  className="mt-1"
+                />
+                <CardTitle className="flex flex-1 justify-between gap-3">
+                  <span>{type.type_name}</span>
+                  <span className={`text-xs px-2 py-1 rounded ${type.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                    {type.is_active ? '활성' : '비활성'}
+                  </span>
+                </CardTitle>
+              </div>
               <CardDescription className="space-y-1">
                 <span className="block">생성: {type.generation_provider || type.provider} / {type.generation_model_name || type.model_name}</span>
                 <span className="block">검토: {type.review_provider && type.review_model_name ? `${type.review_provider} / ${type.review_model_name}` : '미설정'}</span>
@@ -371,7 +430,14 @@ export default function ProblemTypesClient({ initialTypes, initialModels, worksp
               <div className="flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => handleTest(type.id)}>테스트</Button>
                 <Button variant="outline" size="sm" onClick={() => handleEdit(type.id)}>수정</Button>
-                <Button variant="destructive" size="sm" onClick={() => handleDelete(type.id)}>삭제</Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleDelete(type.id)}
+                  disabled={bulkDeleting}
+                >
+                  삭제
+                </Button>
               </div>
             </CardContent>
           </Card>
