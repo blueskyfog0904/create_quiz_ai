@@ -87,7 +87,7 @@ export default function MarketLibraryClient({
       return
     }
 
-    if (!confirm(`${target.label} 환불을 신청하시겠습니까? 다운로드 URL이 발급된 경우 환불이 불가합니다.`)) {
+    if (!confirm(`${target.label} 환불을 신청하시겠습니까? 구매 후 7일 이내이거나 다운로드 이력이 없으면 환불 신청할 수 있습니다.`)) {
       return
     }
 
@@ -204,6 +204,10 @@ export default function MarketLibraryClient({
                   <tbody>
                     {filteredRows.map((row, index) => {
                       const detailHref = row.categorySlug ? `/market/${row.categorySlug}/items/${row.itemId}` : null
+                      const refundTarget = row.refundTargets.find((target) => target.status === 'available')
+                        ?? row.refundTargets.find((target) => target.status === 'pending')
+                        ?? row.refundTargets[0]
+                        ?? null
 
                       return (
                         <tr
@@ -230,22 +234,20 @@ export default function MarketLibraryClient({
                               ) : (
                                 <span className="block min-w-0 truncate font-semibold text-slate-900">{row.title}</span>
                               )}
-                              {row.refundTargets.length > 0 && (
+                              {refundTarget && (
                                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                                  <span>다운로드 URL이 발급된 경우 환불이 불가합니다.</span>
-                                  {row.refundTargets.map((target) => (
-                                    <Button
-                                      key={`${target.targetKind}:${target.targetId}`}
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      disabled={refundSubmitting === target.targetId || target.status === 'pending' || target.status === 'approved'}
-                                      title={target.reason ?? undefined}
-                                      onClick={(event) => handleRefundRequest(event, target)}
-                                    >
-                                      {target.status === 'pending' ? '환불 심사중' : '환불 신청'}
-                                    </Button>
-                                  ))}
+                                  <span>구매 후 7일 이내이거나 다운로드 이력이 없으면 환불 신청할 수 있습니다.</span>
+                                  <Button
+                                    key={`${refundTarget.targetKind}:${refundTarget.targetId}`}
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={!refundTarget || refundSubmitting === refundTarget.targetId || refundTarget.status !== 'available'}
+                                    title={refundTarget.reason ?? undefined}
+                                    onClick={(event) => handleRefundRequest(event, refundTarget)}
+                                  >
+                                    {refundTarget.status === 'pending' ? '환불 심사중' : '환불 신청'}
+                                  </Button>
                                 </div>
                               )}
                             </div>

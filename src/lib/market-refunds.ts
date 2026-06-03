@@ -41,6 +41,10 @@ export interface MarketRefundProcessInput {
   adminNote?: string | null
 }
 
+interface MarketRefundEligibilityOptions {
+  ignoreRequestStatus?: boolean
+}
+
 function addDays(date: Date, days: number) {
   const next = new Date(date)
   next.setDate(next.getDate() + days)
@@ -167,12 +171,18 @@ async function loadRefundTarget(input: MarketRefundRequestInput) {
   }
 }
 
-export async function getMarketRefundEligibility(input: MarketRefundRequestInput): Promise<MarketRefundEligibility> {
+export async function getMarketRefundEligibility(
+  input: MarketRefundRequestInput,
+  options: MarketRefundEligibilityOptions = {}
+): Promise<MarketRefundEligibility> {
   const target = await loadRefundTarget(input)
   const downloadCount = await countDownloads(input.targetKind, input.targetId)
-  const requestStatus = await getLatestRequestStatus(input.targetKind, input.targetId)
+  const requestStatus = options.ignoreRequestStatus
+    ? undefined
+    : await getLatestRequestStatus(input.targetKind, input.targetId)
   const purchasedAt = new Date(target.purchasedAt)
   const refundDeadline = addDays(purchasedAt, 7)
+  const isWithinRefundPeriod = new Date() <= refundDeadline
   let status: MarketRefundEligibility['status'] = 'available'
   let reason: string | null = null
 
@@ -182,12 +192,9 @@ export async function getMarketRefundEligibility(input: MarketRefundRequestInput
   } else if (target.status !== 'completed') {
     status = 'blocked'
     reason = '완료된 구매 내역만 환불 요청할 수 있습니다.'
-  } else if (downloadCount > 0) {
+  } else if (downloadCount > 0 && !isWithinRefundPeriod) {
     status = 'blocked'
-    reason = '다운로드 URL이 발급된 상품은 환불할 수 없습니다.'
-  } else if (new Date() > refundDeadline) {
-    status = 'blocked'
-    reason = '구매 후 7일이 지난 상품은 환불할 수 없습니다.'
+    reason = '구매 후 7일이 지났고 다운로드 이력이 있는 상품은 환불할 수 없습니다.'
   } else if (target.creditConsumptions.length === 0) {
     status = 'blocked'
     reason = '크레딧 차감 스냅샷이 없어 자동 환불할 수 없습니다. 고객센터로 문의해주세요.'
@@ -246,7 +253,7 @@ export async function requestMarketRefund(input: MarketRefundRequestInput): Prom
 
   if (!eligibility.refundable) {
     const error = new Error(eligibility.reason ?? '환불 요청할 수 없는 구매 내역입니다.')
-    error.name = eligibility.downloadCount > 0 ? 'DOWNLOAD_EXISTS' : 'REFUND_NOT_ALLOWED'
+    error.name = eligibility.downloadCount > 0 && new Date() > new Date(eligibility.refundDeadline) ? 'DOWNLOAD_EXISTS' : 'REFUND_NOT_ALLOWED'
     throw error
   }
 
@@ -331,16 +338,16 @@ export async function approveMarketRefund(input: MarketRefundProcessInput): Prom
     throw new Error('환불 대상 구매 정보가 없습니다.')
   }
 
-  const downloadCount = await countDownloads(request.target_kind as MarketRefundTargetKind, targetId)
-  if (downloadCount > 0) {
-    throw new Error('승인 전 다운로드 기록이 발생하여 승인할 수 없습니다.')
-  }
-
   const eligibility = await getMarketRefundEligibility({
     userId: request.user_id,
     targetKind: request.target_kind as MarketRefundTargetKind,
     targetId,
+  }, {
+    ignoreRequestStatus: true,
   })
+  if (!eligibility.refundable) {
+    throw new Error(`승인 전 환불 조건이 변경되었습니다. ${eligibility.reason ?? '환불 요청을 승인할 수 없습니다.'}`)
+  }
 
   await CreditService.refundCredits(
     request.user_id,

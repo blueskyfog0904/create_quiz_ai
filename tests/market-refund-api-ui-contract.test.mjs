@@ -26,19 +26,26 @@ test('admin market refund API lists and processes approvals and rejections', () 
 
 test('market refund service performs eligibility checks, stale approval recheck, and credit refund', () => {
   assert.match(marketRefunds, /export async function getMarketRefundEligibility/)
-  assert.match(marketRefunds, /downloadCount > 0/)
+  assert.match(marketRefunds, /const isWithinRefundPeriod = new Date\(\) <= refundDeadline/)
+  assert.match(marketRefunds, /downloadCount > 0 && !isWithinRefundPeriod/)
   assert.match(marketRefunds, /구매 후 7일/)
   assert.match(marketRefunds, /CreditService\.refundCredits/)
-  assert.match(marketRefunds, /승인 전 다운로드 기록/)
+  assert.match(marketRefunds, /승인 전 환불 조건/)
   assert.match(marketRefunds, /status: 'refunded'/)
 })
 
 test('market library exposes refund targets and a refund request dialog', () => {
   assert.match(marketItemsServer, /refundTargets/)
   assert.match(libraryClient, /환불 신청/)
-  assert.match(libraryClient, /다운로드 URL이 발급된 경우 환불이 불가합니다/)
+  assert.match(libraryClient, /구매 후 7일 이내이거나 다운로드 이력이 없으면 환불 신청할 수 있습니다/)
   assert.match(libraryClient, /event\.stopPropagation\(\)/)
   assert.match(libraryClient, /\/api\/market\/refunds/)
+})
+
+test('market library shows one refund button per row and disables it unless target is available', () => {
+  assert.match(libraryClient, /const refundTarget = row\.refundTargets\.find\(\(target\) => target\.status === 'available'\)/)
+  assert.doesNotMatch(libraryClient, /row\.refundTargets\.map\(\(target\)/)
+  assert.match(libraryClient, /disabled=\{!refundTarget \|\| refundSubmitting === refundTarget\.targetId \|\| refundTarget\.status !== 'available'\}/)
 })
 
 test('admin refunds page includes separate market refund management panel', () => {
