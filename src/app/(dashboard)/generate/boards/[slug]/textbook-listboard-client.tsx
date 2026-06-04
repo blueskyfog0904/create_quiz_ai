@@ -60,7 +60,7 @@ export default function TextbookListboardClient({ boardSlug, posts }: TextbookLi
             <tbody>
               {pagedPosts.map((post, index) => {
                 const href = `/generate/boards/${boardSlug}/posts/${post.id}`
-                const rowNumber = (visibleCurrentPage - 1) * rowsPerPage + index + 1
+                const rowNumber = posts.length - ((visibleCurrentPage - 1) * rowsPerPage + index)
 
                 return (
                   <tr key={post.id} className="border-b border-slate-200 bg-white transition hover:bg-slate-50/80">

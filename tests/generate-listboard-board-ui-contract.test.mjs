@@ -44,3 +44,11 @@ test('generate listboard pagination follows market listboard pagination layout',
   assert.doesNotMatch(textbookListboardClient, /ChevronsRight/)
   assert.doesNotMatch(textbookListboardClient, /bg-gray-50\/70/)
 })
+
+test('generate listboard numbers start from the oldest visible board post', () => {
+  assert.match(
+    textbookListboardClient,
+    /const rowNumber = posts\.length - \(\(visibleCurrentPage - 1\) \* rowsPerPage \+ index\)/
+  )
+  assert.doesNotMatch(textbookListboardClient, /const rowNumber = \(visibleCurrentPage - 1\) \* rowsPerPage \+ index \+ 1/)
+})
