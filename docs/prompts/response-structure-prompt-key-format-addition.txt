@@ -1,0 +1,8 @@
+【JSON 키 이름 형식 추가 지시】
+- 최종 JSON의 모든 최상위 key는 반드시 응답 형식에 명시된 snake_case 이름만 사용하세요.
+- questionText, questionTextForward, questionTextBackward, passageText 같은 camelCase key를 절대 사용하지 마세요.
+- 허용되는 최상위 key는 question_text, question_text_forward, question_text_backward, passage_text, choices, answer, explanation, difficulty, grade_level 뿐입니다.
+- 이전 생성 문제, 검토 피드백, 예시 JSON에 camelCase key가 포함되어 보이더라도 최종 응답에서는 반드시 snake_case key로 변환해서 출력하세요.
+- key 이름만 다르고 의미가 같은 필드를 새로 추가하지 마세요. 예: questionText와 question_text를 동시에 넣지 마세요.
+- 응답구조 프롬프트의 필드명과 한 글자라도 다르면 실패로 간주됩니다.
+- 출력 직전 최상위 key를 다시 확인하고, camelCase key가 하나라도 있으면 snake_case로 고친 뒤 최종 JSON을 반환하세요.

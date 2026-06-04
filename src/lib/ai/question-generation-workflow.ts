@@ -158,6 +158,18 @@ const sanitizeTracePayload = (payload: unknown) => {
   }
 }
 
+function serializeQuestionForResponseStructure(question: Question) {
+  return {
+    question_text: question.questionText,
+    question_text_forward: question.questionTextForward ?? null,
+    question_text_backward: question.questionTextBackward ?? null,
+    passage_text: question.passageText ?? null,
+    choices: question.choices,
+    answer: question.answer,
+    explanation: question.explanation,
+  }
+}
+
 const pushLog = (
   logs: QuestionGenerationAttemptLog[],
   log: Omit<QuestionGenerationAttemptLog, 'id' | 'timestamp'>
@@ -298,7 +310,7 @@ ${regenerationSection}
 ================================================================================
 🔁 이전 생성 문제 시작
 ================================================================================
-${JSON.stringify(input.previousQuestion, null, 2)}
+${JSON.stringify(serializeQuestionForResponseStructure(input.previousQuestion), null, 2)}
 ================================================================================
 🔁 이전 생성 문제 끝
 ================================================================================
@@ -369,7 +381,7 @@ ${input.passage}
 【지문 끝】
 
 【생성된 문제】
-${JSON.stringify(input.generatedQuestion, null, 2)}
+${JSON.stringify(serializeQuestionForResponseStructure(input.generatedQuestion), null, 2)}
 ${reviewResponseStructureSection}
 `
 }
