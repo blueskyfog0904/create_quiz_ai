@@ -64,13 +64,13 @@ interface GeneratePostItemFormState {
 
 const MIN_EXAM_YEAR = 2000
 const MAX_EXAM_YEAR = 2050
+const NO_EXAM_MONTH_VALUE = 'none'
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1))
 
 function getDefaultExamDate() {
   const today = new Date()
   return {
     examYear: String(today.getFullYear()),
-    examMonth: String(today.getMonth() + 1),
   }
 }
 
@@ -79,13 +79,13 @@ function buildExamYearOptions(baseYear = MAX_EXAM_YEAR) {
 }
 
 function buildGeneratePostForm(post: GenerateListboardPost): GeneratePostFormState {
-  const { examYear, examMonth } = getDefaultExamDate()
+  const { examYear } = getDefaultExamDate()
 
   return {
     title: post.title,
     passageText: post.passage_text,
     examYear: post.exam_year ? String(post.exam_year) : examYear,
-    examMonth: post.exam_month ? String(post.exam_month) : examMonth,
+    examMonth: post.exam_month ? String(post.exam_month) : '',
     gradeLevel: normalizeListboardGradeLevel(post.grade_level) || '',
     status: post.status as GeneratePostFormState['status'],
     isActive: post.is_active,
@@ -286,11 +286,12 @@ export default function GenerateProductEditClient({
             </div>
             <div className="space-y-2">
               <Label htmlFor="exam-month">월</Label>
-              <Select value={postForm.examMonth} onValueChange={(value) => setPostForm((current) => ({ ...current, examMonth: value }))}>
+              <Select value={postForm.examMonth || NO_EXAM_MONTH_VALUE} onValueChange={(value) => setPostForm((current) => ({ ...current, examMonth: value === NO_EXAM_MONTH_VALUE ? '' : value }))}>
                 <SelectTrigger id="exam-month" className="w-full">
                   <SelectValue placeholder="월 선택" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={NO_EXAM_MONTH_VALUE}>선택 안 함</SelectItem>
                   {MONTH_OPTIONS.map((month) => (
                     <SelectItem key={month} value={month}>{month}월</SelectItem>
                   ))}

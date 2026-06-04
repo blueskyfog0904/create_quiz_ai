@@ -79,6 +79,7 @@ interface GeneratePostFormState {
 
 const MIN_EXAM_YEAR = 2000
 const MAX_EXAM_YEAR = 2050
+const NO_EXAM_MONTH_VALUE = 'none'
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1))
 const CSV_ACCEPT_VALUE = '.csv,.xlsx'
 
@@ -147,7 +148,6 @@ function getDefaultExamDate() {
   const today = new Date()
   return {
     examYear: String(today.getFullYear()),
-    examMonth: String(today.getMonth() + 1),
   }
 }
 
@@ -156,7 +156,7 @@ function buildExamYearOptions(baseYear = MAX_EXAM_YEAR) {
 }
 
 function buildEmptyGeneratePostForm(menuEntryId: string): GeneratePostFormState {
-  const { examYear, examMonth } = getDefaultExamDate()
+  const { examYear } = getDefaultExamDate()
 
   return {
     menuEntryId,
@@ -164,7 +164,7 @@ function buildEmptyGeneratePostForm(menuEntryId: string): GeneratePostFormState 
     csvFileName: '',
     csvItems: [],
     examYear,
-    examMonth,
+    examMonth: '',
     gradeLevel: '',
     status: 'published',
     isActive: true,
@@ -464,11 +464,12 @@ export default function GenerateProductsClient({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="exam-month">월</Label>
-                <Select value={postForm.examMonth} onValueChange={(value) => setPostForm((current) => ({ ...current, examMonth: value }))}>
+                <Select value={postForm.examMonth || NO_EXAM_MONTH_VALUE} onValueChange={(value) => setPostForm((current) => ({ ...current, examMonth: value === NO_EXAM_MONTH_VALUE ? '' : value }))}>
                   <SelectTrigger id="exam-month" className="w-full">
                     <SelectValue placeholder="월 선택" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value={NO_EXAM_MONTH_VALUE}>선택 안 함</SelectItem>
                     {MONTH_OPTIONS.map((month) => (
                       <SelectItem key={month} value={month}>{month}월</SelectItem>
                     ))}

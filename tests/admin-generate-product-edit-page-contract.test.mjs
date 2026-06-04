@@ -19,6 +19,21 @@ test('admin generate product list navigates to an edit page instead of opening a
   assert.match(generateProductsClient, /<DialogTitle>리스트보드 게시글 추가<\/DialogTitle>/)
 })
 
+test('admin generate product add and edit forms allow month to be unselected', () => {
+  const editClient = readFileSync(editClientPath, 'utf8')
+
+  for (const source of [generateProductsClient, editClient]) {
+    assert.match(source, /NO_EXAM_MONTH_VALUE/)
+    assert.match(source, /선택 안 함/)
+    assert.match(source, /value=\{postForm\.examMonth \|\| NO_EXAM_MONTH_VALUE\}/)
+    assert.match(source, /value === NO_EXAM_MONTH_VALUE \? '' : value/)
+    assert.match(source, /exam_month: postForm\.examMonth \? Number\(postForm\.examMonth\) : null/)
+  }
+
+  assert.match(generateProductsClient, /examMonth: ''/)
+  assert.match(editClient, /examMonth: post\.exam_month \? String\(post\.exam_month\) : ''/)
+})
+
 test('admin generate product edit route loads a post and its items for the active workspace subject', () => {
   assert.equal(existsSync(editPagePath), true)
   const editPage = readFileSync(editPagePath, 'utf8')
