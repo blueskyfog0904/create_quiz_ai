@@ -1,0 +1,202 @@
+카카오 간편가입/로그인 도메인 전환 설정 체크리스트
+작성일: 2026-06-05
+목표 도메인: https://summersuninst.com
+
+============================================================
+1. 카카오 Developers 설정
+============================================================
+
+[1-1] Web 플랫폼 사이트 도메인
+경로:
+카카오 Developers > 내 애플리케이션 > 앱 설정 > 플랫폼 > Web
+
+운영 도메인으로 아래 값을 등록하세요.
+
+https://summersuninst.com
+
+로컬 테스트가 필요하면 아래 값도 추가하세요.
+
+http://localhost:4000
+
+기존에 아래 값만 등록되어 있다면, 운영 도메인을 추가해야 합니다.
+
+https://create-quiz-ai.vercel.app
+
+------------------------------------------------------------
+
+[1-2] 카카오 로그인 사용 설정
+경로:
+카카오 Developers > 내 애플리케이션 > 제품 설정 > 카카오 로그인
+
+설정값:
+사용 설정: ON
+
+------------------------------------------------------------
+
+[1-3] 카카오 로그인 Redirect URI
+경로:
+카카오 Developers > 내 애플리케이션 > 제품 설정 > 카카오 로그인 > Redirect URI
+
+Supabase OAuth를 사용하므로, 카카오 Developers에는 Supabase callback URL을 등록하세요.
+
+https://kzcweelnzhcmiuvjgeyi.supabase.co/auth/v1/callback
+
+주의:
+카카오 Developers Redirect URI에는 아래 주소를 등록하는 것이 아닙니다.
+
+https://summersuninst.com/auth/callback
+https://create-quiz-ai.vercel.app/auth/callback
+
+위 사이트 callback 주소들은 Supabase Redirect URLs 허용 목록에 등록해야 합니다.
+
+------------------------------------------------------------
+
+[1-4] 카카오 로그아웃 Redirect URI
+경로:
+카카오 Developers > 내 애플리케이션 > 제품 설정 > 카카오 로그인 > 고급 > Logout Redirect URI
+
+운영 주소:
+
+https://summersuninst.com/login?logout=success
+
+로컬 테스트 주소:
+
+http://localhost:4000/login?logout=success
+
+참고:
+현재 프로젝트는 앱 로그아웃 후 /login?logout=success 로 이동합니다.
+카카오 계정 세션까지 함께 로그아웃시키는 기능을 추가할 때 이 값이 필요합니다.
+
+------------------------------------------------------------
+
+[1-5] 동의항목
+경로:
+카카오 Developers > 내 애플리케이션 > 제품 설정 > 카카오 로그인 > 동의항목
+
+현재 코드에서 요청하는 scope:
+
+account_email,phone_number,name
+
+따라서 아래 동의항목을 설정하세요.
+
+카카오계정 이메일: account_email
+카카오계정 전화번호: phone_number
+이름: name
+
+주의:
+전화번호, 이름 등 일부 개인정보 항목은 비즈 앱 전환 또는 심사가 필요할 수 있습니다.
+필수 정보가 이메일뿐이라면 처음에는 account_email 만 요청하는 것이 더 단순합니다.
+
+============================================================
+2. Supabase 설정
+============================================================
+
+[2-1] Authentication URL Configuration
+경로:
+Supabase Dashboard > Authentication > URL Configuration
+
+Site URL을 아래 값으로 설정하세요.
+
+https://summersuninst.com
+
+현재 아래 값으로 되어 있다면 변경해야 합니다.
+
+https://create-quiz-ai.vercel.app
+
+------------------------------------------------------------
+
+[2-2] Redirect URLs
+경로:
+Supabase Dashboard > Authentication > URL Configuration > Redirect URLs
+
+운영 callback 주소를 추가하세요.
+
+https://summersuninst.com/auth/callback
+
+로컬 테스트가 필요하면 아래 값도 추가하세요.
+
+http://localhost:4000/auth/callback
+
+필요 시 기존 Vercel 도메인도 유지할 수 있습니다.
+
+https://create-quiz-ai.vercel.app/auth/callback
+
+------------------------------------------------------------
+
+[2-3] Kakao Provider 설정
+경로:
+Supabase Dashboard > Authentication > Providers > Kakao
+
+카카오 Developers > 앱 키에서 REST API 키를 복사해서 Supabase Kakao Provider에 입력하세요.
+
+Client ID: 카카오 REST API 키
+Client Secret: 카카오 Client Secret을 활성화한 경우에만 입력
+
+============================================================
+3. Vercel 설정
+============================================================
+
+[3-1] 환경변수 확인
+경로:
+Vercel > Project > Settings > Environment Variables
+
+Production 환경에서 아래 값이 있으면 운영 도메인으로 설정하세요.
+
+NEXT_PUBLIC_SITE_URL=https://summersuninst.com
+
+기존 값이 아래처럼 되어 있으면 변경해야 합니다.
+
+NEXT_PUBLIC_SITE_URL=https://create-quiz-ai.vercel.app
+
+------------------------------------------------------------
+
+[3-2] 재배포
+Vercel 환경변수를 변경했다면 Production Redeploy를 진행하세요.
+
+============================================================
+4. 이번 문제의 핵심 원인 후보
+============================================================
+
+카카오 로그인 후 아래 주소로 이동하는 문제:
+
+https://create-quiz-ai.vercel.app/
+
+가장 가능성이 높은 원인:
+
+1) Supabase Site URL이 https://create-quiz-ai.vercel.app 으로 되어 있음
+2) Vercel NEXT_PUBLIC_SITE_URL이 https://create-quiz-ai.vercel.app 으로 되어 있음
+3) Supabase Redirect URLs에 https://summersuninst.com/auth/callback 이 없음
+4) 카카오 Developers Web 플랫폼에 https://summersuninst.com 이 없음
+
+우선순위:
+
+1. Supabase Site URL을 https://summersuninst.com 으로 변경
+2. Supabase Redirect URLs에 https://summersuninst.com/auth/callback 추가
+3. Vercel NEXT_PUBLIC_SITE_URL을 https://summersuninst.com 으로 변경 후 재배포
+4. 카카오 Developers Web 플랫폼에 https://summersuninst.com 추가
+5. 카카오 Developers Redirect URI는 Supabase callback URL 유지
+
+============================================================
+5. 복사용 최종 값 모음
+============================================================
+
+운영 도메인:
+https://summersuninst.com
+
+로컬 도메인:
+http://localhost:4000
+
+카카오 Developers Redirect URI:
+https://kzcweelnzhcmiuvjgeyi.supabase.co/auth/v1/callback
+
+카카오 Developers Logout Redirect URI:
+https://summersuninst.com/login?logout=success
+
+Supabase Site URL:
+https://summersuninst.com
+
+Supabase Redirect URL:
+https://summersuninst.com/auth/callback
+
+Vercel Production 환경변수:
+NEXT_PUBLIC_SITE_URL=https://summersuninst.com
