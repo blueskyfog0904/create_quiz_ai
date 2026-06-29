@@ -62,6 +62,50 @@ test('normalizeFooterContent provides editable default legal policy documents', 
   assert.equal(normalized.policyDocuments.refundPolicy.enabled, false)
 })
 
+test('default service terms cover this service-specific credits, AI, and copyright risks', () => {
+  const serviceTerms = normalizeFooterContent().policyDocuments.serviceTerms.content
+
+  assert.match(serviceTerms, /크레딧/)
+  assert.match(serviceTerms, /AI 생성 결과물/)
+  assert.match(serviceTerms, /지문|문항/)
+  assert.match(serviceTerms, /저작권/)
+  assert.match(serviceTerms, /이용제한/)
+  assert.match(serviceTerms, /소명/)
+  assert.doesNotMatch(serviceTerms, /쏠북|SOLVOOK|북아이피스|캐시 이용약관/)
+})
+
+test('default privacy policy covers this service-specific data processing', () => {
+  const privacyPolicy = normalizeFooterContent().policyDocuments.privacyPolicy.content
+
+  assert.match(privacyPolicy, /카카오/)
+  assert.match(privacyPolicy, /Supabase/)
+  assert.match(privacyPolicy, /토스페이먼츠/)
+  assert.match(privacyPolicy, /OpenAI|Gemini|Claude/)
+  assert.match(privacyPolicy, /지문|문항/)
+  assert.match(privacyPolicy, /크레딧|결제/)
+  assert.match(privacyPolicy, /IP|User-Agent|접속 로그/)
+  assert.match(privacyPolicy, /쿠키/)
+  assert.match(privacyPolicy, /열람|정정|삭제|처리정지/)
+  assert.match(privacyPolicy, /파기/)
+  assert.match(privacyPolicy, /개인정보 보호책임자/)
+  assert.doesNotMatch(privacyPolicy, /쏠북|SOLVOOK|북아이피스|Goodnotes/)
+})
+
+test('default refund policy covers this service-specific credit and digital content rules', () => {
+  const refundPolicy = normalizeFooterContent().policyDocuments.refundPolicy.content
+
+  assert.match(refundPolicy, /7일/)
+  assert.match(refundPolicy, /미사용 크레딧/)
+  assert.match(refundPolicy, /AI 생성/)
+  assert.match(refundPolicy, /다운로드/)
+  assert.match(refundPolicy, /오류|장애/)
+  assert.match(refundPolicy, /부분 환불/)
+  assert.match(refundPolicy, /토스페이먼츠/)
+  assert.match(refundPolicy, /영업일 기준 2~5일/)
+  assert.match(refundPolicy, /원 결제수단|결제한 수단/)
+  assert.doesNotMatch(refundPolicy, /쏠북|SOLVOOK|북아이피스|Goodnotes|쏠북패스/)
+})
+
 test('footer policy helpers expose enabled links and resolve public document slugs', () => {
   const normalized = normalizeFooterContent({
     policyDocuments: {
