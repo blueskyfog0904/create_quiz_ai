@@ -103,6 +103,8 @@ test('default refund policy covers this service-specific credit and digital cont
   assert.match(refundPolicy, /토스페이먼츠/)
   assert.match(refundPolicy, /영업일 기준 2~5일/)
   assert.match(refundPolicy, /원 결제수단|결제한 수단/)
+  assert.match(refundPolicy, /회원 간/)
+  assert.match(refundPolicy, /양도|이전/)
   assert.doesNotMatch(refundPolicy, /쏠북|SOLVOOK|북아이피스|Goodnotes|쏠북패스/)
 })
 
