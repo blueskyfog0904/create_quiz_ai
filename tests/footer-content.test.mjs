@@ -94,7 +94,9 @@ test('default privacy policy covers this service-specific data processing', () =
 test('default refund policy covers this service-specific credit and digital content rules', () => {
   const refundPolicy = normalizeFooterContent().policyDocuments.refundPolicy.content
 
-  assert.match(refundPolicy, /7일/)
+  assert.match(refundPolicy, /1년/)
+  assert.match(refundPolicy, /사용/)
+  assert.match(refundPolicy, /취소|환불/)
   assert.match(refundPolicy, /미사용 크레딧/)
   assert.match(refundPolicy, /AI 생성/)
   assert.match(refundPolicy, /다운로드/)
@@ -105,6 +107,7 @@ test('default refund policy covers this service-specific credit and digital cont
   assert.match(refundPolicy, /원 결제수단|결제한 수단/)
   assert.match(refundPolicy, /회원 간/)
   assert.match(refundPolicy, /양도|이전/)
+  assert.doesNotMatch(refundPolicy, /결제일로부터 7일/)
   assert.doesNotMatch(refundPolicy, /쏠북|SOLVOOK|북아이피스|Goodnotes|쏠북패스/)
 })
 

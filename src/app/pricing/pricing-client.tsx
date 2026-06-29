@@ -29,7 +29,7 @@ interface PricingClientProps {
     currentCredits: number
 }
 
-export function PricingClient({ plans, isLoggedIn, currentCredits }: PricingClientProps) {
+export function PricingClient({ plans, isLoggedIn }: PricingClientProps) {
     const router = useRouter()
 
     const handlePurchase = (plan: PricingPlan) => {
@@ -124,7 +124,7 @@ export function PricingClient({ plans, isLoggedIn, currentCredits }: PricingClie
                                 </li>
                                 <li className="flex items-center gap-2 text-sm text-gray-600">
                                     <Check className="w-4 h-4 text-green-500" />
-                                    유효기간 없음
+                                    사용·환불 기한 1년
                                 </li>
                                 {plan.sort_order >= 2 && (
                                     <li className="flex items-center gap-2 text-sm text-gray-600">
