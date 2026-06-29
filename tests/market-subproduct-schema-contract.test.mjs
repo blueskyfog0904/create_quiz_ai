@@ -9,7 +9,11 @@ const migration = migrationName
   ? readFileSync(join(migrationsDir.pathname, migrationName), 'utf8')
   : ''
 const allMigrations = readdirSync(migrationsDir)
-  .filter((name) => name.includes('market_subproduct_v2') || name.includes('market_subproduct_category_defaults'))
+  .filter((name) => (
+    name.includes('market_subproduct_v2')
+    || name.includes('market_subproduct_category_defaults')
+    || name.includes('market_subproduct_purchase_notice')
+  ))
   .map((name) => readFileSync(join(migrationsDir.pathname, name), 'utf8'))
   .join('\n')
 const types = readFileSync(new URL('../src/types/supabase.ts', import.meta.url), 'utf8')
@@ -130,4 +134,16 @@ test('supabase generated types include market v2 tables and sample draft columns
   assert.match(types, /draft_token: string \| null/)
   assert.match(types, /status: string/)
   assert.match(types, /committed_at: string \| null/)
+})
+
+test('market item subproducts store editable purchase notice copy', () => {
+  assert.match(allMigrations, /alter table public\.market_item_subproducts[\s\S]+purchase_notice_label text/)
+  assert.match(allMigrations, /alter table public\.market_item_subproducts[\s\S]+purchase_notice_text text/)
+  assert.match(allMigrations, /comment on column public\.market_item_subproducts\.purchase_notice_label/)
+  assert.match(allMigrations, /comment on column public\.market_item_subproducts\.purchase_notice_text/)
+
+  assert.match(types, /purchase_notice_label: string \| null/)
+  assert.match(types, /purchase_notice_text: string \| null/)
+  assert.match(types, /purchase_notice_label\?: string \| null/)
+  assert.match(types, /purchase_notice_text\?: string \| null/)
 })

@@ -8,6 +8,10 @@ import type { FooterContentConfig } from '@/lib/footer-content'
 function revalidateFooterPaths() {
   revalidatePath('/', 'layout')
   revalidatePath('/admin/footer')
+  revalidatePath('/terms')
+  revalidatePath('/terms/service')
+  revalidatePath('/terms/privacy')
+  revalidatePath('/terms/refund')
 }
 
 export interface FooterSettingsPageData {

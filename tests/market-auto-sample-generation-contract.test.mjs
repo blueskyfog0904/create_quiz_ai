@@ -93,3 +93,12 @@ test('admin client pdf renderer uses high quality jpg export', () => {
   assert.doesNotMatch(sampleGenerator, /sizeBytes <= targetBytes/)
   assert.doesNotMatch(sampleGenerator, /playwright|chromium\.launch/)
 })
+
+test('admin client keeps source pdf name separate from generated sample jpg storage name', () => {
+  assert.match(adminProductsClient, /storageFileName: string/)
+  assert.match(adminProductsClient, /originalFileName: file\.name/)
+  assert.match(adminProductsClient, /storageFileName: buildMarketSamplePageFileName\(file\.name, pageNumber\)/)
+  assert.match(adminProductsClient, /storageFileName: page\.storageFileName/)
+  assert.match(adminProductsClient, /storageFileName: page\.storageFileName,\s*[\r\n\s]*storagePath: page\.storagePath/)
+  assert.doesNotMatch(adminProductsClient, /originalFileName: buildMarketSamplePageFileName\(file\.name, pageNumber\)/)
+})

@@ -29,6 +29,7 @@ interface RouteContext {
 const SamplePageMetadataSchema = z.object({
   pageNumber: z.number().int().min(1),
   originalFileName: z.string().trim().min(1).max(MAX_SAMPLE_ORIGINAL_FILE_NAME_LENGTH),
+  storageFileName: z.string().trim().min(1).max(MAX_SAMPLE_ORIGINAL_FILE_NAME_LENGTH),
   mimeType: z.literal(MARKET_SAMPLE_PAGE_MIME_TYPE),
   fileSizeBytes: z.number().int().min(1).max(MAX_GENERATED_SAMPLE_PAGE_BYTES),
   widthPx: z.number().int().min(1).max(MAX_SAMPLE_PAGE_DIMENSION_PX),
@@ -127,7 +128,7 @@ export async function POST(request: Request, { params }: RouteContext) {
         item.id,
         sourceBatchId,
         page.pageNumber,
-        page.originalFileName
+        page.storageFileName
       )
       const { data, error } = await adminSupabase
         .storage
@@ -143,6 +144,7 @@ export async function POST(request: Request, { params }: RouteContext) {
         storagePath,
         token: data.token,
         originalFileName: page.originalFileName,
+        storageFileName: page.storageFileName,
         mimeType: page.mimeType,
         fileSizeBytes: page.fileSizeBytes,
         widthPx: page.widthPx,

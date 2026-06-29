@@ -107,6 +107,23 @@ test('market item detail shows individual subproducts as lower-emphasis alternat
   assert.match(itemActions, /패키지 포함/)
 })
 
+test('market item detail shows editable purchase notice copy on HWP PDF subproducts', () => {
+  assert.match(itemActions, /interface PurchaseNotice/)
+  assert.match(itemActions, /DEFAULT_HWP_PDF_NOTICE/)
+  assert.match(itemActions, /label: 'PDF 포함'/)
+  assert.match(itemActions, /text: '편집 가능한 HWP와 문제\(PDF\)를 함께 제공합니다\. PDF는 따로 구매하지 않아도 됩니다\.'/)
+  assert.match(itemActions, /function hasHwpAndPdf\(subproduct: MarketSubproductPublicSummary\)/)
+  assert.match(itemActions, /codes\.has\('hwp'\) && codes\.has\('pdf'\)/)
+  assert.match(itemActions, /function resolveSubproductPurchaseNotice\(subproduct: MarketSubproductPublicSummary\): PurchaseNotice \| null/)
+  assert.match(itemActions, /subproduct\.purchaseNoticeText\?\.trim\(\)/)
+  assert.match(itemActions, /subproduct\.purchaseNoticeLabel\?\.trim\(\) \|\| DEFAULT_HWP_PDF_NOTICE\.label/)
+  assert.match(itemActions, /notice\?: PurchaseNotice \| null/)
+  assert.match(itemActions, /rounded-xl border border-indigo-100 bg-indigo-50\/70/)
+  assert.match(itemActions, /\{notice\.label\}/)
+  assert.match(itemActions, /\{notice\.text\}/)
+  assert.match(itemActions, /notice=\{resolveSubproductPurchaseNotice\(subproduct\)\}/)
+})
+
 test('market item detail hides unavailable paid file rows', () => {
   assert.match(itemActions, /\{\(hasPdf \|\| ownsPdf\) \? \(/)
   assert.match(itemActions, /\{\(hasHwp \|\| ownsHwp\) \? \(/)

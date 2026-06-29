@@ -125,6 +125,8 @@ export interface MarketSubproductPublicSummary {
   categorySlug: string
   title: string
   description: string | null
+  purchaseNoticeLabel: string | null
+  purchaseNoticeText: string | null
   priceCredits: number
   sortOrder: number
   fileCount: number
@@ -764,6 +766,8 @@ export async function createMarketItemSubproduct(input: {
   workspaceSubject?: WorkspaceSubject
   categoryId: string
   description?: string | null
+  purchaseNoticeLabel?: string | null
+  purchaseNoticeText?: string | null
   priceCredits?: number
   sortOrder?: number
   isActive?: boolean
@@ -788,6 +792,8 @@ export async function createMarketItemSubproduct(input: {
     category_id: category.id,
     title: category.name,
     description: normalizeNullableText(input.description),
+    purchase_notice_label: normalizeNullableText(input.purchaseNoticeLabel),
+    purchase_notice_text: normalizeNullableText(input.purchaseNoticeText),
     price_credits: input.priceCredits ?? 0,
     sort_order: input.sortOrder ?? 0,
     is_active: input.isActive ?? true,
@@ -813,6 +819,8 @@ export async function updateMarketItemSubproduct(
     workspaceSubject?: WorkspaceSubject
     categoryId?: string
     description?: string | null
+    purchaseNoticeLabel?: string | null
+    purchaseNoticeText?: string | null
     priceCredits?: number
     sortOrder?: number
     isActive?: boolean
@@ -835,6 +843,8 @@ export async function updateMarketItemSubproduct(
     payload.title = category.name
   }
   if (input.description !== undefined) payload.description = normalizeNullableText(input.description)
+  if (input.purchaseNoticeLabel !== undefined) payload.purchase_notice_label = normalizeNullableText(input.purchaseNoticeLabel)
+  if (input.purchaseNoticeText !== undefined) payload.purchase_notice_text = normalizeNullableText(input.purchaseNoticeText)
   if (input.priceCredits !== undefined) {
     ensureNonNegativeInteger(input.priceCredits, '서브상품 가격')
     payload.price_credits = input.priceCredits
@@ -1419,7 +1429,7 @@ export async function listMarketSubproductPublicSummaries(
   const subproductQuery = applyWorkspaceSubjectFilter(
     supabase
       .from('market_item_subproducts')
-      .select('id, item_id, category_id, title, description, price_credits, sort_order')
+      .select('id, item_id, category_id, title, description, purchase_notice_label, purchase_notice_text, price_credits, sort_order')
       .eq('item_id', itemId)
       .eq('is_active', true)
       .is('deleted_at', null)
@@ -1529,6 +1539,8 @@ export async function listMarketSubproductPublicSummaries(
       categorySlug: category?.slug ?? 'uncategorized',
       title: resolveMarketSubproductDisplayTitle(category?.name, subproduct.title),
       description: subproduct.description,
+      purchaseNoticeLabel: subproduct.purchase_notice_label,
+      purchaseNoticeText: subproduct.purchase_notice_text,
       priceCredits: subproduct.price_credits,
       sortOrder: subproduct.sort_order,
       fileCount: fileRows.length,

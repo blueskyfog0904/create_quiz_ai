@@ -38,6 +38,7 @@ const SampleFinalizedPageSchema = z.object({
   pageNumber: z.number().int().min(1),
   storagePath: z.string().trim().min(1),
   originalFileName: z.string().trim().min(1).max(MAX_SAMPLE_ORIGINAL_FILE_NAME_LENGTH),
+  storageFileName: z.string().trim().min(1).max(MAX_SAMPLE_ORIGINAL_FILE_NAME_LENGTH),
   mimeType: z.literal(MARKET_SAMPLE_PAGE_MIME_TYPE),
   fileSizeBytes: z.number().int().min(1).max(MAX_GENERATED_SAMPLE_PAGE_BYTES),
   widthPx: z.number().int().min(1).max(MAX_SAMPLE_PAGE_DIMENSION_PX),
@@ -302,6 +303,7 @@ async function buildAdminSamplePagesResponse(pages: Awaited<ReturnType<typeof ap
     return {
       id: page.id,
       pageNumber: page.page_number,
+      originalFileName: page.original_file_name ?? null,
       signedUrl: data.signedUrl,
       fileSizeBytes: page.file_size_bytes,
       widthPx: page.width_px,
@@ -330,7 +332,7 @@ async function handleFinalizeUpload(
       itemId,
       body.sourceBatchId,
       page.pageNumber,
-      page.originalFileName
+      page.storageFileName
     )
 
     if (page.storagePath !== expectedStoragePath) {

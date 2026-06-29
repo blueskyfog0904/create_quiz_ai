@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
+import { runInNewContext } from 'node:vm'
 
 const itemPage = readFileSync(
   new URL('../src/app/(dashboard)/market/[slug]/items/[itemId]/page.tsx', import.meta.url),
@@ -18,6 +19,13 @@ const marketItemsServer = readFileSync(
   new URL('../src/lib/market-items-server.ts', import.meta.url),
   'utf8'
 )
+
+function loadMarketDownloadButtonLabel() {
+  const match = itemActions.match(/function getMarketDownloadButtonLabel\(file: MarketSubproductDownloadFile\) \{([\s\S]*?)\n\}/)
+  assert.ok(match, 'getMarketDownloadButtonLabel helper should exist')
+
+  return runInNewContext(`function getMarketDownloadButtonLabel(file) {${match[1]}\n}\ngetMarketDownloadButtonLabel`)
+}
 
 test('market detail page loads v2 subproduct and bundle summaries for the action panel', () => {
   assert.match(itemPage, /listMarketSubproductPublicSummaries/)
@@ -102,10 +110,35 @@ test('market detail names v2 download buttons by each file type within the subpr
   assert.doesNotMatch(itemActions, /const downloadLabel = `\$\{file\.subproductTitle\} 다운로드`/)
 })
 
+test('market detail download buttons do not duplicate an existing file type suffix', () => {
+  const getMarketDownloadButtonLabel = loadMarketDownloadButtonLabel()
+
+  assert.equal(
+    getMarketDownloadButtonLabel({ fileTypeLabel: 'HWP', subproductTitle: '문제(HWP)' }),
+    '문제(HWP) 다운로드'
+  )
+  assert.equal(
+    getMarketDownloadButtonLabel({ fileTypeLabel: 'PDF', subproductTitle: '문제(HWP)' }),
+    '문제(PDF) 다운로드'
+  )
+  assert.equal(
+    getMarketDownloadButtonLabel({ fileTypeLabel: 'PDF', subproductTitle: '문제' }),
+    '문제(PDF) 다운로드'
+  )
+})
+
 test('market detail resolves v2 subproduct labels from category names first', () => {
   assert.match(marketItemsServer, /function resolveMarketSubproductDisplayTitle/)
   assert.match(marketItemsServer, /resolveMarketSubproductDisplayTitle\(category\?\.name, subproduct\.title\)/)
   assert.match(marketItemsServer, /resolveMarketSubproductDisplayTitle\(categoryMap\.get\(subproduct\.category_id\), subproduct\.title\)/)
+})
+
+test('market detail public subproduct DTO includes purchase notice fields', () => {
+  assert.match(marketItemsServer, /purchaseNoticeLabel: string \| null/)
+  assert.match(marketItemsServer, /purchaseNoticeText: string \| null/)
+  assert.match(marketItemsServer, /\.select\('id, item_id, category_id, title, description, purchase_notice_label, purchase_notice_text, price_credits, sort_order'\)/)
+  assert.match(marketItemsServer, /purchaseNoticeLabel: subproduct\.purchase_notice_label/)
+  assert.match(marketItemsServer, /purchaseNoticeText: subproduct\.purchase_notice_text/)
 })
 
 test('market library keeps v2 entitlement data source but sends users to detail for downloads', () => {

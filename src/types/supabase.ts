@@ -1073,6 +1073,8 @@ export type Database = {
           is_active: boolean
           item_id: string
           price_credits: number
+          purchase_notice_label: string | null
+          purchase_notice_text: string | null
           sort_order: number
           title: string
           updated_at: string
@@ -1087,6 +1089,8 @@ export type Database = {
           is_active?: boolean
           item_id: string
           price_credits?: number
+          purchase_notice_label?: string | null
+          purchase_notice_text?: string | null
           sort_order?: number
           title: string
           updated_at?: string
@@ -1101,6 +1105,8 @@ export type Database = {
           is_active?: boolean
           item_id?: string
           price_credits?: number
+          purchase_notice_label?: string | null
+          purchase_notice_text?: string | null
           sort_order?: number
           title?: string
           updated_at?: string

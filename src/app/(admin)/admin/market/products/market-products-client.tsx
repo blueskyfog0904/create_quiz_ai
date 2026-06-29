@@ -197,6 +197,7 @@ function formatDateTime(value?: string | null) {
 interface AdminSamplePage {
   id: string
   pageNumber: number
+  originalFileName: string | null
   signedUrl: string
   fileSizeBytes: number | null
   widthPx: number | null
@@ -209,6 +210,7 @@ type SampleGenerationStep = 'idle' | 'rendering' | 'requesting_upload_targets' |
 interface RenderedSamplePage {
   pageNumber: number
   originalFileName: string
+  storageFileName: string
   mimeType: 'image/jpeg'
   blob: Blob
   fileSizeBytes: number
@@ -221,6 +223,7 @@ interface SampleUploadTarget {
   storagePath: string
   token: string
   originalFileName: string
+  storageFileName: string
   mimeType: 'image/jpeg'
   fileSizeBytes: number
   widthPx: number
@@ -319,7 +322,8 @@ async function renderSamplePdfPages(file: File, samplePageSelection: string): Pr
 
       renderedPages.push({
         pageNumber,
-        originalFileName: buildMarketSamplePageFileName(file.name, pageNumber),
+        originalFileName: file.name,
+        storageFileName: buildMarketSamplePageFileName(file.name, pageNumber),
         mimeType: 'image/jpeg',
         blob,
         fileSizeBytes: blob.size,
@@ -352,7 +356,18 @@ interface MarketItemDetailPayload {
 interface SubproductDraftState {
   categoryId: string
   description: string
+  purchaseNoticeLabel: string
+  purchaseNoticeText: string
   priceCredits: string
+}
+
+interface SubproductEditState {
+  categoryId: string
+  description: string
+  purchaseNoticeLabel: string
+  purchaseNoticeText: string
+  priceCredits: string
+  isActive: boolean
 }
 
 interface SubproductFileDraftState {
@@ -393,7 +408,20 @@ function buildEmptySubproductDraft(categoryId = ''): SubproductDraftState {
   return {
     categoryId,
     description: '',
+    purchaseNoticeLabel: '',
+    purchaseNoticeText: '',
     priceCredits: '0',
+  }
+}
+
+function buildSubproductEditState(subproduct: MarketItemSubproduct): SubproductEditState {
+  return {
+    categoryId: subproduct.category_id,
+    description: subproduct.description || '',
+    purchaseNoticeLabel: subproduct.purchase_notice_label || '',
+    purchaseNoticeText: subproduct.purchase_notice_text || '',
+    priceCredits: formatCreditInputValue(subproduct.price_credits),
+    isActive: subproduct.is_active,
   }
 }
 
@@ -481,6 +509,8 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const [subproductFiles, setSubproductFiles] = useState<MarketSubproductFile[]>([])
   const [bundleOption, setBundleOption] = useState<MarketItemBundleOption | null>(null)
   const [subproductDraft, setSubproductDraft] = useState<SubproductDraftState>(buildEmptySubproductDraft())
+  const [editingSubproductId, setEditingSubproductId] = useState<string | null>(null)
+  const [subproductEditDraft, setSubproductEditDraft] = useState<SubproductEditState | null>(null)
   const [subproductFileDrafts, setSubproductFileDrafts] = useState<SubproductFileDraftState[]>([])
   const [bundleForm, setBundleForm] = useState<BundleFormState>(buildEmptyBundleForm())
   const [isCategorySettingsOpen, setIsCategorySettingsOpen] = useState(false)
@@ -615,6 +645,8 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     setBundleOption(null)
     setBundleForm(buildEmptyBundleForm())
     setSubproductDraft(buildEmptySubproductDraft(activeSubproductCategories[0]?.id || subproductCategories[0]?.id || ''))
+    setEditingSubproductId(null)
+    setSubproductEditDraft(null)
     setSubproductFileDrafts([])
     setSubproductUploadingKeys([])
     setSubproductDragActiveKeys([])
@@ -797,6 +829,8 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       sampleSourceInputRef.current.value = ''
     }
     setSubproductFileDrafts([])
+    setEditingSubproductId(null)
+    setSubproductEditDraft(null)
     setSubproductUploadingKeys([])
     setSubproductDragActiveKeys([])
     setRequiresFinalRegistration(detail.item.status === 'draft' && detail.item.draft_source === 'auto_upload')
@@ -1238,6 +1272,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
           pages: renderedPages.map((page) => ({
             pageNumber: page.pageNumber,
             originalFileName: page.originalFileName,
+            storageFileName: page.storageFileName,
             mimeType: page.mimeType,
             fileSizeBytes: page.fileSizeBytes,
             widthPx: page.widthPx,
@@ -1291,11 +1326,12 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
           pages: payload.uploadTargets.map((page) => ({
             pageNumber: page.pageNumber,
             originalFileName: page.originalFileName,
+            storageFileName: page.storageFileName,
+            storagePath: page.storagePath,
             mimeType: page.mimeType,
             fileSizeBytes: page.fileSizeBytes,
             widthPx: page.widthPx,
             heightPx: page.heightPx,
-            storagePath: page.storagePath,
           })),
         }),
       })
@@ -1682,6 +1718,8 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
         body: JSON.stringify({
           categoryId: subproductDraft.categoryId,
           description: subproductDraft.description,
+          purchaseNoticeLabel: subproductDraft.purchaseNoticeLabel,
+          purchaseNoticeText: subproductDraft.purchaseNoticeText,
           priceCredits: parseCreditInputValue(subproductDraft.priceCredits),
           isActive: true,
         }),
@@ -1697,6 +1735,56 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       toast.success('서브상품을 추가했습니다.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '서브상품 추가 중 오류가 발생했습니다.')
+    } finally {
+      setIsSubproductSaving(false)
+    }
+  }
+
+  const handleEditSubproduct = (subproduct: MarketItemSubproduct) => {
+    setEditingSubproductId(subproduct.id)
+    setSubproductEditDraft(buildSubproductEditState(subproduct))
+  }
+
+  const handleCancelEditSubproduct = () => {
+    setEditingSubproductId(null)
+    setSubproductEditDraft(null)
+  }
+
+  const handleSaveSubproduct = async (subproductId: string) => {
+    if (!form.id || !subproductEditDraft) {
+      return
+    }
+
+    if (!subproductEditDraft.categoryId) {
+      toast.error('서브상품 카테고리를 선택해주세요.')
+      return
+    }
+
+    setIsSubproductSaving(true)
+    try {
+      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}/subproducts/${subproductId}`, workspaceSubject), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          categoryId: subproductEditDraft.categoryId,
+          description: subproductEditDraft.description,
+          purchaseNoticeLabel: subproductEditDraft.purchaseNoticeLabel,
+          purchaseNoticeText: subproductEditDraft.purchaseNoticeText,
+          priceCredits: parseCreditInputValue(subproductEditDraft.priceCredits),
+          isActive: subproductEditDraft.isActive,
+        }),
+      })
+      const payload = await response.json()
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || '서브상품 수정에 실패했습니다.')
+      }
+
+      await refreshEditingFiles(form.id)
+      handleCancelEditSubproduct()
+      toast.success('서브상품을 수정했습니다.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '서브상품 수정 중 오류가 발생했습니다.')
     } finally {
       setIsSubproductSaving(false)
     }
@@ -1724,6 +1812,9 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
 
       await refreshEditingFiles(form.id)
       setSubproductFileDrafts((current) => current.filter((draft) => draft.subproductId !== subproductId))
+      if (editingSubproductId === subproductId) {
+        handleCancelEditSubproduct()
+      }
       toast.success('서브상품을 삭제했습니다.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '서브상품 삭제 중 오류가 발생했습니다.')
@@ -2214,6 +2305,26 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                     <Label>서브상품 설명</Label>
                     <Textarea value={subproductDraft.description} onChange={(event) => setSubproductDraft((current) => ({ ...current, description: event.target.value }))} className="min-h-[72px]" />
                   </div>
+                  <div className="space-y-2">
+                    <Label>구매 안내 라벨</Label>
+                    <Input
+                      value={subproductDraft.purchaseNoticeLabel}
+                      onChange={(event) => setSubproductDraft((current) => ({ ...current, purchaseNoticeLabel: event.target.value }))}
+                      maxLength={24}
+                      placeholder="예: PDF 포함"
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>구매 안내 문구</Label>
+                    <Textarea
+                      value={subproductDraft.purchaseNoticeText}
+                      onChange={(event) => setSubproductDraft((current) => ({ ...current, purchaseNoticeText: event.target.value }))}
+                      className="min-h-[72px]"
+                      maxLength={160}
+                      placeholder="예: 편집 가능한 HWP와 문제(PDF)를 함께 제공합니다. PDF는 따로 구매하지 않아도 됩니다."
+                    />
+                    <p className="text-xs text-gray-500">사용자 상세 페이지의 구매 옵션 행에 표시됩니다. 비워두면 HWP+PDF 구성에서는 기본 안내 문구가 표시됩니다.</p>
+                  </div>
                 </div>
                 <div className="mt-3 flex justify-end">
                   <Button type="button" disabled={isSubproductSaving || activeSubproductCategories.length === 0} onClick={() => void handleCreateSubproduct()}>
@@ -2231,23 +2342,116 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                 <div className="space-y-3">
                   {subproducts.map((subproduct) => {
                     const filesForSubproduct = subproductFilesBySubproductId.get(subproduct.id) || []
+                    const isEditingSubproduct = editingSubproductId === subproduct.id && subproductEditDraft
 
                     return (
                       <div key={subproduct.id} className="space-y-3 rounded-md border bg-white p-3">
-                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-semibold text-gray-900">{getSubproductCategoryName(subproduct.category_id)}</p>
-                              <Badge variant={subproduct.is_active ? 'outline' : 'secondary'}>{subproduct.is_active ? '활성' : '비활성'}</Badge>
+                        {isEditingSubproduct ? (
+                          <div className="space-y-3 rounded-md border bg-slate-50/80 p-3">
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label>서브상품 카테고리</Label>
+                                <select
+                                  value={subproductEditDraft.categoryId}
+                                  onChange={(event) => {
+                                    if (event.target.value === MANAGE_SUBPRODUCT_CATEGORIES_VALUE) {
+                                      setIsCategorySettingsOpen(true)
+                                      return
+                                    }
+
+                                    setSubproductEditDraft((current) => current ? { ...current, categoryId: event.target.value } : current)
+                                  }}
+                                  className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
+                                >
+                                  <option value="">카테고리 선택</option>
+                                  {subproductCategories.map((category) => (
+                                    <option key={category.id} value={category.id}>{category.name}</option>
+                                  ))}
+                                  <option value={MANAGE_SUBPRODUCT_CATEGORIES_VALUE}>설정하기</option>
+                                </select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>서브상품 가격</Label>
+                                <Input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={subproductEditDraft.priceCredits}
+                                  onChange={(event) => setSubproductEditDraft((current) => current ? { ...current, priceCredits: formatCreditInputValue(event.target.value) } : current)}
+                                />
+                              </div>
+                              <div className="space-y-2 md:col-span-2">
+                                <Label>서브상품 설명</Label>
+                                <Textarea
+                                  value={subproductEditDraft.description}
+                                  onChange={(event) => setSubproductEditDraft((current) => current ? { ...current, description: event.target.value } : current)}
+                                  className="min-h-[72px]"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>구매 안내 라벨</Label>
+                                <Input
+                                  value={subproductEditDraft.purchaseNoticeLabel}
+                                  onChange={(event) => setSubproductEditDraft((current) => current ? { ...current, purchaseNoticeLabel: event.target.value } : current)}
+                                  maxLength={24}
+                                  placeholder="예: PDF 포함"
+                                />
+                              </div>
+                              <div className="space-y-2 md:col-span-2">
+                                <Label>구매 안내 문구</Label>
+                                <Textarea
+                                  value={subproductEditDraft.purchaseNoticeText}
+                                  onChange={(event) => setSubproductEditDraft((current) => current ? { ...current, purchaseNoticeText: event.target.value } : current)}
+                                  className="min-h-[72px]"
+                                  maxLength={160}
+                                  placeholder="예: 편집 가능한 HWP와 문제(PDF)를 함께 제공합니다. PDF는 따로 구매하지 않아도 됩니다."
+                                />
+                                <p className="text-xs text-gray-500">사용자 상세 페이지의 구매 옵션 행에 표시됩니다. 비워두면 HWP+PDF 구성에서는 기본 안내 문구가 표시됩니다.</p>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <Switch
+                                  checked={subproductEditDraft.isActive}
+                                  onCheckedChange={(checked) => setSubproductEditDraft((current) => current ? { ...current, isActive: checked } : current)}
+                                />
+                                <Label>활성화</Label>
+                              </div>
                             </div>
-                            <p className="mt-1 text-sm text-gray-500">{subproduct.description || '설명이 없습니다.'}</p>
-                            <p className="mt-1 text-sm font-medium text-gray-900">{formatCreditInputValue(subproduct.price_credits)} 크레딧 · 파일 {filesForSubproduct.length}개</p>
+                            <div className="flex justify-end gap-2">
+                              <Button type="button" variant="ghost" size="sm" disabled={isSubproductSaving} onClick={handleCancelEditSubproduct}>
+                                취소
+                              </Button>
+                              <Button type="button" size="sm" disabled={isSubproductSaving} onClick={() => void handleSaveSubproduct(subproduct.id)}>
+                                {isSubproductSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                저장
+                              </Button>
+                            </div>
                           </div>
-                          <Button type="button" variant="outline" size="sm" disabled={isSubproductSaving} onClick={() => void handleDeleteSubproduct(subproduct.id)}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            삭제
-                          </Button>
-                        </div>
+                        ) : (
+                          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-semibold text-gray-900">{getSubproductCategoryName(subproduct.category_id)}</p>
+                                <Badge variant={subproduct.is_active ? 'outline' : 'secondary'}>{subproduct.is_active ? '활성' : '비활성'}</Badge>
+                              </div>
+                              <p className="mt-1 text-sm text-gray-500">{subproduct.description || '설명이 없습니다.'}</p>
+                              {subproduct.purchase_notice_text ? (
+                                <p className="mt-1 text-sm text-indigo-700">
+                                  {subproduct.purchase_notice_label ? `${subproduct.purchase_notice_label} · ` : ''}
+                                  {subproduct.purchase_notice_text}
+                                </p>
+                              ) : null}
+                              <p className="mt-1 text-sm font-medium text-gray-900">{formatCreditInputValue(subproduct.price_credits)} 크레딧 · 파일 {filesForSubproduct.length}개</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button type="button" variant="outline" size="sm" disabled={isSubproductSaving} onClick={() => handleEditSubproduct(subproduct)}>
+                                수정
+                              </Button>
+                              <Button type="button" variant="outline" size="sm" disabled={isSubproductSaving} onClick={() => void handleDeleteSubproduct(subproduct.id)}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                삭제
+                              </Button>
+                            </div>
+                          </div>
+                        )}
 
                         <div className="space-y-3">
                           {filesForSubproduct.length > 0 ? (

@@ -7,6 +7,9 @@ type WithWorkspaceSubject = { workspace_subject: WorkspaceSubject }
 type WithOptionalWorkspaceSubject = { workspace_subject?: WorkspaceSubject }
 
 export type MarketItemSamplePage = Tables<'market_item_sample_pages'> & WithWorkspaceSubject
+export type MarketItemSamplePageWithSourceFileName = MarketItemSamplePage & {
+  source_original_file_name?: string | null
+}
 type MarketItemSamplePageInsert = TablesInsert<'market_item_sample_pages'> & WithOptionalWorkspaceSubject
 
 interface ReplaceMarketItemSamplePageInput {
@@ -76,6 +79,89 @@ function withWorkspaceSubjects<T extends object>(rows: T[] | null | undefined): 
   }))
 }
 
+function isGeneratedSampleImageFileName(value: string | null | undefined) {
+  return /\.(jpe?g|png|webp)$/i.test(value?.trim() ?? '')
+}
+
+export function getMarketSamplePageDisplayOriginalFileName(
+  page: Pick<MarketItemSamplePage, 'original_file_name'>,
+  sourceFileName?: string | null,
+  fallbackPdfFileName?: string | null
+) {
+  const pageOriginalFileName = page.original_file_name?.trim() || null
+  if (sourceFileName) return sourceFileName
+  if (pageOriginalFileName && !isGeneratedSampleImageFileName(pageOriginalFileName)) return pageOriginalFileName
+  return sourceFileName ?? fallbackPdfFileName ?? page.original_file_name
+}
+
+async function listMarketItemSampleSourceFileNames(sourceFileIds: string[]) {
+  if (sourceFileIds.length === 0) {
+    return new Map<string, string>()
+  }
+
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('market_item_files')
+    .select('id, original_file_name')
+    .in('id', sourceFileIds)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return new Map((data ?? []).map((file) => [file.id, file.original_file_name]))
+}
+
+async function getMarketItemFallbackPdfFileName(itemId: string, workspaceSubject: WorkspaceSubject) {
+  const supabase = createAdminClient()
+  const { data: legacyPdfFiles, error: legacyPdfError } = await supabase
+    .from('market_item_files')
+    .select('original_file_name')
+    .eq('item_id', itemId)
+    .eq('workspace_subject', workspaceSubject)
+    .eq('asset_kind', 'pdf')
+    .order('created_at', { ascending: true })
+    .limit(1)
+
+  if (legacyPdfError) {
+    throw new Error(legacyPdfError.message)
+  }
+
+  if (legacyPdfFiles?.[0]?.original_file_name) {
+    return legacyPdfFiles[0].original_file_name
+  }
+
+  const { data: pdfFileTypes, error: fileTypeError } = await supabase
+    .from('market_file_types')
+    .select('id')
+    .eq('workspace_subject', workspaceSubject)
+    .eq('code', 'pdf')
+
+  if (fileTypeError) {
+    throw new Error(fileTypeError.message)
+  }
+
+  const pdfFileTypeIds = (pdfFileTypes ?? []).map((fileType) => fileType.id)
+  if (pdfFileTypeIds.length === 0) {
+    return null
+  }
+
+  const { data: subproductPdfFiles, error: subproductPdfError } = await supabase
+    .from('market_subproduct_files')
+    .select('original_file_name')
+    .eq('item_id', itemId)
+    .eq('workspace_subject', workspaceSubject)
+    .in('file_type_id', pdfFileTypeIds)
+    .order('created_at', { ascending: true })
+    .limit(1)
+
+  if (subproductPdfError) {
+    throw new Error(subproductPdfError.message)
+  }
+
+  return subproductPdfFiles?.[0]?.original_file_name ?? null
+}
+
 export async function listActiveMarketItemSamplePages(
   itemId: string,
   workspaceSubject?: WorkspaceSubject
@@ -100,6 +186,35 @@ export async function listActiveMarketItemSamplePages(
   }
 
   return withWorkspaceSubjects(data)
+}
+
+export async function listActiveMarketItemSamplePagesWithSourceFileNames(
+  itemId: string,
+  workspaceSubject: WorkspaceSubject
+): Promise<MarketItemSamplePageWithSourceFileName[]> {
+  const pages = await listActiveMarketItemSamplePages(itemId, workspaceSubject)
+  if (pages.length === 0) {
+    return []
+  }
+
+  const sourceFileIds = Array.from(new Set(
+    pages
+      .map((page) => page.source_file_id)
+      .filter((sourceFileId): sourceFileId is string => Boolean(sourceFileId))
+  ))
+  const [sourceFileNames, fallbackPdfFileName] = await Promise.all([
+    listMarketItemSampleSourceFileNames(sourceFileIds),
+    getMarketItemFallbackPdfFileName(itemId, workspaceSubject),
+  ])
+
+  return pages.map((page) => ({
+    ...page,
+    source_original_file_name: getMarketSamplePageDisplayOriginalFileName(
+      page,
+      page.source_file_id ? sourceFileNames.get(page.source_file_id) ?? null : null,
+      fallbackPdfFileName
+    ),
+  }))
 }
 
 export async function listActiveMarketItemSamplePagesForItems(

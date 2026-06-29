@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { getPublishedMarketItemById } from '@/lib/market-items-server'
-import { listActiveMarketItemSamplePages } from '@/lib/market-sample-pages-server'
+import { listActiveMarketItemSamplePagesWithSourceFileNames } from '@/lib/market-sample-pages-server'
 import { resolveWorkspaceSubject } from '@/lib/workspace-subject'
 
 export const dynamic = 'force-dynamic'
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
 
-    const samplePages = await listActiveMarketItemSamplePages(item.id, item.workspace_subject)
+    const samplePages = await listActiveMarketItemSamplePagesWithSourceFileNames(item.id, item.workspace_subject)
     const expiresAt = new Date(Date.now() + SAMPLE_PAGE_SIGNED_URL_TTL_SECONDS * 1000).toISOString()
     const adminSupabase = createAdminClient()
     const pages = await Promise.all(samplePages.map(async (page) => {
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       return {
         id: page.id,
         pageNumber: page.page_number,
-        originalFileName: page.original_file_name ?? null,
+        originalFileName: page.source_original_file_name ?? page.original_file_name ?? null,
         signedUrl: data.signedUrl,
         fileSizeBytes: page.file_size_bytes,
         widthPx: page.width_px,

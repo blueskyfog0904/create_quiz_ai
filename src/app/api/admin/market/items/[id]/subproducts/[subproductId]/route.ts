@@ -13,6 +13,8 @@ export const dynamic = 'force-dynamic'
 const SubproductUpdateSchema = z.object({
   categoryId: z.string().uuid().optional(),
   description: z.string().trim().optional().nullable(),
+  purchaseNoticeLabel: z.string().trim().max(24).optional().nullable(),
+  purchaseNoticeText: z.string().trim().max(160).optional().nullable(),
   priceCredits: z.number().int().min(0).optional(),
   sortOrder: z.number().int().min(0).optional(),
   isActive: z.boolean().optional(),
@@ -73,6 +75,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       workspaceSubject,
       categoryId: parsed.data.categoryId,
       description: parsed.data.description,
+      purchaseNoticeLabel: parsed.data.purchaseNoticeLabel,
+      purchaseNoticeText: parsed.data.purchaseNoticeText,
       priceCredits: parsed.data.priceCredits,
       sortOrder: parsed.data.sortOrder,
       isActive: parsed.data.isActive,

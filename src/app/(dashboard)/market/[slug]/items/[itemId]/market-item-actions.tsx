@@ -42,6 +42,11 @@ type V2PurchaseIntent =
   | { purchaseType: 'bundle'; bundleOptionId: string; title: string; priceCredits: number }
 type MarketOptionIconKind = 'sample' | 'bundle' | 'pdf' | 'hwp' | 'zip' | 'default'
 
+interface PurchaseNotice {
+  label: string
+  text: string
+}
+
 const MARKET_ACTION_BUTTON_CLASS = 'h-11 w-full justify-center gap-2 rounded-xl px-5 font-semibold focus-visible:ring-indigo-300 sm:w-44'
 const MARKET_PRIMARY_BUTTON_CLASS = `${MARKET_ACTION_BUTTON_CLASS} bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800`
 const MARKET_OUTLINE_BUTTON_CLASS = `${MARKET_ACTION_BUTTON_CLASS} border border-indigo-500 bg-white text-indigo-600 hover:bg-indigo-50 active:border-indigo-800 active:text-indigo-800`
@@ -52,6 +57,10 @@ const MARKET_BADGE_AVAILABLE_CLASS = 'rounded-full border border-[#E4E7EB] bg-[#
 const MARKET_BADGE_OWNED_CLASS = 'rounded-full border border-[#D1FAE5] bg-[#ECFDF5] px-3 py-1 text-xs font-medium text-[#065F46] hover:bg-[#ECFDF5]'
 const MARKET_BADGE_INCLUDED_CLASS = 'rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50'
 const MARKET_DOWNLOAD_BUTTON_CLASS = 'h-9 min-w-36 w-full justify-center gap-2 rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 text-sm font-medium text-emerald-700 hover:bg-emerald-100 active:bg-emerald-200 focus-visible:ring-emerald-200 sm:w-auto'
+const DEFAULT_HWP_PDF_NOTICE = {
+  label: 'PDF 포함',
+  text: '편집 가능한 HWP와 문제(PDF)를 함께 제공합니다. PDF는 따로 구매하지 않아도 됩니다.',
+}
 
 function buildDownloadUrl(itemId: string, assetKind: 'pdf' | 'hwp' | 'zip') {
   return `/api/market/items/${itemId}/download?assetKind=${assetKind}`
@@ -83,13 +92,40 @@ function getSubproductIconKind(subproduct: MarketSubproductPublicSummary): Marke
   return 'default'
 }
 
+function hasHwpAndPdf(subproduct: MarketSubproductPublicSummary) {
+  const codes = new Set(subproduct.fileTypes.map((fileType) => fileType.code.toLowerCase()))
+  return codes.has('hwp') && codes.has('pdf')
+}
+
+function resolveSubproductPurchaseNotice(subproduct: MarketSubproductPublicSummary): PurchaseNotice | null {
+  const customText = subproduct.purchaseNoticeText?.trim()
+
+  if (customText) {
+    return {
+      label: subproduct.purchaseNoticeLabel?.trim() || DEFAULT_HWP_PDF_NOTICE.label,
+      text: customText,
+    }
+  }
+
+  if (hasHwpAndPdf(subproduct)) {
+    return DEFAULT_HWP_PDF_NOTICE
+  }
+
+  return null
+}
+
 function getMarketDownloadButtonLabel(file: MarketSubproductDownloadFile) {
   const fileTypeLabel = file.fileTypeLabel.trim() || '파일'
   const subproductTitle = file.subproductTitle.trim() || '자료'
-  const typedTitle = subproductTitle.replace(/\s*[\(（][^\)）]*[\)）]\s*$/, `(${fileTypeLabel})`)
-  const labelTitle = typedTitle === subproductTitle
-    ? `${subproductTitle}(${fileTypeLabel})`
-    : typedTitle
+  const fileTypeSuffixPattern = /\s*[\(（]([^\)）]*)[\)）]\s*$/
+  const fileTypeSuffixMatch = subproductTitle.match(fileTypeSuffixPattern)
+
+  if (fileTypeSuffixMatch?.[1]?.trim() === fileTypeLabel) {
+    return `${subproductTitle} 다운로드`
+  }
+
+  const typedTitle = subproductTitle.replace(fileTypeSuffixPattern, `(${fileTypeLabel})`)
+  const labelTitle = fileTypeSuffixMatch ? typedTitle : `${subproductTitle}(${fileTypeLabel})`
 
   return `${labelTitle} 다운로드`
 }
@@ -198,6 +234,7 @@ function FileOptionRow({
   buttonClassName,
   badgeSlot,
   meta,
+  notice,
   actionSlot,
   className,
   onAction,
@@ -216,6 +253,7 @@ function FileOptionRow({
   buttonClassName?: string
   badgeSlot?: ReactNode
   meta?: ReactNode
+  notice?: PurchaseNotice | null
   actionSlot?: ReactNode
   className?: string
   onAction?: () => void
@@ -240,6 +278,12 @@ function FileOptionRow({
             <p className="font-semibold text-slate-950">{title}</p>
             <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
             {meta ? <div className="mt-2">{meta}</div> : null}
+            {notice ? (
+              <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-2 text-xs leading-5 text-slate-600">
+                <span className="mr-2 inline-flex rounded-full bg-white px-2 py-0.5 font-semibold text-indigo-700">{notice.label}</span>
+                <span>{notice.text}</span>
+              </div>
+            ) : null}
           </div>
         </div>
         {badgeSlot ?? <OptionStateBadge state={state} />}
@@ -640,6 +684,7 @@ export default function MarketItemActions({
                     actionSlot={isDownloadable ? renderDownloadButtons(ownedFiles) : undefined}
                     disabled={isPending || isCheckingBalance}
                     meta={<FileTypeBadges subproduct={subproduct} />}
+                    notice={resolveSubproductPurchaseNotice(subproduct)}
                     className="rounded-xl border-slate-200 p-3 shadow-none"
                     onAction={!isDownloadable ? () => void openV2PurchaseConfirmation({
                       purchaseType: 'subproduct',

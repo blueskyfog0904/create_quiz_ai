@@ -38,6 +38,25 @@ test('admin subproduct API derives the subproduct title from its category', () =
   assert.match(lib, /payload\.title = category\.name/)
 })
 
+test('admin subproduct API accepts editable purchase notice copy', () => {
+  assert.match(subproductsRoute, /purchaseNoticeLabel:\s*z\.string\(\)\.trim\(\)\.max\(24\)\.optional\(\)\.nullable\(\)/)
+  assert.match(subproductsRoute, /purchaseNoticeText:\s*z\.string\(\)\.trim\(\)\.max\(160\)\.optional\(\)\.nullable\(\)/)
+  assert.match(subproductRoute, /purchaseNoticeLabel:\s*z\.string\(\)\.trim\(\)\.max\(24\)\.optional\(\)\.nullable\(\)/)
+  assert.match(subproductRoute, /purchaseNoticeText:\s*z\.string\(\)\.trim\(\)\.max\(160\)\.optional\(\)\.nullable\(\)/)
+
+  assert.match(subproductsRoute, /purchaseNoticeLabel:\s*parsed\.data\.purchaseNoticeLabel/)
+  assert.match(subproductsRoute, /purchaseNoticeText:\s*parsed\.data\.purchaseNoticeText/)
+  assert.match(subproductRoute, /purchaseNoticeLabel:\s*parsed\.data\.purchaseNoticeLabel/)
+  assert.match(subproductRoute, /purchaseNoticeText:\s*parsed\.data\.purchaseNoticeText/)
+
+  assert.match(lib, /purchaseNoticeLabel\?: string \| null/)
+  assert.match(lib, /purchaseNoticeText\?: string \| null/)
+  assert.match(lib, /purchase_notice_label:\s*normalizeNullableText\(input\.purchaseNoticeLabel\)/)
+  assert.match(lib, /purchase_notice_text:\s*normalizeNullableText\(input\.purchaseNoticeText\)/)
+  assert.match(lib, /input\.purchaseNoticeLabel !== undefined[\s\S]+payload\.purchase_notice_label = normalizeNullableText\(input\.purchaseNoticeLabel\)/)
+  assert.match(lib, /input\.purchaseNoticeText !== undefined[\s\S]+payload\.purchase_notice_text = normalizeNullableText\(input\.purchaseNoticeText\)/)
+})
+
 test('admin subproduct file API uploads through v2 storage and cleans up metadata on delete', () => {
   assert.notEqual(filesRoute, '', 'subproduct files collection route should exist')
   assert.notEqual(fileRoute, '', 'subproduct file item route should exist')

@@ -54,6 +54,33 @@ test('admin product form uses the selected subproduct category as the display na
   assert.match(adminProductsClient, /getSubproductCategoryName\(subproduct\.category_id\)/)
 })
 
+test('admin product form can create and edit subproduct purchase notice copy', () => {
+  assert.match(adminProductsClient, /purchaseNoticeLabel: string/)
+  assert.match(adminProductsClient, /purchaseNoticeText: string/)
+  assert.match(adminProductsClient, /구매 안내 라벨/)
+  assert.match(adminProductsClient, /구매 안내 문구/)
+  assert.match(adminProductsClient, /예: PDF 포함/)
+  assert.match(adminProductsClient, /예: 편집 가능한 HWP와 문제\(PDF\)를 함께 제공합니다\. PDF는 따로 구매하지 않아도 됩니다\./)
+  assert.match(adminProductsClient, /maxLength=\{24\}/)
+  assert.match(adminProductsClient, /maxLength=\{160\}/)
+  assert.match(adminProductsClient, /사용자 상세 페이지의 구매 옵션 행에 표시됩니다/)
+  assert.match(adminProductsClient, /purchaseNoticeLabel: subproductDraft\.purchaseNoticeLabel/)
+  assert.match(adminProductsClient, /purchaseNoticeText: subproductDraft\.purchaseNoticeText/)
+
+  assert.match(adminProductsClient, /SubproductEditState/)
+  assert.match(adminProductsClient, /editingSubproductId/)
+  assert.match(adminProductsClient, /subproductEditDraft/)
+  assert.match(adminProductsClient, /handleEditSubproduct/)
+  assert.match(adminProductsClient, /handleSaveSubproduct/)
+  assert.match(adminProductsClient, /method: 'PATCH'/)
+  assert.match(adminProductsClient, /purchaseNoticeLabel: subproductEditDraft\.purchaseNoticeLabel/)
+  assert.match(adminProductsClient, /purchaseNoticeText: subproductEditDraft\.purchaseNoticeText/)
+  assert.match(adminProductsClient, /refreshEditingFiles\(form\.id\)/)
+  assert.match(adminProductsClient, />\s*수정\s*</)
+  assert.match(adminProductsClient, /서브상품을 수정했습니다\./)
+  assert.match(adminProductsClient, />\s*취소\s*</)
+})
+
 test('admin product form defaults new items to published and blocks enabled bundle without a price', () => {
   assert.match(adminProductsClient, /function buildEmptyForm[\s\S]+status: 'published'/)
   assert.match(adminProductsClient, /전체구매 가격을 설정해주세요/)

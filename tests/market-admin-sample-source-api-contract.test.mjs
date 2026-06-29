@@ -23,6 +23,7 @@ test('admin sample source route issues signed upload targets without receiving p
   assert.match(sourceRoute, /draftToken/)
   assert.match(sourceRoute, /uploadTargets/)
   assert.match(sourceRoute, /storagePath/)
+  assert.match(sourceRoute, /storageFileName/)
   assert.match(sourceRoute, /token/)
   assert.match(sourceRoute, /MAX_GENERATED_SAMPLE_PAGE_BYTES/)
   assert.match(sourceRoute, /MAX_GENERATED_SAMPLE_TOTAL_BYTES/)
@@ -52,6 +53,7 @@ test('admin sample source finalize route validates storage objects before draft 
   assert.match(finalizeRoute, /Uint8Array/)
   assert.match(finalizeRoute, /buildMarketManualSamplePageStoragePath/)
   assert.match(finalizeRoute, /expectedStoragePath/)
+  assert.match(finalizeRoute, /page\.storageFileName/)
   assert.match(finalizeRoute, /storagePath !== expectedStoragePath/)
   assert.match(finalizeRoute, /sourceBatchId/)
   assert.match(finalizeRoute, /cleanup_upload_batch/)
@@ -62,6 +64,17 @@ test('admin sample source finalize route validates storage objects before draft 
   assert.doesNotMatch(finalizeRoute, /Buffer\.from/)
   assert.doesNotMatch(finalizeRoute, /generateMarketPdfSamplePages/)
   assert.doesNotMatch(finalizeRoute, /createSignedUploadUrl/)
+})
+
+test('admin sample source routes persist source pdf name while using generated jpg name for storage paths', () => {
+  assert.match(sourceRoute, /storageFileName: z\.string\(\)/)
+  assert.match(sourceRoute, /page\.storageFileName/)
+  assert.match(sourceRoute, /originalFileName: page\.originalFileName/)
+  assert.match(sourceRoute, /storageFileName: page\.storageFileName/)
+  assert.match(finalizeRoute, /storageFileName: z\.string\(\)/)
+  assert.match(finalizeRoute, /buildMarketManualSamplePageStoragePath\([\s\S]*page\.storageFileName/)
+  assert.match(finalizeRoute, /originalFileName: page\.originalFileName/)
+  assert.doesNotMatch(finalizeRoute, /originalFileName: page\.storageFileName/)
 })
 
 test('admin sample page delete verifies item ownership before deleting storage', () => {

@@ -16,6 +16,7 @@ import {
   normalizeFooterContent,
   type FooterContentConfig,
   type FooterFixedFieldKey,
+  type FooterPolicyDocumentKey,
 } from '@/lib/footer-content'
 import { saveFooterContentAction, type FooterSettingsPageData } from './actions'
 
@@ -35,6 +36,13 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
     })),
     [footerContent]
   )
+  const policyDocumentEntries = useMemo(
+    () => Object.entries(footerContent.policyDocuments).map(([key, value]) => ({
+      key: key as FooterPolicyDocumentKey,
+      ...value,
+    })),
+    [footerContent]
+  )
   const previewRows = useMemo(() => getVisibleFooterRows(footerContent), [footerContent])
   const hasUnsavedChanges = JSON.stringify(footerContent) !== JSON.stringify(savedFooterContent)
 
@@ -48,6 +56,22 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
         ...current.fixedFields,
         [key]: {
           ...current.fixedFields[key],
+          ...next,
+        },
+      },
+    }))
+  }
+
+  const updatePolicyDocument = (
+    key: FooterPolicyDocumentKey,
+    next: Partial<FooterContentConfig['policyDocuments'][FooterPolicyDocumentKey]>
+  ) => {
+    setFooterContent((current) => ({
+      ...current,
+      policyDocuments: {
+        ...current.policyDocuments,
+        [key]: {
+          ...current.policyDocuments[key],
           ...next,
         },
       },
@@ -188,6 +212,61 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
 
       <Card>
         <CardHeader>
+          <CardTitle>약관 및 정책</CardTitle>
+          <CardDescription>Footer에 노출할 약관 링크와 각 페이지의 본문을 관리합니다.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {policyDocumentEntries.map((document) => (
+            <div key={document.key} className="rounded-lg border p-4">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div className="flex flex-1 flex-col gap-3">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor={`footer-policy-label-${document.key}`}>Footer 링크명</Label>
+                        <Input
+                          id={`footer-policy-label-${document.key}`}
+                          value={document.label}
+                          onChange={(event) => updatePolicyDocument(document.key, { label: event.target.value })}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor={`footer-policy-title-${document.key}`}>페이지 제목</Label>
+                        <Input
+                          id={`footer-policy-title-${document.key}`}
+                          value={document.title}
+                          onChange={(event) => updatePolicyDocument(document.key, { title: event.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-500">연결 경로: /terms/{document.slug}</p>
+                  </div>
+                  <div className="flex items-center justify-end gap-2 md:min-w-[120px]">
+                    <Switch
+                      checked={document.enabled}
+                      onCheckedChange={(checked) => updatePolicyDocument(document.key, { enabled: checked })}
+                    />
+                    <span className="text-sm text-gray-500">{document.enabled ? '활성' : '비활성'}</span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor={`footer-policy-content-${document.key}`}>본문</Label>
+                  <Textarea
+                    id={`footer-policy-content-${document.key}`}
+                    rows={12}
+                    value={document.content}
+                    onChange={(event) => updatePolicyDocument(document.key, { content: event.target.value })}
+                  />
+                  <p className="text-xs text-gray-500"># 제목, ## 소제목, - 목록 형식의 간단한 마크다운을 사용할 수 있습니다.</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>미리보기</CardTitle>
           <CardDescription>저장 전 Footer 노출 형태를 확인할 수 있습니다.</CardDescription>
         </CardHeader>
@@ -203,6 +282,12 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
             .map((notice, index) => (
               <p key={`preview-notice-${index}`}>{notice}</p>
             ))}
+          <p className="pt-2">
+            {policyDocumentEntries
+              .filter((document) => document.enabled && document.label.trim() && document.content.trim())
+              .map((document) => document.label.trim())
+              .join(' | ')}
+          </p>
           <p className="pt-2">© {new Date().getFullYear()} {getFooterBrandName(footerContent)}. All rights reserved.</p>
         </CardContent>
       </Card>
