@@ -17,8 +17,10 @@ test('job status client keeps completed items saveable even when generation is s
   assert.doesNotMatch(jobStatusClientSource, /disabled=\{isGenerationInProgress \|\| savedCount === 0\}/)
 })
 
-test('job status client explains partial success explicitly in dialog and summary', () => {
+test('job status client explains partial success without blocking successful item saves', () => {
   assert.match(jobStatusClientSource, /const isPartialSuccess = completedCount > 0 && failedCount > 0/)
-  assert.match(jobStatusClientSource, /성공한 문제는 지금 저장할 수 있고, 실패한 문제는 재시도할 수 있습니다/)
+  assert.match(jobStatusClientSource, /완성된 문제는 지금 저장할 수 있고, 생성되지 않은 문제는 다시 시도할 수 있습니다/)
   assert.match(jobStatusClientSource, /재시도 중에도 이미 생성된 문제는 계속 저장할 수 있습니다/)
+  assert.match(jobStatusClientSource, /const hasReviewableResults = completedPreviewItems\.length > 0/)
+  assert.match(jobStatusClientSource, /const hasSaveActivity = hasReviewableResults \|\| savedCount > 0/)
 })
