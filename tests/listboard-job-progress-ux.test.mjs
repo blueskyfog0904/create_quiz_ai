@@ -67,6 +67,7 @@ test('preview card exposes accessible checkbox rating tag controls and save-stat
   assert.match(batchPreviewSource, /aria-label=\{`별점 \$\{star\}점 선택`\}/)
   assert.match(batchPreviewSource, /aria-pressed=\{rating === star\}/)
   assert.match(batchPreviewSource, /aria-label=\{`\$\{tag\} 태그 삭제`\}/)
+  assert.match(batchPreviewSource, /focus-visible:opacity-100/)
   assert.match(batchPreviewSource, /저장 재시도 필요/)
 })
 

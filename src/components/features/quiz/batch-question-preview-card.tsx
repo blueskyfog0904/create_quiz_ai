@@ -135,7 +135,7 @@ export function BatchQuestionPreviewCard({
                     type="button"
                     aria-label={`${tag} 태그 삭제`}
                     onClick={() => onRemoveTag(tag)}
-                    className="rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground"
+                    className="rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                   >
                     <X className="h-3 w-3" />
                   </button>

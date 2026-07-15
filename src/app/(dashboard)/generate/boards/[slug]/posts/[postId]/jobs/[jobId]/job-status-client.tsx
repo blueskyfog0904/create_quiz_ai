@@ -99,16 +99,18 @@ export default function JobStatusClient({
   const currentRunningItem = items.find((item) => item.status === 'running') ?? null
   const hasReviewableResults = completedPreviewItems.length > 0
   const hasSaveActivity = hasReviewableResults || savedCount > 0
-  const isGenerationInProgress = isStartingRun || !TERMINAL_JOB_STATUSES.includes(job.status)
+  const isGenerationInProgress = isStartingRun || isRetrying || !TERMINAL_JOB_STATUSES.includes(job.status)
   const isPartialSuccess = completedCount > 0 && failedCount > 0
   const progressPercent = job.requested_generation_count > 0
     ? Math.min(100, Math.round((resolvedCount / job.requested_generation_count) * 100))
     : 0
   const pageTitle = isGenerationInProgress
     ? 'AI가 문제를 만들고 있어요'
-    : completedCount > 0
-      ? '생성된 문제를 검토하고 저장하세요'
-      : '문제를 생성하지 못했어요'
+    : isPartialSuccess
+      ? '일부 문제가 먼저 완성되었어요'
+      : completedCount > 0
+        ? '생성된 문제를 검토하고 저장하세요'
+        : '문제를 생성하지 못했어요'
   const pageDescription = isGenerationInProgress
     ? hasReviewableResults
       ? '완성된 문제는 아래에서 먼저 검토하고 저장할 수 있습니다.'
@@ -128,7 +130,7 @@ export default function JobStatusClient({
     .map(({ item }) => item.id), [completedPreviewItems])
   const canSaveCompletedItems = saveableItemIds.length > 0 && savingItemIds.length === 0
   const canOpenPurchased = savedCount > 0
-  const retryInProgress = isRetrying || (job.status === 'running' && completedCount > 0)
+  const retryInProgress = isRetrying
   const exceptionItems = useMemo(() => items
     .filter((item) => item.status !== 'completed' || parseStagedGeneratedQuestion(item.generated_question) === null), [items])
   const failedReasonGroups = useMemo(() => {
@@ -208,7 +210,7 @@ export default function JobStatusClient({
   }, [job.id, workspaceSubject])
 
   useEffect(() => {
-    if (TERMINAL_JOB_STATUSES.includes(job.status) && !isStartingRun) {
+    if (TERMINAL_JOB_STATUSES.includes(job.status) && !isStartingRun && !isRetrying) {
       return
     }
 
@@ -217,7 +219,7 @@ export default function JobStatusClient({
     }, 5000)
 
     return () => window.clearInterval(interval)
-  }, [job.status, refreshJob, isStartingRun])
+  }, [job.status, refreshJob, isStartingRun, isRetrying])
 
   useEffect(() => {
     if (job.status !== 'queued') {
