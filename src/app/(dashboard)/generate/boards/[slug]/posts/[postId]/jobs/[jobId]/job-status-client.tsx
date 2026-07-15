@@ -34,6 +34,30 @@ interface JobStatusClientProps {
 
 const TERMINAL_JOB_STATUSES = ['completed', 'failed', 'cancelled', 'partially_completed']
 
+const jobStatusLabel: Record<string, string> = {
+  queued: '생성 준비 중',
+  running: 'AI가 문제를 만드는 중',
+  completed: '문제 생성 완료',
+  partially_completed: '일부 문제 생성 완료',
+  failed: '다시 생성 필요',
+  cancelled: '생성 취소됨',
+}
+
+const itemStatusLabel: Record<string, string> = {
+  queued: '대기 중',
+  running: '생성 중',
+  completed: '검토 가능',
+  failed: '다시 생성 필요',
+  cancelled: '생성 취소됨',
+}
+
+const saveStatusLabel: Record<string, string> = {
+  unsaved: '저장 전',
+  saving: '영어문제 관리에 저장 중',
+  saved: '영어문제 관리에 저장됨',
+  save_failed: '저장 재시도 필요',
+}
+
 interface DraftQuestionMeta {
   rating: number
   tags: string[]
@@ -54,20 +78,10 @@ export default function JobStatusClient({
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
   const [isStartingRun, setIsStartingRun] = useState(false)
-  const [showCompleteDialog, setShowCompleteDialog] = useState(false)
+  const [showSaveSuccessDialog, setShowSaveSuccessDialog] = useState(false)
+  const [lastSavedCount, setLastSavedCount] = useState(0)
   const [draftQuestionMeta, setDraftQuestionMeta] = useState<Record<string, DraftQuestionMeta>>({})
   const hasStartedRunRef = useRef(false)
-  const hasShownCompleteDialogRef = useRef(false)
-
-  const completedCount = items.filter((item) => item.status === 'completed').length
-  const failedCount = items.filter((item) => item.status === 'failed').length
-  const savedCount = items.filter((item) => item.save_status === 'saved').length
-  const saveFailedCount = items.filter((item) => item.save_status === 'save_failed').length
-  const isGenerationInProgress = isStartingRun || !TERMINAL_JOB_STATUSES.includes(job.status)
-  const isPartialSuccess = completedCount > 0 && failedCount > 0
-  const progressPercent = job.requested_generation_count > 0
-    ? Math.round(((completedCount + failedCount) / job.requested_generation_count) * 100)
-    : 0
 
   const completedPreviewItems = useMemo(() => items
     .map((item) => ({
@@ -75,6 +89,39 @@ export default function JobStatusClient({
       generatedQuestion: parseStagedGeneratedQuestion(item.generated_question),
     }))
     .filter(({ item, generatedQuestion }) => item.status === 'completed' && generatedQuestion !== null), [items])
+
+  const completedCount = items.filter((item) => item.status === 'completed').length
+  const failedCount = items.filter((item) => item.status === 'failed').length
+  const savedCount = items.filter((item) => item.save_status === 'saved').length
+  const saveFailedCount = items.filter((item) => item.save_status === 'save_failed').length
+  const resolvedCount = completedCount + failedCount
+  const queuedCount = items.filter((item) => item.status === 'queued').length
+  const currentRunningItem = items.find((item) => item.status === 'running') ?? null
+  const hasReviewableResults = completedPreviewItems.length > 0
+  const hasSaveActivity = hasReviewableResults || savedCount > 0
+  const isGenerationInProgress = isStartingRun || !TERMINAL_JOB_STATUSES.includes(job.status)
+  const isPartialSuccess = completedCount > 0 && failedCount > 0
+  const progressPercent = job.requested_generation_count > 0
+    ? Math.min(100, Math.round((resolvedCount / job.requested_generation_count) * 100))
+    : 0
+  const pageTitle = isGenerationInProgress
+    ? 'AI가 문제를 만들고 있어요'
+    : completedCount > 0
+      ? '생성된 문제를 검토하고 저장하세요'
+      : '문제를 생성하지 못했어요'
+  const pageDescription = isGenerationInProgress
+    ? hasReviewableResults
+      ? '완성된 문제는 아래에서 먼저 검토하고 저장할 수 있습니다.'
+      : '선택한 문항과 문제 유형을 확인하고 있습니다.'
+    : completedCount > 0
+      ? 'AI가 만든 문제를 확인한 뒤, 사용할 문제만 영어문제 관리에 저장하세요.'
+      : '생성 결과가 없습니다. 실패 항목을 다시 생성해 주세요.'
+  const currentJobStatusLabel = jobStatusLabel[isStartingRun ? 'running' : job.status] ?? '상태 확인 중'
+  const purchasedParams = new URLSearchParams({
+    jobId: job.id,
+    subject: workspaceSubject,
+  })
+  const purchasedHref = `/library/purchased?${purchasedParams.toString()}`
 
   const saveableItemIds = useMemo(() => completedPreviewItems
     .filter(({ item }) => ['unsaved', 'save_failed'].includes(item.save_status))
@@ -212,30 +259,8 @@ export default function JobStatusClient({
     void startRun()
   }, [job.id, job.status, refreshJob, workspaceSubject])
 
-  useEffect(() => {
-    if (!hasStartedRunRef.current) {
-      return
-    }
-
-    if (isGenerationInProgress) {
-      return
-    }
-
-    if (hasShownCompleteDialogRef.current) {
-      return
-    }
-
-    if (completedCount + failedCount === 0) {
-      return
-    }
-
-    hasShownCompleteDialogRef.current = true
-    setShowCompleteDialog(true)
-  }, [completedCount, failedCount, isGenerationInProgress])
-
   const handleRetryFailed = async () => {
     setIsRetrying(true)
-    hasShownCompleteDialogRef.current = false
     try {
       const params = new URLSearchParams({ workspaceSubject })
       const res = await fetch(`/api/generate/listboard-jobs/${job.id}/retry?${params.toString()}`, {
@@ -305,6 +330,8 @@ export default function JobStatusClient({
       }
 
       if (data.data.savedCount > 0) {
+        setLastSavedCount(data.data.savedCount)
+        setShowSaveSuccessDialog(true)
         toast.success(successMessage.replace('{count}', String(data.data.savedCount)))
       }
 
@@ -333,12 +360,37 @@ export default function JobStatusClient({
     setSelectedItemIds(saveableItemIds)
   }
 
+  const getStepClassName = (step: 'generate' | 'review' | 'save') => {
+    const isActive = step === 'generate'
+      ? isGenerationInProgress
+      : step === 'review'
+        ? hasReviewableResults && !canOpenPurchased
+        : canOpenPurchased
+    const isDone = step === 'generate'
+      ? !isGenerationInProgress && resolvedCount > 0
+      : step === 'review'
+        ? canOpenPurchased
+        : false
+
+    if (isDone) {
+      return 'border-emerald-200 bg-emerald-50 text-emerald-800'
+    }
+
+    if (isActive) {
+      return 'border-primary/30 bg-primary/5 text-primary'
+    }
+
+    return 'border-gray-200 bg-white text-gray-500'
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">문제 생성 결과 진행창</h1>
-          <p className="mt-2 text-gray-500">{post.title} 게시글 기준 생성 결과를 확인하고 선택 저장할 수 있습니다.</p>
+          <Badge variant="outline" className="mb-3">{currentJobStatusLabel}</Badge>
+          <h1 className="text-3xl font-bold text-gray-900">{pageTitle}</h1>
+          <p className="mt-2 text-gray-500">{pageDescription}</p>
+          <p className="mt-1 text-sm text-gray-500">{post.title} 게시글 기준 생성 결과입니다.</p>
           {isPartialSuccess ? (
             <p className="mt-2 text-sm font-medium text-amber-700">
               성공한 문제는 지금 저장할 수 있고, 실패한 문제는 재시도할 수 있습니다.
@@ -365,7 +417,7 @@ export default function JobStatusClient({
           {failedCount > 0 && job.status !== 'running' && !isStartingRun ? (
             <Button onClick={() => void handleRetryFailed()} disabled={isGenerationInProgress || isRetrying} className="shrink-0 whitespace-nowrap">
               {isRetrying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              실패 항목 재시도
+              실패 항목 다시 생성
             </Button>
           ) : null}
           <Button variant="outline" asChild className="shrink-0 whitespace-nowrap">
@@ -378,151 +430,194 @@ export default function JobStatusClient({
             </Link>
           </Button>
           <Button
-            onClick={() => router.push(`/library/purchased?jobId=${job.id}`)}
+            onClick={() => router.push(purchasedHref)}
             disabled={!canOpenPurchased}
             className="shrink-0 whitespace-nowrap"
           >
-            저장 문제 확인
+            영어문제 관리에서 보기
           </Button>
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>작업 요약</CardTitle>
-          <CardDescription>생성 완료 후 검토/저장 단계까지 한 화면에서 관리합니다.</CardDescription>
+          <CardTitle>문제 생성 진행 상황</CardTitle>
+          <CardDescription>생성 완료와 영어문제 관리 저장 완료는 서로 다른 단계입니다.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 text-sm text-gray-700 md:grid-cols-3 xl:grid-cols-6">
-          <div className="rounded-md border bg-gray-50 px-4 py-3">
-            <p className="text-xs text-gray-500">작업 상태</p>
-            <p className="mt-1 text-lg font-semibold">{isStartingRun ? 'running' : job.status}</p>
+        <CardContent className="space-y-5">
+          <div className="grid gap-3 md:grid-cols-3">
+            {[
+              { key: 'generate', number: 1, title: '문제 생성', description: isGenerationInProgress ? 'AI가 문항별 문제를 만들고 있습니다.' : '생성 단계가 끝났습니다.' },
+              { key: 'review', number: 2, title: '문제 검토', description: hasReviewableResults ? '완성된 문제를 검토할 수 있습니다.' : '완성된 문제가 도착하면 시작합니다.' },
+              { key: 'save', number: 3, title: '영어문제 관리에 저장', description: canOpenPurchased ? '저장된 문제를 확인할 수 있습니다.' : '사용할 문제만 선택해 저장하세요.' },
+            ].map((step) => (
+              <div key={step.key} className={`rounded-xl border px-4 py-3 ${getStepClassName(step.key as 'generate' | 'review' | 'save')}`}>
+                <p className="text-sm font-semibold">{step.number} {step.title}</p>
+                <p className="mt-1 text-xs opacity-80">{step.description}</p>
+              </div>
+            ))}
           </div>
-          <div className="rounded-md border bg-gray-50 px-4 py-3">
-            <p className="text-xs text-gray-500">총 생성 건수</p>
-            <p className="mt-1 text-lg font-semibold">{job.requested_generation_count}</p>
+
+          <div className="grid gap-3 text-sm text-gray-700 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-md border bg-gray-50 px-4 py-3">
+              <p className="text-xs text-gray-500">전체 생성 요청</p>
+              <p className="mt-1 text-lg font-semibold">{job.requested_generation_count}</p>
+            </div>
+            <div className="rounded-md border bg-gray-50 px-4 py-3">
+              <p className="text-xs text-gray-500">생성 완료</p>
+              <p className="mt-1 text-lg font-semibold">{completedCount}</p>
+            </div>
+            <div className="rounded-md border bg-gray-50 px-4 py-3">
+              <p className="text-xs text-gray-500">다시 생성 필요</p>
+              <p className="mt-1 text-lg font-semibold text-rose-600">{failedCount}</p>
+            </div>
+            <div className="rounded-md border bg-gray-50 px-4 py-3">
+              <p className="text-xs text-gray-500">영어문제 관리 저장</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600">{savedCount}</p>
+              {saveFailedCount > 0 ? <p className="mt-1 text-xs text-rose-600">저장 재시도 필요 {saveFailedCount}개</p> : null}
+            </div>
           </div>
-          <div className="rounded-md border bg-gray-50 px-4 py-3">
-            <p className="text-xs text-gray-500">생성 성공</p>
-            <p className="mt-1 text-lg font-semibold">{completedCount}</p>
-          </div>
-          <div className="rounded-md border bg-gray-50 px-4 py-3">
-            <p className="text-xs text-gray-500">생성 실패</p>
-            <p className="mt-1 text-lg font-semibold">{failedCount}</p>
-          </div>
-          <div className="rounded-md border bg-gray-50 px-4 py-3">
-            <p className="text-xs text-gray-500">저장 완료</p>
-            <p className="mt-1 text-lg font-semibold text-emerald-600">{savedCount}</p>
-          </div>
-          <div className="rounded-md border bg-gray-50 px-4 py-3">
-            <p className="text-xs text-gray-500">저장 실패</p>
-            <p className="mt-1 text-lg font-semibold text-rose-600">{saveFailedCount}</p>
-          </div>
-        </CardContent>
-        <CardContent className="pt-0">
+
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm text-gray-600">
+            <div className="flex items-center justify-between gap-3 text-sm text-gray-600">
               <span>생성 진행률</span>
               <span>
-                {completedCount + failedCount} / {job.requested_generation_count} 처리 ({progressPercent}%)
-                {isGenerationInProgress ? ' · 생성 중…' : ''}
+                생성 완료 {completedCount}개 · 다시 생성 필요 {failedCount}개 · 대기 {queuedCount}개 ({progressPercent}%)
               </span>
             </div>
+            <div
+              role="progressbar"
+              aria-label="문제 생성 진행률"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progressPercent}
+              className="h-3 overflow-hidden rounded-full bg-gray-100"
+            >
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-500"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
             {isGenerationInProgress ? (
-              <div className="flex items-center justify-center gap-3 rounded-lg border border-primary/10 bg-primary/5 px-4 py-4 text-primary">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                <span className="text-sm font-medium">문제 생성 진행 중입니다. 잠시만 기다려주세요…</span>
+              <div className="rounded-lg border border-primary/10 bg-primary/5 px-4 py-3 text-sm text-primary">
+                {currentRunningItem ? (
+                  <div>
+                    <p className="font-medium">현재 만들고 있는 문제</p>
+                    <p className="mt-1">{currentRunningItem.question_number}번 · {currentRunningItem.problem_type_name} 문제</p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>다음 문제를 준비하고 있어요</span>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="h-2 overflow-hidden rounded-full bg-gray-100">
-                <div
-                  className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${progressPercent}%` }}
-                />
+            ) : null}
+            {!isGenerationInProgress && completedCount > 0 && failedCount === 0 ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                <p className="font-medium">문제 {completedCount}개가 모두 생성되었습니다.</p>
+                <p className="mt-1">아래에서 사용할 문제만 선택해 저장하세요. 생성 완료된 문제는 저장 전까지 영어문제 관리에 표시되지 않습니다.</p>
               </div>
-            )}
+            ) : null}
+            {!isGenerationInProgress && isPartialSuccess ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <p className="font-medium">{completedCount}개 생성 완료 · {failedCount}개 다시 생성 필요</p>
+                <p className="mt-1">완성된 문제는 지금 저장할 수 있고, 생성되지 않은 문제는 다시 시도할 수 있습니다.</p>
+              </div>
+            ) : null}
+            {!isGenerationInProgress && completedCount === 0 && failedCount > 0 ? (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                <p className="font-medium">생성된 문제가 없습니다.</p>
+                <p className="mt-1">실패 사유를 확인한 뒤 다시 생성해 주세요.</p>
+              </div>
+            ) : null}
           </div>
         </CardContent>
       </Card>
 
-      <Card className="sticky top-20 z-20 border-primary/20 shadow-sm">
-        <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
-            <Button variant="outline" size="sm" onClick={toggleSelectAll} disabled={!canSaveCompletedItems}>
-              {selectedItemIds.length === saveableItemIds.length && saveableItemIds.length > 0 ? '전체 해제' : '전체 선택'}
-            </Button>
-            <span>선택 {selectedItemIds.length}건</span>
-            <span>저장 가능 {saveableItemIds.length}건</span>
-            {isStartingRun ? <Badge variant="outline">작업 실행 중…</Badge> : null}
-            {savedCount > 0 ? <Badge className="bg-emerald-100 text-emerald-700">{savedCount}건 저장됨</Badge> : null}
-            {retryInProgress && canSaveCompletedItems ? <Badge className="bg-primary/10 text-primary">완료 항목 저장 가능</Badge> : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => router.push(`/library/purchased?jobId=${job.id}`)}
-              disabled={!canOpenPurchased}
-            >
-              영어문제 관리에서 보기
-            </Button>
-            <Button
-              onClick={() => void handleSaveItems(selectedItemIds, '{count}개의 문제를 저장했습니다.')}
-              disabled={!canSaveCompletedItems || selectedItemIds.length === 0}
-            >
-              {savingItemIds.length > 0 ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              선택한 문제 저장
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {hasSaveActivity ? (
+        <Card className="sticky top-20 z-20 border-primary/20 shadow-sm">
+          <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
+              <Button variant="outline" size="sm" onClick={toggleSelectAll} disabled={!canSaveCompletedItems}>
+                {selectedItemIds.length === saveableItemIds.length && saveableItemIds.length > 0 ? '전체 해제' : '전체 선택'}
+              </Button>
+              <span>검토 가능 {completedPreviewItems.length}개</span>
+              <span>선택 {selectedItemIds.length}개</span>
+              <span>저장 완료 {savedCount}개</span>
+              {isStartingRun ? <Badge variant="outline">작업 실행 중…</Badge> : null}
+              {retryInProgress && canSaveCompletedItems ? <Badge className="bg-primary/10 text-primary">완료 항목 저장 가능</Badge> : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {savedCount > 0 ? (
+                <Button
+                  variant="outline"
+                  onClick={() => router.push(purchasedHref)}
+                  disabled={!canOpenPurchased}
+                >
+                  영어문제 관리에서 보기
+                </Button>
+              ) : null}
+              <Button
+                onClick={() => void handleSaveItems(selectedItemIds, '{count}개의 문제를 저장했습니다.')}
+                disabled={!canSaveCompletedItems || selectedItemIds.length === 0}
+              >
+                {savingItemIds.length > 0 ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                선택한 {selectedItemIds.length}개 저장
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {completedPreviewItems.length > 0 ? (
         <section className="space-y-4">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">생성 결과</h2>
-            <p className="mt-1 text-sm text-gray-500">문항별 생성 결과를 검토한 뒤 필요한 문제만 저장하세요.</p>
+            <h2 className="text-xl font-semibold text-gray-900">검토할 문제</h2>
+            <p className="mt-1 text-sm text-gray-500">문제 내용을 확인한 뒤 사용할 문제만 선택하세요.</p>
           </div>
           <div className="grid gap-6">
             {completedPreviewItems.map(({ item, generatedQuestion }) => (
               generatedQuestion ? (
-              <BatchQuestionPreviewCard
-                key={item.id}
-                questionNumber={item.question_number}
-                problemTypeName={item.problem_type_name}
-                generatedQuestion={generatedQuestion}
-                rating={getDraftMeta(item.id).rating}
-                tags={getDraftMeta(item.id).tags}
-                isSelected={selectedItemIds.includes(item.id)}
-                saveStatus={item.save_status}
-                saveErrorMessage={item.save_error_message}
-                isSaving={savingItemIds.includes(item.id)}
-                disableActions={savingItemIds.includes(item.id)}
-                onRatingChange={(rating) => updateDraftMeta(item.id, { rating })}
-                onAddTag={(tag) => {
-                  const nextTag = tag.trim()
-                  if (!nextTag) return
-                  const currentTags = getDraftMeta(item.id).tags
-                  if (currentTags.includes(nextTag)) {
-                    toast.error('이미 존재하는 태그입니다.')
-                    return
-                  }
-                  updateDraftMeta(item.id, { tags: [...currentTags, nextTag] })
-                }}
-                onRemoveTag={(tag) => {
-                  updateDraftMeta(item.id, {
-                    tags: getDraftMeta(item.id).tags.filter((currentTag) => currentTag !== tag),
-                  })
-                }}
-                onSelectChange={(checked) => {
-                  setSelectedItemIds((current) => {
-                    if (checked) {
-                      return Array.from(new Set([...current, item.id]))
+                <BatchQuestionPreviewCard
+                  key={item.id}
+                  questionNumber={item.question_number}
+                  problemTypeName={item.problem_type_name}
+                  generatedQuestion={generatedQuestion}
+                  rating={getDraftMeta(item.id).rating}
+                  tags={getDraftMeta(item.id).tags}
+                  isSelected={selectedItemIds.includes(item.id)}
+                  saveStatus={item.save_status}
+                  saveErrorMessage={item.save_error_message}
+                  isSaving={savingItemIds.includes(item.id)}
+                  disableActions={savingItemIds.includes(item.id)}
+                  onRatingChange={(rating) => updateDraftMeta(item.id, { rating })}
+                  onAddTag={(tag) => {
+                    const nextTag = tag.trim()
+                    if (!nextTag) return
+                    const currentTags = getDraftMeta(item.id).tags
+                    if (currentTags.includes(nextTag)) {
+                      toast.error('이미 존재하는 태그입니다.')
+                      return
                     }
+                    updateDraftMeta(item.id, { tags: [...currentTags, nextTag] })
+                  }}
+                  onRemoveTag={(tag) => {
+                    updateDraftMeta(item.id, {
+                      tags: getDraftMeta(item.id).tags.filter((currentTag) => currentTag !== tag),
+                    })
+                  }}
+                  onSelectChange={(checked) => {
+                    setSelectedItemIds((current) => {
+                      if (checked) {
+                        return Array.from(new Set([...current, item.id]))
+                      }
 
-                    return current.filter((id) => id !== item.id)
-                  })
-                }}
-                onSave={() => void handleSaveItems([item.id], '문제 1개를 저장했습니다.')}
-              />
+                      return current.filter((id) => id !== item.id)
+                    })
+                  }}
+                  onSave={() => void handleSaveItems([item.id], '문제 1개를 저장했습니다.')}
+                />
               ) : null
             ))}
           </div>
@@ -532,7 +627,7 @@ export default function JobStatusClient({
       {exceptionItems.length > 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>진행/예외 항목</CardTitle>
+            <CardTitle>{isGenerationInProgress ? '문제별 진행 상황' : '다시 확인이 필요한 문제'}</CardTitle>
             <CardDescription>아직 검토할 수 없거나 재시도가 필요한 항목입니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -542,6 +637,7 @@ export default function JobStatusClient({
                   <p className="font-medium text-amber-900">최근 실패 사유</p>
                   <Badge className="w-fit bg-amber-100 text-amber-800">{failedCount}건 재시도 필요</Badge>
                 </div>
+                <p className="mt-2 text-amber-900">문제 정보를 확인한 뒤 실패 항목 다시 생성을 눌러주세요.</p>
                 <ul className="mt-3 space-y-2 text-amber-900">
                   {failedReasonGroups.slice(0, 3).map((group) => (
                     <li key={group.message} className="flex items-start justify-between gap-3">
@@ -554,59 +650,59 @@ export default function JobStatusClient({
               </div>
             ) : null}
             {exceptionItems.map((item) => (
-                <div key={item.id} className="rounded-lg border px-4 py-3 text-sm">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div className="space-y-1">
-                      <p className="font-medium text-gray-900">{item.question_number}번 · {item.problem_type_name}</p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline">{item.status}</Badge>
-                        <span className="text-xs text-gray-500">시도 {item.attempt_count}회</span>
-                        {item.save_status !== 'unsaved' ? (
-                          <Badge variant="outline">{item.save_status}</Badge>
-                        ) : null}
-                      </div>
-                      {item.status === 'completed' && item.generated_question === null ? (
-                        <p className="flex items-center gap-1 text-amber-600">
-                          <AlertCircle className="h-4 w-4" />
-                          미리보기 데이터가 없어 저장할 수 없습니다.
-                        </p>
+              <div key={item.id} className="rounded-lg border px-4 py-3 text-sm">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div className="space-y-1">
+                    <p className="font-medium text-gray-900">{item.question_number}번 · {item.problem_type_name}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">{itemStatusLabel[item.status] ?? '상태 확인 필요'}</Badge>
+                      <span className="text-xs text-gray-500">시도 {item.attempt_count}회</span>
+                      {item.save_status !== 'unsaved' ? (
+                        <Badge variant="outline">{saveStatusLabel[item.save_status] ?? '저장 상태 확인 필요'}</Badge>
                       ) : null}
-                      {item.error_message ? <p className="text-rose-600">{item.error_message}</p> : null}
-                      {item.save_error_message ? <p className="text-rose-600">{item.save_error_message}</p> : null}
                     </div>
-                    {item.status === 'completed' && item.question_id ? (
-                      <div className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700">
-                        <CheckCircle2 className="h-4 w-4" />
-                        저장 완료
-                      </div>
+                    {item.status === 'completed' && item.generated_question === null ? (
+                      <p className="flex items-center gap-1 text-amber-600">
+                        <AlertCircle className="h-4 w-4" />
+                        미리보기 데이터가 없어 저장할 수 없습니다.
+                      </p>
+                    ) : null}
+                    {item.error_message || item.save_error_message ? (
+                      <details className="text-rose-600">
+                        <summary className="cursor-pointer font-medium">자세한 실패 내용</summary>
+                        {item.error_message ? <p className="mt-1">{item.error_message}</p> : null}
+                        {item.save_error_message ? <p className="mt-1">{item.save_error_message}</p> : null}
+                      </details>
                     ) : null}
                   </div>
+                  {item.status === 'completed' && item.question_id ? (
+                    <div className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700">
+                      <CheckCircle2 className="h-4 w-4" />
+                      저장 완료
+                    </div>
+                  ) : null}
                 </div>
-              ))}
+              </div>
+            ))}
           </CardContent>
         </Card>
       ) : null}
 
-      <Dialog open={showCompleteDialog} onOpenChange={setShowCompleteDialog}>
+      <Dialog open={showSaveSuccessDialog} onOpenChange={setShowSaveSuccessDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {isPartialSuccess
-                ? '일부 문제 생성이 실패했습니다.'
-                : failedCount > 0
-                  ? '문제 생성에 실패했습니다.'
-                  : '문제 생성이 완료되었습니다.'}
-            </DialogTitle>
+            <DialogTitle>선택한 문제 {lastSavedCount}개가 저장되었습니다</DialogTitle>
             <DialogDescription>
-              {isPartialSuccess
-                ? '성공한 문제는 지금 저장할 수 있고, 실패한 문제는 재시도할 수 있습니다.'
-                : failedCount > 0
-                  ? '실패한 항목을 재시도해 다시 생성해 주세요.'
-                  : '생성 결과를 확인하고 필요한 문제를 저장할 수 있습니다.'}
+              영어문제 관리에서 이 생성 작업을 통해 저장한 문제를 모아 볼 수 있습니다.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button onClick={() => setShowCompleteDialog(false)}>확인</Button>
+            <Button variant="outline" onClick={() => setShowSaveSuccessDialog(false)}>
+              계속 검토하기
+            </Button>
+            <Button onClick={() => router.push(purchasedHref)}>
+              영어문제 관리에서 보기
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
