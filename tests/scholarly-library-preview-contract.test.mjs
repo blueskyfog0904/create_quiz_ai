@@ -10,16 +10,18 @@ test('scholarly library preview is isolated in a dedicated route and component',
   assert.equal(existsSync(componentUrl), true, 'preview component must exist')
 })
 
-test('scholarly library preview exposes the complete education workflow', () => {
+test('scholarly library preview presents ai english generation and the problem market as equal pillars', () => {
   const source = existsSync(componentUrl) ? readFileSync(componentUrl, 'utf8') : ''
 
-  assert.match(source, /지문 아카이브/)
-  assert.match(source, /AI 문제 생성/)
-  assert.match(source, /문항 관리/)
-  assert.match(source, /시험지 제작/)
+  assert.match(source, /AI 영어문제 생성/)
+  assert.match(source, /현재 영어만 제공/)
+  assert.match(source, /문제마켓/)
+  assert.match(source, /내신 문제 전문가/)
+  assert.match(source, /무료 샘플/)
+  assert.match(source, /개별 구매/)
+  assert.match(source, /전체 패키지/)
   assert.match(source, /PDF/)
-  assert.match(source, /Word/)
-  assert.match(source, /HWPX/)
+  assert.match(source, /HWP/)
 })
 
 test('scholarly library preview links to existing english workspace flows', () => {
@@ -27,7 +29,8 @@ test('scholarly library preview links to existing english workspace flows', () =
 
   assert.match(source, /\/english\/generate\/personal/)
   assert.match(source, /\/english\/library\/purchased/)
-  assert.match(source, /\/english\/library\/exam-papers/)
+  assert.match(source, /\/english\/market/)
+  assert.match(source, /\/korean\/market/)
   assert.doesNotMatch(source, /MainLandingView|WorkspaceLandingView/)
   assert.doesNotMatch(source, /'use client'/)
 })
