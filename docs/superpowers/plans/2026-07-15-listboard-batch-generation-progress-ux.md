@@ -895,6 +895,18 @@ node --test tests/listboard-job-partial-success.test.mjs tests/listboard-job-ret
 
 Expected/observed: `tests 5`, `pass 5`, `fail 0`.
 
+Latest re-run after current stricter contract tests were present:
+
+```bash
+node --test tests/listboard-job-partial-success.test.mjs tests/listboard-job-retry-feedback.test.mjs
+```
+
+Observed: `tests 5`, `pass 3`, `fail 2`.
+
+- `tests/listboard-job-partial-success.test.mjs` now expects `hasReviewableResults`, `hasSaveActivity`, and the new partial-success copy. These are Phase 2~3 implementation outputs, not documentation-only changes.
+- `tests/listboard-job-retry-feedback.test.mjs` now expects `자세한 실패 내용` and `실패 항목 다시 생성`. These are Phase 3 implementation outputs.
+- Worker-3 did not edit source/test files; this failure is recorded as an integration dependency for Lane 1/2 implementation, not a documentation regression.
+
 ### 9.2 통합 전 코드리뷰 체크포인트
 
 현재 기준선에서 아래 항목은 계획의 의도된 구현 대상이다. 통합 리뷰 때는 각 항목이 구현 diff에서 제거·대체되었는지 확인한다.
@@ -903,19 +915,27 @@ Expected/observed: `tests 5`, `pass 5`, `fail 0`.
    - 생성 완료 dialog 상태(`showCompleteDialog`, `hasShownCompleteDialogRef`)가 남아 있다. Phase 3에서는 생성 완료 안내가 inline banner로 이동해야 한다.
    - 작업 요약에서 raw job status가 직접 렌더링된다: `{isStartingRun ? 'running' : job.status}`.
    - 예외 항목에서 raw item status/save status가 직접 렌더링된다: `{item.status}`, `{item.save_status}`.
+   - 실패 상세 문자열이 일반 본문에 바로 노출된다. Phase 3에서는 사용자용 요약을 먼저 보여주고 raw 오류는 `details`/`summary` 같은 명시적 상세 영역으로 격리하는 계약을 추가한다.
+   - `retryInProgress`가 `job.status === 'running' && completedCount > 0`을 재시도 중으로 해석하면 일반 생성 중 partial result도 재시도로 오표시될 수 있다. Phase 3 구현 시 재시도 식별 기준을 분리하거나 문구를 일반 partial 생성에도 맞게 바꾼다.
    - 저장 toolbar가 항상 렌더링된다. Phase 3에서는 `hasSaveActivity` 조건부 렌더링으로 바뀌어야 하며, 완료 결과가 0건이면 비활성 toolbar가 먼저 보이면 안 된다.
    - `/library/purchased?jobId=${job.id}` 이동이 `subject`를 보존하지 않는다. Phase 4에서는 `URLSearchParams({ jobId: job.id, subject: workspaceSubject })` 기반 `purchasedHref`를 공통 사용해야 한다.
+   - `progressPercent`는 0~100 clamp와 `requested_generation_count === 0` edge case를 명시한다. progressbar에는 `aria-valuenow`와 함께 한국어 `aria-valuetext`를 제공해 숫자만으로 의미가 전달되지 않는 문제를 줄인다.
 2. `batch-question-preview-card.tsx`
    - 저장 상태 문구가 아직 `미저장`, `저장 실패`, `개별 저장` 중심이다. Phase 5에서는 영어문제 관리 저장 맥락을 드러내는 문구로 변경한다.
+   - 상태 label fallback이 알 수 없는 raw DB 문자열을 그대로 노출할 수 있다. Phase 5에서는 `saveStatusLabel[saveStatus] ?? '상태 확인 필요'`처럼 안전한 한국어 fallback을 사용하고 source-contract로 고정한다.
    - checkbox, 별점, 태그 삭제 버튼에 고정된 접근성 이름이 부족하다. Phase 5 source-contract가 `aria-label`과 `aria-pressed`를 고정해야 한다.
    - 모바일 header는 버튼·문항명·상태가 좁은 폭에서 겹치지 않도록 `flex-col`/`sm:flex-row`와 `w-full`/`sm:w-auto` 기준으로 확인한다.
 3. `purchased-client.tsx`
    - highlighted job banner가 `방금 저장한 문제`라고 표현한다. Phase 4에서는 한 번의 저장 요청이 아니라 해당 `jobId` 생성 작업의 누적 저장 결과임을 설명해야 한다.
+   - 현재 page-level 조회는 `job_id + workspace_subject`로 해당 생성 작업의 누적 저장 결과를 필터링하는 구조이므로, UI 문구와 CTA만 이 의미에 맞게 정렬한다.
+4. `tests/listboard-job-progress-ux.test.mjs`
+   - 문자열 존재 확인만으로는 조건부 동작을 충분히 고정하지 못한다. 신규 test에는 toolbar 숨김 조건, 저장 성공 count가 있을 때만 dialog open, raw 오류 상세 격리, 알 수 없는 save status fallback, progress clamp/`aria-valuetext`, purchased job 누적 banner 의미를 함께 고정한다.
 
 ### 9.3 파일 소유권과 통합 gate
 
 - API route, DB schema, Supabase migration, generated type은 이번 작업에서 수정하지 않는다.
 - 병렬 lane이 나뉜 상태에서는 담당 파일 외 수정이 필요할 때 leader에게 공유 파일 handoff를 요청한다.
+- 각 worker는 자신의 lane-scoped commit만 만든다. Phase 6의 단일 monolithic commit 예시는 단독 `$ralph` 실행용이며, `$team` 실행에서는 leader가 최종 통합 commit 또는 merge를 책임진다.
 - 통합 후 leader/verifier가 최소 다음 명령을 한 번에 실행한다.
 
 ```bash
