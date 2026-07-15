@@ -163,16 +163,22 @@ export function ScholarlyLibraryPreview() {
                 검증된 내신 자료가 필요할 때는 최고의 내신 문제 전문가가 제작한 문제지를 문제마켓에서 선택하세요.
               </p>
 
-              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <Button asChild size="lg" className="h-12 rounded-full bg-[#245b4e] px-6 text-[#fffdf8] shadow-[0_10px_25px_rgba(36,91,78,0.18)] hover:bg-[#193f37]">
                   <Link href="/english/generate/personal">
                     AI 영어문제 생성
                     <ArrowRight className="size-4" />
                   </Link>
                 </Button>
-                <Button asChild size="lg" variant="outline" className="h-12 rounded-full border-[#9ca9b1] bg-[#fffdf8]/75 px-6 text-[#1e3a5f] hover:bg-white hover:text-[#142f4d]">
+                <Button asChild size="lg" className="h-12 rounded-full bg-[#1e3a5f] px-6 text-white shadow-[0_10px_25px_rgba(30,58,95,0.16)] hover:bg-[#142f4d]">
                   <Link href="/english/market">
-                    문제마켓 둘러보기
+                    영어문제마켓 둘러보기
+                    <ShoppingBag className="size-4" />
+                  </Link>
+                </Button>
+                <Button asChild size="lg" className="h-12 rounded-full bg-[#b7791f] px-6 text-white shadow-[0_10px_25px_rgba(183,121,31,0.16)] hover:bg-[#966117]">
+                  <Link href="/korean/market">
+                    국어문제마켓 둘러보기
                     <ShoppingBag className="size-4" />
                   </Link>
                 </Button>
@@ -317,7 +323,7 @@ export function ScholarlyLibraryPreview() {
                       <ArrowRight className="size-4" />
                     </Link>
                   </Button>
-                  <Button asChild size="lg" variant="outline" className="h-12 rounded-full border-[#9eabb6] bg-white/65 px-6 text-[#1e3a5f] hover:bg-white">
+                  <Button asChild size="lg" className="h-12 rounded-full bg-[#b7791f] px-6 text-white hover:bg-[#966117]">
                     <Link href="/korean/market">국어 문제마켓</Link>
                   </Button>
                 </div>
