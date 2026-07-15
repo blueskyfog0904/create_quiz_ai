@@ -308,8 +308,8 @@ export function PurchasedClient({
       {highlightedJobId ? (
         <div className="mb-4 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="font-semibold">방금 저장한 문제 {highlightedSavedCount}개를 표시 중입니다.</p>
-            <p className="mt-1 text-emerald-700">배치 생성 작업에서 저장한 결과만 우선 보여주고 있습니다.</p>
+            <p className="font-semibold">이 생성 작업에서 저장한 문제 {highlightedSavedCount}개를 표시 중입니다.</p>
+            <p className="mt-1 text-emerald-700">현재 생성 작업에서 저장된 결과만 우선 보여주고 있습니다.</p>
           </div>
           <Button variant="outline" onClick={() => router.push(`/library/purchased${subjectQuery}`)}>
             전체 보기
