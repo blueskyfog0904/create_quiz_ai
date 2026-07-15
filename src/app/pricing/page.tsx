@@ -87,9 +87,8 @@ export default async function PricingPage() {
                     <div className="mt-8 bg-blue-50 p-6 rounded-xl border border-blue-100">
                         <h3 className="font-medium text-blue-800 mb-2">💡 환불 정책</h3>
                         <ul className="flex flex-col gap-1 text-blue-700 text-sm">
-                            <li>• 구매한 크레딧은 결제일로부터 1년 동안 사용할 수 있으며, 미사용 크레딧의 취소/환불 요청도 같은 기간 내 가능합니다.</li>
+                            <li>• 구매한 크레딧은 결제일로부터 1년 동안 사용할 수 있으며, 환불은 구매 후 7일 이내에 크레딧을 1개도 사용하지 않은 경우 가능합니다.</li>
                             <li>• AI 생성, 문제지 생성, 자료 다운로드/열람이 완료된 사용분은 환불이 제한됩니다.</li>
-                            <li>• 일부 사용 시 사용분과 할인 혜택을 차감한 부분 환불로 산정됩니다.</li>
                             <li>• 충전한 크레딧은 구매 계정에서만 사용할 수 있으며, 회원 간 양도·이전은 지원하지 않습니다.</li>
                             <li>• 결제 오류·중복 결제·서비스 장애는 확인 후 환불 또는 크레딧 복구가 가능합니다.</li>
                             <li>• 승인된 환불은 결제 당시 사용한 원 결제수단으로 처리되며, 카드·간편결제는 결제사 기준 영업일 2~5일이 소요될 수 있습니다.</li>
