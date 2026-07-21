@@ -990,16 +990,16 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
             대량 업로드
           </CardTitle>
           <CardDescription>
-            엑셀 또는 CSV 파일로 여러 문제를 한 번에 업로드할 수 있습니다.
+            엑셀(.xlsx) 파일을 권장하며 기존 CSV 파일도 업로드할 수 있습니다.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Template Download */}
           <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
             <div>
-              <p className="font-medium text-blue-900">1. 템플릿 다운로드</p>
+              <p className="font-medium text-blue-900">1. 엑셀 템플릿 다운로드 (.xlsx)</p>
               <p className="text-sm text-blue-700">
-                양식에 맞게 문제를 작성하세요. 첫 번째 행에 샘플 데이터가 포함되어 있습니다.
+                Excel에서 편집 가능한 .xlsx 양식에 맞게 문제를 작성하세요. 두 번째 행에 샘플 데이터가 포함되어 있습니다.
               </p>
             </div>
             <Button 
@@ -1013,7 +1013,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
               ) : (
                 <Download className="mr-2 h-4 w-4" />
               )}
-              템플릿 다운로드
+              엑셀 템플릿 다운로드
             </Button>
           </div>
           

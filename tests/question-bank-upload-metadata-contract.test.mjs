@@ -107,6 +107,19 @@ test('template route documents year, book name, and problem-type-name columns wi
   assert.match(templateRoute, /\['bookId', '교재명', 'is_active'\]/)
 })
 
+test('template download stays xlsx while bulk upload keeps csv compatibility', () => {
+  assert.match(templateRoute, /bookType:\s*'xlsx'/)
+  assert.match(templateRoute, /application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet/)
+  assert.match(templateRoute, /filename="question_upload_template\.xlsx"/)
+  assert.match(uploadClient, /a\.download = 'question_upload_template\.xlsx'/)
+  assert.match(uploadClient, /accept="\.xlsx,\.csv"/)
+  assert.match(uploadClient, /엑셀\(\.xlsx\) 파일을 권장하며 기존 CSV 파일도 업로드할 수 있습니다\./)
+  assert.match(uploadClient, /1\. 엑셀 템플릿 다운로드 \(\.xlsx\)/)
+  assert.match(uploadClient, /엑셀 템플릿 다운로드/)
+  assert.match(bulkUploadRoute, /fileName\.endsWith\('\.xlsx'\)/)
+  assert.match(bulkUploadRoute, /fileName\.endsWith\('\.csv'\)/)
+})
+
 test('edit route reads metadata and patches through update_admin_bank_question RPC', () => {
   assert.match(editGetBlock, /question_bank_question_metadata/)
   assert.match(editGetBlock, /const questionBankMetadata = metadata \? \{[\s\S]*yearId:[\s\S]*bookId:/)

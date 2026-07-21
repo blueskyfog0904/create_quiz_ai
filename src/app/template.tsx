@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { LoginCompleteDialog } from '@/components/auth/login-complete-dialog'
 import { Header } from '@/components/layout/header'
 import { Footer } from '@/components/layout/footer'
+import { PathAwareSiteChrome } from '@/components/layout/path-aware-site-chrome'
 
 export default function RootTemplate({
   children,
@@ -9,15 +10,16 @@ export default function RootTemplate({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex min-h-screen flex-col">
-      <Header />
-      <main className="flex-1">
+    <>
+      <PathAwareSiteChrome
+        header={<Header />}
+        footer={<Footer />}
+      >
         {children}
-      </main>
+      </PathAwareSiteChrome>
       <Suspense fallback={null}>
         <LoginCompleteDialog />
       </Suspense>
-      <Footer />
-    </div>
+    </>
   )
 }
