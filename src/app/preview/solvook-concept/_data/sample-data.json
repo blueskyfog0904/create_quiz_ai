@@ -1,0 +1,720 @@
+{
+  "boards": [
+    {
+      "slug": "ebs-literature",
+      "title": "수능특강 국어 문학 자료",
+      "description": "EBS 연계 교재와 교과서 작품을 지문 구조와 문항 구성으로 탐색하는 정적 시안 게시판입니다.",
+      "filters": {
+        "years": ["2027", "2026"],
+        "textbooks": ["EBS 수능특강", "EBS 수능완성", "교과서 문학", "교과서 공통국어"],
+        "workTypes": ["현대 소설", "현대시", "고전 시가", "수필", "현대 희곡", "고전 소설", "설명문"],
+        "grades": ["고3", "고2", "고1"]
+      }
+    }
+  ],
+  "posts": [
+    {
+      "id": "jingsori-2027",
+      "boardSlug": "ebs-literature",
+      "title": "윤순태, 「징소리」 구조 데모",
+      "authorLabel": "써머썬 국어 연구팀",
+      "summary": "한 인물이 고향으로 돌아가는 밤길을 배경으로, 소리와 기억의 관계를 살피는 합성 지문 자료입니다.",
+      "year": "2027",
+      "textbook": "EBS 수능특강",
+      "workType": "현대 소설",
+      "grade": "고3",
+      "viewCount": 1842,
+      "publishedAt": "2026-07-18",
+      "hasSample": true,
+      "fileFormats": ["PDF", "HWPX"],
+      "cover": {
+        "eyebrow": "2027 EBS LITERATURE",
+        "title": "징소리 구조 데모",
+        "subtitle": "구간 A·B·C와 연결 문항 7개",
+        "theme": "violet"
+      },
+      "passages": [
+        {
+          "id": "jingsori-passage-1",
+          "title": "밤길에서 되살아나는 기억",
+          "sourceNote": "웹 구조 검증을 위해 새로 쓴 합성 문학 지문입니다.",
+          "segments": [
+            {
+              "label": "A",
+              "title": "돌아가는 길",
+              "content": [
+                "버스가 읍내의 마지막 정류장을 떠난 뒤, 도윤은 창에 비친 자신의 얼굴을 오래 바라보았다. 유리 너머로 논둑과 낮은 지붕이 번갈아 나타났고, 멀리서는 둥근 쇳소리 하나가 밤공기를 천천히 밀어냈다.",
+                "그 소리는 오래전 마을 어귀에서 들었던 것과 닮았지만, 도윤은 기억이 소리를 흉내 내는 것인지 소리가 기억을 깨우는 것인지 알 수 없었다."
+              ]
+            },
+            {
+              "label": "B",
+              "title": "낯익고도 먼 마을",
+              "content": [
+                "정류장에 내리자 비에 젖은 흙 냄새가 먼저 다가왔다. 새로 난 도로와 밝은 간판 사이로 예전 방앗간의 낮은 담만 제자리를 지키고 있었다.",
+                "도윤은 담에 손을 얹었다. 차가운 감촉이 손바닥에 번지는 순간, 함께 걷던 사람들의 말과 웃음이 겹쳐 들렸다. 그러나 고개를 들었을 때 길에는 아무도 없었다."
+              ]
+            },
+            {
+              "label": "C",
+              "title": "이어지는 울림",
+              "content": [
+                "마을 회관 쪽에서 다시 쇳소리가 울렸다. 이번에는 누군가를 부르는 신호라기보다, 남겨진 자리를 확인하는 대답처럼 들렸다.",
+                "도윤은 가방을 고쳐 메고 천천히 걸음을 옮겼다. 소리가 멎은 뒤에도 울림은 한동안 가슴속에 남아, 그가 가야 할 방향을 말없이 가리키고 있었다."
+              ]
+            }
+          ]
+        }
+      ],
+      "questions": [
+        {
+          "id": "jingsori-q1",
+          "passageId": "jingsori-passage-1",
+          "segmentRefs": ["A"],
+          "type": "서술상 특징",
+          "prompt": "[A]에 나타난 서술 방식의 특징으로 가장 적절한 것은?",
+          "choices": ["인물의 시선과 감각을 따라 공간을 제시한다.", "사건의 원인을 논리적으로 분석한다.", "여러 인물의 대화를 교차해 갈등을 드러낸다.", "미래 사건을 먼저 제시해 긴장을 높인다.", "서술자가 독자에게 직접 판단을 요구한다."],
+          "answer": "①",
+          "explanation": "창밖 풍경과 소리를 도윤의 감각을 중심으로 제시하고 있습니다."
+        },
+        {
+          "id": "jingsori-q2",
+          "passageId": "jingsori-passage-1",
+          "segmentRefs": ["A", "B"],
+          "type": "공간의 의미",
+          "prompt": "[A]와 [B]의 공간 변화가 인물에게 미치는 영향으로 적절한 것은?",
+          "choices": ["귀향의 목적을 포기하게 한다.", "현재의 공간에서 과거의 기억을 환기한다.", "새로운 인물과의 갈등을 촉발한다.", "마을에 대한 정보를 객관적으로 정리하게 한다.", "현실과 단절된 환상에 머물게 한다."],
+          "answer": "②",
+          "explanation": "이동하는 버스와 변화한 마을은 도윤의 과거 기억을 연속해서 불러냅니다."
+        },
+        {
+          "id": "jingsori-q3",
+          "passageId": "jingsori-passage-1",
+          "segmentRefs": ["B"],
+          "type": "소재의 기능",
+          "prompt": "[B]의 ‘낮은 담’이 하는 기능으로 가장 적절한 것은?",
+          "choices": ["인물의 경제적 상황을 암시한다.", "마을 사람들의 대립을 상징한다.", "변화 속에서도 남은 과거의 흔적을 드러낸다.", "사건 해결에 필요한 단서를 제공한다.", "인물의 이동을 물리적으로 방해한다."],
+          "answer": "③",
+          "explanation": "새 도로와 간판 사이에서 담만 제자리를 지킨다는 대비가 과거의 흔적을 강조합니다."
+        },
+        {
+          "id": "jingsori-q4",
+          "passageId": "jingsori-passage-1",
+          "segmentRefs": ["A", "C"],
+          "type": "소리의 변화",
+          "prompt": "[A]와 [C]에서 반복되는 쇳소리의 의미 변화를 설명한 것으로 적절한 것은?",
+          "choices": ["불안의 징후에서 갈등 해결의 증거로 바뀐다.", "낯선 자극에서 내면의 방향을 일깨우는 울림으로 바뀐다.", "과거의 후회에서 미래의 성공을 보장하는 신호로 바뀐다.", "공동체의 명령에서 개인의 저항으로 바뀐다.", "자연의 소리에서 기계의 소음으로 바뀐다."],
+          "answer": "②",
+          "explanation": "처음에는 정체가 불분명한 소리지만 마지막에는 도윤이 나아갈 방향을 암시합니다."
+        },
+        {
+          "id": "jingsori-q5",
+          "passageId": "jingsori-passage-1",
+          "segmentRefs": ["B", "C"],
+          "type": "인물의 태도",
+          "prompt": "[B]에서 [C]로 이어지는 도윤의 태도 변화로 적절한 것은?",
+          "choices": ["회피에서 수용으로 나아간다.", "기대에서 냉소로 바뀐다.", "분노에서 복수로 치닫는다.", "확신에서 의심으로 물러난다.", "무관심에서 경쟁심으로 바뀐다."],
+          "answer": "①",
+          "explanation": "낯선 변화 앞에 멈춰 있던 도윤이 울림을 받아들이며 다시 걸음을 옮깁니다."
+        },
+        {
+          "id": "jingsori-q6",
+          "passageId": "jingsori-passage-1",
+          "segmentRefs": ["A", "B", "C"],
+          "type": "작품의 주제",
+          "prompt": "지문 전체를 고려할 때 드러나는 중심 생각으로 가장 적절한 것은?",
+          "choices": ["공동체의 규범은 개인의 선택보다 우선한다.", "과거의 기억은 현재의 선택을 비추는 힘이 될 수 있다.", "공간의 변화는 모든 관계를 단절시킨다.", "귀향은 현실 문제를 피하기 위한 수단이다.", "기술 발전은 전통적 감각을 완전히 대체한다."],
+          "answer": "②",
+          "explanation": "소리와 공간이 환기한 기억은 도윤이 현재의 걸음을 이어 가는 계기가 됩니다."
+        },
+        {
+          "id": "jingsori-q7",
+          "passageId": "jingsori-passage-1",
+          "segmentRefs": ["C"],
+          "type": "마지막 문장의 효과",
+          "prompt": "[C]의 마지막 문장이 주는 효과로 가장 적절한 것은?",
+          "choices": ["사건의 원인을 객관적으로 해설한다.", "인물의 이동을 통해 내적 결심을 암시한다.", "새로운 갈등의 시작을 직접 예고한다.", "배경의 역사적 사실을 구체화한다.", "서술의 신뢰성을 의도적으로 약화한다."],
+          "answer": "②",
+          "explanation": "걸음을 옮기는 행동과 방향을 가리키는 울림이 도윤의 내적 결심을 간접적으로 보여 줍니다."
+        }
+      ]
+    },
+    {
+      "id": "window-light-poem",
+      "boardSlug": "ebs-literature",
+      "title": "창가의 빛 — 현대시 표현법",
+      "authorLabel": "문학 수업 자료실",
+      "summary": "빛과 그림자의 대비를 통해 화자의 태도를 파악하는 합성 현대시 자료입니다.",
+      "year": "2027",
+      "textbook": "EBS 수능특강",
+      "workType": "현대시",
+      "grade": "고3",
+      "viewCount": 963,
+      "publishedAt": "2026-07-16",
+      "hasSample": true,
+      "fileFormats": ["PDF"],
+      "cover": {
+        "eyebrow": "POETRY NOTE",
+        "title": "창가의 빛",
+        "subtitle": "표현법과 화자 분석",
+        "theme": "mint"
+      },
+      "passages": [
+        {
+          "id": "window-light-passage",
+          "title": "빛의 방향",
+          "sourceNote": "합성 시 텍스트입니다.",
+          "segments": [
+            {
+              "label": "A",
+              "title": "아침의 창",
+              "content": ["닫힌 창의 가장자리로 얇은 빛이 들어와 책상 위의 오래된 자국을 천천히 드러낸다."]
+            }
+          ]
+        }
+      ],
+      "questions": [
+        {
+          "id": "window-light-q1",
+          "passageId": "window-light-passage",
+          "segmentRefs": ["A"],
+          "type": "표현법",
+          "prompt": "빛의 움직임이 나타내는 효과로 적절한 것은?",
+          "choices": ["대상의 점진적 발견을 보여 준다.", "시간의 급격한 단절을 강조한다."],
+          "answer": "①",
+          "explanation": "빛이 자국을 천천히 드러내는 과정이 표현되어 있습니다."
+        },
+        {
+          "id": "window-light-q2",
+          "passageId": "window-light-passage",
+          "segmentRefs": ["A"],
+          "type": "화자의 태도",
+          "prompt": "대상을 바라보는 태도로 적절한 것은?",
+          "choices": ["차분히 관찰한다.", "강하게 비판한다."],
+          "answer": "①",
+          "explanation": "감각적 장면을 차분한 속도로 제시합니다."
+        },
+        {
+          "id": "window-light-q3",
+          "passageId": "window-light-passage",
+          "segmentRefs": ["A"],
+          "type": "이미지",
+          "prompt": "중심 감각 이미지로 적절한 것은?",
+          "choices": ["시각적 이미지", "후각적 이미지"],
+          "answer": "①",
+          "explanation": "빛과 책상의 자국을 시각적으로 나타냅니다."
+        }
+      ]
+    },
+    {
+      "id": "river-song-classic",
+      "boardSlug": "ebs-literature",
+      "title": "강물 노래 — 고전 시가 독해",
+      "authorLabel": "고전문학 연구회",
+      "summary": "자연물의 반복을 중심으로 시적 상황을 정리하는 합성 고전 시가 자료입니다.",
+      "year": "2027",
+      "textbook": "EBS 수능완성",
+      "workType": "고전 시가",
+      "grade": "고3",
+      "viewCount": 721,
+      "publishedAt": "2026-07-12",
+      "hasSample": true,
+      "fileFormats": ["PDF", "DOCX"],
+      "cover": {
+        "eyebrow": "CLASSIC POETRY",
+        "title": "강물 노래",
+        "subtitle": "자연물과 정서",
+        "theme": "coral"
+      },
+      "passages": [
+        {
+          "id": "river-song-passage",
+          "title": "강가의 노래",
+          "sourceNote": "합성 고전 시가풍 텍스트입니다.",
+          "segments": [
+            {
+              "label": "A",
+              "title": "흐르는 물",
+              "content": ["저문 강에 달이 오르니, 떠나는 물결마다 말 못 한 마음 하나씩 실려 간다."]
+            }
+          ]
+        }
+      ],
+      "questions": [
+        {
+          "id": "river-song-q1",
+          "passageId": "river-song-passage",
+          "segmentRefs": ["A"],
+          "type": "시적 대상",
+          "prompt": "강물이 환기하는 정서로 적절한 것은?",
+          "choices": ["이별의 아쉬움", "승리의 기쁨"],
+          "answer": "①",
+          "explanation": "떠나는 물결에 말 못 한 마음을 싣는 장면입니다."
+        },
+        {
+          "id": "river-song-q2",
+          "passageId": "river-song-passage",
+          "segmentRefs": ["A"],
+          "type": "표현상 특징",
+          "prompt": "자연물의 기능으로 적절한 것은?",
+          "choices": ["정서를 대신 드러낸다.", "사건의 연대를 기록한다."],
+          "answer": "①",
+          "explanation": "강물에 화자의 마음을 투영합니다."
+        }
+      ]
+    },
+    {
+      "id": "empty-chair-story",
+      "boardSlug": "ebs-literature",
+      "title": "빈 의자 — 인물 심리 읽기",
+      "authorLabel": "써머썬 국어 연구팀",
+      "summary": "사라진 사람의 자리를 바라보는 인물의 심리를 추론하는 합성 소설 자료입니다.",
+      "year": "2026",
+      "textbook": "EBS 수능완성",
+      "workType": "현대 소설",
+      "grade": "고2",
+      "viewCount": 658,
+      "publishedAt": "2026-07-09",
+      "hasSample": true,
+      "fileFormats": ["HWPX"],
+      "cover": {
+        "eyebrow": "FICTION LAB",
+        "title": "빈 의자",
+        "subtitle": "인물 심리와 공간",
+        "theme": "navy"
+      },
+      "passages": [
+        {
+          "id": "empty-chair-passage",
+          "title": "남겨진 자리",
+          "sourceNote": "합성 소설 텍스트입니다.",
+          "segments": [
+            {
+              "label": "A",
+              "title": "저녁 식탁",
+              "content": ["그는 매일 같은 시간에 식탁 건너편 의자를 바로 놓았지만, 그곳에 앉는 사람은 없었다."]
+            }
+          ]
+        }
+      ],
+      "questions": [
+        {
+          "id": "empty-chair-q1",
+          "passageId": "empty-chair-passage",
+          "segmentRefs": ["A"],
+          "type": "인물 심리",
+          "prompt": "행동에 드러난 심리로 적절한 것은?",
+          "choices": ["부재를 받아들이지 못한다.", "새 만남을 기대한다."],
+          "answer": "①",
+          "explanation": "빈 의자를 반복해 정돈하며 부재한 사람을 기억합니다."
+        }
+      ]
+    },
+    {
+      "id": "moon-bridge-lyrics",
+      "boardSlug": "ebs-literature",
+      "title": "달빛 다리 — 고전 시가 비교",
+      "authorLabel": "교과서 문학 연구실",
+      "summary": "달과 다리의 상징을 비교하며 정서를 읽는 합성 고전 시가 자료입니다.",
+      "year": "2026",
+      "textbook": "교과서 공통국어",
+      "workType": "고전 시가",
+      "grade": "고1",
+      "viewCount": 502,
+      "publishedAt": "2026-07-05",
+      "hasSample": true,
+      "fileFormats": ["PDF"],
+      "cover": {
+        "eyebrow": "TEXTBOOK CLASSIC",
+        "title": "달빛 다리",
+        "subtitle": "상징과 정서 비교",
+        "theme": "violet"
+      },
+      "passages": [
+        {
+          "id": "moon-bridge-passage",
+          "title": "달 아래 건너는 마음",
+          "sourceNote": "합성 고전 시가풍 텍스트입니다.",
+          "segments": [
+            {
+              "label": "A",
+              "title": "다리 위의 달",
+              "content": ["긴 다리 한가운데 밝은 달이 머물고, 건너지 못한 마음만 물 위를 서성인다."]
+            }
+          ]
+        }
+      ],
+      "questions": [
+        {
+          "id": "moon-bridge-q1",
+          "passageId": "moon-bridge-passage",
+          "segmentRefs": ["A"],
+          "type": "상징",
+          "prompt": "다리가 상징하는 것으로 적절한 것은?",
+          "choices": ["이어짐에 대한 소망", "현실에 대한 만족"],
+          "answer": "①",
+          "explanation": "건너지 못하는 상황과 대비되어 이어짐에 대한 소망을 나타냅니다."
+        }
+      ]
+    },
+    {
+      "id": "teacher-desk-essay",
+      "boardSlug": "ebs-literature",
+      "title": "오래된 책상 — 수필의 성찰",
+      "authorLabel": "수업 기록 아카이브",
+      "summary": "익숙한 사물을 통해 삶의 태도를 성찰하는 합성 수필 자료입니다.",
+      "year": "2027",
+      "textbook": "교과서 문학",
+      "workType": "수필",
+      "grade": "고2",
+      "viewCount": 441,
+      "publishedAt": "2026-06-29",
+      "hasSample": true,
+      "fileFormats": ["PDF", "HWPX"],
+      "cover": {
+        "eyebrow": "ESSAY ARCHIVE",
+        "title": "오래된 책상",
+        "subtitle": "사물과 성찰",
+        "theme": "mint"
+      },
+      "passages": [
+        {
+          "id": "teacher-desk-passage",
+          "title": "책상에 남은 시간",
+          "sourceNote": "합성 수필 텍스트입니다.",
+          "segments": [
+            {
+              "label": "A",
+              "title": "손때",
+              "content": ["모서리가 닳은 책상은 버려야 할 물건이 아니라, 오래 머문 생각의 무게를 보여 주는 기록처럼 느껴졌다."]
+            }
+          ]
+        }
+      ],
+      "questions": [
+        {
+          "id": "teacher-desk-q1",
+          "passageId": "teacher-desk-passage",
+          "segmentRefs": ["A"],
+          "type": "성찰의 대상",
+          "prompt": "글쓴이가 책상을 바라보는 관점으로 적절한 것은?",
+          "choices": ["시간의 기록으로 본다.", "불편한 장애물로 본다."],
+          "answer": "①",
+          "explanation": "닳은 흔적에서 오래 머문 생각과 시간을 발견합니다."
+        },
+        {
+          "id": "teacher-desk-q2",
+          "passageId": "teacher-desk-passage",
+          "segmentRefs": ["A"],
+          "type": "비유",
+          "prompt": "책상을 기록에 빗댄 효과로 적절한 것은?",
+          "choices": ["사물에 축적된 경험을 강조한다.", "사물의 가격을 강조한다."],
+          "answer": "①",
+          "explanation": "사용 흔적을 경험의 축적으로 이해하게 합니다."
+        }
+      ]
+    },
+    {
+      "id": "last-rehearsal-drama",
+      "boardSlug": "ebs-literature",
+      "title": "마지막 리허설 — 희곡 갈등 구조",
+      "authorLabel": "극문학 수업 자료실",
+      "summary": "공연 직전 두 인물의 선택을 통해 갈등 구조를 파악하는 합성 희곡 자료입니다.",
+      "year": "2026",
+      "textbook": "EBS 수능특강",
+      "workType": "현대 희곡",
+      "grade": "고3",
+      "viewCount": 389,
+      "publishedAt": "2026-06-24",
+      "hasSample": false,
+      "fileFormats": ["PDF"],
+      "cover": {
+        "eyebrow": "DRAMA SCENE",
+        "title": "마지막 리허설",
+        "subtitle": "대사와 갈등 구조",
+        "theme": "coral"
+      },
+      "passages": [
+        {
+          "id": "last-rehearsal-passage",
+          "title": "무대 뒤의 선택",
+          "sourceNote": "합성 희곡 텍스트입니다.",
+          "segments": [
+            {
+              "label": "A",
+              "title": "막이 오르기 전",
+              "content": ["연출: 지금 나가면 자리는 비어. 배우: 빈자리를 감추는 것보다 이유를 말하는 편이 나아."]
+            }
+          ]
+        }
+      ],
+      "questions": [
+        {
+          "id": "last-rehearsal-q1",
+          "passageId": "last-rehearsal-passage",
+          "segmentRefs": ["A"],
+          "type": "갈등",
+          "prompt": "두 인물의 갈등 원인으로 적절한 것은?",
+          "choices": ["공연을 대하는 선택의 차이", "과거 사건에 대한 기억의 차이"],
+          "answer": "①",
+          "explanation": "공연을 유지할지 이유를 밝힐지에 대한 선택이 다릅니다."
+        }
+      ]
+    },
+    {
+      "id": "market-gate-tale",
+      "boardSlug": "ebs-literature",
+      "title": "장터 어귀 — 고전 소설 서사",
+      "authorLabel": "고전문학 연구회",
+      "summary": "장터에서 벌어진 오해와 해소 과정을 따라가는 합성 고전 소설 자료입니다.",
+      "year": "2026",
+      "textbook": "EBS 수능완성",
+      "workType": "고전 소설",
+      "grade": "고1",
+      "viewCount": 315,
+      "publishedAt": "2026-06-18",
+      "hasSample": true,
+      "fileFormats": ["DOCX"],
+      "cover": {
+        "eyebrow": "CLASSIC FICTION",
+        "title": "장터 어귀",
+        "subtitle": "서사 흐름과 인물",
+        "theme": "navy"
+      },
+      "passages": [
+        {
+          "id": "market-gate-passage",
+          "title": "사라진 보따리",
+          "sourceNote": "합성 고전 소설풍 텍스트입니다.",
+          "segments": [
+            {
+              "label": "A",
+              "title": "오해",
+              "content": ["주막 앞 보따리가 사라지자 사람들의 눈길이 한 나그네에게 모였으나, 아이 하나가 우물가에서 보따리를 들고 돌아왔다."]
+            }
+          ]
+        }
+      ],
+      "questions": [
+        {
+          "id": "market-gate-q1",
+          "passageId": "market-gate-passage",
+          "segmentRefs": ["A"],
+          "type": "서사 흐름",
+          "prompt": "사건 전개의 특징으로 적절한 것은?",
+          "choices": ["오해가 새로운 사실로 해소된다.", "갈등이 열린 결말로 남는다."],
+          "answer": "①",
+          "explanation": "아이의 등장으로 나그네를 향한 오해가 풀립니다."
+        }
+      ]
+    },
+    {
+      "id": "rainy-platform-poem",
+      "boardSlug": "ebs-literature",
+      "title": "비 오는 승강장 — 현대시 이미지",
+      "authorLabel": "문학 수업 자료실",
+      "summary": "비와 승강장의 감각적 이미지를 중심으로 정서를 분석하는 합성 현대시 자료입니다.",
+      "year": "2027",
+      "textbook": "EBS 수능특강",
+      "workType": "현대시",
+      "grade": "고2",
+      "viewCount": 2410,
+      "publishedAt": "2026-06-12",
+      "hasSample": true,
+      "fileFormats": ["PDF"],
+      "cover": {
+        "eyebrow": "POETRY IMAGE",
+        "title": "비 오는 승강장",
+        "subtitle": "감각 이미지 분석",
+        "theme": "violet"
+      },
+      "passages": [
+        {
+          "id": "rainy-platform-passage",
+          "title": "기다림의 소리",
+          "sourceNote": "합성 시 텍스트입니다.",
+          "segments": [
+            {
+              "label": "A",
+              "title": "빈 선로",
+              "content": ["빗방울이 지붕을 두드릴 때마다 빈 선로는 아직 오지 않은 기차의 시간을 한 칸씩 밀어 놓는다."]
+            }
+          ]
+        }
+      ],
+      "questions": [
+        {
+          "id": "rainy-platform-q1",
+          "passageId": "rainy-platform-passage",
+          "segmentRefs": ["A"],
+          "type": "이미지",
+          "prompt": "빗방울 소리의 기능으로 적절한 것은?",
+          "choices": ["기다림의 시간을 감각화한다.", "갈등의 해결을 알린다."],
+          "answer": "①",
+          "explanation": "반복되는 소리로 기다림의 시간을 구체화합니다."
+        }
+      ]
+    },
+    {
+      "id": "small-library-essay",
+      "boardSlug": "ebs-literature",
+      "title": "골목의 작은 도서관 — 수필 독해",
+      "authorLabel": "수업 기록 아카이브",
+      "summary": "동네 도서관에서 발견한 공동체의 의미를 다룬 합성 수필 자료입니다.",
+      "year": "2026",
+      "textbook": "교과서 문학",
+      "workType": "수필",
+      "grade": "고2",
+      "viewCount": 221,
+      "publishedAt": "2026-06-05",
+      "hasSample": false,
+      "fileFormats": ["HWPX"],
+      "cover": {
+        "eyebrow": "ESSAY READING",
+        "title": "작은 도서관",
+        "subtitle": "공간과 공동체",
+        "theme": "mint"
+      },
+      "passages": [
+        {
+          "id": "small-library-passage",
+          "title": "서로의 책장",
+          "sourceNote": "합성 수필 텍스트입니다.",
+          "segments": [
+            {
+              "label": "A",
+              "title": "돌아오는 책",
+              "content": ["책마다 다른 사람의 메모가 남아 있었고, 그 짧은 문장들이 얼굴을 모르는 이웃을 한 책장에 모아 주었다."]
+            }
+          ]
+        }
+      ],
+      "questions": [
+        {
+          "id": "small-library-q1",
+          "passageId": "small-library-passage",
+          "segmentRefs": ["A"],
+          "type": "공간의 의미",
+          "prompt": "도서관의 의미로 적절한 것은?",
+          "choices": ["이웃의 경험이 만나는 공간", "개인의 경쟁을 강화하는 공간"],
+          "answer": "①",
+          "explanation": "메모를 매개로 서로 모르는 이웃의 경험이 이어집니다."
+        }
+      ]
+    },
+    {
+      "id": "wooden-bird-tale",
+      "boardSlug": "ebs-literature",
+      "title": "나무 새의 약속 — 고전 소설 인물",
+      "authorLabel": "교과서 문학 연구실",
+      "summary": "약속을 지키기 위한 인물의 행동을 중심으로 읽는 합성 고전 소설 자료입니다.",
+      "year": "2027",
+      "textbook": "EBS 수능완성",
+      "workType": "고전 소설",
+      "grade": "고3",
+      "viewCount": 177,
+      "publishedAt": "2026-05-27",
+      "hasSample": true,
+      "fileFormats": ["PDF", "HWPX"],
+      "cover": {
+        "eyebrow": "CLASSIC CHARACTER",
+        "title": "나무 새의 약속",
+        "subtitle": "행동과 가치관",
+        "theme": "coral"
+      },
+      "passages": [
+        {
+          "id": "wooden-bird-passage",
+          "title": "돌아온 나무 새",
+          "sourceNote": "합성 고전 소설풍 텍스트입니다.",
+          "segments": [
+            {
+              "label": "A",
+              "title": "약속",
+              "content": ["소년은 해마다 같은 날 나무 새를 문 앞에 두었고, 먼 길을 떠난 벗이 돌아올 자리를 비워 두었다."]
+            }
+          ]
+        }
+      ],
+      "questions": [
+        {
+          "id": "wooden-bird-q1",
+          "passageId": "wooden-bird-passage",
+          "segmentRefs": ["A"],
+          "type": "인물의 가치관",
+          "prompt": "소년의 행동에서 드러나는 가치로 적절한 것은?",
+          "choices": ["신의와 기다림", "효율과 경쟁"],
+          "answer": "①",
+          "explanation": "정해진 날마다 자리를 지키며 약속을 기억합니다."
+        }
+      ]
+    },
+    {
+      "id": "how-maps-speak",
+      "boardSlug": "ebs-literature",
+      "title": "지도는 어떻게 말하는가 — 설명문 구조",
+      "authorLabel": "공통국어 자료실",
+      "summary": "정보를 분류하고 예시로 설명하는 방식을 확인하는 합성 설명문 자료입니다.",
+      "year": "2026",
+      "textbook": "교과서 공통국어",
+      "workType": "설명문",
+      "grade": "고1",
+      "viewCount": 139,
+      "publishedAt": "2026-05-18",
+      "hasSample": true,
+      "fileFormats": ["PDF"],
+      "cover": {
+        "eyebrow": "READING STRUCTURE",
+        "title": "지도의 언어",
+        "subtitle": "분류와 예시",
+        "theme": "navy"
+      },
+      "passages": [
+        {
+          "id": "maps-speak-passage",
+          "title": "기호로 읽는 공간",
+          "sourceNote": "합성 설명문 텍스트입니다.",
+          "segments": [
+            {
+              "label": "A",
+              "title": "기호의 약속",
+              "content": ["지도는 실제 공간을 줄이는 데서 그치지 않고, 색과 선과 점에 공통의 약속을 부여해 필요한 정보를 빠르게 찾게 한다."]
+            }
+          ]
+        }
+      ],
+      "questions": [
+        {
+          "id": "maps-speak-q1",
+          "passageId": "maps-speak-passage",
+          "segmentRefs": ["A"],
+          "type": "설명 방식",
+          "prompt": "문장에 사용된 설명 방식으로 적절한 것은?",
+          "choices": ["기호의 기능을 열거한다.", "상반된 이론을 반박한다."],
+          "answer": "①",
+          "explanation": "색·선·점의 기능을 나열해 설명합니다."
+        }
+      ]
+    }
+  ],
+  "filterCases": [
+    {
+      "id": "positive-multi-filter",
+      "year": "2027",
+      "textbook": "EBS 수능특강",
+      "workType": "현대 소설",
+      "grade": "고3"
+    },
+    {
+      "id": "zero-result-multi-filter",
+      "year": "2026",
+      "textbook": "EBS 수능특강",
+      "workType": "고전 시가",
+      "grade": "고1"
+    }
+  ],
+  "pagination": {
+    "pageSizes": [5, 10],
+    "defaultPageSize": 5
+  }
+}
