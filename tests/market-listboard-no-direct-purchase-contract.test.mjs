@@ -25,11 +25,12 @@ test('market listboard no longer exposes direct purchase state or confirmation U
   assert.match(listServer, /상세페이지에서 구매/)
 })
 
-test('market listboard file column points users to item detail purchase flow', () => {
-  assert.match(listClient, /상세에서 구매/)
+test('market listboard title points users to item detail purchase flow without a file column', () => {
   assert.match(listClient, /WorkspaceLink/)
   assert.match(listClient, /\/market\/\$\{categorySlug\}\/items\/\$\{row\.itemId\}/)
   assert.match(listClient, /row\.sample\.available/)
+  assert.doesNotMatch(listClient, />파일<\/th>/)
+  assert.doesNotMatch(listClient, /상세에서 구매/)
 })
 
 test('legacy batch purchase API is explicitly deprecated and cannot create purchases', () => {

@@ -103,3 +103,7 @@
 - 생성된 plan을 구현할 때는 각 phase마다 먼저 해당 phase의 계획과 검증 기준을 파악한 뒤, **계획 파악 → 구현 → 검증 → (검증 미통과 시 문제 분석 → 재구현)** loop로 진행한다. 각 phase loop는 검증 통과 전에는 종료하지 않는다.
 - 구현 loop는 각 단위 검증을 통과했을 때만 다음 단위로 진행하며, **검증 실패 상태로 종료하지 않는다.**
 - 앞으로 이 저장소에서 작성하는 계획 문서는 기본적으로 **한글**로 작성한다. 사용자가 다른 언어를 명시하면 그 지시를 따른다.
+- 신규 UI 작업 전 `DESIGN.md`와 `/preview/design-system`을 확인한다.
+- 기존 primitive, pattern, template을 우선 사용한다.
+- Studio core 값을 raw hex로 작성하거나 임의의 container 너비와 radius를 추가하는 것을 금지한다.
+- 새 공통 abstraction은 실제 consumer 2개 이상이 있거나 승인된 template 역할인 경우에만 만든다.

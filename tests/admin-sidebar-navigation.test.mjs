@@ -84,6 +84,19 @@ test('admin sidebar includes AI API connection management near AI problem type s
   assert.equal(generationRunsItem.icon, 'fileText')
 })
 
+test('admin sidebar exposes the temporary main ad settings page', () => {
+  const defaultItems = DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG.items
+  const landingIndex = defaultItems.indexOf('/admin/landing-pages')
+  const mainAdIndex = defaultItems.indexOf('/admin/main-ad-settings')
+  const item = resolveAdminSidebarMenuItems('english')
+    .find((entry) => entry.href === '/admin/main-ad-settings')
+
+  assert.notEqual(mainAdIndex, -1)
+  assert.equal(mainAdIndex, landingIndex + 1)
+  assert.ok(item)
+  assert.equal(item.name, '(임시)메인광고설정')
+})
+
 test('resolveAdminSidebarNavigationNodes groups question bank admin services under one parent', () => {
   const nodes = resolveAdminSidebarNavigationNodes('english', {
     items: [

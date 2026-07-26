@@ -23,8 +23,8 @@ const textbookDescriptions: Record<string, string> = {
 }
 
 const textbookTones = [
-  'from-[#6950E5] to-[#8c78ee]',
-  'from-[#238879] to-[#63CDB7]',
+  'from-[var(--studio-primary)] to-[#8c78ee]',
+  'from-[#238879] to-[var(--studio-success)]',
   'from-[#d05449] to-[#F38B73]',
   'from-[#28395f] to-[#55729e]',
 ]
@@ -40,7 +40,7 @@ interface RecommendedMaterialsProps {
 
 export function RecommendedMaterials({ posts }: RecommendedMaterialsProps) {
   return (
-    <section className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6 sm:py-14">
+    <section>
       <SectionHeading
         eyebrow="TEACHER'S PICK"
         title="선생님들이 먼저 살펴보는 자료"
@@ -56,27 +56,27 @@ export function RecommendedMaterials({ posts }: RecommendedMaterialsProps) {
             <article key={post.id} className="min-w-0">
               <Link
                 href={detailHref}
-                className="group block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[var(--preview-primary)] focus-visible:ring-offset-4"
+                className="group block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] focus-visible:ring-offset-4"
               >
-                <div className="overflow-hidden rounded-lg border border-[var(--preview-border)] bg-white p-2 transition group-hover:-translate-y-1 group-hover:border-[#6950E5]/25 group-hover:shadow-md sm:p-3">
+                <div className="overflow-hidden rounded-lg border border-[var(--studio-border)] bg-[var(--studio-surface)] p-2 transition group-hover:-translate-y-1 group-hover:border-[var(--studio-primary-border)] group-hover:shadow-md sm:p-3">
                   <MaterialCover cover={post.cover} />
                 </div>
                 <div className="px-0.5 pt-3">
                   <div className="flex flex-wrap gap-1">
-                    <span className="rounded-[4px] bg-[#6950E5]/[0.08] px-1.5 py-1 text-[9px] font-extrabold text-[#6950E5] sm:text-[10px]">
+                    <span className="rounded-[4px] bg-[var(--studio-primary-soft)] px-1.5 py-1 text-[9px] font-extrabold text-[var(--studio-primary)] sm:text-[10px]">
                       {post.year}
                     </span>
                     <span className="rounded-[4px] bg-[#EFF1F5] px-1.5 py-1 text-[9px] font-bold text-[#5C6275] sm:text-[10px]">
                       {post.workType}
                     </span>
                   </div>
-                  <h3 className="mt-2 line-clamp-2 break-keep text-sm font-extrabold leading-5 tracking-[-0.02em] text-[var(--preview-ink)] sm:text-base sm:leading-6">
+                  <h3 className="mt-2 line-clamp-2 break-keep text-sm font-extrabold leading-5 tracking-[-0.02em] text-[var(--studio-ink)] sm:text-base sm:leading-6">
                     {post.title}
                   </h3>
-                  <p className="mt-1 truncate text-[11px] text-[var(--preview-muted)] sm:text-xs">
+                  <p className="mt-1 truncate text-[11px] text-[var(--studio-muted)] sm:text-xs">
                     {post.textbook}
                   </p>
-                  <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-semibold text-[var(--preview-muted)] sm:text-xs">
+                  <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-semibold text-[var(--studio-muted)] sm:text-xs">
                     <span>지문 {post.passages.length}</span>
                     <span aria-hidden="true">·</span>
                     <span>문항 {post.questions.length}</span>
@@ -92,8 +92,8 @@ export function RecommendedMaterials({ posts }: RecommendedMaterialsProps) {
 
       <Button
         asChild
-        variant="outline"
-        className="mt-7 h-11 w-full border-[var(--preview-border)] bg-white font-bold text-[var(--preview-text)] hover:border-[var(--preview-primary)] hover:bg-[#6950E5]/[0.04] hover:text-[var(--preview-primary)] sm:hidden"
+        variant="brandOutline"
+        className="mt-7 w-full font-bold sm:hidden"
       >
         <Link href={boardHref}>
           추천 자료 전체 보기
@@ -114,44 +114,42 @@ export function TextbookExplorer({
   const textbooks = Object.entries(textbookCounts)
 
   return (
-    <section className="border-y border-[var(--preview-border)] bg-white py-12 sm:py-16">
-      <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
-        <SectionHeading
-          eyebrow="BROWSE BY SOURCE"
-          title="교재와 출처로 골라보기"
-          description="지금 준비 중인 수업의 교재를 선택하면 관련 자료부터 확인할 수 있습니다."
-        />
+    <section className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] sm:p-8">
+      <SectionHeading
+        eyebrow="BROWSE BY SOURCE"
+        title="교재와 출처로 골라보기"
+        description="지금 준비 중인 수업의 교재를 선택하면 관련 자료부터 확인할 수 있습니다."
+      />
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {textbooks.map(([textbook, count], index) => (
-            <Link
-              key={textbook}
-              href={`${boardHref}?textbook=${encodeURIComponent(textbook)}`}
-              className="group relative isolate min-h-[180px] overflow-hidden rounded-xl p-5 text-white outline-none transition-transform hover:-translate-y-1 focus-visible:ring-2 focus-visible:ring-[var(--preview-primary)] focus-visible:ring-offset-2"
-            >
-              <span
-                className={`absolute inset-0 bg-gradient-to-br ${textbookTones[index % textbookTones.length]}`}
-              />
-              <span className="absolute -right-8 -top-10 h-28 w-28 rounded-full border-[20px] border-white/10" />
-              <span className="relative flex h-full flex-col">
-                <BookOpen aria-hidden="true" className="h-6 w-6 text-white/75" />
-                <strong className="mt-auto block text-xl font-extrabold tracking-[-0.03em]">
-                  {textbook}
-                </strong>
-                <span className="mt-1 text-xs text-white/75">
-                  {textbookDescriptions[textbook] ?? '작품별 수업 자료'}
-                </span>
-                <span className="mt-4 flex items-center justify-between text-xs font-bold">
-                  자료 {count}개
-                  <ArrowRight
-                    aria-hidden="true"
-                    className="h-4 w-4 transition-transform group-hover:translate-x-1"
-                  />
-                </span>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {textbooks.map(([textbook, count], index) => (
+          <Link
+            key={textbook}
+            href={`${boardHref}?textbook=${encodeURIComponent(textbook)}`}
+            className="group relative isolate min-h-[180px] overflow-hidden rounded-xl p-5 text-white outline-none transition-transform hover:-translate-y-1 focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] focus-visible:ring-offset-2"
+          >
+            <span
+              className={`absolute inset-0 bg-gradient-to-br ${textbookTones[index % textbookTones.length]}`}
+            />
+            <span className="absolute -right-8 -top-10 h-28 w-28 rounded-full border-[20px] border-white/10" />
+            <span className="relative flex h-full flex-col">
+              <BookOpen aria-hidden="true" className="h-6 w-6 text-white/75" />
+              <strong className="mt-auto block text-xl font-extrabold tracking-[-0.03em]">
+                {textbook}
+              </strong>
+              <span className="mt-1 text-xs text-white/75">
+                {textbookDescriptions[textbook] ?? '작품별 수업 자료'}
               </span>
-            </Link>
-          ))}
-        </div>
+              <span className="mt-4 flex items-center justify-between text-xs font-bold">
+                자료 {count}개
+                <ArrowRight
+                  aria-hidden="true"
+                  className="h-4 w-4 transition-transform group-hover:translate-x-1"
+                />
+              </span>
+            </span>
+          </Link>
+        ))}
       </div>
     </section>
   )
@@ -163,7 +161,7 @@ interface RecentMaterialsProps {
 
 export function RecentMaterials({ posts }: RecentMaterialsProps) {
   return (
-    <section className="mx-auto max-w-[1200px] px-4 py-12 sm:px-6 sm:py-16">
+    <section>
       <SectionHeading
         eyebrow="NEW MATERIALS"
         title="최근 등록된 수업 자료"
@@ -172,39 +170,39 @@ export function RecentMaterials({ posts }: RecentMaterialsProps) {
         linkLabel="최근 자료 전체 보기"
       />
 
-      <div className="overflow-hidden rounded-xl border border-[var(--preview-border)] bg-white">
+      <div className="overflow-hidden rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]">
         {posts.map((post, index) => (
           <Link
             key={post.id}
             href={`${boardHref}/posts/${post.id}`}
-            className="group grid min-h-[112px] grid-cols-[54px_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--preview-border)] px-3 py-4 outline-none transition-colors last:border-b-0 hover:bg-[#6950E5]/[0.025] focus-visible:bg-[#6950E5]/[0.05] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--preview-primary)] sm:grid-cols-[42px_76px_minmax(0,1fr)_auto] sm:gap-5 sm:px-5"
+            className="group grid min-h-[112px] grid-cols-[54px_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--studio-border)] px-3 py-4 outline-none transition-colors last:border-b-0 hover:bg-[var(--studio-primary-soft)] focus-visible:bg-[var(--studio-primary-soft)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--studio-focus-ring)] sm:grid-cols-[42px_76px_minmax(0,1fr)_auto] sm:gap-5 sm:px-5"
           >
-            <span className="hidden text-center text-xs font-extrabold text-[var(--preview-muted)] sm:block">
+            <span className="hidden text-center text-xs font-extrabold text-[var(--studio-muted)] sm:block">
               {String(index + 1).padStart(2, '0')}
             </span>
             <div
               aria-hidden="true"
               className={`grid h-14 w-14 place-items-center rounded-md ${
                 index % 2 === 0
-                  ? 'bg-[#6950E5]/10 text-[#6950E5]'
-                  : 'bg-[#63CDB7]/20 text-[#258a78]'
+                  ? 'bg-[var(--studio-primary-soft)] text-[var(--studio-primary)]'
+                  : 'bg-[var(--studio-success)]/20 text-[#258a78]'
               } sm:h-[70px] sm:w-[70px]`}
             >
               <FileText className="h-6 w-6" />
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap gap-1.5">
-                <span className="text-[10px] font-extrabold text-[var(--preview-primary)]">
+                <span className="text-[10px] font-extrabold text-[var(--studio-primary)]">
                   {post.textbook}
                 </span>
-                <span className="text-[10px] font-bold text-[var(--preview-muted)]">
+                <span className="text-[10px] font-bold text-[var(--studio-muted)]">
                   {post.workType} · {post.grade}
                 </span>
               </div>
-              <h3 className="mt-1 truncate text-sm font-extrabold tracking-[-0.02em] text-[var(--preview-ink)] sm:text-base">
+              <h3 className="mt-1 truncate text-sm font-extrabold tracking-[-0.02em] text-[var(--studio-ink)] sm:text-base">
                 {post.title}
               </h3>
-              <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] font-semibold text-[var(--preview-muted)] sm:text-xs">
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] font-semibold text-[var(--studio-muted)] sm:text-xs">
                 <span className="inline-flex items-center gap-1">
                   <Layers3 aria-hidden="true" className="h-3.5 w-3.5" />
                   지문 {post.passages.length} · 문항 {post.questions.length}
@@ -221,7 +219,7 @@ export function RecentMaterials({ posts }: RecentMaterialsProps) {
             </div>
             <ArrowRight
               aria-hidden="true"
-              className="h-4 w-4 text-[var(--preview-muted)] transition-transform group-hover:translate-x-1 group-hover:text-[var(--preview-primary)]"
+              className="h-4 w-4 text-[var(--studio-muted)] transition-transform group-hover:translate-x-1 group-hover:text-[var(--studio-primary)]"
             />
           </Link>
         ))}
@@ -232,8 +230,8 @@ export function RecentMaterials({ posts }: RecentMaterialsProps) {
 
 export function HomeFinalCta() {
   return (
-    <section className="px-4 pb-14 sm:px-6 sm:pb-20">
-      <div className="relative mx-auto flex max-w-[1200px] flex-col items-start justify-between gap-6 overflow-hidden rounded-xl bg-[#1C1F2E] px-6 py-9 text-white sm:px-10 sm:py-11 md:flex-row md:items-center">
+    <section>
+      <div className="relative flex flex-col items-start justify-between gap-6 overflow-hidden rounded-xl bg-[var(--studio-ink)] px-6 py-9 text-white sm:px-10 sm:py-11 md:flex-row md:items-center">
         <div className="absolute -right-14 -top-20 h-56 w-56 rounded-full border-[36px] border-white/[0.04]" />
         <div className="relative">
           <p className="text-xs font-extrabold tracking-[0.14em] text-[#9af0d6]">
@@ -250,7 +248,8 @@ export function HomeFinalCta() {
         <Button
           asChild
           size="lg"
-          className="relative h-12 bg-[#6950E5] px-6 font-extrabold text-white hover:bg-[#8069ed]"
+          variant="brand"
+          className="relative h-12 px-6 font-extrabold"
         >
           <Link href={boardHref}>
             게시판 전체 보기

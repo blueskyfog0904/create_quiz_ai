@@ -14,6 +14,10 @@ const marketItemsServer = readFileSync(
   new URL('../src/lib/market-items-server.ts', import.meta.url),
   'utf8'
 )
+const samplePreviewDialog = readFileSync(
+  new URL('../src/app/(dashboard)/market/[slug]/items/[itemId]/market-sample-preview-dialog.tsx', import.meta.url),
+  'utf8'
+)
 
 test('market listboard rows expose sample metadata without making sample purchasable', () => {
   assert.match(marketItemsServer, /MarketListboardSampleRow/)
@@ -28,7 +32,10 @@ test('market listboard provides sample preview column without the file column', 
   assert.match(listboardClient, /workspaceSubject/)
   assert.match(listboardClient, /samplePreviewItemId/)
   assert.match(listboardClient, /setSamplePreviewItemId\(itemId\)/)
-  assert.match(listboardClient, /openSamplePreview\(row\.itemId\)/)
+  assert.match(listboardClient, /const prefetchSamplePreview = \(itemId: string\) => \{/)
+  assert.match(listboardClient, /onFocus=\{\(\) => prefetchSamplePreview\(row\.itemId\)\}/)
+  assert.match(listboardClient, /onMouseEnter=\{\(\) => prefetchSamplePreview\(row\.itemId\)\}/)
+  assert.match(listboardClient, /openSamplePreview\(row\.itemId, event\.currentTarget\)/)
   assert.match(listboardClient, /row\.sample\.available/)
   assert.match(
     listboardClient,
@@ -39,6 +46,24 @@ test('market listboard provides sample preview column without the file column', 
   assert.doesNotMatch(listboardClient, /AssetKind/)
   assert.match(listboardClient, /aria-label=\{`\$\{row\.title\} 샘플보기`\}/)
   assert.match(listboardClient, /샘플보기/)
+})
+
+test('market listboard sample dialog restores focus to the exact external trigger', () => {
+  assert.match(listboardClient, /useRef<HTMLButtonElement\s*\|\s*null>\(null\)/)
+  assert.match(listboardClient, /event\.currentTarget/)
+  assert.match(listboardClient, /returnFocusRef=\{sampleTriggerRef\}/)
+  assert.doesNotMatch(listboardClient, /setSamplePreviewItemId\(null\)/)
+
+  assert.match(samplePreviewDialog, /StudioDialogContent/)
+  assert.doesNotMatch(samplePreviewDialog, /<DialogContent\b/)
+  assert.match(samplePreviewDialog, /returnFocusRef\?:\s*RefObject<HTMLButtonElement\s*\|\s*null>/)
+  assert.match(samplePreviewDialog, /if\s*\(!returnFocusRef\?\.current\)\s*return/)
+  assert.match(samplePreviewDialog, /event\.preventDefault\(\)/)
+  assert.match(samplePreviewDialog, /returnFocusRef\.current\.focus\(\)/)
+  assert.match(samplePreviewDialog, /onCloseAutoFocus=\{handleCloseAutoFocus\}/)
+  assert.match(samplePreviewDialog, /<DialogFooter\b/)
+  assert.match(samplePreviewDialog, /variant="brandOutline"[^>]*className="min-h-11 min-w-11"/)
+  assert.doesNotMatch(samplePreviewDialog, /<DialogHeader\b[^>]*\bpr-(?:12|16)\b/)
 })
 
 test('market listboard keeps workspace-aware navigation and filter chips', () => {
@@ -67,7 +92,18 @@ test('market listboard hero consumes subject-aware workspace theme classes', () 
 })
 
 test('market listboard uses the shared compact board UI for every market slug', () => {
-  assert.match(listboardClient, /border-t-2 border-slate-950/, 'board should use the strong top divider')
+  assert.match(listboardServer, /<StudioBoardShell\b/)
+  assert.match(listboardServer, /results=\{\(\s*<MarketListboardClient\b/)
+  assert.equal(
+    (listboardServer.match(/<MarketListboardClient\b/g) ?? []).length,
+    1,
+    'the board shell must mount one stateful market result client'
+  )
+  assert.doesNotMatch(listboardServer, /desktopResults=\{<MarketListboardClient\b/)
+  assert.doesNotMatch(listboardServer, /mobileResults=\{null\}/)
+  assert.doesNotMatch(listboardServer, /\[data-slot=studio-board/)
+  assert.doesNotMatch(listboardServer, /![a-z-]+/)
+  assert.match(listboardClient, /border-t-2 border-\[var\(--studio-ink\)\]/, 'board should use the strong semantic top divider')
   assert.match(listboardClient, /w-full table-fixed border-collapse text-sm/, 'board should fit columns into the available width')
   assert.match(listboardClient, /w-\[46px\][\s\S]+번호/, 'number column should reserve a compact fixed width')
   assert.match(listboardClient, /w-\[52px\][\s\S]+샘플/, 'sample column should reserve a compact fixed width')
@@ -104,9 +140,18 @@ test('market listboard follows board-style alignment and one-line date display',
   assert.doesNotMatch(listboardClient, /toLocaleDateString\('ko-KR'/)
   assert.match(
     listboardClient,
-    /<td className="px-2 py-2 whitespace-nowrap text-center text-slate-600 sm:px-3">\{formatPublishedDate\(row\.publishedAt\)\}<\/td>/,
+    /<td className="px-2 py-2 whitespace-nowrap text-center text-\[var\(--studio-text\)\] sm:px-3">\{formatPublishedDate\(row\.publishedAt\)\}<\/td>/,
     'date cell should not wrap at spaces'
   )
+})
+
+test('market listboard result appearance uses Studio semantic tokens', () => {
+  assert.match(listboardClient, /bg-\[var\(--studio-background\)\] text-\[var\(--studio-text\)\]/)
+  assert.match(listboardClient, /border-\[var\(--studio-border\)\] bg-\[var\(--studio-surface\)\]/)
+  assert.match(listboardClient, /hover:bg-\[var\(--studio-primary-soft\)\]/)
+  assert.match(listboardClient, /text-\[var\(--studio-ink\)\] hover:text-\[var\(--studio-primary\)\]/)
+  assert.doesNotMatch(listboardClient, /(?:bg|text|border|hover:bg|hover:text)-slate-/)
+  assert.doesNotMatch(listboardClient, /\bbg-white\b/)
 })
 
 test('market listboard view column renders only the numeric view count', () => {
@@ -116,6 +161,8 @@ test('market listboard view column renders only the numeric view count', () => {
 })
 
 test('market listboard removes direct purchase tray and sends purchase flow to detail page', () => {
+  const pilotSources = `${listboardServer}\n${listboardClient}`
+
   assert.doesNotMatch(listboardClient, /선택 파일 결제/)
   assert.doesNotMatch(listboardClient, /CreditConfirmationDialog/)
   assert.doesNotMatch(listboardClient, /api\/market\/purchases\/batch/)
@@ -123,4 +170,12 @@ test('market listboard removes direct purchase tray and sends purchase flow to d
   assert.doesNotMatch(listboardClient, /상세에서 구매/)
   assert.match(listboardClient, /const href = `\/market\/\$\{categorySlug\}\/items\/\$\{row\.itemId\}`/)
   assert.match(listboardClient, /WorkspaceLink/)
+  assert.doesNotMatch(
+    pilotSources,
+    /market-item-actions|MarketItemActions|CreditConfirmationDialog|createClient|supabase|fetch\s*\(|\/api\/market\//,
+    'the appearance pilot must not absorb item-detail, purchase, database, or API ownership'
+  )
+  assert.match(listboardServer, /const activeFilterChips = \[/)
+  assert.match(listboardServer, /const sampleCount = rows\.filter\(\(row\) => row\.sample\.available\)\.length/)
+  assert.match(listboardServer, /<MarketListboardClient\b/)
 })

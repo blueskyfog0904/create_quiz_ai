@@ -19,6 +19,12 @@ const buttonVariants = cva(
         ghost:
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
+        brand:
+          "min-h-11 min-w-11 bg-[var(--studio-primary)] text-white hover:bg-[var(--studio-primary-hover)] focus-visible:ring-[var(--studio-focus-ring)]",
+        brandOutline:
+          "min-h-11 min-w-11 border border-[var(--studio-control-border)] bg-[var(--studio-surface)] text-[var(--studio-text)] hover:border-[var(--studio-primary)] hover:text-[var(--studio-primary)] focus-visible:ring-[var(--studio-focus-ring)]",
+        brandGhost:
+          "min-h-11 min-w-11 text-[var(--studio-text)] hover:bg-[var(--studio-primary-soft)] hover:text-[var(--studio-primary)] focus-visible:ring-[var(--studio-focus-ring)]",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

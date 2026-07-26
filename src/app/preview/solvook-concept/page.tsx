@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { StudioLandingPageFrame } from '@/components/page-templates'
+import { getPublicMainAdCarouselItems } from '@/lib/main-ad-carousel-server'
 import { CampaignHero } from './_components/home/campaign-hero'
+import { MainAdCarousel } from './_components/home/main-ad-carousel'
 import {
   HomeFinalCta,
   RecentMaterials,
@@ -23,19 +26,24 @@ export const metadata: Metadata = {
 
 const featuredPost = getSamplePost('ebs-literature', 'jingsori-2027')
 
-export default function SolvookConceptPreviewPage() {
+export default async function SolvookConceptPreviewPage() {
   if (!featuredPost) {
     notFound()
   }
 
+  const mainAdItems = await getPublicMainAdCarouselItems()
+
   return (
-    <div>
-      <CampaignHero featuredPost={featuredPost} />
+    <StudioLandingPageFrame
+      hero={mainAdItems.length > 0
+        ? <MainAdCarousel items={mainAdItems} />
+        : <CampaignHero featuredPost={featuredPost} />}
+    >
       <QuickAccessGrid />
       <RecommendedMaterials posts={samplePosts.slice(0, 4)} />
       <TextbookExplorer textbookCounts={getSampleTextbookCounts()} />
       <RecentMaterials posts={getRecentSamplePosts(5)} />
       <HomeFinalCta />
-    </div>
+    </StudioLandingPageFrame>
   )
 }

@@ -82,6 +82,14 @@ test('the preview layout and shared preview header and footer exist', () => {
   assertFileExists(previewFooterPath, 'preview footer')
 })
 
+test('the shared preview chrome opts into the reference gutter without changing board content gutters', () => {
+  const header = readUtf8(previewHeaderPath, 'preview header')
+  const footer = readUtf8(previewFooterPath, 'preview footer')
+
+  assert.match(header, /<header className="[^"]*studio-reference-gutter[^"]*"/)
+  assert.match(footer, /<footer className="[^"]*studio-reference-gutter[^"]*"/)
+})
+
 test('sample data contains the representative board slug and post id', () => {
   const data = readSampleData()
   assert.ok(
@@ -277,6 +285,23 @@ test('preview source has no direct Supabase, purchase, or credit API dependency'
       /from\s+['"]@\/lib\/(?:market(?:-|\/)|credits?(?:-|\/))[^'"]*['"]/i
     )
   }
+})
+
+test('the preview header matches the requested Solvook navigation scope', () => {
+  const header = readUtf8(previewHeaderPath, 'preview header')
+
+  assert.match(header, />카테고리</)
+  assert.match(header, />영어</)
+  assert.match(header, />국어</)
+  assert.match(header, /\/login\?next=/)
+  assert.match(header, /\/signup\?next=/)
+  assert.match(header, /href="\/pricing"/)
+  assert.match(header, />캐시 충전</)
+  assert.doesNotMatch(header, /선생님/)
+  assert.doesNotMatch(header, /학생/)
+  assert.doesNotMatch(header, /AI 문제생성/)
+  assert.doesNotMatch(header, /문제은행/)
+  assert.doesNotMatch(header, /라이브러리/)
 })
 
 test('path-aware chrome excludes only the exact Solvook concept preview subtree', () => {

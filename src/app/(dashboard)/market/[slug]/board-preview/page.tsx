@@ -8,7 +8,6 @@ import {
   type MarketItemListFilters,
 } from '@/lib/market-items-server'
 import MarketListboard, { type MarketListboardFilters } from '../market-listboard'
-import MarketListboardClient from '../market-listboard-client'
 
 interface MarketBoardPreviewPageProps {
   params: Promise<{ slug: string }>
@@ -51,9 +50,13 @@ export default async function MarketBoardPreviewPage({ params, searchParams }: M
   ])
 
   return (
-    <div className="space-y-6">
-      <MarketListboard category={category} rows={rows} filters={filters} options={options} isLoggedIn={Boolean(user)} resetHref={`/market/${category.slug}/board-preview`} variant="previewHeaderOnly" />
-      <MarketListboardClient categorySlug={category.slug} workspaceSubject={category.workspace_subject} rows={rows} isLoggedIn={Boolean(user)} />
-    </div>
+    <MarketListboard
+      category={category}
+      rows={rows}
+      filters={filters}
+      options={options}
+      isLoggedIn={Boolean(user)}
+      resetHref={`/market/${category.slug}/board-preview`}
+    />
   )
 }

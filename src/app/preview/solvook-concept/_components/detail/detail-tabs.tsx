@@ -27,7 +27,7 @@ export function DetailTabs({
 }: DetailTabsProps) {
   return (
     <Tabs defaultValue="information" className="gap-0">
-      <div className="overflow-x-auto border-b border-[var(--preview-border)]">
+      <div className="overflow-x-auto border-b border-[var(--studio-border)]">
         <TabsList
           variant="line"
           aria-label="자료 상세 메뉴"

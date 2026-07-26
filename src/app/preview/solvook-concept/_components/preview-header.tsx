@@ -1,165 +1,166 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { BookOpenText, LibraryBig, Search, Sparkles, Store } from 'lucide-react'
+import { Grid2X2, Search, WalletCards } from 'lucide-react'
+import { StudioContainer } from '@/components/design-system'
 
 const previewRoot = '/preview/solvook-concept'
-const boardHref = `${previewRoot}/boards/ebs-literature`
-const detailHref = `${boardHref}/posts/jingsori-2027`
-
-const primaryNavigation = [
-  {
-    label: 'AI 문제생성',
-    href: detailHref,
-    icon: Sparkles,
-  },
-  {
-    label: '문제마켓',
-    href: boardHref,
-    icon: Store,
-  },
-  {
-    label: '문제은행',
-    href: `${boardHref}?view=question-bank`,
-    icon: BookOpenText,
-  },
-  {
-    label: '라이브러리',
-    href: `${boardHref}?view=library`,
-    icon: LibraryBig,
-  },
-] as const
+const authNext = encodeURIComponent(previewRoot)
+const englishMarketHref = '/english/market/entexam'
+const koreanMarketHref = '/korean/market/entexam'
 
 export function PreviewHeader() {
   return (
-    <header className="sticky top-0 z-50 border-b border-[var(--preview-border)] bg-white/95 backdrop-blur">
-      <div className="md:hidden">
-        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-3 px-4">
+    <header className="studio-reference-gutter sticky top-0 z-50 border-b border-[var(--studio-border)] bg-[var(--studio-surface)]">
+      <div className="lg:hidden">
+        <StudioContainer className="flex h-16 items-center justify-between gap-3">
           <Link
             href={previewRoot}
             aria-label="써머썬 스튜디오 프리뷰 홈"
-            className="flex min-w-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--preview-primary)] focus-visible:ring-offset-2"
+            className="flex min-h-11 min-w-11 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] focus-visible:ring-offset-2"
           >
             <Image
               src="/preview/solvook-concept/brand-mark.svg"
               alt=""
               aria-hidden="true"
-              width={36}
-              height={36}
+              width={34}
+              height={34}
               priority
               className="shrink-0"
             />
-            <span className="truncate text-base font-extrabold tracking-[-0.02em] text-[var(--preview-ink)]">
+            <span className="truncate text-base font-extrabold tracking-[-0.02em] text-[var(--studio-ink)]">
               써머썬 스튜디오
             </span>
           </Link>
           <Link
-            href={boardHref}
-            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md bg-[var(--preview-primary)] px-3.5 text-sm font-bold text-white outline-none transition-colors hover:bg-[#5940D8] focus-visible:ring-2 focus-visible:ring-[var(--preview-primary)] focus-visible:ring-offset-2"
+            href={englishMarketHref}
+            aria-label="영어 문제마켓에서 검색"
+            className="grid min-h-11 min-w-11 place-items-center rounded-md text-[var(--studio-text)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
           >
-            <Search aria-hidden="true" className="h-4 w-4" />
-            자료 찾기
+            <Search aria-hidden="true" className="h-5 w-5" />
           </Link>
-        </div>
+        </StudioContainer>
+
+        <StudioContainer className="scrollbar-hide flex h-12 items-center gap-1 overflow-x-auto text-sm font-bold">
+          <span className="inline-flex min-h-11 shrink-0 items-center gap-2 px-2 text-[var(--studio-text)]">
+            <Grid2X2 aria-hidden="true" className="h-4 w-4" />
+            <span>카테고리</span>
+          </span>
+          <Link
+            href={englishMarketHref}
+            className="inline-flex min-h-11 shrink-0 items-center border-b-2 border-[var(--studio-ink)] px-3 text-[var(--studio-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+          >
+            <span>영어</span>
+          </Link>
+          <Link
+            href={koreanMarketHref}
+            className="inline-flex min-h-11 shrink-0 items-center px-3 text-[var(--studio-muted)] outline-none hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+          >
+            <span>국어</span>
+          </Link>
+          <Link
+            href="/pricing"
+            className="ml-auto inline-flex min-h-11 shrink-0 items-center gap-1.5 px-2 text-xs font-bold text-[var(--studio-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+          >
+            <WalletCards aria-hidden="true" className="h-4 w-4" />
+            <span>캐시 충전</span>
+          </Link>
+        </StudioContainer>
       </div>
 
-      <div className="hidden md:block">
-        <div className="border-b border-[var(--preview-border)]">
-          <div className="mx-auto flex h-[72px] max-w-[1200px] items-center gap-6 px-6">
+      <div className="hidden lg:block">
+        <nav aria-label="프리뷰 상단 메뉴" className="border-b border-[var(--studio-border)]">
+          <StudioContainer className="flex h-[72px] items-center gap-5">
             <Link
               href={previewRoot}
               aria-label="써머썬 스튜디오 프리뷰 홈"
-              className="flex shrink-0 items-center gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--preview-primary)] focus-visible:ring-offset-2"
+              className="flex min-h-11 min-w-11 shrink-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] focus-visible:ring-offset-2"
             >
               <Image
                 src="/preview/solvook-concept/brand-mark.svg"
                 alt=""
                 aria-hidden="true"
-                width={40}
-                height={40}
+                width={38}
+                height={38}
                 priority
               />
-              <span>
-                <span className="block text-lg font-extrabold tracking-[-0.025em] text-[var(--preview-ink)]">
-                  써머썬 스튜디오
-                </span>
-                <span className="block text-[11px] font-semibold tracking-[0.12em] text-[var(--preview-muted)]">
-                  TEACHER WORKSPACE
-                </span>
+              <span className="whitespace-nowrap text-lg font-black tracking-[-0.035em] text-[var(--studio-ink)]">
+                써머썬 스튜디오
               </span>
             </Link>
 
-            <form action={boardHref} method="get" className="relative min-w-0 flex-1">
+            <form
+              action={englishMarketHref}
+              method="get"
+              className="relative ml-auto w-[320px]"
+            >
               <label htmlFor="preview-global-search" className="sr-only">
-                자료 통합 검색
+                영어 문제마켓 검색
               </label>
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--preview-muted)]"
-              />
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-[var(--studio-text)]">
+                영어
+              </span>
               <input
                 id="preview-global-search"
-                name="q"
+                name="title"
                 type="search"
-                placeholder="교재, 작품, 문제 유형을 검색해 보세요"
-                className="h-11 w-full rounded-md border border-[var(--preview-border)] bg-[var(--preview-background)] pl-11 pr-4 text-sm text-[var(--preview-ink)] outline-none transition-colors placeholder:text-[var(--preview-muted)] focus:border-[var(--preview-primary)] focus:bg-white focus:ring-2 focus:ring-[#6950E5]/15"
+                placeholder="찾고 싶은 자료를 검색해 보세요"
+                className="h-11 w-full rounded-full border-0 bg-[var(--studio-background)] pl-[58px] pr-12 text-sm text-[var(--studio-ink)] outline-none placeholder:text-[var(--studio-muted)] focus:ring-2 focus:ring-[var(--studio-focus-ring)]"
               />
+              <button
+                type="submit"
+                aria-label="검색"
+                className="absolute right-1 top-1 grid min-h-9 min-w-9 place-items-center rounded-full text-[var(--studio-text)] outline-none hover:bg-[var(--studio-surface)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+              >
+                <Search aria-hidden="true" className="h-[18px] w-[18px]" />
+              </button>
             </form>
 
-            <div
-              aria-label="사용자 유형 예시"
-              className="flex shrink-0 items-center rounded-md bg-[var(--preview-background)] p-1 text-xs font-bold"
-            >
-              <span className="rounded-[4px] bg-white px-3 py-2 text-[var(--preview-primary)] shadow-sm">
-                선생님
-              </span>
-              <span className="px-3 py-2 text-[var(--preview-muted)]">
-                학생
-              </span>
-            </div>
-
             <Link
-              href={`${boardHref}?view=library`}
-              className="inline-flex h-11 shrink-0 items-center rounded-md border border-[var(--preview-border)] px-4 text-sm font-bold text-[var(--preview-text)] outline-none transition-colors hover:border-[var(--preview-primary)] hover:text-[var(--preview-primary)] focus-visible:ring-2 focus-visible:ring-[var(--preview-primary)] focus-visible:ring-offset-2"
+              href={`/login?next=${authNext}`}
+              className="inline-flex min-h-11 min-w-16 shrink-0 items-center justify-center rounded-md border border-[var(--studio-border)] px-4 text-sm font-bold text-[var(--studio-text)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
             >
-              내 자료
-            </Link>
-          </div>
-        </div>
-
-        <div className="mx-auto flex h-12 max-w-[1200px] items-center justify-between gap-6 px-6">
-          <nav aria-label="프리뷰 주요 메뉴" className="flex min-w-0 items-center gap-1">
-            {primaryNavigation.map((item) => {
-              const Icon = item.icon
-
-              return (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-bold text-[var(--preview-text)] outline-none transition-colors hover:bg-[#6950E5]/[0.07] hover:text-[var(--preview-primary)] focus-visible:ring-2 focus-visible:ring-[var(--preview-primary)]"
-                >
-                  <Icon aria-hidden="true" className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              )
-            })}
-          </nav>
-
-          <nav aria-label="프리뷰 과목" className="flex shrink-0 items-center gap-1 text-sm font-bold">
-            <Link
-              href={`${previewRoot}?subject=english`}
-              className="rounded-md px-3 py-2 text-[var(--preview-muted)] outline-none transition-colors hover:text-[var(--preview-ink)] focus-visible:ring-2 focus-visible:ring-[var(--preview-primary)]"
-            >
-              영어
+              로그인
             </Link>
             <Link
-              href={boardHref}
-              aria-current="page"
-              className="rounded-md bg-[#6950E5]/10 px-3 py-2 text-[var(--preview-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--preview-primary)]"
+              href={`/signup?next=${authNext}`}
+              className="inline-flex min-h-11 min-w-20 shrink-0 items-center justify-center rounded-md bg-[var(--studio-primary-soft)] px-4 text-sm font-bold text-[var(--studio-primary)] outline-none hover:bg-[var(--studio-primary-border)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
             >
-              국어
+              회원가입
+            </Link>
+          </StudioContainer>
+        </nav>
+
+        <StudioContainer className="flex h-12 items-center justify-between gap-6">
+          <nav
+            aria-label="문제마켓 과목"
+            className="flex min-w-0 items-center gap-1 text-base font-extrabold"
+          >
+            <span className="inline-flex min-h-11 shrink-0 items-center gap-2 px-1.5 text-[var(--studio-text)]">
+              <Grid2X2 aria-hidden="true" className="h-[18px] w-[18px]" />
+              <span>카테고리</span>
+            </span>
+            <Link
+              href={englishMarketHref}
+              className="inline-flex min-h-11 min-w-11 items-center border-b-2 border-[var(--studio-ink)] px-3 text-[var(--studio-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+            >
+              <span>영어</span>
+            </Link>
+            <Link
+              href={koreanMarketHref}
+              className="inline-flex min-h-11 min-w-11 items-center px-3 text-[var(--studio-muted)] outline-none hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+            >
+              <span>국어</span>
             </Link>
           </nav>
-        </div>
+
+          <Link
+            href="/pricing"
+            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-bold text-[var(--studio-primary)] outline-none hover:bg-[var(--studio-primary-soft)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+          >
+            <WalletCards aria-hidden="true" className="h-4 w-4" />
+            <span>캐시 충전</span>
+          </Link>
+        </StudioContainer>
       </div>
     </header>
   )

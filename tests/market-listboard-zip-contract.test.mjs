@@ -17,18 +17,17 @@ test('market list api and server rows support zip and sample-pages-only sample f
   assert.match(itemsServer, /listActiveMarketItemSamplePagesForItems/)
 })
 
-test('market listboard client exposes zip as an independent detail-purchase file kind', () => {
-  assert.match(listClient, /zip/)
-  assert.match(listClient, /ZIP/)
-  assert.match(listClient, /PDF[\s\S]+HWP & PDF[\s\S]+ZIP/)
-  assert.match(listClient, /상세에서 구매/)
+test('market listboard leaves zip purchase choices to the item detail page', () => {
+  assert.doesNotMatch(listClient, /AssetKind|renderAssetOption/)
+  assert.doesNotMatch(listClient, />파일<\/th>/)
+  assert.match(listClient, /const href = `\/market\/\$\{categorySlug\}\/items\/\$\{row\.itemId\}`/)
   assert.doesNotMatch(listClient, /zipCount/)
   assert.doesNotMatch(listClient, /selectionSummary/)
   assert.match(listServer, /zip|ZIP/)
 })
 
-test('market listboard hides unavailable paid file options instead of showing unavailable pills', () => {
-  assert.match(listClient, /if \(!asset\.available\) \{\s*return null\s*\}/)
+test('market listboard does not render unavailable paid file options', () => {
+  assert.doesNotMatch(listClient, /asset\.available/)
   assert.doesNotMatch(listClient, /\{formatLabel\} 미제공/)
   assert.doesNotMatch(listClient, /\$\{row\.title\} \$\{formatLabel\} 미제공/)
 })

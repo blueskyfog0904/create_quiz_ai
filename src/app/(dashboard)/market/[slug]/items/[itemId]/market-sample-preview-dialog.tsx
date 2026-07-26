@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type RefObject } from 'react'
+import { StudioDialogContent } from '@/components/design-system'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -17,6 +18,7 @@ interface MarketSamplePreviewDialogProps {
   open: boolean
   prefetchKey: number
   onOpenChange: (open: boolean) => void
+  returnFocusRef?: RefObject<HTMLButtonElement | null>
 }
 
 interface SamplePage {
@@ -171,11 +173,19 @@ export default function MarketSamplePreviewDialog({
   open,
   prefetchKey,
   onOpenChange,
+  returnFocusRef,
 }: MarketSamplePreviewDialogProps) {
   const [pages, setPages] = useState<SamplePage[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const sampleFileGroupMetaByName = buildSampleFileGroupMeta(pages)
+
+  const handleCloseAutoFocus = (event: Event) => {
+    if (!returnFocusRef?.current) return
+
+    event.preventDefault()
+    returnFocusRef.current.focus()
+  }
 
   const loadSamplePages = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     const cacheKey = buildSamplePageCacheKey(itemId, workspaceSubject)
@@ -224,8 +234,11 @@ export default function MarketSamplePreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[88vh] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
-        <DialogHeader className="shrink-0 border-b px-6 py-4 pr-12">
+      <StudioDialogContent
+        className="max-h-[88vh] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
+        onCloseAutoFocus={handleCloseAutoFocus}
+      >
+        <DialogHeader className="shrink-0 border-b border-[var(--studio-border)] px-6 py-4">
           <DialogTitle>샘플 미리보기</DialogTitle>
           <DialogDescription>판매자가 등록한 샘플 JPG를 확인하세요.</DialogDescription>
         </DialogHeader>
@@ -270,12 +283,18 @@ export default function MarketSamplePreviewDialog({
               })}
             </div>
           )}
-
-          <div className="mt-4 flex justify-end">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>닫기</Button>
-          </div>
         </div>
-      </DialogContent>
+        <DialogFooter className="shrink-0 border-t border-[var(--studio-border)] px-6 py-4">
+          <Button
+            type="button"
+            variant="brandOutline"
+            className="min-h-11 min-w-11"
+            onClick={() => onOpenChange(false)}
+          >
+            닫기
+          </Button>
+        </DialogFooter>
+      </StudioDialogContent>
     </Dialog>
   )
 }

@@ -19,7 +19,7 @@ const quickAccessItems = [
     label: '국어 AI 생성',
     href: detailHref,
     icon: Sparkles,
-    tone: 'bg-[#6950E5]/10 text-[#6950E5]',
+    tone: 'bg-[var(--studio-primary-soft)] text-[var(--studio-primary)]',
   },
   {
     label: '영어 AI 생성',
@@ -31,13 +31,13 @@ const quickAccessItems = [
     label: 'EBS 자료',
     href: `${boardHref}?textbook=EBS+수능특강`,
     icon: BookOpenText,
-    tone: 'bg-[#63CDB7]/20 text-[#268978]',
+    tone: 'bg-[var(--studio-success)]/20 text-[#268978]',
   },
   {
     label: '모의고사',
     href: `${boardHref}?view=mock-exam`,
     icon: FileCheck2,
-    tone: 'bg-[#F46D5E]/10 text-[#D95044]',
+    tone: 'bg-[var(--studio-highlight)]/10 text-[#D95044]',
   },
   {
     label: '교과서',
@@ -69,7 +69,6 @@ export function QuickAccessGrid() {
   return (
     <section
       aria-labelledby="quick-access-title"
-      className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6 sm:py-12"
     >
       <h2 id="quick-access-title" className="sr-only">
         빠른 메뉴
@@ -82,14 +81,14 @@ export function QuickAccessGrid() {
             <Link
               key={item.label}
               href={item.href}
-              className="group flex min-h-[104px] flex-col items-center justify-center gap-2 rounded-lg border border-[var(--preview-border)] bg-white px-1.5 py-3 text-center outline-none transition hover:-translate-y-0.5 hover:border-[#6950E5]/30 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-[var(--preview-primary)] sm:min-h-[116px]"
+              className="group flex min-h-[104px] flex-col items-center justify-center gap-2 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] px-1.5 py-3 text-center outline-none transition hover:-translate-y-0.5 hover:border-[var(--studio-primary-border)] hover:shadow-sm focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] sm:min-h-[116px]"
             >
               <span
                 className={`grid h-11 w-11 place-items-center rounded-xl transition-transform group-hover:scale-105 sm:h-12 sm:w-12 ${item.tone}`}
               >
                 <Icon aria-hidden="true" className="h-5 w-5 sm:h-6 sm:w-6" />
               </span>
-              <span className="break-keep text-[11px] font-bold leading-4 text-[var(--preview-text)] sm:text-xs">
+              <span className="break-keep text-[11px] font-bold leading-4 text-[var(--studio-text)] sm:text-xs">
                 {item.label}
               </span>
             </Link>

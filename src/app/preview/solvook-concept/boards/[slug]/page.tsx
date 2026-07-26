@@ -39,7 +39,7 @@ export default async function SolvookConceptBoardPage({
     <Suspense
       fallback={
         <div className="mx-auto max-w-[1200px] px-4 py-16 sm:px-6">
-          <div className="h-56 animate-pulse rounded-xl border border-[var(--preview-border)] bg-white" />
+          <div className="h-56 animate-pulse rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]" />
         </div>
       }
     >
