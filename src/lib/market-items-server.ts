@@ -163,6 +163,11 @@ export interface MarketItemListFilters {
   examYear?: number
   examMonth?: number
   sort?: 'latest' | 'views' | 'price_asc'
+  sourceType?: string
+  source1?: string
+  source2?: string
+  source3?: string
+  source4?: string
 }
 
 function normalizeWorkspaceSubject(value?: string | null): WorkspaceSubject {
@@ -1189,6 +1194,20 @@ export async function listPublishedMarketItems(menuEntryId: string, filters: Mar
 
   if (filters.examMonth !== undefined) {
     query = query.eq('exam_month', filters.examMonth)
+  }
+
+  const sourceFilters = [
+    ['source_type', normalizeText(filters.sourceType)],
+    ['source_1', normalizeText(filters.source1)],
+    ['source_2', normalizeText(filters.source2)],
+    ['source_3', normalizeText(filters.source3)],
+    ['source_4', normalizeText(filters.source4)],
+  ] as const
+
+  for (const [column, value] of sourceFilters) {
+    if (value) {
+      query = query.eq(column, value)
+    }
   }
 
   if (filters.assetKind === 'pdf') {

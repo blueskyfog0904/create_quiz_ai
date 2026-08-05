@@ -1,43 +1,56 @@
-/**
- * POST /api/refunds/request
- * 환불 요청을 생성합니다.
- * 
- * Body: { sourceId: string, reason?: string }
- */
-
+import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { NextRequest, NextResponse } from 'next/server'
-import { CreditService } from '@/lib/credits'
+import { requestPointChargeRefund } from '@/lib/point-charge-refunds-server'
 
-export async function POST(request: NextRequest) {
-    try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+const requestRefundSchema = z.object({
+  sourceId: z.string().uuid(),
+  reason: z.string().trim().max(500).optional().default('사유 없음'),
+}).strict()
 
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
+export async function POST(request: Request) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-        const body = await request.json()
-        const { sourceId, reason } = body
+  if (!user) {
+    return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+  }
 
-        if (!sourceId) {
-            return NextResponse.json({ error: 'sourceId is required' }, { status: 400 })
-        }
+  const parsed = requestRefundSchema.safeParse(
+    await request.json().catch(() => null)
+  )
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: '환불 요청 정보가 올바르지 않습니다.' },
+      { status: 400 }
+    )
+  }
 
-        // 환불 요청 처리
-        const result = await CreditService.requestRefund(user.id, sourceId, reason)
+  try {
+    const result = await requestPointChargeRefund({
+      userId: user.id,
+      sourceId: parsed.data.sourceId,
+      reason: parsed.data.reason,
+    })
 
-        return NextResponse.json({
-            success: true,
-            requestId: result.requestId,
-            message: '환불 요청이 접수되었습니다. 관리자 승인 후 처리됩니다.'
-        })
-    } catch (error) {
-        console.error('Failed to request refund:', error)
-        return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Internal server error' },
-            { status: 500 }
-        )
-    }
+    return NextResponse.json({
+      success: true,
+      requestId: result.request_id,
+      refundAmount: result.refund_amount,
+      refundableUntil: result.refundable_until,
+      message: '환불 요청이 접수되었습니다. 관리자 확인 후 원 결제수단으로 환불됩니다.',
+    })
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : '환불 요청을 처리하지 못했습니다.',
+      },
+      { status: 400 }
+    )
+  }
 }

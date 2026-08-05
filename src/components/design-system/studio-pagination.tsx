@@ -4,20 +4,35 @@ import type { MouseEvent, ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
 
+interface StudioPaginationNavigationText {
+  first: ReactNode
+  previous: ReactNode
+  next: ReactNode
+  last: ReactNode
+}
+
 interface StudioPaginationProps {
   page: number
   totalPages: number
   onPageChange: (page: number) => void
   getPageHref?: (page: number) => string
+  navigationText?: StudioPaginationNavigationText
 }
 
 const paginationControlClassName = 'min-h-11 min-w-11 px-3'
+const DEFAULT_NAVIGATION_TEXT: StudioPaginationNavigationText = {
+  first: '처음',
+  previous: '이전',
+  next: '다음',
+  last: '마지막',
+}
 
 export function StudioPagination({
   page,
   totalPages,
   onPageChange,
   getPageHref,
+  navigationText,
 }: StudioPaginationProps) {
   const pageCount = Math.max(
     0,
@@ -40,6 +55,7 @@ export function StudioPagination({
     { length: Math.min(5, pageCount) },
     (_, index) => pageWindowStart + index
   )
+  const resolvedNavigationText = navigationText ?? DEFAULT_NAVIGATION_TEXT
 
   function handleLinkClick(
     event: MouseEvent<HTMLAnchorElement>,
@@ -119,13 +135,13 @@ export function StudioPagination({
           targetPage: 1,
           label: '첫 페이지',
           disabled: firstPage,
-          children: '처음',
+          children: resolvedNavigationText.first,
         })}
         {renderControl({
           targetPage: Math.max(1, currentPage - 1),
           label: '이전 페이지',
           disabled: firstPage,
-          children: '이전',
+          children: resolvedNavigationText.previous,
         })}
 
         {visiblePages.map((pageNumber) =>
@@ -142,13 +158,13 @@ export function StudioPagination({
           targetPage: Math.min(pageCount, currentPage + 1),
           label: '다음 페이지',
           disabled: lastPage,
-          children: '다음',
+          children: resolvedNavigationText.next,
         })}
         {renderControl({
           targetPage: pageCount,
           label: '마지막 페이지',
           disabled: lastPage,
-          children: '마지막',
+          children: resolvedNavigationText.last,
         })}
       </div>
     </nav>

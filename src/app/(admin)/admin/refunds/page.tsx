@@ -44,9 +44,12 @@ export default async function AdminRefundsPage() {
         .order('created_at', { ascending: false })
 
     // 통계 조회
-    const pendingCount = requests?.filter(r => r.status === 'pending').length || 0
-    const approvedCount = requests?.filter(r => r.status === 'approved').length || 0
+    const pendingCount = requests?.filter(r => r.status === 'pending_review').length || 0
+    const completedCount = requests?.filter(r => r.status === 'completed').length || 0
     const rejectedCount = requests?.filter(r => r.status === 'rejected').length || 0
+    const attentionCount = requests?.filter(r =>
+        ['retryable_failed', 'manual_review'].includes(r.status)
+    ).length || 0
 
     const { data: marketRefundRequests } = await supabase
         .from('market_refund_requests')
@@ -57,7 +60,7 @@ export default async function AdminRefundsPage() {
         <div className="space-y-8">
             <RefundsClient
                 requests={requests || []}
-                stats={{ pendingCount, approvedCount, rejectedCount }}
+                stats={{ pendingCount, completedCount, rejectedCount, attentionCount }}
             />
             <h2 className="sr-only">문제마켓 환불</h2>
             <MarketRefundsClient requests={marketRefundRequests || []} />

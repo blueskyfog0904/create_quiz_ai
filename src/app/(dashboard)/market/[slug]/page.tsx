@@ -17,6 +17,11 @@ interface MarketCategoryPageProps {
     grade?: string
     title?: string
     subject?: string
+    sourceType?: string
+    source1?: string
+    source2?: string
+    source3?: string
+    source4?: string
   }>
 }
 
@@ -29,6 +34,11 @@ export default async function MarketCategoryPage({ params, searchParams }: Marke
     month: rawFilters.month?.trim() || '',
     grade: rawFilters.grade?.trim() || '',
     title: rawFilters.title?.trim() || '',
+    sourceType: rawFilters.sourceType?.normalize('NFC').trim() || '',
+    source1: rawFilters.source1?.normalize('NFC').trim() || '',
+    source2: rawFilters.source2?.normalize('NFC').trim() || '',
+    source3: rawFilters.source3?.normalize('NFC').trim() || '',
+    source4: rawFilters.source4?.normalize('NFC').trim() || '',
   }
 
   const workspaceSubject = resolveWorkspaceSubject(rawFilters.subject)
@@ -42,6 +52,11 @@ export default async function MarketCategoryPage({ params, searchParams }: Marke
     gradeLevel: filters.grade || undefined,
     examYear: filters.year ? Number(filters.year) : undefined,
     examMonth: filters.month ? Number(filters.month) : undefined,
+    sourceType: filters.sourceType || undefined,
+    source1: filters.source1 || undefined,
+    source2: filters.source2 || undefined,
+    source3: filters.source3 || undefined,
+    source4: filters.source4 || undefined,
   }
 
   const [rows, options] = await Promise.all([

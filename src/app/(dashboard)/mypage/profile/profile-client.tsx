@@ -58,20 +58,22 @@ export function ProfileClient({ profile, fallbackEmail }: ProfileClientProps) {
     if (!profile) return
 
     setIsSavingProfile(true)
-    const supabase = createClient()
 
     try {
-      const updateData = {
-        phone: phone?.trim() || null,
-      }
+      const response = await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'update_phone',
+          phone: phone?.trim() || '',
+        }),
+      })
+      const result = await response.json()
 
-      const { error } = await supabase
-        .from('profiles')
-        .update(updateData)
-        .eq('id', profile.id)
-
-      if (error) {
-        throw error
+      if (!response.ok) {
+        throw new Error(result.error || '프로필 업데이트에 실패했습니다.')
       }
 
       toast.success('프로필 정보가 성공적으로 업데이트되었습니다.')

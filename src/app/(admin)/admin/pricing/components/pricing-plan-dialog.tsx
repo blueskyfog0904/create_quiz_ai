@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { upsertPricingPlan, PricingPlan, PricingPlanInsert } from '../actions'
 import { Loader2 } from 'lucide-react'
+import { MAX_POINT_CHARGE_AMOUNT } from '@/lib/payment-constants'
 // If sonner not installed, I might need to check. But standard shadcn often uses sonner or useToast.
 // Let's implement a simple error message in the UI.
 
@@ -66,8 +67,14 @@ export function PricingPlanDialog({
 
         try {
             if (!formData.name) throw new Error('상품명은 필수입니다.')
-            if (formData.price === undefined || formData.price < 0) throw new Error('가격은 0원 이상이어야 합니다.')
-            if (formData.credits === undefined || formData.credits < 0) throw new Error('크레딧은 0 이상이어야 합니다.')
+            if (
+                formData.price === undefined ||
+                formData.price < 1 ||
+                formData.price > MAX_POINT_CHARGE_AMOUNT
+            ) {
+                throw new Error('가격은 1원 이상 100,000원 이하여야 합니다.')
+            }
+            if (formData.credits === undefined || formData.credits < 1) throw new Error('크레딧은 1 이상이어야 합니다.')
 
             const payload: PricingPlanInsert = {
                 name: formData.name,
@@ -85,9 +92,9 @@ export function PricingPlanDialog({
             await upsertPricingPlan(payload)
             onSuccess()
             onOpenChange(false)
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err)
-            setError(err.message || '저장 중 오류가 발생했습니다.')
+            setError(err instanceof Error ? err.message : '저장 중 오류가 발생했습니다.')
         } finally {
             setLoading(false)
         }
@@ -119,9 +126,13 @@ export function PricingPlanDialog({
                                 type="number"
                                 value={formData.price}
                                 onChange={(e) => setFormData({ ...formData, price: parseInt(e.target.value) || 0 })}
-                                min="0"
+                                min="1"
+                                max={MAX_POINT_CHARGE_AMOUNT}
                                 required
                             />
+                            <p className="text-xs text-muted-foreground">
+                                1회 충전 한도: 100,000원
+                            </p>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="credits">제공 크레딧</Label>
@@ -130,7 +141,7 @@ export function PricingPlanDialog({
                                 type="number"
                                 value={formData.credits}
                                 onChange={(e) => setFormData({ ...formData, credits: parseInt(e.target.value) || 0 })}
-                                min="0"
+                                min="1"
                                 required
                             />
                         </div>

@@ -51,7 +51,6 @@ const legacyPreviewTokenConsumers = [
   '_components/detail/sample-preview-dialog.tsx',
   '_components/home/campaign-hero.tsx',
   '_components/home/home-material-sections.tsx',
-  '_components/home/quick-access-grid.tsx',
   '_components/home/section-heading.tsx',
   '_components/preview-footer.tsx',
   '_components/preview-header.tsx',
@@ -149,15 +148,15 @@ function assertImportsAndRenders(source, component, label) {
   )
 }
 
-test('the preview-token RED baseline is locked to the planned seventeen-file scope', () => {
+test('the preview-token RED baseline is locked to the planned sixteen-file scope', () => {
   const sourceFiles = collectTsxFiles(previewRoot)
   const currentConsumers = sourceFiles
     .filter(({ source }) => source.includes('--preview-'))
     .map(({ relativePath }) => relativePath)
   const plannedConsumers = [...legacyPreviewTokenConsumers].sort()
 
-  assert.equal(legacyPreviewTokenConsumers.length, 17)
-  assert.equal(new Set(legacyPreviewTokenConsumers).size, 17)
+  assert.equal(legacyPreviewTokenConsumers.length, 16)
+  assert.equal(new Set(legacyPreviewTokenConsumers).size, 16)
   for (const relativePath of legacyPreviewTokenConsumers) {
     assert.ok(
       sourceFiles.some((file) => file.relativePath === relativePath),

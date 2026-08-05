@@ -85,8 +85,6 @@ const normalizeInternalPath = (path: string | null) => {
   }
 }
 
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
 function SignupContent() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
@@ -114,7 +112,6 @@ function SignupContent() {
   }).toString()
 
   const [kakaoEmail, setKakaoEmail] = useState('')
-  const [kakaoUserId, setKakaoUserId] = useState('')
   const [kakaoName, setKakaoName] = useState('')
   const [kakaoPhone, setKakaoPhone] = useState('')
 
@@ -249,39 +246,17 @@ function SignupContent() {
         const mergedKakaoId = getFirstText(profileData?.kakao_id, resolvedUserId)
         const mergedProvider = getFirstText(profileData?.provider, resolvedProvider, 'kakao')
 
-        let syncedProfile = profileData
-        if (profileData) {
-          const shouldSyncProfile = (
-            profileData.email !== (mergedEmail || null)
-            || profileData.name !== (mergedName || null)
-            || profileData.phone !== (mergedPhone || null)
-            || profileData.kakao_email !== (mergedKakaoEmail || null)
-            || profileData.kakao_id !== (mergedKakaoId || null)
-            || profileData.provider !== (mergedProvider || null)
-          )
-
-          if (shouldSyncProfile) {
-            const { data: updatedProfile, error: updateError } = await supabase
-              .from('profiles')
-              .update({
-                email: mergedEmail || null,
-                name: mergedName || null,
-                phone: mergedPhone || null,
-                kakao_email: mergedKakaoEmail || null,
-                kakao_id: mergedKakaoId || null,
-                provider: mergedProvider || null,
-              })
-              .eq('id', user.id)
-              .select('email, name, phone, kakao_email, kakao_id, provider, signup_completed')
-              .single()
-
-            if (updateError) {
-              console.warn('[Kakao Signup] Failed to sync profiles row:', updateError.message)
-            } else {
-              syncedProfile = updatedProfile
+        const syncedProfile = profileData
+          ? {
+              ...profileData,
+              email: mergedEmail || null,
+              name: mergedName || null,
+              phone: mergedPhone || null,
+              kakao_email: mergedKakaoEmail || null,
+              kakao_id: mergedKakaoId || null,
+              provider: mergedProvider || null,
             }
-          }
-        }
+          : profileData
 
         const profileEmail = getFirstText(
           syncedProfile?.email,
@@ -293,7 +268,6 @@ function SignupContent() {
         const profileKakaoId = getFirstText(syncedProfile?.kakao_id, mergedKakaoId)
 
         setKakaoEmail(profileEmail)
-        setKakaoUserId(profileKakaoId)
         setKakaoName(profileName)
         setKakaoPhone(profilePhone)
 
@@ -432,68 +406,29 @@ function SignupContent() {
       return
     }
 
-    const profileUpdate: {
-      name: string | null
-      provider: string
-      signup_completed: boolean
-      email?: string | null
-      kakao_email?: string | null
-      phone?: string | null
-      kakao_id?: string | null
-    } = {
-      name: kakaoName.trim() || null,
-      provider: 'kakao',
-      signup_completed: true,
-    }
-
     const sanitizedEmail = kakaoEmail.trim()
     const sanitizedPhone = kakaoPhone.trim()
-    const sanitizedKakaoId = kakaoUserId.trim()
 
-    if (sanitizedEmail) {
-      profileUpdate.email = sanitizedEmail
-      profileUpdate.kakao_email = sanitizedEmail
-    }
-    if (sanitizedPhone) {
-      profileUpdate.phone = sanitizedPhone
-    }
-    if (sanitizedKakaoId) {
-      profileUpdate.kakao_id = sanitizedKakaoId
-    }
+    const response = await fetch('/api/profile', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'complete_kakao_signup',
+        name: kakaoName.trim(),
+        phone: sanitizedPhone,
+      }),
+    })
+    const result = await response.json()
 
-    const { data: updatedProfile, error } = await supabase
-      .from('profiles')
-      .update(profileUpdate)
-      .eq('id', userData.user.id)
-      .select('email, name, phone, signup_completed')
-      .single()
-
-    if (error) {
+    if (!response.ok) {
       setIsLoading(false)
-      toast.error(`회원정보 저장 실패: ${error.message}`)
+      toast.error(result.error || '회원정보 저장에 실패했습니다.')
       return
     }
 
-    let confirmedProfile = updatedProfile
-
-    if (!updatedProfile?.signup_completed) {
-      for (let attempt = 0; attempt < 4; attempt += 1) {
-        const { data: profileCheck, error: profileCheckError } = await supabase
-          .from('profiles')
-          .select('email, name, phone, signup_completed')
-          .eq('id', userData.user.id)
-          .single()
-
-        if (!profileCheckError && profileCheck?.signup_completed) {
-          confirmedProfile = profileCheck
-          break
-        }
-
-        if (attempt < 3) {
-          await wait(300)
-        }
-      }
-    }
+    const confirmedProfile = result.profile
 
     if (!confirmedProfile?.signup_completed) {
       setIsLoading(false)

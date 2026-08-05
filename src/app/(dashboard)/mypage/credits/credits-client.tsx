@@ -56,7 +56,11 @@ interface CreditSource {
   remaining_credits: number
   status: 'active' | 'pending_refund' | 'refunded'
   purchased_at: string
+  expires_at: string | null
   source_category: CreditSourceCategory
+  canRefund: boolean
+  refundBlockedReason: string | null
+  refundableUntil: string | null
   plan: {
     name: string
     price: number
@@ -78,13 +82,23 @@ interface CreditTransaction {
 interface RefundRequest {
     id: string
     source_id: string
-    status: 'pending' | 'approved' | 'rejected'
+    status:
+        | 'pending_review'
+        | 'processing'
+        | 'completed'
+        | 'rejected'
+        | 'retryable_failed'
+        | 'manual_review'
     reason: string
     created_at: string
 }
 
 interface CreditsClientProps {
     balance: number
+    spendableBalance: number
+    expiredBalance: number
+    nextExpirationAt: string | null
+    databaseNow: string
     sources: CreditSource[]
     transactions: CreditTransaction[]
     refundRequests: RefundRequest[]
@@ -92,6 +106,10 @@ interface CreditsClientProps {
 
 export function CreditsClient({
     balance,
+    spendableBalance,
+    expiredBalance,
+    nextExpirationAt,
+    databaseNow,
     sources,
     transactions
 }: CreditsClientProps) {
@@ -121,39 +139,16 @@ export function CreditsClient({
         [transactionFilters, transactions]
     )
 
+    const isExpired = (source: CreditSource) =>
+        source.expires_at !== null &&
+        new Date(source.expires_at).getTime() <= new Date(databaseNow).getTime()
+
     // 환불 가능 여부 확인
-    const canRequestRefund = (source: CreditSource) => {
-        if (!source.plan) return false
-
-        // 이미 환불 요청 중이거나 환불됨
-        if (source.status !== 'active') return false
-
-        // 사용한 크레딧이 있으면 불가
-        if (source.remaining_credits < source.initial_credits) return false
-
-        // 구매 후 7일 초과 시 불가
-        const purchasedAt = new Date(source.purchased_at)
-        const now = new Date()
-        const daysDiff = Math.floor((now.getTime() - purchasedAt.getTime()) / (1000 * 60 * 60 * 24))
-        if (daysDiff > 7) return false
-
-        return true
-    }
+    const canRequestRefund = (source: CreditSource) => source.canRefund
 
     // 환불 불가 사유
-    const getRefundBlockReason = (source: CreditSource) => {
-        if (!source.plan) return '요금제 구매건만 환불 가능'
-        if (source.status === 'pending_refund') return '환불 요청 중'
-        if (source.status === 'refunded') return '환불 완료'
-        if (source.remaining_credits < source.initial_credits) return '이미 사용한 크레딧 있음'
-
-        const purchasedAt = new Date(source.purchased_at)
-        const now = new Date()
-        const daysDiff = Math.floor((now.getTime() - purchasedAt.getTime()) / (1000 * 60 * 60 * 24))
-        if (daysDiff > 7) return '구매 후 7일 초과'
-
-        return null
-    }
+    const getRefundBlockReason = (source: CreditSource) =>
+        source.refundBlockedReason
 
     // 환불 요청 제출
     const handleRefundRequest = async () => {
@@ -188,7 +183,12 @@ export function CreditsClient({
     }
 
     // 상태 배지
-    const getStatusBadge = (status: string) => {
+    const getStatusBadge = (source: CreditSource) => {
+        if (isExpired(source)) {
+            return <Badge variant="secondary">사용기한 만료</Badge>
+        }
+
+        const status = source.status
         switch (status) {
             case 'active':
                 return <Badge className="bg-green-100 text-green-700">사용 가능</Badge>
@@ -261,6 +261,19 @@ export function CreditsClient({
                                 {balance.toLocaleString()}
                             </div>
                             <p className="text-amber-700 mt-1">사용 가능한 크레딧</p>
+                            {nextExpirationAt && (
+                                <p className="mt-2 text-xs text-amber-800">
+                                    다음 사용기한: {new Date(nextExpirationAt).toLocaleDateString('ko-KR')}
+                                </p>
+                            )}
+                            {expiredBalance > 0 && (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    만료 크레딧 {expiredBalance.toLocaleString()}C
+                                </p>
+                            )}
+                            <span className="sr-only">
+                                사용 가능 잔액 {spendableBalance.toLocaleString()} 크레딧
+                            </span>
                         </div>
                         <Link href="/pricing">
                             <Button className="gap-2 bg-amber-500 hover:bg-amber-600">
@@ -270,6 +283,26 @@ export function CreditsClient({
                             </Button>
                         </Link>
                     </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base">크레딧 충전·사용 경로</CardTitle>
+                    <CardDescription>
+                        충전한 크레딧은 AI 문제 생성, 문제은행, 시험지 제작, 문제마켓 자료 구매에 사용됩니다.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                    <Button asChild variant="outline">
+                        <Link href="/pricing">크레딧 충전</Link>
+                    </Button>
+                    <Button asChild variant="outline">
+                        <Link href="/mypage/payments">결제 내역</Link>
+                    </Button>
+                    <Button asChild variant="outline">
+                        <Link href="/terms/refund">취소/환불정책</Link>
+                    </Button>
                 </CardContent>
             </Card>
 
@@ -329,6 +362,8 @@ export function CreditsClient({
                                             <TableHeader>
                                                 <TableRow>
                                                     <TableHead>구매일</TableHead>
+                                                    <TableHead>사용기한</TableHead>
+                                                    <TableHead>환불 신청 마감</TableHead>
                                                     <TableHead>구분</TableHead>
                                                     <TableHead>구매 크레딧</TableHead>
                                                     <TableHead>잔여 크레딧</TableHead>
@@ -346,6 +381,16 @@ export function CreditsClient({
                                                             <TableCell className="text-sm">
                                                                 {new Date(source.purchased_at).toLocaleDateString('ko-KR')}
                                                             </TableCell>
+                                                            <TableCell className="text-sm">
+                                                                {source.expires_at
+                                                                    ? new Date(source.expires_at).toLocaleDateString('ko-KR')
+                                                                    : '별도 기한 없음'}
+                                                            </TableCell>
+                                                            <TableCell className="text-sm">
+                                                                {source.refundableUntil
+                                                                    ? new Date(source.refundableUntil).toLocaleDateString('ko-KR')
+                                                                    : '-'}
+                                                            </TableCell>
                                                             <TableCell>
                                                                 {getSourceCategoryLabel(source)}
                                                             </TableCell>
@@ -358,7 +403,7 @@ export function CreditsClient({
                                                                 </span>
                                                             </TableCell>
                                                             <TableCell>
-                                                                {getStatusBadge(source.status)}
+                                                                {getStatusBadge(source)}
                                                             </TableCell>
                                                             <TableCell className="text-right">
                                                                 {source.status === 'active' && (

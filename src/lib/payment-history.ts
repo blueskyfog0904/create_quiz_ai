@@ -10,6 +10,10 @@ export interface PaymentHistoryRecord {
   amount: number
   status: string
   payment_method: string
+  order_id?: string | null
+  provider?: string | null
+  provider_status?: string | null
+  approved_at?: string | null
   plan_id: string | null
   pricing_plans: PaymentPlanRelationInput
 }

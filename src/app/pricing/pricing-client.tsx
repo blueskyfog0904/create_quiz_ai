@@ -137,13 +137,13 @@ export function PricingClient({ plans, isLoggedIn }: PricingClientProps) {
                             {/* 구매 버튼 */}
                             <Button
                                 onClick={() => handlePurchase(plan)}
-                                className={`w-full ${popular
+                                className={`min-h-11 w-full ${popular
                                     ? 'bg-blue-600 hover:bg-blue-700'
                                     : ''
                                     }`}
                                 size="lg"
                             >
-                                구매하기
+                                충전하기
                             </Button>
 
                             {/* 크레딧당 가격 */}

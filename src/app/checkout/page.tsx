@@ -8,6 +8,7 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getTossCheckoutConfig } from '@/lib/toss-payments-server'
 import { CheckoutClient } from './checkout-client'
 
 interface CheckoutPageProps {
@@ -52,11 +53,11 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
         redirect('/pricing')
     }
 
-    // 클라이언트 키
-    const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY
-
-    if (!clientKey) {
-        throw new Error('NEXT_PUBLIC_TOSS_CLIENT_KEY 환경 변수가 설정되지 않았습니다.')
+    let paymentConfig: ReturnType<typeof getTossCheckoutConfig> | null = null
+    try {
+        paymentConfig = getTossCheckoutConfig()
+    } catch {
+        paymentConfig = null
     }
 
     return (
@@ -67,7 +68,7 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
                 name: profile?.name || user.email?.split('@')[0] || '고객',
                 email: user.email || ''
             }}
-            clientKey={clientKey}
+            paymentConfig={paymentConfig}
         />
     )
 }

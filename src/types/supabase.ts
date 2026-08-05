@@ -3020,6 +3020,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      update_main_ad_carousel_subject: {
+        Args: {
+          p_subject: string
+          p_subject_config: Json
+        }
+        Returns: {
+          after_config: Json
+          before_config: Json
+        }[]
+      }
+      get_market_home_popular_items: {
+        Args: {
+          p_from: string
+          p_limit: number
+          p_workspace_subject: string
+        }
+        Returns: {
+          download_issuer_user_count: number
+          item_id: string
+        }[]
+      }
       create_support_ticket: {
         Args: {
           p_category_id: string

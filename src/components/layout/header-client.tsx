@@ -139,7 +139,12 @@ export function HeaderClient({
   if (isMobile) {
     if (!isInteractiveReady) {
       return (
-        <Button variant="ghost" size="icon" aria-label="모바일 메뉴">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="min-h-11 min-w-11"
+          aria-label="모바일 메뉴"
+        >
           <Menu className="h-6 w-6" />
         </Button>
       )
@@ -148,7 +153,12 @@ export function HeaderClient({
     return (
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetTrigger asChild>
-          <Button variant="ghost" size="icon">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="min-h-11 min-w-11"
+            aria-label="모바일 메뉴"
+          >
             <Menu className="h-6 w-6" />
           </Button>
         </SheetTrigger>

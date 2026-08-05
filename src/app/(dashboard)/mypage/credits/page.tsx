@@ -6,6 +6,7 @@
 import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { getCreditBalanceSnapshot, logCreditBalanceMismatch, selectDisplayBalance } from '@/lib/credit-balance'
+import { getPointChargeRefundEligibility } from '@/lib/point-charge-refunds-server'
 import { CreditsClient } from './credits-client'
 
 export const dynamic = 'force-dynamic'
@@ -50,10 +51,30 @@ export default async function CreditsPage() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
+  const sourcesWithRefundInfo = await Promise.all(
+    (sources ?? []).map(async (source) => {
+      const eligibility = await getPointChargeRefundEligibility({
+        userId: user.id,
+        sourceId: source.id,
+      })
+
+      return {
+        ...source,
+        canRefund: eligibility.allowed,
+        refundBlockedReason: eligibility.reason,
+        refundableUntil: eligibility.refundableUntil,
+      }
+    })
+  )
+
   return (
     <CreditsClient
       balance={selectDisplayBalance(user.id, snapshot)}
-      sources={sources || []}
+      spendableBalance={snapshot.spendableBalance}
+      expiredBalance={snapshot.expiredBalance}
+      nextExpirationAt={snapshot.nextExpirationAt}
+      databaseNow={snapshot.databaseNow}
+      sources={sourcesWithRefundInfo}
       transactions={transactions || []}
       refundRequests={refundRequests || []}
     />

@@ -55,7 +55,22 @@ import {
   type LegacyMarketChildSummary,
 } from '@/lib/market-menu-server'
 import type { MarketMenuEntryAdminRow } from '@/lib/market-menu'
-import { DEFAULT_WORKSPACE_SUBJECT, withWorkspacePrefix, type WorkspaceSubject } from '@/lib/workspace-subject'
+import {
+  archiveMarketMenuGroup,
+  assignMarketMenuEntriesToGroup,
+  createMarketMenuGroup,
+  listMarketMenuGroupsForAdmin,
+  reorderMarketMenuGroups,
+  updateMarketMenuGroup,
+  type MarketMenuGroupRow,
+  type MarketMenuGroupWriteInput,
+} from '@/lib/market-menu-groups-server'
+import {
+  assertWorkspaceSubject,
+  DEFAULT_WORKSPACE_SUBJECT,
+  withWorkspacePrefix,
+  type WorkspaceSubject,
+} from '@/lib/workspace-subject'
 import type { TablesInsert, TablesUpdate } from '@/types/supabase'
 
 export interface MenuManagementPageData {
@@ -64,6 +79,11 @@ export interface MenuManagementPageData {
   adminSidebarConfig: AdminSidebarNavigationConfig
   generateMenuEntries: GenerateMenuEntryAdminRow[]
   marketMenuEntries: MarketMenuEntryAdminRow[]
+  marketMenuEntryGroupAssignments: Array<{
+    entryId: string
+    groupId: string | null
+  }>
+  marketMenuGroups: MarketMenuGroupRow[]
   initialGeneratePosts: GenerateListboardPost[]
   initialSelectedBoardId: string | null
   generateChildrenSourceMode: ReturnType<typeof getGenerateChildrenSourceMode>
@@ -107,6 +127,8 @@ function revalidateMenuRelatedPaths(workspaceSubject: WorkspaceSubject) {
   revalidatePath('/admin')
   revalidatePath('/admin', 'layout')
   revalidatePath(`/admin/menu-management?subject=${workspaceSubject}`)
+  revalidatePath('/preview/solvook-concept')
+  revalidatePath('/preview/solvook-concept/boards/[slug]', 'page')
 }
 
 export async function getMenuManagementData(workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT): Promise<MenuManagementPageData> {
@@ -116,6 +138,13 @@ export async function getMenuManagementData(workspaceSubject: WorkspaceSubject =
   const adminSidebarConfig = await getAdminSidebarNavigationConfig(workspaceSubject)
   const generateMenuEntries = await listGenerateMenuEntriesForAdmin(workspaceSubject)
   const marketMenuEntries = await listMarketMenuEntriesForAdmin(workspaceSubject)
+  const marketMenuEntryGroupAssignments = (
+    marketMenuEntries as Array<MarketMenuEntryAdminRow & { group_id?: string | null }>
+  ).map((entry) => ({
+    entryId: entry.id,
+    groupId: entry.group_id ?? null,
+  }))
+  const marketMenuGroups = await listMarketMenuGroupsForAdmin(workspaceSubject)
   const backfillStatus = await getGenerateMenuEntriesBackfillStatus(initialConfig, workspaceSubject)
   const marketBackfillStatus = await getMarketMenuEntriesBackfillStatus(initialConfig, workspaceSubject)
   const firstListboardEntry = generateMenuEntries.find((entry) => entry.entry_type === 'listboard' && entry.deleted_at === null)
@@ -128,6 +157,8 @@ export async function getMenuManagementData(workspaceSubject: WorkspaceSubject =
     adminSidebarConfig,
     generateMenuEntries,
     marketMenuEntries,
+    marketMenuEntryGroupAssignments,
+    marketMenuGroups,
     initialGeneratePosts,
     initialSelectedBoardId: firstListboardEntry?.id ?? null,
     generateChildrenSourceMode: getGenerateChildrenSourceMode(),
@@ -352,4 +383,61 @@ export async function backfillMarketMenuEntriesAction(workspaceSubject: Workspac
   const entries = await backfillMarketMenuEntriesFromHeader(config, workspaceSubject)
   revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true, data: entries }
+}
+
+export async function createMarketMenuGroupAction(
+  input: MarketMenuGroupWriteInput,
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
+) {
+  await requireAdmin()
+  const subject = assertWorkspaceSubject(workspaceSubject)
+  const group = await createMarketMenuGroup(input, subject)
+  revalidateMenuRelatedPaths(subject)
+  return { success: true, data: group }
+}
+
+export async function updateMarketMenuGroupAction(
+  id: string,
+  input: MarketMenuGroupWriteInput,
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
+) {
+  await requireAdmin()
+  const subject = assertWorkspaceSubject(workspaceSubject)
+  const group = await updateMarketMenuGroup(id, input, subject)
+  revalidateMenuRelatedPaths(subject)
+  return { success: true, data: group }
+}
+
+export async function archiveMarketMenuGroupAction(
+  id: string,
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
+) {
+  await requireAdmin()
+  const subject = assertWorkspaceSubject(workspaceSubject)
+  await archiveMarketMenuGroup(id, subject)
+  revalidateMenuRelatedPaths(subject)
+  return { success: true }
+}
+
+export async function reorderMarketMenuGroupsAction(
+  ids: string[],
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
+) {
+  await requireAdmin()
+  const subject = assertWorkspaceSubject(workspaceSubject)
+  await reorderMarketMenuGroups(ids, subject)
+  revalidateMenuRelatedPaths(subject)
+  return { success: true }
+}
+
+export async function assignMarketMenuEntriesToGroupAction(
+  ids: string[],
+  groupId: string | null,
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
+) {
+  await requireAdmin()
+  const subject = assertWorkspaceSubject(workspaceSubject)
+  await assignMarketMenuEntriesToGroup(ids, groupId, subject)
+  revalidateMenuRelatedPaths(subject)
+  return { success: true }
 }

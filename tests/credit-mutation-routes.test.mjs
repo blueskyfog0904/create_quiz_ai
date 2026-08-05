@@ -17,16 +17,16 @@ const adminGrantRouteSource = readFileSync(
   'utf8'
 )
 
-test('purchase route returns snapshot-backed balance fields', () => {
-  assert.match(purchaseRouteSource, /getCreditBalanceSnapshot/)
-  assert.match(purchaseRouteSource, /buildCreditBalanceResponseFields/)
-  assert.match(purchaseRouteSource, /\.\.\.buildCreditBalanceResponseFields\(snapshot\)/)
+test('legacy test purchase route is disabled', () => {
+  assert.match(purchaseRouteSource, /TEST_CREDIT_PURCHASE_DISABLED/)
+  assert.match(purchaseRouteSource, /status:\s*410/)
+  assert.doesNotMatch(purchaseRouteSource, /purchaseCredits/)
 })
 
-test('deduct route returns snapshot-backed balance fields', () => {
-  assert.match(deductRouteSource, /getCreditBalanceSnapshot/)
-  assert.match(deductRouteSource, /buildCreditBalanceResponseFields/)
-  assert.match(deductRouteSource, /\.\.\.buildCreditBalanceResponseFields\(snapshot\)/)
+test('generic deduct route is disabled', () => {
+  assert.match(deductRouteSource, /GENERIC_CREDIT_DEDUCTION_DISABLED/)
+  assert.match(deductRouteSource, /status:\s*410/)
+  assert.doesNotMatch(deductRouteSource, /deductCredits/)
 })
 
 test('admin grant route returns snapshot-backed balance fields', () => {

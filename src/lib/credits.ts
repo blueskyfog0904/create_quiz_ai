@@ -6,9 +6,10 @@
  * 환불 대기 중(pending_refund)인 구매건은 차감에서 제외됩니다.
  */
 
+import 'server-only'
+
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/bypass'
-import { sendSlackNotification } from '@/lib/slack'
 import type { CreditSourceCategory } from '@/lib/credit-source-display'
 import { getCreditBalanceSnapshot, reportCreditBalanceMismatch, syncProfileBalanceCacheFromLedger } from '@/lib/credit-balance'
 
@@ -75,11 +76,6 @@ interface CreditRpcRefundResult {
   refunded: number
 }
 
-export interface RefundEligibility {
-  allowed: boolean
-  reason?: string
-}
-
 async function finalizeCreditBalanceMutation(
   userId: string,
   context: string,
@@ -106,23 +102,11 @@ export class CreditService {
 
   /**
    * 사용자의 현재 크레딧 잔액을 조회합니다.
-   * profiles.credits 필드에서 직접 조회합니다.
+   * DB 시각 기준으로 만료되지 않은 사용 가능 원장 잔액을 조회합니다.
    */
   static async getBalance(userId: string): Promise<number> {
-    const supabase = await createClient()
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('credits')
-      .eq('id', userId)
-      .single()
-
-    if (error) {
-      console.error('[CreditService] getBalance error:', error)
-      return 0
-    }
-
-    return data?.credits ?? 0
+    const snapshot = await getCreditBalanceSnapshot(userId)
+    return snapshot.spendableBalance
   }
 
   /**
@@ -138,7 +122,10 @@ export class CreditService {
       .eq('user_id', userId)
       .eq('status', 'active')
       .gt('remaining_credits', 0) // 남은 크레딧이 있는 것만
-      .order('purchased_at', { ascending: true }) // FIFO: 가장 오래된 것부터
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+      .order('expires_at', { ascending: true, nullsFirst: false })
+      .order('purchased_at', { ascending: true })
+      .order('id', { ascending: true })
 
     if (error) {
       console.error('[CreditService] getActiveSources error:', error)
@@ -194,8 +181,8 @@ export class CreditService {
     resourceId: string | null,
     description: string
   ): Promise<DeductResult> {
-    const supabase = await createClient()
-    const rpcClient = supabase as unknown as {
+    const adminSupabase = createAdminClient()
+    const rpcClient = adminSupabase as unknown as {
       rpc: (fn: string, params: Record<string, unknown>) => Promise<{
         data: unknown
         error: { message: string } | null
@@ -233,7 +220,11 @@ export class CreditService {
       throw new Error('크레딧 차감 응답이 올바르지 않습니다.')
     }
 
-    const { newBalance: syncedBalance } = await finalizeCreditBalanceMutation(userId, 'Deduct', supabase)
+    const { newBalance: syncedBalance } = await finalizeCreditBalanceMutation(
+      userId,
+      'Deduct',
+      adminSupabase
+    )
 
     return {
       success: true,
@@ -269,8 +260,8 @@ export class CreditService {
       throw new Error('환불 대상 소비 내역이 없습니다.')
     }
 
-    const supabase = await createClient()
-    const rpcClient = supabase as unknown as {
+    const adminSupabase = createAdminClient()
+    const rpcClient = adminSupabase as unknown as {
       rpc: (fn: string, params: Record<string, unknown>) => Promise<{
         data: unknown
         error: { message: string } | null
@@ -306,7 +297,11 @@ export class CreditService {
       return this.getBalance(userId)
     }
 
-    const { newBalance: syncedBalance } = await finalizeCreditBalanceMutation(userId, 'Refund', supabase)
+    const { newBalance: syncedBalance } = await finalizeCreditBalanceMutation(
+      userId,
+      'Refund',
+      adminSupabase
+    )
 
     return syncedBalance
   }
@@ -328,10 +323,10 @@ export class CreditService {
     paymentKey?: string,
     sourceCategory: CreditSourceCategory = 'plan_purchase'
   ): Promise<{ sourceId: string; newBalance: number }> {
-    const supabase = await createClient()
+    const adminSupabase = createAdminClient()
 
     // 1. credit_sources에 새 구매건 추가
-    const { data: source, error: sourceError } = await supabase
+    const { data: source, error: sourceError } = await adminSupabase
       .from('credit_sources')
       .insert({
         user_id: userId,
@@ -350,10 +345,10 @@ export class CreditService {
     }
 
     // 2. profile cache를 ledger 기준으로 동기화
-    const { newBalance } = await finalizeCreditBalanceMutation(userId, 'Purchase', supabase)
+    const { newBalance } = await finalizeCreditBalanceMutation(userId, 'Purchase', adminSupabase)
 
     // 3. payment_history에 결제 내역 기록
-    const { error: paymentError } = await supabase
+    const { error: paymentError } = await adminSupabase
       .from('payment_history')
       .insert({
         user_id: userId,
@@ -370,7 +365,7 @@ export class CreditService {
     }
 
     // 4. credit_transactions에 로그 기록
-    const { error: txError } = await supabase
+    const { error: txError } = await adminSupabase
       .from('credit_transactions')
       .insert({
         user_id: userId,
@@ -459,308 +454,6 @@ export class CreditService {
     return {
       sourceId: source.id,
       newBalance
-    }
-  }
-
-  /**
-   * 환불 가능 여부를 확인합니다.
-   * 
-   * 조건:
-   * 1. 해당 구매건의 크레딧을 하나도 사용하지 않음 (remaining = initial)
-   * 2. 구매 후 7일 이내
-   * 3. 현재 status가 'active'임 (이미 환불 요청 중이면 불가)
-   */
-  static canRequestRefund(source: CreditSource): RefundEligibility {
-    // 1. 이미 환불 요청 중인지 확인
-    if (source.status === 'pending_refund') {
-      return { allowed: false, reason: '이미 환불 요청 중입니다.' }
-    }
-
-    // 2. 이미 환불된 건인지 확인
-    if (source.status === 'refunded') {
-      return { allowed: false, reason: '이미 환불된 구매건입니다.' }
-    }
-
-    // 3. 사용한 크레딧이 있는지 확인
-    if (source.remaining_credits < source.initial_credits) {
-      return { allowed: false, reason: '이미 사용한 크레딧이 있습니다.' }
-    }
-
-    // 4. 구매 후 7일 초과 여부 확인
-    const purchasedAt = new Date(source.purchased_at)
-    const now = new Date()
-    const daysDiff = Math.floor((now.getTime() - purchasedAt.getTime()) / (1000 * 60 * 60 * 24))
-
-    if (daysDiff > 7) {
-      return { allowed: false, reason: '구매 후 7일이 지나 환불이 불가합니다.' }
-    }
-
-    return { allowed: true }
-  }
-
-  /**
-   * 환불 요청을 생성합니다.
-   * 
-   * 1. credit_sources.status를 'pending_refund'로 변경
-   * 2. refund_requests 레코드 생성
-   */
-  static async requestRefund(
-    userId: string,
-    sourceId: string,
-    reason?: string
-  ): Promise<{ requestId: string }> {
-    const supabase = await createClient()
-
-    // 1. source 조회 및 검증
-    const { data: source, error: sourceError } = await supabase
-      .from('credit_sources')
-      .select('*')
-      .eq('id', sourceId)
-      .eq('user_id', userId)
-      .single()
-
-    if (sourceError || !source) {
-      throw new Error('구매건을 찾을 수 없습니다.')
-    }
-
-    // 2. 환불 가능 여부 확인
-    const eligibility = this.canRequestRefund(source)
-    if (!eligibility.allowed) {
-      throw new Error(eligibility.reason)
-    }
-
-    // 3. credit_sources.status 변경
-    const { error: updateError } = await supabase
-      .from('credit_sources')
-      .update({ status: 'pending_refund' })
-      .eq('id', sourceId)
-
-    if (updateError) {
-      throw new Error('환불 요청 처리 중 오류가 발생했습니다.')
-    }
-
-    // 4. refund_requests 생성
-    const { data: request, error: requestError } = await supabase
-      .from('refund_requests')
-      .insert({
-        user_id: userId,
-        source_id: sourceId,
-        reason: reason || '사유 없음',
-        status: 'pending'
-      })
-      .select()
-      .single()
-
-    if (requestError) {
-      throw new Error('환불 요청 생성 중 오류가 발생했습니다.')
-    }
-
-    // 5. 관리자에게 웹 알림 발송
-    try {
-      const { data: admins } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('is_admin', true)
-
-      if (admins && admins.length > 0) {
-        const notifications = admins.map(admin => ({
-          user_id: admin.id,
-          type: 'warning',
-          title: '새 환불 요청',
-          message: `사용자가 크레딧 환불을 요청했습니다. 검토가 필요합니다.`,
-          link: '/admin/refunds',
-          is_read: false
-        }))
-
-        await supabase.from('notifications').insert(notifications)
-      }
-    } catch (notifyError) {
-      console.error('[CreditService] Failed to notify admins:', notifyError)
-    }
-
-    // 6. Slack 알림 발송
-    try {
-      // 사용자 정보 조회
-      const { data: user } = await supabase
-        .from('profiles')
-        .select('name, email')
-        .eq('id', userId)
-        .single()
-
-      // 구매 정보 조회
-      const { data: sourceInfo } = await supabase
-        .from('credit_sources')
-        .select('initial_credits, plan:pricing_plans(name, price)')
-        .eq('id', sourceId)
-        .single()
-
-      const planInfo = (sourceInfo?.plan as unknown) as { name: string; price: number } | null
-
-      await sendSlackNotification(
-        '💰 *새로운 환불 요청이 접수되었습니다*',
-        {
-          '사용자': user?.name || user?.email || '알 수 없음',
-          '요금제': planInfo?.name || '알 수 없음',
-          '크레딧': `${sourceInfo?.initial_credits?.toLocaleString() || 0}C`,
-          '금액': `₩${planInfo?.price?.toLocaleString() || 0}`,
-          '사유': reason || '사유 없음',
-          '관리자 페이지': 'https://your-domain.com/admin/refunds'
-        }
-      )
-    } catch (slackError) {
-      console.error('[CreditService] Failed to send Slack notification:', slackError)
-    }
-
-    return { requestId: request.id }
-  }
-
-  /**
-   * 환불을 승인합니다. (관리자 전용)
-   * 
-   * 1. profiles.credits에서 해당 source의 initial_credits만큼 차감
-   * 2. credit_sources.status를 'refunded'로 변경
-   * 3. refund_requests.status를 'approved'로 변경
-   * 4. payment_history.status를 'refunded'로 변경
-   * 5. credit_transactions에 환불 로그 기록
-   */
-  static async approveRefund(
-    requestId: string,
-    adminId: string,
-    adminNote?: string
-  ): Promise<void> {
-    // RLS 우회를 위해 service role 클라이언트 사용
-    const adminSupabase = createAdminClient()
-
-    // 1. refund_request 조회
-    const { data: request, error: requestError } = await adminSupabase
-      .from('refund_requests')
-      .select(`
-        *,
-        source:credit_sources(*)
-      `)
-      .eq('id', requestId)
-      .single()
-
-    if (requestError || !request) {
-      throw new Error('환불 요청을 찾을 수 없습니다.')
-    }
-
-    const source = request.source as CreditSource
-
-    // 2. credit_sources.status 변경
-    await adminSupabase
-      .from('credit_sources')
-      .update({ status: 'refunded', remaining_credits: 0 })
-      .eq('id', source.id)
-
-    // 3. refund_requests 업데이트
-    await adminSupabase
-      .from('refund_requests')
-      .update({
-        status: 'approved',
-        admin_note: adminNote,
-        processed_by: adminId,
-        processed_at: new Date().toISOString()
-      })
-      .eq('id', requestId)
-
-    // 4. payment_history 업데이트
-    await adminSupabase
-      .from('payment_history')
-      .update({ status: 'refunded' })
-      .eq('source_id', source.id)
-
-    const { newBalance: syncedBalance } = await finalizeCreditBalanceMutation(
-      request.user_id,
-      'Refund approval',
-      adminSupabase
-    )
-
-    // 5. credit_transactions에 환불 로그
-    await adminSupabase
-      .from('credit_transactions')
-      .insert({
-        user_id: request.user_id,
-        type: 'refund',
-        amount: -source.initial_credits,
-        balance_after: syncedBalance,
-        description: `환불 승인 (${source.initial_credits.toLocaleString()} 크레딧)`,
-        source_id: source.id
-      })
-
-    // 6. 사용자에게 환불 승인 알림 발송
-    try {
-      await adminSupabase.from('notifications').insert({
-        user_id: request.user_id,
-        type: 'success',
-        title: '환불이 승인되었습니다',
-        message: `${source.initial_credits.toLocaleString()} 크레딧 환불이 승인되었습니다. 결제 대금은 영업일 기준 3-5일 내에 환불됩니다.`,
-        link: '/mypage/credits',
-        is_read: false
-      })
-    } catch (notifyError) {
-      console.error('[CreditService] Failed to notify user on refund approval:', notifyError)
-    }
-  }
-
-  /**
-   * 환불을 거부합니다. (관리자 전용)
-   * 
-   * 1. credit_sources.status를 'active'로 복원
-   * 2. refund_requests.status를 'rejected'로 변경
-   */
-  static async rejectRefund(
-    requestId: string,
-    adminId: string,
-    adminNote?: string
-  ): Promise<void> {
-    // RLS 우회를 위해 service role 클라이언트 사용
-    const adminSupabase = createAdminClient()
-
-    // 1. refund_request 조회
-    const { data: request, error: requestError } = await adminSupabase
-      .from('refund_requests')
-      .select('*, source:credit_sources(*)')
-      .eq('id', requestId)
-      .single()
-
-    if (requestError || !request) {
-      throw new Error('환불 요청을 찾을 수 없습니다.')
-    }
-
-    const source = request.source as CreditSource
-
-    // 2. credit_sources.status 복원
-    await adminSupabase
-      .from('credit_sources')
-      .update({ status: 'active' })
-      .eq('id', source.id)
-
-    // 3. refund_requests 업데이트
-    await adminSupabase
-      .from('refund_requests')
-      .update({
-        status: 'rejected',
-        admin_note: adminNote,
-        processed_by: adminId,
-        processed_at: new Date().toISOString()
-      })
-      .eq('id', requestId)
-
-    // 4. 사용자에게 환불 거절 알림 발송
-    try {
-      await adminSupabase.from('notifications').insert({
-        user_id: request.user_id,
-        type: 'warning',
-        title: '환불 요청이 거절되었습니다',
-        message: adminNote
-          ? `환불 요청이 거절되었습니다. 사유: ${adminNote}`
-          : '환불 요청이 거절되었습니다. 자세한 내용은 고객센터로 문의해주세요.',
-        link: '/mypage/credits',
-        is_read: false
-      })
-    } catch (notifyError) {
-      console.error('[CreditService] Failed to notify user on refund rejection:', notifyError)
     }
   }
 

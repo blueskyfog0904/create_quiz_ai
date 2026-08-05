@@ -222,12 +222,15 @@ test('StudioPagination is controlled, link-optional, bounded, and accessible', (
   assert.match(source, /export\s+function\s+StudioPagination\b/)
   assert.deepEqual(
     extractInterfaceKeys(source, 'StudioPaginationProps'),
-    ['page', 'totalPages', 'onPageChange', 'getPageHref']
+    ['page', 'totalPages', 'onPageChange', 'getPageHref', 'navigationText']
   )
   assert.match(source, /page:\s*number/)
   assert.match(source, /totalPages:\s*number/)
   assert.match(source, /onPageChange:\s*\(page:\s*number\)\s*=>\s*void/)
   assert.match(source, /getPageHref\?:\s*\(page:\s*number\)\s*=>\s*string/)
+  assert.match(source, /navigationText\?:\s*StudioPaginationNavigationText/)
+  assert.match(source, /const DEFAULT_NAVIGATION_TEXT/)
+  assert.match(source, /navigationText \?\? DEFAULT_NAVIGATION_TEXT/)
   assert.match(source, /<nav\b[^>]*aria-label="페이지네이션"/)
   assert.match(source, /aria-current=\{[^}]*['"]page['"]/)
   assert.match(source, /aria-label=\{label\}/)

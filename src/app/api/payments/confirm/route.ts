@@ -1,172 +1,304 @@
-/**
- * 결제 승인 API
- * 
- * POST /api/payments/confirm
- * - 토스페이먼츠 결제 승인 API 호출
- * - 성공 시 크레딧 지급
- */
-
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { CreditService } from '@/lib/credits'
-import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot } from '@/lib/credit-balance'
+import {
+  createPaymentAdminClient,
+  type FinalizeTossPaymentResult,
+  type PaymentOrderRow,
+} from '@/lib/payment-orders-server'
+import {
+  assertTossPaymentsReady,
+  cancelTossPayment,
+  confirmTossPayment,
+  isAllowedPointChargeMethod,
+  TossPaymentsError,
+  validateConfirmedPayment,
+} from '@/lib/toss-payments-server'
 
 export const dynamic = 'force-dynamic'
 
-interface ConfirmRequest {
-    paymentKey: string
-    orderId: string
-    amount: number
-    planId: string
+const confirmPaymentSchema = z.object({
+  paymentKey: z.string().trim().min(1).max(200),
+  orderId: z.string().trim().min(1).max(64),
+  amount: z.number().int().min(1).max(100_000),
+}).strict()
+
+function completedResponse(
+  order: PaymentOrderRow,
+  result: FinalizeTossPaymentResult
+) {
+  return NextResponse.json({
+    success: true,
+    message: '결제가 완료되었습니다.',
+    credits: result.credits,
+    newBalance: result.new_balance,
+    payment: {
+      orderId: order.order_id,
+      orderName: order.plan_name_snapshot,
+      method: order.provider_method,
+      totalAmount: order.expected_amount,
+      approvedAt: order.approved_at,
+    },
+  })
 }
 
-export async function POST(request: NextRequest) {
-    try {
-        const supabase = await createClient()
+export async function POST(request: Request) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-        // 로그인 확인
-        const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+  }
 
-        if (!user) {
-            return NextResponse.json(
-                { error: '로그인이 필요합니다.' },
-                { status: 401 }
-            )
-        }
+  const parsed = confirmPaymentSchema.safeParse(
+    await request.json().catch(() => null)
+  )
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: '결제 승인 정보가 올바르지 않습니다.' },
+      { status: 400 }
+    )
+  }
+  const input = parsed.data
 
-        const body: ConfirmRequest = await request.json()
-        const { paymentKey, orderId, amount, planId } = body
+  try {
+    const runtimeConfig = assertTossPaymentsReady()
+    const admin = createPaymentAdminClient()
+    const { data: orderData, error: orderError } = await admin
+      .from('payment_orders')
+      .select('*')
+      .eq('order_id', input.orderId)
+      .eq('user_id', user.id)
+      .maybeSingle()
 
-        // 필수 파라미터 검증
-        if (!paymentKey || !orderId || !amount || !planId) {
-            return NextResponse.json(
-                { error: '필수 파라미터가 누락되었습니다.' },
-                { status: 400 }
-            )
-        }
-
-        // 요금제 정보 조회 및 금액 검증
-        const { data: plan, error: planError } = await supabase
-            .from('pricing_plans')
-            .select('*')
-            .eq('id', planId)
-            .eq('is_active', true)
-            .single()
-
-        if (planError || !plan) {
-            return NextResponse.json(
-                { error: '유효하지 않은 요금제입니다.' },
-                { status: 400 }
-            )
-        }
-
-        // 금액 검증 (위변조 방지)
-        if (plan.price !== amount) {
-            return NextResponse.json(
-                { error: '결제 금액이 일치하지 않습니다.' },
-                { status: 400 }
-            )
-        }
-
-        // 토스페이먼츠 시크릿 키
-        const secretKey = process.env.TOSS_SECRET_KEY
-        if (!secretKey) {
-            console.error('TOSS_SECRET_KEY 환경 변수가 설정되지 않았습니다.')
-            return NextResponse.json(
-                { error: '결제 설정 오류가 발생했습니다.' },
-                { status: 500 }
-            )
-        }
-
-        // Base64 인코딩된 Authorization 헤더
-        const authHeader = Buffer.from(`${secretKey}:`).toString('base64')
-
-        // 토스페이먼츠 결제 승인 API 호출
-        const confirmResponse = await fetch(
-            'https://api.tosspayments.com/v1/payments/confirm',
-            {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Basic ${authHeader}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    paymentKey,
-                    orderId,
-                    amount,
-                }),
-            }
-        )
-
-        const confirmData = await confirmResponse.json()
-
-        // 결제 승인 실패
-        if (!confirmResponse.ok) {
-            console.error('토스페이먼츠 결제 승인 실패:', confirmData)
-            return NextResponse.json(
-                {
-                    error: confirmData.message || '결제 승인에 실패했습니다.',
-                    code: confirmData.code
-                },
-                { status: 400 }
-            )
-        }
-
-        // 결제 성공 - 크레딧 지급
-        try {
-            // purchaseCredits(userId, planId, credits, price, paymentMethod, paymentKey)
-            const result = await CreditService.purchaseCredits(
-                user.id,
-                planId,
-                plan.credits,
-                plan.price,
-                confirmData.method || 'card',
-                paymentKey,
-                'plan_purchase'
-            )
-
-            // 결제 정보에 orderId 추가 (payment_history는 purchaseCredits에서 이미 생성됨)
-            await supabase
-                .from('payment_history')
-                .update({ order_id: orderId })
-                .eq('source_id', result.sourceId)
-
-            const snapshot = await getCreditBalanceSnapshot(user.id, supabase)
-
-            return NextResponse.json({
-                success: true,
-                message: '결제가 완료되었습니다.',
-                credits: plan.credits,
-                newBalance: result.newBalance,
-                ...buildCreditBalanceResponseFields(snapshot),
-                payment: {
-                    orderId: confirmData.orderId,
-                    orderName: confirmData.orderName,
-                    method: confirmData.method,
-                    totalAmount: confirmData.totalAmount,
-                    approvedAt: confirmData.approvedAt,
-                }
-            })
-        } catch (creditError) {
-            // 크레딧 지급 실패 (결제는 성공했지만 크레딧 지급 실패)
-            console.error('크레딧 지급 오류:', creditError)
-
-            // TODO: 결제 취소 API 호출 또는 관리자 알림
-
-            return NextResponse.json(
-                {
-                    error: '크레딧 지급 중 오류가 발생했습니다. 고객센터로 문의해주세요.',
-                    paymentKey: paymentKey // 관리자 확인용
-                },
-                { status: 500 }
-            )
-        }
-
-    } catch (error) {
-        console.error('결제 승인 API 오류:', error)
-        return NextResponse.json(
-            { error: '결제 처리 중 오류가 발생했습니다.' },
-            { status: 500 }
-        )
+    if (orderError || !orderData) {
+      return NextResponse.json(
+        { error: '본인 소유의 결제 주문을 찾을 수 없습니다.' },
+        { status: 404 }
+      )
     }
+
+    let order = orderData as PaymentOrderRow
+    if (order.expected_amount !== input.amount) {
+      return NextResponse.json(
+        { error: '결제 금액이 주문 금액과 일치하지 않습니다.' },
+        { status: 409 }
+      )
+    }
+
+    if (
+      order.environment !== runtimeConfig.environment ||
+      order.mid !== runtimeConfig.mid
+    ) {
+      return NextResponse.json(
+        { error: '주문과 결제 환경이 일치하지 않습니다.' },
+        { status: 503 }
+      )
+    }
+
+    if (order.status === 'completed') {
+      if (order.payment_key !== input.paymentKey) {
+        return NextResponse.json(
+          { error: '이미 완료된 주문 정보와 일치하지 않습니다.' },
+          { status: 409 }
+        )
+      }
+
+      const { data: profile } = await admin
+        .from('profiles')
+        .select('credits')
+        .eq('id', user.id)
+        .single()
+
+      return completedResponse(order, {
+        source_id: order.source_id ?? '',
+        payment_history_id: order.payment_history_id ?? '',
+        new_balance: profile?.credits ?? 0,
+        credits: order.expected_credits,
+        already_completed: true,
+      })
+    }
+
+    if (new Date(order.expires_at).getTime() <= Date.now()) {
+      return NextResponse.json(
+        { error: '결제 주문의 유효시간이 만료되었습니다.' },
+        { status: 410 }
+      )
+    }
+
+    if (
+      order.payment_key !== null &&
+      order.payment_key !== input.paymentKey
+    ) {
+      return NextResponse.json(
+        { error: '주문에 등록된 승인 정보와 일치하지 않습니다.' },
+        { status: 409 }
+      )
+    }
+
+    if (order.status === 'ready') {
+      const { data: claimedOrder, error: claimError } = await admin
+        .from('payment_orders')
+        .update({
+          status: 'confirming',
+          payment_key: input.paymentKey,
+          failure_code: null,
+          failure_message: null,
+        })
+        .eq('id', order.id)
+        .eq('status', 'ready')
+        .is('payment_key', null)
+        .select('*')
+        .maybeSingle()
+
+      if (claimError || !claimedOrder) {
+        return NextResponse.json(
+          { error: '다른 결제 승인 요청을 처리 중입니다.' },
+          { status: 409 }
+        )
+      }
+      order = claimedOrder as PaymentOrderRow
+    } else if (order.status !== 'fulfillment_pending') {
+      return NextResponse.json(
+        { error: '현재 처리할 수 없는 결제 주문 상태입니다.' },
+        { status: 409 }
+      )
+    }
+
+    const payment = await confirmTossPayment({
+      paymentKey: input.paymentKey,
+      orderId: order.order_id,
+      amount: order.expected_amount,
+      idempotencyKey: order.confirm_idempotency_key,
+    })
+
+    try {
+      validateConfirmedPayment(payment, {
+        paymentKey: input.paymentKey,
+        orderId: order.order_id,
+        amount: order.expected_amount,
+        mid: order.mid,
+      })
+
+      if (!isAllowedPointChargeMethod(payment)) {
+        throw new TossPaymentsError(
+          'PAYMENT_METHOD_NOT_ALLOWED',
+          '포인트 충전에 사용할 수 없는 결제수단입니다.',
+          400
+        )
+      }
+    } catch (validationError) {
+      try {
+        await cancelTossPayment({
+          paymentKey: input.paymentKey,
+          cancelReason: '포인트 충전 결제수단 또는 승인정보 불일치',
+          idempotencyKey: order.cancel_idempotency_key,
+        })
+        await admin
+          .from('payment_orders')
+          .update({
+            status: 'failed',
+            provider_status: payment.status,
+            failure_code:
+              validationError instanceof TossPaymentsError
+                ? validationError.code
+                : 'PAYMENT_VALIDATION_FAILED',
+            failure_message: '승인정보 검증 후 결제를 자동 취소했습니다.',
+            canceled_at: new Date().toISOString(),
+          })
+          .eq('id', order.id)
+      } catch {
+        await admin
+          .from('payment_orders')
+          .update({
+            status: 'manual_review',
+            failure_code: 'PAYMENT_AUTO_CANCEL_FAILED',
+            failure_message: '승인정보 검증 실패 후 자동 취소 결과를 확인해야 합니다.',
+          })
+          .eq('id', order.id)
+      }
+
+      return NextResponse.json(
+        { error: '승인된 결제를 사용할 수 없어 취소 처리했습니다.' },
+        { status: 400 }
+      )
+    }
+
+    const { error: pendingError } = await admin
+      .from('payment_orders')
+      .update({
+        status: 'fulfillment_pending',
+        provider_method: payment.method,
+        provider_status: payment.status,
+        approved_at: payment.approvedAt,
+      })
+      .eq('id', order.id)
+      .in('status', ['confirming', 'fulfillment_pending'])
+
+    if (pendingError) {
+      console.error('[PaymentConfirm] Failed to persist provider approval', {
+        orderId: order.order_id,
+        errorCode: pendingError.code,
+      })
+      return NextResponse.json(
+        {
+          error: '결제 승인 결과를 확인 중입니다. 잠시 후 다시 확인해 주세요.',
+          code: 'PAYMENT_RECONCILIATION_REQUIRED',
+        },
+        { status: 202 }
+      )
+    }
+
+    const { data: fulfillmentData, error: fulfillmentError } = await admin.rpc(
+      'finalize_toss_payment',
+      {
+        p_payment_order_id: order.id,
+        p_payment_key: input.paymentKey,
+        p_provider_method: payment.method,
+        p_provider_status: payment.status,
+        p_mid: order.mid,
+        p_approved_at: payment.approvedAt,
+      }
+    )
+
+    if (fulfillmentError || !fulfillmentData) {
+      console.error('[PaymentConfirm] Credit fulfillment is pending', {
+        orderId: order.order_id,
+        errorCode: fulfillmentError?.code,
+      })
+      return NextResponse.json(
+        {
+          error: '결제는 승인되었으며 크레딧 지급을 확인 중입니다.',
+          code: 'PAYMENT_FULFILLMENT_PENDING',
+        },
+        { status: 202 }
+      )
+    }
+
+    return completedResponse(
+      {
+        ...order,
+        status: 'completed',
+        provider_method: payment.method,
+        provider_status: payment.status,
+        approved_at: payment.approvedAt,
+      },
+      fulfillmentData as FinalizeTossPaymentResult
+    )
+  } catch (error) {
+    if (error instanceof TossPaymentsError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: error.status >= 500 ? 503 : error.status }
+      )
+    }
+
+    console.error('[PaymentConfirm] Unexpected approval failure')
+    return NextResponse.json(
+      { error: '결제 승인 처리 중 오류가 발생했습니다.' },
+      { status: 500 }
+    )
+  }
 }

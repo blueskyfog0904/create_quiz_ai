@@ -54,20 +54,19 @@ test('credit balance helper exposes a reusable response-fields builder for mutat
   assert.match(creditBalanceSource, /mismatchReasons:\s*snapshot\.mismatchReasons/)
 })
 
-test('payments confirm route returns snapshot-backed balance fields', () => {
-  assert.match(paymentsConfirmRouteSource, /getCreditBalanceSnapshot/)
-  assert.match(paymentsConfirmRouteSource, /buildCreditBalanceResponseFields/)
-  assert.match(paymentsConfirmRouteSource, /\.\.\.buildCreditBalanceResponseFields\(snapshot\)/)
+test('payments confirm route returns the atomic fulfillment balance', () => {
+  assert.match(paymentsConfirmRouteSource, /finalize_toss_payment/)
+  assert.match(paymentsConfirmRouteSource, /newBalance:\s*result\.new_balance/)
+  assert.doesNotMatch(paymentsConfirmRouteSource, /CreditService\.purchaseCredits/)
 })
 
-test('market purchase single and batch routes share snapshot-backed balance fields', () => {
+test('market purchase uses snapshot-backed balance fields and deprecated batch stays closed', () => {
   assert.match(marketPurchaseRouteSource, /getCreditBalanceSnapshot/)
   assert.match(marketPurchaseRouteSource, /buildCreditBalanceResponseFields/)
   assert.match(marketPurchaseRouteSource, /\.\.\.buildCreditBalanceResponseFields\(snapshot\)/)
 
-  assert.match(marketBatchRouteSource, /getCreditBalanceSnapshot/)
-  assert.match(marketBatchRouteSource, /buildCreditBalanceResponseFields/)
-  assert.match(marketBatchRouteSource, /\.\.\.buildCreditBalanceResponseFields\(snapshot\)/)
+  assert.match(marketBatchRouteSource, /BATCH_PURCHASE_DEPRECATED/)
+  assert.match(marketBatchRouteSource, /status:\s*410/)
 })
 
 test('questions generate route uses snapshot-backed balance fields across response branches', () => {

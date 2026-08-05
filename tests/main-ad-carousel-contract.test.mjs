@@ -7,10 +7,13 @@ import {
   MAIN_AD_IMAGES_BUCKET,
   MAIN_AD_MAX_FILE_SIZE_BYTES,
   buildMainAdStoragePath,
+  getActiveMainAdCarouselItems,
   getDefaultMainAdCarouselConfig,
+  getMainAdCarouselSubjectConfig,
   getMainAdImageExtension,
   isAllowedMainAdHref,
   normalizeMainAdCarouselConfig,
+  replaceMainAdCarouselSubjectConfig,
   resolveMainAdCarouselConfigForUpdate,
   validateMainAdCarouselConfig,
   validateMainAdCarouselDraftConfig,
@@ -44,8 +47,30 @@ function createValidItem() {
 
 test('main ad defaults keep the carousel disabled until a valid active item is saved', () => {
   assert.equal(MAIN_AD_IMAGES_BUCKET, 'main-ad-images')
-  assert.equal(MAIN_AD_DEFAULT_DURATION_SECONDS, 6)
-  assert.deepEqual(getDefaultMainAdCarouselConfig(), { version: 1, items: [] })
+  assert.equal(MAIN_AD_DEFAULT_DURATION_SECONDS, 5)
+  assert.deepEqual(getDefaultMainAdCarouselConfig(), {
+    version: 2,
+    items: { english: [], korean: [] },
+  })
+})
+
+test('legacy shared ads migrate to english and subject slices remain isolated', () => {
+  const legacy = { version: 1, items: [createValidItem()] }
+  const normalized = normalizeMainAdCarouselConfig(legacy)
+  assert.deepEqual(normalized.items.english, legacy.items)
+  assert.deepEqual(normalized.items.korean, [])
+
+  const koreanItem = {
+    ...createValidItem(),
+    id: '18847a16-f0a8-4ccf-a3a1-d50e5e6e9d20',
+    pcImagePath: 'carousel/18847a16-f0a8-4ccf-a3a1-d50e5e6e9d20/pc/76757991-f555-4a8a-a6cb-e0031f9f5945.webp',
+  }
+  const replaced = replaceMainAdCarouselSubjectConfig(normalized, 'korean', {
+    version: 1,
+    items: [koreanItem],
+  })
+  assert.deepEqual(getMainAdCarouselSubjectConfig(replaced, 'english').items, legacy.items)
+  assert.deepEqual(getActiveMainAdCarouselItems(replaced, 'korean'), [koreanItem])
 })
 
 test('main ad href accepts only safe internal paths and external https URLs', () => {
@@ -70,23 +95,23 @@ test('main ad href accepts only safe internal paths and external https URLs', ()
 
 test('main ad config validates UUIDs, duplicate ids, duration and storage paths', () => {
   const validConfig = {
-    version: 1,
-    items: [createValidItem()],
+    version: 2,
+    items: { english: [createValidItem()], korean: [] },
   }
 
   assert.deepEqual(validateMainAdCarouselConfig(validConfig), validConfig)
 
   assert.throws(() => validateMainAdCarouselConfig({
     ...validConfig,
-    items: [{ ...createValidItem(), durationSeconds: 0 }],
+    items: { ...validConfig.items, english: [{ ...createValidItem(), durationSeconds: 0 }] },
   }))
   assert.throws(() => validateMainAdCarouselConfig({
     ...validConfig,
-    items: [{ ...createValidItem() }, { ...createValidItem() }],
+    items: { ...validConfig.items, english: [{ ...createValidItem() }, { ...createValidItem() }] },
   }))
   assert.throws(() => validateMainAdCarouselConfig({
     ...validConfig,
-    items: [{ ...createValidItem(), pcImagePath: `carousel/${itemId}/mobile/${assetId}.webp` }],
+    items: { ...validConfig.items, english: [{ ...createValidItem(), pcImagePath: `carousel/${itemId}/mobile/${assetId}.webp` }] },
   }))
 })
 
@@ -135,7 +160,7 @@ test('invalid stored config normalizes to the disabled fallback contract', () =>
   )
 })
 
-test('stored config normalizes missing duration to 6 seconds and trims href', () => {
+test('stored config normalizes missing duration to 5 seconds and trims href', () => {
   const normalized = normalizeMainAdCarouselConfig({
     version: 1,
     items: [{
@@ -145,8 +170,8 @@ test('stored config normalizes missing duration to 6 seconds and trims href', ()
     }],
   })
 
-  assert.equal(normalized.items[0].durationSeconds, MAIN_AD_DEFAULT_DURATION_SECONDS)
-  assert.equal(normalized.items[0].href, '/pricing')
+  assert.equal(normalized.items.english[0].durationSeconds, MAIN_AD_DEFAULT_DURATION_SECONDS)
+  assert.equal(normalized.items.english[0].href, '/pricing')
 })
 
 test('strict update resolution distinguishes a missing row from an invalid stored JSON value', () => {
@@ -163,14 +188,16 @@ test('strict update resolution distinguishes a missing row from an invalid store
   }
 })
 
-test('preview page preserves the existing hero fallback and all lower sections', () => {
+test('preview page always renders one subject-aware carousel shell and all lower sections', () => {
   const page = readFileSync(previewPagePath, 'utf8')
 
   assert.match(page, /getPublicMainAdCarouselItems/)
-  assert.match(page, /MainAdCarousel/)
-  assert.match(page, /CampaignHero/)
-  assert.match(page, /QuickAccessGrid/)
-  assert.match(page, /RecommendedMaterials/)
+  assert.equal((page.match(/<MainAdCarousel\b/g) ?? []).length, 1)
+  assert.match(page, /<MainAdCarousel[\s\S]*subject=\{subject\}[\s\S]*items=\{mainAdItems\}/)
+  assert.doesNotMatch(page, /CampaignHero/)
+  assert.doesNotMatch(page, /mainAdItems\.length\s*>\s*0/)
+  assert.doesNotMatch(page, /QuickAccessGrid/)
+  assert.match(page, /PopularDownloadsSlider/)
   assert.match(page, /TextbookExplorer/)
   assert.match(page, /RecentMaterials/)
   assert.match(page, /HomeFinalCta/)
@@ -180,8 +207,42 @@ test('main ad carousel follows the verified responsive and timer interaction con
   assert.ok(existsSync(carouselPath), 'main ad carousel component should exist')
   const carousel = readFileSync(carouselPath, 'utf8')
 
-  assert.match(carousel, /setTimeout/)
+  assert.match(carousel, /performance\.now\(\)/)
+  assert.match(carousel, /requestAnimationFrame/)
   assert.match(carousel, /durationSeconds\s*\*\s*1000/)
+  assert.match(carousel, /progressLayerRefs/)
+  assert.match(carousel, /data-slot="main-ad-progress"/)
+  assert.match(carousel, /progressCompleteTimeoutRef/)
+  assert.match(carousel, /clearProgressScheduling/)
+  assert.match(carousel, /scaleX\(/)
+  assert.doesNotMatch(
+    carousel,
+    /className="absolute inset-0 scale-x-0 bg-\[var\(--studio-control-border\)\] opacity-40"/
+  )
+  assert.match(
+    carousel,
+    /className="absolute inset-0 bg-\[var\(--studio-control-border\)\] opacity-40"[\s\S]*transform:\s*'scaleX\(0\)'/
+  )
+  assert.doesNotMatch(carousel, /bg-\[var\(--studio-border\)\][^"]*opacity-70/)
+  assert.doesNotMatch(carousel, /last:border-b-0/)
+  assert.match(carousel, /transform \${remainingMs}ms linear/)
+  assert.match(carousel, /transformOrigin:\s*'left center'/)
+  assert.match(
+    carousel,
+    /if\s*\(isTransitioning\)[\s\S]*syncProgressLayers\(1\)/
+  )
+  assert.doesNotMatch(
+    carousel,
+    /if\s*\([^)]*isTransitioning[^)]*\)[\s\S]{0,180}syncProgressLayers\(0\)/
+  )
+  assert.match(carousel, /const SLIDE_DURATION_MS = 450/)
+  assert.match(carousel, /translateX\(-100%\)/)
+  assert.match(carousel, /translateX\(100%\)/)
+  assert.match(carousel, /onTransitionEnd=\{/)
+  assert.match(carousel, /event\.propertyName\s*!==\s*'transform'/)
+  assert.match(carousel, /event\.target\s*!==\s*event\.currentTarget/)
+  assert.match(carousel, /setTimeout\(\(\)\s*=>\s*\{\s*finishTransition/)
+  assert.match(carousel, /transitionTimingFunction:\s*'ease-out'/)
   assert.match(carousel, /scrollIntoView/)
   assert.match(carousel, /<picture/)
   assert.match(carousel, /max-width:\s*640px/)
@@ -189,7 +250,79 @@ test('main ad carousel follows the verified responsive and timer interaction con
   assert.match(carousel, /min-\[1200px\]/)
   assert.match(carousel, /h-\[360px\]/)
   assert.match(carousel, /aria-current/)
+  assert.match(carousel, /aria-\[current=true\]:hover:bg-transparent/)
+  assert.match(carousel, /pointer-events-none/)
+  assert.match(carousel, /tabIndex=\{isTransitioning\s*\?\s*-1\s*:\s*undefined\}/)
+  assert.match(carousel, /disabled=\{isInteractionLocked\}/)
+  assert.match(carousel, /itemsSignature/)
+  assert.match(carousel, /renderedItemsSignature/)
+  assert.match(carousel, /previousItemsSignatureRef/)
+  assert.match(carousel, /itemsHaveChanged/)
+  assert.match(carousel, /useLayoutEffect\(\(\) => \{[\s\S]*previousItemsSignatureRef/)
+  assert.match(
+    carousel,
+    /useEffect\(\(\) => \{[\s\S]*clockRef\.current\.durationMs[\s\S]*\[[\s\S]*itemsSignature[\s\S]*\]\)/
+  )
+  assert.match(carousel, /transitionTokenRef\.current \+= 1/)
+  assert.match(
+    carousel,
+    /if\s*\(itemsHaveChanged\)[\s\S]*setActiveIndex\(0\)[\s\S]*setTransitionState\(null\)/
+  )
+  assert.match(carousel, /index === resolvedActiveIndex/)
+  assert.match(carousel, /\{resolvedActiveIndex \+ 1\} \/ \{activeItems\.length\}/)
+  assert.doesNotMatch(carousel, /\{activeIndex \+ 1\} \/ \{activeItems\.length\}/)
+  assert.doesNotMatch(carousel, /timerKey/)
+  assert.doesNotMatch(carousel, /setActiveProgress/)
+  assert.doesNotMatch(
+    carousel,
+    /selected\s*\?[\s\S]*bg-\[var\(--studio-background\)\][\s\S]*hover:bg-\[var\(--studio-background\)\]/
+  )
+  assert.doesNotMatch(carousel, /isPointerInside/)
+  assert.doesNotMatch(carousel, /onMouseEnter/)
+  assert.doesNotMatch(carousel, /onMouseLeave/)
+  assert.match(carousel, /const isCyclePaused = isDocumentHidden/)
+  assert.doesNotMatch(carousel, /useState\(false\)/)
+  assert.doesNotMatch(carousel, /isFocusWithin/)
+  assert.doesNotMatch(carousel, /onFocusCapture/)
+  assert.doesNotMatch(carousel, /onBlurCapture/)
+  assert.match(carousel, /visibilitychange/)
+  assert.match(carousel, /prefers-reduced-motion/)
+  assert.match(carousel, /isDocumentHidden/)
+  assert.match(carousel, /prefersReducedMotion/)
   assert.match(carousel, /activeItems\.length\s*>\s*1/)
+  assert.match(carousel, /activeItems\.length\s*<=\s*1/)
+  assert.doesNotMatch(carousel, /if\s*\(!activeItem\)\s*\{\s*return null\s*\}/)
+  assert.match(carousel, /data-slot="main-ad-carousel"/)
+  assert.match(carousel, /data-state=\{carouselState\}/)
+  assert.match(
+    carousel,
+    /const carouselState = activeItems\.length === 0[\s\S]*'empty'[\s\S]*activeItems\.length === 1[\s\S]*'single'[\s\S]*'multiple'/
+  )
+  assert.match(carousel, /subject:\s*WorkspaceSubject/)
+  assert.match(carousel, /등록된 \{subjectLabel\} 광고가 없습니다/)
+  assert.match(carousel, /role="status"/)
+  assert.match(carousel, /hasMultipleItems\s*\?\s*\([\s\S]*progressLayerRefs/)
+  assert.match(carousel, /hasMultipleItems\s*\?\s*\([\s\S]*aria-label="이전 광고"[\s\S]*aria-label="다음 광고"/)
+  assert.doesNotMatch(carousel, /empty[\s\S]{0,240}aria-current/)
+  assert.doesNotMatch(carousel, /empty[\s\S]{0,240}MainAdLink/)
+  assert.match(carousel, /if\s*\(nextIndex === resolvedActiveIndex\)/)
+  assert.match(carousel, /min-h-\[60px\]/)
+  assert.match(carousel, /h-11 w-11/)
+  assert.match(carousel, /focus-visible:ring-2/)
+  assert.doesNotMatch(carousel, /className="[^"]*\bhidden\b[^"]*h-11 w-11/)
+  assert.doesNotMatch(carousel, /min-\[1200px\]:inline-flex/)
+  assert.match(
+    carousel,
+    /type="button"[\s\S]*aria-label="이전 광고"[\s\S]*onClick=\{\(\) => move\('previous'\)\}/
+  )
+  assert.match(
+    carousel,
+    /type="button"[\s\S]*aria-label="다음 광고"[\s\S]*onClick=\{\(\) => move\('next'\)\}/
+  )
+  assert.match(
+    carousel,
+    /<MainAdLink[\s\S]*href=\{activeItem\.href\}[\s\S]*<picture[\s\S]*<\/picture>[\s\S]*<\/MainAdLink>/
+  )
   assert.doesNotMatch(carousel, /target="_blank"/)
   assert.doesNotMatch(carousel, /onTouch|swipe/i)
 })

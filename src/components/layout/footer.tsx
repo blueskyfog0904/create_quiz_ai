@@ -27,7 +27,10 @@ export async function Footer() {
             {policyLinks.map((link, index) => (
               <span key={link.key} className="flex items-center gap-2">
                 {index > 0 ? <span aria-hidden="true" className="text-gray-300">|</span> : null}
-                <Link href={link.href} className="font-medium text-gray-600 hover:text-gray-900">
+                <Link
+                  href={link.href}
+                  className="inline-flex min-h-11 items-center font-medium text-gray-600 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
                   {link.label}
                 </Link>
               </span>

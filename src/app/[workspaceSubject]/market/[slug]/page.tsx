@@ -9,6 +9,11 @@ interface WorkspaceMarketCategoryPageProps {
     grade?: string
     title?: string
     subject?: string
+    sourceType?: string
+    source1?: string
+    source2?: string
+    source3?: string
+    source4?: string
   }>
 }
 

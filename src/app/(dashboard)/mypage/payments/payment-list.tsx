@@ -17,6 +17,17 @@ interface PaymentListProps {
   payments: NormalizedPaymentHistoryRecord[]
 }
 
+function getProviderStatusLabel(providerStatus?: string | null) {
+  switch (providerStatus) {
+    case 'DONE':
+      return '승인 완료'
+    case 'CANCELED':
+      return '결제 취소 완료'
+    default:
+      return providerStatus ?? '상태 확인 중'
+  }
+}
+
 export function PaymentList({ payments }: PaymentListProps) {
   const [filters, setFilters] = useState<PaymentHistoryFilter>({
     fromDate: '',
@@ -104,6 +115,12 @@ export function PaymentList({ payments }: PaymentListProps) {
                       <CreditCard className="h-3.5 w-3.5" />
                       {payment.payment_method === 'toss' ? '토스페이먼츠' : payment.payment_method}
                     </div>
+                    {payment.order_id && (
+                      <span>주문번호 {payment.order_id}</span>
+                    )}
+                    <span>
+                      결제사 상태 {getProviderStatusLabel(payment.provider_status)}
+                    </span>
                   </div>
                 </div>
               </div>

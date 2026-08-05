@@ -1,49 +1,53 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { connection } from 'next/server'
 import { StudioLandingPageFrame } from '@/components/page-templates'
 import { getPublicMainAdCarouselItems } from '@/lib/main-ad-carousel-server'
-import { CampaignHero } from './_components/home/campaign-hero'
-import { MainAdCarousel } from './_components/home/main-ad-carousel'
+import { getMarketHomeData } from '@/lib/market-home-server'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import {
   HomeFinalCta,
   RecentMaterials,
-  RecommendedMaterials,
   TextbookExplorer,
 } from './_components/home/home-material-sections'
-import { QuickAccessGrid } from './_components/home/quick-access-grid'
-import {
-  getRecentSamplePosts,
-  getSamplePost,
-  getSampleTextbookCounts,
-  samplePosts,
-} from './_data/sample-data'
+import { MainAdCarousel } from './_components/home/main-ad-carousel'
+import { PopularDownloadsSlider } from './_components/home/popular-downloads-slider'
 
 export const metadata: Metadata = {
-  title: '써머썬 스튜디오 | 자료 탐색 프리뷰',
-  description:
-    '교재와 작품을 탐색하고 지문 구조와 문항 구성을 확인하는 선생님용 자료 워크스페이스 시안',
+  title: '써머썬 스튜디오 | 문제마켓 프리뷰',
+  description: '영어와 국어 수업 자료를 과목별로 탐색하는 선생님용 문제마켓 프리뷰',
 }
 
-const featuredPost = getSamplePost('ebs-literature', 'jingsori-2027')
+function resolveSubject(value?: string): WorkspaceSubject {
+  return value === 'korean' ? 'korean' : 'english'
+}
 
-export default async function SolvookConceptPreviewPage() {
-  if (!featuredPost) {
-    notFound()
-  }
-
-  const mainAdItems = await getPublicMainAdCarouselItems()
+export default async function SolvookConceptPreviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ subject?: string }>
+}) {
+  await connection()
+  const params = await searchParams
+  const subject = resolveSubject(params.subject)
+  const [homeData, mainAdItems] = await Promise.all([
+    getMarketHomeData(subject),
+    getPublicMainAdCarouselItems(subject),
+  ])
 
   return (
     <StudioLandingPageFrame
-      hero={mainAdItems.length > 0
-        ? <MainAdCarousel items={mainAdItems} />
-        : <CampaignHero featuredPost={featuredPost} />}
+      hero={<MainAdCarousel subject={subject} items={mainAdItems} />}
     >
-      <QuickAccessGrid />
-      <RecommendedMaterials posts={samplePosts.slice(0, 4)} />
-      <TextbookExplorer textbookCounts={getSampleTextbookCounts()} />
-      <RecentMaterials posts={getRecentSamplePosts(5)} />
-      <HomeFinalCta />
+      {homeData.config.popular.isActive && (
+        <PopularDownloadsSlider subject={subject} items={homeData.popular} rankingWindowDays={homeData.config.popular.rankingWindowDays} />
+      )}
+      {homeData.config.recent.isActive && (
+        <RecentMaterials subject={subject} items={homeData.recent} />
+      )}
+      {homeData.config.sourceExplorer.isActive && (
+        <TextbookExplorer subject={subject} configs={homeData.sourceConfigs} paths={homeData.sourcePaths} />
+      )}
+      <HomeFinalCta subject={subject} itemCount={homeData.publicItemCount} categories={homeData.categories} />
     </StudioLandingPageFrame>
   )
 }

@@ -1,20 +1,28 @@
+'use client'
+
 import Image from 'next/image'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { Grid2X2, Search, WalletCards } from 'lucide-react'
 import { StudioContainer } from '@/components/design-system'
 
 const previewRoot = '/preview/solvook-concept'
 const authNext = encodeURIComponent(previewRoot)
-const englishMarketHref = '/english/market/entexam'
-const koreanMarketHref = '/korean/market/entexam'
 
 export function PreviewHeader() {
+  const searchParams = useSearchParams()
+  const subject = searchParams.get('subject') === 'korean' ? 'korean' : 'english'
+  const subjectLabel = subject === 'korean' ? '국어' : '영어'
+  const marketHref = `/${subject}/market/entexam`
+  const englishPreviewHref = `${previewRoot}?subject=english`
+  const koreanPreviewHref = `${previewRoot}?subject=korean`
+
   return (
     <header className="studio-reference-gutter sticky top-0 z-50 border-b border-[var(--studio-border)] bg-[var(--studio-surface)]">
       <div className="lg:hidden">
         <StudioContainer className="flex h-16 items-center justify-between gap-3">
           <Link
-            href={previewRoot}
+            href={`${previewRoot}?subject=${subject}`}
             aria-label="써머썬 스튜디오 프리뷰 홈"
             className="flex min-h-11 min-w-11 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] focus-visible:ring-offset-2"
           >
@@ -32,8 +40,8 @@ export function PreviewHeader() {
             </span>
           </Link>
           <Link
-            href={englishMarketHref}
-            aria-label="영어 문제마켓에서 검색"
+            href={marketHref}
+            aria-label={`${subjectLabel} 문제마켓에서 검색`}
             className="grid min-h-11 min-w-11 place-items-center rounded-md text-[var(--studio-text)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
           >
             <Search aria-hidden="true" className="h-5 w-5" />
@@ -46,14 +54,16 @@ export function PreviewHeader() {
             <span>카테고리</span>
           </span>
           <Link
-            href={englishMarketHref}
-            className="inline-flex min-h-11 shrink-0 items-center border-b-2 border-[var(--studio-ink)] px-3 text-[var(--studio-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+            href={englishPreviewHref}
+            aria-current={subject === 'english' ? 'page' : undefined}
+            className={`inline-flex min-h-11 shrink-0 items-center px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${subject === 'english' ? 'border-b-2 border-[var(--studio-ink)] text-[var(--studio-ink)]' : 'text-[var(--studio-muted)] hover:text-[var(--studio-ink)]'}`}
           >
             <span>영어</span>
           </Link>
           <Link
-            href={koreanMarketHref}
-            className="inline-flex min-h-11 shrink-0 items-center px-3 text-[var(--studio-muted)] outline-none hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+            href={koreanPreviewHref}
+            aria-current={subject === 'korean' ? 'page' : undefined}
+            className={`inline-flex min-h-11 shrink-0 items-center px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${subject === 'korean' ? 'border-b-2 border-[var(--studio-ink)] text-[var(--studio-ink)]' : 'text-[var(--studio-muted)] hover:text-[var(--studio-ink)]'}`}
           >
             <span>국어</span>
           </Link>
@@ -71,7 +81,7 @@ export function PreviewHeader() {
         <nav aria-label="프리뷰 상단 메뉴" className="border-b border-[var(--studio-border)]">
           <StudioContainer className="flex h-[72px] items-center gap-5">
             <Link
-              href={previewRoot}
+              href={`${previewRoot}?subject=${subject}`}
               aria-label="써머썬 스튜디오 프리뷰 홈"
               className="flex min-h-11 min-w-11 shrink-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] focus-visible:ring-offset-2"
             >
@@ -89,15 +99,15 @@ export function PreviewHeader() {
             </Link>
 
             <form
-              action={englishMarketHref}
+              action={marketHref}
               method="get"
               className="relative ml-auto w-[320px]"
             >
               <label htmlFor="preview-global-search" className="sr-only">
-                영어 문제마켓 검색
+                {subjectLabel} 문제마켓 검색
               </label>
               <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-[var(--studio-text)]">
-                영어
+                {subjectLabel}
               </span>
               <input
                 id="preview-global-search"
@@ -109,7 +119,7 @@ export function PreviewHeader() {
               <button
                 type="submit"
                 aria-label="검색"
-                className="absolute right-1 top-1 grid min-h-9 min-w-9 place-items-center rounded-full text-[var(--studio-text)] outline-none hover:bg-[var(--studio-surface)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                className="absolute right-0 top-0 grid h-11 w-11 place-items-center rounded-full text-[var(--studio-text)] outline-none hover:bg-[var(--studio-surface)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
               >
                 <Search aria-hidden="true" className="h-[18px] w-[18px]" />
               </button>
@@ -140,14 +150,16 @@ export function PreviewHeader() {
               <span>카테고리</span>
             </span>
             <Link
-              href={englishMarketHref}
-              className="inline-flex min-h-11 min-w-11 items-center border-b-2 border-[var(--studio-ink)] px-3 text-[var(--studio-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+              href={englishPreviewHref}
+              aria-current={subject === 'english' ? 'page' : undefined}
+              className={`inline-flex min-h-11 min-w-11 items-center px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${subject === 'english' ? 'border-b-2 border-[var(--studio-ink)] text-[var(--studio-ink)]' : 'text-[var(--studio-muted)] hover:text-[var(--studio-ink)]'}`}
             >
               <span>영어</span>
             </Link>
             <Link
-              href={koreanMarketHref}
-              className="inline-flex min-h-11 min-w-11 items-center px-3 text-[var(--studio-muted)] outline-none hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+              href={koreanPreviewHref}
+              aria-current={subject === 'korean' ? 'page' : undefined}
+              className={`inline-flex min-h-11 min-w-11 items-center px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${subject === 'korean' ? 'border-b-2 border-[var(--studio-ink)] text-[var(--studio-ink)]' : 'text-[var(--studio-muted)] hover:text-[var(--studio-ink)]'}`}
             >
               <span>국어</span>
             </Link>

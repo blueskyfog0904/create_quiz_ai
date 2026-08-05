@@ -6,7 +6,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { CreditService } from '@/lib/credits'
+import { getPointChargeRefundEligibility } from '@/lib/point-charge-refunds-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,14 +35,18 @@ export async function GET() {
         }
 
         // 각 소스에 환불 가능 여부 추가
-        const sourcesWithRefundInfo = (sources || []).map(source => {
-            const eligibility = CreditService.canRequestRefund(source as any)
+        const sourcesWithRefundInfo = await Promise.all((sources || []).map(async (source) => {
+            const eligibility = await getPointChargeRefundEligibility({
+                userId: user.id,
+                sourceId: source.id,
+            })
             return {
                 ...source,
                 canRefund: eligibility.allowed,
-                refundBlockedReason: eligibility.reason
+                refundBlockedReason: eligibility.reason,
+                refundableUntil: eligibility.refundableUntil,
             }
-        })
+        }))
 
         return NextResponse.json({ sources: sourcesWithRefundInfo })
     } catch (error) {

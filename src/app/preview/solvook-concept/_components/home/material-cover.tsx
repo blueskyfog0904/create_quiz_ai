@@ -1,10 +1,14 @@
-import type {
-  SampleCover,
-  SampleCoverTheme,
-} from '../../_data/sample-data'
+export type MaterialCoverTheme = 'violet' | 'mint' | 'coral' | 'navy'
+
+export interface MaterialCoverData {
+  eyebrow: string
+  title: string
+  subtitle: string
+  theme: MaterialCoverTheme
+}
 
 const coverThemes: Record<
-  SampleCoverTheme,
+  MaterialCoverTheme,
   {
     background: string
     accent: string
@@ -34,7 +38,7 @@ const coverThemes: Record<
 }
 
 interface MaterialCoverProps {
-  cover: SampleCover
+  cover: MaterialCoverData
   compact?: boolean
 }
 

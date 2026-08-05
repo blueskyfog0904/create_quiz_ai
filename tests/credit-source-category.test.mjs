@@ -14,6 +14,11 @@ const adminGrantRouteSource = readFileSync(
   'utf8'
 )
 
+const refundMigrationSource = readFileSync(
+  new URL('../supabase/migrations/20260805120000_create_toss_refund_workflow.sql', import.meta.url),
+  'utf8'
+)
+
 test('maps admin compensation and other grants to admin_grant', () => {
   assert.equal(resolveAdminGrantSourceCategory('compensation'), 'admin_grant')
   assert.equal(resolveAdminGrantSourceCategory('other'), 'admin_grant')
@@ -35,8 +40,9 @@ test('admin user credit route uses the dedicated admin grant service instead of 
   assert.doesNotMatch(adminGrantRouteSource, /CreditService\.purchaseCredits\(/)
 })
 
-test('refund approval also performs post-write balance snapshot verification', () => {
-  assert.match(creditsSource, /approveRefund[\s\S]*finalizeCreditBalanceMutation\(\s*request\.user_id,\s*'Refund approval',\s*adminSupabase\s*\)/)
+test('refund approval atomically refreshes the valid ledger balance', () => {
+  assert.match(refundMigrationSource, /create or replace function public\.finalize_toss_refund/i)
+  assert.match(refundMigrationSource, /update public\.profiles/i)
 })
 
 test('credit mutations share a common ledger-first balance finalizer', () => {
@@ -47,5 +53,5 @@ test('credit mutations share a common ledger-first balance finalizer', () => {
   assert.match(creditsSource, /grantCreditsAsAdmin[\s\S]*finalizeCreditBalanceMutation\(/)
   assert.match(creditsSource, /deductCredits[\s\S]*finalizeCreditBalanceMutation\(/)
   assert.match(creditsSource, /refundCredits[\s\S]*finalizeCreditBalanceMutation\(/)
-  assert.match(creditsSource, /approveRefund[\s\S]*finalizeCreditBalanceMutation\(/)
+  assert.doesNotMatch(creditsSource, /static async approveRefund/)
 })

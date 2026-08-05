@@ -1,9 +1,7 @@
+import 'server-only'
+
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/bypass'
-
-interface BalanceTransactionRow {
-  balance_after: number | null
-}
 
 type ServerSupabaseClient = Awaited<ReturnType<typeof createClient>>
 type BalanceClient = Pick<ServerSupabaseClient, 'from'>
@@ -12,33 +10,17 @@ export interface CreditBalanceSnapshot {
   profileBalance: number
   ledgerBalance: number
   spendableBalance: number
+  expiredBalance: number
   latestTransactionBalance: number | null
-  // Transitional policy: keep UI on the profile cache until all mutation paths are ledger-first.
+  nextExpirationAt: string | null
+  databaseNow: string
   displayBalance: number
   hasMismatch: boolean
   mismatchReasons: string[]
 }
 
-export function selectDisplayBalance(userId: string, snapshot: CreditBalanceSnapshot) {
-  const ledgerDisplayEnabled = process.env.CREDIT_LEDGER_DISPLAY_ENABLED === 'true'
-  const rolloutUsers = (process.env.CREDIT_LEDGER_DISPLAY_USER_IDS || '')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean)
-
-  if (!ledgerDisplayEnabled) {
-    return snapshot.displayBalance
-  }
-
-  if (snapshot.hasMismatch) {
-    return snapshot.displayBalance
-  }
-
-  if (rolloutUsers.length > 0 && !rolloutUsers.includes(userId)) {
-    return snapshot.displayBalance
-  }
-
-  return snapshot.ledgerBalance
+export function selectDisplayBalance(_userId: string, snapshot: CreditBalanceSnapshot) {
+  return snapshot.spendableBalance
 }
 
 export function buildCreditBalanceResponseFields(
@@ -50,7 +32,10 @@ export function buildCreditBalanceResponseFields(
     profileBalance: snapshot.profileBalance,
     ledgerBalance: snapshot.ledgerBalance,
     spendableBalance: snapshot.spendableBalance,
+    expiredBalance: snapshot.expiredBalance,
     latestTransactionBalance: snapshot.latestTransactionBalance,
+    nextExpirationAt: snapshot.nextExpirationAt,
+    databaseNow: snapshot.databaseNow,
     hasMismatch: snapshot.hasMismatch,
     mismatchReasons: snapshot.mismatchReasons,
     reconcileRequired: snapshot.hasMismatch,
@@ -122,76 +107,68 @@ function toNumber(value: number | null | undefined) {
   return Number.isFinite(value) ? Number(value) : 0
 }
 
-export async function getProfileBalance(userId: string, client?: BalanceClient) {
-  const supabase = await getClient(client)
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('credits')
-    .eq('id', userId)
-    .single()
-
-  if (error) {
-    console.error('[CreditBalance] Failed to read profile balance:', error)
-    return 0
-  }
-
-  return data?.credits ?? 0
+interface CreditBalanceRpcResult {
+  profile_balance: number
+  ledger_balance: number
+  spendable_balance: number
+  expired_balance: number
+  latest_transaction_balance: number | null
+  next_expiration_at: string | null
+  database_now: string
 }
 
-export async function getLedgerBalance(userId: string, client?: BalanceClient) {
-  const supabase = await getClient(client)
-  const { data, error } = await supabase
-    .from('credit_sources')
-    .select('remaining_credits, status')
-    .eq('user_id', userId)
+async function readCreditBalanceRpc(userId: string) {
+  const admin = createAdminClient()
+  const rpcClient = admin as unknown as {
+    rpc: (
+      fn: string,
+      params: Record<string, unknown>
+    ) => Promise<{
+      data: unknown
+      error: { message?: string } | null
+    }>
+  }
+  const { data, error } = await rpcClient.rpc('get_credit_balance_snapshot', {
+    p_user_id: userId,
+  })
 
   if (error) {
-    console.error('[CreditBalance] Failed to read ledger balance:', error)
-    return 0
+    throw new Error(error.message || '크레딧 잔액을 조회하지 못했습니다.')
   }
 
-  return (data ?? []).reduce((sum, row) => {
-    return row.status === 'active' || row.status === 'pending_refund'
-      ? sum + toNumber(row.remaining_credits)
-      : sum
-  }, 0)
+  const result = (Array.isArray(data) ? data[0] : data) as
+    | CreditBalanceRpcResult
+    | undefined
+
+  if (!result || typeof result.database_now !== 'string') {
+    throw new Error('크레딧 잔액 응답이 올바르지 않습니다.')
+  }
+
+  return result
 }
 
-export async function getSpendableBalance(userId: string, client?: BalanceClient) {
-  const supabase = await getClient(client)
-  const { data, error } = await supabase
-    .from('credit_sources')
-    .select('remaining_credits, status')
-    .eq('user_id', userId)
-
-  if (error) {
-    console.error('[CreditBalance] Failed to read spendable balance:', error)
-    return 0
-  }
-
-  return (data ?? []).reduce((sum, row) => {
-    return row.status === 'active'
-      ? sum + toNumber(row.remaining_credits)
-      : sum
-  }, 0)
+export async function getProfileBalance(userId: string, _client?: BalanceClient) {
+  void _client
+  const snapshot = await readCreditBalanceRpc(userId)
+  return toNumber(snapshot.profile_balance)
 }
 
-export async function getLatestTransactionBalance(userId: string, client?: BalanceClient) {
-  const supabase = await getClient(client)
-  const { data, error } = await supabase
-    .from('credit_transactions')
-    .select('balance_after')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle<BalanceTransactionRow>()
+export async function getLedgerBalance(userId: string, _client?: BalanceClient) {
+  void _client
+  const snapshot = await readCreditBalanceRpc(userId)
+  return toNumber(snapshot.ledger_balance)
+}
 
-  if (error) {
-    console.error('[CreditBalance] Failed to read latest transaction balance:', error)
-    return null
-  }
+export async function getSpendableBalance(userId: string, _client?: BalanceClient) {
+  void _client
+  const snapshot = await readCreditBalanceRpc(userId)
+  return toNumber(snapshot.spendable_balance)
+}
 
-  return data?.balance_after ?? null
+export async function getLatestTransactionBalance(userId: string, _client?: BalanceClient) {
+  void _client
+  const snapshot = await readCreditBalanceRpc(userId)
+  return snapshot.latest_transaction_balance
 }
 
 export async function syncProfileBalanceCacheFromLedger(userId: string, client?: BalanceClient) {
@@ -213,13 +190,13 @@ export async function syncProfileBalanceCacheFromLedger(userId: string, client?:
 }
 
 export async function getCreditBalanceSnapshot(userId: string, client?: BalanceClient): Promise<CreditBalanceSnapshot> {
-  const supabase = await getClient(client)
-  const [profileBalance, ledgerBalance, spendableBalance, latestTransactionBalance] = await Promise.all([
-    getProfileBalance(userId, supabase),
-    getLedgerBalance(userId, supabase),
-    getSpendableBalance(userId, supabase),
-    getLatestTransactionBalance(userId, supabase),
-  ])
+  void client
+  const result = await readCreditBalanceRpc(userId)
+  const profileBalance = toNumber(result.profile_balance)
+  const ledgerBalance = toNumber(result.ledger_balance)
+  const spendableBalance = toNumber(result.spendable_balance)
+  const expiredBalance = toNumber(result.expired_balance)
+  const latestTransactionBalance = result.latest_transaction_balance
 
   const mismatchReasons: string[] = []
 
@@ -239,8 +216,11 @@ export async function getCreditBalanceSnapshot(userId: string, client?: BalanceC
     profileBalance,
     ledgerBalance,
     spendableBalance,
+    expiredBalance,
     latestTransactionBalance,
-    displayBalance: profileBalance,
+    nextExpirationAt: result.next_expiration_at,
+    databaseNow: result.database_now,
+    displayBalance: spendableBalance,
     hasMismatch: mismatchReasons.length > 0,
     mismatchReasons,
   }

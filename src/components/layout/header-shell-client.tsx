@@ -105,11 +105,11 @@ export function HeaderShellClient({
 
   return (
     <header className="border-b bg-white sticky top-0 z-50">
-      <div className="container mx-auto flex h-16 items-center justify-between gap-4 px-4">
-        <div className="flex items-center gap-3">
+      <div className="container mx-auto flex h-16 items-center justify-between gap-2 px-4 sm:gap-4">
+        <div className="flex min-w-0 flex-1 items-center gap-3 md:flex-none">
           <Link
             href="/"
-            className="max-w-[220px] truncate font-bold text-xl text-primary"
+            className="min-w-0 max-w-[220px] truncate font-bold text-xl text-primary"
           >
             써머썬 연구소
           </Link>
@@ -215,7 +215,7 @@ export function HeaderShellClient({
           </div>
         </div>
 
-        <div className="md:hidden">
+        <div className="shrink-0 md:hidden">
           <HeaderClient
             key={`header-client-mobile-${userName || 'guest'}`}
             isLoggedIn={isLoggedIn}

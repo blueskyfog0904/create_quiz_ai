@@ -22,6 +22,10 @@ export default async function PaymentsPage() {
       amount,
       status,
       payment_method,
+      order_id,
+      provider,
+      provider_status,
+      approved_at,
       plan_id,
       pricing_plans (
         name

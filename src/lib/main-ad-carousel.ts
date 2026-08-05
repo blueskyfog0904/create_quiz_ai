@@ -1,12 +1,13 @@
 export const MAIN_AD_CAROUSEL_SETTING_KEY = 'main_ad_carousel'
 export const MAIN_AD_IMAGES_BUCKET = 'main-ad-images'
-export const MAIN_AD_DEFAULT_DURATION_SECONDS = 6
+export const MAIN_AD_DEFAULT_DURATION_SECONDS = 5
 export const MAIN_AD_MIN_DURATION_SECONDS = 1
 export const MAIN_AD_MAX_DURATION_SECONDS = 60
 export const MAIN_AD_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
 
 export type MainAdImageRole = 'pc' | 'mobile'
 export type MainAdImageExtension = 'jpg' | 'png' | 'webp'
+export type MainAdSubject = 'english' | 'korean'
 
 export interface MainAdCarouselItem {
   id: string
@@ -19,9 +20,14 @@ export interface MainAdCarouselItem {
   isActive: boolean
 }
 
-export interface MainAdCarouselConfig {
+export interface MainAdCarouselSubjectConfig {
   version: 1
   items: MainAdCarouselItem[]
+}
+
+export interface MainAdCarouselConfig {
+  version: 2
+  items: Record<MainAdSubject, MainAdCarouselItem[]>
 }
 
 export interface PublicMainAdCarouselItem {
@@ -40,7 +46,7 @@ export interface MainAdCleanupWarning {
 }
 
 export interface MainAdSaveResponse {
-  config: MainAdCarouselConfig
+  config: MainAdCarouselSubjectConfig
   cleanupWarnings: MainAdCleanupWarning[]
   imageUrls: Record<string, {
     pc: string
@@ -274,7 +280,7 @@ function validateItem(
   }
 }
 
-function validateConfig(value: unknown, allowMissingPcImage: boolean): MainAdCarouselConfig {
+function validateSubjectConfig(value: unknown, allowMissingPcImage: boolean): MainAdCarouselSubjectConfig {
   if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.items)) {
     throw new MainAdCarouselValidationError('메인 광고 설정 형식이 올바르지 않습니다.')
   }
@@ -295,22 +301,33 @@ function validateConfig(value: unknown, allowMissingPcImage: boolean): MainAdCar
 }
 
 export function getDefaultMainAdCarouselConfig(): MainAdCarouselConfig {
-  return { version: 1, items: [] }
+  return { version: 2, items: { english: [], korean: [] } }
 }
 
 export function validateMainAdCarouselDraftConfig(value: unknown) {
-  return validateConfig(value, true)
+  return validateSubjectConfig(value, true)
 }
 
 export function validateMainAdCarouselConfig(value: unknown) {
-  return validateConfig(value, false)
+  if (!isRecord(value) || value.version !== 2 || !isRecord(value.items)
+    || !Array.isArray(value.items.english) || !Array.isArray(value.items.korean)) {
+    throw new MainAdCarouselValidationError('메인 광고 설정 형식이 올바르지 않습니다.')
+  }
+
+  const english = validateSubjectConfig({ version: 1, items: value.items.english }, false).items
+  const korean = validateSubjectConfig({ version: 1, items: value.items.korean }, false).items
+  const seenIds = new Set<string>()
+  for (const item of [...english, ...korean]) {
+    if (seenIds.has(item.id)) {
+      throw new MainAdCarouselValidationError('과목 간 중복된 광고 ID가 있습니다.')
+    }
+    seenIds.add(item.id)
+  }
+  return { version: 2, items: { english, korean } } satisfies MainAdCarouselConfig
 }
 
-function applyMainAdCarouselNormalizationDefaults(value: unknown) {
-  return isRecord(value) && Array.isArray(value.items)
-    ? {
-        ...value,
-        items: value.items.map((item) => {
+function normalizeItems(items: unknown[]) {
+  return items.map((item) => {
           if (!isRecord(item)) {
             return item
           }
@@ -328,9 +345,25 @@ function applyMainAdCarouselNormalizationDefaults(value: unknown) {
             ...item,
             durationSeconds,
           }
-        }),
-      }
-    : value
+        })
+}
+
+function applyMainAdCarouselNormalizationDefaults(value: unknown) {
+  if (!isRecord(value)) return value
+  if (value.version === 1 && Array.isArray(value.items)) {
+    return { version: 2, items: { english: normalizeItems(value.items), korean: [] } }
+  }
+  if (value.version === 2 && isRecord(value.items)
+    && Array.isArray(value.items.english) && Array.isArray(value.items.korean)) {
+    return {
+      version: 2,
+      items: {
+        english: normalizeItems(value.items.english),
+        korean: normalizeItems(value.items.korean),
+      },
+    }
+  }
+  return value
 }
 
 export function validateStoredMainAdCarouselConfig(value: unknown) {
@@ -358,14 +391,15 @@ export function resolveMainAdCarouselConfigForUpdate(
   return validateStoredMainAdCarouselConfig(value)
 }
 
-export function getActiveMainAdCarouselItems(config: MainAdCarouselConfig) {
-  return config.items.filter((item) => item.isActive)
+export function getActiveMainAdCarouselItems(config: MainAdCarouselConfig, subject: MainAdSubject) {
+  return config.items[subject].filter((item) => item.isActive)
 }
 
 export function getReferencedMainAdImagePaths(config: MainAdCarouselConfig) {
   const paths = new Set<string>()
 
-  config.items.forEach((item) => {
+  const items = [...config.items.english, ...config.items.korean]
+  items.forEach((item) => {
     paths.add(item.pcImagePath)
     if (item.mobileImagePath) {
       paths.add(item.mobileImagePath)
@@ -373,6 +407,27 @@ export function getReferencedMainAdImagePaths(config: MainAdCarouselConfig) {
   })
 
   return paths
+}
+
+export function getMainAdCarouselSubjectConfig(
+  config: MainAdCarouselConfig,
+  subject: MainAdSubject
+): MainAdCarouselSubjectConfig {
+  return { version: 1, items: config.items[subject].map((item) => ({ ...item })) }
+}
+
+export function replaceMainAdCarouselSubjectConfig(
+  config: MainAdCarouselConfig,
+  subject: MainAdSubject,
+  subjectConfig: MainAdCarouselSubjectConfig
+) {
+  return validateMainAdCarouselConfig({
+    version: 2,
+    items: {
+      english: subject === 'english' ? subjectConfig.items : config.items.english,
+      korean: subject === 'korean' ? subjectConfig.items : config.items.korean,
+    },
+  })
 }
 
 export function getMainAdImageExtension(

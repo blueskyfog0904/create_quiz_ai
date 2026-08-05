@@ -6,7 +6,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -39,7 +39,6 @@ import {
     XCircle,
     RefreshCcw,
     Loader2,
-    User,
     Coins
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -49,8 +48,20 @@ interface RefundRequest {
     user_id: string
     source_id: string
     reason: string | null
-    status: 'pending' | 'approved' | 'rejected'
+    status:
+        | 'pending_review'
+        | 'processing'
+        | 'completed'
+        | 'rejected'
+        | 'retryable_failed'
+        | 'manual_review'
     admin_note: string | null
+    refund_amount: number | null
+    provider_cancel_transaction_key: string | null
+    provider_cancelled_at: string | null
+    attempt_count: number
+    last_error_code: string | null
+    last_error_message: string | null
     created_at: string
     updated_at: string
     user: {
@@ -78,14 +89,15 @@ interface RefundsClientProps {
     requests: RefundRequest[]
     stats: {
         pendingCount: number
-        approvedCount: number
+        completedCount: number
         rejectedCount: number
+        attentionCount: number
     }
 }
 
 export function RefundsClient({ requests, stats }: RefundsClientProps) {
     const router = useRouter()
-    const [statusFilter, setStatusFilter] = useState('pending')
+    const [statusFilter, setStatusFilter] = useState('pending_review')
     const [isProcessDialogOpen, setIsProcessDialogOpen] = useState(false)
     const [selectedRequest, setSelectedRequest] = useState<RefundRequest | null>(null)
     const [processAction, setProcessAction] = useState<'approve' | 'reject'>('approve')
@@ -100,12 +112,18 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
     // 상태 배지
     const getStatusBadge = (status: string) => {
         switch (status) {
-            case 'pending':
+            case 'pending_review':
                 return <Badge className="bg-yellow-100 text-yellow-700"><Clock className="w-3 h-3 mr-1" />대기중</Badge>
-            case 'approved':
-                return <Badge className="bg-green-100 text-green-700"><CheckCircle className="w-3 h-3 mr-1" />승인</Badge>
+            case 'processing':
+                return <Badge variant="secondary"><Loader2 className="w-3 h-3 mr-1 animate-spin" />처리중</Badge>
+            case 'completed':
+                return <Badge className="bg-green-100 text-green-700"><CheckCircle className="w-3 h-3 mr-1" />환불 완료</Badge>
             case 'rejected':
                 return <Badge className="bg-red-100 text-red-700"><XCircle className="w-3 h-3 mr-1" />거부</Badge>
+            case 'retryable_failed':
+                return <Badge className="bg-orange-100 text-orange-700">재처리 필요</Badge>
+            case 'manual_review':
+                return <Badge variant="destructive">수동 확인 필요</Badge>
             default:
                 return <Badge>{status}</Badge>
         }
@@ -165,8 +183,8 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
             </div>
 
             {/* 통계 카드 */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="cursor-pointer hover:bg-yellow-50 transition-colors" onClick={() => setStatusFilter('pending')}>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card className="cursor-pointer hover:bg-yellow-50 transition-colors" onClick={() => setStatusFilter('pending_review')}>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">대기중</CardTitle>
                         <Clock className="h-4 w-4 text-yellow-600" />
@@ -175,13 +193,13 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                         <div className="text-2xl font-bold text-yellow-700">{stats.pendingCount}</div>
                     </CardContent>
                 </Card>
-                <Card className="cursor-pointer hover:bg-green-50 transition-colors" onClick={() => setStatusFilter('approved')}>
+                <Card className="cursor-pointer hover:bg-green-50 transition-colors" onClick={() => setStatusFilter('completed')}>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">승인됨</CardTitle>
+                        <CardTitle className="text-sm font-medium">환불 완료</CardTitle>
                         <CheckCircle className="h-4 w-4 text-green-600" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-green-700">{stats.approvedCount}</div>
+                        <div className="text-2xl font-bold text-green-700">{stats.completedCount}</div>
                     </CardContent>
                 </Card>
                 <Card className="cursor-pointer hover:bg-red-50 transition-colors" onClick={() => setStatusFilter('rejected')}>
@@ -191,6 +209,15 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-red-700">{stats.rejectedCount}</div>
+                    </CardContent>
+                </Card>
+                <Card className="cursor-pointer hover:bg-orange-50 transition-colors" onClick={() => setStatusFilter('retryable_failed')}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">확인 필요</CardTitle>
+                        <RefreshCcw className="h-4 w-4 text-orange-600" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-orange-700">{stats.attentionCount}</div>
                     </CardContent>
                 </Card>
             </div>
@@ -203,8 +230,11 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">전체</SelectItem>
-                        <SelectItem value="pending">대기중</SelectItem>
-                        <SelectItem value="approved">승인됨</SelectItem>
+                        <SelectItem value="pending_review">대기중</SelectItem>
+                        <SelectItem value="processing">처리중</SelectItem>
+                        <SelectItem value="completed">환불 완료</SelectItem>
+                        <SelectItem value="retryable_failed">재처리 필요</SelectItem>
+                        <SelectItem value="manual_review">수동 확인 필요</SelectItem>
                         <SelectItem value="rejected">거부됨</SelectItem>
                     </SelectContent>
                 </Select>
@@ -223,13 +253,14 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                                 <TableHead>금액</TableHead>
                                 <TableHead>사유</TableHead>
                                 <TableHead>상태</TableHead>
+                                <TableHead>Toss 처리</TableHead>
                                 <TableHead className="text-right">처리</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {filteredRequests.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
                                         해당 상태의 환불 요청이 없습니다.
                                     </TableCell>
                                 </TableRow>
@@ -259,8 +290,34 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                                             {request.reason || '-'}
                                         </TableCell>
                                         <TableCell>{getStatusBadge(request.status)}</TableCell>
+                                        <TableCell className="max-w-[220px] text-xs text-gray-500">
+                                            {request.provider_cancel_transaction_key ? (
+                                                <div className="space-y-1">
+                                                    <p className="font-medium text-gray-700">
+                                                        Toss 취소 거래키
+                                                    </p>
+                                                    <p
+                                                        className="truncate"
+                                                        title={request.provider_cancel_transaction_key}
+                                                    >
+                                                        {request.provider_cancel_transaction_key}
+                                                    </p>
+                                                </div>
+                                            ) : request.last_error_message ? (
+                                                <div className="space-y-1">
+                                                    <p className="font-medium text-red-600">
+                                                        {request.last_error_code || '처리 오류'}
+                                                    </p>
+                                                    <p title={request.last_error_message}>
+                                                        {request.last_error_message}
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <span>시도 {request.attempt_count || 0}회</span>
+                                            )}
+                                        </TableCell>
                                         <TableCell className="text-right">
-                                            {request.status === 'pending' ? (
+                                            {['pending_review', 'retryable_failed'].includes(request.status) ? (
                                                 <div className="flex gap-2 justify-end">
                                                     <Button
                                                         size="sm"
@@ -314,8 +371,8 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                         {processAction === 'approve' && (
                             <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                                 <p className="text-sm text-green-700">
-                                    승인 시 사용자의 크레딧에서 {selectedRequest?.source?.initial_credits?.toLocaleString() || 0} 크레딧이 차감되고,
-                                    결제 금액 ₩{selectedRequest?.source?.plan?.price?.toLocaleString() || 0}이 환불 처리됩니다.
+                                    승인 시 토스페이먼츠 원 결제수단으로 ₩{selectedRequest?.source?.plan?.price?.toLocaleString() || 0}을 먼저 취소한 뒤,
+                                    취소 성공이 확인되면 {selectedRequest?.source?.initial_credits?.toLocaleString() || 0} 크레딧을 회수합니다.
                                 </p>
                             </div>
                         )}
@@ -360,7 +417,7 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                                     처리 중...
                                 </>
                             ) : (
-                                processAction === 'approve' ? '승인' : '거부'
+                                processAction === 'approve' ? '원 결제수단 환불' : '거부'
                             )}
                         </Button>
                     </DialogFooter>

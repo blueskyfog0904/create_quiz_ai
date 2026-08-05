@@ -16,6 +16,11 @@ export interface MarketListboardFilters {
   month?: string
   grade?: string
   title?: string
+  sourceType?: string
+  source1?: string
+  source2?: string
+  source3?: string
+  source4?: string
 }
 
 interface MarketListboardProps {
@@ -37,6 +42,11 @@ export default function MarketListboard({ category, rows, filters, isLoggedIn, r
     filters.month ? `${filters.month}월` : null,
     filters.grade || null,
     filters.title ? `"${filters.title}"` : null,
+    filters.sourceType || null,
+    filters.source1 || null,
+    filters.source2 || null,
+    filters.source3 || null,
+    filters.source4 || null,
   ].filter(Boolean) as string[]
   const sampleCount = rows.filter((row) => row.sample.available).length
   const workspaceLabel = category.workspace_subject === 'korean' ? '국어문제마켓' : '영어문제마켓'
@@ -79,6 +89,11 @@ export default function MarketListboard({ category, rows, filters, isLoggedIn, r
             </p>
           </div>
           <form>
+            <input type="hidden" name="sourceType" value={filters.sourceType || ''} />
+            <input type="hidden" name="source1" value={filters.source1 || ''} />
+            <input type="hidden" name="source2" value={filters.source2 || ''} />
+            <input type="hidden" name="source3" value={filters.source3 || ''} />
+            <input type="hidden" name="source4" value={filters.source4 || ''} />
             <StudioFilterPanel
               fields={(
                 <div className="grid w-full gap-4 md:grid-cols-4">

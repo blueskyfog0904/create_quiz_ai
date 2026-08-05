@@ -1,17 +1,24 @@
+'use client'
+
 import Image from 'next/image'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { StudioContainer } from '@/components/design-system'
 
 const previewRoot = '/preview/solvook-concept'
-const boardHref = `${previewRoot}/boards/ebs-literature`
 
 export function PreviewFooter() {
+  const searchParams = useSearchParams()
+  const subject = searchParams.get('subject') === 'korean' ? 'korean' : 'english'
+  const subjectLabel = subject === 'korean' ? '국어' : '영어'
+  const marketHref = `/${subject}/market/entexam`
+
   return (
     <footer className="studio-reference-gutter mt-auto border-t border-[var(--studio-border)] bg-[var(--studio-surface)]">
       <StudioContainer className="grid gap-8 py-10 md:grid-cols-[1.4fr_1fr_1fr]">
         <div>
           <Link
-            href={previewRoot}
+            href={`${previewRoot}?subject=${subject}`}
             className="inline-flex min-h-11 min-w-11 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] focus-visible:ring-offset-2"
           >
             <Image
@@ -26,8 +33,8 @@ export function PreviewFooter() {
             </span>
           </Link>
           <p className="mt-4 max-w-md text-sm leading-6 text-[var(--studio-muted)]">
-            수업에 필요한 지문과 문제를 탐색하고, 나만의 시험 자료로 연결하는
-            선생님용 워크스페이스 시안입니다.
+            수업에 필요한 {subjectLabel} 문제와 교재별 자료를 탐색하는
+            선생님용 문제마켓 프리뷰입니다.
           </p>
         </div>
 
@@ -36,21 +43,21 @@ export function PreviewFooter() {
           <nav aria-label="푸터 자료 탐색" className="mt-3 flex flex-col items-start gap-2 text-sm">
             <Link
               className="inline-flex min-h-11 min-w-11 items-center rounded-md outline-none transition-colors hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-              href={boardHref}
+              href={marketHref}
             >
-              EBS 국어 문학
+              {subjectLabel} 문제마켓
             </Link>
             <Link
               className="inline-flex min-h-11 min-w-11 items-center rounded-md outline-none transition-colors hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-              href={`${boardHref}?sort=latest`}
+              href={`${marketHref}?sort=latest`}
             >
               최근 등록 자료
             </Link>
             <Link
               className="inline-flex min-h-11 min-w-11 items-center rounded-md outline-none transition-colors hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-              href={`${boardHref}?view=question-bank`}
+              href={`${previewRoot}?subject=${subject}#source-explorer`}
             >
-              문제은행
+              교재와 출처
             </Link>
           </nav>
         </div>
@@ -58,8 +65,8 @@ export function PreviewFooter() {
         <div>
           <h2 className="text-sm font-bold text-[var(--studio-ink)]">시안 안내</h2>
           <p className="mt-3 text-sm leading-6 text-[var(--studio-muted)]">
-            이 페이지는 디자인 검토용 정적 프리뷰이며 실제 구매·저장 기능은
-            연결되어 있지 않습니다.
+            이 페이지는 디자인 검토용 프리뷰이며 실제 공개 문제마켓 데이터와
+            과목별 탐색 링크를 사용합니다.
           </p>
         </div>
       </StudioContainer>

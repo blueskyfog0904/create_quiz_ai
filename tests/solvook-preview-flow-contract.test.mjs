@@ -271,7 +271,7 @@ test('the detail route calls notFound for invalid board slugs or post ids', () =
   )
 })
 
-test('preview source has no direct Supabase, purchase, or credit API dependency', () => {
+test('preview source has no direct Supabase, purchase, credit, or route API dependency', () => {
   const sourceFiles = collectSourceFiles(previewRoot)
   assert.ok(sourceFiles.length > 0, 'preview source files should exist')
 
@@ -280,11 +280,12 @@ test('preview source has no direct Supabase, purchase, or credit API dependency'
     assert.doesNotMatch(source, /from\s+['"][^'"]*supabase[^'"]*['"]/i)
     assert.doesNotMatch(source, /\bcreateClient\s*\(/)
     assert.doesNotMatch(source, /['"`]\/api\/(?:market|credits?)(?:\/|['"`])/i)
-    assert.doesNotMatch(
-      source,
-      /from\s+['"]@\/lib\/(?:market(?:-|\/)|credits?(?:-|\/))[^'"]*['"]/i
-    )
   }
+
+  const homePage = readUtf8(homePagePath, 'preview home')
+  assert.match(homePage, /getMarketHomeData\(subject\)/)
+  assert.match(homePage, /getPublicMainAdCarouselItems\(subject\)/)
+  assert.doesNotMatch(homePage, /_data\/sample-data/)
 })
 
 test('the preview header matches the requested Solvook navigation scope', () => {

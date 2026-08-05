@@ -3,16 +3,17 @@ import { revalidatePath } from 'next/cache'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { isWorkspaceSubject } from '@/lib/workspace-subject'
 import {
   MAIN_AD_IMAGES_BUCKET,
   MainAdCarouselValidationError,
   buildMainAdStoragePath,
   getMainAdImageExtension,
   getReferencedMainAdImagePaths,
-  validateMainAdCarouselConfig,
+  getMainAdCarouselSubjectConfig,
   validateMainAdCarouselDraftConfig,
   validateMainAdStoragePath,
-  type MainAdCarouselConfig,
+  type MainAdCarouselSubjectConfig,
   type MainAdImageExtension,
   type MainAdImageRole,
   type MainAdSaveResponse,
@@ -21,7 +22,7 @@ import {
   getMainAdCarouselConfigForUpdate,
   getMainAdCarouselImageUrls,
   removeMainAdImagePaths,
-  saveMainAdCarouselConfig,
+  updateMainAdCarouselSubjectConfig,
 } from '@/lib/main-ad-carousel-server'
 
 export const dynamic = 'force-dynamic'
@@ -109,8 +110,8 @@ function parseMultipartImages(formData: FormData) {
 }
 
 function validateUploadPlan(
-  draftConfig: MainAdCarouselConfig,
-  previousConfig: MainAdCarouselConfig,
+  draftConfig: MainAdCarouselSubjectConfig,
+  previousConfig: MainAdCarouselSubjectConfig,
   images: Map<string, MultipartImage>
 ) {
   const draftItems = new Map(draftConfig.items.map((item) => [item.id, item]))
@@ -184,21 +185,28 @@ export async function POST(request: Request) {
   let settingSaved = false
 
   try {
+    const subjectParam = new URL(request.url).searchParams.get('subject')
+    if (!subjectParam || !isWorkspaceSubject(subjectParam)) {
+      return errorResponse('INVALID_MAIN_AD_SETTINGS', '지원하지 않는 과목입니다.', 400)
+    }
+
+    const workspaceSubject = subjectParam
     const formData = await request.formData()
     const { draftConfig, images } = parseMultipartImages(formData)
     const previousConfig = await getMainAdCarouselConfigForUpdate()
-    const uploadPlan = validateUploadPlan(draftConfig, previousConfig, images)
+    const previousSubjectConfig = getMainAdCarouselSubjectConfig(previousConfig, workspaceSubject)
+    const uploadPlan = validateUploadPlan(draftConfig, previousSubjectConfig, images)
 
     if (!hasServiceRoleCredentials()) {
       throw new Error('메인 광고 저장에 필요한 서비스 역할 키가 없습니다.')
     }
 
     const adminSupabase = createAdminClient()
-    const nextConfig: MainAdCarouselConfig = {
+    const nextSubjectConfig: MainAdCarouselSubjectConfig = {
       version: 1,
       items: draftConfig.items.map((item) => ({ ...item })),
     }
-    const nextItems = new Map(nextConfig.items.map((item) => [item.id, item]))
+    const nextItems = new Map(nextSubjectConfig.items.map((item) => [item.id, item]))
 
     for (const upload of uploadPlan) {
       const storagePath = buildMainAdStoragePath(
@@ -237,12 +245,14 @@ export async function POST(request: Request) {
       }
     }
 
-    const finalConfig = validateMainAdCarouselConfig(nextConfig)
-    const savedConfig = await saveMainAdCarouselConfig(finalConfig)
+    const { beforeConfig, afterConfig } = await updateMainAdCarouselSubjectConfig(
+      workspaceSubject,
+      nextSubjectConfig
+    )
     settingSaved = true
 
-    const previousPaths = getReferencedMainAdImagePaths(previousConfig)
-    const nextPaths = getReferencedMainAdImagePaths(savedConfig)
+    const previousPaths = getReferencedMainAdImagePaths(beforeConfig)
+    const nextPaths = getReferencedMainAdImagePaths(afterConfig)
     const obsoletePaths = [...previousPaths].filter((path) => !nextPaths.has(path))
     const cleanupWarnings = await removeMainAdImagePaths(obsoletePaths)
 
@@ -254,9 +264,11 @@ export async function POST(request: Request) {
     revalidatePath('/admin/main-ad-settings')
 
     const data: MainAdSaveResponse = {
-      config: savedConfig,
+      config: getMainAdCarouselSubjectConfig(afterConfig, workspaceSubject),
       cleanupWarnings,
-      imageUrls: getMainAdCarouselImageUrls(savedConfig),
+      imageUrls: getMainAdCarouselImageUrls(
+        getMainAdCarouselSubjectConfig(afterConfig, workspaceSubject)
+      ),
     }
 
     return NextResponse.json({ success: true, data })

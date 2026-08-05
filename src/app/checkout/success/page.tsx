@@ -33,9 +33,8 @@ function CheckoutSuccessContent() {
                 const paymentKey = searchParams.get('paymentKey')
                 const orderId = searchParams.get('orderId')
                 const amount = searchParams.get('amount')
-                const planId = searchParams.get('planId')
 
-                if (!paymentKey || !orderId || !amount || !planId) {
+                if (!paymentKey || !orderId || !amount) {
                     setStatus('error')
                     setMessage('결제 정보가 올바르지 않습니다.')
                     return
@@ -49,7 +48,6 @@ function CheckoutSuccessContent() {
                         paymentKey,
                         orderId,
                         amount: parseInt(amount),
-                        planId,
                     }),
                 })
 

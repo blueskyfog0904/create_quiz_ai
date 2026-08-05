@@ -19,6 +19,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { AdminWorkspaceSwitcher } from '@/components/layout/admin-workspace-switcher'
+import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import {
   MAIN_AD_DEFAULT_DURATION_SECONDS,
   MAIN_AD_MAX_DURATION_SECONDS,
@@ -26,9 +28,10 @@ import {
   getMainAdImageExtension,
   isAllowedMainAdHref,
   validateMainAdCarouselDraftConfig,
-  type MainAdCarouselConfig,
+  type MainAdCarouselSubjectConfig,
   type MainAdCarouselItem,
   type MainAdSaveResponse,
+  type MainAdSubject,
 } from '@/lib/main-ad-carousel'
 
 const IMAGE_ACCEPT = '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp'
@@ -39,7 +42,8 @@ interface EditableMainAdItem extends MainAdCarouselItem {
 }
 
 interface MainAdSettingsClientProps {
-  config: MainAdCarouselConfig
+  config: MainAdCarouselSubjectConfig
+  workspaceSubject: MainAdSubject
   imageUrls: Record<string, {
     pc: string
     mobile: string | null
@@ -113,7 +117,7 @@ function FieldError({
   )
 }
 
-function toEditableItems(config: MainAdCarouselConfig): EditableMainAdItem[] {
+function toEditableItems(config: MainAdCarouselSubjectConfig): EditableMainAdItem[] {
   return config.items.map((item) => ({
     ...item,
     pcFile: null,
@@ -121,7 +125,7 @@ function toEditableItems(config: MainAdCarouselConfig): EditableMainAdItem[] {
   }))
 }
 
-function toConfig(items: EditableMainAdItem[]): MainAdCarouselConfig {
+function toConfig(items: EditableMainAdItem[]): MainAdCarouselSubjectConfig {
   return {
     version: 1,
     items: items.map((item) => ({
@@ -172,7 +176,7 @@ function ImagePreview({
     return (
       <div
         className={`flex items-center justify-center rounded-lg border border-dashed bg-muted/30 text-sm text-muted-foreground ${
-          mobile ? 'aspect-[8/5]' : 'aspect-[10/3]'
+          mobile ? 'aspect-[8/5]' : 'aspect-[8/3]'
         }`}
       >
         <ImagePlus className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -182,7 +186,7 @@ function ImagePreview({
   }
 
   return (
-    <div className={`overflow-hidden rounded-lg border bg-muted/30 ${mobile ? 'aspect-[8/5]' : 'aspect-[10/3]'}`}>
+    <div className={`overflow-hidden rounded-lg border bg-muted/30 ${mobile ? 'aspect-[8/5]' : 'aspect-[8/3]'}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={previewUrl}
@@ -196,9 +200,10 @@ function ImagePreview({
 export default function MainAdSettingsClient({
   config: initialConfig,
   imageUrls: initialImageUrls,
+  workspaceSubject,
 }: MainAdSettingsClientProps) {
   const [items, setItems] = useState<EditableMainAdItem[]>(() => toEditableItems(initialConfig))
-  const [savedConfig, setSavedConfig] = useState<MainAdCarouselConfig>(initialConfig)
+  const [savedConfig, setSavedConfig] = useState<MainAdCarouselSubjectConfig>(initialConfig)
   const [imageUrls, setImageUrls] = useState(initialImageUrls)
   const [savedImageUrls, setSavedImageUrls] = useState(initialImageUrls)
   const [fieldErrors, setFieldErrors] = useState<MainAdFieldErrors>({})
@@ -338,7 +343,7 @@ export default function MainAdSettingsClient({
         }
       })
 
-      const response = await fetch('/api/admin/main-ad-settings', {
+      const response = await fetch(withAdminWorkspaceSubject('/api/admin/main-ad-settings', workspaceSubject), {
         method: 'POST',
         body: formData,
       })
@@ -372,10 +377,11 @@ export default function MainAdSettingsClient({
         <div>
           <h1 className="text-3xl font-bold text-gray-900">(임시)메인광고설정</h1>
           <p className="mt-1 text-gray-500">
-            솔북 컨셉 프리뷰 상단 광고의 순서, 이미지, 연결 주소와 노출 시간을 관리합니다.
+            {workspaceSubject === 'english' ? '영어' : '국어'} 문제마켓 메인 광고의 순서, 이미지, 연결 주소와 노출 시간을 관리합니다.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <AdminWorkspaceSwitcher />
           <Button
             type="button"
             variant="outline"
@@ -408,7 +414,7 @@ export default function MainAdSettingsClient({
       {items.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            등록된 광고가 없습니다. 광고를 추가하기 전에는 기존 프리뷰 히어로가 그대로 표시됩니다.
+            등록된 광고가 없습니다. 프리뷰에는 같은 광고 영역의 빈 상태가 표시됩니다.
           </CardContent>
         </Card>
       ) : (
@@ -495,6 +501,9 @@ export default function MainAdSettingsClient({
                       }}
                       placeholder="좌측 목록에 표시할 제목"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      공개 왼쪽 목록에 표시되는 유일한 문구입니다.
+                    </p>
                     <FieldError
                       id={getFieldErrorId(item.id, 'title')}
                       message={fieldErrors[item.id]?.title}
@@ -587,7 +596,9 @@ export default function MainAdSettingsClient({
                     <div>
                       <Label htmlFor={`main-ad-pc-${item.id}`}>PC 이미지</Label>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        JPG, PNG, WEBP · 최대 10MB
+                        권장 1920×720px (8:3) · JPG, PNG, WEBP · 최대 10MB
+                        <br />
+                        공개 화면 영역을 채워 표시하므로 이미지 가장자리가 잘릴 수 있습니다.
                       </p>
                     </div>
                     <ImagePreview
@@ -616,7 +627,9 @@ export default function MainAdSettingsClient({
                       <div>
                         <Label htmlFor={`main-ad-mobile-${item.id}`}>모바일 이미지</Label>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          미등록 시 PC 이미지를 사용합니다.
+                          권장 1200×750px (8:5) · JPG, PNG, WEBP · 최대 10MB
+                          <br />
+                          미등록 시 PC 이미지를 사용하며 화면 비율에 따라 가장자리가 잘릴 수 있습니다.
                         </p>
                       </div>
                       {(item.mobileFile || item.mobileImagePath) ? (

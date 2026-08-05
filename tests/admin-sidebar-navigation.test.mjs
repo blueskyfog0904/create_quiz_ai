@@ -97,6 +97,20 @@ test('admin sidebar exposes the temporary main ad settings page', () => {
   assert.equal(item.name, '(임시)메인광고설정')
 })
 
+test('admin sidebar exposes temporary market main management after main ad settings', () => {
+  const defaultItems = DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG.items
+  const mainAdIndex = defaultItems.indexOf('/admin/main-ad-settings')
+  const marketMainIndex = defaultItems.indexOf('/admin/market-main-settings')
+  const items = resolveAdminSidebarMenuItems('english')
+  const mainAdItem = items.find((entry) => entry.href === '/admin/main-ad-settings')
+  const marketMainItem = items.find((entry) => entry.href === '/admin/market-main-settings')
+
+  assert.notEqual(marketMainIndex, -1)
+  assert.equal(marketMainIndex, mainAdIndex + 1)
+  assert.equal(mainAdItem?.name, '(임시)메인광고설정')
+  assert.equal(marketMainItem?.name, '(임시) 문제마켓 메인 관리')
+})
+
 test('resolveAdminSidebarNavigationNodes groups question bank admin services under one parent', () => {
   const nodes = resolveAdminSidebarNavigationNodes('english', {
     items: [

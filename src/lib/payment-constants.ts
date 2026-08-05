@@ -1,0 +1,2 @@
+export const MAX_POINT_CHARGE_AMOUNT = 100_000
+export const PAYMENT_ORDER_TTL_MINUTES = 30
