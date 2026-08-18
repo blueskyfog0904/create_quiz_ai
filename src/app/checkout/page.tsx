@@ -7,68 +7,116 @@
  */
 
 import { redirect } from 'next/navigation'
+import { assertKakaoPayReady } from '@/lib/kakaopay-server'
+import { createPaymentAdminClient } from '@/lib/payment-orders-server'
 import { createClient } from '@/lib/supabase/server'
-import { getTossCheckoutConfig } from '@/lib/toss-payments-server'
+import { assertTossPaymentsReady } from '@/lib/toss-payments-server'
 import { CheckoutClient } from './checkout-client'
 
 interface CheckoutPageProps {
-    searchParams: Promise<{ planId?: string }>
+  searchParams: Promise<{ planId?: string }>
 }
 
 export default async function CheckoutPage({ searchParams }: CheckoutPageProps) {
-    const params = await searchParams
-    const planId = params.planId
+  const params = await searchParams
+  const planId = params.planId
 
-    // planId 없으면 pricing 페이지로 리다이렉트
-    if (!planId) {
-        redirect('/pricing')
-    }
+  if (!planId) {
+    redirect('/pricing')
+  }
 
-    const supabase = await createClient()
+  const supabase = await createClient()
 
-    // 로그인 확인
-    const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-    if (!user) {
-        // 미로그인 시 로그인 페이지로 (결제 페이지로 돌아오도록 redirect 파라미터 포함)
-        redirect(`/login?redirect=/checkout?planId=${planId}`)
-    }
+  if (!user) {
+    redirect(`/login?redirect=/checkout?planId=${planId}`)
+  }
 
-    // 사용자 프로필 조회
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, name, email')
-        .eq('id', user.id)
-        .single()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id, name, email')
+    .eq('id', user.id)
+    .single()
 
-    // 요금제 정보 조회
-    const { data: plan, error } = await supabase
-        .from('pricing_plans')
-        .select('*')
-        .eq('id', planId)
-        .eq('is_active', true)
-        .single()
+  const { data: plan, error } = await supabase
+    .from('pricing_plans')
+    .select('*')
+    .eq('id', planId)
+    .eq('is_active', true)
+    .single()
 
-    if (error || !plan) {
-        redirect('/pricing')
-    }
+  if (error || !plan) {
+    redirect('/pricing')
+  }
 
-    let paymentConfig: ReturnType<typeof getTossCheckoutConfig> | null = null
+  const availableProviders: Array<'toss' | 'kakaopay'> = []
+  let paymentConfig: {
+    clientKey: string
+    paymentVariantKey: string
+    agreementVariantKey: string
+  } | null = null
+
+  const admin = createPaymentAdminClient()
+  const { data: runtimeRows } = await admin
+    .from('payment_runtime_config')
+    .select(`
+      accepted_provider_environment,
+      master_accepts_new_orders,
+      toss_accepts_new_orders,
+      toss_merchant_id,
+      kakaopay_accepts_new_orders,
+      kakaopay_merchant_id
+    `)
+    .eq('id', true)
+    .limit(2)
+  const runtime = runtimeRows?.length === 1 ? runtimeRows[0] : null
+
+  if (runtime?.master_accepts_new_orders) {
     try {
-        paymentConfig = getTossCheckoutConfig()
+      const toss = assertTossPaymentsReady()
+      if (
+        runtime.toss_accepts_new_orders &&
+        runtime.accepted_provider_environment === toss.environment &&
+        runtime.toss_merchant_id === toss.mid
+      ) {
+        paymentConfig = {
+          clientKey: toss.clientKey,
+          paymentVariantKey: toss.paymentVariantKey,
+          agreementVariantKey: toss.agreementVariantKey,
+        }
+        availableProviders.push('toss')
+      }
     } catch {
-        paymentConfig = null
+      paymentConfig = null
     }
 
-    return (
-        <CheckoutClient
-            plan={plan}
-            user={{
-                id: user.id,
-                name: profile?.name || user.email?.split('@')[0] || '고객',
-                email: user.email || ''
-            }}
-            paymentConfig={paymentConfig}
-        />
-    )
+    try {
+      const kakao = assertKakaoPayReady()
+      if (
+        runtime.kakaopay_accepts_new_orders &&
+        runtime.accepted_provider_environment === kakao.environment &&
+        runtime.kakaopay_merchant_id === kakao.cid
+      ) {
+        availableProviders.push('kakaopay')
+      }
+    } catch {
+      // Fail closed when KakaoPay configuration is incomplete.
+    }
+  }
+
+  return (
+    <CheckoutClient
+      plan={plan}
+      user={{
+        id: user.id,
+        name: profile?.name || user.email?.split('@')[0] || '고객',
+        email: user.email || '',
+      }}
+      paymentConfig={paymentConfig}
+      availableProviders={availableProviders}
+    />
+  )
 }
