@@ -5,8 +5,9 @@
 
 import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import { createPaymentAdminClient } from '@/lib/payment-orders-server'
 import { redirect } from 'next/navigation'
-import { RefundsClient } from './refunds-client'
+import { RefundsClient, type RefundRequest } from './refunds-client'
 import { MarketRefundsClient } from './market-refunds-client'
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +28,8 @@ export default async function AdminRefundsPage() {
     }
 
     // 환불 요청 목록 조회
-    const { data: requests } = await supabase
+    const paymentAdmin = createPaymentAdminClient()
+    const { data: requests } = await paymentAdmin
         .from('refund_requests')
         .select(`
       *,
@@ -59,7 +61,7 @@ export default async function AdminRefundsPage() {
     return (
         <div className="space-y-8">
             <RefundsClient
-                requests={requests || []}
+                requests={(requests || []) as RefundRequest[]}
                 stats={{ pendingCount, completedCount, rejectedCount, attentionCount }}
             />
             <h2 className="sr-only">문제마켓 환불</h2>

@@ -87,6 +87,16 @@ function getPaymentErrorCode(error: unknown) {
     return null
 }
 
+function getCheckoutAttemptId(userId: string, planId: string) {
+    const storageKey = `point-checkout-attempt:${userId}:${planId}:toss`
+    const stored = window.sessionStorage.getItem(storageKey)
+    if (stored) return stored
+
+    const checkoutAttemptId = crypto.randomUUID()
+    window.sessionStorage.setItem(storageKey, checkoutAttemptId)
+    return checkoutAttemptId
+}
+
 export function CheckoutClient({ plan, user, paymentConfig }: CheckoutClientProps) {
     const router = useRouter()
     const [isLoading, setIsLoading] = useState(true)
@@ -115,7 +125,10 @@ export function CheckoutClient({ plan, user, paymentConfig }: CheckoutClientProp
                 const response = await fetch('/api/payments/orders', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ planId: plan.id }),
+                    body: JSON.stringify({
+                        planId: plan.id,
+                        checkoutAttemptId: getCheckoutAttemptId(user.id, plan.id),
+                    }),
                 })
                 const data = await response.json()
 
@@ -135,7 +148,7 @@ export function CheckoutClient({ plan, user, paymentConfig }: CheckoutClientProp
         }
 
         void prepareOrder()
-    }, [paymentConfig, plan.id])
+    }, [paymentConfig, plan.id, user.id])
 
     // 결제위젯 초기화
     useEffect(() => {

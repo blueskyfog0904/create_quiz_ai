@@ -8,6 +8,10 @@ import { createClient } from '@/lib/supabase/server'
 import { getCreditBalanceSnapshot, logCreditBalanceMismatch, selectDisplayBalance } from '@/lib/credit-balance'
 import { getPointChargeRefundEligibility } from '@/lib/point-charge-refunds-server'
 import { CreditsClient } from './credits-client'
+import type { Database } from '@/types/supabase'
+
+type SafeRefundRequest =
+  Database['public']['Functions']['get_my_refund_requests']['Returns'][number]
 
 export const dynamic = 'force-dynamic'
 
@@ -46,10 +50,7 @@ export default async function CreditsPage() {
 
   // 환불 요청 조회
   const { data: refundRequests } = await supabase
-    .from('refund_requests')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
+    .rpc('get_my_refund_requests')
 
   const sourcesWithRefundInfo = await Promise.all(
     (sources ?? []).map(async (source) => {
@@ -76,7 +77,10 @@ export default async function CreditsPage() {
       databaseNow={snapshot.databaseNow}
       sources={sourcesWithRefundInfo}
       transactions={transactions || []}
-      refundRequests={refundRequests || []}
+      refundRequests={(refundRequests ?? []).map((request: SafeRefundRequest) => ({
+        ...request,
+        reason: request.reason ?? '',
+      }))}
     />
   )
 }

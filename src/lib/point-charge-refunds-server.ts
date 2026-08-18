@@ -1,6 +1,16 @@
 import 'server-only'
 
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
+import type { Database } from '@/types/supabase'
+
+type RefundRpcName =
+  | 'get_point_charge_refund_eligibility'
+  | 'request_point_charge_refund'
+  | 'claim_point_charge_refund'
+  | 'finalize_point_charge_refund'
+  | 'fail_point_charge_refund'
+  | 'reject_point_charge_refund'
+  | 'quarantine_external_provider_cancellation'
 
 interface RefundRpcError {
   message?: string
@@ -28,10 +38,19 @@ export interface ClaimedPointChargeRefund {
   already_completed: boolean
   request_id: string
   user_id?: string
+  provider?: 'toss' | 'kakaopay'
   payment_order_id?: string
+  provider_order_id?: string
   payment_key?: string
+  provider_transaction_id?: string
+  provider_approval_id?: string
+  provider_merchant_id?: string
+  partner_order_id?: string
+  partner_user_id?: string
   cancel_idempotency_key?: string
   refund_amount?: number
+  tax_free_amount?: number
+  vat_amount?: number
 }
 
 interface FinalizedPointChargeRefund {
@@ -39,9 +58,17 @@ interface FinalizedPointChargeRefund {
   new_balance: number
 }
 
+interface QuarantinedExternalCancellation {
+  already_completed: boolean
+  already_quarantined: boolean
+  request_id: string
+  credits_used: boolean
+  used_credit_amount: number
+}
+
 async function callRefundRpc<T>(
-  functionName: string,
-  params: Record<string, unknown>
+  functionName: RefundRpcName,
+  params: Database['public']['Functions'][RefundRpcName]['Args']
 ) {
   const admin = createPaymentAdminClient()
   const { data, error } = await admin.rpc(functionName, params)
@@ -57,8 +84,8 @@ function getRefundRpcMessage(error: RefundRpcError) {
   const message = error.message ?? ''
   const knownMessages: Record<string, string> = {
     REFUND_SOURCE_NOT_FOUND: '구매건을 찾을 수 없습니다.',
-    REFUND_PAID_SOURCE_REQUIRED: '토스페이먼츠로 충전한 크레딧만 환불할 수 있습니다.',
-    REFUND_COMPLETED_TOSS_PAYMENT_REQUIRED: '원 결제를 확인할 수 없어 환불을 요청할 수 없습니다.',
+    REFUND_PAID_SOURCE_REQUIRED: '결제로 충전한 크레딧만 환불할 수 있습니다.',
+    REFUND_COMPLETED_PAYMENT_REQUIRED: '원 결제를 확인할 수 없어 환불을 요청할 수 없습니다.',
     REFUND_SOURCE_NOT_ACTIVE: '이미 환불 처리 중이거나 완료된 구매건입니다.',
     REFUND_CREDITS_ALREADY_USED: '이미 사용한 크레딧이 있어 환불할 수 없습니다.',
     REFUND_SOURCE_EXPIRED: '사용기한이 만료된 크레딧은 환불할 수 없습니다.',
@@ -73,8 +100,8 @@ function getRefundRpcMessage(error: RefundRpcError) {
 
 const refundBlockReasons: Record<string, string> = {
   REFUND_SOURCE_NOT_FOUND: '구매건을 찾을 수 없습니다.',
-  REFUND_PAID_SOURCE_REQUIRED: '토스페이먼츠 충전 건만 환불할 수 있습니다.',
-  REFUND_COMPLETED_TOSS_PAYMENT_REQUIRED: '원 결제를 확인할 수 없습니다.',
+  REFUND_PAID_SOURCE_REQUIRED: '결제 충전 건만 환불할 수 있습니다.',
+  REFUND_COMPLETED_PAYMENT_REQUIRED: '원 결제를 확인할 수 없습니다.',
   REFUND_SOURCE_NOT_ACTIVE: '환불 처리 중이거나 완료된 구매건입니다.',
   REFUND_CREDITS_ALREADY_USED: '이미 사용한 크레딧이 있습니다.',
   REFUND_SOURCE_EXPIRED: '사용기한이 만료되었습니다.',
@@ -86,7 +113,7 @@ export async function getPointChargeRefundEligibility(input: {
   sourceId: string
 }): Promise<PointChargeRefundEligibility> {
   const result = await callRefundRpc<RefundEligibilityResult>(
-    'get_toss_refund_eligibility',
+    'get_point_charge_refund_eligibility',
     {
       p_user_id: input.userId,
       p_source_id: input.sourceId,
@@ -108,7 +135,7 @@ export function requestPointChargeRefund(input: {
   sourceId: string
   reason: string
 }) {
-  return callRefundRpc<RefundRequestResult>('request_toss_refund', {
+  return callRefundRpc<RefundRequestResult>('request_point_charge_refund', {
     p_user_id: input.userId,
     p_source_id: input.sourceId,
     p_reason: input.reason,
@@ -120,10 +147,10 @@ export function claimPointChargeRefund(input: {
   adminId: string
   adminNote: string | null
 }) {
-  return callRefundRpc<ClaimedPointChargeRefund>('claim_toss_refund', {
+  return callRefundRpc<ClaimedPointChargeRefund>('claim_point_charge_refund', {
     p_request_id: input.requestId,
     p_admin_id: input.adminId,
-    p_admin_note: input.adminNote,
+    p_admin_note: input.adminNote ?? '',
   })
 }
 
@@ -131,11 +158,13 @@ export function finalizePointChargeRefund(input: {
   requestId: string
   cancelTransactionKey: string
   cancelledAt: string
+  providerStatus: string
 }) {
-  return callRefundRpc<FinalizedPointChargeRefund>('finalize_toss_refund', {
+  return callRefundRpc<FinalizedPointChargeRefund>('finalize_point_charge_refund', {
     p_request_id: input.requestId,
-    p_cancel_transaction_key: input.cancelTransactionKey,
-    p_cancelled_at: input.cancelledAt,
+    p_provider_cancel_transaction_key: input.cancelTransactionKey,
+    p_provider_cancelled_at: input.cancelledAt,
+    p_provider_status: input.providerStatus,
   })
 }
 
@@ -145,7 +174,7 @@ export async function failPointChargeRefund(input: {
   message: string
   retryable: boolean
 }) {
-  await callRefundRpc<null>('fail_toss_refund', {
+  await callRefundRpc<null>('fail_point_charge_refund', {
     p_request_id: input.requestId,
     p_error_code: input.code,
     p_error_message: input.message,
@@ -158,9 +187,26 @@ export async function rejectPointChargeRefund(input: {
   adminId: string
   adminNote: string | null
 }) {
-  await callRefundRpc<null>('reject_toss_refund', {
+  await callRefundRpc<null>('reject_point_charge_refund', {
     p_request_id: input.requestId,
     p_admin_id: input.adminId,
-    p_admin_note: input.adminNote,
+    p_admin_note: input.adminNote ?? '',
   })
+}
+
+export function quarantineExternalProviderCancellation(input: {
+  paymentOrderId: string
+  cancelTransactionKey: string
+  cancelledAt: string
+  providerStatus: string
+}) {
+  return callRefundRpc<QuarantinedExternalCancellation>(
+    'quarantine_external_provider_cancellation',
+    {
+      p_payment_order_id: input.paymentOrderId,
+      p_provider_cancel_transaction_key: input.cancelTransactionKey,
+      p_provider_cancelled_at: input.cancelledAt,
+      p_provider_status: input.providerStatus,
+    }
+  )
 }

@@ -2,7 +2,6 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
-import { reconcilePaymentOrder } from '@/lib/payment-reconciliation-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,14 +90,12 @@ export async function POST(request: Request) {
     )
   }
 
-  const { data: storedEvent } = await admin
-    .from('payment_webhook_events')
-    .select('processing_status')
-    .eq('transmission_id', transmissionId)
-    .maybeSingle()
-
-  if (storedEvent?.processing_status === 'completed') {
-    return NextResponse.json({ success: true, duplicate: true })
+  if (insertError?.code === '23505') {
+    return NextResponse.json({
+      success: true,
+      accepted: true,
+      duplicate: true,
+    })
   }
 
   if (event.eventType !== 'PAYMENT_STATUS_CHANGED') {
@@ -112,31 +109,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, ignored: true })
   }
 
-  try {
-    const outcome = await reconcilePaymentOrder(event.data.orderId)
-    await admin
-      .from('payment_webhook_events')
-      .update({
-        processing_status:
-          outcome === 'not_found' ? 'ignored' : 'completed',
-        processed_at: new Date().toISOString(),
-        last_error_code: null,
-      })
-      .eq('transmission_id', transmissionId)
-
-    return NextResponse.json({ success: true, outcome })
-  } catch {
-    await admin
-      .from('payment_webhook_events')
-      .update({
-        processing_status: 'failed',
-        last_error_code: 'RECONCILIATION_RETRY_REQUIRED',
-      })
-      .eq('transmission_id', transmissionId)
-
-    return NextResponse.json(
-      { success: false, error: 'RECONCILIATION_RETRY_REQUIRED' },
-      { status: 500 }
-    )
-  }
+  return NextResponse.json({ success: true, accepted: true })
 }

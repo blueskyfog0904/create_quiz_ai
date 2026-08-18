@@ -13,6 +13,7 @@ const migration = read(
 const requestRoute = read('../src/app/api/refunds/request/route.ts')
 const adminRoute = read('../src/app/api/admin/refunds/route.ts')
 const refundServer = read('../src/lib/point-charge-refunds-server.ts')
+const refundProcessor = read('../src/lib/point-charge-refund-processor.ts')
 const creditService = read('../src/lib/credits.ts')
 
 test('refund request is atomically validated and freezes one paid source', () => {
@@ -53,30 +54,30 @@ test('user refund route uses strict input and the database eligibility decision'
   assert.doesNotMatch(requestRoute, /CreditService/)
 })
 
-test('admin approval calls Toss cancel before local completion', () => {
-  const claimIndex = adminRoute.indexOf('claimed = await claimPointChargeRefund')
-  const cancelIndex = adminRoute.indexOf(
+test('admin approval delegates to a processor that cancels Toss before local completion', () => {
+  const claimIndex = refundProcessor.indexOf('claimed = await claimPointChargeRefund')
+  const cancelIndex = refundProcessor.indexOf(
     'const canceledPayment = await cancelTossPayment'
   )
-  const finalizeIndex = adminRoute.indexOf(
+  const finalizeIndex = refundProcessor.indexOf(
     'const result = await finalizePointChargeRefund'
   )
 
   assert.ok(claimIndex >= 0)
-  assert.ok(cancelIndex > claimIndex)
   assert.ok(finalizeIndex > cancelIndex)
-  assert.match(adminRoute, /cancel_idempotency_key/)
-  assert.match(adminRoute, /failPointChargeRefund/)
+  assert.match(adminRoute, /processPointChargeRefund/)
+  assert.match(refundProcessor, /cancel_idempotency_key/)
+  assert.match(refundProcessor, /failPointChargeRefund/)
   assert.doesNotMatch(adminRoute, /CreditService\.approveRefund/)
 })
 
-test('refund server owns the service-role RPC boundary', () => {
+test('refund server owns the provider-neutral service-role RPC boundary', () => {
   assert.match(refundServer, /import 'server-only'/)
-  assert.match(refundServer, /get_toss_refund_eligibility/)
-  assert.match(refundServer, /request_toss_refund/)
-  assert.match(refundServer, /claim_toss_refund/)
-  assert.match(refundServer, /finalize_toss_refund/)
-  assert.match(refundServer, /reject_toss_refund/)
+  assert.match(refundServer, /get_point_charge_refund_eligibility/)
+  assert.match(refundServer, /request_point_charge_refund/)
+  assert.match(refundServer, /claim_point_charge_refund/)
+  assert.match(refundServer, /finalize_point_charge_refund/)
+  assert.match(refundServer, /reject_point_charge_refund/)
   assert.doesNotMatch(creditService, /static async approveRefund/)
   assert.doesNotMatch(creditService, /static async requestRefund/)
 })

@@ -86,8 +86,9 @@ export async function reportCreditBalanceMismatch(
     const notificationRows = admins.map((admin) => ({
       user_id: admin.id,
       type: 'warning',
+      title: '크레딧 잔액 정합성 확인 필요',
       message: `크레딧 잔액 정합성 확인 필요: ${context} / 대상 사용자 ${userId} / 원인 ${snapshot.mismatchReasons.join(', ')}`,
-      action_url: '/admin/credits',
+      link: '/admin/credits',
       is_read: false,
     }))
 

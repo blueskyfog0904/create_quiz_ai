@@ -65,15 +65,7 @@ function getKeyEnvironment(key: string): TossEnvironment | null {
   return null
 }
 
-export function assertTossPaymentsReady(): TossReadyConfig {
-  if (process.env.PAYMENTS_ENABLED !== 'true') {
-    throw new TossPaymentsError(
-      'PAYMENTS_DISABLED',
-      '현재 포인트 충전 기능을 준비 중입니다.',
-      503
-    )
-  }
-
+function getTossPaymentsConfig(): TossReadyConfig {
   const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY?.trim() ?? ''
   const secretKey = process.env.TOSS_SECRET_KEY?.trim() ?? ''
   const mid = process.env.TOSS_MID?.trim() ?? ''
@@ -109,6 +101,21 @@ export function assertTossPaymentsReady(): TossReadyConfig {
   }
 }
 
+export function assertTossPaymentsReady(): TossReadyConfig {
+  if (
+    process.env.PAYMENTS_ENABLED !== 'true' ||
+    process.env.TOSS_PAYMENTS_ENABLED !== 'true'
+  ) {
+    throw new TossPaymentsError(
+      'PAYMENTS_DISABLED',
+      '현재 포인트 충전 기능을 준비 중입니다.',
+      503
+    )
+  }
+
+  return getTossPaymentsConfig()
+}
+
 export function getTossCheckoutConfig() {
   const config = assertTossPaymentsReady()
   return {
@@ -138,7 +145,7 @@ export async function confirmTossPayment(input: {
   amount: number
   idempotencyKey: string
 }) {
-  const config = assertTossPaymentsReady()
+  const config = getTossPaymentsConfig()
   const response = await fetch(
     'https://api.tosspayments.com/v1/payments/confirm',
     {
@@ -165,7 +172,7 @@ export async function cancelTossPayment(input: {
   cancelReason: string
   idempotencyKey: string
 }) {
-  const config = assertTossPaymentsReady()
+  const config = getTossPaymentsConfig()
   const response = await fetch(
     `https://api.tosspayments.com/v1/payments/${encodeURIComponent(input.paymentKey)}/cancel`,
     {
@@ -184,7 +191,7 @@ export async function cancelTossPayment(input: {
 }
 
 export async function getTossPaymentByPaymentKey(paymentKey: string) {
-  const config = assertTossPaymentsReady()
+  const config = getTossPaymentsConfig()
   const response = await fetch(
     `https://api.tosspayments.com/v1/payments/${encodeURIComponent(paymentKey)}`,
     {
@@ -270,5 +277,29 @@ export function getCompletedFullCancellation(
   return {
     transactionKey: completed.transactionKey,
     canceledAt: completed.canceledAt,
+  }
+}
+
+export function validateTossRefundPaymentSnapshot(
+  payment: TossPayment,
+  expected: {
+    paymentKey: string
+    orderId: string
+    amount: number
+    mid: string
+  }
+) {
+  if (
+    payment.paymentKey !== expected.paymentKey ||
+    payment.orderId !== expected.orderId ||
+    payment.totalAmount !== expected.amount ||
+    payment.currency !== 'KRW' ||
+    payment.mId !== expected.mid
+  ) {
+    throw new TossPaymentsError(
+      'PAYMENT_REFUND_MISMATCH',
+      '환불할 결제 정보가 주문과 일치하지 않습니다.',
+      409
+    )
   }
 }

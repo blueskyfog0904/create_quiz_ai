@@ -23,6 +23,14 @@ const confirmPaymentSchema = z.object({
   amount: z.number().int().min(1).max(100_000),
 }).strict()
 
+const finalizeTossPaymentResultSchema = z.object({
+  source_id: z.string().uuid(),
+  payment_history_id: z.string().uuid(),
+  new_balance: z.number().int().min(0),
+  credits: z.number().int().min(1),
+  already_completed: z.boolean(),
+})
+
 function completedResponse(
   order: PaymentOrderRow,
   result: FinalizeTossPaymentResult
@@ -89,8 +97,12 @@ export async function POST(request: Request) {
     }
 
     if (
+      order.provider !== 'toss' ||
       order.environment !== runtimeConfig.environment ||
-      order.mid !== runtimeConfig.mid
+      order.provider_environment !== runtimeConfig.environment ||
+      !order.mid ||
+      order.mid !== runtimeConfig.mid ||
+      order.provider_merchant_id !== runtimeConfig.mid
     ) {
       return NextResponse.json(
         { error: '주문과 결제 환경이 일치하지 않습니다.' },
@@ -179,7 +191,7 @@ export async function POST(request: Request) {
         paymentKey: input.paymentKey,
         orderId: order.order_id,
         amount: order.expected_amount,
-        mid: order.mid,
+        mid: order.provider_merchant_id,
       })
 
       if (!isAllowedPointChargeMethod(payment)) {
@@ -258,12 +270,15 @@ export async function POST(request: Request) {
         p_payment_key: input.paymentKey,
         p_provider_method: payment.method,
         p_provider_status: payment.status,
-        p_mid: order.mid,
+        p_mid: order.provider_merchant_id,
         p_approved_at: payment.approvedAt,
       }
     )
 
-    if (fulfillmentError || !fulfillmentData) {
+    const parsedFulfillment = finalizeTossPaymentResultSchema.safeParse(
+      fulfillmentData
+    )
+    if (fulfillmentError || !parsedFulfillment.success) {
       console.error('[PaymentConfirm] Credit fulfillment is pending', {
         orderId: order.order_id,
         errorCode: fulfillmentError?.code,
@@ -285,7 +300,7 @@ export async function POST(request: Request) {
         provider_status: payment.status,
         approved_at: payment.approvedAt,
       },
-      fulfillmentData as FinalizeTossPaymentResult
+      parsedFulfillment.data
     )
   } catch (error) {
     if (error instanceof TossPaymentsError) {

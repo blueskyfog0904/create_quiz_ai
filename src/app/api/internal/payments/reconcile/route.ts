@@ -31,10 +31,13 @@ export async function POST(request: Request) {
     )
   }
 
-  const results = await reconcilePendingPayments(parsed.data.limit)
+  const run = await reconcilePendingPayments(parsed.data.limit)
   return NextResponse.json({
     success: true,
-    processed: results.length,
-    results,
+    acquired: run.acquired,
+    runId: run.runId,
+    backlog: run.backlog,
+    processed: run.results.length,
+    results: run.results,
   })
 }

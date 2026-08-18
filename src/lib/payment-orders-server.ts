@@ -1,8 +1,11 @@
 import 'server-only'
 
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/supabase'
 
 export type PaymentOrderStatus =
+  | 'preparing'
+  | 'ready_unknown'
   | 'ready'
   | 'confirming'
   | 'fulfillment_pending'
@@ -10,6 +13,7 @@ export type PaymentOrderStatus =
   | 'cancel_pending'
   | 'refunded'
   | 'failed'
+  | 'expired'
   | 'manual_review'
 
 export interface PaymentOrderRow {
@@ -20,8 +24,15 @@ export interface PaymentOrderRow {
   plan_name_snapshot: string
   expected_amount: number
   expected_credits: number
+  provider: 'toss' | 'kakaopay'
   environment: 'test' | 'live'
-  mid: string
+  provider_environment: 'test' | 'live'
+  mid: string | null
+  provider_merchant_id: string
+  partner_order_id: string | null
+  partner_user_id: string | null
+  tax_free_amount: number
+  vat_amount: number | null
   payment_key: string | null
   provider_method: string | null
   provider_status: string | null
@@ -33,6 +44,10 @@ export interface PaymentOrderRow {
   source_id: string | null
   payment_history_id: string | null
   expires_at: string
+  checkout_expires_at: string
+  confirm_expires_at: string | null
+  ready_requested_at: string | null
+  ready_expires_at: string | null
   approved_at: string | null
   fulfilled_at: string | null
   canceled_at: string | null
@@ -56,7 +71,7 @@ export function createPaymentAdminClient() {
     throw new Error('PAYMENT_DATABASE_CONFIGURATION_INVALID')
   }
 
-  return createSupabaseClient(url, serviceRoleKey, {
+  return createSupabaseClient<Database>(url, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

@@ -43,7 +43,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-interface RefundRequest {
+export interface RefundRequest {
     id: string
     user_id: string
     source_id: string
@@ -55,6 +55,7 @@ interface RefundRequest {
         | 'rejected'
         | 'retryable_failed'
         | 'manual_review'
+    provider: 'toss' | 'kakaopay'
     admin_note: string | null
     refund_amount: number | null
     provider_cancel_transaction_key: string | null
@@ -108,6 +109,9 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
     const filteredRequests = requests.filter(r =>
         statusFilter === 'all' || r.status === statusFilter
     )
+
+    const getProviderLabel = (provider: RefundRequest['provider']) =>
+        provider === 'kakaopay' ? '카카오페이' : '일반결제'
 
     // 상태 배지
     const getStatusBadge = (status: string) => {
@@ -253,7 +257,7 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                                 <TableHead>금액</TableHead>
                                 <TableHead>사유</TableHead>
                                 <TableHead>상태</TableHead>
-                                <TableHead>Toss 처리</TableHead>
+                                <TableHead>결제 처리</TableHead>
                                 <TableHead className="text-right">처리</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -291,11 +295,12 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                                         </TableCell>
                                         <TableCell>{getStatusBadge(request.status)}</TableCell>
                                         <TableCell className="max-w-[220px] text-xs text-gray-500">
+                                            <p className="mb-1 font-medium text-gray-700">
+                                                {getProviderLabel(request.provider)}
+                                            </p>
                                             {request.provider_cancel_transaction_key ? (
                                                 <div className="space-y-1">
-                                                    <p className="font-medium text-gray-700">
-                                                        Toss 취소 거래키
-                                                    </p>
+                                                    <p>취소 거래키</p>
                                                     <p
                                                         className="truncate"
                                                         title={request.provider_cancel_transaction_key}
@@ -371,7 +376,7 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                         {processAction === 'approve' && (
                             <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                                 <p className="text-sm text-green-700">
-                                    승인 시 토스페이먼츠 원 결제수단으로 ₩{selectedRequest?.source?.plan?.price?.toLocaleString() || 0}을 먼저 취소한 뒤,
+                                    승인 시 {selectedRequest ? getProviderLabel(selectedRequest.provider) : '원 결제수단'}으로 ₩{selectedRequest?.source?.plan?.price?.toLocaleString() || 0}을 먼저 취소한 뒤,
                                     취소 성공이 확인되면 {selectedRequest?.source?.initial_credits?.toLocaleString() || 0} 크레딧을 회수합니다.
                                 </p>
                             </div>

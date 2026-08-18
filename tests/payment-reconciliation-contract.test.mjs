@@ -31,25 +31,22 @@ test('webhook transmissions are durable, deduplicated, and private', () => {
   )
 })
 
-test('Toss payment webhook persists before provider reconciliation', () => {
+test('Toss payment webhook persists for asynchronous provider reconciliation', () => {
   assert.match(webhookRoute, /tosspayments-webhook-transmission-id/i)
   assert.match(webhookRoute, /TOSS_WEBHOOK_TOKEN/)
   assert.match(webhookRoute, /timingSafeEqual/)
   assert.match(webhookRoute, /PAYMENT_STATUS_CHANGED/)
   assert.match(webhookRoute, /z\.object/)
 
-  const persistIndex = webhookRoute.indexOf(".from('payment_webhook_events')")
-  const reconcileIndex = webhookRoute.indexOf(
-    'const outcome = await reconcilePaymentOrder'
-  )
-  assert.ok(persistIndex >= 0)
-  assert.ok(reconcileIndex > persistIndex)
+  assert.match(webhookRoute, /\.from\('payment_webhook_events'\)/)
+  assert.match(webhookRoute, /accepted:\s*true/)
+  assert.doesNotMatch(webhookRoute, /reconcilePaymentOrder/)
 })
 
 test('reconciliation trusts a fresh Toss lookup, not webhook payment state', () => {
   assert.match(tossServer, /getTossPaymentByPaymentKey/)
   assert.match(reconciliationServer, /getTossPaymentByPaymentKey/)
-  assert.match(reconciliationServer, /validateReconciledPayment/)
+  assert.match(reconciliationServer, /validateReconciledTossPayment/)
   assert.match(reconciliationServer, /finalize_toss_payment/)
   assert.match(reconciliationServer, /finalizePointChargeRefund/)
   assert.match(reconciliationServer, /manual_review/)
@@ -61,4 +58,6 @@ test('internal reconcile job is secret-protected and bounded', () => {
   assert.match(reconcileRoute, /z\.object/)
   assert.match(reconcileRoute, /\.max\(50\)/)
   assert.match(reconcileRoute, /reconcilePendingPayments/)
+  assert.match(reconciliationServer, /start_payment_reconciliation_run/)
+  assert.match(reconciliationServer, /finish_payment_reconciliation_run/)
 })

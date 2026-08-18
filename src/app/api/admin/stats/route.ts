@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createPaymentAdminClient } from '@/lib/payment-orders-server'
 
 export async function GET() {
   try {
@@ -169,12 +170,13 @@ export async function GET() {
 
     // Try to get revenue stats from payment_history
     try {
+      const paymentAdmin = createPaymentAdminClient()
       const [totalRevenue, monthRevenue] = await Promise.all([
-        supabase
+        paymentAdmin
           .from('payment_history')
           .select('amount.sum()')
           .eq('status', 'completed'),
-        supabase
+        paymentAdmin
           .from('payment_history')
           .select('amount.sum()')
           .eq('status', 'completed')
@@ -183,8 +185,8 @@ export async function GET() {
 
       // Supabase sum query might return different structures depending on client version/types
       // Safely handle the response
-      const totalAmount = (totalRevenue.data as any)?.[0]?.sum || 0
-      const monthAmount = (monthRevenue.data as any)?.[0]?.sum || 0
+      const totalAmount = totalRevenue.data?.[0]?.sum || 0
+      const monthAmount = monthRevenue.data?.[0]?.sum || 0
 
       stats.revenue = {
         total: totalAmount,
@@ -203,4 +205,3 @@ export async function GET() {
     )
   }
 }
-

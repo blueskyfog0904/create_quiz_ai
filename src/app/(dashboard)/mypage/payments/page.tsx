@@ -4,39 +4,25 @@ import { CreditCard } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { PaymentList } from './payment-list'
 import { filterRealPaidPlanPurchases, type PaymentHistoryRecord } from '@/lib/payment-history'
+import type { Database } from '@/types/supabase'
+
+type SafePaymentHistory =
+  Database['public']['Functions']['get_my_payment_history']['Returns'][number]
 
 export default async function PaymentsPage() {
   await requireAuth()
   const supabase = await createClient()
 
-  // 로그인 사용자 확인
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  // 결제 내역 조회
   const { data: payments } = await supabase
-    .from('payment_history')
-    .select(`
-      id,
-      created_at,
-      amount,
-      status,
-      payment_method,
-      order_id,
-      provider,
-      provider_status,
-      approved_at,
-      plan_id,
-      pricing_plans (
-        name
-      )
-    `)
-    .eq('user_id', user.id)
-    .gt('amount', 0)
-    .not('plan_id', 'is', null)
-    .order('created_at', { ascending: false })
+    .rpc('get_my_payment_history')
 
-  const formattedPayments = filterRealPaidPlanPurchases((payments ?? []) as PaymentHistoryRecord[])
+  const paymentRecords = (payments ?? []).map(
+    ({ plan_name, ...payment }: SafePaymentHistory) => ({
+      ...payment,
+      pricing_plans: plan_name ? { name: plan_name } : null,
+    })
+  ) as PaymentHistoryRecord[]
+  const formattedPayments = filterRealPaidPlanPurchases(paymentRecords)
 
   return (
     <div className="space-y-6">
