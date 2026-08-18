@@ -702,6 +702,15 @@ Vercel 환경변수 변경은 새 deployment에만 적용되므로 위 flag는 �
 
 ### Phase 6. Checkout 탭과 내역 UI
 
+진행 결과 (2026-08-18):
+
+- `CheckoutClient`가 provider-neutral checkout attempt와 단일 in-flight lock을 소유하도록 변경했다. 주문은 CTA에서만 만들고, 같은 attempt의 provider 변경은 서버 `409`와 명시적 새 시도로 처리한다.
+- 일반결제와 카카오페이 controlled Tabs, provider별 단일 패널, Studio checkout·Toss 성공·실패 화면을 구현했다. Kakao 초기 결제수단은 `MONEY`로만 안내한다.
+- 계약 테스트 47/47, TypeScript, 대상 ESLint, production build를 통과했다. 로컬 브라우저에서 최초 진입·탭 왕복 주문 0건, inactive Toss iframe unmount, Radix 방향키 전환을 확인했다.
+- GitHub main 커밋 `f9fb888`과 Vercel Production `HscADqm7wtbjZLag9xdFx6V4pLsZ`가 Ready이며 실제 `www.summersuninst.com` Checkout에서 새 일반결제 UI와 Toss test widget 로드를 확인했다.
+- 외부 차단: 현재 Toss widget에 카카오페이와 퀵계좌이체가 남아 있다. Toss 상점관리자 로그인 필요 상태라 일반결제 전용 variant 저장·적용은 완료하지 못했다. 코드로 DOM을 숨기지 않으며 이 작업과 기존 Toss Kakao 주문 drain 전까지 DB `kakaopay_accepts_new_orders=false`를 유지한다.
+- 실제 Toss/KakaoPay 승인·전액취소 E2E, 320/768/1200 실제 브라우저 캡처, cookie 없는 모바일 Kakao 복귀는 아직 완료 조건으로 남는다.
+
 구현:
 
 - 일반결제·카카오페이 controlled Tabs
@@ -723,6 +732,13 @@ Vercel 환경변수 변경은 새 deployment에만 적용되므로 위 flag는 �
 - `DESIGN.md` core 값의 raw hex·임의 container/radius/shadow 추가가 없다.
 
 ### Phase 7. 문서·정책·점진 활성화
+
+진행 결과 (2026-08-18):
+
+- 운영 런북과 심사 증빙 체크리스트를 provider 병행·문제마켓 전용 사용처 기준으로 갱신했다.
+- 기존 DB 정책 문구에서 Toss-only 충전 경로와 AI 생성·문제은행 사용처를 교체하는 additive migration을 추가했다.
+- Supabase HTTP cron을 재활성화하고 실제 Production endpoint 호출 200, backlog 0, active alert 0, 연속 실패 0을 확인했다.
+- Kakao 신규 주문 runtime은 OFF로 유지한다. 제한적 test 활성화와 승인·취소 E2E는 Toss 일반결제 variant 차단 항목 해결 후 진행한다.
 
 구현:
 
