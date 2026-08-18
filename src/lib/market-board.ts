@@ -65,7 +65,9 @@ export interface MarketBoardRow {
     available: boolean
     pageCount: number
   }
-  fileTypeLabels: string[]
+  startingPriceCredits: number | null
+  ratingAverage: number | null
+  ratingCount: number
   viewCount: number
   publishedAt: string
 }

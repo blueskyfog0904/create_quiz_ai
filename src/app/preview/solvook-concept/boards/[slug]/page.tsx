@@ -10,7 +10,7 @@ import {
 } from '@/components/design-system'
 import { Button } from '@/components/ui/button'
 import { getMarketBoardData } from '@/lib/market-board-server'
-import type { MarketBoardData, MarketBoardSort } from '@/lib/market-board'
+import type { MarketBoardSort } from '@/lib/market-board'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import {
   RealMarketBoard,
@@ -38,35 +38,9 @@ function parsePositiveInteger(value: string | undefined) {
 }
 
 function parseSort(value: string | undefined): MarketBoardSort | undefined {
-  return value === 'views' || value === 'questions' || value === 'latest'
+  return value === 'views' || value === 'latest'
     ? value
     : undefined
-}
-
-function normalizeReadyFilters(
-  filters: RealMarketBoardFilterState,
-  data: MarketBoardData
-): RealMarketBoardFilterState {
-  const sourceConfig = data.filters.sourceConfigs.find((config) => (
-    config.typeName === filters.sourceType
-  ))
-  const nextFilters = {
-    ...filters,
-    pageSize: data.pagination.pageSize,
-    sourceType: sourceConfig ? filters.sourceType : '',
-  }
-
-  for (const key of ['source1', 'source2', 'source3', 'source4'] as const) {
-    const field = sourceConfig?.fields.find((candidate) => candidate.key === key)
-    const value = filters[key]
-    nextFilters[key] = field && (
-      field.options.length === 0 || field.options.includes(value)
-    )
-      ? value
-      : ''
-  }
-
-  return nextFilters
 }
 
 export default async function SolvookConceptBoardPage({
@@ -87,15 +61,7 @@ export default async function SolvookConceptBoardPage({
   const filters: RealMarketBoardFilterState = {
     search: firstValue(resolvedSearchParams.search) ?? '',
     year: firstValue(resolvedSearchParams.year) ?? '',
-    month: firstValue(resolvedSearchParams.month) ?? '',
-    grade: firstValue(resolvedSearchParams.grade) ?? '',
-    sourceType: firstValue(resolvedSearchParams.sourceType) ?? '',
-    source1: firstValue(resolvedSearchParams.source1) ?? '',
-    source2: firstValue(resolvedSearchParams.source2) ?? '',
-    source3: firstValue(resolvedSearchParams.source3) ?? '',
-    source4: firstValue(resolvedSearchParams.source4) ?? '',
-    sort: parseSort(firstValue(resolvedSearchParams.sort)) ?? 'latest',
-    pageSize: parsePositiveInteger(firstValue(resolvedSearchParams.pageSize)) ?? 10,
+    sort: parseSort(firstValue(resolvedSearchParams.sort)) ?? 'views',
   }
 
   const result = await getMarketBoardData({
@@ -103,16 +69,8 @@ export default async function SolvookConceptBoardPage({
     slug,
     search: filters.search || undefined,
     examYear: parsePositiveInteger(filters.year),
-    examMonth: parsePositiveInteger(filters.month),
-    gradeLevel: filters.grade || undefined,
-    sourceType: filters.sourceType || undefined,
-    source1: filters.source1 || undefined,
-    source2: filters.source2 || undefined,
-    source3: filters.source3 || undefined,
-    source4: filters.source4 || undefined,
     sort: filters.sort,
     page: parsePositiveInteger(firstValue(resolvedSearchParams.page)),
-    pageSize: filters.pageSize,
   })
 
   if (result.status === 'not_found') {
@@ -159,7 +117,7 @@ export default async function SolvookConceptBoardPage({
   return (
     <RealMarketBoard
       data={result.data}
-      filters={normalizeReadyFilters(filters, result.data)}
+      filters={filters}
     />
   )
 }

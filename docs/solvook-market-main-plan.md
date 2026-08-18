@@ -151,8 +151,9 @@
 
 - `market_menu_entries`의 같은 과목, visible, active, not deleted row만 사용한다.
 - 설정된 ID 배열 순서를 우선하고, 기본값은 `sort_order → title → id`다.
-- 메인 본문의 QuickAccessGrid 타일은 최신 사용자 결정에 따라 표시하지 않는다.
-- 첫 카테고리는 hero의 카테고리 안내와 CTA의 `/{subject}/market/{slug}` 목적지로만 사용한다.
+- 선택 과목의 카테고리를 광고 왼쪽의 테두리 없는 `과목 → 문제마켓 → 하위 카테고리` 세로 메뉴로 표시하고, 공간이 부족한 화면에서는 광고 위에 표시한다.
+- 각 메뉴는 `/{subject}/market/{slug}`의 실제 카테고리 게시판으로 이동한다.
+- 첫 카테고리는 hero의 카테고리 안내와 CTA의 `/{subject}/market/{slug}` 기본 목적지로도 사용한다.
 
 ### 3.6 최근 등록 자료
 

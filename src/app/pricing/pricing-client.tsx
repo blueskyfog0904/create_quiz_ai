@@ -116,11 +116,7 @@ export function PricingClient({ plans, isLoggedIn }: PricingClientProps) {
                             <ul className="space-y-3 mb-6 flex-1">
                                 <li className="flex items-center gap-2 text-sm text-gray-600">
                                     <Check className="w-4 h-4 text-green-500" />
-                                    AI 문제 생성 이용
-                                </li>
-                                <li className="flex items-center gap-2 text-sm text-gray-600">
-                                    <Check className="w-4 h-4 text-green-500" />
-                                    문제은행 이용
+                                    문제마켓 이용
                                 </li>
                                 <li className="flex items-center gap-2 text-sm text-gray-600">
                                     <Check className="w-4 h-4 text-green-500" />

@@ -17,7 +17,9 @@ test('market board DTO is explicit and excludes private market fields', async ()
     'MarketBoardSourceConfig',
     'MarketBoardQuery',
     'MarketBoardResult',
-    'fileTypeLabels',
+    'startingPriceCredits',
+    'ratingAverage',
+    'ratingCount',
     'pageCount',
     'itemCount',
   ]) {
@@ -88,12 +90,21 @@ test('market board enriches rows without exposing file storage metadata', async 
 
   assert.match(source, /\.from\('market_item_sample_pages'\)/)
   assert.match(source, /\.from\('market_item_subproducts'\)/)
-  assert.match(source, /\.from\('market_subproduct_files'\)/)
-  assert.match(source, /\.from\('market_file_types'\)/)
+  assert.match(source, /\.from\('market_item_bundle_options'\)/)
   assert.match(source, /\.from\('market_item_files'\)/)
-  assert.match(source, /v2Labels\.length > 0 \? v2Labels : legacyLabels/)
+  assert.match(source, /\.from\('market_item_reviews'\)/)
+  assert.match(source, /\.select\('item_id, price_credits'\)/)
+  assert.match(source, /\.select\('item_id, rating'\)/)
+  assert.match(source, /startingPrices/)
+  assert.match(source, /Math\.min\(\.\.\.prices\)/)
+  assert.match(source, /ratingSummaries/)
   assert.match(source, /\.select\('item_id, page_number'\)/)
   assert.match(source, /\.select\('item_id, asset_kind'\)/)
+  assert.doesNotMatch(source, /\.from\('market_subproduct_files'\)/)
+  assert.doesNotMatch(source, /\.from\('market_file_types'\)/)
+  assert.doesNotMatch(source, /\.from\('profiles'\)/)
+  assert.doesNotMatch(source, /sellerNames/)
+  assert.doesNotMatch(source, /fileTypeLabels/)
   assert.doesNotMatch(source, /storage_(bucket|path)/)
   assert.doesNotMatch(source, /original_file_name/)
 })

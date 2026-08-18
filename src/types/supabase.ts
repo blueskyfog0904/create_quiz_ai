@@ -1516,6 +1516,54 @@ export type Database = {
           },
         ]
       }
+      market_item_reviews: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          id: string
+          item_id: string
+          rating: number
+          updated_at: string
+          user_id: string
+          workspace_subject: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          item_id: string
+          rating: number
+          updated_at?: string
+          user_id: string
+          workspace_subject: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          item_id?: string
+          rating?: number
+          updated_at?: string
+          user_id?: string
+          workspace_subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_item_reviews_item_workspace_fkey"
+            columns: ["item_id", "workspace_subject"]
+            isOneToOne: false
+            referencedRelation: "market_items"
+            referencedColumns: ["id", "workspace_subject"]
+          },
+          {
+            foreignKeyName: "market_item_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       market_item_sample_pages: {
         Row: {
           committed_at: string | null

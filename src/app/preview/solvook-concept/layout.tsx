@@ -8,16 +8,23 @@ export default function SolvookConceptPreviewLayout({
   children: ReactNode
 }) {
   return (
-    <div className="studio-theme flex min-h-screen flex-col">
-      <Suspense fallback={null}>
-        <PreviewHeader />
-      </Suspense>
-      <main className="flex-1">
-        {children}
-      </main>
-      <Suspense fallback={null}>
-        <PreviewFooter />
-      </Suspense>
-    </div>
+    <>
+      <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css"
+        precedence="default"
+      />
+      <div className="studio-theme flex min-h-screen flex-col">
+        <Suspense fallback={null}>
+          <PreviewHeader />
+        </Suspense>
+        <main className="flex-1">
+          {children}
+        </main>
+        <Suspense fallback={null}>
+          <PreviewFooter />
+        </Suspense>
+      </div>
+    </>
   )
 }

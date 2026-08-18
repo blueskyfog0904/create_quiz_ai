@@ -18,6 +18,7 @@
   --studio-radius-card: 0.75rem;
   --studio-shadow-card: 0 12px 34px rgb(40 35 85 / 8%);
   --studio-font-sans: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  --studio-font-price: "Pretendard", var(--studio-font-sans);
 }
 
 @layer base {

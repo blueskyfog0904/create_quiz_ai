@@ -11,15 +11,21 @@ import {
   type TransitionEvent,
 } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react'
 import { StudioContainer } from '@/components/design-system'
 import { Button } from '@/components/ui/button'
 import type { PublicMainAdCarouselItem } from '@/lib/main-ad-carousel'
+import type { MarketHomeMenuEntry } from '@/lib/market-home'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import { ProblemMarketMenu } from '../ProblemMarketMenu'
 
 interface MainAdCarouselProps {
   subject: WorkspaceSubject
   items: PublicMainAdCarouselItem[]
+  categories: MarketHomeMenuEntry[]
 }
 
 type SlideDirection = 'previous' | 'next'
@@ -80,7 +86,7 @@ function subscribeToReducedMotion(onStoreChange: () => void) {
   return () => mediaQuery.removeEventListener('change', onStoreChange)
 }
 
-export function MainAdCarousel({ subject, items }: MainAdCarouselProps) {
+export function MainAdCarousel({ subject, items, categories }: MainAdCarouselProps) {
   const activeItems = items
   const carouselState = activeItems.length === 0
     ? 'empty'
@@ -88,7 +94,9 @@ export function MainAdCarousel({ subject, items }: MainAdCarouselProps) {
       ? 'single'
       : 'multiple'
   const subjectLabel = subject === 'korean' ? '국어' : '영어'
-  const marketHref = `/${subject}/market/entexam`
+  const marketHref = categories[0]
+    ? `/${subject}/market/${categories[0].slug}`
+    : `/${subject}/market`
   const [activeIndex, setActiveIndex] = useState(0)
   const [cycleKey, setCycleKey] = useState(0)
   const [transitionState, setTransitionState] = useState<TransitionState | null>(null)
@@ -501,7 +509,17 @@ export function MainAdCarousel({ subject, items }: MainAdCarouselProps) {
       data-state={carouselState}
       className="border-b border-[var(--studio-border)] bg-[var(--studio-surface)] py-6 sm:py-8"
     >
-      <StudioContainer>
+      <StudioContainer className="relative">
+        <ProblemMarketMenu
+          subject={subject}
+          entries={categories.map((category) => ({
+            id: category.id,
+            title: category.title,
+            href: `/preview/solvook-concept/boards/${category.slug}?subject=${subject}`,
+          }))}
+          className="mb-3 p-5 min-[1720px]:absolute min-[1720px]:inset-y-0 min-[1720px]:left-6 min-[1720px]:mb-0 min-[1720px]:-ml-3 min-[1720px]:w-56 min-[1720px]:-translate-x-full"
+        />
+
         <div className="relative h-[220px] overflow-hidden rounded-xl border border-[var(--studio-border)] bg-[var(--studio-background)] sm:h-[300px] min-[641px]:h-[360px]">
           <div className="hidden min-[1080px]:absolute min-[1080px]:inset-y-0 min-[1080px]:left-0 min-[1080px]:z-10 min-[1080px]:flex min-[1080px]:w-[200px] min-[1080px]:flex-col min-[1080px]:overflow-y-auto min-[1080px]:border-r min-[1080px]:border-[var(--studio-border)] min-[1080px]:bg-[var(--studio-surface)] min-[1200px]:w-60">
             {carouselState === 'empty' ? (

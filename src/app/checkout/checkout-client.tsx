@@ -386,7 +386,7 @@ export function CheckoutClient({ plan, user, paymentConfig }: CheckoutClientProp
                     <div className="mt-8 text-center text-sm text-gray-500">
                         <p>결제 문의: support@createquizai.com</p>
                         <p className="mt-1">
-                            결제 후 즉시 크레딧이 충전되며, 크레딧은 AI 문제 생성·문제은행·문제마켓에서 사용합니다.
+                            결제 후 즉시 크레딧이 충전되며, 크레딧은 문제마켓 자료 구매에 사용합니다.
                         </p>
                     </div>
                 </div>

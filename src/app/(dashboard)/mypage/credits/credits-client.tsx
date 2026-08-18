@@ -290,7 +290,7 @@ export function CreditsClient({
                 <CardHeader>
                     <CardTitle className="text-base">크레딧 충전·사용 경로</CardTitle>
                     <CardDescription>
-                        충전한 크레딧은 AI 문제 생성, 문제은행, 시험지 제작, 문제마켓 자료 구매에 사용됩니다.
+                        충전한 크레딧은 문제마켓 자료 구매에 사용됩니다.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-wrap gap-2">

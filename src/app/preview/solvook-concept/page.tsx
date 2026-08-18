@@ -36,7 +36,7 @@ export default async function SolvookConceptPreviewPage({
 
   return (
     <StudioLandingPageFrame
-      hero={<MainAdCarousel subject={subject} items={mainAdItems} />}
+      hero={<MainAdCarousel subject={subject} items={mainAdItems} categories={homeData.categories} />}
     >
       {homeData.config.popular.isActive && (
         <PopularDownloadsSlider subject={subject} items={homeData.popular} rankingWindowDays={homeData.config.popular.rankingWindowDays} />

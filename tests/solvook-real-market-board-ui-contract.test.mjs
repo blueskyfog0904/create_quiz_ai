@@ -14,8 +14,20 @@ const sidebarUrl = new URL(
   '../src/app/preview/solvook-concept/_components/board/board-category-sidebar.tsx',
   import.meta.url
 )
+const commonMenuUrl = new URL(
+  '../src/app/preview/solvook-concept/_components/ProblemMarketMenu.tsx',
+  import.meta.url
+)
 const resultsUrl = new URL(
   '../src/app/preview/solvook-concept/_components/board/real-market-board-results.tsx',
+  import.meta.url
+)
+const previewLayoutUrl = new URL(
+  '../src/app/preview/solvook-concept/layout.tsx',
+  import.meta.url
+)
+const studioTokensUrl = new URL(
+  '../src/styles/studio-tokens.css',
   import.meta.url
 )
 
@@ -24,7 +36,7 @@ function readSource(url) {
   return readFileSync(url, 'utf8')
 }
 
-test('preview board page resolves subject first and delegates ready states to the real market board', () => {
+test('preview board page resolves subject and applies only search and year filters', () => {
   const source = readSource(pageUrl)
 
   assert.match(source, /getMarketBoardData/)
@@ -33,15 +45,16 @@ test('preview board page resolves subject first and delegates ready states to th
   assert.match(source, /status === 'not_found'/)
   assert.match(source, /status === 'error'/)
   assert.match(source, /<RealMarketBoard\b/)
-  assert.match(source, /normalizeReadyFilters/)
-  assert.match(source, /pageSize: data\.pagination\.pageSize/)
-  assert.match(source, /sourceType: sourceConfig \? filters\.sourceType : ''/)
-  assert.match(source, /sourceConfig\?\.fields\.find/)
-  assert.match(source, /field\.options\.includes\(value\)/)
+  assert.match(source, /examYear: parsePositiveInteger\(filters\.year\)/)
+  assert.match(source, /parseSort\(firstValue\(resolvedSearchParams\.sort\)\) \?\? 'views'/)
+  assert.doesNotMatch(source, /resolvedSearchParams\.(month|grade|sourceType|source[1-4])/)
+  assert.doesNotMatch(source, /examMonth|gradeLevel|sourceType|source[1-4]|pageSize/)
+  assert.doesNotMatch(source, /value === 'questions'/)
+  assert.doesNotMatch(source, /normalizeReadyFilters/)
   assert.doesNotMatch(source, /sample-data|BoardListController/)
 })
 
-test('real market board uses the Studio shell, one GET filter form, and source-type-aware fields', () => {
+test('real market board uses one GET filter form with title search and year only', () => {
   const source = readSource(realBoardUrl)
 
   assert.match(source, /StudioContainer/)
@@ -62,39 +75,51 @@ test('real market board uses the Studio shell, one GET filter form, and source-t
   assert.equal(source.match(/<form\b/g)?.length ?? 0, 1, 'board must keep one filter form')
   assert.match(source, /name="subject"/)
   assert.match(source, /name="search"/)
+  assert.match(source, /name="sort"/)
   assert.match(source, /className="min-h-11 pl-9"/)
   assert.match(source, /name="year"/)
-  assert.match(source, /name="month"/)
-  assert.match(source, /name="grade"/)
-  assert.match(source, /name="sourceType"/)
-  for (const key of ['source1', 'source2', 'source3', 'source4']) {
-    assert.match(source, new RegExp(`\\b${key}\\b`))
-  }
-  assert.match(source, /activeSourceConfig/)
-  assert.match(source, /sourceType === activeSourceConfig\.typeName/)
-  assert.match(source, /md:grid-cols-\[200px_minmax\(0,1fr\)\]/)
-  assert.match(source, /lg:grid-cols-\[240px_minmax\(0,1fr\)\]/)
-  assert.match(source, /lg:gap-x-12/)
-  assert.match(source, /md:gap-x-6/)
+  assert.doesNotMatch(source, /name="pageSize"/)
+  assert.doesNotMatch(source, /name="month"/)
+  assert.doesNotMatch(source, /name="grade"/)
+  assert.doesNotMatch(source, /name="sourceType"/)
+  assert.doesNotMatch(source, /activeSourceConfig|source[1-4]/)
+  assert.match(source, /\{subjectLabel\} \/ \{data\.category\.title\}/)
+  assert.match(source, /text-sm font-medium text-\[var\(--studio-muted\)\]/)
+  assert.doesNotMatch(source, /MARKET BOARD/)
+  assert.doesNotMatch(source, /data\.category\.description/)
+  assert.doesNotMatch(source, /공개 자료를 실제 카테고리 기준으로 탐색/)
+  assert.match(source, /<StudioContainer className="relative space-y-6">/)
+  assert.match(source, /data-slot="market-board-layout"[\s\S]*className="grid gap-6"/)
+  assert.doesNotMatch(source, /md:grid-cols-\[200px_minmax\(0,1fr\)\]/)
+  assert.doesNotMatch(source, /lg:grid-cols-\[240px_minmax\(0,1fr\)\]/)
 })
 
-test('board category sidebar renders one mobile accordion navigation and accessible group toggles', () => {
+test('board category sidebar delegates the same transparent menu used by the home page', () => {
   const source = readSource(sidebarUrl)
+  const commonMenu = readSource(commonMenuUrl)
 
-  assert.match(source, /'use client'/)
-  assert.match(source, /aria-expanded=/)
-  assert.match(source, /aria-controls=/)
-  assert.match(source, /aria-current=\{isCurrent \? 'page' : undefined\}/)
-  assert.match(source, /board-category-\$\{surface\}-group-/)
+  assert.match(source, /import \{ ProblemMarketMenu \} from '\.\.\/ProblemMarketMenu'/)
+  assert.match(source, /<ProblemMarketMenu/)
+  assert.match(source, /groups\.flatMap/)
+  assert.match(source, /isCurrent: entry\.slug === categorySlug/)
   assert.match(source, /subject=/)
   assert.match(source, /set\('subject', subject\)/)
-  assert.match(source, /<nav aria-label="카테고리 탐색"/)
-  assert.match(source, /md:hidden/)
-  assert.match(source, /hidden md:block/)
-  assert.match(source, /SUBJECT_LABELS\[subject\]/)
-  assert.match(source, /surface === 'desktop'/)
-  assert.doesNotMatch(source, /group\.isUngrouped \? '기타'/)
+  assert.match(source, /set\('search', search\)/)
+  assert.match(source, /set\('year', year\)/)
+  assert.doesNotMatch(source, /pageSize/)
+  assert.doesNotMatch(source, /set\('(month|grade|sourceType|source[1-4])'/)
+  assert.match(source, /min-\[1720px\]:absolute/)
+  assert.match(source, /min-\[1720px\]:left-6/)
+  assert.match(source, /min-\[1720px\]:top-0/)
+  assert.match(source, /min-\[1720px\]:-translate-x-full/)
+  assert.match(source, /min-\[1720px\]:w-56/)
+  assert.doesNotMatch(source, /bg-\[var\(--studio-surface\)\]/)
+  assert.doesNotMatch(source, /useState|aria-expanded|board-mobile-navigation/)
   assert.doesNotMatch(source, /entry\.itemCount/)
+
+  assert.match(commonMenu, /data-slot="problem-market-menu"/)
+  assert.match(commonMenu, /aria-current=\{entry\.isCurrent \? 'page' : undefined\}/)
+  assert.doesNotMatch(commonMenu, /bg-\[var\(--studio-surface\)\]/)
 })
 
 test('board results keep one semantic list and one shared market sample preview dialog', () => {
@@ -119,18 +144,42 @@ test('board results keep one semantic list and one shared market sample preview 
   assert.match(source, /samplePreviewItemId/)
   assert.match(source, /setSamplePreviewItemId\(itemId\)/)
   assert.match(source, /sampleTriggerRef\.current = event\.currentTarget/)
-  assert.match(source, /aria-current=\{sort === option\.value \? 'page' : undefined\}/)
-  assert.match(source, /aria-current=\{pageSize === option \? 'page' : undefined\}/)
+  assert.match(source, /<Select\b/)
+  assert.match(source, /<SelectTrigger[\s\S]*aria-label="자료 정렬"/)
+  assert.match(source, /<StudioSelectContent/)
+  assert.match(source, /<SelectItem value="views">인기순<\/SelectItem>/)
+  assert.match(source, /<SelectItem value="latest">최신순<\/SelectItem>/)
+  assert.match(source, /router\.push\(buildBoardHref/)
+  assert.doesNotMatch(source, /조회순|문항순|PAGE_SIZE_OPTIONS|개씩|pageSize/)
   assert.match(source, /<ul\b/)
   assert.match(source, /role="list"/)
-  assert.match(source, /md:grid-cols-\[96px_minmax\(0,1fr\)_auto\]/)
+  assert.match(source, /md:grid-cols-\[56px_minmax\(0,1fr\)_auto\]/)
   assert.equal(
-    source.match(/md:h-\[132px\] md:w-\[94px\] md:self-center/g)?.length ?? 0,
+    source.match(/h-\[79px\] w-\[56px\]/g)?.length ?? 0,
     2,
-    'real and fallback thumbnails must share the enlarged centered desktop dimensions'
+    'real and fallback thumbnails must share the compact Solvook dimensions'
   )
-  assert.match(source, /text-sm font-semibold leading-5/)
-  assert.match(source, /col-start-2 justify-self-end md:col-start-3 md:row-start-1 md:self-center/)
+  assert.doesNotMatch(source, /md:h-\[132px\]/)
+  assert.match(source, /row\.startingPriceCredits/)
+  assert.match(
+    source,
+    /`\$\{row\.startingPriceCredits\.toLocaleString\('ko-KR'\)\} 크레딧`/
+  )
+  assert.doesNotMatch(source, /크레딧부터/)
+  assert.doesNotMatch(source, /row\.sellerName/)
+  assert.match(source, /row\.ratingAverage/)
+  assert.match(source, /row\.ratingCount/)
+  assert.match(source, /row\.ratingAverage === null[\s\S]*\? '0\.0'/)
+  assert.doesNotMatch(source, /평점 없음/)
+  assert.match(source, /Star/)
+  assert.match(source, /set\('search', search\)/)
+  assert.match(source, /set\('year', year\)/)
+  assert.doesNotMatch(source, /set\('(month|grade|sourceType|source[1-4])'/)
+  assert.match(
+    source,
+    /className="flex min-h-11 items-center break-keep text-lg font-semibold leading-7 text-\[var\(--studio-text\)\]/
+  )
+  assert.match(source, /md:col-start-3 md:row-start-1/)
   assert.equal(
     source.match(/샘플보기/g)?.length ?? 0,
     1,
@@ -140,6 +189,31 @@ test('board results keep one semantic list and one shared market sample preview 
   assert.doesNotMatch(source, /샘플 보기/)
   assert.doesNotMatch(source, /상세 보기/)
   assert.doesNotMatch(source, /ChevronRight/)
-  assert.match(source, /`\/\$\{subject\}\/market\/\$\{categorySlug\}\/items\/\$\{row\.id\}`/)
+  assert.doesNotMatch(source, /fileTypeLabels/)
+  assert.doesNotMatch(source, /<Badge/)
+  assert.match(
+    source,
+    /`\/preview\/solvook-concept\/boards\/ebs-literature\/posts\/jingsori-2027\?subject=\$\{subject\}`/
+  )
+  assert.doesNotMatch(
+    source,
+    /`\/\$\{subject\}\/market\/\$\{categorySlug\}\/items\/\$\{row\.id\}`/
+  )
   assert.doesNotMatch(source, /\/api\/market\//)
+})
+
+test('board prices use the same Pretendard subtitle typography as Solvook', () => {
+  const results = readSource(resultsUrl)
+  const layout = readSource(previewLayoutUrl)
+  const tokens = readSource(studioTokensUrl)
+
+  assert.match(
+    layout,
+    /href="https:\/\/cdn\.jsdelivr\.net\/gh\/orioncactus\/pretendard\/dist\/web\/static\/pretendard\.css"/
+  )
+  assert.match(tokens, /--studio-font-price:\s*"Pretendard",\s*var\(--studio-font-sans\);/)
+  assert.match(
+    results,
+    /className="\[font-family:var\(--studio-font-price\)\] text-base font-semibold leading-6 text-\[var\(--studio-ink\)\]"/
+  )
 })

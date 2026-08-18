@@ -78,20 +78,18 @@ type SamplePageRow = {
 }
 
 type SubproductRow = {
-  id: string
   item_id: string
+  price_credits: number
 }
 
-type SubproductFileRow = {
+type BundleOptionRow = {
   item_id: string
-  subproduct_id: string
-  file_type_id: string
+  price_credits: number
 }
 
-type FileTypeRow = {
-  id: string
-  label: string
-  sort_order: number
+type ReviewRow = {
+  item_id: string
+  rating: number
 }
 
 type LegacyFileRow = {
@@ -354,7 +352,7 @@ async function loadTaxonomy(supabase: SupabaseClient, subject: WorkspaceSubject)
   }
 }
 
-async function loadFileAndSampleMetadata(
+async function loadBoardRowEnrichment(
   supabase: SupabaseClient,
   subject: WorkspaceSubject,
   items: ItemRow[]
@@ -363,14 +361,17 @@ async function loadFileAndSampleMetadata(
   if (itemIds.length === 0) {
     return {
       sampleCounts: new Map<string, number>(),
-      fileTypeLabels: new Map<string, string[]>(),
+      startingPrices: new Map<string, number>(),
+      ratingSummaries: new Map<string, { average: number; count: number }>(),
     }
   }
 
   const [
     { data: sampleData, error: sampleError },
     { data: subproductData, error: subproductError },
+    { data: bundleData, error: bundleError },
     { data: legacyFileData, error: legacyFileError },
+    { data: reviewData, error: reviewError },
   ] = await Promise.all([
     supabase
       .from('market_item_sample_pages')
@@ -381,10 +382,16 @@ async function loadFileAndSampleMetadata(
       .in('item_id', itemIds),
     supabase
       .from('market_item_subproducts')
-      .select('id, item_id')
+      .select('item_id, price_credits')
       .eq('workspace_subject', subject)
       .eq('is_active', true)
       .is('deleted_at', null)
+      .in('item_id', itemIds),
+    supabase
+      .from('market_item_bundle_options')
+      .select('item_id, price_credits')
+      .eq('workspace_subject', subject)
+      .eq('is_active', true)
       .in('item_id', itemIds),
     supabase
       .from('market_item_files')
@@ -394,10 +401,28 @@ async function loadFileAndSampleMetadata(
       .is('deleted_at', null)
       .in('asset_kind', ['pdf', 'hwp', 'zip'])
       .in('item_id', itemIds),
+    supabase
+      .from('market_item_reviews')
+      .select('item_id, rating')
+      .eq('workspace_subject', subject)
+      .is('deleted_at', null)
+      .in('item_id', itemIds),
   ])
 
-  if (sampleError || subproductError || legacyFileError) {
-    throw new Error(sampleError?.message ?? subproductError?.message ?? legacyFileError?.message)
+  if (
+    sampleError
+    || subproductError
+    || bundleError
+    || legacyFileError
+    || reviewError
+  ) {
+    throw new Error(
+      sampleError?.message
+      ?? subproductError?.message
+      ?? bundleError?.message
+      ?? legacyFileError?.message
+      ?? reviewError?.message
+    )
   }
 
   const sampleCounts = new Map<string, number>()
@@ -405,77 +430,54 @@ async function loadFileAndSampleMetadata(
     sampleCounts.set(row.item_id, (sampleCounts.get(row.item_id) ?? 0) + 1)
   }
 
-  const subproducts = (subproductData ?? []) as SubproductRow[]
-  const subproductIds = subproducts.map((row) => row.id)
-  let subproductFiles: SubproductFileRow[] = []
-  let fileTypes: FileTypeRow[] = []
-
-  if (subproductIds.length > 0) {
-    const { data: fileData, error: fileError } = await supabase
-      .from('market_subproduct_files')
-      .select('item_id, subproduct_id, file_type_id')
-      .eq('workspace_subject', subject)
-      .eq('is_active', true)
-      .is('deleted_at', null)
-      .in('subproduct_id', subproductIds)
-    if (fileError) throw new Error(fileError.message)
-
-    subproductFiles = (fileData ?? []) as SubproductFileRow[]
-    const fileTypeIds = Array.from(new Set(subproductFiles.map((row) => row.file_type_id)))
-    if (fileTypeIds.length > 0) {
-      const { data: fileTypeData, error: fileTypeError } = await supabase
-        .from('market_file_types')
-        .select('id, label, sort_order')
-        .eq('workspace_subject', subject)
-        .eq('is_active', true)
-        .is('deleted_at', null)
-        .in('id', fileTypeIds)
-        .order('sort_order', { ascending: true })
-        .order('label', { ascending: true })
-        .order('id', { ascending: true })
-      if (fileTypeError) throw new Error(fileTypeError.message)
-      fileTypes = (fileTypeData ?? []) as FileTypeRow[]
-    }
+  const priceCandidates = new Map<string, number[]>()
+  const addPrice = (itemId: string, price: number) => {
+    const prices = priceCandidates.get(itemId) ?? []
+    prices.push(price)
+    priceCandidates.set(itemId, prices)
   }
-
-  const v2TypeIdsByItemId = new Map<string, Set<string>>()
-  for (const file of subproductFiles) {
-    const typeIds = v2TypeIdsByItemId.get(file.item_id) ?? new Set<string>()
-    typeIds.add(file.file_type_id)
-    v2TypeIdsByItemId.set(file.item_id, typeIds)
+  for (const row of (subproductData ?? []) as SubproductRow[]) {
+    addPrice(row.item_id, row.price_credits)
+  }
+  for (const row of (bundleData ?? []) as BundleOptionRow[]) {
+    addPrice(row.item_id, row.price_credits)
   }
 
   const itemsById = new Map(items.map((item) => [item.id, item]))
-  const legacyLabelsByItemId = new Map<string, string[]>()
   for (const file of (legacyFileData ?? []) as LegacyFileRow[]) {
     const item = itemsById.get(file.item_id)
     if (!item) continue
 
-    const isAvailable = (
-      (file.asset_kind === 'pdf' && item.pdf_price > 0)
-      || (file.asset_kind === 'hwp' && item.hwp_price > 0)
-      || (file.asset_kind === 'zip' && item.zip_price > 0)
-    )
-    if (!isAvailable) continue
-
-    const label = file.asset_kind.toUpperCase()
-    const labels = legacyLabelsByItemId.get(file.item_id) ?? []
-    if (!labels.includes(label)) labels.push(label)
-    legacyLabelsByItemId.set(file.item_id, labels)
+    const price = file.asset_kind === 'pdf'
+      ? item.pdf_price
+      : file.asset_kind === 'hwp'
+        ? item.hwp_price
+        : item.zip_price
+    if (price > 0) addPrice(file.item_id, price)
   }
 
-  const fileTypeLabels = new Map<string, string[]>()
+  const startingPrices = new Map<string, number>()
   for (const itemId of itemIds) {
-    const v2TypeIds = v2TypeIdsByItemId.get(itemId) ?? new Set<string>()
-    const v2Labels = fileTypes.flatMap((fileType) => {
-      const label = normalizeText(fileType.label)
-      return label && v2TypeIds.has(fileType.id) ? [label] : []
-    })
-    const legacyLabels = legacyLabelsByItemId.get(itemId) ?? []
-    fileTypeLabels.set(itemId, v2Labels.length > 0 ? v2Labels : legacyLabels)
+    const prices = priceCandidates.get(itemId)
+    if (prices && prices.length > 0) startingPrices.set(itemId, Math.min(...prices))
   }
 
-  return { sampleCounts, fileTypeLabels }
+  const ratingTotals = new Map<string, { total: number; count: number }>()
+  for (const review of (reviewData ?? []) as ReviewRow[]) {
+    const current = ratingTotals.get(review.item_id) ?? { total: 0, count: 0 }
+    current.total += review.rating
+    current.count += 1
+    ratingTotals.set(review.item_id, current)
+  }
+  const ratingSummaries = new Map<string, { average: number; count: number }>()
+  for (const [itemId, rating] of ratingTotals) {
+    ratingSummaries.set(itemId, {
+      average: rating.total / rating.count,
+      count: rating.count,
+    })
+  }
+
+  return { sampleCounts, startingPrices, ratingSummaries }
 }
 
 function toBoardRows(
@@ -483,7 +485,8 @@ function toBoardRows(
   categoryTitle: string,
   sourceConfigs: MarketBoardSourceConfig[],
   sampleCounts: Map<string, number>,
-  fileTypeLabels: Map<string, string[]>
+  startingPrices: Map<string, number>,
+  ratingSummaries: Map<string, { average: number; count: number }>
 ): MarketBoardRow[] {
   const sourceConfigsByType = new Map(sourceConfigs.map((config) => [config.typeName, config]))
 
@@ -515,7 +518,9 @@ function toBoardRows(
         available: pageCount > 0,
         pageCount,
       },
-      fileTypeLabels: fileTypeLabels.get(item.id) ?? [],
+      startingPriceCredits: startingPrices.get(item.id) ?? null,
+      ratingAverage: ratingSummaries.get(item.id)?.average ?? null,
+      ratingCount: ratingSummaries.get(item.id)?.count ?? 0,
       viewCount: item.view_count,
       publishedAt: item.published_at ?? item.created_at,
     }
@@ -660,7 +665,7 @@ export async function getMarketBoardData(input: MarketBoardQuery): Promise<Marke
     if (itemError) throw new Error(itemError.message)
 
     const items = (itemData ?? []) as unknown as ItemRow[]
-    const enrichment = await loadFileAndSampleMetadata(supabase, subject, items)
+    const enrichment = await loadBoardRowEnrichment(supabase, subject, items)
     const group = category.group_id
       ? groupRows.find((row) => row.id === category.group_id) ?? null
       : null
@@ -694,7 +699,8 @@ export async function getMarketBoardData(input: MarketBoardQuery): Promise<Marke
         category.title,
         sourceConfigs,
         enrichment.sampleCounts,
-        enrichment.fileTypeLabels
+        enrichment.startingPrices,
+        enrichment.ratingSummaries
       ),
       pagination: {
         page,
