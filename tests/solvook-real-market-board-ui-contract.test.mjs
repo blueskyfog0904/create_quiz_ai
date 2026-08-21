@@ -22,6 +22,10 @@ const resultsUrl = new URL(
   '../src/app/preview/solvook-concept/_components/board/real-market-board-results.tsx',
   import.meta.url
 )
+const materialListUrl = new URL(
+  '../src/app/preview/solvook-concept/_components/market-material-list.tsx',
+  import.meta.url
+)
 const previewLayoutUrl = new URL(
   '../src/app/preview/solvook-concept/layout.tsx',
   import.meta.url
@@ -124,6 +128,7 @@ test('board category sidebar delegates the same transparent menu used by the hom
 
 test('board results keep one semantic list and one shared market sample preview dialog', () => {
   const source = readSource(resultsUrl)
+  const rows = readSource(materialListUrl)
 
   assert.match(source, /'use client'/)
   assert.match(source, /StudioBoardShell/)
@@ -133,17 +138,18 @@ test('board results keep one semantic list and one shared market sample preview 
   assert.match(source, /previous: '<'/)
   assert.match(source, /next: '>'/)
   assert.match(source, /last: '>>'/)
-  assert.match(source, /MarketSamplePreviewDialog/)
-  assert.match(source, /from '@\/app\/\(dashboard\)\/market\/\[slug\]\/items\/\[itemId\]\/market-sample-preview-dialog'/)
+  assert.match(source, /<MarketMaterialList/)
+  assert.match(rows, /MarketSamplePreviewDialog/)
+  assert.match(rows, /from '@\/app\/\(dashboard\)\/market\/\[slug\]\/items\/\[itemId\]\/market-sample-preview-dialog'/)
   assert.equal(
-    source.match(/<MarketSamplePreviewDialog\b/g)?.length ?? 0,
+    rows.match(/<MarketSamplePreviewDialog\b/g)?.length ?? 0,
     1,
     'rows must share one market sample preview dialog instance'
   )
-  assert.match(source, /useRef<HTMLButtonElement \| null>\(null\)/)
-  assert.match(source, /samplePreviewItemId/)
-  assert.match(source, /setSamplePreviewItemId\(itemId\)/)
-  assert.match(source, /sampleTriggerRef\.current = event\.currentTarget/)
+  assert.match(rows, /useRef<HTMLButtonElement \| null>\(null\)/)
+  assert.match(rows, /samplePreviewItemId/)
+  assert.match(rows, /setSamplePreviewItemId\(itemId\)/)
+  assert.match(rows, /sampleTriggerRef\.current = event\.currentTarget/)
   assert.match(source, /<Select\b/)
   assert.match(source, /<SelectTrigger[\s\S]*aria-label="자료 정렬"/)
   assert.match(source, /<StudioSelectContent/)
@@ -151,59 +157,59 @@ test('board results keep one semantic list and one shared market sample preview 
   assert.match(source, /<SelectItem value="latest">최신순<\/SelectItem>/)
   assert.match(source, /router\.push\(buildBoardHref/)
   assert.doesNotMatch(source, /조회순|문항순|PAGE_SIZE_OPTIONS|개씩|pageSize/)
-  assert.match(source, /<ul\b/)
-  assert.match(source, /role="list"/)
-  assert.match(source, /md:grid-cols-\[56px_minmax\(0,1fr\)_auto\]/)
+  assert.match(rows, /<ul\b/)
+  assert.match(rows, /role="list"/)
+  assert.match(rows, /md:grid-cols-\[56px_minmax\(0,1fr\)_auto\]/)
   assert.equal(
-    source.match(/h-\[79px\] w-\[56px\]/g)?.length ?? 0,
+    rows.match(/h-\[79px\] w-\[56px\]/g)?.length ?? 0,
     2,
     'real and fallback thumbnails must share the compact Solvook dimensions'
   )
-  assert.doesNotMatch(source, /md:h-\[132px\]/)
+  assert.doesNotMatch(rows, /md:h-\[132px\]/)
   assert.match(source, /row\.startingPriceCredits/)
   assert.match(
-    source,
-    /`\$\{row\.startingPriceCredits\.toLocaleString\('ko-KR'\)\} 크레딧`/
+    rows,
+    /`\$\{item\.startingPriceCredits\.toLocaleString\('ko-KR'\)\} 크레딧`/
   )
-  assert.doesNotMatch(source, /크레딧부터/)
+  assert.doesNotMatch(rows, /크레딧부터/)
   assert.doesNotMatch(source, /row\.sellerName/)
   assert.match(source, /row\.ratingAverage/)
   assert.match(source, /row\.ratingCount/)
-  assert.match(source, /row\.ratingAverage === null[\s\S]*\? '0\.0'/)
-  assert.doesNotMatch(source, /평점 없음/)
-  assert.match(source, /Star/)
+  assert.match(rows, /item\.ratingAverage === null[\s\S]*\? '0\.0'/)
+  assert.doesNotMatch(rows, /평점 없음/)
+  assert.match(rows, /Star/)
   assert.match(source, /set\('search', search\)/)
   assert.match(source, /set\('year', year\)/)
   assert.doesNotMatch(source, /set\('(month|grade|sourceType|source[1-4])'/)
   assert.match(
-    source,
+    rows,
     /className="flex min-h-11 items-center break-keep text-lg font-semibold leading-7 text-\[var\(--studio-text\)\]/
   )
-  assert.match(source, /md:col-start-3 md:row-start-1/)
+  assert.match(rows, /md:col-start-3 md:row-start-1/)
   assert.equal(
-    source.match(/샘플보기/g)?.length ?? 0,
+    rows.match(/샘플보기/g)?.length ?? 0,
     1,
     'each row renderer must own one responsive sample action'
   )
-  assert.doesNotMatch(source, /FileSearch/)
-  assert.doesNotMatch(source, /샘플 보기/)
-  assert.doesNotMatch(source, /상세 보기/)
-  assert.doesNotMatch(source, /ChevronRight/)
-  assert.doesNotMatch(source, /fileTypeLabels/)
-  assert.doesNotMatch(source, /<Badge/)
+  assert.doesNotMatch(rows, /FileSearch/)
+  assert.doesNotMatch(rows, /샘플 보기/)
+  assert.doesNotMatch(rows, /상세 보기/)
+  assert.doesNotMatch(rows, /ChevronRight/)
+  assert.doesNotMatch(rows, /fileTypeLabels/)
+  assert.doesNotMatch(rows, /<Badge/)
   assert.match(
     source,
-    /`\/preview\/solvook-concept\/boards\/ebs-literature\/posts\/jingsori-2027\?subject=\$\{subject\}`/
+    /`\/preview\/solvook-concept\/boards\/\$\{categorySlug\}\/items\/\$\{row\.id\}\?subject=\$\{subject\}`/
   )
   assert.doesNotMatch(
     source,
-    /`\/\$\{subject\}\/market\/\$\{categorySlug\}\/items\/\$\{row\.id\}`/
+    /ebs-literature\/posts\/jingsori-2027/
   )
   assert.doesNotMatch(source, /\/api\/market\//)
 })
 
 test('board prices use the same Pretendard subtitle typography as Solvook', () => {
-  const results = readSource(resultsUrl)
+  const results = readSource(materialListUrl)
   const layout = readSource(previewLayoutUrl)
   const tokens = readSource(studioTokensUrl)
 

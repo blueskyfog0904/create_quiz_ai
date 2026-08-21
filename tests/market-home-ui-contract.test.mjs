@@ -4,30 +4,30 @@ import test from 'node:test'
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('popular slider preserves two-up small and four-up desktop paging contracts', async () => {
-  const slider = await read('src/app/preview/solvook-concept/_components/home/popular-downloads-slider.tsx')
+test('popular downloads reuse the same responsive list rows as the board', async () => {
+  const [popular, shared] = await Promise.all([
+    read('src/app/preview/solvook-concept/_components/home/popular-downloads-slider.tsx'),
+    read('src/app/preview/solvook-concept/_components/market-material-list.tsx'),
+  ])
 
-  assert.match(slider, /grid-cols-2/)
-  assert.match(slider, /lg:grid-cols-4/)
-  assert.match(slider, /5000/)
-  assert.match(slider, /visibilitychange/)
-  assert.match(slider, /prefers-reduced-motion/)
-  assert.match(slider, /onMouseEnter/)
-  assert.match(slider, /onFocusCapture/)
-  assert.match(slider, /items\.length <= pageSize/)
-  assert.match(slider, /aspect-\[4\/5\]/)
+  assert.match(popular, /<MarketMaterialList/)
+  assert.match(shared, /grid-cols-\[56px_minmax\(0,1fr\)\]/)
+  assert.match(shared, /md:grid-cols-\[56px_minmax\(0,1fr\)_auto\]/)
+  assert.doesNotMatch(popular, /grid-cols-2|lg:grid-cols-4|setInterval|pageSize/)
 })
 
-test('subject-aware preview links stay inside the selected market', async () => {
-  const [header, sections] = await Promise.all([
+test('subject-aware preview links stay inside the selected Solvook preview', async () => {
+  const [header, popular, sections] = await Promise.all([
     read('src/app/preview/solvook-concept/_components/preview-header.tsx'),
+    read('src/app/preview/solvook-concept/_components/home/popular-downloads-slider.tsx'),
     read('src/app/preview/solvook-concept/_components/home/home-material-sections.tsx'),
   ])
 
   assert.match(header, /\?subject=english/)
   assert.match(header, /\?subject=korean/)
   assert.match(header, /aria-current=/)
-  assert.match(sections, /\/items\/\$\{item\.id\}/)
+  assert.match(popular, /\/preview\/solvook-concept\/boards\/\$\{item\.categorySlug\}\/items\/\$\{item\.id\}/)
+  assert.match(sections, /\/preview\/solvook-concept\/boards\/\$\{item\.categorySlug\}\/items\/\$\{item\.id\}/)
 })
 
 test('preview renders database category board navigation beside the ad carousel', async () => {

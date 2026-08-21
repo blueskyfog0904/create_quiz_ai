@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, BookOpen, CalendarDays, FileText, Layers3 } from 'lucide-react'
+import { ArrowRight, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type {
   MarketHomeItem,
@@ -8,6 +8,7 @@ import type {
   MarketHomeSourcePath,
 } from '@/lib/market-home'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import { MarketMaterialList } from '../market-material-list'
 import { SectionHeading } from './section-heading'
 
 const textbookTones = [
@@ -16,12 +17,6 @@ const textbookTones = [
   'from-[#d05449] to-[#F38B73]',
   'from-[#28395f] to-[#55729e]',
 ]
-
-function formatPublishedAt(value: string | null) {
-  if (!value) return '게시일 미정'
-  const date = new Date(value)
-  return `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}`
-}
 
 function sourceHref(subject: WorkspaceSubject, path: MarketHomeSourcePath) {
   const query = new URLSearchParams({ sourceType: path.sourceType })
@@ -98,26 +93,26 @@ export function RecentMaterials({
       <div className="overflow-hidden rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]">
         {items.length === 0 ? (
           <div className="grid min-h-[112px] place-items-center px-5 text-sm text-[var(--studio-muted)]">최근 등록된 자료가 없습니다.</div>
-        ) : items.map((item, index) => (
-          <Link key={item.id} href={`/${subject}/market/${item.categorySlug}/items/${item.id}`} className="group grid min-h-[112px] grid-cols-[54px_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--studio-border)] px-3 py-4 outline-none transition-colors last:border-b-0 hover:bg-[var(--studio-primary-soft)] focus-visible:bg-[var(--studio-primary-soft)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--studio-focus-ring)] sm:grid-cols-[42px_76px_minmax(0,1fr)_auto] sm:gap-5 sm:px-5">
-            <span className="hidden text-center text-xs font-extrabold text-[var(--studio-muted)] sm:block">{String(index + 1).padStart(2, '0')}</span>
-            <div aria-hidden="true" className={`grid h-14 w-14 place-items-center rounded-md ${index % 2 === 0 ? 'bg-[var(--studio-primary-soft)] text-[var(--studio-primary)]' : 'bg-[var(--studio-success)]/20 text-[#258a78]'} sm:h-[70px] sm:w-[70px]`}>
-              <FileText className="h-6 w-6" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex flex-wrap gap-1.5">
-                <span className="text-[10px] font-extrabold text-[var(--studio-primary)]">{item.categoryTitle}</span>
-                <span className="text-[10px] font-bold text-[var(--studio-muted)]">{[item.sourceType, ...item.sources].filter(Boolean).join(' · ') || '출처 정보 없음'}</span>
-              </div>
-              <h3 className="mt-1 truncate text-sm font-extrabold tracking-[-0.02em] text-[var(--studio-ink)] sm:text-base">{item.title}</h3>
-              <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] font-semibold text-[var(--studio-muted)] sm:text-xs">
-                <span className="inline-flex items-center gap-1"><Layers3 aria-hidden="true" className="h-3.5 w-3.5" />문항 {item.questionCount ?? 0}</span>
-                <span className="hidden items-center gap-1 sm:inline-flex"><CalendarDays aria-hidden="true" className="h-3.5 w-3.5" />{formatPublishedAt(item.publishedAt)}</span>
-              </div>
-            </div>
-            <ArrowRight aria-hidden="true" className="h-4 w-4 text-[var(--studio-muted)] transition-transform group-hover:translate-x-1 group-hover:text-[var(--studio-primary)]" />
-          </Link>
-        ))}
+        ) : (
+          <MarketMaterialList
+            subject={subject}
+            items={items.map((item) => ({
+              id: item.id,
+              title: item.title,
+              thumbnailUrl: item.thumbnailUrl,
+              detailHref: `/preview/solvook-concept/boards/${item.categorySlug}/items/${item.id}?subject=${subject}`,
+              metadataLabels: Array.from(new Set([
+                ...item.sources,
+                item.sourceType,
+                item.questionCount !== null ? `${item.questionCount}문항` : null,
+              ].filter((value): value is string => Boolean(value)))).slice(0, 2),
+              sampleAvailable: item.sample.available,
+              startingPriceCredits: item.startingPriceCredits,
+              ratingAverage: item.ratingAverage,
+              ratingCount: item.ratingCount,
+            }))}
+          />
+        )}
       </div>
     </section>
   )

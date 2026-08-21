@@ -5,7 +5,7 @@ import test from 'node:test'
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 
 test('english and korean share one subject-aware preview composition', async () => {
-  const [page, header, slider] = await Promise.all([
+  const [page, header, popular] = await Promise.all([
     read('src/app/preview/solvook-concept/page.tsx'),
     read('src/app/preview/solvook-concept/_components/preview-header.tsx'),
     read('src/app/preview/solvook-concept/_components/home/popular-downloads-slider.tsx'),
@@ -34,9 +34,8 @@ test('english and korean share one subject-aware preview composition', async () 
   assert.match(header, /aria-current=\{subject === 'korean'/)
   assert.match(header, /const marketHref = `\/\$\{subject\}\/market\/entexam`/)
 
-  for (const viewport of [320, 390, 768, 1200, 1280]) {
-    assert.match(slider, new RegExp(`viewport ${viewport}`))
-  }
+  assert.match(popular, /<MarketMaterialList/)
+  assert.doesNotMatch(popular, /setInterval|grid-cols-2|lg:grid-cols-4/)
 })
 
 for (const subject of ['english', 'korean']) {

@@ -70,6 +70,13 @@ export interface MarketHomeItem {
   questionCount: number | null
   sourceType: string | null
   sources: Array<string | null>
+  sample: {
+    available: boolean
+    pageCount: number
+  }
+  startingPriceCredits: number | null
+  ratingAverage: number | null
+  ratingCount: number
   publishedAt: string | null
   createdAt: string
 }
@@ -222,4 +229,3 @@ export function normalizeMarketHomeConfig(value: unknown): MarketHomeConfig {
     }
   }
 }
-

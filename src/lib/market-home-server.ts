@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { loadMarketItemListEnrichment } from '@/lib/market-item-list-enrichment'
 import {
   DEFAULT_MARKET_HOME_CONFIG,
   MARKET_HOME_SETTING_KEY,
@@ -33,6 +34,9 @@ type ItemRow = {
   source_2: string | null
   source_3: string | null
   source_4: string | null
+  pdf_price: number
+  hwp_price: number
+  zip_price: number
   published_at: string | null
   created_at: string
 }
@@ -96,7 +100,8 @@ function toMenuEntry(row: MenuRow): MarketHomeMenuEntry {
 
 function toItem(
   row: ItemRow,
-  menusById: Map<string, MarketHomeMenuEntry>
+  menusById: Map<string, MarketHomeMenuEntry>,
+  enrichment: Awaited<ReturnType<typeof loadMarketItemListEnrichment>>
 ): MarketHomeItem | null {
   const menu = menusById.get(row.menu_entry_id)
   if (!menu) return null
@@ -112,6 +117,13 @@ function toItem(
     questionCount: row.question_count,
     sourceType: normalizeText(row.source_type),
     sources: [row.source_1, row.source_2, row.source_3, row.source_4].map(normalizeText),
+    sample: {
+      available: (enrichment.sampleCounts.get(row.id) ?? 0) > 0,
+      pageCount: enrichment.sampleCounts.get(row.id) ?? 0,
+    },
+    startingPriceCredits: enrichment.startingPrices.get(row.id) ?? null,
+    ratingAverage: enrichment.ratingSummaries.get(row.id)?.average ?? null,
+    ratingCount: enrichment.ratingSummaries.get(row.id)?.count ?? 0,
     publishedAt: row.published_at,
     createdAt: row.created_at,
   }
@@ -174,7 +186,7 @@ async function loadRecent(
 
   const { data, error } = await supabase
     .from('market_items')
-    .select('id, title, summary, thumbnail_url, menu_entry_id, question_count, source_type, source_1, source_2, source_3, source_4, published_at, created_at')
+    .select('id, title, summary, thumbnail_url, menu_entry_id, question_count, source_type, source_1, source_2, source_3, source_4, pdf_price, hwp_price, zip_price, published_at, created_at')
     .eq('workspace_subject', workspaceSubject)
     .eq('status', 'published')
     .eq('is_active', true)
@@ -186,8 +198,19 @@ async function loadRecent(
     .limit(limit)
 
   if (error) throw new Error(error.message)
-  return (data as ItemRow[]).flatMap((row) => {
-    const item = toItem(row, menusById)
+  const rows = data as ItemRow[]
+  const enrichment = await loadMarketItemListEnrichment(
+    supabase,
+    workspaceSubject,
+    rows.map((row) => ({
+      id: row.id,
+      pdfPrice: row.pdf_price,
+      hwpPrice: row.hwp_price,
+      zipPrice: row.zip_price,
+    }))
+  )
+  return rows.flatMap((row) => {
+    const item = toItem(row, menusById, enrichment)
     return item ? [item] : []
   })
 }
@@ -212,7 +235,7 @@ async function loadPopular(
 
   const { data: itemData, error: itemError } = await supabase
     .from('market_items')
-    .select('id, title, summary, thumbnail_url, menu_entry_id, question_count, source_type, source_1, source_2, source_3, source_4, published_at, created_at')
+    .select('id, title, summary, thumbnail_url, menu_entry_id, question_count, source_type, source_1, source_2, source_3, source_4, pdf_price, hwp_price, zip_price, published_at, created_at')
     .eq('workspace_subject', workspaceSubject)
     .eq('status', 'published')
     .eq('is_active', true)
@@ -221,9 +244,20 @@ async function loadPopular(
     .in('id', rankings.map((row) => row.item_id))
   if (itemError) throw new Error(itemError.message)
 
+  const itemRows = itemData as ItemRow[]
+  const enrichment = await loadMarketItemListEnrichment(
+    supabase,
+    workspaceSubject,
+    itemRows.map((row) => ({
+      id: row.id,
+      pdfPrice: row.pdf_price,
+      hwpPrice: row.hwp_price,
+      zipPrice: row.zip_price,
+    }))
+  )
   const itemsById = new Map(
-    (itemData as ItemRow[]).flatMap((row) => {
-      const item = toItem(row, menusById)
+    itemRows.flatMap((row) => {
+      const item = toItem(row, menusById, enrichment)
       return item ? [[item.id, item] as const] : []
     })
   )

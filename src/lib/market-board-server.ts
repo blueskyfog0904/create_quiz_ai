@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { loadMarketItemListEnrichment } from '@/lib/market-item-list-enrichment'
 import {
   MARKET_BOARD_DEFAULT_PAGE_SIZE,
   MARKET_BOARD_MAX_PAGE_SIZE,
@@ -70,31 +71,6 @@ type SourceConfigRow = {
   source_3_options: string[] | null
   source_4_label: string | null
   source_4_options: string[] | null
-}
-
-type SamplePageRow = {
-  item_id: string
-  page_number: number
-}
-
-type SubproductRow = {
-  item_id: string
-  price_credits: number
-}
-
-type BundleOptionRow = {
-  item_id: string
-  price_credits: number
-}
-
-type ReviewRow = {
-  item_id: string
-  rating: number
-}
-
-type LegacyFileRow = {
-  item_id: string
-  asset_kind: string
 }
 
 type SourceValueKey = 'source_1' | 'source_2' | 'source_3' | 'source_4'
@@ -352,134 +328,6 @@ async function loadTaxonomy(supabase: SupabaseClient, subject: WorkspaceSubject)
   }
 }
 
-async function loadBoardRowEnrichment(
-  supabase: SupabaseClient,
-  subject: WorkspaceSubject,
-  items: ItemRow[]
-) {
-  const itemIds = items.map((item) => item.id)
-  if (itemIds.length === 0) {
-    return {
-      sampleCounts: new Map<string, number>(),
-      startingPrices: new Map<string, number>(),
-      ratingSummaries: new Map<string, { average: number; count: number }>(),
-    }
-  }
-
-  const [
-    { data: sampleData, error: sampleError },
-    { data: subproductData, error: subproductError },
-    { data: bundleData, error: bundleError },
-    { data: legacyFileData, error: legacyFileError },
-    { data: reviewData, error: reviewError },
-  ] = await Promise.all([
-    supabase
-      .from('market_item_sample_pages')
-      .select('item_id, page_number')
-      .eq('workspace_subject', subject)
-      .eq('is_active', true)
-      .is('deleted_at', null)
-      .in('item_id', itemIds),
-    supabase
-      .from('market_item_subproducts')
-      .select('item_id, price_credits')
-      .eq('workspace_subject', subject)
-      .eq('is_active', true)
-      .is('deleted_at', null)
-      .in('item_id', itemIds),
-    supabase
-      .from('market_item_bundle_options')
-      .select('item_id, price_credits')
-      .eq('workspace_subject', subject)
-      .eq('is_active', true)
-      .in('item_id', itemIds),
-    supabase
-      .from('market_item_files')
-      .select('item_id, asset_kind')
-      .eq('workspace_subject', subject)
-      .eq('is_active', true)
-      .is('deleted_at', null)
-      .in('asset_kind', ['pdf', 'hwp', 'zip'])
-      .in('item_id', itemIds),
-    supabase
-      .from('market_item_reviews')
-      .select('item_id, rating')
-      .eq('workspace_subject', subject)
-      .is('deleted_at', null)
-      .in('item_id', itemIds),
-  ])
-
-  if (
-    sampleError
-    || subproductError
-    || bundleError
-    || legacyFileError
-    || reviewError
-  ) {
-    throw new Error(
-      sampleError?.message
-      ?? subproductError?.message
-      ?? bundleError?.message
-      ?? legacyFileError?.message
-      ?? reviewError?.message
-    )
-  }
-
-  const sampleCounts = new Map<string, number>()
-  for (const row of (sampleData ?? []) as SamplePageRow[]) {
-    sampleCounts.set(row.item_id, (sampleCounts.get(row.item_id) ?? 0) + 1)
-  }
-
-  const priceCandidates = new Map<string, number[]>()
-  const addPrice = (itemId: string, price: number) => {
-    const prices = priceCandidates.get(itemId) ?? []
-    prices.push(price)
-    priceCandidates.set(itemId, prices)
-  }
-  for (const row of (subproductData ?? []) as SubproductRow[]) {
-    addPrice(row.item_id, row.price_credits)
-  }
-  for (const row of (bundleData ?? []) as BundleOptionRow[]) {
-    addPrice(row.item_id, row.price_credits)
-  }
-
-  const itemsById = new Map(items.map((item) => [item.id, item]))
-  for (const file of (legacyFileData ?? []) as LegacyFileRow[]) {
-    const item = itemsById.get(file.item_id)
-    if (!item) continue
-
-    const price = file.asset_kind === 'pdf'
-      ? item.pdf_price
-      : file.asset_kind === 'hwp'
-        ? item.hwp_price
-        : item.zip_price
-    if (price > 0) addPrice(file.item_id, price)
-  }
-
-  const startingPrices = new Map<string, number>()
-  for (const itemId of itemIds) {
-    const prices = priceCandidates.get(itemId)
-    if (prices && prices.length > 0) startingPrices.set(itemId, Math.min(...prices))
-  }
-
-  const ratingTotals = new Map<string, { total: number; count: number }>()
-  for (const review of (reviewData ?? []) as ReviewRow[]) {
-    const current = ratingTotals.get(review.item_id) ?? { total: 0, count: 0 }
-    current.total += review.rating
-    current.count += 1
-    ratingTotals.set(review.item_id, current)
-  }
-  const ratingSummaries = new Map<string, { average: number; count: number }>()
-  for (const [itemId, rating] of ratingTotals) {
-    ratingSummaries.set(itemId, {
-      average: rating.total / rating.count,
-      count: rating.count,
-    })
-  }
-
-  return { sampleCounts, startingPrices, ratingSummaries }
-}
-
 function toBoardRows(
   items: ItemRow[],
   categoryTitle: string,
@@ -665,7 +513,16 @@ export async function getMarketBoardData(input: MarketBoardQuery): Promise<Marke
     if (itemError) throw new Error(itemError.message)
 
     const items = (itemData ?? []) as unknown as ItemRow[]
-    const enrichment = await loadBoardRowEnrichment(supabase, subject, items)
+    const enrichment = await loadMarketItemListEnrichment(
+      supabase,
+      subject,
+      items.map((item) => ({
+        id: item.id,
+        pdfPrice: item.pdf_price,
+        hwpPrice: item.hwp_price,
+        zipPrice: item.zip_price,
+      }))
+    )
     const group = category.group_id
       ? groupRows.find((row) => row.id === category.group_id) ?? null
       : null
