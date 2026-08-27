@@ -382,10 +382,25 @@ export function MainAdCarousel({ subject, items, categories }: MainAdCarouselPro
   ])
 
   useEffect(() => {
-    if (activeItem) {
-      itemRefs.current[activeItem.id]?.scrollIntoView({
-        block: 'nearest',
-      })
+    if (!activeItem) {
+      return
+    }
+
+    // scrollIntoView 는 페이지(window)까지 스크롤시키므로 사이드바 목록 내부만 스크롤한다.
+    const button = itemRefs.current[activeItem.id]
+    const list = button?.parentElement
+
+    if (!button || !list) {
+      return
+    }
+
+    const listRect = list.getBoundingClientRect()
+    const buttonRect = button.getBoundingClientRect()
+
+    if (buttonRect.top < listRect.top) {
+      list.scrollTop += buttonRect.top - listRect.top
+    } else if (buttonRect.bottom > listRect.bottom) {
+      list.scrollTop += buttonRect.bottom - listRect.bottom
     }
   }, [activeItem])
 
