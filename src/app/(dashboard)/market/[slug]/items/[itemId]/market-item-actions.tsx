@@ -654,19 +654,36 @@ export default function MarketItemActions({
             ) : null}
             <SectionHeading title="개별 자료 선택 구매" description="전체 패키지가 필요 없다면 원하는 자료만 구매하세요." />
             <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              {subproducts.map((subproduct) => {
+              {(() => {
+                // 문제(HWP) 서브상품(PDF 포함)을 단건 소유한 경우, 이미 포함된 문제(PDF) 카드는 숨긴다.
+                // ownedScope 는 번들 소유 시 'item' 이므로 번들 소유자는 숨김 대상이 아니다.
+                const hasOwnedPdfInclusiveHwp = subproducts.some((sibling) => (
+                  sibling.categorySlug === 'question_hwp'
+                  && sibling.ownedScope === 'subproduct'
+                  && sibling.fileTypes.some((fileType) => fileType.code.toLowerCase() === 'pdf')
+                ))
+
+                return subproducts.map((subproduct) => {
+                if (subproduct.categorySlug === 'question_pdf' && hasOwnedPdfInclusiveHwp) {
+                  return null
+                }
+
                 const ownedFiles = filesBySubproduct.get(subproduct.id) ?? []
                 const fileTypeLabels = subproduct.fileTypes.map((fileType) => fileType.label).join(' · ') || '파일'
                 const iconKind = getSubproductIconKind(subproduct)
                 const isBundleIncluded = Boolean(bundleOption?.owned && !subproduct.owned)
                 const isDownloadable = subproduct.owned || Boolean(bundleOption?.owned)
+                const isUpgradePricing = !isDownloadable && subproduct.upgradePriceCredits != null
+                const effectivePriceCredits = isUpgradePricing
+                  ? subproduct.upgradePriceCredits!
+                  : subproduct.priceCredits
                 const subproductState = isBundleIncluded
                   ? 'included'
                   : getV2OptionState({
                     purchaseType: 'subproduct',
                     subproductId: subproduct.id,
                     title: subproduct.title,
-                    priceCredits: subproduct.priceCredits,
+                    priceCredits: effectivePriceCredits,
                   }, subproduct.owned)
 
                 return (
@@ -674,8 +691,10 @@ export default function MarketItemActions({
                     key={subproduct.id}
                     title={subproduct.title}
                     description={subproduct.description || `${subproduct.categoryName} · ${fileTypeLabels}`}
-                    priceLabel={`${formatCredits(subproduct.priceCredits)} 크레딧`}
-                    priceCaption="개별가"
+                    priceLabel={`${formatCredits(effectivePriceCredits)} 크레딧`}
+                    priceCaption={isUpgradePricing
+                      ? `차액 업그레이드 (정가 ${formatCredits(subproduct.priceCredits)} 크레딧)`
+                      : '개별가'}
                     state={subproductState}
                     icon={<MarketOptionIcon kind={iconKind} />}
                     actionLabel={isDownloadable ? '다운로드' : '이 자료만 구매'}
@@ -690,11 +709,12 @@ export default function MarketItemActions({
                       purchaseType: 'subproduct',
                       subproductId: subproduct.id,
                       title: subproduct.title,
-                      priceCredits: subproduct.priceCredits,
+                      priceCredits: effectivePriceCredits,
                     }) : undefined}
                   />
                 )
-              })}
+                })
+              })()}
             </div>
           </section>
         ) : null}

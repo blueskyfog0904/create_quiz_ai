@@ -171,6 +171,109 @@ async function loadRefundTarget(input: MarketRefundRequestInput) {
   }
 }
 
+// PDF 구매를 기준으로 HWP 차액 업그레이드가 이뤄진 경우, 기준이 된 PDF 주문의 환불을 막는다.
+// (환불 허용 시 사용자가 차액만 내고 HWP+PDF 전체를 보유하는 루프홀이 생김.
+//  차액 주문 여부는 original_price_credits > charged_credits 마커로 판별.)
+async function isUpgradeBaseOrder(
+  targetKind: MarketRefundTargetKind,
+  orderId: string,
+  userId: string,
+  itemId: string
+): Promise<boolean> {
+  if (targetKind !== 'v2_order') {
+    return false
+  }
+
+  const supabase = createAdminClient()
+  const { data: orderEntitlements, error: orderEntitlementError } = await supabase
+    .from('market_entitlements')
+    .select('scope, subproduct_id')
+    .eq('source_order_id', orderId)
+    .eq('status', 'active')
+
+  if (orderEntitlementError) {
+    throw new Error(orderEntitlementError.message)
+  }
+
+  const refundSubproductIds = (orderEntitlements ?? [])
+    .filter((entitlement) => entitlement.scope === 'subproduct' && entitlement.subproduct_id)
+    .map((entitlement) => entitlement.subproduct_id!)
+
+  if (refundSubproductIds.length === 0) {
+    return false
+  }
+
+  const { data: userEntitlements, error: userEntitlementError } = await supabase
+    .from('market_entitlements')
+    .select('subproduct_id, source_order_id')
+    .eq('user_id', userId)
+    .eq('item_id', itemId)
+    .eq('scope', 'subproduct')
+    .eq('status', 'active')
+
+  if (userEntitlementError) {
+    throw new Error(userEntitlementError.message)
+  }
+
+  const userSubproductIds = (userEntitlements ?? [])
+    .filter((entitlement) => entitlement.subproduct_id)
+    .map((entitlement) => entitlement.subproduct_id!)
+  const allSubproductIds = Array.from(new Set([...refundSubproductIds, ...userSubproductIds]))
+  const { data: subproducts, error: subproductError } = await supabase
+    .from('market_item_subproducts')
+    .select('id, category_id')
+    .in('id', allSubproductIds)
+
+  if (subproductError) {
+    throw new Error(subproductError.message)
+  }
+
+  const categoryIds = Array.from(new Set((subproducts ?? []).map((subproduct) => subproduct.category_id)))
+  const { data: categories, error: categoryError } = categoryIds.length > 0
+    ? await supabase
+      .from('market_subproduct_categories')
+      .select('id, slug')
+      .in('id', categoryIds)
+    : { data: [], error: null }
+
+  if (categoryError) {
+    throw new Error(categoryError.message)
+  }
+
+  const slugByCategoryId = new Map((categories ?? []).map((category) => [category.id, category.slug]))
+  const slugBySubproductId = new Map(
+    (subproducts ?? []).map((subproduct) => [subproduct.id, slugByCategoryId.get(subproduct.category_id) ?? null])
+  )
+
+  const refundTargetsPdf = refundSubproductIds.some((id) => slugBySubproductId.get(id) === 'question_pdf')
+  if (!refundTargetsPdf) {
+    return false
+  }
+
+  const hwpSourceOrderIds = (userEntitlements ?? [])
+    .filter((entitlement) => (
+      entitlement.subproduct_id
+      && slugBySubproductId.get(entitlement.subproduct_id) === 'question_hwp'
+      && entitlement.source_order_id
+    ))
+    .map((entitlement) => entitlement.source_order_id!)
+
+  if (hwpSourceOrderIds.length === 0) {
+    return false
+  }
+
+  const { data: hwpOrders, error: hwpOrderError } = await supabase
+    .from('market_purchase_orders')
+    .select('id, original_price_credits, charged_credits')
+    .in('id', Array.from(new Set(hwpSourceOrderIds)))
+
+  if (hwpOrderError) {
+    throw new Error(hwpOrderError.message)
+  }
+
+  return (hwpOrders ?? []).some((order) => order.original_price_credits > order.charged_credits)
+}
+
 export async function getMarketRefundEligibility(
   input: MarketRefundRequestInput,
   options: MarketRefundEligibilityOptions = {}
@@ -197,6 +300,9 @@ export async function getMarketRefundEligibility(
     reason = downloadCount > 0
       ? '다운로드 이력이 있는 상품은 환불할 수 없습니다.'
       : '구매 후 7일이 지난 상품은 환불할 수 없습니다.'
+  } else if (await isUpgradeBaseOrder(input.targetKind, input.targetId, target.userId, target.itemId)) {
+    status = 'blocked'
+    reason = '이 구매를 기준으로 문제(HWP) 차액 업그레이드가 진행되어 환불할 수 없습니다.'
   } else if (target.creditConsumptions.length === 0) {
     status = 'blocked'
     reason = '크레딧 차감 스냅샷이 없어 자동 환불할 수 없습니다. 고객센터로 문의해주세요.'

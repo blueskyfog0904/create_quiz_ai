@@ -10,6 +10,7 @@ import {
   getActiveMarketItemFile,
   getMarketBundlePurchaseContext,
   getMarketItemById,
+  getMarketSubproductPairContext,
   getMarketSubproductPurchaseContext,
   listMarketV2EntitlementsForItem,
   rollbackMarketV2PurchaseArtifacts,
@@ -201,9 +202,11 @@ export async function ensureUserCanPurchaseMarketV2Target(
   itemId: string,
   purchaseType: MarketV2PurchaseType,
   targetId: string,
-  workspaceSubject?: WorkspaceSubject
+  workspaceSubject?: WorkspaceSubject,
+  preloadedEntitlements?: Awaited<ReturnType<typeof listMarketV2EntitlementsForItem>>
 ) {
-  const entitlements = await listMarketV2EntitlementsForItem(userId, itemId, workspaceSubject)
+  const entitlements = preloadedEntitlements
+    ?? await listMarketV2EntitlementsForItem(userId, itemId, workspaceSubject)
 
   if (purchaseType === 'bundle') {
     const existingBundle = entitlements.find((entitlement) => entitlement.scope === 'item')
@@ -274,13 +277,37 @@ export async function createMarketV2PurchaseWithCompensation(input: {
     targetId = context.subproduct.id
   }
 
+  const entitlements = await listMarketV2EntitlementsForItem(input.userId, item.id, item.workspace_subject)
+
   await ensureUserCanPurchaseMarketV2Target(
     input.userId,
     item.id,
     input.purchaseType,
     targetId,
-    item.workspace_subject
+    item.workspace_subject,
+    entitlements
   )
+
+  // PDF↔HWP 쌍 규칙: PDF 소유자의 HWP 구매는 차액만 청구하고,
+  // PDF 포함 HWP 소유자의 PDF 단독 구매는 중복이므로 거절한다. 계산은 전부 서버 값 기준.
+  let originalPriceCredits = priceCredits
+  if (input.purchaseType === 'subproduct') {
+    const pairContext = await getMarketSubproductPairContext(
+      item.id,
+      targetId,
+      entitlements,
+      item.workspace_subject
+    )
+
+    if (pairContext.blockedByOwnedHwp) {
+      throw new Error('이미 구매하신 문제(HWP)에 포함된 자료입니다.')
+    }
+
+    if (pairContext.upgrade) {
+      originalPriceCredits = pairContext.upgrade.originalPriceCredits
+      priceCredits = pairContext.upgrade.chargedCredits
+    }
+  }
 
   const deductionResult = await deductCreditsForMarketV2Purchase(
     input.userId,
@@ -298,7 +325,7 @@ export async function createMarketV2PurchaseWithCompensation(input: {
       item_id: item.id,
       purchase_type: input.purchaseType,
       idempotency_key: input.idempotencyKey ?? null,
-      original_price_credits: priceCredits,
+      original_price_credits: originalPriceCredits,
       charged_credits: priceCredits,
       credit_consumptions: deductionResult.consumptions,
       status: 'completed',

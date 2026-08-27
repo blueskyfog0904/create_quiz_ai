@@ -132,6 +132,10 @@ export interface MarketSubproductPublicSummary {
   fileCount: number
   fileTypes: MarketSubproductPublicFileType[]
   owned: boolean
+  // 소유 근거: 번들(scope=item) 소유는 'item', 서브상품 단건 소유는 'subproduct'. 둘 다면 'item' 우선.
+  ownedScope: 'item' | 'subproduct' | null
+  // PDF 서브상품 소유자가 HWP 서브상품을 차액으로 구매할 수 있을 때의 차액 표시가. 조건 미충족 시 null.
+  upgradePriceCredits: number | null
   purchasedAt: string | null
 }
 
@@ -1541,6 +1545,32 @@ export async function listMarketSubproductPublicSummaries(
     filesBySubproduct.set(file.subproduct_id, current)
   }
 
+  const subproductIncludesPdf = (subproductId: string) => (
+    (filesBySubproduct.get(subproductId) ?? []).some((file) => (
+      fileTypeMap.get(file.file_type_id)?.code.toLowerCase() === 'pdf'
+    ))
+  )
+
+  // 차액 업그레이드 후보: PDF 서브상품(scope=subproduct) 소유자에게 유일한 HWP 서브상품을 차액으로 제안.
+  // 번들(scope=item) 소유자·HWP 복수·PDF 미포함 HWP·차액 0 이하는 전부 정가 폴백.
+  const hwpSubproducts = subproducts.filter((subproduct) => categoryMap.get(subproduct.category_id)?.slug === 'question_hwp')
+  const pdfSubproducts = subproducts.filter((subproduct) => categoryMap.get(subproduct.category_id)?.slug === 'question_pdf')
+  const uniqueHwpSubproduct = hwpSubproducts.length === 1 ? hwpSubproducts[0] : null
+  const ownedPdfPrices = pdfSubproducts
+    .filter((subproduct) => subproductEntitlementMap.has(subproduct.id))
+    .map((subproduct) => subproduct.price_credits)
+  const ownedPdfMaxPrice = ownedPdfPrices.length > 0 ? Math.max(...ownedPdfPrices) : null
+  const upgradeCandidate = (
+    uniqueHwpSubproduct
+    && subproductIncludesPdf(uniqueHwpSubproduct.id)
+    && !itemEntitlement
+    && !subproductEntitlementMap.has(uniqueHwpSubproduct.id)
+    && ownedPdfMaxPrice !== null
+    && uniqueHwpSubproduct.price_credits - ownedPdfMaxPrice > 0
+  )
+    ? { subproductId: uniqueHwpSubproduct.id, priceCredits: uniqueHwpSubproduct.price_credits - ownedPdfMaxPrice }
+    : null
+
   return subproducts.map((subproduct) => {
     const category = categoryMap.get(subproduct.category_id)
     const fileRows = filesBySubproduct.get(subproduct.id) ?? []
@@ -1549,6 +1579,11 @@ export async function listMarketSubproductPublicSummaries(
       .filter((fileType): fileType is NonNullable<typeof fileType> => Boolean(fileType))
       .sort((a, b) => a.code.localeCompare(b.code))
     const purchasedAt = itemEntitlement?.created_at ?? subproductEntitlementMap.get(subproduct.id) ?? null
+    const ownedScope = itemEntitlement
+      ? 'item' as const
+      : subproductEntitlementMap.has(subproduct.id)
+        ? 'subproduct' as const
+        : null
 
     return {
       id: subproduct.id,
@@ -1570,9 +1605,144 @@ export async function listMarketSubproductPublicSummaries(
         extension: fileType.extension,
       })),
       owned: purchasedAt !== null,
+      ownedScope,
+      upgradePriceCredits: upgradeCandidate?.subproductId === subproduct.id
+        ? upgradeCandidate.priceCredits
+        : null,
       purchasedAt,
     }
   })
+}
+
+export interface MarketSubproductPairContext {
+  targetCategorySlug: string | null
+  // 차액 업그레이드 성립 시: 정가와 실청구액. 미성립 시 null.
+  upgrade: { originalPriceCredits: number; chargedCredits: number } | null
+  // 구매 대상이 question_pdf인데 사용자가 PDF 포함 question_hwp 서브상품을 이미 소유한 경우 true.
+  blockedByOwnedHwp: boolean
+}
+
+// 구매 서버 경로 전용: 클라이언트 표시값을 신뢰하지 않고 차액/차단 조건을 독립 재계산한다.
+// 판정 규칙은 listMarketSubproductPublicSummaries 의 upgradeCandidate 와 동일해야 한다.
+export async function getMarketSubproductPairContext(
+  itemId: string,
+  targetSubproductId: string,
+  entitlements: Pick<MarketEntitlement, 'scope' | 'subproduct_id'>[],
+  workspaceSubject?: WorkspaceSubject
+): Promise<MarketSubproductPairContext> {
+  const supabase = getAdminSupabase()
+  const { data: subproducts, error: subproductError } = await applyWorkspaceSubjectFilter(
+    supabase
+      .from('market_item_subproducts')
+      .select('id, category_id, price_credits')
+      .eq('item_id', itemId)
+      .eq('is_active', true)
+      .is('deleted_at', null),
+    workspaceSubject
+  )
+
+  if (subproductError) {
+    throw new Error(subproductError.message)
+  }
+
+  const subproductRows = subproducts ?? []
+  const categoryIds = Array.from(new Set(subproductRows.map((subproduct) => subproduct.category_id)))
+  const { data: categories, error: categoryError } = categoryIds.length > 0
+    ? await supabase
+      .from('market_subproduct_categories')
+      .select('id, slug')
+      .in('id', categoryIds)
+    : { data: [], error: null }
+
+  if (categoryError) {
+    throw new Error(categoryError.message)
+  }
+
+  const slugByCategoryId = new Map((categories ?? []).map((category) => [category.id, category.slug]))
+  const slugOf = (subproduct: { category_id: string }) => slugByCategoryId.get(subproduct.category_id) ?? null
+  const target = subproductRows.find((subproduct) => subproduct.id === targetSubproductId) ?? null
+  const hwpSubproducts = subproductRows.filter((subproduct) => slugOf(subproduct) === 'question_hwp')
+  const pdfSubproducts = subproductRows.filter((subproduct) => slugOf(subproduct) === 'question_pdf')
+
+  const hwpIncludesPdf = new Map<string, boolean>()
+  if (hwpSubproducts.length > 0) {
+    const { data: hwpFiles, error: hwpFileError } = await applyWorkspaceSubjectFilter(
+      supabase
+        .from('market_subproduct_files')
+        .select('subproduct_id, file_type_id')
+        .in('subproduct_id', hwpSubproducts.map((subproduct) => subproduct.id))
+        .eq('is_active', true)
+        .is('deleted_at', null),
+      workspaceSubject
+    )
+
+    if (hwpFileError) {
+      throw new Error(hwpFileError.message)
+    }
+
+    const fileTypeIds = Array.from(new Set((hwpFiles ?? []).map((file) => file.file_type_id)))
+    const { data: fileTypes, error: fileTypeError } = fileTypeIds.length > 0
+      ? await supabase
+        .from('market_file_types')
+        .select('id, code')
+        .in('id', fileTypeIds)
+      : { data: [], error: null }
+
+    if (fileTypeError) {
+      throw new Error(fileTypeError.message)
+    }
+
+    const pdfFileTypeIds = new Set(
+      (fileTypes ?? [])
+        .filter((fileType) => fileType.code.toLowerCase() === 'pdf')
+        .map((fileType) => fileType.id)
+    )
+    for (const file of hwpFiles ?? []) {
+      if (pdfFileTypeIds.has(file.file_type_id)) {
+        hwpIncludesPdf.set(file.subproduct_id, true)
+      }
+    }
+  }
+
+  const hasItemScope = entitlements.some((entitlement) => entitlement.scope === 'item')
+  const ownedSubproductIds = new Set(
+    entitlements
+      .filter((entitlement) => entitlement.scope === 'subproduct' && entitlement.subproduct_id)
+      .map((entitlement) => entitlement.subproduct_id!)
+  )
+
+  const uniqueHwpSubproduct = hwpSubproducts.length === 1 ? hwpSubproducts[0] : null
+  const ownedPdfPrices = pdfSubproducts
+    .filter((subproduct) => ownedSubproductIds.has(subproduct.id))
+    .map((subproduct) => subproduct.price_credits)
+  const ownedPdfMaxPrice = ownedPdfPrices.length > 0 ? Math.max(...ownedPdfPrices) : null
+
+  const upgrade = (
+    target
+    && uniqueHwpSubproduct
+    && target.id === uniqueHwpSubproduct.id
+    && hwpIncludesPdf.get(uniqueHwpSubproduct.id)
+    && !hasItemScope
+    && !ownedSubproductIds.has(uniqueHwpSubproduct.id)
+    && ownedPdfMaxPrice !== null
+    && uniqueHwpSubproduct.price_credits - ownedPdfMaxPrice > 0
+  )
+    ? {
+      originalPriceCredits: uniqueHwpSubproduct.price_credits,
+      chargedCredits: uniqueHwpSubproduct.price_credits - ownedPdfMaxPrice,
+    }
+    : null
+
+  const targetCategorySlug = target ? slugOf(target) : null
+  const blockedByOwnedHwp = (
+    targetCategorySlug === 'question_pdf'
+    && !hasItemScope
+    && hwpSubproducts.some((subproduct) => (
+      ownedSubproductIds.has(subproduct.id) && hwpIncludesPdf.get(subproduct.id)
+    ))
+  )
+
+  return { targetCategorySlug, upgrade, blockedByOwnedHwp }
 }
 
 export async function getMarketBundlePublicSummary(
