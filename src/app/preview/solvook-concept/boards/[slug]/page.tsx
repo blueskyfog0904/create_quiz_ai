@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { unstable_cache } from 'next/cache'
 import { connection } from 'next/server'
 import { notFound } from 'next/navigation'
 import { AlertCircle } from 'lucide-react'
@@ -43,6 +44,9 @@ function parseSort(value: string | undefined): MarketBoardSort | undefined {
     : undefined
 }
 
+// 공개 프리뷰 전용 60초 데이터 캐시. 어드민 화면은 원본 함수를 직접 호출하므로 영향 없음.
+const getCachedMarketBoardData = unstable_cache(getMarketBoardData, ['preview-market-board'], { revalidate: 60 })
+
 export default async function SolvookConceptBoardPage({
   params,
   searchParams,
@@ -64,7 +68,7 @@ export default async function SolvookConceptBoardPage({
     sort: parseSort(firstValue(resolvedSearchParams.sort)) ?? 'views',
   }
 
-  const result = await getMarketBoardData({
+  const result = await getCachedMarketBoardData({
     subject,
     slug,
     search: filters.search || undefined,

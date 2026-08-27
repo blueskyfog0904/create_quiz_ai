@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getUser } from '@/lib/auth'
+import { getRequestAuthUserId } from '@/lib/request-auth'
 import {
   getMarketBundlePublicSummary,
   getPublishedMarketItemById,
@@ -9,7 +9,7 @@ import {
   listMarketSubproductDownloadFilesForUser,
   listMarketSubproductPublicSummaries,
 } from '@/lib/market-items-server'
-import { listActiveMarketItemSamplePages } from '@/lib/market-sample-pages-server'
+import { countActiveMarketItemSamplePages } from '@/lib/market-sample-pages-server'
 import { resolveWorkspaceSubject } from '@/lib/workspace-subject'
 import { MarketMaterialDetail } from '../../../../_components/detail/market-material-detail'
 
@@ -31,43 +31,47 @@ export default async function SolvookMarketItemDetailPage({
   params,
   searchParams,
 }: SolvookMarketItemDetailPageProps) {
-  const [{ slug, itemId }, resolvedSearchParams, { user }] = await Promise.all([
+  // 미들웨어가 getUser() 검증 후 전달한 유저 id 를 재사용해 auth 서버 왕복을 줄인다.
+  const [{ slug, itemId }, resolvedSearchParams, userId] = await Promise.all([
     params,
     searchParams,
-    getUser(),
+    getRequestAuthUserId(),
   ])
   const subject = resolveWorkspaceSubject(firstValue(resolvedSearchParams.subject))
-  const category = await getVisibleMarketMenuEntryBySlugForWorkspace(slug, subject)
 
-  if (!category) {
-    notFound()
-  }
-
-  const item = await getPublishedMarketItemById(itemId, category.workspace_subject)
-
-  if (!item || item.menu_entry_id !== category.id) {
-    notFound()
-  }
-
+  // category/item 조회가 모두 workspace_subject = subject 로 필터되므로,
+  // 나머지 조회를 subject 기준으로 함께 병렬 실행해도 결과가 동일하다.
   const [
+    category,
+    item,
     files,
-    samplePages,
+    samplePageCount,
     subproducts,
     bundleOption,
     downloadFiles,
     purchases,
   ] = await Promise.all([
-    listMarketItemFiles(item.id, false, item.workspace_subject),
-    listActiveMarketItemSamplePages(item.id, item.workspace_subject),
-    listMarketSubproductPublicSummaries(item.id, user?.id, item.workspace_subject),
-    getMarketBundlePublicSummary(item.id, user?.id, item.workspace_subject),
-    user
-      ? listMarketSubproductDownloadFilesForUser(user.id, item.id, item.workspace_subject)
+    getVisibleMarketMenuEntryBySlugForWorkspace(slug, subject),
+    getPublishedMarketItemById(itemId, subject),
+    listMarketItemFiles(itemId, false, subject),
+    countActiveMarketItemSamplePages(itemId, subject),
+    listMarketSubproductPublicSummaries(itemId, userId ?? undefined, subject),
+    getMarketBundlePublicSummary(itemId, userId ?? undefined, subject),
+    userId
+      ? listMarketSubproductDownloadFilesForUser(userId, itemId, subject)
       : Promise.resolve([]),
-    user
-      ? listCompletedMarketPurchasesForItem(user.id, item.id, item.workspace_subject)
+    userId
+      ? listCompletedMarketPurchasesForItem(userId, itemId, subject)
       : Promise.resolve([]),
   ])
+
+  if (!category) {
+    notFound()
+  }
+
+  if (!item || item.menu_entry_id !== category.id) {
+    notFound()
+  }
 
   return (
     <MarketMaterialDetail
@@ -75,10 +79,10 @@ export default async function SolvookMarketItemDetailPage({
       category={category}
       downloadFiles={downloadFiles}
       files={files}
-      isLoggedIn={Boolean(user)}
+      isLoggedIn={Boolean(userId)}
       item={item}
       purchases={purchases}
-      samplePageCount={samplePages.length}
+      samplePageCount={samplePageCount}
       subproducts={subproducts}
     />
   )

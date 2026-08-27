@@ -410,17 +410,31 @@ export async function getMarketBoardData(input: MarketBoardQuery): Promise<Marke
     if (!category) return { status: 'not_found' }
 
     const menuIds = menuRows.map((menu) => menu.id)
-    const { data: countData, error: countError } = menuIds.length > 0
-      ? await supabase
+    const [
+      { data: countData, error: countError },
+      { data: metadataData, error: metadataError },
+    ] = await Promise.all([
+      menuIds.length > 0
+        ? supabase
+          .from('market_items')
+          .select('menu_entry_id')
+          .in('menu_entry_id', menuIds)
+          .eq('workspace_subject', subject)
+          .eq('status', 'published')
+          .eq('is_active', true)
+          .is('deleted_at', null)
+        : Promise.resolve({ data: [] as Array<Pick<ItemMetadataRow, 'menu_entry_id'>>, error: null }),
+      supabase
         .from('market_items')
-        .select('menu_entry_id')
-        .in('menu_entry_id', menuIds)
+        .select('menu_entry_id, exam_year, exam_month, grade_level, source_type')
+        .eq('menu_entry_id', category.id)
         .eq('workspace_subject', subject)
         .eq('status', 'published')
         .eq('is_active', true)
-        .is('deleted_at', null)
-      : { data: [], error: null }
+        .is('deleted_at', null),
+    ])
     if (countError) throw new Error(countError.message)
+    if (metadataError) throw new Error(metadataError.message)
 
     const itemCounts = new Map<string, number>()
     for (const row of (countData ?? []) as Array<Pick<ItemMetadataRow, 'menu_entry_id'>>) {
@@ -430,15 +444,6 @@ export async function getMarketBoardData(input: MarketBoardQuery): Promise<Marke
     const configuredSourceConfigs = toSourceConfigs(
       (sourceConfigData ?? []) as unknown as SourceConfigRow[]
     )
-    const { data: metadataData, error: metadataError } = await supabase
-      .from('market_items')
-      .select('menu_entry_id, exam_year, exam_month, grade_level, source_type')
-      .eq('menu_entry_id', category.id)
-      .eq('workspace_subject', subject)
-      .eq('status', 'published')
-      .eq('is_active', true)
-      .is('deleted_at', null)
-    if (metadataError) throw new Error(metadataError.message)
 
     const metadataRows = (metadataData ?? []) as unknown as ItemMetadataRow[]
     const configuredSourceTypes = new Set(

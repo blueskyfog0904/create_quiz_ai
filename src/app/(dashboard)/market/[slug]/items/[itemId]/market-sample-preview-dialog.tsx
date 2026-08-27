@@ -41,9 +41,11 @@ interface SamplePagesPayload {
 interface CachedSamplePages {
   pages: SamplePage[]
   expiresAt: number
+  errorMessage?: string
 }
 
 const SAMPLE_PAGE_CACHE_SAFETY_MARGIN_MS = 30 * 1000
+const SAMPLE_PAGE_ERROR_CACHE_TTL_MS = 60 * 1000
 const SAMPLE_PAGE_GENERATED_FILE_NAME_SUFFIX_PATTERN = /-sample-page-\d+\.jpe?g$/i
 const SAMPLE_FILE_GROUP_STYLES = [
   {
@@ -132,7 +134,7 @@ function getCachedSamplePages(cacheKey: string) {
     samplePagePreviewCache.delete(cacheKey)
     return null
   }
-  return cached.pages
+  return cached
 }
 
 async function fetchSamplePages(itemId: string, workspaceSubject: WorkspaceSubject, cacheKey: string) {
@@ -148,7 +150,13 @@ async function fetchSamplePages(itemId: string, workspaceSubject: WorkspaceSubje
     const payload: SamplePagesPayload = await response.json()
 
     if (!response.ok || !payload.success) {
-      throw new Error(payload.error?.message || '샘플 미리보기를 불러오지 못했습니다.')
+      const errorMessage = payload.error?.message || '샘플 미리보기를 불러오지 못했습니다.'
+      samplePagePreviewCache.set(cacheKey, {
+        pages: [],
+        expiresAt: Date.now() + SAMPLE_PAGE_ERROR_CACHE_TTL_MS + SAMPLE_PAGE_CACHE_SAFETY_MARGIN_MS,
+        errorMessage,
+      })
+      throw new Error(errorMessage)
     }
 
     const nextPages = payload.pages ?? []
@@ -189,9 +197,16 @@ export default function MarketSamplePreviewDialog({
 
   const loadSamplePages = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     const cacheKey = buildSamplePageCacheKey(itemId, workspaceSubject)
-    const cachedPages = getCachedSamplePages(cacheKey)
-    if (cachedPages) {
-      setPages(cachedPages)
+    const cached = getCachedSamplePages(cacheKey)
+    if (cached) {
+      if (cached.errorMessage) {
+        if (!silent) {
+          setPages([])
+          setErrorMessage(cached.errorMessage)
+        }
+        return
+      }
+      setPages(cached.pages)
       setErrorMessage(null)
       return
     }

@@ -13,6 +13,8 @@ import { isPublicBrowseableSubjectPath } from '@/lib/workspace-public-browse'
 const WORKSPACE_SUBJECT_HEADER = 'x-workspace-subject'
 const WORKSPACE_HEADER_MODE_HEADER = 'x-workspace-header-mode'
 const WORKSPACE_SCOPED_PATH_HEADER = 'x-workspace-scoped-path'
+// src/lib/request-auth.ts 의 AUTH_USER_ID_HEADER 와 같은 값이어야 한다.
+const AUTH_USER_ID_HEADER = 'x-auth-user-id'
 
 const getWorkspaceHomePath = (path: string) => {
   const subject = parseWorkspaceSubjectFromPath(path)
@@ -44,6 +46,12 @@ const normalizeInternalPath = (path: string | null) => {
   }
 }
 
+const isKakaoCandidateUser = (user: { app_metadata?: Record<string, unknown> }) => {
+  const appMetadata = user.app_metadata ?? {}
+  const providers = Array.isArray(appMetadata.providers) ? appMetadata.providers : []
+  return appMetadata.provider === 'kakao' || providers.includes('kakao')
+}
+
 const copyResponseCookies = (from: NextResponse, to: NextResponse) => {
   from.cookies.getAll().forEach((cookie) => {
     to.cookies.set(cookie)
@@ -54,7 +62,8 @@ function buildRequestHeaders(
   request: NextRequest,
   workspaceSubject?: string | null,
   headerMode: 'root-neutral' | 'subject' = 'subject',
-  scopedPath = '/'
+  scopedPath = '/',
+  authUserId: string | null = null
 ) {
   const requestHeaders = new Headers(request.headers)
 
@@ -67,6 +76,13 @@ function buildRequestHeaders(
   requestHeaders.set(WORKSPACE_HEADER_MODE_HEADER, headerMode)
   requestHeaders.set(WORKSPACE_SCOPED_PATH_HEADER, scopedPath)
 
+  // 외부에서 위조해 보낸 헤더가 라우트까지 전달되지 않도록 항상 삭제 후,
+  // getUser() 검증을 통과한 경우에만 재설정한다.
+  requestHeaders.delete(AUTH_USER_ID_HEADER)
+  if (authUserId) {
+    requestHeaders.set(AUTH_USER_ID_HEADER, authUserId)
+  }
+
   return requestHeaders
 }
 
@@ -74,11 +90,12 @@ function buildNextResponse(
   request: NextRequest,
   workspaceSubject?: string | null,
   headerMode: 'root-neutral' | 'subject' = 'subject',
-  scopedPath = '/'
+  scopedPath = '/',
+  authUserId: string | null = null
 ) {
   return NextResponse.next({
     request: {
-      headers: buildRequestHeaders(request, workspaceSubject, headerMode, scopedPath),
+      headers: buildRequestHeaders(request, workspaceSubject, headerMode, scopedPath, authUserId),
     },
   })
 }
@@ -114,7 +131,8 @@ function resolveWorkspaceRoutingContext(request: NextRequest) {
 
 const buildRoutingResponse = (
   request: NextRequest,
-  routingContext = resolveWorkspaceRoutingContext(request)
+  routingContext = resolveWorkspaceRoutingContext(request),
+  authUserId: string | null = null
 ) => {
   const url = request.nextUrl.clone()
   const {
@@ -137,7 +155,7 @@ const buildRoutingResponse = (
   if (pathSubject && stripped.scopedPath === '/') {
     const response = NextResponse.next({
       request: {
-        headers: buildRequestHeaders(request, pathSubject, 'subject', '/'),
+        headers: buildRequestHeaders(request, pathSubject, 'subject', '/', authUserId),
       },
     })
     response.cookies.set('preferred_workspace', pathSubject)
@@ -147,7 +165,7 @@ const buildRoutingResponse = (
   if (pathSubject && isSubjectFacingPath(stripped.scopedPath)) {
     const response = NextResponse.next({
       request: {
-        headers: buildRequestHeaders(request, pathSubject, 'subject', stripped.scopedPath),
+        headers: buildRequestHeaders(request, pathSubject, 'subject', stripped.scopedPath, authUserId),
       },
     })
     response.cookies.set('preferred_workspace', pathSubject)
@@ -233,6 +251,7 @@ const buildAuthRedirectResponse = (
 
 export async function updateSession(request: NextRequest) {
   const routingContext = resolveWorkspaceRoutingContext(request)
+  let verifiedUserId: string | null = null
   let response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath)
 
   const supabase = createServerClient(
@@ -248,7 +267,7 @@ export async function updateSession(request: NextRequest) {
             request.cookies.set(name, value)
           )
 
-          response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath)
+          response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath, verifiedUserId)
 
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
@@ -262,6 +281,13 @@ export async function updateSession(request: NextRequest) {
     const {
       data: { user },
     } = await supabase.auth.getUser()
+
+    if (user) {
+      verifiedUserId = user.id
+      const authedResponse = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath, verifiedUserId)
+      copyResponseCookies(response, authedResponse)
+      response = authedResponse
+    }
 
     const pathname = request.nextUrl.pathname
     const isBypassPath = (
@@ -278,7 +304,10 @@ export async function updateSession(request: NextRequest) {
       }
     }
 
-    if (!isBypassPath && user) {
+    // 아래 profiles 조회는 카카오 가입 미완료자 리다이렉트 전용이다.
+    // profiles.provider 는 가입 트리거가 JWT app_metadata 의 provider 에서 복사한 값이므로,
+    // JWT 에 kakao 가 없는 유저는 조회 결과가 항상 non-kakao → 왕복을 건너뛴다.
+    if (!isBypassPath && user && isKakaoCandidateUser(user)) {
       const isKakaoSignupPage = (
         pathname.startsWith('/signup')
         && request.nextUrl.searchParams.get('provider') === 'kakao'
@@ -305,7 +334,7 @@ export async function updateSession(request: NextRequest) {
         }
 
         if (profile.signup_completed) {
-          const routingResponse = buildRoutingResponse(request, routingContext)
+          const routingResponse = buildRoutingResponse(request, routingContext, verifiedUserId)
           if (routingResponse) {
             copyResponseCookies(response, routingResponse)
             return routingResponse
@@ -314,7 +343,7 @@ export async function updateSession(request: NextRequest) {
         }
 
         if (isKakaoSignupPage) {
-          const routingResponse = buildRoutingResponse(request, routingContext)
+          const routingResponse = buildRoutingResponse(request, routingContext, verifiedUserId)
           if (routingResponse) {
             copyResponseCookies(response, routingResponse)
             return routingResponse
@@ -335,6 +364,10 @@ export async function updateSession(request: NextRequest) {
       }
     }
   } catch {
+    // 세션을 깨진 것으로 간주하는 경로이므로 인증 헤더도 함께 비운다.
+    verifiedUserId = null
+    response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath)
+
     const supabaseCookies = request.cookies
       .getAll()
       .filter(({ name }) => name.startsWith('sb-'))
@@ -345,7 +378,7 @@ export async function updateSession(request: NextRequest) {
     })
   }
 
-  const routingResponse = buildRoutingResponse(request, routingContext)
+  const routingResponse = buildRoutingResponse(request, routingContext, verifiedUserId)
   if (routingResponse) {
     copyResponseCookies(response, routingResponse)
     return routingResponse
