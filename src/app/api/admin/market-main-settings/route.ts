@@ -94,6 +94,7 @@ export async function POST(request: Request) {
 
     revalidatePath('/admin/market-main-settings')
     revalidatePath('/preview/solvook-concept')
+    revalidatePath('/')
     return NextResponse.json({ success: true, data: { config } })
   } catch (error) {
     if (error instanceof MarketHomeAdminValidationError) {

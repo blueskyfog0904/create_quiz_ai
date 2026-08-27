@@ -140,17 +140,7 @@ const buildRoutingResponse = (
     pathSubject,
     stripped,
     resolvedSubject,
-    hasExplicitSubjectParam,
   } = routingContext
-
-  if (!pathSubject && pathname === '/' && hasExplicitSubjectParam) {
-    const redirectUrl = url.clone()
-    redirectUrl.pathname = withWorkspacePrefix(resolvedSubject, '/')
-    redirectUrl.searchParams.delete('subject')
-    const response = NextResponse.redirect(redirectUrl)
-    response.cookies.set('preferred_workspace', resolvedSubject)
-    return response
-  }
 
   if (pathSubject && stripped.scopedPath === '/') {
     const response = NextResponse.next({

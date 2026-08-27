@@ -1,33 +1,67 @@
 'use client'
 
+import type { MouseEvent } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { Grid2X2, Search, WalletCards } from 'lucide-react'
 import { StudioContainer } from '@/components/design-system'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
-const previewRoot = '/preview/solvook-concept'
-const authNext = encodeURIComponent(previewRoot)
+const authNext = encodeURIComponent('/')
+const englishHomeHref = '/?subject=english'
+const koreanHomeHref = '/?subject=korean'
 
-export function PreviewHeader() {
+interface PreviewHeaderProps {
+  isLoggedIn?: boolean
+  initialSubject?: WorkspaceSubject
+}
+
+export function PreviewHeader({
+  isLoggedIn = false,
+  initialSubject = 'english',
+}: PreviewHeaderProps) {
+  const pathname = usePathname()
   const searchParams = useSearchParams()
-  const subject = searchParams.get('subject') === 'korean' ? 'korean' : 'english'
+  const paramSubject = searchParams.get('subject')
+  const subject: WorkspaceSubject =
+    paramSubject === 'korean' || paramSubject === 'english'
+      ? paramSubject
+      : initialSubject
   const subjectLabel = subject === 'korean' ? '국어' : '영어'
   const marketHref = `/${subject}/market/entexam`
-  const englishPreviewHref = `${previewRoot}?subject=english`
-  const koreanPreviewHref = `${previewRoot}?subject=korean`
+  const homeHref = `/?subject=${subject}`
+
+  // 루트에서는 서버 재요청 없이 즉시 과목을 전환한다 (pushState는 useSearchParams와 동기화됨).
+  function handleSubjectTabClick(
+    event: MouseEvent<HTMLAnchorElement>,
+    targetSubject: WorkspaceSubject,
+    href: string
+  ) {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+      return
+    }
+
+    document.cookie = `preferred_workspace=${targetSubject}; path=/; max-age=31536000`
+
+    if (pathname === '/') {
+      event.preventDefault()
+      window.history.pushState(null, '', href)
+      window.scrollTo({ top: 0 })
+    }
+  }
 
   return (
     <header className="studio-reference-gutter sticky top-0 z-50 border-b border-[var(--studio-border)] bg-[var(--studio-surface)]">
       <div className="lg:hidden">
         <StudioContainer className="flex h-16 items-center justify-between gap-3">
           <Link
-            href={`${previewRoot}?subject=${subject}`}
-            aria-label="써머썬 스튜디오 프리뷰 홈"
+            href={homeHref}
+            aria-label="써머썬 스튜디오 홈"
             className="flex min-h-11 min-w-11 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] focus-visible:ring-offset-2"
           >
             <Image
-              src="/preview/solvook-concept/brand-mark.svg"
+              src="/brand-mark.svg"
               alt=""
               aria-hidden="true"
               width={34}
@@ -54,14 +88,16 @@ export function PreviewHeader() {
             <span>카테고리</span>
           </span>
           <Link
-            href={englishPreviewHref}
+            href={englishHomeHref}
+            onClick={(event) => handleSubjectTabClick(event, 'english', englishHomeHref)}
             aria-current={subject === 'english' ? 'page' : undefined}
             className={`inline-flex min-h-11 shrink-0 items-center px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${subject === 'english' ? 'border-b-2 border-[var(--studio-ink)] text-[var(--studio-ink)]' : 'text-[var(--studio-muted)] hover:text-[var(--studio-ink)]'}`}
           >
             <span>영어</span>
           </Link>
           <Link
-            href={koreanPreviewHref}
+            href={koreanHomeHref}
+            onClick={(event) => handleSubjectTabClick(event, 'korean', koreanHomeHref)}
             aria-current={subject === 'korean' ? 'page' : undefined}
             className={`inline-flex min-h-11 shrink-0 items-center px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${subject === 'korean' ? 'border-b-2 border-[var(--studio-ink)] text-[var(--studio-ink)]' : 'text-[var(--studio-muted)] hover:text-[var(--studio-ink)]'}`}
           >
@@ -78,15 +114,15 @@ export function PreviewHeader() {
       </div>
 
       <div className="hidden lg:block">
-        <nav aria-label="프리뷰 상단 메뉴" className="border-b border-[var(--studio-border)]">
+        <nav aria-label="상단 메뉴" className="border-b border-[var(--studio-border)]">
           <StudioContainer className="flex h-[72px] items-center gap-5">
             <Link
-              href={`${previewRoot}?subject=${subject}`}
-              aria-label="써머썬 스튜디오 프리뷰 홈"
+              href={homeHref}
+              aria-label="써머썬 스튜디오 홈"
               className="flex min-h-11 min-w-11 shrink-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] focus-visible:ring-offset-2"
             >
               <Image
-                src="/preview/solvook-concept/brand-mark.svg"
+                src="/brand-mark.svg"
                 alt=""
                 aria-hidden="true"
                 width={38}
@@ -125,18 +161,29 @@ export function PreviewHeader() {
               </button>
             </form>
 
-            <Link
-              href={`/login?next=${authNext}`}
-              className="inline-flex min-h-11 min-w-16 shrink-0 items-center justify-center rounded-md border border-[var(--studio-border)] px-4 text-sm font-bold text-[var(--studio-text)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-            >
-              로그인
-            </Link>
-            <Link
-              href={`/signup?next=${authNext}`}
-              className="inline-flex min-h-11 min-w-20 shrink-0 items-center justify-center rounded-md bg-[var(--studio-primary-soft)] px-4 text-sm font-bold text-[var(--studio-primary)] outline-none hover:bg-[var(--studio-primary-border)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-            >
-              회원가입
-            </Link>
+            {isLoggedIn ? (
+              <Link
+                href="/mypage"
+                className="inline-flex min-h-11 min-w-20 shrink-0 items-center justify-center rounded-md bg-[var(--studio-primary-soft)] px-4 text-sm font-bold text-[var(--studio-primary)] outline-none hover:bg-[var(--studio-primary-border)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+              >
+                마이페이지
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href={`/login?next=${authNext}`}
+                  className="inline-flex min-h-11 min-w-16 shrink-0 items-center justify-center rounded-md border border-[var(--studio-border)] px-4 text-sm font-bold text-[var(--studio-text)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                >
+                  로그인
+                </Link>
+                <Link
+                  href={`/signup?next=${authNext}`}
+                  className="inline-flex min-h-11 min-w-20 shrink-0 items-center justify-center rounded-md bg-[var(--studio-primary-soft)] px-4 text-sm font-bold text-[var(--studio-primary)] outline-none hover:bg-[var(--studio-primary-border)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                >
+                  회원가입
+                </Link>
+              </>
+            )}
           </StudioContainer>
         </nav>
 
@@ -150,14 +197,16 @@ export function PreviewHeader() {
               <span>카테고리</span>
             </span>
             <Link
-              href={englishPreviewHref}
+              href={englishHomeHref}
+              onClick={(event) => handleSubjectTabClick(event, 'english', englishHomeHref)}
               aria-current={subject === 'english' ? 'page' : undefined}
               className={`inline-flex min-h-11 min-w-11 items-center px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${subject === 'english' ? 'border-b-2 border-[var(--studio-ink)] text-[var(--studio-ink)]' : 'text-[var(--studio-muted)] hover:text-[var(--studio-ink)]'}`}
             >
               <span>영어</span>
             </Link>
             <Link
-              href={koreanPreviewHref}
+              href={koreanHomeHref}
+              onClick={(event) => handleSubjectTabClick(event, 'korean', koreanHomeHref)}
               aria-current={subject === 'korean' ? 'page' : undefined}
               className={`inline-flex min-h-11 min-w-11 items-center px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${subject === 'korean' ? 'border-b-2 border-[var(--studio-ink)] text-[var(--studio-ink)]' : 'text-[var(--studio-muted)] hover:text-[var(--studio-ink)]'}`}
             >

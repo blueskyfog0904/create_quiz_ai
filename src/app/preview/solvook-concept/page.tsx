@@ -1,9 +1,7 @@
 import type { Metadata } from 'next'
-import { unstable_cache } from 'next/cache'
 import { connection } from 'next/server'
 import { StudioLandingPageFrame } from '@/components/page-templates'
-import { getPublicMainAdCarouselItems } from '@/lib/main-ad-carousel-server'
-import { getMarketHomeData } from '@/lib/market-home-server'
+import { getCachedMainAdItems, getCachedMarketHomeData } from '@/lib/preview-home-cache'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import {
   HomeFinalCta,
@@ -21,10 +19,6 @@ export const metadata: Metadata = {
 function resolveSubject(value?: string): WorkspaceSubject {
   return value === 'korean' ? 'korean' : 'english'
 }
-
-// 공개 프리뷰 전용 60초 데이터 캐시. 어드민 화면은 원본 함수를 직접 호출하므로 영향 없음.
-const getCachedMarketHomeData = unstable_cache(getMarketHomeData, ['preview-market-home'], { revalidate: 60 })
-const getCachedMainAdItems = unstable_cache(getPublicMainAdCarouselItems, ['preview-main-ad'], { revalidate: 60 })
 
 export default async function SolvookConceptPreviewPage({
   searchParams,

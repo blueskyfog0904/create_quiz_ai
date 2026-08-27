@@ -24,6 +24,7 @@ export interface LandingPagesAdminData {
 
 function revalidateLandingPaths() {
   revalidatePath('/')
+  revalidatePath('/legacy')
   revalidatePath('/english')
   revalidatePath('/korean')
   revalidatePath('/admin/landing-pages')

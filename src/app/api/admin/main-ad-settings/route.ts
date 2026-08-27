@@ -261,6 +261,7 @@ export async function POST(request: Request) {
     }
 
     revalidatePath('/preview/solvook-concept')
+    revalidatePath('/')
     revalidatePath('/admin/main-ad-settings')
 
     const data: MainAdSaveResponse = {

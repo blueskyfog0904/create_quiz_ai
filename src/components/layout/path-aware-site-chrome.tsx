@@ -25,7 +25,8 @@ export function PathAwareSiteChrome({
 }: PathAwareSiteChromeProps) {
   const pathname = usePathname() ?? '/'
 
-  if (isSolvookConceptPreviewPath(pathname)) {
+  // 루트(/)는 솔북 컨셉 홈이 자체 헤더/푸터를 렌더하므로 전역 크롬을 생략한다.
+  if (pathname === '/' || isSolvookConceptPreviewPath(pathname)) {
     return children
   }
 

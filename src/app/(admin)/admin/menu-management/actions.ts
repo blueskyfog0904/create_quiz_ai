@@ -129,6 +129,7 @@ function revalidateMenuRelatedPaths(workspaceSubject: WorkspaceSubject) {
   revalidatePath(`/admin/menu-management?subject=${workspaceSubject}`)
   revalidatePath('/preview/solvook-concept')
   revalidatePath('/preview/solvook-concept/boards/[slug]', 'page')
+  revalidatePath('/')
 }
 
 export async function getMenuManagementData(workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT): Promise<MenuManagementPageData> {
