@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
-import { cookies } from 'next/headers'
 import { connection } from 'next/server'
 import { getCachedMainAdItems, getCachedMarketHomeData } from '@/lib/preview-home-cache'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
@@ -21,11 +20,8 @@ export default async function SolvookHomePage({
   searchParams: Promise<{ subject?: string }>
 }) {
   await connection()
-  const [params, cookieStore] = await Promise.all([searchParams, cookies()])
-  const initialSubject =
-    resolveSubject(params.subject)
-    ?? resolveSubject(cookieStore.get('preferred_workspace')?.value)
-    ?? 'english'
+  const params = await searchParams
+  const initialSubject = resolveSubject(params.subject) ?? 'english'
 
   // 과목 탭 즉시 전환을 위해 양쪽 과목 데이터를 함께 로드한다 (60초 공유 캐시라 비용 미미).
   const [englishHome, koreanHome, englishAds, koreanAds] = await Promise.all([

@@ -61,7 +61,7 @@ export function BoardCategorySidebar({
           isCurrent: entry.slug === categorySlug,
         }))
       )}
-      className="mb-3 p-5 min-[1720px]:absolute min-[1720px]:left-6 min-[1720px]:top-0 min-[1720px]:-ml-3 min-[1720px]:w-56 min-[1720px]:-translate-x-full"
+      className="mb-3 p-5 min-[1720px]:fixed min-[1720px]:left-[calc((100vw-var(--studio-content-width,75rem))/2-13.25rem)] min-[1720px]:top-[137px] min-[1720px]:z-30 min-[1720px]:mb-0 min-[1720px]:w-56"
     />
   )
 }

@@ -64,8 +64,8 @@ export function ProblemMarketMenu({
                     aria-current={entry.isCurrent ? 'page' : undefined}
                     className={`flex min-h-11 items-center rounded-[var(--studio-radius-control)] px-3 py-2 text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${
                       entry.isCurrent
-                        ? 'text-[var(--studio-primary)]'
-                        : 'text-[var(--studio-muted)] hover:bg-[var(--studio-primary-soft)] hover:text-[var(--studio-primary)]'
+                        ? 'bg-black/5 text-[var(--studio-ink)]'
+                        : 'text-[var(--studio-muted)] hover:bg-black/5 hover:text-[var(--studio-ink)]'
                     }`}
                   >
                     <span className="min-w-0 break-keep">{entry.title}</span>
