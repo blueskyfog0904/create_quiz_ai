@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Download, Eye, FileArchive, FileCheck2, FileStack, FileText, ShoppingCart } from 'lucide-react'
+import { FileTypeDocIcon } from '@/components/market/file-type-doc-icon'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -56,7 +57,8 @@ const MARKET_BADGE_FREE_CLASS = 'rounded-full border border-[#E0E7FF] bg-[#F8FAF
 const MARKET_BADGE_AVAILABLE_CLASS = 'rounded-full border border-[#E4E7EB] bg-[#F4F6F9] px-3 py-1 text-xs font-medium text-[#475569] hover:bg-[#F4F6F9]'
 const MARKET_BADGE_OWNED_CLASS = 'rounded-full border border-[#D1FAE5] bg-[#ECFDF5] px-3 py-1 text-xs font-medium text-[#065F46] hover:bg-[#ECFDF5]'
 const MARKET_BADGE_INCLUDED_CLASS = 'rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50'
-const MARKET_DOWNLOAD_BUTTON_CLASS = 'h-9 min-w-36 w-full justify-center gap-2 rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 text-sm font-medium text-emerald-700 hover:bg-emerald-100 active:bg-emerald-200 focus-visible:ring-emerald-200 sm:w-auto'
+// 자료 보관함 다운로드 버튼과 동일한 디자인 (흰 배경·회색 테두리·파일타입 색상 아이콘)
+const MARKET_DOWNLOAD_BUTTON_CLASS = 'h-9 min-w-36 w-full justify-center gap-1.5 rounded-md border border-[var(--studio-control-border,#7f8499)] bg-white px-3 text-sm font-medium text-[var(--studio-ink,#1c1f2e)] hover:bg-white hover:border-[var(--studio-primary-border,#c9befa)] hover:text-[var(--studio-primary,#6950e5)] active:bg-slate-50 focus-visible:ring-[var(--studio-focus-ring,#8b76ec)] sm:w-auto'
 const DEFAULT_HWP_PDF_NOTICE = {
   label: 'PDF 포함',
   text: '편집 가능한 HWP와 문제(PDF)를 함께 제공합니다. PDF는 따로 구매하지 않아도 됩니다.',
@@ -577,7 +579,7 @@ export default function MarketItemActions({
             return (
               <Button key={file.id} asChild className={MARKET_DOWNLOAD_BUTTON_CLASS}>
                 <a href={buildV2DownloadUrl(itemId, file.id)} aria-label={downloadLabel}>
-                  <Download className="h-4 w-4" />
+                  <FileTypeDocIcon code={file.fileTypeCode} />
                   {downloadLabel}
                 </a>
               </Button>
@@ -782,7 +784,7 @@ export default function MarketItemActions({
           state={getPaidOptionState('pdf', ownsPdf, hasPdf)}
           icon={ownsPdf ? <MarketOptionIcon kind="default" /> : <MarketOptionIcon kind="pdf" />}
           actionLabel={ownsPdf ? 'PDF 다운로드' : 'PDF 구매하기'}
-          actionIcon={ownsPdf ? <Download className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
+          actionIcon={ownsPdf ? <FileTypeDocIcon code="pdf" /> : <ShoppingCart className="h-4 w-4" />}
           href={ownsPdf ? buildDownloadUrl(itemId, 'pdf') : undefined}
           disabled={!hasPdf || isPending || isCheckingBalance}
           buttonClassName={ownsPdf ? MARKET_DOWNLOAD_BUTTON_CLASS : undefined}
@@ -798,7 +800,7 @@ export default function MarketItemActions({
           state={getPaidOptionState('hwp', ownsHwp, hasHwp)}
           icon={ownsHwp ? <MarketOptionIcon kind="default" /> : <MarketOptionIcon kind="hwp" />}
           actionLabel={ownsHwp ? 'HWP 다운로드' : 'HWP & PDF 구매하기'}
-          actionIcon={ownsHwp ? <Download className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
+          actionIcon={ownsHwp ? <FileTypeDocIcon code="hwp" /> : <ShoppingCart className="h-4 w-4" />}
           href={ownsHwp ? buildDownloadUrl(itemId, 'hwp') : undefined}
           disabled={!hasHwp || isPending || isCheckingBalance}
           buttonClassName={ownsHwp ? MARKET_DOWNLOAD_BUTTON_CLASS : undefined}
@@ -813,7 +815,7 @@ export default function MarketItemActions({
           state={getPaidOptionState('zip', ownsZip, hasZip)}
           icon={ownsZip ? <MarketOptionIcon kind="default" /> : <MarketOptionIcon kind="zip" />}
           actionLabel={ownsZip ? 'ZIP 다운로드' : 'ZIP 구매하기'}
-          actionIcon={ownsZip ? <Download className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
+          actionIcon={ownsZip ? <FileTypeDocIcon code="zip" /> : <ShoppingCart className="h-4 w-4" />}
           href={ownsZip ? buildDownloadUrl(itemId, 'zip') : undefined}
           disabled={!hasZip || isPending || isCheckingBalance}
           buttonClassName={ownsZip ? MARKET_DOWNLOAD_BUTTON_CLASS : undefined}
