@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { listActiveMarketItemSamplePagesForItems } from '@/lib/market-sample-pages-server'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
 
@@ -20,6 +21,7 @@ export interface MarketSearchRow {
   itemId: string
   title: string
   summary: string | null
+  thumbnailUrl: string | null
   categorySlug: string
   categoryTitle: string
   examYear: number | null
@@ -28,6 +30,7 @@ export interface MarketSearchRow {
   viewCount: number
   minPriceCredits: number | null
   typeNames: string[]
+  sampleAvailable: boolean
 }
 
 export interface MarketSearchFacetOption {
@@ -66,7 +69,7 @@ export async function searchMarketItemsForSubject(
   const [itemsResult, menuResult, subproductsResult, typeCategoriesResult] = await Promise.all([
     supabase
       .from('market_items')
-      .select('id, title, summary, menu_entry_id, exam_year, grade_level, question_count, view_count, published_at, created_at')
+      .select('id, title, summary, thumbnail_url, menu_entry_id, exam_year, grade_level, question_count, view_count, published_at, created_at')
       .eq('workspace_subject', workspaceSubject)
       .eq('status', 'published')
       .eq('is_active', true)
@@ -126,6 +129,7 @@ export async function searchMarketItemsForSubject(
         itemId: item.id,
         title: item.title,
         summary: item.summary,
+        thumbnailUrl: item.thumbnail_url,
         categorySlug: menu.slug,
         categoryTitle: menu.title,
         examYear: item.exam_year,
@@ -189,9 +193,17 @@ export async function searchMarketItemsForSubject(
   const totalCount = filtered.length
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
   const page = Math.min(Math.max(Math.trunc(filters.page ?? 1) || 1, 1), totalPages)
-  const rows = filtered
-    .slice((page - 1) * pageSize, page * pageSize)
-    .map(({ publishedAt: _publishedAt, typeSlugs: _typeSlugs, ...row }) => row)
+  const pagedRows = filtered.slice((page - 1) * pageSize, page * pageSize)
+
+  // 샘플 미리보기 가용 여부는 현재 페이지 행에 대해서만 조회
+  const samplePageMap = await listActiveMarketItemSamplePagesForItems(
+    pagedRows.map((row) => row.itemId),
+    workspaceSubject
+  )
+  const rows = pagedRows.map(({ publishedAt: _publishedAt, typeSlugs: _typeSlugs, ...row }) => ({
+    ...row,
+    sampleAvailable: (samplePageMap.get(row.itemId)?.length ?? 0) > 0,
+  }))
 
   return {
     rows,
