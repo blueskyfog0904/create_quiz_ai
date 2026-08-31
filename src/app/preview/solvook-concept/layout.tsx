@@ -1,13 +1,16 @@
 import { Suspense, type ReactNode } from 'react'
+import { SolvookFooter } from '@/app/(solvook)/_components/solvook-footer'
 import { StudioThemeShell } from '@/components/layout/studio-theme-shell'
-import { PreviewFooter } from './_components/preview-footer'
+import { getSolvookFooterData } from '@/lib/solvook-footer-data'
 import { PreviewHeader } from './_components/preview-header'
 
-export default function SolvookConceptPreviewLayout({
+export default async function SolvookConceptPreviewLayout({
   children,
 }: {
   children: ReactNode
 }) {
+  const footer = await getSolvookFooterData()
+
   return (
     <>
       <link
@@ -22,9 +25,13 @@ export default function SolvookConceptPreviewLayout({
         <main className="flex-1">
           {children}
         </main>
-        <Suspense fallback={null}>
-          <PreviewFooter />
-        </Suspense>
+        <SolvookFooter
+          cs={footer.cs}
+          rows={footer.rows}
+          policyLinks={footer.policyLinks}
+          brandName={footer.brandName}
+          notices={footer.notices}
+        />
       </StudioThemeShell>
     </>
   )

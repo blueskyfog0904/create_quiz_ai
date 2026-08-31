@@ -6,7 +6,7 @@ import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { SolvookHomeView } from './_components/solvook-home-view'
 
 export const metadata: Metadata = {
-  title: '써머썬 스튜디오 | 문제마켓',
+  title: '써머썬 연구소 | 문제마켓',
   description: '영어와 국어 수업 자료를 과목별로 탐색하는 선생님용 문제마켓',
 }
 

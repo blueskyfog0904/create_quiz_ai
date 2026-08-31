@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import {
-  ArrowLeft,
   CalendarDays,
   FileText,
   PackageCheck,
@@ -336,14 +335,6 @@ export function MarketMaterialDetail({
               zipPrice={item.zip_price}
             />
           </section>
-
-          <Link
-            href={boardHref}
-            className="inline-flex min-h-11 items-center gap-2 rounded-[var(--studio-radius-control)] border border-[var(--studio-control-border)] px-4 text-sm font-bold text-[var(--studio-text)] outline-none transition-colors hover:border-[var(--studio-primary)] hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] focus-visible:ring-offset-2"
-          >
-            <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-            {category.title}로 돌아가기
-          </Link>
         </div>
       )}
     />

@@ -19,7 +19,7 @@ import {
 } from '../../_components/board/real-market-board'
 
 export const metadata: Metadata = {
-  title: '문제마켓 게시판 프리뷰 | 써머썬 스튜디오',
+  title: '문제마켓 게시판 프리뷰 | 써머썬 연구소',
   description: '영어와 국어 실제 문제마켓 자료를 탐색하는 게시판 프리뷰',
 }
 

@@ -6,7 +6,7 @@ import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { SearchView } from './_components/search-view'
 
 export const metadata: Metadata = {
-  title: '자료 검색 | 써머썬 스튜디오',
+  title: '자료 검색 | 써머썬 연구소',
   description: '과목 전체 문제마켓 자료를 검색하고 상세 필터로 좁혀보는 검색 결과',
 }
 

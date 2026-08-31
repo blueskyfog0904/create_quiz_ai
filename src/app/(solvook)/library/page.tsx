@@ -8,7 +8,7 @@ import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { LibraryView } from './_components/library-view'
 
 export const metadata: Metadata = {
-  title: '자료 보관함 | 써머썬 스튜디오',
+  title: '자료 보관함 | 써머썬 연구소',
   description: '구매한 수업 자료를 확인하고 다운로드하는 자료 보관함',
 }
 

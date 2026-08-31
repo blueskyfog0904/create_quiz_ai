@@ -28,7 +28,7 @@ export function SolvookFooter({
   cs,
   rows = [],
   policyLinks = [],
-  brandName = '써머썬 스튜디오',
+  brandName = '써머썬 연구소',
   notices = [],
 }: SolvookFooterProps) {
   const currentYear = new Date().getFullYear()
