@@ -1,0 +1,209 @@
+import 'server-only'
+
+import { createAdminClient } from '@/lib/supabase/bypass'
+import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
+
+export type MarketSearchSort = 'views' | 'latest' | 'price_asc'
+
+export interface MarketSearchFilters {
+  q?: string
+  categorySlugs?: string[]
+  typeSlugs?: string[]
+  years?: string[]
+  grades?: string[]
+  sort?: MarketSearchSort
+  page?: number
+  pageSize?: number
+}
+
+export interface MarketSearchRow {
+  itemId: string
+  title: string
+  summary: string | null
+  categorySlug: string
+  categoryTitle: string
+  examYear: number | null
+  gradeLevel: string | null
+  questionCount: number | null
+  viewCount: number
+  minPriceCredits: number | null
+  typeNames: string[]
+}
+
+export interface MarketSearchFacetOption {
+  value: string
+  label: string
+  count: number
+}
+
+export interface MarketSearchResult {
+  rows: MarketSearchRow[]
+  totalCount: number
+  page: number
+  pageSize: number
+  totalPages: number
+  facets: {
+    categories: MarketSearchFacetOption[]
+    types: MarketSearchFacetOption[]
+    years: MarketSearchFacetOption[]
+    grades: MarketSearchFacetOption[]
+  }
+}
+
+const DEFAULT_PAGE_SIZE = 20
+
+// 과목 전체 공개 자료를 검색어 + 상세 필터로 조회한다.
+// 카탈로그 규모가 작아(수백 건) 과목 전체를 1회 로드 후 서버 메모리에서
+// 필터·패싯 집계·정렬·페이지네이션을 수행한다.
+// 주의: Supabase 기본 응답 상한(1000행) 안에서만 완전하다 — 카탈로그가
+// 그 규모에 근접하면 range 페이징으로 전환할 것.
+export async function searchMarketItemsForSubject(
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT,
+  filters: MarketSearchFilters = {}
+): Promise<MarketSearchResult> {
+  const supabase = createAdminClient()
+
+  const [itemsResult, menuResult, subproductsResult, typeCategoriesResult] = await Promise.all([
+    supabase
+      .from('market_items')
+      .select('id, title, summary, menu_entry_id, exam_year, grade_level, question_count, view_count, published_at, created_at')
+      .eq('workspace_subject', workspaceSubject)
+      .eq('status', 'published')
+      .eq('is_active', true)
+      .is('deleted_at', null),
+    supabase
+      .from('market_menu_entries')
+      .select('id, slug, title')
+      .eq('workspace_subject', workspaceSubject)
+      .eq('is_visible', true)
+      .eq('is_active', true)
+      .is('deleted_at', null),
+    supabase
+      .from('market_item_subproducts')
+      .select('item_id, category_id, price_credits')
+      .eq('workspace_subject', workspaceSubject)
+      .eq('is_active', true)
+      .is('deleted_at', null),
+    supabase
+      .from('market_subproduct_categories')
+      .select('id, slug, name')
+      .eq('workspace_subject', workspaceSubject),
+  ])
+
+  for (const result of [itemsResult, menuResult, subproductsResult, typeCategoriesResult]) {
+    if (result.error) {
+      throw new Error(result.error.message)
+    }
+  }
+
+  const menuMap = new Map((menuResult.data ?? []).map((entry) => [entry.id, entry]))
+  const typeCategoryMap = new Map((typeCategoriesResult.data ?? []).map((category) => [category.id, category]))
+
+  const minPriceByItem = new Map<string, number>()
+  const typeSlugsByItem = new Map<string, Set<string>>()
+  for (const subproduct of subproductsResult.data ?? []) {
+    const current = minPriceByItem.get(subproduct.item_id)
+    if (current === undefined || subproduct.price_credits < current) {
+      minPriceByItem.set(subproduct.item_id, subproduct.price_credits)
+    }
+    const category = typeCategoryMap.get(subproduct.category_id)
+    if (category) {
+      const slugs = typeSlugsByItem.get(subproduct.item_id) ?? new Set<string>()
+      slugs.add(category.slug)
+      typeSlugsByItem.set(subproduct.item_id, slugs)
+    }
+  }
+
+  const typeNameBySlug = new Map((typeCategoriesResult.data ?? []).map((category) => [category.slug, category.name]))
+  const keyword = (filters.q ?? '').trim().toLowerCase().normalize('NFC')
+  const matched = (itemsResult.data ?? [])
+    // 노출 메뉴에 속한 아이템만 검색 대상 (숨김/비활성 메뉴의 카탈로그 유출 방지)
+    .filter((item) => menuMap.has(item.menu_entry_id))
+    .map((item) => {
+      const menu = menuMap.get(item.menu_entry_id)!
+      const itemTypeSlugs = Array.from(typeSlugsByItem.get(item.id) ?? [])
+      return {
+        itemId: item.id,
+        title: item.title,
+        summary: item.summary,
+        categorySlug: menu.slug,
+        categoryTitle: menu.title,
+        examYear: item.exam_year,
+        gradeLevel: item.grade_level,
+        questionCount: item.question_count,
+        viewCount: item.view_count,
+        publishedAt: item.published_at ?? item.created_at,
+        minPriceCredits: minPriceByItem.get(item.id) ?? null,
+        typeSlugs: itemTypeSlugs,
+        typeNames: itemTypeSlugs.map((slug) => typeNameBySlug.get(slug) ?? slug),
+      }
+    })
+    .filter((row) => {
+      if (!keyword) return true
+      return `${row.title} ${row.summary ?? ''} ${row.categoryTitle}`.toLowerCase().normalize('NFC').includes(keyword)
+    })
+
+  // 패싯 옵션은 검색어 적용 결과 전체 기준으로 집계 (선택 필터와 무관하게 안정적인 개수 표시)
+  const countBy = <T>(values: (row: typeof matched[number]) => T[]) => {
+    const counts = new Map<T, number>()
+    for (const row of matched) {
+      for (const value of new Set(values(row))) {
+        counts.set(value, (counts.get(value) ?? 0) + 1)
+      }
+    }
+    return counts
+  }
+  const categoryCounts = countBy((row) => (row.categorySlug ? [row.categorySlug] : []))
+  const typeCounts = countBy((row) => row.typeSlugs)
+  const yearCounts = countBy((row) => (row.examYear ? [String(row.examYear)] : []))
+  const gradeCounts = countBy((row) => (row.gradeLevel ? [row.gradeLevel] : []))
+
+  const menuTitleBySlug = new Map((menuResult.data ?? []).map((entry) => [entry.slug, entry.title]))
+  const toOptions = (counts: Map<string, number>, labelOf: (value: string) => string) =>
+    Array.from(counts.entries())
+      .map(([value, count]) => ({ value, label: labelOf(value), count }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'ko'))
+
+  const hasAny = (selected: string[] | undefined, values: string[]) =>
+    !selected?.length || selected.some((value) => values.includes(value))
+
+  const filtered = matched.filter((row) =>
+    hasAny(filters.categorySlugs, row.categorySlug ? [row.categorySlug] : [])
+    && hasAny(filters.typeSlugs, row.typeSlugs)
+    && hasAny(filters.years, row.examYear ? [String(row.examYear)] : [])
+    && hasAny(filters.grades, row.gradeLevel ? [row.gradeLevel] : [])
+  )
+
+  const sort: MarketSearchSort = filters.sort ?? 'views'
+  filtered.sort((a, b) => {
+    if (sort === 'latest') {
+      return (b.publishedAt ?? '').localeCompare(a.publishedAt ?? '')
+    }
+    if (sort === 'price_asc') {
+      return (a.minPriceCredits ?? Number.MAX_SAFE_INTEGER) - (b.minPriceCredits ?? Number.MAX_SAFE_INTEGER)
+    }
+    return b.viewCount - a.viewCount || (b.publishedAt ?? '').localeCompare(a.publishedAt ?? '')
+  })
+
+  const pageSize = filters.pageSize && filters.pageSize > 0 ? filters.pageSize : DEFAULT_PAGE_SIZE
+  const totalCount = filtered.length
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
+  const page = Math.min(Math.max(Math.trunc(filters.page ?? 1) || 1, 1), totalPages)
+  const rows = filtered
+    .slice((page - 1) * pageSize, page * pageSize)
+    .map(({ publishedAt: _publishedAt, typeSlugs: _typeSlugs, ...row }) => row)
+
+  return {
+    rows,
+    totalCount,
+    page,
+    pageSize,
+    totalPages,
+    facets: {
+      categories: toOptions(categoryCounts, (value) => menuTitleBySlug.get(value) ?? value),
+      types: toOptions(typeCounts, (value) => typeNameBySlug.get(value) ?? value),
+      years: toOptions(yearCounts, (value) => value),
+      grades: toOptions(gradeCounts, (value) => value),
+    },
+  }
+}

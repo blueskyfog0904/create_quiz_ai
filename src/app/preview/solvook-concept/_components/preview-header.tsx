@@ -29,7 +29,6 @@ export function PreviewHeader({
       ? paramSubject
       : initialSubject
   const subjectLabel = subject === 'korean' ? '국어' : '영어'
-  const marketHref = `/${subject}/market/entexam`
   const homeHref = `/?subject=${subject}`
   const libraryHref = subject === 'korean' ? '/library?subject=korean' : '/library'
 
@@ -39,7 +38,7 @@ export function PreviewHeader({
   const searchSubjectMenuRef = useRef<HTMLDivElement | null>(null)
   const searchSubject: WorkspaceSubject = searchSubjectOverride ?? subject
   const searchSubjectLabel = searchSubject === 'korean' ? '국어' : '영어'
-  const searchActionHref = `/${searchSubject}/market/entexam`
+  const searchQuery = searchParams.get('q') ?? ''
 
   useEffect(() => {
     // 헤더 탭 등으로 페이지 과목이 바뀌면 검색 범위도 따라간다.
@@ -108,8 +107,8 @@ export function PreviewHeader({
             </span>
           </Link>
           <Link
-            href={marketHref}
-            aria-label={`${subjectLabel} 문제마켓에서 검색`}
+            href={`/search?subject=${subject}`}
+            aria-label={`${subjectLabel} 자료 검색`}
             className="grid min-h-11 min-w-11 place-items-center rounded-md text-[var(--studio-text)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
           >
             <Search aria-hidden="true" className="h-5 w-5" />
@@ -178,13 +177,14 @@ export function PreviewHeader({
             </Link>
 
             <form
-              action={searchActionHref}
+              action="/search"
               method="get"
               className="relative ml-auto w-[320px]"
             >
               <label htmlFor="preview-global-search" className="sr-only">
                 {searchSubjectLabel} 문제마켓 검색
               </label>
+              <input type="hidden" name="subject" value={searchSubject} />
               <div ref={searchSubjectMenuRef} className="absolute left-1.5 top-1/2 -translate-y-1/2">
                 <button
                   type="button"
@@ -232,9 +232,11 @@ export function PreviewHeader({
                 )}
               </div>
               <input
+                key={searchQuery}
                 id="preview-global-search"
-                name="title"
+                name="q"
                 type="search"
+                defaultValue={searchQuery}
                 placeholder="찾고 싶은 자료를 검색해 보세요"
                 className="h-11 w-full rounded-full border-0 bg-[var(--studio-background)] pl-[74px] pr-12 text-[15px] text-[var(--studio-ink)] outline-none placeholder:text-[var(--studio-muted)] focus:ring-2 focus:ring-[var(--studio-focus-ring)]"
               />
