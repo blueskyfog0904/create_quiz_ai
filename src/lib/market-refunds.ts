@@ -5,7 +5,7 @@ import type { Json, Tables, TablesInsert } from '@/types/supabase'
 
 type MarketRefundRequest = Tables<'market_refund_requests'>
 type MarketRefundTargetKind = 'legacy_purchase' | 'v2_order'
-type MarketRefundRequestStatus = 'pending' | 'approved' | 'rejected' | 'canceled' | 'failed'
+export type MarketRefundRequestStatus = 'pending' | 'approved' | 'rejected' | 'canceled' | 'failed'
 
 interface CreditConsumptionSnapshot {
   sourceId: string
@@ -41,8 +41,28 @@ export interface MarketRefundProcessInput {
   adminNote?: string | null
 }
 
+// loadRefundTarget과 동일한 형태. 호출자가 이미 로드한 구매/주문 행으로 왕복을 생략할 때 사용한다.
+export interface MarketRefundTargetSnapshot {
+  targetKind: MarketRefundTargetKind
+  targetId: string
+  userId: string
+  itemId: string
+  workspaceSubject: WorkspaceSubject
+  purchasedAt: string
+  status: string
+  refundCredits: number
+  creditConsumptions: CreditConsumptionSnapshot[]
+}
+
 interface MarketRefundEligibilityOptions {
   ignoreRequestStatus?: boolean
+  // 배치 조회한 값으로 개별 왕복(loadRefundTarget/countDownloads/getLatestRequestStatus)을 생략한다.
+  // latestRequestStatus는 null이 "요청 없음 확인됨"을 의미한다 (키 부재 시 개별 조회).
+  preloaded?: {
+    target?: MarketRefundTargetSnapshot
+    downloadCount?: number
+    latestRequestStatus?: MarketRefundRequestStatus | null
+  }
 }
 
 function addDays(date: Date, days: number) {
@@ -274,15 +294,51 @@ async function isUpgradeBaseOrder(
   return (hwpOrders ?? []).some((order) => order.original_price_credits > order.charged_credits)
 }
 
+// 배치 조회용 스냅샷 빌더 — loadRefundTarget의 필드 매핑과 반드시 일치해야 한다.
+export function buildRefundTargetSnapshotFromPurchase(
+  purchase: Tables<'market_purchases'>
+): MarketRefundTargetSnapshot {
+  return {
+    targetKind: 'legacy_purchase',
+    targetId: purchase.id,
+    userId: purchase.user_id,
+    itemId: purchase.item_id,
+    workspaceSubject: normalizeWorkspaceSubject((purchase as { workspace_subject?: string | null }).workspace_subject),
+    purchasedAt: purchase.purchased_at,
+    status: purchase.status,
+    refundCredits: purchase.price_credits,
+    creditConsumptions: parseCreditConsumptions(purchase.credit_consumptions),
+  }
+}
+
+export function buildRefundTargetSnapshotFromOrder(
+  order: Tables<'market_purchase_orders'>
+): MarketRefundTargetSnapshot {
+  return {
+    targetKind: 'v2_order',
+    targetId: order.id,
+    userId: order.user_id,
+    itemId: order.item_id,
+    workspaceSubject: normalizeWorkspaceSubject(order.workspace_subject),
+    purchasedAt: order.created_at,
+    status: order.status,
+    refundCredits: order.charged_credits,
+    creditConsumptions: parseCreditConsumptions(order.credit_consumptions),
+  }
+}
+
 export async function getMarketRefundEligibility(
   input: MarketRefundRequestInput,
   options: MarketRefundEligibilityOptions = {}
 ): Promise<MarketRefundEligibility> {
-  const target = await loadRefundTarget(input)
-  const downloadCount = await countDownloads(input.targetKind, input.targetId)
+  const target = options.preloaded?.target ?? await loadRefundTarget(input)
+  const downloadCount = options.preloaded?.downloadCount
+    ?? await countDownloads(input.targetKind, input.targetId)
   const requestStatus = options.ignoreRequestStatus
     ? undefined
-    : await getLatestRequestStatus(input.targetKind, input.targetId)
+    : options.preloaded && 'latestRequestStatus' in options.preloaded
+      ? options.preloaded.latestRequestStatus ?? undefined
+      : await getLatestRequestStatus(input.targetKind, input.targetId)
   const purchasedAt = new Date(target.purchasedAt)
   const refundDeadline = addDays(purchasedAt, 7)
   const isWithinRefundPeriod = new Date() <= refundDeadline

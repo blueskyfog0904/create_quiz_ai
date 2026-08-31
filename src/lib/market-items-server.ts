@@ -1,6 +1,11 @@
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { listActiveMarketItemSamplePagesForItems } from '@/lib/market-sample-pages-server'
-import { getMarketRefundEligibility } from '@/lib/market-refunds'
+import {
+  buildRefundTargetSnapshotFromOrder,
+  buildRefundTargetSnapshotFromPurchase,
+  getMarketRefundEligibility,
+  type MarketRefundRequestStatus,
+} from '@/lib/market-refunds'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/supabase'
 
@@ -59,6 +64,8 @@ export interface MarketLibraryRow {
   categoryTitle: string
   title: string
   summary: string | null
+  examYear: number | null
+  gradeLevel: string | null
   purchasedAt: string
   lastDownloadedAt: string | null
   pdfOwned: boolean
@@ -2684,13 +2691,15 @@ export async function listMarketLibraryRowsForUser(
   workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ): Promise<MarketLibraryRow[]> {
   const supabase = getAdminSupabase()
-  const purchases = await listCompletedMarketPurchasesForUser(userId, workspaceSubject)
-  const entitlements = await supabase
-    .from('market_entitlements')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('workspace_subject', workspaceSubject)
-    .eq('status', 'active')
+  const [purchases, entitlements] = await Promise.all([
+    listCompletedMarketPurchasesForUser(userId, workspaceSubject),
+    supabase
+      .from('market_entitlements')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('workspace_subject', workspaceSubject)
+      .eq('status', 'active'),
+  ])
 
   if (entitlements.error) {
     throw new Error(entitlements.error.message)
@@ -2707,7 +2716,8 @@ export async function listMarketLibraryRowsForUser(
     ...entitlementRows.map((entitlement) => entitlement.item_id),
   ]))
 
-  const [{ data: items, error: itemsError }, { data: files, error: filesError }, { data: downloads, error: downloadsError }] = await Promise.all([
+  // 메뉴 엔트리는 과목당 소수라 아이템 조회 결과를 기다리지 않고 과목 전체를 함께 가져온다.
+  const [{ data: items, error: itemsError }, { data: files, error: filesError }, { data: downloads, error: downloadsError }, { data: menuEntries, error: menuEntriesError }] = await Promise.all([
     supabase
       .from('market_items')
       .select('*')
@@ -2727,6 +2737,10 @@ export async function listMarketLibraryRowsForUser(
       .in('item_id', itemIds)
       .eq('workspace_subject', workspaceSubject)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('market_menu_entries')
+      .select('*')
+      .eq('workspace_subject', workspaceSubject),
   ])
 
   if (itemsError) {
@@ -2740,13 +2754,6 @@ export async function listMarketLibraryRowsForUser(
   if (downloadsError) {
     throw new Error(downloadsError.message)
   }
-
-  const menuEntryIds = Array.from(new Set((items ?? []).map((item) => item.menu_entry_id)))
-  const { data: menuEntries, error: menuEntriesError } = await supabase
-    .from('market_menu_entries')
-    .select('*')
-    .in('id', menuEntryIds)
-    .eq('workspace_subject', workspaceSubject)
 
   if (menuEntriesError) {
     throw new Error(menuEntriesError.message)
@@ -2786,36 +2793,133 @@ export async function listMarketLibraryRowsForUser(
     groupedEntitlements.set(entitlement.item_id, current)
   }
 
-  const v2DownloadFileEntries = await Promise.all(itemIds.map(async (itemId) => [
-    itemId,
-    await listMarketSubproductDownloadFilesForUser(userId, itemId, workspaceSubject),
-  ] as const))
-  const v2DownloadFileMap = new Map(v2DownloadFileEntries)
   const v2OrderIds = Array.from(new Set(entitlementRows
     .map((entitlement) => entitlement.source_order_id)
     .filter((value): value is string => Boolean(value))))
+  const purchaseIds = purchases.map((purchase) => purchase.id)
+  // 엔타이틀먼트가 있고 상품이 실재하는 아이템만 v2 파일 조회 대상 (기존 per-item 헬퍼의 빈 결과 조건과 동일)
+  const v2ItemIds = Array.from(groupedEntitlements.keys()).filter((itemId) => itemMap.has(itemId))
 
-  let v2OrderRows: MarketPurchaseOrder[] = []
-  if (v2OrderIds.length > 0) {
-    const { data: v2Orders, error: v2OrdersError } = await supabase
+  // 아이템별·구매건별 개별 왕복(N+1) 대신 필요한 데이터 전체를 한 번에 배치 조회한다.
+  const [
+    subproductFilesResult,
+    subproductsResult,
+    fileTypesResult,
+    categoriesResult,
+    v2OrdersResult,
+    legacyRefundRequestsResult,
+    v2RefundRequestsResult,
+  ] = await Promise.all([
+    supabase
+      .from('market_subproduct_files')
+      .select('*')
+      .in('item_id', v2ItemIds)
+      .eq('workspace_subject', workspaceSubject)
+      .is('deleted_at', null)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('market_item_subproducts')
+      .select('id, title, category_id')
+      .in('item_id', v2ItemIds)
+      .eq('workspace_subject', workspaceSubject),
+    supabase
+      .from('market_file_types')
+      .select('id, code, label')
+      .eq('workspace_subject', workspaceSubject),
+    supabase
+      .from('market_subproduct_categories')
+      .select('id, name')
+      .eq('workspace_subject', workspaceSubject),
+    supabase
       .from('market_purchase_orders')
       .select('*')
       .in('id', v2OrderIds)
       .eq('user_id', userId)
-      .eq('workspace_subject', workspaceSubject)
+      .eq('workspace_subject', workspaceSubject),
+    supabase
+      .from('market_refund_requests')
+      .select('legacy_purchase_id, status, created_at')
+      .eq('target_kind', 'legacy_purchase')
+      .in('legacy_purchase_id', purchaseIds)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('market_refund_requests')
+      .select('order_id, status, created_at')
+      .eq('target_kind', 'v2_order')
+      .in('order_id', v2OrderIds)
+      .order('created_at', { ascending: false }),
+  ])
 
-    if (v2OrdersError) {
-      throw new Error(v2OrdersError.message)
+  for (const result of [subproductFilesResult, subproductsResult, fileTypesResult, categoriesResult, v2OrdersResult, legacyRefundRequestsResult, v2RefundRequestsResult]) {
+    if (result.error) {
+      throw new Error(result.error.message)
     }
-
-    v2OrderRows = withWorkspaceSubjects(v2Orders)
   }
+
+  // v2 다운로드 파일 구성 — listMarketSubproductDownloadFilesForUser와 동일 규칙(is_active 필터, 엔타이틀먼트 커버리지, 정렬)
+  const subproductCategoryNameMap = new Map((categoriesResult.data ?? []).map((category) => [category.id, category.name]))
+  const subproductTitleMap = new Map((subproductsResult.data ?? []).map((subproduct) => [
+    subproduct.id,
+    resolveMarketSubproductDisplayTitle(subproductCategoryNameMap.get(subproduct.category_id), subproduct.title),
+  ]))
+  const fileTypeMap = new Map((fileTypesResult.data ?? []).map((fileType) => [fileType.id, fileType]))
+  const v2DownloadFileMap = new Map<string, MarketSubproductDownloadFile[]>()
+  for (const file of withWorkspaceSubjects(subproductFilesResult.data)) {
+    if (!file.is_active) continue
+    const itemEntitlements = groupedEntitlements.get(file.item_id) ?? []
+    const covered = itemEntitlements.some((entitlement) => (
+      entitlement.scope === 'item' ||
+      (entitlement.scope === 'subproduct' && entitlement.subproduct_id === file.subproduct_id) ||
+      (entitlement.scope === 'file' && entitlement.file_id === file.id)
+    ))
+    if (!covered) continue
+    const fileType = fileTypeMap.get(file.file_type_id)
+    const current = v2DownloadFileMap.get(file.item_id) ?? []
+    current.push({
+      id: file.id,
+      itemId: file.item_id,
+      subproductId: file.subproduct_id,
+      subproductTitle: subproductTitleMap.get(file.subproduct_id) ?? '서브상품',
+      fileTypeCode: fileType?.code ?? 'file',
+      fileTypeLabel: fileType?.label ?? '파일',
+      originalFileName: file.original_file_name,
+      downloadUrl: `/api/market/items/${file.item_id}/download?fileId=${file.id}`,
+    })
+    v2DownloadFileMap.set(file.item_id, current)
+  }
+
+  const v2OrderRows: MarketPurchaseOrder[] = withWorkspaceSubjects(v2OrdersResult.data)
 
   const groupedOrders = new Map<string, MarketPurchaseOrder[]>()
   for (const order of v2OrderRows) {
     const current = groupedOrders.get(order.item_id) ?? []
     current.push(order)
     groupedOrders.set(order.item_id, current)
+  }
+
+  // 환불 자격 판정에 필요한 값들 — created_at desc 정렬이므로 대상별 첫 행이 최신 상태
+  const latestLegacyRefundStatus = new Map<string, MarketRefundRequestStatus>()
+  for (const request of legacyRefundRequestsResult.data ?? []) {
+    if (request.legacy_purchase_id && !latestLegacyRefundStatus.has(request.legacy_purchase_id)) {
+      latestLegacyRefundStatus.set(request.legacy_purchase_id, request.status as MarketRefundRequestStatus)
+    }
+  }
+  const latestV2RefundStatus = new Map<string, MarketRefundRequestStatus>()
+  for (const request of v2RefundRequestsResult.data ?? []) {
+    if (request.order_id && !latestV2RefundStatus.has(request.order_id)) {
+      latestV2RefundStatus.set(request.order_id, request.status as MarketRefundRequestStatus)
+    }
+  }
+  const downloadCountByPurchaseId = new Map<string, number>()
+  const downloadCountByOrderId = new Map<string, number>()
+  for (const event of downloads ?? []) {
+    if (event.purchase_id) {
+      downloadCountByPurchaseId.set(event.purchase_id, (downloadCountByPurchaseId.get(event.purchase_id) ?? 0) + 1)
+    }
+    if (event.order_id) {
+      downloadCountByOrderId.set(event.order_id, (downloadCountByOrderId.get(event.order_id) ?? 0) + 1)
+    }
   }
 
   const refundTargetEntries = await Promise.all(itemIds.map(async (itemId) => {
@@ -2827,6 +2931,12 @@ export async function listMarketLibraryRowsForUser(
           userId,
           targetKind: 'legacy_purchase',
           targetId: purchase.id,
+        }, {
+          preloaded: {
+            target: buildRefundTargetSnapshotFromPurchase(purchase),
+            downloadCount: downloadCountByPurchaseId.get(purchase.id) ?? 0,
+            latestRequestStatus: latestLegacyRefundStatus.get(purchase.id) ?? null,
+          },
         })
 
         return {
@@ -2846,6 +2956,12 @@ export async function listMarketLibraryRowsForUser(
           userId,
           targetKind: 'v2_order',
           targetId: order.id,
+        }, {
+          preloaded: {
+            target: buildRefundTargetSnapshotFromOrder(order),
+            downloadCount: downloadCountByOrderId.get(order.id) ?? 0,
+            latestRequestStatus: latestV2RefundStatus.get(order.id) ?? null,
+          },
         })
 
         return {
@@ -2902,6 +3018,8 @@ export async function listMarketLibraryRowsForUser(
         categoryTitle: menu?.title ?? '알 수 없는 카테고리',
         title: item?.title ?? '삭제되었거나 찾을 수 없는 상품',
         summary: item?.summary ?? null,
+        examYear: item?.exam_year ?? null,
+        gradeLevel: item?.grade_level ?? null,
         purchasedAt,
         lastDownloadedAt,
         pdfOwned: pdfPurchase !== null,

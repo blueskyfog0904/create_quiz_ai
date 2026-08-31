@@ -116,7 +116,9 @@ async function discoverCandidates() {
     if (!fileStat.isFile()) continue
 
     const extension = extname(name).toLowerCase().replace(/^\./, '')
-    const stem = basename(name, extname(name))
+    // 맥 파일 시스템은 한글 파일명을 자모 분해형(NFD)으로 반환하므로, DB에 저장될 텍스트는 NFC로 정규화한다.
+    // (path는 실제 파일 접근에 쓰이므로 원본 그대로 둔다.)
+    const stem = basename(name, extname(name)).normalize('NFC').trim()
 
     if (!byStem.has(stem)) {
       byStem.set(stem, {
@@ -126,7 +128,7 @@ async function discoverCandidates() {
     }
 
     byStem.get(stem).files[extension] = {
-      name,
+      name: name.normalize('NFC'),
       path: absolutePath,
       size: fileStat.size,
       extension,
