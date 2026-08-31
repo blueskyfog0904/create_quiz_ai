@@ -549,6 +549,21 @@ export default function MarketItemActions({
       filesBySubproduct.set(file.subproductId, current)
     }
 
+    // 문제(PDF)의 PDF와 문제(HWP)에 포함된 PDF는 동일 내용이므로, 전자가 보이면 후자를 숨긴다.
+    // 카테고리 매핑 실패(비활성 서브상품 등) 시에는 숨기지 않는 방향으로만 퇴화한다(fail-safe).
+    const categorySlugBySubproductId = new Map(subproducts.map((subproduct) => [subproduct.id, subproduct.categorySlug]))
+    const dedupeQuestionPdfFiles = (files: MarketSubproductDownloadFile[]) => {
+      const hasQuestionPdfPdf = files.some((file) => (
+        categorySlugBySubproductId.get(file.subproductId) === 'question_pdf'
+        && file.fileTypeCode.toLowerCase() === 'pdf'
+      ))
+      if (!hasQuestionPdfPdf) return files
+      return files.filter((file) => !(
+        categorySlugBySubproductId.get(file.subproductId) === 'question_hwp'
+        && file.fileTypeCode.toLowerCase() === 'pdf'
+      ))
+    }
+
     const renderDownloadButtons = (files: MarketSubproductDownloadFile[]) => {
       if (files.length === 0) {
         return <p className="text-xs font-medium text-slate-500">다운로드 가능한 파일을 준비 중입니다.</p>
@@ -623,7 +638,7 @@ export default function MarketItemActions({
                   <p className="text-xs text-slate-500">패키지 이용가</p>
                   <p className="mt-1 text-xl font-bold text-slate-950">{formatCredits(bundleOption.priceCredits)} 크레딧</p>
                 </div>
-                {bundleOption.owned ? renderDownloadButtons(downloadFiles) : (
+                {bundleOption.owned ? renderDownloadButtons(dedupeQuestionPdfFiles(downloadFiles)) : (
                   <Button
                     className={MARKET_PRIMARY_BUTTON_CLASS}
                     disabled={isPending || isCheckingBalance}
@@ -643,7 +658,8 @@ export default function MarketItemActions({
           </section>
         ) : null}
 
-        {subproducts.length > 0 ? (
+        {/* 전체 패키지 소유 시 개별 구매 섹션은 패키지 영역과 완전히 중복되므로 숨긴다 */}
+        {subproducts.length > 0 && !bundleOption?.owned ? (
           <section className="space-y-3">
             {bundleOption ? (
               <div className="flex items-center gap-3 text-xs font-semibold text-slate-400">

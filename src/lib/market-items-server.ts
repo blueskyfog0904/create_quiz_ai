@@ -160,6 +160,9 @@ export interface MarketSubproductDownloadFile {
   id: string
   itemId: string
   subproductId: string
+  // 서브상품 카테고리 슬러그 (question_pdf/question_hwp 등). 비활성 서브상품 등 매핑 실패 시 null —
+  // 소비처의 중복 제거는 null이면 '숨기지 않음'으로 퇴화한다(fail-safe).
+  categorySlug: string | null
   subproductTitle: string
   fileTypeCode: string
   fileTypeLabel: string
@@ -2098,7 +2101,7 @@ export async function listMarketSubproductDownloadFilesForUser(
   const categoryResult = categoryIds.length > 0
     ? await supabase
       .from('market_subproduct_categories')
-      .select('id, name')
+      .select('id, name, slug')
       .in('id', categoryIds)
       .eq('workspace_subject', item.workspace_subject)
     : { data: [], error: null }
@@ -2108,6 +2111,8 @@ export async function listMarketSubproductDownloadFilesForUser(
   }
 
   const categoryMap = new Map((categoryResult.data ?? []).map((category) => [category.id, category.name]))
+  const categorySlugMap = new Map((categoryResult.data ?? []).map((category) => [category.id, category.slug]))
+  const subproductCategoryIdMap = new Map((subproductResult.data ?? []).map((subproduct) => [subproduct.id, subproduct.category_id]))
   const subproductMap = new Map((subproductResult.data ?? []).map((subproduct) => [
     subproduct.id,
     resolveMarketSubproductDisplayTitle(categoryMap.get(subproduct.category_id), subproduct.title),
@@ -2122,10 +2127,12 @@ export async function listMarketSubproductDownloadFilesForUser(
     )))
     .map((file) => {
       const fileType = fileTypeMap.get(file.file_type_id)
+      const categoryId = subproductCategoryIdMap.get(file.subproduct_id)
       return {
         id: file.id,
         itemId: file.item_id,
         subproductId: file.subproduct_id,
+        categorySlug: (categoryId ? categorySlugMap.get(categoryId) : null) ?? null,
         subproductTitle: subproductMap.get(file.subproduct_id) ?? '서브상품',
         fileTypeCode: fileType?.code ?? 'file',
         fileTypeLabel: fileType?.label ?? '파일',
@@ -2807,6 +2814,7 @@ export async function listMarketLibraryRowsForUser(
     fileTypesResult,
     categoriesResult,
     v2OrdersResult,
+    v2OrderLinesResult,
     legacyRefundRequestsResult,
     v2RefundRequestsResult,
   ] = await Promise.all([
@@ -2829,7 +2837,7 @@ export async function listMarketLibraryRowsForUser(
       .eq('workspace_subject', workspaceSubject),
     supabase
       .from('market_subproduct_categories')
-      .select('id, name')
+      .select('id, name, slug')
       .eq('workspace_subject', workspaceSubject),
     supabase
       .from('market_purchase_orders')
@@ -2837,6 +2845,10 @@ export async function listMarketLibraryRowsForUser(
       .in('id', v2OrderIds)
       .eq('user_id', userId)
       .eq('workspace_subject', workspaceSubject),
+    supabase
+      .from('market_purchase_lines')
+      .select('order_id, subproduct_id')
+      .in('order_id', v2OrderIds),
     supabase
       .from('market_refund_requests')
       .select('legacy_purchase_id, status, created_at')
@@ -2851,7 +2863,7 @@ export async function listMarketLibraryRowsForUser(
       .order('created_at', { ascending: false }),
   ])
 
-  for (const result of [subproductFilesResult, subproductsResult, fileTypesResult, categoriesResult, v2OrdersResult, legacyRefundRequestsResult, v2RefundRequestsResult]) {
+  for (const result of [subproductFilesResult, subproductsResult, fileTypesResult, categoriesResult, v2OrdersResult, legacyRefundRequestsResult, v2RefundRequestsResult, v2OrderLinesResult]) {
     if (result.error) {
       throw new Error(result.error.message)
     }
@@ -2864,6 +2876,8 @@ export async function listMarketLibraryRowsForUser(
     resolveMarketSubproductDisplayTitle(subproductCategoryNameMap.get(subproduct.category_id), subproduct.title),
   ]))
   const fileTypeMap = new Map((fileTypesResult.data ?? []).map((fileType) => [fileType.id, fileType]))
+  const categorySlugByCategoryId = new Map((categoriesResult.data ?? []).map((category) => [category.id, category.slug]))
+  const categoryIdBySubproductId = new Map((subproductsResult.data ?? []).map((subproduct) => [subproduct.id, subproduct.category_id]))
   const v2DownloadFileMap = new Map<string, MarketSubproductDownloadFile[]>()
   for (const file of withWorkspaceSubjects(subproductFilesResult.data)) {
     if (!file.is_active) continue
@@ -2876,10 +2890,12 @@ export async function listMarketLibraryRowsForUser(
     if (!covered) continue
     const fileType = fileTypeMap.get(file.file_type_id)
     const current = v2DownloadFileMap.get(file.item_id) ?? []
+    const fileCategoryId = categoryIdBySubproductId.get(file.subproduct_id)
     current.push({
       id: file.id,
       itemId: file.item_id,
       subproductId: file.subproduct_id,
+      categorySlug: (fileCategoryId ? categorySlugByCategoryId.get(fileCategoryId) : null) ?? null,
       subproductTitle: subproductTitleMap.get(file.subproduct_id) ?? '서브상품',
       fileTypeCode: fileType?.code ?? 'file',
       fileTypeLabel: fileType?.label ?? '파일',
@@ -2964,10 +2980,17 @@ export async function listMarketLibraryRowsForUser(
           },
         })
 
+        // 개별 구매 건은 어떤 서브상품인지 라벨로 식별 (같은 아이템 다건 구매 시 구분)
+        const lineTitles = (v2OrderLinesResult.data ?? [])
+          .filter((line) => line.order_id === order.id && line.subproduct_id)
+          .map((line) => subproductTitleMap.get(line.subproduct_id!) ?? '서브상품')
+
         return {
           targetKind: 'v2_order' as const,
           targetId: order.id,
-          label: order.purchase_type === 'bundle' ? '전체구매' : '서브상품',
+          label: order.purchase_type === 'bundle'
+            ? '전체구매'
+            : lineTitles.length > 0 ? lineTitles.join(' · ') : '서브상품',
           requestedRefundCredits: eligibility.requestedRefundCredits,
           purchasedAt: eligibility.purchasedAt,
           refundableUntil: eligibility.refundDeadline,

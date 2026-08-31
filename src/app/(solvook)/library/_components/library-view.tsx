@@ -5,6 +5,13 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown, FolderOpen, Loader2, RotateCcw, X } from 'lucide-react'
 import { StudioContainer, StudioEmptyState, StudioPagination } from '@/components/design-system'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import type { MarketLibraryRow } from '@/lib/market-items-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
@@ -17,6 +24,18 @@ type SortOption = 'latest' | 'name'
 type RefundTarget = MarketLibraryRow['refundTargets'][number]
 
 const PAGE_SIZE = 20
+
+// 문제(PDF)의 PDF와 문제(HWP)에 포함된 PDF는 동일 내용이므로, 전자가 있으면 후자를 숨긴다.
+// categorySlug가 null이면(매핑 실패) 숨기지 않는 방향으로만 퇴화한다(fail-safe).
+function dedupeQuestionPdfFiles(files: MarketLibraryRow['v2DownloadFiles']) {
+  const hasQuestionPdfPdf = files.some((file) => (
+    file.categorySlug === 'question_pdf' && file.fileTypeCode.toLowerCase() === 'pdf'
+  ))
+  if (!hasQuestionPdfPdf) return files
+  return files.filter((file) => !(
+    file.categorySlug === 'question_hwp' && file.fileTypeCode.toLowerCase() === 'pdf'
+  ))
+}
 
 const SUBJECT_TABS: { value: WorkspaceSubject; label: string }[] = [
   { value: 'english', label: '영어' },
@@ -134,6 +153,7 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
   const [sort, setSort] = useState<SortOption>('latest')
   const [page, setPage] = useState(1)
   const [refundSubmitting, setRefundSubmitting] = useState<string | null>(null)
+  const [refundDialogItemId, setRefundDialogItemId] = useState<string | null>(null)
   const [subjectMenuOpen, setSubjectMenuOpen] = useState(false)
   const [isSubjectSwitching, startSubjectSwitch] = useTransition()
   const subjectMenuRef = useRef<HTMLDivElement | null>(null)
@@ -259,6 +279,18 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
   const safePage = Math.min(Math.max(page, 1), Math.max(totalPages, 1))
   const pagedRows = filteredRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
+  // 다이얼로그 내용은 rows에서 파생 — refresh로 행이 갱신/소멸하면 자동 반영된다.
+  const refundDialogRow = refundDialogItemId
+    ? rows.find((row) => row.itemId === refundDialogItemId) ?? null
+    : null
+
+  useEffect(() => {
+    // 행이 소멸해 암시적으로 닫힌 경우 stale id를 정리해 재등장 시 재열림을 막는다
+    if (refundDialogItemId && !refundDialogRow) {
+      setRefundDialogItemId(null)
+    }
+  }, [refundDialogItemId, refundDialogRow])
+
   const handleSubjectChange = (nextSubject: WorkspaceSubject) => {
     setSubjectMenuOpen(false)
     if (nextSubject === subject) return
@@ -269,14 +301,14 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
 
   const subjectLabel = SUBJECT_TABS.find((tab) => tab.value === subject)?.label ?? '영어'
 
-  const handleRefundRequest = async (target: RefundTarget) => {
+  const handleRefundRequest = async (target: RefundTarget): Promise<boolean> => {
     if (target.status !== 'available') {
       alert(target.reason ?? '현재 환불 신청할 수 없습니다.')
-      return
+      return false
     }
 
     if (!confirm(`${target.label} 환불을 신청하시겠습니까?`)) {
-      return
+      return false
     }
 
     setRefundSubmitting(target.targetId)
@@ -297,8 +329,10 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
 
       alert('환불 신청이 접수되었습니다.')
       router.refresh()
+      return true
     } catch (error) {
       alert(error instanceof Error ? error.message : '환불 신청 처리에 실패했습니다.')
+      return false
     } finally {
       setRefundSubmitting(null)
     }
@@ -506,7 +540,8 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
             const detailHref = row.categorySlug
               ? `/${subject}/market/${row.categorySlug}/items/${row.itemId}`
               : null
-            const v2SubproductCount = new Set(row.v2DownloadFiles.map((file) => file.subproductId)).size
+            const visibleV2Files = dedupeQuestionPdfFiles(row.v2DownloadFiles)
+            const v2SubproductCount = new Set(visibleV2Files.map((file) => file.subproductId)).size
             const buildV2DownloadLabel = (file: MarketLibraryRow['v2DownloadFiles'][number]) =>
               v2SubproductCount > 1 ? `${file.subproductTitle} (${file.fileTypeLabel})` : `${file.fileTypeLabel} 다운로드`
             const legacyDownloads = [
@@ -546,18 +581,16 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  {availableRefundTargets.map((target) => (
+                  {availableRefundTargets.length > 0 && (
                     <button
-                      key={target.targetId}
                       type="button"
-                      onClick={() => handleRefundRequest(target)}
-                      disabled={refundSubmitting === target.targetId}
+                      onClick={() => setRefundDialogItemId(row.itemId)}
                       className={refundButtonClassName}
                     >
-                      {refundSubmitting === target.targetId ? '신청 중…' : '환불 신청'}
+                      환불 신청
                     </button>
-                  ))}
-                  {row.v2DownloadFiles.map((file) =>
+                  )}
+                  {visibleV2Files.map((file) =>
                     hasPendingRefund ? (
                       <span key={file.id} className={`${downloadButtonClassName} cursor-not-allowed opacity-50`}>
                         <FileTypeDocIcon code={file.fileTypeCode} />
@@ -596,6 +629,70 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
         </div>
       )}
       </div>
+
+      {(() => {
+        return (
+          <Dialog
+            open={refundDialogRow !== null}
+            onOpenChange={(open) => {
+              if (!open) setRefundDialogItemId(null)
+            }}
+          >
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>환불 신청</DialogTitle>
+                <DialogDescription className="break-keep">
+                  {refundDialogRow?.title}
+                </DialogDescription>
+              </DialogHeader>
+              <p className="text-sm text-[var(--studio-muted)]">
+                환불할 구매 건을 선택하세요.
+              </p>
+              <ul className="space-y-3">
+                {(refundDialogRow?.refundTargets ?? []).map((target) => (
+                  <li
+                    key={target.targetId}
+                    className="rounded-lg border border-[var(--studio-border)] p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="break-keep text-sm font-semibold text-[var(--studio-ink)]">
+                          {target.label}
+                        </p>
+                        <p className="mt-0.5 text-xs text-[var(--studio-muted)]">
+                          구매일 {formatDate(target.purchasedAt)} · 환불 예정{' '}
+                          {target.requestedRefundCredits.toLocaleString()} 크레딧
+                        </p>
+                      </div>
+                      {target.status === 'available' ? (
+                        <button
+                          type="button"
+                          disabled={refundSubmitting === target.targetId}
+                          onClick={async () => {
+                            const succeeded = await handleRefundRequest(target)
+                            if (succeeded) setRefundDialogItemId(null)
+                          }}
+                          className={refundButtonClassName}
+                        >
+                          {refundSubmitting === target.targetId ? '신청 중…' : '이 건 환불 신청'}
+                        </button>
+                      ) : target.status === 'pending' ? (
+                        <span className="inline-flex items-center rounded-full bg-[var(--studio-background)] px-2.5 py-1 text-xs font-semibold text-[var(--studio-muted)]">
+                          심사 중
+                        </span>
+                      ) : (
+                        <span className="max-w-[12rem] break-keep text-right text-xs text-[var(--studio-muted)]">
+                          {target.reason ?? '환불할 수 없는 구매 건입니다.'}
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </DialogContent>
+          </Dialog>
+        )
+      })()}
     </StudioContainer>
   )
 }
