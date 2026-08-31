@@ -1,4 +1,4 @@
-import PurchasedPage from '@/app/(dashboard)/library/purchased/page'
+import PurchasedPage from '@/app/legacy/_library/purchased/page'
 import { resolveWorkspaceRouteParams, withWorkspaceSubjectSearchParams } from '@/app/subject-route-helpers'
 
 interface WorkspacePurchasedPageProps {

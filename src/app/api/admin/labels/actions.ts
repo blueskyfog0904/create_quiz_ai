@@ -17,6 +17,7 @@ export interface DisplayLabel {
 function revalidateLegacyAndEnglishPath(path: string, type: 'layout' | 'page' = 'page') {
   revalidatePath(path, type);
   revalidatePath(withWorkspacePrefix(DEFAULT_WORKSPACE_SUBJECT, path), type);
+  revalidatePath(`/legacy${withWorkspacePrefix(DEFAULT_WORKSPACE_SUBJECT, path)}`, type);
 }
 
 // Get all display labels

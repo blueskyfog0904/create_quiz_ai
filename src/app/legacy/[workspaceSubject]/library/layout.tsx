@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { getActiveHeaderNavigationItems, resolveHeaderMenuHref } from '@/lib/header-navigation'
 import { getHeaderNavigationConfig } from '@/lib/header-navigation-server'
 import { isWorkspaceSubject } from '@/lib/workspace-subject'
-import LibrarySidebar from '@/app/(dashboard)/library/library-sidebar'
+import LibrarySidebar from '@/app/legacy/_library/library-sidebar'
 
 interface WorkspaceLibraryLayoutProps {
   children: ReactNode

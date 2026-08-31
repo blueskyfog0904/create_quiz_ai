@@ -129,6 +129,8 @@ function resolveWorkspaceRoutingContext(request: NextRequest) {
   }
 }
 
+const LEGACY_LIBRARY_PATTERN = /^\/library\/(purchased|exam-papers|market|mypassages)(\/|$)/
+
 const buildRoutingResponse = (
   request: NextRequest,
   routingContext = resolveWorkspaceRoutingContext(request),
@@ -141,6 +143,17 @@ const buildRoutingResponse = (
     stripped,
     resolvedSubject,
   } = routingContext
+
+  // 레거시 라이브러리: /library/* 및 /{subject}/library/* → /legacy/{subject}/library/* (단일 홉)
+  if (LEGACY_LIBRARY_PATTERN.test(stripped.scopedPath)) {
+    const redirectSubject = pathSubject ?? resolvedSubject
+    const redirectUrl = url.clone()
+    redirectUrl.pathname = `/legacy${withWorkspacePrefix(redirectSubject, stripped.scopedPath)}`
+    redirectUrl.searchParams.delete('subject')
+    const response = NextResponse.redirect(redirectUrl)
+    response.cookies.set('preferred_workspace', redirectSubject)
+    return response
+  }
 
   if (pathSubject && stripped.scopedPath === '/') {
     const response = NextResponse.next({

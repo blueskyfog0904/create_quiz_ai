@@ -124,6 +124,11 @@ function revalidateMenuRelatedPaths(workspaceSubject: WorkspaceSubject) {
   revalidateWorkspacePath('korean', '/library/exam-papers', 'layout')
   revalidateWorkspacePath(DEFAULT_WORKSPACE_SUBJECT, '/library/market', 'layout')
   revalidateWorkspacePath('korean', '/library/market', 'layout')
+  for (const subject of [DEFAULT_WORKSPACE_SUBJECT, 'korean'] as const) {
+    for (const libraryPath of ['/library', '/library/mypassages', '/library/purchased', '/library/exam-papers', '/library/market']) {
+      revalidatePath(`/legacy${withWorkspacePrefix(subject, libraryPath)}`, 'layout')
+    }
+  }
   revalidatePath('/admin')
   revalidatePath('/admin', 'layout')
   revalidatePath(`/admin/menu-management?subject=${workspaceSubject}`)

@@ -12,7 +12,7 @@ const itemActions = readFileSync(
   'utf8'
 )
 const libraryClient = readFileSync(
-  new URL('../src/app/(dashboard)/library/market/market-library-client.tsx', import.meta.url),
+  new URL('../src/app/legacy/_library/market/market-library-client.tsx', import.meta.url),
   'utf8'
 )
 const marketItemsServer = readFileSync(

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 const source = readFileSync(
-  new URL('../src/app/(dashboard)/library/exam-papers/[id]/exam-paper-view.tsx', import.meta.url),
+  new URL('../src/app/legacy/_library/exam-papers/[id]/exam-paper-view.tsx', import.meta.url),
   'utf8'
 )
 

@@ -6,7 +6,7 @@ const userRefundRoute = readFileSync(new URL('../src/app/api/market/refunds/rout
 const adminRefundRoute = readFileSync(new URL('../src/app/api/admin/market/refunds/route.ts', import.meta.url), 'utf8')
 const adminRefundItemRoute = readFileSync(new URL('../src/app/api/admin/market/refunds/[id]/route.ts', import.meta.url), 'utf8')
 const marketRefunds = readFileSync(new URL('../src/lib/market-refunds.ts', import.meta.url), 'utf8')
-const libraryClient = readFileSync(new URL('../src/app/(dashboard)/library/market/market-library-client.tsx', import.meta.url), 'utf8')
+const libraryClient = readFileSync(new URL('../src/app/legacy/_library/market/market-library-client.tsx', import.meta.url), 'utf8')
 const marketItemsServer = readFileSync(new URL('../src/lib/market-items-server.ts', import.meta.url), 'utf8')
 const adminRefundsPage = readFileSync(new URL('../src/app/(admin)/admin/refunds/page.tsx', import.meta.url), 'utf8')
 

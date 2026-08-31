@@ -45,6 +45,7 @@ const revalidateLegacyAndWorkspacePath = (
 ) => {
   revalidatePath(path, type)
   revalidatePath(withWorkspacePrefix(subject, path), type)
+  revalidatePath(`/legacy${withWorkspacePrefix(subject, path)}`, type)
 }
 
 export async function POST(request: Request, { params }: RouteContext) {

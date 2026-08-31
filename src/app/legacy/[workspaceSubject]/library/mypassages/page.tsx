@@ -1,4 +1,4 @@
-import MyPassagesPage from '@/app/library/mypassages/page'
+import MyPassagesPage from '@/app/legacy/_library/mypassages-bare/page'
 
 interface WorkspaceMyPassagesPageProps {
   params: Promise<{ workspaceSubject: string }>

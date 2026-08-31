@@ -129,6 +129,7 @@ function resolvePassageWorkspaceSubject(value?: WorkspaceSubjectInput): Workspac
 
 function revalidatePassageLibrary(workspaceSubject: WorkspaceSubject) {
   revalidatePath('/library/mypassages', 'layout')
+  revalidatePath(`/legacy/${workspaceSubject}/library/mypassages`, 'layout')
   workspaceRevalidatePaths(workspaceSubject, 'libraryMypassages').forEach(({ path, type }) => {
     revalidatePath(path, type)
   })

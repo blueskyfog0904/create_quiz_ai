@@ -3,7 +3,7 @@ import test from 'node:test'
 import { existsSync, readFileSync } from 'node:fs'
 
 const dialogPath = new URL('../src/components/features/question-bank/random-exam-dialog.tsx', import.meta.url)
-const purchasedPath = new URL('../src/app/(dashboard)/library/purchased/purchased-client.tsx', import.meta.url)
+const purchasedPath = new URL('../src/app/legacy/_library/purchased/purchased-client.tsx', import.meta.url)
 
 function readSource(path, label) {
   assert.equal(existsSync(path), true, `${label} must exist`)

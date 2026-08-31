@@ -1,4 +1,4 @@
-import LibraryExamPaperDetailPage from '@/app/(dashboard)/library/exam-papers/[id]/page'
+import LibraryExamPaperDetailPage from '@/app/legacy/_library/exam-papers/[id]/page'
 import { resolveWorkspaceRouteParams, withWorkspaceSubjectSearchParams } from '@/app/subject-route-helpers'
 
 interface WorkspaceLibraryExamPaperDetailPageProps {

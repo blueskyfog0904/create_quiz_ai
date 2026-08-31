@@ -1,6 +1,7 @@
 import { getPassages } from '@/app/api/passages/actions';
 import { PassageSelector } from '@/components/features/passages/passage-selector';
 import { PassageListContainer } from './passage-list-container';
+import { requireAuth } from '@/lib/auth';
 import { DEFAULT_WORKSPACE_SUBJECT, isWorkspaceSubject } from '@/lib/workspace-subject';
 
 export const dynamic = 'force-dynamic';
@@ -11,6 +12,7 @@ interface PageProps {
 }
 
 export default async function MyPassagesPage({ searchParams, params }: PageProps) {
+  await requireAuth();
   const queryParams = await searchParams;
   const routeParams = params ? await params : undefined;
   const workspaceSubject = isWorkspaceSubject(routeParams?.subject)

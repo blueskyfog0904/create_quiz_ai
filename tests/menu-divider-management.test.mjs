@@ -31,7 +31,7 @@ const marketSidebarSource = readFileSync(
   'utf8'
 )
 const librarySidebarSource = readFileSync(
-  new URL('../src/app/(dashboard)/library/library-sidebar.tsx', import.meta.url),
+  new URL('../src/app/legacy/_library/library-sidebar.tsx', import.meta.url),
   'utf8'
 )
 

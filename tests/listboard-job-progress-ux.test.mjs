@@ -11,7 +11,7 @@ const batchPreviewSource = readFileSync(
   'utf8'
 )
 const purchasedClientSource = readFileSync(
-  new URL('../src/app/(dashboard)/library/purchased/purchased-client.tsx', import.meta.url),
+  new URL('../src/app/legacy/_library/purchased/purchased-client.tsx', import.meta.url),
   'utf8'
 )
 

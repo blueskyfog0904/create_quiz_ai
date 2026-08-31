@@ -37,7 +37,7 @@ const twoColumnMeasurementSource = readFileSync(
 )
 
 const libraryExportButtonsSource = readFileSync(
-  new URL('../src/app/(dashboard)/library/exam-papers/[id]/export-buttons.tsx', import.meta.url),
+  new URL('../src/app/legacy/_library/exam-papers/[id]/export-buttons.tsx', import.meta.url),
   'utf8'
 )
 

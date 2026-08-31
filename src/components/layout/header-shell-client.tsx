@@ -79,18 +79,23 @@ export function HeaderShellClient({
     () => false
   )
 
+  // 레거시 라우트(/legacy/{subject}/...)에서도 워크스페이스 내비를 유지한다
+  const legacyAwarePathname = pathname.startsWith('/legacy/')
+    ? pathname.slice('/legacy'.length)
+    : pathname
+
   const currentSubject = useMemo<WorkspaceSubject | null>(() => {
-    const pathnameSubject = parseWorkspaceSubjectFromPath(pathname)
+    const pathnameSubject = parseWorkspaceSubjectFromPath(legacyAwarePathname)
     if (pathnameSubject) {
       return pathnameSubject
     }
 
     const querySubject = searchParams.get('subject')
     return isWorkspaceSubject(querySubject) ? querySubject : null
-  }, [pathname, searchParams])
+  }, [legacyAwarePathname, searchParams])
 
   const shouldShowWorkspaceNav = currentSubject !== null
-  const currentScopedPath = stripWorkspacePrefix(pathname).scopedPath
+  const currentScopedPath = stripWorkspacePrefix(legacyAwarePathname).scopedPath
   const activeNavigationItems = currentSubject === 'korean'
     ? koreanMenuItems
     : englishMenuItems

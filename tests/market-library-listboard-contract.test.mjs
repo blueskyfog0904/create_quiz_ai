@@ -3,7 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
 const libraryClient = readFileSync(
-  new URL('../src/app/(dashboard)/library/market/market-library-client.tsx', import.meta.url),
+  new URL('../src/app/legacy/_library/market/market-library-client.tsx', import.meta.url),
   'utf8'
 )
 

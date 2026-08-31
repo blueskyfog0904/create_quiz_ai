@@ -1,16 +1,16 @@
-import MarketLibraryPage from '@/app/(dashboard)/library/market/page'
+import LibraryExamPapersPage from '@/app/legacy/_library/exam-papers/page'
 import { resolveWorkspaceRouteParams, withWorkspaceSubjectSearchParams } from '@/app/subject-route-helpers'
 
-interface WorkspaceLibraryMarketPageProps {
+interface WorkspaceLibraryExamPapersPageProps {
   params: Promise<{ workspaceSubject: string }>
   searchParams?: Promise<{ subject?: string }>
 }
 
-export default async function WorkspaceLibraryMarketPage({ params, searchParams }: WorkspaceLibraryMarketPageProps) {
+export default async function WorkspaceLibraryExamPapersPage({ params, searchParams }: WorkspaceLibraryExamPapersPageProps) {
   const { workspaceSubject } = await resolveWorkspaceRouteParams(params)
 
   return (
-    <MarketLibraryPage
+    <LibraryExamPapersPage
       searchParams={withWorkspaceSubjectSearchParams(workspaceSubject, searchParams)}
     />
   )
