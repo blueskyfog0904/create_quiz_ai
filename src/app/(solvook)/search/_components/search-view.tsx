@@ -306,7 +306,7 @@ export function SearchView({ subject, q, result, selections, sort }: SearchViewP
                     <h2 className="mt-1.5">
                       {row.categorySlug ? (
                         <Link
-                          href={`/${subject}/market/${row.categorySlug}/items/${row.itemId}`}
+                          href={`/preview/solvook-concept/boards/${row.categorySlug}/items/${row.itemId}?subject=${subject}`}
                           className="break-keep text-base font-semibold leading-6 text-[var(--studio-ink)] outline-none after:absolute after:inset-0 hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
                         >
                           {row.title}
