@@ -1,6 +1,7 @@
 import { Suspense, type ReactNode } from 'react'
 import { SolvookFooter } from '@/app/(solvook)/_components/solvook-footer'
 import { StudioThemeShell } from '@/components/layout/studio-theme-shell'
+import { getRequestAuthUserId } from '@/lib/request-auth'
 import { getSolvookFooterData } from '@/lib/solvook-footer-data'
 import { PreviewHeader } from './_components/preview-header'
 
@@ -9,7 +10,10 @@ export default async function SolvookConceptPreviewLayout({
 }: {
   children: ReactNode
 }) {
-  const footer = await getSolvookFooterData()
+  const [footer, userId] = await Promise.all([
+    getSolvookFooterData(),
+    getRequestAuthUserId(),
+  ])
 
   return (
     <>
@@ -20,7 +24,7 @@ export default async function SolvookConceptPreviewLayout({
       />
       <StudioThemeShell>
         <Suspense fallback={null}>
-          <PreviewHeader />
+          <PreviewHeader isLoggedIn={Boolean(userId)} />
         </Suspense>
         <main className="flex-1">
           {children}
