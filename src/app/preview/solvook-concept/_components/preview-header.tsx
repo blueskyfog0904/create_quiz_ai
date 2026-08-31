@@ -1,10 +1,10 @@
 'use client'
 
-import type { MouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { Grid2X2, Search, WalletCards } from 'lucide-react'
+import { ChevronDown, Grid2X2, Library, Search, UserRound, WalletCards } from 'lucide-react'
 import { StudioContainer } from '@/components/design-system'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
@@ -31,6 +31,40 @@ export function PreviewHeader({
   const subjectLabel = subject === 'korean' ? '국어' : '영어'
   const marketHref = `/${subject}/market/entexam`
   const homeHref = `/?subject=${subject}`
+  const libraryHref = subject === 'korean' ? '/library?subject=korean' : '/library'
+
+  // 검색 대상 과목 — 기본은 현재 페이지 과목을 따르고, 드롭다운으로 직접 고르면 그 값을 유지한다.
+  const [searchSubjectOverride, setSearchSubjectOverride] = useState<WorkspaceSubject | null>(null)
+  const [searchSubjectMenuOpen, setSearchSubjectMenuOpen] = useState(false)
+  const searchSubjectMenuRef = useRef<HTMLDivElement | null>(null)
+  const searchSubject: WorkspaceSubject = searchSubjectOverride ?? subject
+  const searchSubjectLabel = searchSubject === 'korean' ? '국어' : '영어'
+  const searchActionHref = `/${searchSubject}/market/entexam`
+
+  useEffect(() => {
+    // 헤더 탭 등으로 페이지 과목이 바뀌면 검색 범위도 따라간다.
+    setSearchSubjectOverride(null)
+  }, [subject])
+
+  useEffect(() => {
+    if (!searchSubjectMenuOpen) return
+
+    function handlePointerDown(event: PointerEvent) {
+      if (searchSubjectMenuRef.current && !searchSubjectMenuRef.current.contains(event.target as Node)) {
+        setSearchSubjectMenuOpen(false)
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setSearchSubjectMenuOpen(false)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [searchSubjectMenuOpen])
 
   // 루트에서는 서버 재요청 없이 즉시 과목을 전환한다 (pushState는 useSearchParams와 동기화됨).
   function handleSubjectTabClick(
@@ -103,9 +137,18 @@ export function PreviewHeader({
           >
             <span>국어</span>
           </Link>
+          {isLoggedIn && (
+            <Link
+              href={libraryHref}
+              className="ml-auto inline-flex min-h-11 shrink-0 items-center gap-1.5 px-2 text-xs font-bold text-[var(--studio-text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+            >
+              <Library aria-hidden="true" className="h-4 w-4" />
+              <span>보관함</span>
+            </Link>
+          )}
           <Link
             href="/pricing"
-            className="ml-auto inline-flex min-h-11 shrink-0 items-center gap-1.5 px-2 text-xs font-bold text-[var(--studio-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+            className={`${isLoggedIn ? '' : 'ml-auto '}inline-flex min-h-11 shrink-0 items-center gap-1.5 px-2 text-xs font-bold text-[var(--studio-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]`}
           >
             <WalletCards aria-hidden="true" className="h-4 w-4" />
             <span>캐시 충전</span>
@@ -135,22 +178,65 @@ export function PreviewHeader({
             </Link>
 
             <form
-              action={marketHref}
+              action={searchActionHref}
               method="get"
               className="relative ml-auto w-[320px]"
             >
               <label htmlFor="preview-global-search" className="sr-only">
-                {subjectLabel} 문제마켓 검색
+                {searchSubjectLabel} 문제마켓 검색
               </label>
-              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-[var(--studio-text)]">
-                {subjectLabel}
-              </span>
+              <div ref={searchSubjectMenuRef} className="absolute left-1.5 top-1/2 -translate-y-1/2">
+                <button
+                  type="button"
+                  aria-haspopup="true"
+                  aria-expanded={searchSubjectMenuOpen}
+                  aria-label={`검색 과목 선택 (현재 ${searchSubjectLabel})`}
+                  onClick={() => setSearchSubjectMenuOpen((open) => !open)}
+                  className="inline-flex min-h-9 items-center gap-0.5 rounded-full px-2.5 text-xs font-bold text-[var(--studio-ink)] outline-none hover:bg-[var(--studio-surface)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                >
+                  {searchSubjectLabel}
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={`h-3.5 w-3.5 transition-transform ${searchSubjectMenuOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {searchSubjectMenuOpen && (
+                  <div
+                    role="listbox"
+                    aria-label="검색 과목"
+                    className="absolute left-0 top-full z-30 mt-2 w-24 rounded-md border border-[var(--studio-border)] bg-[var(--studio-surface)] py-1 shadow-[var(--studio-shadow-card)]"
+                  >
+                    {(['english', 'korean'] as const).map((option) => {
+                      const selected = option === searchSubject
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          role="option"
+                          aria-selected={selected}
+                          onClick={() => {
+                            setSearchSubjectOverride(option)
+                            setSearchSubjectMenuOpen(false)
+                          }}
+                          className={`flex min-h-8 w-full items-center px-3.5 text-[13px] font-normal outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--studio-focus-ring)] ${
+                            selected
+                              ? 'bg-[var(--studio-primary-soft)] text-[var(--studio-primary)]'
+                              : 'text-[var(--studio-ink)] hover:bg-[var(--studio-background)]'
+                          }`}
+                        >
+                          {option === 'korean' ? '국어' : '영어'}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
               <input
                 id="preview-global-search"
                 name="title"
                 type="search"
                 placeholder="찾고 싶은 자료를 검색해 보세요"
-                className="h-11 w-full rounded-full border-0 bg-[var(--studio-background)] pl-[58px] pr-12 text-sm text-[var(--studio-ink)] outline-none placeholder:text-[var(--studio-muted)] focus:ring-2 focus:ring-[var(--studio-focus-ring)]"
+                className="h-11 w-full rounded-full border-0 bg-[var(--studio-background)] pl-[74px] pr-12 text-[15px] text-[var(--studio-ink)] outline-none placeholder:text-[var(--studio-muted)] focus:ring-2 focus:ring-[var(--studio-focus-ring)]"
               />
               <button
                 type="submit"
@@ -162,12 +248,22 @@ export function PreviewHeader({
             </form>
 
             {isLoggedIn ? (
-              <Link
-                href="/mypage"
-                className="inline-flex min-h-11 min-w-20 shrink-0 items-center justify-center rounded-md bg-[var(--studio-primary-soft)] px-4 text-sm font-bold text-[var(--studio-primary)] outline-none hover:bg-[var(--studio-primary-border)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-              >
-                마이페이지
-              </Link>
+              <>
+                <Link
+                  href={libraryHref}
+                  className="flex min-h-11 shrink-0 flex-col items-center justify-center gap-1 rounded-md px-2 py-1 text-[var(--studio-ink)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                >
+                  <Library aria-hidden="true" className="h-5 w-5" />
+                  <span className="whitespace-nowrap text-[11px] font-bold leading-none">자료 보관함</span>
+                </Link>
+                <Link
+                  href="/mypage"
+                  className="flex min-h-11 shrink-0 flex-col items-center justify-center gap-1 rounded-md px-2 py-1 text-[var(--studio-ink)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                >
+                  <UserRound aria-hidden="true" className="h-5 w-5" />
+                  <span className="whitespace-nowrap text-[11px] font-bold leading-none">마이페이지</span>
+                </Link>
+              </>
             ) : (
               <>
                 <Link
