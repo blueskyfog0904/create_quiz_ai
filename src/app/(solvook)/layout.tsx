@@ -65,16 +65,13 @@ export default async function SolvookHomeLayout({
         <main className="flex-1">
           {children}
         </main>
-        <Suspense fallback={null}>
-          <SolvookFooter
-            initialSubject={initialSubject}
-            cs={footerCs}
-            rows={footerRows}
-            policyLinks={footerPolicyLinks}
-            brandName={footerBrandName}
-            notices={footerNotices}
-          />
-        </Suspense>
+        <SolvookFooter
+          cs={footerCs}
+          rows={footerRows}
+          policyLinks={footerPolicyLinks}
+          brandName={footerBrandName}
+          notices={footerNotices}
+        />
       </StudioThemeShell>
     </>
   )
