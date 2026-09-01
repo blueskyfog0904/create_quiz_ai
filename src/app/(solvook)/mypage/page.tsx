@@ -19,7 +19,7 @@ import {
   logCreditBalanceMismatch,
   selectDisplayBalance,
 } from '@/lib/credit-balance'
-import { getMypageActivityStats } from '@/lib/mypage-activity-server'
+import { countMarketLibraryItemsForUser } from '@/lib/market-items-server'
 import { StudioContainer } from '@/components/design-system/studio-container'
 import { MypageLogoutButton } from './_components/mypage-logout-button'
 
@@ -33,8 +33,8 @@ const MENU_ITEMS = [
   { href: '/mypage/credits', label: '크레딧 관리', description: '잔액·구매·거래 내역', icon: Coins },
   { href: '/mypage/profile', label: '내정보 관리', description: '휴대폰 번호·비밀번호 변경', icon: User },
   { href: '/mypage/history', label: '생성/구매 히스토리', description: '문제·문제지 활동 기록', icon: History },
-  { href: '/legacy/mypage/support', label: '고객지원', description: '1:1 문의 접수·확인', icon: HelpCircle },
-  { href: '/legacy/mypage/withdraw', label: '회원 탈퇴', description: '계정 및 데이터 삭제', icon: UserX },
+  { href: '/mypage/support', label: '고객지원', description: '1:1 문의 접수·확인', icon: HelpCircle },
+  { href: '/mypage/withdraw', label: '회원 탈퇴', description: '계정 및 데이터 삭제', icon: UserX },
 ] as const
 
 function formatKoreanDate(value: string | null | undefined) {
@@ -55,11 +55,11 @@ export default async function MypageHomePage() {
 
   const supabase = await createClient()
 
-  const [{ data: profile }, { data: userResult }, snapshot, stats] = await Promise.all([
+  const [{ data: profile }, { data: userResult }, snapshot, purchasedItemCount] = await Promise.all([
     supabase.from('profiles').select('name, created_at').eq('id', userId).single(),
     supabase.auth.getUser(),
     getCreditBalanceSnapshot(userId),
-    getMypageActivityStats(supabase, userId),
+    countMarketLibraryItemsForUser(userId),
   ])
 
   if (snapshot.hasMismatch) {
@@ -135,33 +135,36 @@ export default async function MypageHomePage() {
       <section className={`${cardClassName} mt-5`} aria-label="활동 요약">
         <h2 className="text-sm font-bold text-[var(--studio-ink)]">활동 요약</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3">
+          <Link
+            href="/library"
+            className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3 outline-none transition-colors hover:bg-[var(--studio-primary-soft)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+          >
             <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--studio-muted)]">
-              <FileText aria-hidden="true" className="h-3.5 w-3.5" />총 문제 수
+              <FileText aria-hidden="true" className="h-3.5 w-3.5" />구매한 자료
             </p>
-            <p className="mt-1 text-xl font-bold text-[var(--studio-ink)]">{stats.totalQuestions.toLocaleString()}</p>
-            <p className="text-xs text-[var(--studio-muted)]">이번 달 +{stats.monthlyQuestions.toLocaleString()}개</p>
-          </div>
-          <div className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3">
+            <p className="mt-1 text-xl font-bold text-[var(--studio-ink)]">{purchasedItemCount.toLocaleString()}</p>
+            <p className="text-xs text-[var(--studio-muted)]">문제마켓 구매 · 자료 보관함에서 확인</p>
+          </Link>
+          <div className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3 opacity-50">
             <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--studio-muted)]">
               <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />AI 생성 문제
             </p>
-            <p className="mt-1 text-xl font-bold text-[var(--studio-ink)]">{stats.aiGeneratedQuestions.toLocaleString()}</p>
-            <p className="text-xs text-[var(--studio-muted)]">AI로 직접 생성</p>
+            <p className="mt-1 text-xl font-bold text-[var(--studio-muted)]">–</p>
+            <p className="text-xs text-[var(--studio-muted)]">서비스 준비 중</p>
           </div>
-          <div className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3">
+          <div className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3 opacity-50">
             <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--studio-muted)]">
-              <History aria-hidden="true" className="h-3.5 w-3.5" />구매한 문제
+              <History aria-hidden="true" className="h-3.5 w-3.5" />문제은행
             </p>
-            <p className="mt-1 text-xl font-bold text-[var(--studio-ink)]">{stats.purchasedQuestions.toLocaleString()}</p>
-            <p className="text-xs text-[var(--studio-muted)]">문제은행에서 가져옴</p>
+            <p className="mt-1 text-xl font-bold text-[var(--studio-muted)]">–</p>
+            <p className="text-xs text-[var(--studio-muted)]">서비스 준비 중</p>
           </div>
-          <div className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3">
+          <div className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3 opacity-50">
             <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--studio-muted)]">
               <FileText aria-hidden="true" className="h-3.5 w-3.5" />생성한 문제지
             </p>
-            <p className="mt-1 text-xl font-bold text-[var(--studio-ink)]">{stats.totalExamPapers.toLocaleString()}</p>
-            <p className="text-xs text-[var(--studio-muted)]">이번 달 +{stats.monthlyExamPapers.toLocaleString()}개</p>
+            <p className="mt-1 text-xl font-bold text-[var(--studio-muted)]">–</p>
+            <p className="text-xs text-[var(--studio-muted)]">서비스 준비 중</p>
           </div>
         </div>
       </section>

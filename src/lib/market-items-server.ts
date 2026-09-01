@@ -2693,6 +2693,37 @@ export async function incrementMarketItemViewCount(itemId: string, workspaceSubj
   }
 }
 
+export async function countMarketLibraryItemsForUser(userId: string): Promise<number> {
+  const supabase = getAdminSupabase()
+  const [purchases, entitlements] = await Promise.all([
+    supabase
+      .from('market_purchases')
+      .select('item_id, workspace_subject')
+      .eq('user_id', userId)
+      .eq('status', 'completed'),
+    supabase
+      .from('market_entitlements')
+      .select('item_id, workspace_subject')
+      .eq('user_id', userId)
+      .eq('status', 'active'),
+  ])
+
+  if (purchases.error) {
+    throw new Error(purchases.error.message)
+  }
+  if (entitlements.error) {
+    throw new Error(entitlements.error.message)
+  }
+
+  const itemKeys = new Set(
+    [...(purchases.data ?? []), ...(entitlements.data ?? [])].map(
+      (row) => `${row.workspace_subject ?? DEFAULT_WORKSPACE_SUBJECT}:${row.item_id}`
+    )
+  )
+
+  return itemKeys.size
+}
+
 export async function listMarketLibraryRowsForUser(
   userId: string,
   workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
