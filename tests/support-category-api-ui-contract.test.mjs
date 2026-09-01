@@ -7,8 +7,8 @@ const supportRoute = readFileSync(new URL('../src/app/api/support/route.ts', imp
 const adminCategoriesRoute = readFileSync(new URL('../src/app/api/admin/support/categories/route.ts', import.meta.url), 'utf8')
 const adminCategoryRoute = readFileSync(new URL('../src/app/api/admin/support/categories/[id]/route.ts', import.meta.url), 'utf8')
 const adminTicketRoute = readFileSync(new URL('../src/app/api/admin/support/tickets/[id]/route.ts', import.meta.url), 'utf8')
-const userSupportPage = readFileSync(new URL('../src/app/legacy/mypage/support/page.tsx', import.meta.url), 'utf8')
-const userSupportClient = readFileSync(new URL('../src/app/legacy/mypage/support/support-client.tsx', import.meta.url), 'utf8')
+const userSupportPage = readFileSync(new URL('../src/app/(solvook)/mypage/support/page.tsx', import.meta.url), 'utf8')
+const userSupportClient = readFileSync(new URL('../src/app/(solvook)/mypage/support/_components/support-view.tsx', import.meta.url), 'utf8')
 const adminSupportPage = readFileSync(new URL('../src/app/(admin)/admin/support/page.tsx', import.meta.url), 'utf8')
 const adminSupportClient = readFileSync(new URL('../src/app/(admin)/admin/support/support-client.tsx', import.meta.url), 'utf8')
 

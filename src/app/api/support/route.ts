@@ -143,7 +143,7 @@ export async function PATCH(request: NextRequest) {
         type: 'inquiry_reply',
         title: '문의하신 내용에 답변이 등록되었습니다.',
         message: `제목: ${ticket.subject}\n\n답변을 확인해보세요.`,
-        link: '/legacy/mypage/support'
+        link: '/mypage/support'
       })
     }
 

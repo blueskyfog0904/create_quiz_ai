@@ -72,7 +72,7 @@ function CheckoutFailContent() {
             </Link>
           </Button>
           <Button asChild variant="brandOutline" className="min-h-11 w-full">
-            <Link href="/legacy/mypage/support">
+            <Link href="/mypage/support">
               <MessageCircle aria-hidden="true" className="size-4" />
               고객센터 문의
             </Link>

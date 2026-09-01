@@ -166,7 +166,7 @@ function CheckoutSuccessContent() {
               </Link>
             </Button>
             <Button asChild variant="brandOutline" className="min-h-11 flex-1">
-              <Link href={isSuccess ? '/market' : '/legacy/mypage/support'}>
+              <Link href={isSuccess ? '/market' : '/mypage/support'}>
                 {isSuccess ? '문제마켓 둘러보기' : '고객센터 문의'}
               </Link>
             </Button>
