@@ -309,6 +309,14 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
     }
   }
 
+  // 다운로드 API는 파일로 리다이렉트하기 전에 다운로드 이벤트를 기록하므로,
+  // 클릭 후 잠시 뒤 서버 데이터를 다시 읽으면 환불 가능 여부가 즉시 반영된다.
+  // (네트워크가 느린 경우를 대비해 한 번 더 갱신)
+  const scheduleDownloadRefresh = () => {
+    window.setTimeout(() => router.refresh(), 1500)
+    window.setTimeout(() => router.refresh(), 4000)
+  }
+
   return (
     <StudioContainer className="py-8 sm:py-10">
       <div className="flex flex-wrap items-center gap-2">
@@ -568,7 +576,7 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
                         {buildV2DownloadLabel(file)}
                       </span>
                     ) : (
-                      <a key={file.id} href={file.downloadUrl} className={downloadButtonClassName}>
+                      <a key={file.id} href={file.downloadUrl} onClick={scheduleDownloadRefresh} className={downloadButtonClassName}>
                         <FileTypeDocIcon code={file.fileTypeCode} />
                         {buildV2DownloadLabel(file)}
                       </a>
@@ -581,7 +589,7 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
                         {entry.label}
                       </span>
                     ) : (
-                      <a key={entry.key} href={entry.url} className={downloadButtonClassName}>
+                      <a key={entry.key} href={entry.url} onClick={scheduleDownloadRefresh} className={downloadButtonClassName}>
                         <FileTypeDocIcon code={entry.key} />
                         {entry.label}
                       </a>
