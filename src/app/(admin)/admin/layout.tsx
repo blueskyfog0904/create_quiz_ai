@@ -1,22 +1,16 @@
-import { Suspense } from 'react'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdminPanelUser } from '@/lib/auth'
 import { AdminSidebar } from '@/components/layout/admin-sidebar'
-import { PreviewHeader } from '@/app/preview/solvook-concept/_components/preview-header'
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  // Ensure user is admin before rendering any admin page
-  await requireAdmin()
+  // 관리자 패널은 헤더 없이 사이드바+본문만 사용하며, 인증은 /admin/login으로 유도한다
+  await requireAdminPanelUser()
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* 전역 레거시 크롬은 /admin에서 생략되므로 새 컨셉 헤더를 직접 렌더한다 */}
-      <Suspense fallback={null}>
-        <PreviewHeader isLoggedIn initialSubject="english" />
-      </Suspense>
       <div className="flex">
         {/* Sidebar */}
         <AdminSidebar />

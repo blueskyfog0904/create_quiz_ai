@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { createClient } from '@/lib/supabase/server'
+import { isAdminAccountEmail } from '@/lib/admin-accounts-shared'
 
 export async function login(formData: FormData) {
   console.log('--------------------------------------------------')
@@ -62,6 +63,11 @@ export async function signup(formData: FormData) {
 
   if (!email || !password || !name || !phone) {
     return { success: false, error: '이메일, 비밀번호, 이름, 휴대폰 번호를 모두 입력해주세요.' }
+  }
+
+  // 관리자 ID용 내부 도메인은 일반 회원가입에서 선점할 수 없다
+  if (isAdminAccountEmail(email)) {
+    return { success: false, error: '사용할 수 없는 이메일 주소입니다.' }
   }
 
   const { data, error } = await supabase.auth.signUp({

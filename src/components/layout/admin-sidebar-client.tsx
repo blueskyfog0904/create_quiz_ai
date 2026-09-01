@@ -71,7 +71,7 @@ export function AdminSidebarClient({ navigationConfigs }: AdminSidebarClientProp
       <Button
         variant="ghost"
         size="icon"
-        className="fixed top-20 left-4 z-50 bg-white shadow-md md:hidden"
+        className="fixed top-4 left-4 z-50 bg-white shadow-md md:hidden"
         onClick={() => setCollapsed(!collapsed)}
       >
         <Menu className="h-5 w-5" />
@@ -79,7 +79,7 @@ export function AdminSidebarClient({ navigationConfigs }: AdminSidebarClientProp
 
       <aside
         className={cn(
-          'fixed left-0 top-16 z-40 h-[calc(100vh-4rem)] bg-slate-900 text-white transition-all duration-300',
+          'fixed left-0 top-0 z-40 h-screen bg-slate-900 text-white transition-all duration-300',
           collapsed ? '-translate-x-full md:translate-x-0 md:w-16' : 'w-64',
           'md:relative md:top-0 md:h-auto'
         )}

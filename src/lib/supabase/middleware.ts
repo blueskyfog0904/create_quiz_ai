@@ -212,7 +212,8 @@ const buildAuthRedirectResponse = (
   const isPublicBrowsePath = pathSubject
     ? isPublicBrowseableSubjectPath(stripped.scopedPath)
     : isPublicBrowseableSubjectPath(pathname)
-  const isAdminPath = pathname === '/admin' || pathname.startsWith('/admin/')
+  // /admin/login은 관리자 전용 로그인 화면이라 보호 대상에서 제외한다
+  const isAdminPath = pathname !== '/admin/login' && (pathname === '/admin' || pathname.startsWith('/admin/'))
   const isDashboardPath = pathname.startsWith('/dashboard')
   const isMyPagePath = pathname.startsWith('/mypage') || pathname.startsWith('/legacy/mypage')
 
@@ -239,10 +240,15 @@ const buildAuthRedirectResponse = (
   }
 
   const redirectUrl = request.nextUrl.clone()
-  redirectUrl.pathname = '/login'
   redirectUrl.search = ''
   redirectUrl.hash = ''
-  redirectUrl.searchParams.set('next', nextPath)
+  if (isAdminPath) {
+    // 관리자 경로는 일반 로그인이 아니라 관리자 전용 로그인으로 보낸다
+    redirectUrl.pathname = '/admin/login'
+  } else {
+    redirectUrl.pathname = '/login'
+    redirectUrl.searchParams.set('next', nextPath)
+  }
 
   const response = NextResponse.redirect(redirectUrl)
   if (isSubjectFacingProtectedPath) {

@@ -101,6 +101,7 @@ export const DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG: AdminSidebarNavigationConf
     '/admin/refunds',
     '/admin/reviews',
     '/admin/review-tags',
+    '/admin/admin-accounts',
   ],
 }
 
@@ -150,6 +151,7 @@ function getDefaultAdminSidebarMenuItems(workspaceSubject: WorkspaceSubject): Ad
     { name: '환불 관리', href: '/admin/refunds', icon: 'refreshCcw' },
     { name: '후기 관리', href: '/admin/reviews', icon: 'messageSquare' },
     { name: '후기 태그 관리', href: '/admin/review-tags', icon: 'settings' },
+    { name: '관리자 ID 관리', href: '/admin/admin-accounts', icon: 'userCog' },
   ]
 }
 

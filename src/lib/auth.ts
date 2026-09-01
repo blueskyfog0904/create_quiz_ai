@@ -53,6 +53,29 @@ export async function requireAuth(nextPath?: string | null) {
   return user
 }
 
+// 관리자 패널 레이아웃 전용 가드: 미로그인/비관리자 모두 관리자 전용 로그인으로 보낸다.
+// (requireAdmin은 일반 로그인 플로우를 쓰는 기존 소비처가 있어 그대로 둔다)
+export async function requireAdminPanelUser() {
+  const supabase = await createClient()
+  const { user } = await getUser()
+
+  if (!user) {
+    redirect('/admin/login')
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile?.is_admin) {
+    redirect('/admin/login?error=forbidden')
+  }
+
+  return user
+}
+
 export async function requireAdmin(nextPath?: string | null) {
   const supabase = await createClient()
   const { user } = await getUser()
