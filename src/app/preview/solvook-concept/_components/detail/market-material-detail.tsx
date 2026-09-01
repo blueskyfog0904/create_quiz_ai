@@ -18,7 +18,9 @@ import type {
   MarketSubproductDownloadFile,
   MarketSubproductPublicSummary,
 } from '@/lib/market-items-server'
+import type { MarketItemReviewsResult, MarketReviewSort } from '@/lib/market-reviews-server'
 import { MarketMaterialSampleButton } from './market-material-sample-button'
+import { MarketReviewsSection } from './market-reviews-section'
 
 interface MarketMaterialDetailProps {
   bundleOption: MarketBundlePublicSummary | null
@@ -28,6 +30,8 @@ interface MarketMaterialDetailProps {
   isLoggedIn: boolean
   item: MarketItem
   purchases: MarketPurchase[]
+  reviews: MarketItemReviewsResult
+  reviewSort: MarketReviewSort
   samplePageCount: number
   subproducts: MarketSubproductPublicSummary[]
 }
@@ -69,6 +73,8 @@ export function MarketMaterialDetail({
   isLoggedIn,
   item,
   purchases,
+  reviews,
+  reviewSort,
   samplePageCount,
   subproducts,
 }: MarketMaterialDetailProps) {
@@ -335,6 +341,13 @@ export function MarketMaterialDetail({
               zipPrice={item.zip_price}
             />
           </section>
+
+          <MarketReviewsSection
+            itemId={item.id}
+            isLoggedIn={isLoggedIn}
+            reviews={reviews}
+            sort={reviewSort}
+          />
         </div>
       )}
     />

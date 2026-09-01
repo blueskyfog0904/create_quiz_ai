@@ -1501,33 +1501,68 @@ export type Database = {
           },
         ]
       }
+      market_item_review_votes: {
+        Row: {
+          created_at: string
+          id: string
+          review_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          review_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          review_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_item_review_votes_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "market_item_reviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       market_item_reviews: {
         Row: {
+          content: string | null
           created_at: string
           deleted_at: string | null
           id: string
           item_id: string
           rating: number
+          tag_ids: string[]
           updated_at: string
           user_id: string
           workspace_subject: string
         }
         Insert: {
+          content?: string | null
           created_at?: string
           deleted_at?: string | null
           id?: string
           item_id: string
           rating: number
+          tag_ids?: string[]
           updated_at?: string
           user_id: string
           workspace_subject: string
         }
         Update: {
+          content?: string | null
           created_at?: string
           deleted_at?: string | null
           id?: string
           item_id?: string
           rating?: number
+          tag_ids?: string[]
           updated_at?: string
           user_id?: string
           workspace_subject?: string
@@ -1873,6 +1908,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      market_review_tags: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          updated_at: string
+          workspace_subject: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          updated_at?: string
+          workspace_subject?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          updated_at?: string
+          workspace_subject?: string
+        }
+        Relationships: []
       }
       market_menu_entries: {
         Row: {

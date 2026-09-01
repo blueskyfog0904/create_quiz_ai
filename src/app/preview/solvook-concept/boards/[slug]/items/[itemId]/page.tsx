@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { listMarketItemReviewsForItem, type MarketReviewSort } from '@/lib/market-reviews-server'
 import { getRequestAuthUserId } from '@/lib/request-auth'
 import {
   getMarketBundlePublicSummary,
@@ -20,6 +21,7 @@ interface SolvookMarketItemDetailPageProps {
   }>
   searchParams: Promise<{
     subject?: string | string[]
+    reviewSort?: string | string[]
   }>
 }
 
@@ -38,6 +40,8 @@ export default async function SolvookMarketItemDetailPage({
     getRequestAuthUserId(),
   ])
   const subject = resolveWorkspaceSubject(firstValue(resolvedSearchParams.subject))
+  const reviewSortParam = firstValue(resolvedSearchParams.reviewSort)
+  const reviewSort: MarketReviewSort = reviewSortParam === 'helpful' ? 'helpful' : 'latest'
 
   // category/item 조회가 모두 workspace_subject = subject 로 필터되므로,
   // 나머지 조회를 subject 기준으로 함께 병렬 실행해도 결과가 동일하다.
@@ -50,6 +54,7 @@ export default async function SolvookMarketItemDetailPage({
     bundleOption,
     downloadFiles,
     purchases,
+    reviews,
   ] = await Promise.all([
     getVisibleMarketMenuEntryBySlugForWorkspace(slug, subject),
     getPublishedMarketItemById(itemId, subject),
@@ -63,6 +68,7 @@ export default async function SolvookMarketItemDetailPage({
     userId
       ? listCompletedMarketPurchasesForItem(userId, itemId, subject)
       : Promise.resolve([]),
+    listMarketItemReviewsForItem(itemId, subject, { viewerId: userId, sort: reviewSort }),
   ])
 
   if (!category) {
@@ -82,6 +88,8 @@ export default async function SolvookMarketItemDetailPage({
       isLoggedIn={Boolean(userId)}
       item={item}
       purchases={purchases}
+      reviews={reviews}
+      reviewSort={reviewSort}
       samplePageCount={samplePageCount}
       subproducts={subproducts}
     />
