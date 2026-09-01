@@ -10,12 +10,12 @@ import {
 } from 'lucide-react'
 
 const menuItems = [
-  { href: '/mypage/payments', label: '결제 내역', icon: CreditCard },
-  { href: '/mypage/credits', label: '크레딧 관리', icon: Coins },
-  { href: '/mypage/profile', label: '내정보 관리', icon: User },
-  { href: '/mypage/history', label: '생성/구매 히스토리', icon: History },
-  { href: '/mypage/withdraw', label: '회원 탈퇴', icon: UserX },
-  { href: '/mypage/support', label: '고객지원', icon: HelpCircle },
+  { href: '/legacy/mypage/payments', label: '결제 내역', icon: CreditCard },
+  { href: '/legacy/mypage/credits', label: '크레딧 관리', icon: Coins },
+  { href: '/legacy/mypage/profile', label: '내정보 관리', icon: User },
+  { href: '/legacy/mypage/history', label: '생성/구매 히스토리', icon: History },
+  { href: '/legacy/mypage/withdraw', label: '회원 탈퇴', icon: UserX },
+  { href: '/legacy/mypage/support', label: '고객지원', icon: HelpCircle },
 ]
 
 export default async function MyPageLayout({

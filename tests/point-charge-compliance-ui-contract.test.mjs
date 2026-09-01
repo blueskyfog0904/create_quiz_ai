@@ -11,13 +11,13 @@ const pricingPage = read('../src/app/pricing/page.tsx')
 const pricingClient = read('../src/app/pricing/pricing-client.tsx')
 const checkout = read('../src/app/checkout/checkout-client.tsx')
 const creditsPage = read(
-  '../src/app/(dashboard)/mypage/credits/credits-client.tsx'
+  '../src/app/(solvook)/mypage/credits/_components/credits-view.tsx'
 )
 const paymentsPage = read(
-  '../src/app/(dashboard)/mypage/payments/page.tsx'
+  '../src/app/(solvook)/mypage/payments/_components/payments-view.tsx'
 )
 const paymentList = read(
-  '../src/app/(dashboard)/mypage/payments/payment-list.tsx'
+  '../src/app/(solvook)/mypage/payments/_components/payments-view.tsx'
 )
 const footerContent = read('../src/lib/footer-content.ts')
 const adminRefunds = read(

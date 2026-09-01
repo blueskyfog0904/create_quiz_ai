@@ -240,13 +240,13 @@ export function HeaderClient({
                     생성/구매 히스토리
                   </Button>
                 </Link>
-                <Link href="/mypage/withdraw" onClick={() => setIsOpen(false)}>
+                <Link href="/legacy/mypage/withdraw" onClick={() => setIsOpen(false)}>
                   <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
                     <UserX className="h-4 w-4" />
                     회원 탈퇴
                   </Button>
                 </Link>
-                <Link href="/mypage/support" onClick={() => setIsOpen(false)}>
+                <Link href="/legacy/mypage/support" onClick={() => setIsOpen(false)}>
                   <Button variant="ghost" className="w-full justify-start gap-2 pl-6">
                     <HelpCircle className="h-4 w-4" />
                     고객지원
@@ -362,13 +362,13 @@ export function HeaderClient({
           </DropdownMenuItem>
           <DropdownMenuSeparator className={accountDropdownSeparatorClassName} />
           <DropdownMenuItem asChild className={accountDropdownItemClassName}>
-            <Link href="/mypage/withdraw" className="flex items-center gap-2 cursor-pointer">
+            <Link href="/legacy/mypage/withdraw" className="flex items-center gap-2 cursor-pointer">
               <UserX className="h-4 w-4" />
               회원 탈퇴
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild className={accountDropdownItemClassName}>
-            <Link href="/mypage/support" className="flex items-center gap-2 cursor-pointer">
+            <Link href="/legacy/mypage/support" className="flex items-center gap-2 cursor-pointer">
               <HelpCircle className="h-4 w-4" />
               고객지원
             </Link>

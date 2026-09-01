@@ -67,7 +67,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     type: 'inquiry_reply',
     title: '문의하신 내용에 답변이 등록되었습니다.',
     message: `제목: ${ticket.subject}\n\n답변을 확인해보세요.`,
-    link: '/mypage/support',
+    link: '/legacy/mypage/support',
   })
 
   return NextResponse.json({ success: true, ticket })

@@ -26,7 +26,7 @@ export function PathAwareSiteChrome({
   const pathname = usePathname() ?? '/'
 
   // 루트(/)와 자료 보관함(/library)은 솔북 컨셉 레이아웃이 자체 헤더/푸터를 렌더하므로 전역 크롬을 생략한다.
-  if (pathname === '/' || pathname === '/library' || pathname === '/search' || isSolvookConceptPreviewPath(pathname)) {
+  if (pathname === '/' || pathname === '/library' || pathname === '/search' || pathname === '/mypage' || pathname.startsWith('/mypage/') || isSolvookConceptPreviewPath(pathname)) {
     return children
   }
 

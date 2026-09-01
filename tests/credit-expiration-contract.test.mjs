@@ -15,9 +15,9 @@ const fulfillmentMigration = read(
 )
 const balanceSource = read('../src/lib/credit-balance.ts')
 const creditsSource = read('../src/lib/credits.ts')
-const creditsPage = read('../src/app/(dashboard)/mypage/credits/page.tsx')
+const creditsPage = read('../src/app/(solvook)/mypage/credits/page.tsx')
 const creditsClient = read(
-  '../src/app/(dashboard)/mypage/credits/credits-client.tsx'
+  '../src/app/(solvook)/mypage/credits/_components/credits-view.tsx'
 )
 
 test('new paid credits expire exactly one year after provider approval', () => {

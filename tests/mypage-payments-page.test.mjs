@@ -3,7 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
 const paymentsPageSource = readFileSync(
-  new URL('../src/app/(dashboard)/mypage/payments/page.tsx', import.meta.url),
+  new URL('../src/app/(solvook)/mypage/payments/page.tsx', import.meta.url),
   'utf8'
 )
 

@@ -3,7 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
 const profileClientSource = readFileSync(
-  new URL('../src/app/(dashboard)/mypage/profile/profile-client.tsx', import.meta.url),
+  new URL('../src/app/(solvook)/mypage/profile/_components/profile-view.tsx', import.meta.url),
   'utf8'
 )
 

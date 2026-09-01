@@ -214,7 +214,7 @@ const buildAuthRedirectResponse = (
     : isPublicBrowseableSubjectPath(pathname)
   const isAdminPath = pathname === '/admin' || pathname.startsWith('/admin/')
   const isDashboardPath = pathname.startsWith('/dashboard')
-  const isMyPagePath = pathname.startsWith('/mypage')
+  const isMyPagePath = pathname.startsWith('/mypage') || pathname.startsWith('/legacy/mypage')
 
   if (!isSubjectFacingProtectedPath && !isAdminPath && !isDashboardPath && !isMyPagePath) {
     return null

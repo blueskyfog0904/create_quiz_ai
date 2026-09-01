@@ -298,7 +298,7 @@ export function CreditsClient({
                         <Link href="/pricing">크레딧 충전</Link>
                     </Button>
                     <Button asChild variant="outline">
-                        <Link href="/mypage/payments">결제 내역</Link>
+                        <Link href="/legacy/mypage/payments">결제 내역</Link>
                     </Button>
                     <Button asChild variant="outline">
                         <Link href="/terms/refund">취소/환불정책</Link>

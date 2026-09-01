@@ -12,7 +12,8 @@ const deductRoute = read('../src/app/api/credits/deduct/route.ts')
 const profileRoute = read('../src/app/api/profile/route.ts')
 const creditsService = read('../src/lib/credits.ts')
 const pointChargeRefunds = read('../src/lib/point-charge-refunds-server.ts')
-const profileClient = read('../src/app/(dashboard)/mypage/profile/profile-client.tsx')
+const profileClient = read('../src/app/(solvook)/mypage/profile/_components/profile-view.tsx')
+const legacyProfileClient = read('../src/app/legacy/mypage/profile/profile-client.tsx')
 const signupPage = read('../src/app/(auth)/signup/page.tsx')
 const hardeningMigration = read(
   '../supabase/migrations/20260805090000_harden_credit_mutation_boundaries.sql'
@@ -47,6 +48,8 @@ test('profile mutations go through an authenticated Zod allowlist route', () => 
   assert.match(profileRoute, /createAdminClient\(\)/)
   assert.match(profileClient, /fetch\('\/api\/profile'/)
   assert.doesNotMatch(profileClient, /\.from\('profiles'\)[\s\S]{0,160}\.update\(/)
+  assert.match(legacyProfileClient, /fetch\('\/api\/profile'/)
+  assert.doesNotMatch(legacyProfileClient, /\.from\('profiles'\)[\s\S]{0,160}\.update\(/)
   assert.match(signupPage, /fetch\('\/api\/profile'/)
   assert.doesNotMatch(signupPage, /\.from\('profiles'\)[\s\S]{0,220}\.update\(/)
 })
