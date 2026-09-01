@@ -2693,7 +2693,13 @@ export async function incrementMarketItemViewCount(itemId: string, workspaceSubj
   }
 }
 
-export async function countMarketLibraryItemsForUser(userId: string): Promise<number> {
+export interface MarketLibraryItemCounts {
+  total: number
+  english: number
+  korean: number
+}
+
+export async function countMarketLibraryItemsForUser(userId: string): Promise<MarketLibraryItemCounts> {
   const supabase = getAdminSupabase()
   const [purchases, entitlements] = await Promise.all([
     supabase
@@ -2721,7 +2727,14 @@ export async function countMarketLibraryItemsForUser(userId: string): Promise<nu
     )
   )
 
-  return itemKeys.size
+  let english = 0
+  let korean = 0
+  for (const key of itemKeys) {
+    if (key.startsWith('korean:')) korean += 1
+    else english += 1
+  }
+
+  return { total: itemKeys.size, english, korean }
 }
 
 export async function listMarketLibraryRowsForUser(

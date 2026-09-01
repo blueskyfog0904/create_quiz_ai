@@ -7,8 +7,6 @@ import {
   CreditCard,
   FileText,
   HelpCircle,
-  History,
-  Sparkles,
   User,
   UserX,
 } from 'lucide-react'
@@ -32,7 +30,6 @@ const MENU_ITEMS = [
   { href: '/mypage/payments', label: '결제 내역', description: '요금제 결제·환불 기록', icon: CreditCard },
   { href: '/mypage/credits', label: '크레딧 관리', description: '잔액·구매·거래 내역', icon: Coins },
   { href: '/mypage/profile', label: '내정보 관리', description: '휴대폰 번호·비밀번호 변경', icon: User },
-  { href: '/mypage/history', label: '생성/구매 히스토리', description: '문제·문제지 활동 기록', icon: History },
   { href: '/mypage/support', label: '고객지원', description: '1:1 문의 접수·확인', icon: HelpCircle },
   { href: '/mypage/withdraw', label: '회원 탈퇴', description: '계정 및 데이터 삭제', icon: UserX },
 ] as const
@@ -55,7 +52,7 @@ export default async function MypageHomePage() {
 
   const supabase = await createClient()
 
-  const [{ data: profile }, { data: userResult }, snapshot, purchasedItemCount] = await Promise.all([
+  const [{ data: profile }, { data: userResult }, snapshot, purchasedCounts] = await Promise.all([
     supabase.from('profiles').select('name, created_at').eq('id', userId).single(),
     supabase.auth.getUser(),
     getCreditBalanceSnapshot(userId),
@@ -68,6 +65,11 @@ export default async function MypageHomePage() {
 
   const balance = selectDisplayBalance(userId, snapshot)
   const email = userResult.user?.email ?? ''
+  // 기본 과목(영어)에 구매 자료가 없으면 자료가 있는 과목의 보관함으로 안내한다
+  const libraryHref =
+    purchasedCounts.english === 0 && purchasedCounts.korean > 0
+      ? '/library?subject=korean'
+      : '/library'
 
   return (
     <StudioContainer className="py-8 sm:py-10">
@@ -136,36 +138,15 @@ export default async function MypageHomePage() {
         <h2 className="text-sm font-bold text-[var(--studio-ink)]">활동 요약</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Link
-            href="/library"
+            href={libraryHref}
             className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3 outline-none transition-colors hover:bg-[var(--studio-primary-soft)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
           >
             <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--studio-muted)]">
               <FileText aria-hidden="true" className="h-3.5 w-3.5" />구매한 자료
             </p>
-            <p className="mt-1 text-xl font-bold text-[var(--studio-ink)]">{purchasedItemCount.toLocaleString()}</p>
+            <p className="mt-1 text-xl font-bold text-[var(--studio-ink)]">{purchasedCounts.total.toLocaleString()}</p>
             <p className="text-xs text-[var(--studio-muted)]">문제마켓 구매 · 자료 보관함에서 확인</p>
           </Link>
-          <div className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3 opacity-50">
-            <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--studio-muted)]">
-              <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />AI 생성 문제
-            </p>
-            <p className="mt-1 text-xl font-bold text-[var(--studio-muted)]">–</p>
-            <p className="text-xs text-[var(--studio-muted)]">서비스 준비 중</p>
-          </div>
-          <div className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3 opacity-50">
-            <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--studio-muted)]">
-              <History aria-hidden="true" className="h-3.5 w-3.5" />문제은행
-            </p>
-            <p className="mt-1 text-xl font-bold text-[var(--studio-muted)]">–</p>
-            <p className="text-xs text-[var(--studio-muted)]">서비스 준비 중</p>
-          </div>
-          <div className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3 opacity-50">
-            <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--studio-muted)]">
-              <FileText aria-hidden="true" className="h-3.5 w-3.5" />생성한 문제지
-            </p>
-            <p className="mt-1 text-xl font-bold text-[var(--studio-muted)]">–</p>
-            <p className="text-xs text-[var(--studio-muted)]">서비스 준비 중</p>
-          </div>
         </div>
       </section>
 
