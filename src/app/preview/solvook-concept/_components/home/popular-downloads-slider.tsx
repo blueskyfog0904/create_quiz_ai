@@ -31,7 +31,6 @@ export function PopularDownloadsSlider({ subject, items, rankingWindowDays }: Po
               thumbnailUrl: item.thumbnailUrl,
               detailHref: `/preview/solvook-concept/boards/${item.categorySlug}/items/${item.id}?subject=${subject}`,
               metadataLabels: Array.from(new Set([
-                `${item.downloadUserCount.toLocaleString('ko-KR')}명 다운로드`,
                 ...item.sources,
                 item.sourceType,
                 item.questionCount !== null ? `${item.questionCount}문항` : null,
