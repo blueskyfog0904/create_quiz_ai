@@ -131,6 +131,10 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    /* 스크롤바 유무와 무관하게 본문 폭을 고정해 페이지 간 좌우 밀림을 방지한다 */
+    scrollbar-gutter: stable;
+  }
   body {
     @apply bg-background text-foreground;
   }
