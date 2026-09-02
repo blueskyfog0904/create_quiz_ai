@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { ChevronDown, Grid2X2, Library, Search, UserRound, WalletCards } from 'lucide-react'
+import { ChevronDown, Coins, Grid2X2, Library, Search, UserRound, WalletCards } from 'lucide-react'
 import { StudioContainer } from '@/components/design-system'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
@@ -35,6 +35,27 @@ export function PreviewHeader({
   // 검색 대상 과목 — 기본은 현재 페이지 과목을 따르고, 드롭다운으로 직접 고르면 그 값을 유지한다.
   const [searchSubjectOverride, setSearchSubjectOverride] = useState<WorkspaceSubject | null>(null)
   const [searchSubjectMenuOpen, setSearchSubjectMenuOpen] = useState(false)
+  const [creditBalance, setCreditBalance] = useState<number | null>(null)
+
+  // 보유 크레딧은 렌더를 막지 않도록 마운트 후 조회한다 (실패 시 표시 생략)
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setCreditBalance(null)
+      return
+    }
+    let cancelled = false
+    fetch('/api/credits/balance')
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!cancelled && typeof data?.balance === 'number') {
+          setCreditBalance(data.balance)
+        }
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [isLoggedIn])
   const searchSubjectMenuRef = useRef<HTMLDivElement | null>(null)
   const searchSubject: WorkspaceSubject = searchSubjectOverride ?? subject
   const searchSubjectLabel = searchSubject === 'korean' ? '국어' : '영어'
@@ -251,6 +272,18 @@ export function PreviewHeader({
 
             {isLoggedIn ? (
               <>
+                {creditBalance !== null && (
+                  <Link
+                    href="/mypage/credits"
+                    aria-label={`보유 크레딧 ${creditBalance.toLocaleString()}`}
+                    className="flex min-h-11 shrink-0 flex-col items-center justify-center gap-1 rounded-md px-2 py-1 text-[var(--studio-primary)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                  >
+                    <Coins aria-hidden="true" className="h-5 w-5" />
+                    <span className="whitespace-nowrap text-[11px] font-bold leading-none">
+                      {creditBalance.toLocaleString()} 크레딧
+                    </span>
+                  </Link>
+                )}
                 <Link
                   href={libraryHref}
                   className="flex min-h-11 shrink-0 flex-col items-center justify-center gap-1 rounded-md px-2 py-1 text-[var(--studio-ink)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
