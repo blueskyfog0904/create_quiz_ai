@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { MarketBoardData, MarketBoardSort } from '@/lib/market-board'
-import { BoardCategorySidebar } from './board-category-sidebar'
 import { RealMarketBoardResults } from './real-market-board-results'
 
 const SUBJECT_LABELS = {
@@ -42,15 +41,6 @@ export function RealMarketBoard({
           data-slot="market-board-layout"
           className="grid gap-6"
         >
-            <BoardCategorySidebar
-              groups={data.groups}
-              categorySlug={data.category.slug}
-              subject={data.subject}
-              search={filters.search}
-              year={filters.year}
-              sort={filters.sort}
-            />
-
             <div data-slot="market-board-content" className="min-w-0 space-y-6">
               <header>
                 <div>

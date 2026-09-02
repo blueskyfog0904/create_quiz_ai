@@ -20,7 +20,6 @@ import { Button } from '@/components/ui/button'
 import type { PublicMainAdCarouselItem } from '@/lib/main-ad-carousel'
 import type { MarketHomeMenuEntry } from '@/lib/market-home'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
-import { ProblemMarketMenu } from '../ProblemMarketMenu'
 
 interface MainAdCarouselProps {
   subject: WorkspaceSubject
@@ -525,16 +524,6 @@ export function MainAdCarousel({ subject, items, categories }: MainAdCarouselPro
       className="border-b border-[var(--studio-border)] bg-[var(--studio-surface)] py-6 sm:py-8"
     >
       <StudioContainer className="relative">
-        <ProblemMarketMenu
-          subject={subject}
-          entries={categories.map((category) => ({
-            id: category.id,
-            title: category.title,
-            href: `/preview/solvook-concept/boards/${category.slug}?subject=${subject}`,
-          }))}
-          className="mb-3 p-5 min-[1720px]:fixed min-[1720px]:left-[calc((100vw-var(--studio-content-width,75rem))/2-15.5rem)] min-[1720px]:top-[137px] min-[1720px]:z-30 min-[1720px]:mb-0 min-[1720px]:w-56"
-        />
-
         <div className="relative h-[220px] overflow-hidden rounded-xl border border-[var(--studio-border)] bg-[var(--studio-background)] sm:h-[300px] min-[641px]:h-[360px]">
           <div className="hidden min-[1080px]:absolute min-[1080px]:inset-y-0 min-[1080px]:left-0 min-[1080px]:z-10 min-[1080px]:flex min-[1080px]:w-[200px] min-[1080px]:flex-col min-[1080px]:overflow-y-auto min-[1080px]:border-r min-[1080px]:border-[var(--studio-border)] min-[1080px]:bg-[var(--studio-surface)] min-[1200px]:w-60">
             {carouselState === 'empty' ? (
