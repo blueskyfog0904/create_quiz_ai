@@ -136,20 +136,6 @@ export function AdminSidebarClient({ navigationConfigs }: AdminSidebarClientProp
             )
           })}
         </nav>
-
-        <div className={cn('absolute bottom-0 left-0 right-0 border-t border-slate-700 p-4', collapsed && 'md:p-2')}>
-          <Link href="/">
-            <Button
-              variant="outline"
-              className={cn(
-                'w-full border-slate-600 bg-transparent text-slate-300 hover:bg-slate-800 hover:text-white',
-                collapsed && 'md:px-2'
-              )}
-            >
-              {collapsed ? '←' : '← 메인으로 돌아가기'}
-            </Button>
-          </Link>
-        </div>
       </aside>
 
       {!collapsed && (
