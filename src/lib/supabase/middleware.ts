@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { toSessionCookieOptions } from './session-cookies'
 import {
   DEFAULT_WORKSPACE_SUBJECT,
   isSubjectFacingPath,
@@ -279,7 +280,7 @@ export async function updateSession(request: NextRequest) {
           response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath, verifiedUserId)
 
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
+            response.cookies.set(name, value, toSessionCookieOptions(options))
           )
         },
       },
