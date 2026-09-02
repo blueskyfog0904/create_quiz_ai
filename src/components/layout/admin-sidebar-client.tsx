@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { ChevronLeft, Menu } from 'lucide-react'
+import { ChevronLeft, LogOut, Menu } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -23,6 +23,22 @@ export function AdminSidebarClient({ navigationConfigs }: AdminSidebarClientProp
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [collapsed, setCollapsed] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      const response = await fetch('/api/auth/logout', { method: 'POST' })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error('로그아웃에 실패했습니다.')
+      }
+      window.location.href = '/admin/login'
+    } catch {
+      alert('로그아웃에 실패했습니다.')
+      setIsLoggingOut(false)
+    }
+  }
   const workspaceSubject = resolveAdminWorkspaceSubject(searchParams.get('subject'))
   const resolvedNavigationNodes = useMemo(
     () => resolveAdminSidebarNavigationNodes(workspaceSubject, navigationConfigs[workspaceSubject]),
@@ -135,6 +151,23 @@ export function AdminSidebarClient({ navigationConfigs }: AdminSidebarClientProp
               </div>
             )
           })}
+
+          <div className="mt-2 border-t border-slate-700 pt-2">
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              disabled={isLoggingOut}
+              className={cn(
+                'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-white disabled:opacity-50',
+                collapsed && 'md:justify-center md:px-2'
+              )}
+            >
+              <LogOut className="h-5 w-5 flex-shrink-0" />
+              <span className={cn(collapsed && 'md:hidden')}>
+                {isLoggingOut ? '로그아웃 중…' : '로그아웃'}
+              </span>
+            </button>
+          </div>
         </nav>
       </aside>
 
