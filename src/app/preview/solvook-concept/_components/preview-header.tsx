@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { ChevronDown, Coins, Grid2X2, Library, Search, UserRound, WalletCards } from 'lucide-react'
 import { StudioContainer } from '@/components/design-system'
+import { CategoryMegaMenu } from '@/components/layout/category-mega-menu'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 const authNext = encodeURIComponent('/')
@@ -58,6 +59,12 @@ export function PreviewHeader({
   }, [isLoggedIn])
   const searchSubjectMenuRef = useRef<HTMLDivElement | null>(null)
   const searchSubject: WorkspaceSubject = searchSubjectOverride ?? subject
+
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
+  const categoryTriggerDesktopRef = useRef<HTMLButtonElement | null>(null)
+  const categoryTriggerMobileRef = useRef<HTMLButtonElement | null>(null)
+  const categoryPanelRef = useRef<HTMLDivElement | null>(null)
+  const categoryCloseTimerRef = useRef<number | null>(null)
   const searchSubjectLabel = searchSubject === 'korean' ? '국어' : '영어'
   const searchQuery = searchParams.get('q') ?? ''
 
@@ -85,6 +92,56 @@ export function PreviewHeader({
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [searchSubjectMenuOpen])
+
+  useEffect(() => {
+    if (!categoryMenuOpen) return
+
+    // 트리거 2곳 + 패널을 하나의 영역으로 보고 외부 pointerdown·Escape로 닫는다.
+    const containerRefs = [categoryTriggerDesktopRef, categoryTriggerMobileRef, categoryPanelRef]
+
+    function handlePointerDown(event: PointerEvent) {
+      const inside = containerRefs.some(
+        (ref) => ref.current !== null && ref.current.contains(event.target as Node)
+      )
+      if (!inside) setCategoryMenuOpen(false)
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setCategoryMenuOpen(false)
+    }
+    // 데스크톱: 트리거·패널 밖으로 마우스가 나가면 150ms 지연 후 닫는다.
+    function scheduleClose() {
+      if (categoryCloseTimerRef.current !== null) {
+        window.clearTimeout(categoryCloseTimerRef.current)
+      }
+      categoryCloseTimerRef.current = window.setTimeout(() => setCategoryMenuOpen(false), 150)
+    }
+    function cancelScheduledClose() {
+      if (categoryCloseTimerRef.current !== null) {
+        window.clearTimeout(categoryCloseTimerRef.current)
+        categoryCloseTimerRef.current = null
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    const hoverTargets: HTMLElement[] = [
+      categoryTriggerDesktopRef.current,
+      categoryPanelRef.current,
+    ].filter((element) => element !== null)
+    for (const element of hoverTargets) {
+      element.addEventListener('mouseleave', scheduleClose)
+      element.addEventListener('mouseenter', cancelScheduledClose)
+    }
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+      for (const element of hoverTargets) {
+        element.removeEventListener('mouseleave', scheduleClose)
+        element.removeEventListener('mouseenter', cancelScheduledClose)
+      }
+      cancelScheduledClose()
+    }
+  }, [categoryMenuOpen])
 
   // 루트에서는 서버 재요청 없이 즉시 과목을 전환한다 (pushState는 useSearchParams와 동기화됨).
   function handleSubjectTabClick(
@@ -137,10 +194,17 @@ export function PreviewHeader({
         </StudioContainer>
 
         <StudioContainer className="scrollbar-hide flex h-12 items-center gap-1 overflow-x-auto text-sm font-bold">
-          <span className="inline-flex min-h-11 shrink-0 items-center gap-2 px-2 text-[var(--studio-text)]">
+          <button
+            ref={categoryTriggerMobileRef}
+            type="button"
+            aria-haspopup="true"
+            aria-expanded={categoryMenuOpen}
+            onClick={() => setCategoryMenuOpen((open) => !open)}
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md px-2 text-[var(--studio-text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+          >
             <Grid2X2 aria-hidden="true" className="h-4 w-4" />
             <span>카테고리</span>
-          </span>
+          </button>
           <Link
             href={englishHomeHref}
             onClick={(event) => handleSubjectTabClick(event, 'english', englishHomeHref)}
@@ -323,10 +387,18 @@ export function PreviewHeader({
             aria-label="문제마켓 과목"
             className="flex min-w-0 items-center gap-1 text-base font-extrabold"
           >
-            <span className="inline-flex min-h-11 shrink-0 items-center gap-2 px-1.5 text-[var(--studio-text)]">
+            <button
+              ref={categoryTriggerDesktopRef}
+              type="button"
+              aria-haspopup="true"
+              aria-expanded={categoryMenuOpen}
+              onMouseEnter={() => setCategoryMenuOpen(true)}
+              onClick={() => setCategoryMenuOpen((open) => !open)}
+              className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md px-1.5 text-[var(--studio-text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+            >
               <Grid2X2 aria-hidden="true" className="h-[18px] w-[18px]" />
               <span>카테고리</span>
-            </span>
+            </button>
             <Link
               href={englishHomeHref}
               onClick={(event) => handleSubjectTabClick(event, 'english', englishHomeHref)}
@@ -354,6 +426,13 @@ export function PreviewHeader({
           </Link>
         </StudioContainer>
       </div>
+
+      <CategoryMegaMenu
+        open={categoryMenuOpen}
+        currentSubject={subject}
+        onClose={() => setCategoryMenuOpen(false)}
+        panelRef={categoryPanelRef}
+      />
     </header>
   )
 }

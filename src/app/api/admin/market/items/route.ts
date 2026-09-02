@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import { getMarketCategoryItemWorkspaceSubject } from '@/lib/market-categories-server'
 import { createMarketItem, listMarketItemsForAdmin } from '@/lib/market-items-server'
 import { listMarketMenuEntriesForAdmin } from '@/lib/market-menu-server'
 
@@ -22,6 +23,7 @@ const MarketItemSchema = z.object({
   source3: z.string().trim().optional(),
   source4: z.string().trim().optional(),
   questionCount: z.number().int().min(0).nullable().optional(),
+  categoryItemId: z.string().uuid().nullable().optional(),
   pdfPrice: z.number().int().min(0),
   hwpPrice: z.number().int().min(0),
   zipPrice: z.number().int().min(0),
@@ -111,6 +113,16 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
+    if (typeof parsed.data.categoryItemId === 'string') {
+      const categorySubject = await getMarketCategoryItemWorkspaceSubject(parsed.data.categoryItemId)
+      if (categorySubject !== workspaceSubject) {
+        return NextResponse.json({
+          success: false,
+          error: { code: 'INVALID_INPUT', message: '상품과 같은 과목의 카테고리 항목을 선택해주세요.' },
+        }, { status: 400 })
+      }
+    }
+
     const item = await createMarketItem({
       menu_entry_id: parsed.data.menuEntryId,
       title: parsed.data.title,
@@ -126,6 +138,8 @@ export async function POST(request: Request) {
       source_3: parsed.data.source3,
       source_4: parsed.data.source4,
       question_count: parsed.data.questionCount ?? null,
+      // undefined는 그대로 전달 (createMarketItem에서 null로 저장)
+      category_item_id: parsed.data.categoryItemId,
       pdf_price: parsed.data.pdfPrice,
       hwp_price: parsed.data.hwpPrice,
       zip_price: parsed.data.zipPrice,

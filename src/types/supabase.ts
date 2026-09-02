@@ -1785,8 +1785,80 @@ export type Database = {
           },
         ]
       }
+      market_category_groups: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          sort_order: number
+          title: string
+          updated_at: string
+          workspace_subject: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          title: string
+          updated_at?: string
+          workspace_subject: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          workspace_subject?: string
+        }
+        Relationships: []
+      }
+      market_category_items: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          is_active: boolean
+          sort_order: number
+          title: string
+          updated_at: string
+          workspace_subject: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          title: string
+          updated_at?: string
+          workspace_subject: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          workspace_subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_category_items_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "market_category_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       market_items: {
         Row: {
+          category_item_id: string | null
           created_at: string
           created_by: string | null
           deleted_at: string | null
@@ -1820,6 +1892,7 @@ export type Database = {
           zip_price: number
         }
         Insert: {
+          category_item_id?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -1853,6 +1926,7 @@ export type Database = {
           zip_price?: number
         }
         Update: {
+          category_item_id?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -1886,6 +1960,13 @@ export type Database = {
           zip_price?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "market_items_category_item_subject_fkey"
+            columns: ["category_item_id", "workspace_subject"]
+            isOneToOne: false
+            referencedRelation: "market_category_items"
+            referencedColumns: ["id", "workspace_subject"]
+          },
           {
             foreignKeyName: "market_items_created_by_fkey"
             columns: ["created_by"]

@@ -94,6 +94,23 @@ interface MarketItemFormState {
   isActive: boolean
 }
 
+interface AdminCategoryMenuGroup {
+  id: string
+  title: string
+  sortOrder: number
+  isActive: boolean
+  items: {
+    id: string
+    title: string
+    sortOrder: number
+    isActive: boolean
+  }[]
+}
+
+function getItemCategoryItemId(item: MarketItem) {
+  return (item as { category_item_id?: string | null }).category_item_id ?? ''
+}
+
 const MARKET_STATUS_LABELS: Record<MarketItemFormState['status'], string> = {
   draft: '임시저장',
   published: '공개',
@@ -526,6 +543,9 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const [isSubproductSaving, setIsSubproductSaving] = useState(false)
   const [subproductUploadingKeys, setSubproductUploadingKeys] = useState<string[]>([])
   const [subproductDragActiveKeys, setSubproductDragActiveKeys] = useState<string[]>([])
+  const [categoryMenuGroups, setCategoryMenuGroups] = useState<AdminCategoryMenuGroup[]>([])
+  const [categoryItemId, setCategoryItemId] = useState('')
+  const [savedCategoryItemId, setSavedCategoryItemId] = useState('')
   const sampleSourceInputRef = useRef<HTMLInputElement | null>(null)
 
   const filteredItems = useMemo(() => (
@@ -638,8 +658,39 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     }
   }, [reloadUploadTaxonomy])
 
+  useEffect(() => {
+    let isMounted = true
+
+    const loadCategoryMenu = async () => {
+      try {
+        const response = await fetch(withAdminWorkspaceSubject('/api/admin/market-categories', workspaceSubject), { cache: 'no-store' })
+        const payload = await response.json()
+
+        if (!response.ok || !payload.success) {
+          throw new Error(payload.error?.message || '카테고리 메뉴 목록을 불러오지 못했습니다.')
+        }
+
+        if (isMounted) {
+          setCategoryMenuGroups((payload.data?.groups || []) as AdminCategoryMenuGroup[])
+        }
+      } catch (error) {
+        if (isMounted) {
+          toast.error(error instanceof Error ? error.message : '카테고리 메뉴 목록을 불러오지 못했습니다.')
+        }
+      }
+    }
+
+    void loadCategoryMenu()
+
+    return () => {
+      isMounted = false
+    }
+  }, [workspaceSubject])
+
   const resetForm = (menuEntryId = selectedMenuEntryId) => {
     setForm(buildEmptyForm(menuEntryId))
+    setCategoryItemId('')
+    setSavedCategoryItemId('')
     setSubproducts([])
     setSubproductFiles([])
     setBundleOption(null)
@@ -819,6 +870,8 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
 
     setSelectedMenuEntryId(detail.item.menu_entry_id)
     setForm(buildEditForm(detail.item))
+    setCategoryItemId(getItemCategoryItemId(detail.item))
+    setSavedCategoryItemId(getItemCategoryItemId(detail.item))
     applyItemDetail(detail)
     setSamplePages(await fetchItemSamplePages(id))
     setSelectedSampleSourceFile(null)
@@ -865,6 +918,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     status: statusOverride ?? form.status,
     draftSource,
     isActive: form.isActive,
+    ...(categoryItemId !== savedCategoryItemId ? { categoryItemId: categoryItemId || null } : {}),
   })
 
   const persistForm = async (
@@ -916,6 +970,8 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       const detail = await fetchItemDetail(payload.data.id)
       setSelectedMenuEntryId(detail.item.menu_entry_id)
       setForm(buildEditForm(detail.item))
+      setCategoryItemId(getItemCategoryItemId(detail.item))
+      setSavedCategoryItemId(getItemCategoryItemId(detail.item))
       setHiddenOverride(detail.item.id, detail.item.status === 'hidden')
       applyItemDetail(detail)
       if (sampleDraftToken && options.draftSource !== 'auto_upload') {
@@ -1969,6 +2025,26 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
               >
                 {menuEntries.map((entry) => (
                   <option key={entry.id} value={entry.id}>{entry.title}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>카테고리(메가메뉴)</Label>
+              <select
+                value={categoryItemId}
+                onChange={(event) => setCategoryItemId(event.target.value)}
+                className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
+              >
+                <option value="">미지정</option>
+                {categoryMenuGroups.map((group) => (
+                  <optgroup key={group.id} label={group.isActive ? group.title : `${group.title} (비활성)`}>
+                    {group.items.map((categoryItem) => (
+                      <option key={categoryItem.id} value={categoryItem.id}>
+                        {categoryItem.isActive ? categoryItem.title : `${categoryItem.title} (비활성)`}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>

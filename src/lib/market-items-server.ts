@@ -2145,7 +2145,7 @@ export async function listMarketSubproductDownloadFilesForUser(
 export async function createMarketItem(
   input: Pick<TablesInsert<'market_items'>,
     'menu_entry_id' | 'title' | 'summary' | 'description' | 'thumbnail_url' | 'exam_year' | 'exam_month' |
-    'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'question_count' |
+    'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'question_count' | 'category_item_id' |
     'pdf_price' | 'hwp_price' | 'zip_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'draft_source' | 'created_by' | 'updated_by'>
 ) {
   const supabase = getAdminSupabase()
@@ -2172,6 +2172,7 @@ export async function createMarketItem(
     source_3: normalizeNullableText(input.source_3),
     source_4: normalizeNullableText(input.source_4),
     question_count: input.question_count ?? null,
+    category_item_id: input.category_item_id ?? null,
     pdf_price: normalized.pdfPrice,
     hwp_price: normalized.hwpPrice,
     zip_price: normalized.zipPrice,
@@ -2201,7 +2202,7 @@ export async function updateMarketItem(
   id: string,
   input: Pick<TablesUpdate<'market_items'>,
     'title' | 'summary' | 'description' | 'thumbnail_url' | 'exam_year' | 'exam_month' |
-    'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'question_count' | 'menu_entry_id' |
+    'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'question_count' | 'category_item_id' | 'menu_entry_id' |
     'pdf_price' | 'hwp_price' | 'zip_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'draft_source' | 'updated_by'>
 ) {
   const supabase = getAdminSupabase()
@@ -2250,6 +2251,8 @@ export async function updateMarketItem(
     source_3: normalizeNullableText(input.source_3 ?? current.source_3),
     source_4: normalizeNullableText(input.source_4 ?? current.source_4),
     question_count: input.question_count === undefined ? current.question_count : input.question_count,
+    // question_count 패턴: undefined = 변경 없음, null = 카테고리 해제
+    category_item_id: input.category_item_id === undefined ? current.category_item_id : input.category_item_id,
     pdf_price: normalized.pdfPrice,
     hwp_price: normalized.hwpPrice,
     zip_price: normalized.zipPrice,
