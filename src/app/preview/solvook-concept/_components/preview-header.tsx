@@ -177,7 +177,7 @@ export function PreviewHeader({
       </div>
 
       <div className="hidden lg:block">
-        <nav aria-label="상단 메뉴" className="border-b border-[var(--studio-border)]">
+        <nav aria-label="상단 메뉴">
           <StudioContainer className="flex h-[72px] items-center gap-5">
             <Link
               href={homeHref}
