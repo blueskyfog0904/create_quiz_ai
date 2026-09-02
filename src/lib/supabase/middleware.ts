@@ -17,6 +17,32 @@ const WORKSPACE_SCOPED_PATH_HEADER = 'x-workspace-scoped-path'
 // src/lib/request-auth.ts 의 AUTH_USER_ID_HEADER 와 같은 값이어야 한다.
 const AUTH_USER_ID_HEADER = 'x-auth-user-id'
 
+// 로그인 후 절대 만료: 브라우저 유지 여부와 무관하게 이 시간이 지나면 재로그인을 강제한다.
+const AUTH_ABSOLUTE_MAX_AGE_MS = 3 * 60 * 60 * 1000
+const AUTH_SESSION_STARTED_COOKIE = 'sst-session-started-at'
+
+// 액세스 토큰(JWT) payload의 session_id — 서명 검증은 getUser가 이미 수행했으므로 디코드만 한다.
+const decodeSessionId = (accessToken?: string): string | null => {
+  const payload = accessToken?.split('.')[1]
+  if (!payload) return null
+  try {
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const parsed = JSON.parse(atob(base64)) as { session_id?: unknown }
+    return typeof parsed.session_id === 'string' ? parsed.session_id : null
+  } catch {
+    return null
+  }
+}
+
+const parseSessionStartedMarker = (value?: string): { sessionId: string; startedAt: number } | null => {
+  if (!value) return null
+  const separatorIndex = value.lastIndexOf(':')
+  if (separatorIndex < 1) return null
+  const startedAt = Number(value.slice(separatorIndex + 1))
+  if (!Number.isFinite(startedAt)) return null
+  return { sessionId: value.slice(0, separatorIndex), startedAt }
+}
+
 const getWorkspaceHomePath = (path: string) => {
   const subject = parseWorkspaceSubjectFromPath(path)
   return subject ? withWorkspacePrefix(subject, '/') : '/'
@@ -289,14 +315,42 @@ export async function updateSession(request: NextRequest) {
 
   try {
     const {
-      data: { user },
+      data: { user: authUser },
     } = await supabase.auth.getUser()
+    let user = authUser
 
     if (user) {
-      verifiedUserId = user.id
-      const authedResponse = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath, verifiedUserId)
-      copyResponseCookies(response, authedResponse)
-      response = authedResponse
+      // 로그인 후 3시간 절대 만료: 로그인 세션(session_id) 단위로 시작 시각을
+      // 마커 쿠키에 기록하고, 초과 시 인증 쿠키를 지워 강제 로그아웃한다.
+      const { data: sessionData } = await supabase.auth.getSession()
+      const sessionId = decodeSessionId(sessionData.session?.access_token) ?? `uid:${user.id}`
+      const marker = parseSessionStartedMarker(request.cookies.get(AUTH_SESSION_STARTED_COOKIE)?.value)
+      const now = Date.now()
+
+      if (marker && marker.sessionId === sessionId && now - marker.startedAt > AUTH_ABSOLUTE_MAX_AGE_MS) {
+        user = null
+        response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath)
+        request.cookies.getAll().forEach(({ name }) => {
+          if (name.startsWith('sb-')) {
+            response.cookies.set(name, '', { path: '/', maxAge: 0 })
+          }
+        })
+        response.cookies.set(AUTH_SESSION_STARTED_COOKIE, '', { path: '/', maxAge: 0 })
+      } else {
+        verifiedUserId = user.id
+        const authedResponse = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath, verifiedUserId)
+        copyResponseCookies(response, authedResponse)
+        response = authedResponse
+
+        if (!marker || marker.sessionId !== sessionId) {
+          // 세션 쿠키(만료 없음)로 저장 — 브라우저가 인증 쿠키를 복원해도 타이머는 유지된다
+          response.cookies.set(AUTH_SESSION_STARTED_COOKIE, `${sessionId}:${now}`, {
+            path: '/',
+            httpOnly: true,
+            sameSite: 'lax',
+          })
+        }
+      }
     }
 
     const pathname = request.nextUrl.pathname
