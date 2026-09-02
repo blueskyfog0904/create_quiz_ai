@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { connection } from 'next/server'
 import {
   getMarketCategoryItemDetail,
+  listMarketCategoryMenu,
   listMarketItemsForCategory,
 } from '@/lib/market-categories-server'
 import { CategoryItemsView } from './_components/category-items-view'
@@ -26,11 +27,18 @@ export default async function CategoryPage({
     notFound()
   }
 
-  const rows = await listMarketItemsForCategory(id)
+  const [rows, menu] = await Promise.all([
+    listMarketItemsForCategory(id),
+    listMarketCategoryMenu(),
+  ])
 
   return (
     <Suspense fallback={null}>
-      <CategoryItemsView category={category} rows={rows} />
+      <CategoryItemsView
+        category={category}
+        rows={rows}
+        tree={menu[category.workspaceSubject]}
+      />
     </Suspense>
   )
 }
