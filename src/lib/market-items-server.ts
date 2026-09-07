@@ -2702,6 +2702,48 @@ export interface MarketLibraryItemCounts {
   korean: number
 }
 
+// 자료 보관함 기본 과목: 가장 최근 구매(또는 이용권 발급)가 속한 과목. 내역이 없으면 null.
+export async function getMostRecentLibrarySubjectForUser(userId: string): Promise<WorkspaceSubject | null> {
+  const supabase = getAdminSupabase()
+  const [purchase, entitlement] = await Promise.all([
+    supabase
+      .from('market_purchases')
+      .select('workspace_subject, purchased_at')
+      .eq('user_id', userId)
+      .eq('status', 'completed')
+      .order('purchased_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('market_entitlements')
+      .select('workspace_subject, created_at')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  if (purchase.error) {
+    throw new Error(purchase.error.message)
+  }
+  if (entitlement.error) {
+    throw new Error(entitlement.error.message)
+  }
+
+  const candidates = [
+    purchase.data ? { subject: purchase.data.workspace_subject, at: purchase.data.purchased_at } : null,
+    entitlement.data ? { subject: entitlement.data.workspace_subject, at: entitlement.data.created_at } : null,
+  ].filter((entry): entry is { subject: string; at: string } => entry !== null)
+
+  if (candidates.length === 0) {
+    return null
+  }
+
+  candidates.sort((a, b) => b.at.localeCompare(a.at))
+  return candidates[0].subject === 'korean' ? 'korean' : DEFAULT_WORKSPACE_SUBJECT
+}
+
 export async function countMarketLibraryItemsForUser(userId: string): Promise<MarketLibraryItemCounts> {
   const supabase = getAdminSupabase()
   const [purchases, entitlements] = await Promise.all([

@@ -191,14 +191,14 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
     setFacetSelections(next)
     setPage(1)
     const params = new URLSearchParams()
-    if (subject === 'korean') params.set('subject', 'korean')
+    // 과목을 항상 명시해 파라미터 없는 URL의 자동 과목 결정(최근 구매 과목)과 충돌하지 않게 한다.
+    params.set('subject', subject)
     for (const facet of LIBRARY_FACETS) {
       for (const value of next[facet.key] ?? []) {
         params.append(facet.key, value)
       }
     }
-    const query = params.toString()
-    window.history.replaceState(null, '', query ? `/library?${query}` : '/library')
+    window.history.replaceState(null, '', `/library?${params.toString()}`)
   }
 
   const toggleFacetValue = (facetKey: string, value: string) => {
@@ -266,7 +266,7 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
     setSubjectMenuOpen(false)
     if (nextSubject === subject) return
     startSubjectSwitch(() => {
-      router.push(nextSubject === 'korean' ? '/library?subject=korean' : '/library')
+      router.push(`/library?subject=${nextSubject}`)
     })
   }
 
@@ -490,27 +490,22 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
       )}
 
       {pagedRows.length === 0 ? (
-        <div className="mt-6">
-          <StudioEmptyState
-            icon={<FolderOpen className="size-6" aria-hidden />}
-            title={rows.length === 0 ? '구매한 자료가 없습니다' : '조건에 맞는 자료가 없습니다'}
-            description={
-              rows.length === 0
-                ? '문제마켓에서 자료를 구매하면 이곳에서 확인하고 다운로드할 수 있습니다.'
-                : '검색어나 자료유형 필터를 변경해 보세요.'
-            }
-            action={
-              rows.length === 0 ? (
-                <Link
-                  href={subject === 'korean' ? '/?subject=korean' : '/'}
-                  className="inline-flex min-h-11 items-center rounded-[var(--studio-radius-control)] bg-[var(--studio-primary)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--studio-primary-hover)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-                >
-                  문제마켓 둘러보기
-                </Link>
-              ) : undefined
-            }
-          />
-        </div>
+        rows.length === 0 ? (
+          // 솔북식 빈 보관함: 넉넉한 여백 가운데에 안내 문구만 표시
+          <div className="flex min-h-[320px] items-center justify-center">
+            <p className="break-keep text-[15px] text-[var(--studio-muted)]">
+              아직 자료 보관함에 담긴 자료가 없어요.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-6">
+            <StudioEmptyState
+              icon={<FolderOpen className="size-6" aria-hidden />}
+              title="조건에 맞는 자료가 없습니다"
+              description="검색어나 자료유형 필터를 변경해 보세요."
+            />
+          </div>
+        )
       ) : (
         <ul className="mt-6 divide-y divide-[var(--studio-border)] rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] shadow-[var(--studio-shadow-card)]">
           {pagedRows.map((row) => {
