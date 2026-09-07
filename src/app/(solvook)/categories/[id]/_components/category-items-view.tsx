@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ChevronDown, FolderOpen } from 'lucide-react'
 import { StudioContainer } from '@/components/design-system/studio-container'
 import { StudioEmptyState } from '@/components/design-system/studio-empty-state'
-import { MarketItemCard } from '@/components/market/market-item-card'
+import { MarketItemListRow } from '@/components/market/market-item-list-row'
 import MarketSamplePreviewDialog from '@/app/(dashboard)/market/[slug]/items/[itemId]/market-sample-preview-dialog'
 import type { MegaMenuGroup } from '@/lib/market-categories-server'
 import type { MarketSearchRow } from '@/lib/market-search-server'
@@ -155,9 +155,10 @@ export function CategoryItemsView({ category, rows, tree }: CategoryItemsViewPro
               />
             </div>
           ) : (
-            <div className="mt-6 grid gap-5 md:grid-cols-2">
+            // 솔북식: 한 줄에 상품 1개, 행 사이 hairline 구분선
+            <ul className="mt-4 divide-y divide-[var(--studio-border)] border-t border-[var(--studio-border)]">
               {rows.map((row) => (
-                <MarketItemCard
+                <MarketItemListRow
                   key={row.itemId}
                   row={row}
                   subject={subject}
@@ -165,7 +166,7 @@ export function CategoryItemsView({ category, rows, tree }: CategoryItemsViewPro
                   onSampleOpen={openSamplePreview}
                 />
               ))}
-            </div>
+            </ul>
           )}
         </div>
       </div>
