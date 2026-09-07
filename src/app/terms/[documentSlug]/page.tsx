@@ -19,12 +19,12 @@ export async function generateMetadata({ params }: TermsDocumentPageProps): Prom
 
   if (!document) {
     return {
-      title: '약관 및 정책 | AI영어문제팩토리',
+      title: '약관 및 정책 | 써머썬 연구소',
     }
   }
 
   return {
-    title: `${document.title} | AI영어문제팩토리`,
+    title: `${document.title} | 써머썬 연구소`,
     description: document.label,
   }
 }
