@@ -26,6 +26,14 @@ Before implementing:
 
 Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
+## 2.5 No Hardcoding
+
+**하드코딩 금지.** 데이터(상품·카테고리·매핑·ID·문구 목록 등)는 코드에 박지 말고 DB를 수정해서 반영한다.
+
+- 특정 레코드 ID, 제목 목록, 매핑 테이블을 소스 코드에 상수로 넣지 않는다.
+- 데이터 이동/변경이 필요하면 DB 데이터를 직접 수정(스크립트/마이그레이션)한다.
+- 코드에는 규칙(로직)만, 데이터는 DB에만.
+
 ## 3. Surgical Changes
 
 **Touch only what you must. Clean up only your own mess.**
