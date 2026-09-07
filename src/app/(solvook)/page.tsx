@@ -21,7 +21,7 @@ export default async function SolvookHomePage({
 }) {
   await connection()
   const params = await searchParams
-  const initialSubject = resolveSubject(params.subject) ?? 'english'
+  const initialSubject = resolveSubject(params.subject) ?? 'korean'
 
   // 과목 탭 즉시 전환을 위해 양쪽 과목 데이터를 함께 로드한다 (60초 공유 캐시라 비용 미미).
   const [englishHome, koreanHome, englishAds, koreanAds] = await Promise.all([

@@ -15,8 +15,8 @@ export default async function SolvookHomeLayout({
     getRequestAuthUserId(),
     getSolvookFooterData(),
   ])
-  // 홈 초기 과목은 항상 영어. 쿼리(?subject=)는 헤더/홈뷰가 useSearchParams로 즉시 반영한다.
-  const initialSubject: WorkspaceSubject = 'english'
+  // 홈 초기 과목은 항상 국어. 쿼리(?subject=)는 헤더/홈뷰가 useSearchParams로 즉시 반영한다.
+  const initialSubject: WorkspaceSubject = 'korean'
 
   return (
     <>

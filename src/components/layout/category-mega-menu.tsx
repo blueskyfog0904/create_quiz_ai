@@ -30,8 +30,8 @@ interface CategoryMegaMenuProps {
 }
 
 const SUBJECTS: { value: WorkspaceSubject; label: string }[] = [
-  { value: 'english', label: '영어' },
   { value: 'korean', label: '국어' },
+  { value: 'english', label: '영어' },
 ]
 
 function normalizeGroups(value: unknown): CategoryMenuGroup[] {

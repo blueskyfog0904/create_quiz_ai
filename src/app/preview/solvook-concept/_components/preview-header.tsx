@@ -20,7 +20,7 @@ interface PreviewHeaderProps {
 
 export function PreviewHeader({
   isLoggedIn = false,
-  initialSubject = 'english',
+  initialSubject = 'korean',
 }: PreviewHeaderProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -206,20 +206,20 @@ export function PreviewHeader({
             <span>카테고리</span>
           </button>
           <Link
-            href={englishHomeHref}
-            onClick={(event) => handleSubjectTabClick(event, 'english', englishHomeHref)}
-            aria-current={subject === 'english' ? 'page' : undefined}
-            className={`inline-flex min-h-11 shrink-0 items-center px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${subject === 'english' ? 'border-b-2 border-[var(--studio-ink)] text-[var(--studio-ink)]' : 'text-[var(--studio-muted)] hover:text-[var(--studio-ink)]'}`}
-          >
-            <span>영어</span>
-          </Link>
-          <Link
             href={koreanHomeHref}
             onClick={(event) => handleSubjectTabClick(event, 'korean', koreanHomeHref)}
             aria-current={subject === 'korean' ? 'page' : undefined}
             className={`inline-flex min-h-11 shrink-0 items-center px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${subject === 'korean' ? 'border-b-2 border-[var(--studio-ink)] text-[var(--studio-ink)]' : 'text-[var(--studio-muted)] hover:text-[var(--studio-ink)]'}`}
           >
             <span>국어</span>
+          </Link>
+          <Link
+            href={englishHomeHref}
+            onClick={(event) => handleSubjectTabClick(event, 'english', englishHomeHref)}
+            aria-current={subject === 'english' ? 'page' : undefined}
+            className={`inline-flex min-h-11 shrink-0 items-center px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${subject === 'english' ? 'border-b-2 border-[var(--studio-ink)] text-[var(--studio-ink)]' : 'text-[var(--studio-muted)] hover:text-[var(--studio-ink)]'}`}
+          >
+            <span>영어</span>
           </Link>
           {isLoggedIn && (
             <Link
@@ -400,20 +400,20 @@ export function PreviewHeader({
               <span>카테고리</span>
             </button>
             <Link
-              href={englishHomeHref}
-              onClick={(event) => handleSubjectTabClick(event, 'english', englishHomeHref)}
-              aria-current={subject === 'english' ? 'page' : undefined}
-              className={`inline-flex min-h-11 min-w-11 items-center px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${subject === 'english' ? 'border-b-2 border-[var(--studio-ink)] text-[var(--studio-ink)]' : 'text-[var(--studio-muted)] hover:text-[var(--studio-ink)]'}`}
-            >
-              <span>영어</span>
-            </Link>
-            <Link
               href={koreanHomeHref}
               onClick={(event) => handleSubjectTabClick(event, 'korean', koreanHomeHref)}
               aria-current={subject === 'korean' ? 'page' : undefined}
               className={`inline-flex min-h-11 min-w-11 items-center px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${subject === 'korean' ? 'border-b-2 border-[var(--studio-ink)] text-[var(--studio-ink)]' : 'text-[var(--studio-muted)] hover:text-[var(--studio-ink)]'}`}
             >
               <span>국어</span>
+            </Link>
+            <Link
+              href={englishHomeHref}
+              onClick={(event) => handleSubjectTabClick(event, 'english', englishHomeHref)}
+              aria-current={subject === 'english' ? 'page' : undefined}
+              className={`inline-flex min-h-11 min-w-11 items-center px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${subject === 'english' ? 'border-b-2 border-[var(--studio-ink)] text-[var(--studio-ink)]' : 'text-[var(--studio-muted)] hover:text-[var(--studio-ink)]'}`}
+            >
+              <span>영어</span>
             </Link>
           </nav>
 
