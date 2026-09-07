@@ -164,10 +164,24 @@ function SectionHeading({ title, description }: { title: string; description?: s
   )
 }
 
-function FileTypeBadges({ subproduct }: { subproduct: MarketSubproductPublicSummary }) {
+function FileTypeBadges({ subproduct, siblings }: {
+  subproduct: MarketSubproductPublicSummary
+  // 전달 시 문제(PDF)/문제(HWP) 간 중복 PDF 배지를 숨긴다 (다운로드 dedupe 규칙과 동일)
+  siblings?: MarketSubproductPublicSummary[]
+}) {
+  let fileTypes = subproduct.fileTypes
+  if (siblings && subproduct.categorySlug === 'question_hwp') {
+    const hasQuestionPdfPdf = siblings.some((sibling) => (
+      sibling.categorySlug === 'question_pdf'
+      && sibling.fileTypes.some((fileType) => fileType.code.toLowerCase() === 'pdf')
+    ))
+    if (hasQuestionPdfPdf) {
+      fileTypes = fileTypes.filter((fileType) => fileType.code.toLowerCase() !== 'pdf')
+    }
+  }
   return (
     <div className="flex flex-wrap gap-1">
-      {subproduct.fileTypes.map((fileType) => (
+      {fileTypes.map((fileType) => (
         <Badge key={fileType.id} variant="outline" className="bg-white text-[11px]">{fileType.label}</Badge>
       ))}
     </div>
@@ -626,7 +640,7 @@ export default function MarketItemActions({
                       <div className="min-w-0 flex-1">
                         <p className="font-medium text-slate-900">{subproduct.title}</p>
                         <div className="mt-1">
-                          <FileTypeBadges subproduct={subproduct} />
+                          <FileTypeBadges subproduct={subproduct} siblings={subproducts} />
                         </div>
                       </div>
                     </div>
