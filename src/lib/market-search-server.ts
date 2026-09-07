@@ -28,6 +28,8 @@ export interface MarketSearchRow {
   gradeLevel: string | null
   questionCount: number | null
   viewCount: number
+  /** 카테고리 페이지 정렬용(published_at ?? created_at). 검색 결과에는 없을 수 있다. */
+  publishedAt?: string | null
   minPriceCredits: number | null
   typeNames: string[]
   sampleAvailable: boolean

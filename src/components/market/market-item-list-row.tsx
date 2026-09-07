@@ -48,8 +48,8 @@ export function MarketItemListRow({ row, subject, onSamplePrefetch, onSampleOpen
         </h2>
         <p className="mt-1 text-sm text-[var(--studio-muted)]">{row.categoryTitle}</p>
         {row.minPriceCredits !== null ? (
-          <p className="mt-2 [font-family:var(--studio-font-price)] text-lg font-bold text-[var(--studio-text)]">
-            {row.minPriceCredits.toLocaleString()} 크레딧~
+          <p className="mt-2 [font-family:var(--studio-font-price)] text-base font-bold text-[var(--studio-text)]">
+            {row.minPriceCredits.toLocaleString()} 크레딧
           </p>
         ) : null}
         <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:hidden">

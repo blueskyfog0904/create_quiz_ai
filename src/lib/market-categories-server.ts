@@ -219,7 +219,7 @@ export async function listMarketItemsForCategory(categoryItemId: string): Promis
     workspaceSubject
   )
 
-  return rows.map(({ publishedAt: _publishedAt, ...row }) => ({
+  return rows.map((row) => ({
     ...row,
     sampleAvailable: (samplePageMap.get(row.itemId)?.length ?? 0) > 0,
   }))
