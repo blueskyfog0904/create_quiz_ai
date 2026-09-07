@@ -139,7 +139,7 @@ export async function listMarketItemsForCategory(categoryItemId: string): Promis
   const workspaceSubject = detail.workspaceSubject
 
   const supabase = createAdminClient()
-  const [itemsResult, menuResult, subproductsResult, typeCategoriesResult] = await Promise.all([
+  const [itemsResult, menuResult, subproductsResult, typeCategoriesResult, reviewsResult] = await Promise.all([
     supabase
       .from('market_items')
       .select('id, title, summary, thumbnail_url, menu_entry_id, exam_year, grade_level, question_count, view_count, published_at, created_at')
@@ -165,9 +165,14 @@ export async function listMarketItemsForCategory(categoryItemId: string): Promis
       .from('market_subproduct_categories')
       .select('id, slug, name')
       .eq('workspace_subject', workspaceSubject),
+    supabase
+      .from('market_item_reviews')
+      .select('item_id, rating')
+      .eq('workspace_subject', workspaceSubject)
+      .is('deleted_at', null),
   ])
 
-  for (const result of [itemsResult, menuResult, subproductsResult, typeCategoriesResult]) {
+  for (const result of [itemsResult, menuResult, subproductsResult, typeCategoriesResult, reviewsResult]) {
     if (result.error) {
       throw new Error(result.error.message)
     }
@@ -191,11 +196,21 @@ export async function listMarketItemsForCategory(categoryItemId: string): Promis
     }
   }
 
+  // 별점 요약 (market-item-list-enrichment의 집계 방식과 동일)
+  const ratingTotals = new Map<string, { total: number; count: number }>()
+  for (const review of reviewsResult.data ?? []) {
+    const current = ratingTotals.get(review.item_id) ?? { total: 0, count: 0 }
+    current.total += review.rating
+    current.count += 1
+    ratingTotals.set(review.item_id, current)
+  }
+
   const rows = (itemsResult.data ?? [])
     // 노출 메뉴에 속한 아이템만 (숨김/비활성 메뉴의 카탈로그 유출 방지 — 검색과 동일)
     .filter((item) => menuMap.has(item.menu_entry_id))
     .map((item) => {
       const menu = menuMap.get(item.menu_entry_id)!
+      const rating = ratingTotals.get(item.id)
       return {
         itemId: item.id,
         title: item.title,
@@ -208,6 +223,8 @@ export async function listMarketItemsForCategory(categoryItemId: string): Promis
         questionCount: item.question_count,
         viewCount: item.view_count,
         publishedAt: item.published_at ?? item.created_at,
+        ratingAverage: rating ? rating.total / rating.count : null,
+        ratingCount: rating?.count ?? 0,
         minPriceCredits: minPriceByItem.get(item.id) ?? null,
         typeNames: Array.from(typeNamesByItem.get(item.id) ?? []),
       }

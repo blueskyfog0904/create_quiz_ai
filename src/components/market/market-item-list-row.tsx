@@ -2,7 +2,7 @@
 
 import type { MouseEvent } from 'react'
 import Link from 'next/link'
-import { FileImage } from 'lucide-react'
+import { FileImage, Star } from 'lucide-react'
 import type { MarketSearchRow } from '@/lib/market-search-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
@@ -47,11 +47,24 @@ export function MarketItemListRow({ row, subject, onSamplePrefetch, onSampleOpen
           )}
         </h2>
         <p className="mt-1 text-sm text-[var(--studio-muted)]">{row.categoryTitle}</p>
-        {row.minPriceCredits !== null ? (
-          <p className="mt-2 [font-family:var(--studio-font-price)] text-base font-bold text-[var(--studio-text)]">
-            {row.minPriceCredits.toLocaleString()} 크레딧
+        {(row.minPriceCredits !== null || typeof row.ratingCount === 'number') && (
+          <p className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            {row.minPriceCredits !== null && (
+              <span className="[font-family:var(--studio-font-price)] text-base font-bold text-[var(--studio-text)]">
+                {row.minPriceCredits.toLocaleString()} 크레딧
+              </span>
+            )}
+            {typeof row.ratingCount === 'number' && (
+              <span className="inline-flex items-center gap-1 text-sm text-[var(--studio-muted)]">
+                <Star aria-hidden="true" className="h-4 w-4 fill-amber-400 text-amber-400" />
+                <span className="font-semibold text-[var(--studio-text)]">
+                  {(row.ratingAverage ?? 0).toFixed(1)}
+                </span>
+                ({row.ratingCount.toLocaleString()})
+              </span>
+            )}
           </p>
-        ) : null}
+        )}
         <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:hidden">
           {row.questionCount ? (
             <span className="inline-flex items-center rounded bg-[var(--studio-primary-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--studio-primary)]">

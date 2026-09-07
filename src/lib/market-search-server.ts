@@ -30,6 +30,9 @@ export interface MarketSearchRow {
   viewCount: number
   /** 카테고리 페이지 정렬용(published_at ?? created_at). 검색 결과에는 없을 수 있다. */
   publishedAt?: string | null
+  /** 카테고리 페이지 표시용 별점 요약. 검색 결과에는 없을 수 있다. */
+  ratingAverage?: number | null
+  ratingCount?: number
   minPriceCredits: number | null
   typeNames: string[]
   sampleAvailable: boolean
