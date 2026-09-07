@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { ArrowRight, BookOpen } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import type {
   MarketHomeItem,
   MarketHomeMenuEntry,
@@ -121,14 +120,12 @@ export function RecentMaterials({
 export function HomeFinalCta({
   subject,
   itemCount,
-  categories,
 }: {
   subject: WorkspaceSubject
   itemCount: number
   categories: MarketHomeMenuEntry[]
 }) {
   const subjectLabel = subject === 'korean' ? '국어' : '영어'
-  const href = `/${subject}/market/${categories[0]?.slug ?? 'entexam'}`
   return (
     <section>
       <div className="relative flex flex-col items-start justify-between gap-6 overflow-hidden rounded-xl bg-[var(--studio-ink)] px-6 py-9 text-white sm:px-10 sm:py-11 md:flex-row md:items-center">
@@ -138,9 +135,6 @@ export function HomeFinalCta({
           <h2 className="mt-3 break-keep text-2xl font-black tracking-[-0.035em] sm:text-3xl">필요한 {subjectLabel} 자료부터 찾아 수업을 준비하세요</h2>
           <p className="mt-2 break-keep text-sm leading-6 text-white/65">현재 공개된 {subjectLabel} 문제마켓 자료 {itemCount.toLocaleString('ko-KR')}개를 살펴볼 수 있습니다.</p>
         </div>
-        <Button asChild size="lg" variant="brand" className="relative h-12 px-6 font-extrabold">
-          <Link href={href}>문제마켓 전체 보기<ArrowRight aria-hidden="true" /></Link>
-        </Button>
       </div>
     </section>
   )
