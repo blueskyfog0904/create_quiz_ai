@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { listMarketReviewsForAdmin } from '@/lib/market-reviews-server'
 import { createClient } from '@/lib/supabase/server'
 import { isWorkspaceSubject } from '@/lib/workspace-subject'
+import { normalizeListPage, normalizeListPageSize } from '@/lib/list-pagination'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +29,8 @@ export async function GET(request: NextRequest) {
     workspaceSubject: isWorkspaceSubject(subjectParam) ? subjectParam : undefined,
     rating: Number.isInteger(ratingParam) && ratingParam >= 1 && ratingParam <= 5 ? ratingParam : undefined,
     search: searchParams.get('search') ?? undefined,
-    page: Number(searchParams.get('page') ?? '1') || 1,
+    page: normalizeListPage(searchParams.get('page')),
+    pageSize: normalizeListPageSize(searchParams.get('pageSize')),
   })
 
   return NextResponse.json({ success: true, data: result })

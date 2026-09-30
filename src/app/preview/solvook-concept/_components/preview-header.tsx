@@ -1,26 +1,31 @@
 'use client'
 
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
-import Image from 'next/image'
+import { SiteLogo } from '@/components/layout/site-logo'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { ChevronDown, Coins, Grid2X2, Library, Search, UserRound, WalletCards } from 'lucide-react'
 import { StudioContainer } from '@/components/design-system'
 import { CategoryMegaMenu } from '@/components/layout/category-mega-menu'
+import { MarketCartIndicator } from '@/components/market/market-cart-indicator'
+import { buildAuthRedirectPath } from '@/lib/auth-paths'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
-const authNext = encodeURIComponent('/')
 const englishHomeHref = '/?subject=english'
 const koreanHomeHref = '/?subject=korean'
 
 interface PreviewHeaderProps {
   isLoggedIn?: boolean
   initialSubject?: WorkspaceSubject
+  userId?: string | null
+  cartCount?: number | null
 }
 
 export function PreviewHeader({
   isLoggedIn = false,
   initialSubject = 'korean',
+  userId = null,
+  cartCount = null,
 }: PreviewHeaderProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -32,6 +37,10 @@ export function PreviewHeader({
   const subjectLabel = subject === 'korean' ? '국어' : '영어'
   const homeHref = `/?subject=${subject}`
   const libraryHref = subject === 'korean' ? '/library?subject=korean' : '/library'
+  // 로그인·회원가입 후 현재 위치로 돌아온다.
+  const currentLocation = `${pathname ?? '/'}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
+  const loginHref = buildAuthRedirectPath(currentLocation, '/login')
+  const signupHref = buildAuthRedirectPath(currentLocation, '/signup')
 
   // 검색 대상 과목 — 기본은 현재 페이지 과목을 따르고, 드롭다운으로 직접 고르면 그 값을 유지한다.
   const [searchSubjectOverride, setSearchSubjectOverride] = useState<WorkspaceSubject | null>(null)
@@ -53,8 +62,17 @@ export function PreviewHeader({
         }
       })
       .catch(() => undefined)
+    // 구매 후 잔액 갱신 이벤트를 반영한다.
+    const handleBalanceUpdated = (event: Event) => {
+      const balance = (event as CustomEvent<{ balance?: unknown }>).detail?.balance
+      if (typeof balance === 'number') {
+        setCreditBalance(balance)
+      }
+    }
+    window.addEventListener('credit-balance-updated', handleBalanceUpdated)
     return () => {
       cancelled = true
+      window.removeEventListener('credit-balance-updated', handleBalanceUpdated)
     }
   }, [isLoggedIn])
   const searchSubjectMenuRef = useRef<HTMLDivElement | null>(null)
@@ -171,26 +189,25 @@ export function PreviewHeader({
             aria-label="써머썬 연구소 홈"
             className="flex min-h-11 min-w-11 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] focus-visible:ring-offset-2"
           >
-            <Image
-              src="/brand-mark.svg"
-              alt=""
-              aria-hidden="true"
-              width={34}
-              height={34}
-              priority
-              className="shrink-0"
-            />
+            <SiteLogo size={34} />
             <span className="truncate text-base font-extrabold tracking-[-0.02em] text-[var(--studio-ink)]">
               써머썬 연구소
             </span>
           </Link>
-          <Link
-            href={`/search?subject=${subject}`}
-            aria-label={`${subjectLabel} 자료 검색`}
-            className="grid min-h-11 min-w-11 place-items-center rounded-md text-[var(--studio-text)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-          >
-            <Search aria-hidden="true" className="h-5 w-5" />
-          </Link>
+          <div className="flex shrink-0 items-center">
+            <MarketCartIndicator
+              ownerId={userId}
+              initialCount={cartCount}
+              className="grid min-h-11 min-w-11 place-items-center rounded-md text-[var(--studio-text)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+            />
+            <Link
+              href={`/search?subject=${subject}`}
+              aria-label={`${subjectLabel} 자료 검색`}
+              className="grid min-h-11 min-w-11 place-items-center rounded-md text-[var(--studio-text)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+            >
+              <Search aria-hidden="true" className="h-5 w-5" />
+            </Link>
+          </div>
         </StudioContainer>
 
         <StudioContainer className="scrollbar-hide flex h-12 items-center gap-1 overflow-x-auto text-sm font-bold">
@@ -248,14 +265,7 @@ export function PreviewHeader({
               aria-label="써머썬 연구소 홈"
               className="flex min-h-11 min-w-11 shrink-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] focus-visible:ring-offset-2"
             >
-              <Image
-                src="/brand-mark.svg"
-                alt=""
-                aria-hidden="true"
-                width={38}
-                height={38}
-                priority
-              />
+              <SiteLogo size={38} />
               <span className="whitespace-nowrap text-lg font-black tracking-[-0.035em] text-[var(--studio-ink)]">
                 써머썬 연구소
               </span>
@@ -348,6 +358,12 @@ export function PreviewHeader({
                     </span>
                   </Link>
                 )}
+                <MarketCartIndicator
+                  ownerId={userId}
+                  initialCount={cartCount}
+                  label="장바구니"
+                  className="flex min-h-11 shrink-0 flex-col items-center justify-center gap-1 rounded-md px-2 py-1 text-[var(--studio-ink)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                />
                 <Link
                   href={libraryHref}
                   className="flex min-h-11 shrink-0 flex-col items-center justify-center gap-1 rounded-md px-2 py-1 text-[var(--studio-ink)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
@@ -366,13 +382,13 @@ export function PreviewHeader({
             ) : (
               <>
                 <Link
-                  href={`/login?next=${authNext}`}
+                  href={loginHref}
                   className="inline-flex min-h-11 min-w-16 shrink-0 items-center justify-center rounded-md border border-[var(--studio-border)] px-4 text-sm font-bold text-[var(--studio-text)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
                 >
                   로그인
                 </Link>
                 <Link
-                  href={`/signup?next=${authNext}`}
+                  href={signupHref}
                   className="inline-flex min-h-11 min-w-20 shrink-0 items-center justify-center rounded-md bg-[var(--studio-primary-soft)] px-4 text-sm font-bold text-[var(--studio-primary)] outline-none hover:bg-[var(--studio-primary-border)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
                 >
                   회원가입

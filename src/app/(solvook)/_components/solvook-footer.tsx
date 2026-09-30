@@ -1,4 +1,4 @@
-import Image from 'next/image'
+import { SiteLogo } from '@/components/layout/site-logo'
 import Link from 'next/link'
 import { StudioContainer } from '@/components/design-system'
 
@@ -39,7 +39,7 @@ export function SolvookFooter({
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <Image src="/brand-mark.svg" alt="" aria-hidden="true" width={22} height={22} />
+              <SiteLogo size={22} />
               <span className="text-sm font-extrabold tracking-[-0.02em] text-[var(--studio-ink)]">
                 {brandName}
               </span>

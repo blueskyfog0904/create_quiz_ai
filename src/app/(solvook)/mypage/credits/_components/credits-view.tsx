@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation'
 import { AlertCircle, ChevronLeft, Clock, Coins, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { StudioContainer, StudioEmptyState } from '@/components/design-system'
+import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
+import { useListQuery } from '@/hooks/use-list-query'
+import { getListPagination } from '@/lib/list-pagination'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -221,16 +224,20 @@ export function CreditsView({
   const [refundSourceId, setRefundSourceId] = useState<string | null>(null)
   const [refundReason, setRefundReason] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [sourceFilters, setSourceFilters] = useState<CreditSourceHistoryFilter>({
-    fromDate: '',
-    toDate: '',
-    sourceCategory: 'all',
-  })
-  const [transactionFilters, setTransactionFilters] = useState<CreditTransactionHistoryFilter>({
-    fromDate: '',
-    toDate: '',
-    transactionType: 'all',
-  })
+  const sourceQuery = useListQuery('source_')
+  const transactionQuery = useListQuery('transaction_')
+  const sourceFilters = useMemo(() => ({
+    fromDate: sourceQuery.params.get('source_from') ?? '',
+    toDate: sourceQuery.params.get('source_to') ?? '',
+    sourceCategory: sourceQuery.params.get('source_category') ?? 'all',
+  }), [sourceQuery.params])
+  const transactionFilters = useMemo(() => ({
+    fromDate: transactionQuery.params.get('transaction_from') ?? '',
+    toDate: transactionQuery.params.get('transaction_to') ?? '',
+    transactionType: transactionQuery.params.get('transaction_type') ?? 'all',
+  }), [transactionQuery.params])
+  const setSourceFilters = (next: CreditSourceHistoryFilter) => sourceQuery.update({ source_from: next.fromDate, source_to: next.toDate, source_category: next.sourceCategory, source_page: 1 })
+  const setTransactionFilters = (next: CreditTransactionHistoryFilter) => transactionQuery.update({ transaction_from: next.fromDate, transaction_to: next.toDate, transaction_type: next.transactionType, transaction_page: 1 })
 
   const filteredSources = useMemo(
     () => filterCreditSourcesByHistoryFilter(sources, sourceFilters),
@@ -245,6 +252,10 @@ export function CreditsView({
   const refundSource = refundSourceId
     ? sources.find((source) => source.id === refundSourceId) ?? null
     : null
+  const sourcePagination = getListPagination(filteredSources.length, sourceQuery.page, sourceQuery.pageSize)
+  const transactionPagination = getListPagination(filteredTransactions.length, transactionQuery.page, transactionQuery.pageSize)
+  const pagedSources = filteredSources.slice(sourcePagination.offset, sourcePagination.offset + sourcePagination.pageSize)
+  const pagedTransactions = filteredTransactions.slice(transactionPagination.offset, transactionPagination.offset + transactionPagination.pageSize)
 
   const isExpired = (source: CreditSourceItem) =>
     source.expires_at !== null &&
@@ -413,7 +424,7 @@ export function CreditsView({
       </section>
 
       {/* 구매/거래 내역 탭 */}
-      <Tabs defaultValue="sources" className="mt-8 gap-0">
+      <Tabs value={sourceQuery.params.get('tab') === 'transactions' ? 'transactions' : 'sources'} onValueChange={(tab) => sourceQuery.update({ tab })} className="mt-8 gap-0">
         <div className="overflow-x-auto border-b border-[var(--studio-border)]">
           <TabsList variant="line" aria-label="크레딧 내역 메뉴" className="h-14 min-w-max gap-5 px-1">
             <TabsTrigger value="sources" className="min-h-11 px-2 font-bold">
@@ -485,7 +496,7 @@ export function CreditsView({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--studio-border)]">
-                      {filteredSources.map((source) => (
+                      {pagedSources.map((source) => (
                         <tr key={source.id} className="text-[var(--studio-ink)]">
                           <td className="px-4 py-3">{formatDate(source.purchased_at)}</td>
                           <td className="px-4 py-3">
@@ -535,6 +546,7 @@ export function CreditsView({
               )}
             </>
           )}
+        <StudioListPagination {...sourcePagination} onPageChange={sourceQuery.setPage} onPageSizeChange={sourceQuery.setPageSize} />
         </TabsContent>
 
         {/* 거래 내역 */}
@@ -585,7 +597,7 @@ export function CreditsView({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--studio-border)]">
-                      {filteredTransactions.map((tx) => (
+                      {pagedTransactions.map((tx) => (
                         <tr key={tx.id} className="text-[var(--studio-ink)]">
                           <td className="whitespace-nowrap px-4 py-3 text-[var(--studio-muted)]">
                             {formatDateTime(tx.created_at)}
@@ -615,6 +627,7 @@ export function CreditsView({
               )}
             </>
           )}
+        <StudioListPagination {...transactionPagination} onPageChange={transactionQuery.setPage} onPageSizeChange={transactionQuery.setPageSize} />
         </TabsContent>
       </Tabs>
 

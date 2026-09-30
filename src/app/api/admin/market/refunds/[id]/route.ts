@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { approveMarketRefund, rejectMarketRefund } from '@/lib/market-refunds'
+import { approveMarketRefund, MarketRefundConflictError, rejectMarketRefund } from '@/lib/market-refunds'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,6 +65,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : '문제마켓 환불 처리에 실패했습니다.',
-    }, { status: 500 })
+    }, { status: error instanceof MarketRefundConflictError ? 409 : 500 })
   }
 }

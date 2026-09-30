@@ -14,14 +14,31 @@ const marketItemsServer = readFileSync(
   new URL('../src/lib/market-items-server.ts', import.meta.url),
   'utf8'
 )
+const checkoutMigration = readFileSync(
+  new URL('../supabase/migrations/20260930024829_market_checkout_rpc.sql', import.meta.url),
+  'utf8'
+)
+const directMultiMigration = readFileSync(
+  new URL('../supabase/migrations/20260930080434_market_checkout_direct_multi.sql', import.meta.url),
+  'utf8'
+)
+// checkout_market_selection 전체를 재정의한 migration마다 같은 가드를 검사한다.
+const checkoutFunctionMigrations = [
+  ['20260930024829_market_checkout_rpc', checkoutMigration],
+  ['20260930080434_market_checkout_direct_multi', directMultiMigration],
+]
 
-test('v2 purchase route accepts subproduct and bundle purchase bodies separately from legacy assetKind', () => {
-  assert.match(purchaseRoute, /purchaseType: z\.enum\(\['subproduct', 'bundle'\]\)/)
+test('direct purchase route accepts a strict lines body and closes legacy assetKind bodies', () => {
+  assert.match(purchaseRoute, /z\.discriminatedUnion\('targetKind'/)
   assert.match(purchaseRoute, /subproductId: z\.string\(\)\.uuid\(\)/)
   assert.match(purchaseRoute, /bundleOptionId: z\.string\(\)\.uuid\(\)/)
-  assert.match(purchaseRoute, /idempotencyKey/)
-  assert.match(purchaseRoute, /handleMarketV2Purchase/)
-  assert.match(purchaseRoute, /handleLegacyMarketPurchase/)
+  assert.match(purchaseRoute, /lines: z\.array\(z\.object\(\{\n    target: DirectTargetSchema,/)
+  assert.match(purchaseRoute, /expectedCredits: z\.number\(\)\.int\(\)/)
+  assert.match(purchaseRoute, /\}\)\.strict\(\)\)\.min\(1\)\.max\(50\),\n  idempotencyKey: z\.string\(\)\.uuid\(\),\n\}\)\.strict\(\)/)
+  assert.doesNotMatch(purchaseRoute, /^  target: DirectTargetSchema,/m)
+  assert.match(purchaseRoute, /'assetKind' in body[\s\S]+LEGACY_PURCHASE_CLOSED[\s\S]+status: 410/)
+  assert.match(purchaseRoute, /runMarketCheckout\(\{[\s\S]+mode: 'direct'/)
+  assert.doesNotMatch(purchaseRoute, /handleLegacyMarketPurchase|handleMarketV2Purchase/)
 })
 
 test('v2 purchase can be disabled without disabling existing downloads', () => {
@@ -31,32 +48,31 @@ test('v2 purchase can be disabled without disabling existing downloads', () => {
   assert.match(purchaseRoute, /isMarketV2PurchaseEnabled\(\)/)
 })
 
-test('v2 purchase helper writes order line and entitlement records with rollback cleanup hooks', () => {
-  assert.match(marketPurchase, /export async function createMarketV2PurchaseWithCompensation/)
-  assert.match(marketPurchase, /createMarketPurchaseOrder/)
-  assert.match(marketPurchase, /createMarketPurchaseLine/)
-  assert.match(marketPurchase, /createMarketEntitlement/)
-  assert.match(marketItemsServer, /market_purchase_orders/)
-  assert.match(marketItemsServer, /market_purchase_lines/)
-  assert.match(marketItemsServer, /market_entitlements/)
-  assert.match(marketPurchase, /rollbackMarketV2PurchaseArtifacts/)
-  assert.match(marketPurchase, /source_order_id/)
-  assert.match(marketPurchase, /scope: input\.purchaseType === 'bundle' \? 'item' : 'subproduct'/)
+test('v2 purchase writes order line and entitlement records inside the atomic checkout RPC (no compensation path)', () => {
+  assert.doesNotMatch(marketPurchase, /createMarketV2PurchaseWithCompensation/)
+  assert.doesNotMatch(marketItemsServer, /rollbackMarketV2PurchaseArtifacts/)
+  for (const [name, sql] of checkoutFunctionMigrations) {
+    assert.match(sql, /insert into public\.market_purchase_orders \(/, name)
+    assert.match(sql, /insert into public\.market_purchase_lines \(/, name)
+    assert.match(sql, /insert into public\.market_entitlements \(/, name)
+    assert.match(sql, /case when v_kind = 'bundle' then 'item' else 'subproduct' end/, name)
+    assert.match(sql, /null, v_order_id, 'active'/, name)
+  }
 })
 
 test('v2 purchase duplicate policy blocks only the same purchase unit and charges bundle full price after partial purchases', () => {
-  assert.match(marketPurchase, /ensureUserCanPurchaseMarketV2Target/)
-  assert.match(marketPurchase, /purchaseType === 'bundle'/)
-  assert.match(marketPurchase, /entitlement\.scope === 'item'/)
-  assert.match(marketPurchase, /entitlement\.scope === 'subproduct'/)
-  assert.doesNotMatch(marketPurchase, /subtract|차액|discount|discounted/i)
-  assert.match(purchaseRoute, /priceCredits/)
+  assert.doesNotMatch(marketPurchase, /ensureUserCanPurchaseMarketV2Target/)
+  assert.match(checkoutMigration, /bool_or\(e\.scope = 'item'\)/)
+  assert.match(checkoutMigration, /e\.scope = 'subproduct' and e\.subproduct_id = v_target_id and e\.status = 'active'/)
+  assert.match(checkoutMigration, /when v_owned then 'ALREADY_OWNED'/)
+  assert.match(checkoutMigration, /'code', 'ACK_REQUIRED'/)
+  assert.match(purchaseRoute, /acknowledgeNoDiscount/)
 })
 
-test('v2 server helpers expose active subproduct and bundle purchase contexts', () => {
-  assert.match(marketItemsServer, /export async function getMarketSubproductPurchaseContext/)
-  assert.match(marketItemsServer, /export async function getMarketBundlePurchaseContext/)
-  assert.match(marketItemsServer, /price_credits/)
-  assert.match(marketItemsServer, /market_subproduct_files/)
-  assert.match(marketItemsServer, /market_item_bundle_options/)
+test('v2 purchase availability is evaluated by the shared evaluate_market_targets SQL', () => {
+  assert.doesNotMatch(marketItemsServer, /getMarketSubproductPurchaseContext|getMarketBundlePurchaseContext/)
+  assert.match(checkoutMigration, /create or replace function public\.evaluate_market_targets\(/)
+  assert.match(checkoutMigration, /s\.price_credits > 0/)
+  assert.match(checkoutMigration, /b\.price_credits > 0/)
+  assert.match(checkoutMigration, /public\.market_subproduct_files f/)
 })

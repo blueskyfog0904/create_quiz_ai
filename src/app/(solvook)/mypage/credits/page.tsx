@@ -10,6 +10,7 @@ import {
 } from '@/lib/credit-balance'
 import { getPointChargeRefundEligibility } from '@/lib/point-charge-refunds-server'
 import { getRequestAuthUserId } from '@/lib/request-auth'
+import { readAllQueryRows } from '@/lib/read-all-query-rows'
 import type { CreditSourceCategory } from '@/lib/credit-source-display'
 import {
   CreditsView,
@@ -45,24 +46,24 @@ export default async function CreditsPage() {
     logCreditBalanceMismatch('mypage credits', userId, snapshot)
   }
 
-  const [{ data: sources }, { data: transactions }] = await Promise.all([
+  const [sources, transactions] = await Promise.all([
     // 구매건 목록 (plan 정보 포함)
-    supabase
+    readAllQueryRows((from, to) => supabase
       .from('credit_sources')
       .select(
         'id, initial_credits, remaining_credits, status, purchased_at, expires_at, source_category, plan:pricing_plans(name, price)'
       )
       .eq('user_id', userId)
-      .order('purchased_at', { ascending: false }),
+      .order('purchased_at', { ascending: false }).order('id').range(from, to)),
     // 거래 내역
-    supabase
+    readAllQueryRows((from, to) => supabase
       .from('credit_transactions')
       .select(
         'id, type, amount, balance_after, description, created_at, source:credit_sources(source_category)'
       )
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-      .limit(50),
+      .order('id').range(from, to)),
   ])
 
   const sourceItems: CreditSourceItem[] = await Promise.all(

@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { ChevronDown, FolderOpen, Loader2, RotateCcw, X } from 'lucide-react'
-import { StudioContainer, StudioEmptyState, StudioPagination } from '@/components/design-system'
+import { StudioContainer, StudioEmptyState } from '@/components/design-system'
+import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
+import { useListQuery } from '@/hooks/use-list-query'
 import {
   Dialog,
   DialogContent,
@@ -23,8 +25,6 @@ interface LibraryViewProps {
 
 type SortOption = 'latest' | 'name'
 type RefundTarget = MarketLibraryRow['refundTargets'][number]
-
-const PAGE_SIZE = 20
 
 // 문제(PDF)의 PDF와 문제(HWP)에 포함된 PDF는 동일 내용이므로, 전자가 있으면 후자를 숨긴다.
 // categorySlug가 null이면(매핑 실패) 숨기지 않는 방향으로만 퇴화한다(fail-safe).
@@ -116,13 +116,16 @@ const refundButtonClassName =
 
 export function LibraryView({ rows, subject }: LibraryViewProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const [search, setSearch] = useState('')
-  const [facetSelections, setFacetSelections] = useState<FacetSelections>(() => readFacetSelectionsFromParams(new URLSearchParams(searchParams.toString())))
+  const listQuery = useListQuery()
+  const searchParams = listQuery.params
+  const search = searchParams.get('q') ?? ''
+  const setSearch = (q: string) => listQuery.update({ q, page: 1 }, true)
+  const facetSelections = useMemo(() => readFacetSelectionsFromParams(new URLSearchParams(searchParams.toString())), [searchParams])
   const [openFacetKey, setOpenFacetKey] = useState<string | null>(null)
   const facetBarRef = useRef<HTMLDivElement | null>(null)
-  const [sort, setSort] = useState<SortOption>('latest')
-  const [page, setPage] = useState(1)
+  const sort: SortOption = searchParams.get('sort') === 'name' ? 'name' : 'latest'
+  const setSort = (value: SortOption) => listQuery.update({ sort: value, page: 1 })
+  const { page, pageSize: PAGE_SIZE, setPage } = listQuery
   const [refundSubmitting, setRefundSubmitting] = useState<string | null>(null)
   const [refundDialogItemId, setRefundDialogItemId] = useState<string | null>(null)
   const [subjectMenuOpen, setSubjectMenuOpen] = useState(false)
@@ -188,17 +191,17 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
   }, [rows])
 
   const applyFacetSelections = (next: FacetSelections) => {
-    setFacetSelections(next)
-    setPage(1)
-    const params = new URLSearchParams()
+    const params = new URLSearchParams(window.location.search)
+    params.delete('page')
     // 과목을 항상 명시해 파라미터 없는 URL의 자동 과목 결정(최근 구매 과목)과 충돌하지 않게 한다.
     params.set('subject', subject)
     for (const facet of LIBRARY_FACETS) {
+      params.delete(facet.key)
       for (const value of next[facet.key] ?? []) {
         params.append(facet.key, value)
       }
     }
-    window.history.replaceState(null, '', `/library?${params.toString()}`)
+    window.history.pushState(null, '', `/library?${params.toString()}`)
   }
 
   const toggleFacetValue = (facetKey: string, value: string) => {
@@ -597,11 +600,7 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
         </ul>
       )}
 
-      {totalPages > 1 && (
-        <div className="mt-6">
-          <StudioPagination page={safePage} totalPages={totalPages} onPageChange={setPage} />
-        </div>
-      )}
+      <StudioListPagination page={safePage} pageSize={PAGE_SIZE} totalCount={filteredRows.length} onPageChange={setPage} onPageSizeChange={listQuery.setPageSize} />
       </div>
 
       {(() => {

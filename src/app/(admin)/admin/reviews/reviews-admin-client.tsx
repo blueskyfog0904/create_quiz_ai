@@ -1,8 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
+import { useListQuery } from '@/hooks/use-list-query'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 interface AdminReviewRow {
@@ -31,16 +33,20 @@ function formatDate(value: string) {
 export default function ReviewsAdminClient({ workspaceSubject }: { workspaceSubject: WorkspaceSubject }) {
   const [data, setData] = useState<AdminReviewsData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [ratingFilter, setRatingFilter] = useState('')
-  const [searchInput, setSearchInput] = useState('')
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
+  const listQuery = useListQuery()
+  const { page, pageSize, setPage } = listQuery
+  const ratingFilter = listQuery.params.get('rating') ?? ''
+  const search = listQuery.params.get('q') ?? ''
+  const setRatingFilter = (rating: string) => listQuery.update({ rating, page: 1 })
+  const setSearch = (q: string) => listQuery.update({ q, page: 1 })
+  const requestId = useRef(0)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const loadReviews = useCallback(async () => {
+    const id = ++requestId.current
     setIsLoading(true)
     try {
-      const params = new URLSearchParams({ subject: workspaceSubject, page: String(page) })
+      const params = new URLSearchParams({ subject: workspaceSubject, page: String(page), pageSize: String(pageSize) })
       if (ratingFilter) params.set('rating', ratingFilter)
       if (search) params.set('search', search)
       const response = await fetch(`/api/admin/reviews?${params.toString()}`)
@@ -48,13 +54,13 @@ export default function ReviewsAdminClient({ workspaceSubject }: { workspaceSubj
       if (!response.ok || !result?.success) {
         throw new Error(result?.error ?? '후기를 불러오지 못했습니다.')
       }
-      setData(result.data)
+      if (id === requestId.current) setData(result.data)
     } catch (error) {
       alert(error instanceof Error ? error.message : '후기를 불러오지 못했습니다.')
     } finally {
-      setIsLoading(false)
+      if (id === requestId.current) setIsLoading(false)
     }
-  }, [workspaceSubject, ratingFilter, search, page])
+  }, [workspaceSubject, ratingFilter, search, page, pageSize])
 
   useEffect(() => {
     void loadReviews()
@@ -98,13 +104,14 @@ export default function ReviewsAdminClient({ workspaceSubject }: { workspaceSubj
           className="flex items-center gap-2"
           onSubmit={(event) => {
             event.preventDefault()
-            setSearch(searchInput.trim())
+            setSearch(String(new FormData(event.currentTarget).get('q') ?? '').trim())
             setPage(1)
           }}
         >
           <Input
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
+            key={search}
+            name="q"
+            defaultValue={search}
             placeholder="자료명·본문 검색"
             className="w-64"
           />
@@ -164,17 +171,7 @@ export default function ReviewsAdminClient({ workspaceSubject }: { workspaceSubj
         </table>
       </div>
 
-      {data && data.totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
-            이전
-          </Button>
-          <span className="text-sm text-muted-foreground">{data.page} / {data.totalPages}</span>
-          <Button type="button" variant="outline" size="sm" disabled={page >= data.totalPages} onClick={() => setPage((current) => current + 1)}>
-            다음
-          </Button>
-        </div>
-      )}
+      {data && <StudioListPagination page={data.page} pageSize={pageSize} totalCount={data.totalCount} onPageChange={setPage} onPageSizeChange={listQuery.setPageSize} />}
     </div>
   )
 }

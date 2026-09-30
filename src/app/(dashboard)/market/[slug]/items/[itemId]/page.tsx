@@ -157,10 +157,7 @@ export default async function MarketItemDetailPage({ params, searchParams }: Mar
               </CardHeader>
               <CardContent>
                 <MarketItemActions
-                  hasHwp={hasHwp}
                   hasLegacySample={hasLegacySample}
-                  hasPdf={hasPdf}
-                  hasZip={hasZip}
                   hasSamplePages={hasSamplePages}
                   bundleOption={bundleOption}
                   downloadFiles={downloadFiles}

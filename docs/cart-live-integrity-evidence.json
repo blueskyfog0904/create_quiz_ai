@@ -1,0 +1,64 @@
+{
+  "checkedAt": "2026-09-29T00:31:22.585Z",
+  "method": "Read-only metadata, aggregate integrity checks, anonymous HEAD; no identifiers or financial row data retained",
+  "integrity": {
+    "exactFileCount": 500,
+    "entitlementOrderIdentityMismatch": 0,
+    "activeEntitlementNonCompletedOrder": 0,
+    "orderConsumptionSumMismatch": 0,
+    "orderConsumptionSourceOwnerMismatch": 0,
+    "creditSourceNegativeOrOverInitial": 0,
+    "approvedV2RefundOrderMismatch": 0
+  },
+  "anonymousReads": {
+    "market_purchases": {
+      "status": 200,
+      "count": 0,
+      "errorCode": null
+    },
+    "market_purchase_orders": {
+      "status": 200,
+      "count": 0,
+      "errorCode": null
+    },
+    "market_purchase_lines": {
+      "status": 200,
+      "count": 0,
+      "errorCode": null
+    },
+    "market_entitlements": {
+      "status": 200,
+      "count": 0,
+      "errorCode": null
+    },
+    "credit_sources": {
+      "status": 200,
+      "count": 0,
+      "errorCode": null
+    },
+    "credit_consumption": {
+      "status": 200,
+      "count": 0,
+      "errorCode": null
+    },
+    "credit_transactions": {
+      "status": 200,
+      "count": 0,
+      "errorCode": null
+    },
+    "market_refund_requests": {
+      "status": 200,
+      "count": 0,
+      "errorCode": null
+    }
+  },
+  "storage": {
+    "bucket": "market-files",
+    "exists": true,
+    "public": false,
+    "errorCode": null
+  },
+  "limitations": [
+    "Anonymous read denial is not proof of authenticated write denial. No INSERT/UPDATE/DELETE probes were performed. Catalog/grants/function bodies remain unverified."
+  ]
+}

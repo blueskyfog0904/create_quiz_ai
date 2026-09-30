@@ -360,7 +360,7 @@ test('the market pilot adopts the canonical Studio board composition without mov
     assertImportsAndRenders(server, component, 'the market listboard server component')
   }
 
-  for (const component of ['StudioPagination', 'StudioEmptyState']) {
+  for (const component of ['StudioListPagination', 'StudioEmptyState']) {
     assertImportsAndRenders(client, component, 'the market listboard client component')
   }
 

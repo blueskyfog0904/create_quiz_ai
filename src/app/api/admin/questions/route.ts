@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import { normalizeListPage } from '@/lib/list-pagination'
 import { isUuidishString } from '@/lib/question-bank/validation'
 
 type BankQuestionRow = {
@@ -36,9 +37,8 @@ export async function GET(request: NextRequest) {
 
     // Parse query parameters
     const searchParams = request.nextUrl.searchParams
-    const rawPage = Number.parseInt(searchParams.get('page') || '1', 10)
     const rawLimit = Number.parseInt(searchParams.get('limit') || '20', 10)
-    const page = Number.isFinite(rawPage) ? Math.max(1, rawPage) : 1
+    let page = normalizeListPage(searchParams.get('page'))
     const limit = Number.isFinite(rawLimit) ? Math.min(200, Math.max(1, rawLimit)) : 20
     const search = searchParams.get('search') || ''
     const gradeLevel = searchParams.get('grade_level') || ''
@@ -58,57 +58,34 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid question bank filter' }, { status: 400 })
     }
 
-    const offset = (page - 1) * limit
+    const queryArgs = {
+      p_workspace_subject: workspaceSubject,
+      p_year_id: yearId || null,
+      p_book_id: bookId || null,
+      p_problem_type_id: problemTypeId || null,
+      p_source: 'admin_uploaded',
+      p_search: search || null,
+      p_grade_level: gradeLevel || null,
+      p_difficulty: difficulty || null,
+      p_sort_by: sortBy,
+      p_sort_order: sortOrder,
+    }
 
-    const { data: bankQuestions, error } = await supabase
-      .rpc('admin_list_bank_questions', {
-        p_workspace_subject: workspaceSubject,
-        p_year_id: yearId || null,
-        p_book_id: bookId || null,
-        p_problem_type_id: problemTypeId || null,
-        p_source: 'admin_uploaded',
-        p_search: search || null,
-        p_grade_level: gradeLevel || null,
-        p_difficulty: difficulty || null,
-        p_sort_by: sortBy,
-        p_sort_order: sortOrder,
-        p_limit: limit,
-        p_offset: offset,
+    // 먼저 총 개수를 확인해 삭제 직후/범위 밖 페이지도 마지막 유효 페이지로 보정한다.
+    const countResult = await supabase.rpc('admin_list_bank_questions', {
+      ...queryArgs, p_limit: 1, p_offset: 0,
+    })
+    if (countResult.error) throw countResult.error
+    const total = (countResult.data as BankQuestionRow[] | null)?.[0]?.total_count ?? 0
+    page = Math.min(page, Math.max(1, Math.ceil(total / limit)))
+
+    const { data: bankQuestions, error } = total > 0
+      ? await supabase.rpc('admin_list_bank_questions', {
+        ...queryArgs, p_limit: limit, p_offset: (page - 1) * limit,
       })
-
-    if (error) {
-      console.error('Error fetching questions:', error)
-      return NextResponse.json({ error: 'Failed to fetch questions' }, { status: 500 })
-    }
-
-    const bankQuestionRows = (bankQuestions || []) as BankQuestionRow[]
-    let total = bankQuestionRows[0]?.total_count || 0
-
-    if (bankQuestionRows.length === 0 && offset > 0) {
-      const { data: fallbackBankQuestions, error: fallbackError } = await supabase
-        .rpc('admin_list_bank_questions', {
-          p_workspace_subject: workspaceSubject,
-          p_year_id: yearId || null,
-          p_book_id: bookId || null,
-          p_problem_type_id: problemTypeId || null,
-          p_source: 'admin_uploaded',
-          p_search: search || null,
-          p_grade_level: gradeLevel || null,
-          p_difficulty: difficulty || null,
-          p_sort_by: sortBy,
-          p_sort_order: sortOrder,
-          p_limit: 1,
-          p_offset: 0,
-        })
-
-      if (fallbackError) {
-        console.error('Error fetching question count fallback:', fallbackError)
-        return NextResponse.json({ error: 'Failed to fetch questions' }, { status: 500 })
-      }
-
-      const fallbackRows = (fallbackBankQuestions || []) as BankQuestionRow[]
-      total = fallbackRows[0]?.total_count || 0
-    }
+      : { data: [], error: null }
+    if (error) throw error
+    const bankQuestionRows = (bankQuestions ?? []) as BankQuestionRow[]
 
     const questions = bankQuestionRows.map(withoutTotalCount)
 

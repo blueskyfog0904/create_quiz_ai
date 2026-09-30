@@ -490,11 +490,14 @@ async function getRefundRequest(requestId: string) {
   return data
 }
 
+// 이미 다른 승인/거부가 처리한 요청. 라우트에서 409로 응답한다.
+export class MarketRefundConflictError extends Error {}
+
 export async function approveMarketRefund(input: MarketRefundProcessInput): Promise<MarketRefundRequest> {
   const supabase = createAdminClient()
   const request = await getRefundRequest(input.requestId)
   if (request.status !== 'pending') {
-    throw new Error('대기 중인 환불 요청만 승인할 수 있습니다.')
+    throw new MarketRefundConflictError('대기 중인 환불 요청만 승인할 수 있습니다.')
   }
 
   const targetId = request.target_kind === 'v2_order' ? request.order_id : request.legacy_purchase_id
@@ -513,37 +516,8 @@ export async function approveMarketRefund(input: MarketRefundProcessInput): Prom
     throw new Error(`승인 전 환불 조건이 변경되었습니다. ${eligibility.reason ?? '환불 요청을 승인할 수 없습니다.'}`)
   }
 
-  await CreditService.refundCredits(
-    request.user_id,
-    request.requested_refund_credits,
-    'market_refund',
-    request.id,
-    '문제마켓 구매 환불',
-    eligibility.creditConsumptions
-  )
-
-  if (request.target_kind === 'v2_order') {
-    const updateResults = await Promise.all([
-      supabase.from('market_purchase_orders').update({ status: 'refunded' }).eq('id', targetId),
-      supabase.from('market_purchase_lines').update({ status: 'refunded' }).eq('order_id', targetId),
-      supabase.from('market_entitlements').update({ status: 'refunded' }).eq('source_order_id', targetId),
-    ])
-    const updateError = updateResults.find((result) => result.error)?.error
-    if (updateError) {
-      throw new Error(updateError.message)
-    }
-  } else {
-    const { error } = await supabase
-      .from('market_purchases')
-      .update({ status: 'refunded', refunded_at: new Date().toISOString() })
-      .eq('id', targetId)
-
-    if (error) {
-      throw new Error(error.message)
-    }
-  }
-
-  const { data, error } = await supabase
+  // 2.3(d) 최소 CAS: 크레딧 복구 전에 pending → approved로 선점한다. 0행이면 이미 처리된 요청이다.
+  const { data: claimed, error: claimError } = await supabase
     .from('market_refund_requests')
     .update({
       status: 'approved',
@@ -553,21 +527,68 @@ export async function approveMarketRefund(input: MarketRefundProcessInput): Prom
       processed_at: new Date().toISOString(),
     })
     .eq('id', input.requestId)
+    .eq('status', 'pending')
     .select('*')
-    .single()
+    .maybeSingle()
 
-  if (error) {
-    throw new Error(error.message)
+  if (claimError) {
+    throw new Error(claimError.message)
   }
 
-  return data
+  if (!claimed) {
+    throw new MarketRefundConflictError('이미 처리된 환불 요청입니다.')
+  }
+
+  // 선점 이후 실패는 approved를 유지하고 admin_note에 실패 단계를 남겨 수동 처리한다.
+  // failed는 재요청 허용 상태라 이중 환불을 다시 열기 때문에 쓰지 않는다.
+  const recordFailure = async (stage: string, message: string): Promise<never> => {
+    const note = [input.adminNote, `[환불 처리 실패: ${stage}] ${message}`].filter(Boolean).join('\n')
+    await supabase.from('market_refund_requests').update({ admin_note: note }).eq('id', input.requestId)
+    throw new Error(`환불 처리 중 ${stage} 단계에서 실패했습니다. 요청은 승인 상태로 유지되며 수동 확인이 필요합니다. (${message})`)
+  }
+
+  try {
+    await CreditService.refundCredits(
+      request.user_id,
+      request.requested_refund_credits,
+      'market_refund',
+      request.id,
+      '문제마켓 구매 환불',
+      eligibility.creditConsumptions
+    )
+  } catch (error) {
+    return recordFailure('크레딧 복구', error instanceof Error ? error.message : String(error))
+  }
+
+  if (request.target_kind === 'v2_order') {
+    const updateResults = await Promise.all([
+      supabase.from('market_purchase_orders').update({ status: 'refunded' }).eq('id', targetId),
+      supabase.from('market_purchase_lines').update({ status: 'refunded' }).eq('order_id', targetId),
+      supabase.from('market_entitlements').update({ status: 'refunded' }).eq('source_order_id', targetId),
+    ])
+    const updateError = updateResults.find((result) => result.error)?.error
+    if (updateError) {
+      return recordFailure('주문 상태 변경', updateError.message)
+    }
+  } else {
+    const { error } = await supabase
+      .from('market_purchases')
+      .update({ status: 'refunded', refunded_at: new Date().toISOString() })
+      .eq('id', targetId)
+
+    if (error) {
+      return recordFailure('구매 상태 변경', error.message)
+    }
+  }
+
+  return claimed
 }
 
 export async function rejectMarketRefund(input: MarketRefundProcessInput): Promise<MarketRefundRequest> {
   const supabase = createAdminClient()
   const request = await getRefundRequest(input.requestId)
   if (request.status !== 'pending') {
-    throw new Error('대기 중인 환불 요청만 거부할 수 있습니다.')
+    throw new MarketRefundConflictError('대기 중인 환불 요청만 거부할 수 있습니다.')
   }
 
   const { data, error } = await supabase
@@ -579,11 +600,16 @@ export async function rejectMarketRefund(input: MarketRefundProcessInput): Promi
       processed_at: new Date().toISOString(),
     })
     .eq('id', input.requestId)
+    .eq('status', 'pending')
     .select('*')
-    .single()
+    .maybeSingle()
 
   if (error) {
     throw new Error(error.message)
+  }
+
+  if (!data) {
+    throw new MarketRefundConflictError('이미 처리된 환불 요청입니다.')
   }
 
   return data

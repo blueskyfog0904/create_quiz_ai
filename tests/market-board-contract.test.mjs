@@ -58,7 +58,8 @@ test('market board item query uses exact server pagination, exact filters, and s
   const source = await read('src/lib/market-board-server.ts')
 
   assert.match(source, /count: 'exact'/)
-  assert.match(source, /\.range\(from, to\)/)
+  assert.match(source, /\.range\(offset, offset \+ pageSize - 1\)/)
+  assert.match(source, /getListPagination\(total, requestedPage, pageSize\)/)
   assert.match(source, /\.ilike\('title'/)
   for (const column of [
     'exam_year',

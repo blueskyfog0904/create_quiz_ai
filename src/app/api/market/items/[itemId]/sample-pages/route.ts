@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { getPublishedMarketItemById } from '@/lib/market-items-server'
 import { listActiveMarketItemSamplePagesWithSourceFileNames } from '@/lib/market-sample-pages-server'
-import { AUTH_USER_ID_HEADER } from '@/lib/request-auth'
 import { resolveWorkspaceSubject } from '@/lib/workspace-subject'
 
 export const dynamic = 'force-dynamic'
@@ -15,26 +14,30 @@ interface RouteContext {
 
 export async function GET(request: NextRequest, { params }: RouteContext) {
   const { itemId } = await params
-  // 미들웨어가 getUser() 검증 후 전달한 유저 id 를 재사용해 auth 서버 왕복을 줄인다.
-  const userId = request.headers.get(AUTH_USER_ID_HEADER)
-
-  if (!userId) {
-    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
-  }
-
   try {
     const workspaceSubject = resolveWorkspaceSubject(request.nextUrl.searchParams.get('subject'))
-    const samplePagesPromise = listActiveMarketItemSamplePagesWithSourceFileNames(itemId, workspaceSubject)
-    samplePagesPromise.catch(() => {})
-
     const item = await getPublishedMarketItemById(itemId, workspaceSubject)
     if (!item) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
 
-    const samplePages = await samplePagesPromise
-    const expiresAt = new Date(Date.now() + SAMPLE_PAGE_SIGNED_URL_TTL_SECONDS * 1000).toISOString()
     const adminSupabase = createAdminClient()
+    const { data: menu, error: menuError } = await adminSupabase
+      .from('market_menu_entries')
+      .select('id')
+      .eq('id', item.menu_entry_id)
+      .eq('workspace_subject', workspaceSubject)
+      .eq('is_visible', true)
+      .eq('is_active', true)
+      .is('deleted_at', null)
+      .maybeSingle()
+    if (menuError) throw new Error(menuError.message)
+    if (!menu) {
+      return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
+    }
+
+    const samplePages = await listActiveMarketItemSamplePagesWithSourceFileNames(itemId, workspaceSubject)
+    const expiresAt = new Date(Date.now() + SAMPLE_PAGE_SIGNED_URL_TTL_SECONDS * 1000).toISOString()
 
     const pathsByBucket = new Map<string, string[]>()
     for (const page of samplePages) {

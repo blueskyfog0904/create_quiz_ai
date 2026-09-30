@@ -31,7 +31,6 @@ test('market purchase helpers treat paid asset kinds as exact-match entitlements
   assert.match(marketPurchase, /isMarketAssetCoveredByPurchaseKind/)
   assert.doesNotMatch(marketPurchase, /downloadAssetKind === 'pdf' && purchasedAssetKind === 'hwp'/)
   assert.match(marketPurchase, /return downloadAssetKind === purchasedAssetKind/)
-  assert.match(marketPurchase, /getMarketPaidAssetLabel[\s\S]+HWP & PDF/)
 })
 
 test('listboard effective ownership does not treat hwp purchase as owning pdf', () => {

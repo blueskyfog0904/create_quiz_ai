@@ -1,6 +1,7 @@
 'use client'
 
 import type { MouseEvent, ReactNode } from 'react'
+import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
 
@@ -21,10 +22,10 @@ interface StudioPaginationProps {
 
 const paginationControlClassName = 'min-h-11 min-w-11 px-3'
 const DEFAULT_NAVIGATION_TEXT: StudioPaginationNavigationText = {
-  first: '처음',
-  previous: '이전',
-  next: '다음',
-  last: '마지막',
+  first: <><span className="sm:hidden" aria-hidden>«</span><span className="hidden sm:inline">처음</span></>,
+  previous: <><span className="sm:hidden" aria-hidden>‹</span><span className="hidden sm:inline">이전</span></>,
+  next: <><span className="sm:hidden" aria-hidden>›</span><span className="hidden sm:inline">다음</span></>,
+  last: <><span className="sm:hidden" aria-hidden>»</span><span className="hidden sm:inline">마지막</span></>,
 }
 
 export function StudioPagination({
@@ -90,6 +91,7 @@ export function StudioPagination({
     controlKey?: string
     children: ReactNode
   }) {
+    const controlClassName = `${paginationControlClassName}${controlKey && !current ? ' hidden sm:inline-flex' : ''}`
     if (!disabled && getPageHref) {
       const href = getPageHref(targetPage)
 
@@ -98,16 +100,16 @@ export function StudioPagination({
           key={controlKey}
           asChild
           variant={current ? 'brand' : 'brandGhost'}
-          className={paginationControlClassName}
+          className={controlClassName}
         >
-          <a
+          <Link
             href={href}
             aria-label={label}
             aria-current={current ? 'page' : undefined}
             onClick={(event) => handleLinkClick(event, targetPage)}
           >
             {children}
-          </a>
+          </Link>
         </Button>
       )
     }
@@ -117,7 +119,7 @@ export function StudioPagination({
         key={controlKey}
         type="button"
         variant={current ? 'brand' : 'brandGhost'}
-        className={paginationControlClassName}
+        className={controlClassName}
         aria-label={label}
         aria-current={current ? 'page' : undefined}
         disabled={disabled}

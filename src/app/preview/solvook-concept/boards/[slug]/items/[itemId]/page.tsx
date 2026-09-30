@@ -13,6 +13,7 @@ import {
 import { countActiveMarketItemSamplePages } from '@/lib/market-sample-pages-server'
 import { resolveWorkspaceSubject } from '@/lib/workspace-subject'
 import { MarketMaterialDetail } from '../../../../_components/detail/market-material-detail'
+import { listMarketCategoryMenu } from '@/lib/market-categories-server'
 
 interface SolvookMarketItemDetailPageProps {
   params: Promise<{
@@ -55,6 +56,7 @@ export default async function SolvookMarketItemDetailPage({
     downloadFiles,
     purchases,
     reviews,
+    menu,
   ] = await Promise.all([
     getVisibleMarketMenuEntryBySlugForWorkspace(slug, subject),
     getPublishedMarketItemById(itemId, subject),
@@ -69,6 +71,7 @@ export default async function SolvookMarketItemDetailPage({
       ? listCompletedMarketPurchasesForItem(userId, itemId, subject)
       : Promise.resolve([]),
     listMarketItemReviewsForItem(itemId, subject, { viewerId: userId, sort: reviewSort }),
+    listMarketCategoryMenu(true),
   ])
 
   if (!category) {
@@ -92,6 +95,7 @@ export default async function SolvookMarketItemDetailPage({
       reviewSort={reviewSort}
       samplePageCount={samplePageCount}
       subproducts={subproducts}
+      categoryTree={menu[subject]}
     />
   )
 }

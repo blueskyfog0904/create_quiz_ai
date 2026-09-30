@@ -1,6 +1,6 @@
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
-export const MARKET_BOARD_DEFAULT_PAGE_SIZE = 10
+export const MARKET_BOARD_DEFAULT_PAGE_SIZE = 20
 export const MARKET_BOARD_MAX_PAGE_SIZE = 50
 
 export type MarketBoardSort = 'latest' | 'views' | 'questions'

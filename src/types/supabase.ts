@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -1148,6 +1148,173 @@ export type Database = {
         }
         Relationships: []
       }
+      market_cart_items: {
+        Row: {
+          bundle_option_id: string | null
+          created_at: string
+          id: string
+          is_selected: boolean
+          subproduct_id: string | null
+          target_kind: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bundle_option_id?: string | null
+          created_at?: string
+          id?: string
+          is_selected?: boolean
+          subproduct_id?: string | null
+          target_kind: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bundle_option_id?: string | null
+          created_at?: string
+          id?: string
+          is_selected?: boolean
+          subproduct_id?: string | null
+          target_kind?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_cart_items_bundle_option_id_fkey"
+            columns: ["bundle_option_id"]
+            isOneToOne: false
+            referencedRelation: "market_item_bundle_options"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_cart_items_subproduct_id_fkey"
+            columns: ["subproduct_id"]
+            isOneToOne: false
+            referencedRelation: "market_item_subproducts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_cart_items_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_category_groups: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          sort_order: number
+          title: string
+          updated_at: string
+          workspace_subject: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          title: string
+          updated_at?: string
+          workspace_subject: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          workspace_subject?: string
+        }
+        Relationships: []
+      }
+      market_category_items: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          is_active: boolean
+          sort_order: number
+          title: string
+          updated_at: string
+          workspace_subject: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          title: string
+          updated_at?: string
+          workspace_subject: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          workspace_subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_category_items_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "market_category_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_checkout_batches: {
+        Row: {
+          created_at: string
+          id: string
+          idempotency_key: string
+          mode: string
+          request_payload: Json
+          result_payload: Json
+          total_credits: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          mode: string
+          request_payload: Json
+          result_payload: Json
+          total_credits: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          mode?: string
+          request_payload?: Json
+          result_payload?: Json
+          total_credits?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_checkout_batches_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       market_download_events: {
         Row: {
           asset_kind: string
@@ -1785,77 +1952,6 @@ export type Database = {
           },
         ]
       }
-      market_category_groups: {
-        Row: {
-          created_at: string
-          id: string
-          is_active: boolean
-          sort_order: number
-          title: string
-          updated_at: string
-          workspace_subject: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          sort_order?: number
-          title: string
-          updated_at?: string
-          workspace_subject: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          sort_order?: number
-          title?: string
-          updated_at?: string
-          workspace_subject?: string
-        }
-        Relationships: []
-      }
-      market_category_items: {
-        Row: {
-          created_at: string
-          group_id: string
-          id: string
-          is_active: boolean
-          sort_order: number
-          title: string
-          updated_at: string
-          workspace_subject: string
-        }
-        Insert: {
-          created_at?: string
-          group_id: string
-          id?: string
-          is_active?: boolean
-          sort_order?: number
-          title: string
-          updated_at?: string
-          workspace_subject: string
-        }
-        Update: {
-          created_at?: string
-          group_id?: string
-          id?: string
-          is_active?: boolean
-          sort_order?: number
-          title?: string
-          updated_at?: string
-          workspace_subject?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "market_category_items_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "market_category_groups"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       market_items: {
         Row: {
           category_item_id: string | null
@@ -1990,36 +2086,6 @@ export type Database = {
           },
         ]
       }
-      market_review_tags: {
-        Row: {
-          created_at: string
-          id: string
-          is_active: boolean
-          label: string
-          sort_order: number
-          updated_at: string
-          workspace_subject: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          label: string
-          sort_order?: number
-          updated_at?: string
-          workspace_subject?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          label?: string
-          sort_order?: number
-          updated_at?: string
-          workspace_subject?: string
-        }
-        Relationships: []
-      }
       market_menu_entries: {
         Row: {
           created_at: string
@@ -2145,6 +2211,7 @@ export type Database = {
       market_purchase_orders: {
         Row: {
           charged_credits: number
+          checkout_batch_id: string | null
           created_at: string
           credit_consumptions: Json | null
           id: string
@@ -2160,6 +2227,7 @@ export type Database = {
         }
         Insert: {
           charged_credits?: number
+          checkout_batch_id?: string | null
           created_at?: string
           credit_consumptions?: Json | null
           id?: string
@@ -2175,6 +2243,7 @@ export type Database = {
         }
         Update: {
           charged_credits?: number
+          checkout_batch_id?: string | null
           created_at?: string
           credit_consumptions?: Json | null
           id?: string
@@ -2189,6 +2258,13 @@ export type Database = {
           workspace_subject?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "market_purchase_orders_checkout_batch_id_fkey"
+            columns: ["checkout_batch_id"]
+            isOneToOne: false
+            referencedRelation: "market_checkout_batches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "market_purchase_orders_item_workspace_fkey"
             columns: ["item_id", "workspace_subject"]
@@ -2373,6 +2449,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      market_review_tags: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          updated_at: string
+          workspace_subject: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          updated_at?: string
+          workspace_subject?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          updated_at?: string
+          workspace_subject?: string
+        }
+        Relationships: []
       }
       market_subproduct_categories: {
         Row: {
@@ -4224,6 +4330,10 @@ export type Database = {
       }
     }
     Functions: {
+      add_market_cart_item: {
+        Args: { p_target_id: string; p_target_kind: string; p_user_id: string }
+        Returns: Json
+      }
       admin_audit_question_bank_metadata: {
         Args: { p_filter?: Json; p_workspace_subject: string }
         Returns: {
@@ -4323,6 +4433,16 @@ export type Database = {
         }
         Returns: Json
       }
+      checkout_market_selection: {
+        Args: {
+          p_idempotency_key: string
+          p_item_id: string
+          p_lines: Json
+          p_mode: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       claim_kakaopay_callback: {
         Args: {
           p_callback_kind: string
@@ -4345,6 +4465,10 @@ export type Database = {
       claim_toss_refund: {
         Args: { p_admin_id: string; p_admin_note: string; p_request_id: string }
         Returns: Json
+      }
+      configure_payment_reconciliation_http_cron: {
+        Args: never
+        Returns: number
       }
       consume_credits: {
         Args: {
@@ -4450,17 +4574,11 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      deduct_credits: {
-        Args: {
-          p_amount: number
-          p_description: string
-          p_resource_id?: string
-          p_resource_type?: string
-          p_user_id: string
-        }
-        Returns: number
-      }
       enforce_payment_reconciliation_health: { Args: never; Returns: Json }
+      evaluate_market_targets: {
+        Args: { p_targets: Json; p_user_id: string }
+        Returns: Json
+      }
       fail_point_charge_refund: {
         Args: {
           p_error_code: string
@@ -4587,17 +4705,6 @@ export type Database = {
       get_toss_refund_eligibility: {
         Args: { p_source_id: string; p_user_id: string }
         Returns: Json
-      }
-      grant_credits: {
-        Args: {
-          p_amount: number
-          p_description: string
-          p_resource_id?: string
-          p_resource_type?: string
-          p_type?: string
-          p_user_id: string
-        }
-        Returns: number
       }
       is_admin: { Args: never; Returns: boolean }
       mark_kakaopay_callback_failure: {
@@ -4759,6 +4866,10 @@ export type Database = {
         Args: { p_admin_id: string; p_admin_note: string; p_request_id: string }
         Returns: undefined
       }
+      remove_market_cart_items: {
+        Args: { p_ids: string[]; p_user_id: string }
+        Returns: Json
+      }
       replace_generate_listboard_post_items: {
         Args: {
           p_admin_user_id: string
@@ -4793,6 +4904,10 @@ export type Database = {
       }
       request_toss_refund: {
         Args: { p_reason: string; p_source_id: string; p_user_id: string }
+        Returns: Json
+      }
+      set_market_cart_selection: {
+        Args: { p_ids: string[]; p_selected: boolean; p_user_id: string }
         Returns: Json
       }
       soft_delete_own_support_ticket: {
@@ -4899,12 +5014,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4928,11 +5043,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4953,11 +5068,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4978,11 +5093,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4995,11 +5110,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

@@ -24,7 +24,6 @@ export type MarketItemSubproduct = Tables<'market_item_subproducts'> & WithWorks
 export type MarketSubproductFile = Tables<'market_subproduct_files'> & WithWorkspaceSubject
 export type MarketItemBundleOption = Tables<'market_item_bundle_options'> & WithWorkspaceSubject
 export type MarketPurchaseOrder = Tables<'market_purchase_orders'> & WithWorkspaceSubject
-export type MarketPurchaseLine = Tables<'market_purchase_lines'> & WithWorkspaceSubject
 export type MarketEntitlement = Tables<'market_entitlements'> & WithWorkspaceSubject
 export type MarketRefundRequest = Tables<'market_refund_requests'> & WithWorkspaceSubject
 
@@ -42,9 +41,6 @@ type MarketItemSubproductUpdate = TablesUpdate<'market_item_subproducts'> & With
 type MarketSubproductFileInsert = TablesInsert<'market_subproduct_files'> & WithOptionalWorkspaceSubject
 type MarketItemBundleOptionInsert = TablesInsert<'market_item_bundle_options'> & WithOptionalWorkspaceSubject
 type MarketItemBundleOptionUpdate = TablesUpdate<'market_item_bundle_options'> & WithOptionalWorkspaceSubject
-type MarketPurchaseOrderInsert = TablesInsert<'market_purchase_orders'> & WithOptionalWorkspaceSubject
-type MarketPurchaseLineInsert = TablesInsert<'market_purchase_lines'> & WithOptionalWorkspaceSubject
-type MarketEntitlementInsert = TablesInsert<'market_entitlements'> & WithOptionalWorkspaceSubject
 
 export interface MarketLibraryRefundTarget {
   targetKind: 'legacy_purchase' | 'v2_order'
@@ -1624,137 +1620,6 @@ export async function listMarketSubproductPublicSummaries(
   })
 }
 
-export interface MarketSubproductPairContext {
-  targetCategorySlug: string | null
-  // 차액 업그레이드 성립 시: 정가와 실청구액. 미성립 시 null.
-  upgrade: { originalPriceCredits: number; chargedCredits: number } | null
-  // 구매 대상이 question_pdf인데 사용자가 PDF 포함 question_hwp 서브상품을 이미 소유한 경우 true.
-  blockedByOwnedHwp: boolean
-}
-
-// 구매 서버 경로 전용: 클라이언트 표시값을 신뢰하지 않고 차액/차단 조건을 독립 재계산한다.
-// 판정 규칙은 listMarketSubproductPublicSummaries 의 upgradeCandidate 와 동일해야 한다.
-export async function getMarketSubproductPairContext(
-  itemId: string,
-  targetSubproductId: string,
-  entitlements: Pick<MarketEntitlement, 'scope' | 'subproduct_id'>[],
-  workspaceSubject?: WorkspaceSubject
-): Promise<MarketSubproductPairContext> {
-  const supabase = getAdminSupabase()
-  const { data: subproducts, error: subproductError } = await applyWorkspaceSubjectFilter(
-    supabase
-      .from('market_item_subproducts')
-      .select('id, category_id, price_credits')
-      .eq('item_id', itemId)
-      .eq('is_active', true)
-      .is('deleted_at', null),
-    workspaceSubject
-  )
-
-  if (subproductError) {
-    throw new Error(subproductError.message)
-  }
-
-  const subproductRows = subproducts ?? []
-  const categoryIds = Array.from(new Set(subproductRows.map((subproduct) => subproduct.category_id)))
-  const { data: categories, error: categoryError } = categoryIds.length > 0
-    ? await supabase
-      .from('market_subproduct_categories')
-      .select('id, slug')
-      .in('id', categoryIds)
-    : { data: [], error: null }
-
-  if (categoryError) {
-    throw new Error(categoryError.message)
-  }
-
-  const slugByCategoryId = new Map((categories ?? []).map((category) => [category.id, category.slug]))
-  const slugOf = (subproduct: { category_id: string }) => slugByCategoryId.get(subproduct.category_id) ?? null
-  const target = subproductRows.find((subproduct) => subproduct.id === targetSubproductId) ?? null
-  const hwpSubproducts = subproductRows.filter((subproduct) => slugOf(subproduct) === 'question_hwp')
-  const pdfSubproducts = subproductRows.filter((subproduct) => slugOf(subproduct) === 'question_pdf')
-
-  const hwpIncludesPdf = new Map<string, boolean>()
-  if (hwpSubproducts.length > 0) {
-    const { data: hwpFiles, error: hwpFileError } = await applyWorkspaceSubjectFilter(
-      supabase
-        .from('market_subproduct_files')
-        .select('subproduct_id, file_type_id')
-        .in('subproduct_id', hwpSubproducts.map((subproduct) => subproduct.id))
-        .eq('is_active', true)
-        .is('deleted_at', null),
-      workspaceSubject
-    )
-
-    if (hwpFileError) {
-      throw new Error(hwpFileError.message)
-    }
-
-    const fileTypeIds = Array.from(new Set((hwpFiles ?? []).map((file) => file.file_type_id)))
-    const { data: fileTypes, error: fileTypeError } = fileTypeIds.length > 0
-      ? await supabase
-        .from('market_file_types')
-        .select('id, code')
-        .in('id', fileTypeIds)
-      : { data: [], error: null }
-
-    if (fileTypeError) {
-      throw new Error(fileTypeError.message)
-    }
-
-    const pdfFileTypeIds = new Set(
-      (fileTypes ?? [])
-        .filter((fileType) => fileType.code.toLowerCase() === 'pdf')
-        .map((fileType) => fileType.id)
-    )
-    for (const file of hwpFiles ?? []) {
-      if (pdfFileTypeIds.has(file.file_type_id)) {
-        hwpIncludesPdf.set(file.subproduct_id, true)
-      }
-    }
-  }
-
-  const hasItemScope = entitlements.some((entitlement) => entitlement.scope === 'item')
-  const ownedSubproductIds = new Set(
-    entitlements
-      .filter((entitlement) => entitlement.scope === 'subproduct' && entitlement.subproduct_id)
-      .map((entitlement) => entitlement.subproduct_id!)
-  )
-
-  const uniqueHwpSubproduct = hwpSubproducts.length === 1 ? hwpSubproducts[0] : null
-  const ownedPdfPrices = pdfSubproducts
-    .filter((subproduct) => ownedSubproductIds.has(subproduct.id))
-    .map((subproduct) => subproduct.price_credits)
-  const ownedPdfMaxPrice = ownedPdfPrices.length > 0 ? Math.max(...ownedPdfPrices) : null
-
-  const upgrade = (
-    target
-    && uniqueHwpSubproduct
-    && target.id === uniqueHwpSubproduct.id
-    && hwpIncludesPdf.get(uniqueHwpSubproduct.id)
-    && !hasItemScope
-    && !ownedSubproductIds.has(uniqueHwpSubproduct.id)
-    && ownedPdfMaxPrice !== null
-    && uniqueHwpSubproduct.price_credits - ownedPdfMaxPrice > 0
-  )
-    ? {
-      originalPriceCredits: uniqueHwpSubproduct.price_credits,
-      chargedCredits: uniqueHwpSubproduct.price_credits - ownedPdfMaxPrice,
-    }
-    : null
-
-  const targetCategorySlug = target ? slugOf(target) : null
-  const blockedByOwnedHwp = (
-    targetCategorySlug === 'question_pdf'
-    && !hasItemScope
-    && hwpSubproducts.some((subproduct) => (
-      ownedSubproductIds.has(subproduct.id) && hwpIncludesPdf.get(subproduct.id)
-    ))
-  )
-
-  return { targetCategorySlug, upgrade, blockedByOwnedHwp }
-}
-
 export async function getMarketBundlePublicSummary(
   itemId: string,
   userId?: string | null,
@@ -1810,103 +1675,6 @@ export async function getMarketBundlePublicSummary(
   }
 }
 
-export async function getMarketSubproductPurchaseContext(
-  itemId: string,
-  subproductId: string,
-  workspaceSubject?: WorkspaceSubject
-): Promise<{ item: MarketItem; subproduct: MarketItemSubproduct; files: MarketSubproductFile[] }> {
-  const item = await getMarketItemById(itemId, workspaceSubject)
-  if (!item || item.deleted_at !== null || item.is_active === false || item.status !== 'published') {
-    throw new Error('구매 가능한 문제마켓 상품을 찾을 수 없습니다.')
-  }
-
-  const subproduct = await getMarketItemSubproductById(itemId, subproductId, item.workspace_subject)
-  if (!subproduct || subproduct.is_active === false || subproduct.deleted_at !== null) {
-    throw new Error('구매 가능한 서브상품을 찾을 수 없습니다.')
-  }
-
-  const files = (await listMarketSubproductFilesForAdmin(itemId, subproductId, item.workspace_subject))
-    .filter((file) => file.is_active && file.deleted_at === null)
-
-  if (files.length === 0) {
-    throw new Error('서브상품에 다운로드 가능한 파일이 없습니다.')
-  }
-
-  if (subproduct.price_credits <= 0) {
-    throw new Error('유효한 서브상품 가격이 설정되지 않았습니다.')
-  }
-
-  return { item, subproduct, files }
-}
-
-export async function getMarketBundlePurchaseContext(
-  itemId: string,
-  bundleOptionId: string,
-  workspaceSubject?: WorkspaceSubject
-): Promise<{ item: MarketItem; bundleOption: MarketItemBundleOption; files: MarketSubproductFile[] }> {
-  const item = await getMarketItemById(itemId, workspaceSubject)
-  if (!item || item.deleted_at !== null || item.is_active === false || item.status !== 'published') {
-    throw new Error('구매 가능한 문제마켓 상품을 찾을 수 없습니다.')
-  }
-
-  const supabase = getAdminSupabase()
-  const { data: bundleOption, error: bundleError } = await supabase
-    .from('market_item_bundle_options')
-    .select('*')
-    .eq('id', bundleOptionId)
-    .eq('item_id', itemId)
-    .eq('workspace_subject', item.workspace_subject)
-    .eq('is_active', true)
-    .maybeSingle()
-
-  if (bundleError) {
-    throw new Error(bundleError.message)
-  }
-
-  if (!bundleOption) {
-    throw new Error('구매 가능한 전체구매 옵션을 찾을 수 없습니다.')
-  }
-
-  const files = (await listMarketSubproductFilesForAdmin(itemId, undefined, item.workspace_subject))
-    .filter((file) => file.is_active && file.deleted_at === null)
-
-  if (files.length === 0) {
-    throw new Error('전체구매에 포함할 다운로드 파일이 없습니다.')
-  }
-
-  if (bundleOption.price_credits <= 0) {
-    throw new Error('유효한 전체구매 가격이 설정되지 않았습니다.')
-  }
-
-  return { item, bundleOption: withWorkspaceSubject(bundleOption)!, files }
-}
-
-export async function findCompletedMarketV2OrderByIdempotencyKey(
-  userId: string,
-  idempotencyKey: string,
-  workspaceSubject?: WorkspaceSubject
-): Promise<MarketPurchaseOrder | null> {
-  const supabase = getAdminSupabase()
-  const query = applyWorkspaceSubjectFilter(
-    supabase
-      .from('market_purchase_orders')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('idempotency_key', idempotencyKey)
-      .eq('status', 'completed')
-      .maybeSingle(),
-    workspaceSubject
-  )
-
-  const { data, error } = await query
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  return withWorkspaceSubject(data)
-}
-
 export async function listMarketV2EntitlementsForItem(
   userId: string,
   itemId: string,
@@ -1930,62 +1698,6 @@ export async function listMarketV2EntitlementsForItem(
   }
 
   return withWorkspaceSubjects(data)
-}
-
-export async function createMarketPurchaseOrder(input: MarketPurchaseOrderInsert): Promise<MarketPurchaseOrder> {
-  const supabase = getAdminSupabase()
-  const payload: MarketPurchaseOrderInsert = {
-    ...input,
-    credit_consumptions: input.credit_consumptions ?? null,
-  }
-  const { data, error } = await supabase
-    .from('market_purchase_orders')
-    .insert(payload as TablesInsert<'market_purchase_orders'>)
-    .select('*')
-    .single()
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  return withWorkspaceSubject(data)!
-}
-
-export async function createMarketPurchaseLine(input: MarketPurchaseLineInsert): Promise<MarketPurchaseLine> {
-  const supabase = getAdminSupabase()
-  const { data, error } = await supabase
-    .from('market_purchase_lines')
-    .insert(input as TablesInsert<'market_purchase_lines'>)
-    .select('*')
-    .single()
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  return withWorkspaceSubject(data)!
-}
-
-export async function createMarketEntitlement(input: MarketEntitlementInsert): Promise<MarketEntitlement> {
-  const supabase = getAdminSupabase()
-  const { data, error } = await supabase
-    .from('market_entitlements')
-    .insert(input as TablesInsert<'market_entitlements'>)
-    .select('*')
-    .single()
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  return withWorkspaceSubject(data)!
-}
-
-export async function rollbackMarketV2PurchaseArtifacts(orderId: string, workspaceSubject: WorkspaceSubject): Promise<void> {
-  const supabase = getAdminSupabase()
-  await supabase.from('market_entitlements').delete().eq('source_order_id', orderId).eq('workspace_subject', workspaceSubject)
-  await supabase.from('market_purchase_lines').delete().eq('order_id', orderId).eq('workspace_subject', workspaceSubject)
-  await supabase.from('market_purchase_orders').delete().eq('id', orderId).eq('workspace_subject', workspaceSubject)
 }
 
 export async function getActiveMarketSubproductFileForDownload(
@@ -2464,35 +2176,6 @@ export async function listCompletedMarketPurchasesForItem(
   }
 
   return withWorkspaceSubjects(data)
-}
-
-export async function createMarketPurchase(input: MarketPurchaseInsert): Promise<MarketPurchase> {
-  const supabase = getAdminSupabase()
-  const item = await getMarketItemById(input.item_id)
-  if (!item) {
-    throw new Error('구매할 문제마켓 상품을 찾을 수 없습니다.')
-  }
-
-  const workspaceSubject = input.workspace_subject ?? item.workspace_subject
-  assertMatchingWorkspaceSubject('문제마켓 상품', workspaceSubject, item.workspace_subject)
-
-  const payload: MarketPurchaseInsert = {
-    ...input,
-    workspace_subject: workspaceSubject,
-    credit_consumptions: input.credit_consumptions ?? null,
-  }
-
-  const { data, error } = await supabase
-    .from('market_purchases')
-    .insert(payload as TablesInsert<'market_purchases'>)
-    .select('*')
-    .single()
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  return withWorkspaceSubject(data)!
 }
 
 export async function createMarketPurchases(inputs: MarketPurchaseInsert[]): Promise<MarketPurchase[]> {

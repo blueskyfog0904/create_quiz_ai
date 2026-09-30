@@ -16,6 +16,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { SiteLogoSettings } from './site-logo-settings'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -1054,6 +1055,8 @@ export default function MenuManagementClient({
           <p className="mt-3 text-sm text-gray-500">영어/국어 관리 대상별로 서로 다른 순서를 저장합니다. 문제은행 대메뉴는 위/아래 버튼으로 block 이동하고, 하위 메뉴는 문제은행 내부에서만 순서를 조정합니다. 저장값은 기존처럼 href 순서 배열만 사용합니다.</p>
         </CardContent>
       </Card>
+
+      <SiteLogoSettings />
 
       <Card>
         <CardHeader>

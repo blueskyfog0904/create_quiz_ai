@@ -1,0 +1,12 @@
+{"query":"pg_constraint for pricing_plans, checkout_attempts (preflight 정규식 누락분)","columns":["table","conname","convalidated","definition"],"rows":[
+["checkout_attempts","checkout_attempts_claimed_provider_check",true,"CHECK (claimed_provider = ANY (ARRAY['toss'::text, 'kakaopay'::text]))"],
+["checkout_attempts","checkout_attempts_payment_order_id_fkey",true,"FOREIGN KEY (payment_order_id) REFERENCES payment_orders(id) ON DELETE RESTRICT"],
+["checkout_attempts","checkout_attempts_payment_order_id_key",true,"UNIQUE (payment_order_id)"],
+["checkout_attempts","checkout_attempts_pkey",true,"PRIMARY KEY (id)"],
+["checkout_attempts","checkout_attempts_plan_id_fkey",true,"FOREIGN KEY (plan_id) REFERENCES pricing_plans(id) ON DELETE RESTRICT"],
+["checkout_attempts","checkout_attempts_status_check",true,"CHECK (status = ANY (ARRAY['claimed'::text, 'completed'::text, 'cancelled'::text, 'expired'::text, 'manual_review'::text]))"],
+["checkout_attempts","checkout_attempts_user_id_checkout_attempt_id_key",true,"UNIQUE (user_id, checkout_attempt_id)"],
+["checkout_attempts","checkout_attempts_user_id_fkey",true,"FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE RESTRICT"],
+["pricing_plans","pricing_plans_pkey",true,"PRIMARY KEY (id)"],
+["pricing_plans","pricing_plans_price_charge_limit",false,"CHECK (price >= 1 AND price <= 100000) NOT VALID"]
+]}

@@ -1,0 +1,1779 @@
+{
+  "checkedAt": "2026-09-28T08:21:27.780Z",
+  "method": "Read-only PostgREST OpenAPI + service-role SELECT; no SQL functions executed except failed exec_sql discovery; no writes",
+  "limits": [
+    "PostgREST cannot prove active unique/check/index definitions, RLS policy expressions, grants, function bodies or locking; compare migrations and require pg_catalog audit before implementation rollout"
+  ],
+  "cartTables": [],
+  "tables": {
+    "market_menu_entries": {
+      "count": 4,
+      "columns": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "entry_key": {
+          "type": "string",
+          "format": "text",
+          "required": true,
+          "description": "불변 internal key"
+        },
+        "slug": {
+          "type": "string",
+          "format": "text",
+          "required": true,
+          "description": "문제마켓 하위 메뉴 slug"
+        },
+        "title": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "sort_order": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "is_visible": {
+          "type": "boolean",
+          "format": "boolean",
+          "required": true
+        },
+        "is_active": {
+          "type": "boolean",
+          "format": "boolean",
+          "required": true
+        },
+        "search_config": {
+          "format": "jsonb",
+          "required": true,
+          "description": "문제마켓 검색 preset 설정"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "deleted_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "subject_code": {
+          "type": "string",
+          "format": "text",
+          "required": true,
+          "description": "Legacy subject scope kept in sync with workspace_subject for compatibility."
+        },
+        "workspace_subject": {
+          "type": "string",
+          "format": "text",
+          "required": true,
+          "description": "Public workspace subject scope for market menu rows."
+        }
+      }
+    },
+    "market_subproduct_categories": {
+      "count": 13,
+      "columns": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "workspace_subject": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "name": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "slug": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "sort_order": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "is_active": {
+          "type": "boolean",
+          "format": "boolean",
+          "required": true
+        },
+        "deleted_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "created_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        }
+      }
+    },
+    "market_subproduct_files": {
+      "count": 500,
+      "columns": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "item_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true
+        },
+        "subproduct_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true
+        },
+        "workspace_subject": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "file_type_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true
+        },
+        "storage_bucket": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "storage_path": {
+          "type": "string",
+          "format": "text",
+          "required": true,
+          "description": "Private storage object path. 일반 사용자는 entitlement 검증 후 API를 통해서만 접근한다."
+        },
+        "original_file_name": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "content_type": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "file_size_bytes": {
+          "type": "integer",
+          "format": "bigint",
+          "required": false
+        },
+        "checksum": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "version": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "sort_order": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "is_active": {
+          "type": "boolean",
+          "format": "boolean",
+          "required": true
+        },
+        "deleted_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "created_by": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        }
+      }
+    },
+    "market_file_types": {
+      "count": 6,
+      "columns": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "workspace_subject": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "code": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "label": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "extension": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "mime_allowlist": {
+          "type": "array",
+          "format": "text[]",
+          "required": true
+        },
+        "sort_order": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "is_active": {
+          "type": "boolean",
+          "format": "boolean",
+          "required": true
+        },
+        "deleted_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "created_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        }
+      }
+    },
+    "market_item_bundle_options": {
+      "count": 144,
+      "columns": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "item_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true
+        },
+        "workspace_subject": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "label": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "price_credits": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "is_active": {
+          "type": "boolean",
+          "format": "boolean",
+          "required": true
+        },
+        "created_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        }
+      }
+    },
+    "payment_orders": {
+      "count": 7,
+      "columns": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "user_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>"
+        },
+        "order_id": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "plan_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "Note:\nThis is a Foreign Key to `pricing_plans.id`.<fk table='pricing_plans' column='id'/>"
+        },
+        "plan_name_snapshot": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "expected_amount": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "expected_credits": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "provider": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "environment": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "mid": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "payment_key": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "provider_method": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "provider_status": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "status": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "confirm_idempotency_key": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "cancel_idempotency_key": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "failure_code": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "failure_message": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "source_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "Note:\nThis is a Foreign Key to `credit_sources.id`.<fk table='credit_sources' column='id'/>"
+        },
+        "payment_history_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "Note:\nThis is a Foreign Key to `payment_history.id`.<fk table='payment_history' column='id'/>"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "approved_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "fulfilled_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "canceled_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "created_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "checkout_attempt_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "Note:\nThis is a Foreign Key to `checkout_attempts.id`.<fk table='checkout_attempts' column='id'/>"
+        },
+        "request_fingerprint": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "provider_environment": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "provider_merchant_id": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "partner_order_id": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "partner_user_id": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "tax_free_amount": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "vat_amount": {
+          "type": "integer",
+          "format": "integer",
+          "required": false
+        },
+        "checkout_expires_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "confirm_expires_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "ready_requested_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "ready_expires_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "reconcile_attempt_count": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "next_reconcile_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "last_reconciled_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "last_reconcile_error_code": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "last_reconcile_error_message": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        }
+      }
+    },
+    "market_items": {
+      "count": 146,
+      "columns": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "menu_entry_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "market_menu_entries.id\n\nNote:\nThis is a Foreign Key to `market_menu_entries.id`.<fk table='market_menu_entries' column='id'/>"
+        },
+        "title": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "summary": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "description": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "thumbnail_url": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "exam_year": {
+          "type": "integer",
+          "format": "integer",
+          "required": false
+        },
+        "exam_month": {
+          "type": "integer",
+          "format": "integer",
+          "required": false
+        },
+        "grade_level": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "source_type": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "source_1": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "source_2": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "source_3": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "source_4": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "pdf_price": {
+          "type": "integer",
+          "format": "integer",
+          "required": true,
+          "description": "PDF 구매 크레딧"
+        },
+        "hwp_price": {
+          "type": "integer",
+          "format": "integer",
+          "required": true,
+          "description": "HWP 구매 크레딧"
+        },
+        "sort_order": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "format": "text",
+          "required": true,
+          "description": "draft/published/hidden/archived"
+        },
+        "is_active": {
+          "type": "boolean",
+          "format": "boolean",
+          "required": true
+        },
+        "view_count": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "published_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "created_by": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>"
+        },
+        "updated_by": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "deleted_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "subject_code": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "workspace_subject": {
+          "type": "string",
+          "format": "text",
+          "required": true,
+          "description": "Public workspace subject scope for market items."
+        },
+        "draft_source": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "question_count": {
+          "type": "integer",
+          "format": "integer",
+          "required": false,
+          "description": "문제마켓 상품 문항 수"
+        },
+        "zip_price": {
+          "type": "integer",
+          "format": "integer",
+          "required": true,
+          "description": "문제마켓 ZIP 독립 유료 자산 가격(크레딧). 0이면 미제공으로 처리한다."
+        },
+        "category_item_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false
+        }
+      }
+    },
+    "market_refund_requests": {
+      "count": 1,
+      "columns": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "workspace_subject": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "user_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>"
+        },
+        "item_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Foreign Key to `market_items.id`.<fk table='market_items' column='id'/>"
+        },
+        "target_kind": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "legacy_purchase_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "Note:\nThis is a Foreign Key to `market_purchases.id`.<fk table='market_purchases' column='id'/>"
+        },
+        "order_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "Note:\nThis is a Foreign Key to `market_purchase_orders.id`.<fk table='market_purchase_orders' column='id'/>"
+        },
+        "requested_refund_credits": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "approved_refund_credits": {
+          "type": "integer",
+          "format": "integer",
+          "required": false
+        },
+        "status": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "reason": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "admin_note": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "eligibility_snapshot": {
+          "format": "jsonb",
+          "required": true,
+          "description": "요청 시점 환불 가능성 판정 및 다운로드 카운트 스냅샷"
+        },
+        "processed_by": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>"
+        },
+        "processed_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "created_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        }
+      }
+    },
+    "market_item_subproducts": {
+      "count": 355,
+      "columns": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "item_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true
+        },
+        "workspace_subject": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "category_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "price_credits": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "sort_order": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "is_active": {
+          "type": "boolean",
+          "format": "boolean",
+          "required": true
+        },
+        "deleted_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "created_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "purchase_notice_label": {
+          "type": "string",
+          "format": "text",
+          "required": false,
+          "description": "구매 옵션 행에 표시할 짧은 안내 배지/라벨"
+        },
+        "purchase_notice_text": {
+          "type": "string",
+          "format": "text",
+          "required": false,
+          "description": "구매 옵션 행에 표시할 구매 안내 문구"
+        }
+      }
+    },
+    "credit_sources": {
+      "count": 31,
+      "columns": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "user_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>"
+        },
+        "plan_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "Note:\nThis is a Foreign Key to `pricing_plans.id`.<fk table='pricing_plans' column='id'/>"
+        },
+        "initial_credits": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "remaining_credits": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "purchased_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "created_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "source_category": {
+          "type": "string",
+          "format": "text",
+          "required": true,
+          "description": "크레딧 출처 구분 (plan_purchase, admin_grant, system_refund, bonus, legacy_unknown)"
+        },
+        "payment_order_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "Note:\nThis is a Foreign Key to `payment_orders.id`.<fk table='payment_orders' column='id'/>"
+        }
+      }
+    },
+    "market_purchase_orders": {
+      "count": 8,
+      "columns": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "workspace_subject": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "user_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>"
+        },
+        "item_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true
+        },
+        "purchase_type": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "idempotency_key": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "original_price_credits": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "charged_credits": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "legacy_purchase_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "Note:\nThis is a Foreign Key to `market_purchases.id`.<fk table='market_purchases' column='id'/>"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "credit_consumptions": {
+          "format": "jsonb",
+          "required": false
+        }
+      }
+    },
+    "market_purchase_lines": {
+      "count": 8,
+      "columns": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "order_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true
+        },
+        "workspace_subject": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "item_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true
+        },
+        "subproduct_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false
+        },
+        "bundle_option_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false
+        },
+        "line_type": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "price_credits": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "created_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        }
+      }
+    },
+    "market_purchases": {
+      "count": 0,
+      "columns": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "user_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>"
+        },
+        "item_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Foreign Key to `market_items.id`.<fk table='market_items' column='id'/>"
+        },
+        "asset_kind": {
+          "type": "string",
+          "format": "text",
+          "required": true,
+          "description": "구매한 유료 파일 타입(pdf/hwp)"
+        },
+        "price_credits": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "status": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "credit_resource_type": {
+          "type": "string",
+          "format": "text",
+          "required": true,
+          "description": "CreditService resource_type"
+        },
+        "credit_resource_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "CreditService resource_id"
+        },
+        "purchased_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "refunded_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": false
+        },
+        "created_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "workspace_subject": {
+          "type": "string",
+          "format": "text",
+          "required": true,
+          "description": "Public workspace subject scope for market purchase rows."
+        },
+        "credit_consumptions": {
+          "format": "jsonb",
+          "required": false
+        }
+      }
+    },
+    "credit_consumption": {
+      "count": 330,
+      "columns": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "user_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>"
+        },
+        "source_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Foreign Key to `credit_sources.id`.<fk table='credit_sources' column='id'/>"
+        },
+        "amount": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "resource_type": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "resource_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false
+        },
+        "description": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "created_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "transaction_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "Note:\nThis is a Foreign Key to `credit_transactions.id`.<fk table='credit_transactions' column='id'/>"
+        },
+        "operation_key": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        }
+      }
+    },
+    "market_entitlements": {
+      "count": 8,
+      "columns": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "workspace_subject": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "user_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>"
+        },
+        "item_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true
+        },
+        "scope": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "subproduct_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false
+        },
+        "file_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false
+        },
+        "legacy_asset_kind": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "source_order_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false
+        },
+        "source_purchase_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "Note:\nThis is a Foreign Key to `market_purchases.id`.<fk table='market_purchases' column='id'/>"
+        },
+        "status": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "created_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        }
+      }
+    },
+    "credit_transactions": {
+      "count": 384,
+      "columns": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Primary Key.<pk/>"
+        },
+        "user_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": true,
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>"
+        },
+        "type": {
+          "type": "string",
+          "format": "text",
+          "required": true
+        },
+        "amount": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "balance_after": {
+          "type": "integer",
+          "format": "integer",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "source_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false,
+          "description": "Note:\nThis is a Foreign Key to `credit_sources.id`.<fk table='credit_sources' column='id'/>"
+        },
+        "resource_type": {
+          "type": "string",
+          "format": "text",
+          "required": false
+        },
+        "resource_id": {
+          "type": "string",
+          "format": "uuid",
+          "required": false
+        },
+        "created_at": {
+          "type": "string",
+          "format": "timestamp with time zone",
+          "required": true
+        },
+        "operation_key": {
+          "type": "string",
+          "format": "text",
+          "required": false,
+          "description": "Optional idempotency key for one-time credit ledger operations."
+        },
+        "original_operation_key": {
+          "type": "string",
+          "format": "text",
+          "required": false,
+          "description": "Original consume operation key for one-time refund idempotency."
+        }
+      }
+    }
+  },
+  "creditRpcSignatures": {
+    "/rpc/get_credit_balance_snapshot": {
+      "get": {
+        "parameters": [
+          {
+            "format": "uuid",
+            "in": "query",
+            "name": "p_user_id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) get_credit_balance_snapshot"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_user_id": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_user_id"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) get_credit_balance_snapshot"
+        ]
+      }
+    },
+    "/rpc/consume_credits": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_amount": {
+                  "format": "integer",
+                  "type": "integer"
+                },
+                "p_description": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_resource_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_resource_type": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_user_id": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_user_id",
+                "p_amount",
+                "p_resource_type",
+                "p_resource_id",
+                "p_description"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) consume_credits"
+        ]
+      }
+    },
+    "/rpc/consume_credits_once": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_amount": {
+                  "format": "integer",
+                  "type": "integer"
+                },
+                "p_description": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_operation_key": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_resource_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_resource_type": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_user_id": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_user_id",
+                "p_amount",
+                "p_resource_type",
+                "p_resource_id",
+                "p_description",
+                "p_operation_key"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) consume_credits_once"
+        ]
+      }
+    },
+    "/rpc/refund_credits": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_amount": {
+                  "format": "integer",
+                  "type": "integer"
+                },
+                "p_consumptions": {
+                  "format": "jsonb"
+                },
+                "p_description": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_resource_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_resource_type": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_target_balance": {
+                  "format": "integer",
+                  "type": "integer"
+                },
+                "p_user_id": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_user_id",
+                "p_amount",
+                "p_resource_type",
+                "p_resource_id",
+                "p_description",
+                "p_consumptions"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) refund_credits"
+        ]
+      }
+    },
+    "/rpc/refund_credits_once": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_amount": {
+                  "format": "integer",
+                  "type": "integer"
+                },
+                "p_description": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_operation_key": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_original_operation_key": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_resource_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_resource_type": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_target_balance": {
+                  "format": "integer",
+                  "type": "integer"
+                },
+                "p_user_id": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_user_id",
+                "p_amount",
+                "p_resource_type",
+                "p_resource_id",
+                "p_description",
+                "p_operation_key",
+                "p_original_operation_key"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) refund_credits_once"
+        ]
+      }
+    }
+  },
+  "summaries": {
+    "publishedItemsBySubject": {
+      "korean": 144,
+      "english": 1
+    },
+    "activeSubproductsBySubject": {
+      "korean": 352
+    },
+    "activeBundlesBySubject": {
+      "korean": 64
+    },
+    "orderStatus": {
+      "completed": 7,
+      "refunded": 1
+    },
+    "orderTypes": {
+      "subproduct": 7,
+      "bundle": 1
+    },
+    "entitlementScopes": {
+      "subproduct": 7,
+      "item": 1
+    },
+    "completedOrdersWithIdempotency": 7,
+    "completedOrdersWithCreditConsumption": 7,
+    "upgradeDiscountOrders": 0
+  },
+  "integrity": {
+    "subproductItemMismatch": 0,
+    "fileParentItemMismatch": 0,
+    "purchaseLineParentMismatch": 0,
+    "activeEntitlementDuplicateKeys": 0,
+    "activeV2EntitlementsWithoutOrder": 0
+  }
+}

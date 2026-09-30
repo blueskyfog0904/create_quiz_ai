@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { getMarketBoardData } from '@/lib/market-board-server'
 import type { MarketBoardSort } from '@/lib/market-board'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import { normalizeListPageSize } from '@/lib/list-pagination'
 import {
   RealMarketBoard,
   type RealMarketBoardFilterState,
@@ -75,6 +76,7 @@ export default async function SolvookConceptBoardPage({
     examYear: parsePositiveInteger(filters.year),
     sort: filters.sort,
     page: parsePositiveInteger(firstValue(resolvedSearchParams.page)),
+    pageSize: normalizeListPageSize(firstValue(resolvedSearchParams.pageSize)),
   })
 
   if (result.status === 'not_found') {

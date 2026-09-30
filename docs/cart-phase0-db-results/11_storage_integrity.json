@@ -1,0 +1,7 @@
+{"query":"preflight #11~#13 활성 파일 참조↔storage.objects 정합성 + 비참조 object 분류 (경로 미저장)","audit_role_attrs":{"rolname":"supabase_read_only_user","rolsuper":false,"rolbypassrls":true,"member_of":"pg_read_all_data,pg_monitor","note":"BYPASSRLS이므로 storage.objects/public 테이블 전체 행 집계 가능"},
+"active_refs_vs_objects":[{"kind":"legacy","active_references":2,"missing_objects":0},{"kind":"sample","active_references":627,"missing_objects":0},{"kind":"subproduct","active_references":496,"missing_objects":0}],
+"multiply_referenced_paths":0,
+"market_files_objects":{"total":1136,"unreferenced_by_any_row":7,"referenced_only_by_inactive_or_deleted_rows":{"legacy":0,"subproduct":4,"sample":0},"active_referenced":1125,"reconciliation":"1125 + 4 + 7 = 1136"},
+"unreferenced_breakdown":[{"top_prefix":"market","ext":"image","n":6,"oldest":"2026-05-22","newest":"2026-05-22"},{"top_prefix":"market","ext":"pdf","n":1,"oldest":"2026-05-28","newest":"2026-05-28"}],
+"buckets":{"count":2,"public_flags":"main-ad-images:true,market-files:false","buckets_referenced_by_market_file_rows":"market-files"},
+"storage_schema_policy_count":0}

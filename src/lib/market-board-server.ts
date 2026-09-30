@@ -2,8 +2,6 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { loadMarketItemListEnrichment } from '@/lib/market-item-list-enrichment'
 import {
-  MARKET_BOARD_DEFAULT_PAGE_SIZE,
-  MARKET_BOARD_MAX_PAGE_SIZE,
   type MarketBoardCategoryGroup,
   type MarketBoardData,
   type MarketBoardQuery,
@@ -14,6 +12,7 @@ import {
   type MarketBoardSort,
 } from '@/lib/market-board'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import { getListPagination, normalizeListPageSize } from '@/lib/list-pagination'
 
 type GroupRow = {
   id: string
@@ -146,13 +145,6 @@ function uniqueText(values: Array<string | null | undefined>) {
 
 function normalizePage(value: number | undefined) {
   return Number.isInteger(value) && Number(value) > 0 ? Number(value) : 1
-}
-
-function normalizePageSize(value: number | undefined) {
-  if (!Number.isInteger(value) || Number(value) < 1) {
-    return MARKET_BOARD_DEFAULT_PAGE_SIZE
-  }
-  return Math.min(Number(value), MARKET_BOARD_MAX_PAGE_SIZE)
 }
 
 function normalizeSort(value: MarketBoardSort | undefined): MarketBoardSort {
@@ -455,10 +447,8 @@ export async function getMarketBoardData(input: MarketBoardQuery): Promise<Marke
         .filter((typeName) => !configuredSourceTypes.has(typeName))
         .map((typeName) => ({ typeName, fields: [] })),
     ].sort((left, right) => left.typeName.localeCompare(right.typeName, 'ko'))
-    const page = normalizePage(input.page)
-    const pageSize = normalizePageSize(input.pageSize)
-    const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
+    const requestedPage = normalizePage(input.page)
+    const pageSize = normalizeListPageSize(input.pageSize)
     const sort = normalizeSort(input.sort)
 
     let itemQuery = supabase
@@ -513,8 +503,12 @@ export async function getMarketBoardData(input: MarketBoardQuery): Promise<Marke
       .order('created_at', { ascending: false })
       .order('id', { ascending: true })
 
-    const { data: itemData, error: itemError, count } = await itemQuery
-      .range(from, to)
+    const countResult = await itemQuery.range(0, 0)
+    if (countResult.error) throw new Error(countResult.error.message)
+    const total = countResult.count ?? 0
+    const { page, offset } = getListPagination(total, requestedPage, pageSize)
+    const { data: itemData, error: itemError } = await itemQuery
+      .range(offset, offset + pageSize - 1)
     if (itemError) throw new Error(itemError.message)
 
     const items = (itemData ?? []) as unknown as ItemRow[]
@@ -531,7 +525,6 @@ export async function getMarketBoardData(input: MarketBoardQuery): Promise<Marke
     const group = category.group_id
       ? groupRows.find((row) => row.id === category.group_id) ?? null
       : null
-    const total = count ?? 0
 
     const data: MarketBoardData = {
       subject,

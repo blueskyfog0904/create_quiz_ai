@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Check, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
+import { buildAuthRedirectPath } from '@/lib/auth-paths'
 
 interface PricingPlan {
     id: string
@@ -35,7 +36,7 @@ export function PricingClient({ plans, isLoggedIn }: PricingClientProps) {
     const handlePurchase = (plan: PricingPlan) => {
         if (!isLoggedIn) {
             toast.error('로그인이 필요합니다.')
-            router.push(`/login?redirect=/checkout?planId=${plan.id}`)
+            router.push(buildAuthRedirectPath(`/checkout?planId=${plan.id}`))
             return
         }
 

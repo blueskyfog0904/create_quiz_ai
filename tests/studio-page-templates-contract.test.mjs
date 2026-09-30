@@ -78,10 +78,11 @@ test('StudioDetailPageFrame owns responsive main, aside, tabs, and mobile action
     'header',
     'main',
     'aside',
+    'navigation',
     'tabs',
     'mobileActions',
   ])
-  for (const slot of ['header', 'main', 'aside', 'tabs', 'mobileActions']) {
+  for (const slot of ['header', 'main', 'aside', 'navigation', 'tabs', 'mobileActions']) {
     assert.match(source, new RegExp(`\\{${slot}\\}`), `${slot} must render`)
   }
   assert.match(source, /StudioContainer/)
@@ -92,8 +93,9 @@ test('StudioDetailPageFrame owns responsive main, aside, tabs, and mobile action
   )
   assert.match(source, /className=\{cn\(/)
   assert.match(source, /hasMobileActions\s*&&\s*['"][^'"]*pb-\d+[^'"]*lg:pb-0/)
-  assert.match(source, /hasAside\s*&&\s*['"][^'"]*lg:grid-cols-/)
-  assert.match(source, /\{hasAside\s*\?\s*<aside\b/)
+  assert.match(source, /hasAside\s*&&\s*navigation == null/)
+  assert.match(source, /lg:grid-cols-\[minmax\(0,1fr\)_20rem\]/)
+  assert.match(source, /\{hasAside\s*&&\s*navigation != null\s*\?\s*<aside\b/)
   assert.doesNotMatch(source, /className="[^"]*lg:grid-cols-/)
   assert.doesNotMatch(source, /<main\b/)
   assert.match(source, /data-slot="studio-detail-main"/)

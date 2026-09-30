@@ -56,6 +56,7 @@ export function RealMarketBoard({
               <form method="get" className="space-y-6">
                 <input type="hidden" name="subject" value={data.subject} />
                 <input type="hidden" name="sort" value={filters.sort} />
+                <input type="hidden" name="pageSize" value={data.pagination.pageSize} />
 
                 <StudioFilterPanel
                   fields={(

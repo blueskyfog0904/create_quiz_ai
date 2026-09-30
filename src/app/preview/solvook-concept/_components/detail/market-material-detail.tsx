@@ -21,6 +21,8 @@ import type {
 import type { MarketItemReviewsResult, MarketReviewSort } from '@/lib/market-reviews-server'
 import { MarketMaterialSampleButton } from './market-material-sample-button'
 import { MarketReviewsSection } from './market-reviews-section'
+import { MarketCategorySidebar } from '@/components/market/MarketCategorySidebar'
+import type { MegaMenuGroup } from '@/lib/market-categories-server'
 
 interface MarketMaterialDetailProps {
   bundleOption: MarketBundlePublicSummary | null
@@ -34,6 +36,7 @@ interface MarketMaterialDetailProps {
   reviewSort: MarketReviewSort
   samplePageCount: number
   subproducts: MarketSubproductPublicSummary[]
+  categoryTree: MegaMenuGroup[]
 }
 
 function formatRegisteredAt(value: string) {
@@ -77,14 +80,16 @@ export function MarketMaterialDetail({
   reviewSort,
   samplePageCount,
   subproducts,
+  categoryTree,
 }: MarketMaterialDetailProps) {
-  const boardHref = `/preview/solvook-concept/boards/${category.slug}?subject=${item.workspace_subject}`
+  const activeCategory = categoryTree.flatMap((group) => group.items)
+    .find((entry) => entry.id === item.category_item_id)
+  const boardHref = activeCategory
+    ? `/categories/${activeCategory.id}?subject=${item.workspace_subject}`
+    : `/preview/solvook-concept/boards/${category.slug}?subject=${item.workspace_subject}`
   const startingPrice = getStartingPrice(item, files, subproducts, bundleOption)
   const hasSamplePages = samplePageCount > 0
   const hasLegacySample = files.some((file) => file.asset_kind === 'sample')
-  const hasPdf = files.some((file) => file.asset_kind === 'pdf')
-  const hasHwp = files.some((file) => file.asset_kind === 'hwp')
-  const hasZip = files.some((file) => file.asset_kind === 'zip')
   const ownsPdf = purchases.some((purchase) => purchase.asset_kind === 'pdf')
   const ownsHwp = purchases.some((purchase) => purchase.asset_kind === 'hwp')
   const ownsZip = purchases.some((purchase) => purchase.asset_kind === 'zip')
@@ -126,6 +131,14 @@ export function MarketMaterialDetail({
 
   return (
     <StudioDetailPageFrame
+      navigation={(
+        <MarketCategorySidebar
+          key={activeCategory?.id ?? item.workspace_subject}
+          tree={categoryTree}
+          subject={item.workspace_subject}
+          activeItemId={activeCategory?.id ?? null}
+        />
+      )}
       header={(
         <section className="border-b border-[var(--studio-border)] bg-[var(--studio-surface)]">
           <StudioContainer className="py-6">
@@ -144,7 +157,7 @@ export function MarketMaterialDetail({
                 href={boardHref}
                 className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-sm px-2 outline-none hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
               >
-                {category.title}
+                {activeCategory?.title ?? category.title}
               </Link>
               <span aria-hidden="true">/</span>
               <span
@@ -174,7 +187,6 @@ export function MarketMaterialDetail({
               </div>
             )}
             <MarketMaterialSampleButton
-              isLoggedIn={isLoggedIn}
               itemId={item.id}
               samplePageCount={samplePageCount}
               workspaceSubject={item.workspace_subject}
@@ -323,11 +335,8 @@ export function MarketMaterialDetail({
             <MarketItemActions
               bundleOption={bundleOption}
               downloadFiles={downloadFiles}
-              hasHwp={hasHwp}
               hasLegacySample={hasLegacySample}
-              hasPdf={hasPdf}
               hasSamplePages={hasSamplePages}
-              hasZip={hasZip}
               hwpPrice={item.hwp_price}
               isLoggedIn={isLoggedIn}
               itemId={item.id}

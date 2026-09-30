@@ -7,6 +7,7 @@ interface StudioDetailPageFrameProps {
   header: ReactNode
   main: ReactNode
   aside?: ReactNode
+  navigation?: ReactNode
   tabs?: ReactNode
   mobileActions?: ReactNode
 }
@@ -15,6 +16,7 @@ export function StudioDetailPageFrame({
   header,
   main,
   aside,
+  navigation,
   tabs,
   mobileActions,
 }: StudioDetailPageFrameProps) {
@@ -30,17 +32,25 @@ export function StudioDetailPageFrame({
     >
       {header}
       <StudioContainer className="py-7 sm:py-9">
-        <div
-          className={cn(
-            'grid gap-6',
-            hasAside && 'lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start'
-          )}
-        >
-          <div data-slot="studio-detail-main" className="min-w-0 space-y-6">
-            {main}
-            {tabs}
+        <div className="flex items-start gap-10">
+          {navigation != null ? (
+            <aside className="sticky top-36 hidden w-56 shrink-0 self-start lg:block">
+              {navigation}
+            </aside>
+          ) : null}
+          <div
+            className={cn(
+              'grid min-w-0 flex-1 gap-6',
+              hasAside && navigation == null && 'lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start'
+            )}
+          >
+            <div data-slot="studio-detail-main" className="min-w-0 space-y-6">
+              {main}
+              {hasAside && navigation != null ? <aside className="hidden lg:block">{aside}</aside> : null}
+              {tabs}
+            </div>
+            {hasAside && navigation == null ? <aside className="hidden lg:block">{aside}</aside> : null}
           </div>
-          {hasAside ? <aside className="hidden lg:block">{aside}</aside> : null}
         </div>
       </StudioContainer>
       {hasMobileActions ? (

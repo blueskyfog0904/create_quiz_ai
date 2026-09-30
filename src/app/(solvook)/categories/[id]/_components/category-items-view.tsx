@@ -1,10 +1,15 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, useTransition, type MouseEvent } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronDown, FolderOpen } from 'lucide-react'
 import { StudioContainer } from '@/components/design-system/studio-container'
 import { StudioEmptyState } from '@/components/design-system/studio-empty-state'
+import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
+import { Button } from '@/components/ui/button'
+import { updateListQuery } from '@/lib/list-pagination'
+import { MarketCategorySidebar } from '@/components/market/MarketCategorySidebar'
 import { MarketItemListRow } from '@/components/market/market-item-list-row'
 import MarketSamplePreviewDialog from '@/app/(dashboard)/market/[slug]/items/[itemId]/market-sample-preview-dialog'
 import type { MegaMenuGroup } from '@/lib/market-categories-server'
@@ -20,95 +25,16 @@ interface CategoryItemsViewProps {
   }
   rows: MarketSearchRow[]
   tree: MegaMenuGroup[]
+  pagination: { page: number; pageSize: number; totalCount: number; totalPages: number }
+  filters: { q: string; sort: 'views' | 'latest' }
 }
 
-type SortOption = 'popular' | 'latest'
+type SortOption = 'views' | 'latest'
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: 'popular', label: '인기순' },
+  { value: 'views', label: '인기순' },
   { value: 'latest', label: '최신순' },
 ]
-
-// 솔북식 좌측 카테고리 트리: 2단계 그룹은 접이식, 현재 3단계 항목은 회색 하이라이트
-function CategorySidebar({
-  tree,
-  subject,
-  subjectLabel,
-  activeItemId,
-}: {
-  tree: MegaMenuGroup[]
-  subject: WorkspaceSubject
-  subjectLabel: string
-  activeItemId: string
-}) {
-  const activeGroupId = tree.find((group) => group.items.some((item) => item.id === activeItemId))?.id ?? null
-  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(
-    () => new Set(activeGroupId ? [activeGroupId] : [])
-  )
-
-  function toggleGroup(groupId: string) {
-    setExpandedGroupIds((current) => {
-      const next = new Set(current)
-      if (next.has(groupId)) next.delete(groupId)
-      else next.add(groupId)
-      return next
-    })
-  }
-
-  return (
-    <nav aria-label="카테고리 탐색" className="w-full">
-      <Link
-        href={`/?subject=${subject}`}
-        className="inline-flex min-h-9 items-center rounded-md text-2xl font-bold text-[var(--studio-ink)] outline-none hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-      >
-        {subjectLabel}
-      </Link>
-      <ul className="mt-4 space-y-1">
-        {tree.map((group) => {
-          const expanded = expandedGroupIds.has(group.id)
-          return (
-            <li key={group.id}>
-              <button
-                type="button"
-                onClick={() => toggleGroup(group.id)}
-                aria-expanded={expanded}
-                className="flex min-h-10 w-full items-center justify-between gap-2 rounded-md px-2 text-left text-[15px] font-semibold text-[var(--studio-ink)] outline-none transition-colors hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-              >
-                <span className="break-keep">{group.title}</span>
-                <ChevronDown
-                  aria-hidden="true"
-                  className={`h-4 w-4 shrink-0 text-[var(--studio-muted)] transition-transform ${expanded ? 'rotate-180' : ''}`}
-                />
-              </button>
-              {expanded && (
-                <ul className="mt-0.5 space-y-0.5 pb-1 pl-3">
-                  {group.items.map((item) => {
-                    const active = item.id === activeItemId
-                    return (
-                      <li key={item.id}>
-                        <Link
-                          href={`/categories/${item.id}?subject=${subject}`}
-                          aria-current={active ? 'page' : undefined}
-                          className={`flex min-h-9 items-center rounded-md px-2.5 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${
-                            active
-                              ? 'bg-black/5 font-semibold text-[var(--studio-ink)]'
-                              : 'text-[var(--studio-text)] hover:bg-[var(--studio-background)] hover:text-[var(--studio-ink)]'
-                          }`}
-                        >
-                          <span className="break-keep">{item.title}</span>
-                        </Link>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </li>
-          )
-        })}
-      </ul>
-    </nav>
-  )
-}
 
 // 솔북 '더 자세히 찾기': 현재 2단계 그룹의 3단계 항목들을 표 형태 그리드로 노출
 function DetailFinder({
@@ -156,13 +82,22 @@ function DetailFinder({
   )
 }
 
-export function CategoryItemsView({ category, rows, tree }: CategoryItemsViewProps) {
+export function CategoryItemsView({ category, rows, tree, pagination, filters }: CategoryItemsViewProps) {
   const subject = category.workspaceSubject
   const subjectLabel = subject === 'korean' ? '국어' : '영어'
   const activeGroup = tree.find((group) => group.items.some((item) => item.id === category.id)) ?? null
 
-  const [search, setSearch] = useState('')
-  const [sort, setSort] = useState<SortOption>('popular')
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [isPending, startTransition] = useTransition()
+  const sort = filters.sort
+  const filteredRows = rows
+  function hrefFor(changes: Record<string, string | number | null>) {
+    return `/categories/${category.id}?${updateListQuery(searchParams.toString(), { subject, ...changes })}#market-results`
+  }
+  function navigate(changes: Record<string, string | number | null>) {
+    startTransition(() => router.push(hrefFor(changes)))
+  }
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
   const sortMenuRef = useRef<HTMLDivElement | null>(null)
 
@@ -191,27 +126,6 @@ export function CategoryItemsView({ category, rows, tree }: CategoryItemsViewPro
     }
   }, [sortMenuOpen])
 
-  const filteredRows = useMemo(() => {
-    // 한글 NFC/NFD(맥 파일명 복붙) 불일치 대비 양쪽 모두 NFC 정규화 후 비교
-    const keyword = search.trim().toLowerCase().normalize('NFC')
-    const nextRows = rows.filter((row) => {
-      if (!keyword) return true
-      return `${row.title} ${row.categoryTitle} ${row.summary || ''}`
-        .toLowerCase()
-        .normalize('NFC')
-        .includes(keyword)
-    })
-
-    nextRows.sort((a, b) => {
-      if (sort === 'latest') {
-        return (b.publishedAt ?? '').localeCompare(a.publishedAt ?? '')
-      }
-      return b.viewCount - a.viewCount || (b.publishedAt ?? '').localeCompare(a.publishedAt ?? '')
-    })
-
-    return nextRows
-  }, [rows, search, sort])
-
   const sortLabel = SORT_OPTIONS.find((option) => option.value === sort)?.label ?? '인기순'
 
   function prefetchSamplePreview(itemId: string) {
@@ -229,15 +143,15 @@ export function CategoryItemsView({ category, rows, tree }: CategoryItemsViewPro
     <StudioContainer className="py-8 sm:py-10">
       <div className="flex items-start gap-10">
         <aside className="sticky top-36 hidden w-56 shrink-0 self-start lg:block">
-          <CategorySidebar
+          <MarketCategorySidebar
+            key={category.id}
             tree={tree}
             subject={subject}
-            subjectLabel={subjectLabel}
             activeItemId={category.id}
           />
         </aside>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1" aria-busy={isPending}>
           <p className="break-keep text-sm text-[var(--studio-muted)]">
             {subjectLabel} / {category.groupTitle}
           </p>
@@ -249,7 +163,7 @@ export function CategoryItemsView({ category, rows, tree }: CategoryItemsViewPro
             <DetailFinder group={activeGroup} subject={subject} activeItemId={category.id} />
           )}
 
-          {rows.length === 0 ? (
+          {rows.length === 0 && !filters.q ? (
             <div className="mt-8">
               <StudioEmptyState
                 icon={<FolderOpen className="size-6" aria-hidden />}
@@ -259,19 +173,28 @@ export function CategoryItemsView({ category, rows, tree }: CategoryItemsViewPro
             </div>
           ) : (
             <>
-              <div className="mt-8 flex flex-wrap items-center gap-3">
+              <div id="market-results" className="mt-8 flex scroll-mt-36 flex-wrap items-center gap-3">
                 <p className="text-sm text-[var(--studio-muted)]">
-                  총 {filteredRows.length.toLocaleString()}개
+                  총 {pagination.totalCount.toLocaleString()}개
+                  {isPending && <span role="status" className="ml-2">불러오는 중…</span>}
                 </p>
-                <div className="ml-auto flex items-center gap-3">
+                <div className="ml-auto flex flex-wrap items-center gap-3">
+                  <form className="flex items-center gap-2" onSubmit={(event) => {
+                    event.preventDefault()
+                    const q = String(new FormData(event.currentTarget).get('q') ?? '').trim()
+                    navigate({ q, page: 1 })
+                  }}>
                   <input
+                    key={filters.q}
+                    name="q"
                     type="search"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
+                    defaultValue={filters.q}
                     placeholder="자료명 검색"
                     aria-label="자료 검색"
                     className="min-h-10 w-40 rounded-[var(--studio-radius-control)] border border-[var(--studio-control-border)] bg-[var(--studio-surface)] px-3 text-sm text-[var(--studio-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] sm:w-56"
                   />
+                  <Button type="submit" variant="outline" className="min-h-11" disabled={isPending}>검색</Button>
+                  </form>
                   <div ref={sortMenuRef} className="relative">
                     <button
                       type="button"
@@ -301,7 +224,7 @@ export function CategoryItemsView({ category, rows, tree }: CategoryItemsViewPro
                               role="radio"
                               aria-checked={selected}
                               onClick={() => {
-                                setSort(option.value)
+                                navigate({ sort: option.value, page: 1 })
                                 setSortMenuOpen(false)
                               }}
                               className={`flex min-h-9 w-full items-center px-3.5 text-left text-sm outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--studio-focus-ring)] ${
@@ -342,6 +265,14 @@ export function CategoryItemsView({ category, rows, tree }: CategoryItemsViewPro
                   ))}
                 </ul>
               )}
+              <StudioListPagination
+                page={pagination.page}
+                pageSize={pagination.pageSize}
+                totalCount={pagination.totalCount}
+                onPageChange={() => {}}
+                getPageHref={(page) => hrefFor({ page })}
+                onPageSizeChange={(pageSize) => navigate({ pageSize, page: 1 })}
+              />
             </>
           )}
         </div>

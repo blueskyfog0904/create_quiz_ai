@@ -1,9 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
+import { useListQuery } from '@/hooks/use-list-query'
 import type { Database } from '@/types/supabase'
 
 type GenerateListboardPost = Database['public']['Tables']['generate_listboard_posts']['Row']
@@ -13,11 +13,9 @@ interface TextbookListboardClientProps {
   posts: GenerateListboardPost[]
 }
 
-const PER_PAGE_OPTIONS = [10, 20, 30] as const
-
 export default function TextbookListboardClient({ boardSlug, posts }: TextbookListboardClientProps) {
-  const [currentPage, setCurrentPage] = useState(1)
-  const [rowsPerPage, setRowsPerPage] = useState<number>(10)
+  const listQuery = useListQuery()
+  const { page: currentPage, pageSize: rowsPerPage, setPage: setCurrentPage } = listQuery
 
   const totalPages = Math.max(1, Math.ceil(posts.length / rowsPerPage))
   const visibleCurrentPage = Math.min(currentPage, totalPages)
@@ -26,14 +24,6 @@ export default function TextbookListboardClient({ boardSlug, posts }: TextbookLi
     const start = (visibleCurrentPage - 1) * rowsPerPage
     return posts.slice(start, start + rowsPerPage)
   }, [posts, rowsPerPage, visibleCurrentPage])
-
-  const visiblePageNumbers = useMemo(() => {
-    const windowSize = 5
-    const start = Math.max(1, visibleCurrentPage - 2)
-    const end = Math.min(totalPages, start + windowSize - 1)
-    const adjustedStart = Math.max(1, end - windowSize + 1)
-    return Array.from({ length: end - adjustedStart + 1 }, (_, index) => adjustedStart + index)
-  }, [totalPages, visibleCurrentPage])
 
   if (posts.length === 0) {
     return (
@@ -93,55 +83,7 @@ export default function TextbookListboardClient({ boardSlug, posts }: TextbookLi
         </div>
       </div>
 
-      <div className="mt-4 space-y-4 pb-[env(safe-area-inset-bottom)]">
-        <div className="grid gap-3 rounded-xl border bg-white px-4 py-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
-          <div className="text-center text-xs text-slate-500 md:text-left">
-            총 {posts.length}건 · {visibleCurrentPage}/{totalPages} 페이지
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-1.5 justify-self-center">
-            <Button type="button" variant="ghost" size="sm" disabled={visibleCurrentPage === 1} onClick={() => setCurrentPage(1)} aria-label="첫 페이지">
-              첫 페이지
-            </Button>
-            <Button type="button" variant="ghost" size="icon-sm" disabled={visibleCurrentPage === 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} aria-label="이전 페이지">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            {visiblePageNumbers.map((pageNumber) => (
-              <Button
-                key={pageNumber}
-                type="button"
-                variant={pageNumber === visibleCurrentPage ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setCurrentPage(pageNumber)}
-                aria-label={`${pageNumber} 페이지`}
-              >
-                {pageNumber}
-              </Button>
-            ))}
-            <Button type="button" variant="ghost" size="icon-sm" disabled={visibleCurrentPage === totalPages} onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} aria-label="다음 페이지">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button type="button" variant="ghost" size="sm" disabled={visibleCurrentPage === totalPages} onClick={() => setCurrentPage(totalPages)} aria-label="마지막 페이지">
-              끝 페이지
-            </Button>
-          </div>
-          <div className="flex items-center justify-center gap-2 text-sm text-gray-600 md:justify-end">
-            <label htmlFor="generate-board-rows-per-page">표시 개수</label>
-            <select
-              id="generate-board-rows-per-page"
-              value={rowsPerPage}
-              onChange={(event) => {
-                setRowsPerPage(Number(event.target.value))
-                setCurrentPage(1)
-              }}
-              className="flex h-9 rounded-md border bg-white px-3 text-sm"
-            >
-              {PER_PAGE_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
+      <StudioListPagination page={visibleCurrentPage} pageSize={rowsPerPage} totalCount={posts.length} onPageChange={setCurrentPage} onPageSizeChange={listQuery.setPageSize} />
     </div>
   )
 }

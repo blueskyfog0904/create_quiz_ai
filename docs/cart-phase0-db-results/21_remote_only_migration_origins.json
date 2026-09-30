@@ -1,0 +1,25 @@
+{"query":"supabase_migrations.schema_migrations.statements 에서 drift 객체 출처 탐색 (키워드 매칭 + 해당 migration의 DDL/GRANT 줄 발췌)",
+"keyword_hits":[
+{"version":"20260206043619","name":"reset_credits_feature","remote_only":true,"hits":["user_credits","grant_credits"]},
+{"version":"20260330055624","name":"add_subject_code_to_core_content_tables_v2","remote_only":true,"hits":["market_items subject_code"]},
+{"version":"20260605023722","name":"harden_listboard_generation_jobs","remote_only":true,"hits":["consume_credits_once","refund_credits_once","operation_key"]},
+{"version":"20260605033647","name":"harden_listboard_generation_followups","remote_only":true,"hits":["refund_credits_once","operation_key"]},
+{"version":"20260605034001","name":"harden_listboard_generation_advisor_indexes","remote_only":true,"hits":["consume_credits_once","refund_credits_once"]}],
+"no_remote_migration_mentions":["market_menu_groups (로컬 20260730010000_create_market_menu_groups.sql 미적용, 운영에 테이블 없음)"],
+"reset_credits_feature_full_text":"-- 1. 트리거 삭제\nDROP TRIGGER IF EXISTS on_profile_created_init_credits ON public.profiles;\n\n-- 2. 함수 삭제\nDROP FUNCTION IF EXISTS public.initialize_user_credits();\nDROP FUNCTION IF EXISTS public.deduct_credits();\nDROP FUNCTION IF EXISTS public.grant_credits();\n\n-- 3. 테이블 삭제 (참조 관계 고려하여 순서대로)\nDROP TABLE IF EXISTS public.credit_transactions;\nDROP TABLE IF EXISTS public.user_credits;",
+"reset_credits_feature_note":"DROP FUNCTION이 인자 없는 시그니처를 지정해 실제 grant_credits(uuid,int,text,text,text,uuid)/deduct_credits(uuid,int,text,text,uuid)는 삭제되지 않은 것으로 추론 (IF EXISTS라 오류 없이 통과). user_credits 테이블만 삭제되어 두 함수는 존재하지 않는 테이블을 참조하는 상태",
+"harden_listboard_generation_jobs_ddl_excerpt":[
+"alter table public.credit_transactions add column if not exists operation_key text, add column if not exists original_operation_key text;",
+"alter table public.credit_consumption add column if not exists transaction_id uuid references public.credit_transactions(id) on delete set null, add column if not exists operation_key text;",
+"create unique index if not exists uq_credit_transactions_user_operation_key ...",
+"create unique index if not exists uq_credit_transactions_refund_original_operation_key ...",
+"create index if not exists idx_credit_consumption_transaction_id ...",
+"create index if not exists idx_credit_consumption_operation_key ...",
+"grant execute on function public.consume_credits_once(uuid, integer, text, uuid, text, text) to authenticated;",
+"grant execute on function public.refund_credits_once(uuid, integer, text, uuid, text, text, text, integer) to authenticated;"],
+"harden_listboard_generation_followups_grants":[
+"revoke execute on function public.refund_credits_once(...) from public;",
+"revoke execute on function public.refund_credits_once(...) from authenticated;",
+"grant execute on function public.refund_credits_once(...) to service_role;"],
+"harden_listboard_generation_advisor_indexes_excerpt":["alter function public.consume_credits_once(uuid, integer, text, uuid, text, text) set search_path = public;","alter function public.refund_credits_once(uuid, integer, text, uuid, text, text, text, integer) set search_path = public;"],
+"acl_explanation":"refund_credits_once는 PUBLIC/authenticated만 revoke되고 anon은 revoke되지 않아(기본 ACL로 부여된 anon=X 잔존) 현재 exec='A-S'. consume_credits_once는 revoke 없음 → PUBLIC/anon/authenticated/service_role 모두 EXECUTE"}

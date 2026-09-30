@@ -1,0 +1,280 @@
+{
+ "query": "로컬 기준선 6절 체크리스트 보완 조회 (preflight 정규식 누락분 + 본문 대조 + 무결성)",
+ "functions_missed_by_preflight_regex": {
+  "columns": [
+   "function",
+   "identity_args",
+   "prosecdef",
+   "proconfig",
+   "exec(A/U/S)",
+   "functiondef_md5"
+  ],
+  "rows": [
+   [
+    "begin_kakaopay_ready",
+    "p_payment_order_id uuid, p_callback_state_hash text, p_callback_state_expires_at timestamp with time zone",
+    true,
+    "{\"search_path=public, pg_temp\"}",
+    "--S",
+    "2a410a473bd42a720bc09e030234338c"
+   ],
+   [
+    "claim_kakaopay_callback",
+    "p_callback_state_hash text, p_callback_kind text, p_result_token_hash text, p_result_token_expires_at timestamp with time zone",
+    true,
+    "{\"search_path=public, pg_temp\"}",
+    "--S",
+    "9398ef6b03dcea62941d7280518fd359"
+   ],
+   [
+    "handle_new_user",
+    "",
+    true,
+    null,
+    "AUS",
+    "257af2f99bd2da961a4df37886c2f075"
+   ],
+   [
+    "mark_kakaopay_callback_failure",
+    "p_payment_order_id uuid, p_failure_code text, p_failure_message text, p_manual_review boolean",
+    true,
+    "{\"search_path=public, pg_temp\"}",
+    "--S",
+    "5bb528c6281a3043e1ce09396b426ad9"
+   ],
+   [
+    "quarantine_external_provider_cancellation",
+    "p_payment_order_id uuid, p_provider_cancel_transaction_key text, p_provider_cancelled_at timestamp with time zone, p_provider_status text",
+    true,
+    "{\"search_path=public, pg_temp\"}",
+    "--S",
+    "300afc5e0c576ce67a3c000c91388b9b"
+   ],
+   [
+    "record_kakaopay_approval",
+    "p_payment_order_id uuid, p_provider_transaction_id text, p_provider_approval_id text, p_provider_status text, p_payment_method_type text, p_approved_at timestamp with time zone",
+    true,
+    "{\"search_path=public, pg_temp\"}",
+    "--S",
+    "50805c2295bfb87dd44dff897fbd692d"
+   ],
+   [
+    "store_kakaopay_ready",
+    "p_payment_order_id uuid, p_provider_transaction_id text, p_next_redirect_pc_url text, p_next_redirect_mobile_url text, p_next_redirect_app_url text, p_ready_stored_at timestamp with time zone",
+    true,
+    "{\"search_path=public, pg_temp\"}",
+    "--S",
+    "da3dcad769f6190d2877fe4bac2779bb"
+   ],
+   [
+    "update_updated_at_column",
+    "",
+    false,
+    null,
+    "AUS",
+    "0af7b540a323bb06a051b004f347a400"
+   ]
+  ],
+  "absent": [
+   "initialize_user_credits (함수 없음)"
+  ]
+ },
+ "tables_missed_by_preflight_regex": {
+  "columns": [
+   "table",
+   "rls",
+   "privs",
+   "relacl",
+   "policies",
+   "triggers"
+  ],
+  "rows": [
+   [
+    "public.checkout_attempts",
+    true,
+    "anon:---- authenticated:---- service_role:SIUD",
+    "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+    null,
+    null
+   ],
+   [
+    "public.notifications",
+    true,
+    "anon:SIUD authenticated:SIUD service_role:SIUD",
+    "{postgres=arwdDxtm/postgres,anon=arwdDxtm/postgres,authenticated=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+    "Admins can insert notifications[INSERT {public}]; Users can update their own notifications[UPDATE {public}]; Users can view their own notifications[SELECT {public}]",
+    null
+   ],
+   [
+    "public.pricing_plans",
+    true,
+    "anon:SIUD authenticated:SIUD service_role:SIUD",
+    "{postgres=arwdDxtm/postgres,anon=arwdDxtm/postgres,authenticated=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+    "Admins can manage pricing plans[ALL {authenticated}]; Anyone can view active pricing plans[SELECT {public}]",
+    "update_pricing_plans_updated_at"
+   ],
+   [
+    "public.profiles",
+    true,
+    "anon:SI-D authenticated:SI-D service_role:SIUD",
+    "{postgres=arwdDxtm/postgres,anon=ardDxtm/postgres,authenticated=ardDxtm/postgres,service_role=arwdDxtm/postgres}",
+    "Admins can view all profiles[SELECT {authenticated}]; Users can view own profile[SELECT {public}]",
+    null
+   ]
+  ],
+  "absent": [
+   "public.market_menu_groups (테이블 없음)",
+   "profiles 트리거 on_profile_created_init_credits (없음)"
+  ]
+ },
+ "prosrc_vs_local_final_definition": {
+  "method": "md5(pg_proc.prosrc) 와 로컬 migration 마지막 CREATE FUNCTION의 dollar-quote 본문 md5 비교(바이트 동일 여부)",
+  "result": {
+   "claim_kakaopay_callback": {
+    "local_file": "20260818071513_add_kakaopay_checkout_state_machine.sql",
+    "exact_prosrc_match": true
+   },
+   "claim_point_charge_refund": {
+    "local_file": "20260818073025_add_provider_refund_processing.sql",
+    "exact_prosrc_match": true
+   },
+   "consume_credits": {
+    "local_file": "20260805110000_enforce_credit_expiration.sql",
+    "exact_prosrc_match": true
+   },
+   "fail_point_charge_refund": {
+    "local_file": "20260818062122_guard_payment_environment_and_add_kakaopay_fulfillment.sql",
+    "exact_prosrc_match": true
+   },
+   "finalize_kakaopay_payment": {
+    "local_file": "20260818062122_guard_payment_environment_and_add_kakaopay_fulfillment.sql",
+    "exact_prosrc_match": true
+   },
+   "finalize_point_charge_refund": {
+    "local_file": "20260818073025_add_provider_refund_processing.sql",
+    "exact_prosrc_match": true
+   },
+   "finalize_toss_payment": {
+    "local_file": "20260818062122_guard_payment_environment_and_add_kakaopay_fulfillment.sql",
+    "exact_prosrc_match": true
+   },
+   "finalize_toss_refund": {
+    "local_file": "20260805120000_create_toss_refund_workflow.sql",
+    "exact_prosrc_match": true
+   },
+   "get_credit_balance_snapshot": {
+    "local_file": "20260805110000_enforce_credit_expiration.sql",
+    "exact_prosrc_match": true
+   },
+   "get_market_home_popular_items": {
+    "local_file": "20260728010000_add_market_home_download_ranking.sql",
+    "exact_prosrc_match": false,
+    "local_len": 1317
+   },
+   "get_my_payment_history": {
+    "local_file": "20260818060118_extend_payment_provider_schema.sql",
+    "exact_prosrc_match": true
+   },
+   "get_my_refund_requests": {
+    "local_file": "20260818060118_extend_payment_provider_schema.sql",
+    "exact_prosrc_match": true
+   },
+   "get_point_charge_refund_eligibility": {
+    "local_file": "20260818062122_guard_payment_environment_and_add_kakaopay_fulfillment.sql",
+    "exact_prosrc_match": true
+   },
+   "handle_new_user": {
+    "local_file": "20260222_require_kakao_signup_completion.sql",
+    "exact_prosrc_match": true
+   },
+   "is_admin": {
+    "local_file": "20260208000000_create_is_admin_helper.sql",
+    "exact_prosrc_match": true
+   },
+   "prepare_payment_order": {
+    "local_file": "20260818071513_add_kakaopay_checkout_state_machine.sql",
+    "exact_prosrc_match": true
+   },
+   "quarantine_external_provider_cancellation": {
+    "local_file": "20260818073025_add_provider_refund_processing.sql",
+    "exact_prosrc_match": true
+   },
+   "refund_credits": {
+    "local_file": "20260805110000_enforce_credit_expiration.sql",
+    "exact_prosrc_match": true
+   },
+   "reject_point_charge_refund": {
+    "local_file": "20260818062122_guard_payment_environment_and_add_kakaopay_fulfillment.sql",
+    "exact_prosrc_match": true
+   },
+   "request_point_charge_refund": {
+    "local_file": "20260818062122_guard_payment_environment_and_add_kakaopay_fulfillment.sql",
+    "exact_prosrc_match": true
+   }
+  },
+  "get_market_home_popular_items_diff": "운영: LANGUAGE sql, search_path='public, pg_temp', auth.role 검사·인자 범위 검사 없음, limit greatest(0,least(coalesce(p_limit,0),100)). 로컬(20260728010000): LANGUAGE plpgsql, search_path='', service_role 검사, p_limit 1..24 검사. EXECUTE는 양쪽 모두 service_role only. 로컬 인덱스 idx_market_download_events_home_ranking는 운영에 없고 동일 컬럼의 idx_market_download_events_workspace_created_item_user가 있음"
+ },
+ "integrity_zero_checks": {
+  "file_item_ne_subproduct_item": 0,
+  "line_item_ne_order_item": 0,
+  "line_subproduct_not_in_item": 0,
+  "line_bundle_not_in_item": 0,
+  "ent_user_ne_order_user": 0,
+  "ent_item_ne_order_item": 0,
+  "dup_line_targets": 0,
+  "dup_completed_legacy": 0
+ },
+ "withdraw_design_inputs": {
+  "users_market_history_without_payment_orders_or_checkout": 2,
+  "users_with_credit_sources_without_payment_orders": 4
+ },
+ "market_file_types_mime_allowlist": [
+  [
+   "english",
+   "hwp",
+   "{application/x-hwp,application/haansofthwp,application/octet-stream}"
+  ],
+  [
+   "english",
+   "pdf",
+   "{application/pdf}"
+  ],
+  [
+   "english",
+   "zip",
+   "{application/zip,application/x-zip-compressed,application/octet-stream}"
+  ],
+  [
+   "korean",
+   "hwp",
+   "{application/x-hwp,application/haansofthwp,application/octet-stream}"
+  ],
+  [
+   "korean",
+   "pdf",
+   "{application/pdf}"
+  ],
+  [
+   "korean",
+   "zip",
+   "{application/zip,application/x-zip-compressed,application/octet-stream}"
+  ]
+ ],
+ "market_files_object_mimetypes": [
+  {
+   "mimetype": "image/jpeg",
+   "n": 633,
+   "max_size": 381601
+  },
+  {
+   "mimetype": "application/pdf",
+   "n": 357,
+   "max_size": 798946
+  },
+  {
+   "mimetype": "application/octet-stream",
+   "n": 146,
+   "max_size": 8943616
+  }
+ ]
+}

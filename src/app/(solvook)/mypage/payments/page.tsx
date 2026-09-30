@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { filterRealPaidPlanPurchases, type PaymentHistoryRecord } from '@/lib/payment-history'
 import type { Database } from '@/types/supabase'
 import { PaymentsView } from './_components/payments-view'
+import { readAllQueryRows } from '@/lib/read-all-query-rows'
 
 export const metadata: Metadata = {
   title: '결제 내역 | 써머썬 연구소',
@@ -24,7 +25,8 @@ export default async function MypagePaymentsPage() {
   }
 
   const supabase = await createClient()
-  const { data: payments } = await supabase.rpc('get_my_payment_history')
+  const payments = await readAllQueryRows<SafePaymentHistory>((from, to) => supabase.rpc('get_my_payment_history')
+    .order('created_at', { ascending: false }).order('id').range(from, to))
 
   const paymentRecords = (payments ?? []).map(
     ({ plan_name, ...payment }: SafePaymentHistory) => ({

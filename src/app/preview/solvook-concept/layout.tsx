@@ -1,6 +1,7 @@
 import { Suspense, type ReactNode } from 'react'
 import { SolvookFooter } from '@/app/(solvook)/_components/solvook-footer'
 import { StudioThemeShell } from '@/components/layout/studio-theme-shell'
+import { getMarketCartBadgeCount } from '@/lib/market-cart-server'
 import { getRequestAuthUserId } from '@/lib/request-auth'
 import { getSolvookFooterData } from '@/lib/solvook-footer-data'
 import { PreviewHeader } from './_components/preview-header'
@@ -14,6 +15,7 @@ export default async function SolvookConceptPreviewLayout({
     getSolvookFooterData(),
     getRequestAuthUserId(),
   ])
+  const cartCount = await getMarketCartBadgeCount(userId)
 
   return (
     <>
@@ -24,7 +26,7 @@ export default async function SolvookConceptPreviewLayout({
       />
       <StudioThemeShell>
         <Suspense fallback={null}>
-          <PreviewHeader isLoggedIn={Boolean(userId)} />
+          <PreviewHeader isLoggedIn={Boolean(userId)} userId={userId} cartCount={cartCount} />
         </Suspense>
         <main className="flex-1">
           {children}

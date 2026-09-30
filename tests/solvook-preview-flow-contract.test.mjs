@@ -294,8 +294,10 @@ test('the preview header matches the requested Solvook navigation scope', () => 
   assert.match(header, />카테고리</)
   assert.match(header, />영어</)
   assert.match(header, />국어</)
-  assert.match(header, /\/login\?next=/)
-  assert.match(header, /\/signup\?next=/)
+  // 로그인·회원가입은 고정 '/'가 아니라 현재 위치를 next로 넘긴다.
+  assert.match(header, /buildAuthRedirectPath\(currentLocation, '\/login'\)/)
+  assert.match(header, /buildAuthRedirectPath\(currentLocation, '\/signup'\)/)
+  assert.doesNotMatch(header, /encodeURIComponent\('\/'\)/)
   assert.match(header, /href="\/pricing"/)
   assert.match(header, />캐시 충전</)
   assert.doesNotMatch(header, /선생님/)

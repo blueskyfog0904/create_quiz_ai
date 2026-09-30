@@ -1,0 +1,788 @@
+{
+ "remote_count": 93,
+ "local_count": 92,
+ "exact_version_and_name_match": 16,
+ "exact_match_files": [
+  "20260331091000_add_workspace_subject_foundation.sql",
+  "20260331092000_backfill_workspace_subject_audits.sql",
+  "20260331100000_create_workspace_settings.sql",
+  "20260522052059_create_market_item_sample_pages.sql",
+  "20260525054805_add_market_zip_asset_and_sample_source.sql",
+  "20260629080806_fix_pricing_plans_public_rls.sql",
+  "20260729080904_atomic_main_ad_carousel_subject_update.sql",
+  "20260818060118_extend_payment_provider_schema.sql",
+  "20260818062122_guard_payment_environment_and_add_kakaopay_fulfillment.sql",
+  "20260818062254_validate_payment_provider_constraints.sql",
+  "20260818071513_add_kakaopay_checkout_state_machine.sql",
+  "20260818073025_add_provider_refund_processing.sql",
+  "20260818074554_add_provider_reconciliation_scheduler.sql",
+  "20260818075102_configure_payment_reconciliation_http_cron.sql",
+  "20260818085622_update_point_charge_provider_policy.sql",
+  "20260902045933_create_market_category_menu.sql"
+ ],
+ "name_match_version_differs": [
+  {
+   "name": "add_ai_provider_connections_and_split_problem_type_models",
+   "remote_version": "20260601050230",
+   "local_file": "20260601020000_add_ai_provider_connections_and_split_problem_type_models.sql"
+  },
+  {
+   "name": "add_credit_source_category",
+   "remote_version": "20260415023948",
+   "local_file": "20260415023000_add_credit_source_category.sql"
+  },
+  {
+   "name": "add_market_auto_upload_cleanup",
+   "remote_version": "20260524024814",
+   "local_file": "20260524010000_add_market_auto_upload_cleanup.sql"
+  },
+  {
+   "name": "add_market_home_download_ranking",
+   "remote_version": "20260728003504",
+   "local_file": "20260728010000_add_market_home_download_ranking.sql"
+  },
+  {
+   "name": "add_market_item_question_count",
+   "remote_version": "20260524075335",
+   "local_file": "20260524020000_add_market_item_question_count.sql"
+  },
+  {
+   "name": "add_market_refunds",
+   "remote_version": "20260602051408",
+   "local_file": "20260602020000_add_market_refunds.sql"
+  },
+  {
+   "name": "add_market_review_details",
+   "remote_version": "20260901000228",
+   "local_file": "20260901090000_add_market_review_details.sql"
+  },
+  {
+   "name": "add_market_subproduct_purchase_notice",
+   "remote_version": "20260611063702",
+   "local_file": "20260611004228_add_market_subproduct_purchase_notice.sql"
+  },
+  {
+   "name": "add_problem_type_regeneration_prompt",
+   "remote_version": "20260601115202",
+   "local_file": "20260601035000_add_problem_type_regeneration_prompt.sql"
+  },
+  {
+   "name": "add_problem_type_review_output_format",
+   "remote_version": "20260601070741",
+   "local_file": "20260601034000_add_problem_type_review_output_format.sql"
+  },
+  {
+   "name": "add_problem_type_review_prompt",
+   "remote_version": "20260601060313",
+   "local_file": "20260601010000_add_problem_type_review_prompt.sql"
+  },
+  {
+   "name": "add_problem_type_sort_order",
+   "remote_version": "20260603081225",
+   "local_file": "20260603100000_add_problem_type_sort_order.sql"
+  },
+  {
+   "name": "add_source_configs",
+   "remote_version": "20260112083929",
+   "local_file": "20260113_add_source_configs.sql"
+  },
+  {
+   "name": "add_source_fields",
+   "remote_version": "20260112075723",
+   "local_file": "20260113_add_source_fields.sql"
+  },
+  {
+   "name": "add_subject_code_compat_to_menu_entry_tables",
+   "remote_version": "20260403010819",
+   "local_file": "20260403013000_add_subject_code_compat_to_menu_entry_tables.sql"
+  },
+  {
+   "name": "add_support_ticket_categories",
+   "remote_version": "20260602062644",
+   "local_file": "20260602023000_add_support_ticket_categories.sql"
+  },
+  {
+   "name": "add_tags_rating_to_questions",
+   "remote_version": "20260107061440",
+   "local_file": "20260107_add_tags_rating_to_questions.sql"
+  },
+  {
+   "name": "allow_bank_metadata_read_for_admin_uploaded_questions",
+   "remote_version": "20260512015846",
+   "local_file": "20260512093000_allow_bank_metadata_read_for_admin_uploaded_questions.sql"
+  },
+  {
+   "name": "create_ai_question_generation_runs",
+   "remote_version": "20260601135322",
+   "local_file": "20260601043000_create_ai_question_generation_runs.sql"
+  },
+  {
+   "name": "create_generate_menu_entries",
+   "remote_version": "20260313021449",
+   "local_file": "20260313021000_create_generate_menu_entries.sql"
+  },
+  {
+   "name": "create_is_admin_helper",
+   "remote_version": "20260505044012",
+   "local_file": "20260208000000_create_is_admin_helper.sql"
+  },
+  {
+   "name": "create_market_item_reviews",
+   "remote_version": "20260807052937",
+   "local_file": "20260807090000_create_market_item_reviews.sql"
+  },
+  {
+   "name": "create_market_items_purchase_domain",
+   "remote_version": "20260317095337",
+   "local_file": "20260317113000_create_market_items_purchase_domain.sql"
+  },
+  {
+   "name": "create_market_menu_entries",
+   "remote_version": "20260317072347",
+   "local_file": "20260317050500_create_market_menu_entries.sql"
+  },
+  {
+   "name": "create_market_subproduct_v2_schema",
+   "remote_version": "20260528032512",
+   "local_file": "20260528010000_create_market_subproduct_v2_schema.sql"
+  },
+  {
+   "name": "create_passages_table",
+   "remote_version": "20251229012201",
+   "local_file": "20251229_create_passages_table.sql"
+  },
+  {
+   "name": "create_payment_orders_and_atomic_fulfillment",
+   "remote_version": "20260805070824",
+   "local_file": "20260805100000_create_payment_orders_and_atomic_fulfillment.sql"
+  },
+  {
+   "name": "create_payment_webhook_events",
+   "remote_version": "20260805071105",
+   "local_file": "20260805130000_create_payment_webhook_events.sql"
+  },
+  {
+   "name": "create_problem_type_default_prompts",
+   "remote_version": "20260603073416",
+   "local_file": "20260603090000_create_problem_type_default_prompts.sql"
+  },
+  {
+   "name": "create_problem_type_test_runs",
+   "remote_version": "20260601063958",
+   "local_file": "20260601033000_create_problem_type_test_runs.sql"
+  },
+  {
+   "name": "create_question_bank_problem_types",
+   "remote_version": "20260512014519",
+   "local_file": "20260512090000_create_question_bank_problem_types.sql"
+  },
+  {
+   "name": "create_support_tickets",
+   "remote_version": "20260102054126",
+   "local_file": "20260102_create_support_tickets.sql"
+  },
+  {
+   "name": "create_system_prompts",
+   "remote_version": "20251229071704",
+   "local_file": "20251229_create_system_prompts.sql"
+  },
+  {
+   "name": "create_system_settings",
+   "remote_version": "20251229072420",
+   "local_file": "20251229_create_system_settings.sql"
+  },
+  {
+   "name": "create_toss_refund_workflow",
+   "remote_version": "20260805071104",
+   "local_file": "20260805120000_create_toss_refund_workflow.sql"
+  },
+  {
+   "name": "credit_system",
+   "remote_version": "20260206050536",
+   "local_file": "20260206_credit_system.sql"
+  },
+  {
+   "name": "enforce_credit_expiration",
+   "remote_version": "20260805070844",
+   "local_file": "20260805110000_enforce_credit_expiration.sql"
+  },
+  {
+   "name": "enforce_question_bank_problem_type_metadata",
+   "remote_version": "20260512015023",
+   "local_file": "20260512092000_enforce_question_bank_problem_type_metadata.sql"
+  },
+  {
+   "name": "fix_market_item_reviews_anon_select",
+   "remote_version": "20260807053412",
+   "local_file": "20260807092000_fix_market_item_reviews_anon_select.sql"
+  },
+  {
+   "name": "fix_market_subproduct_v2_indexes",
+   "remote_version": "20260528032703",
+   "local_file": "20260528013000_fix_market_subproduct_v2_indexes.sql"
+  },
+  {
+   "name": "harden_credit_mutation_boundaries",
+   "remote_version": "20260805070823",
+   "local_file": "20260805090000_harden_credit_mutation_boundaries.sql"
+  },
+  {
+   "name": "harden_market_item_reviews_rls",
+   "remote_version": "20260807053158",
+   "local_file": "20260807091000_harden_market_item_reviews_rls.sql"
+  },
+  {
+   "name": "harden_market_refund_request_rls",
+   "remote_version": "20260602051553",
+   "local_file": "20260602021000_harden_market_refund_request_rls.sql"
+  },
+  {
+   "name": "initial_schema",
+   "remote_version": "20251120070315",
+   "local_file": "0000_initial_schema.sql"
+  },
+  {
+   "name": "order_legacy_ai_models_after_current_defaults",
+   "remote_version": "20260601054101",
+   "local_file": "20260601032000_order_legacy_ai_models_after_current_defaults.sql"
+  },
+  {
+   "name": "restrict_is_admin_public_policies",
+   "remote_version": "20260505044020",
+   "local_file": "20260210000000_restrict_is_admin_public_policies.sql"
+  },
+  {
+   "name": "restrict_support_ticket_rpc_anon",
+   "remote_version": "20260602062840",
+   "local_file": "20260602024500_restrict_support_ticket_rpc_anon.sql"
+  },
+  {
+   "name": "seed_current_ai_models",
+   "remote_version": "20260601054025",
+   "local_file": "20260601031000_seed_current_ai_models.sql"
+  },
+  {
+   "name": "switch_question_bank_problem_type_rpcs",
+   "remote_version": "20260512014839",
+   "local_file": "20260512091000_switch_question_bank_problem_type_rpcs.sql"
+  },
+  {
+   "name": "update_ai_question_generation_run_sources_and_retention",
+   "remote_version": "20260601140255",
+   "local_file": "20260601050000_update_ai_question_generation_run_sources_and_retention.sql"
+  },
+  {
+   "name": "update_handle_new_user",
+   "remote_version": "20251120070443",
+   "local_file": "0001_update_handle_new_user.sql"
+  },
+  {
+   "name": "update_market_subproduct_category_defaults",
+   "remote_version": "20260528103201",
+   "local_file": "20260528021000_update_market_subproduct_category_defaults.sql"
+  }
+ ],
+ "remote_only_by_name": [
+  {
+   "version": "20251125003546",
+   "name": "allow_view_admin_uploaded_questions"
+  },
+  {
+   "version": "20251205062542",
+   "name": "add_question_text_forward_backward"
+  },
+  {
+   "version": "20251209053800",
+   "name": "add_role_column_to_profiles"
+  },
+  {
+   "version": "20260205073516",
+   "name": "relax_support_tickets_rls"
+  },
+  {
+   "version": "20260205074931",
+   "name": "add_notifications_update_policy"
+  },
+  {
+   "version": "20260206043619",
+   "name": "reset_credits_feature"
+  },
+  {
+   "version": "20260220002227",
+   "name": "add_signup_completed_for_kakao_flow"
+  },
+  {
+   "version": "20260330055624",
+   "name": "add_subject_code_to_core_content_tables_v2"
+  },
+  {
+   "version": "20260505044142",
+   "name": "question_bank_random_exam_runtime_schema"
+  },
+  {
+   "version": "20260505044213",
+   "name": "question_bank_random_exam_runtime_functions"
+  },
+  {
+   "version": "20260505044246",
+   "name": "question_bank_random_exam_user_functions"
+  },
+  {
+   "version": "20260505044325",
+   "name": "question_bank_random_exam_admin_list_functions"
+  },
+  {
+   "version": "20260505044411",
+   "name": "restrict_question_bank_rpc_anon_execute"
+  },
+  {
+   "version": "20260512015101",
+   "name": "index_question_bank_metadata_bank_type_fk"
+  },
+  {
+   "version": "20260512015558",
+   "name": "switch_question_bank_backfill_helpers_to_bank_types"
+  },
+  {
+   "version": "20260601140357",
+   "name": "restrict_ai_question_generation_run_retention_function"
+  },
+  {
+   "version": "20260601140454",
+   "name": "revoke_public_ai_question_generation_run_retention_function"
+  },
+  {
+   "version": "20260605023722",
+   "name": "harden_listboard_generation_jobs"
+  },
+  {
+   "version": "20260605033647",
+   "name": "harden_listboard_generation_followups"
+  },
+  {
+   "version": "20260605034001",
+   "name": "harden_listboard_generation_advisor_indexes"
+  },
+  {
+   "version": "20260605060259",
+   "name": "add_ai_generation_run_failure_summary"
+  },
+  {
+   "version": "20260608053436",
+   "name": "allow_v2_subproduct_file_download_asset_kind"
+  },
+  {
+   "version": "20260618232827",
+   "name": "replace_generate_listboard_post_items_rpc"
+  },
+  {
+   "version": "20260618232909",
+   "name": "restrict_generate_listboard_reupload_rpcs_anon"
+  },
+  {
+   "version": "20260805071113",
+   "name": "append_point_charge_compliance_policy_retry"
+  }
+ ],
+ "local_only_by_name": [
+  "20250101000000_create_ai_models.sql",
+  "20250101000001_create_providers.sql",
+  "20251124114920_add_source_and_shared_question_id.sql",
+  "20251124155428_add_admin_provider.sql",
+  "20251209000000_add_role_sessions_credits.sql",
+  "20251209000001_update_handle_new_user_with_role.sql",
+  "20251209100000_add_admin_logs.sql",
+  "20260107_create_display_labels.sql",
+  "20260121134000_fix_settings_rls.sql",
+  "20260209_create_user_roles.sql",
+  "20260220_kakao_oauth_meta_resilience.sql",
+  "20260221_simplify_signup_profile_mapping.sql",
+  "20260222_enhance_kakao_profile_fallbacks.sql",
+  "20260222_require_kakao_signup_completion.sql",
+  "20260306000000_add_credit_ledger_rpc_functions.sql",
+  "20260310000000_add_header_navigation_setting.sql",
+  "20260316021500_add_generate_listboard_batch_generation_schema.sql",
+  "20260316033000_add_generate_listboard_job_options.sql",
+  "20260316071000_add_generate_listboard_job_item_staging_fields.sql",
+  "20260504000000_create_question_bank_random_exam_schema.sql",
+  "20260504000001_add_question_bank_saved_unique_index.sql",
+  "20260725090000_create_main_ad_images_bucket.sql",
+  "20260730010000_create_market_menu_groups.sql",
+  "20260805140000_append_point_charge_compliance_policy.sql"
+ ],
+ "note": "이름은 선행 'YYYYMMDD_' 접두사를 제거해 정규화 비교. 원격 version은 apply 시각이라 로컬 파일 version과 다를 수 있음. 이름 일치≠내용 일치(내용 비교는 미수행).",
+ "remote": [
+  {
+   "version": "20251120070315",
+   "name": "initial_schema"
+  },
+  {
+   "version": "20251120070443",
+   "name": "update_handle_new_user"
+  },
+  {
+   "version": "20251125003546",
+   "name": "allow_view_admin_uploaded_questions"
+  },
+  {
+   "version": "20251205062542",
+   "name": "add_question_text_forward_backward"
+  },
+  {
+   "version": "20251209053800",
+   "name": "add_role_column_to_profiles"
+  },
+  {
+   "version": "20251229012201",
+   "name": "create_passages_table"
+  },
+  {
+   "version": "20251229071704",
+   "name": "create_system_prompts"
+  },
+  {
+   "version": "20251229072420",
+   "name": "create_system_settings"
+  },
+  {
+   "version": "20260102054126",
+   "name": "20260102_create_support_tickets"
+  },
+  {
+   "version": "20260107061440",
+   "name": "add_tags_rating_to_questions"
+  },
+  {
+   "version": "20260112075723",
+   "name": "20260113_add_source_fields"
+  },
+  {
+   "version": "20260112083929",
+   "name": "20260113_add_source_configs"
+  },
+  {
+   "version": "20260205073516",
+   "name": "relax_support_tickets_rls"
+  },
+  {
+   "version": "20260205074931",
+   "name": "add_notifications_update_policy"
+  },
+  {
+   "version": "20260206043619",
+   "name": "reset_credits_feature"
+  },
+  {
+   "version": "20260206050536",
+   "name": "credit_system"
+  },
+  {
+   "version": "20260220002227",
+   "name": "add_signup_completed_for_kakao_flow"
+  },
+  {
+   "version": "20260313021449",
+   "name": "create_generate_menu_entries"
+  },
+  {
+   "version": "20260317072347",
+   "name": "create_market_menu_entries"
+  },
+  {
+   "version": "20260317095337",
+   "name": "create_market_items_purchase_domain"
+  },
+  {
+   "version": "20260330055624",
+   "name": "add_subject_code_to_core_content_tables_v2"
+  },
+  {
+   "version": "20260331091000",
+   "name": "add_workspace_subject_foundation"
+  },
+  {
+   "version": "20260331092000",
+   "name": "backfill_workspace_subject_audits"
+  },
+  {
+   "version": "20260331100000",
+   "name": "create_workspace_settings"
+  },
+  {
+   "version": "20260403010819",
+   "name": "add_subject_code_compat_to_menu_entry_tables"
+  },
+  {
+   "version": "20260415023948",
+   "name": "add_credit_source_category"
+  },
+  {
+   "version": "20260505044012",
+   "name": "create_is_admin_helper"
+  },
+  {
+   "version": "20260505044020",
+   "name": "restrict_is_admin_public_policies"
+  },
+  {
+   "version": "20260505044142",
+   "name": "question_bank_random_exam_runtime_schema"
+  },
+  {
+   "version": "20260505044213",
+   "name": "question_bank_random_exam_runtime_functions"
+  },
+  {
+   "version": "20260505044246",
+   "name": "question_bank_random_exam_user_functions"
+  },
+  {
+   "version": "20260505044325",
+   "name": "question_bank_random_exam_admin_list_functions"
+  },
+  {
+   "version": "20260505044411",
+   "name": "restrict_question_bank_rpc_anon_execute"
+  },
+  {
+   "version": "20260512014519",
+   "name": "create_question_bank_problem_types"
+  },
+  {
+   "version": "20260512014839",
+   "name": "switch_question_bank_problem_type_rpcs"
+  },
+  {
+   "version": "20260512015023",
+   "name": "enforce_question_bank_problem_type_metadata"
+  },
+  {
+   "version": "20260512015101",
+   "name": "index_question_bank_metadata_bank_type_fk"
+  },
+  {
+   "version": "20260512015558",
+   "name": "switch_question_bank_backfill_helpers_to_bank_types"
+  },
+  {
+   "version": "20260512015846",
+   "name": "allow_bank_metadata_read_for_admin_uploaded_questions"
+  },
+  {
+   "version": "20260522052059",
+   "name": "create_market_item_sample_pages"
+  },
+  {
+   "version": "20260524024814",
+   "name": "add_market_auto_upload_cleanup"
+  },
+  {
+   "version": "20260524075335",
+   "name": "add_market_item_question_count"
+  },
+  {
+   "version": "20260525054805",
+   "name": "add_market_zip_asset_and_sample_source"
+  },
+  {
+   "version": "20260528032512",
+   "name": "create_market_subproduct_v2_schema"
+  },
+  {
+   "version": "20260528032703",
+   "name": "fix_market_subproduct_v2_indexes"
+  },
+  {
+   "version": "20260528103201",
+   "name": "update_market_subproduct_category_defaults"
+  },
+  {
+   "version": "20260601050230",
+   "name": "add_ai_provider_connections_and_split_problem_type_models"
+  },
+  {
+   "version": "20260601054025",
+   "name": "seed_current_ai_models"
+  },
+  {
+   "version": "20260601054101",
+   "name": "order_legacy_ai_models_after_current_defaults"
+  },
+  {
+   "version": "20260601060313",
+   "name": "add_problem_type_review_prompt"
+  },
+  {
+   "version": "20260601063958",
+   "name": "create_problem_type_test_runs"
+  },
+  {
+   "version": "20260601070741",
+   "name": "add_problem_type_review_output_format"
+  },
+  {
+   "version": "20260601115202",
+   "name": "add_problem_type_regeneration_prompt"
+  },
+  {
+   "version": "20260601135322",
+   "name": "create_ai_question_generation_runs"
+  },
+  {
+   "version": "20260601140255",
+   "name": "update_ai_question_generation_run_sources_and_retention"
+  },
+  {
+   "version": "20260601140357",
+   "name": "restrict_ai_question_generation_run_retention_function"
+  },
+  {
+   "version": "20260601140454",
+   "name": "revoke_public_ai_question_generation_run_retention_function"
+  },
+  {
+   "version": "20260602051408",
+   "name": "add_market_refunds"
+  },
+  {
+   "version": "20260602051553",
+   "name": "harden_market_refund_request_rls"
+  },
+  {
+   "version": "20260602062644",
+   "name": "add_support_ticket_categories"
+  },
+  {
+   "version": "20260602062840",
+   "name": "restrict_support_ticket_rpc_anon"
+  },
+  {
+   "version": "20260603073416",
+   "name": "create_problem_type_default_prompts"
+  },
+  {
+   "version": "20260603081225",
+   "name": "add_problem_type_sort_order"
+  },
+  {
+   "version": "20260605023722",
+   "name": "harden_listboard_generation_jobs"
+  },
+  {
+   "version": "20260605033647",
+   "name": "harden_listboard_generation_followups"
+  },
+  {
+   "version": "20260605034001",
+   "name": "harden_listboard_generation_advisor_indexes"
+  },
+  {
+   "version": "20260605060259",
+   "name": "add_ai_generation_run_failure_summary"
+  },
+  {
+   "version": "20260608053436",
+   "name": "allow_v2_subproduct_file_download_asset_kind"
+  },
+  {
+   "version": "20260611063702",
+   "name": "add_market_subproduct_purchase_notice"
+  },
+  {
+   "version": "20260618232827",
+   "name": "replace_generate_listboard_post_items_rpc"
+  },
+  {
+   "version": "20260618232909",
+   "name": "restrict_generate_listboard_reupload_rpcs_anon"
+  },
+  {
+   "version": "20260629080806",
+   "name": "fix_pricing_plans_public_rls"
+  },
+  {
+   "version": "20260728003504",
+   "name": "add_market_home_download_ranking"
+  },
+  {
+   "version": "20260729080904",
+   "name": "atomic_main_ad_carousel_subject_update"
+  },
+  {
+   "version": "20260805070823",
+   "name": "harden_credit_mutation_boundaries"
+  },
+  {
+   "version": "20260805070824",
+   "name": "create_payment_orders_and_atomic_fulfillment"
+  },
+  {
+   "version": "20260805070844",
+   "name": "enforce_credit_expiration"
+  },
+  {
+   "version": "20260805071104",
+   "name": "create_toss_refund_workflow"
+  },
+  {
+   "version": "20260805071105",
+   "name": "create_payment_webhook_events"
+  },
+  {
+   "version": "20260805071113",
+   "name": "append_point_charge_compliance_policy_retry"
+  },
+  {
+   "version": "20260807052937",
+   "name": "create_market_item_reviews"
+  },
+  {
+   "version": "20260807053158",
+   "name": "harden_market_item_reviews_rls"
+  },
+  {
+   "version": "20260807053412",
+   "name": "fix_market_item_reviews_anon_select"
+  },
+  {
+   "version": "20260818060118",
+   "name": "extend_payment_provider_schema"
+  },
+  {
+   "version": "20260818062122",
+   "name": "guard_payment_environment_and_add_kakaopay_fulfillment"
+  },
+  {
+   "version": "20260818062254",
+   "name": "validate_payment_provider_constraints"
+  },
+  {
+   "version": "20260818071513",
+   "name": "add_kakaopay_checkout_state_machine"
+  },
+  {
+   "version": "20260818073025",
+   "name": "add_provider_refund_processing"
+  },
+  {
+   "version": "20260818074554",
+   "name": "add_provider_reconciliation_scheduler"
+  },
+  {
+   "version": "20260818075102",
+   "name": "configure_payment_reconciliation_http_cron"
+  },
+  {
+   "version": "20260818085622",
+   "name": "update_point_charge_provider_policy"
+  },
+  {
+   "version": "20260901000228",
+   "name": "add_market_review_details"
+  },
+  {
+   "version": "20260902045933",
+   "name": "create_market_category_menu"
+  }
+ ]
+}

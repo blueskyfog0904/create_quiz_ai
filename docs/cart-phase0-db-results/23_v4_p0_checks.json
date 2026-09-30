@@ -1,0 +1,726 @@
+{
+ "generated": "2026-09-30",
+ "p0_4": {
+  "pgtap_installed": false,
+  "pgtap_available": "1.2.0",
+  "installed_extensions": "pg_cron:1.6.4,pg_net:0.19.5,pg_stat_statements:1.11,pgcrypto:1.3,plpgsql:1.0,supabase_vault:0.3.1,uuid-ossp:1.1",
+  "role_table_grants_market_purchase_orders": "information_schema.role_table_grants 결과 0행(현재 역할 기준 가시성 제한으로 보임). 대신 aclexplode(pg_class.relacl)로 확인",
+  "aclexplode_sales_tables": {
+   "market_purchases|market_purchase_orders|market_purchase_lines|market_entitlements": {
+    "anon": "DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
+    "authenticated": "DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
+    "service_role": "ALL",
+    "grantor": "postgres"
+   }
+  }
+ },
+ "p0_5": {
+  "query_target_and_completed": "WITH target AS (SELECT i.id, i.workspace_subject FROM public.market_items i WHERE i.status='published' AND i.is_active AND i.deleted_at IS NULL AND EXISTS (SELECT 1 FROM public.market_item_files f WHERE f.item_id=i.id AND f.is_active AND f.deleted_at IS NULL AND f.asset_kind IN ('pdf','hwp','zip') AND CASE f.asset_kind WHEN 'pdf' THEN i.pdf_price WHEN 'hwp' THEN i.hwp_price WHEN 'zip' THEN i.zip_price END > 0) AND NOT EXISTS (SELECT 1 FROM public.market_item_subproducts s WHERE s.item_id=i.id AND s.workspace_subject=i.workspace_subject AND s.is_active AND s.deleted_at IS NULL) AND NOT EXISTS (SELECT 1 FROM public.market_item_bundle_options b WHERE b.item_id=i.id AND b.workspace_subject=i.workspace_subject AND b.is_active)) SELECT (SELECT count(*) FROM target) AS target_items, (SELECT count(*) FROM public.market_purchases p JOIN target t ON t.id=p.item_id WHERE p.status='completed') AS target_completed_legacy_purchases, ...",
+  "result": {
+   "target_items": 1,
+   "target_by_subject": "english:1",
+   "target_completed_legacy_purchases": 0,
+   "target_legacy_purchases_any_status": 0,
+   "target_v2_orders": 0,
+   "target_refund_requests": 0,
+   "target_download_events": 0
+  },
+  "cart_tables": {
+   "market_cart_items_absent": true,
+   "market_checkout_batches_absent": true
+  },
+  "backfill_dry_run": {
+   "rule_source": "src/lib/market-subproduct-backfill.ts buildMarketSubproductBackfillDryRunReport: kind∈{pdf,hwp,zip}마다 (가격>0 AND 활성·미삭제 legacy 파일 존재)면 서브상품 1 + 파일 1. entitlement = completed 구매의 (user,item,kind) 고유 수",
+   "rows": [
+    {
+     "kind": "pdf",
+     "price": 1000,
+     "category_slug": "legacy_pdf",
+     "category": "PDF(is_active=false)",
+     "active_legacy_files": 1,
+     "file": "application/pdf 208011B, storage object 존재",
+     "would_create": true
+    },
+    {
+     "kind": "hwp",
+     "price": 1500,
+     "category_slug": "legacy_hwp_bundle",
+     "category": "HWP & PDF(is_active=false)",
+     "active_legacy_files": 1,
+     "file": "application/octet-stream 110592B, storage object 존재",
+     "would_create": true
+    },
+    {
+     "kind": "zip",
+     "price": 0,
+     "category_slug": "legacy_zip",
+     "category": "ZIP(is_active=false)",
+     "active_legacy_files": 0,
+     "would_create": false
+    }
+   ],
+   "report": {
+    "dryRun": true,
+    "wouldCreateSubproducts": 2,
+    "wouldCreateFiles": 2,
+    "wouldCreateEntitlements": 0,
+    "skippedItems": 0,
+    "subproductCategories": {
+     "legacy_pdf": 1,
+     "legacy_hwp_bundle": 1,
+     "legacy_zip": 0
+    }
+   },
+   "preconditions": {
+    "english market_file_types pdf/hwp/zip": "각 1행, active",
+    "english legacy 카테고리 3종": "각 1행, is_active=false, 미삭제",
+    "대상 상품의 기존 legacy 카테고리 서브상품": 0
+   }
+  }
+ },
+ "p0_6": {
+  "counts": {
+   "remote": 93,
+   "local": 92,
+   "exact": 16,
+   "name_match_version_differs": 52,
+   "remote_only": 25,
+   "local_only": 24
+  },
+  "local_only_classification": [
+   {
+    "file": "20250101000000_create_ai_models.sql",
+    "remote_object_state": "존재",
+    "evidence": "ai_models 테이블·idx 존재. 이를 만든 원격 migration 없음(이력 밖 적용)",
+    "repair_candidate": "applied",
+    "push_risk": "CREATE TABLE에 IF NOT EXISTS가 없어 push하면 즉시 실패"
+   },
+   {
+    "file": "20250101000001_create_providers.sql",
+    "remote_object_state": "존재",
+    "evidence": "providers 테이블·idx 존재. 원격 migration 없음(이력 밖 적용)",
+    "repair_candidate": "applied",
+    "push_risk": "CREATE TABLE에 IF NOT EXISTS가 없어 push하면 실패"
+   },
+   {
+    "file": "20251124114920_add_source_and_shared_question_id.sql",
+    "remote_object_state": "존재",
+    "evidence": "questions.source, shared_question_id 존재",
+    "repair_candidate": "applied",
+    "push_risk": "IF NOT EXISTS라 재실행해도 무해"
+   },
+   {
+    "file": "20251124155428_add_admin_provider.sql",
+    "remote_object_state": "대체됨",
+    "evidence": "problem_types_provider_check는 원격 20260601050230이 ('openai','gemini','claude','admin')로 대체",
+    "repair_candidate": "applied",
+    "push_risk": "push하면 CHECK를 ('gemini','openai','admin')로 좁혀 'claude'가 빠짐 → 위험"
+   },
+   {
+    "file": "20251209000000_add_role_sessions_credits.sql",
+    "remote_object_state": "부분",
+    "evidence": "profiles.role 존재(원격 add_role_column_to_profiles). user_sessions·support_tickets 인덱스 없음. user_credits·initialize_user_credits·trigger는 원격 reset_credits_feature가 삭제",
+    "repair_candidate": "applied(의도적 제거 반영)",
+    "push_risk": "이 파일은 grant/deduct_credits를 정의하지 않음. push 시 user_credits를 재생성해 운영에 이미 남아 있는 두 함수(출처 미확인, anon 실행 가능)를 동작시킴 → 중대 위험 (2026-09-30 정정)"
+   },
+   {
+    "file": "20251209000001_update_handle_new_user_with_role.sql",
+    "remote_object_state": "대체됨",
+    "evidence": "handle_new_user 최종 본문 = 로컬 20260222_require_kakao_signup_completion",
+    "repair_candidate": "applied",
+    "push_risk": "push하면 handle_new_user가 구버전으로 되돌아감"
+   },
+   {
+    "file": "20251209100000_add_admin_logs.sql",
+    "remote_object_state": "없음",
+    "evidence": "admin_logs 테이블 없음. 원격 migration에도 언급 없음. 코드 src/app/api/admin/stats/route.ts가 참조",
+    "repair_candidate": "미적용 → 사용자 결정",
+    "push_risk": "push하면 admin_logs 생성 + profiles/questions 정책 추가 시도(정책명 중복 가능)"
+   },
+   {
+    "file": "20260107_create_display_labels.sql",
+    "remote_object_state": "존재",
+    "evidence": "display_labels 존재. 원격 migration 없음(이력 밖 적용)",
+    "repair_candidate": "applied",
+    "push_risk": "IF NOT EXISTS. INSERT 재실행 여부는 미확인"
+   },
+   {
+    "file": "20260121134000_fix_settings_rls.sql",
+    "remote_object_state": "없음(대체 정책 존재)",
+    "evidence": "'Enable insert/update for admins' 없음. system_settings에는 'Admins can update system settings', 'Authenticated users can view system settings'가 있음",
+    "repair_candidate": "미적용 → 사용자 결정(권장: applied 처리로 폐기)",
+    "push_risk": "push하면 admin INSERT 정책이 추가됨"
+   },
+   {
+    "file": "20260209_create_user_roles.sql",
+    "remote_object_state": "존재",
+    "evidence": "user_roles 존재. 원격 migration 없음(이력 밖 적용)",
+    "repair_candidate": "applied",
+    "push_risk": "CREATE TABLE에 IF NOT EXISTS가 없어 push하면 실패"
+   },
+   {
+    "file": "20260220_kakao_oauth_meta_resilience.sql",
+    "remote_object_state": "대체됨",
+    "evidence": "idx_profiles_provider_kakao_id 존재. handle_new_user는 이후 버전으로 대체",
+    "repair_candidate": "applied",
+    "push_risk": "push하면 handle_new_user가 구버전으로 되돌아감"
+   },
+   {
+    "file": "20260221_simplify_signup_profile_mapping.sql",
+    "remote_object_state": "대체됨",
+    "evidence": "handle_new_user 이후 버전으로 대체",
+    "repair_candidate": "applied",
+    "push_risk": "push하면 구버전으로 되돌아감(순서상 최종은 20260222_require라 결과적으로 같을 수 있음)"
+   },
+   {
+    "file": "20260222_enhance_kakao_profile_fallbacks.sql",
+    "remote_object_state": "대체됨",
+    "evidence": "동일",
+    "repair_candidate": "applied",
+    "push_risk": "동일"
+   },
+   {
+    "file": "20260222_require_kakao_signup_completion.sql",
+    "remote_object_state": "존재",
+    "evidence": "signup_completed 존재. handle_new_user prosrc가 이 파일과 바이트 동일",
+    "repair_candidate": "applied",
+    "push_risk": "재실행 결과는 동일"
+   },
+   {
+    "file": "20260306000000_add_credit_ledger_rpc_functions.sql",
+    "remote_object_state": "대체됨",
+    "evidence": "consume_credits/refund_credits 최종 = 20260805110000(바이트 동일)",
+    "repair_candidate": "applied",
+    "push_risk": "push하면 구버전 consume_credits로 교체되고 authenticated EXECUTE가 다시 부여됨 → 위험"
+   },
+   {
+    "file": "20260310000000_add_header_navigation_setting.sql",
+    "remote_object_state": "존재",
+    "evidence": "system_settings의 header navigation 행 존재. 원격 migration 없음",
+    "repair_candidate": "applied",
+    "push_risk": "재실행 영향은 미확인"
+   },
+   {
+    "file": "20260316021500_add_generate_listboard_batch_generation_schema.sql",
+    "remote_object_state": "부분",
+    "evidence": "jobs/post_items 테이블 존재. validate_generate_listboard_generation_job_item 함수와 trigger는 없음(다른 경로로 생성 후 변경된 것으로 추정)",
+    "repair_candidate": "applied",
+    "push_risk": "push하면 검증 trigger가 재도입되어 동작이 바뀜"
+   },
+   {
+    "file": "20260316033000_add_generate_listboard_job_options.sql",
+    "remote_object_state": "존재",
+    "evidence": "difficulty, grade_level 존재",
+    "repair_candidate": "applied",
+    "push_risk": "IF NOT EXISTS"
+   },
+   {
+    "file": "20260316071000_add_generate_listboard_job_item_staging_fields.sql",
+    "remote_object_state": "존재",
+    "evidence": "save_status 등과 idx 존재",
+    "repair_candidate": "applied",
+    "push_risk": "IF NOT EXISTS"
+   },
+   {
+    "file": "20260504000000_create_question_bank_random_exam_schema.sql",
+    "remote_object_state": "존재",
+    "evidence": "question_bank_* 존재. 원격은 20260505044142~044411의 5개로 분할 적용",
+    "repair_candidate": "applied",
+    "push_risk": "push하면 함수 10여 개가 로컬판으로 교체될 수 있음"
+   },
+   {
+    "file": "20260504000001_add_question_bank_saved_unique_index.sql",
+    "remote_object_state": "존재",
+    "evidence": "idx_questions_from_community_unique_saved 존재(원격 20260505044142)",
+    "repair_candidate": "applied",
+    "push_risk": "IF NOT EXISTS"
+   },
+   {
+    "file": "20260725090000_create_main_ad_images_bucket.sql",
+    "remote_object_state": "존재",
+    "evidence": "main-ad-images 버킷 존재(public=true). 원격 migration 없음",
+    "repair_candidate": "applied",
+    "push_risk": "INSERT의 ON CONFLICT 여부는 미확인"
+   },
+   {
+    "file": "20260730010000_create_market_menu_groups.sql",
+    "remote_object_state": "없음",
+    "evidence": "market_menu_groups 테이블, market_menu_entries.group_id, 관련 idx 모두 없음. 코드(market-board-server.ts)는 테이블이 없을 때 fallback으로 동작",
+    "repair_candidate": "미적용 → 사용자 결정",
+    "push_risk": "push하면 새 테이블·컬럼·정책이 함께 적용되어 cart migration과 섞임"
+   },
+   {
+    "file": "20260805140000_append_point_charge_compliance_policy.sql",
+    "remote_object_state": "존재(다른 버전)",
+    "evidence": "원격 20260805071113 append_point_charge_compliance_policy_retry로 적용",
+    "repair_candidate": "applied 처리 후보",
+    "push_risk": "두 UPDATE 모두 NOT LIKE 가드가 있어 이미 반영됐으면 no-op → 무해 (2026-09-30 정정: 이전 '비멱등' 기재는 오류)"
+   }
+  ],
+  "remote_only": {
+   "20251125003546": {
+    "name": "allow_view_admin_uploaded_questions",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20251205062542": {
+    "name": "add_question_text_forward_backward",
+    "statements_available": true,
+    "overlap_with_local": "로컬 20260504000000의 컬럼 추가와 겹침",
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20251209053800": {
+    "name": "add_role_column_to_profiles",
+    "statements_available": true,
+    "overlap_with_local": "로컬 20251209000000의 일부와 중복",
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260205073516": {
+    "name": "relax_support_tickets_rls",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260205074931": {
+    "name": "add_notifications_update_policy",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260206043619": {
+    "name": "reset_credits_feature",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260220002227": {
+    "name": "add_signup_completed_for_kakao_flow",
+    "statements_available": true,
+    "overlap_with_local": "로컬 kakao 4개 파일과 기능이 겹침",
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260330055624": {
+    "name": "add_subject_code_to_core_content_tables_v2",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260505044142": {
+    "name": "question_bank_random_exam_runtime_schema",
+    "statements_available": true,
+    "overlap_with_local": "로컬 20260504000000·000001과 같은 목적(분할)",
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260505044213": {
+    "name": "question_bank_random_exam_runtime_functions",
+    "statements_available": true,
+    "overlap_with_local": "로컬 20260504000000과 같은 목적",
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260505044246": {
+    "name": "question_bank_random_exam_user_functions",
+    "statements_available": true,
+    "overlap_with_local": "로컬 20260504000000과 같은 목적",
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260505044325": {
+    "name": "question_bank_random_exam_admin_list_functions",
+    "statements_available": true,
+    "overlap_with_local": "로컬 20260504000000과 같은 목적",
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260505044411": {
+    "name": "restrict_question_bank_rpc_anon_execute",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260512015101": {
+    "name": "index_question_bank_metadata_bank_type_fk",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260512015558": {
+    "name": "switch_question_bank_backfill_helpers_to_bank_types",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260601140357": {
+    "name": "restrict_ai_question_generation_run_retention_function",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260601140454": {
+    "name": "revoke_public_ai_question_generation_run_retention_function",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260605023722": {
+    "name": "harden_listboard_generation_jobs",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260605033647": {
+    "name": "harden_listboard_generation_followups",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260605034001": {
+    "name": "harden_listboard_generation_advisor_indexes",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260605060259": {
+    "name": "add_ai_generation_run_failure_summary",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260608053436": {
+    "name": "allow_v2_subproduct_file_download_asset_kind",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260618232827": {
+    "name": "replace_generate_listboard_post_items_rpc",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260618232909": {
+    "name": "restrict_generate_listboard_reupload_rpcs_anon",
+    "statements_available": true,
+    "overlap_with_local": null,
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   },
+   "20260805071113": {
+    "name": "append_point_charge_compliance_policy_retry",
+    "statements_available": true,
+    "overlap_with_local": "로컬 20260805140000과 같은 목적(_retry)",
+    "recommendation": "로컬 stub 생성(원격 statements 그대로, 같은 version)"
+   }
+  },
+  "name_match_version_differs": [
+   {
+    "name": "add_ai_provider_connections_and_split_problem_type_models",
+    "remote_version": "20260601050230",
+    "local_file": "20260601020000_add_ai_provider_connections_and_split_problem_type_models.sql"
+   },
+   {
+    "name": "add_credit_source_category",
+    "remote_version": "20260415023948",
+    "local_file": "20260415023000_add_credit_source_category.sql"
+   },
+   {
+    "name": "add_market_auto_upload_cleanup",
+    "remote_version": "20260524024814",
+    "local_file": "20260524010000_add_market_auto_upload_cleanup.sql"
+   },
+   {
+    "name": "add_market_home_download_ranking",
+    "remote_version": "20260728003504",
+    "local_file": "20260728010000_add_market_home_download_ranking.sql"
+   },
+   {
+    "name": "add_market_item_question_count",
+    "remote_version": "20260524075335",
+    "local_file": "20260524020000_add_market_item_question_count.sql"
+   },
+   {
+    "name": "add_market_refunds",
+    "remote_version": "20260602051408",
+    "local_file": "20260602020000_add_market_refunds.sql"
+   },
+   {
+    "name": "add_market_review_details",
+    "remote_version": "20260901000228",
+    "local_file": "20260901090000_add_market_review_details.sql"
+   },
+   {
+    "name": "add_market_subproduct_purchase_notice",
+    "remote_version": "20260611063702",
+    "local_file": "20260611004228_add_market_subproduct_purchase_notice.sql"
+   },
+   {
+    "name": "add_problem_type_regeneration_prompt",
+    "remote_version": "20260601115202",
+    "local_file": "20260601035000_add_problem_type_regeneration_prompt.sql"
+   },
+   {
+    "name": "add_problem_type_review_output_format",
+    "remote_version": "20260601070741",
+    "local_file": "20260601034000_add_problem_type_review_output_format.sql"
+   },
+   {
+    "name": "add_problem_type_review_prompt",
+    "remote_version": "20260601060313",
+    "local_file": "20260601010000_add_problem_type_review_prompt.sql"
+   },
+   {
+    "name": "add_problem_type_sort_order",
+    "remote_version": "20260603081225",
+    "local_file": "20260603100000_add_problem_type_sort_order.sql"
+   },
+   {
+    "name": "add_source_configs",
+    "remote_version": "20260112083929",
+    "local_file": "20260113_add_source_configs.sql"
+   },
+   {
+    "name": "add_source_fields",
+    "remote_version": "20260112075723",
+    "local_file": "20260113_add_source_fields.sql"
+   },
+   {
+    "name": "add_subject_code_compat_to_menu_entry_tables",
+    "remote_version": "20260403010819",
+    "local_file": "20260403013000_add_subject_code_compat_to_menu_entry_tables.sql"
+   },
+   {
+    "name": "add_support_ticket_categories",
+    "remote_version": "20260602062644",
+    "local_file": "20260602023000_add_support_ticket_categories.sql"
+   },
+   {
+    "name": "add_tags_rating_to_questions",
+    "remote_version": "20260107061440",
+    "local_file": "20260107_add_tags_rating_to_questions.sql"
+   },
+   {
+    "name": "allow_bank_metadata_read_for_admin_uploaded_questions",
+    "remote_version": "20260512015846",
+    "local_file": "20260512093000_allow_bank_metadata_read_for_admin_uploaded_questions.sql"
+   },
+   {
+    "name": "create_ai_question_generation_runs",
+    "remote_version": "20260601135322",
+    "local_file": "20260601043000_create_ai_question_generation_runs.sql"
+   },
+   {
+    "name": "create_generate_menu_entries",
+    "remote_version": "20260313021449",
+    "local_file": "20260313021000_create_generate_menu_entries.sql"
+   },
+   {
+    "name": "create_is_admin_helper",
+    "remote_version": "20260505044012",
+    "local_file": "20260208000000_create_is_admin_helper.sql"
+   },
+   {
+    "name": "create_market_item_reviews",
+    "remote_version": "20260807052937",
+    "local_file": "20260807090000_create_market_item_reviews.sql"
+   },
+   {
+    "name": "create_market_items_purchase_domain",
+    "remote_version": "20260317095337",
+    "local_file": "20260317113000_create_market_items_purchase_domain.sql"
+   },
+   {
+    "name": "create_market_menu_entries",
+    "remote_version": "20260317072347",
+    "local_file": "20260317050500_create_market_menu_entries.sql"
+   },
+   {
+    "name": "create_market_subproduct_v2_schema",
+    "remote_version": "20260528032512",
+    "local_file": "20260528010000_create_market_subproduct_v2_schema.sql"
+   },
+   {
+    "name": "create_passages_table",
+    "remote_version": "20251229012201",
+    "local_file": "20251229_create_passages_table.sql"
+   },
+   {
+    "name": "create_payment_orders_and_atomic_fulfillment",
+    "remote_version": "20260805070824",
+    "local_file": "20260805100000_create_payment_orders_and_atomic_fulfillment.sql"
+   },
+   {
+    "name": "create_payment_webhook_events",
+    "remote_version": "20260805071105",
+    "local_file": "20260805130000_create_payment_webhook_events.sql"
+   },
+   {
+    "name": "create_problem_type_default_prompts",
+    "remote_version": "20260603073416",
+    "local_file": "20260603090000_create_problem_type_default_prompts.sql"
+   },
+   {
+    "name": "create_problem_type_test_runs",
+    "remote_version": "20260601063958",
+    "local_file": "20260601033000_create_problem_type_test_runs.sql"
+   },
+   {
+    "name": "create_question_bank_problem_types",
+    "remote_version": "20260512014519",
+    "local_file": "20260512090000_create_question_bank_problem_types.sql"
+   },
+   {
+    "name": "create_support_tickets",
+    "remote_version": "20260102054126",
+    "local_file": "20260102_create_support_tickets.sql"
+   },
+   {
+    "name": "create_system_prompts",
+    "remote_version": "20251229071704",
+    "local_file": "20251229_create_system_prompts.sql"
+   },
+   {
+    "name": "create_system_settings",
+    "remote_version": "20251229072420",
+    "local_file": "20251229_create_system_settings.sql"
+   },
+   {
+    "name": "create_toss_refund_workflow",
+    "remote_version": "20260805071104",
+    "local_file": "20260805120000_create_toss_refund_workflow.sql"
+   },
+   {
+    "name": "credit_system",
+    "remote_version": "20260206050536",
+    "local_file": "20260206_credit_system.sql"
+   },
+   {
+    "name": "enforce_credit_expiration",
+    "remote_version": "20260805070844",
+    "local_file": "20260805110000_enforce_credit_expiration.sql"
+   },
+   {
+    "name": "enforce_question_bank_problem_type_metadata",
+    "remote_version": "20260512015023",
+    "local_file": "20260512092000_enforce_question_bank_problem_type_metadata.sql"
+   },
+   {
+    "name": "fix_market_item_reviews_anon_select",
+    "remote_version": "20260807053412",
+    "local_file": "20260807092000_fix_market_item_reviews_anon_select.sql"
+   },
+   {
+    "name": "fix_market_subproduct_v2_indexes",
+    "remote_version": "20260528032703",
+    "local_file": "20260528013000_fix_market_subproduct_v2_indexes.sql"
+   },
+   {
+    "name": "harden_credit_mutation_boundaries",
+    "remote_version": "20260805070823",
+    "local_file": "20260805090000_harden_credit_mutation_boundaries.sql"
+   },
+   {
+    "name": "harden_market_item_reviews_rls",
+    "remote_version": "20260807053158",
+    "local_file": "20260807091000_harden_market_item_reviews_rls.sql"
+   },
+   {
+    "name": "harden_market_refund_request_rls",
+    "remote_version": "20260602051553",
+    "local_file": "20260602021000_harden_market_refund_request_rls.sql"
+   },
+   {
+    "name": "initial_schema",
+    "remote_version": "20251120070315",
+    "local_file": "0000_initial_schema.sql"
+   },
+   {
+    "name": "order_legacy_ai_models_after_current_defaults",
+    "remote_version": "20260601054101",
+    "local_file": "20260601032000_order_legacy_ai_models_after_current_defaults.sql"
+   },
+   {
+    "name": "restrict_is_admin_public_policies",
+    "remote_version": "20260505044020",
+    "local_file": "20260210000000_restrict_is_admin_public_policies.sql"
+   },
+   {
+    "name": "restrict_support_ticket_rpc_anon",
+    "remote_version": "20260602062840",
+    "local_file": "20260602024500_restrict_support_ticket_rpc_anon.sql"
+   },
+   {
+    "name": "seed_current_ai_models",
+    "remote_version": "20260601054025",
+    "local_file": "20260601031000_seed_current_ai_models.sql"
+   },
+   {
+    "name": "switch_question_bank_problem_type_rpcs",
+    "remote_version": "20260512014839",
+    "local_file": "20260512091000_switch_question_bank_problem_type_rpcs.sql"
+   },
+   {
+    "name": "update_ai_question_generation_run_sources_and_retention",
+    "remote_version": "20260601140255",
+    "local_file": "20260601050000_update_ai_question_generation_run_sources_and_retention.sql"
+   },
+   {
+    "name": "update_handle_new_user",
+    "remote_version": "20251120070443",
+    "local_file": "0001_update_handle_new_user.sql"
+   },
+   {
+    "name": "update_market_subproduct_category_defaults",
+    "remote_version": "20260528103201",
+    "local_file": "20260528021000_update_market_subproduct_category_defaults.sql"
+   }
+  ],
+  "db_push_dry_run": {
+   "command": "supabase db push --dry-run --linked < /dev/null",
+   "cli": "2.34.3",
+   "exit": 1,
+   "output_summary": "'Initialising cli_login_postgres role...' 후 'Enter your database password:' 프롬프트. stdin이 비어 있어 SASL 인증 실패(28P01)로 종료. 우회하지 않음",
+   "remote_side_effect_check": "pg_roles에 cli_login% 역할 0개(원격 변경 흔적 없음)"
+  },
+  "user_decisions_2026_09_30": {
+   "a": "이력 정합(52/25/24)은 별도 트랙. cart migration은 MCP apply_migration 단건 적용, 로컬 파일 version을 원격 기록 version에 맞춤. db push/repair 미사용",
+   "b": "미적용 3개(create_market_menu_groups, add_admin_logs, fix_settings_rls)는 내용 검토 후 개별 apply_migration",
+   "c": "grant_credits/deduct_credits는 Phase 1 migration에서 DROP",
+   "d": "pgTAP 미설치 유지, DO 블록 assert",
+   "p0_6_verdict": "사용자 결정으로 해소(개별 적용 방식), 이력 정합은 별도 트랙"
+  }
+ },
+ "p0_7": {
+  "state": "열림",
+  "policies": [
+   [
+    "market_purchases",
+    "Users can insert own market purchases",
+    "INSERT",
+    "{authenticated}",
+    null,
+    "(auth.uid() = user_id)"
+   ],
+   [
+    "market_purchases",
+    "Users can update own pending market purchases",
+    "UPDATE",
+    "{authenticated}",
+    "(auth.uid() = user_id)",
+    "(auth.uid() = user_id)"
+   ],
+   [
+    "market_purchases|market_purchase_orders|market_purchase_lines|market_entitlements",
+    "Admins can manage ...",
+    "ALL",
+    "{authenticated}",
+    "is_admin()",
+    "is_admin()"
+   ]
+  ],
+  "has_table_privilege_authenticated": {
+   "market_purchases": "I/U/D true",
+   "market_purchase_orders": "I/U/D true",
+   "market_purchase_lines": "I/U/D true",
+   "market_entitlements": "I/U/D true"
+  },
+  "market_purchases_defaults": "status DEFAULT 'completed'. price_credits NOT NULL(기본값 없음) CHECK >=0 → 0 입력 가능",
+  "triggers": "market_purchases에는 trg_market_purchases_updated_at만 있음(가격·상태 보호 없음)"
+ }
+}

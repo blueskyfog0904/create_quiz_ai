@@ -1,14 +1,25 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Download, Eye, FileArchive, FileCheck2, FileStack, FileText, ShoppingCart } from 'lucide-react'
 import { FileTypeDocIcon } from '@/components/market/file-type-doc-icon'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { CreditConfirmationDialog } from '@/components/features/credits/credit-confirmation-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { dispatchMarketCartUpdated } from '@/components/market/market-cart-indicator'
+import { MarketCheckoutConfirmDialog } from '@/components/market/market-checkout-confirm-dialog'
 import { useLoginRedirect } from '@/hooks/use-login-redirect'
 import type { MarketBundlePublicSummary, MarketSubproductDownloadFile, MarketSubproductPublicSummary } from '@/lib/market-items-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
@@ -19,9 +30,6 @@ interface MarketItemActionsProps {
   itemId: string
   hasSamplePages: boolean
   hasLegacySample: boolean
-  hasPdf: boolean
-  hasHwp: boolean
-  hasZip: boolean
   isLoggedIn: boolean
   ownsPdf: boolean
   ownsHwp: boolean
@@ -36,11 +44,7 @@ interface MarketItemActionsProps {
   downloadFiles?: MarketSubproductDownloadFile[]
 }
 
-type PurchaseAssetKind = 'pdf' | 'hwp' | 'zip'
 type OptionState = 'instant' | 'owned' | 'included' | 'available' | 'unavailable' | 'checking' | 'processing'
-type V2PurchaseIntent =
-  | { purchaseType: 'subproduct'; subproductId: string; title: string; priceCredits: number }
-  | { purchaseType: 'bundle'; bundleOptionId: string; title: string; priceCredits: number }
 type MarketOptionIconKind = 'sample' | 'bundle' | 'pdf' | 'hwp' | 'zip' | 'default'
 
 interface PurchaseNotice {
@@ -48,8 +52,50 @@ interface PurchaseNotice {
   text: string
 }
 
+// 선택 가능한 구매 옵션. key = `${targetKind}:${targetId}` (409 응답의 targetKind·targetId와 대조한다)
+interface PurchaseOption {
+  key: string
+  targetKind: 'subproduct' | 'bundle'
+  targetId: string
+  title: string
+  priceCredits: number
+  categorySlug: string | null
+  includesPdf: boolean
+  partiallyOwned: boolean
+  unavailableReason: string | null
+}
+
+interface CheckoutLine {
+  key: string
+  targetKind: 'subproduct' | 'bundle'
+  targetId: string
+  title: string
+  expectedCredits: number
+  // 409 PRICE_CHANGED로 바뀐 경우 직전에 확인했던 금액
+  previousCredits: number | null
+  partiallyOwned: boolean
+}
+
+interface CheckoutState {
+  // Dialog를 열 때 1개 생성. 확정·재시도는 같은 키, 409 재확인은 새 키.
+  idempotencyKey: string
+  lines: CheckoutLine[]
+  balance: number
+  acknowledged: boolean
+  submitting: boolean
+  retryable: boolean
+  notice: string | null
+  shortfall: number | null
+}
+
+interface PriceChangedItem {
+  targetKind: string
+  targetId: string
+  purchasable: boolean
+  chargedCredits: number | null
+}
+
 const MARKET_ACTION_BUTTON_CLASS = 'h-11 w-full justify-center gap-2 rounded-xl px-5 font-semibold focus-visible:ring-indigo-300 sm:w-44'
-const MARKET_PRIMARY_BUTTON_CLASS = `${MARKET_ACTION_BUTTON_CLASS} bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800`
 const MARKET_OUTLINE_BUTTON_CLASS = `${MARKET_ACTION_BUTTON_CLASS} border border-indigo-500 bg-white text-indigo-600 hover:bg-indigo-50 active:border-indigo-800 active:text-indigo-800`
 const MARKET_DISABLED_BUTTON_CLASS = `${MARKET_ACTION_BUTTON_CLASS} bg-slate-200 text-slate-400 hover:bg-slate-200`
 const MARKET_OPTION_ICON_CLASS = 'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600'
@@ -59,6 +105,11 @@ const MARKET_BADGE_OWNED_CLASS = 'rounded-full border border-[#D1FAE5] bg-[#ECFD
 const MARKET_BADGE_INCLUDED_CLASS = 'rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50'
 // 자료 보관함 다운로드 버튼과 동일한 디자인 (흰 배경·회색 테두리·파일타입 색상 아이콘)
 const MARKET_DOWNLOAD_BUTTON_CLASS = 'h-9 min-w-36 w-full justify-center gap-1.5 rounded-md border border-[var(--studio-control-border,#7f8499)] bg-white px-3 text-sm font-medium text-[var(--studio-ink,#1c1f2e)] hover:bg-white hover:border-[var(--studio-primary-border,#c9befa)] hover:text-[var(--studio-primary,#6950e5)] active:bg-slate-50 focus-visible:ring-[var(--studio-focus-ring,#8b76ec)] sm:w-auto'
+const UNPRICED_REASON = '가격이 정해지지 않아 선택할 수 없습니다.'
+const NO_FILES_REASON = '파일 준비 중이라 선택할 수 없습니다.'
+const BUNDLE_SELECTED_REASON = '전체 패키지에 포함되어 함께 선택할 수 없습니다. 개별 구매는 전체 패키지 선택을 해제하세요.'
+const SUBPRODUCT_SELECTED_REASON = '개별 자료를 선택한 상태에서는 전체 패키지를 함께 선택할 수 없습니다.'
+const PDF_HWP_CONFLICT_REASON = '문제(HWP)에 PDF가 포함되어 있어 함께 선택할 수 없습니다.'
 const DEFAULT_HWP_PDF_NOTICE = {
   label: 'PDF 포함',
   text: '편집 가능한 HWP와 문제(PDF)를 함께 제공합니다. PDF는 따로 구매하지 않아도 됩니다.',
@@ -76,12 +127,6 @@ function formatCredits(value: number) {
   return value.toLocaleString('ko-KR')
 }
 
-function getAssetLabel(assetKind: PurchaseAssetKind) {
-  if (assetKind === 'pdf') return 'PDF'
-  if (assetKind === 'hwp') return 'HWP & PDF'
-  return 'ZIP'
-}
-
 function getSubproductIconKind(subproduct: MarketSubproductPublicSummary): MarketOptionIconKind {
   const tokens = subproduct.fileTypes
     .flatMap((fileType) => [fileType.code, fileType.label, fileType.extension])
@@ -92,6 +137,16 @@ function getSubproductIconKind(subproduct: MarketSubproductPublicSummary): Marke
   if (tokens.includes('hwp')) return 'hwp'
   if (tokens.includes('pdf')) return 'pdf'
   return 'default'
+}
+
+// 서버 판정(lower(ft.code) = 'pdf')과 같은 기준으로 PDF 포함 문제(HWP)를 가린다.
+function isPdfInclusiveHwp(subproduct: MarketSubproductPublicSummary) {
+  return subproduct.categorySlug === 'question_hwp'
+    && subproduct.fileTypes.some((fileType) => fileType.code.toLowerCase() === 'pdf')
+}
+
+function sumCredits(lines: { expectedCredits: number }[]) {
+  return lines.reduce((total, line) => total + line.expectedCredits, 0)
 }
 
 function hasHwpAndPdf(subproduct: MarketSubproductPublicSummary) {
@@ -186,26 +241,6 @@ function FileTypeBadges({ subproduct, siblings }: {
       ))}
     </div>
   )
-}
-
-function getPurchaseErrorMessage(status: number, fallback?: string) {
-  if (status === 401) {
-    return '로그인이 필요합니다. 로그인 후 다시 구매해주세요.'
-  }
-
-  if (status === 402) {
-    return fallback || '크레딧이 부족합니다. 충전 후 다시 시도해주세요.'
-  }
-
-  if (status === 409) {
-    return fallback || '이미 구매한 파일입니다. 다운로드 상태를 새로고침합니다.'
-  }
-
-  if (status >= 500) {
-    return fallback || '서버 오류로 구매에 실패했습니다. 잠시 후 다시 시도해주세요.'
-  }
-
-  return fallback || '구매 처리에 실패했습니다.'
 }
 
 function OptionStateBadge({ state }: { state: OptionState }) {
@@ -341,9 +376,6 @@ export default function MarketItemActions({
   itemId,
   hasSamplePages,
   hasLegacySample,
-  hasPdf,
-  hasHwp,
-  hasZip,
   isLoggedIn,
   ownsPdf,
   ownsHwp,
@@ -359,13 +391,14 @@ export default function MarketItemActions({
 }: MarketItemActionsProps) {
   const router = useRouter()
   const { redirectToLogin } = useLoginRedirect()
-  const [isPending, startTransition] = useTransition()
-  const [showConfirmation, setShowConfirmation] = useState(false)
-  const [currentBalance, setCurrentBalance] = useState<number | null>(null)
+  const selectionIdPrefix = useId()
+  // 선택 순서를 유지한다(장바구니 담기 순서). 새로고침으로 사라지거나 선택 불가가 된 옵션은 purchaseOptions 대조로 걸러진다.
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [isCheckingBalance, setIsCheckingBalance] = useState(false)
-  const [pendingPurchaseKind, setPendingPurchaseKind] = useState<PurchaseAssetKind | null>(null)
-  const [pendingV2PurchaseIntent, setPendingV2PurchaseIntent] = useState<V2PurchaseIntent | null>(null)
+  const [isAddingToCart, setIsAddingToCart] = useState(false)
+  const [checkout, setCheckout] = useState<CheckoutState | null>(null)
   const [purchaseCompleteMessage, setPurchaseCompleteMessage] = useState<string | null>(null)
+  const [cartAddedMessage, setCartAddedMessage] = useState<string | null>(null)
   const [isSamplePreviewOpen, setIsSamplePreviewOpen] = useState(false)
   const [samplePreviewPrefetchKey, setSamplePreviewPrefetchKey] = useState(0)
   const viewTracked = useRef(false)
@@ -399,162 +432,405 @@ export default function MarketItemActions({
 
     const data = await res.json()
     if (typeof data.balance === 'number') {
-      setCurrentBalance(data.balance)
       window.dispatchEvent(new CustomEvent('credit-balance-updated', { detail: { balance: data.balance } }))
-    } else {
-      throw new Error('잔액 정보 형식이 올바르지 않습니다.')
+      return data.balance as number
     }
+    throw new Error('잔액 정보 형식이 올바르지 않습니다.')
   }
 
-  const openPurchaseConfirmation = async (assetKind: PurchaseAssetKind) => {
-    if (!isLoggedIn) {
-      redirectToLogin()
-      return
-    }
+  // 문제(HWP) 서브상품(PDF 포함)을 단건 소유한 경우, 이미 포함된 문제(PDF) 카드는 숨긴다.
+  // ownedScope 는 번들 소유 시 'item' 이므로 번들 소유자는 숨김 대상이 아니다.
+  const hasOwnedPdfInclusiveHwp = subproducts.some((sibling) => (
+    isPdfInclusiveHwp(sibling) && sibling.ownedScope === 'subproduct'
+  ))
+  // R6: 개별 자료를 이미 보유한 채 전체 패키지를 사면 정가 구매다. 확인 Dialog에서 확인 여부를 함께 보낸다.
+  const isPartiallyOwnedBundle = subproducts.some((subproduct) => subproduct.ownedScope === 'subproduct')
 
-    setPendingPurchaseKind(assetKind)
-    setPendingV2PurchaseIntent(null)
-    setIsCheckingBalance(true)
-    try {
-      await fetchBalance()
-      setShowConfirmation(true)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '크레딧 확인에 실패했습니다.')
-      setPendingPurchaseKind(null)
-    } finally {
-      setIsCheckingBalance(false)
-    }
-  }
-
-  const openV2PurchaseConfirmation = async (intent: V2PurchaseIntent) => {
-    if (!isLoggedIn) {
-      redirectToLogin()
-      return
-    }
-
-    setPendingPurchaseKind(null)
-    setPendingV2PurchaseIntent(intent)
-    setIsCheckingBalance(true)
-    try {
-      await fetchBalance()
-      setShowConfirmation(true)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '크레딧 확인에 실패했습니다.')
-      setPendingV2PurchaseIntent(null)
-    } finally {
-      setIsCheckingBalance(false)
-    }
-  }
-
-  const handleConfirmPurchase = () => {
-    if (!pendingPurchaseKind && !pendingV2PurchaseIntent) {
-      return
-    }
-
-    setShowConfirmation(false)
-    startTransition(async () => {
-      try {
-        const requestBody = pendingV2PurchaseIntent
-          ? pendingV2PurchaseIntent.purchaseType === 'subproduct'
-            ? {
-              purchaseType: 'subproduct',
-              subproductId: pendingV2PurchaseIntent.subproductId,
-              idempotencyKey: `${itemId}:subproduct:${pendingV2PurchaseIntent.subproductId}:${Date.now()}`,
-            }
-            : {
-              purchaseType: 'bundle',
-              bundleOptionId: pendingV2PurchaseIntent.bundleOptionId,
-              idempotencyKey: `${itemId}:bundle:${pendingV2PurchaseIntent.bundleOptionId}:${Date.now()}`,
-            }
-          : { assetKind: pendingPurchaseKind }
-        const response = await fetch(`/api/market/items/${itemId}/purchase`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
-        })
-        const payload = await response.json().catch(() => ({}))
-
-        if (!response.ok || !payload.success) {
-          throw new Error(getPurchaseErrorMessage(response.status, payload.error?.message))
-        }
-
-        if (typeof payload.balance === 'number') {
-          setCurrentBalance(payload.balance)
-          window.dispatchEvent(new CustomEvent('credit-balance-updated', { detail: { balance: payload.balance } }))
-        }
-
-        const fallbackMessage = pendingV2PurchaseIntent
-          ? `${pendingV2PurchaseIntent.title} 구매가 완료되었습니다.`
-          : `${getAssetLabel(pendingPurchaseKind as PurchaseAssetKind)} 구매가 완료되었습니다.`
-        setPurchaseCompleteMessage(payload.message || fallbackMessage)
-        router.refresh()
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : '구매 처리 중 오류가 발생했습니다.')
-        router.refresh()
-      } finally {
-        setPendingPurchaseKind(null)
-        setPendingV2PurchaseIntent(null)
-      }
+  // 표시·expectedCredits 비교용 가격. 차감액은 RPC가 다시 계산하고, 다르면 409로 알린다.
+  const purchaseOptions: PurchaseOption[] = []
+  if (bundleOption && !bundleOption.owned) {
+    purchaseOptions.push({
+      key: `bundle:${bundleOption.id}`,
+      targetKind: 'bundle',
+      targetId: bundleOption.id,
+      title: bundleOption.label || '전체 패키지',
+      priceCredits: bundleOption.priceCredits,
+      categorySlug: null,
+      includesPdf: false,
+      partiallyOwned: isPartiallyOwnedBundle,
+      unavailableReason: bundleOption.priceCredits <= 0
+        ? UNPRICED_REASON
+        : subproducts.every((subproduct) => subproduct.fileCount === 0) ? NO_FILES_REASON : null,
     })
   }
+  if (!bundleOption?.owned) {
+    for (const subproduct of subproducts) {
+      if (subproduct.owned || (subproduct.categorySlug === 'question_pdf' && hasOwnedPdfInclusiveHwp)) {
+        continue
+      }
+      const priceCredits = subproduct.upgradePriceCredits ?? subproduct.priceCredits
+      purchaseOptions.push({
+        key: `subproduct:${subproduct.id}`,
+        targetKind: 'subproduct',
+        targetId: subproduct.id,
+        title: subproduct.title,
+        priceCredits,
+        categorySlug: subproduct.categorySlug,
+        includesPdf: isPdfInclusiveHwp(subproduct),
+        partiallyOwned: false,
+        unavailableReason: priceCredits <= 0
+          ? UNPRICED_REASON
+          : subproduct.fileCount === 0 ? NO_FILES_REASON : null,
+      })
+    }
+  }
+  const optionByKey = new Map(purchaseOptions.map((option) => [option.key, option]))
 
-  const requiredCredits = pendingV2PurchaseIntent
-    ? pendingV2PurchaseIntent.priceCredits
-    : pendingPurchaseKind === 'pdf'
-    ? pdfPrice
-    : pendingPurchaseKind === 'hwp'
-      ? hwpPrice
-      : pendingPurchaseKind === 'zip'
-        ? zipPrice
-        : 0
+  // 옵션 목록이 바뀌면(새로고침 등) 선택할 수 없게 된 key를 버린다. 나중에 다시 선택 가능해져도 자동 재선택되지 않는다.
+  const selectableKeys = purchaseOptions.filter((option) => option.unavailableReason === null).map((option) => option.key)
+  const selectableKeySignature = selectableKeys.join('|')
+  const [prunedKeySignature, setPrunedKeySignature] = useState(selectableKeySignature)
+  if (prunedKeySignature !== selectableKeySignature) {
+    setPrunedKeySignature(selectableKeySignature)
+    setSelectedKeys((current) => current.filter((key) => selectableKeys.includes(key)))
+  }
+  const selectedOptions = selectedKeys.flatMap((key) => {
+    const option = optionByKey.get(key)
+    return option && option.unavailableReason === null ? [option] : []
+  })
+  const selectedKeySet = new Set(selectedOptions.map((option) => option.key))
+  const selectedTotal = selectedOptions.reduce((total, option) => total + option.priceCredits, 0)
+  const hasSelectableOption = purchaseOptions.some((option) => option.unavailableReason === null)
+  const isBusy = isCheckingBalance || isAddingToCart || Boolean(checkout?.submitting)
 
-  const confirmationDescription = pendingV2PurchaseIntent
-    ? `${pendingV2PurchaseIntent.title} 자료를 크레딧으로 구매합니다.`
-    : pendingPurchaseKind === 'pdf'
-    ? 'PDF 파일을 크레딧으로 구매합니다.'
-    : pendingPurchaseKind === 'hwp'
-      ? 'PDF와 HWP 파일을 함께 크레딧으로 구매합니다.'
-      : pendingPurchaseKind === 'zip'
-        ? 'ZIP 파일을 크레딧으로 구매합니다.'
-        : '문제마켓 자료를 크레딧으로 구매합니다.'
+  // 서버 R-규칙과 같은 충돌 규칙. 자동 교체 없이 상대 옵션을 막고, 선택을 해제하면 바로 풀린다.
+  const hasSelectedBundle = selectedOptions.some((option) => option.targetKind === 'bundle')
+  const hasSelectedSubproduct = selectedOptions.some((option) => option.targetKind === 'subproduct')
+  const hasSelectedQuestionPdf = selectedOptions.some((option) => option.categorySlug === 'question_pdf')
+  const hasSelectedPdfInclusiveHwp = selectedOptions.some((option) => option.includesPdf)
 
-  const getPaidOptionState = (assetKind: PurchaseAssetKind, owned: boolean, available: boolean): OptionState => {
-    if (owned) return 'owned'
-    if (!available) return 'unavailable'
-    if (pendingPurchaseKind === assetKind && isPending) return 'processing'
-    if (pendingPurchaseKind === assetKind && isCheckingBalance) return 'checking'
-    return 'available'
+  const getBlockedReason = (option: PurchaseOption) => {
+    if (option.unavailableReason) return option.unavailableReason
+    if (selectedKeySet.has(option.key)) return null
+    if (option.targetKind === 'subproduct' && hasSelectedBundle) return BUNDLE_SELECTED_REASON
+    if (option.targetKind === 'bundle' && hasSelectedSubproduct) return SUBPRODUCT_SELECTED_REASON
+    if ((option.categorySlug === 'question_pdf' && hasSelectedPdfInclusiveHwp) || (option.includesPdf && hasSelectedQuestionPdf)) {
+      return PDF_HWP_CONFLICT_REASON
+    }
+    return null
   }
 
-  const openSamplePreview = () => {
+  const toggleOption = (key: string, checked: boolean) => {
+    setSelectedKeys((current) => (checked
+      ? (current.includes(key) ? current : [...current, key])
+      : current.filter((selectedKey) => selectedKey !== key)))
+  }
+
+  const clearSelection = () => setSelectedKeys([])
+
+  // 비로그인은 로그인 후 이 상세로 돌아오며, 담기·구매는 자동으로 하지 않는다.
+  const addSelectedToCart = async () => {
     if (!isLoggedIn) {
       redirectToLogin()
       return
     }
+    if (selectedOptions.length === 0) {
+      return
+    }
 
+    // 담기는 원자성이 필요 없고 target별 결과(CART_LIMIT 등)를 안내해야 하므로 기존 POST를 순서대로 호출한다.
+    let createdCount = 0
+    let existingCount = 0
+    let limitCount = 0
+    let failedCount = 0
+    let latestCount: number | null = null
+    setIsAddingToCart(true)
+    try {
+      for (const option of selectedOptions) {
+        let response: Response
+        try {
+          response = await fetch('/api/market/cart/items', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(option.targetKind === 'bundle'
+              ? { targetKind: 'bundle', bundleOptionId: option.targetId }
+              : { targetKind: 'subproduct', subproductId: option.targetId }),
+          })
+        } catch {
+          failedCount += 1
+          continue
+        }
+        const payload = await response.json().catch(() => ({}))
+
+        if (response.status === 401) {
+          redirectToLogin()
+          return
+        }
+
+        if (response.ok && payload.success) {
+          latestCount = payload.data.count
+          if (payload.data.created) {
+            createdCount += 1
+          } else {
+            existingCount += 1
+          }
+        } else if (payload.error?.code === 'CART_LIMIT') {
+          limitCount += 1
+        } else {
+          failedCount += 1
+        }
+      }
+    } finally {
+      setIsAddingToCart(false)
+    }
+
+    if (latestCount !== null) {
+      dispatchMarketCartUpdated(latestCount)
+    }
+
+    const limitMessage = `장바구니가 가득 차(최대 50개) ${limitCount}건을 담지 못했습니다. 장바구니를 정리한 뒤 다시 담아 주세요.`
+    if (createdCount + existingCount === 0) {
+      toast.error(limitCount > 0 ? limitMessage : '장바구니에 담지 못했습니다. 잠시 후 다시 시도해주세요.')
+      return
+    }
+
+    setCartAddedMessage([
+      createdCount > 0 ? `${createdCount}건을 담았습니다.` : null,
+      existingCount > 0 ? `${existingCount}건은 이미 장바구니에 있습니다.` : null,
+      limitCount > 0 ? limitMessage : null,
+      failedCount > 0 ? `${failedCount}건은 오류로 담지 못했습니다.` : null,
+    ].filter(Boolean).join(' '))
+    clearSelection()
+  }
+
+  const openCheckout = async () => {
+    if (!isLoggedIn) {
+      redirectToLogin()
+      return
+    }
+    if (selectedOptions.length === 0) {
+      return
+    }
+
+    setIsCheckingBalance(true)
+    try {
+      const balance = await fetchBalance()
+      setCheckout({
+        idempotencyKey: crypto.randomUUID(),
+        lines: selectedOptions.map((option) => ({
+          key: option.key,
+          targetKind: option.targetKind,
+          targetId: option.targetId,
+          title: option.title,
+          expectedCredits: option.priceCredits,
+          previousCredits: null,
+          partiallyOwned: option.partiallyOwned,
+        })),
+        balance,
+        acknowledged: false,
+        submitting: false,
+        retryable: false,
+        notice: null,
+        shortfall: null,
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '크레딧 확인에 실패했습니다.')
+    } finally {
+      setIsCheckingBalance(false)
+    }
+  }
+
+  const submitCheckout = async () => {
+    if (!checkout || checkout.submitting) {
+      return
+    }
+
+    const request = checkout
+    setCheckout({ ...request, submitting: true })
+
+    let response: Response
+    try {
+      response = await fetch(`/api/market/items/${itemId}/purchase`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lines: request.lines.map((line) => ({
+            target: line.targetKind === 'bundle'
+              ? { targetKind: 'bundle', bundleOptionId: line.targetId }
+              : { targetKind: 'subproduct', subproductId: line.targetId },
+            expectedCredits: line.expectedCredits,
+            acknowledgeNoDiscount: line.partiallyOwned && request.acknowledged,
+          })),
+          idempotencyKey: request.idempotencyKey,
+        }),
+      })
+    } catch {
+      setCheckout({
+        ...request,
+        submitting: false,
+        retryable: true,
+        notice: '네트워크 오류로 구매 결과를 확인하지 못했습니다. 다시 시도하면 같은 요청으로 처리되어 중복으로 차감되지 않습니다.',
+      })
+      return
+    }
+
+    const payload = await response.json().catch(() => ({}))
+
+    if (response.ok && payload.success) {
+      setCheckout(null)
+      if (typeof payload.balance === 'number') {
+        window.dispatchEvent(new CustomEvent('credit-balance-updated', { detail: { balance: payload.balance } }))
+      }
+      setPurchaseCompleteMessage(payload.message || `선택한 자료 ${request.lines.length}건 구매가 완료되었습니다.`)
+      clearSelection()
+      router.refresh()
+      return
+    }
+
+    const code: string | undefined = payload.error?.code
+    const message: string = payload.error?.message || '구매 처리에 실패했습니다.'
+
+    if (response.status === 401) {
+      setCheckout(null)
+      redirectToLogin()
+      return
+    }
+
+    // 네트워크 유실·5xx(재시도 소진, 일시 중지 포함)는 같은 키로 다시 시도한다.
+    if (response.status >= 500) {
+      setCheckout({ ...request, submitting: false, retryable: true, notice: `${message} 다시 시도하면 같은 요청으로 처리됩니다.` })
+      return
+    }
+
+    // 402: 사전 확인은 부족액을 주고, 차감 단계(P0402)는 주지 않으므로 잔액을 다시 읽어 계산한다.
+    if (response.status === 402) {
+      let balance = typeof payload.details?.balance === 'number' ? payload.details.balance : request.balance
+      let shortfall: number
+      if (typeof payload.details?.shortfall === 'number') {
+        shortfall = payload.details.shortfall
+      } else {
+        balance = await fetchBalance().catch(() => balance)
+        shortfall = sumCredits(request.lines) - balance
+      }
+      setCheckout({
+        ...request,
+        submitting: false,
+        retryable: false,
+        balance,
+        shortfall: shortfall > 0 ? shortfall : null,
+        notice: shortfall > 0
+          ? '보유 크레딧이 부족해 구매하지 못했습니다. 크레딧을 충전한 뒤 다시 구매해주세요.'
+          : '보유 크레딧이 변경되었습니다. 금액을 확인한 뒤 다시 구매해주세요.',
+      })
+      return
+    }
+
+    if (code === 'PRICE_CHANGED') {
+      const latest = new Map<string, PriceChangedItem>(
+        ((payload.details?.items ?? []) as PriceChangedItem[]).map((item) => [`${item.targetKind}:${item.targetId}`, item])
+      )
+      const lines = request.lines.flatMap((line) => {
+        const item = latest.get(line.key)
+        if (!item || !item.purchasable || item.chargedCredits === null) {
+          return []
+        }
+        return [item.chargedCredits === line.expectedCredits
+          ? line
+          : { ...line, expectedCredits: item.chargedCredits, previousCredits: line.expectedCredits }]
+      })
+      const removedCount = request.lines.length - lines.length
+
+      if (lines.length === 0) {
+        setCheckout(null)
+        toast.error('선택한 자료를 모두 구매할 수 없게 되었습니다. 최신 정보를 확인해주세요.')
+        clearSelection()
+        router.refresh()
+        return
+      }
+      setCheckout({
+        ...request,
+        idempotencyKey: crypto.randomUUID(),
+        lines,
+        submitting: false,
+        retryable: false,
+        notice: removedCount > 0
+          ? `판매 상태가 바뀐 자료 ${removedCount}건을 제외하고 변경된 금액으로 다시 표시했습니다. 확인 후 구매해주세요.`
+          : '가격이 변경되었습니다. 변경된 금액을 확인한 뒤 다시 구매해주세요.',
+      })
+      return
+    }
+
+    if (code === 'ACK_REQUIRED') {
+      const ackKeys = new Set(((payload.details?.lines ?? []) as { targetKind: string; targetId: string }[])
+        .map((line) => `${line.targetKind}:${line.targetId}`))
+      setCheckout({
+        ...request,
+        idempotencyKey: crypto.randomUUID(),
+        lines: request.lines.map((line) => (ackKeys.has(line.key) ? { ...line, partiallyOwned: true } : line)),
+        acknowledged: false,
+        submitting: false,
+        retryable: false,
+        notice: message,
+      })
+      return
+    }
+
+    // ALREADY_OWNED·CONFLICTING_SELECTION·NOT_FOUND·IDEMPOTENCY_CONFLICT·422: 최신 상태를 보고 다시 고른다.
+    setCheckout(null)
+    toast.error(message)
+    clearSelection()
+    router.refresh()
+  }
+
+  const checkoutTotal = checkout ? sumCredits(checkout.lines) : 0
+  const needsAcknowledgement = checkout?.lines.some((line) => line.partiallyOwned) ?? false
+
+  const openSamplePreview = () => {
     setIsSamplePreviewOpen(true)
   }
 
   const prefetchSamplePreview = () => {
-    if (!isLoggedIn || !hasSamplePages) {
+    if (!hasSamplePages) {
       return
     }
 
     setSamplePreviewPrefetchKey((value) => value + 1)
   }
 
-  const getV2OptionState = (intent: V2PurchaseIntent, owned: boolean): OptionState => {
+  const getOptionState = (key: string, owned: boolean): OptionState => {
     if (owned) return 'owned'
-
-    const isSameIntent = pendingV2PurchaseIntent
-      ? intent.purchaseType === 'bundle'
-        ? pendingV2PurchaseIntent.purchaseType === 'bundle' && pendingV2PurchaseIntent.bundleOptionId === intent.bundleOptionId
-        : pendingV2PurchaseIntent.purchaseType === 'subproduct' && pendingV2PurchaseIntent.subproductId === intent.subproductId
-      : false
-
-    if (isSameIntent && isPending) return 'processing'
-    if (isSameIntent && isCheckingBalance) return 'checking'
+    if (selectedKeySet.has(key) && checkout?.submitting) return 'processing'
+    if (selectedKeySet.has(key) && isCheckingBalance) return 'checking'
     return 'available'
+  }
+
+  const renderOptionSelectControl = (key: string) => {
+    const option = optionByKey.get(key)
+    if (!option) {
+      return null
+    }
+    const reason = getBlockedReason(option)
+    const reasonId = `${selectionIdPrefix}-${option.key}`
+
+    return (
+      <div className="flex w-full flex-col items-end gap-1 sm:w-auto sm:max-w-64">
+        <label className="flex min-h-11 cursor-pointer items-center gap-1 text-sm font-semibold text-[var(--studio-ink)] has-[:disabled]:cursor-not-allowed has-[:disabled]:text-[var(--studio-muted)]">
+          <span className="grid size-11 shrink-0 place-items-center">
+            <Checkbox
+              checked={selectedKeySet.has(option.key)}
+              disabled={reason !== null || isBusy}
+              onCheckedChange={(checked) => toggleOption(option.key, checked === true)}
+              aria-label={`${option.title} 선택`}
+              aria-describedby={reason ? reasonId : undefined}
+            />
+          </span>
+          선택
+        </label>
+        {reason ? (
+          <p id={reasonId} className="break-keep text-right text-xs leading-5 text-[var(--studio-muted)]">{reason}</p>
+        ) : null}
+      </div>
+    )
   }
 
   const renderV2PurchaseOptions = () => {
@@ -622,14 +898,12 @@ export default function MarketItemActions({
                     <p className="mt-1 text-xs leading-5 text-slate-600">
                       {bundleOption.description || `한 번 구매하면 아래 개별 자료 ${subproducts.length}개를 모두 다운로드할 수 있습니다.`}
                     </p>
+                    {!bundleOption.owned && isPartiallyOwnedBundle ? (
+                      <p className="mt-2 text-xs leading-5 text-slate-600">이미 구매한 개별 자료가 있어도 기보유분 차감 없이 정가로 구매됩니다.</p>
+                    ) : null}
                   </div>
                 </div>
-                <OptionStateBadge state={getV2OptionState({
-                  purchaseType: 'bundle',
-                  bundleOptionId: bundleOption.id,
-                  title: bundleOption.label || '전체 패키지',
-                  priceCredits: bundleOption.priceCredits,
-                }, bundleOption.owned)} />
+                <OptionStateBadge state={getOptionState(`bundle:${bundleOption.id}`, bundleOption.owned)} />
               </div>
               <div className="mt-4 rounded-xl border border-emerald-100 bg-white/75 p-3">
                 <p className="text-xs font-semibold text-emerald-800">포함 자료</p>
@@ -654,21 +928,9 @@ export default function MarketItemActions({
                   <p className="text-xs text-slate-500">패키지 이용가</p>
                   <p className="mt-1 text-xl font-bold text-slate-950">{formatCredits(bundleOption.priceCredits)} 크레딧</p>
                 </div>
-                {bundleOption.owned ? renderDownloadButtons(dedupeQuestionPdfFiles(downloadFiles)) : (
-                  <Button
-                    className={MARKET_PRIMARY_BUTTON_CLASS}
-                    disabled={isPending || isCheckingBalance}
-                    onClick={() => void openV2PurchaseConfirmation({
-                      purchaseType: 'bundle',
-                      bundleOptionId: bundleOption.id,
-                      title: bundleOption.label || '전체 패키지',
-                      priceCredits: bundleOption.priceCredits,
-                    })}
-                  >
-                    <ShoppingCart className="h-4 w-4" />
-                    전체 패키지 구매
-                  </Button>
-                )}
+                {bundleOption.owned
+                  ? renderDownloadButtons(dedupeQuestionPdfFiles(downloadFiles))
+                  : renderOptionSelectControl(`bundle:${bundleOption.id}`)}
               </div>
             </div>
           </section>
@@ -686,16 +948,7 @@ export default function MarketItemActions({
             ) : null}
             <SectionHeading title="개별 자료 선택 구매" description="전체 패키지가 필요 없다면 원하는 자료만 구매하세요." />
             <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              {(() => {
-                // 문제(HWP) 서브상품(PDF 포함)을 단건 소유한 경우, 이미 포함된 문제(PDF) 카드는 숨긴다.
-                // ownedScope 는 번들 소유 시 'item' 이므로 번들 소유자는 숨김 대상이 아니다.
-                const hasOwnedPdfInclusiveHwp = subproducts.some((sibling) => (
-                  sibling.categorySlug === 'question_hwp'
-                  && sibling.ownedScope === 'subproduct'
-                  && sibling.fileTypes.some((fileType) => fileType.code.toLowerCase() === 'pdf')
-                ))
-
-                return subproducts.map((subproduct) => {
+              {subproducts.map((subproduct) => {
                 if (subproduct.categorySlug === 'question_pdf' && hasOwnedPdfInclusiveHwp) {
                   return null
                 }
@@ -711,12 +964,7 @@ export default function MarketItemActions({
                   : subproduct.priceCredits
                 const subproductState = isBundleIncluded
                   ? 'included'
-                  : getV2OptionState({
-                    purchaseType: 'subproduct',
-                    subproductId: subproduct.id,
-                    title: subproduct.title,
-                    priceCredits: effectivePriceCredits,
-                  }, subproduct.owned)
+                  : getOptionState(`subproduct:${subproduct.id}`, subproduct.owned)
 
                 return (
                   <FileOptionRow
@@ -729,25 +977,55 @@ export default function MarketItemActions({
                       : '개별가'}
                     state={subproductState}
                     icon={<MarketOptionIcon kind={iconKind} />}
-                    actionLabel={isDownloadable ? '다운로드' : '이 자료만 구매'}
-                    actionIcon={isDownloadable ? <Download className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
+                    actionLabel={isDownloadable ? '다운로드' : '선택'}
+                    actionIcon={isDownloadable ? <Download className="h-4 w-4" /> : undefined}
                     buttonClassName={MARKET_OUTLINE_BUTTON_CLASS}
-                    actionSlot={isDownloadable ? renderDownloadButtons(ownedFiles) : undefined}
-                    disabled={isPending || isCheckingBalance}
+                    actionSlot={isDownloadable
+                      ? renderDownloadButtons(ownedFiles)
+                      : renderOptionSelectControl(`subproduct:${subproduct.id}`)}
                     meta={<FileTypeBadges subproduct={subproduct} />}
                     notice={resolveSubproductPurchaseNotice(subproduct)}
                     className="rounded-xl border-slate-200 p-3 shadow-none"
-                    onAction={!isDownloadable ? () => void openV2PurchaseConfirmation({
-                      purchaseType: 'subproduct',
-                      subproductId: subproduct.id,
-                      title: subproduct.title,
-                      priceCredits: effectivePriceCredits,
-                    }) : undefined}
                   />
                 )
-                })
-              })()}
+              })}
             </div>
+          </section>
+        ) : null}
+
+        {hasSelectableOption ? (
+          <section aria-label="선택한 옵션 합계" className="border-t border-[var(--studio-border)] pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <p className="text-sm font-semibold text-[var(--studio-text)]">선택 {selectedOptions.length}건</p>
+              <p className="flex items-baseline gap-2">
+                <span className="text-sm text-[var(--studio-muted)]">총 금액</span>
+                <span className="text-lg font-extrabold text-[var(--studio-ink)]">{formatCredits(selectedTotal)} 크레딧</span>
+              </p>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Button
+                variant="brandOutline"
+                className="h-11 w-full"
+                disabled={selectedOptions.length === 0 || isBusy}
+                aria-describedby={selectedOptions.length === 0 ? `${selectionIdPrefix}-empty` : undefined}
+                onClick={() => void addSelectedToCart()}
+              >
+                <ShoppingCart aria-hidden="true" className="h-4 w-4" />
+                {isAddingToCart ? '담는 중' : '장바구니'}
+              </Button>
+              <Button
+                variant="brand"
+                className="h-11 w-full"
+                disabled={selectedOptions.length === 0 || isBusy}
+                aria-describedby={selectedOptions.length === 0 ? `${selectionIdPrefix}-empty` : undefined}
+                onClick={() => void openCheckout()}
+              >
+                구매하기
+              </Button>
+            </div>
+            {selectedOptions.length === 0 ? (
+              <p id={`${selectionIdPrefix}-empty`} className="mt-2 text-xs text-[var(--studio-muted)]">구매하거나 담을 옵션을 선택하세요.</p>
+            ) : null}
           </section>
         ) : null}
       </div>
@@ -790,50 +1068,45 @@ export default function MarketItemActions({
       {hasV2PurchaseOptions ? renderV2PurchaseOptions() : (
         <>
 
-      {(hasPdf || ownsPdf) ? (
+      {/* legacy 구매는 종료(410)되어 구매 버튼을 숨기고, 기존 구매자의 다운로드만 유지한다 */}
+      {ownsPdf ? (
         <FileOptionRow
           title="PDF"
-          description={ownsPdf ? '구매 완료된 PDF 파일입니다.' : '구매 후 바로 PDF를 다운로드할 수 있습니다.'}
+          description="구매 완료된 PDF 파일입니다."
           priceLabel={`${formatCredits(pdfPrice)} 크레딧`}
-          state={getPaidOptionState('pdf', ownsPdf, hasPdf)}
-          icon={ownsPdf ? <MarketOptionIcon kind="default" /> : <MarketOptionIcon kind="pdf" />}
-          actionLabel={ownsPdf ? 'PDF 다운로드' : 'PDF 구매하기'}
-          actionIcon={ownsPdf ? <FileTypeDocIcon code="pdf" /> : <ShoppingCart className="h-4 w-4" />}
-          href={ownsPdf ? buildDownloadUrl(itemId, 'pdf') : undefined}
-          disabled={!hasPdf || isPending || isCheckingBalance}
-          buttonClassName={ownsPdf ? MARKET_DOWNLOAD_BUTTON_CLASS : undefined}
-          onAction={!ownsPdf && hasPdf ? () => void openPurchaseConfirmation('pdf') : undefined}
+          state="owned"
+          icon={<MarketOptionIcon kind="default" />}
+          actionLabel="PDF 다운로드"
+          actionIcon={<FileTypeDocIcon code="pdf" />}
+          href={buildDownloadUrl(itemId, 'pdf')}
+          buttonClassName={MARKET_DOWNLOAD_BUTTON_CLASS}
         />
       ) : null}
 
-      {(hasHwp || ownsHwp) ? (
+      {ownsHwp ? (
         <FileOptionRow
           title="HWP & PDF"
-          description={ownsHwp ? '구매 완료된 HWP & PDF 묶음입니다.' : '구매 후 PDF와 HWP를 모두 다운로드할 수 있습니다.'}
+          description="구매 완료된 HWP & PDF 묶음입니다."
           priceLabel={`${formatCredits(hwpPrice)} 크레딧`}
-          state={getPaidOptionState('hwp', ownsHwp, hasHwp)}
-          icon={ownsHwp ? <MarketOptionIcon kind="default" /> : <MarketOptionIcon kind="hwp" />}
-          actionLabel={ownsHwp ? 'HWP 다운로드' : 'HWP & PDF 구매하기'}
-          actionIcon={ownsHwp ? <FileTypeDocIcon code="hwp" /> : <ShoppingCart className="h-4 w-4" />}
-          href={ownsHwp ? buildDownloadUrl(itemId, 'hwp') : undefined}
-          disabled={!hasHwp || isPending || isCheckingBalance}
-          buttonClassName={ownsHwp ? MARKET_DOWNLOAD_BUTTON_CLASS : undefined}
-          onAction={!ownsHwp && hasHwp ? () => void openPurchaseConfirmation('hwp') : undefined}
+          state="owned"
+          icon={<MarketOptionIcon kind="default" />}
+          actionLabel="HWP 다운로드"
+          actionIcon={<FileTypeDocIcon code="hwp" />}
+          href={buildDownloadUrl(itemId, 'hwp')}
+          buttonClassName={MARKET_DOWNLOAD_BUTTON_CLASS}
         />
       ) : null}
-      {(hasZip || ownsZip) ? (
+      {ownsZip ? (
         <FileOptionRow
           title="ZIP"
-          description={ownsZip ? '구매 완료된 ZIP 파일입니다.' : '구매 후 ZIP 파일을 다운로드할 수 있습니다.'}
+          description="구매 완료된 ZIP 파일입니다."
           priceLabel={`${formatCredits(zipPrice)} 크레딧`}
-          state={getPaidOptionState('zip', ownsZip, hasZip)}
-          icon={ownsZip ? <MarketOptionIcon kind="default" /> : <MarketOptionIcon kind="zip" />}
-          actionLabel={ownsZip ? 'ZIP 다운로드' : 'ZIP 구매하기'}
-          actionIcon={ownsZip ? <FileTypeDocIcon code="zip" /> : <ShoppingCart className="h-4 w-4" />}
-          href={ownsZip ? buildDownloadUrl(itemId, 'zip') : undefined}
-          disabled={!hasZip || isPending || isCheckingBalance}
-          buttonClassName={ownsZip ? MARKET_DOWNLOAD_BUTTON_CLASS : undefined}
-          onAction={!ownsZip && hasZip ? () => void openPurchaseConfirmation('zip') : undefined}
+          state="owned"
+          icon={<MarketOptionIcon kind="default" />}
+          actionLabel="ZIP 다운로드"
+          actionIcon={<FileTypeDocIcon code="zip" />}
+          href={buildDownloadUrl(itemId, 'zip')}
+          buttonClassName={MARKET_DOWNLOAD_BUTTON_CLASS}
         />
       ) : null}
         </>
@@ -843,21 +1116,47 @@ export default function MarketItemActions({
         구매 후 바로 다운로드할 수 있으며, 구매한 파일은 <span className="font-semibold text-slate-700">{libraryPurchaseLabel}</span>에서도 확인할 수 있습니다.
       </div>
 
-      <CreditConfirmationDialog
-        open={showConfirmation}
-        onClose={() => {
-          if (isPending) return
-          setShowConfirmation(false)
-          setPendingPurchaseKind(null)
-          setPendingV2PurchaseIntent(null)
-        }}
-        onConfirm={handleConfirmPurchase}
-        requiredAmount={requiredCredits}
-        currentBalance={currentBalance}
-        isLoading={isPending || isCheckingBalance}
+      <MarketCheckoutConfirmDialog
+        open={checkout !== null}
         title="문제마켓 구매 확인"
-        description={confirmationDescription}
+        description="크레딧으로 선택한 자료를 한 번에 구매합니다. 하나라도 구매할 수 없으면 전체 구매가 취소됩니다."
+        lines={(checkout?.lines ?? []).map((line) => ({
+          key: line.key,
+          title: line.title,
+          optionTitle: null,
+          expectedCredits: line.expectedCredits,
+          previousCredits: line.previousCredits,
+        }))}
+        total={checkoutTotal}
+        balance={checkout?.balance ?? 0}
+        needsAcknowledgement={needsAcknowledgement}
+        acknowledged={checkout?.acknowledged ?? false}
+        onAcknowledgedChange={(acknowledged) => checkout && setCheckout({ ...checkout, acknowledged })}
+        notice={checkout?.notice ?? null}
+        shortfall={checkout?.shortfall ?? null}
+        chargeHref="/pricing"
+        submitting={checkout?.submitting ?? false}
+        retryable={checkout?.retryable ?? false}
+        onCancel={() => setCheckout(null)}
+        onConfirm={() => void submitCheckout()}
       />
+
+      <Dialog open={cartAddedMessage !== null} onOpenChange={(open) => !open && setCartAddedMessage(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>장바구니 담기</DialogTitle>
+            <DialogDescription>{cartAddedMessage}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="brandOutline" onClick={() => setCartAddedMessage(null)}>
+              계속 둘러보기
+            </Button>
+            <Button asChild variant="brand">
+              <Link href="/cart">장바구니 보기</Link>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <MarketPurchaseCompleteDialog
         message={purchaseCompleteMessage}

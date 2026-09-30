@@ -12,7 +12,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ChevronDown } from 'lucide-react'
+import { MarketCartIndicator } from '@/components/market/market-cart-indicator'
 import { HeaderClient } from './header-client'
+import { SiteLogo } from './site-logo'
 import { WorkspaceLink } from './workspace-link'
 import { WorkspaceSubjectToggle } from './workspace-subject-toggle'
 import { buildAuthRedirectPath } from '@/lib/auth-paths'
@@ -33,6 +35,8 @@ interface HeaderShellClientProps {
   userName: string
   isAdmin: boolean
   creditBalance: number
+  userId: string | null
+  cartCount: number | null
 }
 
 function isGeneratePersonalChild(parentHref?: string, childHref?: string) {
@@ -70,6 +74,8 @@ export function HeaderShellClient({
   userName,
   isAdmin,
   creditBalance,
+  userId,
+  cartCount,
 }: HeaderShellClientProps) {
   const pathname = usePathname() ?? '/'
   const searchParams = useSearchParams()
@@ -107,6 +113,7 @@ export function HeaderShellClient({
   const currentLocation = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
   const loginHref = buildAuthRedirectPath(currentLocation, '/login')
   const signupHref = buildAuthRedirectPath(currentLocation, '/signup')
+  const cartIndicatorClassName = 'grid min-h-11 min-w-11 shrink-0 place-items-center rounded-full text-slate-600 outline-none hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]'
 
   return (
     <header className="border-b bg-white sticky top-0 z-50">
@@ -114,9 +121,10 @@ export function HeaderShellClient({
         <div className="flex min-w-0 flex-1 items-center gap-3 md:flex-none">
           <Link
             href="/"
-            className="min-w-0 max-w-[220px] truncate font-bold text-xl text-primary"
+            className="flex min-w-0 max-w-[220px] items-center gap-2 font-bold text-xl text-primary"
           >
-            써머썬 연구소
+            <SiteLogo size={34} />
+            <span className="truncate">써머썬 연구소</span>
           </Link>
           <WorkspaceSubjectToggle />
         </div>
@@ -197,6 +205,7 @@ export function HeaderShellClient({
                 </WorkspaceLink>
               </Button>
             ) : null}
+            <MarketCartIndicator ownerId={userId} initialCount={cartCount} className={cartIndicatorClassName} />
             {isLoggedIn ? (
               <HeaderClient
                 key={`header-client-${userName || 'guest'}`}
@@ -220,7 +229,8 @@ export function HeaderShellClient({
           </div>
         </div>
 
-        <div className="shrink-0 md:hidden">
+        <div className="flex shrink-0 items-center gap-1 md:hidden">
+          <MarketCartIndicator ownerId={userId} initialCount={cartCount} className={cartIndicatorClassName} />
           <HeaderClient
             key={`header-client-mobile-${userName || 'guest'}`}
             isLoggedIn={isLoggedIn}

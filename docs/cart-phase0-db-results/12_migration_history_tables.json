@@ -1,0 +1,1 @@
+{"query":"preflight #14 information_schema.tables WHERE table_schema='supabase_migrations'","rows":[{"table_schema":"supabase_migrations","table_name":"seed_files"},{"table_schema":"supabase_migrations","table_name":"schema_migrations"}]}

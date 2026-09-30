@@ -1,0 +1,1 @@
+{"query":"preflight #10 storage.buckets WHERE id='market-files'","result":[{"id":"market-files","public":false,"file_size_limit":52428800,"allowed_mime_types":null}],"note":"file_size_limit=52428800 bytes(50MiB), allowed_mime_types=null(버킷 레벨 MIME 제한 없음)"}

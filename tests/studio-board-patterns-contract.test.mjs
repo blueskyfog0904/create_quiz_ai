@@ -271,14 +271,14 @@ test('StudioPagination is controlled, link-optional, bounded, and accessible', (
     source,
     /onClick=\{\(event\)\s*=>\s*handleLinkClick\(event,\s*targetPage\)\}/
   )
-  assert.match(source, /<a\b[^>]*href=\{href\}/)
+  assert.match(source, /<Link\b[^>]*href=\{href\}/)
   assert.match(source, /<Button\b/)
   assert.match(
     source,
     /paginationControlClassName\s*=\s*['"][^'"]*min-h-11 min-w-11/
   )
   const sharedClassUses =
-    source.match(/className=\{paginationControlClassName\}/g)?.length ?? 0
+    source.match(/className=\{controlClassName\}/g)?.length ?? 0
   assert.ok(
     sharedClassUses >= 2,
     'link and button pagination branches must share the 44px control class'

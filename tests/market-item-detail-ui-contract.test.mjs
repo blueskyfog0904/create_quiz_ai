@@ -77,8 +77,8 @@ test('market item detail separates sample preview from purchase options', () => 
   assert.match(itemActions, /구매 전 확인/)
   assert.match(itemActions, /샘플 보기/)
   assert.match(itemActions, /샘플 준비 중/)
-  assert.match(itemActions, /PDF 구매하기/)
-  assert.match(itemActions, /HWP & PDF 구매하기/)
+  assert.doesNotMatch(itemActions, /PDF 구매하기/)
+  assert.doesNotMatch(itemActions, /HWP & PDF 구매하기/)
   assert.match(itemActions, /libraryPurchaseLabel/)
   assert.match(itemActions, /국어 라이브러리 > 구매자료/)
   assert.match(itemActions, /영어 라이브러리 > 구매자료/)
@@ -94,7 +94,10 @@ test('market item detail presents bundle as a package containing subproducts', (
   assert.match(itemActions, /포함 자료/)
   assert.match(itemActions, /subproducts\.map\(\(subproduct\)/)
   assert.match(itemActions, /subproduct\.title/)
-  assert.match(itemActions, /전체 패키지 구매/)
+  assert.doesNotMatch(itemActions, /전체 패키지 구매/)
+  assert.match(itemActions, /구매하기/)
+  assert.match(itemActions, /장바구니/)
+  assert.match(itemActions, /총 금액/)
   assert.match(itemActions, /포함 상품 정보가 아직 표시되지 않습니다\./)
 })
 
@@ -103,7 +106,8 @@ test('market item detail shows individual subproducts as lower-emphasis alternat
   assert.match(itemActions, /개별 자료 선택 구매/)
   assert.match(itemActions, /전체 패키지가 필요 없다면 원하는 자료만 구매하세요/)
   assert.match(itemActions, /개별가/)
-  assert.match(itemActions, /이 자료만 구매/)
+  assert.doesNotMatch(itemActions, /이 자료만 구매/)
+  assert.match(itemActions, /aria-label=\{`\$\{option\.title\} 선택`\}/)
   assert.match(itemActions, /패키지 포함/)
 })
 
@@ -124,10 +128,13 @@ test('market item detail shows editable purchase notice copy on HWP PDF subprodu
   assert.match(itemActions, /notice=\{resolveSubproductPurchaseNotice\(subproduct\)\}/)
 })
 
-test('market item detail hides unavailable paid file rows', () => {
-  assert.match(itemActions, /\{\(hasPdf \|\| ownsPdf\) \? \(/)
-  assert.match(itemActions, /\{\(hasHwp \|\| ownsHwp\) \? \(/)
-  assert.match(itemActions, /\{\(hasZip \|\| ownsZip\) \? \(/)
+test('market item detail shows legacy paid file rows only to existing owners (legacy purchase closed)', () => {
+  assert.match(itemActions, /\{ownsPdf \? \(/)
+  assert.match(itemActions, /\{ownsHwp \? \(/)
+  assert.match(itemActions, /\{ownsZip \? \(/)
+  assert.doesNotMatch(itemActions, /\bhas(Pdf|Hwp|Zip)\b/)
+  assert.doesNotMatch(itemActions, /openPurchaseConfirmation\(/)
+  assert.doesNotMatch(itemActions, /assetKind: pendingPurchaseKind/)
   assert.doesNotMatch(itemActions, /PDF 없음/)
   assert.doesNotMatch(itemActions, /HWP & PDF 없음/)
   assert.doesNotMatch(itemActions, /ZIP 없음/)
@@ -140,8 +147,7 @@ test('market item detail hides unavailable paid file rows', () => {
 test('market item purchase success uses a centered confirmation dialog instead of a toast', () => {
   assert.match(itemActions, /MarketPurchaseCompleteDialog/)
   assert.match(itemActions, /const \[purchaseCompleteMessage, setPurchaseCompleteMessage\] = useState<string \| null>\(null\)/)
-  assert.match(itemActions, /const fallbackMessage = pendingV2PurchaseIntent/)
-  assert.match(itemActions, /setPurchaseCompleteMessage\(payload\.message \|\| fallbackMessage\)/)
+  assert.match(itemActions, /setPurchaseCompleteMessage\(payload\.message \|\| `선택한 자료 \$\{request\.lines\.length\}건 구매가 완료되었습니다\.`\)/)
   assert.doesNotMatch(itemActions, /toast\.success\(payload\.message/)
   assert.match(itemActions, /message=\{purchaseCompleteMessage\}/)
   assert.match(itemActions, /onClose=\{\(\) => setPurchaseCompleteMessage\(null\)\}/)
@@ -151,7 +157,8 @@ test('market item detail action states and failure messages are explicit', () =>
   assert.match(itemActions, /OptionState = 'instant' \| 'owned' \| 'included' \| 'available' \| 'unavailable' \| 'checking' \| 'processing'/)
   assert.match(itemActions, /status === 401/)
   assert.match(itemActions, /status === 402/)
-  assert.match(itemActions, /status === 409/)
+  assert.match(itemActions, /code === 'PRICE_CHANGED'/)
+  assert.match(itemActions, /code === 'ACK_REQUIRED'/)
   assert.match(itemActions, /status >= 500/)
 })
 
@@ -161,14 +168,15 @@ test('market item downloads preserve existing paid file API URLs', () => {
   assert.match(itemActions, /\/api\/market\/items\/\$\{itemId\}\/purchase/)
 })
 
-test('market item sample preview prefetch intent is wired only for eligible users', () => {
+test('market item sample preview prefetch is available to visitors when samples exist', () => {
   assert.match(itemActions, /onIntent\?: \(\) => void/)
   assert.match(itemActions, /onFocus=\{onIntent\}/)
   assert.match(itemActions, /onMouseEnter=\{onIntent\}/)
   assert.match(itemActions, /onTouchStart=\{onIntent\}/)
   assert.match(itemActions, /const \[samplePreviewPrefetchKey, setSamplePreviewPrefetchKey\] = useState\(0\)/)
   assert.match(itemActions, /const prefetchSamplePreview = \(\) => \{/)
-  assert.match(itemActions, /!isLoggedIn \|\| !hasSamplePages/)
+  assert.match(itemActions, /if \(!hasSamplePages\)/)
+  assert.doesNotMatch(itemActions, /!isLoggedIn \|\| !hasSamplePages/)
   assert.match(itemActions, /setSamplePreviewPrefetchKey\(\(value\) => value \+ 1\)/)
   assert.match(itemActions, /onIntent=\{hasSamplePages \? prefetchSamplePreview : undefined\}/)
   assert.match(itemActions, /prefetchKey=\{samplePreviewPrefetchKey\}/)

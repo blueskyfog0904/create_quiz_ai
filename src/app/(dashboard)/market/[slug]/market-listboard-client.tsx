@@ -4,8 +4,9 @@ import { useMemo, useRef, useState } from 'react'
 import { FileSearch, FileText } from 'lucide-react'
 import {
   StudioEmptyState,
-  StudioPagination,
 } from '@/components/design-system'
+import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
+import { useListQuery } from '@/hooks/use-list-query'
 import { WorkspaceLink } from '@/components/layout/workspace-link'
 import { Button } from '@/components/ui/button'
 import type { MarketListboardRow } from '@/lib/market-items-server'
@@ -19,8 +20,6 @@ interface MarketListboardClientProps {
   isLoggedIn: boolean
 }
 
-const PER_PAGE_OPTIONS = [10, 20, 30] as const
-
 function formatPublishedDate(value: string) {
   const date = new Date(value)
   const year = date.getFullYear()
@@ -31,8 +30,8 @@ function formatPublishedDate(value: string) {
 }
 
 export default function MarketListboardClient({ categorySlug, workspaceSubject, rows }: MarketListboardClientProps) {
-  const [currentPage, setCurrentPage] = useState(1)
-  const [rowsPerPage, setRowsPerPage] = useState<number>(10)
+  const listQuery = useListQuery()
+  const { page: currentPage, pageSize: rowsPerPage, setPage: setCurrentPage } = listQuery
   const [samplePreviewItemId, setSamplePreviewItemId] = useState<string | null>(null)
   const [samplePreviewPrefetchKey, setSamplePreviewPrefetchKey] = useState(0)
   const [isSamplePreviewOpen, setIsSamplePreviewOpen] = useState(false)
@@ -143,36 +142,7 @@ export default function MarketListboardClient({ categorySlug, workspaceSubject, 
         </div>
       </div>
 
-      <div className="mt-4 space-y-4 pb-[env(safe-area-inset-bottom)]">
-        <div className="grid gap-3 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] px-4 py-3 shadow-[var(--studio-shadow-card)] md:grid-cols-[1fr_auto_1fr] md:items-center">
-          <div className="text-center text-xs text-[var(--studio-muted)] md:text-left">
-            총 {rows.length}건 · {activePage}/{totalPages} 페이지
-          </div>
-          <div className="justify-self-center">
-            <StudioPagination
-              page={activePage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-            />
-          </div>
-          <div className="flex items-center justify-center gap-2 text-sm text-[var(--studio-text)] md:justify-end">
-            <label htmlFor="market-rows-per-page">표시 개수</label>
-            <select
-              id="market-rows-per-page"
-              value={rowsPerPage}
-              onChange={(event) => {
-                setRowsPerPage(Number(event.target.value))
-                setCurrentPage(1)
-              }}
-              className="flex min-h-11 min-w-11 rounded-[var(--studio-radius-control)] border border-[var(--studio-control-border)] bg-[var(--studio-surface)] px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-            >
-              {PER_PAGE_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
+      <StudioListPagination page={activePage} pageSize={rowsPerPage} totalCount={rows.length} onPageChange={setCurrentPage} onPageSizeChange={listQuery.setPageSize} />
 
       {samplePreviewItemId ? (
         <MarketSamplePreviewDialog

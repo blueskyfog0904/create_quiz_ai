@@ -3,6 +3,7 @@ import { HeaderShellClient } from './header-shell-client'
 import { getHeaderNavigationConfig } from '@/lib/header-navigation-server'
 import { getActiveHeaderNavigationItems } from '@/lib/header-navigation'
 import { getCreditBalanceSnapshot, logCreditBalanceMismatch, selectDisplayBalance } from '@/lib/credit-balance'
+import { getMarketCartBadgeCount } from '@/lib/market-cart-server'
 
 function reorderGenerateChildren(items: ReturnType<typeof getActiveHeaderNavigationItems>) {
   return items.map((item) => {
@@ -54,6 +55,8 @@ export async function Header() {
     }
   }
 
+  const cartCount = await getMarketCartBadgeCount(user?.id ?? null)
+
   return (
     <HeaderShellClient
       englishMenuItems={reorderGenerateChildren(getActiveHeaderNavigationItems(englishConfig.items))}
@@ -62,6 +65,8 @@ export async function Header() {
       userName={profile?.name || profile?.email || user?.email || ''}
       isAdmin={isAdmin}
       creditBalance={snapshot && user ? selectDisplayBalance(user.id, snapshot) : 0}
+      userId={user?.id ?? null}
+      cartCount={cartCount}
     />
   )
 }

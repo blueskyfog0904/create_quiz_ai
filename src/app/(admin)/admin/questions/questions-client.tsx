@@ -1,7 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
+import { useListQuery } from '@/hooks/use-list-query'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { Card, CardContent } from '@/components/ui/card'
@@ -26,8 +28,6 @@ import {
 import {
   Search,
   Filter,
-  ChevronLeft,
-  ChevronRight,
   Edit,
   Trash2,
   Eye,
@@ -92,6 +92,8 @@ export function QuestionsClient({
   workspaceSubject,
 }: QuestionsClientProps) {
   const router = useRouter()
+  const listQuery = useListQuery()
+  const requestId = useRef(0)
   const [questions, setQuestions] = useState<Question[]>([])
   const [loading, setLoading] = useState(true)
   const [pagination, setPagination] = useState({
@@ -102,14 +104,22 @@ export function QuestionsClient({
   })
 
   // Filters
-  const [search, setSearch] = useState('')
-  const [gradeLevel, setGradeLevel] = useState('')
-  const [difficulty, setDifficulty] = useState('')
-  const [problemTypeId, setProblemTypeId] = useState('')
-  const [yearId, setYearId] = useState('')
-  const [bookId, setBookId] = useState('')
-  const [sortBy, setSortBy] = useState('created_at')
-  const [sortOrder, setSortOrder] = useState('desc')
+  const search = listQuery.params.get('q') ?? ''
+  const setSearch = (value: string) => listQuery.update({ 'q': value, page: 1 }, true)
+  const gradeLevel = listQuery.params.get('grade_level') ?? ''
+  const setGradeLevel = (value: string) => listQuery.update({ 'grade_level': value, page: 1 })
+  const difficulty = listQuery.params.get('difficulty') ?? ''
+  const setDifficulty = (value: string) => listQuery.update({ 'difficulty': value, page: 1 })
+  const problemTypeId = listQuery.params.get('problem_type_id') ?? ''
+  const setProblemTypeId = (value: string) => listQuery.update({ 'problem_type_id': value, page: 1 })
+  const yearId = listQuery.params.get('year_id') ?? ''
+  const setYearId = (value: string) => listQuery.update({ 'year_id': value, page: 1 })
+  const bookId = listQuery.params.get('book_id') ?? ''
+  const setBookId = (value: string) => listQuery.update({ 'book_id': value, page: 1 })
+  const sortBy = listQuery.params.get('sort_by') ?? 'created_at'
+  const setSortBy = (value: string) => listQuery.update({ 'sort_by': value, page: 1 })
+  const sortOrder = listQuery.params.get('sort_order') ?? 'desc'
+  const setSortOrder = (value: string) => listQuery.update({ 'sort_order': value, page: 1 })
 
   // Delete dialog
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; question: Question | null }>({
@@ -125,11 +135,12 @@ export function QuestionsClient({
   })
 
   const fetchQuestions = useCallback(async () => {
+    const id = ++requestId.current
     try {
       setLoading(true)
       const params = new URLSearchParams({
-        page: pagination.page.toString(),
-        limit: pagination.limit.toString(),
+        page: listQuery.page.toString(),
+        limit: listQuery.pageSize.toString(),
         sort_by: sortBy,
         sort_order: sortOrder,
       })
@@ -146,14 +157,15 @@ export function QuestionsClient({
       if (!response.ok) throw new Error('Failed to fetch')
       
       const data = await response.json()
+      if (id !== requestId.current) return
       setQuestions(data.questions)
       setPagination(data.pagination)
     } catch (error) {
       console.error('Error fetching questions:', error)
     } finally {
-      setLoading(false)
+      if (id === requestId.current) setLoading(false)
     }
-  }, [pagination.page, pagination.limit, search, gradeLevel, difficulty, problemTypeId, yearId, bookId, sortBy, sortOrder, workspaceSubject])
+  }, [listQuery.page, listQuery.pageSize, search, gradeLevel, difficulty, problemTypeId, yearId, bookId, sortBy, sortOrder, workspaceSubject])
 
   useEffect(() => {
     fetchQuestions()
@@ -161,7 +173,7 @@ export function QuestionsClient({
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    setPagination(prev => ({ ...prev, page: 1 }))
+    listQuery.setPage(1)
   }
 
   const handleDelete = async () => {
@@ -200,19 +212,11 @@ export function QuestionsClient({
     if (key === 'yearId') setYearId(nextValue)
     if (key === 'bookId') setBookId(nextValue)
 
-    setPagination(prev => ({ ...prev, page: 1 }))
+    listQuery.setPage(1)
   }
 
   const resetFilters = () => {
-    setSearch('')
-    setGradeLevel('')
-    setDifficulty('')
-    setProblemTypeId('')
-    setYearId('')
-    setBookId('')
-    setSortBy('created_at')
-    setSortOrder('desc')
-    setPagination(prev => ({ ...prev, page: 1 }))
+    listQuery.update({ q: '', grade_level: '', difficulty: '', problem_type_id: '', year_id: '', book_id: '', sort_by: 'created_at', sort_order: 'desc', page: 1 })
   }
 
   return (
@@ -456,38 +460,7 @@ export function QuestionsClient({
         </CardContent>
       </Card>
 
-      {/* Pagination */}
-      {pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-500">
-            총 {pagination.total}개 중 {(pagination.page - 1) * pagination.limit + 1}-
-            {Math.min(pagination.page * pagination.limit, pagination.total)}개 표시
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page === 1}
-              onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              이전
-            </Button>
-            <span className="text-sm text-gray-600 px-2">
-              {pagination.page} / {pagination.totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page === pagination.totalPages}
-              onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-            >
-              다음
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
+      <StudioListPagination page={pagination.page} pageSize={listQuery.pageSize} totalCount={pagination.total} onPageChange={listQuery.setPage} onPageSizeChange={listQuery.setPageSize} />
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog({ open, question: null })}>

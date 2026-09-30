@@ -7,6 +7,7 @@
  */
 
 import { redirect } from 'next/navigation'
+import { buildAuthRedirectPath } from '@/lib/auth-paths'
 import { assertKakaoPayReady } from '@/lib/kakaopay-server'
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
 import { createClient } from '@/lib/supabase/server'
@@ -32,7 +33,7 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect(`/login?redirect=/checkout?planId=${planId}`)
+    redirect(buildAuthRedirectPath(`/checkout?planId=${planId}`))
   }
 
   const { data: profile } = await supabase

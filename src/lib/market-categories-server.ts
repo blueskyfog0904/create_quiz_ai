@@ -4,6 +4,8 @@ import { listActiveMarketItemSamplePagesForItems } from '@/lib/market-sample-pag
 import type { MarketSearchRow } from '@/lib/market-search-server'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { isWorkspaceSubject, type WorkspaceSubject } from '@/lib/workspace-subject'
+import { getListPagination } from '@/lib/list-pagination'
+import { readAllQueryRows } from '@/lib/read-all-query-rows'
 
 // admin-accounts-server의 AdminAccountError와 동일한 status+message 패턴
 export class MarketCategoryError extends Error {
@@ -21,7 +23,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 export interface MegaMenuGroup {
   id: string
   title: string
-  items: { id: string; title: string }[]
+  itemCount?: number
+  items: { id: string; title: string; itemCount?: number }[]
 }
 
 export interface MarketCategoryMenu {
@@ -30,7 +33,7 @@ export interface MarketCategoryMenu {
 }
 
 // 공개 메가메뉴 트리: 활성 그룹 + 활성 항목만, sort_order 정렬.
-export async function listMarketCategoryMenu(): Promise<MarketCategoryMenu> {
+export async function listMarketCategoryMenu(includeCounts = false): Promise<MarketCategoryMenu> {
   const supabase = createAdminClient()
 
   const [groupsResult, itemsResult] = await Promise.all([
@@ -75,6 +78,28 @@ export async function listMarketCategoryMenu(): Promise<MarketCategoryMenu> {
     })
   }
 
+  if (includeCounts) {
+    await Promise.all((['english', 'korean'] as const).map(async (subject) => {
+      const { data: entries, error } = await supabase.from('market_menu_entries').select('id')
+        .eq('workspace_subject', subject).eq('is_visible', true).eq('is_active', true).is('deleted_at', null)
+      if (error) throw new Error(error.message)
+      const menuIds = (entries ?? []).map((entry) => entry.id)
+      await Promise.all(menu[subject].map(async (group) => {
+        await Promise.all(group.items.map(async (item) => {
+          if (menuIds.length === 0) {
+            item.itemCount = 0
+            return
+          }
+          const { count, error: countError } = await supabase.from('market_items').select('id', { count: 'exact', head: true })
+            .eq('category_item_id', item.id).eq('workspace_subject', subject)
+            .eq('status', 'published').eq('is_active', true).is('deleted_at', null).in('menu_entry_id', menuIds)
+          if (countError) throw new Error(countError.message)
+          item.itemCount = count ?? 0
+        }))
+        group.itemCount = group.items.reduce((sum, item) => sum + (item.itemCount ?? 0), 0)
+      }))
+    }))
+  }
   return menu
 }
 
@@ -131,59 +156,88 @@ export async function getMarketCategoryItemDetail(id: string): Promise<MarketCat
 // 카테고리에 등록된 공개 상품 카드 데이터.
 // market-search-server.searchMarketItemsForSubject와 동일한 조립 방식(메뉴 노출 가드,
 // 서브상품 최저가, 유형명, 샘플 가용성)을 category_item_id 필터로 재현한다.
-export async function listMarketItemsForCategory(categoryItemId: string): Promise<MarketSearchRow[]> {
+export interface CategoryListFilters {
+  q?: string
+  sort?: 'views' | 'latest'
+  page?: number
+  pageSize?: number
+}
+
+export async function listMarketItemsForCategory(categoryItemId: string, filters: CategoryListFilters = {}) {
+  const empty = { rows: [] as MarketSearchRow[], ...getListPagination(0, 1, filters.pageSize) }
   const detail = await getMarketCategoryItemDetail(categoryItemId)
   if (!detail) {
-    return []
+    return empty
   }
   const workspaceSubject = detail.workspaceSubject
 
   const supabase = createAdminClient()
-  const [itemsResult, menuResult, subproductsResult, typeCategoriesResult, reviewsResult] = await Promise.all([
-    supabase
-      .from('market_items')
-      .select('id, title, summary, thumbnail_url, menu_entry_id, exam_year, grade_level, question_count, view_count, published_at, created_at')
-      .eq('category_item_id', categoryItemId)
-      .eq('workspace_subject', workspaceSubject)
-      .eq('status', 'published')
-      .eq('is_active', true)
-      .is('deleted_at', null),
-    supabase
-      .from('market_menu_entries')
-      .select('id, slug, title')
-      .eq('workspace_subject', workspaceSubject)
-      .eq('is_visible', true)
-      .eq('is_active', true)
-      .is('deleted_at', null),
-    supabase
+  const menuResult = await supabase
+    .from('market_menu_entries')
+    .select('id, slug, title')
+    .eq('workspace_subject', workspaceSubject)
+    .eq('is_visible', true)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+  if (menuResult.error) throw new Error(menuResult.error.message)
+  const menuIds = (menuResult.data ?? []).map((entry) => entry.id)
+  if (menuIds.length === 0) return empty
+  const keyword = (filters.q ?? '').trim().normalize('NFC').toLowerCase()
+  const matchingMenuIds = (menuResult.data ?? [])
+    .filter((entry) => entry.title.normalize('NFC').toLowerCase().includes(keyword)).map((entry) => entry.id)
+  function itemQuery(head = false) {
+    let query = supabase.from('market_items')
+      .select('id, title, summary, thumbnail_url, menu_entry_id, exam_year, grade_level, question_count, view_count, published_at, created_at', { count: 'exact', head })
+      .eq('category_item_id', categoryItemId).eq('workspace_subject', workspaceSubject)
+      .eq('status', 'published').eq('is_active', true).is('deleted_at', null).in('menu_entry_id', menuIds)
+    if (keyword) {
+      const terms = [...new Set([keyword, keyword.normalize('NFD')])].flatMap((term) => {
+        const escaped = term.replace(/[\\%_]/g, '\\$&')
+        return ['title', 'summary'].map((column) => `${column}.ilike.${JSON.stringify(`%${escaped}%`)}`)
+      })
+      if (matchingMenuIds.length > 0) terms.push(`menu_entry_id.in.(${matchingMenuIds.join(',')})`)
+      query = query.or(terms.join(','))
+    }
+    return query
+  }
+  const { count, error: countError } = await itemQuery(true)
+  if (countError) throw new Error(countError.message)
+  const pagination = getListPagination(count ?? 0, filters.page, filters.pageSize)
+  if (!pagination.totalCount) return { ...empty, ...pagination }
+  let query = itemQuery()
+  if (filters.sort !== 'latest') query = query.order('view_count', { ascending: false })
+  const itemsResult = await query.order('published_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false }).order('id', { ascending: true })
+    .range(pagination.offset, pagination.offset + pagination.pageSize - 1)
+  if (itemsResult.error) throw new Error(itemsResult.error.message)
+  const itemIds = (itemsResult.data ?? []).map((item) => item.id)
+  if (!itemIds.length) return { ...empty, ...pagination }
+  const [subproducts, typeCategoriesResult, reviews] = await Promise.all([
+    readAllQueryRows((from, to) => supabase
       .from('market_item_subproducts')
       .select('item_id, category_id, price_credits')
       .eq('workspace_subject', workspaceSubject)
       .eq('is_active', true)
-      .is('deleted_at', null),
+      .is('deleted_at', null).in('item_id', itemIds).order('id').range(from, to)),
     supabase
       .from('market_subproduct_categories')
       .select('id, slug, name')
       .eq('workspace_subject', workspaceSubject),
-    supabase
+    readAllQueryRows((from, to) => supabase
       .from('market_item_reviews')
       .select('item_id, rating')
       .eq('workspace_subject', workspaceSubject)
-      .is('deleted_at', null),
+      .is('deleted_at', null).in('item_id', itemIds).order('id').range(from, to)),
   ])
 
-  for (const result of [itemsResult, menuResult, subproductsResult, typeCategoriesResult, reviewsResult]) {
-    if (result.error) {
-      throw new Error(result.error.message)
-    }
-  }
+  if (typeCategoriesResult.error) throw new Error(typeCategoriesResult.error.message)
 
   const menuMap = new Map((menuResult.data ?? []).map((entry) => [entry.id, entry]))
   const typeCategoryMap = new Map((typeCategoriesResult.data ?? []).map((category) => [category.id, category]))
 
   const minPriceByItem = new Map<string, number>()
   const typeNamesByItem = new Map<string, Set<string>>()
-  for (const subproduct of subproductsResult.data ?? []) {
+  for (const subproduct of subproducts) {
     const current = minPriceByItem.get(subproduct.item_id)
     if (current === undefined || subproduct.price_credits < current) {
       minPriceByItem.set(subproduct.item_id, subproduct.price_credits)
@@ -198,7 +252,7 @@ export async function listMarketItemsForCategory(categoryItemId: string): Promis
 
   // 별점 요약 (market-item-list-enrichment의 집계 방식과 동일)
   const ratingTotals = new Map<string, { total: number; count: number }>()
-  for (const review of reviewsResult.data ?? []) {
+  for (const review of reviews) {
     const current = ratingTotals.get(review.item_id) ?? { total: 0, count: 0 }
     current.total += review.rating
     current.count += 1
@@ -229,17 +283,19 @@ export async function listMarketItemsForCategory(categoryItemId: string): Promis
         typeNames: Array.from(typeNamesByItem.get(item.id) ?? []),
       }
     })
-    .sort((a, b) => b.viewCount - a.viewCount || (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''))
 
   const samplePageMap = await listActiveMarketItemSamplePagesForItems(
     rows.map((row) => row.itemId),
     workspaceSubject
   )
 
-  return rows.map((row) => ({
-    ...row,
-    sampleAvailable: (samplePageMap.get(row.itemId)?.length ?? 0) > 0,
-  }))
+  return {
+    ...pagination,
+    rows: rows.map((row) => ({
+      ...row,
+      sampleAvailable: (samplePageMap.get(row.itemId)?.length ?? 0) > 0,
+    })),
+  }
 }
 
 // 상품 저장 시 카테고리 지정값의 과목 검증용 (비활성 항목 포함 조회). 없으면 null.

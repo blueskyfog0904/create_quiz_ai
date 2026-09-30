@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, useTransition, type MouseEvent } from 'rea
 import { useRouter } from 'next/navigation'
 import { ChevronDown, Loader2, RotateCcw, SearchX, X } from 'lucide-react'
 import MarketSamplePreviewDialog from '@/app/(dashboard)/market/[slug]/items/[itemId]/market-sample-preview-dialog'
-import { StudioContainer, StudioEmptyState, StudioPagination } from '@/components/design-system'
+import { StudioContainer, StudioEmptyState } from '@/components/design-system'
+import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { MarketItemCard } from '@/components/market/market-item-card'
 import type { MarketSearchResult, MarketSearchSort } from '@/lib/market-search-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
@@ -87,10 +88,11 @@ export function SearchView({ subject, q, result, selections, sort }: SearchViewP
     grade: result.facets.grades,
   }
 
-  const pushWith = (overrides: {
+  const hrefWith = (overrides: {
     selections?: SearchSelections
     sort?: MarketSearchSort
     page?: number
+    pageSize?: number
   }) => {
     const nextSelections = overrides.selections ?? selections
     const nextSort = overrides.sort ?? sort
@@ -106,9 +108,13 @@ export function SearchView({ subject, q, result, selections, sort }: SearchViewP
     }
     if (nextSort !== 'views') params.set('sort', nextSort)
     if (nextPage > 1) params.set('page', String(nextPage))
+    params.set('pageSize', String(overrides.pageSize ?? result.pageSize))
+    return `/search?${params.toString()}`
+  }
 
+  const pushWith = (overrides: Parameters<typeof hrefWith>[0]) => {
     startTransition(() => {
-      router.push(`/search?${params.toString()}`)
+      router.push(hrefWith(overrides))
     })
   }
 
@@ -276,15 +282,14 @@ export function SearchView({ subject, q, result, selections, sort }: SearchViewP
           </div>
         )}
 
-        {result.totalPages > 1 && (
-          <div className="mt-6">
-            <StudioPagination
-              page={result.page}
-              totalPages={result.totalPages}
-              onPageChange={(nextPage) => pushWith({ selections, sort, page: nextPage })}
-            />
-          </div>
-        )}
+        <StudioListPagination
+          page={result.page}
+          pageSize={result.pageSize}
+          totalCount={result.totalCount}
+          onPageChange={() => {}}
+          getPageHref={(page) => hrefWith({ page })}
+          onPageSizeChange={(pageSize) => pushWith({ pageSize, page: 1 })}
+        />
       </div>
 
       {samplePreviewItemId ? (

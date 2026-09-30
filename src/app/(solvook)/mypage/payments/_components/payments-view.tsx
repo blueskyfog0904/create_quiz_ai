@@ -1,10 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import Link from 'next/link'
 import { CreditCard } from 'lucide-react'
 import { StudioContainer } from '@/components/design-system/studio-container'
 import { StudioEmptyState } from '@/components/design-system/studio-empty-state'
+import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
+import { useListQuery } from '@/hooks/use-list-query'
+import { getListPagination } from '@/lib/list-pagination'
 import type { NormalizedPaymentHistoryRecord } from '@/lib/payment-history'
 import {
   buildQuickRangeFilter,
@@ -54,7 +57,9 @@ function formatKoreanDateTime(value: string) {
 }
 
 export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryRecord[] }) {
-  const [filters, setFilters] = useState<PaymentHistoryFilter>({ fromDate: '', toDate: '' })
+  const listQuery = useListQuery()
+  const filters = useMemo(() => ({ fromDate: listQuery.params.get('fromDate') ?? '', toDate: listQuery.params.get('toDate') ?? '' }), [listQuery.params])
+  const setFilters = (value: PaymentHistoryFilter) => listQuery.update({ ...value, page: 1 })
 
   const filteredPayments = useMemo(
     () => filterPaymentsByHistoryFilter(payments, filters),
@@ -62,6 +67,8 @@ export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryR
   )
 
   const hasActiveFilter = Boolean(filters.fromDate || filters.toDate)
+  const pagination = getListPagination(filteredPayments.length, listQuery.page, listQuery.pageSize)
+  const pagedPayments = filteredPayments.slice(pagination.offset, pagination.offset + pagination.pageSize)
 
   return (
     <StudioContainer className="py-8 sm:py-10">
@@ -91,7 +98,7 @@ export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryR
           type="date"
           aria-label="조회 시작일"
           value={filters.fromDate}
-          onChange={(event) => setFilters((current) => ({ ...current, fromDate: event.target.value }))}
+          onChange={(event) => setFilters({ ...filters, fromDate: event.target.value })}
           className={controlClassName}
         />
         <span className="text-sm text-[var(--studio-muted)]">~</span>
@@ -99,7 +106,7 @@ export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryR
           type="date"
           aria-label="조회 종료일"
           value={filters.toDate}
-          onChange={(event) => setFilters((current) => ({ ...current, toDate: event.target.value }))}
+          onChange={(event) => setFilters({ ...filters, toDate: event.target.value })}
           className={controlClassName}
         />
         {hasActiveFilter ? (
@@ -132,7 +139,7 @@ export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryR
         </div>
       ) : (
         <ul className="mt-6 divide-y divide-[var(--studio-border)] rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] shadow-[var(--studio-shadow-card)]">
-          {filteredPayments.map((payment) => {
+          {pagedPayments.map((payment) => {
             const badge = STATUS_BADGES[payment.status] ?? {
               label: payment.status,
               className: 'bg-[var(--studio-background)] text-[var(--studio-muted)]',
@@ -176,6 +183,7 @@ export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryR
           })}
         </ul>
       )}
+      <StudioListPagination {...pagination} onPageChange={listQuery.setPage} onPageSizeChange={listQuery.setPageSize} />
     </StudioContainer>
   )
 }

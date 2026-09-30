@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { CheckCircle2, CircleAlert, Coins, Loader2 } from 'lucide-react'
 import { StudioContainer } from '@/components/design-system'
+import { MarketCartReturnLink } from '@/components/market/market-cart-return-link'
 import { Button } from '@/components/ui/button'
 
 type ResultStatus = 'loading' | 'success' | 'error'
@@ -170,6 +171,7 @@ function CheckoutSuccessContent() {
                 {isSuccess ? '문제마켓 둘러보기' : '고객센터 문의'}
               </Link>
             </Button>
+            {isSuccess ? <MarketCartReturnLink className="min-h-11 flex-1" /> : null}
           </div>
         ) : null}
       </div>

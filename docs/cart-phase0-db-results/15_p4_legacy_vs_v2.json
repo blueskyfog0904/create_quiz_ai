@@ -1,0 +1,10 @@
+{"query":"추가 a) P4: 활성·게시·미삭제 상품 중 활성 legacy 유료 파일(asset_kind pdf/hwp/zip, is_active, deleted_at null, 대응 가격(pdf_price/hwp_price/zip_price)>0) 보유 & 활성 V2 판매단위(활성·미삭제 subproduct 또는 활성 bundle option) 없음",
+"definition_notes":["상품 조건: status='published' AND is_active AND deleted_at IS NULL (메뉴 가시성 조건은 1차 집계에 미포함, 2차 집계에서 확인: 전부 menu_visible=true)","V2 조건은 workspace_subject 일치 포함","sample asset_kind는 legacy 유료 파일에서 제외"],
+"by_subject":[
+{"workspace_subject":"english","subject_code":"english","published_active_items":1,"p4_legacy_paid_without_v2":1,"legacy_paid_and_v2":0,"legacy_paid_any":1,"v2_any":0,"v2_unit_but_no_active_subproduct_file":0,"neither":0},
+{"workspace_subject":"korean","subject_code":"english","published_active_items":144,"p4_legacy_paid_without_v2":0,"legacy_paid_and_v2":0,"legacy_paid_any":0,"v2_any":144,"v2_unit_but_no_active_subproduct_file":0,"neither":0}],
+"all_non_deleted_items_breakdown":[
+{"workspace_subject":"english","status":"draft","is_active":true,"menu_visible":true,"items":1,"legacy_paid":0,"v2":0},
+{"workspace_subject":"english","status":"published","is_active":true,"menu_visible":true,"items":1,"legacy_paid":1,"v2":0,"active_legacy_kinds":"hwp(price>0),pdf(price>0)"},
+{"workspace_subject":"korean","status":"published","is_active":true,"menu_visible":true,"items":144,"legacy_paid":0,"v2":144}],
+"observation":"국어 게시 상품 144개 모두 subject_code='english' (workspace_subject='korean'과 불일치)"}

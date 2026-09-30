@@ -1,6 +1,7 @@
 import { Suspense, type ReactNode } from 'react'
 import { StudioThemeShell } from '@/components/layout/studio-theme-shell'
 import { PreviewHeader } from '@/app/preview/solvook-concept/_components/preview-header'
+import { getMarketCartBadgeCount } from '@/lib/market-cart-server'
 import { getRequestAuthUserId } from '@/lib/request-auth'
 import { getSolvookFooterData } from '@/lib/solvook-footer-data'
 import { SolvookFooter } from '@/app/(solvook)/_components/solvook-footer'
@@ -15,6 +16,7 @@ export default async function TermsLayout({
     getRequestAuthUserId(),
     getSolvookFooterData(),
   ])
+  const cartCount = await getMarketCartBadgeCount(userId)
 
   return (
     <>
@@ -25,7 +27,7 @@ export default async function TermsLayout({
       />
       <StudioThemeShell>
         <Suspense fallback={null}>
-          <PreviewHeader isLoggedIn={Boolean(userId)} />
+          <PreviewHeader isLoggedIn={Boolean(userId)} userId={userId} cartCount={cartCount} />
         </Suspense>
         {/* 페이지가 자체 <main>을 렌더하므로 landmark 중복을 피해 div로 감싼다 */}
         <div className="flex-1">

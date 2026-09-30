@@ -1,0 +1,1 @@
+{"query":"session info (preflight #1 + extras)","result":[{"database_name":"postgres","audit_role":"supabase_read_only_user","session_user":"supabase_read_only_user","postgres_version":"17.6","collected_at_utc":"2026-09-30 00:39:29.792839","tx_read_only":"on"}]}

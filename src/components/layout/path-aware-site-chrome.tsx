@@ -25,8 +25,8 @@ export function PathAwareSiteChrome({
 }: PathAwareSiteChromeProps) {
   const pathname = usePathname() ?? '/'
 
-  // 루트(/)와 자료 보관함(/library)은 솔북 컨셉 레이아웃이 자체 헤더/푸터를 렌더하므로 전역 크롬을 생략한다.
-  if (pathname === '/' || pathname === '/library' || pathname === '/search' || pathname === '/categories' || pathname.startsWith('/categories/') || pathname === '/mypage' || pathname.startsWith('/mypage/') || pathname === '/admin' || pathname.startsWith('/admin/') || pathname === '/terms' || pathname.startsWith('/terms/') || isSolvookConceptPreviewPath(pathname)) {
+  // 자체 헤더/푸터를 사용하는 페이지는 전역 크롬을 생략한다.
+  if (pathname === '/' || pathname === '/pricing' || pathname === '/library' || pathname === '/cart' || pathname === '/search' || pathname === '/categories' || pathname.startsWith('/categories/') || pathname === '/mypage' || pathname.startsWith('/mypage/') || pathname === '/admin' || pathname.startsWith('/admin/') || pathname === '/terms' || pathname.startsWith('/terms/') || isSolvookConceptPreviewPath(pathname)) {
     return children
   }
 

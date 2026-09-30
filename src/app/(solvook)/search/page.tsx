@@ -4,6 +4,7 @@ import { connection } from 'next/server'
 import { searchMarketItemsForSubject, type MarketSearchSort } from '@/lib/market-search-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { SearchView } from './_components/search-view'
+import { normalizeListPage, normalizeListPageSize } from '@/lib/list-pagination'
 
 export const metadata: Metadata = {
   title: '자료 검색 | 써머썬 연구소',
@@ -40,7 +41,7 @@ export default async function MarketSearchPage({
     grade: toArray(params.grade),
   }
   const sort = resolveSort(params.sort)
-  const page = Number(typeof params.page === 'string' ? params.page : '1') || 1
+  const page = normalizeListPage(params.page)
 
   const result = await searchMarketItemsForSubject(subject, {
     q,
@@ -50,6 +51,7 @@ export default async function MarketSearchPage({
     grades: selections.grade,
     sort,
     page,
+    pageSize: normalizeListPageSize(params.pageSize),
   })
 
   return (

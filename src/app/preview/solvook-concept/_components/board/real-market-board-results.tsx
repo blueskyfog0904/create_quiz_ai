@@ -6,10 +6,10 @@ import { FileText } from 'lucide-react'
 import {
   StudioBoardShell,
   StudioEmptyState,
-  StudioPagination,
   StudioSelectContent,
 } from '@/components/design-system'
 import { Button } from '@/components/ui/button'
+import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import {
   Select,
   SelectItem,
@@ -36,6 +36,7 @@ function buildBoardHref({
   year,
   sort,
   page,
+  pageSize,
 }: {
   categorySlug: string
   subject: WorkspaceSubject
@@ -43,6 +44,7 @@ function buildBoardHref({
   year: string
   sort: MarketBoardSort
   page?: number
+  pageSize?: number
 }) {
   const pathname = `/preview/solvook-concept/boards/${categorySlug}`
   const query = new URLSearchParams()
@@ -53,6 +55,7 @@ function buildBoardHref({
   if (year) query.set('year', year)
   if (sort === 'latest') query.set('sort', sort)
   if (page && page > 1) query.set('page', String(page))
+  if (pageSize) query.set('pageSize', String(pageSize))
 
   return `${pathname}?${query.toString()}`
 }
@@ -89,6 +92,7 @@ export function RealMarketBoardResults({
           search,
           year,
           sort: nextSort,
+          pageSize: data.pagination.pageSize,
         }), { scroll: false })
       }}
     >
@@ -106,16 +110,12 @@ export function RealMarketBoardResults({
   )
 
   const pagination = data.total > 0 ? (
-    <StudioPagination
+    <StudioListPagination
       page={data.pagination.page}
-      totalPages={Math.max(data.pagination.pageCount, 1)}
+      pageSize={data.pagination.pageSize}
+      totalCount={data.total}
       onPageChange={() => {}}
-      navigationText={{
-        first: '<<',
-        previous: '<',
-        next: '>',
-        last: '>>',
-      }}
+      onPageSizeChange={(pageSize) => router.push(buildBoardHref({ categorySlug, subject, search, year, sort, pageSize }))}
       getPageHref={(page) => buildBoardHref({
         categorySlug,
         subject,
@@ -123,6 +123,7 @@ export function RealMarketBoardResults({
         year,
         sort,
         page,
+        pageSize: data.pagination.pageSize,
       })}
     />
   ) : null
