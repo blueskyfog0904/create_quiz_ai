@@ -14,8 +14,9 @@ const confirmDialog = read('../src/components/market/market-checkout-confirm-dia
 const RAW_HEX = /#[0-9a-fA-F]{3,8}\b/
 
 test('detail adds selected targets to the cart one POST per target, in order', () => {
-  assert.match(itemActions, /const addTargetsToCart = async \(options: PurchaseOption\[\], onUnauthorized: \(\) => void\) => \{[\s\S]+?for \(const option of options\) \{[\s\S]+?fetch\('\/api\/market\/cart\/items', \{\s+method: 'POST'/)
-  assert.match(itemActions, /await addTargetsToCart\(selectedOptions, \(\) => redirectToLogin\(\)\)/)
+  assert.match(itemActions, /const addTargetsToCart = async \(\s*options: PurchaseOption\[\],\s*\{ onUnauthorized, onFailure, excludedCount = 0 \}: CartAddHandlers\s*\) => \{[\s\S]+?for \(const option of options\) \{[\s\S]+?fetch\('\/api\/market\/cart\/items', \{\s+method: 'POST'/)
+  // 선택 담기 실패는 toast를 유지한다(13절 D22)
+  assert.match(itemActions, /await addTargetsToCart\(selectedOptions, \{\s+onUnauthorized: \(\) => redirectToLogin\(\),\s+onFailure: \(message\) => toast\.error\(message\),\s+\}\)/)
   assert.match(itemActions, /\? \{ targetKind: 'bundle', bundleOptionId: option\.targetId \}\s+: \{ targetKind: 'subproduct', subproductId: option\.targetId \}/)
   assert.doesNotMatch(itemActions, /\/api\/market\/cart\/items[\s\S]{0,200}body: JSON\.stringify\(\{ (items|targets):/)
   assert.match(itemActions, /payload\.error\?\.code === 'CART_LIMIT'/)
@@ -79,11 +80,18 @@ test('guests can press cart/purchase to log in first and come back to the detail
   assert.match(itemActions, /disabled=\{\(isLoggedIn && selectedOptions\.length === 0\) \|\| isBusy\}/)
   assert.match(itemActions, /'로그인 후 담기'/)
   assert.match(itemActions, /'로그인 후 구매'/)
-  assert.match(itemActions, /담기·구매는 로그인이 필요합니다\. 로그인하면 이 페이지로 돌아옵니다\./)
-  for (const handler of ['const addSelectedToCart = async', 'const openCheckout = async']) {
+  assert.match(itemActions, /자료를 선택한 뒤 담기·구매하면 로그인 후 이 페이지로 돌아옵니다\./)
+  assert.doesNotMatch(itemActions, /담기·구매는 로그인이 필요합니다/)
+  // 13절 D21: 비로그인 0건은 로그인으로 보내지 않고 저장도 하지 않으며 인라인 안내만 켠다(두 버튼 같은 규칙)
+  for (const [handler, action] of [['const addSelectedToCart = async', 'cart'], ['const openCheckout = async', 'purchase']]) {
     const body = itemActions.slice(itemActions.indexOf(handler))
-    assert.ok(body.indexOf('if (!isLoggedIn)') < body.indexOf('selectedOptions.length === 0'), `${handler}: login check first`)
+    const guest = body.slice(body.indexOf('if (!isLoggedIn) {'), body.indexOf('redirectToLogin()') + 'redirectToLogin()'.length)
+    assert.match(guest, new RegExp(`if \\(!isLoggedIn\\) \\{[\\s\\S]{0,200}?if \\(selectedOptions\\.length === 0\\) \\{\\s+setEmptyNotice\\(true\\)\\s+return\\s+\\}\\s+saveIntentBeforeLogin\\('${action}'\\)\\s+redirectToLogin\\(\\)$`), handler)
   }
+  assert.match(itemActions, /const \[emptyNotice, setEmptyNotice\] = useState\(false\)/)
+  assert.match(itemActions, /const toggleOption = \(key: string, checked: boolean\) => \{\s+setEmptyNotice\(false\)/)
+  assert.match(itemActions, /<p id=\{`\$\{selectionIdPrefix\}-login`\} aria-live="polite"/)
+  assert.match(itemActions, /emptyNotice \? '담을 자료를 먼저 선택하세요\.' : '자료를 선택한 뒤 담기·구매하면 로그인 후 이 페이지로 돌아옵니다\.'/)
 })
 
 test('guest selection is saved right before the login redirect and consumed once after login', () => {
@@ -102,11 +110,23 @@ test('guest selection is saved right before the login redirect and consumed once
   // 구매 자동 실행 금지: 복귀 시 구매는 선택만 복원한다
   assert.doesNotMatch(consume, /openCheckout|submitCheckout|\/purchase|idempotencyKey/)
   assert.match(consume, /if \(intent\.action === 'purchase'\) \{\s+setSelectedKeys\(options\.map\(\(option\) => option\.key\)\)\s+return\s+\}/)
-  assert.match(consume, /option && option\.unavailableReason === null/)
-  assert.match(consume, /선택했던 자료를 지금은 담을 수 없습니다\./)
   assert.doesNotMatch(consume, /redirectToLogin/)
-  // 담기 완료 Dialog는 로그인 완료 Dialog가 닫힌 뒤에 연다
-  assert.match(itemActions, /open=\{cartAddedMessage !== null && !isLoginCompletePending\}/)
+  // 13절 D22: 복귀 담기 실패·제외는 toast(로그인 완료 모달에 묻힘) 대신 안내 Dialog로 알린다
+  assert.doesNotMatch(consume, /toast\./)
+  assert.match(consume, /if \(!option\) \{\s+missingCount \+= 1\s+\} else if \(option\.unavailableReason !== null\) \{\s+preparingCount \+= 1\s+\} else \{\s+options\.push\(option\)/)
+  assert.match(consume, /setCartResult\(\{ kind: 'notice', message \}\)/)
+  assert.match(consume, /선택했던 자료를 담지 못했습니다\./)
+  assert.match(consume, /이미 보유했거나 판매가 중지된 자료 \$\{missingCount\}건/)
+  assert.match(consume, /준비 중이라 담을 수 없는 자료 \$\{preparingCount\}건/)
+  assert.match(consume, /로그인 상태를 확인하지 못해 담지 못했습니다\. 다시 로그인한 뒤 시도해 주세요\./)
+  assert.match(consume, /onFailure: showNotice,\s+excludedCount: missingCount \+ preparingCount,/)
+  assert.match(itemActions, /나머지 \$\{excludedCount\}건은 이미 보유했거나 판매 중지·준비 중이라 제외했습니다\./)
+  assert.match(itemActions, /setCartResult\(\{\s+kind: 'added',/)
+  // 담기 결과 Dialog(성공·안내 공통)는 로그인 완료 Dialog가 닫힌 뒤에 연다
+  assert.match(itemActions, /open=\{cartResult !== null && !isLoginCompletePending\}/)
+  assert.match(itemActions, /cartResult\?\.kind === 'notice' \? '장바구니 담기 안내' : '장바구니 담기'/)
+  assert.match(itemActions, /cartResult\?\.kind === 'notice' \? '확인' : '계속 둘러보기'/)
+  assert.doesNotMatch(itemActions, /cartAddedMessage/)
 })
 
 test('both detail routes render the shared MarketItemActions', () => {

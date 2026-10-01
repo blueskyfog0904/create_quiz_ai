@@ -89,6 +89,14 @@ interface CheckoutState {
   shortfall: number | null
 }
 
+interface CartAddHandlers {
+  onUnauthorized: () => void
+  // 담기 요청이 전부 실패했을 때의 안내(선택 담기는 toast, 로그인 복귀 담기는 안내 Dialog)
+  onFailure: (message: string) => void
+  // 로그인 복귀 담기에서 담을 수 없어 제외한 대상 수. 성공 문구 끝에 알린다.
+  excludedCount?: number
+}
+
 interface PriceChangedItem {
   targetKind: string
   targetId: string
@@ -410,7 +418,10 @@ export default function MarketItemActions({
   const [isAddingToCart, setIsAddingToCart] = useState(false)
   const [checkout, setCheckout] = useState<CheckoutState | null>(null)
   const [purchaseCompleteMessage, setPurchaseCompleteMessage] = useState<string | null>(null)
-  const [cartAddedMessage, setCartAddedMessage] = useState<string | null>(null)
+  // 담기 결과 Dialog. 'notice'는 로그인 복귀 담기의 실패·제외 안내다(로그인 완료 모달 뒤라 toast는 묻힌다).
+  const [cartResult, setCartResult] = useState<{ kind: 'added' | 'notice'; message: string } | null>(null)
+  // 비로그인 0건에서 [로그인 후 담기]·[로그인 후 구매]를 누른 경우의 인라인 안내
+  const [emptyNotice, setEmptyNotice] = useState(false)
   const [isSamplePreviewOpen, setIsSamplePreviewOpen] = useState(false)
   const [samplePreviewPrefetchKey, setSamplePreviewPrefetchKey] = useState(0)
   const viewTracked = useRef(false)
@@ -533,6 +544,7 @@ export default function MarketItemActions({
   }
 
   const toggleOption = (key: string, checked: boolean) => {
+    setEmptyNotice(false)
     setSelectedKeys((current) => (checked
       ? (current.includes(key) ? current : [...current, key])
       : current.filter((selectedKey) => selectedKey !== key)))
@@ -542,7 +554,10 @@ export default function MarketItemActions({
 
   // 선택 담기와 로그인 복귀 담기가 공유한다. 담기는 원자성이 필요 없고 target별 결과(CART_LIMIT 등)를 안내해야 하므로
   // 기존 POST를 순서대로 호출한다. 1건 이상 담기면 true.
-  const addTargetsToCart = async (options: PurchaseOption[], onUnauthorized: () => void) => {
+  const addTargetsToCart = async (
+    options: PurchaseOption[],
+    { onUnauthorized, onFailure, excludedCount = 0 }: CartAddHandlers
+  ) => {
     let createdCount = 0
     let existingCount = 0
     let limitCount = 0
@@ -594,16 +609,20 @@ export default function MarketItemActions({
 
     const limitMessage = `장바구니가 가득 차(최대 50개) ${limitCount}건을 담지 못했습니다. 장바구니를 정리한 뒤 다시 담아 주세요.`
     if (createdCount + existingCount === 0) {
-      toast.error(limitCount > 0 ? limitMessage : '장바구니에 담지 못했습니다. 잠시 후 다시 시도해주세요.')
+      onFailure(limitCount > 0 ? limitMessage : '장바구니에 담지 못했습니다. 잠시 후 다시 시도해주세요.')
       return false
     }
 
-    setCartAddedMessage([
-      createdCount > 0 ? `${createdCount}건을 담았습니다.` : null,
-      existingCount > 0 ? `${existingCount}건은 이미 장바구니에 있습니다.` : null,
-      limitCount > 0 ? limitMessage : null,
-      failedCount > 0 ? `${failedCount}건은 오류로 담지 못했습니다.` : null,
-    ].filter(Boolean).join(' '))
+    setCartResult({
+      kind: 'added',
+      message: [
+        createdCount > 0 ? `${createdCount}건을 담았습니다.` : null,
+        existingCount > 0 ? `${existingCount}건은 이미 장바구니에 있습니다.` : null,
+        limitCount > 0 ? limitMessage : null,
+        failedCount > 0 ? `${failedCount}건은 오류로 담지 못했습니다.` : null,
+        excludedCount > 0 ? `나머지 ${excludedCount}건은 이미 보유했거나 판매 중지·준비 중이라 제외했습니다.` : null,
+      ].filter(Boolean).join(' '),
+    })
     return true
   }
 
@@ -620,6 +639,11 @@ export default function MarketItemActions({
 
   const addSelectedToCart = async () => {
     if (!isLoggedIn) {
+      // 0건은 로그인으로 보내지 않는다(13절 D21). 복귀 후 이어갈 대상이 없고 의도도 저장하지 않는다.
+      if (selectedOptions.length === 0) {
+        setEmptyNotice(true)
+        return
+      }
       saveIntentBeforeLogin('cart')
       redirectToLogin()
       return
@@ -628,7 +652,10 @@ export default function MarketItemActions({
       return
     }
 
-    if (await addTargetsToCart(selectedOptions, () => redirectToLogin())) {
+    if (await addTargetsToCart(selectedOptions, {
+      onUnauthorized: () => redirectToLogin(),
+      onFailure: (message) => toast.error(message),
+    })) {
       clearSelection()
     }
   }
@@ -641,22 +668,43 @@ export default function MarketItemActions({
       return
     }
 
-    const options = intent.targets.flatMap((target) => {
+    // 보유 옵션은 purchaseOptions에서 빠지므로 '보유·판매 중지'(option 없음)와 '준비 중'(unavailableReason)만 구분한다.
+    // '가격 미정'도 unavailableReason이라 '준비 중'으로 묶인다(DTO로 판별 가능한 범위의 한계).
+    let missingCount = 0
+    let preparingCount = 0
+    const options: PurchaseOption[] = []
+    for (const target of intent.targets) {
       const option = optionByKey.get(`${target.targetKind}:${target.targetId}`)
-      return option && option.unavailableReason === null ? [option] : []
-    })
+      if (!option) {
+        missingCount += 1
+      } else if (option.unavailableReason !== null) {
+        preparingCount += 1
+      } else {
+        options.push(option)
+      }
+    }
 
     if (intent.action === 'purchase') {
       setSelectedKeys(options.map((option) => option.key))
       return
     }
 
+    // 로그인 완료 모달이 떠 있어 toast는 묻히므로, 실패·제외도 그 모달이 닫힌 뒤 Dialog로 알린다(13절 D22).
+    const showNotice = (message: string) => setCartResult({ kind: 'notice', message })
     if (options.length === 0) {
-      toast.error('선택했던 자료를 지금은 담을 수 없습니다.')
+      const reasons = [
+        missingCount > 0 ? `이미 보유했거나 판매가 중지된 자료 ${missingCount}건` : null,
+        preparingCount > 0 ? `준비 중이라 담을 수 없는 자료 ${preparingCount}건` : null,
+      ].filter(Boolean)
+      showNotice(`선택했던 자료를 담지 못했습니다. ${reasons.join(', ')}이 있습니다.`)
       return
     }
     // 복귀 담기 중 401은 다시 로그인으로 보내지 않는다(무한 이동 방지).
-    void addTargetsToCart(options, () => toast.error('로그인 상태를 확인하지 못해 장바구니에 담지 못했습니다.'))
+    void addTargetsToCart(options, {
+      onUnauthorized: () => showNotice('로그인 상태를 확인하지 못해 담지 못했습니다. 다시 로그인한 뒤 시도해 주세요.'),
+      onFailure: showNotice,
+      excludedCount: missingCount + preparingCount,
+    })
   })
 
   useEffect(() => {
@@ -669,6 +717,11 @@ export default function MarketItemActions({
 
   const openCheckout = async () => {
     if (!isLoggedIn) {
+      // 구매하기도 담기와 같은 규칙이다(13절 D21).
+      if (selectedOptions.length === 0) {
+        setEmptyNotice(true)
+        return
+      }
       saveIntentBeforeLogin('purchase')
       redirectToLogin()
       return
@@ -1095,7 +1148,9 @@ export default function MarketItemActions({
               </Button>
             </div>
             {!isLoggedIn ? (
-              <p id={`${selectionIdPrefix}-login`} className="mt-2 text-xs text-[var(--studio-muted)]">담기·구매는 로그인이 필요합니다. 로그인하면 이 페이지로 돌아옵니다.</p>
+              <p id={`${selectionIdPrefix}-login`} aria-live="polite" className={emptyNotice ? 'mt-2 text-xs font-semibold text-[var(--studio-ink)]' : 'mt-2 text-xs text-[var(--studio-muted)]'}>
+                {emptyNotice ? '담을 자료를 먼저 선택하세요.' : '자료를 선택한 뒤 담기·구매하면 로그인 후 이 페이지로 돌아옵니다.'}
+              </p>
             ) : selectedOptions.length === 0 ? (
               <p id={`${selectionIdPrefix}-empty`} className="mt-2 text-xs text-[var(--studio-muted)]">구매하거나 담을 옵션을 선택하세요.</p>
             ) : null}
@@ -1216,17 +1271,17 @@ export default function MarketItemActions({
 
       {/* 로그인 완료 Dialog가 닫힌(login 쿼리가 지워진) 뒤에 연다. 두 모달이 겹치지 않게 한다. */}
       <Dialog
-        open={cartAddedMessage !== null && !isLoginCompletePending}
-        onOpenChange={(open) => !open && setCartAddedMessage(null)}
+        open={cartResult !== null && !isLoginCompletePending}
+        onOpenChange={(open) => !open && setCartResult(null)}
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>장바구니 담기</DialogTitle>
-            <DialogDescription>{cartAddedMessage}</DialogDescription>
+            <DialogTitle>{cartResult?.kind === 'notice' ? '장바구니 담기 안내' : '장바구니 담기'}</DialogTitle>
+            <DialogDescription>{cartResult?.message}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="brandOutline" onClick={() => setCartAddedMessage(null)}>
-              계속 둘러보기
+            <Button variant="brandOutline" onClick={() => setCartResult(null)}>
+              {cartResult?.kind === 'notice' ? '확인' : '계속 둘러보기'}
             </Button>
             <Button asChild variant="brand">
               <Link href="/cart">장바구니 보기</Link>

@@ -201,6 +201,8 @@
 | 11절 구현 | market-item-actions.tsx·계약 테스트 2개 | 독립 검증 | OK | tsc·eslint·build 통과, node 956건 fail 39(새 실패 0), 4010 비로그인 상세 두 경로 확인. 실제 로그인 복귀·320px·키보드는 미실행(사용자 확인) |
 | R4 | 12절 추가(장바구니 상세 링크·로그인 복귀 자동 담기) | 독립 검증 | OK | 비차단 N1(StrictMode cleanup 취소 플래그 금지)·N2(menu 순차 조회)·N3(의도 모듈 순수화)를 구현에 반영 |
 | 12절 구현 | market-cart-server.ts·cart-view.tsx·market-item-actions.tsx·market-cart-intent.ts·테스트 3개 | 독립 검증 | OK | 링크 조건=상세 404 조건, useEffectEvent는 React 19.2 정식 API, 구매 자동 실행 0, tsc·eslint·build 통과, node 967건 fail 39(새 실패 0). 로그인 브라우저 시나리오는 미실행(사용자 확인) |
+| R5 | 13절 추가(로그인 복귀 담기 팝업 버그 수정) | 독립 검증(팀 리드 전달) | OK | 비차단: ⑤ 한계에 '가격 미정'도 '준비 중'으로 묶임 명시, 4단계 (i)에 /login 화면에서 제출 전 sessionStorage 값·`next` 쿼리 기록 절차 추가 |
+| 13절 구현 | market-item-actions.tsx·계약 테스트 | 독립 검증 | OK | (A) 비로그인 0건 담기·구매는 이동 없이 선택 안내, (B) 복귀 담기 실패·일부 제외도 Dialog 안내. tsc·eslint·build 통과, node 977건 fail 39(새 실패 0). 보고 시나리오 (i) 브라우저 재현은 사용자 확인 |
 
 ## 11. 추가 요청(2026-10-01)
 요청: ① 선택 체크박스를 카드 **왼쪽 상단**으로 ② 장바구니 담기 전에 로그인 ③ 로그인 뒤 그 상품 상세로 복귀. 변경 파일은 `market-item-actions.tsx`(FileOptionRow 포함)와 계약 테스트뿐이다. DB·API·`use-login-redirect`·로그인 페이지는 바꾸지 않는다. 5절·D5는 아래 결정으로 갈음한다.
@@ -270,3 +272,36 @@
 - `auth-login-complete-dialog-contract`는 변경 없음(`login=success` 계약 유지).
 
 **위험**: ① 자동 담기로 사용자가 의도하지 않은 상품이 담길 수 있다(담기뿐이고 Dialog로 알리며 장바구니에서 삭제 가능). ② 로그인 완료 Dialog를 닫기 전에는 담기 완료 Dialog가 안 보인다(배지는 갱신). ③ sessionStorage 미지원·차단 환경은 기존 동작으로 퇴화한다. ④ 상세 조회 쿼리 2개 증가(행 ≤50, `in` 조회). ⑤ 이메일 인증 링크·회원가입 흐름은 다른 탭/`signup=1`이라 자동 담기 대상이 아니다(범위 밖). ⑥ `login=success`가 없는 로그인 경로(회원가입 모드)는 담기 없이 의도만 삭제된다.
+
+## 13. 버그 수정(로그인 복귀 담기 팝업, 2026-10-01)
+보고: 장바구니 담기 후 로그인하면 '로그인 완료' 팝업은 뜨는데, 상품 상세로 돌아온 뒤 '장바구니 담기 완료' 팝업이 없다. 12절 D15~D18을 아래와 같이 일부 변경한다. 12절의 구매 자동 실행 금지(D19)는 그대로다.
+
+**분석(사실)**
+- 기각된 가설: 재마운트(Next 16 세그먼트 key에 search params 없음, 재현 앱 unmount 0회), `login=success` 유실, `isLoggedIn` 지연. 12절 반영 후 `market_cart_items` 신규 행이 0건이라 복귀 POST가 행을 만들지 못했다.
+- 코드로 확인한 남은 원인 두 가지(`market-item-actions.tsx`). ① 비로그인 0건에서 버튼이 활성이라 누르면 의도를 저장하지 않은 채 로그인으로 간다. 의도가 없으니 복귀 후 담기도 팝업도 없다(`takeMarketCartIntent`가 null). ② 복귀 후 대상이 담기 불가이거나 담기가 실패하면 `toast.error`만 띄운다(`consumeCartIntent` 655행, `addTargetsToCart` 597행). 이 시점에는 `LoginCompleteDialog`(모달)가 떠 있어 toast가 묻힌다. 상세에서 보유 옵션은 `purchaseOptions`에서 빠지므로(`optionByKey`에 없음) '보유·판매 중지'와 '준비 중'(`unavailableReason`)을 구분할 수 있다.
+
+**결정**
+- D21 **(A) 0건은 로그인으로 보내지 않는다**(사용자 결정). 비로그인 [로그인 후 담기]·[로그인 후 구매]는 계속 활성이고, 선택이 0건이면 `redirectToLogin()`·의도 저장 없이 인라인 안내만 보인다: `담을 자료를 먼저 선택하세요.`. 상태 `emptyNotice`를 true로 두고 `aria-live="polite"` 안내 `<p>`(`-login` id)에 표시하며 `toggleOption`에서 false로 되돌린다. 구매하기도 **같은 규칙**이다. 근거: 두 버튼의 전제가 같고(선택한 대상이 있어야 복귀 후 이어갈 일이 있다), 0건 이동은 로그인 비용만 쓰고 결과가 없으며 이번 보고의 원인 후보 ①이다. 기본 안내 문구는 `자료를 선택한 뒤 담기·구매하면 로그인 후 이 페이지로 돌아옵니다.`로 바꾼다. 로그인 상태의 0건 처리(버튼 disabled)와 11절 D9의 '활성' 규칙 중 '0건 즉시 이동'만 바뀐다. 0건 클릭에는 저장·삭제 호출이 없다(오래된 의도는 12절 TTL·`login=success` 조건이 막는다).
+- D22 **(B) 복귀 담기 실패도 Dialog로 안내**: `cartAddedMessage: string | null`을 `cartResult: { kind: 'added' | 'notice'; message: string } | null`로 바꾼다. 열림 조건(`!isLoginCompletePending`)은 그대로라 로그인 완료 Dialog를 닫은 뒤 표시된다. `addTargetsToCart(options, { onUnauthorized, onFailure })`로 호출부가 실패 표시를 정한다: 선택 담기는 기존 `toast.error` 유지, 복귀 담기는 `notice` Dialog.
+  - 성공(`added`): 제목 `장바구니 담기`, 버튼 `계속 둘러보기`/`장바구니 보기`(지금과 같다). 일부 대상이 제외됐으면 문구 끝에 `나머지 N건은 이미 보유했거나 판매 중지·준비 중이라 제외했습니다.`를 붙인다.
+  - 실패(`notice`): 제목 `장바구니 담기 안내`, 버튼 `확인`/`장바구니 보기`. 사유는 구분한다: 담을 대상 0건이면 `선택했던 자료를 담지 못했습니다.` + `이미 보유했거나 판매가 중지된 자료 N건`(option 없음) · `준비 중이라 담을 수 없는 자료 N건`(`unavailableReason`) 중 해당 항목. 담기 요청이 전부 실패하면 한도(`CART_LIMIT`) 또는 `장바구니에 담지 못했습니다. 잠시 후 다시 시도해주세요.`, 복귀 중 401이면 `로그인 상태를 확인하지 못해 담지 못했습니다. 다시 로그인한 뒤 시도해 주세요.`(로그인 이동 없음).
+- D23 `action:'purchase'` 복원·구매 자동 실행 금지는 변경하지 않는다. 복원 대상이 0건일 때의 무반응은 이번 범위 밖이다(위험 ④).
+- D24 원인 ①②를 코드로 확정했을 뿐 사용자 환경에서 재현한 것은 아니므로 두 수정을 함께 하고 아래 (i)로 보고된 시나리오를 그대로 재현한다.
+
+**작업 단계와 검증**
+1. **계약 테스트 먼저**(`tests/market-detail-multiselect-contract.test.mjs`): 아래 갱신 후 `node --test tests/market-detail-multiselect-contract.test.mjs`가 현 구현에서 실패(레드).
+2. **(A) 구현**: `addSelectedToCart`·`openCheckout`의 `!isLoggedIn` 분기, `emptyNotice` 상태, 안내 문구. 검증: `npx tsc --noEmit`, `npx eslint '<market-item-actions.tsx>'` exit 0.
+3. **(B) 구현**: `cartResult` 상태, `addTargetsToCart` 시그니처, `consumeCartIntent`의 사유 집계, Dialog 제목·버튼 분기. 검증: 위 명령 + 1단계 테스트 통과, `node --test tests/market-cart-intent.test.mjs` 통과.
+4. **브라우저**(dev, 상세 두 경로 중 각 1곳 이상):
+   - (a) 비로그인 0건에서 두 버튼 클릭 → URL 불변·`/login` 미이동, `POST` 0건, `sessionStorage['market-cart-intent:v1']` null, 안내가 보이고 체크하면 사라진다.
+   - (b) 1건 선택 후 클릭 → `/login?next=…` 이동, 키 저장(회귀). (c) 로그인 복귀 → 완료 Dialog → 확인 → `N건을 담았습니다.` Dialog, 배지 +N, SQL `market_cart_items` +N(회귀).
+   - (d) 로그인 상태에서 storage에 보유·존재하지 않는 `targetId`를 넣고 `?login=success`로 진입 → 완료 Dialog를 닫은 뒤 `장바구니 담기 안내` Dialog와 사유, 행 증가 0, toast 없음. (e) 담기 가능 1건 + 보유 1건 → 성공 Dialog에 제외 문구, 배지 +1. (f) 장바구니 50행 상태 → 안내 Dialog에 한도 문구. (g) 일반 선택 담기에서 네트워크를 끊으면 toast(Dialog 아님). (h) 구매 복귀 시 `POST …/purchase` 0건.
+   - (i) 보고 시나리오 그대로: 비로그인 2건 선택 → [로그인 후 담기] → **`/login` 화면에서 제출 전에** DevTools로 `sessionStorage['market-cart-intent:v1']`(`itemId`·`workspaceSubject`·`createdAt`·`targets`)와 주소의 `next` 쿼리를 먼저 기록 → 이메일 로그인 → 완료 Dialog 확인 → 담기 완료 Dialog. 실패 시 기록으로 원인을 가른다: 키 없음=저장 단계, `itemId`/`workspaceSubject`가 복귀 페이지와 다름=불일치, `createdAt`이 30분 초과=만료, 복귀 URL에 `login=success` 없음=로그인 경로 문제. 이것이 실패하면 코드를 더 고치지 말고 `takeMarketCartIntent`가 null인 이유(키 없음·만료·itemId/subject 불일치·`login=success` 없음)를 분기별로 확인해 사용자에게 보고한다.
+5. **통합**: `node --test tests/market-*.test.mjs tests/auth-login-complete-dialog-contract.test.mjs` 새 실패 0, `npm run lint`·`npm run build` 통과.
+
+**테스트 갱신**(`market-detail-multiselect-contract`)
+- 11·12절의 '`!isLoggedIn`이 `selectedOptions.length === 0`보다 앞선다' assert를 '`!isLoggedIn` 분기 안에서 0건이면 `redirectToLogin`·`saveIntentBeforeLogin` 호출 전에 return하고 `emptyNotice`를 켠다'로 바꾼다. 버튼 `disabled={(isLoggedIn && selectedOptions.length === 0) || isBusy}`와 `담을 자료를 먼저 선택하세요.`·새 기본 안내 문구·`aria-live`를 확인한다.
+- 소비부: `consumeCartIntent`가 `toast.error('선택했던 자료를 지금은 담을 수 없습니다.')` 대신 `setCartResult({ kind: 'notice'`를 호출하고, 사유 문구(`이미 보유했거나 판매가 중지된 자료`·`준비 중이라 담을 수 없는 자료`)와 `장바구니 담기 안내`·`확인` 버튼이 있다. 선택 담기 경로는 `toast.error`를 유지한다.
+- 유지: 구매 자동 실행 금지(소비부에서 `openCheckout`·`submitCheckout`·`/purchase` fetch 호출 없음, `action==='purchase'`는 `setSelectedKeys`만), Dialog 열림 조건 `!isLoginCompletePending`, 순차 POST·배열 body 없음.
+
+**위험**: ① 0건 클릭 시 이동하지 않아 '로그인 버튼이 반응 없다'고 느낄 수 있다(안내 문구와 `aria-live`로 완화). ② 두 Dialog 겹침은 열림 조건으로 막혀 있으나 안내 Dialog도 같은 조건을 쓰는지 4단계 (d)로 확인한다. ③ 원인이 ①②가 아닌 경우(TTL 30분 초과, 다른 상세 이동, `login=success` 없는 로그인 경로)에는 의도적 무시 때문에 여전히 팝업이 없다(다른 계정 오담기 방지가 목적이라 유지, (i)에서 확인). ④ `purchase` 복원 대상이 0건이면 안내가 없다(범위 밖, 필요 시 후속). ⑤ 사유 구분은 DTO로 판별 가능한 범위다. 보유·판매 중지는 합쳐서 표시하고, '가격 미정'과 '파일 준비 중'도 '준비 중'으로 묶인다.
