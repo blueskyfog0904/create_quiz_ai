@@ -1,10 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState, type PointerEvent } from 'react'
+import { useEffect, useId, useRef, useState, type PointerEvent } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  ChevronDown,
   Coins,
   CreditCard,
   HelpCircle,
@@ -54,18 +53,18 @@ function getMenuItems(libraryHref: string): MypageMenuItem[] {
   ]
 }
 
-// 헤더 '마이페이지'(링크) + 메뉴 열기 chevron(split-button).
-// - 마우스: 링크·chevron·메뉴에 올리면 열리고, 벗어나면 CLOSE_DELAY_MS 뒤 닫힌다. chevron 클릭은 열기만 한다
-//   (닫기는 leave·바깥 클릭·Esc). hover로 연 동안에는 검색창 등의 포커스를 빼앗지 않는다.
-// - 터치·펜은 Radix 기본 토글(chevron 탭으로 열고 닫기), 키보드는 Radix 기본(Enter/Space/ArrowDown으로 열기).
-// - 링크 클릭·탭은 메뉴 없이 /mypage로 이동한다.
+// 헤더 '마이페이지' 링크가 곧 메뉴 trigger다(plan 8절, 링크 + 메뉴 trigger는 사용자 결정에 따른 변형).
+// - 마우스: 링크·메뉴에 올리면 열리고, 벗어나면 CLOSE_DELAY_MS 뒤 닫힌다. hover로 연 동안에는 검색창 등의 포커스를 빼앗지 않는다.
+// - 클릭·탭(모든 포인터): 메뉴를 토글하지 않고 /mypage로 이동한다. 터치에는 메뉴를 여는 수단이 없다(사용자 승인).
+// - 키보드: Enter는 /mypage 이동(수정키면 새 탭), ArrowDown·Space는 메뉴 열기·진입, Esc는 Radix 기본.
 export function MypageMenu({ libraryHref }: MypageMenuProps) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
-  // 마우스(hover·chevron 클릭)로 연 상태. 이때만 포커스 이동·자동 포커스를 막는다.
+  // 마우스 hover로 연 상태. 이때만 포커스 이동·자동 포커스를 막는다.
   const [isHoverMode, setIsHoverMode] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [lastPathname, setLastPathname] = useState(pathname)
+  const hintId = useId()
   const anchorRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const closeTimerRef = useRef<number | null>(null)
@@ -115,7 +114,7 @@ export function MypageMenu({ libraryHref }: MypageMenuProps) {
     setOpen(false)
   }
 
-  // Radix가 여닫는 경로(키보드·터치·Esc·바깥 클릭·항목 선택)
+  // Radix가 여닫는 경로(키보드·Esc·바깥 클릭·항목 선택)
   const handleOpenChange = (nextOpen: boolean) => {
     clearCloseTimer()
     if (nextOpen) {
@@ -176,30 +175,32 @@ export function MypageMenu({ libraryHref }: MypageMenuProps) {
         onPointerEnter={handleMouseEnter}
         onPointerLeave={handleMouseLeave}
       >
-        <Link
-          href="/mypage"
-          onClick={closeMenu}
-          className="flex min-h-11 shrink-0 flex-col items-center justify-center gap-1 rounded-md px-2 py-1 text-[var(--studio-ink)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-        >
-          <UserRound aria-hidden="true" className="h-5 w-5" />
-          <span className="whitespace-nowrap text-[11px] font-bold leading-none">마이페이지</span>
-        </Link>
         <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            aria-label="마이페이지 메뉴 열기"
-            className="grid min-h-11 min-w-11 place-items-center rounded-md text-[var(--studio-ink)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] [&[data-state=open]>svg]:rotate-180"
+          <Link
+            href="/mypage"
+            onClick={closeMenu}
+            aria-describedby={hintId}
+            className="flex min-h-11 shrink-0 flex-col items-center justify-center gap-1 rounded-md px-2 py-1 text-[var(--studio-ink)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
             onPointerDown={(event) => {
-              // 마우스는 Radix 토글을 막고 열기만 한다. 터치·펜은 Radix 기본 토글.
-              // click의 pointerType으로 판정하지 않는다(Safari: 18.2 미만은 undefined, iOS 18.2+는 터치 탭도 'mouse').
-              if (event.pointerType === 'mouse') {
-                event.preventDefault()
-                openByMouse()
-              }
+              // Radix 토글을 건너뛴다(포인터 종류 판정 없음: Safari는 click·탭의 종류 보고를 믿을 수 없다). click은 그대로 이동한다.
+              event.preventDefault()
             }}
             onKeyDown={(event) => {
-              // hover로 열린 상태면 Radix 기본(ArrowDown 무변화, Enter 닫힘) 대신 첫 항목으로 들어간다.
-              if (open && isHoverMode && ['ArrowDown', 'Enter', ' '].includes(event.key)) {
+              if (event.key === 'Enter') {
+                // Radix가 Enter를 토글로 쓰며 막으므로 링크 이동을 직접 실행한다.
+                // 누르고 있을 때의 repeat keydown도 항상 막아 Radix 토글·네이티브 활성화가 다시 일어나지 않게 한다.
+                event.preventDefault()
+                if (!event.repeat) {
+                  if (event.metaKey || event.ctrlKey || event.shiftKey) {
+                    window.open('/mypage', '_blank', 'noopener')
+                  } else {
+                    event.currentTarget.click()
+                  }
+                }
+                return
+              }
+              // 닫혀 있으면 Radix 기본(열고 첫 항목 포커스). 이미 열려 있으면(hover 포함) 첫 항목으로 들어간다.
+              if (open && (event.key === 'ArrowDown' || event.key === ' ')) {
                 event.preventDefault()
                 clearCloseTimer()
                 setIsHoverMode(false)
@@ -207,9 +208,11 @@ export function MypageMenu({ libraryHref }: MypageMenuProps) {
               }
             }}
           >
-            <ChevronDown aria-hidden="true" className="h-4 w-4 transition-transform motion-reduce:transition-none" />
-          </button>
+            <UserRound aria-hidden="true" className="h-5 w-5" />
+            <span className="whitespace-nowrap text-[11px] font-bold leading-none">마이페이지</span>
+          </Link>
         </DropdownMenuTrigger>
+        <span id={hintId} className="sr-only">아래 화살표 키로 마이페이지 메뉴를 열 수 있습니다.</span>
       </div>
       <DropdownMenuContent
         ref={contentRef}
