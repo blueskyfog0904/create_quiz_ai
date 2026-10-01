@@ -4,12 +4,13 @@ import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { SiteLogo } from '@/components/layout/site-logo'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { ChevronDown, Coins, Grid2X2, Library, Search, UserRound, WalletCards } from 'lucide-react'
+import { ChevronDown, Coins, Grid2X2, Library, Search, WalletCards } from 'lucide-react'
 import { StudioContainer } from '@/components/design-system'
 import { CategoryMegaMenu } from '@/components/layout/category-mega-menu'
 import { MarketCartIndicator } from '@/components/market/market-cart-indicator'
 import { buildAuthRedirectPath } from '@/lib/auth-paths'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import { MypageMenu } from './mypage-menu'
 
 const englishHomeHref = '/?subject=english'
 const koreanHomeHref = '/?subject=korean'
@@ -371,13 +372,7 @@ export function PreviewHeader({
                   <Library aria-hidden="true" className="h-5 w-5" />
                   <span className="whitespace-nowrap text-[11px] font-bold leading-none">자료 보관함</span>
                 </Link>
-                <Link
-                  href="/mypage"
-                  className="flex min-h-11 shrink-0 flex-col items-center justify-center gap-1 rounded-md px-2 py-1 text-[var(--studio-ink)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-                >
-                  <UserRound aria-hidden="true" className="h-5 w-5" />
-                  <span className="whitespace-nowrap text-[11px] font-bold leading-none">마이페이지</span>
-                </Link>
+                <MypageMenu libraryHref={libraryHref} />
               </>
             ) : (
               <>
