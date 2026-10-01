@@ -60,8 +60,8 @@ test('market detail action buttons are responsive for sample and purchase action
   assert.doesNotMatch(itemActions, /MARKET_PRIMARY_BUTTON_CLASS/)
   assert.match(itemActions, /MARKET_OUTLINE_BUTTON_CLASS/)
   assert.match(itemActions, /grid grid-cols-2 gap-2/)
-  assert.match(itemActions, /variant="brandOutline"\s+className="h-11 w-full"/)
-  assert.match(itemActions, /variant="brand"\s+className="h-11 w-full"/)
+  assert.match(itemActions, /variant="brandOutline"\s+className="h-auto min-h-11 w-full whitespace-normal"/)
+  assert.match(itemActions, /variant="brand"\s+className="h-auto min-h-11 w-full whitespace-normal"/)
 })
 
 test('market detail hides the description box when no detail description is registered', () => {

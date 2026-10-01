@@ -287,6 +287,8 @@ function FileOptionRow({
   meta,
   notice,
   actionSlot,
+  selectSlot,
+  showDefaultAction = true,
   className,
   onAction,
   onIntent,
@@ -306,6 +308,10 @@ function FileOptionRow({
   meta?: ReactNode
   notice?: PurchaseNotice | null
   actionSlot?: ReactNode
+  // 카드 맨 위 첫 줄(좌상단)에 두는 선택 컨트롤
+  selectSlot?: ReactNode
+  // 비보유(선택형) 행은 false로 두어 actionSlot이 비어도 기본 Button을 만들지 않는다
+  showDefaultAction?: boolean
   className?: string
   onAction?: () => void
   onIntent?: () => void
@@ -322,6 +328,7 @@ function FileOptionRow({
 
   return (
     <div className={rowClassName}>
+      {selectSlot ? <div className="mb-2">{selectSlot}</div> : null}
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 gap-3">
           {icon}
@@ -346,7 +353,7 @@ function FileOptionRow({
             <p className="mt-1 text-lg font-bold text-slate-950">{priceLabel}</p>
           </div>
         ) : null}
-        {actionSlot ?? (href ? (
+        {actionSlot ?? (!showDefaultAction ? null : href ? (
           <Button asChild className={resolvedButtonClassName} disabled={disabled}>
             <a href={href} aria-label={`${title} ${actionLabel}`}>
               {actionIcon}
@@ -813,8 +820,8 @@ export default function MarketItemActions({
     const reasonId = `${selectionIdPrefix}-${option.key}`
 
     return (
-      <div className="flex w-full flex-col items-end gap-1 sm:w-auto sm:max-w-64">
-        <label className="flex min-h-11 cursor-pointer items-center gap-1 text-sm font-semibold text-[var(--studio-ink)] has-[:disabled]:cursor-not-allowed has-[:disabled]:text-[var(--studio-muted)]">
+      <div className="flex w-full flex-col items-start gap-1">
+        <label className="-ml-3 flex min-h-11 cursor-pointer items-center gap-1 text-sm font-semibold text-[var(--studio-ink)] has-[:disabled]:cursor-not-allowed has-[:disabled]:text-[var(--studio-muted)]">
           <span className="grid size-11 shrink-0 place-items-center">
             <Checkbox
               checked={selectedKeySet.has(option.key)}
@@ -827,11 +834,16 @@ export default function MarketItemActions({
           선택
         </label>
         {reason ? (
-          <p id={reasonId} className="break-keep text-right text-xs leading-5 text-[var(--studio-muted)]">{reason}</p>
+          <p id={reasonId} className="break-keep text-left text-xs leading-5 text-[var(--studio-muted)]">{reason}</p>
         ) : null}
       </div>
     )
   }
+
+  // 비로그인은 선택 건수와 무관하게 버튼을 눌러 로그인으로 이동한다(로그인 후 이 상세로 복귀).
+  const summaryHintId = !isLoggedIn
+    ? `${selectionIdPrefix}-login`
+    : selectedOptions.length === 0 ? `${selectionIdPrefix}-empty` : undefined
 
   const renderV2PurchaseOptions = () => {
     const filesBySubproduct = new Map<string, MarketSubproductDownloadFile[]>()
@@ -885,6 +897,9 @@ export default function MarketItemActions({
           <section className="space-y-3">
             <SectionHeading title="전체 패키지" description="아래 개별 상품을 한 번에 구매하는 추천 옵션입니다." />
             <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-cyan-50 p-4 shadow-md">
+              {!bundleOption.owned ? (
+                <div className="mb-2">{renderOptionSelectControl(`bundle:${bundleOption.id}`)}</div>
+              ) : null}
               <div className="flex flex-wrap gap-2">
                 <Badge variant="secondary" className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-white">추천</Badge>
                 <Badge variant="secondary" className="rounded-full border border-cyan-200 bg-white px-3 py-1 text-xs font-semibold text-cyan-700 hover:bg-white">전체 포함</Badge>
@@ -928,9 +943,7 @@ export default function MarketItemActions({
                   <p className="text-xs text-slate-500">패키지 이용가</p>
                   <p className="mt-1 text-xl font-bold text-slate-950">{formatCredits(bundleOption.priceCredits)} 크레딧</p>
                 </div>
-                {bundleOption.owned
-                  ? renderDownloadButtons(dedupeQuestionPdfFiles(downloadFiles))
-                  : renderOptionSelectControl(`bundle:${bundleOption.id}`)}
+                {bundleOption.owned ? renderDownloadButtons(dedupeQuestionPdfFiles(downloadFiles)) : null}
               </div>
             </div>
           </section>
@@ -980,9 +993,9 @@ export default function MarketItemActions({
                     actionLabel={isDownloadable ? '다운로드' : '선택'}
                     actionIcon={isDownloadable ? <Download className="h-4 w-4" /> : undefined}
                     buttonClassName={MARKET_OUTLINE_BUTTON_CLASS}
-                    actionSlot={isDownloadable
-                      ? renderDownloadButtons(ownedFiles)
-                      : renderOptionSelectControl(`subproduct:${subproduct.id}`)}
+                    actionSlot={isDownloadable ? renderDownloadButtons(ownedFiles) : undefined}
+                    selectSlot={isDownloadable ? undefined : renderOptionSelectControl(`subproduct:${subproduct.id}`)}
+                    showDefaultAction={isDownloadable}
                     meta={<FileTypeBadges subproduct={subproduct} />}
                     notice={resolveSubproductPurchaseNotice(subproduct)}
                     className="rounded-xl border-slate-200 p-3 shadow-none"
@@ -1005,25 +1018,27 @@ export default function MarketItemActions({
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Button
                 variant="brandOutline"
-                className="h-11 w-full"
-                disabled={selectedOptions.length === 0 || isBusy}
-                aria-describedby={selectedOptions.length === 0 ? `${selectionIdPrefix}-empty` : undefined}
+                className="h-auto min-h-11 w-full whitespace-normal"
+                disabled={(isLoggedIn && selectedOptions.length === 0) || isBusy}
+                aria-describedby={summaryHintId}
                 onClick={() => void addSelectedToCart()}
               >
                 <ShoppingCart aria-hidden="true" className="h-4 w-4" />
-                {isAddingToCart ? '담는 중' : '장바구니'}
+                {!isLoggedIn ? '로그인 후 담기' : isAddingToCart ? '담는 중' : '장바구니'}
               </Button>
               <Button
                 variant="brand"
-                className="h-11 w-full"
-                disabled={selectedOptions.length === 0 || isBusy}
-                aria-describedby={selectedOptions.length === 0 ? `${selectionIdPrefix}-empty` : undefined}
+                className="h-auto min-h-11 w-full whitespace-normal"
+                disabled={(isLoggedIn && selectedOptions.length === 0) || isBusy}
+                aria-describedby={summaryHintId}
                 onClick={() => void openCheckout()}
               >
-                구매하기
+                {isLoggedIn ? '구매하기' : '로그인 후 구매'}
               </Button>
             </div>
-            {selectedOptions.length === 0 ? (
+            {!isLoggedIn ? (
+              <p id={`${selectionIdPrefix}-login`} className="mt-2 text-xs text-[var(--studio-muted)]">담기·구매는 로그인이 필요합니다. 로그인하면 이 페이지로 돌아옵니다.</p>
+            ) : selectedOptions.length === 0 ? (
               <p id={`${selectionIdPrefix}-empty`} className="mt-2 text-xs text-[var(--studio-muted)]">구매하거나 담을 옵션을 선택하세요.</p>
             ) : null}
           </section>

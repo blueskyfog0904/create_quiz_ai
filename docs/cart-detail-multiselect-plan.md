@@ -195,3 +195,36 @@
 | 회차 | 대상 | 검증자 | 판정 | 근거·보완 사항 |
 |---|---|---|---|---|
 | R1 | 초안 196줄 | 독립 검증(팀 리드 전달) | OK(차단 없음) → 비차단 N1~N8 반영 | N1 client body 전환을 S2로 이동(중간 400 금지). N2 3절 "cart 분기와 5~10단계 무변경". N3 PDF↔HWP 카테고리 단위 비활성, code 소문자 비교. N4 S0에 untracked 파일 sha256, 플래그 grep 0건 선행 조건. N5 계약 테스트 갱신 목록 추가(idempotency·entitlement·refund-snapshot의 새 migration 가드, detail-ui:146, detail-library:58·69-71). N6 retryable 시 ack 잠금. N7 direct 51줄·합계 overflow `INVALID_INPUT`. N8 Dialog 추출 시 canConfirm·오버레이 닫기 조건 그대로 이동. 작성자 제안 (a) brand purple (b) non-sticky (c) '크레딧' 확정 |
+| R2 | N1~N8 반영본 197줄 | 독립 검증 | OK | 사본은 저장소 밖(scratchpad)에 둘 것(비차단) |
+| 구현 | S0~S5 + migration `20260930080434_market_checkout_direct_multi.sql` | 적용 전·후 독립 검증 | OK | 원격 begin…rollback 테스트 통과·흔적 0, 이력 97, 함수 md5 일치. 비차단 N1(stale 선택 정리)·N2(계약 assert) 반영. 커밋 c5e6f34 |
+| R3 | 11절 추가(체크박스 좌상단·로그인 선행·복귀) | 독립 검증 | OK | 비차단 N1(비보유 행 기본 버튼 생성 금지)·N2(기준선 c5e6f34)·N3(비로그인 안내 교체)를 구현에 반영 |
+| 11절 구현 | market-item-actions.tsx·계약 테스트 2개 | 독립 검증 | OK | tsc·eslint·build 통과, node 956건 fail 39(새 실패 0), 4010 비로그인 상세 두 경로 확인. 실제 로그인 복귀·320px·키보드는 미실행(사용자 확인) |
+
+## 11. 추가 요청(2026-10-01)
+요청: ① 선택 체크박스를 카드 **왼쪽 상단**으로 ② 장바구니 담기 전에 로그인 ③ 로그인 뒤 그 상품 상세로 복귀. 변경 파일은 `market-item-actions.tsx`(FileOptionRow 포함)와 계약 테스트뿐이다. DB·API·`use-login-redirect`·로그인 페이지는 바꾸지 않는다. 5절·D5는 아래 결정으로 갈음한다.
+
+**분석(사실)**
+- 지금 선택 컨트롤은 카드 footer의 `actionSlot`(가격 오른쪽 아래)에 있다(`renderOptionSelectControl` 807행, 호출 933·985행). `FileOptionRow`는 `actionSlot ?? 기본 Button`이라 slot을 비우면 기본 버튼이 생긴다(343-366행).
+- 하단 두 버튼은 `disabled={selectedOptions.length === 0 || isBusy}`라 비로그인 0건이면 눌러도 동작하지 않는다(1009·1019행). 핸들러는 이미 `!isLoggedIn`을 길이 검사보다 먼저 본다(533·607행).
+- 복귀 경로는 이미 있다. `useLoginRedirect`가 경로+쿼리를 `/login?next=`로 보내고, 이메일 로그인(`login/page.tsx:64-68`)과 OAuth callback(`route.ts:98`)이 `next`로 이동하며 `login=success`를 붙인다. `LoginCompleteDialog`(`template.tsx:21`)가 이 쿼리로 완료 Dialog를 띄우고 확인 시 쿼리를 지운다. 두 상세 경로 모두 `MarketItemActions` 공유.
+
+**결정**
+- D7 **체크박스 위치**: 카드 **맨 위 첫 줄 왼쪽**에 `☐ 선택` 행을 둔다. 아이콘·제목·우상단 '미구매' 배지 줄은 그 아래에서 그대로 둔다. 번들 카드는 '추천' 배지 줄 위에 둔다. 사유 문구는 같은 행 아래에 왼쪽 정렬(`text-left text-xs leading-5`)로 넣고 `aria-describedby`를 유지한다. 근거: 제목 앞 열에 넣으면 320px에서 아이콘·제목·배지와 경쟁하고, 모서리 절대배치는 44px 터치 영역과 겹친다.
+- D8 **구현 형태**: `renderOptionSelectControl`은 `flex w-full flex-col items-start gap-1`(우측정렬·`sm:w-auto sm:max-w-64` 제거)로 바꾸고, `FileOptionRow`에 `selectSlot` prop을 추가해 header 위에 렌더한다. `selectSlot`이 있으면 footer는 가격만 남기고 기본 Button을 만들지 않는다. 보유 행은 `actionSlot`(다운로드)을 그대로 쓴다. `label`(min-h-11, 체크박스 `size-11` 셀)·`aria-label="<옵션명> 선택"`·disabled 상태는 유지한다. 새 class는 Studio 토큰·기존 class만 쓰고 raw hex·임의 radius를 쓰지 않는다.
+- D9 **로그인 선행**: 비로그인은 선택 건수와 무관하게 [장바구니]·[구매하기]가 **활성**이고, 누르면 즉시 `redirectToLogin()`한다. `disabled={(isLoggedIn && selectedOptions.length === 0) || isBusy}`. 구매하기도 같은 규칙이다. 근거: 사용자가 "구매하려면 아이디가 있어야"라고 했고, 두 버튼이 같은 로그인 전제를 공유하며, 핸들러가 이미 같은 순서로 구현돼 있다.
+- D10 **비로그인 체크박스는 계속 허용**한다(체크 시 로그인 요구 안 함). 근거: 요청은 '담기할 때'로 한정됐고, 체크는 금액 확인용 탐색이며, 선택이 복원되지 않으므로 체크 단계에서 로그인을 강제할 이유가 없다. 단순성 우선(추가 코드 0).
+- D11 **문구**: 비로그인 버튼은 `로그인 후 담기`·`로그인 후 구매`(아이콘 유지), 안내는 `담기·구매는 로그인이 필요합니다. 로그인하면 이 페이지로 돌아옵니다.`를 `aria-describedby`로 연결한다. 로그인 상태 문구(`장바구니`·`구매하기`·`구매하거나 담을 옵션을 선택하세요.`)는 그대로다. 320px에서 버튼 문구가 넘치면 `h-auto min-h-11 whitespace-normal`로 줄바꿈을 허용한다(아이콘은 빼지 않는다).
+- D12 **복귀**: 선택 복원·자동 담기는 하지 않는다(기존 결정 유지). **사용자 확인 필요(비차단)**: 요청은 "상품페이지로 돌아가게"까지이므로 이대로 진행하되, 돌아온 뒤 선택이 비어 있다는 점을 보고에 알리고 원하면 후속으로 sessionStorage 복원을 제안한다.
+
+**작업 단계와 검증**
+1. **A 위치 이동**(D7·D8): 위 결정대로 수정. 검증: `npx tsc --noEmit` exit 0, `npx eslint 'src/app/(dashboard)/market/[slug]/items/[itemId]/market-item-actions.tsx'` exit 0. 브라우저(미구매·보유·비활성 사유·번들 카드): 체크박스가 카드 좌상단, 배지는 우상단 유지, 보유 행은 다운로드 버튼 유지, 비활성 사유가 행 아래 왼쪽에 보인다. 320/768/1440px에서 `document.documentElement.scrollWidth <= innerWidth`이고 체크박스 label의 `getBoundingClientRect()` 높이 ≥ 44. Tab→Space로 선택되고 label 글자 클릭으로도 토글된다.
+2. **B 로그인 선행**(D9~D11): 검증(비로그인 브라우저): 선택 0건에서 두 버튼이 활성이며 각각 클릭하면 `/login?next=<인코딩된 상세 경로+쿼리>`로 이동한다. 1건 선택 후에도 동일하고, `POST /api/market/cart/items` 요청이 네트워크 탭에 0건이다. 로그인 상태에서는 0건이면 두 버튼이 disabled이고 기존 문구가 보인다.
+3. **C 복귀 확인**(코드 변경 없음): 이메일 로그인과 Kakao OAuth 각각 ① 상세(`/market/<slug>/items/<id>?subject=…`와 preview 경로 1곳)에서 [장바구니] ② 로그인 완료 ③ 주소가 `next` 경로+기존 쿼리+`login=success`와 같고 404·빈 화면이 없다 ④ '로그인 완료' Dialog 확인 후 `login` 쿼리만 제거되고 기존 쿼리는 남는다 ⑤ 선택은 비어 있고 장바구니 수(SQL `select count(*) from market_cart_items where user_id=…`)가 전후 같다. 테스트용 Kakao 계정이 없으면 OAuth는 `/login` 페이지의 `redirectTo`에 `next`가 실리는지만 확인하고 '실로그인 미검증'으로 기록한다.
+4. **D 테스트 갱신**: 아래 목록 반영 후 `node --test tests/market-*.test.mjs tests/auth-login-complete-dialog-contract.test.mjs 2>&1 | tail -5`가 S0 대비 새 실패 0, `npm run lint` 새 실패 0.
+
+**테스트 갱신**
+- `market-detail-multiselect-contract`(신규 assert): 선택 행이 소스상 아이콘·제목보다 앞에 온다(`selectSlot` 렌더 위치 < `{icon}`, 번들은 `renderOptionSelectControl(`bundle:` < `MarketOptionIcon kind="bundle"`). `renderOptionSelectControl`에 `items-end`·`text-right`가 없다. `FileOptionRow`에 `selectSlot`이 있다. 하단 버튼 disabled가 `isLoggedIn && selectedOptions.length === 0`을 포함한다. `로그인 후 담기`·`로그인 후 구매` 문구가 있다. 두 핸들러에서 `!isLoggedIn`이 `selectedOptions.length === 0`보다 앞선다. 기존 `구매하거나 담을 옵션을 선택하세요.`·`variant="brand*"`·`grid-cols-2` assert는 유지한다.
+- `market-v2-detail-library-contract:47-48`(`renderOptionSelectControl(`…`)` 호출 regex)과 `market-item-detail-ui-contract:110`(`aria-label=… 선택`)은 호출 식·aria-label을 유지하므로 수정하지 않는다. 깨지면 식별자를 되돌리지 말고 assert를 새 구조로 고친다.
+- `auth-login-complete-dialog-contract`: 변경 없음. 복귀(`next`+`login=success`)는 코드 변경이 없으므로 3단계 브라우저 증거로만 검증한다.
+
+**위험**: ① 비로그인 0건 클릭으로 로그인 이동이 잦아 보일 수 있다(안내 문구 D11로 완화). ② `redirectToLogin` toast가 error 스타일이다(기존 동작이라 유지, 거슬리면 메시지 인자만 후속 조정). ③ 선택 복원이 없어 돌아오면 다시 선택해야 한다(D12). ④ 320px 버튼 줄바꿈(D11 대안 지정). ⑤ 회원가입 링크 경유 시 `next` 유지 여부는 이번 범위 밖이라 미확인이다. ⑥ 기존 사용자 변경 보존: 파일은 커밋 상태(c5e6f34)이며 `git checkout/restore`는 쓰지 않는다.

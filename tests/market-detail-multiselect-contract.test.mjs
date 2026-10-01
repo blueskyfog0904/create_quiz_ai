@@ -52,10 +52,37 @@ test('detail shows the three conflict reasons and compares file type codes in lo
 
 test('detail summary uses a two-column brand button pair', () => {
   assert.match(itemActions, /className="mt-3 grid grid-cols-2 gap-2"/)
-  assert.match(itemActions, /variant="brandOutline"\s+className="h-11 w-full"/)
-  assert.match(itemActions, /variant="brand"\s+className="h-11 w-full"/)
+  assert.match(itemActions, /variant="brandOutline"\s+className="h-auto min-h-11 w-full whitespace-normal"/)
+  assert.match(itemActions, /variant="brand"\s+className="h-auto min-h-11 w-full whitespace-normal"/)
   assert.match(itemActions, /총 금액/)
   assert.match(itemActions, /구매하거나 담을 옵션을 선택하세요\./)
+})
+
+test('selection control sits at the top-left of each option card', () => {
+  assert.match(itemActions, /selectSlot\?: ReactNode/)
+  const rowSelect = itemActions.indexOf('{selectSlot ? <div className="mb-2">{selectSlot}</div> : null}')
+  assert.notEqual(rowSelect, -1)
+  assert.ok(rowSelect < itemActions.indexOf('          {icon}'), 'row select before icon/title')
+  const bundleSelect = itemActions.indexOf('renderOptionSelectControl(`bundle:')
+  assert.ok(bundleSelect !== -1 && bundleSelect < itemActions.indexOf('MarketOptionIcon kind="bundle"'), 'bundle select before bundle icon')
+  assert.ok(bundleSelect < itemActions.indexOf('>추천</Badge>'), 'bundle select above the 추천 badge row')
+  const control = itemActions.slice(itemActions.indexOf('const renderOptionSelectControl'), itemActions.indexOf('const renderV2PurchaseOptions'))
+  assert.match(control, /flex w-full flex-col items-start gap-1/)
+  assert.doesNotMatch(control, /items-end|text-right/)
+  // 비보유 행은 기본 Button을 만들지 않는다(selectSlot 유무와 무관)
+  assert.match(itemActions, /\{actionSlot \?\? \(!showDefaultAction \? null : href \? \(/)
+  assert.match(itemActions, /showDefaultAction=\{isDownloadable\}/)
+})
+
+test('guests can press cart/purchase to log in first and come back to the detail page', () => {
+  assert.match(itemActions, /disabled=\{\(isLoggedIn && selectedOptions\.length === 0\) \|\| isBusy\}/)
+  assert.match(itemActions, /'로그인 후 담기'/)
+  assert.match(itemActions, /'로그인 후 구매'/)
+  assert.match(itemActions, /담기·구매는 로그인이 필요합니다\. 로그인하면 이 페이지로 돌아옵니다\./)
+  for (const handler of ['const addSelectedToCart = async', 'const openCheckout = async']) {
+    const body = itemActions.slice(itemActions.indexOf(handler))
+    assert.ok(body.indexOf('if (!isLoggedIn)') < body.indexOf('selectedOptions.length === 0'), `${handler}: login check first`)
+  }
 })
 
 test('both detail routes render the shared MarketItemActions', () => {
