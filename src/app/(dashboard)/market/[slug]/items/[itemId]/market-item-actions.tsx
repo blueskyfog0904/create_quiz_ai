@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Download, Eye, FileArchive, FileCheck2, FileStack, FileText, ShoppingCart } from 'lucide-react'
 import { FileTypeDocIcon } from '@/components/market/file-type-doc-icon'
 import { toast } from 'sonner'
@@ -21,6 +21,7 @@ import {
 import { dispatchMarketCartUpdated } from '@/components/market/market-cart-indicator'
 import { MarketCheckoutConfirmDialog } from '@/components/market/market-checkout-confirm-dialog'
 import { useLoginRedirect } from '@/hooks/use-login-redirect'
+import { saveMarketCartIntent, takeMarketCartIntent } from '@/lib/market-cart-intent'
 import type { MarketBundlePublicSummary, MarketSubproductDownloadFile, MarketSubproductPublicSummary } from '@/lib/market-items-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import MarketSamplePreviewDialog from './market-sample-preview-dialog'
@@ -398,6 +399,10 @@ export default function MarketItemActions({
 }: MarketItemActionsProps) {
   const router = useRouter()
   const { redirectToLogin } = useLoginRedirect()
+  const searchParams = useSearchParams()
+  // 방금 완료된 로그인의 증거. LoginCompleteDialog가 닫히면서 이 쿼리를 지운다.
+  const isLoginCompletePending = searchParams.get('login') === 'success'
+  const cartIntentConsumed = useRef(false)
   const selectionIdPrefix = useId()
   // 선택 순서를 유지한다(장바구니 담기 순서). 새로고침으로 사라지거나 선택 불가가 된 옵션은 purchaseOptions 대조로 걸러진다.
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
@@ -535,17 +540,9 @@ export default function MarketItemActions({
 
   const clearSelection = () => setSelectedKeys([])
 
-  // 비로그인은 로그인 후 이 상세로 돌아오며, 담기·구매는 자동으로 하지 않는다.
-  const addSelectedToCart = async () => {
-    if (!isLoggedIn) {
-      redirectToLogin()
-      return
-    }
-    if (selectedOptions.length === 0) {
-      return
-    }
-
-    // 담기는 원자성이 필요 없고 target별 결과(CART_LIMIT 등)를 안내해야 하므로 기존 POST를 순서대로 호출한다.
+  // 선택 담기와 로그인 복귀 담기가 공유한다. 담기는 원자성이 필요 없고 target별 결과(CART_LIMIT 등)를 안내해야 하므로
+  // 기존 POST를 순서대로 호출한다. 1건 이상 담기면 true.
+  const addTargetsToCart = async (options: PurchaseOption[], onUnauthorized: () => void) => {
     let createdCount = 0
     let existingCount = 0
     let limitCount = 0
@@ -553,7 +550,7 @@ export default function MarketItemActions({
     let latestCount: number | null = null
     setIsAddingToCart(true)
     try {
-      for (const option of selectedOptions) {
+      for (const option of options) {
         let response: Response
         try {
           response = await fetch('/api/market/cart/items', {
@@ -570,8 +567,8 @@ export default function MarketItemActions({
         const payload = await response.json().catch(() => ({}))
 
         if (response.status === 401) {
-          redirectToLogin()
-          return
+          onUnauthorized()
+          return false
         }
 
         if (response.ok && payload.success) {
@@ -598,7 +595,7 @@ export default function MarketItemActions({
     const limitMessage = `장바구니가 가득 차(최대 50개) ${limitCount}건을 담지 못했습니다. 장바구니를 정리한 뒤 다시 담아 주세요.`
     if (createdCount + existingCount === 0) {
       toast.error(limitCount > 0 ? limitMessage : '장바구니에 담지 못했습니다. 잠시 후 다시 시도해주세요.')
-      return
+      return false
     }
 
     setCartAddedMessage([
@@ -607,11 +604,72 @@ export default function MarketItemActions({
       limitCount > 0 ? limitMessage : null,
       failedCount > 0 ? `${failedCount}건은 오류로 담지 못했습니다.` : null,
     ].filter(Boolean).join(' '))
-    clearSelection()
+    return true
   }
+
+  // 비로그인은 선택을 저장한 뒤 로그인으로 보낸다. 로그인 후 이 상세로 돌아오면 담기는 자동으로 이어지고(12절 D16·D17),
+  // 구매는 선택만 복원한다(D19, 차감은 사용자가 다시 눌러야 한다).
+  const saveIntentBeforeLogin = (action: 'cart' | 'purchase') => {
+    saveMarketCartIntent({
+      action,
+      itemId,
+      workspaceSubject,
+      targets: selectedOptions.map((option) => ({ targetKind: option.targetKind, targetId: option.targetId })),
+    })
+  }
+
+  const addSelectedToCart = async () => {
+    if (!isLoggedIn) {
+      saveIntentBeforeLogin('cart')
+      redirectToLogin()
+      return
+    }
+    if (selectedOptions.length === 0) {
+      return
+    }
+
+    if (await addTargetsToCart(selectedOptions, () => redirectToLogin())) {
+      clearSelection()
+    }
+  }
+
+  // 로그인 상태 마운트에서 1회만 읽고 즉시 지운다. 1회 보장은 ref 가드와 storage 즉시 삭제로만 한다
+  // (cleanup 취소 플래그를 두면 StrictMode 이중 실행에서 첫 POST는 나가고 결과 Dialog가 막힌다).
+  const consumeCartIntent = useEffectEvent(() => {
+    const intent = takeMarketCartIntent({ itemId, workspaceSubject })
+    if (!intent || !isLoginCompletePending) {
+      return
+    }
+
+    const options = intent.targets.flatMap((target) => {
+      const option = optionByKey.get(`${target.targetKind}:${target.targetId}`)
+      return option && option.unavailableReason === null ? [option] : []
+    })
+
+    if (intent.action === 'purchase') {
+      setSelectedKeys(options.map((option) => option.key))
+      return
+    }
+
+    if (options.length === 0) {
+      toast.error('선택했던 자료를 지금은 담을 수 없습니다.')
+      return
+    }
+    // 복귀 담기 중 401은 다시 로그인으로 보내지 않는다(무한 이동 방지).
+    void addTargetsToCart(options, () => toast.error('로그인 상태를 확인하지 못해 장바구니에 담지 못했습니다.'))
+  })
+
+  useEffect(() => {
+    if (!isLoggedIn || cartIntentConsumed.current) {
+      return
+    }
+    cartIntentConsumed.current = true
+    consumeCartIntent()
+  }, [isLoggedIn])
 
   const openCheckout = async () => {
     if (!isLoggedIn) {
+      saveIntentBeforeLogin('purchase')
       redirectToLogin()
       return
     }
@@ -1156,7 +1214,11 @@ export default function MarketItemActions({
         onConfirm={() => void submitCheckout()}
       />
 
-      <Dialog open={cartAddedMessage !== null} onOpenChange={(open) => !open && setCartAddedMessage(null)}>
+      {/* 로그인 완료 Dialog가 닫힌(login 쿼리가 지워진) 뒤에 연다. 두 모달이 겹치지 않게 한다. */}
+      <Dialog
+        open={cartAddedMessage !== null && !isLoginCompletePending}
+        onOpenChange={(open) => !open && setCartAddedMessage(null)}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>장바구니 담기</DialogTitle>

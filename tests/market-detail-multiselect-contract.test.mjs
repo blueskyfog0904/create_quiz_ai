@@ -14,7 +14,8 @@ const confirmDialog = read('../src/components/market/market-checkout-confirm-dia
 const RAW_HEX = /#[0-9a-fA-F]{3,8}\b/
 
 test('detail adds selected targets to the cart one POST per target, in order', () => {
-  assert.match(itemActions, /for \(const option of selectedOptions\) \{[\s\S]+?fetch\('\/api\/market\/cart\/items', \{\s+method: 'POST'/)
+  assert.match(itemActions, /const addTargetsToCart = async \(options: PurchaseOption\[\], onUnauthorized: \(\) => void\) => \{[\s\S]+?for \(const option of options\) \{[\s\S]+?fetch\('\/api\/market\/cart\/items', \{\s+method: 'POST'/)
+  assert.match(itemActions, /await addTargetsToCart\(selectedOptions, \(\) => redirectToLogin\(\)\)/)
   assert.match(itemActions, /\? \{ targetKind: 'bundle', bundleOptionId: option\.targetId \}\s+: \{ targetKind: 'subproduct', subproductId: option\.targetId \}/)
   assert.doesNotMatch(itemActions, /\/api\/market\/cart\/items[\s\S]{0,200}body: JSON\.stringify\(\{ (items|targets):/)
   assert.match(itemActions, /payload\.error\?\.code === 'CART_LIMIT'/)
@@ -83,6 +84,29 @@ test('guests can press cart/purchase to log in first and come back to the detail
     const body = itemActions.slice(itemActions.indexOf(handler))
     assert.ok(body.indexOf('if (!isLoggedIn)') < body.indexOf('selectedOptions.length === 0'), `${handler}: login check first`)
   }
+})
+
+test('guest selection is saved right before the login redirect and consumed once after login', () => {
+  assert.match(itemActions, /import \{ saveMarketCartIntent, takeMarketCartIntent \} from '@\/lib\/market-cart-intent'/)
+  assert.match(itemActions, /saveIntentBeforeLogin\('cart'\)\s+redirectToLogin\(\)/)
+  assert.match(itemActions, /saveIntentBeforeLogin\('purchase'\)\s+redirectToLogin\(\)/)
+  assert.match(itemActions, /const isLoginCompletePending = searchParams\.get\('login'\) === 'success'/)
+  assert.match(itemActions, /if \(!intent \|\| !isLoginCompletePending\) \{/)
+  // 1회 보장은 ref 가드 + 즉시 삭제(take)로만 한다. cleanup 취소 플래그 금지(StrictMode에서 Dialog가 막힘)
+  const effect = itemActions.match(/useEffect\(\(\) => \{\s+if \(!isLoggedIn \|\| cartIntentConsumed\.current\) \{[\s\S]+?\}, \[isLoggedIn\]\)/)
+  assert.ok(effect, 'consume effect with ref guard')
+  assert.match(effect[0], /cartIntentConsumed\.current = true\s+consumeCartIntent\(\)/)
+  assert.doesNotMatch(effect[0], /return \(\) =>|cancelled|canceled/)
+  const consume = itemActions.slice(itemActions.indexOf('const consumeCartIntent = useEffectEvent('), itemActions.indexOf('}, [isLoggedIn])'))
+  assert.doesNotMatch(consume, /cancelled|canceled/)
+  // 구매 자동 실행 금지: 복귀 시 구매는 선택만 복원한다
+  assert.doesNotMatch(consume, /openCheckout|submitCheckout|\/purchase|idempotencyKey/)
+  assert.match(consume, /if \(intent\.action === 'purchase'\) \{\s+setSelectedKeys\(options\.map\(\(option\) => option\.key\)\)\s+return\s+\}/)
+  assert.match(consume, /option && option\.unavailableReason === null/)
+  assert.match(consume, /선택했던 자료를 지금은 담을 수 없습니다\./)
+  assert.doesNotMatch(consume, /redirectToLogin/)
+  // 담기 완료 Dialog는 로그인 완료 Dialog가 닫힌 뒤에 연다
+  assert.match(itemActions, /open=\{cartAddedMessage !== null && !isLoginCompletePending\}/)
 })
 
 test('both detail routes render the shared MarketItemActions', () => {

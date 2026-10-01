@@ -335,7 +335,16 @@ export function CartView({ initialView }: CartViewProps) {
           <p className="text-xs font-semibold text-[var(--studio-muted)]">
             {item.categoryName ?? (item.targetKind === 'bundle' ? '전체 패키지' : '개별 자료')}
           </p>
-          <p className="mt-1 break-keep font-bold text-[var(--studio-ink)]">{title}</p>
+          <p className="mt-1 break-keep font-bold leading-6 text-[var(--studio-ink)]">
+            {item.detailHref ? (
+              <Link
+                href={item.detailHref}
+                className="rounded-sm outline-none hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+              >
+                {title}
+              </Link>
+            ) : title}
+          </p>
           {item.optionTitle ? (
             <p className="mt-0.5 break-keep text-sm text-[var(--studio-text)]">{item.optionTitle}</p>
           ) : null}

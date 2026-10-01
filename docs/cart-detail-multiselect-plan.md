@@ -199,6 +199,8 @@
 | 구현 | S0~S5 + migration `20260930080434_market_checkout_direct_multi.sql` | 적용 전·후 독립 검증 | OK | 원격 begin…rollback 테스트 통과·흔적 0, 이력 97, 함수 md5 일치. 비차단 N1(stale 선택 정리)·N2(계약 assert) 반영. 커밋 c5e6f34 |
 | R3 | 11절 추가(체크박스 좌상단·로그인 선행·복귀) | 독립 검증 | OK | 비차단 N1(비보유 행 기본 버튼 생성 금지)·N2(기준선 c5e6f34)·N3(비로그인 안내 교체)를 구현에 반영 |
 | 11절 구현 | market-item-actions.tsx·계약 테스트 2개 | 독립 검증 | OK | tsc·eslint·build 통과, node 956건 fail 39(새 실패 0), 4010 비로그인 상세 두 경로 확인. 실제 로그인 복귀·320px·키보드는 미실행(사용자 확인) |
+| R4 | 12절 추가(장바구니 상세 링크·로그인 복귀 자동 담기) | 독립 검증 | OK | 비차단 N1(StrictMode cleanup 취소 플래그 금지)·N2(menu 순차 조회)·N3(의도 모듈 순수화)를 구현에 반영 |
+| 12절 구현 | market-cart-server.ts·cart-view.tsx·market-item-actions.tsx·market-cart-intent.ts·테스트 3개 | 독립 검증 | OK | 링크 조건=상세 404 조건, useEffectEvent는 React 19.2 정식 API, 구매 자동 실행 0, tsc·eslint·build 통과, node 967건 fail 39(새 실패 0). 로그인 브라우저 시나리오는 미실행(사용자 확인) |
 
 ## 11. 추가 요청(2026-10-01)
 요청: ① 선택 체크박스를 카드 **왼쪽 상단**으로 ② 장바구니 담기 전에 로그인 ③ 로그인 뒤 그 상품 상세로 복귀. 변경 파일은 `market-item-actions.tsx`(FileOptionRow 포함)와 계약 테스트뿐이다. DB·API·`use-login-redirect`·로그인 페이지는 바꾸지 않는다. 5절·D5는 아래 결정으로 갈음한다.
@@ -228,3 +230,43 @@
 - `auth-login-complete-dialog-contract`: 변경 없음. 복귀(`next`+`login=success`)는 코드 변경이 없으므로 3단계 브라우저 증거로만 검증한다.
 
 **위험**: ① 비로그인 0건 클릭으로 로그인 이동이 잦아 보일 수 있다(안내 문구 D11로 완화). ② `redirectToLogin` toast가 error 스타일이다(기존 동작이라 유지, 거슬리면 메시지 인자만 후속 조정). ③ 선택 복원이 없어 돌아오면 다시 선택해야 한다(D12). ④ 320px 버튼 줄바꿈(D11 대안 지정). ⑤ 회원가입 링크 경유 시 `next` 유지 여부는 이번 범위 밖이라 미확인이다. ⑥ 기존 사용자 변경 보존: 파일은 커밋 상태(c5e6f34)이며 `git checkout/restore`는 쓰지 않는다.
+
+## 12. 추가 요청 2(2026-10-01)
+요청: ① 장바구니 행의 상품명을 상세 링크로 ② 비로그인 담기 → 로그인 → 복귀 시 담기 완료 팝업. **사용자 결정으로 v4 2.1-1("로그인 뒤 다시 담기 확정")과 11절 D12("자동 담기 없음")를 *담기에 한해* 변경한다.** 구매 자동 실행 금지는 유지한다. 11절 D5·D12의 해당 문장은 이 절이 갈음한다.
+
+**분석(사실)**
+- `MarketCartItem`에는 `itemId`·`workspaceSubject`가 있으나 **상세 경로의 board slug가 없다**. `evaluate_market_targets`의 `c.slug`는 서브상품 카테고리 slug라 board slug가 아니다. 상세 경로의 slug는 `market_menu_entries.slug`이고(`getVisibleMarketMenuEntryBySlugForWorkspace`), 상세 page는 `item.menu_entry_id === category.id`가 아니면 404다. 따라서 서버에서 `market_items.menu_entry_id → market_menu_entries.slug`를 조회해야 한다.
+- 목록 행·카드는 `/preview/solvook-concept/boards/${slug}/items/${itemId}?subject=${subject}`를 쓴다(`market-item-list-row.tsx:38`, `market-item-card.tsx:59`). cart(`(solvook)/cart`)도 solvook 영역이므로 같은 경로를 쓴다. 기존 2곳은 건드리지 않는다.
+- 상세는 item이 `published`·`is_active`·미삭제이고 menu entry가 `is_visible`·`is_active`·미삭제이며 둘의 `workspace_subject`가 같아야 열린다.
+- 담기 Dialog는 `cartAddedMessage` 상태(`market-item-actions.tsx` 408·1159행)로 열고, 담기 루프는 `addSelectedToCart` 안에 있다. `LoginCompleteDialog`(`template.tsx`)는 `login=success`일 때 열리고 확인 시 `login` 쿼리를 지운다. 로그인 복귀 시 두 Dialog가 겹칠 수 있다.
+- node 24는 `.ts`를 직접 import하므로 순수 함수 모듈은 단위 테스트가 가능하다(`tests/admin-question-pagination.test.mjs` 선례). `market-cart-server.ts`는 `server-only`라 소스 계약 테스트로 검증한다.
+
+**결정**
+- D13 **링크 생성은 서버**: `getMarketCartView`가 `MarketCartItem.detailHref: string | null`을 만든다. `rows.length > 0`일 때만 쿼리 2개(`market_items` `.in('id', itemIds)` + `status='published'`·`is_active`·`deleted_at is null`, `market_menu_entries` `.in('id', menuIds)` + `is_visible`·`is_active`·`deleted_at is null`)를 `Promise.all`/순차로 호출하고, subject가 같을 때만 경로를 만든다. slug를 코드에 넣지 않고, DB·migration은 바꾸지 않는다. 응답 `GET /api/market/cart`에는 자동 포함된다.
+- D14 **링크 표시**: `detailHref`가 있으면 상품명을 `Link`(목록 행과 같은 `text-[var(--studio-ink)] hover:text-[var(--studio-primary)] focus-visible:ring-2` 토큰)로, 없으면 지금처럼 텍스트로 둔다. 옵션명은 텍스트 그대로다. `ALREADY_OWNED`는 상세가 정상이라 링크를 유지하고, 비게시·삭제·`NOT_FOUND`·subject 불일치는 `detailHref=null`이라 기존 사유 문구(`현재 판매하지 않는 자료…`)가 근거다. 체크박스·삭제 버튼과 겹치지 않게 `after:absolute` 방식은 쓰지 않는다. 텍스트 링크 높이는 `leading-6`(24px) 이상이다.
+- D15 **담기 의도 저장**: 신규 `src/lib/market-cart-intent.ts`(client-safe 순수 모듈, storage 주입 가능). sessionStorage 키 `market-cart-intent:v1`, 값 `{action:'cart'|'purchase', itemId, workspaceSubject, targets:[{targetKind,targetId}] (1..50), createdAt}`. 가격·제목은 저장하지 않는다. 비로그인에서 [로그인 후 담기]·[로그인 후 구매]를 누를 때 선택이 1건 이상이면 `redirectToLogin()` 직전에 저장하고, 0건이면 기존 값을 지우고 저장하지 않는다. storage 접근 실패는 try/catch로 무시하고 로그인 이동은 그대로 한다(기존 동작으로 퇴화).
+- D16 **소비 규칙**(상세 컴포넌트 마운트 시 1회, `useRef` 가드): 로그인 상태에서만 동작한다. 읽는 즉시 storage에서 **삭제**한다(새로고침·StrictMode 이중 실행 방지). 실행 조건은 모두 만족해야 한다: `login=success`가 URL에 있음, `itemId`·`workspaceSubject` 일치, 생성 후 30분 이내(`TTL=30분`, 근거: 로그인 폼 작성·OAuth 왕복에 충분하고 공용 PC 잔존 위험을 줄임), 형식 유효. 하나라도 어긋나면 삭제만 하고 아무것도 하지 않는다. 로그아웃 상태의 마운트는 storage를 건드리지 않는다. `login=success`를 요구하는 이유는 '방금 완료된 로그인'의 증거이기 때문이다(다른 계정이 나중에 같은 탭에서 상세를 열어 우연히 담는 일을 막는다).
+- D17 **담기 실행**: `addSelectedToCart`의 루프를 `addTargetsToCart(options)`로 추출해 선택 담기와 의도 소비가 공유한다(집계 문구·`dispatchMarketCartUpdated`·`CART_LIMIT` 처리 동일). 대상은 현재 `purchaseOptions` 중 선택 가능한 것(`unavailableReason===null`)만 쓴다. 보유·판매중지로 바뀐 대상은 제외하고, 전부 제외되면 Dialog 없이 `toast.error('선택했던 자료를 지금은 담을 수 없습니다.')`만 한다. 의도 소비 중 401은 로그인으로 다시 보내지 않고 toast만 한다(무한 이동 방지).
+- D18 **Dialog 순서**: 담기는 복귀 즉시 실행(헤더 배지가 바로 갱신)하되, 담기 완료 Dialog는 `LoginCompleteDialog`가 닫힌 뒤(`login` 쿼리 없음)에 연다. `open={cartAddedMessage !== null && searchParams.get('login') !== 'success'}`로 한다. 두 모달이 겹치지 않고, 확인을 누르면 이어서 '계속 둘러보기/장바구니 보기'가 뜬다.
+- D19 **[로그인 후 구매]**: 자동 실행하지 않는다(금전 차감, 확인 Dialog·`idempotencyKey` 생성은 사용자 클릭 뒤여야 한다). 복귀 시 **선택 체크 상태만 복원**한다(`action:'purchase'`, 같은 조건·같은 소비 규칙). 근거: 같은 저장 구조에서 코드 몇 줄이고 금전 영향이 없으며, 사용자는 [구매하기]를 다시 눌러야 한다. 불필요하다고 판단되면 이 결정만 빼도 나머지에 영향이 없다.
+- D20 다른 계정·다른 탭: sessionStorage는 탭 단위라 다른 탭은 소비하지 못한다. 같은 탭에서 다른 계정으로 로그인해도 D16 조건을 만족하면 그 계정 장바구니에 담긴다(익명 의도라 계정 구분이 불가능하며, 담기는 금전 영향이 없고 TTL 30분과 `login=success` 조건으로 한정). OAuth(Kakao)는 같은 탭 이동이므로 sessionStorage가 유지된다(3단계에서 확인).
+
+**작업 단계와 검증**(각 단계 후 독립 검증자 OK)
+1. **링크(D13·D14)** — `market-cart-server.ts`, `cart-view.tsx`. 검증: `npx tsc --noEmit`·`npx eslint <두 파일>` exit 0. 로그인 브라우저에서 `fetch('/api/market/cart').then(r=>r.json())`의 모든 행에 `detailHref`(문자열 또는 null)가 있고, SQL로 같은 item의 `menu_entry.slug`와 일치한다. `/cart`에서 상품명 클릭 → 해당 상세가 열리고(제목 일치), Tab+Enter로도 열린다. fixture 상품 1건을 임시 비게시로 바꾼 행(복구 필수)은 링크가 없고 사유 문구가 보인다. 보유 행은 링크가 있다.
+2. **의도 모듈(D15·D16)** — `src/lib/market-cart-intent.ts`와 `tests/market-cart-intent.test.mjs`. 검증: `node --test tests/market-cart-intent.test.mjs` 통과(저장 후 take는 1회만 값, 두 번째는 null이고 삭제됨 / 31분 경과는 null / 깨진 JSON·51건·잘못된 kind는 null / storage가 throw해도 예외 없음 / 빈 targets는 저장 안 함).
+3. **상세 연결(D16~D19)** — `market-item-actions.tsx`(저장 호출, 마운트 소비 effect, `addTargetsToCart` 추출, Dialog open 조건, 531행 주석 갱신). 검증: tsc·eslint exit 0, 계약 테스트 통과, 아래 브라우저 시나리오(dev 4000, 두 상세 경로 중 각 1곳 이상):
+   - (a) 비로그인 2건 선택 → [로그인 후 담기] → `sessionStorage['market-cart-intent:v1']` 존재 → 이메일 로그인 → 복귀 URL = 기존 경로+쿼리+`login=success`. 로그인 완료 Dialog가 먼저 보이고 네트워크에 `POST /api/market/cart/items` 2건이 있다. 확인을 누르면 `2건을 담았습니다.` Dialog(계속 둘러보기/장바구니 보기)가 뜨고 헤더 배지가 +2다. storage 키는 null이다. SQL `market_cart_items` 행이 +2다. '장바구니 보기' → `/cart`에 2건이 있고 상품명 링크로 다시 상세에 돌아온다.
+   - (b) 새로고침·뒤로가기·`login=success` 제거 후 재방문: POST 추가 0건, Dialog 없음. 같은 선택을 다시 [장바구니]로 담으면 `이미 장바구니에 있습니다.`다.
+   - (c) 0건에서 [로그인 후 담기] → 로그인 → 복귀: storage 키가 없고 POST 0건이며 Dialog가 뜨지 않는다.
+   - (d) [로그인 후 구매] 2건 → 로그인 → 복귀: `POST …/purchase` 0건, 체크박스 2건 복원, 확인 Dialog 없음, 크레딧 잔액 불변.
+   - (e) createdAt을 31분 전으로 수정하고 로그인 → 담기 0건. 다른 itemId로 저장된 값을 가진 채 다른 상세에 로그인 복귀 → 담기 0건, 키 삭제.
+   - (f) Kakao OAuth(테스트 계정이 있을 때)로 (a)를 반복한다. 없으면 `/login`의 `redirectTo`에 `next`가 실리는지만 확인하고 '실로그인 미검증'으로 기록한다. 새 탭에서 상세를 열면 담기가 일어나지 않는다.
+   - (g) 대상 중 1건을 로그인 계정이 이미 보유(fixture)한 경우 보유분은 제외되고 나머지만 담긴다. 장바구니 49행 상태에서 2건 → `1건 담음 + 한도 안내`. DevTools에서 storage 차단 시에도 로그인 이동은 된다.
+4. **통합** — `node --test tests/market-*.test.mjs tests/auth-login-complete-dialog-contract.test.mjs` S0 대비 새 실패 0, `npm run lint` 새 실패 0, `npm run build` 통과. 사용자 기존 변경 보존, `git checkout/restore` 금지.
+
+**테스트 갱신**
+- 신규 `tests/market-cart-intent.test.mjs`(2단계 단위), 신규 `tests/market-cart-detail-link-contract.test.mjs`: `MarketCartItem`에 `detailHref: string | null`, 서버가 `menu_entry_id`·`market_menu_entries`·`is_visible`·`is_active`·`deleted_at` 조건과 `/preview/solvook-concept/boards/`·`?subject=`를 쓰고, cart-view가 `item.detailHref ?`로 `Link`/텍스트를 분기하며, 상세 컴포넌트가 `after:absolute` 없이 토큰 class를 쓰고 slug 하드코딩이 없다.
+- `market-detail-multiselect-contract` 갱신: 1번 assert의 `for (const option of selectedOptions)` 루프 위치를 `addTargetsToCart` 안의 루프로 바꾸고(순차 POST·배열 body 없음 유지), 신규 assert를 더한다: `redirectToLogin()` 앞에 의도 저장 호출, `login` 쿼리 확인, Dialog open 조건에 `login`이 포함, 구매 경로는 `openCheckout`/`submitCheckout`을 소비 effect에서 호출하지 않음. 구매 자동 실행 금지는 이 마지막 assert로 고정한다.
+- `auth-login-complete-dialog-contract`는 변경 없음(`login=success` 계약 유지).
+
+**위험**: ① 자동 담기로 사용자가 의도하지 않은 상품이 담길 수 있다(담기뿐이고 Dialog로 알리며 장바구니에서 삭제 가능). ② 로그인 완료 Dialog를 닫기 전에는 담기 완료 Dialog가 안 보인다(배지는 갱신). ③ sessionStorage 미지원·차단 환경은 기존 동작으로 퇴화한다. ④ 상세 조회 쿼리 2개 증가(행 ≤50, `in` 조회). ⑤ 이메일 인증 링크·회원가입 흐름은 다른 탭/`signup=1`이라 자동 담기 대상이 아니다(범위 밖). ⑥ `login=success`가 없는 로그인 경로(회원가입 모드)는 담기 없이 의도만 삭제된다.

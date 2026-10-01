@@ -30,6 +30,8 @@ export interface MarketCartItem {
   chargedCredits: number | null
   isSelected: boolean
   createdAt: string
+  // 상세가 열리는 상품만 링크를 준다(게시·활성 상품 + 공개 메뉴, 같은 과목). 그 외는 null.
+  detailHref: string | null
 }
 
 export interface MarketCartView {
@@ -134,6 +136,55 @@ export async function getMarketCartBadgeCount(userId: string | null) {
 }
 
 // 표시 가격·구매 가능 여부는 checkout과 같은 evaluate_market_targets SQL에서 받는다(4절).
+// 상세 경로의 slug는 market_menu_entries.slug다. 상세 page와 같은 공개 조건을 만족할 때만 경로를 만든다.
+// menu 조회는 items 조회의 menu_entry_id가 있어야 하므로 순차로 한다. 실패하면 링크 없이 장바구니를 보여 준다.
+async function getMarketCartDetailHrefs(db: SupabaseClient, itemIds: string[]): Promise<Map<string, string>> {
+  const hrefs = new Map<string, string>()
+  if (itemIds.length === 0) {
+    return hrefs
+  }
+
+  const { data: items, error: itemsError } = await db
+    .from('market_items')
+    .select('id, menu_entry_id, workspace_subject')
+    .in('id', itemIds)
+    .eq('status', 'published')
+    .eq('is_active', true)
+    .is('deleted_at', null)
+  if (itemsError) {
+    console.error('[MarketCart] detail link items lookup failed', { code: itemsError.code })
+    return hrefs
+  }
+
+  const itemRows = (items ?? []) as { id: string; menu_entry_id: string | null; workspace_subject: string }[]
+  const menuIds = [...new Set(itemRows.flatMap((item) => (item.menu_entry_id ? [item.menu_entry_id] : [])))]
+  if (menuIds.length === 0) {
+    return hrefs
+  }
+
+  const { data: menus, error: menusError } = await db
+    .from('market_menu_entries')
+    .select('id, slug, workspace_subject')
+    .in('id', menuIds)
+    .eq('is_visible', true)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+  if (menusError) {
+    console.error('[MarketCart] detail link menu lookup failed', { code: menusError.code })
+    return hrefs
+  }
+
+  const menuById = new Map(((menus ?? []) as { id: string; slug: string; workspace_subject: string }[])
+    .map((menu) => [menu.id, menu]))
+  for (const item of itemRows) {
+    const menu = item.menu_entry_id ? menuById.get(item.menu_entry_id) : undefined
+    if (menu && menu.workspace_subject === item.workspace_subject) {
+      hrefs.set(item.id, `/preview/solvook-concept/boards/${menu.slug}/items/${item.id}?subject=${item.workspace_subject}`)
+    }
+  }
+  return hrefs
+}
+
 export async function getMarketCartView(userId: string): Promise<MarketCartView> {
   const db = cartDb()
   const { data, error } = await db
@@ -167,6 +218,10 @@ export async function getMarketCartView(userId: string): Promise<MarketCartView>
     evaluated = evaluation as EvaluatedTarget[]
   }
 
+  const detailHrefs = await getMarketCartDetailHrefs(
+    db,
+    [...new Set(evaluated.flatMap((target) => (target.itemId ? [target.itemId] : [])))]
+  )
   const snapshot = await getCreditBalanceSnapshot(userId)
 
   return {
@@ -188,6 +243,7 @@ export async function getMarketCartView(userId: string): Promise<MarketCartView>
         chargedCredits: target.chargedCredits,
         isSelected: row.is_selected,
         createdAt: row.created_at,
+        detailHref: target.itemId ? detailHrefs.get(target.itemId) ?? null : null,
       }
     }),
     count: rows.length,
