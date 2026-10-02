@@ -1236,6 +1236,7 @@ export type Database = {
       market_category_items: {
         Row: {
           created_at: string
+          default_image_id: string | null
           group_id: string
           id: string
           is_active: boolean
@@ -1246,6 +1247,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          default_image_id?: string | null
           group_id: string
           id?: string
           is_active?: boolean
@@ -1256,6 +1258,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          default_image_id?: string | null
           group_id?: string
           id?: string
           is_active?: boolean
@@ -1265,6 +1268,13 @@ export type Database = {
           workspace_subject?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "market_category_items_default_image_id_fkey"
+            columns: ["default_image_id"]
+            isOneToOne: false
+            referencedRelation: "market_images"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "market_category_items_group_id_fkey"
             columns: ["group_id"]
@@ -1551,6 +1561,101 @@ export type Database = {
           workspace_subject?: string
         }
         Relationships: []
+      }
+      market_image_folders: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_image_folders_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_images: {
+        Row: {
+          bytes: number
+          content_sha256: string
+          created_at: string
+          created_by: string | null
+          display_name: string
+          folder_id: string | null
+          height: number
+          id: string
+          mime_type: string
+          source_sha256: string
+          storage_path: string
+          width: number
+        }
+        Insert: {
+          bytes: number
+          content_sha256: string
+          created_at?: string
+          created_by?: string | null
+          display_name: string
+          folder_id?: string | null
+          height: number
+          id?: string
+          mime_type?: string
+          source_sha256: string
+          storage_path: string
+          width: number
+        }
+        Update: {
+          bytes?: number
+          content_sha256?: string
+          created_at?: string
+          created_by?: string | null
+          display_name?: string
+          folder_id?: string | null
+          height?: number
+          id?: string
+          mime_type?: string
+          source_sha256?: string
+          storage_path?: string
+          width?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_images_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_images_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "market_image_folders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       market_item_bundle_options: {
         Row: {
@@ -1979,6 +2084,7 @@ export type Database = {
           status: string
           subject_code: string
           summary: string | null
+          thumbnail_image_id: string | null
           thumbnail_url: string | null
           title: string
           updated_at: string
@@ -2013,6 +2119,7 @@ export type Database = {
           status?: string
           subject_code?: string
           summary?: string | null
+          thumbnail_image_id?: string | null
           thumbnail_url?: string | null
           title: string
           updated_at?: string
@@ -2047,6 +2154,7 @@ export type Database = {
           status?: string
           subject_code?: string
           summary?: string | null
+          thumbnail_image_id?: string | null
           thumbnail_url?: string | null
           title?: string
           updated_at?: string
@@ -2075,6 +2183,13 @@ export type Database = {
             columns: ["menu_entry_id"]
             isOneToOne: false
             referencedRelation: "market_menu_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_items_thumbnail_image_id_fkey"
+            columns: ["thumbnail_image_id"]
+            isOneToOne: false
+            referencedRelation: "market_images"
             referencedColumns: ["id"]
           },
           {
@@ -4574,6 +4689,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      delete_market_image: { Args: { p_image_id: string }; Returns: Json }
       enforce_payment_reconciliation_health: { Args: never; Returns: Json }
       evaluate_market_targets: {
         Args: { p_targets: Json; p_user_id: string }
