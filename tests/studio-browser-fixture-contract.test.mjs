@@ -691,7 +691,6 @@ test('Solvook home helper checks quick menus, sections, and keyboard search befo
   assert.match(homeBody, /count\s*\(\)[\s\S]{0,80}8/)
   for (const heading of [
     '선생님들이 먼저 살펴보는 자료',
-    '교재와 출처로 골라보기',
     '최근 등록된 수업 자료',
     '필요한 작품부터 찾아 수업 자료를 완성하세요',
   ]) assert.match(homeBody, new RegExp(heading))

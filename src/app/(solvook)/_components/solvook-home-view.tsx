@@ -5,7 +5,6 @@ import { useSearchParams } from 'next/navigation'
 import {
   HomeFinalCta,
   RecentMaterials,
-  TextbookExplorer,
 } from '@/app/preview/solvook-concept/_components/home/home-material-sections'
 import { MainAdCarousel } from '@/app/preview/solvook-concept/_components/home/main-ad-carousel'
 import { PopularDownloadsSlider } from '@/app/preview/solvook-concept/_components/home/popular-downloads-slider'
@@ -51,9 +50,6 @@ export function SolvookHomeView({
       )}
       {homeData.config.recent.isActive && (
         <RecentMaterials subject={subject} items={homeData.recent} />
-      )}
-      {homeData.config.sourceExplorer.isActive && (
-        <TextbookExplorer subject={subject} configs={homeData.sourceConfigs} paths={homeData.sourcePaths} />
       )}
       <HomeFinalCta subject={subject} itemCount={homeData.publicItemCount} categories={homeData.categories} />
     </StudioLandingPageFrame>

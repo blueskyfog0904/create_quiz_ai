@@ -17,7 +17,6 @@ import {
   type MarketHomeConfig,
   type MarketHomeData,
   type MarketHomeMenuEntry,
-  type MarketHomeSourceConfig,
 } from '@/lib/market-home'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
@@ -25,7 +24,6 @@ interface MarketMainSettingsClientProps {
   workspaceSubject: WorkspaceSubject
   config: MarketHomeConfig
   categories: MarketHomeMenuEntry[]
-  sourceTypes: MarketHomeSourceConfig[]
   preview: MarketHomeData
 }
 
@@ -37,18 +35,11 @@ interface SaveResponse {
 
 function withExplicitSelections(
   config: MarketHomeConfig,
-  categories: MarketHomeMenuEntry[],
-  sourceTypes: MarketHomeSourceConfig[]
+  categories: MarketHomeMenuEntry[]
 ): MarketHomeConfig {
   return {
     ...config,
     popular: { ...config.popular },
-    sourceExplorer: {
-      ...config.sourceExplorer,
-      sourceTypes: config.sourceExplorer.sourceTypes.length > 0
-        ? [...config.sourceExplorer.sourceTypes]
-        : [...new Set(sourceTypes.map((source) => source.typeName))],
-    },
     categories: {
       ...config.categories,
       menuEntryIds: config.categories.menuEntryIds.length > 0
@@ -63,22 +54,16 @@ export default function MarketMainSettingsClient({
   workspaceSubject,
   config,
   categories,
-  sourceTypes,
   preview,
 }: MarketMainSettingsClientProps) {
   const initialConfig = useMemo(
-    () => withExplicitSelections(config, categories, sourceTypes),
-    [categories, config, sourceTypes]
+    () => withExplicitSelections(config, categories),
+    [categories, config]
   )
   const [draft, setDraft] = useState(initialConfig)
   const [saved, setSaved] = useState(initialConfig)
   const [isSaving, setIsSaving] = useState(false)
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved)
-  const uniqueSourceTypes = [...new Map(sourceTypes.map((source) => [source.typeName, source])).values()]
-  const configuredSourceTypes = new Set(preview.sourceConfigs.map((source) => source.typeName))
-  const missingSourceTypes = draft.sourceExplorer.sourceTypes.filter(
-    (typeName) => !configuredSourceTypes.has(typeName)
-  )
 
   const updateSection = <K extends keyof MarketHomeConfig>(
     section: K,
@@ -156,17 +141,10 @@ export default function MarketMainSettingsClient({
           <CardTitle>실제 데이터 미리보기</CardTitle>
           <CardDescription>현재 공개 데이터 기준이며 저장 후 프리뷰 화면에 반영됩니다.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
           <p>공개 상품 <strong>{preview.publicItemCount}</strong>개</p>
           <p>인기 자료 <strong>{preview.popular.length}</strong>개</p>
-          <p>출처 경로 <strong>{preview.sourcePaths.length}</strong>개</p>
           <p>최근 자료 <strong>{preview.recent.length}</strong>개</p>
-          {(draft.sourceExplorer.isActive && preview.publicItemCount > 0 && preview.sourcePaths.length === 0)
-          || missingSourceTypes.length > 0 ? (
-            <p className="text-destructive sm:col-span-2 lg:col-span-4">
-              현재 출처 설정 또는 상품 메타데이터에 결손이 있어 출처 탐색 결과가 비어 있을 수 있습니다.
-            </p>
-          ) : null}
         </CardContent>
       </Card>
 
@@ -244,46 +222,6 @@ export default function MarketMainSettingsClient({
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <div className="flex min-h-11 items-center justify-between gap-4">
-            <div>
-              <CardTitle>교재·출처</CardTitle>
-              <CardDescription>현재 과목에 등록된 출처 유형만 선택할 수 있습니다.</CardDescription>
-            </div>
-            <Switch
-              aria-label="교재 출처 노출"
-              checked={draft.sourceExplorer.isActive}
-              onCheckedChange={(isActive) => updateSection('sourceExplorer', {
-                ...draft.sourceExplorer,
-                isActive,
-              })}
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-2 sm:grid-cols-2">
-          {uniqueSourceTypes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">등록된 출처 설정이 없습니다.</p>
-          ) : uniqueSourceTypes.map((source) => {
-            const checked = draft.sourceExplorer.sourceTypes.includes(source.typeName)
-            return (
-              <Label key={source.typeName} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border px-3">
-                <Checkbox
-                  checked={checked}
-                  onCheckedChange={(value) => updateSection('sourceExplorer', {
-                    ...draft.sourceExplorer,
-                    sourceTypes: value
-                      ? [...draft.sourceExplorer.sourceTypes, source.typeName]
-                      : draft.sourceExplorer.sourceTypes.filter((typeName) => typeName !== source.typeName),
-                  })}
-                />
-                {source.typeName}
-              </Label>
-            )
-          })}
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>

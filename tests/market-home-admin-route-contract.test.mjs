@@ -64,6 +64,6 @@ test('market home settings UI exposes only the approved controls and management 
   assert.match(clientSource, /\/admin\/menu-management/)
   assert.match(clientSource, /\/admin\/source-configs/)
   assert.match(clientSource, /\/admin\/main-ad-settings/)
-  assert.match(clientSource, /결손/)
+  assert.doesNotMatch(clientSource, /교재·출처|교재 출처 노출|출처 경로|결손/)
   assert.doesNotMatch(clientSource, /manualItemIds|sectionOrder|drag-and-drop/)
 })

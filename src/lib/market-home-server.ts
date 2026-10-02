@@ -9,8 +9,6 @@ import {
   type MarketHomeItem,
   type MarketHomeMenuEntry,
   type MarketHomePopularItem,
-  type MarketHomeSourceConfig,
-  type MarketHomeSourcePath,
 } from '@/lib/market-home'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import {
@@ -48,15 +46,6 @@ type ItemRow = MarketThumbnailSource & {
   created_at: string
 }
 
-type SourceConfigRow = {
-  id: string
-  type_name: string
-  source_1_label: string | null
-  source_2_label: string | null
-  source_3_label: string | null
-  source_4_label: string | null
-}
-
 type PopularRow = {
   item_id: string
   download_issuer_user_count: number
@@ -64,7 +53,6 @@ type PopularRow = {
 
 export interface MarketHomeAdminOptions {
   categories: MarketHomeMenuEntry[]
-  sourceTypes: MarketHomeSourceConfig[]
 }
 
 export interface MarketHomeAdminData extends MarketHomeAdminOptions {
@@ -74,8 +62,6 @@ export interface MarketHomeAdminData extends MarketHomeAdminOptions {
 
 const EMPTY_HOME_DATA = {
   popular: [],
-  sourceConfigs: [],
-  sourcePaths: [],
   recent: [],
 } as const
 
@@ -277,98 +263,6 @@ async function loadPopular(
   })
 }
 
-async function loadSourceExplorer(
-  workspaceSubject: WorkspaceSubject,
-  visibleMenuIds: string[],
-  menusById: Map<string, MarketHomeMenuEntry>,
-  selectedSourceTypes: string[]
-): Promise<{ sourceConfigs: MarketHomeSourceConfig[]; sourcePaths: MarketHomeSourcePath[] }> {
-  const supabase = getAdminClient()
-  if (!supabase) return { sourceConfigs: [], sourcePaths: [] }
-
-  let configQuery = supabase
-    .from('source_configs')
-    .select('id, type_name, source_1_label, source_2_label, source_3_label, source_4_label')
-    .eq('workspace_subject', workspaceSubject)
-    .order('type_name', { ascending: true })
-    .order('id', { ascending: true })
-  if (selectedSourceTypes.length > 0) {
-    configQuery = configQuery.in('type_name', selectedSourceTypes)
-  }
-
-  const { data: configData, error: configError } = await configQuery
-  if (configError) throw new Error(configError.message)
-
-  const sourceConfigs = (configData as SourceConfigRow[]).map((row) => {
-    const sourceLabels = [
-      normalizeText(row.source_1_label),
-      normalizeText(row.source_2_label),
-      normalizeText(row.source_3_label),
-      normalizeText(row.source_4_label),
-    ]
-    return {
-      id: row.id,
-      typeName: normalizeText(row.type_name) ?? row.type_name,
-      sourceLabels,
-      sourceIndexes: sourceLabels.flatMap((label, index) => label ? [index + 1] : []),
-    }
-  })
-
-  if (visibleMenuIds.length === 0 || sourceConfigs.length === 0) {
-    return { sourceConfigs, sourcePaths: [] }
-  }
-
-  const { data: itemData, error: itemError } = await supabase
-    .from('market_items')
-    .select('menu_entry_id, source_type, source_1, source_2, source_3, source_4')
-    .eq('workspace_subject', workspaceSubject)
-    .eq('status', 'published')
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .in('menu_entry_id', visibleMenuIds)
-  if (itemError) throw new Error(itemError.message)
-
-  const configsByType = new Map(sourceConfigs.map((config) => [config.typeName, config]))
-  const paths = new Map<string, MarketHomeSourcePath>()
-  for (const row of itemData as Array<Pick<ItemRow, 'menu_entry_id' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4'>>) {
-    const sourceType = normalizeText(row.source_type)
-    const config = sourceType ? configsByType.get(sourceType) : null
-    const menu = menusById.get(row.menu_entry_id)
-    if (!sourceType || !config || !menu) continue
-
-    const allSources = [row.source_1, row.source_2, row.source_3, row.source_4].map(normalizeText)
-    const sourceValues = config.sourceIndexes.map((index) => allSources[index - 1])
-    if (sourceValues.some((value) => value === null)) continue
-
-    const values = sourceValues as string[]
-    const key = JSON.stringify([menu.id, sourceType, config.sourceIndexes, values])
-    const existing = paths.get(key)
-    if (existing) {
-      existing.itemCount += 1
-    } else {
-      paths.set(key, {
-        sourceType,
-        sourceIndexes: [...config.sourceIndexes],
-        sourceValues: values,
-        menuEntryId: menu.id,
-        categorySlug: menu.slug,
-        categoryTitle: menu.title,
-        itemCount: 1,
-      })
-    }
-  }
-
-  return {
-    sourceConfigs,
-    sourcePaths: [...paths.values()].sort((left, right) => (
-      left.sourceType.localeCompare(right.sourceType, 'ko')
-      || left.categoryTitle.localeCompare(right.categoryTitle, 'ko')
-      || left.sourceValues.join('\u0000').localeCompare(right.sourceValues.join('\u0000'), 'ko')
-      || left.menuEntryId.localeCompare(right.menuEntryId)
-    )),
-  }
-}
-
 async function countPublicItems(
   workspaceSubject: WorkspaceSubject,
   visibleMenuIds: string[]
@@ -399,21 +293,14 @@ export async function getMarketHomeData(
   const menusById = new Map(visibleMenus.map((menu) => [menu.id, menu]))
   const visibleMenuIds = visibleMenus.map((menu) => menu.id)
 
-  const [popularResult, sourceResult, recentResult, countResult] = await Promise.allSettled([
+  const [popularResult, recentResult, countResult] = await Promise.allSettled([
     loadPopular(workspaceSubject, menusById, config.popular),
-    config.sourceExplorer.isActive
-      ? loadSourceExplorer(workspaceSubject, visibleMenuIds, menusById, config.sourceExplorer.sourceTypes)
-      : Promise.resolve({ sourceConfigs: [], sourcePaths: [] }),
     config.recent.isActive
       ? loadRecent(workspaceSubject, visibleMenuIds, menusById, config.recent.limit)
       : Promise.resolve([]),
     countPublicItems(workspaceSubject, visibleMenuIds),
   ])
 
-  const source = fulfilledOr(sourceResult, {
-    sourceConfigs: [...EMPTY_HOME_DATA.sourceConfigs],
-    sourcePaths: [...EMPTY_HOME_DATA.sourcePaths],
-  })
   return {
     subject: workspaceSubject,
     config,
@@ -421,8 +308,6 @@ export async function getMarketHomeData(
       ? orderMenus(visibleMenus, config.categories.menuEntryIds)
       : [],
     popular: fulfilledOr(popularResult, [...EMPTY_HOME_DATA.popular]),
-    sourceConfigs: source.sourceConfigs,
-    sourcePaths: source.sourcePaths,
     recent: fulfilledOr(recentResult, [...EMPTY_HOME_DATA.recent]),
     publicItemCount: fulfilledOr(countResult, 0),
   }
@@ -431,42 +316,8 @@ export async function getMarketHomeData(
 export async function getMarketHomeAdminOptions(
   workspaceSubject: WorkspaceSubject
 ): Promise<MarketHomeAdminOptions> {
-  const supabase = getAdminClient()
-  const categoriesPromise = loadVisibleMenus(workspaceSubject)
-  if (!supabase) {
-    return {
-      categories: await categoriesPromise,
-      sourceTypes: [],
-    }
-  }
-
-  const [categories, { data, error }] = await Promise.all([
-    categoriesPromise,
-    supabase
-      .from('source_configs')
-      .select('id, type_name, source_1_label, source_2_label, source_3_label, source_4_label')
-      .eq('workspace_subject', workspaceSubject)
-      .order('type_name', { ascending: true })
-      .order('id', { ascending: true }),
-  ])
-  if (error) throw new Error(error.message)
-
   return {
-    categories,
-    sourceTypes: (data as SourceConfigRow[]).map((row) => {
-      const sourceLabels = [
-        normalizeText(row.source_1_label),
-        normalizeText(row.source_2_label),
-        normalizeText(row.source_3_label),
-        normalizeText(row.source_4_label),
-      ]
-      return {
-        id: row.id,
-        typeName: normalizeText(row.type_name) ?? row.type_name,
-        sourceLabels,
-        sourceIndexes: sourceLabels.flatMap((label, index) => label ? [index + 1] : []),
-      }
-    }),
+    categories: await loadVisibleMenus(workspaceSubject),
   }
 }
 

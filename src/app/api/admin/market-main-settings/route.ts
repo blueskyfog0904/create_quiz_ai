@@ -38,19 +38,11 @@ async function requireAdminUser() {
 
 function validateAllowlist(
   config: MarketHomeConfig,
-  categoryIds: Set<string>,
-  sourceTypes: Set<string>
+  categoryIds: Set<string>
 ) {
   const invalidCategory = config.categories.menuEntryIds.find((id) => !categoryIds.has(id))
   if (invalidCategory) {
     throw new MarketHomeAdminValidationError('선택한 카테고리가 현재 과목의 활성 메뉴에 없습니다.')
-  }
-
-  const invalidSourceType = config.sourceExplorer.sourceTypes.find(
-    (typeName) => !sourceTypes.has(typeName)
-  )
-  if (invalidSourceType) {
-    throw new MarketHomeAdminValidationError('선택한 출처 유형이 현재 과목의 출처 설정에 없습니다.')
   }
 }
 
@@ -80,8 +72,7 @@ export async function POST(request: Request) {
     const options = await getMarketHomeAdminOptions(workspaceSubject)
     validateAllowlist(
       config,
-      new Set(options.categories.map((category) => category.id)),
-      new Set(options.sourceTypes.map((source) => source.typeName))
+      new Set(options.categories.map((category) => category.id))
     )
 
     await upsertWorkspaceSetting({

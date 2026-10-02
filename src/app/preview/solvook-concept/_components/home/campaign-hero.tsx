@@ -17,7 +17,6 @@ export function CampaignHero({ subject, categories, featuredItem, config }: Camp
   const marketHref = `/${subject}/market/${categories[0]?.slug ?? 'entexam'}`
   const campaigns = [
     { label: '인기 다운로드', title: `${subjectLabel} 선생님들이 찾는 자료`, href: config.popular.isActive ? '#popular-downloads' : marketHref, tone: 'bg-[var(--studio-primary)]' },
-    { label: '교재와 출처', title: '수업 출처별 자료 골라보기', href: config.sourceExplorer.isActive ? '#source-explorer' : marketHref, tone: 'bg-[var(--studio-success)]' },
     { label: '문제마켓 카테고리', title: `${subjectLabel} 자료 유형별 탐색`, href: marketHref, tone: 'bg-[var(--studio-highlight)]' },
     { label: '이번 주 업데이트', title: '최근 등록 자료 모아보기', href: config.recent.isActive ? '#recent-materials' : marketHref, tone: 'bg-[#28395f]' },
   ]

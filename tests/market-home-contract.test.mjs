@@ -29,19 +29,16 @@ test('public home queries are subject and publication scoped', () => {
   assert.match(serverSource, /visibleMenuIds/)
 })
 
-test('recent sorting and source paths are deterministic and preserve indexes', () => {
+test('recent sorting is deterministic', () => {
   assert.match(serverSource, /\.order\('published_at',\s*\{\s*ascending:\s*false,\s*nullsFirst:\s*false\s*\}\)/)
   assert.match(serverSource, /\.order\('created_at',\s*\{\s*ascending:\s*false\s*\}\)/)
   assert.match(serverSource, /\.order\('id',\s*\{\s*ascending:\s*true\s*\}\)/)
-  assert.match(contractSource, /sourceIndexes:\s*number\[\]/)
-  assert.match(serverSource, /sourceIndexes/)
 })
 
 test('section failures resolve to typed empty fallbacks', () => {
   assert.match(serverSource, /Promise\.allSettled/)
   assert.match(serverSource, /fulfilledOr/)
   assert.match(serverSource, /popular:\s*\[\]/)
-  assert.match(serverSource, /sourcePaths:\s*\[\]/)
   assert.match(serverSource, /recent:\s*\[\]/)
 })
 

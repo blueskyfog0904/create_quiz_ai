@@ -6,7 +6,6 @@ import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import {
   HomeFinalCta,
   RecentMaterials,
-  TextbookExplorer,
 } from './_components/home/home-material-sections'
 import { MainAdCarousel } from './_components/home/main-ad-carousel'
 import { PopularDownloadsSlider } from './_components/home/popular-downloads-slider'
@@ -42,9 +41,6 @@ export default async function SolvookConceptPreviewPage({
       )}
       {homeData.config.recent.isActive && (
         <RecentMaterials subject={subject} items={homeData.recent} />
-      )}
-      {homeData.config.sourceExplorer.isActive && (
-        <TextbookExplorer subject={subject} configs={homeData.sourceConfigs} paths={homeData.sourcePaths} />
       )}
       <HomeFinalCta subject={subject} itemCount={homeData.publicItemCount} categories={homeData.categories} />
     </StudioLandingPageFrame>

@@ -16,10 +16,6 @@ export interface MarketHomeConfig {
     limit: number
     rankingWindowDays: number
   }
-  sourceExplorer: {
-    isActive: boolean
-    sourceTypes: string[]
-  }
   categories: {
     isActive: boolean
     menuEntryIds: string[]
@@ -36,10 +32,6 @@ export const DEFAULT_MARKET_HOME_CONFIG: MarketHomeConfig = {
     isActive: true,
     limit: 12,
     rankingWindowDays: 30,
-  },
-  sourceExplorer: {
-    isActive: true,
-    sourceTypes: [],
   },
   categories: {
     isActive: true,
@@ -85,30 +77,11 @@ export interface MarketHomePopularItem extends MarketHomeItem {
   downloadUserCount: number
 }
 
-export interface MarketHomeSourceConfig {
-  id: string
-  typeName: string
-  sourceLabels: Array<string | null>
-  sourceIndexes: number[]
-}
-
-export interface MarketHomeSourcePath {
-  sourceType: string
-  sourceIndexes: number[]
-  sourceValues: string[]
-  menuEntryId: string
-  categorySlug: string
-  categoryTitle: string
-  itemCount: number
-}
-
 export interface MarketHomeData {
   subject: WorkspaceSubject
   config: MarketHomeConfig
   categories: MarketHomeMenuEntry[]
   popular: MarketHomePopularItem[]
-  sourceConfigs: MarketHomeSourceConfig[]
-  sourcePaths: MarketHomeSourcePath[]
   recent: MarketHomeItem[]
   publicItemCount: number
 }
@@ -160,16 +133,15 @@ export function validateMarketHomeConfig(value: unknown): MarketHomeConfig {
   if (!isRecord(value)) {
     throw new Error('market home config must be an object')
   }
-  assertExactKeys(value, ['version', 'popular', 'sourceExplorer', 'categories', 'recent'], 'config')
+  assertExactKeys(value, ['version', 'popular', 'categories', 'recent'], 'config')
   if (value.version !== 1) {
     throw new Error('config.version must be 1')
   }
 
   const popular = value.popular
-  const sourceExplorer = value.sourceExplorer
   const categories = value.categories
   const recent = value.recent
-  if (!isRecord(popular) || !isRecord(sourceExplorer) || !isRecord(categories) || !isRecord(recent)) {
+  if (!isRecord(popular) || !isRecord(categories) || !isRecord(recent)) {
     throw new Error('market home sections must be objects')
   }
 
@@ -181,10 +153,6 @@ export function validateMarketHomeConfig(value: unknown): MarketHomeConfig {
     MARKET_HOME_LIMITS.rankingWindowDays,
     'popular.rankingWindowDays'
   )
-
-  assertExactKeys(sourceExplorer, ['isActive', 'sourceTypes'], 'sourceExplorer')
-  assertBoolean(sourceExplorer.isActive, 'sourceExplorer.isActive')
-  assertUniqueStrings(sourceExplorer.sourceTypes, 'sourceExplorer.sourceTypes')
 
   assertExactKeys(categories, ['isActive', 'menuEntryIds'], 'categories')
   assertBoolean(categories.isActive, 'categories.isActive')
@@ -200,10 +168,6 @@ export function validateMarketHomeConfig(value: unknown): MarketHomeConfig {
       isActive: popular.isActive,
       limit: popular.limit,
       rankingWindowDays: popular.rankingWindowDays,
-    },
-    sourceExplorer: {
-      isActive: sourceExplorer.isActive,
-      sourceTypes: [...sourceExplorer.sourceTypes],
     },
     categories: {
       isActive: categories.isActive,
@@ -223,7 +187,6 @@ export function normalizeMarketHomeConfig(value: unknown): MarketHomeConfig {
     return {
       ...DEFAULT_MARKET_HOME_CONFIG,
       popular: { ...DEFAULT_MARKET_HOME_CONFIG.popular },
-      sourceExplorer: { ...DEFAULT_MARKET_HOME_CONFIG.sourceExplorer },
       categories: { ...DEFAULT_MARKET_HOME_CONFIG.categories },
       recent: { ...DEFAULT_MARKET_HOME_CONFIG.recent },
     }

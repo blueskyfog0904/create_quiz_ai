@@ -22,7 +22,6 @@ test('english and korean share one subject-aware preview composition', async () 
   const sectionOrder = [
     '<PopularDownloadsSlider',
     '<RecentMaterials',
-    '<TextbookExplorer',
     '<HomeFinalCta',
   ].map((section) => page.indexOf(section))
   assert.ok(sectionOrder.every((index) => index >= 0))
@@ -56,7 +55,6 @@ for (const subject of ['english', 'korean']) {
     const headingOrder = [
       '인기 다운로드 자료',
       '최근 등록된 수업 자료',
-      '교재와 출처로 골라보기',
     ].map((heading) => html.indexOf(heading))
     assert.ok(headingOrder.every((index) => index >= 0))
     assert.deepEqual(headingOrder, [...headingOrder].sort((a, b) => a - b))

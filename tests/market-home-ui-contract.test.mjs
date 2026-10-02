@@ -71,7 +71,7 @@ test('preview section switches preserve the single carousel shell without dead f
   assert.match(page, /subject=\{subject\}/)
   assert.doesNotMatch(page, /CampaignHero/)
   assert.match(page, /homeData\.config\.popular\.isActive\s*&&\s*\([\s\S]*<PopularDownloadsSlider/)
-  assert.match(page, /homeData\.config\.sourceExplorer\.isActive\s*&&\s*\([\s\S]*<TextbookExplorer/)
+  assert.doesNotMatch(page, /sourceExplorer|TextbookExplorer/)
   assert.match(page, /homeData\.config\.recent\.isActive\s*&&\s*\([\s\S]*<RecentMaterials/)
   assert.doesNotMatch(page, /QuickAccessGrid/)
 })

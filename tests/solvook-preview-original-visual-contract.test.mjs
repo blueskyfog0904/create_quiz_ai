@@ -34,7 +34,6 @@ test('preview injects real subject market data without sample home imports', asy
   assert.match(page, /getPublicMainAdCarouselItems\(subject\)/)
   assert.doesNotMatch(page, /_data\/sample-data/)
   assert.ok(page.indexOf('<PopularDownloadsSlider') < page.indexOf('<RecentMaterials'))
-  assert.ok(page.indexOf('<RecentMaterials') < page.indexOf('<TextbookExplorer'))
-  assert.ok(page.indexOf('<TextbookExplorer') < page.indexOf('<HomeFinalCta'))
+  assert.ok(page.indexOf('<RecentMaterials') < page.indexOf('<HomeFinalCta'))
   assert.doesNotMatch(page, /QuickAccessGrid/)
 })

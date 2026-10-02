@@ -198,7 +198,7 @@ test('preview page always renders one subject-aware carousel shell and all lower
   assert.doesNotMatch(page, /mainAdItems\.length\s*>\s*0/)
   assert.doesNotMatch(page, /QuickAccessGrid/)
   assert.match(page, /PopularDownloadsSlider/)
-  assert.match(page, /TextbookExplorer/)
+  assert.doesNotMatch(page, /TextbookExplorer/)
   assert.match(page, /RecentMaterials/)
   assert.match(page, /HomeFinalCta/)
 })
