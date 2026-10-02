@@ -7,6 +7,7 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
 const menuPath = '../src/app/preview/solvook-concept/_components/mypage-menu.tsx'
 const menu = existsSync(new URL(menuPath, import.meta.url)) ? read(menuPath) : ''
 const header = read('../src/app/preview/solvook-concept/_components/preview-header.tsx')
+const tokens = read('../src/styles/studio-tokens.css')
 
 function pageFileFor(href) {
   const path = href.split('?')[0]
@@ -113,7 +114,10 @@ test('logout is a separated coral item using the existing logout flow', () => {
   assert.match(menu, /fetch\('\/api\/auth\/logout', \{ method: 'POST' \}\)/)
   assert.match(menu, /window\.location\.href = '\/login\?logout=success'/)
   assert.match(menu, /toast\.error\('로그아웃에 실패했습니다\.'\)/)
-  assert.match(menu, /bg-\[var\(--studio-highlight\)\] [^"]*text-\[var\(--studio-ink\)\] [^"]*font-extrabold/)
+  // 로그아웃은 배경 음영이 아니라 글자색(코랄 레드 계열)으로 강조한다.
+  assert.match(menu, /text-\[var\(--studio-highlight-text\)\] [^"]*font-extrabold/)
+  assert.doesNotMatch(menu, /bg-\[var\(--studio-highlight\)\]/)
+  assert.match(tokens, /--studio-highlight-text: color-mix\(in srgb, var\(--studio-highlight\) 75%, black\);/)
   assert.match(menu, /<LogOut /)
   assert.match(menu, /isLoggingOut \? '로그아웃 중…' : '로그아웃'/)
   assert.match(menu, /event\.preventDefault\(\)\s+void handleLogout\(\)/)

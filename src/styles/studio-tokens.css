@@ -13,6 +13,7 @@
   --studio-focus-ring: color-mix(in srgb, var(--studio-primary) 75%, transparent);
   --studio-success: #63cdb7;
   --studio-highlight: #f46d5e;
+  --studio-highlight-text: color-mix(in srgb, var(--studio-highlight) 75%, black);
   --studio-content-width: 75rem;
   --studio-radius-control: 0.375rem;
   --studio-radius-card: 0.75rem;

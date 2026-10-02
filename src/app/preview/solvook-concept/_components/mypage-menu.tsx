@@ -244,7 +244,7 @@ export function MypageMenu({ libraryHref }: MypageMenuProps) {
         <DropdownMenuSeparator className="my-2 bg-[var(--studio-border)]" />
         <DropdownMenuItem
           disabled={isLoggingOut}
-          className="min-h-11 cursor-pointer gap-3 [&>svg]:size-5 rounded-[var(--studio-radius-control)] bg-[var(--studio-highlight)] px-3 text-sm text-[var(--studio-ink)] font-extrabold outline-none hover:brightness-95 focus:bg-[var(--studio-highlight)] focus:text-[var(--studio-ink)] data-[highlighted]:brightness-95 focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+          className="min-h-11 cursor-pointer gap-3 [&>svg]:size-5 rounded-[var(--studio-radius-control)] px-3 text-sm text-[var(--studio-highlight-text)] font-extrabold outline-none hover:bg-[var(--studio-background)] focus:bg-[var(--studio-background)] focus:text-[var(--studio-highlight-text)] data-[highlighted]:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
           onSelect={(event) => {
             event.preventDefault()
             void handleLogout()
