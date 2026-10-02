@@ -20,12 +20,16 @@ import {
 } from '@/components/ui/dialog'
 import { dispatchMarketCartUpdated } from '@/components/market/market-cart-indicator'
 import { MarketCheckoutConfirmDialog } from '@/components/market/market-checkout-confirm-dialog'
+import {
+  MarketPurchaseCompleteDialog,
+  resolveMarketLibraryHref,
+  type MarketPurchaseCompleteResult,
+} from '@/components/market/market-purchase-complete-dialog'
 import { useLoginRedirect } from '@/hooks/use-login-redirect'
 import { saveMarketCartIntent, takeMarketCartIntent } from '@/lib/market-cart-intent'
 import type { MarketBundlePublicSummary, MarketSubproductDownloadFile, MarketSubproductPublicSummary } from '@/lib/market-items-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import MarketSamplePreviewDialog from './market-sample-preview-dialog'
-import MarketPurchaseCompleteDialog from '../../market-purchase-complete-dialog'
 
 interface MarketItemActionsProps {
   itemId: string
@@ -417,7 +421,7 @@ export default function MarketItemActions({
   const [isCheckingBalance, setIsCheckingBalance] = useState(false)
   const [isAddingToCart, setIsAddingToCart] = useState(false)
   const [checkout, setCheckout] = useState<CheckoutState | null>(null)
-  const [purchaseCompleteMessage, setPurchaseCompleteMessage] = useState<string | null>(null)
+  const [purchaseComplete, setPurchaseComplete] = useState<MarketPurchaseCompleteResult | null>(null)
   // 담기 결과 Dialog. 'notice'는 로그인 복귀 담기의 실패·제외 안내다(로그인 완료 모달 뒤라 toast는 묻힌다).
   const [cartResult, setCartResult] = useState<{ kind: 'added' | 'notice'; message: string } | null>(null)
   // 비로그인 0건에서 [로그인 후 담기]·[로그인 후 구매]를 누른 경우의 인라인 안내
@@ -799,7 +803,12 @@ export default function MarketItemActions({
       if (typeof payload.balance === 'number') {
         window.dispatchEvent(new CustomEvent('credit-balance-updated', { detail: { balance: payload.balance } }))
       }
-      setPurchaseCompleteMessage(payload.message || `선택한 자료 ${request.lines.length}건 구매가 완료되었습니다.`)
+      setPurchaseComplete({
+        orders: payload.data?.orders ?? [],
+        totalCredits: payload.data?.totalCredits ?? sumCredits(request.lines),
+        balance: typeof payload.balance === 'number' ? payload.balance : null,
+        alreadyCompleted: payload.alreadyCompleted === true,
+      })
       clearSelection()
       router.refresh()
       return
@@ -1291,8 +1300,9 @@ export default function MarketItemActions({
       </Dialog>
 
       <MarketPurchaseCompleteDialog
-        message={purchaseCompleteMessage}
-        onClose={() => setPurchaseCompleteMessage(null)}
+        result={purchaseComplete}
+        libraryHref={resolveMarketLibraryHref(purchaseComplete?.orders.map((order) => order.workspaceSubject) ?? [])}
+        onClose={() => setPurchaseComplete(null)}
       />
 
       <MarketSamplePreviewDialog

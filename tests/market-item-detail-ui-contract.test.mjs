@@ -146,11 +146,12 @@ test('market item detail shows legacy paid file rows only to existing owners (le
 
 test('market item purchase success uses a centered confirmation dialog instead of a toast', () => {
   assert.match(itemActions, /MarketPurchaseCompleteDialog/)
-  assert.match(itemActions, /const \[purchaseCompleteMessage, setPurchaseCompleteMessage\] = useState<string \| null>\(null\)/)
-  assert.match(itemActions, /setPurchaseCompleteMessage\(payload\.message \|\| `선택한 자료 \$\{request\.lines\.length\}건 구매가 완료되었습니다\.`\)/)
+  assert.match(itemActions, /const \[purchaseComplete, setPurchaseComplete\] = useState<MarketPurchaseCompleteResult \| null>\(null\)/)
+  assert.match(itemActions, /setPurchaseComplete\(\{\s*orders: payload\.data\?\.orders/)
+  assert.match(itemActions, /alreadyCompleted: payload\.alreadyCompleted === true/)
   assert.doesNotMatch(itemActions, /toast\.success\(payload\.message/)
-  assert.match(itemActions, /message=\{purchaseCompleteMessage\}/)
-  assert.match(itemActions, /onClose=\{\(\) => setPurchaseCompleteMessage\(null\)\}/)
+  assert.match(itemActions, /result=\{purchaseComplete\}/)
+  assert.match(itemActions, /onClose=\{\(\) => setPurchaseComplete\(null\)\}/)
 })
 
 test('market item detail action states and failure messages are explicit', () => {

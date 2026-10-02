@@ -8,6 +8,11 @@ import { toast } from 'sonner'
 import { StudioContainer, StudioEmptyState } from '@/components/design-system'
 import { dispatchMarketCartUpdated } from '@/components/market/market-cart-indicator'
 import { MarketCheckoutConfirmDialog } from '@/components/market/market-checkout-confirm-dialog'
+import {
+  MarketPurchaseCompleteDialog,
+  resolveMarketLibraryHref,
+  type MarketPurchaseCompleteResult,
+} from '@/components/market/market-purchase-complete-dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { buildAuthRedirectPath } from '@/lib/auth-paths'
@@ -81,6 +86,7 @@ export function CartView({ initialView }: CartViewProps) {
   const [view, setView] = useState(initialView)
   const [isMutating, setIsMutating] = useState(false)
   const [checkout, setCheckout] = useState<CheckoutState | null>(null)
+  const [purchaseComplete, setPurchaseComplete] = useState<MarketPurchaseCompleteResult | null>(null)
 
   const selectableItems = view.items.filter((item) => item.purchasable)
   const selectedItems = selectableItems.filter((item) => item.isSelected)
@@ -214,8 +220,11 @@ export function CartView({ initialView }: CartViewProps) {
       if (typeof payload.balance === 'number') {
         window.dispatchEvent(new CustomEvent('credit-balance-updated', { detail: { balance: payload.balance } }))
       }
-      toast.success(payload.message || '선택한 자료 구매가 완료되었습니다.', {
-        action: { label: '자료 보관함', onClick: () => router.push('/library') },
+      setPurchaseComplete({
+        orders: payload.data?.orders ?? [],
+        totalCredits: payload.data?.totalCredits ?? sumCredits(request.lines),
+        balance: typeof payload.balance === 'number' ? payload.balance : null,
+        alreadyCompleted: payload.alreadyCompleted === true,
       })
       await reload()
       return
@@ -521,6 +530,12 @@ export function CartView({ initialView }: CartViewProps) {
         retryable={checkout?.retryable ?? false}
         onCancel={() => setCheckout(null)}
         onConfirm={() => void submitCheckout()}
+      />
+
+      <MarketPurchaseCompleteDialog
+        result={purchaseComplete}
+        libraryHref={resolveMarketLibraryHref(purchaseComplete?.orders.map((order) => order.workspaceSubject) ?? [])}
+        onClose={() => setPurchaseComplete(null)}
       />
     </StudioContainer>
   )
