@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
 import {
+  attachMarketLibraryCoverUrls,
   getMostRecentLibrarySubjectForUser,
   listMarketLibraryRowsForUser,
 } from '@/lib/market-items-server'
@@ -42,7 +43,7 @@ export default async function LibraryPage({
     (await getMostRecentLibrarySubjectForUser(userId)) ??
     DEFAULT_WORKSPACE_SUBJECT
 
-  const rows = await listMarketLibraryRowsForUser(userId, subject)
+  const rows = await attachMarketLibraryCoverUrls(await listMarketLibraryRowsForUser(userId, subject), subject)
 
   return (
     <Suspense fallback={null}>

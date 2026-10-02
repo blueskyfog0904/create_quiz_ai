@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, FolderOpen, Loader2, RotateCcw, X } from 'lucide-react'
+import { ChevronDown, FileImage, FolderOpen, Loader2, RotateCcw, X } from 'lucide-react'
 import { StudioContainer, StudioEmptyState } from '@/components/design-system'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { useListQuery } from '@/hooks/use-list-query'
@@ -108,11 +108,35 @@ const controlClassName =
   'min-h-11 rounded-[var(--studio-radius-control)] border border-[var(--studio-control-border)] bg-[var(--studio-surface)] px-3 text-sm text-[var(--studio-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]'
 
 const downloadButtonClassName =
-  'inline-flex min-h-9 items-center gap-1.5 rounded-[var(--studio-radius-control)] border border-[var(--studio-control-border)] bg-[var(--studio-surface)] px-3 text-sm font-medium text-[var(--studio-ink)] transition-colors hover:border-[var(--studio-primary-border)] hover:text-[var(--studio-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]'
+  'inline-flex min-h-11 items-center gap-1.5 rounded-[var(--studio-radius-control)] border border-[var(--studio-control-border)] bg-[var(--studio-surface)] px-3 text-sm font-medium text-[var(--studio-ink)] transition-colors hover:border-[var(--studio-primary-border)] hover:text-[var(--studio-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]'
 
 const refundButtonClassName =
-  'inline-flex min-h-9 items-center rounded-[var(--studio-radius-control)] border border-red-500 bg-[var(--studio-surface)] px-3 text-sm font-semibold text-red-600 transition-colors hover:bg-red-500 hover:text-white disabled:opacity-50 disabled:hover:bg-[var(--studio-surface)] disabled:hover:text-red-600 outline-none focus-visible:ring-2 focus-visible:ring-red-300'
+  'inline-flex min-h-11 items-center rounded-[var(--studio-radius-control)] border border-red-500 bg-[var(--studio-surface)] px-3 text-sm font-semibold text-red-600 transition-colors hover:bg-red-500 hover:text-white disabled:opacity-50 disabled:hover:bg-[var(--studio-surface)] disabled:hover:text-red-600 outline-none focus-visible:ring-2 focus-visible:ring-red-300'
 
+
+// 행 맨 왼쪽 표지. 서명 URL 만료·로드 실패 시 점선 박스로 대체한다(제목이 같은 정보라 alt는 비운다).
+function LibraryCover({ src }: { src?: string | null }) {
+  const [failed, setFailed] = useState(false)
+
+  if (!src || failed) {
+    return (
+      <div className="flex h-16 w-12 shrink-0 items-center justify-center rounded-[var(--studio-radius-control)] border border-dashed border-[var(--studio-border)] bg-[var(--studio-background)] text-[var(--studio-muted)]">
+        <FileImage aria-hidden="true" className="h-5 w-5" />
+      </div>
+    )
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- 서명 URL·외부 썸네일 URL을 그대로 사용
+    <img
+      src={src}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="h-16 w-12 shrink-0 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] object-cover object-top"
+    />
+  )
+}
 
 export function LibraryView({ rows, subject }: LibraryViewProps) {
   const router = useRouter()
@@ -528,36 +552,27 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
             ].filter((entry): entry is { key: string; label: string; url: string } => entry !== null)
 
             return (
-              <li key={row.itemId} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:gap-4 sm:px-5">
+              <li key={row.itemId} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-4 sm:flex-nowrap sm:gap-4 sm:px-5">
+                <LibraryCover src={row.coverUrl} />
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center rounded-full bg-[var(--studio-primary-soft)] px-2.5 py-0.5 text-xs font-semibold text-[var(--studio-primary)]">
-                      {row.categoryTitle}
-                    </span>
-                    {hasPendingRefund && (
-                      <span className="inline-flex items-center rounded-full bg-[var(--studio-highlight)] px-2.5 py-0.5 text-xs font-semibold text-[var(--studio-ink)]">
-                        환불 심사 중 (다운로드 제한)
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-1.5">
-                    {detailHref ? (
-                      <Link
-                        href={detailHref}
-                        className="text-base font-semibold text-[var(--studio-ink)] hover:text-[var(--studio-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-                      >
-                        {row.title}
-                      </Link>
-                    ) : (
-                      <span className="text-base font-semibold text-[var(--studio-ink)]">{row.title}</span>
-                    )}
-                  </div>
-                  <p className="mt-1 text-xs text-[var(--studio-muted)]">
-                    구매일 {formatDate(row.purchasedAt)}
-                    {row.lastDownloadedAt ? ` · 최근 다운로드 ${formatDate(row.lastDownloadedAt)}` : ''}
-                  </p>
+                  {detailHref ? (
+                    <Link
+                      href={detailHref}
+                      title={row.title}
+                      className="line-clamp-2 sm:line-clamp-1 break-keep text-base font-semibold text-[var(--studio-ink)] hover:text-[var(--studio-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                    >
+                      {row.title}
+                    </Link>
+                  ) : (
+                    <span title={row.title} className="line-clamp-2 sm:line-clamp-1 break-keep text-base font-semibold text-[var(--studio-ink)]">{row.title}</span>
+                  )}
                 </div>
-                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <div className="flex w-full flex-wrap items-center justify-start gap-2 sm:w-auto sm:max-w-[55%] sm:shrink-0 sm:justify-end">
+                  {hasPendingRefund && (
+                    <span className="inline-flex items-center rounded-full bg-[var(--studio-highlight)] px-2.5 py-0.5 text-xs font-semibold text-[var(--studio-ink)]">
+                      환불 심사 중 (다운로드 제한)
+                    </span>
+                  )}
                   {availableRefundTargets.length > 0 && (
                     <button
                       type="button"
