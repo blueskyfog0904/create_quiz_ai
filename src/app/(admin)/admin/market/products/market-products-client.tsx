@@ -67,6 +67,9 @@ import AdminMarketSamplePreviewDialog from './admin-market-sample-preview-dialog
 import { MarketImageField, type MarketImageFieldValue } from '@/components/admin/market-image-field'
 import { MarketImagePicker } from '@/components/admin/market-image-picker'
 import { MARKET_IMAGE_MAX_BULK_ITEM_IDS, chunkArray } from '@/lib/market-images'
+import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
+import { useListQuery } from '@/hooks/use-list-query'
+import { getListPagination } from '@/lib/list-pagination'
 
 interface MarketProductsClientProps {
   menuEntries: MarketMenuEntryAdminRow[]
@@ -558,6 +561,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   // 일괄 지정 확인 대상. image null = 상품 이미지 해제
   const [bulkImageTarget, setBulkImageTarget] = useState<{ itemIds: string[]; image: MarketImageFieldValue | null } | null>(null)
   const sampleSourceInputRef = useRef<HTMLInputElement | null>(null)
+  const productListHeaderRef = useRef<HTMLDivElement | null>(null)
 
   // 폼의 thumbnailImageId에 맞는 미리보기: 방금 고른 이미지 → 목록에 실린 상품 이미지 순으로 찾는다.
   // 숨김 토글처럼 buildEditForm만 다시 부르는 경로에서도 id와 미리보기가 어긋나지 않는다.
@@ -579,8 +583,17 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   ), [items, selectedMenuEntryId])
 
   const selectedItems = useMemo(() => filteredItems.filter((item) => selectedItemIds.includes(item.id)), [filteredItems, selectedItemIds])
-  const allFilteredSelected = filteredItems.length > 0 && filteredItems.every((item) => selectedItemIds.includes(item.id))
-  const someFilteredSelected = selectedItems.length > 0 && !allFilteredSelected
+  // 목록은 이미 받은 상품을 클라이언트에서 페이지로 나눈다. 페이지·표시 개수는 URL 쿼리에만 기록하고 화면은 이동하지 않는다.
+  // 범위를 벗어난 page(삭제·새로고침으로 페이지 수가 줄어든 경우)는 getListPagination이 마지막 페이지로 보정한다.
+  const listQuery = useListQuery()
+  const listPagination = getListPagination(filteredItems.length, listQuery.page, listQuery.pageSize)
+  const pagedItems = useMemo(
+    () => filteredItems.slice(listPagination.offset, listPagination.offset + listPagination.pageSize),
+    [filteredItems, listPagination.offset, listPagination.pageSize]
+  )
+  // 머리글 체크박스는 현재 페이지 상품만 다룬다. 다른 페이지의 선택은 유지되고 일괄 작업은 selectedItems 전체에 적용된다.
+  const allFilteredSelected = pagedItems.length > 0 && pagedItems.every((item) => selectedItemIds.includes(item.id))
+  const someFilteredSelected = pagedItems.some((item) => selectedItemIds.includes(item.id)) && !allFilteredSelected
   const bulkDeleteTargetItems = useMemo(
     () => items.filter((item) => (bulkDeleteTargetIds ?? []).includes(item.id)),
     [bulkDeleteTargetIds, items]
@@ -748,7 +761,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   }
 
   const toggleFilteredSelection = () => {
-    const filteredIds = filteredItems.map((item) => item.id)
+    const filteredIds = pagedItems.map((item) => item.id)
     if (filteredIds.length === 0) {
       return
     }
@@ -761,6 +774,17 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
 
       return Array.from(new Set([...current, ...filteredIds]))
     })
+  }
+
+  // 페이지·표시 개수를 바꿀 때만 목록 머리글로 스크롤한다(첫 로드에는 스크롤하지 않는다).
+  const changeListPage = (page: number) => {
+    listQuery.setPage(page)
+    productListHeaderRef.current?.scrollIntoView({ block: 'start' })
+  }
+
+  const changeListPageSize = (size: number) => {
+    listQuery.setPageSize(size)
+    productListHeaderRef.current?.scrollIntoView({ block: 'start' })
   }
 
   const setHiddenOverride = (itemId: string, isHidden: boolean) => {
@@ -983,6 +1007,11 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
         throw new Error(payload.error?.message || '문제마켓 상품 저장에 실패했습니다.')
       }
 
+      // 저장으로 목록 메뉴가 바뀌면 그 메뉴의 1페이지부터 보여 준다(같은 메뉴면 현재 페이지 유지).
+      // 코드가 돌리는 이동이라 방문 기록은 남기지 않는다(replaceState).
+      if (form.menuEntryId !== selectedMenuEntryId) {
+        listQuery.update({ page: 1 }, true)
+      }
       setSelectedMenuEntryId(form.menuEntryId)
       await refreshItems(form.menuEntryId)
       if (previousMenuEntryId && previousMenuEntryId !== form.menuEntryId) {
@@ -2058,6 +2087,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
               const nextMenuEntryId = event.target.value
               setSelectedMenuEntryId(nextMenuEntryId)
               setSelectedItemIds([])
+              listQuery.update({ page: 1 }, true)
               setForm((current) => current.id
                 ? { ...current, menuEntryId: nextMenuEntryId }
                 : buildEmptyForm(nextMenuEntryId))
@@ -2822,7 +2852,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
 
         <Card>
           <CardHeader>
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div ref={productListHeaderRef} className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <CardTitle>상품 목록</CardTitle>
                 <p className="mt-1 text-sm text-gray-500">선택 {selectedItems.length}개</p>
@@ -2873,7 +2903,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                   <TableRow>
                     <TableHead className="w-[52px] text-center">
                       <Checkbox
-                        aria-label="상품 전체 선택"
+                        aria-label="현재 페이지 상품 전체 선택"
                         checked={allFilteredSelected ? true : someFilteredSelected ? 'indeterminate' : false}
                         disabled={filteredItems.length === 0 || isBulkActionRunning}
                         onCheckedChange={() => toggleFilteredSelection()}
@@ -2895,7 +2925,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredItems.map((item) => {
+                    pagedItems.map((item) => {
                       const isHidden = item.status === 'hidden' || hiddenItemIds.includes(item.id)
 
                       return (
@@ -2965,6 +2995,13 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                 </TableBody>
               </Table>
             </div>
+            <StudioListPagination
+              page={listPagination.page}
+              pageSize={listPagination.pageSize}
+              totalCount={filteredItems.length}
+              onPageChange={changeListPage}
+              onPageSizeChange={changeListPageSize}
+            />
           </CardContent>
         </Card>
       </div>
