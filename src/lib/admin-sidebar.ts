@@ -4,6 +4,7 @@ import {
   CreditCard,
   Database,
   FileText,
+  Images,
   LayoutDashboard,
   LayoutPanelTop,
   MessageSquare,
@@ -35,6 +36,7 @@ export type AdminSidebarIconName =
   | 'coins'
   | 'refreshCcw'
   | 'fileText'
+  | 'images'
 
 export interface AdminSidebarMenuItem {
   name: string
@@ -80,6 +82,7 @@ export const DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG: AdminSidebarNavigationConf
     '/admin/main-ad-settings',
     '/admin/market-main-settings',
     '/admin/market/products',
+    '/admin/market/images',
     '/admin/generate/products',
     '/admin/problem-types',
     '/admin/ai-connections',
@@ -121,6 +124,7 @@ export const adminSidebarIconComponents: Record<AdminSidebarIconName, LucideIcon
   coins: Coins,
   refreshCcw: RefreshCcw,
   fileText: FileText,
+  images: Images,
 }
 
 function getDefaultAdminSidebarMenuItems(workspaceSubject: WorkspaceSubject): AdminSidebarMenuItem[] {
@@ -131,6 +135,7 @@ function getDefaultAdminSidebarMenuItems(workspaceSubject: WorkspaceSubject): Ad
     { name: '(임시)메인광고설정', href: '/admin/main-ad-settings', icon: 'layoutPanelTop' },
     { name: '(임시) 문제마켓 메인 관리', href: '/admin/market-main-settings', icon: 'layoutPanelTop' },
     { name: '문제마켓 상품 관리', href: '/admin/market/products', icon: 'upload' },
+    { name: '문제마켓 이미지 관리', href: '/admin/market/images', icon: 'images' },
     { name: '문제생성 상품 관리', href: '/admin/generate/products', icon: 'bookOpen' },
     { name: 'AI 문제 유형 관리', href: '/admin/problem-types', icon: 'settings' },
     { name: 'AI API 연결 관리', href: '/admin/ai-connections', icon: 'settings' },

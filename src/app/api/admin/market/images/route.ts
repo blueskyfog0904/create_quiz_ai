@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { readAllQueryRows } from '@/lib/read-all-query-rows'
 import {
+  MARKET_IMAGE_MAX_FILES_PER_UPLOAD,
   MARKET_IMAGE_MAX_INPUT_BYTES,
   MARKET_IMAGE_MIME_TYPE,
   MARKET_IMAGE_NAME_MAX_LENGTH,
@@ -29,8 +30,6 @@ const PAGE_SIZE = 60
 // 배포 환경 요청 본문 한도(약 4.5MB)에 맞춰 한 요청의 파일 합계를 입력 한도로 제한한다.
 // content-length가 없는 요청은 이 검사를 지나가지만 배포 환경(Vercel)의 본문 한도가 막는다.
 const MAX_REQUEST_BYTES = MARKET_IMAGE_MAX_INPUT_BYTES + 64 * 1024
-// 파일마다 sharp 처리와 DB·storage 왕복이 있어 한 요청의 파일 수를 제한한다. 더 많으면 클라이언트가 나눠 보낸다.
-const MAX_FILES_PER_REQUEST = 20
 
 // folderId: 생략 = 전체, 'unfiled' = 미분류(folder_id NULL), uuid = 해당 폴더
 // cursor: 다음 페이지 시작 위치(offset). 응답의 nextCursor를 그대로 보낸다.
@@ -200,8 +199,8 @@ export async function POST(request: Request) {
   if (files.length === 0) {
     return marketImageErrorResponse(400, 'INVALID_INPUT', '업로드할 이미지를 선택해주세요.')
   }
-  if (files.length > MAX_FILES_PER_REQUEST) {
-    return marketImageErrorResponse(400, 'TOO_MANY_FILES', `한 번에 ${MAX_FILES_PER_REQUEST}장까지 업로드할 수 있습니다.`)
+  if (files.length > MARKET_IMAGE_MAX_FILES_PER_UPLOAD) {
+    return marketImageErrorResponse(400, 'TOO_MANY_FILES', `한 번에 ${MARKET_IMAGE_MAX_FILES_PER_UPLOAD}장까지 업로드할 수 있습니다.`)
   }
 
   const admin = createAdminClient()

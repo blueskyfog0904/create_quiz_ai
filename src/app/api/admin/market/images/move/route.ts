@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { MARKET_IMAGE_MAX_MOVE_IDS } from '@/lib/market-images'
 import { marketImageErrorResponse, requireMarketImageAdmin } from '@/lib/market-images-server'
 
 export const runtime = 'nodejs'
 
-// folderId null = 미분류로 이동. imageIds는 .in() 필터 URL 길이 한도 때문에 200개까지(약 350개부터 실패), 더 많으면 클라이언트가 나눠 보낸다.
+// folderId null = 미분류로 이동. imageIds 한도를 넘으면 클라이언트가 나눠 보낸다.
 const MoveSchema = z.object({
-  imageIds: z.array(z.string().uuid()).min(1).max(200),
+  imageIds: z.array(z.string().uuid()).min(1).max(MARKET_IMAGE_MAX_MOVE_IDS),
   folderId: z.string().uuid().nullable(),
 })
 

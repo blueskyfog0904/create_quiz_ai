@@ -7,6 +7,12 @@ export const MARKET_IMAGE_MAX_INPUT_BYTES = 4 * 1024 * 1024
 export const MARKET_IMAGE_MAX_EDGE = 800
 export const MARKET_IMAGE_NAME_MAX_LENGTH = 100
 export const MARKET_IMAGE_FOLDER_NAME_MAX_LENGTH = 60
+// API 한 요청의 한도. 클라이언트는 이 값으로 나눠 보내고 서버는 넘으면 거절한다.
+// 업로드: 파일 합계는 MARKET_IMAGE_MAX_INPUT_BYTES 이하(배포 환경 본문 한도), 파일 수는 아래 값 이하
+export const MARKET_IMAGE_MAX_FILES_PER_UPLOAD = 20
+// 이동: .in() 필터 URL 길이 한도 때문에 200개까지(약 350개부터 실패)
+export const MARKET_IMAGE_MAX_MOVE_IDS = 200
+export const MARKET_IMAGE_MAX_CHECK_HASHES = 100
 
 const SHA256_HEX_PATTERN = /^[0-9a-f]{64}$/
 
@@ -20,6 +26,70 @@ export function buildMarketImageStoragePath(contentSha256: string) {
     throw new Error('이미지 해시 형식이 올바르지 않습니다.')
   }
   return `thumbnails/${contentSha256.slice(0, 2)}/${contentSha256}.webp`
+}
+
+export interface MarketImageDto {
+  id: string
+  folderId: string | null
+  displayName: string
+  storagePath: string
+  width: number
+  height: number
+  bytes: number
+  createdAt: string
+  publicUrl: string
+}
+
+export interface MarketImageFolderDto {
+  id: string
+  name: string
+  sortOrder: number
+  imageCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MarketImageUsageRef {
+  id: string
+  title: string
+}
+
+export interface MarketImageUsage {
+  items: MarketImageUsageRef[]
+  categoryItems: MarketImageUsageRef[]
+}
+
+// 파일 수·합계 바이트 한도를 넘지 않게 순서대로 묶는다. 한 파일이 합계 한도를 넘으면 혼자 한 묶음이 된다(서버가 거절).
+export function chunkMarketImageUploads<T extends { size: number }>(files: T[]): T[][] {
+  const batches: T[][] = []
+  let current: T[] = []
+  let currentBytes = 0
+  for (const file of files) {
+    if (current.length > 0 && (
+      current.length >= MARKET_IMAGE_MAX_FILES_PER_UPLOAD
+      || currentBytes + file.size > MARKET_IMAGE_MAX_INPUT_BYTES
+    )) {
+      batches.push(current)
+      current = []
+      currentBytes = 0
+    }
+    current.push(file)
+    currentBytes += file.size
+  }
+  if (current.length > 0) batches.push(current)
+  return batches
+}
+
+export function chunkArray<T>(values: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let index = 0; index < values.length; index += size) chunks.push(values.slice(index, index + size))
+  return chunks
+}
+
+export function formatMarketImageBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
 }
 
 export interface MarketThumbnailImageRef {

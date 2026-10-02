@@ -35,6 +35,30 @@ function inUseResponse(usage: MarketImageUsage) {
   })
 }
 
+// 상세 패널용: 이미지와 사용처 목록(삭제 차단 기준과 같음)
+export async function GET(_request: Request, { params }: RouteContext) {
+  const auth = await requireMarketImageAdmin()
+  if (auth instanceof NextResponse) return auth
+
+  const { id } = await params
+  if (!ImageIdSchema.safeParse(id).success) {
+    return marketImageErrorResponse(400, 'INVALID_INPUT', '입력이 올바르지 않습니다.')
+  }
+
+  try {
+    const admin = createAdminClient()
+    const { data, error } = await admin.from('market_images').select('*').eq('id', id).maybeSingle()
+    if (error) throw error
+    if (!data) return marketImageErrorResponse(404, 'NOT_FOUND', '이미지를 찾을 수 없습니다.')
+
+    const usage = (await listMarketImageUsage(admin, [id])).get(id) ?? { items: [], categoryItems: [] }
+    return NextResponse.json({ success: true, data: { image: toMarketImageDto(admin, data), usage } })
+  } catch (error) {
+    console.error('상품 이미지 상세 조회에 실패했습니다.', error)
+    return marketImageErrorResponse(500, 'INTERNAL_SERVER_ERROR', '이미지 정보를 불러오지 못했습니다.')
+  }
+}
+
 export async function PATCH(request: Request, { params }: RouteContext) {
   const auth = await requireMarketImageAdmin()
   if (auth instanceof NextResponse) return auth

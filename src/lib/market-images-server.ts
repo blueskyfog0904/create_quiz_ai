@@ -13,8 +13,13 @@ import {
   MARKET_IMAGE_MAX_EDGE,
   MARKET_IMAGE_MAX_INPUT_BYTES,
   MARKET_IMAGES_BUCKET,
+  type MarketImageDto,
+  type MarketImageFolderDto,
+  type MarketImageUsage,
 } from '@/lib/market-images'
 import type { Database } from '@/types/supabase'
+
+export type { MarketImageDto, MarketImageFolderDto, MarketImageUsage, MarketImageUsageRef } from '@/lib/market-images'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 export type MarketImageRow = Database['public']['Tables']['market_images']['Row']
@@ -26,37 +31,6 @@ export const MarketImageFolderSchema = z.object({
     .min(1, '폴더 이름을 입력해주세요.')
     .max(MARKET_IMAGE_FOLDER_NAME_MAX_LENGTH, '폴더 이름은 60자 이하로 입력해주세요.'),
 })
-
-export interface MarketImageDto {
-  id: string
-  folderId: string | null
-  displayName: string
-  storagePath: string
-  width: number
-  height: number
-  bytes: number
-  createdAt: string
-  publicUrl: string
-}
-
-export interface MarketImageFolderDto {
-  id: string
-  name: string
-  sortOrder: number
-  imageCount: number
-  createdAt: string
-  updatedAt: string
-}
-
-export interface MarketImageUsageRef {
-  id: string
-  title: string
-}
-
-export interface MarketImageUsage {
-  items: MarketImageUsageRef[]
-  categoryItems: MarketImageUsageRef[]
-}
 
 export interface NormalizedMarketImage {
   buffer: Buffer

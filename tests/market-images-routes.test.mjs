@@ -44,7 +44,7 @@ test('every image and folder route returns 401/403 before touching the service-r
     ['src/app/api/admin/market/images/route.ts', ['GET', 'POST']],
     ['src/app/api/admin/market/images/check/route.ts', ['POST']],
     ['src/app/api/admin/market/images/move/route.ts', ['POST']],
-    ['src/app/api/admin/market/images/[id]/route.ts', ['PATCH', 'DELETE']],
+    ['src/app/api/admin/market/images/[id]/route.ts', ['GET', 'PATCH', 'DELETE']],
     ['src/app/api/admin/market/image-folders/route.ts', ['GET', 'POST']],
     ['src/app/api/admin/market/image-folders/[id]/route.ts', ['PATCH', 'DELETE']],
   ]
@@ -351,4 +351,20 @@ test('move accepts up to 200 image ids and rejects more before querying', async 
   assert.equal((await ok.json()).data.movedCount, 200)
   assert.equal((await move(ids(201))).status, 400)
   assert.equal(admin.calls.length, 1)
+})
+
+test('image detail returns the image with non-deleted item and category item usage', async () => {
+  const admin = createFakeAdmin(({ table, ops }) => {
+    if (table === 'market_images') return { data: { id: IMAGE_ID, storage_path: 'thumbnails/ab/x.webp', display_name: 'x' }, error: null }
+    if (table === 'market_items') {
+      assert.deepEqual(op(ops, 'is'), ['is', 'deleted_at', null])
+      return { data: [{ id: 'item-1', title: '상품 A', thumbnail_image_id: IMAGE_ID }], error: null }
+    }
+    return { data: [{ id: 'cat-1', title: '항목 B', default_image_id: IMAGE_ID }], error: null }
+  })
+  const { route } = loadRoute('src/app/api/admin/market/images/[id]/route.ts', { admin })
+  const body = await (await route.GET(new Request('http://localhost/x'), ctx(IMAGE_ID))).json()
+  assert.equal(body.data.image.id, IMAGE_ID)
+  assert.deepEqual(body.data.usage, { items: [{ id: 'item-1', title: '상품 A' }], categoryItems: [{ id: 'cat-1', title: '항목 B' }] })
+  assert.equal((await route.GET(new Request('http://localhost/x'), ctx('bad'))).status, 400)
 })

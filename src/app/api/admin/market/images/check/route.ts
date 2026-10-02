@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/bypass'
-import { isSha256Hex } from '@/lib/market-images'
+import { MARKET_IMAGE_MAX_CHECK_HASHES, isSha256Hex } from '@/lib/market-images'
 import {
   marketImageErrorResponse,
   requireMarketImageAdmin,
@@ -12,7 +12,7 @@ export const runtime = 'nodejs'
 
 // 클라이언트가 보낼 바이트의 SHA-256(D4). 일치하면 업로드를 생략한다.
 const CheckSchema = z.object({
-  hashes: z.array(z.string().refine(isSha256Hex, '이미지 해시 형식이 올바르지 않습니다.')).min(1).max(100),
+  hashes: z.array(z.string().refine(isSha256Hex, '이미지 해시 형식이 올바르지 않습니다.')).min(1).max(MARKET_IMAGE_MAX_CHECK_HASHES),
 })
 
 export async function POST(request: Request) {
