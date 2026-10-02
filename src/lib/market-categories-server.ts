@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/bypass'
 import { isWorkspaceSubject, type WorkspaceSubject } from '@/lib/workspace-subject'
 import { getListPagination } from '@/lib/list-pagination'
 import { readAllQueryRows } from '@/lib/read-all-query-rows'
-import { MARKET_IMAGES_BUCKET } from '@/lib/market-images'
+import { MARKET_IMAGES_BUCKET, MARKET_THUMBNAIL_EMBED, toMarketThumbnailUrl } from '@/lib/market-images'
 
 // admin-accounts-server의 AdminAccountError와 동일한 status+message 패턴
 export class MarketCategoryError extends Error {
@@ -188,7 +188,7 @@ export async function listMarketItemsForCategory(categoryItemId: string, filters
     .filter((entry) => entry.title.normalize('NFC').toLowerCase().includes(keyword)).map((entry) => entry.id)
   function itemQuery(head = false) {
     let query = supabase.from('market_items')
-      .select('id, title, summary, thumbnail_url, menu_entry_id, exam_year, grade_level, question_count, view_count, published_at, created_at', { count: 'exact', head })
+      .select(`id, title, summary, menu_entry_id, exam_year, grade_level, question_count, view_count, published_at, created_at, ${MARKET_THUMBNAIL_EMBED}`, { count: 'exact', head })
       .eq('category_item_id', categoryItemId).eq('workspace_subject', workspaceSubject)
       .eq('status', 'published').eq('is_active', true).is('deleted_at', null).in('menu_entry_id', menuIds)
     if (keyword) {
@@ -270,7 +270,7 @@ export async function listMarketItemsForCategory(categoryItemId: string, filters
         itemId: item.id,
         title: item.title,
         summary: item.summary,
-        thumbnailUrl: item.thumbnail_url,
+        thumbnailUrl: toMarketThumbnailUrl(supabase, item),
         categorySlug: menu.slug,
         categoryTitle: menu.title,
         examYear: item.exam_year,

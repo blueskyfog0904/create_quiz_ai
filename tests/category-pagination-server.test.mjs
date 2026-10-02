@@ -4,6 +4,7 @@ import test from 'node:test'
 import ts from 'typescript'
 import * as pagination from '../src/lib/list-pagination.ts'
 import { readAllQueryRows } from '../src/lib/read-all-query-rows.ts'
+import * as marketImages from '../src/lib/market-images.ts'
 
 const categoryId = '00000000-0000-4000-8000-000000000001'
 function harness() {
@@ -61,7 +62,7 @@ function harness() {
     '@/lib/workspace-subject': { isWorkspaceSubject: (value) => ['english', 'korean'].includes(value) },
     '@/lib/list-pagination': pagination,
     '@/lib/read-all-query-rows': { readAllQueryRows },
-    '@/lib/market-images': { MARKET_IMAGES_BUCKET: 'market-images' },
+    '@/lib/market-images': marketImages,
   }
   const code = ts.transpileModule(readFileSync(new URL('../src/lib/market-categories-server.ts', import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },

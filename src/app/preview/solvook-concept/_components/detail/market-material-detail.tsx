@@ -14,6 +14,7 @@ import type {
   MarketItem,
   MarketItemFile,
   MarketMenuEntry,
+  MarketPublishedItem,
   MarketPurchase,
   MarketSubproductDownloadFile,
   MarketSubproductPublicSummary,
@@ -30,7 +31,7 @@ interface MarketMaterialDetailProps {
   downloadFiles: MarketSubproductDownloadFile[]
   files: MarketItemFile[]
   isLoggedIn: boolean
-  item: MarketItem
+  item: MarketPublishedItem
   purchases: MarketPurchase[]
   reviews: MarketItemReviewsResult
   reviewSort: MarketReviewSort
@@ -173,10 +174,10 @@ export function MarketMaterialDetail({
       main={(
         <section className="grid min-w-0 gap-7 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 sm:p-7 md:grid-cols-[180px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)]">
           <div className="mx-auto w-full max-w-[220px]">
-            {item.thumbnail_url ? (
+            {item.thumbnailUrl ? (
               // eslint-disable-next-line @next/next/no-img-element -- public market thumbnails can be remote URLs outside Next image optimization.
               <img
-                src={item.thumbnail_url}
+                src={item.thumbnailUrl}
                 alt={`${item.title} 표지`}
                 className="aspect-[3/4] w-full rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] object-cover shadow-[var(--studio-shadow-card)]"
               />

@@ -1,6 +1,8 @@
+import { revalidateTag } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { deleteCategoryItem, MarketCategoryError, updateCategoryItem } from '@/lib/market-categories-server'
+import { MARKET_PUBLIC_LIST_CACHE_TAG } from '@/lib/market-images'
 import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -64,6 +66,8 @@ export async function PATCH(
       isActive: parsed.data.is_active,
       defaultImageId: parsed.data.default_image_id,
     })
+    // 기본 이미지를 바꾸면 이 항목의 상품을 보여 주는 공개 목록 캐시(홈·보드)를 바로 갱신한다.
+    if (parsed.data.default_image_id !== undefined) revalidateTag(MARKET_PUBLIC_LIST_CACHE_TAG, { expire: 0 })
     return NextResponse.json({ success: true, data: item })
   } catch (error) {
     return toErrorResponse(error, '카테고리 항목을 수정하지 못했습니다.')

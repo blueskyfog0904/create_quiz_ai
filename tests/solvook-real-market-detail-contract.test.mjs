@@ -32,7 +32,7 @@ test('Solvook real market detail renders only real market fields and actions', a
   assert.match(source, /item\.title/)
   assert.match(source, /item\.summary/)
   assert.match(source, /item\.description/)
-  assert.match(source, /item\.thumbnail_url/)
+  assert.match(source, /item\.thumbnailUrl/)
   assert.match(source, /item\.question_count/)
   assert.match(source, /samplePageCount/)
   assert.doesNotMatch(source, /item\.view_count/)

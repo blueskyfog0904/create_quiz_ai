@@ -94,6 +94,12 @@ export function formatMarketImageBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
 }
 
+// 공개 목록·상세가 상품 이미지(1단계)와 카테고리 항목 기본 이미지(2단계)를 select 한 번으로 함께 읽는 임베드
+export const MARKET_THUMBNAIL_EMBED = 'thumbnail_image:market_images(storage_path), category_item:market_category_items(default_image:market_images(storage_path))'
+
+// 상품 이미지가 바뀌면 무효화할 공개 목록 데이터 캐시(홈·보드의 unstable_cache) 태그
+export const MARKET_PUBLIC_LIST_CACHE_TAG = 'market-public-lists'
+
 export interface MarketThumbnailImageRef {
   storage_path: string
 }
@@ -105,6 +111,15 @@ export interface MarketThumbnailSource {
   category_item?: {
     default_image?: MarketThumbnailImageRef | null
   } | null
+}
+
+// Supabase 클라이언트의 공개 URL 생성 부분만 받는다(이 파일은 클라이언트에서도 import하므로 SDK를 들이지 않는다).
+export interface MarketPublicUrlClient {
+  storage: { from(bucket: string): { getPublicUrl(path: string): { data: { publicUrl: string } } } }
+}
+
+export function toMarketThumbnailUrl(client: MarketPublicUrlClient, source: MarketThumbnailSource) {
+  return pickMarketThumbnailUrl(source, (storagePath) => client.storage.from(MARKET_IMAGES_BUCKET).getPublicUrl(storagePath).data.publicUrl)
 }
 
 // 표시 우선순위(D6): 상품 이미지 → 카테고리 항목 기본 이미지 → null(점선 박스). 옛 URL 문자열 컬럼은 읽지 않는다.

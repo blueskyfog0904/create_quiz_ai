@@ -1,3 +1,4 @@
+import { revalidateTag } from 'next/cache'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
@@ -6,6 +7,7 @@ import { getMarketCategoryItemWorkspaceSubject } from '@/lib/market-categories-s
 import { createMarketItem, listMarketItemsForAdmin } from '@/lib/market-items-server'
 import { listMarketMenuEntriesForAdmin } from '@/lib/market-menu-server'
 import { MARKET_IMAGE_NOT_FOUND_MESSAGE, isMarketImageReferenceError } from '@/lib/market-images-server'
+import { MARKET_PUBLIC_LIST_CACHE_TAG } from '@/lib/market-images'
 
 export const dynamic = 'force-dynamic'
 
@@ -152,6 +154,9 @@ export async function POST(request: Request) {
       created_by: user.id,
       updated_by: user.id,
     })
+
+    // 이미지를 지정해 만들면 공개 목록 캐시(홈·보드)를 바로 갱신한다.
+    if (parsed.data.thumbnailImageId) revalidateTag(MARKET_PUBLIC_LIST_CACHE_TAG, { expire: 0 })
 
     return NextResponse.json({ success: true, data: item }, { status: 201 })
   } catch (error) {

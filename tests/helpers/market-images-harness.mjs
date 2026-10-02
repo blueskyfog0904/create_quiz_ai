@@ -78,6 +78,7 @@ export function op(ops, name) {
 // 라우트 파일을 가짜 인증·서비스 롤 클라이언트로 불러온다. mocks는 라우트가 쓰는 다른 모듈을 바꾼다.
 export function loadRoute(path, { loggedIn = true, isAdmin = true, admin, userId = '00000000-0000-4000-8000-000000000001', mocks = {} } = {}) {
   const errors = []
+  const revalidations = []
   const authClient = {
     auth: { getUser: async () => ({ data: { user: loggedIn ? { id: userId } : null } }) },
     from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { is_admin: isAdmin } }) }) }) }),
@@ -85,6 +86,7 @@ export function loadRoute(path, { loggedIn = true, isAdmin = true, admin, userId
   const common = {
     'server-only': {},
     'next/server': { NextResponse },
+    'next/cache': { revalidateTag: (...args) => revalidations.push(args) },
     '@/lib/supabase/server': { createClient: async () => authClient },
     '@/lib/supabase/bypass': { createAdminClient: () => admin?.client },
     '@/lib/read-all-query-rows': readAllQueryRows,
@@ -92,5 +94,5 @@ export function loadRoute(path, { loggedIn = true, isAdmin = true, admin, userId
   }
   const server = load('src/lib/market-images-server.ts', common, errors)
   const route = load(path, { ...common, '@/lib/market-images-server': server, ...mocks }, errors)
-  return { route, server, errors }
+  return { route, server, errors, revalidations }
 }

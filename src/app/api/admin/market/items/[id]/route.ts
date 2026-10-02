@@ -1,3 +1,4 @@
+import { revalidateTag } from 'next/cache'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
@@ -5,6 +6,7 @@ import { getMarketCategoryItemWorkspaceSubject } from '@/lib/market-categories-s
 import { createClient } from '@/lib/supabase/server'
 import { hardDeleteMarketItemWithAssets } from '@/lib/market-item-cleanup'
 import { MARKET_IMAGE_NOT_FOUND_MESSAGE, isMarketImageReferenceError } from '@/lib/market-images-server'
+import { MARKET_PUBLIC_LIST_CACHE_TAG } from '@/lib/market-images'
 import {
   getMarketItemBundleOptionForAdmin,
   getMarketItemById,
@@ -171,6 +173,14 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       is_active: parsed.data.isActive,
       updated_by: user.id,
     })
+
+    // 표시 이미지가 바뀔 수 있는 경우(상품 이미지 또는 대체 이미지를 정하는 카테고리 항목 변경)에만
+    // 공개 목록 캐시(홈·보드)를 바로 갱신한다.
+    const imageChanged = parsed.data.thumbnailImageId !== undefined && parsed.data.thumbnailImageId !== currentItem.thumbnail_image_id
+    const categoryChanged = parsed.data.categoryItemId !== undefined && parsed.data.categoryItemId !== currentItem.category_item_id
+    if (imageChanged || categoryChanged) {
+      revalidateTag(MARKET_PUBLIC_LIST_CACHE_TAG, { expire: 0 })
+    }
 
     return NextResponse.json({ success: true, data: item })
   } catch (error) {

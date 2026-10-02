@@ -11,6 +11,7 @@ import {
 } from '@/components/design-system'
 import { Button } from '@/components/ui/button'
 import { getMarketBoardData } from '@/lib/market-board-server'
+import { MARKET_PUBLIC_LIST_CACHE_TAG } from '@/lib/market-images'
 import type { MarketBoardSort } from '@/lib/market-board'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { normalizeListPageSize } from '@/lib/list-pagination'
@@ -46,7 +47,11 @@ function parseSort(value: string | undefined): MarketBoardSort | undefined {
 }
 
 // 공개 프리뷰 전용 60초 데이터 캐시. 어드민 화면은 원본 함수를 직접 호출하므로 영향 없음.
-const getCachedMarketBoardData = unstable_cache(getMarketBoardData, ['preview-market-board'], { revalidate: 60 })
+// 상품 이미지가 바뀌면 관리자 API가 MARKET_PUBLIC_LIST_CACHE_TAG로 즉시 무효화한다.
+const getCachedMarketBoardData = unstable_cache(getMarketBoardData, ['preview-market-board'], {
+  revalidate: 60,
+  tags: [MARKET_PUBLIC_LIST_CACHE_TAG],
+})
 
 export default async function SolvookConceptBoardPage({
   params,

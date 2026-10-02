@@ -7,7 +7,12 @@ import {
   type MarketRefundRequestStatus,
 } from '@/lib/market-refunds'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
-import { MARKET_IMAGES_BUCKET } from '@/lib/market-images'
+import {
+  MARKET_IMAGES_BUCKET,
+  MARKET_THUMBNAIL_EMBED,
+  toMarketThumbnailUrl,
+  type MarketThumbnailSource,
+} from '@/lib/market-images'
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/supabase'
 
 type WithWorkspaceSubject = { workspace_subject: WorkspaceSubject }
@@ -35,6 +40,10 @@ export interface MarketItemImageRef {
   id: string
   publicUrl: string
 }
+// 공개 상세용: 표시 우선순위(D6)로 고른 이미지 URL을 붙인다.
+export type MarketPublishedItem = MarketItem & { thumbnailUrl: string | null }
+type MarketItemPublicRow = Tables<'market_items'> & MarketThumbnailSource
+
 export type MarketItemForAdmin = MarketItem & {
   thumbnailImage: MarketItemImageRef | null
   categoryDefaultImage: MarketItemImageRef | null
@@ -1421,12 +1430,12 @@ export async function getMarketItemById(id: string, workspaceSubject?: Workspace
   return withWorkspaceSubject(data)
 }
 
-export async function getPublishedMarketItemById(id: string, workspaceSubject?: WorkspaceSubject): Promise<MarketItem | null> {
+export async function getPublishedMarketItemById(id: string, workspaceSubject?: WorkspaceSubject): Promise<MarketPublishedItem | null> {
   const supabase = getAdminSupabase()
   const query = applyWorkspaceSubjectFilter(
     supabase
       .from('market_items')
-      .select('*')
+      .select(`*, ${MARKET_THUMBNAIL_EMBED}`)
       .eq('id', id)
       .eq('status', 'published')
       .eq('is_active', true)
@@ -1434,13 +1443,21 @@ export async function getPublishedMarketItemById(id: string, workspaceSubject?: 
     workspaceSubject
   )
 
-  const { data, error } = await query.maybeSingle()
+  const { data, error } = await query.returns<MarketItemPublicRow[]>().maybeSingle()
 
   if (error) {
     throw new Error(error.message)
   }
+  if (!data) {
+    return null
+  }
 
-  return withWorkspaceSubject(data)
+  const { thumbnail_image: thumbnailImage, category_item: categoryItem, ...item } = data
+  return {
+    ...item,
+    workspace_subject: normalizeWorkspaceSubject(item.workspace_subject),
+    thumbnailUrl: toMarketThumbnailUrl(supabase, { thumbnail_image: thumbnailImage, category_item: categoryItem }),
+  }
 }
 
 export async function listMarketItemFiles(
@@ -2552,9 +2569,10 @@ export async function listMarketLibraryRowsForUser(
   const [{ data: items, error: itemsError }, { data: files, error: filesError }, { data: downloads, error: downloadsError }, { data: menuEntries, error: menuEntriesError }] = await Promise.all([
     supabase
       .from('market_items')
-      .select('*')
+      .select(`*, ${MARKET_THUMBNAIL_EMBED}`)
       .in('id', itemIds)
-      .eq('workspace_subject', workspaceSubject),
+      .eq('workspace_subject', workspaceSubject)
+      .returns<MarketItemPublicRow[]>(),
     supabase
       .from('market_item_files')
       .select('*')
@@ -2865,7 +2883,7 @@ export async function listMarketLibraryRowsForUser(
         categorySlug: menu?.slug ?? null,
         categoryTitle: menu?.title ?? '알 수 없는 카테고리',
         title: item?.title ?? '삭제되었거나 찾을 수 없는 상품',
-        thumbnailUrl: item?.thumbnail_url ?? null,
+        thumbnailUrl: item ? toMarketThumbnailUrl(supabase, item) : null,
         summary: item?.summary ?? null,
         examYear: item?.exam_year ?? null,
         gradeLevel: item?.grade_level ?? null,

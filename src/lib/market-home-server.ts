@@ -13,6 +13,12 @@ import {
   type MarketHomeSourcePath,
 } from '@/lib/market-home'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import {
+  MARKET_THUMBNAIL_EMBED,
+  toMarketThumbnailUrl,
+  type MarketPublicUrlClient,
+  type MarketThumbnailSource,
+} from '@/lib/market-images'
 
 type MenuRow = {
   id: string
@@ -22,11 +28,12 @@ type MenuRow = {
   sort_order: number
 }
 
-type ItemRow = {
+const ITEM_SELECT = `id, title, summary, menu_entry_id, question_count, source_type, source_1, source_2, source_3, source_4, pdf_price, hwp_price, zip_price, published_at, created_at, ${MARKET_THUMBNAIL_EMBED}`
+
+type ItemRow = MarketThumbnailSource & {
   id: string
   title: string
   summary: string | null
-  thumbnail_url: string | null
   menu_entry_id: string
   question_count: number | null
   source_type: string | null
@@ -99,6 +106,7 @@ function toMenuEntry(row: MenuRow): MarketHomeMenuEntry {
 }
 
 function toItem(
+  client: MarketPublicUrlClient,
   row: ItemRow,
   menusById: Map<string, MarketHomeMenuEntry>,
   enrichment: Awaited<ReturnType<typeof loadMarketItemListEnrichment>>
@@ -110,7 +118,7 @@ function toItem(
     id: row.id,
     title: row.title,
     summary: row.summary,
-    thumbnailUrl: row.thumbnail_url,
+    thumbnailUrl: toMarketThumbnailUrl(client, row),
     menuEntryId: row.menu_entry_id,
     categorySlug: menu.slug,
     categoryTitle: menu.title,
@@ -186,7 +194,7 @@ async function loadRecent(
 
   const { data, error } = await supabase
     .from('market_items')
-    .select('id, title, summary, thumbnail_url, menu_entry_id, question_count, source_type, source_1, source_2, source_3, source_4, pdf_price, hwp_price, zip_price, published_at, created_at')
+    .select(ITEM_SELECT)
     .eq('workspace_subject', workspaceSubject)
     .eq('status', 'published')
     .eq('is_active', true)
@@ -210,7 +218,7 @@ async function loadRecent(
     }))
   )
   return rows.flatMap((row) => {
-    const item = toItem(row, menusById, enrichment)
+    const item = toItem(supabase, row, menusById, enrichment)
     return item ? [item] : []
   })
 }
@@ -235,7 +243,7 @@ async function loadPopular(
 
   const { data: itemData, error: itemError } = await supabase
     .from('market_items')
-    .select('id, title, summary, thumbnail_url, menu_entry_id, question_count, source_type, source_1, source_2, source_3, source_4, pdf_price, hwp_price, zip_price, published_at, created_at')
+    .select(ITEM_SELECT)
     .eq('workspace_subject', workspaceSubject)
     .eq('status', 'published')
     .eq('is_active', true)
@@ -257,7 +265,7 @@ async function loadPopular(
   )
   const itemsById = new Map(
     itemRows.flatMap((row) => {
-      const item = toItem(row, menusById, enrichment)
+      const item = toItem(supabase, row, menusById, enrichment)
       return item ? [[item.id, item] as const] : []
     })
   )

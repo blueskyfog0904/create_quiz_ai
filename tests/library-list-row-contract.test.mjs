@@ -70,7 +70,7 @@ test('library rows carry thumbnailUrl from the already-loaded item without sampl
   const fn = server.slice(server.indexOf('export async function listMarketLibraryRowsForUser('))
   assert.ok(fn.length > 0)
   assert.doesNotMatch(fn, /\nexport /, 'listMarketLibraryRowsForUser is the last export')
-  assert.match(fn, /thumbnailUrl: item\?\.thumbnail_url \?\? null,/)
+  assert.match(fn, /thumbnailUrl: item \? toMarketThumbnailUrl\(supabase, item\) : null,/)
   assert.doesNotMatch(fn, /market_item_sample_pages|createSignedUrl/)
   assert.doesNotMatch(server, REMOVED_COVER)
   assert.doesNotMatch(page, REMOVED_COVER)

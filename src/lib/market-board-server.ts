@@ -13,6 +13,12 @@ import {
 } from '@/lib/market-board'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { getListPagination, normalizeListPageSize } from '@/lib/list-pagination'
+import {
+  MARKET_THUMBNAIL_EMBED,
+  toMarketThumbnailUrl,
+  type MarketPublicUrlClient,
+  type MarketThumbnailSource,
+} from '@/lib/market-images'
 
 type GroupRow = {
   id: string
@@ -37,11 +43,10 @@ type ItemMetadataRow = {
   source_type: string | null
 }
 
-type ItemRow = {
+type ItemRow = MarketThumbnailSource & {
   id: string
   title: string
   summary: string | null
-  thumbnail_url: string | null
   menu_entry_id: string
   exam_year: number | null
   exam_month: number | null
@@ -78,7 +83,6 @@ const ITEM_SELECT = [
   'id',
   'title',
   'summary',
-  'thumbnail_url',
   'menu_entry_id',
   'exam_year',
   'exam_month',
@@ -95,6 +99,7 @@ const ITEM_SELECT = [
   'view_count',
   'published_at',
   'created_at',
+  MARKET_THUMBNAIL_EMBED,
 ].join(', ')
 
 const SOURCE_CONFIG_SELECT = [
@@ -321,6 +326,7 @@ async function loadTaxonomy(supabase: SupabaseClient, subject: WorkspaceSubject)
 }
 
 function toBoardRows(
+  client: MarketPublicUrlClient,
   items: ItemRow[],
   categoryTitle: string,
   sourceConfigs: MarketBoardSourceConfig[],
@@ -346,7 +352,7 @@ function toBoardRows(
       id: item.id,
       title: item.title,
       summary: normalizeText(item.summary),
-      thumbnailUrl: normalizeText(item.thumbnail_url),
+      thumbnailUrl: toMarketThumbnailUrl(client, item),
       categoryTitle,
       materialType,
       sourceFields,
@@ -550,6 +556,7 @@ export async function getMarketBoardData(input: MarketBoardQuery): Promise<Marke
         sourceConfigs,
       },
       rows: toBoardRows(
+        supabase,
         items,
         category.title,
         sourceConfigs,

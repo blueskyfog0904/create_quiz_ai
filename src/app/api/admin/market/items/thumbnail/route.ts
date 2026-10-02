@@ -1,8 +1,9 @@
+import { revalidateTag } from 'next/cache'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
-import { MARKET_IMAGE_MAX_BULK_ITEM_IDS } from '@/lib/market-images'
+import { MARKET_IMAGE_MAX_BULK_ITEM_IDS, MARKET_PUBLIC_LIST_CACHE_TAG } from '@/lib/market-images'
 import {
   MARKET_IMAGE_NOT_FOUND_MESSAGE,
   isMarketImageReferenceError,
@@ -43,6 +44,8 @@ export async function POST(request: Request) {
     console.error('상품 이미지 일괄 지정에 실패했습니다.', error)
     return marketImageErrorResponse(500, 'INTERNAL_SERVER_ERROR', '상품 이미지를 지정하지 못했습니다.')
   }
+
+  if (data.length > 0) revalidateTag(MARKET_PUBLIC_LIST_CACHE_TAG, { expire: 0 })
 
   return NextResponse.json({ success: true, data: { updatedCount: data.length } })
 }

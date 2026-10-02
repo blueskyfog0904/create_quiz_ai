@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/bypass'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
 import { getListPagination } from '@/lib/list-pagination'
 import { readAllQueryRows } from '@/lib/read-all-query-rows'
+import { MARKET_THUMBNAIL_EMBED, toMarketThumbnailUrl } from '@/lib/market-images'
 
 export type MarketSearchSort = 'views' | 'latest' | 'price_asc'
 
@@ -73,7 +74,7 @@ export async function searchMarketItemsForSubject(
   const [items, menuResult, subproducts, typeCategoriesResult] = await Promise.all([
     readAllQueryRows((from, to) => supabase
       .from('market_items')
-      .select('id, title, summary, thumbnail_url, menu_entry_id, exam_year, grade_level, question_count, view_count, published_at, created_at')
+      .select(`id, title, summary, menu_entry_id, exam_year, grade_level, question_count, view_count, published_at, created_at, ${MARKET_THUMBNAIL_EMBED}`)
       .eq('workspace_subject', workspaceSubject)
       .eq('status', 'published')
       .eq('is_active', true)
@@ -133,7 +134,7 @@ export async function searchMarketItemsForSubject(
         itemId: item.id,
         title: item.title,
         summary: item.summary,
-        thumbnailUrl: item.thumbnail_url,
+        thumbnailUrl: toMarketThumbnailUrl(supabase, item),
         categorySlug: menu.slug,
         categoryTitle: menu.title,
         examYear: item.exam_year,
