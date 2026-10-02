@@ -38,8 +38,11 @@ export function PreviewHeader({
   const subjectLabel = subject === 'korean' ? '국어' : '영어'
   const homeHref = `/?subject=${subject}`
   const libraryHref = subject === 'korean' ? '/library?subject=korean' : '/library'
-  // 로그인·회원가입 후 현재 위치로 돌아온다.
-  const currentLocation = `${pathname ?? '/'}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
+  // 로그인·회원가입 후 현재 위치로 돌아온다. 로그인·회원가입 화면에서는 받은 next를 그대로 넘겨 복귀 경로를 잃지 않는다.
+  const isAuthPage = pathname === '/login' || pathname === '/signup'
+  const currentLocation = isAuthPage
+    ? searchParams.get('next')
+    : `${pathname ?? '/'}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
   const loginHref = buildAuthRedirectPath(currentLocation, '/login')
   const signupHref = buildAuthRedirectPath(currentLocation, '/signup')
 
