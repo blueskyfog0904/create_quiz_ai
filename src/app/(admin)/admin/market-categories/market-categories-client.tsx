@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { MarketImageField, type MarketImageFieldValue } from '@/components/admin/market-image-field'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
@@ -11,6 +12,8 @@ interface CategoryItemRow {
   title: string
   sortOrder: number
   isActive: boolean
+  // 상품 이미지가 없는 연결 상품에 표시되는 기본 이미지(제안 E)
+  defaultImage: MarketImageFieldValue | null
 }
 
 interface CategoryGroupRow {
@@ -37,6 +40,7 @@ function getErrorMessage(result: unknown, fallback: string) {
 
 export default function MarketCategoriesClient({ workspaceSubject }: { workspaceSubject: WorkspaceSubject }) {
   const [groups, setGroups] = useState<CategoryGroupRow[]>([])
+  const groupsRef = useRef<CategoryGroupRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
@@ -47,7 +51,7 @@ export default function MarketCategoriesClient({ workspaceSubject }: { workspace
   const [newItemTitle, setNewItemTitle] = useState('')
   const [newItemSortOrder, setNewItemSortOrder] = useState('')
 
-  const loadGroups = useCallback(async () => {
+  const loadGroups = useCallback(async (resetId?: string) => {
     setIsLoading(true)
     try {
       const response = await fetch(withAdminWorkspaceSubject('/api/admin/market-categories', workspaceSubject))
@@ -56,11 +60,26 @@ export default function MarketCategoriesClient({ workspaceSubject }: { workspace
         throw new Error(getErrorMessage(result, '카테고리 메뉴를 불러오지 못했습니다.'))
       }
       const rows: CategoryGroupRow[] = result.data?.groups ?? []
+      const previousRows = groupsRef.current
+      groupsRef.current = rows
       setGroups(rows)
-      setGroupDrafts(Object.fromEntries(rows.map((group) => [group.id, { title: group.title, sortOrder: String(group.sortOrder) }])))
-      setItemDrafts(Object.fromEntries(rows.flatMap((group) => (
-        group.items.map((item) => [item.id, { title: item.title, sortOrder: String(item.sortOrder) }])
-      ))))
+      // 다른 행에서 편집 중인 초안은 지키고, 방금 저장한 행(resetId)과 편집하지 않은 행만 새 값으로 맞춘다.
+      const mergeDrafts = (
+        current: Record<string, RowDraft>,
+        saved: { id: string; title: string; sortOrder: number }[],
+        previous: { id: string; title: string; sortOrder: number }[],
+      ) => Object.fromEntries(saved.map((row) => {
+        const before = previous.find((candidate) => candidate.id === row.id)
+        const draft = current[row.id]
+        const isDirty = Boolean(draft && before && (draft.title !== before.title || draft.sortOrder !== String(before.sortOrder)))
+        return [row.id, isDirty && row.id !== resetId ? draft : { title: row.title, sortOrder: String(row.sortOrder) }]
+      }))
+      setGroupDrafts((current) => mergeDrafts(current, rows, previousRows))
+      setItemDrafts((current) => mergeDrafts(
+        current,
+        rows.flatMap((group) => group.items),
+        previousRows.flatMap((group) => group.items),
+      ))
       setSelectedGroupId((current) => (current && rows.some((group) => group.id === current) ? current : rows[0]?.id ?? null))
     } catch (error) {
       alert(error instanceof Error ? error.message : '카테고리 메뉴를 불러오지 못했습니다.')
@@ -86,7 +105,7 @@ export default function MarketCategoriesClient({ workspaceSubject }: { workspace
       if (!response.ok || !result?.success) {
         throw new Error(getErrorMessage(result, fallbackMessage))
       }
-      await loadGroups()
+      await loadGroups(savingKey)
       return true
     } catch (error) {
       alert(error instanceof Error ? error.message : fallbackMessage)
@@ -168,7 +187,7 @@ export default function MarketCategoriesClient({ workspaceSubject }: { workspace
     }
   }
 
-  const patchItem = (itemId: string, payload: { title?: string; sort_order?: number; is_active?: boolean }) => (
+  const patchItem = (itemId: string, payload: { title?: string; sort_order?: number; is_active?: boolean; default_image_id?: string | null }) => (
     runMutation(itemId, () => fetch(`/api/admin/market-categories/items/${itemId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -346,13 +365,14 @@ export default function MarketCategoriesClient({ workspaceSubject }: { workspace
                   <th className="w-32 px-4 py-3 font-medium">정렬 순서</th>
                   <th className="w-24 px-4 py-3 font-medium">상태</th>
                   <th className="w-28 px-4 py-3 font-medium">페이지</th>
+                  <th className="px-4 py-3 font-medium">기본 이미지</th>
                   <th className="w-72 px-4 py-3 font-medium">작업</th>
                 </tr>
               </thead>
               <tbody>
                 {selectedGroup.items.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">등록된 항목이 없습니다.</td>
+                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">등록된 항목이 없습니다.</td>
                   </tr>
                 ) : (
                   selectedGroup.items.map((item) => {
@@ -393,6 +413,14 @@ export default function MarketCategoriesClient({ workspaceSubject }: { workspace
                           >
                             새 탭 열기
                           </a>
+                        </td>
+                        <td className="px-4 py-2">
+                          <MarketImageField
+                            label={`'${item.title}' 기본 이미지`}
+                            value={item.defaultImage}
+                            disabled={savingId === item.id}
+                            onChange={(image) => void patchItem(item.id, { default_image_id: image?.id ?? null })}
+                          />
                         </td>
                         <td className="px-4 py-2">
                           <div className="flex items-center gap-2">

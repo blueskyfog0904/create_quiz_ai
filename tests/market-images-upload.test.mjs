@@ -148,3 +148,29 @@ test('sha256HexOfBlob hashes exactly the bytes that will be sent', async () => {
   const bytes = Buffer.from('market-image')
   assert.equal(await sha256HexOfBlob(new Blob([bytes])), createHash('sha256').update(bytes).digest('hex'))
 })
+
+test('a deleted remembered folder falls back to 미분류 for this and later batches and reports it', async () => {
+  const MB4 = 3 * 1024 * 1024
+  const folders = []
+  const { fetch, calls } = fakeFetch({
+    '/api/admin/market/images/check': () => ({ body: { success: true, data: { matches: [] } } }),
+    '/api/admin/market/images': (init) => {
+      const folderId = init.body.get('folderId')
+      folders.push(folderId)
+      if (folderId) return { status: 404, body: { success: false, error: { code: 'FOLDER_NOT_FOUND', message: '폴더를 찾을 수 없습니다.' } } }
+      return { body: { success: true, data: { results: uploadedNames(init).map((name) => ({ name, image: image(name), duplicated: false })) } } }
+    },
+  })
+  const outcome = await uploadMarketImageFiles([file('a.png', MB4), file('b.png', MB4)], 'deleted-folder', deps(fetch))
+  assert.deepEqual(folders, ['deleted-folder', null, null])
+  assert.equal(outcome.folderFallback, true)
+  assert.deepEqual(outcome.failures, [])
+  assert.deepEqual(outcome.images.map((entry) => entry.id), ['a.png', 'b.png'])
+  assert.equal(calls.length, 4)
+
+  const { fetch: okFetch } = fakeFetch({
+    '/api/admin/market/images/check': () => ({ body: { success: true, data: { matches: [] } } }),
+    '/api/admin/market/images': (init) => ({ body: { success: true, data: { results: uploadedNames(init).map((name) => ({ name, image: image(name), duplicated: false })) } } }),
+  })
+  assert.equal((await uploadMarketImageFiles([file('c.png')], 'folder', deps(okFetch))).folderFallback, false)
+})

@@ -35,8 +35,6 @@ import {
 } from '@/components/ui/select'
 import {
   MARKET_IMAGE_FOLDER_NAME_MAX_LENGTH,
-  MARKET_IMAGE_MAX_EDGE,
-  MARKET_IMAGE_MAX_INPUT_BYTES,
   MARKET_IMAGE_MAX_MOVE_IDS,
   MARKET_IMAGE_NAME_MAX_LENGTH,
   chunkArray,
@@ -48,9 +46,12 @@ import {
 import {
   getMarketImageErrorMessage,
   jsonRequestInit,
+  readLastMarketImageFolder,
   requestMarketImageJson,
   sha256HexOfBlob,
+  shrinkMarketImageForUpload,
   uploadMarketImageFiles,
+  writeLastMarketImageFolder,
 } from '@/lib/market-images-upload'
 
 // 'all' = 전체, 'unfiled' = 미분류, 그 외 = 폴더 id (GET /api/admin/market/images의 folderId 규칙)
@@ -73,63 +74,8 @@ interface MarketImageLibraryProps {
   onSelect?: (image: MarketImageDto) => void
 }
 
-const LAST_FOLDER_STORAGE_KEY = 'market-image-library:last-folder'
-// 입력 한도(4MB)를 넘는 파일만 브라우저에서 줄여 보낸다. 서버가 다시 긴 변 800px WebP로 정규화한다.
-const PRESHRINK_MAX_EDGE = MARKET_IMAGE_MAX_EDGE * 2
 const REUSED_MESSAGE = '이미 등록된 이미지를 재사용했습니다'
 const SORT_LABELS: Record<SortKey, string> = { newest: '최신순', oldest: '오래된순', name: '이름순' }
-
-function readLastFolder() {
-  try {
-    return window.localStorage.getItem(LAST_FOLDER_STORAGE_KEY)
-  } catch {
-    return null
-  }
-}
-
-function writeLastFolder(folder: FolderFilter) {
-  try {
-    window.localStorage.setItem(LAST_FOLDER_STORAGE_KEY, folder)
-  } catch {
-    // 저장소를 쓸 수 없으면 기억하지 않는다.
-  }
-}
-
-function canvasToBlob(canvas: HTMLCanvasElement, type: string) {
-  return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.9))
-}
-
-// 입력 한도(4MB)를 넘는 파일만 줄인다. WebP를 못 만드는 브라우저(Safari는 PNG로 대체)나 여전히 크면 JPEG로,
-// 그래도 크면 긴 변을 줄여 다시 시도한다. JPEG는 투명 영역을 흰 배경으로 채운다.
-async function shrinkForUpload(file: File) {
-  if (file.size <= MARKET_IMAGE_MAX_INPUT_BYTES) return file
-  const bitmap = await createImageBitmap(file)
-  try {
-    for (let maxEdge = PRESHRINK_MAX_EDGE; maxEdge >= MARKET_IMAGE_MAX_EDGE; maxEdge = Math.round(maxEdge * 0.75)) {
-      const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height))
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale))
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale))
-      const context = canvas.getContext('2d')
-      if (!context) break
-      for (const type of ['image/webp', 'image/jpeg']) {
-        context.clearRect(0, 0, canvas.width, canvas.height)
-        if (type === 'image/jpeg') {
-          context.fillStyle = 'white'
-          context.fillRect(0, 0, canvas.width, canvas.height)
-        }
-        context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-        const blob = await canvasToBlob(canvas, type)
-        if (blob && blob.type === type && blob.size <= MARKET_IMAGE_MAX_INPUT_BYTES) {
-          return new File([blob], file.name, { type })
-        }
-      }
-    }
-  } finally {
-    bitmap.close()
-  }
-  throw new Error('4MB 이하로 줄이지 못했습니다. 더 작은 이미지를 선택해주세요.')
-}
 
 function getUploadFiles(list: FileList | null | undefined) {
   return Array.from(list ?? []).filter((file) => file.type.startsWith('image/'))
@@ -187,7 +133,11 @@ export function MarketImageLibrary({ mode, selectedImageId, onSelect }: MarketIm
     setFolders(nextFolders)
     setUnfiledCount(result.data.unfiledCount)
     setTotalCount(result.data.totalCount)
-    // 기억한 폴더가 삭제됐으면 전체로 돌아간다.
+    // 기억한 폴더가 삭제됐으면 전체로 돌아가고 기억도 지운다.
+    const remembered = readLastMarketImageFolder()
+    if (remembered && remembered !== 'all' && remembered !== 'unfiled' && !nextFolders.some((folder) => folder.id === remembered)) {
+      writeLastMarketImageFolder('all')
+    }
     setFolderFilter((current) => (
       current && current !== 'all' && current !== 'unfiled' && !nextFolders.some((folder) => folder.id === current)
         ? 'all'
@@ -233,7 +183,7 @@ export function MarketImageLibrary({ mode, selectedImageId, onSelect }: MarketIm
 
   useEffect(() => {
     void loadFolders()
-    setFolderFilter(readLastFolder() ?? 'all')
+    setFolderFilter(readLastMarketImageFolder() ?? 'all')
   }, [loadFolders])
 
   useEffect(() => {
@@ -242,7 +192,7 @@ export function MarketImageLibrary({ mode, selectedImageId, onSelect }: MarketIm
 
   const chooseFolder = (folder: FolderFilter) => {
     setFolderFilter(folder)
-    writeLastFolder(folder)
+    writeLastMarketImageFolder(folder)
     setSelectedIds(new Set())
     setRenameDraft(null)
   }
@@ -253,10 +203,11 @@ export function MarketImageLibrary({ mode, selectedImageId, onSelect }: MarketIm
     setIsUploading(true)
     setUploadStatus(`${targets.length}개 파일을 올리는 중입니다.`)
     try {
-      const outcome = await uploadMarketImageFiles(targets, uploadFolderId, { prepare: shrinkForUpload, hash: sha256HexOfBlob })
-      if (uploadFolderId) writeLastFolder(uploadFolderId)
+      const outcome = await uploadMarketImageFiles(targets, uploadFolderId, { prepare: shrinkMarketImageForUpload, hash: sha256HexOfBlob })
+      if (uploadFolderId) writeLastMarketImageFolder(outcome.folderFallback ? 'all' : uploadFolderId)
       const newCount = outcome.images.length - outcome.reusedCount
       if (newCount > 0) toast.success(`이미지 ${newCount}장을 등록했습니다.`)
+      if (outcome.folderFallback) toast.info('폴더를 찾을 수 없어 미분류에 올렸습니다.')
       if (outcome.reusedCount > 0) toast.info(`${REUSED_MESSAGE} (${outcome.reusedCount}장)`)
       for (const failure of outcome.failures) toast.error(`${failure.name}: ${failure.error}`)
       setUploadStatus(`등록 ${newCount}장, 재사용 ${outcome.reusedCount}장, 실패 ${outcome.failures.length}장`)

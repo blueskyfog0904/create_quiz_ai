@@ -36,6 +36,8 @@ const PatchSchema = z.object({
   title: z.string().min(1).max(120).optional(),
   sort_order: z.number().int().optional(),
   is_active: z.boolean().optional(),
+  // 카테고리 항목 기본 이미지. null = 해제
+  default_image_id: z.string().uuid().nullable().optional(),
 })
 
 export async function PATCH(
@@ -60,6 +62,7 @@ export async function PATCH(
       title: parsed.data.title,
       sortOrder: parsed.data.sort_order,
       isActive: parsed.data.is_active,
+      defaultImageId: parsed.data.default_image_id,
     })
     return NextResponse.json({ success: true, data: item })
   } catch (error) {

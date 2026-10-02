@@ -55,11 +55,11 @@ test('upload hashes the bytes it will send, checks first, then uploads only unkn
   assert.match(upload, /chunkArray\(\[\.\.\.new Set\(prepared\.map\(\(entry\) => entry\.hash\)\)\], MARKET_IMAGE_MAX_CHECK_HASHES\)/)
   assert.match(upload, /for \(const batch of chunkMarketImageUploads\(pending\)\)/)
   assert.match(uploadLib, /crypto\.subtle\.digest\('SHA-256'/)
-  assert.match(library, /uploadMarketImageFiles\(targets, uploadFolderId, \{ prepare: shrinkForUpload, hash: sha256HexOfBlob \}\)/)
+  assert.match(library, /uploadMarketImageFiles\(targets, uploadFolderId, \{ prepare: shrinkMarketImageForUpload, hash: sha256HexOfBlob \}\)/)
   assert.match(library, /if \(!isManage && outcome\.images\[0\]\) onSelect\?\.\(outcome\.images\[0\]\)/)
-  assert.match(library, /if \(file\.size <= MARKET_IMAGE_MAX_INPUT_BYTES\) return file/)
-  assert.match(library, /for \(const type of \['image\/webp', 'image\/jpeg'\]\)/)
-  assert.match(library, /blob && blob\.type === type && blob\.size <= MARKET_IMAGE_MAX_INPUT_BYTES/)
+  assert.match(uploadLib, /if \(file\.size <= MARKET_IMAGE_MAX_INPUT_BYTES\) return file/)
+  assert.match(uploadLib, /for \(const type of \['image\/webp', 'image\/jpeg'\]\)/)
+  assert.match(uploadLib, /blob && blob\.type === type && blob\.size <= MARKET_IMAGE_MAX_INPUT_BYTES/)
   assert.match(library, /이미 등록된 이미지를 재사용했습니다/)
 })
 
@@ -115,8 +115,9 @@ test('library covers folders, totals, search, sort, paging, paste/drop and remem
   assert.match(library, /params\.set\('cursor', cursor\)/)
   assert.match(library, /document\.addEventListener\('paste', onPaste\)/)
   assert.match(library, /onDrop=\{onDrop\}/)
-  assert.match(library, /try \{\n\s+return window\.localStorage\.getItem\(LAST_FOLDER_STORAGE_KEY\)\n\s+\} catch/)
-  assert.match(library, /try \{\n\s+window\.localStorage\.setItem\(LAST_FOLDER_STORAGE_KEY, folder\)\n\s+\} catch/)
+  assert.match(uploadLib, /try \{\n\s+return window\.localStorage\.getItem\(LAST_FOLDER_STORAGE_KEY\)\n\s+\} catch/)
+  assert.match(uploadLib, /try \{\n\s+window\.localStorage\.setItem\(LAST_FOLDER_STORAGE_KEY, folder\)\n\s+\} catch/)
+  assert.match(library, /setFolderFilter\(readLastMarketImageFolder\(\) \?\? 'all'\)/)
 })
 
 test('library and picker are accessible and follow admin style rules', () => {

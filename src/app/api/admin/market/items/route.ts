@@ -5,6 +5,7 @@ import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { getMarketCategoryItemWorkspaceSubject } from '@/lib/market-categories-server'
 import { createMarketItem, listMarketItemsForAdmin } from '@/lib/market-items-server'
 import { listMarketMenuEntriesForAdmin } from '@/lib/market-menu-server'
+import { MARKET_IMAGE_NOT_FOUND_MESSAGE, isMarketImageReferenceError } from '@/lib/market-images-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +14,8 @@ const MarketItemSchema = z.object({
   title: z.string().trim().min(1),
   summary: z.string().trim().optional(),
   description: z.string().trim().optional(),
-  thumbnailUrl: z.string().trim().optional(),
+  // undefined = 변경 없음, null = 이미지 해제
+  thumbnailImageId: z.string().uuid().nullable().optional(),
   examYear: z.number().int().nullable().optional(),
   examMonth: z.number().int().min(1).max(12).nullable().optional(),
   gradeLevel: z.string().trim().optional(),
@@ -128,7 +130,7 @@ export async function POST(request: Request) {
       title: parsed.data.title,
       summary: parsed.data.summary,
       description: parsed.data.description,
-      thumbnail_url: parsed.data.thumbnailUrl,
+      thumbnail_image_id: parsed.data.thumbnailImageId,
       exam_year: parsed.data.examYear ?? null,
       exam_month: parsed.data.examMonth ?? null,
       grade_level: parsed.data.gradeLevel,
@@ -153,6 +155,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, data: item }, { status: 201 })
   } catch (error) {
+    if (isMarketImageReferenceError(error)) {
+      return NextResponse.json({
+        success: false,
+        error: { code: 'IMAGE_NOT_FOUND', message: MARKET_IMAGE_NOT_FOUND_MESSAGE },
+      }, { status: 404 })
+    }
     return NextResponse.json({
       success: false,
       error: {

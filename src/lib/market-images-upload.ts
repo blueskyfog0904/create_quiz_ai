@@ -1,6 +1,8 @@
 // 관리자 이미지 라이브러리 클라이언트 요청·업로드 흐름. fetch·해시·축소 함수를 주입받아 node 테스트에서도 돌린다.
 import {
   MARKET_IMAGE_MAX_CHECK_HASHES,
+  MARKET_IMAGE_MAX_EDGE,
+  MARKET_IMAGE_MAX_INPUT_BYTES,
   chunkArray,
   chunkMarketImageUploads,
   type MarketImageDto,
@@ -39,6 +41,64 @@ export async function sha256HexOfBlob(blob: Blob) {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
+// 브라우저 전용(호출 시점에만 DOM·localStorage를 쓴다). 라이브러리·상품·카테고리 화면이 함께 쓴다.
+// 마지막으로 보거나 올린 폴더(G4): 'all' | 'unfiled' | 폴더 id
+const LAST_FOLDER_STORAGE_KEY = 'market-image-library:last-folder'
+// 입력 한도(4MB)를 넘는 파일만 브라우저에서 줄여 보낸다. 서버가 다시 긴 변 800px WebP로 정규화한다.
+const PRESHRINK_MAX_EDGE = MARKET_IMAGE_MAX_EDGE * 2
+
+export function readLastMarketImageFolder() {
+  try {
+    return window.localStorage.getItem(LAST_FOLDER_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function writeLastMarketImageFolder(folder: string) {
+  try {
+    window.localStorage.setItem(LAST_FOLDER_STORAGE_KEY, folder)
+  } catch {
+    // 저장소를 쓸 수 없으면 기억하지 않는다.
+  }
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string) {
+  return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.9))
+}
+
+// 입력 한도(4MB)를 넘는 파일만 줄인다. WebP를 못 만드는 브라우저(Safari는 PNG로 대체)나 여전히 크면 JPEG로,
+// 그래도 크면 긴 변을 줄여 다시 시도한다. JPEG는 투명 영역을 흰 배경으로 채운다.
+export async function shrinkMarketImageForUpload(file: File) {
+  if (file.size <= MARKET_IMAGE_MAX_INPUT_BYTES) return file
+  const bitmap = await createImageBitmap(file)
+  try {
+    for (let maxEdge = PRESHRINK_MAX_EDGE; maxEdge >= MARKET_IMAGE_MAX_EDGE; maxEdge = Math.round(maxEdge * 0.75)) {
+      const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+      const context = canvas.getContext('2d')
+      if (!context) break
+      for (const type of ['image/webp', 'image/jpeg']) {
+        context.clearRect(0, 0, canvas.width, canvas.height)
+        if (type === 'image/jpeg') {
+          context.fillStyle = 'white'
+          context.fillRect(0, 0, canvas.width, canvas.height)
+        }
+        context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+        const blob = await canvasToBlob(canvas, type)
+        if (blob && blob.type === type && blob.size <= MARKET_IMAGE_MAX_INPUT_BYTES) {
+          return new File([blob], file.name, { type })
+        }
+      }
+    }
+  } finally {
+    bitmap.close()
+  }
+  throw new Error('4MB 이하로 줄이지 못했습니다. 더 작은 이미지를 선택해주세요.')
+}
+
 export interface MarketImageUploadDeps {
   fetch?: FetchLike
   // 보낼 바이트를 만든다(4MB 초과 파일 축소). 실패하면 그 파일만 실패로 기록한다.
@@ -51,6 +111,8 @@ export interface MarketImageUploadOutcome {
   images: MarketImageDto[]
   reusedCount: number
   failures: { name: string; error: string }[]
+  // 지정한 폴더가 없어 미분류로 올렸는지
+  folderFallback: boolean
 }
 
 // 보낼 바이트의 SHA-256으로 먼저 확인해 이미 있는 이미지는 올리지 않고,
@@ -93,11 +155,23 @@ export async function uploadMarketImageFiles(
     }
   }
 
-  for (const batch of chunkMarketImageUploads(pending)) {
+  let targetFolderId = folderId
+  let folderFallback = false
+  const postBatch = (batch: typeof pending) => {
     const body = new FormData()
     for (const entry of batch) body.append('files', entry.file)
-    if (folderId) body.append('folderId', folderId)
-    const { ok, result } = await request('/api/admin/market/images', { method: 'POST', body })
+    if (targetFolderId) body.append('folderId', targetFolderId)
+    return request('/api/admin/market/images', { method: 'POST', body })
+  }
+
+  for (const batch of chunkMarketImageUploads(pending)) {
+    let { ok, result } = await postBatch(batch)
+    // 기억한 폴더가 그사이 삭제됐으면 미분류로 다시 올린다(호출부가 기억한 폴더를 지운다).
+    if (!ok && result?.error?.code === 'FOLDER_NOT_FOUND' && targetFolderId) {
+      targetFolderId = null
+      folderFallback = true
+      ;({ ok, result } = await postBatch(batch))
+    }
     if (!ok) {
       const error = getMarketImageErrorMessage(result, '이미지를 업로드하지 못했습니다.')
       failures.push(...batch.map((entry) => ({ name: entry.file.name, error })))
@@ -117,5 +191,5 @@ export async function uploadMarketImageFiles(
   }
 
   const images = [...imagesByIndex.entries()].sort(([a], [b]) => a - b).map(([, image]) => image)
-  return { images, reusedCount, failures }
+  return { images, reusedCount, failures, folderFallback }
 }

@@ -61,6 +61,7 @@ function harness() {
     '@/lib/workspace-subject': { isWorkspaceSubject: (value) => ['english', 'korean'].includes(value) },
     '@/lib/list-pagination': pagination,
     '@/lib/read-all-query-rows': { readAllQueryRows },
+    '@/lib/market-images': { MARKET_IMAGES_BUCKET: 'market-images' },
   }
   const code = ts.transpileModule(readFileSync(new URL('../src/lib/market-categories-server.ts', import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },

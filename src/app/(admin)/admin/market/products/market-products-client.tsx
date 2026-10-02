@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
-import { Eye, EyeOff, Loader2, Pencil, Plus, Trash2, Upload } from 'lucide-react'
+import { Eye, EyeOff, Images, Loader2, Pencil, Plus, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -56,6 +56,7 @@ import type {
   MarketItem,
   MarketItemBundleOption,
   MarketItemFile,
+  MarketItemForAdmin,
   MarketItemSubproduct,
   MarketSubproductCategory,
   MarketSubproductFile,
@@ -63,10 +64,13 @@ import type {
 import { LISTBOARD_GRADE_OPTIONS } from '@/lib/generate-menu'
 import type { MarketMenuEntryAdminRow } from '@/lib/market-menu'
 import AdminMarketSamplePreviewDialog from './admin-market-sample-preview-dialog'
+import { MarketImageField, type MarketImageFieldValue } from '@/components/admin/market-image-field'
+import { MarketImagePicker } from '@/components/admin/market-image-picker'
+import { MARKET_IMAGE_MAX_BULK_ITEM_IDS, chunkArray } from '@/lib/market-images'
 
 interface MarketProductsClientProps {
   menuEntries: MarketMenuEntryAdminRow[]
-  initialItems: MarketItem[]
+  initialItems: MarketItemForAdmin[]
   workspaceSubject: WorkspaceSubject
 }
 
@@ -76,7 +80,8 @@ interface MarketItemFormState {
   title: string
   summary: string
   description: string
-  thumbnailUrl: string
+  // null = 상품 이미지 없음(카테고리 항목 기본 이미지 → 점선 박스 순으로 표시)
+  thumbnailImageId: string | null
   examYear: string
   examMonth: string
   gradeLevel: string
@@ -104,6 +109,7 @@ interface AdminCategoryMenuGroup {
     title: string
     sortOrder: number
     isActive: boolean
+    defaultImage: MarketImageFieldValue | null
   }[]
 }
 
@@ -146,7 +152,7 @@ function buildEmptyForm(menuEntryId = ''): MarketItemFormState {
     title: '',
     summary: '',
     description: '',
-    thumbnailUrl: '',
+    thumbnailImageId: null,
     examYear: getDefaultExamYear(),
     examMonth: '',
     gradeLevel: '',
@@ -172,7 +178,7 @@ function buildEditForm(item: MarketItem): MarketItemFormState {
     title: item.title,
     summary: item.summary || '',
     description: item.description || '',
-    thumbnailUrl: item.thumbnail_url || '',
+    thumbnailImageId: item.thumbnail_image_id,
     examYear: item.exam_year ? String(item.exam_year) : '',
     examMonth: item.exam_month ? String(item.exam_month) : '',
     gradeLevel: item.grade_level || '',
@@ -363,7 +369,7 @@ interface PersistFormOptions {
 }
 
 interface MarketItemDetailPayload {
-  item: MarketItem
+  item: MarketItemForAdmin
   files: MarketItemFile[]
   subproducts: MarketItemSubproduct[]
   subproductFiles: MarketSubproductFile[]
@@ -546,7 +552,25 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const [categoryMenuGroups, setCategoryMenuGroups] = useState<AdminCategoryMenuGroup[]>([])
   const [categoryItemId, setCategoryItemId] = useState('')
   const [savedCategoryItemId, setSavedCategoryItemId] = useState('')
+  // 폼의 thumbnailImageId에 해당하는 미리보기(상세 조회·이미지 선택 시 갱신)
+  const [thumbnailPreview, setThumbnailPreview] = useState<MarketImageFieldValue | null>(null)
+  const [isBulkImagePickerOpen, setIsBulkImagePickerOpen] = useState(false)
+  // 일괄 지정 확인 대상. image null = 상품 이미지 해제
+  const [bulkImageTarget, setBulkImageTarget] = useState<{ itemIds: string[]; image: MarketImageFieldValue | null } | null>(null)
   const sampleSourceInputRef = useRef<HTMLInputElement | null>(null)
+
+  // 폼의 thumbnailImageId에 맞는 미리보기: 방금 고른 이미지 → 목록에 실린 상품 이미지 순으로 찾는다.
+  // 숨김 토글처럼 buildEditForm만 다시 부르는 경로에서도 id와 미리보기가 어긋나지 않는다.
+  const thumbnailFieldValue = useMemo(() => {
+    if (!form.thumbnailImageId) return null
+    if (thumbnailPreview?.id === form.thumbnailImageId) return thumbnailPreview
+    const listed = items.find((item) => item.id === form.id)?.thumbnailImage ?? null
+    return listed?.id === form.thumbnailImageId ? listed : null
+  }, [form.id, form.thumbnailImageId, items, thumbnailPreview])
+
+  const selectedCategoryDefaultImage = useMemo(() => categoryMenuGroups
+    .flatMap((group) => group.items)
+    .find((categoryItem) => categoryItem.id === categoryItemId)?.defaultImage ?? null, [categoryMenuGroups, categoryItemId])
 
   const filteredItems = useMemo(() => (
     selectedMenuEntryId
@@ -689,6 +713,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
 
   const resetForm = (menuEntryId = selectedMenuEntryId) => {
     setForm(buildEmptyForm(menuEntryId))
+    setThumbnailPreview(null)
     setCategoryItemId('')
     setSavedCategoryItemId('')
     setSubproducts([])
@@ -753,7 +778,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     title: item.title,
     summary: item.summary || '',
     description: item.description || '',
-    thumbnailUrl: item.thumbnail_url || '',
     examYear: item.exam_year,
     examMonth: item.exam_month,
     gradeLevel: item.grade_level || '',
@@ -870,6 +894,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
 
     setSelectedMenuEntryId(detail.item.menu_entry_id)
     setForm(buildEditForm(detail.item))
+    setThumbnailPreview(detail.item.thumbnailImage)
     setCategoryItemId(getItemCategoryItemId(detail.item))
     setSavedCategoryItemId(getItemCategoryItemId(detail.item))
     applyItemDetail(detail)
@@ -902,7 +927,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     title: form.title,
     summary: form.summary,
     description: form.description,
-    thumbnailUrl: form.thumbnailUrl,
+    thumbnailImageId: form.thumbnailImageId,
     examYear: form.examYear ? Number(form.examYear) : null,
     examMonth: form.examMonth ? Number(form.examMonth) : null,
     gradeLevel: form.gradeLevel,
@@ -970,6 +995,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       const detail = await fetchItemDetail(payload.data.id)
       setSelectedMenuEntryId(detail.item.menu_entry_id)
       setForm(buildEditForm(detail.item))
+      setThumbnailPreview(detail.item.thumbnailImage)
       setCategoryItemId(getItemCategoryItemId(detail.item))
       setSavedCategoryItemId(getItemCategoryItemId(detail.item))
       setHiddenOverride(detail.item.id, detail.item.status === 'hidden')
@@ -1220,6 +1246,47 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       toast.error(error instanceof Error ? error.message : '선택한 상품 숨김 처리 중 오류가 발생했습니다.')
     } finally {
       setIsBulkActionRunning(false)
+    }
+  }
+
+  // 제안 F: 선택한 상품의 이미지를 한 번에 지정·해제한다(요청당 상품 수 한도로 나눠 보낸다).
+  const handleBulkImageAssign = async () => {
+    if (!bulkImageTarget) {
+      return
+    }
+
+    const { itemIds, image } = bulkImageTarget
+    setIsBulkActionRunning(true)
+    let updatedCount = 0
+    try {
+      for (const chunk of chunkArray(itemIds, MARKET_IMAGE_MAX_BULK_ITEM_IDS)) {
+        const response = await fetch(withAdminWorkspaceSubject('/api/admin/market/items/thumbnail', workspaceSubject), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemIds: chunk, imageId: image?.id ?? null }),
+        })
+        const payload = await response.json().catch(() => null)
+
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.error?.message || '상품 이미지 일괄 지정에 실패했습니다.')
+        }
+        updatedCount += payload.data.updatedCount
+      }
+
+      if (form.id && itemIds.includes(form.id)) {
+        setThumbnailPreview(image)
+        setForm((current) => ({ ...current, thumbnailImageId: image?.id ?? null }))
+      }
+      setBulkImageTarget(null)
+      setSelectedItemIds([])
+      toast.success(image ? `상품 ${updatedCount}개에 이미지를 지정했습니다.` : `상품 ${updatedCount}개의 이미지를 해제했습니다.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '상품 이미지 일괄 지정 중 오류가 발생했습니다.')
+      if (updatedCount > 0) toast.info(`상품 ${updatedCount}개는 이미 반영되었습니다.`)
+    } finally {
+      setIsBulkActionRunning(false)
+      await refreshItems().catch(() => undefined)
+      router.refresh()
     }
   }
 
@@ -2059,10 +2126,17 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
               <Input value={form.summary} onChange={(event) => setForm((current) => ({ ...current, summary: event.target.value }))} />
             </div>
 
-            <div className="space-y-2">
-              <Label>썸네일 URL</Label>
-              <Input value={form.thumbnailUrl} onChange={(event) => setForm((current) => ({ ...current, thumbnailUrl: event.target.value }))} placeholder="https://..." />
-            </div>
+            <MarketImageField
+              label="상품 이미지"
+              value={thumbnailFieldValue}
+              onChange={(image) => {
+                setThumbnailPreview(image)
+                setForm((current) => ({ ...current, thumbnailImageId: image?.id ?? null }))
+              }}
+              fallback={selectedCategoryDefaultImage
+                ? { image: selectedCategoryDefaultImage, description: '상품 이미지가 없어 카테고리 항목 기본 이미지가 표시됩니다.' }
+                : null}
+            />
 
             <div className="space-y-2">
               <Label>상세 설명</Label>
@@ -2765,6 +2839,23 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                 </Button>
                 <Button
                   type="button"
+                  variant="outline"
+                  disabled={selectedItems.length === 0 || isBulkActionRunning}
+                  onClick={() => setIsBulkImagePickerOpen(true)}
+                >
+                  <Images className="mr-2 h-4 w-4" />
+                  이미지 일괄 지정
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={selectedItems.length === 0 || isBulkActionRunning}
+                  onClick={() => setBulkImageTarget({ itemIds: selectedItems.map((item) => item.id), image: null })}
+                >
+                  이미지 일괄 해제
+                </Button>
+                <Button
+                  type="button"
                   variant="destructive"
                   disabled={selectedItems.length === 0 || isBulkActionRunning}
                   onClick={() => setBulkDeleteTargetIds(selectedItems.map((item) => item.id))}
@@ -3059,6 +3150,52 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
             >
               {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               완전 삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <MarketImagePicker
+        open={isBulkImagePickerOpen}
+        onOpenChange={setIsBulkImagePickerOpen}
+        title="선택한 상품에 지정할 이미지 선택"
+        onSelect={(image) => setBulkImageTarget({
+          itemIds: selectedItems.map((item) => item.id),
+          image: { id: image.id, publicUrl: image.publicUrl },
+        })}
+      />
+
+      <AlertDialog open={!!bulkImageTarget} onOpenChange={(open) => !open && !isBulkActionRunning && setBulkImageTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkImageTarget?.image
+                ? `선택한 상품 ${bulkImageTarget.itemIds.length}개에 이 이미지를 지정할까요?`
+                : `선택한 상품 ${bulkImageTarget?.itemIds.length ?? 0}개의 상품 이미지를 해제할까요?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {bulkImageTarget?.image
+                ? '기존 상품 이미지는 이 이미지로 바뀝니다.'
+                : '해제한 상품은 카테고리 항목 기본 이미지가 있으면 그 이미지로, 없으면 빈 이미지로 표시됩니다.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {bulkImageTarget?.image ? (
+            <div className="flex justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element -- market-images 공개 버킷 URL을 그대로 보여 준다. */}
+              <img src={bulkImageTarget.image.publicUrl} alt="지정할 이미지 미리보기" className="size-32 rounded-md border object-contain" />
+            </div>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkActionRunning}>취소</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isBulkActionRunning}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleBulkImageAssign()
+              }}
+            >
+              {isBulkActionRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {bulkImageTarget?.image ? '지정' : '해제'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

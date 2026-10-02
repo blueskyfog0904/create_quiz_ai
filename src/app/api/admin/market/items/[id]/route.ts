@@ -4,9 +4,11 @@ import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { getMarketCategoryItemWorkspaceSubject } from '@/lib/market-categories-server'
 import { createClient } from '@/lib/supabase/server'
 import { hardDeleteMarketItemWithAssets } from '@/lib/market-item-cleanup'
+import { MARKET_IMAGE_NOT_FOUND_MESSAGE, isMarketImageReferenceError } from '@/lib/market-images-server'
 import {
   getMarketItemBundleOptionForAdmin,
   getMarketItemById,
+  getMarketItemByIdForAdmin,
   listMarketItemFiles,
   listMarketItemSubproductsForAdmin,
   listMarketSubproductFilesForAdmin,
@@ -20,7 +22,8 @@ const MarketItemUpdateSchema = z.object({
   title: z.string().trim().min(1),
   summary: z.string().trim().optional(),
   description: z.string().trim().optional(),
-  thumbnailUrl: z.string().trim().optional(),
+  // undefined = 변경 없음, null = 이미지 해제
+  thumbnailImageId: z.string().uuid().nullable().optional(),
   examYear: z.number().int().nullable().optional(),
   examMonth: z.number().int().min(1).max(12).nullable().optional(),
   gradeLevel: z.string().trim().optional(),
@@ -79,7 +82,7 @@ export async function GET(_: Request, { params }: RouteContext) {
   }
 
   try {
-    const item = await getMarketItemById(id, workspaceSubject)
+    const item = await getMarketItemByIdForAdmin(id, workspaceSubject)
     if (!item) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
@@ -147,7 +150,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       title: parsed.data.title,
       summary: parsed.data.summary,
       description: parsed.data.description,
-      thumbnail_url: parsed.data.thumbnailUrl,
+      thumbnail_image_id: parsed.data.thumbnailImageId,
       exam_year: parsed.data.examYear ?? null,
       exam_month: parsed.data.examMonth ?? null,
       grade_level: parsed.data.gradeLevel,
@@ -171,6 +174,12 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
     return NextResponse.json({ success: true, data: item })
   } catch (error) {
+    if (isMarketImageReferenceError(error)) {
+      return NextResponse.json({
+        success: false,
+        error: { code: 'IMAGE_NOT_FOUND', message: MARKET_IMAGE_NOT_FOUND_MESSAGE },
+      }, { status: 404 })
+    }
     return NextResponse.json({
       success: false,
       error: {

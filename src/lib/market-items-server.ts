@@ -7,6 +7,7 @@ import {
   type MarketRefundRequestStatus,
 } from '@/lib/market-refunds'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
+import { MARKET_IMAGES_BUCKET } from '@/lib/market-images'
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/supabase'
 
 type WithWorkspaceSubject = { workspace_subject: WorkspaceSubject }
@@ -28,6 +29,16 @@ export type MarketEntitlement = Tables<'market_entitlements'> & WithWorkspaceSub
 export type MarketRefundRequest = Tables<'market_refund_requests'> & WithWorkspaceSubject
 
 type MarketItemInsert = TablesInsert<'market_items'> & WithOptionalWorkspaceSubject
+
+// 관리자 상품 화면용: 상품 이미지와 카테고리 항목 기본 이미지(표시 우선순위 D6의 1·2단계)
+export interface MarketItemImageRef {
+  id: string
+  publicUrl: string
+}
+export type MarketItemForAdmin = MarketItem & {
+  thumbnailImage: MarketItemImageRef | null
+  categoryDefaultImage: MarketItemImageRef | null
+}
 type MarketItemFileInsert = TablesInsert<'market_item_files'> & WithOptionalWorkspaceSubject
 type MarketPurchaseInsert = TablesInsert<'market_purchases'> & WithOptionalWorkspaceSubject
 type MarketDownloadEventInsert = TablesInsert<'market_download_events'> & WithOptionalWorkspaceSubject
@@ -304,6 +315,28 @@ function getAdminSupabase() {
   return createAdminClient()
 }
 
+// 임베드 한 번으로 이미지 경로를 함께 읽는다(N+1 없음).
+const MARKET_ITEM_ADMIN_SELECT = '*, thumbnail_image:market_images(id, storage_path), category_item:market_category_items(default_image:market_images(id, storage_path))'
+
+type MarketImagePathRow = { id: string; storage_path: string } | null
+type MarketItemAdminRow = Tables<'market_items'> & {
+  thumbnail_image: MarketImagePathRow
+  category_item: { default_image: MarketImagePathRow } | null
+}
+
+function toMarketItemForAdmin(supabase: ReturnType<typeof getAdminSupabase>, row: MarketItemAdminRow): MarketItemForAdmin {
+  const { thumbnail_image: thumbnailImage, category_item: categoryItem, ...item } = row
+  const toRef = (image: MarketImagePathRow) => (image
+    ? { id: image.id, publicUrl: supabase.storage.from(MARKET_IMAGES_BUCKET).getPublicUrl(image.storage_path).data.publicUrl }
+    : null)
+  return {
+    ...item,
+    workspace_subject: normalizeWorkspaceSubject(item.workspace_subject),
+    thumbnailImage: toRef(thumbnailImage),
+    categoryDefaultImage: toRef(categoryItem?.default_image ?? null),
+  }
+}
+
 function normalizeText(value?: string | null) {
   return value?.normalize('NFC').trim() ?? ''
 }
@@ -359,7 +392,7 @@ function validateMarketItemInput(input: {
   }
 }
 
-export async function listMarketItemsForAdmin(menuEntryId?: string, workspaceSubject?: WorkspaceSubject): Promise<MarketItem[]> {
+export async function listMarketItemsForAdmin(menuEntryId?: string, workspaceSubject?: WorkspaceSubject): Promise<MarketItemForAdmin[]> {
   const supabase = getAdminSupabase()
   const menuEntry = menuEntryId ? await getMarketMenuEntryById(menuEntryId) : null
   if (menuEntry && workspaceSubject) {
@@ -370,7 +403,7 @@ export async function listMarketItemsForAdmin(menuEntryId?: string, workspaceSub
   let query = applyWorkspaceSubjectFilter(
     supabase
       .from('market_items')
-      .select('*')
+      .select(MARKET_ITEM_ADMIN_SELECT)
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
     activeWorkspaceSubject
@@ -380,13 +413,30 @@ export async function listMarketItemsForAdmin(menuEntryId?: string, workspaceSub
     query = query.eq('menu_entry_id', menuEntryId)
   }
 
-  const { data, error } = await query
+  const { data, error } = await query.returns<MarketItemAdminRow[]>()
 
   if (error) {
     throw new Error(error.message)
   }
 
-  return withWorkspaceSubjects(data)
+  return (data ?? []).map((row) => toMarketItemForAdmin(supabase, row))
+}
+
+export async function getMarketItemByIdForAdmin(id: string, workspaceSubject?: WorkspaceSubject): Promise<MarketItemForAdmin | null> {
+  const supabase = getAdminSupabase()
+  const { data, error } = await applyWorkspaceSubjectFilter(
+    supabase
+      .from('market_items')
+      .select(MARKET_ITEM_ADMIN_SELECT)
+      .eq('id', id),
+    workspaceSubject
+  ).returns<MarketItemAdminRow[]>().maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data ? toMarketItemForAdmin(supabase, data) : null
 }
 
 export async function listMarketSubproductCategoriesForAdmin(
@@ -1858,7 +1908,7 @@ export async function listMarketSubproductDownloadFilesForUser(
 
 export async function createMarketItem(
   input: Pick<TablesInsert<'market_items'>,
-    'menu_entry_id' | 'title' | 'summary' | 'description' | 'thumbnail_url' | 'exam_year' | 'exam_month' |
+    'menu_entry_id' | 'title' | 'summary' | 'description' | 'thumbnail_image_id' | 'exam_year' | 'exam_month' |
     'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'question_count' | 'category_item_id' |
     'pdf_price' | 'hwp_price' | 'zip_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'draft_source' | 'created_by' | 'updated_by'>
 ) {
@@ -1876,7 +1926,7 @@ export async function createMarketItem(
     title: normalized.title,
     summary: normalizeNullableText(input.summary),
     description: normalizeNullableText(input.description),
-    thumbnail_url: normalizeNullableText(input.thumbnail_url),
+    thumbnail_image_id: input.thumbnail_image_id ?? null,
     exam_year: input.exam_year ?? null,
     exam_month: input.exam_month ?? null,
     grade_level: normalizeNullableText(input.grade_level),
@@ -1915,7 +1965,7 @@ export async function createMarketItem(
 export async function updateMarketItem(
   id: string,
   input: Pick<TablesUpdate<'market_items'>,
-    'title' | 'summary' | 'description' | 'thumbnail_url' | 'exam_year' | 'exam_month' |
+    'title' | 'summary' | 'description' | 'thumbnail_image_id' | 'exam_year' | 'exam_month' |
     'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'question_count' | 'category_item_id' | 'menu_entry_id' |
     'pdf_price' | 'hwp_price' | 'zip_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'draft_source' | 'updated_by'>
 ) {
@@ -1955,7 +2005,8 @@ export async function updateMarketItem(
     title: normalized.title,
     summary: normalizeNullableText(input.summary ?? current.summary),
     description: normalizeNullableText(input.description ?? current.description),
-    thumbnail_url: normalizeNullableText(input.thumbnail_url ?? current.thumbnail_url),
+    // category_item_id와 같은 규칙: undefined = 변경 없음, null = 이미지 해제
+    thumbnail_image_id: input.thumbnail_image_id === undefined ? current.thumbnail_image_id : input.thumbnail_image_id,
     exam_year: input.exam_year ?? current.exam_year,
     exam_month: input.exam_month ?? current.exam_month,
     grade_level: normalizeNullableText(input.grade_level ?? current.grade_level),

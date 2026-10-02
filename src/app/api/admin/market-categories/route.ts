@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
             title: item.title,
             sortOrder: item.sort_order,
             isActive: item.is_active,
+            defaultImage: item.default_image,
           })),
         })),
       },

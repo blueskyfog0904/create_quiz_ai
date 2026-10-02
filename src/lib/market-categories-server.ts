@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/bypass'
 import { isWorkspaceSubject, type WorkspaceSubject } from '@/lib/workspace-subject'
 import { getListPagination } from '@/lib/list-pagination'
 import { readAllQueryRows } from '@/lib/read-all-query-rows'
+import { MARKET_IMAGES_BUCKET } from '@/lib/market-images'
 
 // admin-accounts-server의 AdminAccountError와 동일한 status+message 패턴
 export class MarketCategoryError extends Error {
@@ -325,6 +326,8 @@ export interface AdminCategoryItem {
   title: string
   sort_order: number
   is_active: boolean
+  // 카테고리 항목 기본 이미지(제안 E). 상품 이미지가 없을 때 표시된다.
+  default_image: { id: string; publicUrl: string } | null
 }
 
 export interface AdminCategoryGroup {
@@ -349,7 +352,7 @@ export async function listMarketCategoryTreeForAdmin(subject: WorkspaceSubject):
       .order('created_at', { ascending: true }),
     supabase
       .from('market_category_items')
-      .select('id, group_id, title, sort_order, is_active')
+      .select('id, group_id, title, sort_order, is_active, default_image:market_images(id, storage_path)')
       .eq('workspace_subject', subject)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true }),
@@ -365,7 +368,16 @@ export async function listMarketCategoryTreeForAdmin(subject: WorkspaceSubject):
   const itemsByGroup = new Map<string, AdminCategoryItem[]>()
   for (const item of itemsResult.data ?? []) {
     const current = itemsByGroup.get(item.group_id) ?? []
-    current.push({ id: item.id, title: item.title, sort_order: item.sort_order, is_active: item.is_active })
+    const defaultImage = item.default_image as { id: string; storage_path: string } | null
+    current.push({
+      id: item.id,
+      title: item.title,
+      sort_order: item.sort_order,
+      is_active: item.is_active,
+      default_image: defaultImage
+        ? { id: defaultImage.id, publicUrl: supabase.storage.from(MARKET_IMAGES_BUCKET).getPublicUrl(defaultImage.storage_path).data.publicUrl }
+        : null,
+    })
     itemsByGroup.set(item.group_id, current)
   }
 
@@ -507,9 +519,9 @@ export async function createCategoryItem(input: {
 
 export async function updateCategoryItem(
   itemId: string,
-  input: { title?: string; sortOrder?: number; isActive?: boolean }
+  input: { title?: string; sortOrder?: number; isActive?: boolean; defaultImageId?: string | null }
 ) {
-  const patch: { title?: string; sort_order?: number; is_active?: boolean } = {}
+  const patch: { title?: string; sort_order?: number; is_active?: boolean; default_image_id?: string | null } = {}
   if (input.title !== undefined) {
     const title = input.title.trim()
     if (!title) {
@@ -519,6 +531,7 @@ export async function updateCategoryItem(
   }
   if (input.sortOrder !== undefined) patch.sort_order = input.sortOrder
   if (input.isActive !== undefined) patch.is_active = input.isActive
+  if (input.defaultImageId !== undefined) patch.default_image_id = input.defaultImageId
   if (Object.keys(patch).length === 0) {
     throw new MarketCategoryError(400, '변경할 내용이 없습니다.')
   }
@@ -531,6 +544,9 @@ export async function updateCategoryItem(
     .select('*')
     .maybeSingle()
 
+  if (error?.code === '23503' && /default_image_id_fkey/.test(error.message)) {
+    throw new MarketCategoryError(404, '선택한 이미지를 찾을 수 없습니다. 이미지를 다시 선택해주세요.')
+  }
   if (error) {
     throw new MarketCategoryError(500, `카테고리 항목을 수정하지 못했습니다: ${error.message}`)
   }

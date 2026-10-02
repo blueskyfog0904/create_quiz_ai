@@ -13,6 +13,8 @@ export const MARKET_IMAGE_MAX_FILES_PER_UPLOAD = 20
 // 이동: .in() 필터 URL 길이 한도 때문에 200개까지(약 350개부터 실패)
 export const MARKET_IMAGE_MAX_MOVE_IDS = 200
 export const MARKET_IMAGE_MAX_CHECK_HASHES = 100
+// 상품 이미지 일괄 지정: 이동과 같은 .in() URL 길이 한도
+export const MARKET_IMAGE_MAX_BULK_ITEM_IDS = 200
 
 const SHA256_HEX_PATTERN = /^[0-9a-f]{64}$/
 

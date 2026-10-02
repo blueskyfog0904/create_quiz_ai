@@ -82,6 +82,14 @@ export async function requireMarketImageAdmin(): Promise<User | NextResponse> {
   return user
 }
 
+// 없는(또는 방금 삭제된) 이미지를 상품·카테고리 항목이 참조하면 FK(…_image_id_fkey, restrict)가 막는다.
+export function isMarketImageReferenceError(error: unknown) {
+  const message = (error as { message?: unknown } | null)?.message
+  return typeof message === 'string' && /_image_id_fkey/.test(message)
+}
+
+export const MARKET_IMAGE_NOT_FOUND_MESSAGE = '선택한 이미지를 찾을 수 없습니다. 이미지를 다시 선택해주세요.'
+
 export function sha256Hex(bytes: Buffer) {
   return createHash('sha256').update(bytes).digest('hex')
 }
