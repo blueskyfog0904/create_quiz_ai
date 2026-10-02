@@ -7,8 +7,10 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
 
 const view = read('../src/app/(solvook)/library/_components/library-view.tsx')
 const page = read('../src/app/(solvook)/library/page.tsx')
-const legacyPage = read('../src/app/legacy/_library/market/page.tsx')
 const server = read('../src/lib/market-items-server.ts')
+const listRow = read('../src/components/market/market-item-list-row.tsx')
+// 폐기한 샘플 표지 식별자(7절 D9). src·tests grep 0건 확인에 이 파일이 걸리지 않도록 조각으로 만든다.
+const REMOVED_COVER = new RegExp(['attachMarketLibrary' + 'CoverUrls', 'cover' + 'Url', 'LIBRARY_COVER' + '_SIGNED'].join('|'))
 
 const rowBlock = view.slice(view.indexOf('{pagedRows.map((row) => {'), view.indexOf('</ul>', view.indexOf('{pagedRows.map((row) => {')))
 
@@ -27,7 +29,7 @@ test('row drops the category badge and the purchase date line but keeps their da
 })
 
 test('row shows the cover first, then a one-line title, then the buttons', () => {
-  const cover = rowBlock.indexOf('<LibraryCover src={row.coverUrl} />')
+  const cover = rowBlock.indexOf('<LibraryCover src={row.thumbnailUrl} />')
   const title = rowBlock.indexOf('title={row.title}')
   const buttons = rowBlock.indexOf('환불 신청')
   assert.ok(cover !== -1 && cover < title && title < buttons, 'cover → title → buttons')
@@ -35,10 +37,20 @@ test('row shows the cover first, then a one-line title, then the buttons', () =>
   assert.match(rowBlock, /<li key=\{row\.itemId\} className="flex flex-wrap items-center[^"]*sm:flex-nowrap/)
   assert.match(rowBlock, /sm:max-w-\[55%\]/)
 
+})
+
+test('cover follows the market list row rule: thumbnail image or the same dashed placeholder', () => {
   const coverComponent = view.slice(view.indexOf('function LibraryCover('), view.indexOf('export function LibraryView'))
+  assert.match(coverComponent, /\/\/ eslint-disable-next-line @next\/next\/no-img-element -- 어드민이 등록한 외부 썸네일 URL/)
   assert.match(coverComponent, /<img\s+src=\{src\}\s+alt=""\s+loading="lazy"\s+onError=\{\(\) => setFailed\(true\)\}/)
-  assert.match(coverComponent, /object-cover object-top/)
-  assert.match(coverComponent, /border-dashed[\s\S]*<FileImage aria-hidden="true"/)
+  assert.match(coverComponent, /h-16 w-12 shrink-0 rounded-\[var\(--studio-radius-control\)\] border border-\[var\(--studio-border\)\] object-contain/)
+  // 목록 행과 같은 플레이스홀더 토큰(크기만 보관함 행에 맞춤)
+  const placeholder = 'items-center justify-center rounded-[var(--studio-radius-control)] border border-dashed border-[var(--studio-border)] bg-[var(--studio-background)] text-[var(--studio-muted)]'
+  assert.ok(listRow.includes(placeholder), 'list row placeholder tokens')
+  assert.ok(coverComponent.includes(placeholder), 'library placeholder uses the same tokens')
+  assert.match(coverComponent, /<FileImage aria-hidden="true" className="h-5 w-5" \/>/)
+  assert.doesNotMatch(view, /object-top|signedUrl/)
+  assert.doesNotMatch(view, REMOVED_COVER)
 })
 
 test('buttons have 44px hit areas and no new color palette is introduced', () => {
@@ -52,21 +64,15 @@ test('buttons have 44px hit areas and no new color palette is introduced', () =>
   }
 })
 
-test('only the /library page attaches cover URLs', () => {
-  assert.match(page, /attachMarketLibraryCoverUrls\(await listMarketLibraryRowsForUser\(userId, subject\), subject\)/)
-  assert.doesNotMatch(legacyPage, /attachMarketLibraryCoverUrls/)
-  assert.match(server, /coverUrl\?: string \| null/)
-})
-
-test('cover URL prefers thumbnail_url and falls back to the first active sample page signed URL', () => {
-  const fn = server.slice(server.indexOf('export async function attachMarketLibraryCoverUrls'))
-  assert.match(fn, /\.from\('market_items'\)\s+\.select\('id, thumbnail_url'\)/)
-  assert.match(fn, /\.from\('market_item_sample_pages'\)\s+\.select\('item_id, storage_bucket, storage_path'\)\s+\.in\('item_id', sampleItemIds\)\s+\.eq\('workspace_subject', workspaceSubject\)\s+\.eq\('is_active', true\)\s+\.is\('deleted_at', null\)\s+\.order\('display_order', \{ ascending: true \}\)\s+\.order\('page_number', \{ ascending: true \}\)/)
-  assert.match(fn, /\.createSignedUrls\(paths, LIBRARY_COVER_SIGNED_URL_TTL_SECONDS\)/)
-  assert.ok(fn.indexOf("from('market_items')") < fn.indexOf("from('market_item_sample_pages')"), 'thumbnail first')
-  // R1 N1·N2: 서명 범위·보유자 대상 서명은 의도된 결정으로 주석에 남긴다
-  const doc = server.slice(server.lastIndexOf('\n\n', server.indexOf('export async function attachMarketLibraryCoverUrls')), server.indexOf('export async function attachMarketLibraryCoverUrls'))
-  assert.match(doc, /클라이언트 slice/)
-  assert.match(doc, /서버 페이지네이션/)
-  assert.match(doc, /비공개·판매 중지 상품의 샘플도 서명/)
+test('library rows carry thumbnailUrl from the already-loaded item without sample-page lookups', () => {
+  assert.match(server, /export interface MarketLibraryRow \{[\s\S]+?thumbnailUrl: string \| null[\s\S]+?\n\}/)
+  // listMarketLibraryRowsForUser는 파일의 마지막 export라 본문을 파일 끝까지 자른다
+  const fn = server.slice(server.indexOf('export async function listMarketLibraryRowsForUser('))
+  assert.ok(fn.length > 0)
+  assert.doesNotMatch(fn, /\nexport /, 'listMarketLibraryRowsForUser is the last export')
+  assert.match(fn, /thumbnailUrl: item\?\.thumbnail_url \?\? null,/)
+  assert.doesNotMatch(fn, /market_item_sample_pages|createSignedUrl/)
+  assert.doesNotMatch(server, REMOVED_COVER)
+  assert.doesNotMatch(page, REMOVED_COVER)
+  assert.match(page, /const rows = await listMarketLibraryRowsForUser\(userId, subject\)/)
 })

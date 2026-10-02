@@ -114,7 +114,8 @@ const refundButtonClassName =
   'inline-flex min-h-11 items-center rounded-[var(--studio-radius-control)] border border-red-500 bg-[var(--studio-surface)] px-3 text-sm font-semibold text-red-600 transition-colors hover:bg-red-500 hover:text-white disabled:opacity-50 disabled:hover:bg-[var(--studio-surface)] disabled:hover:text-red-600 outline-none focus-visible:ring-2 focus-visible:ring-red-300'
 
 
-// 행 맨 왼쪽 표지. 서명 URL 만료·로드 실패 시 점선 박스로 대체한다(제목이 같은 정보라 alt는 비운다).
+// 행 맨 왼쪽 표지. 상품 목록 행과 같은 규칙: 썸네일이 있으면 이미지, 없으면 점선 박스(제목이 같은 정보라 alt는 비운다).
+// 목록 행과 달리 외부 URL 로드 실패도 점선 박스로 대체한다.
 function LibraryCover({ src }: { src?: string | null }) {
   const [failed, setFailed] = useState(false)
 
@@ -127,13 +128,13 @@ function LibraryCover({ src }: { src?: string | null }) {
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- 서명 URL·외부 썸네일 URL을 그대로 사용
+    // eslint-disable-next-line @next/next/no-img-element -- 어드민이 등록한 외부 썸네일 URL을 그대로 사용
     <img
       src={src}
       alt=""
       loading="lazy"
       onError={() => setFailed(true)}
-      className="h-16 w-12 shrink-0 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] object-cover object-top"
+      className="h-16 w-12 shrink-0 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] object-contain"
     />
   )
 }
@@ -553,7 +554,7 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
 
             return (
               <li key={row.itemId} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-4 sm:flex-nowrap sm:gap-4 sm:px-5">
-                <LibraryCover src={row.coverUrl} />
+                <LibraryCover src={row.thumbnailUrl} />
                 <div className="min-w-0 flex-1">
                   {detailHref ? (
                     <Link

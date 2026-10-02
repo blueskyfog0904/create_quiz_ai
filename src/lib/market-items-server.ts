@@ -83,8 +83,8 @@ export interface MarketLibraryRow {
   v2OwnedLabels: string[]
   v2DownloadFiles: MarketSubproductDownloadFile[]
   refundTargets: MarketLibraryRefundTarget[]
-  // /library에서만 attachMarketLibraryCoverUrls가 채운다(thumbnail_url 또는 첫 샘플 페이지 서명 URL, 없으면 null).
-  coverUrl?: string | null
+  // 어드민이 등록한 외부 썸네일 URL. 없으면 화면에서 목록 행과 같은 점선 박스를 보인다.
+  thumbnailUrl: string | null
 }
 
 export interface MarketListboardAssetRow {
@@ -2467,97 +2467,6 @@ export async function countMarketLibraryItemsForUser(userId: string): Promise<Ma
   return { total: itemKeys.size, english, korean }
 }
 
-const LIBRARY_COVER_SIGNED_URL_TTL_SECONDS = 60 * 60
-
-// 자료 보관함 행에 표지 이미지 URL을 붙인다(/library 전용, legacy 보관함은 서명 비용 없이 그대로 둔다).
-// 우선순위: thumbnail_url → 첫 활성 샘플 페이지(display_order, page_number 순)의 서명 URL → null(화면에서 점선 박스).
-// 보관함 페이지네이션은 클라이언트 slice라 서명 범위는 보관함 전체 행이다. 현재 페이지분만 서명하려면 서버 페이지네이션이 필요하다.
-// 보유자에게는 비공개·판매 중지 상품의 샘플도 서명해 표시한다(구매한 자료의 표지이므로 의도한 결정).
-// 조회·서명 실패는 해당 항목만 null로 두고 보관함 표시는 막지 않는다.
-export async function attachMarketLibraryCoverUrls(
-  rows: MarketLibraryRow[],
-  workspaceSubject: WorkspaceSubject
-): Promise<MarketLibraryRow[]> {
-  if (rows.length === 0) {
-    return rows
-  }
-
-  const supabase = getAdminSupabase()
-  const itemIds = rows.map((row) => row.itemId)
-  const coverByItemId = new Map<string, string>()
-
-  try {
-    const { data: items, error: itemsError } = await supabase
-      .from('market_items')
-      .select('id, thumbnail_url')
-      .in('id', itemIds)
-    if (itemsError) {
-      throw new Error(itemsError.message)
-    }
-    for (const item of items ?? []) {
-      const thumbnailUrl = item.thumbnail_url?.trim()
-      if (thumbnailUrl) {
-        coverByItemId.set(item.id, thumbnailUrl)
-      }
-    }
-
-    const sampleItemIds = itemIds.filter((itemId) => !coverByItemId.has(itemId))
-    if (sampleItemIds.length > 0) {
-      const { data: pages, error: pagesError } = await supabase
-        .from('market_item_sample_pages')
-        .select('item_id, storage_bucket, storage_path')
-        .in('item_id', sampleItemIds)
-        .eq('workspace_subject', workspaceSubject)
-        .eq('is_active', true)
-        .is('deleted_at', null)
-        .order('display_order', { ascending: true })
-        .order('page_number', { ascending: true })
-      if (pagesError) {
-        throw new Error(pagesError.message)
-      }
-
-      // 정렬된 결과에서 상품별 첫 장만 고른다.
-      const firstPageByItemId = new Map<string, { bucket: string; path: string }>()
-      for (const samplePage of pages ?? []) {
-        if (!firstPageByItemId.has(samplePage.item_id)) {
-          firstPageByItemId.set(samplePage.item_id, { bucket: samplePage.storage_bucket, path: samplePage.storage_path })
-        }
-      }
-
-      const itemIdsByBucketPath = new Map<string, string[]>()
-      const pathsByBucket = new Map<string, string[]>()
-      for (const [itemId, { bucket, path }] of firstPageByItemId) {
-        const key = `${bucket}:${path}`
-        itemIdsByBucketPath.set(key, [...(itemIdsByBucketPath.get(key) ?? []), itemId])
-        pathsByBucket.set(bucket, [...(pathsByBucket.get(bucket) ?? []), path])
-      }
-
-      await Promise.all(Array.from(pathsByBucket.entries()).map(async ([bucket, paths]) => {
-        const { data: signed, error: signError } = await supabase
-          .storage
-          .from(bucket)
-          .createSignedUrls(paths, LIBRARY_COVER_SIGNED_URL_TTL_SECONDS)
-        if (signError) {
-          console.error('[MarketLibrary] cover sign failed', { bucket, message: signError.message })
-          return
-        }
-        for (const entry of signed ?? []) {
-          if (entry.error || !entry.signedUrl || !entry.path) {
-            continue
-          }
-          for (const itemId of itemIdsByBucketPath.get(`${bucket}:${entry.path}`) ?? []) {
-            coverByItemId.set(itemId, entry.signedUrl)
-          }
-        }
-      }))
-    }
-  } catch (error) {
-    console.error('[MarketLibrary] cover lookup failed', { message: error instanceof Error ? error.message : String(error) })
-  }
-
-  return rows.map((row) => ({ ...row, coverUrl: coverByItemId.get(row.itemId) ?? null }))
-}
-
 export async function listMarketLibraryRowsForUser(
   userId: string,
   workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
@@ -2905,6 +2814,7 @@ export async function listMarketLibraryRowsForUser(
         categorySlug: menu?.slug ?? null,
         categoryTitle: menu?.title ?? '알 수 없는 카테고리',
         title: item?.title ?? '삭제되었거나 찾을 수 없는 상품',
+        thumbnailUrl: item?.thumbnail_url ?? null,
         summary: item?.summary ?? null,
         examYear: item?.exam_year ?? null,
         gradeLevel: item?.grade_level ?? null,
