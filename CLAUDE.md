@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+## 0. 답변 언어
+
+**사용자에게 하는 모든 답변은 한글로 작성한다.** 진행 상황 보고, 요약, 질문, 에이전트 결과 전달도 포함한다. 코드·명령어·파일 경로·커밋 해시 같은 식별자는 원문 그대로 둔다. 사용자가 다른 언어를 명시하면 그 지시를 따른다.
+
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
