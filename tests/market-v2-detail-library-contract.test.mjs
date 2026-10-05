@@ -118,7 +118,7 @@ test('market detail names v2 download buttons by each file type within the subpr
   assert.match(itemActions, /import \{ getMarketDownloadButtonLabel \} from '@\/lib\/market-download-label'/)
   assert.doesNotMatch(itemActions, /function getMarketDownloadButtonLabel/)
   assert.match(itemActions, /const downloadLabel = getMarketDownloadButtonLabel\(file\)/)
-  assert.match(itemActions, /aria-label=\{downloadLabel\}/)
+  assert.match(itemActions, /aria-label=\{`\$\{downloadLabel\} 다운로드`\}/)
   assert.match(itemActions, /\{downloadLabel\}/)
   assert.doesNotMatch(itemActions, /const downloadLabel = `\$\{file\.subproductTitle\} 다운로드`/)
 })
@@ -126,15 +126,15 @@ test('market detail names v2 download buttons by each file type within the subpr
 test('market detail download buttons do not duplicate an existing file type suffix', () => {
   assert.equal(
     getMarketDownloadButtonLabel({ fileTypeLabel: 'HWP', subproductTitle: '문제(HWP)' }),
-    '문제(HWP) 다운로드'
+    '문제(HWP)'
   )
   assert.equal(
     getMarketDownloadButtonLabel({ fileTypeLabel: 'PDF', subproductTitle: '문제(HWP)' }),
-    '문제(PDF) 다운로드'
+    '문제(PDF)'
   )
   assert.equal(
     getMarketDownloadButtonLabel({ fileTypeLabel: 'PDF', subproductTitle: '문제' }),
-    '문제(PDF) 다운로드'
+    '문제(PDF)'
   )
 })
 
@@ -165,8 +165,23 @@ test('market library keeps v2 entitlement data source but sends users to detail 
 test('library download buttons share the detail label rule instead of a separate formatter', () => {
   assert.match(libraryView, /import \{ getMarketDownloadButtonLabel \} from '@\/lib\/market-download-label'/)
   assert.doesNotMatch(libraryView, /buildV2DownloadLabel|v2SubproductCount/)
-  assert.equal((libraryView.match(/getMarketDownloadButtonLabel\(file\)/g) ?? []).length, 2)
-  assert.equal(getMarketDownloadButtonLabel({ fileTypeLabel: 'PDF', subproductTitle: '워크북' }), '워크북(PDF) 다운로드')
+  assert.equal((libraryView.match(/getMarketDownloadButtonLabel\(file\)/g) ?? []).length, 3, 'v2 link text + aria-label + pending span')
+  assert.equal(getMarketDownloadButtonLabel({ fileTypeLabel: 'PDF', subproductTitle: '워크북' }), '워크북(PDF)')
+})
+
+test('download buttons show short labels; only <a> links carry an aria-label ending in 다운로드', () => {
+  assert.doesNotMatch(downloadLabelLib, / 다운로드`/, 'the shared label no longer appends 다운로드')
+  assert.match(libraryView, /aria-label=\{`\$\{getMarketDownloadButtonLabel\(file\)\} 다운로드`\}/)
+  assert.match(libraryView, /aria-label=\{`\$\{entry\.label\} 다운로드`\}/)
+  assert.match(libraryView, /\{ key: 'pdf', label: 'PDF', url: row\.pdfDownloadUrl \}/)
+  assert.match(libraryView, /\{ key: 'hwp', label: 'HWP', url: row\.hwpDownloadUrl \}/)
+  assert.match(libraryView, /\{ key: 'zip', label: 'ZIP', url: row\.zipDownloadUrl \}/)
+  assert.doesNotMatch(libraryView, /label: '(PDF|HWP|ZIP) 다운로드'/)
+  // 환불 대기 중 비활성 span에는 aria-label을 주지 않는다(role 없는 span의 aria-label은 무시됨).
+  for (const span of libraryView.match(/<span key=\{(file\.id|entry\.key)\}[^>]*>/g) ?? []) {
+    assert.doesNotMatch(span, /aria-label/)
+  }
+  assert.equal((libraryView.match(/<span key=\{(file\.id|entry\.key)\}/g) ?? []).length, 2)
 })
 
 test('detail and library download files are stably ordered by subproduct category order', () => {

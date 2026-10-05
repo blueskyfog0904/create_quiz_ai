@@ -47,3 +47,18 @@
 | R1 | 초안 | 독립 검증 | **FAIL** → 보완 | 상세의 기존 `getMarketDownloadButtonLabel` 규칙 누락(높음) → 공유로 변경, 포함 검사 결함(중간) → 폐기, 정렬 데이터 `sort_order` 미조회(중간) → 서버 select·안정 정렬, 테스트 추출 경로 갱신 |
 | R2 | R1 보완본 | 독립 검증 | **OK** | 반영 확인, 번들 안전. 보완: 새 lib는 구조 타입 `{ fileTypeLabel; subproductTitle }` 매개변수(의존 없음), 테스트 :24-27 추출과 :110-113 정의 검사를 새 lib 대상으로(가능하면 node-test-register로 직접 import), 1절 현재 동작에 '현재:' 접두 — 반영 |
 | 구현 리뷰 | market-download-label.ts·market-item-actions·library-view·market-items-server·계약 테스트 | 독립 리뷰(imglib-s3-reviewer) | **OK** | 라벨 함수 본문 동일 이동, dedupe→라벨 순 적용, 안정 정렬·분류 없음 뒤로, 응답 타입 불변, 번들 안전. NIT: 정렬 동작 테스트(미반영), 기존 dedupe의 slug 하드코딩(범위 밖, 보고). 브라우저: 디지털 읽기 워크북(PDF)→문제(PDF)→문제(HWP), 나머지 문제(HWP)·문제(PDF) 다운로드 확인 |
+
+## 6. 후속 요청: 버튼 뒤 '다운로드' 문구 제거 (2026-10-06)
+- 요청: "뒤에 '다운로드' 문구는 없애줘. 칸을 너무 많이 차지한다."
+- 사실: 문구는 공용 `getMarketDownloadButtonLabel`(`src/lib/market-download-label.ts`)이 붙인다. 소비처는 보관함 버튼 2곳(`library-view.tsx:588,593`)과 상세 구매 영역(`market-item-actions.tsx:984-990`, `aria-label={downloadLabel}`과 보이는 글자).
+- 결정
+  - F1 공용 함수가 `다운로드`를 붙이지 않고 `워크북(PDF)`·`문제(PDF)`·`문제(HWP)`만 돌려준다. 두 화면이 같은 이름을 쓰므로 상세 구매 영역 버튼도 함께 짧아진다(규칙 일관성).
+  - F2 접근성: 화면 낭독기용 이름에는 `다운로드`를 남긴다. **`<a>` 링크에만** `aria-label={`${label} 다운로드`}`(보관함 링크, 상세는 기존 `aria-label={downloadLabel}`을 `${downloadLabel} 다운로드`로). 환불 대기 중 비활성 `<span>`에는 aria-label을 주지 않는다(role 없는 span의 aria-label은 ARIA상 금지·무시됨). 아이콘은 그대로.
+  - F3 옛 구매 버튼(`library-view.tsx:550-552` `PDF/HWP/ZIP 다운로드`)도 같은 화면 일관성을 위해 보이는 글자에서 `다운로드`를 빼고(`PDF`·`HWP`·`ZIP`) 링크에 같은 방식의 aria-label을 단다(현재 데이터 0건).
+- 테스트: `market-v2-detail-library-contract.test.mjs`의 기대값 4개를 `다운로드` 없는 값으로 바꾸고, 두 화면의 `aria-label`에 `다운로드`가 붙는지 계약 검사 추가.
+- 검증: tsc, eslint, 관련·전체 테스트(기준선 39), 복사본 build, 브라우저(보관함 버튼이 `문제(HWP)`·`문제(PDF)` 등으로 짧아짐).
+
+| 회차 | 대상 | 검증자 | 판정 | 비고 |
+|---|---|---|---|---|
+| R1 | 6절 | 독립 검증 | **OK** | 소비처 3곳·테스트 기대값 4개 확인. 보완: aria-label은 `<a>`에만(F2), 상세도 짧아짐을 완료 보고에 명시, 옛 구매 버튼도 맞춤(F3) — 반영 |
+| 6절 구현 리뷰 | 4파일 | 독립 리뷰(imglib-s3-reviewer) | **OK** | 보이는 글자에서 다운로드 제거, `<a>` 3곳에만 aria-label(Label in Name), 환불 대기 span 제외, 옛 구매 PDF/HWP/ZIP. 브라우저: 보관함 버튼 `워크북(PDF)`·`문제(PDF)`·`문제(HWP)` 확인 |

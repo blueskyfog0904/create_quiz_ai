@@ -545,9 +545,9 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
               : null
             const visibleV2Files = dedupeQuestionPdfFiles(row.v2DownloadFiles)
             const legacyDownloads = [
-              row.pdfAvailable && row.pdfDownloadUrl ? { key: 'pdf', label: 'PDF 다운로드', url: row.pdfDownloadUrl } : null,
-              row.hwpAvailable && row.hwpDownloadUrl ? { key: 'hwp', label: 'HWP 다운로드', url: row.hwpDownloadUrl } : null,
-              row.zipAvailable && row.zipDownloadUrl ? { key: 'zip', label: 'ZIP 다운로드', url: row.zipDownloadUrl } : null,
+              row.pdfAvailable && row.pdfDownloadUrl ? { key: 'pdf', label: 'PDF', url: row.pdfDownloadUrl } : null,
+              row.hwpAvailable && row.hwpDownloadUrl ? { key: 'hwp', label: 'HWP', url: row.hwpDownloadUrl } : null,
+              row.zipAvailable && row.zipDownloadUrl ? { key: 'zip', label: 'ZIP', url: row.zipDownloadUrl } : null,
             ].filter((entry): entry is { key: string; label: string; url: string } => entry !== null)
 
             return (
@@ -588,7 +588,13 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
                         {getMarketDownloadButtonLabel(file)}
                       </span>
                     ) : (
-                      <a key={file.id} href={file.downloadUrl} onClick={scheduleDownloadRefresh} className={downloadButtonClassName}>
+                      <a
+                        key={file.id}
+                        href={file.downloadUrl}
+                        onClick={scheduleDownloadRefresh}
+                        aria-label={`${getMarketDownloadButtonLabel(file)} 다운로드`}
+                        className={downloadButtonClassName}
+                      >
                         <FileTypeDocIcon code={file.fileTypeCode} />
                         {getMarketDownloadButtonLabel(file)}
                       </a>
@@ -601,7 +607,13 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
                         {entry.label}
                       </span>
                     ) : (
-                      <a key={entry.key} href={entry.url} onClick={scheduleDownloadRefresh} className={downloadButtonClassName}>
+                      <a
+                        key={entry.key}
+                        href={entry.url}
+                        onClick={scheduleDownloadRefresh}
+                        aria-label={`${entry.label} 다운로드`}
+                        className={downloadButtonClassName}
+                      >
                         <FileTypeDocIcon code={entry.key} />
                         {entry.label}
                       </a>

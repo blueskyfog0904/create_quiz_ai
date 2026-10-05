@@ -985,7 +985,7 @@ export default function MarketItemActions({
 
             return (
               <Button key={file.id} asChild className={MARKET_DOWNLOAD_BUTTON_CLASS}>
-                <a href={buildV2DownloadUrl(itemId, file.id)} aria-label={downloadLabel}>
+                <a href={buildV2DownloadUrl(itemId, file.id)} aria-label={`${downloadLabel} 다운로드`}>
                   <FileTypeDocIcon code={file.fileTypeCode} />
                   {downloadLabel}
                 </a>
