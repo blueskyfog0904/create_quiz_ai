@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
-import { runInNewContext } from 'node:vm'
+import { getMarketDownloadButtonLabel } from '../src/lib/market-download-label.ts'
 
 const itemPage = readFileSync(
   new URL('../src/app/(dashboard)/market/[slug]/items/[itemId]/page.tsx', import.meta.url),
@@ -20,12 +20,15 @@ const marketItemsServer = readFileSync(
   'utf8'
 )
 
-function loadMarketDownloadButtonLabel() {
-  const match = itemActions.match(/function getMarketDownloadButtonLabel\(file: MarketSubproductDownloadFile\) \{([\s\S]*?)\n\}/)
-  assert.ok(match, 'getMarketDownloadButtonLabel helper should exist')
-
-  return runInNewContext(`function getMarketDownloadButtonLabel(file) {${match[1]}\n}\ngetMarketDownloadButtonLabel`)
-}
+// 다운로드 버튼 이름 규칙은 상세와 자료 보관함이 함께 쓰는 공용 lib에 있다.
+const downloadLabelLib = readFileSync(
+  new URL('../src/lib/market-download-label.ts', import.meta.url),
+  'utf8'
+)
+const libraryView = readFileSync(
+  new URL('../src/app/(solvook)/library/_components/library-view.tsx', import.meta.url),
+  'utf8'
+)
 
 test('market detail page loads v2 subproduct and bundle summaries for the action panel', () => {
   assert.match(itemPage, /listMarketSubproductPublicSummaries/)
@@ -107,10 +110,13 @@ test('market detail uses soft status badges and green download actions', () => {
 })
 
 test('market detail names v2 download buttons by each file type within the subproduct', () => {
-  assert.match(itemActions, /function getMarketDownloadButtonLabel\(file: MarketSubproductDownloadFile\)/)
-  assert.match(itemActions, /file\.fileTypeLabel\.trim\(\) \|\| '파일'/)
-  assert.match(itemActions, /const typedTitle = subproductTitle\.replace/)
-  assert.match(itemActions, /`\(\$\{fileTypeLabel\}\)`/)
+  assert.match(downloadLabelLib, /export function getMarketDownloadButtonLabel\(file: \{ fileTypeLabel: string; subproductTitle: string \}\)/)
+  assert.doesNotMatch(downloadLabelLib, /^import /m, 'the shared label rule has no dependencies')
+  assert.match(downloadLabelLib, /file\.fileTypeLabel\.trim\(\) \|\| '파일'/)
+  assert.match(downloadLabelLib, /const typedTitle = subproductTitle\.replace/)
+  assert.match(downloadLabelLib, /`\(\$\{fileTypeLabel\}\)`/)
+  assert.match(itemActions, /import \{ getMarketDownloadButtonLabel \} from '@\/lib\/market-download-label'/)
+  assert.doesNotMatch(itemActions, /function getMarketDownloadButtonLabel/)
   assert.match(itemActions, /const downloadLabel = getMarketDownloadButtonLabel\(file\)/)
   assert.match(itemActions, /aria-label=\{downloadLabel\}/)
   assert.match(itemActions, /\{downloadLabel\}/)
@@ -118,8 +124,6 @@ test('market detail names v2 download buttons by each file type within the subpr
 })
 
 test('market detail download buttons do not duplicate an existing file type suffix', () => {
-  const getMarketDownloadButtonLabel = loadMarketDownloadButtonLabel()
-
   assert.equal(
     getMarketDownloadButtonLabel({ fileTypeLabel: 'HWP', subproductTitle: '문제(HWP)' }),
     '문제(HWP) 다운로드'
@@ -156,4 +160,23 @@ test('market library keeps v2 entitlement data source but sends users to detail 
   assert.doesNotMatch(libraryClient, /file\.downloadUrl/)
   assert.doesNotMatch(libraryClient, /v2OwnedLabels/)
   assert.doesNotMatch(libraryClient, /서브상품\/전체구매/)
+})
+
+test('library download buttons share the detail label rule instead of a separate formatter', () => {
+  assert.match(libraryView, /import \{ getMarketDownloadButtonLabel \} from '@\/lib\/market-download-label'/)
+  assert.doesNotMatch(libraryView, /buildV2DownloadLabel|v2SubproductCount/)
+  assert.equal((libraryView.match(/getMarketDownloadButtonLabel\(file\)/g) ?? []).length, 2)
+  assert.equal(getMarketDownloadButtonLabel({ fileTypeLabel: 'PDF', subproductTitle: '워크북' }), '워크북(PDF) 다운로드')
+})
+
+test('detail and library download files are stably ordered by subproduct category order', () => {
+  assert.match(marketItemsServer, /function sortDownloadFilesByCategoryOrder<T extends \{ subproductId: string \}>/)
+  assert.match(marketItemsServer, /leftCategory\.sort_order - rightCategory\.sort_order \|\| leftCategory\.name\.localeCompare\(rightCategory\.name, 'ko'\)/)
+  assert.equal(
+    (marketItemsServer.match(/\.from\('market_subproduct_categories'\)\n\s+\.select\('id, name, slug, sort_order'\)/g) ?? []).length,
+    2,
+    'detail and library category selects include sort_order',
+  )
+  assert.match(marketItemsServer, /return sortDownloadFilesByCategoryOrder\(downloadFiles, categoryBySubproductId\)/)
+  assert.match(marketItemsServer, /v2DownloadFileMap\.set\(itemId, sortDownloadFilesByCategoryOrder\(itemFiles, categoryBySubproductId\)\)/)
 })

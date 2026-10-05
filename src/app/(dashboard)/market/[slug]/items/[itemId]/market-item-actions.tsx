@@ -27,6 +27,7 @@ import {
 } from '@/components/market/market-purchase-complete-dialog'
 import { useLoginRedirect } from '@/hooks/use-login-redirect'
 import { saveMarketCartIntent, takeMarketCartIntent } from '@/lib/market-cart-intent'
+import { getMarketDownloadButtonLabel } from '@/lib/market-download-label'
 import type { MarketBundlePublicSummary, MarketSubproductDownloadFile, MarketSubproductPublicSummary } from '@/lib/market-items-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import MarketSamplePreviewDialog from './market-sample-preview-dialog'
@@ -182,22 +183,6 @@ function resolveSubproductPurchaseNotice(subproduct: MarketSubproductPublicSumma
   }
 
   return null
-}
-
-function getMarketDownloadButtonLabel(file: MarketSubproductDownloadFile) {
-  const fileTypeLabel = file.fileTypeLabel.trim() || '파일'
-  const subproductTitle = file.subproductTitle.trim() || '자료'
-  const fileTypeSuffixPattern = /\s*[\(（]([^\)）]*)[\)）]\s*$/
-  const fileTypeSuffixMatch = subproductTitle.match(fileTypeSuffixPattern)
-
-  if (fileTypeSuffixMatch?.[1]?.trim() === fileTypeLabel) {
-    return `${subproductTitle} 다운로드`
-  }
-
-  const typedTitle = subproductTitle.replace(fileTypeSuffixPattern, `(${fileTypeLabel})`)
-  const labelTitle = fileTypeSuffixMatch ? typedTitle : `${subproductTitle}(${fileTypeLabel})`
-
-  return `${labelTitle} 다운로드`
 }
 
 function MarketOptionIcon({ kind }: { kind: MarketOptionIconKind }) {

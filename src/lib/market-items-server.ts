@@ -1834,6 +1834,22 @@ export async function getActiveMarketSubproductFileForDownload(
   }
 }
 
+type DownloadFileCategoryOrder = { sort_order: number; name: string }
+
+// 구성 다운로드 파일을 분류 순서(sort_order → 이름)로 안정 정렬한다. 같은 구성 안은 기존 파일 순서를 유지한다.
+// 상세 구매 영역(listMarketSubproductDownloadFilesForUser)과 자료 보관함이 같은 순서를 쓴다.
+function sortDownloadFilesByCategoryOrder<T extends { subproductId: string }>(
+  files: T[],
+  categoryBySubproductId: Map<string, DownloadFileCategoryOrder | undefined>
+) {
+  return [...files].sort((left, right) => {
+    const leftCategory = categoryBySubproductId.get(left.subproductId)
+    const rightCategory = categoryBySubproductId.get(right.subproductId)
+    if (!leftCategory || !rightCategory) return Number(!leftCategory) - Number(!rightCategory)
+    return leftCategory.sort_order - rightCategory.sort_order || leftCategory.name.localeCompare(rightCategory.name, 'ko')
+  })
+}
+
 export async function listMarketSubproductDownloadFilesForUser(
   userId: string,
   itemId: string,
@@ -1882,7 +1898,7 @@ export async function listMarketSubproductDownloadFilesForUser(
   const categoryResult = categoryIds.length > 0
     ? await supabase
       .from('market_subproduct_categories')
-      .select('id, name, slug')
+      .select('id, name, slug, sort_order')
       .in('id', categoryIds)
       .eq('workspace_subject', item.workspace_subject)
     : { data: [], error: null }
@@ -1899,8 +1915,13 @@ export async function listMarketSubproductDownloadFilesForUser(
     resolveMarketSubproductDisplayTitle(categoryMap.get(subproduct.category_id), subproduct.title),
   ]))
   const fileTypeMap = new Map((fileTypeResult.data ?? []).map((fileType) => [fileType.id, fileType]))
+  const categoryById = new Map((categoryResult.data ?? []).map((category) => [category.id, category]))
+  const categoryBySubproductId = new Map((subproductResult.data ?? []).map((subproduct) => [
+    subproduct.id,
+    categoryById.get(subproduct.category_id),
+  ]))
 
-  return files
+  const downloadFiles = files
     .filter((file) => entitlements.some((entitlement) => (
       entitlement.scope === 'item' ||
       (entitlement.scope === 'subproduct' && entitlement.subproduct_id === file.subproduct_id) ||
@@ -1921,6 +1942,8 @@ export async function listMarketSubproductDownloadFilesForUser(
         downloadUrl: `/api/market/items/${file.item_id}/download?fileId=${file.id}`,
       }
     })
+
+  return sortDownloadFilesByCategoryOrder(downloadFiles, categoryBySubproductId)
 }
 
 export async function createMarketItem(
@@ -2680,7 +2703,7 @@ export async function listMarketLibraryRowsForUser(
       .eq('workspace_subject', workspaceSubject),
     supabase
       .from('market_subproduct_categories')
-      .select('id, name, slug')
+      .select('id, name, slug, sort_order')
       .eq('workspace_subject', workspaceSubject),
     supabase
       .from('market_purchase_orders')
@@ -2746,6 +2769,14 @@ export async function listMarketLibraryRowsForUser(
       downloadUrl: `/api/market/items/${file.item_id}/download?fileId=${file.id}`,
     })
     v2DownloadFileMap.set(file.item_id, current)
+  }
+  const categoryById = new Map((categoriesResult.data ?? []).map((category) => [category.id, category]))
+  const categoryBySubproductId = new Map((subproductsResult.data ?? []).map((subproduct) => [
+    subproduct.id,
+    categoryById.get(subproduct.category_id),
+  ]))
+  for (const [itemId, itemFiles] of v2DownloadFileMap) {
+    v2DownloadFileMap.set(itemId, sortDownloadFilesByCategoryOrder(itemFiles, categoryBySubproductId))
   }
 
   const v2OrderRows: MarketPurchaseOrder[] = withWorkspaceSubjects(v2OrdersResult.data)

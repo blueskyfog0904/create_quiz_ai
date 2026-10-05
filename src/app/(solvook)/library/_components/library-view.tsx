@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { FileTypeDocIcon } from '@/components/market/file-type-doc-icon'
 import type { MarketLibraryRow } from '@/lib/market-items-server'
+import { getMarketDownloadButtonLabel } from '@/lib/market-download-label'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 interface LibraryViewProps {
@@ -543,9 +544,6 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
               ? `/${subject}/market/${row.categorySlug}/items/${row.itemId}`
               : null
             const visibleV2Files = dedupeQuestionPdfFiles(row.v2DownloadFiles)
-            const v2SubproductCount = new Set(visibleV2Files.map((file) => file.subproductId)).size
-            const buildV2DownloadLabel = (file: MarketLibraryRow['v2DownloadFiles'][number]) =>
-              v2SubproductCount > 1 ? `${file.subproductTitle} (${file.fileTypeLabel})` : `${file.fileTypeLabel} 다운로드`
             const legacyDownloads = [
               row.pdfAvailable && row.pdfDownloadUrl ? { key: 'pdf', label: 'PDF 다운로드', url: row.pdfDownloadUrl } : null,
               row.hwpAvailable && row.hwpDownloadUrl ? { key: 'hwp', label: 'HWP 다운로드', url: row.hwpDownloadUrl } : null,
@@ -587,12 +585,12 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
                     hasPendingRefund ? (
                       <span key={file.id} className={`${downloadButtonClassName} cursor-not-allowed opacity-50`}>
                         <FileTypeDocIcon code={file.fileTypeCode} />
-                        {buildV2DownloadLabel(file)}
+                        {getMarketDownloadButtonLabel(file)}
                       </span>
                     ) : (
                       <a key={file.id} href={file.downloadUrl} onClick={scheduleDownloadRefresh} className={downloadButtonClassName}>
                         <FileTypeDocIcon code={file.fileTypeCode} />
-                        {buildV2DownloadLabel(file)}
+                        {getMarketDownloadButtonLabel(file)}
                       </a>
                     )
                   )}
