@@ -8,6 +8,7 @@ import type { WorkspaceSubject } from '@/lib/workspace-subject'
 interface CategoryMenuItem {
   id: string
   title: string
+  itemCount?: number
 }
 
 interface CategoryMenuGroup {
@@ -131,7 +132,12 @@ export function CategoryMegaMenu({ open, currentSubject, onClose, panelRef }: Ca
                           onClick={onClose}
                           className="flex min-h-9 items-center break-keep rounded-md text-sm text-[var(--studio-muted)] outline-none hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
                         >
-                          {item.title}
+                          <span className="break-keep">
+                            {item.title}
+                            {item.itemCount !== undefined ? (
+                              <> <span className="whitespace-nowrap text-[var(--studio-muted)]">({item.itemCount.toLocaleString()})</span></>
+                            ) : null}
+                          </span>
                         </Link>
                       </li>
                     ))}
