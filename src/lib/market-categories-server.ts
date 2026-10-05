@@ -220,10 +220,12 @@ export async function listMarketItemsForCategory(categoryItemId: string, filters
       .eq('workspace_subject', workspaceSubject)
       .eq('is_active', true)
       .is('deleted_at', null).in('item_id', itemIds).order('id').range(from, to)),
+    // 구성 배지 순서는 분류의 sort_order(같으면 이름순)를 따른다.
     supabase
       .from('market_subproduct_categories')
-      .select('id, slug, name')
-      .eq('workspace_subject', workspaceSubject),
+      .select('id, slug, name, sort_order')
+      .eq('workspace_subject', workspaceSubject)
+      .order('sort_order').order('name'),
     readAllQueryRows((from, to) => supabase
       .from('market_item_reviews')
       .select('item_id, rating')
@@ -234,21 +236,25 @@ export async function listMarketItemsForCategory(categoryItemId: string, filters
   if (typeCategoriesResult.error) throw new Error(typeCategoriesResult.error.message)
 
   const menuMap = new Map((menuResult.data ?? []).map((entry) => [entry.id, entry]))
-  const typeCategoryMap = new Map((typeCategoriesResult.data ?? []).map((category) => [category.id, category]))
+  const typeCategories = typeCategoriesResult.data ?? []
 
   const minPriceByItem = new Map<string, number>()
-  const typeNamesByItem = new Map<string, Set<string>>()
+  const typeCategoryIdsByItem = new Map<string, Set<string>>()
   for (const subproduct of subproducts) {
     const current = minPriceByItem.get(subproduct.item_id)
     if (current === undefined || subproduct.price_credits < current) {
       minPriceByItem.set(subproduct.item_id, subproduct.price_credits)
     }
-    const category = typeCategoryMap.get(subproduct.category_id)
-    if (category) {
-      const names = typeNamesByItem.get(subproduct.item_id) ?? new Set<string>()
-      names.add(category.name)
-      typeNamesByItem.set(subproduct.item_id, names)
-    }
+    const categoryIds = typeCategoryIdsByItem.get(subproduct.item_id) ?? new Set<string>()
+    categoryIds.add(subproduct.category_id)
+    typeCategoryIdsByItem.set(subproduct.item_id, categoryIds)
+  }
+  // 정렬된 분류 목록을 상품의 분류로 걸러 배지를 만든다(서브상품 id 순서와 무관하게 항상 같은 순서).
+  const typeNamesOf = (itemId: string) => {
+    const categoryIds = typeCategoryIdsByItem.get(itemId)
+    return Array.from(new Set(typeCategories
+      .filter((category) => categoryIds?.has(category.id))
+      .map((category) => category.name)))
   }
 
   // 별점 요약 (market-item-list-enrichment의 집계 방식과 동일)
@@ -281,7 +287,7 @@ export async function listMarketItemsForCategory(categoryItemId: string, filters
         ratingAverage: rating ? rating.total / rating.count : null,
         ratingCount: rating?.count ?? 0,
         minPriceCredits: minPriceByItem.get(item.id) ?? null,
-        typeNames: Array.from(typeNamesByItem.get(item.id) ?? []),
+        typeNames: typeNamesOf(item.id),
       }
     })
 

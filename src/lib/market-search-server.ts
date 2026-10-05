@@ -92,10 +92,12 @@ export async function searchMarketItemsForSubject(
       .eq('workspace_subject', workspaceSubject)
       .eq('is_active', true)
       .is('deleted_at', null).order('id').range(from, to)),
+    // 구성 배지와 '유형' 필터 순서는 분류의 sort_order(같으면 이름순)를 따른다.
     supabase
       .from('market_subproduct_categories')
-      .select('id, slug, name')
-      .eq('workspace_subject', workspaceSubject),
+      .select('id, slug, name, sort_order')
+      .eq('workspace_subject', workspaceSubject)
+      .order('sort_order').order('name'),
   ])
 
   for (const result of [menuResult, typeCategoriesResult]) {
@@ -105,31 +107,36 @@ export async function searchMarketItemsForSubject(
   }
 
   const menuMap = new Map((menuResult.data ?? []).map((entry) => [entry.id, entry]))
-  const typeCategoryMap = new Map((typeCategoriesResult.data ?? []).map((category) => [category.id, category]))
+  const typeCategories = typeCategoriesResult.data ?? []
 
   const minPriceByItem = new Map<string, number>()
-  const typeSlugsByItem = new Map<string, Set<string>>()
+  const typeCategoryIdsByItem = new Map<string, Set<string>>()
   for (const subproduct of subproducts) {
     const current = minPriceByItem.get(subproduct.item_id)
     if (current === undefined || subproduct.price_credits < current) {
       minPriceByItem.set(subproduct.item_id, subproduct.price_credits)
     }
-    const category = typeCategoryMap.get(subproduct.category_id)
-    if (category) {
-      const slugs = typeSlugsByItem.get(subproduct.item_id) ?? new Set<string>()
-      slugs.add(category.slug)
-      typeSlugsByItem.set(subproduct.item_id, slugs)
-    }
+    const categoryIds = typeCategoryIdsByItem.get(subproduct.item_id) ?? new Set<string>()
+    categoryIds.add(subproduct.category_id)
+    typeCategoryIdsByItem.set(subproduct.item_id, categoryIds)
   }
+  // 정렬된 분류 목록을 상품의 분류로 걸러 배지를 만든다(서브상품 id 순서와 무관하게 항상 같은 순서).
+  const typeSlugsOf = (itemId: string) => {
+    const categoryIds = typeCategoryIdsByItem.get(itemId)
+    return Array.from(new Set(typeCategories
+      .filter((category) => categoryIds?.has(category.id))
+      .map((category) => category.slug)))
+  }
+  const typeSlugOrder = Array.from(new Set(typeCategories.map((category) => category.slug)))
 
-  const typeNameBySlug = new Map((typeCategoriesResult.data ?? []).map((category) => [category.slug, category.name]))
+  const typeNameBySlug = new Map(typeCategories.map((category) => [category.slug, category.name]))
   const keyword = (filters.q ?? '').trim().toLowerCase().normalize('NFC')
   const matched = items
     // 노출 메뉴에 속한 아이템만 검색 대상 (숨김/비활성 메뉴의 카탈로그 유출 방지)
     .filter((item) => menuMap.has(item.menu_entry_id))
     .map((item) => {
       const menu = menuMap.get(item.menu_entry_id)!
-      const itemTypeSlugs = Array.from(typeSlugsByItem.get(item.id) ?? [])
+      const itemTypeSlugs = typeSlugsOf(item.id)
       return {
         itemId: item.id,
         title: item.title,
@@ -216,7 +223,10 @@ export async function searchMarketItemsForSubject(
     totalPages,
     facets: {
       categories: toOptions(categoryCounts, (value) => menuTitleBySlug.get(value) ?? value),
-      types: toOptions(typeCounts, (value) => typeNameBySlug.get(value) ?? value),
+      // '유형' 옵션은 다른 필터와 달리 가나다순이 아니라 배지와 같은 분류 순서로 보여 준다.
+      types: typeSlugOrder
+        .filter((slug) => typeCounts.has(slug))
+        .map((slug) => ({ value: slug, label: typeNameBySlug.get(slug) ?? slug, count: typeCounts.get(slug) ?? 0 })),
       years: toOptions(yearCounts, (value) => value),
       grades: toOptions(gradeCounts, (value) => value),
     },
