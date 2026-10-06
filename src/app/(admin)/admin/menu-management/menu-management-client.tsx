@@ -98,7 +98,6 @@ import {
   updateMarketMenuEntryAction,
   type MenuManagementPageData,
 } from './actions'
-import { MarketMenuGroupsManager } from './market-menu-groups-manager'
 
 type MenuManagementClientProps = MenuManagementPageData
 
@@ -248,8 +247,6 @@ export default function MenuManagementClient({
   adminSidebarConfig: initialAdminSidebarConfig,
   generateMenuEntries: initialGenerateMenuEntries,
   marketMenuEntries: initialMarketMenuEntries,
-  marketMenuEntryGroupAssignments,
-  marketMenuGroups,
   generateChildrenSourceMode,
   marketChildrenSourceMode,
   backfillStatus,
@@ -1241,13 +1238,6 @@ export default function MenuManagementClient({
           </div>
         </CardContent>
       </Card>
-
-      <MarketMenuGroupsManager
-        workspaceSubject={workspaceSubject}
-        groups={marketMenuGroups}
-        entries={marketMenuEntries}
-        assignments={marketMenuEntryGroupAssignments}
-      />
 
       <Card>
         <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

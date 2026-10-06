@@ -43,7 +43,7 @@ export function SolvookHomeView({
 
   return (
     <StudioLandingPageFrame
-      hero={<MainAdCarousel subject={subject} items={adItems} categories={homeData.categories} />}
+      hero={<MainAdCarousel subject={subject} items={adItems} />}
     >
       {homeData.config.popular.isActive && (
         <PopularDownloadsSlider subject={subject} items={homeData.popular} rankingWindowDays={homeData.config.popular.rankingWindowDays} />

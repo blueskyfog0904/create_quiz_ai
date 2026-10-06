@@ -18,13 +18,11 @@ import {
 import { StudioContainer } from '@/components/design-system'
 import { Button } from '@/components/ui/button'
 import type { PublicMainAdCarouselItem } from '@/lib/main-ad-carousel'
-import type { MarketHomeMenuEntry } from '@/lib/market-home'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 interface MainAdCarouselProps {
   subject: WorkspaceSubject
   items: PublicMainAdCarouselItem[]
-  categories: MarketHomeMenuEntry[]
 }
 
 type SlideDirection = 'previous' | 'next'
@@ -85,7 +83,7 @@ function subscribeToReducedMotion(onStoreChange: () => void) {
   return () => mediaQuery.removeEventListener('change', onStoreChange)
 }
 
-export function MainAdCarousel({ subject, items, categories }: MainAdCarouselProps) {
+export function MainAdCarousel({ subject, items }: MainAdCarouselProps) {
   const activeItems = items
   const carouselState = activeItems.length === 0
     ? 'empty'
@@ -93,9 +91,8 @@ export function MainAdCarousel({ subject, items, categories }: MainAdCarouselPro
       ? 'single'
       : 'multiple'
   const subjectLabel = subject === 'korean' ? '국어' : '영어'
-  const marketHref = categories[0]
-    ? `/${subject}/market/${categories[0].slug}`
-    : `/${subject}/market`
+  // 광고가 없을 때는 현재 디자인의 과목별 전체 자료 검색으로 보낸다(검색어 없이 열면 공개 상품 전체).
+  const marketHref = `/search?subject=${subject}`
   const [activeIndex, setActiveIndex] = useState(0)
   const [cycleKey, setCycleKey] = useState(0)
   const [transitionState, setTransitionState] = useState<TransitionState | null>(null)
