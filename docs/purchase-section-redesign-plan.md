@@ -243,3 +243,4 @@ U2가 가장 크다(구매 영역 렌더 부분 `:999-1155` 재작성). 상태 �
 |---|---|---|---|---|
 | R1 | 15절 | 독립 검증 | **OK** | aside 제거는 frame:41-49 그리드 영향 없음, material-detail.tsx 영향 없음, startingPrice는 이용가 칸(:255)에서 사용. 보완: tests/purchase-section-redesign-contract.test.mjs:100 '구매 옵션' 개수 2→1·테스트 제목 정리, 완료 보고에 지운 쪽(aside 요약 카드)·남긴 쪽(구매 섹션 머리말) 명시 |
 | 14+15절 구현 리뷰 | market-item-actions·market-material-detail·market-reviews-section·테스트 4개 | 독립 리뷰(imglib-s3-reviewer) | **FAIL→수정 후 OK(팀 리드 확인)** | MAJOR(2.5.3) 패키지 체크박스 접근 이름을 '전체 패키지 선택'으로 고정(renderOptionSelectControl ariaLabel 인자), MINOR section aria-labelledby를 '전체 패키지' span으로. tsc 0, 관련 47/47, 전체 실패 39=기준선. 브라우저: 흰 체크박스·선택 시 코랄 링·하단 1개 4,500·개별 비활성+사유, 요약 카드·영문 eyebrow 없음 확인 |
+| 사용자 결정 | D2 문학 패키지 | 사용자 | 유지(꺼 둠) | 2026-06-03 05:49:58 일괄 비활성, scripts/register_literature_market.mjs:184-185·802-804가 '문학은 패키지 0개·비활성' 규칙. 사용자: "이거 상관 없어" |
