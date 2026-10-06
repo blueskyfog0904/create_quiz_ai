@@ -262,34 +262,15 @@ export function MarketMaterialDetail({
           </div>
         </section>
       )}
-      aside={(
-        <div className="sticky top-[144px] rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)]">
-          <span className="text-xs font-bold text-[var(--studio-muted)]">구매 옵션</span>
-          <h2 className="mt-2 break-keep text-lg font-extrabold text-[var(--studio-ink)]">
-            필요한 자료를 선택하세요
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--studio-muted)]">
-            {startingPrice === null
-              ? '등록된 파일과 구매 옵션을 확인할 수 있습니다.'
-              : `${startingPrice.toLocaleString('ko-KR')} 크레딧부터 이용할 수 있습니다.`}
-          </p>
-          <Button asChild variant="brand" className="mt-5 w-full">
-            <a href="#purchase-options">구매·다운로드 확인</a>
-          </Button>
-        </div>
-      )}
       tabs={(
         <div className="space-y-6">
           <section
             aria-labelledby="market-material-information-heading"
             className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-6 sm:p-8"
           >
-            <span className="text-xs font-extrabold tracking-[0.08em] text-[var(--studio-primary)]">
-              MATERIAL INFORMATION
-            </span>
             <h2
               id="market-material-information-heading"
-              className="mt-2 text-2xl font-extrabold text-[var(--studio-ink)]"
+              className="text-2xl font-extrabold text-[var(--studio-ink)]"
             >
               자료 상세 정보
             </h2>

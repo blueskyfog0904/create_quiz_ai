@@ -108,7 +108,7 @@ test('market item detail shows individual subproducts as lower-emphasis alternat
   assert.doesNotMatch(itemActions, /개별 자료 선택 구매|전체 패키지가 필요 없다면 원하는 자료만 구매하세요/)
   assert.match(itemActions, /차액 · 정가 \{formatCredits\(subproduct\.priceCredits\)\} 크레딧/)
   assert.doesNotMatch(itemActions, /이 자료만 구매/)
-  assert.match(itemActions, /aria-label=\{`\$\{option\.title\} 선택`\}/)
+  assert.match(itemActions, /aria-label=\{ariaLabel \?\? `\$\{option\.title\} 선택`\}/)
   assert.match(itemActions, /패키지 포함/)
 })
 

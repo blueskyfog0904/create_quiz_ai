@@ -212,3 +212,34 @@ U2가 가장 크다(구매 영역 렌더 부분 `:999-1155` 재작성). 상태 �
 | U1 구현 리뷰 | market-bundle-savings.ts·market-item-actions(import)·테스트 2개 | 독립 리뷰(imglib-s3-reviewer) | **OK** | 독서 64개 비교가 5,500·절약 1,000 SELECT 일치, null 조건 계획과 일치, slug는 기존 판정 범위 그대로 이동. NIT(`ownedScope` 범위 확대)은 U2에서 처리 |
 | U2 구현 리뷰 | market-item-actions 렌더·아이콘 className·savings 조건·테스트 5개 | 독립 리뷰(imglib-s3-reviewer) | **OK**(MINOR 3·NIT 1 + 체크박스 대비 반영) | 로직 diff 없음, 상태 렌더 누락 없음. 반영: div group > ul, aria-live 상시 렌더, 잉크 블록 빈 파일 안내 대비, 패키지 토글 문구 고정+aria-pressed, 체크박스 테두리 --studio-control-border(약 3.7:1). 브라우저: 독서 상품 A안 배치·5,500 취소선·1,000 절약 확인 |
 | U3 구현 리뷰 | market-material-detail·market-item-actions(샘플 행·보관함 안내)·테스트 2개 | 독립 리뷰(imglib-s3-reviewer) | **OK** | 로직 무변경(prefetch 3이벤트·openSamplePreview), 앵커·aria 유지, 샘플 없음 분기, 지운 코드 미사용 확인, 기존 실패 3개는 HEAD와 같은 사유. NIT(aside·섹션 h2 동일 문구)은 계획대로 유지. 브라우저: 머리말 "구매 옵션", 샘플 한 줄 행, "자료 보관함" 안내 확인 |
+
+## 14. 패키지 선택 칸을 제목 옆으로 (2026-10-06, 13절 취소 후)
+- 경위: 13절(패키지 바로 구매 버튼)은 사용자가 "내가 원한 게 아니다"라고 해 `30fb59d`로 되돌렸다. 사용자가 캡처에서 "추천 · 전체 패키지" 제목 **왼쪽**을 표시하며 "전체 패키지 옆에 버튼이 있는 게 나을 것 같다"고 했다.
+- 해석: 블록 하단의 흰 전체 폭 토글 막대(`market-item-actions.tsx:1062-1070`, `aria-pressed`)를 없애고, **선택 칸을 제목 왼쪽에** 둔다. 선택 모델(패키지도 선택 목록에 들어가고 아래 [장바구니]/[구매하기]로 진행)과 상호 배제 사유는 그대로다.
+- 결정
+  - F1 선택 칸은 개별 자료와 같은 **체크박스**(`renderOptionSelectControl(bundleKey)`와 같은 Checkbox, 44px 터치 영역)로 두어 선택 방식을 통일한다. 잉크 배경 위에서 보이도록 체크박스 테두리를 밝은 토큰(예: `--studio-surface` 계열)으로, 체크 상태는 흰 바탕·잉크 체크 또는 brand로 대비 3:1 이상, 포커스 링은 흰 링 + 잉크 offset.
+  - F2 제목 줄(체크박스 + 추천 태그 + "전체 패키지" + 부제)을 `<label>`로 묶어 제목을 눌러도 선택된다. 가격 묶음은 그대로 오른쪽.
+  - F3 하단 흰 토글 막대를 삭제한다. 선택 시 블록의 코랄 링(기존)으로 선택 상태를 함께 보여 준다.
+  - F4 막힘 사유(개별 선택 중 등)는 체크박스 `aria-describedby`와 제목 아래 사유 문구로(기존 사유 문구 재사용), 비활성 시 체크박스 disabled. 보유 상태에서는 체크박스 없이 기존 "보유 중"·다운로드.
+  - F5 로직(`toggleOption`·`getBlockedReason`·결제·장바구니)은 바꾸지 않는다. 렌더만.
+- 테스트: `purchase-section-redesign-contract`의 토글 단언(aria-pressed·고정 문구·흰 막대)을 체크박스 단언으로 교체(제목 label 안 체크박스, 잉크 위 테두리 토큰, 흰 링, 하단 막대 없음), 관련 계약(`market-v2-detail-library`·`multiselect`) 갱신.
+- 브라우저: 독서 상품에서 제목 왼쪽 체크박스, 제목 클릭으로 선택/해제, 선택 시 코랄 링·하단 바 "선택 1개 · 4,500", 개별 선택 중 패키지 체크박스 비활성+사유, 키보드 Space, 320px.
+
+| 회차 | 대상 | 검증자 | 판정 | 비고 |
+|---|---|---|---|---|
+| R1 | 14절 | 독립 검증 | **OK** | 사실·대비 일치(미체크 control-border 잉크 위 4.41:1). 구현 반영: ① 체크 상태 흰 바탕+잉크 체크(data-[state=checked]:bg-[var(--studio-surface)] border-[var(--studio-surface)] text-[var(--studio-ink)]) 계약 단언 ② label은 phrasing만 — h3 안에 label(체크박스+추천+제목), 부제는 label 밖, 가격 묶음 밖 ③ bundleStatus aria-live 문구는 사유 문구 아래 ④ 체크박스 aria-label "{title} 선택" 유지(개별과 동일, 의도). 커밋 전 캡처로 사용자 확인 |
+| 사용자 요청 | 14절 체크박스 | 사용자 | 반영 | "체크 박스 안은 하얀색으로 해서 눈에 띄게" → 미체크·체크 모두 흰 바탕(--studio-surface), 체크 시 잉크 체크 |
+
+## 15. 상세 요약 카드·영문 eyebrow 삭제 (2026-10-06)
+- 요청(캡처): "필요한 자료를 선택하세요 영역 없애줘 필요 없어. 그리고 MATERIAL INFORMATION과 REVIEWS 문구 없애줘 필요없어"
+- 대상
+  - G1 `market-material-detail.tsx:265-280` `aside` 요약 카드("구매 옵션 / 필요한 자료를 선택하세요 / N 크레딧부터… / [구매·다운로드 확인]")를 통째로 삭제(`StudioDetailPageFrame`의 `aside`는 선택 prop, `hasAside`가 false면 레이아웃이 aside 없이 그려짐 — `studio-detail-page-frame.tsx:9,23,49,52`). 구매 섹션 안의 "구매 옵션 / 필요한 자료를 선택하세요" 머리말은 캡처에서 표시되지 않았으므로 유지. 표지 아래 좁은 화면용 [구매 옵션 확인] 이동 버튼(`:259-261`)도 표시되지 않았으므로 유지.
+  - G2 `market-material-detail.tsx:287-289` "MATERIAL INFORMATION" eyebrow 삭제(제목 "자료 상세 정보"는 유지, 제목 위 여백 `mt-2` 정리).
+  - G3 `market-reviews-section.tsx:152` "REVIEWS" eyebrow 삭제(제목 "평점 및 후기 N" 유지, 여백 정리).
+- 로직 무변경. 계약 테스트 중 이 문구·aside를 고정한 단언 갱신(15절 계약: aside 요약 카드·두 eyebrow 없음, 두 제목 유지).
+- 브라우저: 독서·문학 상세에서 요약 카드 없음, "자료 상세 정보"·"평점 및 후기" 제목 위 영문 없음, 1280·320px.
+
+| 회차 | 대상 | 검증자 | 판정 | 비고 |
+|---|---|---|---|---|
+| R1 | 15절 | 독립 검증 | **OK** | aside 제거는 frame:41-49 그리드 영향 없음, material-detail.tsx 영향 없음, startingPrice는 이용가 칸(:255)에서 사용. 보완: tests/purchase-section-redesign-contract.test.mjs:100 '구매 옵션' 개수 2→1·테스트 제목 정리, 완료 보고에 지운 쪽(aside 요약 카드)·남긴 쪽(구매 섹션 머리말) 명시 |
+| 14+15절 구현 리뷰 | market-item-actions·market-material-detail·market-reviews-section·테스트 4개 | 독립 리뷰(imglib-s3-reviewer) | **FAIL→수정 후 OK(팀 리드 확인)** | MAJOR(2.5.3) 패키지 체크박스 접근 이름을 '전체 패키지 선택'으로 고정(renderOptionSelectControl ariaLabel 인자), MINOR section aria-labelledby를 '전체 패키지' span으로. tsc 0, 관련 47/47, 전체 실패 39=기준선. 브라우저: 흰 체크박스·선택 시 코랄 링·하단 1개 4,500·개별 비활성+사유, 요약 카드·영문 eyebrow 없음 확인 |

@@ -45,11 +45,11 @@ test('market detail action panel renders bundle package and individual alternati
   assert.match(itemActions, /renderV2PurchaseOptions/)
   assert.match(itemActions, /전체 패키지/)
   assert.match(itemActions, />개별 자료<\/h3>/)
-  // 개별 행은 체크박스 컨트롤, 패키지는 aria-pressed 토글 버튼으로 선택한다(구매 영역 A안).
+  // 개별 행과 패키지 모두 같은 체크박스 컨트롤로 선택한다(패키지는 제목 왼쪽, 14절).
   assert.match(itemActions, /const key = `subproduct:\$\{subproduct\.id\}`/)
   assert.match(itemActions, /renderOptionSelectControl\(key\)/)
-  assert.match(itemActions, /aria-pressed=\{isBundleSelected\}/)
-  assert.match(itemActions, /onClick=\{\(\) => toggleOption\(bundleKey, !isBundleSelected\)\}/)
+  assert.match(itemActions, /renderOptionSelectControl\(bundleKey, INK_BLOCK_CHECKBOX_CLASS, '전체 패키지 선택'\)/)
+  assert.doesNotMatch(itemActions, /aria-pressed=\{isBundleSelected\}/)
   assert.match(itemActions, /clearSelection\(\)/)
   assert.match(itemActions, /targetKind: 'subproduct'/)
   assert.match(itemActions, /targetKind: 'bundle'/)

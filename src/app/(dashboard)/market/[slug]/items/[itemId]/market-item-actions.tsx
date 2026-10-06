@@ -122,6 +122,8 @@ const MARKET_BADGE_INCLUDED_CLASS = 'rounded-full border border-emerald-200 bg-e
 const MARKET_DOWNLOAD_BUTTON_CLASS = 'h-9 min-w-36 w-full justify-center gap-1.5 rounded-md border border-[var(--studio-control-border,#7f8499)] bg-white px-3 text-sm font-medium text-[var(--studio-ink,#1c1f2e)] hover:bg-white hover:border-[var(--studio-primary-border,#c9befa)] hover:text-[var(--studio-primary,#6950e5)] active:bg-slate-50 focus-visible:ring-[var(--studio-focus-ring,#8b76ec)] sm:w-auto'
 // 구매 영역 A안(딥 잉크) — Studio 토큰과 color-mix만 쓴다(docs/purchase-section-redesign-plan.md 5절).
 const INK_BLOCK_SUBTLE_TEXT_CLASS = 'text-[color-mix(in_srgb,var(--studio-surface)_72%,transparent)]'
+// 잉크 블록 제목 옆 패키지 체크박스: 미체크·체크 모두 흰 바탕+흰 테두리(눈에 띄게), 체크 시 잉크 체크, 흰 포커스 링(14절)
+const INK_BLOCK_CHECKBOX_CLASS = 'border-[var(--studio-surface)] bg-[var(--studio-surface)] text-[var(--studio-ink)] data-[state=checked]:border-[var(--studio-surface)] data-[state=checked]:bg-[var(--studio-surface)] data-[state=checked]:text-[var(--studio-ink)] focus-visible:border-[var(--studio-surface)] focus-visible:ring-2 focus-visible:ring-[var(--studio-surface)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--studio-ink)]'
 const INK_BLOCK_DIVIDER_CLASS = 'border-[color-mix(in_srgb,var(--studio-surface)_14%,transparent)] divide-[color-mix(in_srgb,var(--studio-surface)_14%,transparent)]'
 const UNPRICED_REASON = '가격이 정해지지 않아 선택할 수 없습니다.'
 const NO_FILES_REASON = '파일 준비 중이라 선택할 수 없습니다.'
@@ -899,7 +901,8 @@ export default function MarketItemActions({
   const getOptionReasonId = (key: string) => `${selectionIdPrefix}-${key}`
 
   // 개별 자료 행의 체크박스(44px hit area). 막힌 사유 문장은 행이 getOptionReasonId로 그린다.
-  const renderOptionSelectControl = (key: string) => {
+  // checkboxClassName: 잉크 블록(전체 패키지)처럼 배경이 다른 곳에서 테두리·체크·포커스 색을 바꾼다.
+  const renderOptionSelectControl = (key: string, checkboxClassName = 'border-[var(--studio-control-border)]', ariaLabel?: string) => {
     const option = optionByKey.get(key)
     if (!option) {
       return null
@@ -912,10 +915,10 @@ export default function MarketItemActions({
           checked={selectedKeySet.has(option.key)}
           disabled={reason !== null || isBusy}
           onCheckedChange={(checked) => toggleOption(option.key, checked === true)}
-          aria-label={`${option.title} 선택`}
+          aria-label={ariaLabel ?? `${option.title} 선택`}
           aria-describedby={reason ? getOptionReasonId(option.key) : undefined}
           // 기본 --input 테두리는 흰 배경 대비 약 1.2:1이라 컨트롤 테두리 토큰(약 3.7:1)으로 보강한다(WCAG 1.4.11).
-          className="border-[var(--studio-control-border)]"
+          className={checkboxClassName}
         />
       </span>
     )
@@ -998,17 +1001,39 @@ export default function MarketItemActions({
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  {bundleOption.owned ? (
-                    <span className="rounded-[var(--studio-radius-control)] border border-[color-mix(in_srgb,var(--studio-surface)_40%,transparent)] px-2 py-0.5 text-xs font-bold">보유 중</span>
-                  ) : bundleSavings ? (
-                    <span className="rounded-[var(--studio-radius-control)] bg-[var(--studio-highlight)] px-2 py-0.5 text-xs font-bold text-[var(--studio-ink)]">추천</span>
-                  ) : null}
-                  {/* 관리자 라벨(bundleOption.label)이 아니라 고정 제목을 쓴다(D8) */}
-                  <h3 id={bundleTitleId} className="break-keep text-xl font-extrabold">전체 패키지</h3>
-                </div>
+                {/* 관리자 라벨(bundleOption.label)이 아니라 고정 제목을 쓴다(D8).
+                    선택 칸은 제목 왼쪽 체크박스이고, 제목 줄 전체(label)를 눌러도 선택된다(14절). label은 h3 안 phrasing만 감싼다.
+                    체크박스 이름은 보이는 제목과 맞춰 '전체 패키지 선택'(WCAG 2.5.3), section 이름은 제목 span만 가리킨다. */}
+                <h3 className="break-keep text-xl font-extrabold">
+                  {bundleKey && bundleSelectOption ? (
+                    <label className="-ml-3 inline-flex cursor-pointer flex-wrap items-center gap-x-1 gap-y-1 has-[:disabled]:cursor-not-allowed">
+                      {renderOptionSelectControl(bundleKey, INK_BLOCK_CHECKBOX_CLASS, '전체 패키지 선택')}
+                      {bundleSavings ? (
+                        <span className="mr-1 rounded-[var(--studio-radius-control)] bg-[var(--studio-highlight)] px-2 py-0.5 text-xs font-bold text-[var(--studio-ink)]">추천</span>
+                      ) : null}
+                      <span id={bundleTitleId}>전체 패키지</span>
+                    </label>
+                  ) : (
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      {bundleOption.owned ? (
+                        <span className="rounded-[var(--studio-radius-control)] border border-[color-mix(in_srgb,var(--studio-surface)_40%,transparent)] px-2 py-0.5 text-xs font-bold">보유 중</span>
+                      ) : bundleSavings ? (
+                        <span className="rounded-[var(--studio-radius-control)] bg-[var(--studio-highlight)] px-2 py-0.5 text-xs font-bold text-[var(--studio-ink)]">추천</span>
+                      ) : null}
+                      <span id={bundleTitleId}>전체 패키지</span>
+                    </span>
+                  )}
+                </h3>
                 {bundleSubtitle ? (
                   <p className={`mt-1 break-keep text-sm leading-6 ${INK_BLOCK_SUBTLE_TEXT_CLASS}`}>{bundleSubtitle}</p>
+                ) : null}
+                {bundleKey && bundleSelectOption ? (
+                  <>
+                    {bundleReason ? (
+                      <p id={getOptionReasonId(bundleKey)} className={`mt-2 break-keep text-xs leading-5 ${INK_BLOCK_SUBTLE_TEXT_CLASS}`}>{bundleReason}</p>
+                    ) : null}
+                    <p aria-live="polite" className={`text-xs ${INK_BLOCK_SUBTLE_TEXT_CLASS} ${bundleStatus ? 'mt-2' : ''}`}>{bundleStatus ?? ''}</p>
+                  </>
                 ) : null}
               </div>
               <div className="shrink-0 sm:text-right">
@@ -1055,25 +1080,6 @@ export default function MarketItemActions({
 
             {bundleOption.owned ? (
               <div className="mt-4">{renderDownloadButtons(dedupeQuestionPdfFiles(downloadFiles), INK_BLOCK_SUBTLE_TEXT_CLASS)}</div>
-            ) : bundleKey && bundleSelectOption ? (
-              <div className="mt-4">
-                <button
-                  type="button"
-                  aria-pressed={isBundleSelected}
-                  disabled={bundleReason !== null || isBusy}
-                  aria-describedby={bundleReason ? getOptionReasonId(bundleKey) : undefined}
-                  onClick={() => toggleOption(bundleKey, !isBundleSelected)}
-                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--studio-radius-control)] bg-[var(--studio-surface)] px-4 text-sm font-bold text-[var(--studio-ink)] outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-[var(--studio-surface)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--studio-ink)] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {/* 보이는 문구는 고정하고 선택 상태는 aria-pressed와 체크 아이콘·코랄 링으로 전한다(APG 토글 버튼) */}
-                  {isBundleSelected ? <Check aria-hidden="true" className="h-4 w-4" /> : null}
-                  전체 패키지 선택
-                </button>
-                {bundleReason ? (
-                  <p id={getOptionReasonId(bundleKey)} className={`mt-2 break-keep text-xs leading-5 ${INK_BLOCK_SUBTLE_TEXT_CLASS}`}>{bundleReason}</p>
-                ) : null}
-                <p aria-live="polite" className={`text-xs ${INK_BLOCK_SUBTLE_TEXT_CLASS} ${bundleStatus ? 'mt-2' : ''}`}>{bundleStatus ?? ''}</p>
-              </div>
             ) : null}
           </section>
         ) : null}

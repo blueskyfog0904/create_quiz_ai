@@ -63,17 +63,19 @@ test('detail summary uses a two-column brand button pair', () => {
   assert.match(itemActions, /구매하거나 담을 옵션을 선택하세요\./)
 })
 
-test('individual rows read checkbox → icon → title, and the bundle toggle sits at the bottom of its block', () => {
+test('individual rows read checkbox → icon → title, and the bundle checkbox sits left of the bundle title', () => {
   const v2 = itemActions.slice(itemActions.indexOf('const renderV2PurchaseOptions'), itemActions.indexOf('const hasV2PurchaseOptions'))
   // 개별 행: 체크박스(또는 보유 표시) → 형식 아이콘 → 이름 순서
   const rowSelect = v2.indexOf(') : renderOptionSelectControl(key)}')
   const rowIcon = v2.indexOf('{icon}', rowSelect)
   const rowTitle = v2.indexOf('{subproduct.title}</span>', rowIcon)
   assert.ok(rowSelect !== -1 && rowSelect < rowIcon && rowIcon < rowTitle, 'row select before icon before title')
-  // 패키지: 제목·가격·포함 목록 아래에 전체 폭 토글 버튼
-  const bundleTitle = v2.indexOf('>전체 패키지</h3>')
-  const bundleToggle = v2.indexOf('aria-pressed={isBundleSelected}')
-  assert.ok(bundleTitle !== -1 && bundleTitle < bundleToggle, 'bundle toggle below the title')
+  // 패키지: 제목(h3) 안에서 체크박스 → 제목 순서(14절)
+  const bundleHeading = v2.indexOf('<h3 className="break-keep text-xl font-extrabold">')
+  const bundleSelect = v2.indexOf("renderOptionSelectControl(bundleKey, INK_BLOCK_CHECKBOX_CLASS, '전체 패키지 선택')")
+  const bundleTitle = v2.indexOf('<span id={bundleTitleId}>전체 패키지</span>', bundleSelect)
+  assert.ok(bundleHeading !== -1 && bundleHeading < bundleSelect && bundleSelect < bundleTitle, 'bundle checkbox before the title text')
+  assert.doesNotMatch(v2, /aria-pressed/)
   const control = itemActions.slice(itemActions.indexOf('const renderOptionSelectControl'), itemActions.indexOf('const renderOptionStatus'))
   assert.match(control, /grid size-11 shrink-0 place-items-center/)
   // 비보유 행은 기본 Button을 만들지 않는다(v1 FileOptionRow 규칙 유지)
