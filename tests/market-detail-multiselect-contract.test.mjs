@@ -25,10 +25,7 @@ test('detail adds selected targets to the cart one POST per target, in order', (
 })
 
 test('detail direct purchase sends lines with one idempotency key per confirmation dialog', () => {
-  // 확인 Dialog 열기는 startCheckout 하나(개별 선택 구매·패키지 바로 구매 공유, 13-2)
-  assert.match(itemActions, /const startCheckout = async \(options: PurchaseOption\[\]\) => \{[\s\S]{0,200}?setCheckout\(\{\s+idempotencyKey: crypto\.randomUUID\(\),\s+lines: options\.map\(/)
-  assert.match(itemActions, /await startCheckout\(selectedOptions\)/)
-  assert.match(itemActions, /await startCheckout\(\[bundlePurchaseOption\]\)/)
+  assert.match(itemActions, /setCheckout\(\{\s+idempotencyKey: crypto\.randomUUID\(\),\s+lines: selectedOptions\.map\(/)
   assert.match(itemActions, /fetch\(`\/api\/market\/items\/\$\{itemId\}\/purchase`/)
   assert.match(itemActions, /lines: request\.lines\.map\(\(line\) => \(\{\s+target:/)
   assert.match(itemActions, /idempotencyKey: request\.idempotencyKey,/)
@@ -50,9 +47,8 @@ test('detail drops selections that are no longer selectable when options change'
 })
 
 test('detail shows the three conflict reasons and compares file type codes in lowercase', () => {
-  // 패키지는 선택 목록에 들어가지 않으므로(13-2) 패키지↔개별 상호 배제 문구는 없다. PDF·HWP 충돌은 유지
-  assert.doesNotMatch(itemActions, /전체 패키지에 포함되어 함께 선택할 수 없습니다|개별 자료를 선택한 상태에서는 전체 패키지를 함께 선택할 수 없습니다/)
-  assert.doesNotMatch(itemActions, /BUNDLE_SELECTED_REASON|SUBPRODUCT_SELECTED_REASON|hasSelectedBundle|hasSelectedSubproduct/)
+  assert.match(itemActions, /전체 패키지에 포함되어 함께 선택할 수 없습니다\. 개별 구매는 전체 패키지 선택을 해제하세요\./)
+  assert.match(itemActions, /개별 자료를 선택한 상태에서는 전체 패키지를 함께 선택할 수 없습니다\./)
   assert.match(itemActions, /문제\(HWP\)에 PDF가 포함되어 있어 함께 선택할 수 없습니다\./)
   // PDF 포함 판정은 src/lib/market-bundle-savings.ts 하나로 옮겼다(구매 영역 개편 U1). 판정 기준은 그대로다.
   assert.match(itemActions, /import \{ getBundleSavings, isPdfInclusiveHwp \} from '@\/lib\/market-bundle-savings'/)
@@ -67,19 +63,17 @@ test('detail summary uses a two-column brand button pair', () => {
   assert.match(itemActions, /구매하거나 담을 옵션을 선택하세요\./)
 })
 
-test('individual rows read checkbox → icon → title, and the bundle buttons sit at the bottom of its block', () => {
+test('individual rows read checkbox → icon → title, and the bundle toggle sits at the bottom of its block', () => {
   const v2 = itemActions.slice(itemActions.indexOf('const renderV2PurchaseOptions'), itemActions.indexOf('const hasV2PurchaseOptions'))
   // 개별 행: 체크박스(또는 보유 표시) → 형식 아이콘 → 이름 순서
   const rowSelect = v2.indexOf(') : renderOptionSelectControl(key)}')
   const rowIcon = v2.indexOf('{icon}', rowSelect)
   const rowTitle = v2.indexOf('{subproduct.title}</span>', rowIcon)
   assert.ok(rowSelect !== -1 && rowSelect < rowIcon && rowIcon < rowTitle, 'row select before icon before title')
-  // 패키지: 제목·가격·포함 목록 아래에 [패키지 바로 구매] → [장바구니 담기] 순서(13-5)
+  // 패키지: 제목·가격·포함 목록 아래에 전체 폭 토글 버튼
   const bundleTitle = v2.indexOf('>전체 패키지</h3>')
-  const buyNow = v2.indexOf('onClick={() => void buyBundleNow()}')
-  const addToCart = v2.indexOf('onClick={() => void addBundleToCart()}')
-  assert.ok(bundleTitle !== -1 && bundleTitle < buyNow && buyNow < addToCart, 'bundle buttons below the title, buy-now first')
-  assert.doesNotMatch(v2, /aria-pressed|isBundleSelected/)
+  const bundleToggle = v2.indexOf('aria-pressed={isBundleSelected}')
+  assert.ok(bundleTitle !== -1 && bundleTitle < bundleToggle, 'bundle toggle below the title')
   const control = itemActions.slice(itemActions.indexOf('const renderOptionSelectControl'), itemActions.indexOf('const renderOptionStatus'))
   assert.match(control, /grid size-11 shrink-0 place-items-center/)
   // 비보유 행은 기본 Button을 만들지 않는다(v1 FileOptionRow 규칙 유지)
@@ -118,9 +112,8 @@ test('guest selection is saved right before the login redirect and consumed once
   const consume = itemActions.slice(itemActions.indexOf('const consumeCartIntent = useEffectEvent('), itemActions.indexOf('}, [isLoggedIn])'))
   assert.doesNotMatch(consume, /cancelled|canceled/)
   // 구매 자동 실행 금지: 복귀 시 구매는 선택만 복원한다
-  assert.doesNotMatch(consume, /openCheckout|startCheckout|buyBundleNow|submitCheckout|\/purchase|idempotencyKey/)
-  // 선택 목록은 개별 전용: 개별만 복원하고, 패키지 구매 의도였으면 '패키지 구매 안내' Dialog(13-2, E3)
-  assert.match(consume, /if \(intent\.action === 'purchase'\) \{[\s\S]{0,200}?setSelectedKeys\(options\.filter\(\(option\) => option\.targetKind === 'subproduct'\)\.map\(\(option\) => option\.key\)\)\s+if \(options\.some\(\(option\) => option\.targetKind === 'bundle'\)\) \{\s+setCartResult\(\{ kind: 'purchase-notice', message: '로그인되었습니다\. 전체 패키지는 \[패키지 바로 구매\]를 눌러 구매해 주세요\.' \}\)\s+\}\s+return\s+\}/)
+  assert.doesNotMatch(consume, /openCheckout|submitCheckout|\/purchase|idempotencyKey/)
+  assert.match(consume, /if \(intent\.action === 'purchase'\) \{\s+setSelectedKeys\(options\.map\(\(option\) => option\.key\)\)\s+return\s+\}/)
   assert.doesNotMatch(consume, /redirectToLogin/)
   // 13절 D22: 복귀 담기 실패·제외는 toast(로그인 완료 모달에 묻힘) 대신 안내 Dialog로 알린다
   assert.doesNotMatch(consume, /toast\./)
@@ -135,9 +128,8 @@ test('guest selection is saved right before the login redirect and consumed once
   assert.match(itemActions, /setCartResult\(\{\s+kind: 'added',/)
   // 담기 결과 Dialog(성공·안내 공통)는 로그인 완료 Dialog가 닫힌 뒤에 연다
   assert.match(itemActions, /open=\{cartResult !== null && !isLoginCompletePending\}/)
-  assert.match(itemActions, /cartResult\?\.kind === 'notice'\n\s+\? '장바구니 담기 안내'\n\s+: cartResult\?\.kind === 'purchase-notice' \? '패키지 구매 안내' : '장바구니 담기'/)
-  // 'notice'·'purchase-notice'는 확인, 'added'만 계속 둘러보기
-  assert.match(itemActions, /cartResult\?\.kind === 'added' \? '계속 둘러보기' : '확인'/)
+  assert.match(itemActions, /cartResult\?\.kind === 'notice' \? '장바구니 담기 안내' : '장바구니 담기'/)
+  assert.match(itemActions, /cartResult\?\.kind === 'notice' \? '확인' : '계속 둘러보기'/)
   assert.doesNotMatch(itemActions, /cartAddedMessage/)
 })
 

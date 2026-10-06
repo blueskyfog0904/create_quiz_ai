@@ -18,20 +18,14 @@ test('U2: v2 구매 영역은 Studio 토큰만 쓴다(raw hex·tailwind 팔레�
   assert.match(itemActions, /const INK_BLOCK_SUBTLE_TEXT_CLASS = 'text-\[color-mix\(in_srgb,var\(--studio-surface\)_72%,transparent\)\]'/)
 })
 
-test('13절: 패키지는 블록 안 [패키지 바로 구매](brand)·[장바구니 담기] 버튼, 개별은 Checkbox + aria-label, 사유는 aria-describedby', () => {
-  assert.doesNotMatch(v2, /aria-pressed|isBundleSelected|toggleOption\(bundleKey/)
-  assert.match(v2, /variant="brand"\n\s+className=\{`h-auto min-h-11 w-full whitespace-normal sm:flex-1 \$\{INK_BLOCK_FOCUS_CLASS\}`\}/)
-  assert.match(v2, /onClick=\{\(\) => void buyBundleNow\(\)\}/)
-  assert.match(v2, /\$\{isLoggedIn \? '패키지 바로 구매' : '로그인 후 패키지 구매'\} · \$\{formatCredits\(bundleOption\.priceCredits\)\} 크레딧/)
-  assert.match(v2, /onClick=\{\(\) => void addBundleToCart\(\)\}/)
-  assert.match(v2, /aria-label=\{`전체 패키지 \$\{bundleCartLabel\}`\}/)
-  assert.match(v2, /aria-describedby=\{bundleReason \? bundleReasonId : undefined\}/)
-  // 640px 미만 세로 쌓기, 두 버튼 44px
-  assert.match(v2, /<div className="flex flex-col gap-2 sm:flex-row">/)
-  assert.equal((v2.match(/h-auto min-h-11 w-full whitespace-normal/g) ?? []).length >= 2, true)
-  // 잉크 위 포커스 링: 흰 링 + 잉크 offset
-  assert.match(itemActions, /const INK_BLOCK_FOCUS_CLASS = 'focus-visible:ring-2 focus-visible:ring-\[var\(--studio-surface\)\] focus-visible:ring-offset-2 focus-visible:ring-offset-\[var\(--studio-ink\)\]'/)
-  assert.equal((v2.match(/\$\{INK_BLOCK_FOCUS_CLASS\}/g) ?? []).length, 2)
+test('U2: 패키지는 aria-pressed 토글 버튼, 개별은 Checkbox + aria-label, 막힌 사유는 aria-describedby로 잇는다', () => {
+  assert.match(v2, /<button\n\s+type="button"\n\s+aria-pressed=\{isBundleSelected\}/)
+  assert.match(v2, /aria-describedby=\{bundleReason \? getOptionReasonId\(bundleKey\) : undefined\}/)
+  // APG 토글 버튼: 보이는 문구는 고정, 상태는 aria-pressed + 체크 아이콘·코랄 링
+  assert.doesNotMatch(v2, /전체 패키지 선택됨/)
+  assert.match(v2, /\{isBundleSelected \? <Check aria-hidden="true" className="h-4 w-4" \/> : null\}\n\s+전체 패키지 선택\n/)
+  assert.match(v2, /\$\{isBundleSelected \? 'ring-2 ring-\[var\(--studio-highlight\)\]' : ''\}/)
+  assert.match(v2, /min-h-11 w-full/)
   const control = itemActions.slice(itemActions.indexOf('const renderOptionSelectControl'), itemActions.indexOf('const renderOptionStatus'))
   assert.match(control, /aria-label=\{`\$\{option\.title\} 선택`\}/)
   assert.match(control, /aria-describedby=\{reason \? getOptionReasonId\(option\.key\) : undefined\}/)
@@ -40,7 +34,7 @@ test('13절: 패키지는 블록 안 [패키지 바로 구매](brand)·[장바�
   assert.match(v2, /<div role="group" aria-labelledby=\{subproductListTitleId\}>\n\s+<ul className=/)
   assert.doesNotMatch(v2, /<ul role=/)
   // 상태 문구 live 영역은 항상 렌더하고 글자만 바꾼다(패키지·행)
-  assert.match(v2, /<p aria-live="polite" className=\{`[^`]*`\}>\{bundleStatus\}<\/p>/)
+  assert.match(v2, /<p aria-live="polite" className=\{`[^`]*`\}>\{bundleStatus \?\? ''\}<\/p>/)
   assert.match(v2, /<span aria-live="polite">\{status \? ` · \$\{status\}` : ''\}<\/span>/)
   assert.doesNotMatch(v2, /\{(bundleStatus|status) \? \(?\s*<[a-z]+ aria-live/)
   // 체크박스 테두리는 컨트롤 테두리 토큰으로 보강(비텍스트 대비 3:1)
@@ -75,11 +69,9 @@ test('U2: 하단 바는 "선택 N개 · N 크레딧"과 장바구니(brandOutlin
 })
 
 test('U2: 상태 계산·충돌·담기·구매 함수는 그대로 쓰인다(디자인만 변경)', () => {
-  for (const name of ['getBlockedReason', 'addSelectedToCart', 'openCheckout', 'buyBundleNow', 'addBundleToCart', 'dedupeQuestionPdfFiles', 'renderDownloadButtons']) {
+  for (const name of ['getBlockedReason', 'toggleOption', 'addSelectedToCart', 'openCheckout', 'dedupeQuestionPdfFiles', 'renderDownloadButtons']) {
     assert.match(v2, new RegExp(`\\b${name}\\(`), name)
   }
-  const control = itemActions.slice(itemActions.indexOf('const renderOptionSelectControl'), itemActions.indexOf('const renderOptionStatus'))
-  assert.match(control, /toggleOption\(option\.key, checked === true\)/)
   assert.match(v2, /subproduct\.categorySlug === 'question_pdf' && hasOwnedPdfInclusiveHwp/)
 })
 
@@ -106,42 +98,4 @@ test('U3: 무료 샘플은 배지·장식 카드 없는 한 줄 행이고, 보�
   const notice = itemActions.slice(itemActions.indexOf('구매 후 바로 다운로드할 수 있으며'), itemActions.indexOf('<MarketCheckoutConfirmDialog'))
   assert.match(notice, /자료 보관함/)
   assert.doesNotMatch(notice, /slate-|border-dashed/)
-})
-
-const body = (name) => {
-  const start = itemActions.indexOf(`const ${name} = async`)
-  assert.ok(start > 0, name)
-  return itemActions.slice(start, itemActions.indexOf('\n  }\n', start) + 4)
-}
-
-test('13절 E1(b): 패키지 버튼은 누르는 즉시 개별 선택을 비우고, 비로그인은 패키지 대상만 저장한 뒤 로그인으로 보낸다', () => {
-  for (const [name, action, call] of [
-    ['buyBundleNow', 'purchase', 'await startCheckout([bundlePurchaseOption])'],
-    ['addBundleToCart', 'cart', 'await addTargetsToCart([bundlePurchaseOption], {'],
-  ]) {
-    const handler = body(name)
-    const clear = handler.indexOf('clearSelection()')
-    const guest = handler.indexOf('if (!isLoggedIn) {')
-    assert.ok(clear !== -1 && clear < guest, `${name} clears the individual selection first`)
-    assert.match(handler, new RegExp(`saveIntentBeforeLogin\\('${action}', \\[bundlePurchaseOption\\]\\)\\s+redirectToLogin\\(\\)`), name)
-    assert.ok(handler.includes(call), name)
-    assert.match(handler, /setBusyAction\('bundle'\)/)
-  }
-  assert.match(itemActions, /const saveIntentBeforeLogin = \(action: 'cart' \| 'purchase', options: PurchaseOption\[\] = selectedOptions\) => \{/)
-})
-
-test('13절: 하단 바는 개별 자료 전용, busyAction으로 진행 중 버튼만 문구가 바뀐다', () => {
-  assert.match(itemActions, /const hasSelectableSubproduct = purchaseOptions\.some\(\(option\) => option\.targetKind === 'subproduct' && option\.unavailableReason === null\)/)
-  assert.match(v2, /\{hasSelectableSubproduct \? \(/)
-  assert.doesNotMatch(itemActions, /hasSelectableOption/)
-  assert.match(itemActions, /const \[busyAction, setBusyAction\] = useState<'bundle' \| 'selection' \| null>\(null\)/)
-  assert.match(v2, /isAddingToCart && busyAction !== 'bundle' \? '담는 중' : '장바구니'/)
-  assert.match(v2, /isBundleBusy && isCheckingBalance\n\s+\? '확인 중'/)
-})
-
-test('13절 E3: 패키지 구매 안내 Dialog는 제목 "패키지 구매 안내"와 확인 버튼 하나만 보인다', () => {
-  assert.match(itemActions, /useState<\{ kind: 'added' \| 'notice' \| 'purchase-notice'; message: string \} \| null>/)
-  assert.match(itemActions, /cartResult\?\.kind === 'purchase-notice' \? '패키지 구매 안내' : '장바구니 담기'/)
-  assert.match(itemActions, /\{cartResult\?\.kind === 'added' \? '계속 둘러보기' : '확인'\}/)
-  assert.match(itemActions, /\{cartResult\?\.kind !== 'purchase-notice' \? \(\n\s+<Button asChild variant="brand">\n\s+<Link href="\/cart">장바구니 보기<\/Link>/)
 })
