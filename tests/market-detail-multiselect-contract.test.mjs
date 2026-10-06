@@ -10,6 +10,7 @@ const dashboardDetailPage = read('../src/app/(dashboard)/market/[slug]/items/[it
 const previewDetail = read('../src/app/preview/solvook-concept/_components/detail/market-material-detail.tsx')
 const cartView = read('../src/app/(solvook)/cart/_components/cart-view.tsx')
 const confirmDialog = read('../src/components/market/market-checkout-confirm-dialog.tsx')
+const bundleSavings = read('../src/lib/market-bundle-savings.ts')
 
 const RAW_HEX = /#[0-9a-fA-F]{3,8}\b/
 
@@ -49,7 +50,9 @@ test('detail shows the three conflict reasons and compares file type codes in lo
   assert.match(itemActions, /전체 패키지에 포함되어 함께 선택할 수 없습니다\. 개별 구매는 전체 패키지 선택을 해제하세요\./)
   assert.match(itemActions, /개별 자료를 선택한 상태에서는 전체 패키지를 함께 선택할 수 없습니다\./)
   assert.match(itemActions, /문제\(HWP\)에 PDF가 포함되어 있어 함께 선택할 수 없습니다\./)
-  assert.match(itemActions, /subproduct\.categorySlug === 'question_hwp'\s+&& subproduct\.fileTypes\.some\(\(fileType\) => fileType\.code\.toLowerCase\(\) === 'pdf'\)/)
+  // PDF 포함 판정은 src/lib/market-bundle-savings.ts 하나로 옮겼다(구매 영역 개편 U1). 판정 기준은 그대로다.
+  assert.match(itemActions, /import \{ isPdfInclusiveHwp \} from '@\/lib\/market-bundle-savings'/)
+  assert.match(bundleSavings, /subproduct\.categorySlug === 'question_hwp'\s+&& subproduct\.fileTypes\.some\(\(fileType\) => fileType\.code\.toLowerCase\(\) === 'pdf'\)/)
 })
 
 test('detail summary uses a two-column brand button pair', () => {

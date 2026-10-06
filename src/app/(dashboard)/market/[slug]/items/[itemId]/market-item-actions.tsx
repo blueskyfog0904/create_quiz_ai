@@ -27,6 +27,7 @@ import {
 } from '@/components/market/market-purchase-complete-dialog'
 import { useLoginRedirect } from '@/hooks/use-login-redirect'
 import { saveMarketCartIntent, takeMarketCartIntent } from '@/lib/market-cart-intent'
+import { isPdfInclusiveHwp } from '@/lib/market-bundle-savings'
 import { getMarketDownloadButtonLabel } from '@/lib/market-download-label'
 import type { MarketBundlePublicSummary, MarketSubproductDownloadFile, MarketSubproductPublicSummary } from '@/lib/market-items-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
@@ -151,12 +152,6 @@ function getSubproductIconKind(subproduct: MarketSubproductPublicSummary): Marke
   if (tokens.includes('hwp')) return 'hwp'
   if (tokens.includes('pdf')) return 'pdf'
   return 'default'
-}
-
-// 서버 판정(lower(ft.code) = 'pdf')과 같은 기준으로 PDF 포함 문제(HWP)를 가린다.
-function isPdfInclusiveHwp(subproduct: MarketSubproductPublicSummary) {
-  return subproduct.categorySlug === 'question_hwp'
-    && subproduct.fileTypes.some((fileType) => fileType.code.toLowerCase() === 'pdf')
 }
 
 function sumCredits(lines: { expectedCredits: number }[]) {

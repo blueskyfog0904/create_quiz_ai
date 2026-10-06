@@ -1,0 +1,35 @@
+{
+  "agents": [
+    {
+      "agent_id": "ab6cb3ab3e9d28711",
+      "agent_type": "untracked-native-fork",
+      "started_at": "2026-10-06T00:52:19.358Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-10-06T00:52:19.358Z",
+      "synthetic": true,
+      "telemetry_status": "unmatched_stop",
+      "telemetry_note": "SubagentStop arrived without a matching SubagentStart; native Agent/Task start telemetry was not observed."
+    },
+    {
+      "agent_id": "aadmin-redesign-planner-776b5bb9e4418f31",
+      "agent_type": "admin-redesign-planner",
+      "started_at": "2026-10-06T01:35:47.764Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-10-06T01:36:45.379Z",
+      "duration_ms": 57615
+    },
+    {
+      "agent_id": "aadmin-redesign-verifier-03c85d8f70c3a750",
+      "agent_type": "admin-redesign-verifier",
+      "started_at": "2026-10-06T01:36:51.879Z",
+      "parent_mode": "none",
+      "status": "running"
+    }
+  ],
+  "total_spawned": 4,
+  "total_completed": 5,
+  "total_failed": 0,
+  "last_updated": "2026-10-06T01:36:51.988Z"
+}

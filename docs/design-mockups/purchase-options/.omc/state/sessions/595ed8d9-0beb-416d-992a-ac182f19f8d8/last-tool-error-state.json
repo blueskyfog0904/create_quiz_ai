@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd /Users/mac/Documents/project/create_quiz_ai && f=docs/purchase-section-redesign-plan.md; wc -l $f; awk '/^\\\\|/{line=$0; gsub(/\\\\\\\\\\\\|/,\\\"\\\",line); gsub(/`[^`]*`/,\\\"X\\\",line); n=gsub(/\\\\...",
+  "error": "Exit code 1\n     210 docs/purchase-section-redesign-plan.md\n37:시안은 원가를 \"개별 가격 단순 합계\"(2,500+2,500+3,000=8,000)로 그렸다. 그러나 이 상품군에서는 **문제(HWP)에 PDF가 포함**되어 문제(PDF)와 함께 살 수 없다(`PDF_HWP_CONFLICT_REASON :126`, 판정 `isPdfInclusiveHwp :157-160`). 같은 내용을 개별로 가장 싸게 사는 값은 단순 합계보다 작다.\n43:| 국어 독서(워크북·문제PDF·문제HWP) | 64 | **활성**(`market_item_bundle_options.is_active = true` 64행) | 4,500 | 8,000 | 5,500(워크북+문제HWP) | 3,500 절약 | **1,000 절약** |\n44:| 국어 문학(문제PDF·문제HWP) | 80 | **비활성**(`is_active = false` 80행) → 공개 상세에...",
+  "timestamp": "2026-10-06T01:36:56.507Z",
+  "retry_count": 1
+}

@@ -1,0 +1,9 @@
+{"t":0,"agent":"ab6cb3a","agent_type":"untracked-native-fork","event":"agent_stop","success":true,"synthetic":true,"telemetry_status":"unmatched_stop","reason":"SubagentStop arrived without a matching SubagentStart; native Agent/Task start telemetry was not observed."}
+{"t":0,"agent":"aadmin-","agent_type":"admin-redesign-planner","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"a2d2682","agent_type":"admin-redesign-planner","event":"agent_stop","success":true,"duration_ms":192071}
+{"t":0,"agent":"aadmin-","agent_type":"admin-redesign-planner","event":"agent_stop","success":true,"duration_ms":284226}
+{"t":0,"agent":"aadmin-","agent_type":"admin-redesign-verifier","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"aadmin-","agent_type":"admin-redesign-planner","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"aadmin-","agent_type":"admin-redesign-verifier","event":"agent_stop","success":true,"duration_ms":113101}
+{"t":0,"agent":"aadmin-","agent_type":"admin-redesign-planner","event":"agent_stop","success":true,"duration_ms":57615}
+{"t":0,"agent":"aadmin-","agent_type":"admin-redesign-verifier","event":"agent_start","parent_mode":"none"}

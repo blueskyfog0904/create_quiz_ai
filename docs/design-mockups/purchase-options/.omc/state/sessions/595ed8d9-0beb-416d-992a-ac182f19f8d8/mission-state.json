@@ -1,0 +1,71 @@
+{
+  "updatedAt": "2026-10-06T01:36:51.879Z",
+  "missions": [
+    {
+      "id": "session:595ed8d9-0beb-416d-992a-ac182f19f8d8:none",
+      "source": "session",
+      "name": "none",
+      "objective": "Session mission",
+      "createdAt": "2026-10-06T01:29:04.198Z",
+      "updatedAt": "2026-10-06T01:36:51.879Z",
+      "status": "running",
+      "workerCount": 2,
+      "taskCounts": {
+        "total": 2,
+        "pending": 0,
+        "blocked": 0,
+        "inProgress": 1,
+        "completed": 1,
+        "failed": 0
+      },
+      "agents": [
+        {
+          "name": "admin-redesign-planner:aadmin-",
+          "role": "admin-redesign-planner",
+          "ownership": "aadmin-redesign-planner-776b5bb9e4418f31",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-10-06T01:36:45.379Z"
+        },
+        {
+          "name": "admin-redesign-verifier:aadmin-",
+          "role": "admin-redesign-verifier",
+          "ownership": "aadmin-redesign-verifier-03c85d8f70c3a750",
+          "status": "running",
+          "currentStep": null,
+          "latestUpdate": null,
+          "completedSummary": null,
+          "updatedAt": "2026-10-06T01:36:51.879Z"
+        }
+      ],
+      "timeline": [
+        {
+          "id": "session-stop:aadmin-redesign-verifier-03c85d8f70c3a750:2026-10-06T01:35:52.943Z",
+          "at": "2026-10-06T01:35:52.943Z",
+          "kind": "completion",
+          "agent": "admin-redesign-verifier:aadmin-",
+          "detail": "completed",
+          "sourceKey": "session-stop:aadmin-redesign-verifier-03c85d8f70c3a750"
+        },
+        {
+          "id": "session-stop:aadmin-redesign-planner-776b5bb9e4418f31:2026-10-06T01:36:45.379Z",
+          "at": "2026-10-06T01:36:45.379Z",
+          "kind": "completion",
+          "agent": "admin-redesign-planner:aadmin-",
+          "detail": "completed",
+          "sourceKey": "session-stop:aadmin-redesign-planner-776b5bb9e4418f31"
+        },
+        {
+          "id": "session-start:aadmin-redesign-verifier-03c85d8f70c3a750:2026-10-06T01:36:51.879Z",
+          "at": "2026-10-06T01:36:51.879Z",
+          "kind": "update",
+          "agent": "admin-redesign-verifier:aadmin-",
+          "detail": "started admin-redesign-verifier:aadmin-",
+          "sourceKey": "session-start:aadmin-redesign-verifier-03c85d8f70c3a750"
+        }
+      ]
+    }
+  ]
+}
