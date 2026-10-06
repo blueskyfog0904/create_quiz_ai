@@ -61,6 +61,9 @@ function CheckoutSuccessContent() {
         if (!active) return
 
         if (response.ok && data.success) {
+          if (typeof data.newBalance === 'number') {
+            window.dispatchEvent(new CustomEvent('credit-balance-updated', { detail: { balance: data.newBalance } }))
+          }
           setStatus('success')
           setMessage('결제와 크레딧 충전이 완료되었습니다.')
           setPaymentInfo({

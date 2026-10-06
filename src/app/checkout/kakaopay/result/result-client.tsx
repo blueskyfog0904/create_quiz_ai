@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { CheckCircle2, CircleAlert, LoaderCircle } from 'lucide-react'
-import { MarketCartReturnLink } from '@/components/market/market-cart-return-link'
 import { Button } from '@/components/ui/button'
 
 type ResultStatus = 'loading' | 'pending' | 'completed' | 'failed' | 'invalid'
@@ -129,7 +128,6 @@ export function KakaoPayResultClient() {
         <Button asChild variant="brandOutline" className="w-full sm:w-auto">
           <Link href="/pricing">충전 상품으로 돌아가기</Link>
         </Button>
-        {result.status === 'completed' ? <MarketCartReturnLink className="w-full sm:w-auto" /> : null}
       </div>
     </div>
   )
