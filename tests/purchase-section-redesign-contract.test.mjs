@@ -74,3 +74,28 @@ test('U2: 상태 계산·충돌·담기·구매 함수는 그대로 쓰인다(�
   }
   assert.match(v2, /subproduct\.categorySlug === 'question_pdf' && hasOwnedPdfInclusiveHwp/)
 })
+
+const detail = readFileSync(
+  new URL('../src/app/preview/solvook-concept/_components/detail/market-material-detail.tsx', import.meta.url),
+  'utf8'
+)
+
+test('U3: 상세 구매 섹션 머리말과 aside eyebrow는 한글 "구매 옵션"이고 이동 앵커는 유지된다', () => {
+  assert.doesNotMatch(detail, /PURCHASE & DOWNLOAD|PURCHASE OPTIONS|구매 및 다운로드|PackageCheck/)
+  assert.equal((detail.match(/text-xs font-bold text-\[var\(--studio-muted\)\]">구매 옵션<\/span>/g) ?? []).length, 2)
+  assert.match(detail, /id="purchase-options"/)
+  assert.match(detail, /aria-labelledby="market-purchase-options-heading"/)
+  assert.match(detail, /scroll-mt-36/)
+  assert.match(detail, /id="market-purchase-options-heading"[\s\S]{0,120}필요한 자료를 선택하세요/)
+})
+
+test('U3: 무료 샘플은 배지·장식 카드 없는 한 줄 행이고, 보관함 안내는 토큰 색의 한 줄 글자다', () => {
+  const sample = itemActions.slice(itemActions.indexOf('{/* 무료 샘플:'), itemActions.indexOf('{hasV2PurchaseOptions ? renderV2PurchaseOptions()'))
+  assert.ok(sample.length > 0)
+  assert.doesNotMatch(sample, /<Badge|FileOptionRow|sky-|#[0-9a-fA-F]{3,8}\b/)
+  assert.match(sample, /variant="brandOutline"\n\s+className="min-h-11 shrink-0"/)
+  assert.match(sample, /onClick=\{openSamplePreview\}/)
+  const notice = itemActions.slice(itemActions.indexOf('구매 후 바로 다운로드할 수 있으며'), itemActions.indexOf('<MarketCheckoutConfirmDialog'))
+  assert.match(notice, /자료 보관함/)
+  assert.doesNotMatch(notice, /slate-|border-dashed/)
+})

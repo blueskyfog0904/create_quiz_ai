@@ -2,7 +2,6 @@ import Link from 'next/link'
 import {
   CalendarDays,
   FileText,
-  PackageCheck,
 } from 'lucide-react'
 import MarketItemActions from '@/app/(dashboard)/market/[slug]/items/[itemId]/market-item-actions'
 import { StudioContainer } from '@/components/design-system/studio-container'
@@ -265,9 +264,7 @@ export function MarketMaterialDetail({
       )}
       aside={(
         <div className="sticky top-[144px] rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)]">
-          <span className="text-xs font-extrabold tracking-[0.08em] text-[var(--studio-primary)]">
-            PURCHASE OPTIONS
-          </span>
+          <span className="text-xs font-bold text-[var(--studio-muted)]">구매 옵션</span>
           <h2 className="mt-2 break-keep text-lg font-extrabold text-[var(--studio-ink)]">
             필요한 자료를 선택하세요
           </h2>
@@ -316,22 +313,15 @@ export function MarketMaterialDetail({
             aria-labelledby="market-purchase-options-heading"
             className="scroll-mt-36 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 sm:p-7"
           >
-            <div className="mb-6 flex items-start gap-3">
-              <PackageCheck aria-hidden="true" className="mt-1 size-6 text-[var(--studio-primary)]" />
-              <div>
-                <span className="text-xs font-extrabold tracking-[0.08em] text-[var(--studio-primary)]">
-                  PURCHASE & DOWNLOAD
-                </span>
-                <h2
-                  id="market-purchase-options-heading"
-                  className="mt-2 text-2xl font-extrabold text-[var(--studio-ink)]"
-                >
-                  구매 및 다운로드
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-[var(--studio-muted)]">
-                  실제 등록된 샘플과 파일별 구매·보유 상태를 확인하세요.
-                </p>
-              </div>
+            {/* 시안 A 머리말: 작은 회색 "구매 옵션" + 제목(아이콘·영문 eyebrow·설명 문장 없음) */}
+            <div className="mb-6">
+              <span className="text-xs font-bold text-[var(--studio-muted)]">구매 옵션</span>
+              <h2
+                id="market-purchase-options-heading"
+                className="mt-1 text-2xl font-extrabold text-[var(--studio-ink)]"
+              >
+                필요한 자료를 선택하세요
+              </h2>
             </div>
             <MarketItemActions
               bundleOption={bundleOption}

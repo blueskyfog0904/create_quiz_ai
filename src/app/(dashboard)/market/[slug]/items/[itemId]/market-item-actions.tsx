@@ -206,15 +206,6 @@ function MarketOptionIcon({ kind }: { kind: MarketOptionIconKind }) {
   return <div className={MARKET_OPTION_ICON_CLASS}>{icon}</div>
 }
 
-function SectionHeading({ title, description }: { title: string; description?: string }) {
-  return (
-    <div>
-      <p className="text-sm font-semibold text-slate-950">{title}</p>
-      {description ? <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p> : null}
-    </div>
-  )
-}
-
 // 문제(PDF)가 함께 있으면 문제(HWP)에 포함된 PDF 형식은 숨긴다(다운로드 dedupe 규칙과 동일).
 function getVisibleFileTypeLabels(subproduct: MarketSubproductPublicSummary, siblings: MarketSubproductPublicSummary[]) {
   let fileTypes = subproduct.fileTypes
@@ -1221,36 +1212,37 @@ export default function MarketItemActions({
   }
 
   const hasV2PurchaseOptions = subproducts.length > 0 || bundleOption !== null
-  const libraryPurchaseLabel = workspaceSubject === 'korean'
-    ? '국어 라이브러리 > 구매자료'
-    : '영어 라이브러리 > 구매자료'
 
   return (
     <div className="space-y-5">
-      <section className="space-y-3">
-        <SectionHeading title="무료 샘플" description="구매 전 자료 구성을 먼저 확인하세요." />
-        <FileOptionRow
-          title={hasSamplePages ? '무료 샘플 미리보기' : '샘플 준비 중'}
-          description={hasSamplePages
-            ? `구매 전 PDF 첫 ${samplePageCount}쪽을 확인할 수 있어요.`
-            : hasLegacySample
-              ? '기존 샘플 PDF는 판매용 PDF 재업로드 후 JPG 미리보기로 대체됩니다.'
-              : '현재 이 자료는 미리보기를 제공하지 않습니다.'}
-          state={hasSamplePages ? 'instant' : 'unavailable'}
-          icon={<MarketOptionIcon kind="sample" />}
-          actionLabel={hasSamplePages ? '샘플 보기' : '샘플 없음'}
-          actionIcon={hasSamplePages ? <Eye className="h-4 w-4" /> : undefined}
-          disabled={!hasSamplePages}
-          badgeSlot={hasSamplePages ? (
-            <div className="flex flex-wrap justify-end gap-1">
-              <Badge variant="secondary" className={MARKET_BADGE_FREE_CLASS}>무료</Badge>
-              <Badge variant="outline" className="rounded-full border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">구매 전 확인</Badge>
-            </div>
-          ) : undefined}
-          className="border-sky-100 bg-sky-50/40"
-          onAction={hasSamplePages ? openSamplePreview : undefined}
-          onIntent={hasSamplePages ? prefetchSamplePreview : undefined}
-        />
+      {/* 무료 샘플: 장식 카드·배지 없이 한 줄 행(D4). 미리 불러오기와 미리보기 Dialog는 그대로 쓴다. */}
+      <section aria-labelledby={`${selectionIdPrefix}-sample-title`} className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--studio-border)] pb-4">
+        <div className="min-w-0">
+          <h3 id={`${selectionIdPrefix}-sample-title`} className="text-sm font-bold text-[var(--studio-ink)]">
+            {hasSamplePages ? '무료 샘플 미리보기' : '샘플 준비 중'}
+          </h3>
+          <p className="mt-0.5 break-keep text-xs leading-5 text-[var(--studio-muted)]">
+            {hasSamplePages
+              ? `구매 전 PDF 첫 ${samplePageCount}쪽을 확인할 수 있어요.`
+              : hasLegacySample
+                ? '기존 샘플 PDF는 판매용 PDF 재업로드 후 JPG 미리보기로 대체됩니다.'
+                : '현재 이 자료는 미리보기를 제공하지 않습니다.'}
+          </p>
+        </div>
+        {hasSamplePages ? (
+          <Button
+            type="button"
+            variant="brandOutline"
+            className="min-h-11 shrink-0"
+            onClick={openSamplePreview}
+            onFocus={prefetchSamplePreview}
+            onMouseEnter={prefetchSamplePreview}
+            onTouchStart={prefetchSamplePreview}
+          >
+            <Eye aria-hidden="true" className="h-4 w-4" />
+            샘플 보기
+          </Button>
+        ) : null}
       </section>
 
       {hasV2PurchaseOptions ? renderV2PurchaseOptions() : (
@@ -1300,9 +1292,9 @@ export default function MarketItemActions({
         </>
       )}
 
-      <div className="rounded-2xl border border-dashed bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
-        구매 후 바로 다운로드할 수 있으며, 구매한 파일은 <span className="font-semibold text-slate-700">{libraryPurchaseLabel}</span>에서도 확인할 수 있습니다.
-      </div>
+      <p className="break-keep text-xs leading-5 text-[var(--studio-muted)]">
+        구매 후 바로 다운로드할 수 있으며, 구매한 파일은 <span className="font-semibold text-[var(--studio-text)]">자료 보관함</span>에서도 확인할 수 있습니다.
+      </p>
 
       <MarketCheckoutConfirmDialog
         open={checkout !== null}

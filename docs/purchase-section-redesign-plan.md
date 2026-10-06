@@ -211,3 +211,4 @@ U2가 가장 크다(구매 영역 렌더 부분 `:999-1155` 재작성). 상태 �
 | 사용자 결정 | D1·D3·D4·D5·D6·D7·D8 | 사용자 | 확정 | "권장안 대로 해줘" (D2는 패키지 재활성화 시 검토) |
 | U1 구현 리뷰 | market-bundle-savings.ts·market-item-actions(import)·테스트 2개 | 독립 리뷰(imglib-s3-reviewer) | **OK** | 독서 64개 비교가 5,500·절약 1,000 SELECT 일치, null 조건 계획과 일치, slug는 기존 판정 범위 그대로 이동. NIT(`ownedScope` 범위 확대)은 U2에서 처리 |
 | U2 구현 리뷰 | market-item-actions 렌더·아이콘 className·savings 조건·테스트 5개 | 독립 리뷰(imglib-s3-reviewer) | **OK**(MINOR 3·NIT 1 + 체크박스 대비 반영) | 로직 diff 없음, 상태 렌더 누락 없음. 반영: div group > ul, aria-live 상시 렌더, 잉크 블록 빈 파일 안내 대비, 패키지 토글 문구 고정+aria-pressed, 체크박스 테두리 --studio-control-border(약 3.7:1). 브라우저: 독서 상품 A안 배치·5,500 취소선·1,000 절약 확인 |
+| U3 구현 리뷰 | market-material-detail·market-item-actions(샘플 행·보관함 안내)·테스트 2개 | 독립 리뷰(imglib-s3-reviewer) | **OK** | 로직 무변경(prefetch 3이벤트·openSamplePreview), 앵커·aria 유지, 샘플 없음 분기, 지운 코드 미사용 확인, 기존 실패 3개는 HEAD와 같은 사유. NIT(aside·섹션 h2 동일 문구)은 계획대로 유지. 브라우저: 머리말 "구매 옵션", 샘플 한 줄 행, "자료 보관함" 안내 확인 |
