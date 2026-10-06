@@ -210,3 +210,4 @@ U2가 가장 크다(구매 영역 렌더 부분 `:999-1155` 재작성). 상태 �
 | R2 | R1 보완본 | 독립 검증 | **OK** | 3건 반영 확인, 새 lib 클라이언트 안전. 낮음 1건(위험표 #2 숫자 대조 문구) 반영 |
 | 사용자 결정 | D1·D3·D4·D5·D6·D7·D8 | 사용자 | 확정 | "권장안 대로 해줘" (D2는 패키지 재활성화 시 검토) |
 | U1 구현 리뷰 | market-bundle-savings.ts·market-item-actions(import)·테스트 2개 | 독립 리뷰(imglib-s3-reviewer) | **OK** | 독서 64개 비교가 5,500·절약 1,000 SELECT 일치, null 조건 계획과 일치, slug는 기존 판정 범위 그대로 이동. NIT(`ownedScope` 범위 확대)은 U2에서 처리 |
+| U2 구현 리뷰 | market-item-actions 렌더·아이콘 className·savings 조건·테스트 5개 | 독립 리뷰(imglib-s3-reviewer) | **OK**(MINOR 3·NIT 1 + 체크박스 대비 반영) | 로직 diff 없음, 상태 렌더 누락 없음. 반영: div group > ul, aria-live 상시 렌더, 잉크 블록 빈 파일 안내 대비, 패키지 토글 문구 고정+aria-pressed, 체크박스 테두리 --studio-control-border(약 3.7:1). 브라우저: 독서 상품 A안 배치·5,500 취소선·1,000 절약 확인 |

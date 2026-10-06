@@ -51,7 +51,7 @@ test('detail shows the three conflict reasons and compares file type codes in lo
   assert.match(itemActions, /개별 자료를 선택한 상태에서는 전체 패키지를 함께 선택할 수 없습니다\./)
   assert.match(itemActions, /문제\(HWP\)에 PDF가 포함되어 있어 함께 선택할 수 없습니다\./)
   // PDF 포함 판정은 src/lib/market-bundle-savings.ts 하나로 옮겼다(구매 영역 개편 U1). 판정 기준은 그대로다.
-  assert.match(itemActions, /import \{ isPdfInclusiveHwp \} from '@\/lib\/market-bundle-savings'/)
+  assert.match(itemActions, /import \{ getBundleSavings, isPdfInclusiveHwp \} from '@\/lib\/market-bundle-savings'/)
   assert.match(bundleSavings, /subproduct\.categorySlug === 'question_hwp'\s+&& subproduct\.fileTypes\.some\(\(fileType\) => fileType\.code\.toLowerCase\(\) === 'pdf'\)/)
 })
 
@@ -59,24 +59,25 @@ test('detail summary uses a two-column brand button pair', () => {
   assert.match(itemActions, /className="mt-3 grid grid-cols-2 gap-2"/)
   assert.match(itemActions, /variant="brandOutline"\s+className="h-auto min-h-11 w-full whitespace-normal"/)
   assert.match(itemActions, /variant="brand"\s+className="h-auto min-h-11 w-full whitespace-normal"/)
-  assert.match(itemActions, /총 금액/)
+  assert.match(itemActions, /선택 <strong[^>]*>\{selectedOptions\.length\}<\/strong>개\n\s+\{' · '\}\n\s+<strong[^>]*>\{formatCredits\(selectedTotal\)\}<\/strong> 크레딧/)
   assert.match(itemActions, /구매하거나 담을 옵션을 선택하세요\./)
 })
 
-test('selection control sits at the top-left of each option card', () => {
-  assert.match(itemActions, /selectSlot\?: ReactNode/)
-  const rowSelect = itemActions.indexOf('{selectSlot ? <div className="mb-2">{selectSlot}</div> : null}')
-  assert.notEqual(rowSelect, -1)
-  assert.ok(rowSelect < itemActions.indexOf('          {icon}'), 'row select before icon/title')
-  const bundleSelect = itemActions.indexOf('renderOptionSelectControl(`bundle:')
-  assert.ok(bundleSelect !== -1 && bundleSelect < itemActions.indexOf('MarketOptionIcon kind="bundle"'), 'bundle select before bundle icon')
-  assert.ok(bundleSelect < itemActions.indexOf('>추천</Badge>'), 'bundle select above the 추천 badge row')
-  const control = itemActions.slice(itemActions.indexOf('const renderOptionSelectControl'), itemActions.indexOf('const renderV2PurchaseOptions'))
-  assert.match(control, /flex w-full flex-col items-start gap-1/)
-  assert.doesNotMatch(control, /items-end|text-right/)
-  // 비보유 행은 기본 Button을 만들지 않는다(selectSlot 유무와 무관)
+test('individual rows read checkbox → icon → title, and the bundle toggle sits at the bottom of its block', () => {
+  const v2 = itemActions.slice(itemActions.indexOf('const renderV2PurchaseOptions'), itemActions.indexOf('const hasV2PurchaseOptions'))
+  // 개별 행: 체크박스(또는 보유 표시) → 형식 아이콘 → 이름 순서
+  const rowSelect = v2.indexOf(') : renderOptionSelectControl(key)}')
+  const rowIcon = v2.indexOf('{icon}', rowSelect)
+  const rowTitle = v2.indexOf('{subproduct.title}</span>', rowIcon)
+  assert.ok(rowSelect !== -1 && rowSelect < rowIcon && rowIcon < rowTitle, 'row select before icon before title')
+  // 패키지: 제목·가격·포함 목록 아래에 전체 폭 토글 버튼
+  const bundleTitle = v2.indexOf('>전체 패키지</h3>')
+  const bundleToggle = v2.indexOf('aria-pressed={isBundleSelected}')
+  assert.ok(bundleTitle !== -1 && bundleTitle < bundleToggle, 'bundle toggle below the title')
+  const control = itemActions.slice(itemActions.indexOf('const renderOptionSelectControl'), itemActions.indexOf('const renderOptionStatus'))
+  assert.match(control, /grid size-11 shrink-0 place-items-center/)
+  // 비보유 행은 기본 Button을 만들지 않는다(v1 FileOptionRow 규칙 유지)
   assert.match(itemActions, /\{actionSlot \?\? \(!showDefaultAction \? null : href \? \(/)
-  assert.match(itemActions, /showDefaultAction=\{isDownloadable\}/)
 })
 
 test('guests can press cart/purchase to log in first and come back to the detail page', () => {

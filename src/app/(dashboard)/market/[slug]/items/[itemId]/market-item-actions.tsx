@@ -4,7 +4,7 @@ import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'rea
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Download, Eye, FileArchive, FileCheck2, FileStack, FileText, ShoppingCart } from 'lucide-react'
+import { Check, Eye, FileArchive, FileCheck2, FileStack, FileText, ShoppingCart } from 'lucide-react'
 import { FileTypeDocIcon } from '@/components/market/file-type-doc-icon'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -27,7 +27,7 @@ import {
 } from '@/components/market/market-purchase-complete-dialog'
 import { useLoginRedirect } from '@/hooks/use-login-redirect'
 import { saveMarketCartIntent, takeMarketCartIntent } from '@/lib/market-cart-intent'
-import { isPdfInclusiveHwp } from '@/lib/market-bundle-savings'
+import { getBundleSavings, isPdfInclusiveHwp } from '@/lib/market-bundle-savings'
 import { getMarketDownloadButtonLabel } from '@/lib/market-download-label'
 import type { MarketBundlePublicSummary, MarketSubproductDownloadFile, MarketSubproductPublicSummary } from '@/lib/market-items-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
@@ -120,6 +120,9 @@ const MARKET_BADGE_OWNED_CLASS = 'rounded-full border border-[#D1FAE5] bg-[#ECFD
 const MARKET_BADGE_INCLUDED_CLASS = 'rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50'
 // 자료 보관함 다운로드 버튼과 동일한 디자인 (흰 배경·회색 테두리·파일타입 색상 아이콘)
 const MARKET_DOWNLOAD_BUTTON_CLASS = 'h-9 min-w-36 w-full justify-center gap-1.5 rounded-md border border-[var(--studio-control-border,#7f8499)] bg-white px-3 text-sm font-medium text-[var(--studio-ink,#1c1f2e)] hover:bg-white hover:border-[var(--studio-primary-border,#c9befa)] hover:text-[var(--studio-primary,#6950e5)] active:bg-slate-50 focus-visible:ring-[var(--studio-focus-ring,#8b76ec)] sm:w-auto'
+// 구매 영역 A안(딥 잉크) — Studio 토큰과 color-mix만 쓴다(docs/purchase-section-redesign-plan.md 5절).
+const INK_BLOCK_SUBTLE_TEXT_CLASS = 'text-[color-mix(in_srgb,var(--studio-surface)_72%,transparent)]'
+const INK_BLOCK_DIVIDER_CLASS = 'border-[color-mix(in_srgb,var(--studio-surface)_14%,transparent)] divide-[color-mix(in_srgb,var(--studio-surface)_14%,transparent)]'
 const UNPRICED_REASON = '가격이 정해지지 않아 선택할 수 없습니다.'
 const NO_FILES_REASON = '파일 준비 중이라 선택할 수 없습니다.'
 const BUNDLE_SELECTED_REASON = '전체 패키지에 포함되어 함께 선택할 수 없습니다. 개별 구매는 전체 패키지 선택을 해제하세요.'
@@ -212,13 +215,10 @@ function SectionHeading({ title, description }: { title: string; description?: s
   )
 }
 
-function FileTypeBadges({ subproduct, siblings }: {
-  subproduct: MarketSubproductPublicSummary
-  // 전달 시 문제(PDF)/문제(HWP) 간 중복 PDF 배지를 숨긴다 (다운로드 dedupe 규칙과 동일)
-  siblings?: MarketSubproductPublicSummary[]
-}) {
+// 문제(PDF)가 함께 있으면 문제(HWP)에 포함된 PDF 형식은 숨긴다(다운로드 dedupe 규칙과 동일).
+function getVisibleFileTypeLabels(subproduct: MarketSubproductPublicSummary, siblings: MarketSubproductPublicSummary[]) {
   let fileTypes = subproduct.fileTypes
-  if (siblings && subproduct.categorySlug === 'question_hwp') {
+  if (subproduct.categorySlug === 'question_hwp') {
     const hasQuestionPdfPdf = siblings.some((sibling) => (
       sibling.categorySlug === 'question_pdf'
       && sibling.fileTypes.some((fileType) => fileType.code.toLowerCase() === 'pdf')
@@ -227,13 +227,7 @@ function FileTypeBadges({ subproduct, siblings }: {
       fileTypes = fileTypes.filter((fileType) => fileType.code.toLowerCase() !== 'pdf')
     }
   }
-  return (
-    <div className="flex flex-wrap gap-1">
-      {fileTypes.map((fileType) => (
-        <Badge key={fileType.id} variant="outline" className="bg-white text-[11px]">{fileType.label}</Badge>
-      ))}
-    </div>
-  )
+  return fileTypes.map((fileType) => fileType.label)
 }
 
 function OptionStateBadge({ state }: { state: OptionState }) {
@@ -911,34 +905,34 @@ export default function MarketItemActions({
     return 'available'
   }
 
+  const getOptionReasonId = (key: string) => `${selectionIdPrefix}-${key}`
+
+  // 개별 자료 행의 체크박스(44px hit area). 막힌 사유 문장은 행이 getOptionReasonId로 그린다.
   const renderOptionSelectControl = (key: string) => {
     const option = optionByKey.get(key)
     if (!option) {
       return null
     }
     const reason = getBlockedReason(option)
-    const reasonId = `${selectionIdPrefix}-${option.key}`
 
     return (
-      <div className="flex w-full flex-col items-start gap-1">
-        <label className="-ml-3 flex min-h-11 cursor-pointer items-center gap-1 text-sm font-semibold text-[var(--studio-ink)] has-[:disabled]:cursor-not-allowed has-[:disabled]:text-[var(--studio-muted)]">
-          <span className="grid size-11 shrink-0 place-items-center">
-            <Checkbox
-              checked={selectedKeySet.has(option.key)}
-              disabled={reason !== null || isBusy}
-              onCheckedChange={(checked) => toggleOption(option.key, checked === true)}
-              aria-label={`${option.title} 선택`}
-              aria-describedby={reason ? reasonId : undefined}
-            />
-          </span>
-          선택
-        </label>
-        {reason ? (
-          <p id={reasonId} className="break-keep text-left text-xs leading-5 text-[var(--studio-muted)]">{reason}</p>
-        ) : null}
-      </div>
+      <span className="grid size-11 shrink-0 place-items-center">
+        <Checkbox
+          checked={selectedKeySet.has(option.key)}
+          disabled={reason !== null || isBusy}
+          onCheckedChange={(checked) => toggleOption(option.key, checked === true)}
+          aria-label={`${option.title} 선택`}
+          aria-describedby={reason ? getOptionReasonId(option.key) : undefined}
+          // 기본 --input 테두리는 흰 배경 대비 약 1.2:1이라 컨트롤 테두리 토큰(약 3.7:1)으로 보강한다(WCAG 1.4.11).
+          className="border-[var(--studio-control-border)]"
+        />
+      </span>
     )
   }
+
+  const renderOptionStatus = (state: OptionState) => (state === 'checking'
+    ? '잔액 확인 중'
+    : state === 'processing' ? '구매 처리 중' : null)
 
   // 비로그인은 선택 건수와 무관하게 버튼을 눌러 로그인으로 이동한다(로그인 후 이 상세로 복귀).
   const summaryHintId = !isLoggedIn
@@ -968,9 +962,10 @@ export default function MarketItemActions({
       ))
     }
 
-    const renderDownloadButtons = (files: MarketSubproductDownloadFile[]) => {
+    // emptyTextClassName: 잉크 블록 안에서는 대비가 충분한 글자색을 넘긴다.
+    const renderDownloadButtons = (files: MarketSubproductDownloadFile[], emptyTextClassName = 'text-[var(--studio-muted)]') => {
       if (files.length === 0) {
-        return <p className="text-xs font-medium text-slate-500">다운로드 가능한 파일을 준비 중입니다.</p>
+        return <p className={`text-xs font-medium ${emptyTextClassName}`}>다운로드 가능한 파일을 준비 중입니다.</p>
       }
 
       return (
@@ -991,61 +986,104 @@ export default function MarketItemActions({
       )
     }
 
+    const bundleKey = bundleOption ? `bundle:${bundleOption.id}` : null
+    const bundleSelectOption = bundleKey ? optionByKey.get(bundleKey) : undefined
+    const bundleReason = bundleSelectOption ? getBlockedReason(bundleSelectOption) : null
+    const isBundleSelected = bundleKey ? selectedKeySet.has(bundleKey) : false
+    const bundleStatus = bundleKey && bundleOption ? renderOptionStatus(getOptionState(bundleKey, bundleOption.owned)) : null
+    // 원가 취소선·절약·추천은 같은 내용의 개별 최저가보다 쌀 때만 보인다(D1-a, U1 규칙).
+    const bundleSavings = bundleOption ? getBundleSavings(bundleOption, subproducts) : null
+    const bundleSubtitle = bundleOption?.description
+      || (subproducts.length > 0 ? `${subproducts.map((subproduct) => subproduct.title).join(' · ')} ${subproducts.length}개 자료를 한 번에` : null)
+    const bundleTitleId = `${selectionIdPrefix}-bundle-title`
+    const subproductListTitleId = `${selectionIdPrefix}-subproducts-title`
+
     return (
       <div className="space-y-5">
         {bundleOption ? (
-          <section className="space-y-3">
-            <SectionHeading title="전체 패키지" description="아래 개별 상품을 한 번에 구매하는 추천 옵션입니다." />
-            <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-cyan-50 p-4 shadow-md">
-              {!bundleOption.owned ? (
-                <div className="mb-2">{renderOptionSelectControl(`bundle:${bundleOption.id}`)}</div>
-              ) : null}
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary" className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-white">추천</Badge>
-                <Badge variant="secondary" className="rounded-full border border-cyan-200 bg-white px-3 py-1 text-xs font-semibold text-cyan-700 hover:bg-white">전체 포함</Badge>
-                <Badge variant="secondary" className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-white">{subproducts.length}개 자료</Badge>
+          <section
+            aria-labelledby={bundleTitleId}
+            className={`rounded-[var(--studio-radius-card)] bg-[var(--studio-ink)] p-5 text-[var(--studio-surface)] sm:p-6 ${isBundleSelected ? 'ring-2 ring-[var(--studio-highlight)]' : ''}`}
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  {bundleOption.owned ? (
+                    <span className="rounded-[var(--studio-radius-control)] border border-[color-mix(in_srgb,var(--studio-surface)_40%,transparent)] px-2 py-0.5 text-xs font-bold">보유 중</span>
+                  ) : bundleSavings ? (
+                    <span className="rounded-[var(--studio-radius-control)] bg-[var(--studio-highlight)] px-2 py-0.5 text-xs font-bold text-[var(--studio-ink)]">추천</span>
+                  ) : null}
+                  {/* 관리자 라벨(bundleOption.label)이 아니라 고정 제목을 쓴다(D8) */}
+                  <h3 id={bundleTitleId} className="break-keep text-xl font-extrabold">전체 패키지</h3>
+                </div>
+                {bundleSubtitle ? (
+                  <p className={`mt-1 break-keep text-sm leading-6 ${INK_BLOCK_SUBTLE_TEXT_CLASS}`}>{bundleSubtitle}</p>
+                ) : null}
               </div>
-              <div className="mt-4 flex items-start justify-between gap-3">
-                <div className="flex min-w-0 gap-3">
-                  <MarketOptionIcon kind="bundle" />
-                  <div className="min-w-0">
-                    <p className="font-semibold text-slate-950">전체 패키지</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-600">
-                      {bundleOption.description || `한 번 구매하면 아래 개별 자료 ${subproducts.length}개를 모두 다운로드할 수 있습니다.`}
-                    </p>
-                    {!bundleOption.owned && isPartiallyOwnedBundle ? (
-                      <p className="mt-2 text-xs leading-5 text-slate-600">이미 구매한 개별 자료가 있어도 기보유분 차감 없이 정가로 구매됩니다.</p>
+              <div className="shrink-0 sm:text-right">
+                {bundleOption.owned ? (
+                  <p className="text-base font-bold">구매 완료</p>
+                ) : (
+                  <>
+                    {bundleSavings ? (
+                      <p className={`text-sm ${INK_BLOCK_SUBTLE_TEXT_CLASS}`}>
+                        <span className="sr-only">개별 구매 시 </span>
+                        <s>{formatCredits(bundleSavings.comparePriceCredits)}</s>
+                      </p>
                     ) : null}
-                  </div>
-                </div>
-                <OptionStateBadge state={getOptionState(`bundle:${bundleOption.id}`, bundleOption.owned)} />
-              </div>
-              <div className="mt-4 rounded-xl border border-emerald-100 bg-white/75 p-3">
-                <p className="text-xs font-semibold text-emerald-800">포함 자료</p>
-                <div className="mt-3 space-y-2">
-                  {subproducts.length > 0 ? subproducts.map((subproduct) => (
-                    <div key={subproduct.id} className="flex gap-2 text-xs text-slate-700">
-                      <span className="mt-0.5 font-bold text-emerald-600">✓</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-slate-900">{subproduct.title}</p>
-                        <div className="mt-1">
-                          <FileTypeBadges subproduct={subproduct} siblings={subproducts} />
-                        </div>
-                      </div>
-                    </div>
-                  )) : (
-                    <p className="text-xs leading-5 text-slate-500">포함 상품 정보가 아직 표시되지 않습니다.</p>
-                  )}
-                </div>
-              </div>
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-xs text-slate-500">패키지 이용가</p>
-                  <p className="mt-1 text-xl font-bold text-slate-950">{formatCredits(bundleOption.priceCredits)} 크레딧</p>
-                </div>
-                {bundleOption.owned ? renderDownloadButtons(dedupeQuestionPdfFiles(downloadFiles)) : null}
+                    <p className="[font-family:var(--studio-font-price)] text-2xl font-extrabold">
+                      {formatCredits(bundleOption.priceCredits)} <span className="text-base font-bold">크레딧</span>
+                    </p>
+                    {bundleSavings ? (
+                      <p className="text-sm font-bold text-[var(--studio-highlight)]">{formatCredits(bundleSavings.savingsCredits)} 크레딧 절약</p>
+                    ) : null}
+                  </>
+                )}
               </div>
             </div>
+
+            {subproducts.length > 0 ? (
+              <ul className={`mt-4 divide-y border-y ${INK_BLOCK_DIVIDER_CLASS}`}>
+                {subproducts.map((subproduct) => (
+                  <li key={subproduct.id} className="flex min-h-11 items-center gap-3 py-2 text-sm font-semibold">
+                    <Check aria-hidden="true" className="h-4 w-4 shrink-0" />
+                    <span className="min-w-0 break-keep">
+                      {subproduct.title}
+                      <span className={`ml-2 font-normal ${INK_BLOCK_SUBTLE_TEXT_CLASS}`}>{getVisibleFileTypeLabels(subproduct, subproducts).join(' · ')}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className={`mt-4 text-sm ${INK_BLOCK_SUBTLE_TEXT_CLASS}`}>포함 상품 정보가 아직 표시되지 않습니다.</p>
+            )}
+
+            {!bundleOption.owned && isPartiallyOwnedBundle ? (
+              <p className={`mt-3 break-keep text-xs leading-5 ${INK_BLOCK_SUBTLE_TEXT_CLASS}`}>이미 구매한 개별 자료가 있어도 기보유분 차감 없이 정가로 구매됩니다.</p>
+            ) : null}
+
+            {bundleOption.owned ? (
+              <div className="mt-4">{renderDownloadButtons(dedupeQuestionPdfFiles(downloadFiles), INK_BLOCK_SUBTLE_TEXT_CLASS)}</div>
+            ) : bundleKey && bundleSelectOption ? (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  aria-pressed={isBundleSelected}
+                  disabled={bundleReason !== null || isBusy}
+                  aria-describedby={bundleReason ? getOptionReasonId(bundleKey) : undefined}
+                  onClick={() => toggleOption(bundleKey, !isBundleSelected)}
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--studio-radius-control)] bg-[var(--studio-surface)] px-4 text-sm font-bold text-[var(--studio-ink)] outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-[var(--studio-surface)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--studio-ink)] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {/* 보이는 문구는 고정하고 선택 상태는 aria-pressed와 체크 아이콘·코랄 링으로 전한다(APG 토글 버튼) */}
+                  {isBundleSelected ? <Check aria-hidden="true" className="h-4 w-4" /> : null}
+                  전체 패키지 선택
+                </button>
+                {bundleReason ? (
+                  <p id={getOptionReasonId(bundleKey)} className={`mt-2 break-keep text-xs leading-5 ${INK_BLOCK_SUBTLE_TEXT_CLASS}`}>{bundleReason}</p>
+                ) : null}
+                <p aria-live="polite" className={`text-xs ${INK_BLOCK_SUBTLE_TEXT_CLASS} ${bundleStatus ? 'mt-2' : ''}`}>{bundleStatus ?? ''}</p>
+              </div>
+            ) : null}
           </section>
         ) : null}
 
@@ -1053,68 +1091,101 @@ export default function MarketItemActions({
         {subproducts.length > 0 && !bundleOption?.owned ? (
           <section className="space-y-3">
             {bundleOption ? (
-              <div className="flex items-center gap-3 text-xs font-semibold text-slate-400">
-                <span className="h-px flex-1 bg-slate-200" />
+              <div className="flex items-center gap-3 text-xs font-semibold text-[var(--studio-muted)]">
+                <span className="h-px flex-1 bg-[var(--studio-border)]" />
                 <span>또는 필요한 자료만</span>
-                <span className="h-px flex-1 bg-slate-200" />
+                <span className="h-px flex-1 bg-[var(--studio-border)]" />
               </div>
             ) : null}
-            <SectionHeading title="개별 자료 선택 구매" description="전체 패키지가 필요 없다면 원하는 자료만 구매하세요." />
-            <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              {subproducts.map((subproduct) => {
-                if (subproduct.categorySlug === 'question_pdf' && hasOwnedPdfInclusiveHwp) {
-                  return null
-                }
+            <h3 id={subproductListTitleId} className="text-base font-bold text-[var(--studio-ink)]">개별 자료</h3>
+            <div role="group" aria-labelledby={subproductListTitleId}>
+              <ul className="divide-y divide-[var(--studio-border)] overflow-hidden rounded-[var(--studio-radius-card)] border border-[var(--studio-border)]">
+                {subproducts.map((subproduct) => {
+                  if (subproduct.categorySlug === 'question_pdf' && hasOwnedPdfInclusiveHwp) {
+                    return null
+                  }
 
-                const ownedFiles = filesBySubproduct.get(subproduct.id) ?? []
-                const fileTypeLabels = subproduct.fileTypes.map((fileType) => fileType.label).join(' · ') || '파일'
-                const iconKind = getSubproductIconKind(subproduct)
-                const isBundleIncluded = Boolean(bundleOption?.owned && !subproduct.owned)
-                const isDownloadable = subproduct.owned || Boolean(bundleOption?.owned)
-                const isUpgradePricing = !isDownloadable && subproduct.upgradePriceCredits != null
-                const effectivePriceCredits = isUpgradePricing
-                  ? subproduct.upgradePriceCredits!
-                  : subproduct.priceCredits
-                const subproductState = isBundleIncluded
-                  ? 'included'
-                  : getOptionState(`subproduct:${subproduct.id}`, subproduct.owned)
+                  const key = `subproduct:${subproduct.id}`
+                  const ownedFiles = filesBySubproduct.get(subproduct.id) ?? []
+                  const iconKind = getSubproductIconKind(subproduct)
+                  const isDownloadable = subproduct.owned || Boolean(bundleOption?.owned)
+                  const isUpgradePricing = !isDownloadable && subproduct.upgradePriceCredits != null
+                  const effectivePriceCredits = isUpgradePricing
+                    ? subproduct.upgradePriceCredits!
+                    : subproduct.priceCredits
+                  const notice = resolveSubproductPurchaseNotice(subproduct)
+                  const subtitle = [...getVisibleFileTypeLabels(subproduct, subproducts), notice?.label]
+                    .filter((label): label is string => Boolean(label))
+                    .join(' · ')
+                  const selectOption = optionByKey.get(key)
+                  const reason = !isDownloadable && selectOption ? getBlockedReason(selectOption) : null
+                  const isSelected = selectedKeySet.has(key)
+                  const status = renderOptionStatus(getOptionState(key, subproduct.owned))
+                  const icon = iconKind === 'pdf' || iconKind === 'hwp' || iconKind === 'zip'
+                    ? <FileTypeDocIcon code={iconKind} className="h-8 w-7" />
+                    : <FileText aria-hidden="true" className="h-8 w-7 shrink-0 text-[var(--studio-muted)]" />
+                  // 좁은 화면에서는 체크박스·아이콘·이름 묶음이 한 줄을 차지하고 가격(또는 다운로드)이 아래 줄로 내려간다.
+                  const body = (
+                    <span className="flex min-w-0 grow basis-56 items-center gap-3">
+                      {isDownloadable ? (
+                        <span className="flex size-11 shrink-0 flex-col items-center justify-center text-[11px] font-bold text-[var(--studio-ink)]">
+                          <Check aria-hidden="true" className="h-4 w-4" />
+                          보유
+                        </span>
+                      ) : renderOptionSelectControl(key)}
+                      {icon}
+                      <span className="min-w-0 flex-1">
+                        <span className={`block break-keep text-sm font-bold ${reason ? 'text-[var(--studio-muted)]' : 'text-[var(--studio-ink)]'}`}>{subproduct.title}</span>
+                        <span className="block break-keep text-xs text-[var(--studio-muted)]">
+                          {subtitle || '파일'}
+                          <span aria-live="polite">{status ? ` · ${status}` : ''}</span>
+                        </span>
+                        {notice ? (
+                          <span className="mt-0.5 block break-keep text-xs leading-5 text-[var(--studio-muted)]">{notice.text}</span>
+                        ) : null}
+                        {reason ? (
+                          <span id={getOptionReasonId(key)} className="mt-0.5 block break-keep text-xs leading-5 text-[var(--studio-muted)]">{reason}</span>
+                        ) : null}
+                      </span>
+                    </span>
+                  )
 
-                return (
-                  <FileOptionRow
-                    key={subproduct.id}
-                    title={subproduct.title}
-                    description={subproduct.description || `${subproduct.categoryName} · ${fileTypeLabels}`}
-                    priceLabel={`${formatCredits(effectivePriceCredits)} 크레딧`}
-                    priceCaption={isUpgradePricing
-                      ? `차액 업그레이드 (정가 ${formatCredits(subproduct.priceCredits)} 크레딧)`
-                      : '개별가'}
-                    state={subproductState}
-                    icon={<MarketOptionIcon kind={iconKind} />}
-                    actionLabel={isDownloadable ? '다운로드' : '선택'}
-                    actionIcon={isDownloadable ? <Download className="h-4 w-4" /> : undefined}
-                    buttonClassName={MARKET_OUTLINE_BUTTON_CLASS}
-                    actionSlot={isDownloadable ? renderDownloadButtons(ownedFiles) : undefined}
-                    selectSlot={isDownloadable ? undefined : renderOptionSelectControl(`subproduct:${subproduct.id}`)}
-                    showDefaultAction={isDownloadable}
-                    meta={<FileTypeBadges subproduct={subproduct} />}
-                    notice={resolveSubproductPurchaseNotice(subproduct)}
-                    className="rounded-xl border-slate-200 p-3 shadow-none"
-                  />
-                )
-              })}
+                  return (
+                    <li
+                      key={subproduct.id}
+                      className={isSelected ? 'bg-[color-mix(in_srgb,var(--studio-ink)_4%,transparent)]' : undefined}
+                    >
+                      {isDownloadable ? (
+                        <div className="flex min-h-16 flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2">
+                          {body}
+                          <div className="w-full sm:w-auto">{renderDownloadButtons(ownedFiles)}</div>
+                        </div>
+                      ) : (
+                        <label className={`flex min-h-16 flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 ${reason ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                          {body}
+                          <span className="ml-auto shrink-0 text-right">
+                            <span className="block [font-family:var(--studio-font-price)] text-sm font-bold text-[var(--studio-ink)]">{formatCredits(effectivePriceCredits)} 크레딧</span>
+                            {isUpgradePricing ? (
+                              <span className="block text-xs text-[var(--studio-muted)]">차액 · 정가 {formatCredits(subproduct.priceCredits)} 크레딧</span>
+                            ) : null}
+                          </span>
+                        </label>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
             </div>
           </section>
         ) : null}
 
         {hasSelectableOption ? (
           <section aria-label="선택한 옵션 합계" className="border-t border-[var(--studio-border)] pt-4">
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-              <p className="text-sm font-semibold text-[var(--studio-text)]">선택 {selectedOptions.length}건</p>
-              <p className="flex items-baseline gap-2">
-                <span className="text-sm text-[var(--studio-muted)]">총 금액</span>
-                <span className="text-lg font-extrabold text-[var(--studio-ink)]">{formatCredits(selectedTotal)} 크레딧</span>
-              </p>
-            </div>
+            <p className="text-base font-semibold text-[var(--studio-text)]">
+              선택 <strong className="text-lg font-extrabold text-[var(--studio-ink)]">{selectedOptions.length}</strong>개
+              {' · '}
+              <strong className="[font-family:var(--studio-font-price)] text-lg font-extrabold text-[var(--studio-ink)]">{formatCredits(selectedTotal)}</strong> 크레딧
+            </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Button
                 variant="brandOutline"

@@ -22,7 +22,8 @@ export function isPdfInclusiveHwp(subproduct: Pick<BundleSavingsSubproduct, 'cat
 
 // 비교가 = 판매 중인 개별 자료 정가 합계. PDF 포함 문제(HWP)가 있으면 문제(PDF)는 같은 내용이라 뺀다
 // (함께 살 수 없다는 기존 충돌 규칙과 같은 기준). 비교가가 패키지가보다 클 때만 절약을 돌려준다.
-// 정확한 비교가 아닌 경우(패키지 보유·가격 미정·개별 일부 보유)는 null → 원가·절약·추천을 모두 숨긴다.
+// 정확한 비교가 아닌 경우(패키지 보유·가격 미정·자료를 하나라도 보유)는 null → 원가·절약·추천을 모두 숨긴다.
+// 보유 근거(ownedScope)가 'item'이면 패키지 보유와 같은 권한이라 지금은 bundle.owned와 함께 오지만, 보유 상태 전반을 막아 둔다.
 // 정가는 priceCredits를 쓴다(upgradePriceCredits는 사람마다 다른 차액가라 쓰지 않는다).
 export function getBundleSavings(
   bundle: { priceCredits: number; owned: boolean },
@@ -30,7 +31,7 @@ export function getBundleSavings(
 ): BundleSavings | null {
   if (bundle.owned || bundle.priceCredits <= 0 || subproducts.length === 0) return null
   if (subproducts.some((subproduct) => subproduct.priceCredits <= 0)) return null
-  if (subproducts.some((subproduct) => subproduct.ownedScope === 'subproduct')) return null
+  if (subproducts.some((subproduct) => subproduct.ownedScope !== null)) return null
 
   const hasPdfInclusiveHwp = subproducts.some(isPdfInclusiveHwp)
   const comparePriceCredits = subproducts

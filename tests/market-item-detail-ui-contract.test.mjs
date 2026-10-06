@@ -88,24 +88,24 @@ test('market item detail separates sample preview from purchase options', () => 
 test('market item detail presents bundle as a package containing subproducts', () => {
   assert.match(itemActions, /전체 패키지/)
   assert.match(itemActions, /추천/)
-  assert.match(itemActions, /전체 포함/)
-  assert.match(itemActions, /\{subproducts\.length\}개 자료/)
-  assert.match(itemActions, /한 번 구매하면 아래 개별 자료 \$\{subproducts\.length\}개를 모두 다운로드할 수 있습니다\./)
-  assert.match(itemActions, /포함 자료/)
+  // 구매 영역 A안: 부제는 패키지 설명, 없으면 포함 자료 이름으로 만든다(배지 pill과 고정 설명 문장은 없앴다).
+  assert.match(itemActions, /bundleOption\?\.description\n\s+\|\| \(subproducts\.length > 0 \? `\$\{subproducts\.map\(\(subproduct\) => subproduct\.title\)\.join\(' · '\)\} \$\{subproducts\.length\}개 자료를 한 번에`/)
+  assert.doesNotMatch(itemActions, /전체 포함|한 번 구매하면 아래 개별 자료/)
   assert.match(itemActions, /subproducts\.map\(\(subproduct\)/)
   assert.match(itemActions, /subproduct\.title/)
   assert.doesNotMatch(itemActions, /전체 패키지 구매/)
   assert.match(itemActions, /구매하기/)
   assert.match(itemActions, /장바구니/)
-  assert.match(itemActions, /총 금액/)
+  assert.match(itemActions, /선택 <strong[^>]*>\{selectedOptions\.length\}<\/strong>개/)
+  assert.doesNotMatch(itemActions, /총 금액/)
   assert.match(itemActions, /포함 상품 정보가 아직 표시되지 않습니다\./)
 })
 
 test('market item detail shows individual subproducts as lower-emphasis alternatives', () => {
   assert.match(itemActions, /또는 필요한 자료만/)
-  assert.match(itemActions, /개별 자료 선택 구매/)
-  assert.match(itemActions, /전체 패키지가 필요 없다면 원하는 자료만 구매하세요/)
-  assert.match(itemActions, /개별가/)
+  assert.match(itemActions, />개별 자료<\/h3>/)
+  assert.doesNotMatch(itemActions, /개별 자료 선택 구매|전체 패키지가 필요 없다면 원하는 자료만 구매하세요/)
+  assert.match(itemActions, /차액 · 정가 \{formatCredits\(subproduct\.priceCredits\)\} 크레딧/)
   assert.doesNotMatch(itemActions, /이 자료만 구매/)
   assert.match(itemActions, /aria-label=\{`\$\{option\.title\} 선택`\}/)
   assert.match(itemActions, /패키지 포함/)
@@ -125,7 +125,9 @@ test('market item detail shows editable purchase notice copy on HWP PDF subprodu
   assert.match(itemActions, /rounded-xl border border-indigo-100 bg-indigo-50\/70/)
   assert.match(itemActions, /\{notice\.label\}/)
   assert.match(itemActions, /\{notice\.text\}/)
-  assert.match(itemActions, /notice=\{resolveSubproductPurchaseNotice\(subproduct\)\}/)
+  // 개별 행: 형식 부제에 안내 라벨을 덧붙이고 본문은 행 아래 한 줄로 보인다(D7).
+  assert.match(itemActions, /const notice = resolveSubproductPurchaseNotice\(subproduct\)/)
+  assert.match(itemActions, /\[\.\.\.getVisibleFileTypeLabels\(subproduct, subproducts\), notice\?\.label\]/)
 })
 
 test('market item detail shows legacy paid file rows only to existing owners (legacy purchase closed)', () => {

@@ -44,6 +44,12 @@ test('개별 자료를 일부 보유하면(패키지는 정가 구매) 표시하
   assert.equal(getBundleSavings(readingBundle, partiallyOwned), null)
 })
 
+test('자료 보유 근거가 무엇이든(item 포함) 하나라도 보유하면 표시하지 않는다', () => {
+  // 서버는 item 권한이 있으면 bundle.owned도 true로 주지만, 함수는 보유 상태 전반을 막는다.
+  const itemScoped = readingSubproducts.map((subproduct) => ({ ...subproduct, ownedScope: 'item' }))
+  assert.equal(getBundleSavings(readingBundle, itemScoped), null)
+})
+
 test('패키지를 보유하면 표시하지 않는다', () => {
   const owned = readingSubproducts.map((subproduct) => ({ ...subproduct, ownedScope: 'item' }))
   assert.equal(getBundleSavings({ priceCredits: 4500, owned: true }, owned), null)
@@ -71,7 +77,7 @@ test('구매 영역은 PDF 포함 판정을 새 lib 하나에서 가져온다(�
     new URL('../src/app/(dashboard)/market/[slug]/items/[itemId]/market-item-actions.tsx', import.meta.url),
     'utf8'
   )
-  assert.match(actions, /import \{ isPdfInclusiveHwp \} from '@\/lib\/market-bundle-savings'/)
+  assert.match(actions, /import \{ getBundleSavings, isPdfInclusiveHwp \} from '@\/lib\/market-bundle-savings'/)
   assert.doesNotMatch(actions, /function isPdfInclusiveHwp/)
   assert.doesNotMatch(actions, /categorySlug === 'question_hwp'\s*\n?\s*&& [^\n]*fileType\.code\.toLowerCase\(\) === 'pdf'/)
   assert.equal((actions.match(/isPdfInclusiveHwp\(/g) ?? []).length, 2, 'existing two call sites keep using it')

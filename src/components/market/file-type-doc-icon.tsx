@@ -5,11 +5,12 @@ const FILE_TYPE_ICON_COLORS: Record<string, string> = {
   zip: '#6B7280',
 }
 
-export function FileTypeDocIcon({ code }: { code: string }) {
+// className으로 크기만 바꿀 수 있다(기본은 버튼 안 작은 크기).
+export function FileTypeDocIcon({ code, className = 'h-[18px] w-4' }: { code: string; className?: string }) {
   const normalized = code.toLowerCase()
   const color = FILE_TYPE_ICON_COLORS[normalized] ?? '#6B7280'
   return (
-    <svg viewBox="0 0 16 18" className="h-[18px] w-4 shrink-0" aria-hidden="true">
+    <svg viewBox="0 0 16 18" className={`${className} shrink-0`} aria-hidden="true">
       <path
         d="M3.5 1h6L14 5.5V15.5A1.5 1.5 0 0 1 12.5 17h-9A1.5 1.5 0 0 1 2 15.5v-13A1.5 1.5 0 0 1 3.5 1z"
         fill={color}
