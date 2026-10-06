@@ -122,11 +122,11 @@ const MARKET_BADGE_INCLUDED_CLASS = 'rounded-full border border-emerald-200 bg-e
 const MARKET_DOWNLOAD_BUTTON_CLASS = 'h-9 min-w-36 w-full justify-center gap-1.5 rounded-md border border-[var(--studio-control-border,#7f8499)] bg-white px-3 text-sm font-medium text-[var(--studio-ink,#1c1f2e)] hover:bg-white hover:border-[var(--studio-primary-border,#c9befa)] hover:text-[var(--studio-primary,#6950e5)] active:bg-slate-50 focus-visible:ring-[var(--studio-focus-ring,#8b76ec)] sm:w-auto'
 // 구매 영역 A안(딥 잉크) — Studio 토큰과 color-mix만 쓴다(docs/purchase-section-redesign-plan.md 5절).
 const INK_BLOCK_SUBTLE_TEXT_CLASS = 'text-[color-mix(in_srgb,var(--studio-surface)_72%,transparent)]'
+// 잉크 블록 안 버튼: 기본 보라 포커스 링 대신 흰 링 + 잉크 offset(13-5)
+const INK_BLOCK_FOCUS_CLASS = 'focus-visible:ring-2 focus-visible:ring-[var(--studio-surface)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--studio-ink)]'
 const INK_BLOCK_DIVIDER_CLASS = 'border-[color-mix(in_srgb,var(--studio-surface)_14%,transparent)] divide-[color-mix(in_srgb,var(--studio-surface)_14%,transparent)]'
 const UNPRICED_REASON = '가격이 정해지지 않아 선택할 수 없습니다.'
 const NO_FILES_REASON = '파일 준비 중이라 선택할 수 없습니다.'
-const BUNDLE_SELECTED_REASON = '전체 패키지에 포함되어 함께 선택할 수 없습니다. 개별 구매는 전체 패키지 선택을 해제하세요.'
-const SUBPRODUCT_SELECTED_REASON = '개별 자료를 선택한 상태에서는 전체 패키지를 함께 선택할 수 없습니다.'
 const PDF_HWP_CONFLICT_REASON = '문제(HWP)에 PDF가 포함되어 있어 함께 선택할 수 없습니다.'
 const DEFAULT_HWP_PDF_NOTICE = {
   label: 'PDF 포함',
@@ -388,7 +388,10 @@ export default function MarketItemActions({
   const [checkout, setCheckout] = useState<CheckoutState | null>(null)
   const [purchaseComplete, setPurchaseComplete] = useState<MarketPurchaseCompleteResult | null>(null)
   // 담기 결과 Dialog. 'notice'는 로그인 복귀 담기의 실패·제외 안내다(로그인 완료 모달 뒤라 toast는 묻힌다).
-  const [cartResult, setCartResult] = useState<{ kind: 'added' | 'notice'; message: string } | null>(null)
+  // 'purchase-notice'는 패키지 구매 의도로 로그인하고 돌아온 사용자에게 [패키지 바로 구매]를 다시 누르도록 알린다(13-2, E3).
+  const [cartResult, setCartResult] = useState<{ kind: 'added' | 'notice' | 'purchase-notice'; message: string } | null>(null)
+  // 어느 버튼의 작업이 진행 중인지(패키지 블록 / 하단 바). 비활성화는 isBusy로 전체에 건다.
+  const [busyAction, setBusyAction] = useState<'bundle' | 'selection' | null>(null)
   // 비로그인 0건에서 [로그인 후 담기]·[로그인 후 구매]를 누른 경우의 인라인 안내
   const [emptyNotice, setEmptyNotice] = useState(false)
   const [isSamplePreviewOpen, setIsSamplePreviewOpen] = useState(false)
@@ -492,20 +495,19 @@ export default function MarketItemActions({
   })
   const selectedKeySet = new Set(selectedOptions.map((option) => option.key))
   const selectedTotal = selectedOptions.reduce((total, option) => total + option.priceCredits, 0)
-  const hasSelectableOption = purchaseOptions.some((option) => option.unavailableReason === null)
+  // 하단 바는 개별 자료 전용이다. 패키지는 블록 안 [패키지 바로 구매]·[장바구니 담기]로 바로 산다(13절).
+  const hasSelectableSubproduct = purchaseOptions.some((option) => option.targetKind === 'subproduct' && option.unavailableReason === null)
+  const bundlePurchaseOption = bundleOption ? optionByKey.get(`bundle:${bundleOption.id}`) : undefined
   const isBusy = isCheckingBalance || isAddingToCart || Boolean(checkout?.submitting)
 
   // 서버 R-규칙과 같은 충돌 규칙. 자동 교체 없이 상대 옵션을 막고, 선택을 해제하면 바로 풀린다.
-  const hasSelectedBundle = selectedOptions.some((option) => option.targetKind === 'bundle')
-  const hasSelectedSubproduct = selectedOptions.some((option) => option.targetKind === 'subproduct')
+  // 패키지는 선택 목록에 들어가지 않으므로 패키지↔개별 상호 배제는 없고 문제(PDF)↔문제(HWP) 충돌만 남는다.
   const hasSelectedQuestionPdf = selectedOptions.some((option) => option.categorySlug === 'question_pdf')
   const hasSelectedPdfInclusiveHwp = selectedOptions.some((option) => option.includesPdf)
 
   const getBlockedReason = (option: PurchaseOption) => {
     if (option.unavailableReason) return option.unavailableReason
     if (selectedKeySet.has(option.key)) return null
-    if (option.targetKind === 'subproduct' && hasSelectedBundle) return BUNDLE_SELECTED_REASON
-    if (option.targetKind === 'bundle' && hasSelectedSubproduct) return SUBPRODUCT_SELECTED_REASON
     if ((option.categorySlug === 'question_pdf' && hasSelectedPdfInclusiveHwp) || (option.includesPdf && hasSelectedQuestionPdf)) {
       return PDF_HWP_CONFLICT_REASON
     }
@@ -597,12 +599,12 @@ export default function MarketItemActions({
 
   // 비로그인은 선택을 저장한 뒤 로그인으로 보낸다. 로그인 후 이 상세로 돌아오면 담기는 자동으로 이어지고(12절 D16·D17),
   // 구매는 선택만 복원한다(D19, 차감은 사용자가 다시 눌러야 한다).
-  const saveIntentBeforeLogin = (action: 'cart' | 'purchase') => {
+  const saveIntentBeforeLogin = (action: 'cart' | 'purchase', options: PurchaseOption[] = selectedOptions) => {
     saveMarketCartIntent({
       action,
       itemId,
       workspaceSubject,
-      targets: selectedOptions.map((option) => ({ targetKind: option.targetKind, targetId: option.targetId })),
+      targets: options.map((option) => ({ targetKind: option.targetKind, targetId: option.targetId })),
     })
   }
 
@@ -621,11 +623,38 @@ export default function MarketItemActions({
       return
     }
 
-    if (await addTargetsToCart(selectedOptions, {
-      onUnauthorized: () => redirectToLogin(),
-      onFailure: (message) => toast.error(message),
-    })) {
-      clearSelection()
+    setBusyAction('selection')
+    try {
+      if (await addTargetsToCart(selectedOptions, {
+        onUnauthorized: () => redirectToLogin(),
+        onFailure: (message) => toast.error(message),
+      })) {
+        clearSelection()
+      }
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  // 패키지 장바구니 담기. E1(b): 누르는 즉시 골라 둔 개별 선택을 비운다(로그인 여부 무관, 저장 의도에도 개별을 넣지 않는다).
+  const addBundleToCart = async () => {
+    if (!bundlePurchaseOption || bundlePurchaseOption.unavailableReason !== null) {
+      return
+    }
+    clearSelection()
+    if (!isLoggedIn) {
+      saveIntentBeforeLogin('cart', [bundlePurchaseOption])
+      redirectToLogin()
+      return
+    }
+    setBusyAction('bundle')
+    try {
+      await addTargetsToCart([bundlePurchaseOption], {
+        onUnauthorized: () => redirectToLogin(),
+        onFailure: (message) => toast.error(message),
+      })
+    } finally {
+      setBusyAction(null)
     }
   }
 
@@ -654,7 +683,11 @@ export default function MarketItemActions({
     }
 
     if (intent.action === 'purchase') {
-      setSelectedKeys(options.map((option) => option.key))
+      // 선택 목록은 개별 자료 전용이라 개별만 복원한다. 패키지는 자동 결제 없이 다시 누르도록 안내한다(D19, 13-2·E3).
+      setSelectedKeys(options.filter((option) => option.targetKind === 'subproduct').map((option) => option.key))
+      if (options.some((option) => option.targetKind === 'bundle')) {
+        setCartResult({ kind: 'purchase-notice', message: '로그인되었습니다. 전체 패키지는 [패키지 바로 구매]를 눌러 구매해 주세요.' })
+      }
       return
     }
 
@@ -699,12 +732,41 @@ export default function MarketItemActions({
       return
     }
 
+    setBusyAction('selection')
+    try {
+      await startCheckout(selectedOptions)
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  // 패키지 바로 구매. E1(b): 누르는 즉시 개별 선택을 비우고(확인 Dialog를 취소해도 복원하지 않는다) 패키지 1건만 결제한다.
+  const buyBundleNow = async () => {
+    if (!bundlePurchaseOption || bundlePurchaseOption.unavailableReason !== null) {
+      return
+    }
+    clearSelection()
+    if (!isLoggedIn) {
+      saveIntentBeforeLogin('purchase', [bundlePurchaseOption])
+      redirectToLogin()
+      return
+    }
+    setBusyAction('bundle')
+    try {
+      await startCheckout([bundlePurchaseOption])
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  // 잔액을 확인하고 확인 Dialog를 연다(개별 선택 구매와 패키지 바로 구매가 공유). 결제는 submitCheckout이 checkout.lines로 한다.
+  const startCheckout = async (options: PurchaseOption[]) => {
     setIsCheckingBalance(true)
     try {
       const balance = await fetchBalance()
       setCheckout({
         idempotencyKey: crypto.randomUUID(),
-        lines: selectedOptions.map((option) => ({
+        lines: options.map((option) => ({
           key: option.key,
           targetKind: option.targetKind,
           targetId: option.targetId,
@@ -977,11 +1039,13 @@ export default function MarketItemActions({
       )
     }
 
-    const bundleKey = bundleOption ? `bundle:${bundleOption.id}` : null
-    const bundleSelectOption = bundleKey ? optionByKey.get(bundleKey) : undefined
-    const bundleReason = bundleSelectOption ? getBlockedReason(bundleSelectOption) : null
-    const isBundleSelected = bundleKey ? selectedKeySet.has(bundleKey) : false
-    const bundleStatus = bundleKey && bundleOption ? renderOptionStatus(getOptionState(bundleKey, bundleOption.owned)) : null
+    const bundleReason = bundlePurchaseOption?.unavailableReason ?? null
+    const bundleReasonId = `${selectionIdPrefix}-bundle-reason`
+    const isBundleBusy = busyAction === 'bundle'
+    const bundleStatus = isBundleBusy && isCheckingBalance
+      ? '잔액을 확인하고 있습니다'
+      : isBundleBusy && isAddingToCart ? '장바구니에 담고 있습니다' : ''
+    const bundleCartLabel = isBundleBusy && isAddingToCart ? '담는 중' : isLoggedIn ? '장바구니 담기' : '로그인 후 담기'
     // 원가 취소선·절약·추천은 같은 내용의 개별 최저가보다 쌀 때만 보인다(D1-a, U1 규칙).
     const bundleSavings = bundleOption ? getBundleSavings(bundleOption, subproducts) : null
     const bundleSubtitle = bundleOption?.description
@@ -994,7 +1058,7 @@ export default function MarketItemActions({
         {bundleOption ? (
           <section
             aria-labelledby={bundleTitleId}
-            className={`rounded-[var(--studio-radius-card)] bg-[var(--studio-ink)] p-5 text-[var(--studio-surface)] sm:p-6 ${isBundleSelected ? 'ring-2 ring-[var(--studio-highlight)]' : ''}`}
+            className="rounded-[var(--studio-radius-card)] bg-[var(--studio-ink)] p-5 text-[var(--studio-surface)] sm:p-6"
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
@@ -1055,24 +1119,42 @@ export default function MarketItemActions({
 
             {bundleOption.owned ? (
               <div className="mt-4">{renderDownloadButtons(dedupeQuestionPdfFiles(downloadFiles), INK_BLOCK_SUBTLE_TEXT_CLASS)}</div>
-            ) : bundleKey && bundleSelectOption ? (
+            ) : bundlePurchaseOption ? (
               <div className="mt-4">
-                <button
-                  type="button"
-                  aria-pressed={isBundleSelected}
-                  disabled={bundleReason !== null || isBusy}
-                  aria-describedby={bundleReason ? getOptionReasonId(bundleKey) : undefined}
-                  onClick={() => toggleOption(bundleKey, !isBundleSelected)}
-                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--studio-radius-control)] bg-[var(--studio-surface)] px-4 text-sm font-bold text-[var(--studio-ink)] outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-[var(--studio-surface)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--studio-ink)] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {/* 보이는 문구는 고정하고 선택 상태는 aria-pressed와 체크 아이콘·코랄 링으로 전한다(APG 토글 버튼) */}
-                  {isBundleSelected ? <Check aria-hidden="true" className="h-4 w-4" /> : null}
-                  전체 패키지 선택
-                </button>
+                {/* 640px 미만은 세로로 쌓고 둘 다 전체 폭, 주 버튼이 위(DOM 순서 = 시각 순서) */}
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    variant="brand"
+                    className={`h-auto min-h-11 w-full whitespace-normal sm:flex-1 ${INK_BLOCK_FOCUS_CLASS}`}
+                    disabled={bundleReason !== null || isBusy}
+                    aria-describedby={bundleReason ? bundleReasonId : undefined}
+                    onClick={() => void buyBundleNow()}
+                  >
+                    {isBundleBusy && isCheckingBalance
+                      ? '확인 중'
+                      : `${isLoggedIn ? '패키지 바로 구매' : '로그인 후 패키지 구매'} · ${formatCredits(bundleOption.priceCredits)} 크레딧`}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className={`h-auto min-h-11 w-full whitespace-normal border border-[var(--studio-surface)] bg-transparent text-[var(--studio-surface)] hover:bg-[color-mix(in_srgb,var(--studio-surface)_10%,transparent)] hover:text-[var(--studio-surface)] sm:w-auto ${INK_BLOCK_FOCUS_CLASS}`}
+                    disabled={bundleReason !== null || isBusy}
+                    aria-label={`전체 패키지 ${bundleCartLabel}`}
+                    aria-describedby={bundleReason ? bundleReasonId : undefined}
+                    onClick={() => void addBundleToCart()}
+                  >
+                    <ShoppingCart aria-hidden="true" className="h-4 w-4" />
+                    {bundleCartLabel}
+                  </Button>
+                </div>
                 {bundleReason ? (
-                  <p id={getOptionReasonId(bundleKey)} className={`mt-2 break-keep text-xs leading-5 ${INK_BLOCK_SUBTLE_TEXT_CLASS}`}>{bundleReason}</p>
+                  <p id={bundleReasonId} className={`mt-2 break-keep text-xs leading-5 ${INK_BLOCK_SUBTLE_TEXT_CLASS}`}>{bundleReason}</p>
                 ) : null}
-                <p aria-live="polite" className={`text-xs ${INK_BLOCK_SUBTLE_TEXT_CLASS} ${bundleStatus ? 'mt-2' : ''}`}>{bundleStatus ?? ''}</p>
+                {!isLoggedIn ? (
+                  <p className={`mt-2 text-xs ${INK_BLOCK_SUBTLE_TEXT_CLASS}`}>로그인 후 이 페이지로 돌아옵니다.</p>
+                ) : null}
+                <p aria-live="polite" className={`text-xs ${INK_BLOCK_SUBTLE_TEXT_CLASS} ${bundleStatus ? 'mt-2' : ''}`}>{bundleStatus}</p>
               </div>
             ) : null}
           </section>
@@ -1170,7 +1252,7 @@ export default function MarketItemActions({
           </section>
         ) : null}
 
-        {hasSelectableOption ? (
+        {hasSelectableSubproduct ? (
           <section aria-label="선택한 옵션 합계" className="border-t border-[var(--studio-border)] pt-4">
             <p className="text-base font-semibold text-[var(--studio-text)]">
               선택 <strong className="text-lg font-extrabold text-[var(--studio-ink)]">{selectedOptions.length}</strong>개
@@ -1186,7 +1268,7 @@ export default function MarketItemActions({
                 onClick={() => void addSelectedToCart()}
               >
                 <ShoppingCart aria-hidden="true" className="h-4 w-4" />
-                {!isLoggedIn ? '로그인 후 담기' : isAddingToCart ? '담는 중' : '장바구니'}
+                {!isLoggedIn ? '로그인 후 담기' : isAddingToCart && busyAction !== 'bundle' ? '담는 중' : '장바구니'}
               </Button>
               <Button
                 variant="brand"
@@ -1328,16 +1410,22 @@ export default function MarketItemActions({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{cartResult?.kind === 'notice' ? '장바구니 담기 안내' : '장바구니 담기'}</DialogTitle>
+            <DialogTitle>
+              {cartResult?.kind === 'notice'
+                ? '장바구니 담기 안내'
+                : cartResult?.kind === 'purchase-notice' ? '패키지 구매 안내' : '장바구니 담기'}
+            </DialogTitle>
             <DialogDescription>{cartResult?.message}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="brandOutline" onClick={() => setCartResult(null)}>
-              {cartResult?.kind === 'notice' ? '확인' : '계속 둘러보기'}
+              {cartResult?.kind === 'added' ? '계속 둘러보기' : '확인'}
             </Button>
-            <Button asChild variant="brand">
-              <Link href="/cart">장바구니 보기</Link>
-            </Button>
+            {cartResult?.kind !== 'purchase-notice' ? (
+              <Button asChild variant="brand">
+                <Link href="/cart">장바구니 보기</Link>
+              </Button>
+            ) : null}
           </DialogFooter>
         </DialogContent>
       </Dialog>

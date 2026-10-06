@@ -48,8 +48,10 @@ test('market detail action panel renders bundle package and individual alternati
   // 개별 행은 체크박스 컨트롤, 패키지는 aria-pressed 토글 버튼으로 선택한다(구매 영역 A안).
   assert.match(itemActions, /const key = `subproduct:\$\{subproduct\.id\}`/)
   assert.match(itemActions, /renderOptionSelectControl\(key\)/)
-  assert.match(itemActions, /aria-pressed=\{isBundleSelected\}/)
-  assert.match(itemActions, /onClick=\{\(\) => toggleOption\(bundleKey, !isBundleSelected\)\}/)
+  // 패키지는 블록 안 버튼으로 바로 구매·담기(13절)
+  assert.match(itemActions, /onClick=\{\(\) => void buyBundleNow\(\)\}/)
+  assert.match(itemActions, /onClick=\{\(\) => void addBundleToCart\(\)\}/)
+  assert.doesNotMatch(itemActions, /aria-pressed=\{isBundleSelected\}/)
   assert.match(itemActions, /clearSelection\(\)/)
   assert.match(itemActions, /targetKind: 'subproduct'/)
   assert.match(itemActions, /targetKind: 'bundle'/)

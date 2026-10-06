@@ -212,3 +212,155 @@ U2가 가장 크다(구매 영역 렌더 부분 `:999-1155` 재작성). 상태 �
 | U1 구현 리뷰 | market-bundle-savings.ts·market-item-actions(import)·테스트 2개 | 독립 리뷰(imglib-s3-reviewer) | **OK** | 독서 64개 비교가 5,500·절약 1,000 SELECT 일치, null 조건 계획과 일치, slug는 기존 판정 범위 그대로 이동. NIT(`ownedScope` 범위 확대)은 U2에서 처리 |
 | U2 구현 리뷰 | market-item-actions 렌더·아이콘 className·savings 조건·테스트 5개 | 독립 리뷰(imglib-s3-reviewer) | **OK**(MINOR 3·NIT 1 + 체크박스 대비 반영) | 로직 diff 없음, 상태 렌더 누락 없음. 반영: div group > ul, aria-live 상시 렌더, 잉크 블록 빈 파일 안내 대비, 패키지 토글 문구 고정+aria-pressed, 체크박스 테두리 --studio-control-border(약 3.7:1). 브라우저: 독서 상품 A안 배치·5,500 취소선·1,000 절약 확인 |
 | U3 구현 리뷰 | market-material-detail·market-item-actions(샘플 행·보관함 안내)·테스트 2개 | 독립 리뷰(imglib-s3-reviewer) | **OK** | 로직 무변경(prefetch 3이벤트·openSamplePreview), 앵커·aria 유지, 샘플 없음 분기, 지운 코드 미사용 확인, 기존 실패 3개는 HEAD와 같은 사유. NIT(aside·섹션 h2 동일 문구)은 계획대로 유지. 브라우저: 머리말 "구매 옵션", 샘플 한 줄 행, "자료 보관함" 안내 확인 |
+
+## 13. 후속: 패키지 바로 구매 버튼 (사용자 선택 ①안)
+
+- 작성일: 2026-10-06 · 기준 HEAD bd4e2a0(U1~U3 반영 후) · 상태: **R1 FAIL → 보완본(R2 검증 대기)**
+- 9절 번호는 브라우저 확인 목록이 이미 쓰고 있어 후속 절을 13절로 붙였다.
+- 사용자 피드백: 잉크 블록 하단의 흰 "전체 패키지 선택" 막대가 버튼처럼 느껴지지 않고 직관적이지 않다.
+- 원인: ① 전체 폭 흰 막대가 배너처럼 보인다. ② 누른 뒤 아래 [구매하기]를 다시 눌러야 하는 2단계다. ③ 개별은 체크박스, 패키지는 토글 버튼이라 선택 방식이 다르다.
+- 사용자 선택 ①안: 흰 토글 막대를 없애고 패키지 블록 안에 실제 행동 버튼 2개 — [패키지 바로 구매 · {가격} 크레딧](채운 버튼) + [장바구니 담기](흰 테두리 보조). 하단 바는 개별 자료 전용.
+- 이번 절도 **새 로직 최소화**: 확인 Dialog·완료 Dialog·잔액 부족·409 처리·멱등 키·장바구니 결과 Dialog·로그인 복귀 저장은 기존 함수를 그대로 쓴다.
+
+### 13-1. 현재 동작 (근거, `market-item-actions.tsx`, HEAD bd4e2a0)
+
+| 항목 | 위치 | 내용 |
+|---|---|---|
+| 선택 모델 | `:385`, `:489-494` | 선택 키 배열 `selectedKeys` → `selectedOptions`(PurchaseOption[]) |
+| 패키지 토글 | `:980-984`, `:1060-1076` | `isBundleSelected`, `aria-pressed` 버튼이 `toggleOption(bundleKey, …)`로 패키지 키를 선택 목록에 넣는다. 선택 시 블록 코랄 링(`:997`), 상태 문구 `bundleStatus`(`:984`, `:1075`) |
+| 패키지↔개별 상호 배제 | `:128-129`, `:499-500`, `:507-508` | `BUNDLE_SELECTED_REASON`, `SUBPRODUCT_SELECTED_REASON`, `hasSelectedBundle/Subproduct` |
+| 담기 | `:609-630` `addSelectedToCart` | 비로그인: 0건이면 안내, 아니면 `saveIntentBeforeLogin('cart')` → 로그인. 로그인: `addTargetsToCart(selectedOptions, …)` 성공 시 `clearSelection()` |
+| 담기 공통 | `:526-596` `addTargetsToCart(options, handlers)` | **이미 옵션 배열을 인자로 받는다**(패키지 1건 그대로 전달 가능). 결과 Dialog·`CART_LIMIT`·카운트 갱신 포함 |
+| 구매 | `:687-728` `openCheckout` | 비로그인 처리 후 `fetchBalance()` → `setCheckout({ idempotencyKey: crypto.randomUUID(), lines: selectedOptions.map(…) })` → 확인 Dialog. 이후 `submitCheckout`(`:730-875`)은 `checkout.lines`만 사용 |
+| 로그인 전 저장 | `:600-607` `saveIntentBeforeLogin(action)` | `selectedOptions`를 대상으로 저장(저장 형식은 대상 배열이라 패키지 대상도 이미 허용, `src/lib/market-cart-intent.ts:20-23, 64-71`) |
+| 로그인 복귀 | `:634-677` `consumeCartIntent` | 담기는 자동 실행, 구매는 `setSelectedKeys(options.map(…))`로 선택만 복원(`:656-659`, D19) |
+| 하단 바 표시 | `:495` `hasSelectableOption`, `:1173-1209` | 패키지 포함 선택 가능 옵션이 하나라도 있으면 표시 |
+| 처리 중 표시 | `:892-897` `getOptionState` | 선택 키 + `isCheckingBalance`/`checkout.submitting`으로 "잔액 확인 중/구매 처리 중" |
+
+### 13-2. 변경 방안
+
+**선택 모델 정리**
+- 패키지는 더 이상 선택 목록에 들어가지 않는다. 선택 목록 = 개별 자료 전용.
+- 제거: `isBundleSelected`, `aria-pressed` 토글 버튼, 블록 코랄 링, 패키지용 `bundleStatus`, `BUNDLE_SELECTED_REASON`·`SUBPRODUCT_SELECTED_REASON`과 `hasSelectedBundle`·`hasSelectedSubproduct` 분기(`getBlockedReason`에서 두 줄). 패키지가 선택될 수 없으므로 개별 행의 "패키지에 포함되어 함께 선택할 수 없습니다" 사유와 패키지 쪽 "개별 자료를 선택한 상태에서는…" 사유는 **더 이상 필요 없다**. 문제(PDF)↔문제(HWP) 충돌 사유(`PDF_HWP_CONFLICT_REASON`)는 유지.
+- `bundleKey`·패키지 `PurchaseOption`(`optionByKey.get(bundleKey)`) 계산을 렌더 함수 안(`:980-982`)에서 컴포넌트 본문으로 올려 핸들러가 쓰게 한다. 패키지 옵션의 `unavailableReason`(가격 미정·파일 준비 중)과 `partiallyOwned`(정가 구매 확인)는 그대로 쓴다.
+
+**구매: 공통 부분만 꺼내기**
+- `openCheckout`의 로그인 후 부분(`:702-727`: 잔액 확인 → `setCheckout`)을 `startCheckout(options: PurchaseOption[])`로 꺼낸다. `openCheckout`은 기존 비로그인·0건 처리 뒤 `startCheckout(selectedOptions)`를 호출(동작 동일).
+- 새 `buyBundleNow()`: 패키지 옵션이 없거나 막혀 있으면 반환 → 비로그인이면 `saveIntentBeforeLogin('purchase', [bundleOption])` 후 로그인 → 로그인 상태면 `startCheckout([bundleOption])`.
+- 확인 Dialog·`submitCheckout`·409/402/5xx·멱등 키·완료 Dialog·잔액 이벤트는 **변경 없음**(모두 `checkout.lines` 기준). 패키지 단독 결제라 서버 `CONFLICTING_SELECTION`(패키지+개별 동시) 경로는 상세에서 발생하지 않는다.
+
+**담기**
+- 새 `addBundleToCart()`: 비로그인이면 `saveIntentBeforeLogin('cart', [bundleOption])` 후 로그인 → 로그인 상태면 `addTargetsToCart([bundleOption], { onUnauthorized: () => redirectToLogin(), onFailure: (message) => toast.error(message) })`. (E1 사용자 결정 (b)로 변경) 버튼을 누르는 즉시 `clearSelection()`으로 개별 선택을 해제한다.
+- `saveIntentBeforeLogin(action, options = selectedOptions)`로 대상 인자만 추가. 기존 두 호출부(`saveIntentBeforeLogin('cart')`, `('purchase')`)는 그대로.
+
+**로그인 복귀**
+- 담기 의도(패키지 포함): 기존 자동 담기 그대로(`addTargetsToCart`가 패키지 대상도 처리). 변경 없음.
+- 구매 의도: 기존처럼 "선택만 복원"하되, 선택 목록이 개별 전용이 되었으므로 **패키지 대상은 복원하지 않는다**: `setSelectedKeys(options.filter((option) => option.targetKind === 'subproduct').map((option) => option.key))`. 패키지 구매 의도로 돌아온 사용자는 블록의 [패키지 바로 구매]를 다시 누른다(자동 결제 없음, D19).
+- 다만 지금은 구매 의도가 "선택 복원"이라는 눈에 보이는 결과를 남기는데, 패키지는 복원하지 않으므로 아무 반응이 없으면 지금보다 나빠진다. 그래서 **구매 의도에 패키지 대상이 있었으면** 기존 결과 Dialog 상태로 안내한다: `setCartResult({ kind: 'notice', message: '로그인되었습니다. 전체 패키지는 [패키지 바로 구매]를 눌러 구매해 주세요.' })`. 새 상태는 없고, 이 Dialog는 이미 로그인 완료 모달이 닫힌 뒤 열린다(`open={cartResult !== null && !isLoginCompletePending}` `:1326`, D22와 같은 규칙).
+- 같은 Dialog의 제목·버튼이 장바구니 전용 문구다(제목 "장바구니 담기 안내" `:1331`, 우측 "장바구니 보기" 버튼). 구매 안내에는 맞지 않으므로 `kind`에 `'purchase-notice'` 값을 하나 더해 제목 "패키지 구매 안내", 버튼은 "확인" 하나만 보이게 한다(상태 변수 추가 없이 기존 유니온 타입 값 확장, `:391`). 개별 대상만 있던 구매 의도는 지금처럼 선택 복원만 한다(안내 없음, 선택된 행이 보이므로).
+
+**처리 중 표시**
+- 어떤 버튼이 진행 중인지 구분하는 상태 하나를 둔다: `busyAction: 'bundle' | 'selection' | null`(담기·잔액 확인 시작 때 설정, 끝나면 해제). 패키지 버튼은 `busyAction === 'bundle'`일 때 "확인 중"/"담는 중", 하단 바는 `'selection'`일 때만 "담는 중"(지금은 `isAddingToCart`만 보고 있어 패키지 담기 때 하단 버튼 문구도 바뀜, `:1189`). 비활성화는 지금처럼 `isBusy`로 전체.
+- 결제 진행(`checkout.submitting`)은 확인 Dialog가 보여 주므로 블록에는 별도 문구를 두지 않는다. 개별 행의 "잔액 확인 중/구매 처리 중"(`getOptionState`)은 개별 선택 결제일 때만 해당되도록 지금 그대로 둔다.
+
+**하단 바**
+- 표시 조건을 `hasSelectableOption`(패키지 포함)에서 "선택 가능한 개별 자료가 있음"으로 바꾼다. 패키지만 살 수 있는 상태(개별 전부 보유 등)에서는 하단 바가 사라진다.
+- 문구·버튼·비로그인 안내는 그대로.
+
+### 13-3. 개별 자료를 이미 고른 상태에서 패키지 버튼 (E1)
+
+| 안 | 동작 | 장단점 |
+|---|---|---|
+| **(a) 유지(권장)** | 패키지 버튼은 패키지만 대상. 개별 선택은 그대로 남는다 | 새 로직 0. 드문 예외 하나: 패키지 결제가 가격 변경으로 전부 제외(`:835-840`)되거나 `ALREADY_OWNED`·`422` 등(`:870-874`)으로 끝나면 `submitCheckout`의 `clearSelection()`이 개별 선택까지 지운다(최신 상태로 다시 고르게 하는 기존 동작). 드물고 데이터 손실이 아니라 유지. 패키지 구매 성공 시 개별 자료가 모두 보유로 바뀌어 선택이 자동으로 정리됨(`:485-488` 정리 + `clearSelection` `:777`). 패키지 담기 뒤에는 개별 선택이 남아 있어 하단 바로 따로 담을 수 있음(장바구니에 같은 상품 패키지·개별이 함께 담기는 것은 지금도 가능, 장바구니 결제 단계가 `CONFLICTING_SELECTION`으로 막고 다시 고르게 함 — `cart-view.tsx:319`) |
+| (b) 패키지 행동 시 개별 선택 해제 | 패키지 버튼을 누르면 개별 선택을 비움 | 사용자가 고른 것이 말없이 사라짐 |
+| (c) 개별을 고른 동안 패키지 버튼 막기 | 지금의 `SUBPRODUCT_SELECTED_REASON` 유지 | "바로 구매" 버튼이 이유 없이 막힌 듯 보여 이번 피드백(직관성)과 반대 |
+
+### 13-4. 상태별 두 버튼 표시
+
+| 상태 | [패키지 바로 구매 · N 크레딧] | [장바구니 담기] | 그 밖 |
+|---|---|---|---|
+| 기본(로그인) | 활성 | 활성 | — |
+| 비로그인 | 문구 "로그인 후 패키지 구매 · N 크레딧" | "로그인 후 담기" | 블록 안에 "로그인 후 이 페이지로 돌아옵니다." 한 줄(하단 바가 없을 수도 있으므로) |
+| 개별 일부 보유 | 활성(확인 Dialog에서 정가 확인 체크, 기존 `needsAcknowledgement`) | 활성 | 기존 정가 안내 문장 유지(`:1052-1054`) |
+| 가격 미정 / 파일 준비 중 | 비활성 | 비활성 | 사유 문장(`aria-describedby`, 기존 문구) |
+| 로그인 복귀(구매 의도에 패키지 포함) | 활성 | 활성 | "패키지 구매 안내" Dialog 1회(13-2) |
+| 잔액 확인 중 / 담는 중 | 진행 중인 버튼만 "확인 중"/"담는 중", 둘 다 비활성 | 같음 | `aria-live` 한 줄("잔액을 확인하고 있습니다", "장바구니에 담고 있습니다") |
+| 다른 영역 처리 중(`isBusy`) | 비활성 | 비활성 | — |
+| 패키지 보유 | 없음 | 없음 | 지금처럼 "보유 중" + 다운로드 버튼 |
+| 패키지 없음 | 블록 없음 | 블록 없음 | 하단 바만 |
+| 차액 가격 | 해당 없음(개별 행 전용) | — | — |
+
+### 13-5. 시각·접근성
+
+- 주 버튼: `Button variant="brand"`(D3과 같은 기준: 주요 행동은 brand 보라). 버튼 안 흰 글자 대비 약 5.41:1. 버튼은 글자로 식별되므로 WCAG 1.4.11은 버튼 채움색과 잉크 배경 사이의 대비(약 3.0:1)를 요구하지 않는다(1.4.11은 컨트롤을 식별하는 데 필요한 시각 정보에만 적용).
+- 포커스 링: `brand` variant의 기본 링은 `focus-visible:ring-[var(--studio-focus-ring)]`(보라, `src/components/ui/button.tsx:23`)라 잉크 위에서 잘 보이지 않는다. 두 버튼 모두 `className`으로 `focus-visible:ring-2 focus-visible:ring-[var(--studio-surface)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--studio-ink)]`을 덮어쓴다(기존 토글 버튼과 같은 규칙, 전역 variant는 바꾸지 않음). 코랄(`--studio-highlight`)은 "추천·절약" 의미로 쓰고 있어 버튼에 쓰면 의미가 섞인다 → 쓰지 않음(E2).
+- 보조 버튼: 투명 배경 + `border-[var(--studio-surface)]` + `text-[var(--studio-surface)]`, hover 시 `color-mix(var(--studio-surface) 10%)` 배경. 새 토큰 없음.
+- 두 버튼 모두 `min-h-11`.
+- 버튼 이름에 가격 포함: 보이는 글자 "패키지 바로 구매" + "4,500 크레딧"(`formatCredits(bundleOption.priceCredits)`, 데이터에서), 접근 이름도 그대로 읽힘. 장바구니 버튼은 블록 제목(`aria-labelledby` 영역 "전체 패키지") 안에 있어 "장바구니 담기"로 충분하지만, 하단 바의 "장바구니"와 구분되도록 접근 이름을 "전체 패키지 장바구니 담기"로 둔다.
+- 배치: 640px 이상은 한 줄(주 버튼 넓게, 보조 버튼 내용 폭), 미만(320px 포함)은 세로로 쌓고 둘 다 전체 폭, 주 버튼이 위. DOM 순서 = 시각 순서.
+
+### 13-6. 구현 단위 (1단위)
+
+| 파일 | 변경 |
+|---|---|
+| `src/app/(dashboard)/market/[slug]/items/[itemId]/market-item-actions.tsx` | 13-2 전부: 상수 2개·분기 제거, `startCheckout` 추출, `buyBundleNow`·`addBundleToCart`, `saveIntentBeforeLogin` 인자, 구매 복원 필터와 패키지 구매 안내(`cartResult.kind`에 `'purchase-notice'` 추가, 결과 Dialog 제목·버튼 분기), `busyAction`, 하단 바 조건, 블록 하단 버튼 2개(흰 포커스 링 덮어쓰기) |
+| 계약 테스트 3개 갱신 + 신규 단언 | 아래 13-7 |
+
+### 13-7. 계약 테스트 영향
+
+| 파일:줄 | 지금 단언 | 처리 |
+|---|---|---|
+| `tests/purchase-section-redesign-contract.test.mjs:21-27` | 패키지 `aria-pressed={isBundleSelected}` 토글, 고정 문구 "전체 패키지 선택", 코랄 링 | 새 단언으로 교체: 블록 안 `buyBundleNow`·`addBundleToCart` 버튼, `aria-pressed`·`isBundleSelected` 없음, 주 버튼 `variant="brand"`, 버튼 글자에 `formatCredits(bundleOption.priceCredits)` |
+| 같은 파일 `:72` | `toggleOption`·`addSelectedToCart`·`openCheckout` 등 호출 존재 | 유지(개별 행·하단 바가 계속 사용) |
+| `tests/market-v2-detail-library-contract.test.mjs:48-52` | `aria-pressed={isBundleSelected}`, `toggleOption(bundleKey, !isBundleSelected)` | 패키지 버튼이 `buyBundleNow`/`addBundleToCart`를 부르는 단언으로 교체 |
+| `tests/market-detail-multiselect-contract.test.mjs:28` | `setCheckout({ idempotencyKey: crypto.randomUUID(), lines: selectedOptions.map(` | `startCheckout` 안의 `lines: options.map(`으로 갱신, `openCheckout`이 `startCheckout(selectedOptions)`를 부르는지 추가 |
+| 같은 파일 `:50-51` | 패키지↔개별 상호 배제 문구 2개 존재 | 없음(`doesNotMatch`)으로 반전, `:52` PDF·HWP 충돌 문구는 유지 |
+| 같은 파일 `:73-76` | 제목 아래 `aria-pressed={isBundleSelected}` | 제목 아래 패키지 버튼 2개 순서로 갱신 |
+| 같은 파일 `:90-94`, `:103-104` | `addSelectedToCart`·`openCheckout`의 비로그인 분기, `saveIntentBeforeLogin('cart'/'purchase')` | 기존 분기를 바꾸지 않으므로 통과 예상 |
+| 같은 파일 `:116` | 구매 복원 `setSelectedKeys(options.map((option) => option.key))` | 개별만 복원하는 필터 형태로 갱신, "구매 자동 실행 금지"(`:115`) 단언은 유지하되 `startCheckout`도 금지 목록에 추가 |
+
+**신규 단언**: 두 패키지 버튼 `className`에 `focus-visible:ring-[var(--studio-surface)]`와 `focus-visible:ring-offset-[var(--studio-ink)]`; `consumeCartIntent`의 구매 분기가 패키지 대상이 있으면 `setCartResult({ kind: 'purchase-notice'` 안내를 띄우고 개별만 `setSelectedKeys`로 복원; Dialog가 `'purchase-notice'`일 때 "장바구니 보기" 버튼을 그리지 않음; 비로그인 패키지 버튼이 `saveIntentBeforeLogin('cart'|'purchase', [bundle…])` 후 `redirectToLogin()`; `addBundleToCart`가 `clearSelection`을 부르지 않음; 하단 바 조건이 개별 자료 기준; `consumeCartIntent`가 여전히 `openCheckout`/`startCheckout`/`/purchase`를 부르지 않음; 패키지 보유 시 두 버튼 없음.
+
+### 13-8. 브라우저 확인
+
+| # | 확인 |
+|---|---|
+| B1 | 독서 상품(9절 #1): 블록 안 두 버튼, 가격이 버튼 글자에 보임, 하단 바는 개별 전용 |
+| B2 | [패키지 바로 구매] → 확인 Dialog에 패키지 1줄·금액 → 구매 → 완료 Dialog·헤더 잔액 갱신·블록이 "보유 중"+다운로드 |
+| B3 | 잔액 부족 계정: 확인 Dialog의 부족액·충전 링크(기존) |
+| B4 | [장바구니 담기] → 결과 Dialog, 헤더 장바구니 수 +1, 개별 선택은 그대로 |
+| B5 | 개별 2개 선택 상태에서 패키지 버튼(E1-b): 누르는 즉시 개별 선택 해제(하단 바 0개), 패키지만 결제/담기 |
+| B6 | 비로그인 [로그인 후 담기](패키지) → 로그인 → 복귀 시 패키지 자동 담기 결과 Dialog |
+| B7 | 비로그인 [로그인 후 패키지 구매] → 로그인 → 로그인 완료 모달이 닫힌 뒤 "패키지 구매 안내" Dialog(확인 버튼만), 자동 결제 없음, 개별 선택도 생기지 않음, [패키지 바로 구매]를 다시 누르면 확인 Dialog |
+| B8 | 개별 일부 보유 계정: 패키지 바로 구매 → 확인 Dialog에서 정가 확인 체크 필요 |
+| B9 | 320px: 두 버튼 세로 쌓임·전체 폭, 768px·1280px 한 줄 |
+| B10 | 키보드: Tab 순서(주 버튼 → 보조 버튼 → 개별 행), 잉크 위 흰 포커스 링, Enter로 실행 |
+| B11 | 문학(패키지 비활성)·영어(패키지 없음): 블록 없음, 하단 바 동작 그대로 |
+
+### 13-9. 위험
+
+| 위험 | 대응 |
+|---|---|
+| 구매 공통부 추출 중 확인 Dialog 흐름 회귀 | `startCheckout`은 기존 코드 이동만, `submitCheckout` 무변경, 기존 기능 단언(`market-detail-multiselect` 17-45) 유지, B2·B3·B8 |
+| 저장된 옛 구매 의도에 패키지 대상이 섞여 복원됨 | 복원 시 개별만 필터(13-2), B7 |
+| 패키지와 개별을 같은 상품으로 함께 장바구니에 담음 | 지금도 가능한 상태이며 장바구니 결제 단계가 막는다(13-3). 상세에서 추가로 막지 않음 |
+| 보라 주 버튼이 잉크 위에서 덜 도드라짐(채움색 대비 약 3.0:1) | 접근성 위반은 아님(버튼은 글자로 식별, 흰 글자 5.41:1). 시각적으로 약하다고 판단되면 E2에서 흰 채움 + 잉크 글자 대안 |
+| 보라 포커스 링이 잉크 위에서 안 보임 | 두 버튼에 흰 링 + 잉크 offset을 `className`으로 덮어씀, 계약 테스트·B10 |
+| 패키지 결제 실패 경로에서 개별 선택이 지워짐 | 기존 `clearSelection` 동작(가격 변경으로 전부 제외, `ALREADY_OWNED`·`422`), 드문 경로라 유지(13-3) |
+
+### 13-10. 결정 항목
+
+| ID | 결정 | 선택지 | 권장 | 이유 |
+|---|---|---|---|---|
+| E1 | 개별 선택 중 패키지 버튼 | (a) 유지 / (b) 개별 해제 / (c) 패키지 막기 | **(b) 사용자 결정(2026-10-06)** | 사용자: "개별자료를 골라둔 상태에서 패키지 버튼을 누르면 골라둔 선택은 사라져야지". 두 패키지 버튼(바로 구매·장바구니 담기) 모두 누르는 즉시 `clearSelection()`으로 개별 선택 해제(로그인 여부와 무관, 비로그인 저장 의도에도 개별을 넣지 않음). 확인 Dialog를 취소해도 개별 선택은 복원하지 않음 |
+| E2 | 주 버튼 색 | brand 보라 / 흰 채움+잉크 글자 / 코랄 | **brand 보라** | D3 기준(주요 행동 = brand), 코랄은 추천·절약 의미 |
+| E3 | 비로그인 패키지 구매 후 복귀 | 기존 결과 Dialog로 안내("로그인되었습니다. 전체 패키지는 [패키지 바로 구매]를 눌러 구매해 주세요.") / 안내 없음 | **Dialog 안내** | 안내가 없으면 복귀 후 아무 반응이 없어 지금(선택 복원)보다 나빠짐. 새 상태 없이 기존 Dialog·D22 규칙 재사용, 자동 결제 없음(D19) |
+
+### 13-11. 검증 기록
+
+| 회차 | 대상 | 검증자 | 판정 | 비고 |
+|---|---|---|---|---|
+| R1 | 13절 초안 | 독립 검증 | **FAIL** → 보완 | 근거·회귀·대비 대부분 일치. 지적: 1(중간) E3 "안내 없음"은 복귀 후 반응이 없어 지금보다 나빠짐 → 구매 의도에 패키지가 있으면 기존 결과 Dialog로 안내(`kind: 'purchase-notice'`, 로그인 완료 모달 뒤, D22), B7 갱신 2(낮음) E1-(a) "숨은 부작용 없음" 정정: 패키지 결제 실패 일부 경로에서 `clearSelection()`이 개별 선택도 지움, 13-3·위험표 기재 3(낮음) brand variant 보라 포커스 링이 잉크 위에서 약함 → 흰 링 + 잉크 offset 덮어쓰기와 계약 단언 추가. 추가: E2 대비 위험은 1.4.11이 글자로 식별되는 버튼 채움 대비를 요구하지 않는다는 근거로 정정(흰 글자 5.41:1) |
+| R2 | 13절 보완본 | 독립 검증 | **OK** | 3건+E2 근거 정정 반영, 'purchase-notice'는 유니온 1값+렌더 분기 3곳 최소 변경. 구현 주의: 첫 버튼 삼항식(:1336)에서 'purchase-notice'도 "확인" + 신규 단언 |
+| 사용자 결정 | E1 (b) 개별 해제, E2·E3 권장안 | 사용자 | 확정 | 13-3 절의 (a) 서술은 (b)로 대체 |
+| 13절 구현 리뷰 | market-item-actions·테스트 3개 | 독립 리뷰(imglib-s3-reviewer) | **OK** | 결제·장바구니 본체 무변경, startCheckout 동등, E1(b) 순서(clear→비로그인 분기), 복귀 시 개별만 복원+purchase-notice(D22 유지), 상호 배제 제거는 서버 RPC·장바구니가 대체, isBusy·busyAction 경합 없음, Label in Name·흰 링·44px. NIT(확인 중 가격 문구 일시 숨김)은 의도된 동작. 브라우저(비로그인): 두 버튼·안내 한 줄 확인. 로그인 흐름 B2~B8은 사용자 확인 필요 |
