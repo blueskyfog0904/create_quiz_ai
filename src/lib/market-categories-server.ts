@@ -164,9 +164,14 @@ export interface CategoryListFilters {
   pageSize?: number
 }
 
-export async function listMarketItemsForCategory(categoryItemId: string, filters: CategoryListFilters = {}) {
+// 페이지가 이미 조회한 카테고리 정보(knownDetail)를 넘기면 같은 조회를 다시 하지 않는다.
+export async function listMarketItemsForCategory(
+  categoryItemId: string,
+  filters: CategoryListFilters = {},
+  knownDetail?: MarketCategoryItemDetail
+) {
   const empty = { rows: [] as MarketSearchRow[], ...getListPagination(0, 1, filters.pageSize) }
-  const detail = await getMarketCategoryItemDetail(categoryItemId)
+  const detail = knownDetail ?? await getMarketCategoryItemDetail(categoryItemId)
   if (!detail) {
     return empty
   }
@@ -213,7 +218,11 @@ export async function listMarketItemsForCategory(categoryItemId: string, filters
   if (itemsResult.error) throw new Error(itemsResult.error.message)
   const itemIds = (itemsResult.data ?? []).map((item) => item.id)
   if (!itemIds.length) return { ...empty, ...pagination }
-  const [subproducts, typeCategoriesResult, reviews] = await Promise.all([
+  const menuMap = new Map((menuResult.data ?? []).map((entry) => [entry.id, entry]))
+  // 샘플 가용성도 화면에 나갈 아이템(노출 메뉴 소속) 기준으로, 나머지 보강 조회와 함께 한 번에 읽는다.
+  const visibleItemIds = (itemsResult.data ?? [])
+    .filter((item) => menuMap.has(item.menu_entry_id)).map((item) => item.id)
+  const [subproducts, typeCategoriesResult, reviews, samplePageMap] = await Promise.all([
     readAllQueryRows((from, to) => supabase
       .from('market_item_subproducts')
       .select('item_id, category_id, price_credits')
@@ -231,11 +240,11 @@ export async function listMarketItemsForCategory(categoryItemId: string, filters
       .select('item_id, rating')
       .eq('workspace_subject', workspaceSubject)
       .is('deleted_at', null).in('item_id', itemIds).order('id').range(from, to)),
+    listActiveMarketItemSamplePagesForItems(visibleItemIds, workspaceSubject),
   ])
 
   if (typeCategoriesResult.error) throw new Error(typeCategoriesResult.error.message)
 
-  const menuMap = new Map((menuResult.data ?? []).map((entry) => [entry.id, entry]))
   const typeCategories = typeCategoriesResult.data ?? []
 
   const minPriceByItem = new Map<string, number>()
@@ -290,11 +299,6 @@ export async function listMarketItemsForCategory(categoryItemId: string, filters
         typeNames: typeNamesOf(item.id),
       }
     })
-
-  const samplePageMap = await listActiveMarketItemSamplePagesForItems(
-    rows.map((row) => row.itemId),
-    workspaceSubject
-  )
 
   return {
     ...pagination,
