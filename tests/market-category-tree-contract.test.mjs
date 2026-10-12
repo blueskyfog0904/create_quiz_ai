@@ -55,7 +55,7 @@ test('메가메뉴 API는 depth2까지 자른 트리를 보낸다', () => {
   assert.match(read('src/app/api/market/category-menu/route.ts'), /toMegaMenuTree\(await listMarketCategoryTree\(true\), 2\)/)
 })
 
-test('카테고리 관리 화면은 공용 편집기를 쓰고 depth 용어만 쓴다', () => {
+test("카테고리 관리 화면은 공용 편집기를 쓰고 'N단계' 용어를 쓴다", () => {
   const page = read('src/app/(admin)/admin/market-categories/page.tsx')
   const editor = read('src/components/admin/market-category-tree-editor.tsx')
   assert.match(page, /import \{ MarketCategoryTreeEditor \} from '@\/components\/admin\/market-category-tree-editor'/)
@@ -64,8 +64,15 @@ test('카테고리 관리 화면은 공용 편집기를 쓰고 depth 용어만 �
   assert.match(editor, /window\.confirm\('이 칸을 삭제할까요\?'\)/)
   assert.match(editor, /href=\{`\/categories\/\$\{node\.id\}\?subject=\$\{subject\}`\}/)
   for (const source of [page, editor]) {
-    assert.doesNotMatch(source, /2단계|3단계|그룹|항목|카테고리 미지정으로 풀립니다/)
+    // 화면 문구에 depth1·depth{n} 같은 표기를 쓰지 않는다(코드의 node.depth는 허용)
+    assert.doesNotMatch(source, /depth(\d|\{|\$\{)|그룹|항목|카테고리 미지정으로 풀립니다/)
   }
+  assert.match(editor, /\{node\.depth\}단계/)
+  // 처음에는 모두 접힌 상태(펼친 칸만 기억)
+  assert.match(editor, /const \[expandedIds, setExpandedIds\] = useState<Set<string>>\(\(\) => new Set\(\)\)/)
+  assert.match(editor, /const collapsed = !expandedIds\.has\(node\.id\)/)
+  // 기본 이미지는 2단계부터
+  assert.match(editor, /\{node\.depth > 1 \? \(\s+<MarketImageField/)
 })
 
 test("'더 자세히 찾기'는 depth2 격자(빈 칸 없음) 아래로 경로의 하위 칸을 줄마다 보여 주고, 사이드바는 depth2까지만 그린다", () => {

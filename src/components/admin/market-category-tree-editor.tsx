@@ -56,8 +56,9 @@ export function MarketCategoryTreeEditor({
   const [isLoading, setIsLoading] = useState(true)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>({})
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
-  // 하위 칸 추가 입력을 연 칸(null = 최상단 depth1 추가)
+  // 처음에는 모두 접힌 상태로 시작하고, 펼친 칸만 기억한다.
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
+  // 하위 칸 추가 입력을 연 칸(null = 최상단 1단계 추가)
   const [addingParentId, setAddingParentId] = useState<string | null | undefined>(undefined)
   const [newTitle, setNewTitle] = useState('')
   const [newSortOrder, setNewSortOrder] = useState('')
@@ -142,11 +143,7 @@ export function MarketCategoryTreeEditor({
     if (succeeded) {
       setAddingParentId(undefined)
       if (parentId) {
-        setCollapsedIds((current) => {
-          const next = new Set(current)
-          next.delete(parentId)
-          return next
-        })
+        setExpandedIds((current) => new Set(current).add(parentId))
       }
     }
   }
@@ -177,8 +174,8 @@ export function MarketCategoryTreeEditor({
     })
   }
 
-  const toggleCollapsed = (nodeId: string) => {
-    setCollapsedIds((current) => {
+  const toggleExpanded = (nodeId: string) => {
+    setExpandedIds((current) => {
       const next = new Set(current)
       if (next.has(nodeId)) next.delete(nodeId)
       else next.add(nodeId)
@@ -188,12 +185,12 @@ export function MarketCategoryTreeEditor({
 
   const renderAddForm = (depth: number) => (
     <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed p-3" style={{ marginLeft: (depth - 1) * 24 }}>
-      <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium">depth{depth}</span>
+      <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium">{depth}단계</span>
       <Input
         value={newTitle}
         onChange={(event) => setNewTitle(event.target.value)}
         placeholder="칸 이름"
-        aria-label={`depth${depth} 칸 이름`}
+        aria-label={`${depth}단계 칸 이름`}
         className="w-72"
         autoFocus
       />
@@ -217,7 +214,7 @@ export function MarketCategoryTreeEditor({
   const renderNodes = (list: AdminCategoryTreeNode[]) => list.map((node) => {
     const draft = drafts[node.id] ?? { title: node.title, sortOrder: String(node.sortOrder) }
     const isDirty = draft.title !== node.title || Number(draft.sortOrder) !== node.sortOrder
-    const collapsed = collapsedIds.has(node.id)
+    const collapsed = !expandedIds.has(node.id)
     const canAddChild = node.depth < MARKET_CATEGORY_MAX_DEPTH
     return (
       <Fragment key={node.id}>
@@ -228,7 +225,7 @@ export function MarketCategoryTreeEditor({
           {node.children.length > 0 ? (
             <button
               type="button"
-              onClick={() => toggleCollapsed(node.id)}
+              onClick={() => toggleExpanded(node.id)}
               aria-expanded={!collapsed}
               aria-label={`${node.title} ${collapsed ? '펼치기' : '접기'}`}
               className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
@@ -238,7 +235,7 @@ export function MarketCategoryTreeEditor({
           ) : (
             <span className="size-8" aria-hidden />
           )}
-          <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium">depth{node.depth}</span>
+          <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium">{node.depth}단계</span>
           <Input
             value={draft.title}
             aria-label="칸 이름"
@@ -259,12 +256,15 @@ export function MarketCategoryTreeEditor({
             상품 {node.productCount.toLocaleString()}
             {node.deletedProductCount > 0 ? ` (삭제 ${node.deletedProductCount.toLocaleString()})` : ''}
           </span>
-          <MarketImageField
-            label={`'${node.title}' 기본 이미지`}
-            value={node.defaultImage}
-            disabled={savingId === node.id}
-            onChange={(image) => void patchNode(node.id, { default_image_id: image?.id ?? null })}
-          />
+          {/* 기본 이미지는 2단계부터 고른다 */}
+          {node.depth > 1 ? (
+            <MarketImageField
+              label={`'${node.title}' 기본 이미지`}
+              value={node.defaultImage}
+              disabled={savingId === node.id}
+              onChange={(image) => void patchNode(node.id, { default_image_id: image?.id ?? null })}
+            />
+          ) : null}
           <a
             href={`/categories/${node.id}?subject=${subject}`}
             target="_blank"
@@ -306,10 +306,10 @@ export function MarketCategoryTreeEditor({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          depth1~depth{MARKET_CATEGORY_MAX_DEPTH}까지 칸을 만들 수 있습니다. 상품은 어느 칸에든 연결할 수 있고, 위 칸 페이지에는 아래 칸 상품이 모두 보입니다.
-          상품이 연결된 칸(하위 칸 포함)은 삭제할 수 없으니 비활성화하거나 상품을 옮긴 뒤 삭제하세요.
+          1단계~{MARKET_CATEGORY_MAX_DEPTH}단계까지 칸을 만들 수 있습니다. 상품은 어느 칸에든 연결할 수 있고, 위 칸 페이지에는 아래 칸 상품이 모두 보입니다.
+          상품이 연결된 칸(하위 칸 포함)은 삭제할 수 없으니 비활성화하거나 상품을 옮긴 뒤 삭제하세요. 기본 이미지는 2단계부터 지정할 수 있습니다.
         </p>
-        <Button type="button" onClick={() => openAddForm(null)}>depth1 추가</Button>
+        <Button type="button" onClick={() => openAddForm(null)}>1단계 추가</Button>
       </div>
 
       {addingParentId === null ? renderAddForm(1) : null}
@@ -319,7 +319,7 @@ export function MarketCategoryTreeEditor({
           <p className="px-4 py-8 text-center text-sm text-muted-foreground">불러오는 중…</p>
         ) : nodes.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-            아직 칸이 없습니다. [depth1 추가]로 첫 칸을 만드세요.
+            아직 칸이 없습니다. [1단계 추가]로 첫 칸을 만드세요.
           </p>
         ) : (
           <ul className="text-sm">{renderNodes(nodes)}</ul>

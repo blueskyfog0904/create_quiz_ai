@@ -4,7 +4,7 @@ import { MarketCategoryTreeEditor } from '@/components/admin/market-category-tre
 
 export const metadata: Metadata = {
   title: '카테고리 메뉴 관리 | 관리자 패널',
-  description: '문제마켓 카테고리 칸(depth1~5)을 관리합니다.',
+  description: '문제마켓 카테고리 칸(1단계~5단계)을 관리합니다.',
 }
 
 interface MarketCategoriesPageProps {
@@ -23,7 +23,7 @@ export default async function MarketCategoriesPage({ searchParams }: MarketCateg
         </h2>
       </div>
       <p className="text-sm text-muted-foreground">
-        문제마켓 카테고리 칸입니다. 헤더 메가메뉴에는 depth1~depth2가 보이고, 칸마다 카테고리 페이지가 있습니다. 비활성화하면 그 칸과 아래 칸 전체가 메뉴와 카테고리 페이지에서 숨겨집니다.
+        문제마켓 카테고리 칸입니다. 헤더 메가메뉴에는 1단계~2단계가 보이고, 칸마다 카테고리 페이지가 있습니다. 비활성화하면 그 칸과 아래 칸 전체가 메뉴와 카테고리 페이지에서 숨겨집니다.
       </p>
       <MarketCategoryTreeEditor key={workspaceSubject} subject={workspaceSubject} />
     </div>
