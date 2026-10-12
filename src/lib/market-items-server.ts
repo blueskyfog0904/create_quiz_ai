@@ -18,7 +18,6 @@ import type { Tables, TablesInsert, TablesUpdate } from '@/types/supabase'
 type WithWorkspaceSubject = { workspace_subject: WorkspaceSubject }
 type WithOptionalWorkspaceSubject = { workspace_subject?: WorkspaceSubject }
 
-export type MarketMenuEntry = Tables<'market_menu_entries'> & WithWorkspaceSubject
 export type MarketItem = Tables<'market_items'> & WithWorkspaceSubject
 export type MarketItemFile = Tables<'market_item_files'> & WithWorkspaceSubject
 export type MarketPurchase = Tables<'market_purchases'> & WithWorkspaceSubject
@@ -209,21 +208,6 @@ function assertMatchingWorkspaceSubject(
   if (expectedSubject !== actualSubject) {
     throw new Error(`${label}의 작업 공간이 일치하지 않습니다.`)
   }
-}
-
-async function getMarketMenuEntryById(menuEntryId: string): Promise<MarketMenuEntry | null> {
-  const supabase = getAdminSupabase()
-  const { data, error } = await supabase
-    .from('market_menu_entries')
-    .select('*')
-    .eq('id', menuEntryId)
-    .maybeSingle()
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  return withWorkspaceSubject(data)
 }
 
 function getAdminSupabase() {
@@ -1662,25 +1646,19 @@ export async function listMarketSubproductDownloadFilesForUser(
   return sortDownloadFilesByCategoryOrder(downloadFiles, categoryBySubproductId)
 }
 
-// 상품 과목은 카테고리 칸의 과목(workspace_subject, 라우트가 칸에서 읽어 넘김)이다. 게시판도 같은 과목이어야 한다.
+// 상품 과목은 카테고리 칸의 과목(workspace_subject, 라우트가 칸에서 읽어 넘김)이다. 새 상품은 게시판에 연결하지 않는다(S4).
 export async function createMarketItem(
   input: Pick<TablesInsert<'market_items'>,
-    'menu_entry_id' | 'title' | 'summary' | 'description' | 'thumbnail_image_id' | 'exam_year' | 'exam_month' |
+    'title' | 'summary' | 'description' | 'thumbnail_image_id' | 'exam_year' | 'exam_month' |
     'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'question_count' |
     'pdf_price' | 'hwp_price' | 'zip_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'draft_source' | 'created_by' | 'updated_by'>
     & { workspace_subject: WorkspaceSubject; category_item_id: string }
 ) {
   const supabase = getAdminSupabase()
   const normalized = validateMarketItemInput(input)
-  const menuEntry = await getMarketMenuEntryById(input.menu_entry_id)
-
-  if (!menuEntry) {
-    throw new Error('연결할 문제마켓 카테고리를 찾을 수 없습니다.')
-  }
-  assertMatchingWorkspaceSubject('문제마켓 카테고리', input.workspace_subject, menuEntry.workspace_subject)
 
   const payload: MarketItemInsert = {
-    menu_entry_id: input.menu_entry_id,
+    menu_entry_id: null,
     workspace_subject: input.workspace_subject,
     title: normalized.title,
     summary: normalizeNullableText(input.summary),
@@ -1725,7 +1703,7 @@ export async function updateMarketItem(
   id: string,
   input: Pick<TablesUpdate<'market_items'>,
     'title' | 'summary' | 'description' | 'thumbnail_image_id' | 'exam_year' | 'exam_month' |
-    'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'question_count' | 'category_item_id' | 'menu_entry_id' |
+    'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'question_count' | 'category_item_id' |
     'pdf_price' | 'hwp_price' | 'zip_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'draft_source' | 'updated_by'>
 ) {
   const supabase = getAdminSupabase()
@@ -1733,20 +1711,6 @@ export async function updateMarketItem(
 
   if (!current) {
     throw new Error('수정할 문제마켓 상품을 찾을 수 없습니다.')
-  }
-
-  let nextMenuEntryId = input.menu_entry_id ?? current.menu_entry_id
-  let nextWorkspaceSubject = current.workspace_subject
-
-  if (nextMenuEntryId !== current.menu_entry_id) {
-    const nextMenuEntry = await getMarketMenuEntryById(nextMenuEntryId)
-    if (!nextMenuEntry) {
-      throw new Error('이동할 문제마켓 카테고리를 찾을 수 없습니다.')
-    }
-
-    assertMatchingWorkspaceSubject('문제마켓 카테고리', current.workspace_subject, nextMenuEntry.workspace_subject)
-    nextWorkspaceSubject = nextMenuEntry.workspace_subject
-    nextMenuEntryId = nextMenuEntry.id
   }
 
   const normalized = validateMarketItemInput({
@@ -1758,9 +1722,9 @@ export async function updateMarketItem(
 
   const nextStatus = input.status ?? current.status
 
+  // menu_entry_id(예전 게시판 연결)는 수정하지 않는다.
   const payload: MarketItemInsert = {
-    menu_entry_id: nextMenuEntryId,
-    workspace_subject: nextWorkspaceSubject,
+    workspace_subject: current.workspace_subject,
     title: normalized.title,
     summary: normalizeNullableText(input.summary ?? current.summary),
     description: normalizeNullableText(input.description ?? current.description),

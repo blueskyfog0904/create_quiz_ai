@@ -2044,7 +2044,7 @@ export type Database = {
           hwp_price: number
           id: string
           is_active: boolean
-          menu_entry_id: string
+          menu_entry_id: string | null
           pdf_price: number
           published_at: string | null
           question_count: number | null
@@ -2079,7 +2079,7 @@ export type Database = {
           hwp_price?: number
           id?: string
           is_active?: boolean
-          menu_entry_id: string
+          menu_entry_id?: string | null
           pdf_price?: number
           published_at?: string | null
           question_count?: number | null
@@ -2114,7 +2114,7 @@ export type Database = {
           hwp_price?: number
           id?: string
           is_active?: boolean
-          menu_entry_id?: string
+          menu_entry_id?: string | null
           pdf_price?: number
           published_at?: string | null
           question_count?: number | null

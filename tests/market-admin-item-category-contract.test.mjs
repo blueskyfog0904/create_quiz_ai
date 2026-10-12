@@ -52,12 +52,14 @@ test('GET은 ?categoryId=의 하위 칸까지 포함해 거르고 게시판(?men
   assert.doesNotMatch(list, /menu_entry_id|menuEntryId/)
 })
 
-test('POST의 menuEntryId는 선택이고, 없으면 기본 게시판을 규칙 쿼리로 고른다(UUID 리터럴 없음)', () => {
-  assert.match(itemsRoute, /menuEntryId: z\.string\(\)\.uuid\(\)\.optional\(\),/)
-  assert.match(itemsRoute, /const menuEntryId = parsed\.data\.menuEntryId \?\? await getDefaultMarketMenuEntryId\(workspaceSubject\)/)
-  assert.match(itemsRoute, /message: '기본 게시판이 없습니다'/)
-  const rule = fnBody(menuServer, 'getDefaultMarketMenuEntryId')
-  assert.match(rule, /\.from\('market_menu_entries'\)\n\s+\.select\('id'\)\n\s+\.eq\('workspace_subject', workspaceSubject\)\n\s+\.eq\('is_active', true\)\n\s+\.eq\('is_visible', true\)\n\s+\.is\('deleted_at', null\)\n\s+\.order\('sort_order'\)\n\s+\.order\('created_at'\)\n\s+\.limit\(1\)/)
+// S4-7: 게시판(menu_entry_id)은 nullable이 되어 새 상품은 null로 저장하고, 기본 게시판 규칙은 지웠다.
+test('POST·PATCH는 menuEntryId를 받지 않고 기본 게시판 규칙이 없다(UUID 리터럴 없음)', () => {
+  for (const source of [itemsRoute, itemRoute]) {
+    assert.doesNotMatch(source, /menuEntryId|menu_entry_id|getDefaultMarketMenuEntryId|기본 게시판/)
+  }
+  assert.doesNotMatch(menuServer, /getDefaultMarketMenuEntryId/)
+  assert.match(fnBody(itemsServer, 'createMarketItem'), /menu_entry_id: null,/)
+  assert.doesNotMatch(fnBody(itemsServer, 'updateMarketItem'), /menu_entry_id:|input\.menu_entry_id/)
   const uuid = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
   for (const source of [itemsRoute, itemRoute, menuServer, productsClient, productsPage]) {
     assert.doesNotMatch(source, uuid)
@@ -145,17 +147,11 @@ test('PATCH: categoryItemId null(해제)은 400, 같은 과목 칸은 저장된�
   assert.equal(updateCalls[0].category_item_id, CATEGORY_ID)
 })
 
-function loadItemsRoute({ categorySubject, createCalls, menuCalls = [] }) {
+function loadItemsRoute({ categorySubject, createCalls }) {
   return loadRoute('src/app/api/admin/market/items/route.ts', {
     mocks: {
       '@/lib/admin-workspace': { resolveAdminWorkspaceSubject: (value) => value || 'korean' },
       '@/lib/market-categories-server': { getMarketCategoryItemWorkspaceSubject: async () => categorySubject },
-      '@/lib/market-menu-server': {
-        listMarketMenuEntriesForAdmin: async (subject) => {
-          menuCalls.push(subject)
-          return [{ id: BOARD_ID, deleted_at: null }]
-        },
-      },
       '@/lib/market-items-server': {
         createMarketItem: async (input) => {
           createCalls.push(input)
@@ -184,15 +180,14 @@ test('POST: 카테고리 없음·없는 칸·다른 과목 칸은 400이고 상�
   assert.equal(createCalls.length, 0)
 })
 
-test('POST: 상품 과목과 게시판 확인은 카테고리 칸의 과목을 따른다', async () => {
+test('POST: 상품 과목은 카테고리 칸의 과목을 따르고, 보낸 menuEntryId는 쓰지 않는다', async () => {
   const createCalls = []
-  const menuCalls = []
-  const route = loadItemsRoute({ categorySubject: 'english', createCalls, menuCalls })
+  const route = loadItemsRoute({ categorySubject: 'english', createCalls })
   const response = await post(route, { ...body, menuEntryId: BOARD_ID, categoryItemId: CATEGORY_ID }, '?subject=english')
   assert.equal(response.status, 201)
   assert.equal(createCalls[0].workspace_subject, 'english')
   assert.equal(createCalls[0].category_item_id, CATEGORY_ID)
-  assert.deepEqual(menuCalls, ['english'])
+  assert.equal('menu_entry_id' in createCalls[0], false)
 })
 
 test('GET ?categoryId=: 칸의 하위 칸 id(비활성 포함)로 상품을 거른다', async () => {
@@ -252,43 +247,42 @@ test('GET ?categoryId=: 칸의 하위 칸 id(비활성 포함)로 상품을 거�
   assert.deepEqual(listCalls, [{ workspaceSubject: 'korean', categoryIds: [DEPTH2, DEPTH3] }, { workspaceSubject: 'korean', categoryIds: undefined }])
 })
 
-test('POST: menuEntryId가 없으면 규칙 쿼리의 기본 게시판으로 201, 기본 게시판이 없으면 400', async () => {
-  for (const board of [{ id: BOARD_ID }, null]) {
-    const admin = createFakeAdmin(({ table }) => (table === 'market_menu_entries' ? { data: board, error: null } : { data: null, error: null }))
-    const menuServer = load('src/lib/market-menu-server.ts', {
-      '@/lib/supabase/bypass': { createAdminClient: () => admin.client },
-      '@/lib/market-menu': {},
-    })
-    const createCalls = []
-    const { route } = loadRoute('src/app/api/admin/market/items/route.ts', {
-      mocks: {
-        '@/lib/admin-workspace': { resolveAdminWorkspaceSubject: (value) => value || 'korean' },
-        '@/lib/market-categories-server': { getMarketCategoryItemWorkspaceSubject: async () => 'english' },
-        '@/lib/market-menu-server': menuServer,
-        '@/lib/market-items-server': { createMarketItem: async (input) => { createCalls.push(input); return { id: ITEM_ID } } },
-      },
-    })
-    const response = await post(route, { ...body, categoryItemId: CATEGORY_ID }, '')
-    const query = admin.calls.find((call) => call.table === 'market_menu_entries')
-    // 칸의 과목(english)으로 활성·공개·미삭제 게시판 중 정렬 첫 번째를 고른다.
-    assert.deepEqual(query.ops.filter(([name]) => name !== 'select'), [
-      ['eq', 'workspace_subject', 'english'],
-      ['eq', 'is_active', true],
-      ['eq', 'is_visible', true],
-      ['is', 'deleted_at', null],
-      ['order', 'sort_order'],
-      ['order', 'created_at'],
-      ['limit', 1],
-      ['maybeSingle'],
-    ])
-    if (board) {
-      assert.equal(response.status, 201)
-      assert.equal(createCalls[0].menu_entry_id, BOARD_ID)
-      assert.equal(createCalls[0].workspace_subject, 'english')
-    } else {
-      assert.equal(response.status, 400)
-      assert.equal((await response.json()).error.message, '기본 게시판이 없습니다')
-      assert.equal(createCalls.length, 0)
-    }
+test('POST: menuEntryId 없이 201이고 게시판을 조회하지 않으며, 새 상품은 menu_entry_id null·수정은 menu_entry_id를 건드리지 않는다', async () => {
+  const createCalls = []
+  const { route } = loadRoute('src/app/api/admin/market/items/route.ts', {
+    mocks: {
+      '@/lib/admin-workspace': { resolveAdminWorkspaceSubject: (value) => value || 'korean' },
+      '@/lib/market-categories-server': { getMarketCategoryItemWorkspaceSubject: async () => 'english' },
+      '@/lib/market-items-server': { createMarketItem: async (input) => { createCalls.push(input); return { id: ITEM_ID } } },
+    },
+  })
+  const response = await post(route, { ...body, categoryItemId: CATEGORY_ID }, '')
+  assert.equal(response.status, 201)
+  assert.equal(createCalls[0].workspace_subject, 'english')
+  assert.equal('menu_entry_id' in createCalls[0], false)
+
+  const current = {
+    id: ITEM_ID, workspace_subject: 'english', menu_entry_id: BOARD_ID, title: '상품', summary: null, description: null,
+    thumbnail_image_id: null, exam_year: null, exam_month: null, grade_level: null, source_type: null,
+    source_1: null, source_2: null, source_3: null, source_4: null, question_count: null, category_item_id: CATEGORY_ID,
+    pdf_price: 0, hwp_price: 0, zip_price: 0, sort_order: 0, status: 'draft', draft_source: 'manual',
+    is_active: true, published_at: null, updated_by: null,
   }
+  const admin = createFakeAdmin(({ ops }) => ({ data: op(ops, 'update') ? { ...current, ...op(ops, 'update')[1] } : current, error: null }))
+  const items = load('src/lib/market-items-server.ts', {
+    '@/lib/supabase/bypass': { createAdminClient: () => admin.client },
+    '@/lib/market-sample-pages-server': {},
+    '@/lib/market-refunds': {},
+    '@/lib/workspace-subject': { DEFAULT_WORKSPACE_SUBJECT: 'english' },
+    '@/lib/market-images': marketImages,
+    '@/lib/market-category-tree': load('src/lib/market-category-tree.ts'),
+  })
+  await items.createMarketItem({ workspace_subject: 'english', category_item_id: CATEGORY_ID, title: '상품', pdf_price: 0, hwp_price: 0, zip_price: 0 })
+  await items.updateMarketItem(ITEM_ID, { title: '수정' })
+  assert.equal(admin.calls.some((call) => call.table === 'market_menu_entries'), false)
+  const insert = admin.calls.map((call) => op(call.ops, 'insert')).find(Boolean)
+  assert.equal(insert[1].menu_entry_id, null)
+  const update = admin.calls.map((call) => op(call.ops, 'update')).find(Boolean)
+  assert.equal(update[1].title, '수정')
+  assert.equal('menu_entry_id' in update[1], false)
 })

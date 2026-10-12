@@ -47,7 +47,6 @@ export interface MarketHomeItem {
   title: string
   summary: string | null
   thumbnailUrl: string | null
-  menuEntryId: string
   questionCount: number | null
   sourceType: string | null
   sources: Array<string | null>

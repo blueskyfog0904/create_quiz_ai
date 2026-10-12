@@ -20,7 +20,6 @@ import {
 export const dynamic = 'force-dynamic'
 
 const MarketItemUpdateSchema = z.object({
-  menuEntryId: z.string().uuid().optional(),
   title: z.string().trim().min(1),
   summary: z.string().trim().optional(),
   description: z.string().trim().optional(),
@@ -148,7 +147,6 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     }
 
     const item = await updateMarketItem(id, {
-      menu_entry_id: parsed.data.menuEntryId,
       title: parsed.data.title,
       summary: parsed.data.summary,
       description: parsed.data.description,

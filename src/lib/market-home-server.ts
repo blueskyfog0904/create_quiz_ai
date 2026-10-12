@@ -17,13 +17,12 @@ import {
   type MarketThumbnailSource,
 } from '@/lib/market-images'
 
-const ITEM_SELECT = `id, title, summary, menu_entry_id, question_count, source_type, source_1, source_2, source_3, source_4, pdf_price, hwp_price, zip_price, published_at, created_at, ${MARKET_THUMBNAIL_EMBED}`
+const ITEM_SELECT = `id, title, summary, question_count, source_type, source_1, source_2, source_3, source_4, pdf_price, hwp_price, zip_price, published_at, created_at, ${MARKET_THUMBNAIL_EMBED}`
 
 type ItemRow = MarketThumbnailSource & {
   id: string
   title: string
   summary: string | null
-  menu_entry_id: string
   question_count: number | null
   source_type: string | null
   source_1: string | null
@@ -79,7 +78,6 @@ function toItem(
     title: row.title,
     summary: row.summary,
     thumbnailUrl: toMarketThumbnailUrl(client, row),
-    menuEntryId: row.menu_entry_id,
     questionCount: row.question_count,
     sourceType: normalizeText(row.source_type),
     sources: [row.source_1, row.source_2, row.source_3, row.source_4].map(normalizeText),

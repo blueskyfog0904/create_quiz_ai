@@ -147,10 +147,6 @@ function loadItemsRoute(path, itemsServerMock) {
     mocks: {
       '@/lib/admin-workspace': { resolveAdminWorkspaceSubject: (value) => value || 'korean' },
       '@/lib/market-categories-server': { getMarketCategoryItemWorkspaceSubject: async () => 'korean' },
-      '@/lib/market-menu-server': {
-        listMarketMenuEntriesForAdmin: async () => [{ id: ITEM_ID, deleted_at: null }],
-        getDefaultMarketMenuEntryId: async () => ITEM_ID,
-      },
       '@/lib/market-item-cleanup': {},
       '@/lib/market-items-server': itemsServerMock,
     },
