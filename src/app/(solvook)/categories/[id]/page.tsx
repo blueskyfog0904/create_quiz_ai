@@ -32,7 +32,7 @@ export default async function CategoryPage({
     pageSize: normalizeListPageSize(query.pageSize),
   }
 
-  // layout이 같은 요청에서 노드 캐시를 채웠으므로 추가 쿼리 없이 칸 정보(조상·하위 칸)를 만든다.
+  // 노드 캐시(적중이면 쿼리 없음)로 칸 정보(조상·하위 칸)를 만든다. 존재 확인(404)은 layout이 이미 했다.
   const category = await getMarketCategoryNodeDetail(id, await getCachedCategoryNodes())
   if (!category) {
     notFound()

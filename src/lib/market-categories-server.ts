@@ -479,18 +479,21 @@ const CHILD_NODES_MESSAGE = '하위 칸을 먼저 삭제해주세요.'
 // 자기·하위 칸에 상품이 있거나(삭제된 상품 포함) 하위 칸이 있으면 409로 막는다. 상품 연결은 풀지 않는다.
 export async function deleteCategoryNode(nodeId: string) {
   const supabase = createAdminClient()
-  const { data: nodes, error: nodesError } = await supabase
-    .from('market_category_items')
-    .select('id, parent_id')
-  if (nodesError) {
-    throw new MarketCategoryError(500, `칸을 확인하지 못했습니다: ${nodesError.message}`)
+  let nodes: { id: string; parent_id: string | null }[]
+  try {
+    nodes = await readAllQueryRows((from, to) => supabase
+      .from('market_category_items')
+      .select('id, parent_id')
+      .order('id').range(from, to))
+  } catch (error) {
+    throw new MarketCategoryError(500, `칸을 확인하지 못했습니다: ${error instanceof Error ? error.message : error}`)
   }
-  if (!(nodes ?? []).some((node) => node.id === nodeId)) {
+  if (!nodes.some((node) => node.id === nodeId)) {
     throw new MarketCategoryError(404, '칸을 찾을 수 없습니다.')
   }
 
   const childrenByParent = new Map<string, string[]>()
-  for (const node of nodes ?? []) {
+  for (const node of nodes) {
     if (!node.parent_id) continue
     childrenByParent.set(node.parent_id, [...(childrenByParent.get(node.parent_id) ?? []), node.id])
   }
