@@ -15,7 +15,7 @@ const marketItemsServer = readFileSync(
   'utf8'
 )
 const samplePreviewDialog = readFileSync(
-  new URL('../src/app/(dashboard)/market/[slug]/items/[itemId]/market-sample-preview-dialog.tsx', import.meta.url),
+  new URL('../src/components/market/market-sample-preview-dialog.tsx', import.meta.url),
   'utf8'
 )
 

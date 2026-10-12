@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from 'node:fs'
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
 
 const dialog = read('../src/components/market/market-purchase-complete-dialog.tsx')
-const itemActions = read('../src/app/(dashboard)/market/[slug]/items/[itemId]/market-item-actions.tsx')
+const itemActions = read('../src/components/market/market-item-actions.tsx')
 const cartView = read('../src/app/(solvook)/cart/_components/cart-view.tsx')
 const rootLayout = read('../src/app/layout.tsx')
 const sonner = read('../src/components/ui/sonner.tsx')

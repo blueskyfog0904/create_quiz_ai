@@ -7,7 +7,7 @@ const itemPage = readFileSync(
   'utf8'
 )
 const itemActions = readFileSync(
-  new URL('../src/app/(dashboard)/market/[slug]/items/[itemId]/market-item-actions.tsx', import.meta.url),
+  new URL('../src/components/market/market-item-actions.tsx', import.meta.url),
   'utf8'
 )
 

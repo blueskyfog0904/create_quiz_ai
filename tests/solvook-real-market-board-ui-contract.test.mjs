@@ -137,7 +137,7 @@ test('board results keep one semantic list and one shared market sample preview 
   assert.match(source, /onPageSizeChange/)
   assert.match(source, /<MarketMaterialList/)
   assert.match(rows, /MarketSamplePreviewDialog/)
-  assert.match(rows, /from '@\/app\/\(dashboard\)\/market\/\[slug\]\/items\/\[itemId\]\/market-sample-preview-dialog'/)
+  assert.match(rows, /from '@\/components\/market\/market-sample-preview-dialog'/)
   assert.equal(
     rows.match(/<MarketSamplePreviewDialog\b/g)?.length ?? 0,
     1,

@@ -74,7 +74,7 @@ test('구매 영역은 PDF 포함 판정을 새 lib 하나에서 가져온다(�
   const lib = readFileSync(new URL('../src/lib/market-bundle-savings.ts', import.meta.url), 'utf8')
   assert.doesNotMatch(lib, /^import /m, 'no dependencies so client and Node can import it')
   const actions = readFileSync(
-    new URL('../src/app/(dashboard)/market/[slug]/items/[itemId]/market-item-actions.tsx', import.meta.url),
+    new URL('../src/components/market/market-item-actions.tsx', import.meta.url),
     'utf8'
   )
   assert.match(actions, /import \{ getBundleSavings, isPdfInclusiveHwp \} from '@\/lib\/market-bundle-savings'/)

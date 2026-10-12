@@ -15,7 +15,7 @@ import {
 } from '@/lib/market-items-server'
 import { listActiveMarketItemSamplePages } from '@/lib/market-sample-pages-server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import MarketItemActions from './market-item-actions'
+import MarketItemActions from '@/components/market/market-item-actions'
 
 interface MarketItemDetailPageProps {
   params: Promise<{ slug: string; itemId: string }>

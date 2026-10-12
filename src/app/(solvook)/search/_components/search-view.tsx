@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition, type MouseEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, Loader2, RotateCcw, SearchX, X } from 'lucide-react'
-import MarketSamplePreviewDialog from '@/app/(dashboard)/market/[slug]/items/[itemId]/market-sample-preview-dialog'
+import MarketSamplePreviewDialog from '@/components/market/market-sample-preview-dialog'
 import { StudioContainer, StudioEmptyState } from '@/components/design-system'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { MarketItemCard } from '@/components/market/market-item-card'

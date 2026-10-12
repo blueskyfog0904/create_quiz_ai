@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 
 // docs/purchase-section-redesign-plan.md 8절 신규 계약(구매 영역 A안 '딥 잉크')
 const itemActions = readFileSync(
-  new URL('../src/app/(dashboard)/market/[slug]/items/[itemId]/market-item-actions.tsx', import.meta.url),
+  new URL('../src/components/market/market-item-actions.tsx', import.meta.url),
   'utf8'
 )
 const v2 = itemActions.slice(itemActions.indexOf('const renderV2PurchaseOptions'), itemActions.indexOf('const hasV2PurchaseOptions'))

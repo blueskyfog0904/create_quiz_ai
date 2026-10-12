@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRef, useState, type MouseEvent } from 'react'
 import { FileImage, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import MarketSamplePreviewDialog from '@/app/(dashboard)/market/[slug]/items/[itemId]/market-sample-preview-dialog'
+import MarketSamplePreviewDialog from '@/components/market/market-sample-preview-dialog'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 export interface MarketMaterialListItem {

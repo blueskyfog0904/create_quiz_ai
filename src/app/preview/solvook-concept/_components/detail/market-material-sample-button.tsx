@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { Eye } from 'lucide-react'
-import MarketSamplePreviewDialog from '@/app/(dashboard)/market/[slug]/items/[itemId]/market-sample-preview-dialog'
+import MarketSamplePreviewDialog from '@/components/market/market-sample-preview-dialog'
 import { Button } from '@/components/ui/button'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 

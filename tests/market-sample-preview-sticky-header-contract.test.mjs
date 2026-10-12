@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 
 const readSource = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-const source = readSource('src/app/(dashboard)/market/[slug]/items/[itemId]/market-sample-preview-dialog.tsx')
+const source = readSource('src/components/market/market-sample-preview-dialog.tsx')
 
 test('market sample preview keeps the header fixed while sample pages scroll', () => {
   assert.match(source, /DialogContent className="[^"]*flex flex-col[^"]*overflow-hidden[^"]*"/)

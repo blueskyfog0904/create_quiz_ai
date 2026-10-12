@@ -11,7 +11,7 @@ import { WorkspaceLink } from '@/components/layout/workspace-link'
 import { Button } from '@/components/ui/button'
 import type { MarketListboardRow } from '@/lib/market-items-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
-import MarketSamplePreviewDialog from './items/[itemId]/market-sample-preview-dialog'
+import MarketSamplePreviewDialog from '@/components/market/market-sample-preview-dialog'
 
 interface MarketListboardClientProps {
   categorySlug: string

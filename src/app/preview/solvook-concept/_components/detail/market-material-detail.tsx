@@ -3,7 +3,7 @@ import {
   CalendarDays,
   FileText,
 } from 'lucide-react'
-import MarketItemActions from '@/app/(dashboard)/market/[slug]/items/[itemId]/market-item-actions'
+import MarketItemActions from '@/components/market/market-item-actions'
 import { StudioContainer } from '@/components/design-system/studio-container'
 import { StudioDetailPageFrame } from '@/components/page-templates/studio-detail-page-frame'
 import { Badge } from '@/components/ui/badge'
