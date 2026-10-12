@@ -12,19 +12,16 @@ import { updateListQuery } from '@/lib/list-pagination'
 import { MarketCategorySidebar } from '@/components/market/MarketCategorySidebar'
 import { MarketItemListRow } from '@/components/market/market-item-list-row'
 import MarketSamplePreviewDialog from '@/app/(dashboard)/market/[slug]/items/[itemId]/market-sample-preview-dialog'
-import type { MegaMenuGroup } from '@/lib/market-categories-server'
+import type { MarketCategoryNodeDetail, MarketCategoryNodeSummary } from '@/lib/market-categories-server'
+import { findCategoryPath, type MarketCategoryNode } from '@/lib/market-category-tree'
 import type { MarketSearchRow } from '@/lib/market-search-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 interface CategoryItemsViewProps {
-  category: {
-    id: string
-    title: string
-    workspaceSubject: WorkspaceSubject
-    groupTitle: string
-  }
+  category: MarketCategoryNodeDetail
   rows: MarketSearchRow[]
-  tree: MegaMenuGroup[]
+  // 상품 수가 들어 있는 같은 과목 트리(사이드바·'더 자세히 찾기'의 (N))
+  tree: MarketCategoryNode[]
   pagination: { page: number; pageSize: number; totalCount: number; totalPages: number }
   filters: { q: string; sort: 'views' | 'latest' }
 }
@@ -36,25 +33,25 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'latest', label: '최신순' },
 ]
 
-// 솔북 '더 자세히 찾기': 현재 2단계 그룹의 3단계 항목들을 표 형태 그리드로 노출
+// 솔북 '더 자세히 찾기': 현재 칸의 하위 칸을, 말단 칸이면 같은 부모 아래 칸(현재 칸 강조)을 표 형태 그리드로 노출
 function DetailFinder({
-  group,
+  items,
   subject,
   activeItemId,
 }: {
-  group: MegaMenuGroup
+  items: MarketCategoryNodeSummary[]
   subject: WorkspaceSubject
   activeItemId: string
 }) {
   // gap-px 그리드에서 마지막 줄 빈 영역이 어두운 블록으로 보이지 않도록 열 수별 필러 셀을 채운다.
-  const fillerMd = (4 - (group.items.length % 4)) % 4
-  const fillerSm = (2 - (group.items.length % 2)) % 2
+  const fillerMd = (4 - (items.length % 4)) % 4
+  const fillerSm = (2 - (items.length % 2)) % 2
 
   return (
     <section aria-label="더 자세히 찾기" className="mt-8">
       <h2 className="text-lg font-bold text-[var(--studio-ink)]">더 자세히 찾기</h2>
       <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-[var(--studio-border)] bg-[var(--studio-border)] md:grid-cols-4">
-        {group.items.map((item) => {
+        {items.map((item) => {
           const active = item.id === activeItemId
           return (
             <Link
@@ -67,7 +64,12 @@ function DetailFinder({
                   : 'text-[var(--studio-text)] hover:bg-[var(--studio-background)] hover:text-[var(--studio-ink)]'
               }`}
             >
-              <span className="break-keep">{item.title}</span>
+              <span className="break-keep">
+                {item.title}
+                {item.itemCount !== undefined ? (
+                  <> <span className="whitespace-nowrap text-[var(--studio-muted)]">({item.itemCount.toLocaleString()})</span></>
+                ) : null}
+              </span>
             </Link>
           )
         })}
@@ -85,7 +87,14 @@ function DetailFinder({
 export function CategoryItemsView({ category, rows, tree, pagination, filters }: CategoryItemsViewProps) {
   const subject = category.workspaceSubject
   const subjectLabel = subject === 'korean' ? '국어' : '영어'
-  const activeGroup = tree.find((group) => group.items.some((item) => item.id === category.id)) ?? null
+  // 상품 수는 개수 트리에서 읽는다. 60초 캐시 경계에서 개수 트리에 이 칸이 없으면 수 없이 칸 정보로 그린다.
+  const countedPath = findCategoryPath(tree, category.id)
+  const countedNode = countedPath?.[countedPath.length - 1]
+  const finderItems: MarketCategoryNodeSummary[] = countedPath && countedNode
+    ? (countedNode.children.length > 0
+      ? countedNode.children
+      : countedPath.length > 1 ? countedPath[countedPath.length - 2].children : tree)
+    : (category.children.length > 0 ? category.children : category.siblings)
 
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -147,20 +156,35 @@ export function CategoryItemsView({ category, rows, tree, pagination, filters }:
             key={category.id}
             tree={tree}
             subject={subject}
-            activeItemId={category.id}
+            activeId={category.id}
           />
         </aside>
 
         <div className="min-w-0 flex-1" aria-busy={isPending}>
-          <p className="break-keep text-sm text-[var(--studio-muted)]">
-            {subjectLabel} / {category.groupTitle}
-          </p>
+          <nav aria-label="현재 위치" className="flex flex-wrap items-center gap-x-1.5 break-keep text-sm text-[var(--studio-muted)]">
+            <Link href={`/?subject=${subject}`} className="rounded-sm outline-none hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]">
+              {subjectLabel}
+            </Link>
+            {category.ancestors.map((ancestor) => (
+              <span key={ancestor.id} className="contents">
+                <span aria-hidden="true">/</span>
+                <Link
+                  href={`/categories/${ancestor.id}?subject=${subject}`}
+                  className="rounded-sm outline-none hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                >
+                  {ancestor.title}
+                </Link>
+              </span>
+            ))}
+            <span aria-hidden="true">/</span>
+            <span aria-current="page">{category.title}</span>
+          </nav>
           <h1 className="mt-1 break-keep text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">
             {category.title}
           </h1>
 
-          {activeGroup && (
-            <DetailFinder group={activeGroup} subject={subject} activeItemId={category.id} />
+          {finderItems.length > 0 && (
+            <DetailFinder items={finderItems} subject={subject} activeItemId={category.id} />
           )}
 
           {rows.length === 0 && !filters.q ? (

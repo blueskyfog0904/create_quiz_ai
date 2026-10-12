@@ -3,10 +3,10 @@ import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { connection } from 'next/server'
 import {
-  getMarketCategoryItemDetail,
+  getMarketCategoryNodeDetail,
   listMarketItemsForCategory,
 } from '@/lib/market-categories-server'
-import { getCachedCategoryMenu } from '@/lib/market-category-tree-cache'
+import { getCachedCategoryNodes, getCachedCategoryTree } from '@/lib/market-category-tree-cache'
 import { CategoryItemsView } from './_components/category-items-view'
 import { normalizeListPage, normalizeListPageSize } from '@/lib/list-pagination'
 
@@ -32,14 +32,15 @@ export default async function CategoryPage({
     pageSize: normalizeListPageSize(query.pageSize),
   }
 
-  const category = await getMarketCategoryItemDetail(id)
+  // layout이 같은 요청에서 노드 캐시를 채웠으므로 추가 쿼리 없이 칸 정보(조상·하위 칸)를 만든다.
+  const category = await getMarketCategoryNodeDetail(id, await getCachedCategoryNodes())
   if (!category) {
     notFound()
   }
 
-  const [result, menu] = await Promise.all([
+  const [result, tree] = await Promise.all([
     listMarketItemsForCategory(id, filters, category),
-    getCachedCategoryMenu(),
+    getCachedCategoryTree(),
   ])
   const { rows, ...pagination } = result
 
@@ -50,7 +51,7 @@ export default async function CategoryPage({
         rows={rows}
         pagination={pagination}
         filters={filters}
-        tree={menu[category.workspaceSubject]}
+        tree={tree[category.workspaceSubject]}
       />
     </Suspense>
   )
