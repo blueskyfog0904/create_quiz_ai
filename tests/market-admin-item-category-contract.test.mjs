@@ -295,7 +295,16 @@ test('상품 등록 화면은 폼만, 상품 관리 화면은 목록 필터·목
   assert.match(create, /mode="create"/)
   assert.match(client, /\{mode === 'create' \|\| form\.id \? \(/)
   assert.match(client, /\{mode === 'manage' \? \(\n\s+<Card>/)
-  assert.match(client, /목록 필터: 카테고리/)
+  assert.match(client, /목록 검색: 카테고리\(고른 칸과 하위 칸\) \+ 제목/)
   assert.doesNotMatch(client, /<CardTitle>카테고리 선택<\/CardTitle>/)
   assert.match(client, /withAdminWorkspaceSubject\('\/admin\/market\/products\/new', workspaceSubject\)/)
+})
+
+test('상품 관리 목록 검색: 카테고리 필터(서버) + 제목 검색(받아 온 목록에서 단어 모두 포함), 바꾸면 1페이지로', () => {
+  assert.match(productsClient, /const titleTerms = useMemo\(\(\) => titleQuery\.toLowerCase\(\)\.split\(\/\\s\+\/\)\.filter\(Boolean\), \[titleQuery\]\)/)
+  assert.match(productsClient, /return titleTerms\.every\(\(term\) => title\.includes\(term\)\)/)
+  assert.match(productsClient, /const changeTitleQuery = \(nextQuery: string\) => \{\n\s+setTitleQuery\(nextQuery\)\n\s+listQuery\.update\(\{ page: 1 \}, true\)/)
+  assert.match(productsClient, /<Label htmlFor="market-product-title-search"[^>]*>제목 검색<\/Label>/)
+  assert.match(productsClient, /검색 결과 \{filteredItems\.length\.toLocaleString\(\)\}개/)
+  assert.match(productsClient, /'검색 조건에 맞는 상품이 없습니다\.'/)
 })

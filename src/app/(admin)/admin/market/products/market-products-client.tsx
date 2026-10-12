@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
-import { Eye, EyeOff, Images, Loader2, Pencil, Plus, Trash2, Upload } from 'lucide-react'
+import { Eye, EyeOff, Images, Loader2, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -538,6 +538,8 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
   const router = useRouter()
   // 상품 목록 상단 필터(가장 깊이 고른 칸, '' = 전체). 서버가 하위 칸까지 포함해 거른다.
   const [filterCategoryId, setFilterCategoryId] = useState('')
+  // 상품 목록 제목 검색어: 받아 온 목록에서 띄어쓰기로 나눈 단어가 모두 제목에 든 상품만 남긴다.
+  const [titleQuery, setTitleQuery] = useState('')
   const [items, setItems] = useState(initialItems)
   const [form, setForm] = useState<MarketItemFormState>(buildEmptyForm())
   const [isSaving, setIsSaving] = useState(false)
@@ -618,8 +620,15 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
   // 새 상품은 카테고리를 고르기 전에는 업로드(= 임시 상품 생성)를 막는다.
   const isUploadBlockedByCategory = !form.id && !categoryItemId
 
-  // 목록은 서버가 상단 필터(하위 칸 포함)로 거른 결과다.
-  const filteredItems = items
+  // 목록은 서버가 상단 카테고리 필터(하위 칸 포함)로 거른 결과에 제목 검색을 더한 것이다.
+  const titleTerms = useMemo(() => titleQuery.toLowerCase().split(/\s+/).filter(Boolean), [titleQuery])
+  const filteredItems = useMemo(
+    () => (titleTerms.length === 0 ? items : items.filter((item) => {
+      const title = item.title.toLowerCase()
+      return titleTerms.every((term) => title.includes(term))
+    })),
+    [items, titleTerms]
+  )
 
   const selectedItems = useMemo(() => filteredItems.filter((item) => selectedItemIds.includes(item.id)), [filteredItems, selectedItemIds])
   // 목록은 이미 받은 상품을 클라이언트에서 페이지로 나눈다. 페이지·표시 개수는 URL 쿼리에만 기록하고 화면은 이동하지 않는다.
@@ -880,6 +889,16 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
     setSelectedItemIds([])
     listQuery.update({ page: 1 }, true)
     void refreshItems(nextCategoryId).catch((error) => toast.error(error instanceof Error ? error.message : '문제마켓 상품 목록을 불러오지 못했습니다.'))
+  }
+
+  const changeTitleQuery = (nextQuery: string) => {
+    setTitleQuery(nextQuery)
+    listQuery.update({ page: 1 }, true)
+  }
+
+  const resetListFilters = () => {
+    changeTitleQuery('')
+    if (filterCategoryId) changeFilterCategory('')
   }
 
   const fetchItemDetail = async (id: string) => {
@@ -2886,16 +2905,40 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
               <div>
                 <CardTitle>상품 목록</CardTitle>
                 <p className="mt-1 text-sm text-gray-500">선택 {selectedItems.length}개</p>
-                {/* 목록 필터: 고른 칸과 하위 칸의 상품만 보여 준다(상품에 저장되는 값이 아님). */}
-                <div className="mt-3 max-w-sm space-y-1">
-                  <Label className="text-xs text-gray-500">목록 필터: 카테고리</Label>
-                  <CategoryStepSelect
-                    nodes={categoryNodes}
-                    value={filterCategoryId}
-                    onChange={changeFilterCategory}
-                    emptyLabel="전체"
-                    ariaLabel="상품 목록 카테고리"
-                  />
+                {/* 목록 검색: 카테고리(고른 칸과 하위 칸) + 제목. 상품에 저장되는 값이 아니다. */}
+                <div className="mt-3 grid max-w-3xl gap-3 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-gray-500">카테고리</Label>
+                    <CategoryStepSelect
+                      nodes={categoryNodes}
+                      value={filterCategoryId}
+                      onChange={changeFilterCategory}
+                      emptyLabel="전체"
+                      ariaLabel="상품 목록 카테고리"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="market-product-title-search" className="text-xs text-gray-500">제목 검색</Label>
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden />
+                      <Input
+                        id="market-product-title-search"
+                        type="search"
+                        value={titleQuery}
+                        onChange={(event) => changeTitleQuery(event.target.value)}
+                        placeholder="제목에 든 단어 (띄어쓰기로 여러 단어)"
+                        className="pl-9"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center gap-2 text-sm text-gray-500">
+                  <span>검색 결과 {filteredItems.length.toLocaleString()}개</span>
+                  {filterCategoryId || titleQuery ? (
+                    <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={resetListFilters}>
+                      초기화
+                    </Button>
+                  ) : null}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -2962,7 +3005,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                   {filteredItems.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="py-10 text-center text-sm text-gray-500">
-                        등록된 상품이 없습니다.
+                        {titleTerms.length > 0 || filterCategoryId ? '검색 조건에 맞는 상품이 없습니다.' : '등록된 상품이 없습니다.'}
                       </TableCell>
                     </TableRow>
                   ) : (
