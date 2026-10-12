@@ -89,7 +89,8 @@ test('category items accept default_image_id and the admin tree returns defaultI
   assert.match(categoriesServer, /defaultImage: defaultImage\n\s+\? \{ id: defaultImage\.id, publicUrl:/)
   assert.match(categoriesRoute, /const nodes = await listMarketCategoryTreeForAdmin\(workspaceSubject\)/)
   assert.match(categoriesClient, /<MarketImageField[\s\S]+?onChange=\{\(image\) => void patchNode\(node\.id, \{ default_image_id: image\?\.id \?\? null \}\)\}/)
-  assert.match(productsClient, /defaultImage: MarketImageFieldValue \| null/)
+  assert.match(categoriesClient, /defaultImage: MarketImageFieldValue \| null/)
+  assert.match(productsClient, /\.find\(\(option\) => option\.node\.id === categoryItemId\)\?\.node\.defaultImage \?\? null/)
 })
 
 function loadBulkRoute(handler, options = {}) {
