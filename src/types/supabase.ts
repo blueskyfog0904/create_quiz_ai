@@ -1203,42 +1203,11 @@ export type Database = {
           },
         ]
       }
-      market_category_groups: {
-        Row: {
-          created_at: string
-          id: string
-          is_active: boolean
-          sort_order: number
-          title: string
-          updated_at: string
-          workspace_subject: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          sort_order?: number
-          title: string
-          updated_at?: string
-          workspace_subject: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          sort_order?: number
-          title?: string
-          updated_at?: string
-          workspace_subject?: string
-        }
-        Relationships: []
-      }
       market_category_items: {
         Row: {
           created_at: string
           default_image_id: string | null
           depth: number
-          group_id: string | null
           id: string
           is_active: boolean
           parent_id: string | null
@@ -1251,7 +1220,6 @@ export type Database = {
           created_at?: string
           default_image_id?: string | null
           depth: number
-          group_id?: string | null
           id?: string
           is_active?: boolean
           parent_id?: string | null
@@ -1264,7 +1232,6 @@ export type Database = {
           created_at?: string
           default_image_id?: string | null
           depth?: number
-          group_id?: string | null
           id?: string
           is_active?: boolean
           parent_id?: string | null
@@ -1279,13 +1246,6 @@ export type Database = {
             columns: ["default_image_id"]
             isOneToOne: false
             referencedRelation: "market_images"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "market_category_items_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "market_category_groups"
             referencedColumns: ["id"]
           },
           {
