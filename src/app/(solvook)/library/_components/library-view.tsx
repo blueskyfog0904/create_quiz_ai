@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { FileTypeDocIcon } from '@/components/market/file-type-doc-icon'
 import type { MarketLibraryRow } from '@/lib/market-items-server'
-import { getMarketDownloadButtonLabel } from '@/lib/market-download-label'
+import { getMarketDownloadButtonLabels } from '@/lib/market-download-label'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 interface LibraryViewProps {
@@ -546,6 +546,7 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
               ? `/items/${row.itemId}?subject=${subject}`
               : null
             const visibleV2Files = dedupeQuestionPdfFiles(row.v2DownloadFiles)
+            const downloadLabels = getMarketDownloadButtonLabels(visibleV2Files)
             const legacyDownloads = [
               row.pdfAvailable && row.pdfDownloadUrl ? { key: 'pdf', label: 'PDF', url: row.pdfDownloadUrl } : null,
               row.hwpAvailable && row.hwpDownloadUrl ? { key: 'hwp', label: 'HWP', url: row.hwpDownloadUrl } : null,
@@ -587,18 +588,18 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
                     hasPendingRefund ? (
                       <span key={file.id} className={`${downloadButtonClassName} cursor-not-allowed opacity-50`}>
                         <FileTypeDocIcon code={file.fileTypeCode} />
-                        {getMarketDownloadButtonLabel(file)}
+                        {downloadLabels.get(file.id) ?? ''}
                       </span>
                     ) : (
                       <a
                         key={file.id}
                         href={file.downloadUrl}
                         onClick={scheduleDownloadRefresh}
-                        aria-label={`${getMarketDownloadButtonLabel(file)} 다운로드`}
+                        aria-label={`${downloadLabels.get(file.id) ?? ''} 다운로드`}
                         className={downloadButtonClassName}
                       >
                         <FileTypeDocIcon code={file.fileTypeCode} />
-                        {getMarketDownloadButtonLabel(file)}
+                        {downloadLabels.get(file.id) ?? ''}
                       </a>
                     )
                   )}

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
-import { getMarketDownloadButtonLabel } from '../src/lib/market-download-label.ts'
+import { getMarketDownloadButtonLabel, getMarketDownloadButtonLabels } from '../src/lib/market-download-label.ts'
 
 const itemActions = readFileSync(
   new URL('../src/components/market/market-item-actions.tsx', import.meta.url),
@@ -97,9 +97,10 @@ test('market detail names v2 download buttons by each file type within the subpr
   assert.match(downloadLabelLib, /file\.fileTypeLabel\.trim\(\) \|\| '파일'/)
   assert.match(downloadLabelLib, /const typedTitle = subproductTitle\.replace/)
   assert.match(downloadLabelLib, /`\(\$\{fileTypeLabel\}\)`/)
-  assert.match(itemActions, /import \{ getMarketDownloadButtonLabel \} from '@\/lib\/market-download-label'/)
+  assert.match(itemActions, /import \{ getMarketDownloadButtonLabels \} from '@\/lib\/market-download-label'/)
   assert.doesNotMatch(itemActions, /function getMarketDownloadButtonLabel/)
-  assert.match(itemActions, /const downloadLabel = getMarketDownloadButtonLabel\(file\)/)
+  assert.match(itemActions, /const downloadLabels = getMarketDownloadButtonLabels\(files\)/)
+  assert.match(itemActions, /const downloadLabel = downloadLabels\.get\(file\.id\) \?\? ''/)
   assert.match(itemActions, /aria-label=\{`\$\{downloadLabel\} 다운로드`\}/)
   assert.match(itemActions, /\{downloadLabel\}/)
   assert.doesNotMatch(itemActions, /const downloadLabel = `\$\{file\.subproductTitle\} 다운로드`/)
@@ -145,15 +146,16 @@ test('market library keeps v2 entitlement data source but sends users to detail 
 })
 
 test('library download buttons share the detail label rule instead of a separate formatter', () => {
-  assert.match(libraryView, /import \{ getMarketDownloadButtonLabel \} from '@\/lib\/market-download-label'/)
+  assert.match(libraryView, /import \{ getMarketDownloadButtonLabels \} from '@\/lib\/market-download-label'/)
+  assert.match(libraryView, /const downloadLabels = getMarketDownloadButtonLabels\(visibleV2Files\)/)
   assert.doesNotMatch(libraryView, /buildV2DownloadLabel|v2SubproductCount/)
-  assert.equal((libraryView.match(/getMarketDownloadButtonLabel\(file\)/g) ?? []).length, 3, 'v2 link text + aria-label + pending span')
+  assert.equal((libraryView.match(/downloadLabels\.get\(file\.id\) \?\? ''/g) ?? []).length, 3, 'v2 link text + aria-label + pending span')
   assert.equal(getMarketDownloadButtonLabel({ fileTypeLabel: 'PDF', subproductTitle: '워크북' }), '워크북(PDF)')
 })
 
 test('download buttons show short labels; only <a> links carry an aria-label ending in 다운로드', () => {
   assert.doesNotMatch(downloadLabelLib, / 다운로드`/, 'the shared label no longer appends 다운로드')
-  assert.match(libraryView, /aria-label=\{`\$\{getMarketDownloadButtonLabel\(file\)\} 다운로드`\}/)
+  assert.match(libraryView, /aria-label=\{`\$\{downloadLabels\.get\(file\.id\) \?\? ''\} 다운로드`\}/)
   assert.match(libraryView, /aria-label=\{`\$\{entry\.label\} 다운로드`\}/)
   assert.match(libraryView, /\{ key: 'pdf', label: 'PDF', url: row\.pdfDownloadUrl \}/)
   assert.match(libraryView, /\{ key: 'hwp', label: 'HWP', url: row\.hwpDownloadUrl \}/)
@@ -176,4 +178,17 @@ test('detail and library download files are stably ordered by subproduct categor
   )
   assert.match(marketItemsServer, /return sortDownloadFilesByCategoryOrder\(downloadFiles, categoryBySubproductId\)/)
   assert.match(marketItemsServer, /v2DownloadFileMap\.set\(itemId, sortDownloadFilesByCategoryOrder\(itemFiles, categoryBySubproductId\)\)/)
+})
+
+test('한 구성에 같은 형식 파일이 여럿이면 버튼 이름에 파일 이름의 다른 부분을 붙여 구분한다', () => {
+  const file = (id, originalFileName, fileTypeLabel = 'PDF', subproductTitle = '문제(PDF)') => ({ id, fileTypeLabel, subproductTitle, originalFileName })
+  assert.deepEqual([...getMarketDownloadButtonLabels([
+    file('a', '창비(이) 6-(2) 의사소통 문화에 참여하는 읽기와 쓰기 기본변형문제.pdf'),
+    file('b', '창비(이) 6-(2) 의사소통 문화에 참여하는 읽기와 쓰기 심화변형문제.pdf'),
+    file('c', '문제.hwp', 'HWP', '문제(HWP)'),
+  ])], [['a', '문제(PDF) · 기본변형문제'], ['b', '문제(PDF) · 심화변형문제'], ['c', '문제(HWP)']])
+  // 공통 부분은 단어 중간에서 자르지 않는다
+  assert.deepEqual([...getMarketDownloadButtonLabels([file('p', '문제A.pdf'), file('q', '문제B.pdf')])], [['p', '문제(PDF) · 문제A'], ['q', '문제(PDF) · 문제B']])
+  // 이름이 같으면 순번
+  assert.deepEqual([...getMarketDownloadButtonLabels([file('x', '같은이름.pdf'), file('y', '같은이름.pdf')])], [['x', '문제(PDF) · 1'], ['y', '문제(PDF) · 2']])
 })

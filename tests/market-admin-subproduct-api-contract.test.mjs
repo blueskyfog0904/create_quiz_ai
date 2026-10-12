@@ -65,7 +65,7 @@ test('admin subproduct file API uploads through v2 storage and cleans up metadat
   assert.match(fileRoute, /export async function DELETE/)
   assert.match(filesRoute, /assertMarketSubproductUploadIsAllowed/)
   assert.match(filesRoute, /buildMarketSubproductStoragePath/)
-  assert.match(filesRoute, /replaceMarketSubproductFile/)
+  assert.match(filesRoute, /addMarketSubproductFile/)
   assert.match(filesRoute, /storage[\s\S]+remove\(\[storagePath\]\)/)
   assert.match(fileRoute, /deleteMarketSubproductFile/)
 })
@@ -86,13 +86,20 @@ test('admin bundle option API and helpers support one active full-purchase optio
   assert.match(lib, /is_active/)
 })
 
-test('server helpers expose v2 subproduct admin reads and exact file replacement', () => {
+test('server helpers expose v2 subproduct admin reads and adding files (same type allowed)', () => {
   assert.match(lib, /export async function listMarketItemSubproductsForAdmin/)
   assert.match(lib, /export async function createMarketItemSubproduct/)
   assert.match(lib, /export async function updateMarketItemSubproduct/)
   assert.match(lib, /export async function deleteMarketItemSubproduct/)
   assert.match(lib, /export async function listMarketSubproductFilesForAdmin/)
-  assert.match(lib, /export async function replaceMarketSubproductFile/)
+  assert.match(lib, /export async function addMarketSubproductFile/)
+  assert.doesNotMatch(lib, /replaceMarketSubproductFile/)
+  // 같은 유형 파일이 있어도 기존 파일을 비활성화하지 않고 v1로 추가한다.
+  const add = lib.slice(lib.indexOf('export async function addMarketSubproductFile'), lib.indexOf('export async function deleteMarketSubproductFile'))
+  assert.doesNotMatch(add, /is_active: false/)
+  assert.match(add, /version: 1,/)
+  // 공개 요약의 파일 유형은 같은 유형이 여러 파일이어도 한 번만
+  assert.match(lib, /const fileTypesForSubproduct = Array\.from\(new Set\(fileRows\.map\(\(file\) => file\.file_type_id\)\)\)/)
   assert.match(lib, /export async function deleteMarketSubproductFile/)
   assert.match(lib, /assertMatchingWorkspaceSubject/)
   assert.match(lib, /market_subproduct_files/)

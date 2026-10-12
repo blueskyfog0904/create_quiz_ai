@@ -896,7 +896,9 @@ export async function listMarketSubproductFilesForAdmin(
   return withWorkspaceSubjects(data)
 }
 
-export async function replaceMarketSubproductFile(
+// 서브상품에 파일을 추가한다. 같은 파일 유형이 이미 있어도 교체하지 않는다(예: PDF 여러 개).
+// 파일을 바꾸려면 기존 파일을 제거한 뒤 다시 올린다.
+export async function addMarketSubproductFile(
   itemId: string,
   subproductId: string,
   fileTypeId: string,
@@ -915,28 +917,6 @@ export async function replaceMarketSubproductFile(
   }
   assertMatchingWorkspaceSubject('파일 유형', subproduct.workspace_subject, fileType.workspace_subject)
 
-  const currentFiles = await listMarketSubproductFilesForAdmin(itemId, subproductId, subproduct.workspace_subject)
-  const previousVersion = currentFiles
-    .filter((file) => file.file_type_id === fileTypeId)
-    .reduce((maxVersion, file) => Math.max(maxVersion, file.version), 0)
-
-  const { error: deactivateError } = await supabase
-    .from('market_subproduct_files')
-    .update({
-      is_active: false,
-      deleted_at: new Date().toISOString(),
-    } as TablesUpdate<'market_subproduct_files'>)
-    .eq('item_id', itemId)
-    .eq('subproduct_id', subproductId)
-    .eq('file_type_id', fileTypeId)
-    .eq('workspace_subject', subproduct.workspace_subject)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-
-  if (deactivateError) {
-    throw new Error(deactivateError.message)
-  }
-
   const payload: MarketSubproductFileInsert = {
     item_id: itemId,
     subproduct_id: subproductId,
@@ -948,7 +928,7 @@ export async function replaceMarketSubproductFile(
     content_type: normalizeNullableText(input.content_type),
     file_size_bytes: input.file_size_bytes ?? null,
     checksum: normalizeNullableText(input.checksum),
-    version: previousVersion + 1,
+    version: 1,
     sort_order: input.sort_order ?? 0,
     is_active: true,
     created_by: input.created_by ?? null,
@@ -1349,8 +1329,9 @@ export async function listMarketSubproductPublicSummaries(
   return subproducts.map((subproduct) => {
     const category = categoryMap.get(subproduct.category_id)
     const fileRows = filesBySubproduct.get(subproduct.id) ?? []
-    const fileTypesForSubproduct = fileRows
-      .map((file) => fileTypeMap.get(file.file_type_id))
+    // 같은 유형 파일이 여러 개여도 유형은 한 번만 보인다.
+    const fileTypesForSubproduct = Array.from(new Set(fileRows.map((file) => file.file_type_id)))
+      .map((fileTypeId) => fileTypeMap.get(fileTypeId))
       .filter((fileType): fileType is NonNullable<typeof fileType> => Boolean(fileType))
       .sort((a, b) => a.code.localeCompare(b.code))
     const purchasedAt = itemEntitlement?.created_at ?? subproductEntitlementMap.get(subproduct.id) ?? null

@@ -93,7 +93,9 @@ test('admin product form adds paid file draft rows before upload instead of auto
   assert.match(adminProductsClient, /handleAddSubproductFileDraft/)
   assert.match(adminProductsClient, /handleUpdateSubproductFileDraft/)
   assert.match(adminProductsClient, /handleRemoveSubproductFileDraft/)
-  assert.match(adminProductsClient, /getAvailableFileTypesForSubproduct\(subproduct\.id, draft\.id\)/)
+  // 같은 유형 파일도 여러 개 올릴 수 있어, 파일 유형 선택칸은 모든 활성 유형을 보여 준다.
+  assert.match(adminProductsClient, /<option value="">파일 유형 선택<\/option>\s+\{activeFileTypes\.map\(\(fileType\) => \(/)
+  assert.doesNotMatch(adminProductsClient, /getAvailableFileTypesForSubproduct|getUsedFileTypeIdsForSubproduct/)
   assert.match(adminProductsClient, /draft\.fileTypeId/)
   assert.doesNotMatch(adminProductsClient, /activeFileTypes\.map\(\(fileType\) => \(\s*<div key=\{fileType\.id\}/)
 })

@@ -1861,22 +1861,11 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
     globalThis.crypto?.randomUUID?.() || `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`
   )
 
-  const getUsedFileTypeIdsForSubproduct = (subproductId: string, draftIdToExclude?: string) => new Set([
-    ...(subproductFilesBySubproductId.get(subproductId) || []).map((file) => file.file_type_id),
-    ...subproductFileDrafts
-      .filter((draft) => draft.subproductId === subproductId && draft.id !== draftIdToExclude && draft.fileTypeId)
-      .map((draft) => draft.fileTypeId),
-  ])
-
-  const getAvailableFileTypesForSubproduct = (subproductId: string, draftIdToExclude?: string) => {
-    const usedFileTypeIds = getUsedFileTypeIdsForSubproduct(subproductId, draftIdToExclude)
-    return activeFileTypes.filter((fileType) => !usedFileTypeIds.has(fileType.id))
-  }
-
+  // 같은 유형 파일도 여러 개 올릴 수 있다(예: 기본·심화 PDF). 모든 활성 파일 유형을 고를 수 있다.
   const handleAddSubproductFileDraft = (subproductId: string) => {
-    const defaultFileTypeId = getAvailableFileTypesForSubproduct(subproductId)[0]?.id || ''
+    const defaultFileTypeId = activeFileTypes[0]?.id || ''
     if (!defaultFileTypeId) {
-      toast.error('추가할 수 있는 파일 유형이 없습니다. 기존 파일을 제거하거나 파일 유형을 추가해주세요.')
+      toast.error('추가할 수 있는 파일 유형이 없습니다. 파일 유형을 추가해주세요.')
       return
     }
 
@@ -2723,7 +2712,6 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
 
                           {subproductFileDrafts.filter((draft) => draft.subproductId === subproduct.id).map((draft) => {
                             const selectedFileType = activeFileTypes.find((fileType) => fileType.id === draft.fileTypeId)
-                            const availableFileTypes = getAvailableFileTypesForSubproduct(subproduct.id, draft.id)
                             const isUploading = subproductUploadingKeys.includes(draft.id)
                             const isDragActive = subproductDragActiveKeys.includes(draft.id)
                             const inputId = `subproduct-file-draft-${draft.id}`
@@ -2747,7 +2735,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                                       className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
                                     >
                                       <option value="">파일 유형 선택</option>
-                                      {availableFileTypes.map((fileType) => (
+                                      {activeFileTypes.map((fileType) => (
                                         <option key={fileType.id} value={fileType.id}>{fileType.label}</option>
                                       ))}
                                       <option value={MANAGE_FILE_TYPES_VALUE}>설정하기</option>

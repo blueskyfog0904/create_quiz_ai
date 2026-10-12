@@ -4,8 +4,8 @@ import {
   getMarketFileTypeById,
   getMarketItemById,
   getMarketItemSubproductById,
+  addMarketSubproductFile,
   listMarketSubproductFilesForAdmin,
-  replaceMarketSubproductFile,
 } from '@/lib/market-items-server'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { createClient } from '@/lib/supabase/server'
@@ -124,11 +124,8 @@ export async function POST(request: Request, { params }: RouteContext) {
       type: fileValue.type,
     }, fileType)
 
-    const previousFiles = await listMarketSubproductFilesForAdmin(id, subproductId, workspaceSubject)
-    const nextVersion = previousFiles
-      .filter((file) => file.file_type_id === fileTypeId)
-      .reduce((maxVersion, file) => Math.max(maxVersion, file.version), 0) + 1
-    storagePath = buildMarketSubproductStoragePath(item.workspace_subject, id, subproductId, fileType.code, nextVersion, fileValue.name)
+    // 같은 유형 파일이 있어도 새 파일로 추가한다(v1). 경로에는 시각이 들어가 겹치지 않는다.
+    storagePath = buildMarketSubproductStoragePath(item.workspace_subject, id, subproductId, fileType.code, 1, fileValue.name)
     const fileBuffer = Buffer.from(await fileValue.arrayBuffer())
 
     const { error: uploadError } = await adminSupabase
@@ -151,7 +148,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       }, { status: 500 })
     }
 
-    const savedFile = await replaceMarketSubproductFile(id, subproduct.id, fileType.id, {
+    const savedFile = await addMarketSubproductFile(id, subproduct.id, fileType.id, {
       storage_bucket: MARKET_STORAGE_BUCKET,
       storage_path: storagePath,
       original_file_name: fileValue.name,

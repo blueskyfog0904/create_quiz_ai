@@ -14,3 +14,34 @@ export function getMarketDownloadButtonLabel(file: { fileTypeLabel: string; subp
   const typedTitle = subproductTitle.replace(fileTypeSuffixPattern, `(${fileTypeLabel})`)
   return fileTypeSuffixMatch ? typedTitle : `${subproductTitle}(${fileTypeLabel})`
 }
+
+// 한 구성에 같은 형식 파일이 여럿이면 버튼 이름이 같아진다. 그런 버튼끼리는 파일 이름(확장자 제외)에서
+// 공통 앞부분(마지막 공백·_·- 까지)을 뺀 나머지를 ' · '로 붙여 구분하고, 그래도 구분되지 않으면 순번을 붙인다.
+export function getMarketDownloadButtonLabels(
+  files: { id: string; fileTypeLabel: string; subproductTitle: string; originalFileName: string }[]
+) {
+  const groups = new Map<string, typeof files>()
+  for (const file of files) {
+    const label = getMarketDownloadButtonLabel(file)
+    groups.set(label, [...(groups.get(label) ?? []), file])
+  }
+
+  const labels = new Map<string, string>()
+  for (const [label, group] of groups) {
+    if (group.length === 1) {
+      labels.set(group[0].id, label)
+      continue
+    }
+    const stems = group.map((file) => file.originalFileName.trim().replace(/\.[^.]+$/, ''))
+    const common = stems.reduce((prefix, stem) => {
+      let length = 0
+      while (length < prefix.length && prefix[length] === stem[length]) length += 1
+      return prefix.slice(0, length)
+    })
+    const cut = Math.max(common.lastIndexOf(' '), common.lastIndexOf('_'), common.lastIndexOf('-')) + 1
+    const rests = stems.map((stem) => stem.slice(cut).trim())
+    const distinct = rests.every(Boolean) && new Set(rests).size === rests.length
+    group.forEach((file, index) => labels.set(file.id, `${label} · ${distinct ? rests[index] : index + 1}`))
+  }
+  return labels
+}

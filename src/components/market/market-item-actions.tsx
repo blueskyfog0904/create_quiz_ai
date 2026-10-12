@@ -28,7 +28,7 @@ import {
 import { useLoginRedirect } from '@/hooks/use-login-redirect'
 import { saveMarketCartIntent, takeMarketCartIntent } from '@/lib/market-cart-intent'
 import { getBundleSavings, isPdfInclusiveHwp } from '@/lib/market-bundle-savings'
-import { getMarketDownloadButtonLabel } from '@/lib/market-download-label'
+import { getMarketDownloadButtonLabels } from '@/lib/market-download-label'
 import type { MarketBundlePublicSummary, MarketSubproductDownloadFile, MarketSubproductPublicSummary } from '@/lib/market-items-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import MarketSamplePreviewDialog from './market-sample-preview-dialog'
@@ -962,10 +962,11 @@ export default function MarketItemActions({
         return <p className={`text-xs font-medium ${emptyTextClassName}`}>다운로드 가능한 파일을 준비 중입니다.</p>
       }
 
+      const downloadLabels = getMarketDownloadButtonLabels(files)
       return (
         <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
           {files.map((file) => {
-            const downloadLabel = getMarketDownloadButtonLabel(file)
+            const downloadLabel = downloadLabels.get(file.id) ?? ''
 
             return (
               <Button key={file.id} asChild className={MARKET_DOWNLOAD_BUTTON_CLASS}>
