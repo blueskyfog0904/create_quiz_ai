@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import '../src/components/features/passages/node-test-register.mjs'
 
 import {
+  ADMIN_MARKET_MENU_HREFS,
   ADMIN_QUESTION_BANK_MENU_HREFS,
   DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG,
   moveAdminSidebarHref,
@@ -147,6 +148,36 @@ test('resolveAdminSidebarNavigationNodes groups question bank admin services und
   ])
   assert.equal(nodes.some((node) => node.type === 'item' && node.item.href === '/admin/questions'), false)
   assert.equal(nodes.some((node) => node.type === 'item' && node.item.href === '/admin/questions/upload'), false)
+})
+
+test('resolveAdminSidebarNavigationNodes groups market admin services under 문제마켓 at the first member position', () => {
+  const nodes = resolveAdminSidebarNavigationNodes('korean', {
+    items: [
+      '/admin',
+      '/admin/market/products',
+      '/admin/users',
+      '/admin/market-categories',
+      '/admin/main-ad-settings',
+    ],
+  })
+
+  const marketIndex = nodes.findIndex((node) => node.type === 'group' && node.id === 'market')
+  const marketNode = nodes[marketIndex]
+
+  assert.equal(marketIndex, 1)
+  assert.equal(marketNode.name, '문제마켓')
+  assert.deepEqual(marketNode.items.slice(0, 3).map((item) => item.href), [
+    '/admin/market/products',
+    '/admin/market-categories',
+    '/admin/main-ad-settings',
+  ])
+  assert.deepEqual(
+    [...marketNode.items.map((item) => item.href)].sort(),
+    [...ADMIN_MARKET_MENU_HREFS].sort()
+  )
+  for (const href of ADMIN_MARKET_MENU_HREFS) {
+    assert.equal(nodes.some((node) => node.type === 'item' && node.item.href === href), false)
+  }
 })
 
 test('resolveAdminSidebarMenuItems remains a flat compatibility resolver', () => {

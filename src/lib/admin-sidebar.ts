@@ -57,11 +57,30 @@ export const ADMIN_QUESTION_BANK_MENU_HREFS = [
   '/admin/question-bank/backfill',
 ] as const
 
-const ADMIN_QUESTION_BANK_MENU_HREF_SET = new Set<string>(ADMIN_QUESTION_BANK_MENU_HREFS)
+export const ADMIN_MARKET_MENU_HREFS = [
+  '/admin/main-ad-settings',
+  '/admin/market-main-settings',
+  '/admin/market/products',
+  '/admin/market/images',
+  '/admin/market-categories',
+] as const
+
+// 사이드바 대메뉴(depth1) 그룹. 저장된 순서에서 그룹 소속 메뉴가 처음 나오는 자리에 그룹이 놓인다.
+const ADMIN_SIDEBAR_MENU_GROUPS = [
+  { id: 'questionBank', name: '문제은행', icon: 'database', hrefs: ADMIN_QUESTION_BANK_MENU_HREFS },
+  { id: 'market', name: '문제마켓', icon: 'layoutPanelTop', hrefs: ADMIN_MARKET_MENU_HREFS },
+] as const satisfies readonly {
+  id: string
+  name: string
+  icon: AdminSidebarIconName
+  hrefs: readonly string[]
+}[]
+
+type AdminSidebarMenuGroupDefinition = (typeof ADMIN_SIDEBAR_MENU_GROUPS)[number]
 
 export interface AdminSidebarMenuGroupNode {
   type: 'group'
-  id: 'questionBank'
+  id: AdminSidebarMenuGroupDefinition['id']
   name: string
   icon: AdminSidebarIconName
   items: AdminSidebarMenuItem[]
@@ -83,6 +102,7 @@ export const DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG: AdminSidebarNavigationConf
     '/admin/market-main-settings',
     '/admin/market/products',
     '/admin/market/images',
+    '/admin/market-categories',
     '/admin/generate/products',
     '/admin/problem-types',
     '/admin/ai-connections',
@@ -105,7 +125,6 @@ export const DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG: AdminSidebarNavigationConf
     '/admin/reviews',
     '/admin/review-tags',
     '/admin/admin-accounts',
-    '/admin/market-categories',
   ],
 }
 
@@ -136,6 +155,7 @@ function getDefaultAdminSidebarMenuItems(workspaceSubject: WorkspaceSubject): Ad
     { name: '(임시) 문제마켓 메인 관리', href: '/admin/market-main-settings', icon: 'layoutPanelTop' },
     { name: '문제마켓 상품 관리', href: '/admin/market/products', icon: 'upload' },
     { name: '문제마켓 이미지 관리', href: '/admin/market/images', icon: 'images' },
+    { name: '카테고리 메뉴 관리', href: '/admin/market-categories', icon: 'layoutPanelTop' },
     { name: '문제생성 상품 관리', href: '/admin/generate/products', icon: 'bookOpen' },
     { name: 'AI 문제 유형 관리', href: '/admin/problem-types', icon: 'settings' },
     { name: 'AI API 연결 관리', href: '/admin/ai-connections', icon: 'settings' },
@@ -158,7 +178,6 @@ function getDefaultAdminSidebarMenuItems(workspaceSubject: WorkspaceSubject): Ad
     { name: '후기 관리', href: '/admin/reviews', icon: 'messageSquare' },
     { name: '후기 태그 관리', href: '/admin/review-tags', icon: 'settings' },
     { name: '관리자 ID 관리', href: '/admin/admin-accounts', icon: 'userCog' },
-    { name: '카테고리 메뉴 관리', href: '/admin/market-categories', icon: 'layoutPanelTop' },
   ]
 }
 
@@ -205,30 +224,30 @@ export function resolveAdminSidebarNavigationNodes(
   config?: AdminSidebarNavigationConfig | null
 ): AdminSidebarNavigationNode[] {
   const items = resolveAdminSidebarMenuItems(workspaceSubject, config)
-  const questionBankItems = items.filter((item) => ADMIN_QUESTION_BANK_MENU_HREF_SET.has(item.href))
-  const firstQuestionBankIndex = items.findIndex((item) => ADMIN_QUESTION_BANK_MENU_HREF_SET.has(item.href))
-
-  if (questionBankItems.length === 0 || firstQuestionBankIndex < 0) {
-    return items.map((item) => ({ type: 'item', item }))
-  }
-
+  const findGroup = (href: string): AdminSidebarMenuGroupDefinition | undefined => (
+    ADMIN_SIDEBAR_MENU_GROUPS.find((group) => (group.hrefs as readonly string[]).includes(href))
+  )
+  const emittedGroupIds = new Set<string>()
   const nodes: AdminSidebarNavigationNode[] = []
 
-  items.forEach((item, index) => {
-    if (ADMIN_QUESTION_BANK_MENU_HREF_SET.has(item.href)) {
-      if (index === firstQuestionBankIndex) {
-        nodes.push({
-          type: 'group',
-          id: 'questionBank',
-          name: '문제은행',
-          icon: 'database',
-          items: questionBankItems,
-        })
-      }
+  items.forEach((item) => {
+    const group = findGroup(item.href)
+    if (!group) {
+      nodes.push({ type: 'item', item })
+      return
+    }
+    if (emittedGroupIds.has(group.id)) {
       return
     }
 
-    nodes.push({ type: 'item', item })
+    emittedGroupIds.add(group.id)
+    nodes.push({
+      type: 'group',
+      id: group.id,
+      name: group.name,
+      icon: group.icon,
+      items: items.filter((candidate) => findGroup(candidate.href)?.id === group.id),
+    })
   })
 
   return nodes
