@@ -192,3 +192,9 @@ test('한 구성에 같은 형식 파일이 여럿이면 버튼 이름에 파일
   // 이름이 같으면 순번
   assert.deepEqual([...getMarketDownloadButtonLabels([file('x', '같은이름.pdf'), file('y', '같은이름.pdf')])], [['x', '문제(PDF) · 1'], ['y', '문제(PDF) · 2']])
 })
+
+test('상세 구매 옵션은 서브상품 설명과 포함 파일 수·이름을 보여 준다', () => {
+  assert.match(itemActions, /포함 파일 \{subproduct\.files\.length\}개/)
+  assert.match(itemActions, /\{subproduct\.files\.map\(\(file\) => \(/)
+  assert.match(itemActions, /\{subproduct\.description \? \(/)
+})

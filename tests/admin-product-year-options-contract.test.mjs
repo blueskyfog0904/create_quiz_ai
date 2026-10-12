@@ -18,13 +18,15 @@ test('admin market product year options extend to 2050', () => {
   assert.doesNotMatch(marketProductsClient, /buildExamYearOptions\(baseYear = new Date\(\)\.getFullYear\(\)\)/)
 })
 
-test('admin market product year select defaults blank forms to the current year before opening', () => {
+test("admin market product year select starts at '선택' and picks the current year only when opened", () => {
   assert.match(marketProductsClient, /function getDefaultExamYear\(\)/)
-  assert.match(marketProductsClient, /examYear: getDefaultExamYear\(\)/)
-  assert.match(marketProductsClient, /const focusCurrentExamYear = \(\) => \{/)
-  assert.match(marketProductsClient, /examYear: getDefaultExamYear\(\)/)
+  // 새 상품 폼은 연도 빈 값('선택')
+  assert.match(marketProductsClient, /function buildEmptyForm\(\): MarketItemFormState \{[\s\S]*?examYear: '',/)
+  // 펼칠 때(클릭) 비어 있으면 올해를 골라 둔다. 포커스(탭 이동)만으로는 채우지 않는다.
+  assert.match(marketProductsClient, /const focusCurrentExamYear = \(\) => \{\n\s+setForm\(\(current\) => current\.examYear \? current : \{ \.\.\.current, examYear: getDefaultExamYear\(\) \}\)/)
   assert.match(marketProductsClient, /onMouseDown=\{focusCurrentExamYear\}/)
-  assert.match(marketProductsClient, /onFocus=\{focusCurrentExamYear\}/)
+  assert.doesNotMatch(marketProductsClient, /onFocus=\{focusCurrentExamYear\}/)
+  assert.match(marketProductsClient, /<option value="">선택<\/option>\s+\{examYearOptions\.map/)
 })
 
 test('admin market product schedule controls are aligned in paired rows', () => {

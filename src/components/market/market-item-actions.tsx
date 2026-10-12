@@ -1141,6 +1141,18 @@ export default function MarketItemActions({
                         {notice ? (
                           <span className="mt-0.5 block break-keep text-xs leading-5 text-[var(--studio-muted)]">{notice.text}</span>
                         ) : null}
+                        {subproduct.description ? (
+                          <span className="mt-0.5 block whitespace-pre-line break-keep text-xs leading-5 text-[var(--studio-muted)]">{subproduct.description}</span>
+                        ) : null}
+                        {/* 어떤 파일이 몇 개 들어 있는지 구매 전에 보여 준다(파일 이름만, 확장자 제외). */}
+                        {subproduct.files.length > 0 ? (
+                          <span className="mt-1 block text-xs leading-5 text-[var(--studio-text)]">
+                            <span className="block font-medium">포함 파일 {subproduct.files.length}개</span>
+                            {subproduct.files.map((file) => (
+                              <span key={file.id} className="block break-all">· {file.name}</span>
+                            ))}
+                          </span>
+                        ) : null}
                         {reason ? (
                           <span id={getOptionReasonId(key)} className="mt-0.5 block break-keep text-xs leading-5 text-[var(--studio-muted)]">{reason}</span>
                         ) : null}

@@ -131,6 +131,8 @@ export interface MarketSubproductPublicSummary {
   sortOrder: number
   fileCount: number
   fileTypes: MarketSubproductPublicFileType[]
+  // 구매 전에도 보이는 포함 파일 이름(확장자 제외). 저장 경로·크기 등 다른 파일 정보는 내보내지 않는다.
+  files: { id: string; name: string }[]
   owned: boolean
   // 소유 근거: 번들(scope=item) 소유는 'item', 서브상품 단건 소유는 'subproduct'. 둘 다면 'item' 우선.
   ownedScope: 'item' | 'subproduct' | null
@@ -1239,10 +1241,12 @@ export async function listMarketSubproductPublicSummaries(
     applyWorkspaceSubjectFilter(
       supabase
         .from('market_subproduct_files')
-        .select('id, subproduct_id, file_type_id')
+        .select('id, subproduct_id, file_type_id, original_file_name')
         .in('subproduct_id', subproductIds)
         .eq('is_active', true)
-        .is('deleted_at', null),
+        .is('deleted_at', null)
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true }),
       workspaceSubject
     ),
     userId
@@ -1293,7 +1297,7 @@ export async function listMarketSubproductPublicSummaries(
       .map((entitlement) => [entitlement.subproduct_id!, entitlement.created_at])
   )
 
-  const filesBySubproduct = new Map<string, Array<{ id: string; subproduct_id: string; file_type_id: string }>>()
+  const filesBySubproduct = new Map<string, Array<{ id: string; subproduct_id: string; file_type_id: string; original_file_name: string }>>()
   for (const file of files ?? []) {
     const current = filesBySubproduct.get(file.subproduct_id) ?? []
     current.push(file)
@@ -1354,6 +1358,7 @@ export async function listMarketSubproductPublicSummaries(
       priceCredits: subproduct.price_credits,
       sortOrder: subproduct.sort_order,
       fileCount: fileRows.length,
+      files: fileRows.map((file) => ({ id: file.id, name: file.original_file_name.trim().replace(/\.[^.]+$/, '') })),
       fileTypes: fileTypesForSubproduct.map((fileType) => ({
         id: fileType.id,
         code: fileType.code,

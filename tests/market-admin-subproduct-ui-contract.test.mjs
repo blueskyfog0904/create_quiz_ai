@@ -102,7 +102,17 @@ test('admin product form adds paid file draft rows before upload instead of auto
 
 test('admin product form uploads paid files through subproduct file API from the selected draft file type', () => {
   assert.match(adminProductsClient, /\/subproducts\/\$\{subproductId\}\/files/)
-  assert.match(adminProductsClient, /formData\.append\('fileTypeId', fileTypeId\)/)
+  // 파일마다 확장자로 정한 유형(고른 유형과 맞으면 그 유형)을 보낸다
+  assert.match(adminProductsClient, /formData\.append\('fileTypeId', fileType\.id\)/)
   assert.match(adminProductsClient, /handleSubproductFileUpload\(subproduct\.id, draft\.fileTypeId/)
   assert.match(adminProductsClient, /handleDeleteSubproductFile/)
+})
+
+test('서브상품 파일은 여러 개를 한 번에(클릭·드래그) 올리고, 유형은 확장자로 정한다', () => {
+  assert.match(adminProductsClient, /const handleSubproductFileUpload = async \(subproductId: string, fileTypeId: string, files: File\[\], draftId: string\) => \{/)
+  assert.match(adminProductsClient, /: activeFileTypes\.find\(\(fileType\) => isAllowedSubproductFile\(file, fileType\)\)/)
+  assert.match(adminProductsClient, /for \(const \{ file, fileType \} of accepted\)/)
+  assert.match(adminProductsClient, /\n\s+multiple\n\s+accept=\{activeFileTypes\.map\(getFileTypeAcceptValue\)\.join\(','\)\}/)
+  assert.match(adminProductsClient, /void handleSubproductFileUpload\(subproduct\.id, draft\.fileTypeId, Array\.from\(event\.dataTransfer\.files \|\| \[\]\), draft\.id\)/)
+  assert.doesNotMatch(adminProductsClient, /첫 번째 파일만 업로드합니다/)
 })

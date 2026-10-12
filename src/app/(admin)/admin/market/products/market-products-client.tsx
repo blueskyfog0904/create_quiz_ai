@@ -189,7 +189,7 @@ function buildEmptyForm(): MarketItemFormState {
     summary: '',
     description: '',
     thumbnailImageId: null,
-    examYear: getDefaultExamYear(),
+    examYear: '',
     examMonth: '',
     gradeLevel: '',
     sourceType: '',
@@ -671,6 +671,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
     return fileMap
   }, [subproductFiles])
 
+  // 연도는 '선택'(빈 값)으로 시작하고, 펼칠 때 비어 있으면 올해를 골라 둔다(다시 '선택'을 고르면 비운다).
   const focusCurrentExamYear = () => {
     setForm((current) => current.examYear ? current : { ...current, examYear: getDefaultExamYear() })
   }
@@ -2019,52 +2020,63 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
     }
   }
 
-  const handleSubproductFileUpload = async (subproductId: string, fileTypeId: string, file?: File | null, draftId?: string) => {
-    if (!form.id || !file) {
+  // 파일 여러 개를 한 번에 올린다. 파일마다 확장자로 유형을 정하고(고른 유형과 맞으면 그 유형) 차례로 올린다.
+  const handleSubproductFileUpload = async (subproductId: string, fileTypeId: string, files: File[], draftId: string) => {
+    if (!form.id || files.length === 0) {
       return
     }
 
-    if (!fileTypeId) {
-      toast.error('파일 유형을 선택해주세요.')
+    const preferredFileType = activeFileTypes.find((fileType) => fileType.id === fileTypeId)
+    const uploads = files.map((file) => ({
+      file,
+      fileType: preferredFileType && isAllowedSubproductFile(file, preferredFileType)
+        ? preferredFileType
+        : activeFileTypes.find((fileType) => isAllowedSubproductFile(file, fileType)),
+    }))
+    const unsupported = uploads.filter((upload) => !upload.fileType).map((upload) => upload.file.name)
+    if (unsupported.length > 0) {
+      toast.error(`등록된 파일 유형과 맞지 않아 건너뜁니다: ${unsupported.join(', ')}`)
+    }
+    const accepted = uploads.filter((upload): upload is { file: File; fileType: MarketFileType } => Boolean(upload.fileType))
+    if (accepted.length === 0) {
       return
     }
 
-    const fileType = fileTypes.find((currentFileType) => currentFileType.id === fileTypeId)
-    if (!fileType) {
-      toast.error('파일 유형을 찾을 수 없습니다.')
-      return
-    }
-    if (!isAllowedSubproductFile(file, fileType)) {
-      toast.error(`${fileType.label} 파일에는 ${getFileTypeAcceptValue(fileType)} 파일만 업로드할 수 있습니다.`)
-      return
-    }
-
-    const uploadKey = draftId || `${subproductId}:${fileTypeId}`
-    setSubproductUploadingKeys((current) => [...current, uploadKey])
+    const itemId = form.id
+    setSubproductUploadingKeys((current) => [...current, draftId])
+    let uploadedCount = 0
     try {
-      const formData = new FormData()
-      formData.append('fileTypeId', fileTypeId)
-      formData.append('file', file)
+      for (const { file, fileType } of accepted) {
+        try {
+          const formData = new FormData()
+          formData.append('fileTypeId', fileType.id)
+          formData.append('file', file)
 
-      const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}/subproducts/${subproductId}/files`, workspaceSubject), {
-        method: 'POST',
-        body: formData,
-      })
-      const payload = await response.json()
+          const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/subproducts/${subproductId}/files`, workspaceSubject), {
+            method: 'POST',
+            body: formData,
+          })
+          const payload = await response.json()
 
-      if (!response.ok || !payload.success) {
-        throw new Error(payload.error?.message || '서브상품 파일 업로드에 실패했습니다.')
+          if (!response.ok || !payload.success) {
+            throw new Error(payload.error?.message || '서브상품 파일 업로드에 실패했습니다.')
+          }
+          uploadedCount += 1
+        } catch (error) {
+          toast.error(`${file.name}: ${error instanceof Error ? error.message : '서브상품 파일 업로드 중 오류가 발생했습니다.'}`)
+        }
       }
 
-      await refreshEditingFiles(form.id)
-      if (draftId) {
+      if (uploadedCount > 0) {
+        await refreshEditingFiles(itemId)
+        toast.success(`파일 ${uploadedCount}개를 업로드했습니다.`)
+      }
+      // 모두 올렸으면 입력 행을 닫고, 실패한 파일이 있으면 다시 올릴 수 있게 남겨 둔다.
+      if (uploadedCount === accepted.length && unsupported.length === 0) {
         handleRemoveSubproductFileDraft(draftId)
       }
-      toast.success(`${fileType.label} 파일을 업로드했습니다.`)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '서브상품 파일 업로드 중 오류가 발생했습니다.')
     } finally {
-      setSubproductUploadingKeys((current) => current.filter((currentKey) => currentKey !== uploadKey))
+      setSubproductUploadingKeys((current) => current.filter((currentKey) => currentKey !== draftId))
     }
   }
 
@@ -2267,7 +2279,6 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                 <select
                   value={form.examYear}
                   onMouseDown={focusCurrentExamYear}
-                  onFocus={focusCurrentExamYear}
                   onChange={(event) => setForm((current) => ({ ...current, examYear: event.target.value }))}
                   className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
                 >
@@ -2711,7 +2722,6 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                           ) : null}
 
                           {subproductFileDrafts.filter((draft) => draft.subproductId === subproduct.id).map((draft) => {
-                            const selectedFileType = activeFileTypes.find((fileType) => fileType.id === draft.fileTypeId)
                             const isUploading = subproductUploadingKeys.includes(draft.id)
                             const isDragActive = subproductDragActiveKeys.includes(draft.id)
                             const inputId = `subproduct-file-draft-${draft.id}`
@@ -2749,50 +2759,48 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                                   id={inputId}
                                   type="file"
                                   className="hidden"
-                                  accept={selectedFileType ? getFileTypeAcceptValue(selectedFileType) : undefined}
-                                  disabled={isUploading || !selectedFileType}
-                                  onChange={(event) => void handleSubproductFileUpload(subproduct.id, draft.fileTypeId, event.target.files?.[0], draft.id)}
+                                  multiple
+                                  accept={activeFileTypes.map(getFileTypeAcceptValue).join(',')}
+                                  disabled={isUploading}
+                                  onChange={(event) => {
+                                    const selectedFiles = Array.from(event.target.files || [])
+                                    event.target.value = ''
+                                    void handleSubproductFileUpload(subproduct.id, draft.fileTypeId, selectedFiles, draft.id)
+                                  }}
                                 />
                                 <label
-                                  htmlFor={selectedFileType && !isUploading ? inputId : undefined}
+                                  htmlFor={!isUploading ? inputId : undefined}
                                   onDragEnter={(event) => {
-                                    if (isUploading || !selectedFileType) return
+                                    if (isUploading) return
                                     event.preventDefault()
                                     setSubproductDragActive(draft.id, true)
                                   }}
                                   onDragOver={(event) => {
-                                    if (isUploading || !selectedFileType) return
+                                    if (isUploading) return
                                     event.preventDefault()
                                     setSubproductDragActive(draft.id, true)
                                   }}
                                   onDragLeave={(event) => {
-                                    if (isUploading || !selectedFileType) return
+                                    if (isUploading) return
                                     event.preventDefault()
                                     setSubproductDragActive(draft.id, false)
                                   }}
                                   onDrop={(event) => {
-                                    if (isUploading || !selectedFileType) return
+                                    if (isUploading) return
                                     event.preventDefault()
                                     setSubproductDragActive(draft.id, false)
-                                    const droppedFiles = Array.from(event.dataTransfer.files || [])
-                                    if (droppedFiles.length === 0) return
-                                    if (droppedFiles.length > 1) {
-                                      toast.message('여러 파일이 드롭되었지만 첫 번째 파일만 업로드합니다.')
-                                    }
-                                    void handleSubproductFileUpload(subproduct.id, draft.fileTypeId, droppedFiles[0], draft.id)
+                                    void handleSubproductFileUpload(subproduct.id, draft.fileTypeId, Array.from(event.dataTransfer.files || []), draft.id)
                                   }}
                                   className={`flex min-h-32 flex-col justify-center rounded-md border border-dashed px-4 py-4 text-left transition ${
                                     isUploading
                                       ? 'cursor-not-allowed border-emerald-300 bg-emerald-50 text-emerald-700'
-                                      : !selectedFileType
-                                        ? 'cursor-not-allowed border-red-200 bg-red-50/40 text-red-700'
-                                        : isDragActive
-                                          ? 'cursor-pointer border-primary bg-primary/5'
-                                          : 'cursor-pointer border-red-200 bg-red-50/40 hover:border-red-300 hover:bg-red-50'
+                                      : isDragActive
+                                        ? 'cursor-pointer border-primary bg-primary/5'
+                                        : 'cursor-pointer border-red-200 bg-red-50/40 hover:border-red-300 hover:bg-red-50'
                                   }`}
                                 >
-                                  <p className={`text-sm font-medium ${isUploading ? 'text-emerald-900' : 'text-red-900'}`}>드래그앤드랍 또는 클릭하여 업로드</p>
-                                  <p className={`mt-1 text-xs ${isUploading ? 'text-emerald-700' : 'text-red-700'}`}>{selectedFileType ? `허용 형식: ${getFileTypeAcceptValue(selectedFileType)}` : '파일 유형을 먼저 선택해주세요.'}</p>
+                                  <p className={`text-sm font-medium ${isUploading ? 'text-emerald-900' : 'text-red-900'}`}>드래그앤드랍 또는 클릭하여 업로드 (여러 파일 한 번에 가능)</p>
+                                  <p className={`mt-1 text-xs ${isUploading ? 'text-emerald-700' : 'text-red-700'}`}>허용 형식: {activeFileTypes.map(getFileTypeAcceptValue).join(', ')} · 파일 유형은 확장자로 정해집니다.</p>
                                   {isUploading ? <p className="mt-2 text-xs text-emerald-700">업로드 중입니다...</p> : null}
                                 </label>
                               </div>

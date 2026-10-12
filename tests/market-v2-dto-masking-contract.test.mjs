@@ -29,7 +29,9 @@ test('public v2 subproduct DTO masks paid file storage metadata', () => {
     : marketItemsServer.indexOf('\nexport ', helperStart + 1))
 
   assert.doesNotMatch(helperSource, /storage_path/)
-  assert.doesNotMatch(helperSource, /original_file_name/)
+  // 파일 이름만 구매 전 공개(확장자 제외). 다른 곳에서 원본 이름을 쓰지 않는다.
+  assert.equal((helperSource.match(/original_file_name/g) ?? []).length, 3, 'select + map type + files name')
+  assert.match(helperSource, /files: fileRows\.map\(\(file\) => \(\{ id: file\.id, name: file\.original_file_name\.trim\(\)\.replace\(\/\\\.\[\^\.\]\+\$\/, ''\) \}\)\)/)
   assert.doesNotMatch(helperSource, /checksum/)
   assert.doesNotMatch(helperSource, /file_size_bytes/)
 })
