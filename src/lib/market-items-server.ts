@@ -164,20 +164,6 @@ export interface MarketSubproductDownloadFile {
   downloadUrl: string
 }
 
-export interface MarketItemListFilters {
-  search?: string
-  assetKind?: 'pdf' | 'hwp' | 'zip' | 'sample' | 'all'
-  gradeLevel?: string
-  examYear?: number
-  examMonth?: number
-  sort?: 'latest' | 'views' | 'price_asc'
-  sourceType?: string
-  source1?: string
-  source2?: string
-  source3?: string
-  source4?: string
-}
-
 function normalizeWorkspaceSubject(value?: string | null): WorkspaceSubject {
   return value === 'korean' ? 'korean' : DEFAULT_WORKSPACE_SUBJECT
 }
@@ -240,31 +226,6 @@ async function getMarketMenuEntryById(menuEntryId: string): Promise<MarketMenuEn
   return withWorkspaceSubject(data)
 }
 
-export async function getVisibleMarketMenuEntryBySlugForWorkspace(
-  slug: string,
-  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
-): Promise<MarketMenuEntry | null> {
-  const supabase = getAdminSupabase()
-  const query = applyWorkspaceSubjectFilter(
-    supabase
-      .from('market_menu_entries')
-      .select('*')
-      .eq('slug', slug)
-      .is('deleted_at', null)
-      .eq('is_visible', true)
-      .eq('is_active', true),
-    workspaceSubject
-  )
-
-  const { data, error } = await query.maybeSingle()
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  return withWorkspaceSubject(data)
-}
-
 function getAdminSupabase() {
   return createAdminClient()
 }
@@ -298,15 +259,6 @@ function normalizeText(value?: string | null) {
 function normalizeNullableText(value?: string | null) {
   const normalized = normalizeText(value)
   return normalized.length > 0 ? normalized : null
-}
-
-function getNormalizedTextSearchVariants(value?: string | null) {
-  const normalized = normalizeText(value)
-  if (!normalized) {
-    return []
-  }
-
-  return Array.from(new Set([normalized, normalized.normalize('NFD')]))
 }
 
 function resolveMarketSubproductDisplayTitle(categoryName?: string | null, fallbackTitle?: string | null) {
@@ -1173,87 +1125,6 @@ export async function disableMarketItemBundleOption(
   if (error) {
     throw new Error(error.message)
   }
-}
-
-export async function listPublishedMarketItems(menuEntryId: string, filters: MarketItemListFilters = {}): Promise<MarketItem[]> {
-  const supabase = getAdminSupabase()
-  const menuEntry = await getMarketMenuEntryById(menuEntryId)
-
-  if (!menuEntry) {
-    return []
-  }
-
-  let query = applyWorkspaceSubjectFilter(
-    supabase
-      .from('market_items')
-      .select('*')
-      .eq('menu_entry_id', menuEntryId)
-      .eq('status', 'published')
-      .eq('is_active', true)
-      .is('deleted_at', null),
-    menuEntry.workspace_subject
-  )
-
-  const searchVariants = getNormalizedTextSearchVariants(filters.search)
-  if (searchVariants.length === 1) {
-    query = query.ilike('title', `%${searchVariants[0]}%`)
-  } else if (searchVariants.length > 1) {
-    query = query.or(searchVariants.map((search) => `title.ilike.%${search}%`).join(','))
-  }
-
-  if (filters.gradeLevel) {
-    query = query.eq('grade_level', filters.gradeLevel)
-  }
-
-  if (filters.examYear !== undefined) {
-    query = query.eq('exam_year', filters.examYear)
-  }
-
-  if (filters.examMonth !== undefined) {
-    query = query.eq('exam_month', filters.examMonth)
-  }
-
-  const sourceFilters = [
-    ['source_type', normalizeText(filters.sourceType)],
-    ['source_1', normalizeText(filters.source1)],
-    ['source_2', normalizeText(filters.source2)],
-    ['source_3', normalizeText(filters.source3)],
-    ['source_4', normalizeText(filters.source4)],
-  ] as const
-
-  for (const [column, value] of sourceFilters) {
-    if (value) {
-      query = query.eq(column, value)
-    }
-  }
-
-  if (filters.assetKind === 'pdf') {
-    query = query.gt('pdf_price', 0)
-  }
-
-  if (filters.assetKind === 'hwp') {
-    query = query.gt('hwp_price', 0)
-  }
-
-  if (filters.assetKind === 'zip') {
-    query = query.gt('zip_price', 0)
-  }
-
-  if (filters.sort === 'views') {
-    query = query.order('view_count', { ascending: false }).order('published_at', { ascending: false })
-  } else if (filters.sort === 'price_asc') {
-    query = query.order('pdf_price', { ascending: true }).order('hwp_price', { ascending: true }).order('zip_price', { ascending: true })
-  } else {
-    query = query.order('published_at', { ascending: false }).order('created_at', { ascending: false })
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  return withWorkspaceSubjects(data)
 }
 
 export async function getMarketItemById(id: string, workspaceSubject?: WorkspaceSubject): Promise<MarketItem | null> {

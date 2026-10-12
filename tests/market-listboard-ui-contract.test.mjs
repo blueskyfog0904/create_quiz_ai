@@ -2,10 +2,6 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
-const marketItemsServer = readFileSync(
-  new URL('../src/lib/market-items-server.ts', import.meta.url),
-  'utf8'
-)
 const samplePreviewDialog = readFileSync(
   new URL('../src/components/market/market-sample-preview-dialog.tsx', import.meta.url),
   'utf8'
@@ -22,10 +18,4 @@ test('market listboard sample dialog restores focus to the exact external trigge
   assert.match(samplePreviewDialog, /<DialogFooter\b/)
   assert.match(samplePreviewDialog, /variant="brandOutline"[^>]*className="min-h-11 min-w-11"/)
   assert.doesNotMatch(samplePreviewDialog, /<DialogHeader\b[^>]*\bpr-(?:12|16)\b/)
-})
-
-test('market listboard title search handles composed and decomposed Korean text', () => {
-  assert.match(marketItemsServer, /return value\?\.normalize\('NFC'\)\.trim\(\) \?\? ''/)
-  assert.match(marketItemsServer, /const searchVariants = getNormalizedTextSearchVariants\(filters\.search\)/)
-  assert.match(marketItemsServer, /searchVariants\.map\(\(search\) => `title\.ilike\.%\$\{search\}%`\)\.join\(','\)/)
 })
