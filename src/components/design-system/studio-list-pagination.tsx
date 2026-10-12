@@ -17,7 +17,8 @@ export function StudioListPagination({
   const id = useId()
   const totalPages = Math.ceil(totalCount / pageSize)
   return (
-    <div className="studio-theme mt-6 space-y-3">
+    // studio-theme은 색·글꼴 토큰만 쓰고, 페이지 껍데기용 min-height:100%·배경은 끈다(짧은 목록에서 회색 칸이 늘어나지 않게).
+    <div className="studio-theme mt-6 min-h-0 space-y-3 bg-transparent">
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
         <p aria-live="polite">총 {totalCount.toLocaleString()}개{totalCount > 0 ? ` · ${page} / ${totalPages} 페이지` : ''}</p>
         <div className="flex items-center gap-2">
