@@ -94,8 +94,9 @@ export function formatMarketImageBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
 }
 
-// 공개 목록·상세가 상품 이미지(1단계)와 카테고리 항목 기본 이미지(2단계)를 select 한 번으로 함께 읽는 임베드
-export const MARKET_THUMBNAIL_EMBED = 'thumbnail_image:market_images(storage_path), category_item:market_category_items(default_image:market_images(storage_path))'
+// 공개 목록·상세가 상품 이미지(1단계)와 카테고리 칸 기본 이미지(2단계)를 select 한 번으로 함께 읽는 임베드.
+// 칸 기본 이미지는 effective_default_image(DB 함수)로 자기 칸 → 상위 칸 순으로 가장 가까운 것을 읽는다.
+export const MARKET_THUMBNAIL_EMBED = 'thumbnail_image:market_images(storage_path), category_item:market_category_items(default_image:effective_default_image(storage_path))'
 
 // 상품 이미지가 바뀌면 무효화할 공개 목록 데이터 캐시(홈·보드의 unstable_cache) 태그
 export const MARKET_PUBLIC_LIST_CACHE_TAG = 'market-public-lists'
@@ -108,7 +109,7 @@ export interface MarketThumbnailImageRef {
 }
 
 // PostgREST 임베드 결과 모양
-// thumbnail_image:market_images(storage_path), category_item:market_category_items(default_image:market_images(storage_path))
+// thumbnail_image:market_images(storage_path), category_item:market_category_items(default_image:effective_default_image(storage_path))
 export interface MarketThumbnailSource {
   thumbnail_image?: MarketThumbnailImageRef | null
   category_item?: {
@@ -125,7 +126,7 @@ export function toMarketThumbnailUrl(client: MarketPublicUrlClient, source: Mark
   return pickMarketThumbnailUrl(source, (storagePath) => client.storage.from(MARKET_IMAGES_BUCKET).getPublicUrl(storagePath).data.publicUrl)
 }
 
-// 표시 우선순위(D6): 상품 이미지 → 카테고리 항목 기본 이미지 → null(점선 박스). 옛 URL 문자열 컬럼은 읽지 않는다.
+// 표시 우선순위(D6): 상품 이미지 → 카테고리 칸 기본 이미지(상위 칸에서 상속) → null(점선 박스). 옛 URL 문자열 컬럼은 읽지 않는다.
 export function pickMarketThumbnailUrl(
   source: MarketThumbnailSource,
   toPublicUrl: (storagePath: string) => string,

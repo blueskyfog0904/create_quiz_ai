@@ -288,6 +288,8 @@ export function MarketCategoryTreeEditor({
     const draft = drafts[node.id] ?? { title: node.title, sortOrder: String(node.sortOrder) }
     const isDirty = draft.title !== node.title || Number(draft.sortOrder) !== node.sortOrder
     const canAddChild = node.depth < MARKET_CATEGORY_MAX_DEPTH
+    // 자기 이미지가 없으면 가장 가까운 상위 칸 이미지를 이어받는다(공개 화면과 같은 규칙).
+    const inherited = (selectedPath ?? []).slice(0, -1).findLast((pathNode) => pathNode.defaultImage) ?? null
     return (
       <div className="space-y-4">
         <div className="space-y-1">
@@ -340,6 +342,9 @@ export function MarketCategoryTreeEditor({
             value={node.defaultImage}
             disabled={savingId === node.id}
             onChange={(image) => void patchNode(node.id, { default_image_id: image?.id ?? null })}
+            fallback={inherited?.defaultImage
+              ? { image: inherited.defaultImage, description: `'${inherited.title}' 칸의 기본 이미지를 이어받아 표시됩니다.` }
+              : null}
           />
         ) : null}
         <div className="flex flex-wrap items-center gap-2 border-t pt-4">
@@ -372,7 +377,7 @@ export function MarketCategoryTreeEditor({
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         1단계~{MARKET_CATEGORY_MAX_DEPTH}단계까지 칸을 만들 수 있습니다. 상품은 어느 칸에든 연결할 수 있고, 위 칸 페이지에는 아래 칸 상품이 모두 보입니다.
-        상품이 연결된 칸(하위 칸 포함)은 삭제할 수 없으니 비활성화하거나 상품을 옮긴 뒤 삭제하세요. 기본 이미지는 2단계부터 지정할 수 있습니다.
+        상품이 연결된 칸(하위 칸 포함)은 삭제할 수 없으니 비활성화하거나 상품을 옮긴 뒤 삭제하세요. 기본 이미지는 2단계부터 지정할 수 있고, 지정하지 않은 아래 칸은 가장 가까운 위 칸의 이미지를 이어받습니다.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <Input

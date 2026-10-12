@@ -215,7 +215,7 @@ function getAdminSupabase() {
 }
 
 // 임베드 한 번으로 이미지 경로를 함께 읽는다(N+1 없음).
-const MARKET_ITEM_ADMIN_SELECT = '*, thumbnail_image:market_images(id, storage_path), category_item:market_category_items(default_image:market_images(id, storage_path))'
+const MARKET_ITEM_ADMIN_SELECT = '*, thumbnail_image:market_images(id, storage_path), category_item:market_category_items(default_image:effective_default_image(id, storage_path))'
 
 type MarketImagePathRow = { id: string; storage_path: string } | null
 type MarketItemAdminRow = Tables<'market_items'> & {

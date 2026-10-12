@@ -34,7 +34,7 @@ test('no src .ts/.tsx file reads thumbnail_url (generated supabase types excepte
 test('every public read path embeds both image levels in its select and maps through toMarketThumbnailUrl', () => {
   assert.equal(
     marketImages.MARKET_THUMBNAIL_EMBED,
-    'thumbnail_image:market_images(storage_path), category_item:market_category_items(default_image:market_images(storage_path))',
+    'thumbnail_image:market_images(storage_path), category_item:market_category_items(default_image:effective_default_image(storage_path))',
   )
   for (const path of READ_PATHS) {
     const source = read(path)
@@ -95,7 +95,7 @@ test('search rows use item image, then category default image, then null — nev
     [['a', `${base}${path('item1')}`], ['b', `${base}${path('cat1')}`], ['c', null], ['d', null]],
   )
   const itemsQuery = admin.calls.find((call) => call.table === 'market_items')
-  assert.match(op(itemsQuery.ops, 'select')[1], /thumbnail_image:market_images\(storage_path\), category_item:market_category_items\(default_image:market_images\(storage_path\)\)$/)
+  assert.match(op(itemsQuery.ops, 'select')[1], /thumbnail_image:market_images\(storage_path\), category_item:market_category_items\(default_image:effective_default_image\(storage_path\)\)$/)
   assert.doesNotMatch(op(itemsQuery.ops, 'select')[1], /thumbnail_url/)
 })
 

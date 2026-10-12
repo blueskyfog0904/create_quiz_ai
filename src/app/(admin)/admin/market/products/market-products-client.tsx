@@ -613,7 +613,8 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
     [categoryNodes, categoryItemId]
   )
   const selectedCategory = selectedCategoryPath.at(-1) ?? null
-  const selectedCategoryDefaultImage = selectedCategory?.defaultImage ?? null
+  // 고른 칸부터 상위 칸 순으로 가장 가까운 기본 이미지(공개 화면과 같은 상속 규칙)
+  const selectedCategoryDefaultImage = selectedCategoryPath.findLast((node) => node.defaultImage)?.defaultImage ?? null
   // 새 상품은 카테고리를 고르기 전에는 업로드(= 임시 상품 생성)를 막는다.
   const isUploadBlockedByCategory = !form.id && !categoryItemId
 
@@ -2184,7 +2185,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                 setForm((current) => ({ ...current, thumbnailImageId: image?.id ?? null }))
               }}
               fallback={selectedCategoryDefaultImage
-                ? { image: selectedCategoryDefaultImage, description: '상품 이미지가 없어 카테고리 항목 기본 이미지가 표시됩니다.' }
+                ? { image: selectedCategoryDefaultImage, description: '상품 이미지가 없어 카테고리 기본 이미지가 표시됩니다.' }
                 : null}
             />
 

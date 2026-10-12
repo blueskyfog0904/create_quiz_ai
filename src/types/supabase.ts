@@ -1215,6 +1215,20 @@ export type Database = {
           title: string
           updated_at: string
           workspace_subject: string
+          effective_default_image: {
+            bytes: number
+            content_sha256: string
+            created_at: string
+            created_by: string | null
+            display_name: string
+            folder_id: string | null
+            height: number
+            id: string
+            mime_type: string
+            source_sha256: string
+            storage_path: string
+            width: number
+          } | null
         }
         Insert: {
           created_at?: string
@@ -4663,6 +4677,31 @@ export type Database = {
         }
       }
       delete_market_image: { Args: { p_image_id: string }; Returns: Json }
+      effective_default_image: {
+        Args: {
+          "": Database["public"]["Tables"]["market_category_items"]["Row"]
+        }
+        Returns: {
+          bytes: number
+          content_sha256: string
+          created_at: string
+          created_by: string | null
+          display_name: string
+          folder_id: string | null
+          height: number
+          id: string
+          mime_type: string
+          source_sha256: string
+          storage_path: string
+          width: number
+        }
+        SetofOptions: {
+          from: "market_category_items"
+          to: "market_images"
+          isOneToOne: true
+          isSetofReturn: true
+        }
+      }
       enforce_payment_reconciliation_health: { Args: never; Returns: Json }
       evaluate_market_targets: {
         Args: { p_targets: Json; p_user_id: string }

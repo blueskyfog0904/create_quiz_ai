@@ -43,7 +43,7 @@ test('item create/update write thumbnail_image_id and never thumbnail_url; updat
 })
 
 test('admin item list/detail embed image paths in one select and expose thumbnailImage + categoryDefaultImage', () => {
-  assert.match(itemsServer, /const MARKET_ITEM_ADMIN_SELECT = '\*, thumbnail_image:market_images\(id, storage_path\), category_item:market_category_items\(default_image:market_images\(id, storage_path\)\)'/)
+  assert.match(itemsServer, /const MARKET_ITEM_ADMIN_SELECT = '\*, thumbnail_image:market_images\(id, storage_path\), category_item:market_category_items\(default_image:effective_default_image\(id, storage_path\)\)'/)
   assert.match(fnBody(itemsServer, 'listMarketItemsForAdmin'), /\.select\(MARKET_ITEM_ADMIN_SELECT\)/)
   assert.match(fnBody(itemsServer, 'getMarketItemByIdForAdmin'), /\.select\(MARKET_ITEM_ADMIN_SELECT\)/)
   assert.match(itemsServer, /thumbnailImage: toRef\(thumbnailImage\)/)
@@ -90,9 +90,8 @@ test('category items accept default_image_id and the admin tree returns defaultI
   assert.match(categoriesRoute, /const nodes = await listMarketCategoryTreeForAdmin\(workspaceSubject\)/)
   assert.match(categoriesClient, /<MarketImageField[\s\S]+?onChange=\{\(image\) => void patchNode\(node\.id, \{ default_image_id: image\?\.id \?\? null \}\)\}/)
   assert.match(categoriesClient, /defaultImage: MarketImageFieldValue \| null/)
-  // 상품 폼의 대체 이미지는 트리를 재귀로 찾은 선택 칸의 기본 이미지다.
+  // 상품 폼의 대체 이미지는 트리를 재귀로 찾은 선택 칸 경로에서 가장 가까운 기본 이미지다(상속).
   assert.match(productsClient, /\(categoryItemId \? findCategoryPath\(categoryNodes, categoryItemId\) : null\) \?\? \[\]/)
-  assert.match(productsClient, /const selectedCategory = selectedCategoryPath\.at\(-1\) \?\? null\n\s+const selectedCategoryDefaultImage = selectedCategory\?\.defaultImage \?\? null/)
 })
 
 function loadBulkRoute(handler, options = {}) {
@@ -235,4 +234,15 @@ test('review fixes: group update has no image column, drafts merge, preview foll
   assert.match(imageField, /if \(outcome\.folderFallback\) \{\n\s+writeLastMarketImageFolder\('all'\)/)
   assert.match(library, /writeLastMarketImageFolder\(outcome\.folderFallback \? 'all' : uploadFolderId\)/)
   assert.match(library, /!nextFolders\.some\(\(folder\) => folder\.id === remembered\)\) \{\n\s+writeLastMarketImageFolder\('all'\)/)
+})
+
+test('카테고리 기본 이미지는 상위 칸에서 상속된다: DB 함수 + 관리자 미리보기도 같은 규칙', () => {
+  const migration = read('supabase/migrations/20261012102427_market_category_effective_default_image.sql')
+  assert.match(migration, /create or replace function public\.effective_default_image\(public\.market_category_items\)\s+returns setof public\.market_images[\s\S]+?rows 1/)
+  assert.match(migration, /join chain on parent\.id = chain\.parent_id and parent\.workspace_subject = chain\.workspace_subject/)
+  assert.match(migration, /order by chain\.hops\s+limit 1/)
+  const productsClient = read('src/app/(admin)/admin/market/products/market-products-client.tsx')
+  assert.match(productsClient, /const selectedCategoryDefaultImage = selectedCategoryPath\.findLast\(\(node\) => node\.defaultImage\)\?\.defaultImage \?\? null/)
+  assert.match(categoriesClient, /const inherited = \(selectedPath \?\? \[\]\)\.slice\(0, -1\)\.findLast\(\(pathNode\) => pathNode\.defaultImage\) \?\? null/)
+  assert.match(categoriesClient, /칸의 기본 이미지를 이어받아 표시됩니다/)
 })
