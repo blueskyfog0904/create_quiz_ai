@@ -39,7 +39,10 @@ async function requireAdminUser() {
 export async function GET(request: Request, { params }: RouteContext) {
   const { user, isAdmin } = await requireAdminUser()
   const { id } = await params
-  const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
+  const searchParams = new URL(request.url).searchParams
+  const workspaceSubject = resolveAdminWorkspaceSubject(searchParams.get('subject'))
+  // 저장 전 생성한 샘플도 확인할 수 있게 폼이 들고 있는 draftToken을 받는다.
+  const draftToken = searchParams.get('draftToken')?.trim() || null
 
   if (!user) {
     return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
@@ -55,7 +58,7 @@ export async function GET(request: Request, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
 
-    const samplePages = await listActiveMarketItemSamplePagesWithSourceFileNames(item.id, item.workspace_subject)
+    const samplePages = await listActiveMarketItemSamplePagesWithSourceFileNames(item.id, item.workspace_subject, draftToken)
     const expiresAt = new Date(Date.now() + ADMIN_SAMPLE_PAGE_SIGNED_URL_TTL_SECONDS * 1000).toISOString()
     const adminSupabase = createAdminClient()
     const pages = await Promise.all(samplePages.map(async (page) => {

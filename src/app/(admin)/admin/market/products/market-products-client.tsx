@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
-import { CheckCircle2, Circle, Eye, EyeOff, Images, Loader2, MoreHorizontal, Pencil, Plus, Search, Trash2, Upload, XCircle } from 'lucide-react'
+import { CheckCircle2, ChevronDown, Circle, Eye, EyeOff, Images, Loader2, MoreHorizontal, Pencil, Plus, Search, Trash2, Upload, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -494,7 +495,7 @@ function buildSubproductEditState(subproduct: MarketItemSubproduct): SubproductE
 
 function buildEmptyBundleForm(): BundleFormState {
   return {
-    enabled: true,
+    enabled: false,
     label: '전체 한번에 구매하기',
     description: '',
     priceCredits: '0',
@@ -682,9 +683,18 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
     return fileMap
   }, [subproductFiles])
 
-  // 연도는 '선택'(빈 값)으로 시작하고, 펼칠 때 비어 있으면 올해를 골라 둔다(다시 '선택'을 고르면 비운다).
-  const focusCurrentExamYear = () => {
-    setForm((current) => current.examYear ? current : { ...current, examYear: getDefaultExamYear() })
+  // 연도는 '선택'(빈 값)으로 시작한다. 목록을 펼치면 고른 연도(없으면 올해)를 가운데에 보여 주기만 하고, 클릭해야 값이 정해진다.
+  const [isExamYearOpen, setIsExamYearOpen] = useState(false)
+  const currentExamYear = getDefaultExamYear()
+  const scrollExamYearListToAnchor = (list: HTMLDivElement | null) => {
+    const anchor = list?.querySelector<HTMLElement>(`[data-year="${form.examYear || currentExamYear}"]`)
+    if (list && anchor) {
+      list.scrollTop = anchor.offsetTop - (list.clientHeight - anchor.offsetHeight) / 2
+    }
+  }
+  const pickExamYear = (year: string) => {
+    setForm((current) => ({ ...current, examYear: year }))
+    setIsExamYearOpen(false)
   }
 
   const reloadUploadTaxonomy = useCallback(async () => {
@@ -2631,7 +2641,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                 <div className="flex items-center justify-between rounded-md border px-3 py-2">
                   <div>
                     <p className="text-sm font-medium text-gray-900">전체구매 옵션 사용</p>
-                    <p className="text-xs text-gray-500">기본값은 사용이며, 꺼두면 사용자 상세페이지에 전체구매 카드가 노출되지 않습니다.</p>
+                    <p className="text-xs text-gray-500">기본값은 미사용입니다. 켜고 가격을 입력하면 사용자 상세페이지에 전체구매 카드가 노출됩니다.</p>
                   </div>
                   <Switch checked={bundleForm.enabled} onCheckedChange={(checked) => setBundleForm((current) => ({ ...current, enabled: checked }))} />
                 </div>
@@ -2862,17 +2872,43 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>연도</Label>
-                  <select
-                    value={form.examYear}
-                    onMouseDown={focusCurrentExamYear}
-                    onChange={(event) => setForm((current) => ({ ...current, examYear: event.target.value }))}
-                    className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
-                  >
-                    <option value="">선택</option>
-                    {examYearOptions.map((year) => (
-                      <option key={year} value={year}>{year}</option>
-                    ))}
-                  </select>
+                  <Popover open={isExamYearOpen} onOpenChange={setIsExamYearOpen}>
+                    <PopoverTrigger asChild>
+                      <button type="button" aria-label="연도" className="flex h-10 w-full items-center justify-between rounded-md border bg-white px-3 text-sm">
+                        <span className={form.examYear ? 'text-gray-900' : 'text-gray-500'}>{form.examYear || '선택'}</span>
+                        <ChevronDown className="h-4 w-4 text-gray-500" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-1">
+                      <div ref={scrollExamYearListToAnchor} role="listbox" aria-label="연도" className="relative max-h-64 overflow-y-auto">
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={!form.examYear}
+                          onClick={() => pickExamYear('')}
+                          className="flex w-full rounded px-3 py-1.5 text-left text-sm text-gray-500 hover:bg-gray-100"
+                        >
+                          선택 안 함
+                        </button>
+                        {examYearOptions.map((year) => (
+                          <button
+                            key={year}
+                            type="button"
+                            role="option"
+                            data-year={year}
+                            aria-selected={form.examYear === year}
+                            onClick={() => pickExamYear(year)}
+                            className={`flex w-full items-center justify-between rounded px-3 py-1.5 text-left text-sm hover:bg-gray-100 ${
+                              form.examYear === year ? 'bg-gray-900 font-medium text-white hover:bg-gray-800' : 'text-gray-900'
+                            }`}
+                          >
+                            {year}
+                            {year === currentExamYear ? <span className={`text-xs ${form.examYear === year ? 'text-gray-300' : 'text-blue-600'}`}>올해</span> : null}
+                          </button>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="space-y-2">
                   <Label>월</Label>
@@ -3156,6 +3192,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
 
       <AdminMarketSamplePreviewDialog
         itemId={samplePreviewItemId}
+        draftToken={sampleDraftToken}
         itemTitle={form.title || '문제마켓 상품'}
         open={isSamplePreviewOpen}
         workspaceSubject={workspaceSubject}

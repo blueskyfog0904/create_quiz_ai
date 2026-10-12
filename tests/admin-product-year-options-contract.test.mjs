@@ -18,21 +18,24 @@ test('admin market product year options extend to 2050', () => {
   assert.doesNotMatch(marketProductsClient, /buildExamYearOptions\(baseYear = new Date\(\)\.getFullYear\(\)\)/)
 })
 
-test("admin market product year select starts at '선택' and picks the current year only when opened", () => {
+test("admin market product year picker starts at '선택' and opens centered on the current year without picking it", () => {
   assert.match(marketProductsClient, /function getDefaultExamYear\(\)/)
   // 새 상품 폼은 연도 빈 값('선택')
   assert.match(marketProductsClient, /function buildEmptyForm\(\): MarketItemFormState \{[\s\S]*?examYear: '',/)
-  // 펼칠 때(클릭) 비어 있으면 올해를 골라 둔다. 포커스(탭 이동)만으로는 채우지 않는다.
-  assert.match(marketProductsClient, /const focusCurrentExamYear = \(\) => \{\n\s+setForm\(\(current\) => current\.examYear \? current : \{ \.\.\.current, examYear: getDefaultExamYear\(\) \}\)/)
-  assert.match(marketProductsClient, /onMouseDown=\{focusCurrentExamYear\}/)
-  assert.doesNotMatch(marketProductsClient, /onFocus=\{focusCurrentExamYear\}/)
-  assert.match(marketProductsClient, /<option value="">선택<\/option>\s+\{examYearOptions\.map/)
+  // 펼치기만 해서는 값을 채우지 않는다(예전: 클릭하면 올해가 바로 들어갔다).
+  assert.doesNotMatch(marketProductsClient, /focusCurrentExamYear/)
+  // 목록은 고른 연도(없으면 올해)를 가운데로 스크롤해 보여 주고, 올해에 표시를 붙인다.
+  assert.match(marketProductsClient, /data-year="\$\{form\.examYear \|\| currentExamYear\}"/)
+  assert.match(marketProductsClient, /<div ref=\{scrollExamYearListToAnchor\} role="listbox" aria-label="연도"/)
+  assert.match(marketProductsClient, /year === currentExamYear \?[^\n]*올해/)
+  assert.match(marketProductsClient, /\{form\.examYear \|\| '선택'\}/)
+  assert.match(marketProductsClient, /onClick=\{\(\) => pickExamYear\(''\)\}/)
 })
 
 test('admin market product schedule controls are aligned in paired rows', () => {
   assert.match(
     marketProductsClient,
-    /<div className="grid gap-4 md:grid-cols-2">\s*<div className="space-y-2">\s*<Label>연도<\/Label>[\s\S]*?<\/select>\s*<\/div>\s*<div className="space-y-2">\s*<Label>월<\/Label>/
+    /<div className="grid gap-4 md:grid-cols-2">\s*<div className="space-y-2">\s*<Label>연도<\/Label>[\s\S]*?<\/Popover>\s*<\/div>\s*<div className="space-y-2">\s*<Label>월<\/Label>/
   )
   // 상태는 하단 버튼(공개하기·임시저장·더보기)으로만 정한다. 상태 선택칸·활성화 스위치는 두지 않는다.
   assert.doesNotMatch(marketProductsClient, /<Label>상태<\/Label>/)

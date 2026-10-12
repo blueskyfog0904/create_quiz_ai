@@ -43,3 +43,8 @@ test('서브상품 추가 폼은 서브상품이 없거나 [서브상품 추가]
   // 추가한 서브상품에는 바로 업로드 칸을 열어 둔다
   assert.match(client, /setIsSubproductFormOpen\(false\)\n\s+\/\/[^\n]*\n\s+if \(payload\.data\?\.id\) \{\n\s+handleAddSubproductFileDraft\(payload\.data\.id\)/)
 })
+
+test('전체구매 옵션은 기본 미사용이다', () => {
+  assert.match(client, /function buildEmptyBundleForm\(\): BundleFormState \{\n\s+return \{\n\s+enabled: false,/)
+  assert.match(client, /기본값은 미사용입니다/)
+})

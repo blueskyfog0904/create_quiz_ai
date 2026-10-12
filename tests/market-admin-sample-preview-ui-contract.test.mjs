@@ -162,3 +162,13 @@ test('admin sample preview dialog fetches fresh admin signed sample urls', () =>
   assert.doesNotMatch(dialog, /첫 1~3페이지/)
   assert.match(dialog, /new Map<string, SampleFileGroupMeta>\(\)/)
 })
+
+test('저장 전(임시 상품)에 생성한 샘플도 샘플 확인 창에 나온다', () => {
+  assert.match(adminProductsClient, /draftToken=\{sampleDraftToken\}/)
+  assert.match(dialog, /draftToken\?: string \| null/)
+  assert.match(dialog, /sample-pages\$\{draftToken \? `\?draftToken=\$\{encodeURIComponent\(draftToken\)\}` : ''\}/)
+  assert.match(adminSamplePagesRoute, /const draftToken = searchParams\.get\('draftToken'\)\?\.trim\(\) \|\| null/)
+  assert.match(adminSamplePagesRoute, /listActiveMarketItemSamplePagesWithSourceFileNames\(item\.id, item\.workspace_subject, draftToken\)/)
+  // draft 샘플은 같은 토큰·draft 상태·미삭제만 더한다
+  assert.match(samplePagesServer, /\.eq\('draft_token', draftToken\)\n\s+\.eq\('status', 'draft'\)\n\s+\.is\('deleted_at', null\)/)
+})

@@ -216,14 +216,44 @@ export async function countActiveMarketItemSamplePages(
   return count ?? 0
 }
 
+// 저장 전 생성한 샘플(draft)은 같은 draftToken을 넘기면 확정된 샘플과 함께 순서대로 돌려준다.
+async function listDraftMarketItemSamplePages(
+  itemId: string,
+  draftToken: string,
+  workspaceSubject: WorkspaceSubject
+): Promise<MarketItemSamplePage[]> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('market_item_sample_pages')
+    .select('*')
+    .eq('item_id', itemId)
+    .eq('workspace_subject', workspaceSubject)
+    .eq('draft_token', draftToken)
+    .eq('status', 'draft')
+    .is('deleted_at', null)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return withWorkspaceSubjects(data)
+}
+
 export async function listActiveMarketItemSamplePagesWithSourceFileNames(
   itemId: string,
-  workspaceSubject: WorkspaceSubject
+  workspaceSubject: WorkspaceSubject,
+  draftToken?: string | null
 ): Promise<MarketItemSamplePageWithSourceFileName[]> {
   const fallbackPdfFileNamePromise = getMarketItemFallbackPdfFileName(itemId, workspaceSubject)
   fallbackPdfFileNamePromise.catch(() => {})
 
-  const pages = await listActiveMarketItemSamplePages(itemId, workspaceSubject)
+  const [activePages, draftPages] = await Promise.all([
+    listActiveMarketItemSamplePages(itemId, workspaceSubject),
+    draftToken ? listDraftMarketItemSamplePages(itemId, draftToken, workspaceSubject) : Promise.resolve([]),
+  ])
+  const pages = [...activePages, ...draftPages].sort((a, b) => (
+    (a.display_order ?? 0) - (b.display_order ?? 0) || a.page_number - b.page_number
+  ))
   if (pages.length === 0) {
     return []
   }

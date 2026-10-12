@@ -28,6 +28,8 @@ interface SamplePagePreview {
 
 interface AdminMarketSamplePreviewDialogProps {
   itemId: string | null
+  // 아직 상품을 저장하지 않아 확정되지 않은 샘플의 토큰(있으면 함께 보여 준다)
+  draftToken?: string | null
   itemTitle: string
   open: boolean
   workspaceSubject: WorkspaceSubject
@@ -123,6 +125,7 @@ function formatSamplePageLabel(page: Pick<SamplePagePreview, 'originalFileName' 
 
 export default function AdminMarketSamplePreviewDialog({
   itemId,
+  draftToken = null,
   itemTitle,
   open,
   workspaceSubject,
@@ -150,7 +153,10 @@ export default function AdminMarketSamplePreviewDialog({
     setErrorMessage(null)
     try {
       const response = await fetch(
-        withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/sample-pages`, workspaceSubject),
+        withAdminWorkspaceSubject(
+          `/api/admin/market/items/${itemId}/sample-pages${draftToken ? `?draftToken=${encodeURIComponent(draftToken)}` : ''}`,
+          workspaceSubject
+        ),
         { cache: 'no-store' }
       )
       const payload = await response.json()
@@ -169,7 +175,7 @@ export default function AdminMarketSamplePreviewDialog({
     } finally {
       setIsLoading(false)
     }
-  }, [itemId, workspaceSubject])
+  }, [draftToken, itemId, workspaceSubject])
 
   useEffect(() => {
     if (!open) {
