@@ -50,7 +50,10 @@ test('카테고리 필터 변경은 핸들러에서, 저장으로 필터가 바�
   assert.match(body('changeFilterCategory'), /setFilterCategoryId\(nextCategoryId\)\n\s+setSelectedItemIds\(\[\]\)\n\s+listQuery\.update\(\{ page: 1 \}, true\)/)
   assert.match(client, /if \(nextFilterCategoryId !== filterCategoryId\) \{\n\s+listQuery\.update\(\{ page: 1 \}, true\)\n\s+\}/)
   // 카테고리 필터 변경 + 저장으로 필터 이동 + 제목 검색 변경
-  assert.equal((client.match(/listQuery\.update\(\{ page: 1 \}, true\)/g) ?? []).length, 3)
+  // 카테고리·제목·상태 탭·정렬 변경 + 저장으로 필터가 바뀔 때
+  assert.equal((client.match(/listQuery\.update\(\{ page: 1 \}, true\)/g) ?? []).length, 5)
+  assert.match(body('changeStatusTab'), /setStatusTab\(nextTab\)\n\s+listQuery\.update\(\{ page: 1 \}, true\)/)
+  assert.match(body('changeSortKey'), /setSortKey\(nextSortKey\)\n\s+listQuery\.update\(\{ page: 1 \}, true\)/)
   assert.match(body('changeTitleQuery'), /setTitleQuery\(nextQuery\)\n\s+listQuery\.update\(\{ page: 1 \}, true\)/)
   assert.doesNotMatch(client, /listQuery\.setPage\(1\)/)
   for (const effect of client.match(/useEffect\(\(\) => \{[\s\S]*?\n {2}\}, \[[^\]]*\]\)/g) ?? []) {

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
-import { CheckCircle2, ChevronDown, Circle, Eye, EyeOff, Images, Loader2, MoreHorizontal, Pencil, Plus, Search, Trash2, Upload, XCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronDown, Circle, ExternalLink, Eye, EyeOff, Images, Loader2, MoreHorizontal, Pencil, Plus, Search, Trash2, Upload, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -178,6 +178,21 @@ const MARKET_STATUS_LABELS: Record<MarketItemFormState['status'], string> = {
   hidden: '숨김',
   archived: '보관',
 }
+
+// 목록 상태 배지 색(공개 초록, 임시저장 회색, 숨김 주황, 보관 흐림)
+const MARKET_STATUS_BADGE_CLASSES: Record<MarketItemFormState['status'], string> = {
+  published: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  draft: 'border-gray-200 bg-gray-50 text-gray-600',
+  hidden: 'border-amber-200 bg-amber-50 text-amber-700',
+  archived: 'border-slate-200 bg-slate-100 text-slate-500',
+}
+
+const MARKET_LIST_STATUS_TABS = ['all', 'published', 'draft', 'hidden', 'archived'] as const
+type MarketListStatusTab = typeof MARKET_LIST_STATUS_TABS[number]
+type MarketListSortKey = 'created' | 'updated' | 'title'
+
+// 서버(UTC)와 브라우저(KST)가 같은 글자를 그리도록 시간대를 고정한다.
+const ADMIN_LIST_DATE_FORMATTER = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' })
 
 const MIN_EXAM_YEAR = 2000
 const MAX_EXAM_YEAR = 2050
@@ -550,6 +565,8 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
   const [filterCategoryId, setFilterCategoryId] = useState('')
   // 상품 목록 제목 검색어: 받아 온 목록에서 띄어쓰기로 나눈 단어가 모두 제목에 든 상품만 남긴다.
   const [titleQuery, setTitleQuery] = useState('')
+  const [statusTab, setStatusTab] = useState<MarketListStatusTab>('all')
+  const [sortKey, setSortKey] = useState<MarketListSortKey>('created')
   const [items, setItems] = useState(initialItems)
   const [form, setForm] = useState<MarketItemFormState>(buildEmptyForm())
   const [isSaving, setIsSaving] = useState(false)
@@ -634,13 +651,29 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
 
   // 목록은 서버가 상단 카테고리 필터(하위 칸 포함)로 거른 결과에 제목 검색을 더한 것이다.
   const titleTerms = useMemo(() => titleQuery.toLowerCase().split(/\s+/).filter(Boolean), [titleQuery])
-  const filteredItems = useMemo(
+  const titleMatchedItems = useMemo(
     () => (titleTerms.length === 0 ? items : items.filter((item) => {
       const title = item.title.toLowerCase()
       return titleTerms.every((term) => title.includes(term))
     })),
     [items, titleTerms]
   )
+  // 상태 탭 개수는 카테고리·제목 조건까지 반영한 값이다.
+  const statusCounts = useMemo(() => {
+    const counts: Record<MarketListStatusTab, number> = { all: titleMatchedItems.length, published: 0, draft: 0, hidden: 0, archived: 0 }
+    titleMatchedItems.forEach((item) => {
+      const status = item.status as MarketItemFormState['status']
+      if (status in counts) counts[status] += 1
+    })
+    return counts
+  }, [titleMatchedItems])
+  // 서버 목록은 최신 등록순이다. 다른 정렬만 여기서 다시 줄 세운다.
+  const filteredItems = useMemo(() => {
+    const byStatus = statusTab === 'all' ? titleMatchedItems : titleMatchedItems.filter((item) => item.status === statusTab)
+    if (sortKey === 'updated') return [...byStatus].sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+    if (sortKey === 'title') return [...byStatus].sort((a, b) => a.title.localeCompare(b.title, 'ko', { numeric: true }))
+    return byStatus
+  }, [sortKey, statusTab, titleMatchedItems])
 
   const selectedItems = useMemo(() => filteredItems.filter((item) => selectedItemIds.includes(item.id)), [filteredItems, selectedItemIds])
   // 목록은 이미 받은 상품을 클라이언트에서 페이지로 나눈다. 페이지·표시 개수는 URL 쿼리에만 기록하고 화면은 이동하지 않는다.
@@ -916,6 +949,16 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
 
   const changeTitleQuery = (nextQuery: string) => {
     setTitleQuery(nextQuery)
+    listQuery.update({ page: 1 }, true)
+  }
+
+  const changeStatusTab = (nextTab: MarketListStatusTab) => {
+    setStatusTab(nextTab)
+    listQuery.update({ page: 1 }, true)
+  }
+
+  const changeSortKey = (nextSortKey: MarketListSortKey) => {
+    setSortKey(nextSortKey)
     listQuery.update({ page: 1 }, true)
   }
 
@@ -3000,38 +3043,67 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
         {mode === 'manage' ? (
         <Card>
           <CardHeader>
-            <div ref={productListHeaderRef} className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <CardTitle>상품 목록</CardTitle>
-                <p className="mt-1 text-sm text-gray-500">선택 {selectedItems.length}개</p>
-                {/* 목록 검색: 카테고리(고른 칸과 하위 칸) + 제목. 상품에 저장되는 값이 아니다. */}
-                <div className="mt-3 grid max-w-3xl gap-3 md:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-gray-500">카테고리</Label>
-                    <CategoryStepSelect
-                      nodes={categoryNodes}
-                      value={filterCategoryId}
-                      onChange={changeFilterCategory}
-                      emptyLabel="전체"
-                      ariaLabel="상품 목록 카테고리"
+            <div ref={productListHeaderRef} className="space-y-3">
+              <CardTitle>상품 목록</CardTitle>
+              {/* 목록 검색: 카테고리(고른 칸과 하위 칸) + 제목 + 정렬. 상품에 저장되는 값이 아니다. */}
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px]">
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">카테고리</Label>
+                  <CategoryStepSelect
+                    nodes={categoryNodes}
+                    value={filterCategoryId}
+                    onChange={changeFilterCategory}
+                    emptyLabel="전체"
+                    ariaLabel="상품 목록 카테고리"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="market-product-title-search" className="text-xs text-gray-500">제목 검색</Label>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden />
+                    <Input
+                      id="market-product-title-search"
+                      type="search"
+                      value={titleQuery}
+                      onChange={(event) => changeTitleQuery(event.target.value)}
+                      placeholder="제목에 든 단어 (띄어쓰기로 여러 단어)"
+                      className="pl-9"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="market-product-title-search" className="text-xs text-gray-500">제목 검색</Label>
-                    <div className="relative">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden />
-                      <Input
-                        id="market-product-title-search"
-                        type="search"
-                        value={titleQuery}
-                        onChange={(event) => changeTitleQuery(event.target.value)}
-                        placeholder="제목에 든 단어 (띄어쓰기로 여러 단어)"
-                        className="pl-9"
-                      />
-                    </div>
-                  </div>
                 </div>
-                <div className="mt-2 flex items-center gap-2 text-sm text-gray-500">
+                <div className="space-y-1">
+                  <Label htmlFor="market-product-sort" className="text-xs text-gray-500">정렬</Label>
+                  <select
+                    id="market-product-sort"
+                    value={sortKey}
+                    onChange={(event) => changeSortKey(event.target.value as MarketListSortKey)}
+                    className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
+                  >
+                    <option value="created">최신 등록순</option>
+                    <option value="updated">최근 수정순</option>
+                    <option value="title">제목순</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 border-b md:flex-row md:items-end md:justify-between">
+                <div role="tablist" aria-label="상품 상태" className="flex flex-wrap gap-1">
+                  {MARKET_LIST_STATUS_TABS.map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      role="tab"
+                      aria-selected={statusTab === tab}
+                      onClick={() => changeStatusTab(tab)}
+                      className={`-mb-px border-b-2 px-3 py-2 text-sm transition ${
+                        statusTab === tab ? 'border-gray-900 font-semibold text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-900'
+                      }`}
+                    >
+                      {tab === 'all' ? '전체' : MARKET_STATUS_LABELS[tab]}
+                      <span className="ml-1 text-xs text-gray-400">{statusCounts[tab].toLocaleString()}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 pb-2 text-sm text-gray-500">
                   <span>검색 결과 {filteredItems.length.toLocaleString()}개</span>
                   {filterCategoryId || titleQuery ? (
                     <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={resetListFilters}>
@@ -3040,11 +3112,18 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                   ) : null}
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
+            </div>
+          </CardHeader>
+          <CardContent>
+            {/* 일괄 작업은 상품을 고른 동안에만 보인다. */}
+            {selectedItems.length > 0 ? (
+              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-gray-900/10 bg-gray-50 px-3 py-2">
+                <span className="mr-auto text-sm font-medium text-gray-900">선택 {selectedItems.length}개</span>
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={selectedItems.length === 0 || isBulkActionRunning}
+                  size="sm"
+                  disabled={isBulkActionRunning}
                   onClick={() => void handleBulkVisibility()}
                 >
                   {isBulkActionRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <EyeOff className="mr-2 h-4 w-4" />}
@@ -3053,7 +3132,8 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={selectedItems.length === 0 || isBulkActionRunning}
+                  size="sm"
+                  disabled={isBulkActionRunning}
                   onClick={() => setIsBulkImagePickerOpen(true)}
                 >
                   <Images className="mr-2 h-4 w-4" />
@@ -3062,7 +3142,8 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={selectedItems.length === 0 || isBulkActionRunning}
+                  size="sm"
+                  disabled={isBulkActionRunning}
                   onClick={() => setBulkImageTarget({ itemIds: selectedItems.map((item) => item.id), image: null })}
                 >
                   이미지 일괄 해제
@@ -3070,16 +3151,18 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                 <Button
                   type="button"
                   variant="destructive"
-                  disabled={selectedItems.length === 0 || isBulkActionRunning}
+                  size="sm"
+                  disabled={isBulkActionRunning}
                   onClick={() => setBulkDeleteTargetIds(selectedItems.map((item) => item.id))}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   선택 삭제
                 </Button>
+                <Button type="button" variant="ghost" size="sm" disabled={isBulkActionRunning} onClick={() => setSelectedItemIds([])}>
+                  선택 해제
+                </Button>
               </div>
-            </div>
-          </CardHeader>
-          <CardContent>
+            ) : null}
             <div className="rounded-lg border bg-white">
               <Table>
                 <TableHeader>
@@ -3092,27 +3175,37 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                         onCheckedChange={() => toggleFilteredSelection()}
                       />
                     </TableHead>
-                    <TableHead>제목</TableHead>
-                    <TableHead>카테고리</TableHead>
-                    <TableHead className="text-center">가격</TableHead>
+                    <TableHead>상품</TableHead>
+                    <TableHead>판매 구성</TableHead>
                     <TableHead className="text-center">상태</TableHead>
-                    <TableHead className="text-center">등록일</TableHead>
+                    <TableHead className="text-center">{sortKey === 'updated' ? '수정일' : '등록일'}</TableHead>
                     <TableHead className="text-right">관리</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredItems.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-10 text-center text-sm text-gray-500">
-                        {titleTerms.length > 0 || filterCategoryId ? '검색 조건에 맞는 상품이 없습니다.' : '등록된 상품이 없습니다.'}
+                      <TableCell colSpan={6} className="py-10 text-center text-sm text-gray-500">
+                        {titleTerms.length > 0 || filterCategoryId || statusTab !== 'all' ? '검색 조건에 맞는 상품이 없습니다.' : '등록된 상품이 없습니다.'}
                       </TableCell>
                     </TableRow>
                   ) : (
                     pagedItems.map((item) => {
                       const isHidden = item.status === 'hidden' || hiddenItemIds.includes(item.id)
+                      const status = item.status as MarketItemFormState['status']
+                      // 파일을 올리다 등록을 마치지 않아 자동으로 남은 임시 상품
+                      const isAbandonedUpload = status === 'draft' && item.draft_source === 'auto_upload'
+                      const listImageUrl = item.thumbnailImage?.publicUrl ?? item.categoryDefaultImage?.publicUrl ?? null
+                      const summary = item.listSummary
+                      const warnings = summary
+                        ? [
+                          summary.subproductCount === 0 ? '서브상품 없음' : null,
+                          summary.emptySubproductCount > 0 ? `파일 없는 서브상품 ${summary.emptySubproductCount}개` : null,
+                        ].filter((warning): warning is string => Boolean(warning))
+                        : []
 
                       return (
-                        <TableRow key={item.id}>
+                        <TableRow key={item.id} className={form.id === item.id ? 'bg-blue-50/60' : undefined}>
                           <TableCell className="text-center">
                             <Checkbox
                               aria-label={`${item.title} 선택`}
@@ -3122,53 +3215,90 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                             />
                           </TableCell>
                           <TableCell>
-                            <div className="space-y-1">
-                              <p className="font-medium text-gray-900">{item.title}</p>
-                              <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-                                {item.summary ? <span>{item.summary}</span> : null}
-                                {item.grade_level ? <Badge variant="secondary">{item.grade_level}</Badge> : null}
-                                {!item.is_active ? <Badge variant="destructive">비활성</Badge> : null}
+                            <div className="flex items-start gap-3">
+                              <div className="h-12 w-9 shrink-0 overflow-hidden rounded border bg-slate-50">
+                                {listImageUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element -- market-images 공개 버킷 URL을 그대로 보여 준다.
+                                  <img src={listImageUrl} alt="" className="h-full w-full object-cover" />
+                                ) : null}
+                              </div>
+                              <div className="min-w-0 space-y-1">
+                                <button type="button" className="text-left font-medium text-gray-900 hover:underline" onClick={() => void loadItemDetail(item.id)}>
+                                  {item.title}
+                                </button>
+                                <p className="text-xs text-gray-500">{formatCategoryPath(getItemCategoryItemId(item))}</p>
+                                {warnings.length > 0 ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    {warnings.map((warning) => (
+                                      <span key={warning} className="inline-flex items-center gap-1 text-xs font-medium text-amber-700">
+                                        <AlertTriangle className="h-3.5 w-3.5" />
+                                        {warning}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : null}
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>{formatCategoryPath(getItemCategoryItemId(item))}</TableCell>
-                          <TableCell className="text-center text-sm">
-                            <div>PDF {item.pdf_price.toLocaleString()}C</div>
-                            <div>HWP {item.hwp_price.toLocaleString()}C</div>
-                            <div>ZIP {item.zip_price.toLocaleString()}C</div>
+                          <TableCell className="text-sm">
+                            {summary && summary.subproductCount > 0 ? (
+                              <div className="space-y-0.5">
+                                <p className="text-gray-900">서브상품 {summary.subproductCount} · 파일 {summary.fileCount}</p>
+                                <p className="text-xs text-gray-500">
+                                  {summary.minPriceCredits !== null ? `${summary.minPriceCredits.toLocaleString()}C~` : ''}
+                                  {summary.bundlePriceCredits !== null ? ` · 전체 ${summary.bundlePriceCredits.toLocaleString()}C` : ''}
+                                  {summary.samplePageCount > 0 ? ` · 샘플 ${summary.samplePageCount}장` : ' · 샘플 없음'}
+                                </p>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400">-</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-center">
-                            <Badge variant="outline">{MARKET_STATUS_LABELS[item.status as MarketItemFormState['status']] ?? item.status}</Badge>
+                            <Badge variant="outline" className={MARKET_STATUS_BADGE_CLASSES[status] ?? ''}>{MARKET_STATUS_LABELS[status] ?? item.status}</Badge>
+                            {isAbandonedUpload ? <p className="mt-1 text-[11px] text-gray-500">업로드 중단</p> : null}
                           </TableCell>
-                          <TableCell className="text-center text-sm text-gray-600">{formatDateTime(item.created_at)}</TableCell>
+                          <TableCell className="whitespace-nowrap text-center text-sm text-gray-600">
+                            {ADMIN_LIST_DATE_FORMATTER.format(new Date(sortKey === 'updated' ? item.updated_at : item.created_at))}
+                          </TableCell>
                           <TableCell>
-                            <div className="flex justify-end gap-1">
-                              <Button type="button" variant="ghost" size="icon" onClick={() => void loadItemDetail(item.id)}>
-                                <Pencil className="h-4 w-4" />
+                            <div className="flex items-center justify-end gap-1">
+                              <Button type="button" variant="outline" size="sm" onClick={() => void loadItemDetail(item.id)}>
+                                <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                                수정
                               </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                aria-label={isHidden ? `${item.title} 숨김 해제` : `${item.title} 숨김 처리`}
-                                title={isHidden ? '숨김 해제' : '숨김'}
-                                className="text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                                disabled={hidingItemId === item.id}
-                                onClick={() => void handleVisibilityFromList(item)}
-                              >
-                                {hidingItemId === item.id
-                                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                                  : isHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                                onClick={() => setDeleteTarget(item)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button type="button" variant="ghost" size="icon" aria-label={`${item.title} 더보기`} disabled={hidingItemId === item.id}>
+                                    {hidingItemId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {status === 'published' ? (
+                                    <DropdownMenuItem asChild>
+                                      <a href={`/items/${item.id}?subject=${workspaceSubject}`} target="_blank" rel="noreferrer">
+                                        <ExternalLink className="mr-2 h-4 w-4" />
+                                        상세 페이지 보기
+                                      </a>
+                                    </DropdownMenuItem>
+                                  ) : null}
+                                  {/* 숨김 전환은 공개·숨김 상품만(임시저장을 바로 공개하면 공개 전 점검을 건너뛴다) */}
+                                  {status === 'published' || isHidden ? (
+                                    <DropdownMenuItem
+                                      aria-label={isHidden ? `${item.title} 숨김 해제` : `${item.title} 숨김 처리`}
+                                      onSelect={() => void handleVisibilityFromList(item)}
+                                    >
+                                      {isHidden ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
+                                      {isHidden ? '다시 공개' : '숨기기'}
+                                    </DropdownMenuItem>
+                                  ) : null}
+                                  {status === 'published' || isHidden ? <DropdownMenuSeparator /> : null}
+                                  <DropdownMenuItem className="text-red-600 focus:text-red-700" onSelect={() => setDeleteTarget(item)}>
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    삭제
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </TableCell>
                         </TableRow>

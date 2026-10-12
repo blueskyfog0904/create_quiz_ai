@@ -44,7 +44,9 @@ test('item create/update write thumbnail_image_id and never thumbnail_url; updat
 
 test('admin item list/detail embed image paths in one select and expose thumbnailImage + categoryDefaultImage', () => {
   assert.match(itemsServer, /const MARKET_ITEM_ADMIN_SELECT = '\*, thumbnail_image:market_images\(id, storage_path\), category_item:market_category_items\(default_image:effective_default_image\(id, storage_path\)\)'/)
-  assert.match(fnBody(itemsServer, 'listMarketItemsForAdmin'), /\.select\(MARKET_ITEM_ADMIN_SELECT\)/)
+  // 목록은 같은 이미지 임베드에 판매 구성 요약만 더한 select를 쓴다
+  assert.match(itemsServer, /const MARKET_ITEM_ADMIN_LIST_SELECT = `\$\{MARKET_ITEM_ADMIN_SELECT\}, /)
+  assert.match(fnBody(itemsServer, 'listMarketItemsForAdmin'), /\.select\(MARKET_ITEM_ADMIN_LIST_SELECT\)/)
   assert.match(fnBody(itemsServer, 'getMarketItemByIdForAdmin'), /\.select\(MARKET_ITEM_ADMIN_SELECT\)/)
   assert.match(itemsServer, /thumbnailImage: toRef\(thumbnailImage\)/)
   assert.match(itemsServer, /categoryDefaultImage: toRef\(categoryItem\?\.default_image \?\? null\)/)

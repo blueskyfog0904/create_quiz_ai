@@ -88,9 +88,9 @@ test('상단 필터는 같은 단계별 선택(전체)으로 서버 ?categoryId=
   assert.doesNotMatch(handler, /setForm|setCategoryItemId|resetForm/)
   assert.match(productsClient, /<CategoryStepSelect\n\s+nodes=\{categoryNodes\}\n\s+value=\{filterCategoryId\}\n\s+onChange=\{changeFilterCategory\}\n\s+emptyLabel="전체"/)
   assert.match(productsClient, /`\/api\/admin\/market\/items\?categoryId=\$\{categoryId\}`/)
-  // 표의 카테고리 열은 경로(없으면 미지정)
+  // 표의 상품 칸 제목 아래에 카테고리 경로(없으면 미지정)
   assert.match(productsClient, /return path \? path\.map\(categoryNodeLabel\)\.join\(' > '\) : '미지정'/)
-  assert.match(productsClient, /<TableCell>\{formatCategoryPath\(getItemCategoryItemId\(item\)\)\}<\/TableCell>/)
+  assert.match(productsClient, /<p className="text-xs text-gray-500">\{formatCategoryPath\(getItemCategoryItemId\(item\)\)\}<\/p>/)
 })
 
 test('[카테고리 관리]는 카테고리 메뉴 관리 화면과 같은 편집기를 팝업으로 띄우고, 바뀐 트리를 선택칸에 반영한다', () => {

@@ -46,6 +46,18 @@ type MarketItemPublicRow = Tables<'market_items'> & MarketThumbnailSource
 export type MarketItemForAdmin = MarketItem & {
   thumbnailImage: MarketItemImageRef | null
   categoryDefaultImage: MarketItemImageRef | null
+  // 관리자 목록에서만 채운다(판매 구성 요약). 단건 조회에는 없다.
+  listSummary?: MarketItemAdminListSummary
+}
+
+export interface MarketItemAdminListSummary {
+  subproductCount: number
+  fileCount: number
+  // 파일이 하나도 없는 판매 중 서브상품 수(공개 전 점검의 '모든 서브상품에 파일'과 같은 기준)
+  emptySubproductCount: number
+  minPriceCredits: number | null
+  bundlePriceCredits: number | null
+  samplePageCount: number
 }
 type MarketItemFileInsert = TablesInsert<'market_item_files'> & WithOptionalWorkspaceSubject
 type MarketPurchaseInsert = TablesInsert<'market_purchases'> & WithOptionalWorkspaceSubject
@@ -219,10 +231,33 @@ function getAdminSupabase() {
 // 임베드 한 번으로 이미지 경로를 함께 읽는다(N+1 없음).
 const MARKET_ITEM_ADMIN_SELECT = '*, thumbnail_image:market_images(id, storage_path), category_item:market_category_items(default_image:effective_default_image(id, storage_path))'
 
+// 관리자 목록 전용: 판매 구성 요약에 필요한 값만 함께 읽는다.
+const MARKET_ITEM_ADMIN_LIST_SELECT = `${MARKET_ITEM_ADMIN_SELECT}, subproducts:market_item_subproducts(is_active, deleted_at, price_credits, files:market_subproduct_files(is_active, deleted_at)), bundle_options:market_item_bundle_options(is_active, price_credits), sample_pages:market_item_sample_pages(is_active, deleted_at)`
+
 type MarketImagePathRow = { id: string; storage_path: string } | null
 type MarketItemAdminRow = Tables<'market_items'> & {
   thumbnail_image: MarketImagePathRow
   category_item: { default_image: MarketImagePathRow } | null
+}
+type MarketItemAdminListRow = MarketItemAdminRow & {
+  subproducts: { is_active: boolean; deleted_at: string | null; price_credits: number; files: { is_active: boolean; deleted_at: string | null }[] }[] | null
+  bundle_options: { is_active: boolean; price_credits: number }[] | { is_active: boolean; price_credits: number } | null
+  sample_pages: { is_active: boolean; deleted_at: string | null }[] | null
+}
+
+function buildMarketItemAdminListSummary(row: MarketItemAdminListRow): MarketItemAdminListSummary {
+  const subproducts = (row.subproducts ?? []).filter((subproduct) => subproduct.is_active && !subproduct.deleted_at)
+  const fileCounts = subproducts.map((subproduct) => (subproduct.files ?? []).filter((file) => file.is_active && !file.deleted_at).length)
+  const bundle = (Array.isArray(row.bundle_options) ? row.bundle_options : row.bundle_options ? [row.bundle_options] : [])
+    .find((option) => option.is_active)
+  return {
+    subproductCount: subproducts.length,
+    fileCount: fileCounts.reduce((sum, count) => sum + count, 0),
+    emptySubproductCount: fileCounts.filter((count) => count === 0).length,
+    minPriceCredits: subproducts.length > 0 ? Math.min(...subproducts.map((subproduct) => subproduct.price_credits)) : null,
+    bundlePriceCredits: bundle ? bundle.price_credits : null,
+    samplePageCount: (row.sample_pages ?? []).filter((page) => page.is_active && !page.deleted_at).length,
+  }
 }
 
 function toMarketItemForAdmin(supabase: ReturnType<typeof getAdminSupabase>, row: MarketItemAdminRow): MarketItemForAdmin {
@@ -296,7 +331,7 @@ export async function listMarketItemsForAdmin(
   let query = applyWorkspaceSubjectFilter(
     supabase
       .from('market_items')
-      .select(MARKET_ITEM_ADMIN_SELECT)
+      .select(MARKET_ITEM_ADMIN_LIST_SELECT)
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
     workspaceSubject
@@ -306,13 +341,16 @@ export async function listMarketItemsForAdmin(
     query = query.in('category_item_id', categoryIds)
   }
 
-  const { data, error } = await query.returns<MarketItemAdminRow[]>()
+  const { data, error } = await query.returns<MarketItemAdminListRow[]>()
 
   if (error) {
     throw new Error(error.message)
   }
 
-  return (data ?? []).map((row) => toMarketItemForAdmin(supabase, row))
+  return (data ?? []).map(({ subproducts, bundle_options: bundleOptions, sample_pages: samplePages, ...row }) => ({
+    ...toMarketItemForAdmin(supabase, row),
+    listSummary: buildMarketItemAdminListSummary({ ...row, subproducts, bundle_options: bundleOptions, sample_pages: samplePages }),
+  }))
 }
 
 export async function getMarketItemByIdForAdmin(id: string, workspaceSubject?: WorkspaceSubject): Promise<MarketItemForAdmin | null> {

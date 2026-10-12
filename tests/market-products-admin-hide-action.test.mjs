@@ -57,7 +57,7 @@ test('admin market products list supports multi-selection controls', () => {
   assert.match(marketProductsClient, /선택 \{selectedItems\.length\}개/, 'bulk action area should show selected count')
   assert.match(marketProductsClient, /aria-label="현재 페이지 상품 전체 선택"/, 'header checkbox should be accessible')
   assert.match(marketProductsClient, /aria-label=\{`\$\{item\.title\} 선택`\}/, 'row checkbox should be accessible')
-  assert.match(marketProductsClient, /<TableCell colSpan=\{7\}/, 'empty table state should account for the selection column')
+  assert.match(marketProductsClient, /<TableCell colSpan=\{6\}/, 'empty table state should account for the selection column')
 })
 
 test('admin market products list exposes bulk hide and delete actions', () => {
