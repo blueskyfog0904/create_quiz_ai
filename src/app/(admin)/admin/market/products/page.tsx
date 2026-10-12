@@ -22,6 +22,7 @@ export default async function AdminMarketProductsPage({ searchParams }: AdminMar
   return (
     <MarketProductsClient
       key={workspaceSubject}
+      mode="manage"
       initialCategoryNodes={categoryNodes}
       initialItems={items}
       workspaceSubject={workspaceSubject}

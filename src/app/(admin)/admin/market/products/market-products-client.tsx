@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client'
@@ -73,6 +74,8 @@ import { useListQuery } from '@/hooks/use-list-query'
 import { getListPagination } from '@/lib/list-pagination'
 
 interface MarketProductsClientProps {
+  // create: '문제마켓 상품 등록'(폼만), manage: '문제마켓 상품 관리'(목록·필터, 수정할 때만 폼)
+  mode: 'create' | 'manage'
   initialCategoryNodes: AdminCategoryTreeNode[]
   initialItems: MarketItemForAdmin[]
   workspaceSubject: WorkspaceSubject
@@ -531,7 +534,7 @@ function buildFileTypeSettingsForm(fileType: MarketFileType): FileTypeSettingsFo
   }
 }
 
-export default function MarketProductsClient({ initialCategoryNodes, initialItems, workspaceSubject }: MarketProductsClientProps) {
+export default function MarketProductsClient({ mode, initialCategoryNodes, initialItems, workspaceSubject }: MarketProductsClientProps) {
   const router = useRouter()
   // 상품 목록 상단 필터(가장 깊이 고른 칸, '' = 전체). 서버가 하위 칸까지 포함해 거른다.
   const [filterCategoryId, setFilterCategoryId] = useState('')
@@ -2095,42 +2098,49 @@ export default function MarketProductsClient({ initialCategoryNodes, initialItem
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">문제마켓 상품 관리 · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
-          <p className="mt-1 text-gray-500">선택한 과목의 문제마켓 상품과 판매 파일을 등록/수정합니다.</p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {mode === 'create' ? '문제마켓 상품 등록' : '문제마켓 상품 관리'} · {workspaceSubject === 'english' ? '영어' : '국어'}
+          </h1>
+          <p className="mt-1 text-gray-500">
+            {mode === 'create'
+              ? '선택한 과목의 문제마켓 상품을 새로 등록하고 판매 파일을 올립니다.'
+              : '선택한 과목의 문제마켓 상품을 찾아 수정하거나 삭제합니다.'}
+          </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => resetForm()}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          새 상품 작성
-        </Button>
+        {mode === 'create' ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => resetForm()}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            새 상품 작성
+          </Button>
+        ) : (
+          <Button asChild variant="outline">
+            <Link href={withAdminWorkspaceSubject('/admin/market/products/new', workspaceSubject)}>
+              <Plus className="mr-2 h-4 w-4" />
+              새 상품 등록
+            </Link>
+          </Button>
+        )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>카테고리 선택</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="max-w-sm">
-            <CategoryStepSelect
-              nodes={categoryNodes}
-              value={filterCategoryId}
-              onChange={changeFilterCategory}
-              emptyLabel="전체"
-              ariaLabel="상품 목록 카테고리"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,460px),minmax(0,1fr)]">
+      {/* 관리 화면은 목록 옆에 수정 중인 상품의 폼만 연다(새 등록은 '문제마켓 상품 등록'에서). */}
+      <div className={mode === 'manage' && form.id ? 'grid gap-6 xl:grid-cols-[minmax(0,460px),minmax(0,1fr)]' : 'grid gap-6'}>
+        {mode === 'create' || form.id ? (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
               <CardTitle>{form.id ? '상품 수정' : '상품 추가'}</CardTitle>
-              {form.id ? <Badge variant="outline">편집 중</Badge> : null}
+              <div className="flex items-center gap-2">
+                {form.id ? <Badge variant="outline">편집 중</Badge> : null}
+                {mode === 'manage' ? (
+                  <Button type="button" variant="ghost" size="sm" onClick={() => resetForm()}>
+                    수정 닫기
+                  </Button>
+                ) : null}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -2866,13 +2876,26 @@ export default function MarketProductsClient({ initialCategoryNodes, initialItem
             </div>
           </CardContent>
         </Card>
+        ) : null}
 
+        {mode === 'manage' ? (
         <Card>
           <CardHeader>
             <div ref={productListHeaderRef} className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <CardTitle>상품 목록</CardTitle>
                 <p className="mt-1 text-sm text-gray-500">선택 {selectedItems.length}개</p>
+                {/* 목록 필터: 고른 칸과 하위 칸의 상품만 보여 준다(상품에 저장되는 값이 아님). */}
+                <div className="mt-3 max-w-sm space-y-1">
+                  <Label className="text-xs text-gray-500">목록 필터: 카테고리</Label>
+                  <CategoryStepSelect
+                    nodes={categoryNodes}
+                    value={filterCategoryId}
+                    onChange={changeFilterCategory}
+                    emptyLabel="전체"
+                    ariaLabel="상품 목록 카테고리"
+                  />
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -3021,6 +3044,7 @@ export default function MarketProductsClient({ initialCategoryNodes, initialItem
             />
           </CardContent>
         </Card>
+        ) : null}
       </div>
 
       <AdminMarketSamplePreviewDialog

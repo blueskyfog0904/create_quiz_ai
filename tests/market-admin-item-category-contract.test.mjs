@@ -286,3 +286,16 @@ test('POST: menuEntryId 없이 201이고 게시판을 조회하지 않으며, �
   assert.equal(update[1].title, '수정')
   assert.equal('menu_entry_id' in update[1], false)
 })
+
+test('상품 등록 화면은 폼만, 상품 관리 화면은 목록 필터·목록과 수정할 때만 폼을 보인다', () => {
+  const client = readFileSync(new URL('../src/app/(admin)/admin/market/products/market-products-client.tsx', import.meta.url), 'utf8')
+  const manage = readFileSync(new URL('../src/app/(admin)/admin/market/products/page.tsx', import.meta.url), 'utf8')
+  const create = readFileSync(new URL('../src/app/(admin)/admin/market/products/new/page.tsx', import.meta.url), 'utf8')
+  assert.match(manage, /mode="manage"/)
+  assert.match(create, /mode="create"/)
+  assert.match(client, /\{mode === 'create' \|\| form\.id \? \(/)
+  assert.match(client, /\{mode === 'manage' \? \(\n\s+<Card>/)
+  assert.match(client, /목록 필터: 카테고리/)
+  assert.doesNotMatch(client, /<CardTitle>카테고리 선택<\/CardTitle>/)
+  assert.match(client, /withAdminWorkspaceSubject\('\/admin\/market\/products\/new', workspaceSubject\)/)
+})

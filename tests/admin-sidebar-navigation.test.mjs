@@ -284,3 +284,14 @@ test('menu management presents question bank entries as an admin sidebar group w
   assert.match(menuManagementSource, /aria-label=\{`\$\{node\.name\} 대메뉴 위로 이동`\}/)
   assert.match(menuManagementSource, /aria-label=\{`\$\{node\.name\} \$\{item\.name\} 위로 이동`\}/)
 })
+
+test('문제마켓 상품 등록과 상품 관리는 별도 메뉴이고, 상품 관리는 등록 주소에서 함께 강조되지 않는다', () => {
+  const defaults = DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG.items
+  assert.equal(defaults.indexOf('/admin/market/products/new') + 1, defaults.indexOf('/admin/market/products'))
+  assert.ok(ADMIN_MARKET_MENU_HREFS.includes('/admin/market/products/new'))
+  const items = resolveAdminSidebarMenuItems('korean')
+  assert.equal(items.find((item) => item.href === '/admin/market/products/new')?.name, '문제마켓 상품 등록')
+  const manage = items.find((item) => item.href === '/admin/market/products')
+  assert.equal(manage?.name, '문제마켓 상품 관리')
+  assert.equal(manage?.exact, true)
+})
