@@ -61,7 +61,9 @@ export function MarketItemCard({ row, subject, onSamplePrefetch, onSampleOpen }:
               {row.title}
             </Link>
           </h2>
-          <p className="mt-1 text-base text-[var(--studio-muted)]">{row.categoryTitle}</p>
+          {row.categoryPath.length > 0 && (
+            <p className="mt-1 text-base text-[var(--studio-muted)]">{row.categoryPath.map((node) => node.title).join(' > ')}</p>
+          )}
           {row.minPriceCredits !== null ? (
             <p className="mt-4 [font-family:var(--studio-font-price)] text-xl font-bold text-[var(--studio-text)]">
               {row.minPriceCredits.toLocaleString()} 크레딧~

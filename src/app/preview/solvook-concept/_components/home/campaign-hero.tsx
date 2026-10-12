@@ -76,7 +76,7 @@ export function CampaignHero({ subject, categories, featuredItem, config }: Camp
                   <span className="rounded-full bg-[var(--studio-primary-soft)] px-2.5 py-1 text-[10px] font-extrabold text-[var(--studio-primary)]">대표 자료</span>
                   <FileStack aria-hidden="true" className="h-5 w-5 text-[var(--studio-primary)]" />
                 </div>
-                <p className="mt-8 text-[10px] font-extrabold tracking-[0.12em] text-[var(--studio-muted)]">{featuredItem?.categoryTitle ?? `${subjectLabel} 문제마켓`}</p>
+                <p className="mt-8 text-[10px] font-extrabold tracking-[0.12em] text-[var(--studio-muted)]">{`${subjectLabel} 문제마켓`}</p>
                 <strong className="mt-2 block break-keep text-2xl font-black leading-tight tracking-[-0.04em]">{featuredItem?.title ?? '자료 준비 중'}</strong>
                 <ul className="mt-6 space-y-2 text-xs font-semibold text-[var(--studio-text)]">
                   <li className="flex items-center gap-2"><Check aria-hidden="true" className="h-4 w-4 text-[var(--studio-success)]" />실제 공개 자료만 안내</li>

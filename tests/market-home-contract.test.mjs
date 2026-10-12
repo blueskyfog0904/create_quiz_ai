@@ -25,8 +25,8 @@ test('public home queries are subject and publication scoped', () => {
   assert.match(serverSource, /\.eq\('status',\s*'published'\)/)
   assert.match(serverSource, /\.eq\('is_active',\s*true\)/)
   assert.match(serverSource, /\.is\('deleted_at',\s*null\)/)
-  assert.match(serverSource, /\.eq\('is_visible',\s*true\)/)
-  assert.match(serverSource, /visibleMenuIds/)
+  // 노출은 상품 상태만으로 정한다(S3 — 게시판 게이트 없음)
+  assert.doesNotMatch(serverSource, /is_visible|market_menu_entries|visibleMenuIds/)
 })
 
 test('recent sorting is deterministic', () => {

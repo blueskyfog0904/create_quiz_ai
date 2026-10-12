@@ -56,7 +56,8 @@ const LIBRARY_FACETS: LibraryFacet[] = [
   {
     key: 'category',
     label: '카테고리',
-    getValues: (row) => (row.categoryTitle ? [row.categoryTitle] : []),
+    // 카테고리 경로(depth1 > … > 연결 칸). 경로가 없는 상품(미지정·비활성 칸)은 값 없음.
+    getValues: (row) => (row.categoryPath.length > 0 ? [row.categoryPath.map((node) => node.title).join(' > ')] : []),
   },
   {
     key: 'type',
@@ -259,7 +260,7 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
           if (!selected.some((value) => values.includes(value))) return false
         }
       }
-      if (keyword && !(`${row.title} ${row.categoryTitle} ${row.summary || ''}`.toLowerCase().normalize('NFC').includes(keyword))) {
+      if (keyword && !(`${row.title} ${row.categoryPath.map((node) => node.title).join(' ')} ${row.summary || ''}`.toLowerCase().normalize('NFC').includes(keyword))) {
         return false
       }
       return true

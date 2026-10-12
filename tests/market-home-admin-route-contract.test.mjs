@@ -48,7 +48,7 @@ test('market home settings POST strictly validates the config and persists the s
   assert.match(routeSource, /revalidatePath\('\/preview\/solvook-concept'\)/)
   assert.doesNotMatch(serverSource, /getMarketHomeAdminOptions/)
   assert.match(serverSource, /\.eq\('workspace_subject', workspaceSubject\)/)
-  assert.match(serverSource, /\.eq\('is_visible', true\)/)
+  assert.doesNotMatch(serverSource, /is_visible/)
   assert.match(serverSource, /\.eq\('is_active', true\)/)
 })
 

@@ -21,21 +21,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
 
+    // 공개 여부는 상품 상태(getPublishedMarketItemById)만으로 정한다(게시판 무관).
     const adminSupabase = createAdminClient()
-    const { data: menu, error: menuError } = await adminSupabase
-      .from('market_menu_entries')
-      .select('id')
-      .eq('id', item.menu_entry_id)
-      .eq('workspace_subject', workspaceSubject)
-      .eq('is_visible', true)
-      .eq('is_active', true)
-      .is('deleted_at', null)
-      .maybeSingle()
-    if (menuError) throw new Error(menuError.message)
-    if (!menu) {
-      return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
-    }
-
     const samplePages = await listActiveMarketItemSamplePagesWithSourceFileNames(itemId, workspaceSubject)
     const expiresAt = new Date(Date.now() + SAMPLE_PAGE_SIGNED_URL_TTL_SECONDS * 1000).toISOString()
 

@@ -42,13 +42,15 @@ test('검색 결과 배지와 유형 옵션은 서브상품 순서와 관계없�
     if (table === 'market_items') {
       return {
         data: [
-          { id: 'a', title: 'A', menu_entry_id: 'm', view_count: 2 },
-          { id: 'b', title: 'B', menu_entry_id: 'm', view_count: 1 },
+          { id: 'a', title: 'A', menu_entry_id: 'm', category_item_id: 'n1', view_count: 2 },
+          { id: 'b', title: 'B', menu_entry_id: 'm', category_item_id: 'n1', view_count: 1 },
         ],
         error: null,
       }
     }
-    if (table === 'market_menu_entries') return { data: [{ id: 'm', slug: 'board', title: '게시판' }], error: null }
+    if (table === 'market_category_items') {
+      return { data: [{ id: 'n1', workspace_subject: 'korean', parent_id: null, depth: 1, title: 'EBS', sort_order: 0, created_at: '2026-01-01' }], error: null }
+    }
     if (table === 'market_item_subproducts') return { data: subproducts, error: null }
     if (table === 'market_subproduct_categories') return { data: categories, error: null }
     return { data: [], error: null }
@@ -61,6 +63,7 @@ test('검색 결과 배지와 유형 옵션은 서브상품 순서와 관계없�
     '@/lib/list-pagination': load('src/lib/list-pagination.ts'),
     '@/lib/read-all-query-rows': load('src/lib/read-all-query-rows.ts'),
     '@/lib/market-images': marketImages,
+    '@/lib/market-category-tree': load('src/lib/market-category-tree.ts'),
   })
   const result = await server.searchMarketItemsForSubject('korean', {})
   assert.deepEqual(result.rows.map((row) => [row.itemId, row.typeNames]), [

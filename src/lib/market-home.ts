@@ -48,8 +48,6 @@ export interface MarketHomeItem {
   summary: string | null
   thumbnailUrl: string | null
   menuEntryId: string
-  categorySlug: string
-  categoryTitle: string
   questionCount: number | null
   sourceType: string | null
   sources: Array<string | null>

@@ -6,12 +6,19 @@ import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspac
 import { getListPagination } from '@/lib/list-pagination'
 import { readAllQueryRows } from '@/lib/read-all-query-rows'
 import { MARKET_THUMBNAIL_EMBED, toMarketThumbnailUrl } from '@/lib/market-images'
+import {
+  buildCategoryTree,
+  collectSubtreeIds,
+  findCategoryPath,
+  type MarketCategoryPathNode,
+} from '@/lib/market-category-tree'
 
 export type MarketSearchSort = 'views' | 'latest' | 'price_asc'
 
 export interface MarketSearchFilters {
   q?: string
-  categorySlugs?: string[]
+  // 카테고리 칸 id. 고른 칸의 하위 칸 상품까지 포함한다. 공개 트리에 없는 값(예전 게시판 slug 등)은 무시한다.
+  categoryIds?: string[]
   typeSlugs?: string[]
   years?: string[]
   grades?: string[]
@@ -25,8 +32,10 @@ export interface MarketSearchRow {
   title: string
   summary: string | null
   thumbnailUrl: string | null
-  categorySlug: string
-  categoryTitle: string
+  // 상품이 연결된 카테고리 칸 id(미지정이면 null)
+  categoryId: string | null
+  // depth1 → 연결 칸까지의 경로. 칸이 비활성이거나 공개 트리에 없으면 빈 배열(노출은 상품 상태만으로 정한다).
+  categoryPath: MarketCategoryPathNode[]
   examYear: number | null
   gradeLevel: string | null
   questionCount: number | null
@@ -71,21 +80,20 @@ export async function searchMarketItemsForSubject(
 ): Promise<MarketSearchResult> {
   const supabase = createAdminClient()
 
-  const [items, menuResult, subproducts, typeCategoriesResult] = await Promise.all([
+  const [items, nodesResult, subproducts, typeCategoriesResult] = await Promise.all([
     readAllQueryRows((from, to) => supabase
       .from('market_items')
-      .select(`id, title, summary, menu_entry_id, exam_year, grade_level, question_count, view_count, published_at, created_at, ${MARKET_THUMBNAIL_EMBED}`)
+      .select(`id, title, summary, category_item_id, exam_year, grade_level, question_count, view_count, published_at, created_at, ${MARKET_THUMBNAIL_EMBED}`)
       .eq('workspace_subject', workspaceSubject)
       .eq('status', 'published')
       .eq('is_active', true)
       .is('deleted_at', null).order('id').range(from, to)),
+    // 카테고리 경로용 활성 칸 전체(한 쿼리). 경로는 메모리에서 조립한다.
     supabase
-      .from('market_menu_entries')
-      .select('id, slug, title')
+      .from('market_category_items')
+      .select('id, workspace_subject, parent_id, depth, title, sort_order, created_at')
       .eq('workspace_subject', workspaceSubject)
-      .eq('is_visible', true)
-      .eq('is_active', true)
-      .is('deleted_at', null),
+      .eq('is_active', true),
     readAllQueryRows((from, to) => supabase
       .from('market_item_subproducts')
       .select('item_id, category_id, price_credits')
@@ -100,13 +108,16 @@ export async function searchMarketItemsForSubject(
       .order('sort_order').order('name'),
   ])
 
-  for (const result of [menuResult, typeCategoriesResult]) {
+  for (const result of [nodesResult, typeCategoriesResult]) {
     if (result.error) {
       throw new Error(result.error.message)
     }
   }
 
-  const menuMap = new Map((menuResult.data ?? []).map((entry) => [entry.id, entry]))
+  const categoryRoots = buildCategoryTree(nodesResult.data ?? [])[workspaceSubject]
+  const categoryPathOf = (categoryId: string | null): MarketCategoryPathNode[] => (categoryId
+    ? (findCategoryPath(categoryRoots, categoryId) ?? []).map(({ id, title }) => ({ id, title }))
+    : [])
   const typeCategories = typeCategoriesResult.data ?? []
 
   const minPriceByItem = new Map<string, number>()
@@ -132,18 +143,15 @@ export async function searchMarketItemsForSubject(
   const typeNameBySlug = new Map(typeCategories.map((category) => [category.slug, category.name]))
   const keyword = (filters.q ?? '').trim().toLowerCase().normalize('NFC')
   const matched = items
-    // 노출 메뉴에 속한 아이템만 검색 대상 (숨김/비활성 메뉴의 카탈로그 유출 방지)
-    .filter((item) => menuMap.has(item.menu_entry_id))
     .map((item) => {
-      const menu = menuMap.get(item.menu_entry_id)!
       const itemTypeSlugs = typeSlugsOf(item.id)
       return {
         itemId: item.id,
         title: item.title,
         summary: item.summary,
         thumbnailUrl: toMarketThumbnailUrl(supabase, item),
-        categorySlug: menu.slug,
-        categoryTitle: menu.title,
+        categoryId: item.category_item_id,
+        categoryPath: categoryPathOf(item.category_item_id),
         examYear: item.exam_year,
         gradeLevel: item.grade_level,
         questionCount: item.question_count,
@@ -156,7 +164,8 @@ export async function searchMarketItemsForSubject(
     })
     .filter((row) => {
       if (!keyword) return true
-      return `${row.title} ${row.summary ?? ''} ${row.categoryTitle}`.toLowerCase().normalize('NFC').includes(keyword)
+      const categoryText = row.categoryPath.map((node) => node.title).join(' ')
+      return `${row.title} ${row.summary ?? ''} ${categoryText}`.toLowerCase().normalize('NFC').includes(keyword)
     })
 
   // 패싯 옵션은 검색어 적용 결과 전체 기준으로 집계 (선택 필터와 무관하게 안정적인 개수 표시)
@@ -169,12 +178,19 @@ export async function searchMarketItemsForSubject(
     }
     return counts
   }
-  const categoryCounts = countBy((row) => (row.categorySlug ? [row.categorySlug] : []))
+  // '카테고리' 패싯은 depth1~2 단위: 상품의 depth2 조상(없으면 depth1) 칸으로 묶는다.
+  const categoryFacetLabels = new Map<string, string>()
+  const categoryCounts = countBy((row) => {
+    const facetPath = row.categoryPath.slice(0, 2)
+    const facetNode = facetPath[facetPath.length - 1]
+    if (!facetNode) return []
+    categoryFacetLabels.set(facetNode.id, facetPath.map((node) => node.title).join(' > '))
+    return [facetNode.id]
+  })
   const typeCounts = countBy((row) => row.typeSlugs)
   const yearCounts = countBy((row) => (row.examYear ? [String(row.examYear)] : []))
   const gradeCounts = countBy((row) => (row.gradeLevel ? [row.gradeLevel] : []))
 
-  const menuTitleBySlug = new Map((menuResult.data ?? []).map((entry) => [entry.slug, entry.title]))
   const toOptions = (counts: Map<string, number>, labelOf: (value: string) => string) =>
     Array.from(counts.entries())
       .map(([value, count]) => ({ value, label: labelOf(value), count }))
@@ -183,8 +199,11 @@ export async function searchMarketItemsForSubject(
   const hasAny = (selected: string[] | undefined, values: string[]) =>
     !selected?.length || selected.some((value) => values.includes(value))
 
+  // 고른 칸이 경로에 있으면(= 그 칸이나 하위 칸 상품) 포함. 공개 트리에 없는 값은 버려 전체 결과가 된다.
+  const knownCategoryIds = new Set(categoryRoots.flatMap((node) => collectSubtreeIds(node)))
+  const categoryIds = filters.categoryIds?.filter((id) => knownCategoryIds.has(id))
   const filtered = matched.filter((row) =>
-    hasAny(filters.categorySlugs, row.categorySlug ? [row.categorySlug] : [])
+    hasAny(categoryIds, row.categoryPath.map((node) => node.id))
     && hasAny(filters.typeSlugs, row.typeSlugs)
     && hasAny(filters.years, row.examYear ? [String(row.examYear)] : [])
     && hasAny(filters.grades, row.gradeLevel ? [row.gradeLevel] : [])
@@ -222,7 +241,7 @@ export async function searchMarketItemsForSubject(
     pageSize,
     totalPages,
     facets: {
-      categories: toOptions(categoryCounts, (value) => menuTitleBySlug.get(value) ?? value),
+      categories: toOptions(categoryCounts, (value) => categoryFacetLabels.get(value) ?? value),
       // '유형' 옵션은 다른 필터와 달리 가나다순이 아니라 배지와 같은 분류 순서로 보여 준다.
       types: typeSlugOrder
         .filter((slug) => typeCounts.has(slug))

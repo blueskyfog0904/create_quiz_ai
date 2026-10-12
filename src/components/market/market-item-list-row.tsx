@@ -40,7 +40,9 @@ export function MarketItemListRow({ row, subject, onSamplePrefetch, onSampleOpen
             {row.title}
           </Link>
         </h2>
-        <p className="mt-1 text-sm text-[var(--studio-muted)]">{row.categoryTitle}</p>
+        {row.categoryPath.length > 0 && (
+          <p className="mt-1 text-sm text-[var(--studio-muted)]">{row.categoryPath.map((node) => node.title).join(' > ')}</p>
+        )}
         {(row.minPriceCredits !== null || typeof row.ratingCount === 'number') && (
           <p className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1">
             {row.minPriceCredits !== null && (

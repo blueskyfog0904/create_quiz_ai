@@ -46,7 +46,7 @@ test('market board server scopes category and items to one public subject', asyn
   assert.match(source, /\.from\('market_items'\)/)
   assert.match(source, /\.eq\('workspace_subject', subject\)/)
   assert.match(source, /\.eq\('status', 'published'\)/)
-  assert.match(source, /\.eq\('is_visible', true\)/)
+  assert.doesNotMatch(source, /is_visible/)
   assert.match(source, /\.eq\('is_active', true\)/)
   assert.match(source, /\.is\('deleted_at', null\)/)
   assert.match(source, /group_id === null/)
@@ -125,7 +125,7 @@ test('source configuration stays nested by source type and query failures are ex
   assert.doesNotMatch(source, /sample-data|SampleBoard|SampleMaterialPost/)
 })
 
-test('missing group schema falls back to existing visible entries only', async () => {
+test('missing group schema falls back to existing active entries only', async () => {
   const source = await read('src/lib/market-board-server.ts')
 
   assert.match(source, /function isMissingMarketMenuGroupSchemaError/)

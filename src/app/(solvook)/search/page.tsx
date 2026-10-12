@@ -45,7 +45,7 @@ export default async function MarketSearchPage({
 
   const result = await searchMarketItemsForSubject(subject, {
     q,
-    categorySlugs: selections.category,
+    categoryIds: selections.category,
     typeSlugs: selections.type,
     years: selections.year,
     grades: selections.grade,

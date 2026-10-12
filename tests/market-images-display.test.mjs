@@ -77,7 +77,7 @@ test('search rows use item image, then category default image, then null — nev
   ]
   const admin = createFakeAdmin(({ table }) => {
     if (table === 'market_items') return { data: items, error: null }
-    if (table === 'market_menu_entries') return { data: [{ id: 'm', slug: 'board', title: '게시판' }], error: null }
+    // 카테고리 칸이 없어도(market_category_items 빈 배열) 썸네일 결과는 같다.
     return { data: [], error: null }
   })
   const server = load('src/lib/market-search-server.ts', {
@@ -88,6 +88,7 @@ test('search rows use item image, then category default image, then null — nev
     '@/lib/list-pagination': load('src/lib/list-pagination.ts'),
     '@/lib/read-all-query-rows': load('src/lib/read-all-query-rows.ts'),
     '@/lib/market-images': marketImages,
+    '@/lib/market-category-tree': load('src/lib/market-category-tree.ts'),
   })
   const result = await server.searchMarketItemsForSubject('english', {})
   const base = 'https://project.supabase.co/storage/v1/object/public/market-images/'

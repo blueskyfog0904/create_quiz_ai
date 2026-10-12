@@ -229,6 +229,7 @@ test('GET ?categoryId=: 칸의 하위 칸 id(비활성 포함)로 상품을 거�
     '@/lib/market-refunds': {},
     '@/lib/workspace-subject': { DEFAULT_WORKSPACE_SUBJECT: 'english' },
     '@/lib/market-images': marketImages,
+    '@/lib/market-category-tree': load('src/lib/market-category-tree.ts'),
   })
   await items.listMarketItemsForAdmin({ workspaceSubject: 'korean', categoryIds: [DEPTH2, DEPTH3] })
   assert.deepEqual(op(itemsAdmin.calls[0].ops, 'in'), ['in', 'category_item_id', [DEPTH2, DEPTH3]])

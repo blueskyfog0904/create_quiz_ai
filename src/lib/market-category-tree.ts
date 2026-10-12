@@ -13,6 +13,12 @@ export interface MarketCategoryNode {
 
 export type MarketCategoryTree = Record<'english' | 'korean', MarketCategoryNode[]>
 
+// 목록 행에 싣는 카테고리 경로의 한 칸(depth1 → 연결 칸 순서로 쓴다)
+export interface MarketCategoryPathNode {
+  id: string
+  title: string
+}
+
 export interface MarketCategoryNodeRow {
   id: string
   parent_id: string | null

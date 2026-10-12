@@ -46,15 +46,11 @@ export async function listMarketCategoryTree(includeCounts = false): Promise<Mar
   const tree = buildCategoryTree(data ?? [])
 
   if (includeCounts) {
-    // 노출 게시판의 상품만 센다(게시판 게이트는 S3에서 제거).
-    const { data: entries, error: entriesError } = await supabase.from('market_menu_entries').select('id')
-      .eq('is_visible', true).eq('is_active', true).is('deleted_at', null)
-    if (entriesError) throw new Error(entriesError.message)
-    const menuIds = (entries ?? []).map((entry) => entry.id)
-    const items = menuIds.length === 0 ? [] : await readAllQueryRows((from, to) => supabase
+    // 공개 상품(상품 상태만으로 판단)을 센다.
+    const items = await readAllQueryRows((from, to) => supabase
       .from('market_items')
       .select('id, category_item_id, workspace_subject')
-      .eq('status', 'published').eq('is_active', true).is('deleted_at', null).in('menu_entry_id', menuIds)
+      .eq('status', 'published').eq('is_active', true).is('deleted_at', null)
       .order('id').range(from, to))
     // 과목별로 센다(목록 조회와 같은 과목 조건).
     const directCounts = { english: new Map<string, number>(), korean: new Map<string, number>() }
@@ -120,8 +116,8 @@ export async function getMarketCategoryNodeDetail(
 }
 
 // 카테고리에 등록된 공개 상품 카드 데이터.
-// market-search-server.searchMarketItemsForSubject와 동일한 조립 방식(메뉴 노출 가드,
-// 서브상품 최저가, 유형명, 샘플 가용성)을 category_item_id 필터로 재현한다.
+// market-search-server.searchMarketItemsForSubject와 동일한 조립 방식(서브상품 최저가, 유형명,
+// 샘플 가용성)을 category_item_id 필터로 재현한다. 노출은 상품 상태만으로 정한다(게시판 무관).
 export interface CategoryListFilters {
   q?: string
   sort?: 'views' | 'latest'
@@ -144,31 +140,21 @@ export async function listMarketItemsForCategory(
   const workspaceSubject = detail.workspaceSubject
   const subtreeIds = detail.subtreeIds
 
+  // 행 부제: 보고 있는 칸까지의 경로(하위 칸 상품도 같은 경로). 이미 받은 칸 정보로 만들어 추가 조회가 없다.
+  const categoryPath = [...detail.ancestors, { id: detail.id, title: detail.title }]
+
   const supabase = createAdminClient()
-  const menuResult = await supabase
-    .from('market_menu_entries')
-    .select('id, slug, title')
-    .eq('workspace_subject', workspaceSubject)
-    .eq('is_visible', true)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-  if (menuResult.error) throw new Error(menuResult.error.message)
-  const menuIds = (menuResult.data ?? []).map((entry) => entry.id)
-  if (menuIds.length === 0) return empty
   const keyword = (filters.q ?? '').trim().normalize('NFC').toLowerCase()
-  const matchingMenuIds = (menuResult.data ?? [])
-    .filter((entry) => entry.title.normalize('NFC').toLowerCase().includes(keyword)).map((entry) => entry.id)
   function itemQuery(head = false) {
     let query = supabase.from('market_items')
-      .select(`id, title, summary, menu_entry_id, exam_year, grade_level, question_count, view_count, published_at, created_at, ${MARKET_THUMBNAIL_EMBED}`, { count: 'exact', head })
+      .select(`id, title, summary, category_item_id, exam_year, grade_level, question_count, view_count, published_at, created_at, ${MARKET_THUMBNAIL_EMBED}`, { count: 'exact', head })
       .in('category_item_id', subtreeIds).eq('workspace_subject', workspaceSubject)
-      .eq('status', 'published').eq('is_active', true).is('deleted_at', null).in('menu_entry_id', menuIds)
+      .eq('status', 'published').eq('is_active', true).is('deleted_at', null)
     if (keyword) {
       const terms = [...new Set([keyword, keyword.normalize('NFD')])].flatMap((term) => {
         const escaped = term.replace(/[\\%_]/g, '\\$&')
         return ['title', 'summary'].map((column) => `${column}.ilike.${JSON.stringify(`%${escaped}%`)}`)
       })
-      if (matchingMenuIds.length > 0) terms.push(`menu_entry_id.in.(${matchingMenuIds.join(',')})`)
       query = query.or(terms.join(','))
     }
     return query
@@ -185,10 +171,7 @@ export async function listMarketItemsForCategory(
   if (itemsResult.error) throw new Error(itemsResult.error.message)
   const itemIds = (itemsResult.data ?? []).map((item) => item.id)
   if (!itemIds.length) return { ...empty, ...pagination }
-  const menuMap = new Map((menuResult.data ?? []).map((entry) => [entry.id, entry]))
-  // 샘플 가용성도 화면에 나갈 아이템(노출 메뉴 소속) 기준으로, 나머지 보강 조회와 함께 한 번에 읽는다.
-  const visibleItemIds = (itemsResult.data ?? [])
-    .filter((item) => menuMap.has(item.menu_entry_id)).map((item) => item.id)
+  // 샘플 가용성도 나머지 보강 조회와 함께 한 번에 읽는다.
   const [subproducts, typeCategoriesResult, reviews, samplePageMap] = await Promise.all([
     readAllQueryRows((from, to) => supabase
       .from('market_item_subproducts')
@@ -207,7 +190,7 @@ export async function listMarketItemsForCategory(
       .select('item_id, rating')
       .eq('workspace_subject', workspaceSubject)
       .is('deleted_at', null).in('item_id', itemIds).order('id').range(from, to)),
-    listActiveMarketItemSamplePagesForItems(visibleItemIds, workspaceSubject),
+    listActiveMarketItemSamplePagesForItems(itemIds, workspaceSubject),
   ])
 
   if (typeCategoriesResult.error) throw new Error(typeCategoriesResult.error.message)
@@ -243,18 +226,15 @@ export async function listMarketItemsForCategory(
   }
 
   const rows = (itemsResult.data ?? [])
-    // 노출 메뉴에 속한 아이템만 (숨김/비활성 메뉴의 카탈로그 유출 방지 — 검색과 동일)
-    .filter((item) => menuMap.has(item.menu_entry_id))
     .map((item) => {
-      const menu = menuMap.get(item.menu_entry_id)!
       const rating = ratingTotals.get(item.id)
       return {
         itemId: item.id,
         title: item.title,
         summary: item.summary,
         thumbnailUrl: toMarketThumbnailUrl(supabase, item),
-        categorySlug: menu.slug,
-        categoryTitle: menu.title,
+        categoryId: item.category_item_id,
+        categoryPath,
         examYear: item.exam_year,
         gradeLevel: item.grade_level,
         questionCount: item.question_count,

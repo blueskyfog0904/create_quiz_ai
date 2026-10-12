@@ -21,9 +21,10 @@ const treeModule = (() => {
 })()
 function harness() {
   // 64개 중 앞 24개는 depth3(2부)에, 나머지 40개는 depth2(독서)에 직접 연결한다.
+  // 절반은 숨김 게시판 소속이다. S3부터 노출은 상품 상태만으로 정하므로 모두 목록·개수에 들어간다.
   const items = Array.from({ length: 64 }, (_, id) => ({
     id: String(id).padStart(3, '0'), title: `자료 ${id}`, summary: null,
-    category_item_id: id < 24 ? categoryDepth3 : categoryId, workspace_subject: 'korean', menu_entry_id: 'visible',
+    category_item_id: id < 24 ? categoryDepth3 : categoryId, workspace_subject: 'korean', menu_entry_id: id % 2 ? 'hidden' : 'visible',
     is_active: true, status: 'published', deleted_at: null,
     view_count: 1, created_at: '2026-01-01', published_at: '2026-01-01',
   }))
@@ -42,7 +43,7 @@ function harness() {
     ],
     market_items: [...items, ...[
       { status: 'draft' }, { is_active: false }, { deleted_at: '2026-01-01' },
-      { workspace_subject: 'english' }, { menu_entry_id: 'hidden' },
+      { workspace_subject: 'english' },
       { category_item_id: 'another-category' }, { category_item_id: underInactiveId },
     ].map((patch, id) => ({ ...items[0], id: `excluded-${id}`, ...patch }))],
     market_item_subproducts: [{ id: 'price', item_id: '000', category_id: 'pdf', price_credits: 2500, workspace_subject: 'korean', is_active: true, deleted_at: null }],
@@ -97,7 +98,7 @@ function harness() {
 
 const countByTable = (queries) => queries.reduce((counts, query) => ({ ...counts, [query.table]: (counts[query.table] ?? 0) + 1 }), {})
 
-test('only public items in visible menus count; pages contain no duplicate IDs', async () => {
+test('only public items count, hidden boards included; pages contain no duplicate IDs', async () => {
   const app = harness()
   const results = await Promise.all([1, 2, 3, 4].map((page) => app.listMarketItemsForCategory(categoryId, { page })))
   assert.deepEqual(results.map((result) => result.rows.length), [20, 20, 20, 4])
@@ -150,8 +151,29 @@ test('tree counts are summed over subtrees with a query count independent of nod
   assert.equal(tree.korean[0].children[0].itemCount, 64)
   assert.equal(tree.korean[0].children[0].children[0].itemCount, 24)
   assert.equal(tree.english.length, 0)
-  // 노드 1 + 게시판 1 + 상품 readAll 1(500행 미만)
-  assert.deepEqual(countByTable(app.queries), { market_category_items: 1, market_menu_entries: 1, market_items: 1 })
+  // 노드 1 + 상품 readAll 1(500행 미만). 게시판은 조회하지 않는다.
+  assert.deepEqual(countByTable(app.queries), { market_category_items: 1, market_items: 1 })
+})
+
+test('hidden boards do not hide products from the list or the tree counts and are never queried', async () => {
+  const app = harness()
+  const tree = await app.listMarketCategoryTree(true)
+  const pages = await Promise.all([1, 2, 3, 4].map((page) => app.listMarketItemsForCategory(categoryId, { page })))
+  const listedIds = new Set(pages.flatMap((page) => page.rows.map((row) => row.itemId)))
+  const hiddenIds = Array.from({ length: 64 }, (_, id) => id).filter((id) => id % 2).map((id) => String(id).padStart(3, '0'))
+  assert.equal(tree.korean[0].itemCount, 64)
+  assert.equal(pages[0].totalCount, 64)
+  assert.ok(hiddenIds.every((id) => listedIds.has(id)))
+  assert.equal(app.queries.some((query) => query.table === 'market_menu_entries'), false)
+})
+
+test('list rows carry the category id and the path down to the page node', async () => {
+  const app = harness()
+  const { rows } = await app.listMarketItemsForCategory(categoryDepth3, { page: 1 })
+  const depth3Row = rows.find((row) => row.itemId === '000')
+  assert.equal(depth3Row.categoryId, categoryDepth3)
+  assert.deepEqual(depth3Row.categoryPath, [{ id: rootId, title: 'EBS' }, { id: categoryId, title: '독서' }, { id: categoryDepth3, title: '2부' }])
+  assert.equal('categorySlug' in depth3Row, false)
 })
 
 // T2-M(docs/market-category-tree-plan.md 8.5): 401075d 코드의 카테고리 페이지 요청(캐시 적중)은

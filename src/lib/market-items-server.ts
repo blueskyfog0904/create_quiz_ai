@@ -13,6 +13,7 @@ import {
   toMarketThumbnailUrl,
   type MarketThumbnailSource,
 } from '@/lib/market-images'
+import { buildCategoryTree, findCategoryPath, type MarketCategoryPathNode } from '@/lib/market-category-tree'
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/supabase'
 
 type WithWorkspaceSubject = { workspace_subject: WorkspaceSubject }
@@ -78,7 +79,10 @@ export interface MarketLibraryRow {
   itemId: string
   // 상세 페이지가 열리는 상품(공개·활성·미삭제)인지. 아니면 화면에서 상세 링크를 걸지 않는다.
   detailAvailable: boolean
-  categoryTitle: string
+  // 상품이 연결된 카테고리 칸 id(미지정·상품 없음이면 null)
+  categoryId: string | null
+  // depth1 → 연결 칸까지의 경로. 칸이 비활성이거나 공개 트리에 없으면 빈 배열.
+  categoryPath: MarketCategoryPathNode[]
   title: string
   summary: string | null
   examYear: number | null
@@ -2593,8 +2597,8 @@ export async function listMarketLibraryRowsForUser(
     ...entitlementRows.map((entitlement) => entitlement.item_id),
   ]))
 
-  // 메뉴 엔트리는 과목당 소수라 아이템 조회 결과를 기다리지 않고 과목 전체를 함께 가져온다.
-  const [{ data: items, error: itemsError }, { data: files, error: filesError }, { data: downloads, error: downloadsError }, { data: menuEntries, error: menuEntriesError }] = await Promise.all([
+  // 카테고리 칸은 과목당 소수라 아이템 조회 결과를 기다리지 않고 활성 칸 전체를 함께 가져온다(경로는 메모리에서 조립).
+  const [{ data: items, error: itemsError }, { data: files, error: filesError }, { data: downloads, error: downloadsError }, { data: categoryNodes, error: categoryNodesError }] = await Promise.all([
     supabase
       .from('market_items')
       .select(`*, ${MARKET_THUMBNAIL_EMBED}`)
@@ -2616,9 +2620,10 @@ export async function listMarketLibraryRowsForUser(
       .eq('workspace_subject', workspaceSubject)
       .order('created_at', { ascending: false }),
     supabase
-      .from('market_menu_entries')
-      .select('*')
-      .eq('workspace_subject', workspaceSubject),
+      .from('market_category_items')
+      .select('id, workspace_subject, parent_id, depth, title, sort_order, created_at')
+      .eq('workspace_subject', workspaceSubject)
+      .eq('is_active', true),
   ])
 
   if (itemsError) {
@@ -2633,12 +2638,12 @@ export async function listMarketLibraryRowsForUser(
     throw new Error(downloadsError.message)
   }
 
-  if (menuEntriesError) {
-    throw new Error(menuEntriesError.message)
+  if (categoryNodesError) {
+    throw new Error(categoryNodesError.message)
   }
 
   const itemMap = new Map(withWorkspaceSubjects(items).map((item) => [item.id, item]))
-  const menuMap = new Map(withWorkspaceSubjects(menuEntries).map((entry) => [entry.id, entry]))
+  const categoryRoots = buildCategoryTree(categoryNodes ?? [])[workspaceSubject]
 
   const fileMap = new Map<string, { pdf: MarketItemFile | null; hwp: MarketItemFile | null; zip: MarketItemFile | null }>()
   for (const file of withWorkspaceSubjects(files)) {
@@ -2889,7 +2894,7 @@ export async function listMarketLibraryRowsForUser(
       const itemPurchases = groupedPurchases.get(itemId) ?? []
       const itemEntitlements = groupedEntitlements.get(itemId) ?? []
       const item = itemMap.get(itemId)
-      const menu = item ? menuMap.get(item.menu_entry_id) : null
+      const categoryId = item?.category_item_id ?? null
       const assetFiles = fileMap.get(itemId) ?? { pdf: null, hwp: null, zip: null }
       const pdfPurchase = itemPurchases.find((purchase) => purchase.asset_kind === 'pdf') ?? null
       const hwpPurchase = itemPurchases.find((purchase) => purchase.asset_kind === 'hwp') ?? null
@@ -2917,7 +2922,9 @@ export async function listMarketLibraryRowsForUser(
       return {
         itemId,
         detailAvailable: item?.status === 'published' && item.is_active && item.deleted_at === null,
-        categoryTitle: menu?.title ?? '알 수 없는 카테고리',
+        categoryId,
+        categoryPath: (categoryId ? findCategoryPath(categoryRoots, categoryId) ?? [] : [])
+          .map(({ id, title }) => ({ id, title })),
         title: item?.title ?? '삭제되었거나 찾을 수 없는 상품',
         thumbnailUrl: item ? toMarketThumbnailUrl(supabase, item) : null,
         summary: item?.summary ?? null,
