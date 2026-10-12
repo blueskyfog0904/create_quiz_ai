@@ -66,6 +66,7 @@ import type { MarketMenuEntryAdminRow } from '@/lib/market-menu'
 import AdminMarketSamplePreviewDialog from './admin-market-sample-preview-dialog'
 import { MarketImageField, type MarketImageFieldValue } from '@/components/admin/market-image-field'
 import { MarketImagePicker } from '@/components/admin/market-image-picker'
+import type { AdminCategoryTreeNode } from '@/components/admin/market-category-tree-editor'
 import { MARKET_IMAGE_MAX_BULK_ITEM_IDS, chunkArray } from '@/lib/market-images'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { useListQuery } from '@/hooks/use-list-query'
@@ -102,18 +103,17 @@ interface MarketItemFormState {
   isActive: boolean
 }
 
-interface AdminCategoryMenuGroup {
-  id: string
-  title: string
-  sortOrder: number
-  isActive: boolean
-  items: {
-    id: string
-    title: string
-    sortOrder: number
-    isActive: boolean
-    defaultImage: MarketImageFieldValue | null
-  }[]
+// 카테고리 선택칸 옵션: 트리를 경로 이름(상위 > … > 칸)으로 펼친다. 자기나 조상이 비활성이면 (비활성) 표시.
+function flattenCategoryOptions(
+  nodes: AdminCategoryTreeNode[],
+  parentPath: string[] = [],
+  parentActive = true
+): { node: AdminCategoryTreeNode; label: string; isActive: boolean }[] {
+  return nodes.flatMap((node) => {
+    const path = [...parentPath, node.title]
+    const isActive = parentActive && node.isActive
+    return [{ node, label: path.join(' > '), isActive }, ...flattenCategoryOptions(node.children, path, isActive)]
+  })
 }
 
 function getItemCategoryItemId(item: MarketItem) {
@@ -552,7 +552,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const [isSubproductSaving, setIsSubproductSaving] = useState(false)
   const [subproductUploadingKeys, setSubproductUploadingKeys] = useState<string[]>([])
   const [subproductDragActiveKeys, setSubproductDragActiveKeys] = useState<string[]>([])
-  const [categoryMenuGroups, setCategoryMenuGroups] = useState<AdminCategoryMenuGroup[]>([])
+  const [categoryNodes, setCategoryNodes] = useState<AdminCategoryTreeNode[]>([])
   const [categoryItemId, setCategoryItemId] = useState('')
   const [savedCategoryItemId, setSavedCategoryItemId] = useState('')
   // 폼의 thumbnailImageId에 해당하는 미리보기(상세 조회·이미지 선택 시 갱신)
@@ -572,9 +572,9 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     return listed?.id === form.thumbnailImageId ? listed : null
   }, [form.id, form.thumbnailImageId, items, thumbnailPreview])
 
-  const selectedCategoryDefaultImage = useMemo(() => categoryMenuGroups
-    .flatMap((group) => group.items)
-    .find((categoryItem) => categoryItem.id === categoryItemId)?.defaultImage ?? null, [categoryMenuGroups, categoryItemId])
+  const categoryOptions = useMemo(() => flattenCategoryOptions(categoryNodes), [categoryNodes])
+  const selectedCategoryDefaultImage = useMemo(() => categoryOptions
+    .find((option) => option.node.id === categoryItemId)?.node.defaultImage ?? null, [categoryOptions, categoryItemId])
 
   const filteredItems = useMemo(() => (
     selectedMenuEntryId
@@ -708,7 +708,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
         }
 
         if (isMounted) {
-          setCategoryMenuGroups((payload.data?.groups || []) as AdminCategoryMenuGroup[])
+          setCategoryNodes((payload.data?.nodes || []) as AdminCategoryTreeNode[])
         }
       } catch (error) {
         if (isMounted) {
@@ -2134,14 +2134,10 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                 className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
               >
                 <option value="">미지정</option>
-                {categoryMenuGroups.map((group) => (
-                  <optgroup key={group.id} label={group.isActive ? group.title : `${group.title} (비활성)`}>
-                    {group.items.map((categoryItem) => (
-                      <option key={categoryItem.id} value={categoryItem.id}>
-                        {categoryItem.isActive ? categoryItem.title : `${categoryItem.title} (비활성)`}
-                      </option>
-                    ))}
-                  </optgroup>
+                {categoryOptions.map((option) => (
+                  <option key={option.node.id} value={option.node.id}>
+                    {option.isActive ? option.label : `${option.label} (비활성)`}
+                  </option>
                 ))}
               </select>
             </div>
