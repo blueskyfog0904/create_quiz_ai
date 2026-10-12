@@ -33,53 +33,91 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'latest', label: '최신순' },
 ]
 
-// 솔북 '더 자세히 찾기': 현재 칸의 하위 칸을, 말단 칸이면 같은 부모 아래 칸(현재 칸 강조)을 표 형태 그리드로 노출
-function DetailFinder({
-  items,
-  subject,
-  activeItemId,
-}: {
+interface FinderRow {
   items: MarketCategoryNodeSummary[]
-  subject: WorkspaceSubject
-  activeItemId: string
-}) {
-  // gap-px 그리드에서 마지막 줄 빈 영역이 어두운 블록으로 보이지 않도록 열 수별 필러 셀을 채운다.
-  const fillerMd = (4 - (items.length % 4)) % 4
-  const fillerSm = (2 - (items.length % 2)) % 2
+  activeId: string | null
+}
+
+// '더 자세히 찾기' 줄 구성: 맨 위는 depth2 칸 격자, 그 아래로 경로에서 고른 칸의 하위 칸(depth3·4·5)을 한 줄씩.
+// 각 줄에서 현재 경로에 있는 칸을 강조한다. 개수 트리에 이 칸이 없으면(60초 캐시 경계) 칸 정보로 한 줄만 그린다.
+function buildFinderRows(
+  path: MarketCategoryNode[] | null,
+  category: MarketCategoryNodeDetail
+): FinderRow[] {
+  if (!path) {
+    const items = category.children.length > 0 ? category.children : category.siblings
+    return items.length > 0 ? [{ items, activeId: category.id }] : []
+  }
+  const rows: FinderRow[] = []
+  for (let index = 0; index < path.length; index += 1) {
+    const children = path[index].children
+    if (children.length === 0) break
+    rows.push({ items: children, activeId: path[index + 1]?.id ?? null })
+  }
+  return rows
+}
+
+function FinderLabel({ item }: { item: MarketCategoryNodeSummary }) {
+  return (
+    <span className="break-keep">
+      {item.title}
+      {item.itemCount !== undefined ? (
+        <> <span className="whitespace-nowrap text-[var(--studio-muted)]">({item.itemCount.toLocaleString()})</span></>
+      ) : null}
+    </span>
+  )
+}
+
+// 솔북 '더 자세히 찾기': depth2 칸은 표 형태 격자(마지막 줄도 빈 칸 없이 너비를 나눠 채움), 하위 depth는 버튼 줄
+function DetailFinder({ rows, subject, currentId }: { rows: FinderRow[]; subject: WorkspaceSubject; currentId: string }) {
+  const [grid, ...levels] = rows
+  const hrefOf = (id: string) => `/categories/${id}?subject=${subject}`
+  // 지금 보고 있는 칸은 page, 그 위 경로의 칸은 true
+  const currentOf = (id: string, active: boolean) => (active ? (id === currentId ? 'page' : 'true') : undefined)
 
   return (
     <section aria-label="더 자세히 찾기" className="mt-8">
       <h2 className="text-lg font-bold text-[var(--studio-ink)]">더 자세히 찾기</h2>
-      <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-[var(--studio-border)] bg-[var(--studio-border)] md:grid-cols-4">
-        {items.map((item) => {
-          const active = item.id === activeItemId
+      <div className="mt-3 flex flex-wrap gap-px overflow-hidden rounded-md border border-[var(--studio-border)] bg-[var(--studio-border)]">
+        {grid.items.map((item) => {
+          const active = item.id === grid.activeId
           return (
             <Link
               key={item.id}
-              href={`/categories/${item.id}?subject=${subject}`}
-              aria-current={active ? 'page' : undefined}
-              className={`flex min-h-12 items-center justify-center bg-[var(--studio-surface)] px-3 py-2 text-center text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--studio-focus-ring)] ${
+              href={hrefOf(item.id)}
+              aria-current={currentOf(item.id, active)}
+              className={`flex min-h-12 grow basis-[calc(50%-1px)] items-center justify-center bg-[var(--studio-surface)] px-3 py-2 text-center text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--studio-focus-ring)] md:basis-[calc(25%-1px)] ${
                 active
                   ? 'font-semibold text-[var(--studio-primary)]'
                   : 'text-[var(--studio-text)] hover:bg-[var(--studio-background)] hover:text-[var(--studio-ink)]'
               }`}
             >
-              <span className="break-keep">
-                {item.title}
-                {item.itemCount !== undefined ? (
-                  <> <span className="whitespace-nowrap text-[var(--studio-muted)]">({item.itemCount.toLocaleString()})</span></>
-                ) : null}
-              </span>
+              <FinderLabel item={item} />
             </Link>
           )
         })}
-        {Array.from({ length: fillerMd }, (_, index) => (
-          <div key={`filler-md-${index}`} aria-hidden="true" className="hidden bg-[var(--studio-surface)] md:block" />
-        ))}
-        {Array.from({ length: fillerSm }, (_, index) => (
-          <div key={`filler-sm-${index}`} aria-hidden="true" className="bg-[var(--studio-surface)] md:hidden" />
-        ))}
       </div>
+      {levels.map((level, index) => (
+        <div key={index} className="mt-3 flex flex-wrap gap-3">
+          {level.items.map((item) => {
+            const active = item.id === level.activeId
+            return (
+              <Link
+                key={item.id}
+                href={hrefOf(item.id)}
+                aria-current={currentOf(item.id, active)}
+                className={`flex min-h-10 min-w-28 flex-1 items-center justify-center rounded-md border border-[var(--studio-border)] bg-[var(--studio-surface)] px-3 py-1.5 text-center text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${
+                  active
+                    ? 'font-semibold text-[var(--studio-primary)]'
+                    : 'text-[var(--studio-text)] hover:bg-[var(--studio-background)] hover:text-[var(--studio-ink)]'
+                }`}
+              >
+                <FinderLabel item={item} />
+              </Link>
+            )
+          })}
+        </div>
+      ))}
     </section>
   )
 }
@@ -87,14 +125,8 @@ function DetailFinder({
 export function CategoryItemsView({ category, rows, tree, pagination, filters }: CategoryItemsViewProps) {
   const subject = category.workspaceSubject
   const subjectLabel = subject === 'korean' ? '국어' : '영어'
-  // 상품 수는 개수 트리에서 읽는다. 60초 캐시 경계에서 개수 트리에 이 칸이 없으면 수 없이 칸 정보로 그린다.
-  const countedPath = findCategoryPath(tree, category.id)
-  const countedNode = countedPath?.[countedPath.length - 1]
-  const finderItems: MarketCategoryNodeSummary[] = countedPath && countedNode
-    ? (countedNode.children.length > 0
-      ? countedNode.children
-      : countedPath.length > 1 ? countedPath[countedPath.length - 2].children : tree)
-    : (category.children.length > 0 ? category.children : category.siblings)
+  // 상품 수는 개수 트리에서 읽는다.
+  const finderRows = buildFinderRows(findCategoryPath(tree, category.id), category)
 
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -183,9 +215,7 @@ export function CategoryItemsView({ category, rows, tree, pagination, filters }:
             {category.title}
           </h1>
 
-          {finderItems.length > 0 && (
-            <DetailFinder items={finderItems} subject={subject} activeItemId={category.id} />
-          )}
+          {finderRows.length > 0 && <DetailFinder rows={finderRows} subject={subject} currentId={category.id} />}
 
           {rows.length === 0 && !filters.q ? (
             <div className="mt-8">

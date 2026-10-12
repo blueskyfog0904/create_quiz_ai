@@ -67,3 +67,13 @@ test('카테고리 관리 화면은 공용 편집기를 쓰고 depth 용어만 �
     assert.doesNotMatch(source, /2단계|3단계|그룹|항목|카테고리 미지정으로 풀립니다/)
   }
 })
+
+test("'더 자세히 찾기'는 depth2 격자(빈 칸 없음) 아래로 경로의 하위 칸을 줄마다 보여 주고, 사이드바는 depth2까지만 그린다", () => {
+  const view = read('src/app/(solvook)/categories/[id]/_components/category-items-view.tsx')
+  assert.doesNotMatch(view, /filler/)
+  assert.match(view, /grow basis-\[calc\(50%-1px\)\][^"]*md:basis-\[calc\(25%-1px\)\]/)
+  assert.match(view, /rows\.push\(\{ items: children, activeId: path\[index \+ 1\]\?\.id \?\? null \}\)/)
+  const sidebar = read('src/components/market/MarketCategorySidebar.tsx')
+  assert.match(sidebar, /const SIDEBAR_MAX_DEPTH = 2/)
+  assert.match(sidebar, /const children = item\.depth < SIDEBAR_MAX_DEPTH \? item\.children : \[\]/)
+})

@@ -6,8 +6,9 @@ import { ChevronDown } from 'lucide-react'
 import { findCategoryPath, type MarketCategoryNode } from '@/lib/market-category-tree'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
-// 솔북식 좌측 카테고리 트리: depth1~5를 재귀로 그리고, 현재 칸까지의 경로를 펼친 채 시작한다.
-// 칸 제목은 그 칸 페이지 링크, 펼침은 옆 버튼. 상품 수는 하위 칸 합산.
+// 솔북식 좌측 카테고리 트리: depth1~2만 그리고(더 깊은 칸은 '더 자세히 찾기'에서 고른다), 현재 칸의 depth1을 펼친 채 시작한다.
+// 현재 칸이 depth3 이상이면 그 칸이 속한 depth2를 강조한다. 칸 제목은 그 칸 페이지 링크, 펼침은 옆 버튼. 상품 수는 하위 칸 합산.
+const SIDEBAR_MAX_DEPTH = 2
 export function MarketCategorySidebar({
   tree,
   subject,
@@ -18,8 +19,10 @@ export function MarketCategorySidebar({
   activeId: string | null
 }) {
   const subjectLabel = subject === 'korean' ? '국어' : '영어'
+  const activePath = activeId ? findCategoryPath(tree, activeId) ?? [] : []
+  const highlightId = activePath[Math.min(activePath.length, SIDEBAR_MAX_DEPTH) - 1]?.id ?? null
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
-    () => new Set(activeId ? (findCategoryPath(tree, activeId) ?? []).map((node) => node.id) : [])
+    () => new Set(activePath.slice(0, SIDEBAR_MAX_DEPTH - 1).map((node) => node.id))
   )
 
   function toggle(id: string) {
@@ -34,8 +37,9 @@ export function MarketCategorySidebar({
   function renderNodes(nodes: MarketCategoryNode[]) {
     return nodes.map((item) => {
       const expanded = expandedIds.has(item.id)
-      const active = item.id === activeId
+      const active = item.id === highlightId
       const root = item.depth === 1
+      const children = item.depth < SIDEBAR_MAX_DEPTH ? item.children : []
       return (
         <li key={item.id}>
           <div className="flex items-start gap-1">
@@ -52,7 +56,7 @@ export function MarketCategorySidebar({
             >
               <span className="break-keep">{item.title} <span className="whitespace-nowrap text-[var(--studio-muted)]">({(item.itemCount ?? 0).toLocaleString()})</span></span>
             </Link>
-            {item.children.length > 0 && (
+            {children.length > 0 && (
               <button
                 type="button"
                 onClick={() => toggle(item.id)}
@@ -64,9 +68,9 @@ export function MarketCategorySidebar({
               </button>
             )}
           </div>
-          {expanded && item.children.length > 0 && (
+          {expanded && children.length > 0 && (
             <ul className="mt-0.5 space-y-0.5 pb-1 pl-3">
-              {renderNodes(item.children)}
+              {renderNodes(children)}
             </ul>
           )}
         </li>
