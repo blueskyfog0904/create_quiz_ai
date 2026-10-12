@@ -4,13 +4,15 @@
 -- 실행: PG* 환경변수(PGHOST·PGPORT·PGUSER·PGPASSWORD·PGDATABASE) 또는 PGSERVICE로 접속 정보를 넘기고
 --       psql -X -v ON_ERROR_STOP=1 -f supabase/tests/market_images.test.sql
 --       (첫 실패 assert에서 중단되고 rollback된다. 통과하면 마지막에 'market_images: all passed' NOTICE)
--- 전제: 20261002014044_market_image_library, 20261002014653_market_image_refs 적용 후.
+-- 전제: 20261002014044_market_image_library, 20261002014653_market_image_refs, market_category_tree_expand 적용 후.
 --
 -- fixture ID
 --   폴더 fa(이미지 있음) 1a6e0000-0000-4000-8000-0000000000fa / fe(빈 폴더) …00fe
---   이미지 01(살아 있는 상품이 사용) 02(삭제된 상품만 사용) 03(카테고리 항목이 사용) 04(미사용) …0001~0004
---   상품 e1(살아 있음, 이미지 01) e2(삭제됨, 이미지 02), 카테고리 그룹 c0, 항목 c1(기본 이미지 03)
---   해시는 encode(sha256('img-test-<n>'), 'hex')로 만든다.
+--   이미지 01(살아 있는 상품이 사용) 02(삭제된 상품만 사용) 03(카테고리 항목이 사용) 04(미사용)
+--         05(depth1 카테고리가 사용) …0001~0005
+--   상품 e1(살아 있음, 이미지 01) e2(삭제됨, 이미지 02), 카테고리 depth1 c0(기본 이미지 05), depth2 c1(부모 c0, 기본 이미지 03)
+--   해시는 encode(sha256('img-test-<n>'), 'hex')로 만든다. 05만 'img-test-depth1'로 만든다
+--   ('img-test-5' 해시는 3번 블록이 아직 없는 값으로 쓴다).
 
 begin;
 
@@ -45,6 +47,17 @@ cross join lateral (
     encode(sha256(convert_to('img-test-source-' || v.n, 'UTF8')), 'hex') as source
 ) as h;
 
+insert into public.market_images (
+  id, folder_id, display_name, storage_path, content_sha256, source_sha256, width, height, bytes
+)
+select '1a6e0000-0000-4000-8000-000000000005', null, 'img-test-depth1.png',
+       'thumbnails/' || left(h.content, 2) || '/' || h.content || '.webp', h.content, h.source, 800, 600, 40000
+from (
+  select
+    encode(sha256(convert_to('img-test-depth1', 'UTF8')), 'hex') as content,
+    encode(sha256(convert_to('img-test-source-depth1', 'UTF8')), 'hex') as source
+) as h;
+
 insert into public.market_items (id, menu_entry_id, title, workspace_subject, thumbnail_image_id, deleted_at)
 select v.id::uuid, m.id, v.title, m.workspace_subject, v.image_id::uuid, v.deleted_at
 from (values
@@ -55,17 +68,18 @@ cross join (
   select id, workspace_subject from public.market_menu_entries order by id limit 1
 ) as m;
 
-insert into public.market_category_groups (id, workspace_subject, title)
-values ('1a6e0000-0000-4000-8000-0000000000c0', 'korean', 'img-test-group');
+insert into public.market_category_items (id, parent_id, depth, workspace_subject, title, default_image_id)
+values ('1a6e0000-0000-4000-8000-0000000000c0', null, 1, 'korean',
+        'img-test-category-root', '1a6e0000-0000-4000-8000-000000000005');
 
-insert into public.market_category_items (id, group_id, workspace_subject, title, default_image_id)
-values ('1a6e0000-0000-4000-8000-0000000000c1', '1a6e0000-0000-4000-8000-0000000000c0', 'korean',
+insert into public.market_category_items (id, parent_id, depth, workspace_subject, title, default_image_id)
+values ('1a6e0000-0000-4000-8000-0000000000c1', '1a6e0000-0000-4000-8000-0000000000c0', 2, 'korean',
         'img-test-category-item', '1a6e0000-0000-4000-8000-000000000003');
 
 do $$
 begin
-  assert (select count(*) from public.market_images where display_name like 'img-test-%') = 4,
-    'fixture: 4 images';
+  assert (select count(*) from public.market_images where display_name like 'img-test-%') = 5,
+    'fixture: 5 images';
   assert (select count(*) from public.market_items where title like 'img-test-item-%') = 2,
     'fixture: 2 items (menu entry required)';
 end;
@@ -390,6 +404,18 @@ begin
          and v_r->'categoryItems' = jsonb_build_array(jsonb_build_object(
            'id', '1a6e0000-0000-4000-8000-0000000000c1', 'title', 'img-test-category-item')),
     'IN_USE by category item: ' || v_r::text;
+
+  -- depth1 카테고리가 사용 → IN_USE + 그 칸, 기본 이미지를 풀면 삭제된다
+  v_r := public.delete_market_image('1a6e0000-0000-4000-8000-000000000005');
+  assert v_r->>'code' = 'IN_USE'
+         and v_r->'items' = '[]'::jsonb
+         and v_r->'categoryItems' = jsonb_build_array(jsonb_build_object(
+           'id', '1a6e0000-0000-4000-8000-0000000000c0', 'title', 'img-test-category-root')),
+    'IN_USE by depth1 category: ' || v_r::text;
+  update public.market_category_items set default_image_id = null
+  where id = '1a6e0000-0000-4000-8000-0000000000c0';
+  v_r := public.delete_market_image('1a6e0000-0000-4000-8000-000000000005');
+  assert (v_r->>'ok')::boolean, 'image 05 removed after depth1 default cleared: ' || v_r::text;
 
   -- 삭제된 상품만 사용 → 참조를 비우고 삭제
   v_r := public.delete_market_image('1a6e0000-0000-4000-8000-000000000002');
