@@ -82,7 +82,8 @@ test('상세 page는 카테고리 목록을 60초 공유 캐시로 읽고 count 
   assert.doesNotMatch(page, /listMarketCategory(Menu|Tree)\(true\)/)
   assert.match(read('src/app/(solvook)/categories/[id]/page.tsx'), /from '@\/lib\/market-category-tree-cache'/)
   const cache = read('src/lib/market-category-tree-cache.ts')
-  assert.match(cache, /unstable_cache\(\s+\(\) => listMarketCategoryMenu\(true\),\s+\['category-menu-with-counts'\],\s+\{ revalidate: 60 \}/)
+  assert.match(cache, /unstable_cache\(\s+\(\) => listMarketCategoryTree\(true\),\s+\['category-tree-with-counts'\],\s+\{ revalidate: 60, tags: \[MARKET_CATEGORY_TREE_CACHE_TAG\] \}/)
+  assert.match(page, /getCachedCategoryTree\(\)/)
 })
 
 test('예전 preview 상세 page는 새 주소로 보내는 stub이다', () => {
@@ -92,12 +93,13 @@ test('예전 preview 상세 page는 새 주소로 보내는 stub이다', () => {
   assert.match(stub, /isWorkspaceSubject\(subjectValue\)/)
 })
 
-test('상세 화면은 게시판 prop 없이 홈 > 그룹 > 항목 > 상품 경로를 보인다', () => {
+test('상세 화면은 게시판 prop 없이 홈 > depth1 > … > 연결 칸 > 상품 경로를 보인다', () => {
   const detail = read('src/app/preview/solvook-concept/_components/detail/market-material-detail.tsx')
   assert.doesNotMatch(detail, /MarketMenuEntry|category\.slug|category\.title|solvook-concept\/boards/)
   assert.match(detail, /href=\{`\/\?subject=\$\{item\.workspace_subject\}`\}/)
-  assert.match(detail, /\{activeGroup\.title\}/)
-  assert.match(detail, /href=\{`\/categories\/\$\{activeCategory\.id\}\?subject=\$\{item\.workspace_subject\}`\}/)
+  assert.match(detail, /findCategoryPath\(categoryTree, item\.category_item_id\)/)
+  assert.match(detail, /categoryPath\.map\(\(node\) =>/)
+  assert.match(detail, /href=\{`\/categories\/\$\{node\.id\}\?subject=\$\{item\.workspace_subject\}`\}/)
 })
 
 test('보관함 상세 링크는 상품 상세 가능 여부로 정하고 /items 주소를 쓴다', () => {

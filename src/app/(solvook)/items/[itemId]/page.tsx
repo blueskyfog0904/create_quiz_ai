@@ -10,7 +10,7 @@ import {
   listMarketSubproductPublicSummaries,
 } from '@/lib/market-items-server'
 import { countActiveMarketItemSamplePages } from '@/lib/market-sample-pages-server'
-import { getCachedCategoryMenu } from '@/lib/market-category-tree-cache'
+import { getCachedCategoryTree } from '@/lib/market-category-tree-cache'
 import { isWorkspaceSubject } from '@/lib/workspace-subject'
 import { MarketMaterialDetail } from '@/app/preview/solvook-concept/_components/detail/market-material-detail'
 
@@ -66,7 +66,7 @@ export default async function MarketItemDetailPage({
     downloadFiles,
     purchases,
     reviews,
-    menu,
+    categoryTree,
   ] = await Promise.all([
     getPublishedMarketItemById(itemId, subject),
     listMarketItemFiles(itemId, false, subject),
@@ -80,7 +80,7 @@ export default async function MarketItemDetailPage({
       ? listCompletedMarketPurchasesForItem(userId, itemId, subject)
       : Promise.resolve([]),
     listMarketItemReviewsForItem(itemId, subject, { viewerId: userId, sort: reviewSort }),
-    getCachedCategoryMenu(),
+    getCachedCategoryTree(),
   ])
 
   if (!item) {
@@ -99,7 +99,7 @@ export default async function MarketItemDetailPage({
       reviewSort={reviewSort}
       samplePageCount={samplePageCount}
       subproducts={subproducts}
-      categoryTree={menu[subject]}
+      categoryTree={categoryTree[subject]}
     />
   )
 }

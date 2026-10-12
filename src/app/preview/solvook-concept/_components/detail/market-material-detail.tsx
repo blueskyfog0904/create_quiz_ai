@@ -21,7 +21,7 @@ import type { MarketItemReviewsResult, MarketReviewSort } from '@/lib/market-rev
 import { MarketMaterialSampleButton } from './market-material-sample-button'
 import { MarketReviewsSection } from './market-reviews-section'
 import { MarketCategorySidebar } from '@/components/market/MarketCategorySidebar'
-import type { MegaMenuGroup } from '@/lib/market-categories-server'
+import { findCategoryPath, type MarketCategoryNode } from '@/lib/market-category-tree'
 
 interface MarketMaterialDetailProps {
   bundleOption: MarketBundlePublicSummary | null
@@ -34,7 +34,7 @@ interface MarketMaterialDetailProps {
   reviewSort: MarketReviewSort
   samplePageCount: number
   subproducts: MarketSubproductPublicSummary[]
-  categoryTree: MegaMenuGroup[]
+  categoryTree: MarketCategoryNode[]
 }
 
 function formatRegisteredAt(value: string) {
@@ -79,8 +79,9 @@ export function MarketMaterialDetail({
   subproducts,
   categoryTree,
 }: MarketMaterialDetailProps) {
-  const activeGroup = categoryTree.find((group) => group.items.some((entry) => entry.id === item.category_item_id))
-  const activeCategory = activeGroup?.items.find((entry) => entry.id === item.category_item_id)
+  // 상품이 연결된 칸까지의 경로(depth1 → 연결 칸). 카테고리가 없거나 공개 트리에 없으면 빈 경로.
+  const categoryPath = item.category_item_id ? findCategoryPath(categoryTree, item.category_item_id) ?? [] : []
+  const activeCategory = categoryPath[categoryPath.length - 1]
   const subjectLabel = item.workspace_subject === 'korean' ? '국어' : '영어'
   const startingPrice = getStartingPrice(item, files, subproducts, bundleOption)
   const hasSamplePages = samplePageCount > 0
@@ -131,7 +132,7 @@ export function MarketMaterialDetail({
           key={activeCategory?.id ?? item.workspace_subject}
           tree={categoryTree}
           subject={item.workspace_subject}
-          activeItemId={activeCategory?.id ?? null}
+          activeId={activeCategory?.id ?? null}
         />
       )}
       header={(
@@ -148,19 +149,17 @@ export function MarketMaterialDetail({
                 홈
               </Link>
               <span aria-hidden="true">/</span>
-              {activeGroup && activeCategory ? (
-                <>
-                  <span className="inline-flex min-h-11 items-center px-2">{activeGroup.title}</span>
-                  <span aria-hidden="true">/</span>
+              {categoryPath.map((node) => (
+                <span key={node.id} className="contents">
                   <Link
-                    href={`/categories/${activeCategory.id}?subject=${item.workspace_subject}`}
+                    href={`/categories/${node.id}?subject=${item.workspace_subject}`}
                     className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-sm px-2 outline-none hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
                   >
-                    {activeCategory.title}
+                    {node.title}
                   </Link>
                   <span aria-hidden="true">/</span>
-                </>
-              ) : null}
+                </span>
+              ))}
               <span
                 aria-current="page"
                 className="min-w-0 flex-1 truncate font-semibold text-[var(--studio-text)]"
