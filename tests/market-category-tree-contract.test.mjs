@@ -70,7 +70,13 @@ test("카테고리 관리 화면은 공용 편집기를 쓰고 'N단계' 용어�
   assert.match(editor, /\{node\.depth\}단계/)
   // 처음에는 모두 접힌 상태(펼친 칸만 기억)
   assert.match(editor, /const \[expandedIds, setExpandedIds\] = useState<Set<string>>\(\(\) => new Set\(\)\)/)
-  assert.match(editor, /const collapsed = !expandedIds\.has\(node\.id\)/)
+  assert.match(editor, /const collapsed = keyword \? false : !expandedIds\.has\(node\.id\)/)
+  // 모두 펼치기·접기와 이름 검색(맞는 칸 + 상위 경로만 보임)
+  assert.match(editor, /모두 펼치기/)
+  assert.match(editor, /onClick=\{\(\) => setExpandedIds\(new Set\(\)\)\}>\s+모두 접기/)
+  assert.match(editor, /allNodes\.filter\(isMatch\)\.flatMap\(\(node\) => \(findCategoryPath\(nodes, node\.id\) \?\? \[\]\)/)
+  // 트리에서 고른 칸 하나만 오른쪽 패널에서 편집한다
+  assert.match(editor, /\{selectedNode \? renderDetail\(selectedNode\) : \(/)
   // 기본 이미지는 2단계부터
   assert.match(editor, /\{node\.depth > 1 \? \(\s+<MarketImageField/)
 })
