@@ -11,10 +11,11 @@ interface CategoryMenuItem {
   itemCount?: number
 }
 
+// depth1 칸. children은 depth2 칸(API가 depth2까지만 보낸다).
 interface CategoryMenuGroup {
   id: string
   title: string
-  items: CategoryMenuItem[]
+  children: CategoryMenuItem[]
 }
 
 interface CategoryMenuData {
@@ -35,8 +36,11 @@ const SUBJECTS: { value: WorkspaceSubject; label: string }[] = [
   { value: 'english', label: '영어' },
 ]
 
+// 배포 직후 캐시된 예전 형태(children 없음) 응답을 받으면 오류 대신 메뉴를 숨긴다.
 function normalizeGroups(value: unknown): CategoryMenuGroup[] {
-  return Array.isArray(value) ? (value as CategoryMenuGroup[]) : []
+  if (!Array.isArray(value)) return []
+  if (value.some((node) => !node || !Array.isArray((node as { children?: unknown }).children))) return []
+  return value as CategoryMenuGroup[]
 }
 
 // 헤더 '카테고리' 메가메뉴 패널 — <header> 직속 자식으로 마운트되어 헤더 아래 전체폭으로 펼쳐진다.
@@ -48,7 +52,8 @@ export function CategoryMegaMenu({ open, currentSubject, onClose, panelRef }: Ca
   // 메뉴 트리는 마운트 후 1회만 조회한다 (실패 시 조용히 빈 상태 유지).
   useEffect(() => {
     let cancelled = false
-    fetch('/api/market/category-menu')
+    // ?v=tree: 예전 형태 응답이 캐시된 주소와 캐시 키를 나눈다(라우트는 쿼리를 무시한다).
+    fetch('/api/market/category-menu?v=tree')
       .then((response) => (response.ok ? response.json() : null))
       .then((payload) => {
         if (cancelled) return
@@ -123,9 +128,17 @@ export function CategoryMegaMenu({ open, currentSubject, onClose, panelRef }: Ca
             <div className="grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-3 lg:grid-cols-5 lg:gap-x-8">
               {groups.map((group) => (
                 <section key={group.id} className="min-w-0">
-                  <h3 className="break-keep text-sm font-bold text-[var(--studio-ink)]">{group.title}</h3>
+                  <h3 className="break-keep text-sm font-bold text-[var(--studio-ink)]">
+                    <Link
+                      href={`/categories/${group.id}?subject=${activeSubject}`}
+                      onClick={onClose}
+                      className="rounded-sm outline-none hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                    >
+                      {group.title}
+                    </Link>
+                  </h3>
                   <ul className="mt-2 flex flex-col">
-                    {group.items.map((item) => (
+                    {(Array.isArray(group.children) ? group.children : []).map((item) => (
                       <li key={item.id}>
                         <Link
                           href={`/categories/${item.id}?subject=${activeSubject}`}
