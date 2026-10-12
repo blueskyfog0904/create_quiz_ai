@@ -15,7 +15,11 @@ const cleanupCronRoute = readFileSync(new URL('../src/app/api/cron/market/cleanu
 
 test('legacy sample files do not drive user-facing sample availability', () => {
   assert.doesNotMatch(itemsServer, /samplePages\.length > 0 \|\| filesForItem\.sample !== null/)
-  assert.match(itemsServer, /sample:\s*\{\s*available:\s*samplePages\.length > 0/)
+  // 게시판 목록 행(listPublishedMarketListboardRows)은 S4-2b에서 지웠다. 지금 공개 목록은 검색·카테고리 서버가 샘플 페이지로만 판단한다.
+  for (const path of ['../src/lib/market-search-server.ts', '../src/lib/market-categories-server.ts']) {
+    const source = readFileSync(new URL(path, import.meta.url), 'utf8')
+    assert.match(source, /sampleAvailable: \(samplePageMap\.get\(row\.itemId\)\?\.length \?\? 0\) > 0/, path)
+  }
 })
 
 test('public download route no longer serves legacy sample files', () => {

@@ -3,10 +3,6 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { getMarketDownloadButtonLabel } from '../src/lib/market-download-label.ts'
 
-const itemPage = readFileSync(
-  new URL('../src/app/(dashboard)/market/[slug]/items/[itemId]/page.tsx', import.meta.url),
-  'utf8'
-)
 const itemActions = readFileSync(
   new URL('../src/components/market/market-item-actions.tsx', import.meta.url),
   'utf8'
@@ -29,15 +25,6 @@ const libraryView = readFileSync(
   new URL('../src/app/(solvook)/library/_components/library-view.tsx', import.meta.url),
   'utf8'
 )
-
-test('market detail page loads v2 subproduct and bundle summaries for the action panel', () => {
-  assert.match(itemPage, /listMarketSubproductPublicSummaries/)
-  assert.match(itemPage, /getMarketBundlePublicSummary/)
-  assert.match(itemPage, /listMarketSubproductDownloadFilesForUser/)
-  assert.match(itemPage, /subproducts=\{subproducts\}/)
-  assert.match(itemPage, /bundleOption=\{bundleOption\}/)
-  assert.match(itemPage, /downloadFiles=\{downloadFiles\}/)
-})
 
 test('market detail action panel renders bundle package and individual alternatives before legacy fallback', () => {
   assert.match(itemActions, /subproducts\?: MarketSubproductPublicSummary\[\]/)
@@ -66,12 +53,6 @@ test('market detail action buttons are responsive for sample and purchase action
   assert.match(itemActions, /grid grid-cols-2 gap-2/)
   assert.match(itemActions, /variant="brandOutline"\s+className="h-auto min-h-11 w-full whitespace-normal"/)
   assert.match(itemActions, /variant="brand"\s+className="h-auto min-h-11 w-full whitespace-normal"/)
-})
-
-test('market detail hides the description box when no detail description is registered', () => {
-  assert.match(itemPage, /const detailDescription = item\.description\?\.trim\(\) \?\? ''/)
-  assert.match(itemPage, /\{detailDescription \? \(/)
-  assert.doesNotMatch(itemPage, /상세 설명은 아직 등록되지 않았습니다\./)
 })
 
 test('market detail uses smart indigo action buttons and file option icons', () => {

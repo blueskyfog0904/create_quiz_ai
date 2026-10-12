@@ -22,10 +22,6 @@ test('공개 조회 파일은 게시판을 읽지 않고 is_visible 게이트가
   }
 })
 
-test('예전 게시판 화면 서버도 is_visible 게이트가 없다', () => {
-  assert.doesNotMatch(read('src/lib/market-board-server.ts'), /is_visible/)
-})
-
 test('검색·보관함 경로는 활성 칸 1쿼리를 메모리에서 조립하고 캐시 모듈을 import하지 않는다', () => {
   const search = read('src/lib/market-search-server.ts')
   const items = read('src/lib/market-items-server.ts')

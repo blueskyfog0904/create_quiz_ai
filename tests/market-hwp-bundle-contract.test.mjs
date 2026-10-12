@@ -6,14 +6,6 @@ const marketPurchase = readFileSync(
   new URL('../src/lib/market-purchase.ts', import.meta.url),
   'utf8'
 )
-const listboardServer = readFileSync(
-  new URL('../src/lib/market-items-server.ts', import.meta.url),
-  'utf8'
-)
-const listboardClient = readFileSync(
-  new URL('../src/app/(dashboard)/market/[slug]/market-listboard-client.tsx', import.meta.url),
-  'utf8'
-)
 const itemActions = readFileSync(
   new URL('../src/components/market/market-item-actions.tsx', import.meta.url),
   'utf8'
@@ -33,12 +25,6 @@ test('market purchase helpers treat paid asset kinds as exact-match entitlements
   assert.match(marketPurchase, /return downloadAssetKind === purchasedAssetKind/)
 })
 
-test('listboard effective ownership does not treat hwp purchase as owning pdf', () => {
-  assert.match(listboardServer, /pdfOwned/)
-  assert.doesNotMatch(listboardServer, /ownership\.has\(`\$\{item\.id\}:pdf`\) \|\| ownership\.has\(`\$\{item\.id\}:hwp`\)/)
-  assert.match(listboardServer, /const pdfOwned = ownership\.has\(`\$\{item\.id\}:pdf`\)/)
-})
-
 test('legacy bundle normalization remains exact-match and listboard batch purchase is deprecated', () => {
   assert.match(marketPurchase, /normalizeMarketBundleSelections/)
   assert.match(batchRoute, /BATCH_PURCHASE_DEPRECATED/)
@@ -55,9 +41,5 @@ test('download route uses shared exact-match entitlement helper so zip stays ind
 })
 
 test('ui labels hwp paid option as pdf and hwp bundle on list and detail pages', () => {
-  assert.match(listboardClient, /HWP & PDF/)
   assert.match(itemActions, /HWP & PDF/)
-  assert.match(listboardClient, /whitespace-nowrap/)
-  assert.match(listboardClient, /min-w-\[410px\]/)
-  assert.match(listboardClient, /flex-nowrap/)
 })

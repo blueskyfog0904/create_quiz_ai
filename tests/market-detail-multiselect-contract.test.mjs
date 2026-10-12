@@ -6,7 +6,6 @@ import { readFileSync } from 'node:fs'
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
 
 const itemActions = read('../src/components/market/market-item-actions.tsx')
-const dashboardDetailPage = read('../src/app/(dashboard)/market/[slug]/items/[itemId]/page.tsx')
 const previewDetail = read('../src/app/preview/solvook-concept/_components/detail/market-material-detail.tsx')
 const cartView = read('../src/app/(solvook)/cart/_components/cart-view.tsx')
 const confirmDialog = read('../src/components/market/market-checkout-confirm-dialog.tsx')
@@ -136,7 +135,6 @@ test('guest selection is saved right before the login redirect and consumed once
 })
 
 test('both detail routes render the shared MarketItemActions', () => {
-  assert.match(dashboardDetailPage, /<MarketItemActions/)
   assert.match(previewDetail, /import MarketItemActions from '@\/components\/market\/market-item-actions'/)
   assert.match(previewDetail, /<MarketItemActions/)
 })

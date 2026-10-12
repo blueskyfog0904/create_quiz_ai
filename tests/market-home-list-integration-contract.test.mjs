@@ -12,19 +12,16 @@ test('home popular and recent sections reuse the Solvook board list rows', () =>
   )
   assert.equal(existsSync(sharedPath), true)
 
-  const [shared, popular, sections, board] = [
+  const [shared, popular, sections] = [
     read('src/app/preview/solvook-concept/_components/market-material-list.tsx'),
     read('src/app/preview/solvook-concept/_components/home/popular-downloads-slider.tsx'),
     read('src/app/preview/solvook-concept/_components/home/home-material-sections.tsx'),
-    read('src/app/preview/solvook-concept/_components/board/real-market-board-results.tsx'),
   ]
 
   assert.match(popular, /import \{ MarketMaterialList \} from '\.\.\/market-material-list'/)
   assert.match(sections, /import \{ MarketMaterialList \} from '\.\.\/market-material-list'/)
-  assert.match(board, /import \{ MarketMaterialList \} from '\.\.\/market-material-list'/)
   assert.match(popular, /<MarketMaterialList/)
   assert.match(sections, /<MarketMaterialList/)
-  assert.match(board, /<MarketMaterialList/)
 
   assert.match(shared, /<ul role="list"/)
   assert.match(shared, /md:grid-cols-\[56px_minmax\(0,1fr\)_auto\]/)

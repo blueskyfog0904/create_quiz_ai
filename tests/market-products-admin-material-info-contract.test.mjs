@@ -11,7 +11,7 @@ const marketItemsServer = readFileSync(new URL('../src/lib/market-items-server.t
 const adminItemsRoute = readFileSync(new URL('../src/app/api/admin/market/items/route.ts', import.meta.url), 'utf8')
 const adminItemRoute = readFileSync(new URL('../src/app/api/admin/market/items/[id]/route.ts', import.meta.url), 'utf8')
 const adminProductsClient = readFileSync(new URL('../src/app/(admin)/admin/market/products/market-products-client.tsx', import.meta.url), 'utf8')
-const itemPage = readFileSync(new URL('../src/app/(dashboard)/market/[slug]/items/[itemId]/page.tsx', import.meta.url), 'utf8')
+const materialDetail = readFileSync(new URL('../src/app/preview/solvook-concept/_components/detail/market-material-detail.tsx', import.meta.url), 'utf8')
 
 test('market items persist an explicit question count for material information', () => {
   assert.ok(migrationName, 'market item question_count migration should exist')
@@ -57,7 +57,8 @@ test('admin product form exposes material information inputs', () => {
   assert.match(adminProductsClient, /questionCount: form\.questionCount \? Number\(form\.questionCount\) : null/)
 })
 
-test('public detail page prefers explicit question_count for material information', () => {
-  assert.match(itemPage, /item\.question_count !== null && item\.question_count !== undefined/)
-  assert.match(itemPage, /`\$\{item\.question_count\}문항`/)
+// 예전 상세 page는 S4-2b에서 지웠다. 지금 상세(market-material-detail)는 계산값 대신 question_count만 보인다.
+test('public detail page shows explicit question_count for material information', () => {
+  assert.match(materialDetail, /value: item\.question_count === null/)
+  assert.match(materialDetail, /item\.question_count\.toLocaleString\('ko-KR'\)/)
 })

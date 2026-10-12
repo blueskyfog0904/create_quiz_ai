@@ -72,7 +72,8 @@ function countMatches(source, pattern) {
 
 test('the home, board, and detail route files exist', () => {
   assertFileExists(homePagePath, 'preview home route')
-  assertFileExists(boardPagePath, 'preview board route')
+  // 게시판 목록 page는 S4-2b에서 지웠다(예전 주소는 next.config redirect로 홈에 간다).
+  assert.equal(existsSync(boardPagePath), false, 'preview board route should be removed')
   assertFileExists(detailPagePath, 'preview detail route')
 })
 

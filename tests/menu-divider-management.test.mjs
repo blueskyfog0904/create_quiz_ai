@@ -26,10 +26,6 @@ const headerClientSource = readFileSync(
   new URL('../src/components/layout/header-client.tsx', import.meta.url),
   'utf8'
 )
-const marketSidebarSource = readFileSync(
-  new URL('../src/app/(dashboard)/market/market-sidebar.tsx', import.meta.url),
-  'utf8'
-)
 const librarySidebarSource = readFileSync(
   new URL('../src/app/legacy/_library/library-sidebar.tsx', import.meta.url),
   'utf8'
@@ -64,7 +60,6 @@ test('header dropdown uses a subtle shadow to avoid halo over body content', () 
 })
 
 test('market and library sidebars use the shared second-level sidebar component', () => {
-  assert.match(marketSidebarSource, /WorkspaceSecondLevelSidebar/)
   assert.match(librarySidebarSource, /WorkspaceSecondLevelSidebar/)
   assert.doesNotMatch(librarySidebarSource, /WorkspaceChildMenuSidebar/)
 })

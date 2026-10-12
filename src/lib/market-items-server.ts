@@ -1,5 +1,4 @@
 import { createAdminClient } from '@/lib/supabase/bypass'
-import { listActiveMarketItemSamplePagesForItems } from '@/lib/market-sample-pages-server'
 import {
   buildRefundTargetSnapshotFromOrder,
   buildRefundTargetSnapshotFromPurchase,
@@ -110,34 +109,6 @@ export interface MarketLibraryRow {
   refundTargets: MarketLibraryRefundTarget[]
   // 어드민이 등록한 외부 썸네일 URL. 없으면 화면에서 목록 행과 같은 점선 박스를 보인다.
   thumbnailUrl: string | null
-}
-
-export interface MarketListboardAssetRow {
-  available: boolean
-  owned: boolean
-  price: number
-  fileName: string | null
-}
-
-export interface MarketListboardSampleRow {
-  available: boolean
-  fileName: string | null
-  pageCount: number
-}
-
-export interface MarketListboardRow {
-  itemId: string
-  title: string
-  examYear: number | null
-  examMonth: number | null
-  gradeLevel: string | null
-  viewCount: number
-  publishedAt: string
-  rowNumber: number
-  pdf: MarketListboardAssetRow
-  hwp: MarketListboardAssetRow
-  zip: MarketListboardAssetRow
-  sample: MarketListboardSampleRow
 }
 
 export interface MarketSubproductPublicFileType {
@@ -292,37 +263,6 @@ export async function getVisibleMarketMenuEntryBySlugForWorkspace(
   }
 
   return withWorkspaceSubject(data)
-}
-
-export async function getMarketItemFilterOptions(menuEntryId: string) {
-  const supabase = getAdminSupabase()
-  const menuEntry = await getMarketMenuEntryById(menuEntryId)
-  if (!menuEntry) {
-    return { years: [], months: [], grades: [] }
-  }
-
-  const query = applyWorkspaceSubjectFilter(
-    supabase
-      .from('market_items')
-      .select('exam_year, exam_month, grade_level')
-      .eq('menu_entry_id', menuEntryId)
-      .eq('status', 'published')
-      .eq('is_active', true)
-      .is('deleted_at', null),
-    menuEntry.workspace_subject
-  )
-
-  const { data, error } = await query
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  const years = Array.from(new Set((data ?? []).map((item) => item.exam_year).filter((value): value is number => value !== null))).sort((a, b) => b - a)
-  const months = Array.from(new Set((data ?? []).map((item) => item.exam_month).filter((value): value is number => value !== null))).sort((a, b) => a - b)
-  const grades = Array.from(new Set((data ?? []).map((item) => item.grade_level).filter((value): value is string => Boolean(value)))).sort((a, b) => a.localeCompare(b, 'ko'))
-
-  return { years, months, grades }
 }
 
 function getAdminSupabase() {
@@ -1314,107 +1254,6 @@ export async function listPublishedMarketItems(menuEntryId: string, filters: Mar
   }
 
   return withWorkspaceSubjects(data)
-}
-
-export async function listPublishedMarketListboardRows(
-  menuEntryId: string,
-  userId: string | null | undefined,
-  filters: MarketItemListFilters = {}
-): Promise<MarketListboardRow[]> {
-  const supabase = getAdminSupabase()
-  const menuEntry = await getMarketMenuEntryById(menuEntryId)
-  if (!menuEntry) {
-    return []
-  }
-
-  const items = await listPublishedMarketItems(menuEntryId, filters)
-
-  if (items.length === 0) {
-    return []
-  }
-
-  const itemIds = items.map((item) => item.id)
-  const [{ data: files, error: filesError }, { data: purchases, error: purchasesError }, samplePageMap] = await Promise.all([
-    supabase
-      .from('market_item_files')
-      .select('item_id, asset_kind, original_file_name')
-      .in('item_id', itemIds)
-      .in('asset_kind', ['pdf', 'hwp', 'zip'])
-      .eq('is_active', true)
-      .is('deleted_at', null)
-      .eq('workspace_subject', menuEntry.workspace_subject),
-    userId
-      ? supabase
-        .from('market_purchases')
-        .select('item_id, asset_kind')
-        .eq('user_id', userId)
-        .eq('status', 'completed')
-        .in('item_id', itemIds)
-        .in('asset_kind', ['pdf', 'hwp', 'zip'])
-        .eq('workspace_subject', menuEntry.workspace_subject)
-      : Promise.resolve({ data: [], error: null }),
-    listActiveMarketItemSamplePagesForItems(itemIds, menuEntry.workspace_subject),
-  ])
-
-  if (filesError) {
-    throw new Error(filesError.message)
-  }
-
-  if (purchasesError) {
-    throw new Error(purchasesError.message)
-  }
-
-  const fileMap = new Map<string, { pdf: string | null; hwp: string | null; zip: string | null }>()
-  for (const file of files ?? []) {
-    const current = fileMap.get(file.item_id) ?? { pdf: null, hwp: null, zip: null }
-    if (file.asset_kind === 'pdf') current.pdf = file.original_file_name
-    if (file.asset_kind === 'hwp') current.hwp = file.original_file_name
-    if (file.asset_kind === 'zip') current.zip = file.original_file_name
-    fileMap.set(file.item_id, current)
-  }
-
-  const ownership = new Set((purchases ?? []).map((purchase) => `${purchase.item_id}:${purchase.asset_kind}`))
-
-  return items.map((item, index) => {
-    const filesForItem = fileMap.get(item.id) ?? { pdf: null, hwp: null, zip: null }
-    const samplePages = samplePageMap.get(item.id) ?? []
-    const pdfOwned = ownership.has(`${item.id}:pdf`)
-    const zipOwned = ownership.has(`${item.id}:zip`)
-
-    return {
-      itemId: item.id,
-      title: item.title,
-      examYear: item.exam_year,
-      examMonth: item.exam_month,
-      gradeLevel: item.grade_level,
-      viewCount: item.view_count,
-      publishedAt: item.published_at ?? item.created_at,
-      rowNumber: items.length - index,
-      pdf: {
-        available: filesForItem.pdf !== null && item.pdf_price > 0,
-        owned: pdfOwned,
-        price: item.pdf_price,
-        fileName: filesForItem.pdf,
-      },
-      hwp: {
-        available: filesForItem.hwp !== null && item.hwp_price > 0,
-        owned: ownership.has(`${item.id}:hwp`),
-        price: item.hwp_price,
-        fileName: filesForItem.hwp,
-      },
-      zip: {
-        available: filesForItem.zip !== null && item.zip_price > 0,
-        owned: zipOwned,
-        price: item.zip_price,
-        fileName: filesForItem.zip,
-      },
-      sample: {
-        available: samplePages.length > 0,
-        fileName: samplePages[0]?.original_file_name ?? null,
-        pageCount: samplePages.length,
-      },
-    }
-  }).filter((row) => filters.assetKind === 'sample' ? row.sample.available : true)
 }
 
 export async function getMarketItemById(id: string, workspaceSubject?: WorkspaceSubject): Promise<MarketItem | null> {

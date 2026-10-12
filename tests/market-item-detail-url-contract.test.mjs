@@ -109,13 +109,6 @@ test('상세 page는 카테고리 목록을 60초 공유 캐시로 읽고 count 
   assert.match(page, /getCachedCategoryTree\(\)/)
 })
 
-test('예전 preview 상세 page는 새 주소로 보내는 stub이다', () => {
-  const stub = read('src/app/preview/solvook-concept/boards/[slug]/items/[itemId]/page.tsx')
-  assert.match(stub, /redirect\(`\/items\/\$\{itemId\}/)
-  assert.doesNotMatch(stub, /listMarketCategoryMenu|market-material-detail|market-items-server/)
-  assert.match(stub, /isWorkspaceSubject\(subjectValue\)/)
-})
-
 test('상세 화면은 게시판 prop 없이 홈 > depth1 > … > 연결 칸 > 상품 경로를 보인다', () => {
   const detail = read('src/app/preview/solvook-concept/_components/detail/market-material-detail.tsx')
   assert.doesNotMatch(detail, /MarketMenuEntry|category\.slug|category\.title|solvook-concept\/boards/)

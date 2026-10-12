@@ -4,10 +4,6 @@ import { existsSync, readFileSync } from 'node:fs'
 
 const routePath = new URL('../src/app/api/market/items/[itemId]/sample-pages/route.ts', import.meta.url)
 const route = existsSync(routePath) ? readFileSync(routePath, 'utf8') : ''
-const itemPage = readFileSync(
-  new URL('../src/app/(dashboard)/market/[slug]/items/[itemId]/page.tsx', import.meta.url),
-  'utf8'
-)
 const itemActions = readFileSync(
   new URL('../src/components/market/market-item-actions.tsx', import.meta.url),
   'utf8'
@@ -54,8 +50,6 @@ test('market sample pages api exposes ttl and file size metadata for client cach
 })
 
 test('market item detail uses generated sample page preview instead of sample pdf download', () => {
-  assert.match(itemPage, /listActiveMarketItemSamplePages/)
-  assert.match(itemPage, /hasSamplePages/)
   assert.match(itemActions, /MarketSamplePreviewDialog/)
   assert.match(itemActions, /샘플 미리보기/)
   assert.match(itemActions, /구매 전 PDF 첫 \$\{samplePageCount\}쪽을 확인할 수 있어요\./)

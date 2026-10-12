@@ -7,7 +7,6 @@ const previewRoot = new URL(
   import.meta.url
 )
 const homePageUrl = new URL('page.tsx', previewRoot)
-const boardPageUrl = new URL('boards/[slug]/page.tsx', previewRoot)
 const detailPageUrl = new URL(
   'boards/[slug]/posts/[postId]/page.tsx',
   previewRoot
@@ -30,14 +29,6 @@ const detailDialogUrl = new URL(
   previewRoot
 )
 const sampleDataUrl = new URL('_data/sample-data.json', previewRoot)
-const marketListboardServerUrl = new URL(
-  '../src/app/(dashboard)/market/[slug]/market-listboard.tsx',
-  import.meta.url
-)
-const marketListboardClientUrl = new URL(
-  '../src/app/(dashboard)/market/[slug]/market-listboard-client.tsx',
-  import.meta.url
-)
 
 const legacyPreviewTokenConsumers = [
   '_components/board/board-list-controller.tsx',
@@ -54,7 +45,6 @@ const legacyPreviewTokenConsumers = [
   '_components/home/section-heading.tsx',
   '_components/preview-footer.tsx',
   '_components/preview-header.tsx',
-  'boards/[slug]/page.tsx',
   'layout.tsx',
 ]
 
@@ -155,8 +145,9 @@ test('the preview-token RED baseline is locked to the planned sixteen-file scope
     .map(({ relativePath }) => relativePath)
   const plannedConsumers = [...legacyPreviewTokenConsumers].sort()
 
-  assert.equal(legacyPreviewTokenConsumers.length, 16)
-  assert.equal(new Set(legacyPreviewTokenConsumers).size, 16)
+  // 게시판 목록 page(boards/[slug]/page.tsx)는 S4-2b에서 지워 목록에서 뺐다.
+  assert.equal(legacyPreviewTokenConsumers.length, 15)
+  assert.equal(new Set(legacyPreviewTokenConsumers).size, 15)
   for (const relativePath of legacyPreviewTokenConsumers) {
     assert.ok(
       sourceFiles.some((file) => file.relativePath === relativePath),
@@ -313,7 +304,6 @@ test('both Solvook sample dialogs use the Studio portal-safe Dialog content', ()
 test('the existing Solvook route, representative data, and single main ownership stay intact', () => {
   for (const [url, label] of [
     [homePageUrl, 'the Solvook home route'],
-    [boardPageUrl, 'the Solvook board route'],
     [detailPageUrl, 'the Solvook detail route'],
   ]) {
     assert.equal(existsSync(url), true, `${label} must exist`)
@@ -333,48 +323,10 @@ test('the existing Solvook route, representative data, and single main ownership
 
   const layout = readRequiredFile(layoutUrl, 'the Solvook preview layout')
   assert.equal(layout.match(/<main\b/g)?.length ?? 0, 1)
-  for (const routeUrl of [homePageUrl, boardPageUrl, detailPageUrl]) {
+  for (const routeUrl of [homePageUrl, detailPageUrl]) {
     assert.equal(
       readRequiredFile(routeUrl, 'a Solvook route').match(/<main\b/g)?.length ?? 0,
       0
     )
   }
-})
-
-test('the market pilot adopts the canonical Studio board composition without moving domain behavior', () => {
-  const server = readRequiredFile(
-    marketListboardServerUrl,
-    'the market listboard server component'
-  )
-  const client = readRequiredFile(
-    marketListboardClientUrl,
-    'the market listboard client component'
-  )
-
-  for (const component of [
-    'StudioBoardPageFrame',
-    'StudioPageHeader',
-    'StudioFilterPanel',
-    'StudioBoardShell',
-  ]) {
-    assertImportsAndRenders(server, component, 'the market listboard server component')
-  }
-
-  for (const component of ['StudioListPagination', 'StudioEmptyState']) {
-    assertImportsAndRenders(client, component, 'the market listboard client component')
-  }
-
-  assert.match(server, /<MarketListboardClient\b/)
-  assert.match(client, /MarketSamplePreviewDialog/)
-  assert.match(client, /const prefetchSamplePreview = \(itemId: string\) => \{/)
-  assert.match(client, /const openSamplePreview = \(itemId: string, trigger: HTMLButtonElement\) => \{/)
-  assert.match(
-    client,
-    /const href = `\/items\/\$\{row\.itemId\}\?subject=\$\{workspaceSubject\}`/
-  )
-  assert.doesNotMatch(
-    `${server}\n${client}`,
-    /MarketItemActions|CreditConfirmationDialog|market-item-actions|createClient|supabase|fetch\s*\(|\/api\/market\//,
-    'Studio adoption must remain appearance-only and leave detail, purchase, database, and API behavior outside the pilot'
-  )
 })
