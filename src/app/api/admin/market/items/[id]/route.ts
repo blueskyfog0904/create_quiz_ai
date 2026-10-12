@@ -6,7 +6,7 @@ import { getMarketCategoryItemWorkspaceSubject } from '@/lib/market-categories-s
 import { createClient } from '@/lib/supabase/server'
 import { hardDeleteMarketItemWithAssets } from '@/lib/market-item-cleanup'
 import { MARKET_IMAGE_NOT_FOUND_MESSAGE, isMarketImageReferenceError } from '@/lib/market-images-server'
-import { MARKET_PUBLIC_LIST_CACHE_TAG } from '@/lib/market-images'
+import { MARKET_CATEGORY_TREE_CACHE_TAG, MARKET_PUBLIC_LIST_CACHE_TAG } from '@/lib/market-images'
 import {
   getMarketItemBundleOptionForAdmin,
   getMarketItemById,
@@ -181,6 +181,12 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     if (imageChanged || categoryChanged) {
       revalidateTag(MARKET_PUBLIC_LIST_CACHE_TAG, { expire: 0 })
     }
+    // 칸별 상품 수가 바뀔 수 있으면(칸 변경·공개 상태 변경) 카테고리 트리 캐시도 갱신한다.
+    const publicStateChanged = (parsed.data.status !== undefined && parsed.data.status !== currentItem.status)
+      || (parsed.data.isActive !== undefined && parsed.data.isActive !== currentItem.is_active)
+    if (categoryChanged || publicStateChanged) {
+      revalidateTag(MARKET_CATEGORY_TREE_CACHE_TAG, { expire: 0 })
+    }
 
     return NextResponse.json({ success: true, data: item })
   } catch (error) {
@@ -223,6 +229,9 @@ export async function DELETE(_: Request, { params }: RouteContext) {
       itemId: id,
       workspaceSubject: item.workspace_subject,
     })
+    // 상품이 사라지면 공개 목록과 칸별 상품 수가 바뀐다.
+    revalidateTag(MARKET_PUBLIC_LIST_CACHE_TAG, { expire: 0 })
+    revalidateTag(MARKET_CATEGORY_TREE_CACHE_TAG, { expire: 0 })
 
     return NextResponse.json({ success: true })
   } catch (error) {

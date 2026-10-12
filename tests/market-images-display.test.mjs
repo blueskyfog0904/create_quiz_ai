@@ -61,7 +61,7 @@ test('public list caches are tagged and admin image writes revalidate that tag',
     'src/app/api/admin/market/items/route.ts',
     'src/app/api/admin/market/items/[id]/route.ts',
     'src/app/api/admin/market/items/thumbnail/route.ts',
-    'src/app/api/admin/market-categories/items/[itemId]/route.ts',
+    'src/app/api/admin/market-categories/[nodeId]/route.ts',
   ]) {
     assert.match(read(path), /revalidateTag\(MARKET_PUBLIC_LIST_CACHE_TAG, \{ expire: 0 \}\)/, path)
   }
@@ -115,7 +115,7 @@ test('bulk assign revalidates only when rows changed', async () => {
   }
 })
 
-test('item update revalidates only when the image id or category item actually changes; category default image change revalidates', async () => {
+test('item update revalidates only when the image id or category item actually changes; category node changes revalidate', async () => {
   const CATEGORY_ID = '33333333-3333-4333-8333-333333333333'
   const OTHER_CATEGORY_ID = '44444444-4444-4444-8444-444444444444'
   const itemsServer = (currentImageId) => ({
@@ -128,9 +128,9 @@ test('item update revalidates only when the image id or category item actually c
     [IMAGE_ID, IMAGE_ID, 0],
     [IMAGE_ID, undefined, 0],
     [IMAGE_ID, null, 1],
-    // 카테고리 항목이 바뀌면 대체 이미지(카테고리 기본 이미지)가 바뀔 수 있다.
-    [IMAGE_ID, IMAGE_ID, 1, OTHER_CATEGORY_ID],
-    [IMAGE_ID, IMAGE_ID, 1, null],
+    // 카테고리 칸이 바뀌면 대체 이미지(칸 기본 이미지)와 칸별 상품 수가 바뀔 수 있다(목록 + 트리 태그).
+    [IMAGE_ID, IMAGE_ID, 2, OTHER_CATEGORY_ID],
+    [IMAGE_ID, IMAGE_ID, 2, null],
     [IMAGE_ID, IMAGE_ID, 0, CATEGORY_ID],
   ]) {
     const { route, revalidations } = loadRoute('src/app/api/admin/market/items/[id]/route.ts', {
@@ -149,21 +149,36 @@ test('item update revalidates only when the image id or category item actually c
     assert.equal(revalidations.length, expected, `${current} -> ${sent}, category ${categoryItemId}`)
   }
 
-  for (const [patch, expected] of [[{ default_image_id: IMAGE_ID }, 1], [{ title: '제목' }, 0]]) {
-    const { route, revalidations } = loadRoute('src/app/api/admin/market-categories/items/[itemId]/route.ts', {
+  // 칸 변경은 공개 트리와 목록 캐시를 항상 함께 갱신한다.
+  for (const [patch, expected] of [[{ default_image_id: IMAGE_ID }, 2], [{ title: '제목' }, 2]]) {
+    const { route, revalidations } = loadRoute('src/app/api/admin/market-categories/[nodeId]/route.ts', {
       mocks: {
         '@/lib/market-categories-server': {
           MarketCategoryError: class extends Error {},
-          deleteCategoryItem: async () => {},
-          updateCategoryItem: async () => ({ id: ITEM_ID }),
+          deleteCategoryNode: async () => {},
+          updateCategoryNode: async () => ({ id: ITEM_ID }),
         },
       },
     })
     const response = await route.PATCH(
       new Request('http://localhost/x', { method: 'PATCH', body: JSON.stringify(patch) }),
-      { params: Promise.resolve({ itemId: ITEM_ID }) },
+      { params: Promise.resolve({ nodeId: ITEM_ID }) },
     )
     assert.equal(response.status, 200)
     assert.equal(revalidations.length, expected)
   }
+})
+
+test('item hard delete revalidates the public list and category tree caches', async () => {
+  const { route, revalidations } = loadRoute('src/app/api/admin/market/items/[id]/route.ts', {
+    mocks: {
+      '@/lib/admin-workspace': { resolveAdminWorkspaceSubject: () => 'english' },
+      '@/lib/market-categories-server': { getMarketCategoryItemWorkspaceSubject: async () => 'english' },
+      '@/lib/market-item-cleanup': { hardDeleteMarketItemWithAssets: async () => {} },
+      '@/lib/market-items-server': { getMarketItemById: async () => ({ id: ITEM_ID, workspace_subject: 'english' }) },
+    },
+  })
+  const response = await route.DELETE(new Request('http://localhost/x', { method: 'DELETE' }), { params: Promise.resolve({ id: ITEM_ID }) })
+  assert.equal(response.status, 200)
+  assert.deepEqual(revalidations, [['market-public-lists', { expire: 0 }], ['market-category-tree', { expire: 0 }]])
 })

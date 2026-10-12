@@ -10,7 +10,7 @@ const bulkRoute = read('src/app/api/admin/market/items/thumbnail/route.ts')
 const itemsServer = read('src/lib/market-items-server.ts')
 const productsClient = read('src/app/(admin)/admin/market/products/market-products-client.tsx')
 const categoriesRoute = read('src/app/api/admin/market-categories/route.ts')
-const categoryItemRoute = read('src/app/api/admin/market-categories/items/[itemId]/route.ts')
+const categoryNodeRoute = read('src/app/api/admin/market-categories/[nodeId]/route.ts')
 const categoriesServer = read('src/lib/market-categories-server.ts')
 const categoriesClient = read('src/app/(admin)/admin/market-categories/market-categories-client.tsx')
 const imageField = read('src/components/admin/market-image-field.tsx')
@@ -83,10 +83,11 @@ test('bulk thumbnail route is admin-only on nodejs, capped at 200 ids and scoped
 })
 
 test('category items accept default_image_id and the admin tree returns defaultImage', () => {
-  assert.match(categoryItemRoute, /default_image_id: z\.string\(\)\.uuid\(\)\.nullable\(\)\.optional\(\)/)
-  assert.match(categoryItemRoute, /defaultImageId: parsed\.data\.default_image_id/)
+  assert.match(categoryNodeRoute, /default_image_id: z\.string\(\)\.uuid\(\)\.nullable\(\)\.optional\(\)/)
+  assert.match(categoryNodeRoute, /defaultImageId: parsed\.data\.default_image_id/)
   assert.match(categoriesServer, /default_image:market_images\(id, storage_path\)/)
-  assert.match(categoriesRoute, /defaultImage: item\.default_image/)
+  assert.match(categoriesServer, /defaultImage: defaultImage\n\s+\? \{ id: defaultImage\.id, publicUrl:/)
+  assert.match(categoriesRoute, /const nodes = await listMarketCategoryTreeForAdmin\(workspaceSubject\)/)
   assert.match(categoriesClient, /<MarketImageField[\s\S]+?onChange=\{\(image\) => void patchItem\(item\.id, \{ default_image_id: image\?\.id \?\? null \}\)\}/)
   assert.match(productsClient, /defaultImage: MarketImageFieldValue \| null/)
 })
@@ -195,7 +196,7 @@ test('item update leaves the image unchanged when thumbnailImageId is omitted', 
   assert.equal(calls[1].thumbnail_image_id, IMAGE_ID)
 })
 
-test('category item update writes default_image_id and maps the image FK error to 404', async () => {
+test('category node update writes default_image_id and maps the image FK error to 404', async () => {
   let updateResult = { data: { id: ITEM_ID }, error: null }
   const admin = createFakeAdmin(() => updateResult)
   const server = load('src/lib/market-categories-server.ts', {
@@ -206,19 +207,19 @@ test('category item update writes default_image_id and maps the image FK error t
     '@/lib/list-pagination': {},
     '@/lib/read-all-query-rows': {},
     '@/lib/market-images': marketImages,
+    '@/lib/market-category-tree': load('src/lib/market-category-tree.ts'),
   })
-  await server.updateCategoryItem(ITEM_ID, { defaultImageId: IMAGE_ID })
+  await server.updateCategoryNode(ITEM_ID, { defaultImageId: IMAGE_ID })
   assert.deepEqual(op(admin.calls[0].ops, 'update')[1], { default_image_id: IMAGE_ID })
-  await server.updateCategoryItem(ITEM_ID, { defaultImageId: null })
+  await server.updateCategoryNode(ITEM_ID, { defaultImageId: null })
   assert.deepEqual(op(admin.calls[1].ops, 'update')[1], { default_image_id: null })
 
   updateResult = { data: null, error: { code: '23503', message: 'violates foreign key constraint "market_category_items_default_image_id_fkey"' } }
-  await assert.rejects(() => server.updateCategoryItem(ITEM_ID, { defaultImageId: IMAGE_ID }), (error) => error.status === 404)
+  await assert.rejects(() => server.updateCategoryNode(ITEM_ID, { defaultImageId: IMAGE_ID }), (error) => error.status === 404)
 })
 
 test('review fixes: group update has no image column, drafts merge, preview follows the form id, stale folder is forgotten', () => {
-  const groupUpdate = fnBody(categoriesServer, 'updateCategoryGroup')
-  assert.doesNotMatch(groupUpdate, /default_image|defaultImage/)
+  assert.doesNotMatch(categoriesServer, /updateCategoryGroup|market_category_groups/)
 
   assert.match(categoriesClient, /const loadGroups = useCallback\(async \(resetId\?: string\) =>/)
   assert.match(categoriesClient, /await loadGroups\(savingKey\)/)
