@@ -81,6 +81,8 @@ export interface MarketCategoryNodeDetail {
   // 같은 부모 아래 칸(자신 포함). 말단 칸의 '더 자세히 찾기'에 쓴다.
   siblings: MarketCategoryNodeSummary[]
   subtreeIds: string[]
+  // 자신과 하위 칸 각각의 경로(depth1 → 그 칸). 목록 행 부제에 쓴다.
+  subtreePaths: Record<string, { id: string; title: string }[]>
 }
 
 const toSummary = ({ id, title, itemCount }: MarketCategoryNode): MarketCategoryNodeSummary => ({ id, title, itemCount })
@@ -101,6 +103,13 @@ export async function getMarketCategoryNodeDetail(
     if (!path) continue
     const node = path[path.length - 1]
     const parent = path.length > 1 ? path[path.length - 2] : null
+    const subtreePaths: MarketCategoryNodeDetail['subtreePaths'] = {}
+    const walk = (current: MarketCategoryNode, prefix: { id: string; title: string }[]) => {
+      const currentPath = [...prefix, { id: current.id, title: current.title }]
+      subtreePaths[current.id] = currentPath
+      for (const child of current.children) walk(child, currentPath)
+    }
+    walk(node, path.slice(0, -1).map(({ id: ancestorId, title }) => ({ id: ancestorId, title })))
     return {
       id: node.id,
       title: node.title,
@@ -110,6 +119,7 @@ export async function getMarketCategoryNodeDetail(
       children: node.children.map(toSummary),
       siblings: (parent ? parent.children : source[workspaceSubject]).map(toSummary),
       subtreeIds: collectSubtreeIds(node),
+      subtreePaths,
     }
   }
   return null
@@ -140,8 +150,8 @@ export async function listMarketItemsForCategory(
   const workspaceSubject = detail.workspaceSubject
   const subtreeIds = detail.subtreeIds
 
-  // 행 부제: 보고 있는 칸까지의 경로(하위 칸 상품도 같은 경로). 이미 받은 칸 정보로 만들어 추가 조회가 없다.
-  const categoryPath = [...detail.ancestors, { id: detail.id, title: detail.title }]
+  // 행 부제: 상품이 연결된 칸의 경로. 이미 받은 칸 정보(subtreePaths)로 만들어 추가 조회가 없다.
+  const pagePath = [...detail.ancestors, { id: detail.id, title: detail.title }]
 
   const supabase = createAdminClient()
   const keyword = (filters.q ?? '').trim().normalize('NFC').toLowerCase()
@@ -234,7 +244,7 @@ export async function listMarketItemsForCategory(
         summary: item.summary,
         thumbnailUrl: toMarketThumbnailUrl(supabase, item),
         categoryId: item.category_item_id,
-        categoryPath,
+        categoryPath: (item.category_item_id ? detail.subtreePaths?.[item.category_item_id] : undefined) ?? pagePath,
         examYear: item.exam_year,
         gradeLevel: item.grade_level,
         questionCount: item.question_count,

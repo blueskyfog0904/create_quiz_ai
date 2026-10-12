@@ -131,8 +131,9 @@ export function SearchView({ subject, q, result, selections, sort }: SearchViewP
     pushWith({ selections: { category: [], type: [], year: [], grade: [] } })
   }
 
+  // 목록에 없는 값(예전 게시판 slug 등 서버가 무시한 값)은 칩으로 보이지 않는다.
   const activeChips = FACET_DEFS.flatMap((facet) =>
-    selections[facet.key].map((value) => ({
+    selections[facet.key].filter((value) => facet.key !== 'category' || facetOptionsByKey.category.some((option) => option.value === value)).map((value) => ({
       facetKey: facet.key,
       value,
       label: facetOptionsByKey[facet.key].find((option) => option.value === value)?.label ?? value,

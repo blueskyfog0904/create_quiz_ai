@@ -117,6 +117,11 @@ test('every depth page lists the products of its whole subtree', async () => {
   assert.equal(depth2.totalCount, 64)
   assert.equal(depth3.totalCount, 24)
   assert.ok(depth3.rows.every((row) => Number(row.itemId) < 24))
+  // 행 부제는 상품이 연결된 칸의 경로(상위 칸 페이지에서도 하위 칸까지)
+  const fromRoot = root.rows.find((row) => Number(row.itemId) < 24)
+  assert.deepEqual(fromRoot.categoryPath.map((node) => node.title), ['EBS', '독서', '2부'])
+  const lastPage = await app.listMarketItemsForCategory(rootId, { page: 4 })
+  assert.deepEqual(lastPage.rows.find((row) => Number(row.itemId) >= 24).categoryPath.map((node) => node.title), ['EBS', '독서'])
 })
 
 test('nodes under an inactive ancestor are hidden from the public tree', async () => {

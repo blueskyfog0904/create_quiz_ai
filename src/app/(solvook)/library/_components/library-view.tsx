@@ -57,7 +57,8 @@ const LIBRARY_FACETS: LibraryFacet[] = [
     key: 'category',
     label: '카테고리',
     // 카테고리 경로(depth1 > … > 연결 칸). 경로가 없는 상품(미지정·비활성 칸)은 값 없음.
-    getValues: (row) => (row.categoryPath.length > 0 ? [row.categoryPath.map((node) => node.title).join(' > ')] : []),
+    // 검색 패싯과 같은 depth1~2 단위로 묶는다.
+    getValues: (row) => (row.categoryPath.length > 0 ? [row.categoryPath.slice(0, 2).map((node) => node.title).join(' > ')] : []),
   },
   {
     key: 'type',
