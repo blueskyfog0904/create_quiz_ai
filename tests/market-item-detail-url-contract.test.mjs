@@ -43,6 +43,29 @@ test('예전 상세 주소 3종은 next.config에서 /items/[itemId]로 307 redi
   assert.doesNotMatch(config, /permanent: true/)
 })
 
+test('예전 게시판 목록 주소 7종은 상세 규칙 뒤에서 홈으로 307 redirect한다(S4, 8.10-1)', () => {
+  const config = read('next.config.ts')
+  const escape = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const ruleIndex = (source, destination) =>
+    config.search(new RegExp(`source: "${escape(source)}",\\s+destination: "${escape(destination)}",\\s+permanent: false,`))
+  const lastDetailIndex = ruleIndex('/market/:slug/items/:itemId', '/items/:itemId')
+  assert.ok(lastDetailIndex >= 0)
+  const rules = [
+    ['/:subject(english|korean)/market', '/?subject=:subject'],
+    ['/:subject(english|korean)/market/:slug', '/?subject=:subject'],
+    ['/:subject(english|korean)/market/:slug/board-preview', '/?subject=:subject'],
+    ['/market', '/'],
+    ['/market/:slug', '/'],
+    ['/market/:slug/board-preview', '/'],
+    ['/preview/solvook-concept/boards/:slug', '/'],
+  ]
+  for (const [source, destination] of rules) {
+    const index = ruleIndex(source, destination)
+    assert.ok(index > lastDetailIndex, `${source} → ${destination} 규칙이 없거나 상세 규칙보다 앞에 있다`)
+  }
+  assert.doesNotMatch(config, /permanent: true/)
+})
+
 test('/items/는 전역 헤더·푸터를 생략하는 경로다(헤더 이중 렌더 방지)', () => {
   assert.match(read('src/components/layout/path-aware-site-chrome.tsx'), /pathname\.startsWith\('\/items\/'\)/)
 })
