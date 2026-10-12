@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
-import { getMarketCategoryItemWorkspaceSubject } from '@/lib/market-categories-server'
+import { getMarketCategoryItemWorkspaceSubject, listMarketCategorySubtreeIdsForAdmin } from '@/lib/market-categories-server'
 import { createMarketItem, listMarketItemsForAdmin } from '@/lib/market-items-server'
 import { listMarketMenuEntriesForAdmin } from '@/lib/market-menu-server'
 import { MARKET_IMAGE_NOT_FOUND_MESSAGE, isMarketImageReferenceError } from '@/lib/market-images-server'
@@ -27,7 +27,8 @@ const MarketItemSchema = z.object({
   source3: z.string().trim().optional(),
   source4: z.string().trim().optional(),
   questionCount: z.number().int().min(0).nullable().optional(),
-  categoryItemId: z.string().uuid().nullable().optional(),
+  // 필수. 상품 과목은 이 칸의 과목으로 정한다.
+  categoryItemId: z.string().uuid(),
   pdfPrice: z.number().int().min(0),
   hwpPrice: z.number().int().min(0),
   zipPrice: z.number().int().min(0),
@@ -70,9 +71,11 @@ export async function GET(request: Request) {
 
   try {
     const searchParams = new URL(request.url).searchParams
-    const menuEntryId = searchParams.get('menuEntryId') || undefined
     const workspaceSubject = resolveAdminWorkspaceSubject(searchParams.get('subject'))
-    const items = await listMarketItemsForAdmin(menuEntryId, workspaceSubject)
+    // ?categoryId=: 그 칸과 하위 칸 전체의 상품
+    const categoryId = searchParams.get('categoryId')
+    const categoryIds = categoryId ? await listMarketCategorySubtreeIdsForAdmin(workspaceSubject, categoryId) : undefined
+    const items = await listMarketItemsForAdmin({ workspaceSubject, categoryIds })
 
     return NextResponse.json({ success: true, data: items })
   } catch (error) {
@@ -100,12 +103,21 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     const parsed = MarketItemSchema.safeParse(body)
-    const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
+    const requestedSubject = new URL(request.url).searchParams.get('subject')
 
     if (!parsed.success) {
       return NextResponse.json({
         success: false,
         error: { code: 'INVALID_INPUT', message: parsed.error.issues[0]?.message || '입력이 올바르지 않습니다.' },
+      }, { status: 400 })
+    }
+
+    // 상품 과목 = 카테고리 칸의 과목. 요청에 과목(?subject=)이 있으면 같아야 한다.
+    const workspaceSubject = await getMarketCategoryItemWorkspaceSubject(parsed.data.categoryItemId)
+    if (!workspaceSubject || (requestedSubject !== null && resolveAdminWorkspaceSubject(requestedSubject) !== workspaceSubject)) {
+      return NextResponse.json({
+        success: false,
+        error: { code: 'INVALID_INPUT', message: '상품과 같은 과목의 카테고리를 선택해주세요.' },
       }, { status: 400 })
     }
 
@@ -117,17 +129,8 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
-    if (typeof parsed.data.categoryItemId === 'string') {
-      const categorySubject = await getMarketCategoryItemWorkspaceSubject(parsed.data.categoryItemId)
-      if (categorySubject !== workspaceSubject) {
-        return NextResponse.json({
-          success: false,
-          error: { code: 'INVALID_INPUT', message: '상품과 같은 과목의 카테고리 항목을 선택해주세요.' },
-        }, { status: 400 })
-      }
-    }
-
     const item = await createMarketItem({
+      workspace_subject: workspaceSubject,
       menu_entry_id: parsed.data.menuEntryId,
       title: parsed.data.title,
       summary: parsed.data.summary,
@@ -142,7 +145,6 @@ export async function POST(request: Request) {
       source_3: parsed.data.source3,
       source_4: parsed.data.source4,
       question_count: parsed.data.questionCount ?? null,
-      // undefined는 그대로 전달 (createMarketItem에서 null로 저장)
       category_item_id: parsed.data.categoryItemId,
       pdf_price: parsed.data.pdfPrice,
       hwp_price: parsed.data.hwpPrice,

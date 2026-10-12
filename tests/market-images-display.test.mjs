@@ -122,15 +122,17 @@ test('item update revalidates only when the image id or category item actually c
     getMarketItemById: async () => ({ id: ITEM_ID, workspace_subject: 'english', thumbnail_image_id: currentImageId, category_item_id: CATEGORY_ID }),
     updateMarketItem: async () => ({ id: ITEM_ID }),
   })
-  const body = { menuEntryId: ITEM_ID, title: '상품', pdfPrice: 0, hwpPrice: 0, zipPrice: 0 }
-  for (const [current, sent, expected, categoryItemId] of [
+  // 화면은 menuEntryId를 보내지 않고, 카테고리는 바뀔 때만 categoryItemId로 보낸다.
+  const body = { title: '상품', pdfPrice: 0, hwpPrice: 0, zipPrice: 0 }
+  for (const [current, sent, expected, categoryItemId, status = 200] of [
     [null, IMAGE_ID, 1],
     [IMAGE_ID, IMAGE_ID, 0],
     [IMAGE_ID, undefined, 0],
     [IMAGE_ID, null, 1],
     // 카테고리 칸이 바뀌면 대체 이미지(칸 기본 이미지)와 칸별 상품 수가 바뀔 수 있다(목록 + 트리 태그).
     [IMAGE_ID, IMAGE_ID, 2, OTHER_CATEGORY_ID],
-    [IMAGE_ID, IMAGE_ID, 2, null],
+    // 카테고리는 필수라 해제(null)는 400이고 아무것도 갱신하지 않는다.
+    [IMAGE_ID, IMAGE_ID, 0, null, 400],
     [IMAGE_ID, IMAGE_ID, 0, CATEGORY_ID],
   ]) {
     const { route, revalidations } = loadRoute('src/app/api/admin/market/items/[id]/route.ts', {
@@ -145,7 +147,7 @@ test('item update revalidates only when the image id or category item actually c
       new Request('http://localhost/x', { method: 'PATCH', body: JSON.stringify({ ...body, thumbnailImageId: sent, categoryItemId }) }),
       { params: Promise.resolve({ id: ITEM_ID }) },
     )
-    assert.equal(response.status, 200)
+    assert.equal(response.status, status, `${current} -> ${sent}, category ${categoryItemId}`)
     assert.equal(revalidations.length, expected, `${current} -> ${sent}, category ${categoryItemId}`)
   }
 

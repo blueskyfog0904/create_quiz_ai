@@ -15,7 +15,7 @@ export default async function AdminMarketProductsPage({ searchParams }: AdminMar
 
   const [menuEntries, items] = await Promise.all([
     listMarketMenuEntriesForAdmin(workspaceSubject),
-    listMarketItemsForAdmin(undefined, workspaceSubject),
+    listMarketItemsForAdmin({ workspaceSubject }),
   ])
 
   return (

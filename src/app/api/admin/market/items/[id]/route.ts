@@ -35,8 +35,8 @@ const MarketItemUpdateSchema = z.object({
   source3: z.string().trim().optional(),
   source4: z.string().trim().optional(),
   questionCount: z.number().int().min(0).nullable().optional(),
-  // undefined = 변경 없음, null = 카테고리 해제 (question_count 패턴)
-  categoryItemId: z.string().uuid().nullable().optional(),
+  // undefined = 변경 없음. 카테고리는 필수라 해제(null)는 받지 않는다.
+  categoryItemId: z.string().uuid().optional(),
   pdfPrice: z.number().int().min(0),
   hwpPrice: z.number().int().min(0),
   zipPrice: z.number().int().min(0),
@@ -142,7 +142,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       if (categorySubject !== currentItem.workspace_subject) {
         return NextResponse.json({
           success: false,
-          error: { code: 'INVALID_INPUT', message: '상품과 같은 과목의 카테고리 항목을 선택해주세요.' },
+          error: { code: 'INVALID_INPUT', message: '상품과 같은 과목의 카테고리를 선택해주세요.' },
         }, { status: 400 })
       }
     }

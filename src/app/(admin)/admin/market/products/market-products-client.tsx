@@ -819,25 +819,16 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     isActive: item.is_active,
   })
 
-  const refreshItems = async (menuEntryId?: string) => {
-    const targetMenuEntryId = menuEntryId ?? selectedMenuEntryId
-    const url = targetMenuEntryId ? `/api/admin/market/items?menuEntryId=${targetMenuEntryId}` : '/api/admin/market/items'
-    const response = await fetch(withAdminWorkspaceSubject(url, workspaceSubject), { cache: 'no-store' })
+  // 상품 API는 게시판(menuEntryId) 필터를 받지 않으므로 과목 전체를 다시 읽는다(게시판 필터는 화면에서 거른다).
+  const refreshItems = async () => {
+    const response = await fetch(withAdminWorkspaceSubject('/api/admin/market/items', workspaceSubject), { cache: 'no-store' })
     const payload = await response.json()
 
     if (!response.ok || !payload.success) {
       throw new Error(payload.error?.message || '문제마켓 상품 목록을 불러오지 못했습니다.')
     }
 
-    if (!targetMenuEntryId) {
-      setItems(payload.data)
-      return
-    }
-
-    setItems((current) => {
-      const otherItems = current.filter((item) => item.menu_entry_id !== targetMenuEntryId)
-      return [...otherItems, ...payload.data]
-    })
+    setItems(payload.data)
   }
 
   const fetchItemDetail = async (id: string) => {
@@ -993,9 +984,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     setIsSaving(true)
     try {
       const targetId = options.targetId ?? form.id
-      const previousMenuEntryId = targetId
-        ? items.find((item) => item.id === targetId)?.menu_entry_id
-        : null
       const response = await fetch(withAdminWorkspaceSubject(targetId ? `/api/admin/market/items/${targetId}` : '/api/admin/market/items', workspaceSubject), {
         method: targetId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1013,10 +1001,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
         listQuery.update({ page: 1 }, true)
       }
       setSelectedMenuEntryId(form.menuEntryId)
-      await refreshItems(form.menuEntryId)
-      if (previousMenuEntryId && previousMenuEntryId !== form.menuEntryId) {
-        await refreshItems(previousMenuEntryId)
-      }
+      await refreshItems()
       if (options.draftSource !== 'auto_upload') {
         await persistSamplePageOrder(payload.data.id)
         await persistBundleOption(payload.data.id)
@@ -1135,7 +1120,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
         throw new Error(payload.error?.message || '문제마켓 상품 완전 삭제에 실패했습니다.')
       }
 
-      await refreshItems(form.menuEntryId)
+      await refreshItems()
       resetForm(form.menuEntryId)
       toast.success(isCancellingAutoUploadDraft ? '임시 업로드 파일을 삭제했습니다.' : '문제마켓 상품을 완전 삭제했습니다.')
       router.refresh()
@@ -1162,7 +1147,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
         throw new Error(payload.error?.message || '문제마켓 상품 완전 삭제에 실패했습니다.')
       }
 
-      await refreshItems(deleteTarget.menu_entry_id)
+      await refreshItems()
       if (form.id === deleteTarget.id) {
         resetForm(deleteTarget.menu_entry_id)
       }
@@ -1200,7 +1185,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
           ? { ...currentItem, status: nextStatus, draft_source: 'manual' }
           : currentItem
       )))
-      await refreshItems(item.menu_entry_id)
+      await refreshItems()
       if (form.id === item.id) {
         setForm(buildEditForm(payload.data as MarketItem))
         setRequiresFinalRegistration(false)
@@ -1243,9 +1228,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       const failedIds = targetItems
         .filter((_, index) => results[index].status === 'rejected')
         .map((item) => item.id)
-      const successMenuEntryIds = Array.from(new Set(targetItems
-        .filter((item) => successIds.includes(item.id))
-        .map((item) => item.menu_entry_id)))
 
       successIds.forEach((itemId) => setHiddenOverride(itemId, true))
       setItems((current) => current.map((item) => successIds.includes(item.id)
@@ -1261,7 +1243,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
         setRequiresFinalRegistration(false)
       }
 
-      await Promise.all(successMenuEntryIds.map((menuEntryId) => refreshItems(menuEntryId)))
+      await refreshItems()
       setSelectedItemIds(failedIds)
 
       if (successIds.length > 0) {
@@ -1346,9 +1328,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       const failedIds = targetItems
         .filter((_, index) => results[index].status === 'rejected')
         .map((item) => item.id)
-      const successMenuEntryIds = Array.from(new Set(targetItems
-        .filter((item) => successIds.includes(item.id))
-        .map((item) => item.menu_entry_id)))
 
       setItems((current) => current.filter((item) => !successIds.includes(item.id)))
       setHiddenItemIds((current) => current.filter((itemId) => !successIds.includes(itemId)))
@@ -1359,7 +1338,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
         resetForm(form.menuEntryId)
       }
 
-      await Promise.all(successMenuEntryIds.map((menuEntryId) => refreshItems(menuEntryId)))
+      await refreshItems()
 
       if (successIds.length > 0) {
         toast.success(`선택한 상품 ${successIds.length}개를 완전 삭제했습니다.`)

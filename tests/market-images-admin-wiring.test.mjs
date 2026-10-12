@@ -152,7 +152,7 @@ function loadItemsRoute(path, itemsServerMock) {
   }).route
 }
 
-const baseBody = { menuEntryId: ITEM_ID, title: '상품', pdfPrice: 0, hwpPrice: 0, zipPrice: 0 }
+const baseBody = { menuEntryId: ITEM_ID, categoryItemId: ITEM_ID, title: '상품', pdfPrice: 0, hwpPrice: 0, zipPrice: 0 }
 
 test('item create passes thumbnailImageId, ignores legacy thumbnailUrl and maps a missing image to 404', async () => {
   const calls = []

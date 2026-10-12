@@ -276,7 +276,7 @@ export async function listMarketItemsForCategory(
   }
 }
 
-// 상품 저장 시 카테고리 지정값의 과목 검증용 (비활성 항목 포함 조회). 없으면 null.
+// 상품 저장 시 카테고리 칸의 과목 확인용(생성 때는 상품 과목을 이 값으로 정한다. 비활성 칸 포함 조회). 없으면 null.
 export async function getMarketCategoryItemWorkspaceSubject(id: string): Promise<WorkspaceSubject | null> {
   if (!UUID_PATTERN.test(id)) {
     return null
@@ -379,6 +379,12 @@ export async function listMarketCategoryTreeForAdmin(subject: WorkspaceSubject):
   }
   fillCounts(roots)
   return roots
+}
+
+// 관리자 상품 목록 필터용: 칸 자신과 하위 칸 전체의 id(비활성 포함). 없는 칸이면 빈 배열.
+export async function listMarketCategorySubtreeIdsForAdmin(subject: WorkspaceSubject, id: string): Promise<string[]> {
+  const path = findCategoryPath(await listMarketCategoryTreeForAdmin(subject), id)
+  return path ? collectSubtreeIds(path[path.length - 1]) : []
 }
 
 export async function createCategoryNode(input: {

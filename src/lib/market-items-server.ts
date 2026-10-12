@@ -402,25 +402,26 @@ function validateMarketItemInput(input: {
   }
 }
 
-export async function listMarketItemsForAdmin(menuEntryId?: string, workspaceSubject?: WorkspaceSubject): Promise<MarketItemForAdmin[]> {
-  const supabase = getAdminSupabase()
-  const menuEntry = menuEntryId ? await getMarketMenuEntryById(menuEntryId) : null
-  if (menuEntry && workspaceSubject) {
-    assertMatchingWorkspaceSubject('문제마켓 카테고리', workspaceSubject, menuEntry.workspace_subject)
+// categoryIds가 있으면 그 칸들(보통 한 칸과 하위 칸 전체)에 연결된 상품만 돌려준다.
+export async function listMarketItemsForAdmin(
+  { workspaceSubject, categoryIds }: { workspaceSubject?: WorkspaceSubject; categoryIds?: string[] } = {}
+): Promise<MarketItemForAdmin[]> {
+  if (categoryIds && categoryIds.length === 0) {
+    return []
   }
-  const activeWorkspaceSubject = menuEntry?.workspace_subject ?? workspaceSubject
 
+  const supabase = getAdminSupabase()
   let query = applyWorkspaceSubjectFilter(
     supabase
       .from('market_items')
       .select(MARKET_ITEM_ADMIN_SELECT)
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
-    activeWorkspaceSubject
+    workspaceSubject
   )
 
-  if (menuEntryId) {
-    query = query.eq('menu_entry_id', menuEntryId)
+  if (categoryIds) {
+    query = query.in('category_item_id', categoryIds)
   }
 
   const { data, error } = await query.returns<MarketItemAdminRow[]>()
@@ -1947,11 +1948,13 @@ export async function listMarketSubproductDownloadFilesForUser(
   return sortDownloadFilesByCategoryOrder(downloadFiles, categoryBySubproductId)
 }
 
+// 상품 과목은 카테고리 칸의 과목(workspace_subject, 라우트가 칸에서 읽어 넘김)이다. 게시판도 같은 과목이어야 한다.
 export async function createMarketItem(
   input: Pick<TablesInsert<'market_items'>,
     'menu_entry_id' | 'title' | 'summary' | 'description' | 'thumbnail_image_id' | 'exam_year' | 'exam_month' |
-    'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'question_count' | 'category_item_id' |
+    'grade_level' | 'source_type' | 'source_1' | 'source_2' | 'source_3' | 'source_4' | 'question_count' |
     'pdf_price' | 'hwp_price' | 'zip_price' | 'sort_order' | 'status' | 'is_active' | 'published_at' | 'draft_source' | 'created_by' | 'updated_by'>
+    & { workspace_subject: WorkspaceSubject; category_item_id: string }
 ) {
   const supabase = getAdminSupabase()
   const normalized = validateMarketItemInput(input)
@@ -1960,10 +1963,11 @@ export async function createMarketItem(
   if (!menuEntry) {
     throw new Error('연결할 문제마켓 카테고리를 찾을 수 없습니다.')
   }
+  assertMatchingWorkspaceSubject('문제마켓 카테고리', input.workspace_subject, menuEntry.workspace_subject)
 
   const payload: MarketItemInsert = {
     menu_entry_id: input.menu_entry_id,
-    workspace_subject: menuEntry.workspace_subject,
+    workspace_subject: input.workspace_subject,
     title: normalized.title,
     summary: normalizeNullableText(input.summary),
     description: normalizeNullableText(input.description),
@@ -1977,7 +1981,7 @@ export async function createMarketItem(
     source_3: normalizeNullableText(input.source_3),
     source_4: normalizeNullableText(input.source_4),
     question_count: input.question_count ?? null,
-    category_item_id: input.category_item_id ?? null,
+    category_item_id: input.category_item_id,
     pdf_price: normalized.pdfPrice,
     hwp_price: normalized.hwpPrice,
     zip_price: normalized.zipPrice,
