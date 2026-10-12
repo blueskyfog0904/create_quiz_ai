@@ -100,6 +100,9 @@ export const MARKET_THUMBNAIL_EMBED = 'thumbnail_image:market_images(storage_pat
 // 상품 이미지가 바뀌면 무효화할 공개 목록 데이터 캐시(홈·보드의 unstable_cache) 태그
 export const MARKET_PUBLIC_LIST_CACHE_TAG = 'market-public-lists'
 
+// 카테고리 칸이나 칸별 상품 수가 바뀌면 무효화할 카테고리 트리 캐시(market-category-tree-cache) 태그
+export const MARKET_CATEGORY_TREE_CACHE_TAG = 'market-category-tree'
+
 export interface MarketThumbnailImageRef {
   storage_path: string
 }
