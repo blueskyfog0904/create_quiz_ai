@@ -8,6 +8,10 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf
 const itemsRoute = read('src/app/api/admin/market/items/route.ts')
 const itemRoute = read('src/app/api/admin/market/items/[id]/route.ts')
 const itemsServer = read('src/lib/market-items-server.ts')
+const menuServer = read('src/lib/market-menu-server.ts')
+const productsClient = read('src/app/(admin)/admin/market/products/market-products-client.tsx')
+const productsPage = read('src/app/(admin)/admin/market/products/page.tsx')
+const categoriesPage = read('src/app/(admin)/admin/market-categories/page.tsx')
 
 const ITEM_ID = '11111111-1111-4111-8111-111111111111'
 const CATEGORY_ID = '33333333-3333-4333-8333-333333333333'
@@ -46,6 +50,58 @@ test('GET은 ?categoryId=의 하위 칸까지 포함해 거르고 게시판(?men
   const list = fnBody(itemsServer, 'listMarketItemsForAdmin')
   assert.match(list, /\.in\('category_item_id', categoryIds\)/)
   assert.doesNotMatch(list, /menu_entry_id|menuEntryId/)
+})
+
+test('POST의 menuEntryId는 선택이고, 없으면 기본 게시판을 규칙 쿼리로 고른다(UUID 리터럴 없음)', () => {
+  assert.match(itemsRoute, /menuEntryId: z\.string\(\)\.uuid\(\)\.optional\(\),/)
+  assert.match(itemsRoute, /const menuEntryId = parsed\.data\.menuEntryId \?\? await getDefaultMarketMenuEntryId\(workspaceSubject\)/)
+  assert.match(itemsRoute, /message: '기본 게시판이 없습니다'/)
+  const rule = fnBody(menuServer, 'getDefaultMarketMenuEntryId')
+  assert.match(rule, /\.from\('market_menu_entries'\)\n\s+\.select\('id'\)\n\s+\.eq\('workspace_subject', workspaceSubject\)\n\s+\.eq\('is_active', true\)\n\s+\.eq\('is_visible', true\)\n\s+\.is\('deleted_at', null\)\n\s+\.order\('sort_order'\)\n\s+\.order\('created_at'\)\n\s+\.limit\(1\)/)
+  const uuid = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+  for (const source of [itemsRoute, itemRoute, menuServer, productsClient, productsPage]) {
+    assert.doesNotMatch(source, uuid)
+  }
+})
+
+test('상품 폼: 게시판 select 없이 단계별 카테고리 선택(필수, 미지정 옵션 없음)과 경로·하위 칸 권장 안내', () => {
+  assert.doesNotMatch(productsClient, /menuEntryId|menuEntries|menuTitleMap|selectedMenuEntryId|flattenCategoryOptions/)
+  assert.doesNotMatch(productsClient, /<option value="">미지정<\/option>/)
+  assert.match(productsClient, /<Label>카테고리 <span className="text-red-500">\*<\/span><\/Label>/)
+  assert.match(productsClient, /'\(여기까지 선택\)'/)
+  assert.match(productsClient, /node\.isActive \? node\.title : `\$\{node\.title\} \(비활성\)`/)
+  assert.match(productsClient, /selectedCategoryPath\.map\(categoryNodeLabel\)\.join\(' > '\)/)
+  assert.match(productsClient, /selectedCategory && selectedCategory\.children\.length > 0 \? \(\n\s+<p className="text-xs text-amber-700">하위 칸이 있습니다\. 하위 칸 선택을 권장합니다\.<\/p>/)
+  assert.match(productsClient, /if \(!categoryItemId\) \{\n\s+toast\.error\('카테고리를 선택해주세요\.'\)/)
+  // 카테고리는 바뀔 때만, 해제(null) 없이 보낸다.
+  assert.match(productsClient, /\.\.\.\(categoryItemId !== savedCategoryItemId \? \{ categoryItemId \} : \{\}\)/)
+  // 서브상품 구성 종류의 라벨은 그대로
+  assert.match(productsClient, /<Label>서브상품 카테고리<\/Label>/)
+})
+
+test('상단 필터는 같은 단계별 선택(전체)으로 서버 ?categoryId=를 부르고 폼을 건드리지 않는다', () => {
+  const start = productsClient.indexOf('const changeFilterCategory = ')
+  const handler = productsClient.slice(start, productsClient.indexOf('\n  }\n', start))
+  assert.match(handler, /void refreshItems\(nextCategoryId\)/)
+  assert.doesNotMatch(handler, /setForm|setCategoryItemId|resetForm/)
+  assert.match(productsClient, /<CategoryStepSelect\n\s+nodes=\{categoryNodes\}\n\s+value=\{filterCategoryId\}\n\s+onChange=\{changeFilterCategory\}\n\s+emptyLabel="전체"/)
+  assert.match(productsClient, /`\/api\/admin\/market\/items\?categoryId=\$\{categoryId\}`/)
+  // 표의 카테고리 열은 경로(없으면 미지정)
+  assert.match(productsClient, /return path \? path\.map\(categoryNodeLabel\)\.join\(' > '\) : '미지정'/)
+  assert.match(productsClient, /<TableCell>\{formatCategoryPath\(getItemCategoryItemId\(item\)\)\}<\/TableCell>/)
+})
+
+test('[카테고리 관리]는 카테고리 메뉴 관리 화면과 같은 편집기를 팝업으로 띄우고, 바뀐 트리를 선택칸에 반영한다', () => {
+  const editorImport = /import \{ MarketCategoryTreeEditor[^}]*\} from '@\/components\/admin\/market-category-tree-editor'/
+  assert.match(categoriesPage, editorImport)
+  assert.match(productsClient, editorImport)
+  assert.match(productsClient, /from '@\/components\/ui\/dialog'/)
+  assert.match(productsClient, /<MarketCategoryTreeEditor subject=\{workspaceSubject\} onTreeChange=\{applyCategoryTree\} \/>/)
+  assert.match(productsClient, /if \(categoryItemId && !findCategoryPath\(tree, categoryItemId\)\) \{\n\s+setCategoryItemId\(''\)/)
+  assert.match(productsClient, /if \(!open\) \{\n\s+void reloadCategoryTree\(\)/)
+  // 화면은 게시판 대신 관리자 카테고리 트리를 받는다.
+  assert.match(productsPage, /listMarketCategoryTreeForAdmin\(workspaceSubject\)/)
+  assert.doesNotMatch(productsPage, /listMarketMenuEntriesForAdmin|menuEntries/)
 })
 
 function loadItemRoute({ categorySubject, updateCalls }) {
@@ -193,4 +249,45 @@ test('GET ?categoryId=: 칸의 하위 칸 id(비활성 포함)로 상품을 거�
   assert.equal((await route.GET(new Request(`http://localhost/api/admin/market/items?subject=korean&categoryId=${DEPTH2}`))).status, 200)
   assert.equal((await route.GET(new Request('http://localhost/api/admin/market/items?subject=korean'))).status, 200)
   assert.deepEqual(listCalls, [{ workspaceSubject: 'korean', categoryIds: [DEPTH2, DEPTH3] }, { workspaceSubject: 'korean', categoryIds: undefined }])
+})
+
+test('POST: menuEntryId가 없으면 규칙 쿼리의 기본 게시판으로 201, 기본 게시판이 없으면 400', async () => {
+  for (const board of [{ id: BOARD_ID }, null]) {
+    const admin = createFakeAdmin(({ table }) => (table === 'market_menu_entries' ? { data: board, error: null } : { data: null, error: null }))
+    const menuServer = load('src/lib/market-menu-server.ts', {
+      '@/lib/supabase/bypass': { createAdminClient: () => admin.client },
+      '@/lib/market-menu': {},
+    })
+    const createCalls = []
+    const { route } = loadRoute('src/app/api/admin/market/items/route.ts', {
+      mocks: {
+        '@/lib/admin-workspace': { resolveAdminWorkspaceSubject: (value) => value || 'korean' },
+        '@/lib/market-categories-server': { getMarketCategoryItemWorkspaceSubject: async () => 'english' },
+        '@/lib/market-menu-server': menuServer,
+        '@/lib/market-items-server': { createMarketItem: async (input) => { createCalls.push(input); return { id: ITEM_ID } } },
+      },
+    })
+    const response = await post(route, { ...body, categoryItemId: CATEGORY_ID }, '')
+    const query = admin.calls.find((call) => call.table === 'market_menu_entries')
+    // 칸의 과목(english)으로 활성·공개·미삭제 게시판 중 정렬 첫 번째를 고른다.
+    assert.deepEqual(query.ops.filter(([name]) => name !== 'select'), [
+      ['eq', 'workspace_subject', 'english'],
+      ['eq', 'is_active', true],
+      ['eq', 'is_visible', true],
+      ['is', 'deleted_at', null],
+      ['order', 'sort_order'],
+      ['order', 'created_at'],
+      ['limit', 1],
+      ['maybeSingle'],
+    ])
+    if (board) {
+      assert.equal(response.status, 201)
+      assert.equal(createCalls[0].menu_entry_id, BOARD_ID)
+      assert.equal(createCalls[0].workspace_subject, 'english')
+    } else {
+      assert.equal(response.status, 400)
+      assert.equal((await response.json()).error.message, '기본 게시판이 없습니다')
+      assert.equal(createCalls.length, 0)
+    }
+  }
 })

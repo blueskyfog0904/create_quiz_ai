@@ -46,9 +46,9 @@ test('머리글 체크박스는 현재 페이지 상품만 선택·해제하고 
   assert.match(client, /const selectedItems = useMemo\(\(\) => filteredItems\.filter\(\(item\) => selectedItemIds\.includes\(item\.id\)\)/)
 })
 
-test('메뉴 변경은 onChange에서, 저장으로 메뉴가 바뀔 때만 기록 없이(replaceState) 1페이지로 돌리고 useEffect로 초기화하지 않는다', () => {
-  assert.match(client, /setSelectedMenuEntryId\(nextMenuEntryId\)\n\s+setSelectedItemIds\(\[\]\)\n\s+listQuery\.update\(\{ page: 1 \}, true\)/)
-  assert.match(client, /if \(form\.menuEntryId !== selectedMenuEntryId\) \{\n\s+listQuery\.update\(\{ page: 1 \}, true\)\n\s+\}/)
+test('카테고리 필터 변경은 핸들러에서, 저장으로 필터가 바뀔 때만 기록 없이(replaceState) 1페이지로 돌리고 useEffect로 초기화하지 않는다', () => {
+  assert.match(body('changeFilterCategory'), /setFilterCategoryId\(nextCategoryId\)\n\s+setSelectedItemIds\(\[\]\)\n\s+listQuery\.update\(\{ page: 1 \}, true\)/)
+  assert.match(client, /if \(nextFilterCategoryId !== filterCategoryId\) \{\n\s+listQuery\.update\(\{ page: 1 \}, true\)\n\s+\}/)
   assert.equal((client.match(/listQuery\.update\(\{ page: 1 \}, true\)/g) ?? []).length, 2)
   assert.doesNotMatch(client, /listQuery\.setPage\(1\)/)
   for (const effect of client.match(/useEffect\(\(\) => \{[\s\S]*?\n {2}\}, \[[^\]]*\]\)/g) ?? []) {

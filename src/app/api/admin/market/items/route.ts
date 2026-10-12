@@ -5,14 +5,15 @@ import { createClient } from '@/lib/supabase/server'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { getMarketCategoryItemWorkspaceSubject, listMarketCategorySubtreeIdsForAdmin } from '@/lib/market-categories-server'
 import { createMarketItem, listMarketItemsForAdmin } from '@/lib/market-items-server'
-import { listMarketMenuEntriesForAdmin } from '@/lib/market-menu-server'
+import { getDefaultMarketMenuEntryId, listMarketMenuEntriesForAdmin } from '@/lib/market-menu-server'
 import { MARKET_IMAGE_NOT_FOUND_MESSAGE, isMarketImageReferenceError } from '@/lib/market-images-server'
 import { MARKET_CATEGORY_TREE_CACHE_TAG, MARKET_PUBLIC_LIST_CACHE_TAG } from '@/lib/market-images'
 
 export const dynamic = 'force-dynamic'
 
 const MarketItemSchema = z.object({
-  menuEntryId: z.string().uuid(),
+  // 선택. 없으면 칸 과목의 기본 게시판(S4까지 menu_entry_id가 필수 컬럼이라 남긴다)
+  menuEntryId: z.string().uuid().optional(),
   title: z.string().trim().min(1),
   summary: z.string().trim().optional(),
   description: z.string().trim().optional(),
@@ -121,17 +122,27 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
-    const availableMenuEntries = await listMarketMenuEntriesForAdmin(workspaceSubject)
-    if (!availableMenuEntries.some((entry) => entry.id === parsed.data.menuEntryId && entry.deleted_at === null)) {
+    const menuEntryId = parsed.data.menuEntryId ?? await getDefaultMarketMenuEntryId(workspaceSubject)
+    if (!menuEntryId) {
       return NextResponse.json({
         success: false,
-        error: { code: 'INVALID_INPUT', message: '선택한 과목 작업공간에 속한 문제마켓 카테고리를 선택해주세요.' },
+        error: { code: 'INVALID_INPUT', message: '기본 게시판이 없습니다' },
       }, { status: 400 })
+    }
+
+    if (parsed.data.menuEntryId) {
+      const availableMenuEntries = await listMarketMenuEntriesForAdmin(workspaceSubject)
+      if (!availableMenuEntries.some((entry) => entry.id === menuEntryId && entry.deleted_at === null)) {
+        return NextResponse.json({
+          success: false,
+          error: { code: 'INVALID_INPUT', message: '선택한 과목 작업공간에 속한 문제마켓 카테고리를 선택해주세요.' },
+        }, { status: 400 })
+      }
     }
 
     const item = await createMarketItem({
       workspace_subject: workspaceSubject,
-      menu_entry_id: parsed.data.menuEntryId,
+      menu_entry_id: menuEntryId,
       title: parsed.data.title,
       summary: parsed.data.summary,
       description: parsed.data.description,

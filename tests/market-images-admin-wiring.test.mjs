@@ -90,7 +90,9 @@ test('category items accept default_image_id and the admin tree returns defaultI
   assert.match(categoriesRoute, /const nodes = await listMarketCategoryTreeForAdmin\(workspaceSubject\)/)
   assert.match(categoriesClient, /<MarketImageField[\s\S]+?onChange=\{\(image\) => void patchNode\(node\.id, \{ default_image_id: image\?\.id \?\? null \}\)\}/)
   assert.match(categoriesClient, /defaultImage: MarketImageFieldValue \| null/)
-  assert.match(productsClient, /\.find\(\(option\) => option\.node\.id === categoryItemId\)\?\.node\.defaultImage \?\? null/)
+  // 상품 폼의 대체 이미지는 트리를 재귀로 찾은 선택 칸의 기본 이미지다.
+  assert.match(productsClient, /\(categoryItemId \? findCategoryPath\(categoryNodes, categoryItemId\) : null\) \?\? \[\]/)
+  assert.match(productsClient, /const selectedCategory = selectedCategoryPath\.at\(-1\) \?\? null\n\s+const selectedCategoryDefaultImage = selectedCategory\?\.defaultImage \?\? null/)
 })
 
 function loadBulkRoute(handler, options = {}) {
@@ -145,14 +147,17 @@ function loadItemsRoute(path, itemsServerMock) {
     mocks: {
       '@/lib/admin-workspace': { resolveAdminWorkspaceSubject: (value) => value || 'korean' },
       '@/lib/market-categories-server': { getMarketCategoryItemWorkspaceSubject: async () => 'korean' },
-      '@/lib/market-menu-server': { listMarketMenuEntriesForAdmin: async () => [{ id: ITEM_ID, deleted_at: null }] },
+      '@/lib/market-menu-server': {
+        listMarketMenuEntriesForAdmin: async () => [{ id: ITEM_ID, deleted_at: null }],
+        getDefaultMarketMenuEntryId: async () => ITEM_ID,
+      },
       '@/lib/market-item-cleanup': {},
       '@/lib/market-items-server': itemsServerMock,
     },
   }).route
 }
 
-const baseBody = { menuEntryId: ITEM_ID, categoryItemId: ITEM_ID, title: '상품', pdfPrice: 0, hwpPrice: 0, zipPrice: 0 }
+const baseBody = { categoryItemId: ITEM_ID, title: '상품', pdfPrice: 0, hwpPrice: 0, zipPrice: 0 }
 
 test('item create passes thumbnailImageId, ignores legacy thumbnailUrl and maps a missing image to 404', async () => {
   const calls = []

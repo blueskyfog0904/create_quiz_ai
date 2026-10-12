@@ -197,6 +197,29 @@ export async function listVisibleMarketMenuEntries(workspaceSubject: WorkspaceSu
   return data ?? []
 }
 
+// 상품 생성 때 게시판을 보내지 않으면 쓰는 기본 게시판(S4에서 이 규칙을 지우고 null로 저장한다):
+// 과목의 활성·공개·미삭제 게시판 중 정렬 첫 번째. 공개 게시판이어야 S3 전 공개 화면 게이트에서 상품이 사라지지 않는다.
+export async function getDefaultMarketMenuEntryId(workspaceSubject: WorkspaceSubject): Promise<string | null> {
+  const supabase = getAdminSupabase()
+  const { data, error } = await supabase
+    .from('market_menu_entries')
+    .select('id')
+    .eq('workspace_subject', workspaceSubject)
+    .eq('is_active', true)
+    .eq('is_visible', true)
+    .is('deleted_at', null)
+    .order('sort_order')
+    .order('created_at')
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data?.id ?? null
+}
+
 export async function getVisibleMarketMenuEntryBySlug(slug: string, workspaceSubject: WorkspaceSubject = 'english'): Promise<MarketMenuEntry | null> {
   const supabase = getAdminSupabase()
   const { data, error } = await supabase

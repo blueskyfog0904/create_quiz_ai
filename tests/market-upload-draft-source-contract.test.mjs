@@ -37,8 +37,22 @@ test('admin upload UI marks only upload-created drafts as auto_upload and explic
   assert.match(adminProductsClient, /등록 취소 및 파일 삭제/)
 })
 
-test('admin product form returns to a blank new-product form after registration completes', () => {
-  assert.match(adminProductsClient, /if \(requiresFinalRegistration\) {\s*resetForm\(result\.menu_entry_id\)\s*return\s*}/s)
-  assert.match(adminProductsClient, /const createdItem = await persistForm\(undefined, \{ draftSource: 'manual' \}\)[\s\S]+resetForm\(createdItem\.menu_entry_id\)/)
+test('admin product form returns to a blank new-product form (keeping the category) after registration completes', () => {
+  assert.match(adminProductsClient, /if \(requiresFinalRegistration\) {\s*resetForm\(getItemCategoryItemId\(result\)\)\s*return\s*}/s)
+  assert.match(adminProductsClient, /const createdItem = await persistForm\(undefined, \{ draftSource: 'manual' \}\)[\s\S]+resetForm\(getItemCategoryItemId\(createdItem\)\)/)
+  assert.doesNotMatch(adminProductsClient, /menu_entry_id/)
   assert.doesNotMatch(adminProductsClient, /상품 등록 및 파일 업로드/)
+})
+
+test('upload draft creation stops before POST until a category is chosen', () => {
+  const ensure = adminProductsClient.slice(
+    adminProductsClient.indexOf('const ensureDraftItemForUpload = async () => {'),
+    adminProductsClient.indexOf('const handleStatusAction = async'),
+  )
+  assert.match(ensure, /if \(!categoryItemId\) \{\n\s+toast\.error\('카테고리를 먼저 선택해주세요\.'\)\n\s+return null\n\s+\}[\s\S]+await persistForm\('draft'/)
+  assert.match(adminProductsClient, /const isUploadBlockedByCategory = !form\.id && !categoryItemId/)
+  assert.match(adminProductsClient, /accept="\.pdf,application\/pdf"\n\s+disabled=\{isSampleSourceUploading \|\| isUploadBlockedByCategory\}/)
+  assert.match(adminProductsClient, /disabled=\{isSampleSourceUploading \|\| !selectedSampleSourceFile \|\| isUploadBlockedByCategory\}/)
+  assert.match(adminProductsClient, /disabled=\{isSubproductSaving \|\| activeSubproductCategories\.length === 0 \|\| isUploadBlockedByCategory\}/)
+  assert.equal((adminProductsClient.match(/isUploadBlockedByCategory \? <p className="text-xs text-amber-700">카테고리를 먼저 선택해주세요\.<\/p> : null/g) ?? []).length, 2)
 })

@@ -63,8 +63,8 @@ export function toMegaMenuTree(tree: MarketCategoryTree, maxDepth = 2): MarketCa
   return { english: trim(tree.english), korean: trim(tree.korean) }
 }
 
-// 조상 → 자신 순서의 경로. 없으면 null.
-export function findCategoryPath(nodes: MarketCategoryNode[], id: string): MarketCategoryNode[] | null {
+// 조상 → 자신 순서의 경로. 없으면 null. 관리자 트리 노드처럼 필드가 더 있는 노드에도 쓴다.
+export function findCategoryPath<T extends { id: string; children: T[] }>(nodes: T[], id: string): T[] | null {
   for (const node of nodes) {
     if (node.id === id) return [node]
     const path = findCategoryPath(node.children, id)
@@ -74,6 +74,6 @@ export function findCategoryPath(nodes: MarketCategoryNode[], id: string): Marke
 }
 
 // 자신과 하위 칸 전체의 id
-export function collectSubtreeIds(node: MarketCategoryNode): string[] {
+export function collectSubtreeIds<T extends { id: string; children: T[] }>(node: T): string[] {
   return [node.id, ...node.children.flatMap(collectSubtreeIds)]
 }

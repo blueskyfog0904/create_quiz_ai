@@ -62,25 +62,24 @@ import type {
   MarketSubproductFile,
 } from '@/lib/market-items-server'
 import { LISTBOARD_GRADE_OPTIONS } from '@/lib/generate-menu'
-import type { MarketMenuEntryAdminRow } from '@/lib/market-menu'
 import AdminMarketSamplePreviewDialog from './admin-market-sample-preview-dialog'
 import { MarketImageField, type MarketImageFieldValue } from '@/components/admin/market-image-field'
 import { MarketImagePicker } from '@/components/admin/market-image-picker'
-import type { AdminCategoryTreeNode } from '@/components/admin/market-category-tree-editor'
+import { MarketCategoryTreeEditor, type AdminCategoryTreeNode } from '@/components/admin/market-category-tree-editor'
+import { collectSubtreeIds, findCategoryPath } from '@/lib/market-category-tree'
 import { MARKET_IMAGE_MAX_BULK_ITEM_IDS, chunkArray } from '@/lib/market-images'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { useListQuery } from '@/hooks/use-list-query'
 import { getListPagination } from '@/lib/list-pagination'
 
 interface MarketProductsClientProps {
-  menuEntries: MarketMenuEntryAdminRow[]
+  initialCategoryNodes: AdminCategoryTreeNode[]
   initialItems: MarketItemForAdmin[]
   workspaceSubject: WorkspaceSubject
 }
 
 interface MarketItemFormState {
   id?: string
-  menuEntryId: string
   title: string
   summary: string
   description: string
@@ -103,17 +102,49 @@ interface MarketItemFormState {
   isActive: boolean
 }
 
-// 카테고리 선택칸 옵션: 트리를 경로 이름(상위 > … > 칸)으로 펼친다. 자기나 조상이 비활성이면 (비활성) 표시.
-function flattenCategoryOptions(
-  nodes: AdminCategoryTreeNode[],
-  parentPath: string[] = [],
-  parentActive = true
-): { node: AdminCategoryTreeNode; label: string; isActive: boolean }[] {
-  return nodes.flatMap((node) => {
-    const path = [...parentPath, node.title]
-    const isActive = parentActive && node.isActive
-    return [{ node, label: path.join(' > '), isActive }, ...flattenCategoryOptions(node.children, path, isActive)]
-  })
+function categoryNodeLabel(node: AdminCategoryTreeNode) {
+  return node.isActive ? node.title : `${node.title} (비활성)`
+}
+
+// 카테고리 단계별 선택: 고른 칸에 하위 칸이 있으면 다음 depth select가 나타난다(depth5까지).
+// value는 가장 깊이 고른 칸 id('' = 선택 없음). 아래 단계의 '(여기까지 선택)'은 위 칸을 고른 상태다.
+function CategoryStepSelect({
+  nodes,
+  value,
+  onChange,
+  emptyLabel,
+  ariaLabel,
+}: {
+  nodes: AdminCategoryTreeNode[]
+  value: string
+  onChange: (categoryId: string) => void
+  emptyLabel: string
+  ariaLabel: string
+}) {
+  const path = (value ? findCategoryPath(nodes, value) : null) ?? []
+  const levels = [
+    { parentId: '', options: nodes },
+    ...path.filter((node) => node.children.length > 0).map((node) => ({ parentId: node.id, options: node.children })),
+  ]
+
+  return (
+    <div className="space-y-2">
+      {levels.map((level, index) => (
+        <select
+          key={level.parentId || 'root'}
+          aria-label={`${ariaLabel} depth${index + 1}`}
+          value={path[index]?.id ?? ''}
+          onChange={(event) => onChange(event.target.value || level.parentId)}
+          className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
+        >
+          <option value="">{index === 0 ? emptyLabel : '(여기까지 선택)'}</option>
+          {level.options.map((node) => (
+            <option key={node.id} value={node.id}>{categoryNodeLabel(node)}</option>
+          ))}
+        </select>
+      ))}
+    </div>
+  )
 }
 
 function getItemCategoryItemId(item: MarketItem) {
@@ -149,9 +180,8 @@ function parseCreditInputValue(value: string) {
   return digits ? Number(digits) : 0
 }
 
-function buildEmptyForm(menuEntryId = ''): MarketItemFormState {
+function buildEmptyForm(): MarketItemFormState {
   return {
-    menuEntryId,
     title: '',
     summary: '',
     description: '',
@@ -177,7 +207,6 @@ function buildEmptyForm(menuEntryId = ''): MarketItemFormState {
 function buildEditForm(item: MarketItem): MarketItemFormState {
   return {
     id: item.id,
-    menuEntryId: item.menu_entry_id,
     title: item.title,
     summary: item.summary || '',
     description: item.description || '',
@@ -502,11 +531,12 @@ function buildFileTypeSettingsForm(fileType: MarketFileType): FileTypeSettingsFo
   }
 }
 
-export default function MarketProductsClient({ menuEntries, initialItems, workspaceSubject }: MarketProductsClientProps) {
+export default function MarketProductsClient({ initialCategoryNodes, initialItems, workspaceSubject }: MarketProductsClientProps) {
   const router = useRouter()
-  const [selectedMenuEntryId, setSelectedMenuEntryId] = useState(menuEntries[0]?.id || '')
+  // 상품 목록 상단 필터(가장 깊이 고른 칸, '' = 전체). 서버가 하위 칸까지 포함해 거른다.
+  const [filterCategoryId, setFilterCategoryId] = useState('')
   const [items, setItems] = useState(initialItems)
-  const [form, setForm] = useState<MarketItemFormState>(buildEmptyForm(menuEntries[0]?.id || ''))
+  const [form, setForm] = useState<MarketItemFormState>(buildEmptyForm())
   const [isSaving, setIsSaving] = useState(false)
   const [isArchiving, setIsArchiving] = useState(false)
   const [hidingItemId, setHidingItemId] = useState<string | null>(null)
@@ -552,7 +582,8 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const [isSubproductSaving, setIsSubproductSaving] = useState(false)
   const [subproductUploadingKeys, setSubproductUploadingKeys] = useState<string[]>([])
   const [subproductDragActiveKeys, setSubproductDragActiveKeys] = useState<string[]>([])
-  const [categoryNodes, setCategoryNodes] = useState<AdminCategoryTreeNode[]>([])
+  const [categoryNodes, setCategoryNodes] = useState<AdminCategoryTreeNode[]>(initialCategoryNodes)
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false)
   const [categoryItemId, setCategoryItemId] = useState('')
   const [savedCategoryItemId, setSavedCategoryItemId] = useState('')
   // 폼의 thumbnailImageId에 해당하는 미리보기(상세 조회·이미지 선택 시 갱신)
@@ -562,6 +593,8 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const [bulkImageTarget, setBulkImageTarget] = useState<{ itemIds: string[]; image: MarketImageFieldValue | null } | null>(null)
   const sampleSourceInputRef = useRef<HTMLInputElement | null>(null)
   const productListHeaderRef = useRef<HTMLDivElement | null>(null)
+  // 필터를 빠르게 바꿀 때 늦게 온 이전 목록 응답을 버린다.
+  const itemsRequestRef = useRef(0)
 
   // 폼의 thumbnailImageId에 맞는 미리보기: 방금 고른 이미지 → 목록에 실린 상품 이미지 순으로 찾는다.
   // 숨김 토글처럼 buildEditForm만 다시 부르는 경로에서도 id와 미리보기가 어긋나지 않는다.
@@ -572,15 +605,17 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     return listed?.id === form.thumbnailImageId ? listed : null
   }, [form.id, form.thumbnailImageId, items, thumbnailPreview])
 
-  const categoryOptions = useMemo(() => flattenCategoryOptions(categoryNodes), [categoryNodes])
-  const selectedCategoryDefaultImage = useMemo(() => categoryOptions
-    .find((option) => option.node.id === categoryItemId)?.node.defaultImage ?? null, [categoryOptions, categoryItemId])
+  const selectedCategoryPath = useMemo(
+    () => (categoryItemId ? findCategoryPath(categoryNodes, categoryItemId) : null) ?? [],
+    [categoryNodes, categoryItemId]
+  )
+  const selectedCategory = selectedCategoryPath.at(-1) ?? null
+  const selectedCategoryDefaultImage = selectedCategory?.defaultImage ?? null
+  // 새 상품은 카테고리를 고르기 전에는 업로드(= 임시 상품 생성)를 막는다.
+  const isUploadBlockedByCategory = !form.id && !categoryItemId
 
-  const filteredItems = useMemo(() => (
-    selectedMenuEntryId
-      ? items.filter((item) => item.menu_entry_id === selectedMenuEntryId)
-      : items
-  ), [items, selectedMenuEntryId])
+  // 목록은 서버가 상단 필터(하위 칸 포함)로 거른 결과다.
+  const filteredItems = items
 
   const selectedItems = useMemo(() => filteredItems.filter((item) => selectedItemIds.includes(item.id)), [filteredItems, selectedItemIds])
   // 목록은 이미 받은 상품을 클라이언트에서 페이지로 나눈다. 페이지·표시 개수는 URL 쿼리에만 기록하고 화면은 이동하지 않는다.
@@ -598,7 +633,10 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     () => items.filter((item) => (bulkDeleteTargetIds ?? []).includes(item.id)),
     [bulkDeleteTargetIds, items]
   )
-  const menuTitleMap = useMemo(() => new Map(menuEntries.map((entry) => [entry.id, entry.title])), [menuEntries])
+  const formatCategoryPath = (categoryId: string) => {
+    const path = categoryId ? findCategoryPath(categoryNodes, categoryId) : null
+    return path ? path.map(categoryNodeLabel).join(' > ') : '미지정'
+  }
   const examYearOptions = useMemo(() => buildExamYearOptions(), [])
   const activeSubproductCategories = useMemo(
     () => subproductCategories.filter((category) => category.is_active),
@@ -695,39 +733,38 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     }
   }, [reloadUploadTaxonomy])
 
-  useEffect(() => {
-    let isMounted = true
+  // [카테고리 관리] 팝업에서 칸을 바꾸면 선택칸에 바로 반영한다. 고른 칸이 삭제됐으면 선택을 비운다.
+  const applyCategoryTree = (tree: AdminCategoryTreeNode[]) => {
+    setCategoryNodes(tree)
+    if (categoryItemId && !findCategoryPath(tree, categoryItemId)) {
+      setCategoryItemId('')
+    }
+    if (filterCategoryId && !findCategoryPath(tree, filterCategoryId)) {
+      setFilterCategoryId('')
+      void refreshItems('').catch((error) => toast.error(error instanceof Error ? error.message : '문제마켓 상품 목록을 불러오지 못했습니다.'))
+    }
+  }
 
-    const loadCategoryMenu = async () => {
-      try {
-        const response = await fetch(withAdminWorkspaceSubject('/api/admin/market-categories', workspaceSubject), { cache: 'no-store' })
-        const payload = await response.json()
+  const reloadCategoryTree = async () => {
+    try {
+      const response = await fetch(withAdminWorkspaceSubject('/api/admin/market-categories', workspaceSubject), { cache: 'no-store' })
+      const payload = await response.json()
 
-        if (!response.ok || !payload.success) {
-          throw new Error(payload.error?.message || '카테고리 메뉴 목록을 불러오지 못했습니다.')
-        }
-
-        if (isMounted) {
-          setCategoryNodes((payload.data?.nodes || []) as AdminCategoryTreeNode[])
-        }
-      } catch (error) {
-        if (isMounted) {
-          toast.error(error instanceof Error ? error.message : '카테고리 메뉴 목록을 불러오지 못했습니다.')
-        }
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || '카테고리 메뉴 목록을 불러오지 못했습니다.')
       }
+
+      applyCategoryTree((payload.data?.nodes || []) as AdminCategoryTreeNode[])
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '카테고리 메뉴 목록을 불러오지 못했습니다.')
     }
+  }
 
-    void loadCategoryMenu()
-
-    return () => {
-      isMounted = false
-    }
-  }, [workspaceSubject])
-
-  const resetForm = (menuEntryId = selectedMenuEntryId) => {
-    setForm(buildEmptyForm(menuEntryId))
+  // nextCategoryItemId: 이어서 만들 새 상품에 미리 골라 둘 카테고리
+  const resetForm = (nextCategoryItemId = '') => {
+    setForm(buildEmptyForm())
     setThumbnailPreview(null)
-    setCategoryItemId('')
+    setCategoryItemId(nextCategoryItemId)
     setSavedCategoryItemId('')
     setSubproducts([])
     setSubproductFiles([])
@@ -798,7 +835,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   }
 
   const buildItemPatchBody = (item: MarketItem, nextStatus: MarketItemFormState['status']) => ({
-    menuEntryId: item.menu_entry_id,
     title: item.title,
     summary: item.summary || '',
     description: item.description || '',
@@ -819,16 +855,28 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     isActive: item.is_active,
   })
 
-  // 상품 API는 게시판(menuEntryId) 필터를 받지 않으므로 과목 전체를 다시 읽는다(게시판 필터는 화면에서 거른다).
-  const refreshItems = async () => {
-    const response = await fetch(withAdminWorkspaceSubject('/api/admin/market/items', workspaceSubject), { cache: 'no-store' })
+  // 상단 필터 기준으로 목록을 다시 읽는다(칸을 고르면 그 칸과 하위 칸 전체의 상품).
+  const refreshItems = async (categoryId = filterCategoryId) => {
+    const requestId = ++itemsRequestRef.current
+    const url = categoryId ? `/api/admin/market/items?categoryId=${categoryId}` : '/api/admin/market/items'
+    const response = await fetch(withAdminWorkspaceSubject(url, workspaceSubject), { cache: 'no-store' })
     const payload = await response.json()
 
     if (!response.ok || !payload.success) {
       throw new Error(payload.error?.message || '문제마켓 상품 목록을 불러오지 못했습니다.')
     }
 
-    setItems(payload.data)
+    if (requestId === itemsRequestRef.current) {
+      setItems(payload.data)
+    }
+  }
+
+  // 상단 필터 변경: 목록만 바꾸고 편집 중인 폼(카테고리 포함)은 건드리지 않는다.
+  const changeFilterCategory = (nextCategoryId: string) => {
+    setFilterCategoryId(nextCategoryId)
+    setSelectedItemIds([])
+    listQuery.update({ page: 1 }, true)
+    void refreshItems(nextCategoryId).catch((error) => toast.error(error instanceof Error ? error.message : '문제마켓 상품 목록을 불러오지 못했습니다.'))
   }
 
   const fetchItemDetail = async (id: string) => {
@@ -907,7 +955,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
   const loadItemDetail = async (id: string) => {
     const detail = await fetchItemDetail(id)
 
-    setSelectedMenuEntryId(detail.item.menu_entry_id)
     setForm(buildEditForm(detail.item))
     setThumbnailPreview(detail.item.thumbnailImage)
     setCategoryItemId(getItemCategoryItemId(detail.item))
@@ -938,7 +985,6 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     statusOverride?: MarketItemFormState['status'],
     draftSource: 'manual' | 'auto_upload' = form.draftSource
   ) => ({
-    menuEntryId: form.menuEntryId,
     title: form.title,
     summary: form.summary,
     description: form.description,
@@ -958,14 +1004,15 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
     status: statusOverride ?? form.status,
     draftSource,
     isActive: form.isActive,
-    ...(categoryItemId !== savedCategoryItemId ? { categoryItemId: categoryItemId || null } : {}),
+    ...(categoryItemId !== savedCategoryItemId ? { categoryItemId } : {}),
   })
 
   const persistForm = async (
     statusOverride?: MarketItemFormState['status'],
     options: PersistFormOptions = {}
   ): Promise<MarketItem | null> => {
-    if (!form.menuEntryId) {
+    // 카테고리는 필수다(예전 미지정 상품도 수정 저장할 때 고른다).
+    if (!categoryItemId) {
       toast.error('카테고리를 선택해주세요.')
       return null
     }
@@ -995,19 +1042,20 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
         throw new Error(payload.error?.message || '문제마켓 상품 저장에 실패했습니다.')
       }
 
-      // 저장으로 목록 메뉴가 바뀌면 그 메뉴의 1페이지부터 보여 준다(같은 메뉴면 현재 페이지 유지).
+      // 저장한 상품이 상단 필터 밖이면 필터를 그 상품의 칸으로 옮겨 1페이지부터 보여 준다(필터 안이면 현재 페이지 유지).
       // 코드가 돌리는 이동이라 방문 기록은 남기지 않는다(replaceState).
-      if (form.menuEntryId !== selectedMenuEntryId) {
+      const filterNode = filterCategoryId ? findCategoryPath(categoryNodes, filterCategoryId)?.at(-1) : null
+      const nextFilterCategoryId = filterNode && !collectSubtreeIds(filterNode).includes(categoryItemId) ? categoryItemId : filterCategoryId
+      if (nextFilterCategoryId !== filterCategoryId) {
         listQuery.update({ page: 1 }, true)
       }
-      setSelectedMenuEntryId(form.menuEntryId)
-      await refreshItems()
+      setFilterCategoryId(nextFilterCategoryId)
+      await refreshItems(nextFilterCategoryId)
       if (options.draftSource !== 'auto_upload') {
         await persistSamplePageOrder(payload.data.id)
         await persistBundleOption(payload.data.id)
       }
       const detail = await fetchItemDetail(payload.data.id)
-      setSelectedMenuEntryId(detail.item.menu_entry_id)
       setForm(buildEditForm(detail.item))
       setThumbnailPreview(detail.item.thumbnailImage)
       setCategoryItemId(getItemCategoryItemId(detail.item))
@@ -1049,7 +1097,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       const result = await persistForm(undefined, { draftSource: 'manual' })
       if (result) {
         if (requiresFinalRegistration) {
-          resetForm(result.menu_entry_id)
+          resetForm(getItemCategoryItemId(result))
           return
         }
         setRequiresFinalRegistration(false)
@@ -1059,13 +1107,19 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
 
     const createdItem = await persistForm(undefined, { draftSource: 'manual' })
     if (createdItem) {
-      resetForm(createdItem.menu_entry_id)
+      resetForm(getItemCategoryItemId(createdItem))
     }
   }
 
   const ensureDraftItemForUpload = async () => {
     if (form.id) {
       return form.id
+    }
+
+    // 임시 상품도 카테고리가 필수라, 고르기 전에는 POST하지 않고 업로드를 멈춘다.
+    if (!categoryItemId) {
+      toast.error('카테고리를 먼저 선택해주세요.')
+      return null
     }
 
     const desiredStatus = form.status
@@ -1121,7 +1175,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       }
 
       await refreshItems()
-      resetForm(form.menuEntryId)
+      resetForm(categoryItemId)
       toast.success(isCancellingAutoUploadDraft ? '임시 업로드 파일을 삭제했습니다.' : '문제마켓 상품을 완전 삭제했습니다.')
       router.refresh()
     } catch (error) {
@@ -1149,7 +1203,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
 
       await refreshItems()
       if (form.id === deleteTarget.id) {
-        resetForm(deleteTarget.menu_entry_id)
+        resetForm(categoryItemId)
       }
       setSelectedItemIds((current) => current.filter((itemId) => itemId !== deleteTarget.id))
       setDeleteTarget(null)
@@ -1335,7 +1389,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
       setBulkDeleteTargetIds(null)
 
       if (form.id && successIds.includes(form.id)) {
-        resetForm(form.menuEntryId)
+        resetForm(categoryItemId)
       }
 
       await refreshItems()
@@ -2048,7 +2102,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
         <Button
           type="button"
           variant="outline"
-          onClick={() => resetForm(selectedMenuEntryId)}
+          onClick={() => resetForm()}
         >
           <Plus className="mr-2 h-4 w-4" />
           새 상품 작성
@@ -2060,23 +2114,15 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
           <CardTitle>카테고리 선택</CardTitle>
         </CardHeader>
         <CardContent>
-          <select
-            value={selectedMenuEntryId}
-            onChange={(event) => {
-              const nextMenuEntryId = event.target.value
-              setSelectedMenuEntryId(nextMenuEntryId)
-              setSelectedItemIds([])
-              listQuery.update({ page: 1 }, true)
-              setForm((current) => current.id
-                ? { ...current, menuEntryId: nextMenuEntryId }
-                : buildEmptyForm(nextMenuEntryId))
-            }}
-            className="flex h-10 w-full max-w-sm rounded-md border bg-white px-3 text-sm"
-          >
-            {menuEntries.map((entry) => (
-              <option key={entry.id} value={entry.id}>{entry.title}</option>
-            ))}
-          </select>
+          <div className="max-w-sm">
+            <CategoryStepSelect
+              nodes={categoryNodes}
+              value={filterCategoryId}
+              onChange={changeFilterCategory}
+              emptyLabel="전체"
+              ariaLabel="상품 목록 카테고리"
+            />
+          </div>
         </CardContent>
       </Card>
 
@@ -2090,35 +2136,25 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>카테고리</Label>
-              <select
-                value={form.menuEntryId}
-                onChange={(event) => setForm((current) => ({
-                  ...current,
-                  menuEntryId: event.target.value,
-                }))}
-                className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
-              >
-                {menuEntries.map((entry) => (
-                  <option key={entry.id} value={entry.id}>{entry.title}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>카테고리(메가메뉴)</Label>
-              <select
+              <div className="flex items-center justify-between gap-2">
+                <Label>카테고리 <span className="text-red-500">*</span></Label>
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsCategoryManagerOpen(true)}>
+                  카테고리 관리
+                </Button>
+              </div>
+              {selectedCategoryPath.length > 0 ? (
+                <p className="text-sm text-gray-700">{selectedCategoryPath.map(categoryNodeLabel).join(' > ')}</p>
+              ) : null}
+              <CategoryStepSelect
+                nodes={categoryNodes}
                 value={categoryItemId}
-                onChange={(event) => setCategoryItemId(event.target.value)}
-                className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
-              >
-                <option value="">미지정</option>
-                {categoryOptions.map((option) => (
-                  <option key={option.node.id} value={option.node.id}>
-                    {option.isActive ? option.label : `${option.label} (비활성)`}
-                  </option>
-                ))}
-              </select>
+                onChange={setCategoryItemId}
+                emptyLabel="카테고리 선택"
+                ariaLabel="상품 카테고리"
+              />
+              {selectedCategory && selectedCategory.children.length > 0 ? (
+                <p className="text-xs text-amber-700">하위 칸이 있습니다. 하위 칸 선택을 권장합니다.</p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -2283,27 +2319,27 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                   type="file"
                   className="hidden"
                   accept=".pdf,application/pdf"
-                  disabled={isSampleSourceUploading}
+                  disabled={isSampleSourceUploading || isUploadBlockedByCategory}
                   onChange={(event) => handleSelectSampleSourceFile(event.target.files?.[0])}
                 />
                 <label
                   onDragEnter={(event) => {
-                    if (isSampleSourceUploading) return
+                    if (isSampleSourceUploading || isUploadBlockedByCategory) return
                     event.preventDefault()
                     setIsSampleSourceDragActive(true)
                   }}
                   onDragOver={(event) => {
-                    if (isSampleSourceUploading) return
+                    if (isSampleSourceUploading || isUploadBlockedByCategory) return
                     event.preventDefault()
                     setIsSampleSourceDragActive(true)
                   }}
                   onDragLeave={(event) => {
-                    if (isSampleSourceUploading) return
+                    if (isSampleSourceUploading || isUploadBlockedByCategory) return
                     event.preventDefault()
                     setIsSampleSourceDragActive(false)
                   }}
                   onDrop={(event) => {
-                    if (isSampleSourceUploading) return
+                    if (isSampleSourceUploading || isUploadBlockedByCategory) return
                     event.preventDefault()
                     setIsSampleSourceDragActive(false)
                     handleSelectSampleSourceFile(event.dataTransfer.files?.[0])
@@ -2323,6 +2359,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                     {selectedSampleSourceFile ? `선택 파일: ${selectedSampleSourceFile.name}` : 'PDF를 선택한 뒤 샘플 이미지 생성 버튼을 클릭해야 JPG가 생성됩니다.'}
                   </p>
                 </label>
+                {isUploadBlockedByCategory ? <p className="text-xs text-amber-700">카테고리를 먼저 선택해주세요.</p> : null}
                 <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                   <Button
                     type="button"
@@ -2336,7 +2373,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={isSampleSourceUploading || !selectedSampleSourceFile}
+                    disabled={isSampleSourceUploading || !selectedSampleSourceFile || isUploadBlockedByCategory}
                     onClick={() => void handleGenerateSampleImages()}
                   >
                     {isSampleSourceUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
@@ -2481,8 +2518,9 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                     <p className="text-xs text-gray-500">사용자 상세 페이지의 구매 옵션 행에 표시됩니다. 비워두면 HWP+PDF 구성에서는 기본 안내 문구가 표시됩니다.</p>
                   </div>
                 </div>
-                <div className="mt-3 flex justify-end">
-                  <Button type="button" disabled={isSubproductSaving || activeSubproductCategories.length === 0} onClick={() => void handleCreateSubproduct()}>
+                <div className="mt-3 flex items-center justify-end gap-3">
+                  {isUploadBlockedByCategory ? <p className="text-xs text-amber-700">카테고리를 먼저 선택해주세요.</p> : null}
+                  <Button type="button" disabled={isSubproductSaving || activeSubproductCategories.length === 0 || isUploadBlockedByCategory} onClick={() => void handleCreateSubproduct()}>
                     {isSubproductSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                     서브상품 추가
                   </Button>
@@ -2923,7 +2961,7 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>{menuTitleMap.get(item.menu_entry_id) || '-'}</TableCell>
+                          <TableCell>{formatCategoryPath(getItemCategoryItemId(item))}</TableCell>
                           <TableCell className="text-center text-sm">
                             <div>PDF {item.pdf_price.toLocaleString()}C</div>
                             <div>HWP {item.hwp_price.toLocaleString()}C</div>
@@ -2994,6 +3032,20 @@ export default function MarketProductsClient({ menuEntries, initialItems, worksp
         }}
       />
 
+      <Dialog open={isCategoryManagerOpen} onOpenChange={(open) => {
+        setIsCategoryManagerOpen(open)
+        if (!open) {
+          void reloadCategoryTree()
+        }
+      }}>
+        <DialogContent className="max-h-[85vh] max-w-5xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>카테고리 관리</DialogTitle>
+            <DialogDescription>&apos;카테고리 메뉴 관리&apos;와 같은 칸 트리입니다. 바꾼 내용은 상품의 카테고리 선택칸에 바로 반영됩니다.</DialogDescription>
+          </DialogHeader>
+          <MarketCategoryTreeEditor subject={workspaceSubject} onTreeChange={applyCategoryTree} />
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isCategorySettingsOpen} onOpenChange={(open) => {
         setIsCategorySettingsOpen(open)
