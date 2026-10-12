@@ -132,10 +132,11 @@ function DetailFinder({
                 href={filterHref(nextFilter)}
                 scroll={false}
                 aria-pressed={active}
-                className={`flex min-h-10 min-w-28 flex-1 items-center justify-center rounded-md border px-3 py-1.5 text-center text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${
+                // 선택 표시는 depth2 격자와 같다(흰 바탕 + 보라색 굵은 글자).
+                className={`flex min-h-10 min-w-28 flex-1 items-center justify-center rounded-md border border-[var(--studio-border)] bg-[var(--studio-surface)] px-3 py-1.5 text-center text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${
                   active
-                    ? 'border-[var(--studio-primary)] bg-[var(--studio-primary-soft)] font-semibold text-[var(--studio-primary)]'
-                    : 'border-[var(--studio-border)] bg-[var(--studio-surface)] text-[var(--studio-text)] hover:bg-[var(--studio-background)] hover:text-[var(--studio-ink)]'
+                    ? 'font-semibold text-[var(--studio-primary)]'
+                    : 'text-[var(--studio-text)] hover:bg-[var(--studio-background)] hover:text-[var(--studio-ink)]'
                 }`}
               >
                 <FinderLabel item={item} />
