@@ -740,8 +740,7 @@ export default function MarketProductsClient({ initialCategoryNodes, initialItem
       setCategoryItemId('')
     }
     if (filterCategoryId && !findCategoryPath(tree, filterCategoryId)) {
-      setFilterCategoryId('')
-      void refreshItems('').catch((error) => toast.error(error instanceof Error ? error.message : '문제마켓 상품 목록을 불러오지 못했습니다.'))
+      changeFilterCategory('')
     }
   }
 
@@ -2329,8 +2328,9 @@ export default function MarketProductsClient({ initialCategoryNodes, initialItem
                     setIsSampleSourceDragActive(true)
                   }}
                   onDragOver={(event) => {
-                    if (isSampleSourceUploading || isUploadBlockedByCategory) return
+                    // 막힌 상태에서도 기본 동작(브라우저가 파일을 여는 것)은 막는다.
                     event.preventDefault()
+                    if (isSampleSourceUploading || isUploadBlockedByCategory) return
                     setIsSampleSourceDragActive(true)
                   }}
                   onDragLeave={(event) => {
@@ -2339,8 +2339,12 @@ export default function MarketProductsClient({ initialCategoryNodes, initialItem
                     setIsSampleSourceDragActive(false)
                   }}
                   onDrop={(event) => {
-                    if (isSampleSourceUploading || isUploadBlockedByCategory) return
                     event.preventDefault()
+                    if (isUploadBlockedByCategory) {
+                      toast.error('카테고리를 먼저 선택해주세요.')
+                      return
+                    }
+                    if (isSampleSourceUploading) return
                     setIsSampleSourceDragActive(false)
                     handleSelectSampleSourceFile(event.dataTransfer.files?.[0])
                   }}

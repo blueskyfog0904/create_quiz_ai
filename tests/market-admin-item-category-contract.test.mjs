@@ -24,7 +24,7 @@ function fnBody(source, name) {
 }
 
 test('POST는 categoryItemId 필수, PATCH는 선택이지만 null(해제)을 받지 않는다', () => {
-  assert.match(itemsRoute, /categoryItemId: z\.string\(\)\.uuid\(\),/)
+  assert.match(itemsRoute, /categoryItemId: z\.string\(\{ error: '카테고리를 선택해주세요\.' \}\)\.uuid\('카테고리를 선택해주세요\.'\),/)
   assert.match(itemRoute, /categoryItemId: z\.string\(\)\.uuid\(\)\.optional\(\),/)
   for (const source of [itemsRoute, itemRoute]) {
     assert.doesNotMatch(source, /categoryItemId: z\.string\(\)\.uuid\(\)\.nullable\(\)/)

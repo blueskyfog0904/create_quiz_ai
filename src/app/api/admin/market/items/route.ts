@@ -29,7 +29,7 @@ const MarketItemSchema = z.object({
   source4: z.string().trim().optional(),
   questionCount: z.number().int().min(0).nullable().optional(),
   // 필수. 상품 과목은 이 칸의 과목으로 정한다.
-  categoryItemId: z.string().uuid(),
+  categoryItemId: z.string({ error: '카테고리를 선택해주세요.' }).uuid('카테고리를 선택해주세요.'),
   pdfPrice: z.number().int().min(0),
   hwpPrice: z.number().int().min(0),
   zipPrice: z.number().int().min(0),
