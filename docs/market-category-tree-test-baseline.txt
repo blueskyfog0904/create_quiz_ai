@@ -1,0 +1,53 @@
+tests/admin-problem-type-sort-order-contract.test.mjs::tests/admin-problem-type-sort-order-contract.test.mjs
+tests/admin-product-year-options-contract.test.mjs::admin market product price fields display comma-formatted credit values and save numeric values
+tests/ai-question-generation-review-flow-contract.test.mjs::questions generate route delegates generation to bounded review loop and keeps public trace hidden
+tests/exam-paper-browser-pdf-viewer.test.mjs::two-column PDF preview divider fills page body above the page footer in Chromium
+tests/exam-paper-exam-with-answers-separated.test.mjs::measured two-column exam-with-answers final HTML renders answer section after all questions
+tests/exam-paper-two-column-line-measurement.test.mjs::buildMeasuredTwoColumnPreviewPages splits measured body into line chunks in Chromium runtime
+tests/exam-paper-two-column-line-measurement.test.mjs::measured supplemental body dividers continue across column breaks without duplicated full separators
+tests/exam-paper-two-column-line-measurement.test.mjs::measured two-column pagination does not leave a weak body word alone at a column break
+tests/exam-paper-two-column-line-measurement.test.mjs::measurement body renders as multiple visual lines in Chromium before pagination splitting
+tests/exam-paper-two-column-line-measurement.test.mjs::production measured preview groups adjacent body line chunks into one visual flow block per column segment
+tests/exam-paper-two-column-line-measurement.test.mjs::production measured preview preserves authored line breaks and underline spans when regrouping measured body lines
+tests/exam-paper-two-column-parity.test.mjs::buildExamPaperPrintHtml reserves chunk-aware pagination for 2-column preview pages
+tests/exam-paper-two-column-parity.test.mjs::buildExamPaperPrintHtml routes 2-column preview through chunk-based question markup
+tests/exam-paper-two-column-reproduction.test.mjs::answer-only double preview should not leave a large final-page bottom gap
+tests/exam-paper-two-column-reproduction.test.mjs::answer-only double preview should not leave large non-terminal blank areas for the underfill fixture
+tests/exam-paper-two-column-reproduction.test.mjs::answer-only double preview should not over-fragment a single long explanation
+tests/exam-paper-two-column-reproduction.test.mjs::exam-only double preview should keep segmentation bounded for the segmentation fixture
+tests/exam-paper-two-column-reproduction.test.mjs::exam-with-answers double preview keeps the screenshot-like real fixture pair separated without overflow
+tests/exam-paper-two-column-reproduction.test.mjs::exam-with-answers double preview places realistic answers after all question chunks without overflow
+tests/exam-paper-two-column-reproduction.test.mjs::exam-with-answers double preview should not leave a screenshot-like first-page bottom gap
+tests/exam-paper-two-column-reproduction.test.mjs::measured two-column preview should use rendered DOM heights before final pagination
+tests/exam-paper-two-column-underfill.test.mjs::realistic exam-with-answers two-column pages stay dense instead of orphaning a short answer on a sparse next page
+tests/generate-listboard-board-ui-contract.test.mjs::generate listboard pagination follows market listboard pagination layout
+tests/main-ad-carousel-contract.test.mjs::preview page always renders one subject-aware carousel shell and all lower sections
+tests/market-board-contract.test.mjs::market board enriches rows without exposing file storage metadata
+tests/market-home-browser.test.mjs::english and korean share one subject-aware preview composition
+tests/market-home-ui-contract.test.mjs::preview renders database category board navigation beside the ad carousel
+tests/market-hwp-bundle-contract.test.mjs::ui labels hwp paid option as pdf and hwp bundle on list and detail pages
+tests/market-listboard-ui-contract.test.mjs::market listboard uses the shared compact board UI for every market slug
+tests/market-sample-pages-api-contract.test.mjs::market sample pages api exposes ttl and file size metadata for client caching
+tests/market-sample-preview-sticky-header-contract.test.mjs::market sample preview keeps the header fixed while sample pages scroll
+tests/mypage-payments-page.test.mjs::mypage payments query excludes zero-won and planless credit records
+tests/payment-order-contract.test.mjs::checkout uses only the prepared server order
+tests/point-charge-compliance-ui-contract.test.mjs::admin refund view exposes provider completion and retry evidence
+tests/point-charge-compliance-ui-contract.test.mjs::checkout shows the restrictions before payment
+tests/point-charge-operations-contract.test.mjs::operations runbook keeps payments fail-closed until external gates pass
+tests/pricing-refund-summary.test.mjs::pricing page refund summary highlights current credit refund rules
+tests/question-bank-admin-question-list-contract.test.mjs::admin questions API delegates list retrieval to admin_list_bank_questions RPC
+tests/question-bank-admin-question-list-contract.test.mjs::admin questions API forwards bank filters, type, subject, and pagination args
+tests/question-bank-admin-question-list-contract.test.mjs::admin questions API recovers total_count for empty out-of-range RPC pages via minimal fallback RPC
+tests/question-bank-admin-question-list-contract.test.mjs::questions client renders year/book filters, sends params, and resets pagination on filter changes
+tests/question-bank-admin-question-list-contract.test.mjs::questions client search submit only resets page and lets effect fetch with fresh state
+tests/question-bank-is-admin-prerequisite-contract.test.mjs::all public.is_admin admin policies are either authenticated or remediated
+tests/solvook-preview-flow-contract.test.mjs::normal and preview shells each have exactly one main owner
+tests/solvook-preview-flow-contract.test.mjs::preview source has no direct Supabase, purchase, credit, or route API dependency
+tests/solvook-preview-flow-contract.test.mjs::the preview layout and shared preview header and footer exist
+tests/solvook-preview-flow-contract.test.mjs::the shared preview chrome opts into the reference gutter without changing board content gutters
+tests/solvook-preview-original-visual-contract.test.mjs::preview injects real subject market data without sample home imports
+tests/solvook-preview-original-visual-contract.test.mjs::preview keeps the original chrome and section visual grammar
+tests/solvook-real-market-board-ui-contract.test.mjs::board category sidebar delegates the same transparent menu used by the home page
+tests/solvook-real-market-detail-contract.test.mjs::Solvook real market detail route loads one published item in its category and subject
+tests/studio-adoption-contract.test.mjs::the Solvook layout uses the Studio theme without inline preview tokens
+tests/studio-adoption-contract.test.mjs::the preview-token RED baseline is locked to the planned sixteen-file scope
