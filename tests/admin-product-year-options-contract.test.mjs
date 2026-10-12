@@ -34,10 +34,9 @@ test('admin market product schedule controls are aligned in paired rows', () => 
     marketProductsClient,
     /<div className="grid gap-4 md:grid-cols-2">\s*<div className="space-y-2">\s*<Label>연도<\/Label>[\s\S]*?<\/select>\s*<\/div>\s*<div className="space-y-2">\s*<Label>월<\/Label>/
   )
-  assert.match(
-    marketProductsClient,
-    /<div className="grid gap-4 md:grid-cols-2">\s*<div className="space-y-2">\s*<Label>상태<\/Label>[\s\S]*?<\/select>\s*<\/div>\s*<div className="flex items-end">\s*<div className="flex h-10 w-full items-center justify-between rounded-md border px-3">[\s\S]*?활성화/
-  )
+  // 상태는 하단 버튼(공개하기·임시저장·더보기)으로만 정한다. 상태 선택칸·활성화 스위치는 두지 않는다.
+  assert.doesNotMatch(marketProductsClient, /<Label>상태<\/Label>/)
+  assert.doesNotMatch(marketProductsClient, /비활성화하면 노출되지 않습니다/)
 })
 
 test('admin market product price fields display comma-formatted credit values and save numeric values', () => {

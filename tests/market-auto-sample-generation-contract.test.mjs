@@ -30,7 +30,7 @@ function extractBetween(source, start, end) {
 test('admin product uploads use v2 subproduct file slots plus separate sample pdf source', () => {
   assert.match(adminProductsClient, /MarketFileType/)
   assert.match(adminProductsClient, /fileTypes/)
-  assert.match(adminProductsClient, /파일추가/)
+  assert.match(adminProductsClient, /파일 추가\+/)
   assert.doesNotMatch(adminProductsClient, /const MARKET_ASSET_KINDS = \['sample', 'pdf', 'hwp', 'zip'\] as const/)
   assert.match(adminProductsClient, /샘플 이미지 생성/)
   assert.match(adminProductsClient, /selectedSampleSourceFile/)

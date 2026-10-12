@@ -6,12 +6,19 @@ import { useRouter } from 'next/navigation'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
-import { Eye, EyeOff, Images, Loader2, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react'
+import { CheckCircle2, Circle, Eye, EyeOff, Images, Loader2, MoreHorizontal, Pencil, Plus, Search, Trash2, Upload, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -92,10 +99,6 @@ interface MarketItemFormState {
   examMonth: string
   gradeLevel: string
   sourceType: string
-  source1: string
-  source2: string
-  source3: string
-  source4: string
   questionCount: string
   pdfPrice: string
   hwpPrice: string
@@ -103,6 +106,20 @@ interface MarketItemFormState {
   status: 'draft' | 'published' | 'hidden' | 'archived'
   draftSource: 'manual' | 'auto_upload'
   isActive: boolean
+}
+
+// 상품 등록 폼의 단계 제목(① 기본 정보 … ⑤ 공개 전 점검)
+function ProductStepHeading({ number, title, optional = false, description }: { number: number; title: string; optional?: boolean; description?: string }) {
+  return (
+    <div className="border-b pb-2">
+      <div className="flex items-center gap-2">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white">{number}</span>
+        <h3 className="font-semibold text-gray-900">{title}</h3>
+        {optional ? <span className="text-xs text-gray-500">선택</span> : null}
+      </div>
+      {description ? <p className="mt-1 text-sm text-gray-500">{description}</p> : null}
+    </div>
+  )
 }
 
 function categoryNodeLabel(node: AdminCategoryTreeNode) {
@@ -193,10 +210,6 @@ function buildEmptyForm(): MarketItemFormState {
     examMonth: '',
     gradeLevel: '',
     sourceType: '',
-    source1: '',
-    source2: '',
-    source3: '',
-    source4: '',
     questionCount: '',
     pdfPrice: '0',
     hwpPrice: '0',
@@ -218,10 +231,6 @@ function buildEditForm(item: MarketItem): MarketItemFormState {
     examMonth: item.exam_month ? String(item.exam_month) : '',
     gradeLevel: item.grade_level || '',
     sourceType: item.source_type || '',
-    source1: item.source_1 || '',
-    source2: item.source_2 || '',
-    source3: item.source_3 || '',
-    source4: item.source_4 || '',
     questionCount: item.question_count !== null && item.question_count !== undefined ? String(item.question_count) : '',
     pdfPrice: formatCreditInputValue(item.pdf_price),
     hwpPrice: formatCreditInputValue(item.hwp_price),
@@ -570,6 +579,8 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
   const [subproductFiles, setSubproductFiles] = useState<MarketSubproductFile[]>([])
   const [bundleOption, setBundleOption] = useState<MarketItemBundleOption | null>(null)
   const [subproductDraft, setSubproductDraft] = useState<SubproductDraftState>(buildEmptySubproductDraft())
+  // 서브상품이 하나라도 있으면 추가 폼은 [서브상품 추가]를 눌렀을 때만 연다.
+  const [isSubproductFormOpen, setIsSubproductFormOpen] = useState(false)
   const [editingSubproductId, setEditingSubproductId] = useState<string | null>(null)
   const [subproductEditDraft, setSubproductEditDraft] = useState<SubproductEditState | null>(null)
   const [subproductFileDrafts, setSubproductFileDrafts] = useState<SubproductFileDraftState[]>([])
@@ -784,6 +795,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
     setBundleOption(null)
     setBundleForm(buildEmptyBundleForm())
     setSubproductDraft(buildEmptySubproductDraft(activeSubproductCategories[0]?.id || subproductCategories[0]?.id || ''))
+    setIsSubproductFormOpen(false)
     setEditingSubproductId(null)
     setSubproductEditDraft(null)
     setSubproductFileDrafts([])
@@ -1016,10 +1028,6 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
     examMonth: form.examMonth ? Number(form.examMonth) : null,
     gradeLevel: form.gradeLevel,
     sourceType: form.sourceType,
-    source1: form.source1,
-    source2: form.source2,
-    source3: form.source3,
-    source4: form.source4,
     questionCount: form.questionCount ? Number(form.questionCount) : null,
     pdfPrice: parseCreditInputValue(form.pdfPrice),
     hwpPrice: parseCreditInputValue(form.hwpPrice),
@@ -1115,9 +1123,10 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
     }
   }
 
-  const handleSubmit = async () => {
+  // 하단 버튼(공개하기·임시저장·숨김·보관)은 모두 이 저장 하나로 상태를 정해 저장한다.
+  const handleSave = async (status: MarketItemFormState['status']) => {
     if (form.id) {
-      const result = await persistForm(undefined, { draftSource: 'manual' })
+      const result = await persistForm(status, { draftSource: 'manual' })
       if (result) {
         if (requiresFinalRegistration) {
           resetForm(getItemCategoryItemId(result))
@@ -1128,7 +1137,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
       return
     }
 
-    const createdItem = await persistForm(undefined, { draftSource: 'manual' })
+    const createdItem = await persistForm(status, { draftSource: 'manual' })
     if (createdItem) {
       resetForm(getItemCategoryItemId(createdItem))
     }
@@ -1160,16 +1169,6 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
     setForm((current) => ({ ...current, status: desiredStatus, draftSource: 'auto_upload' }))
     toast.success('파일 업로드를 위해 상품을 임시 저장했습니다. 업로드 후 상품 등록을 완료해주세요.')
     return createdItem.id
-  }
-
-  const handleStatusAction = async (status: MarketItemFormState['status']) => {
-    if (!form.id) {
-      setForm((current) => ({ ...current, status, draftSource: 'manual' }))
-      toast.message(`상태를 ${status}(으)로 설정했습니다. 저장하면 반영됩니다.`)
-      return
-    }
-
-    await persistForm(status, { draftSource: 'manual' })
   }
 
   const handleArchive = async () => {
@@ -1929,7 +1928,12 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
 
       await refreshEditingFiles(targetItemId)
       setSubproductDraft(buildEmptySubproductDraft(subproductDraft.categoryId))
-      toast.success('서브상품을 추가했습니다.')
+      setIsSubproductFormOpen(false)
+      // 새 서브상품에는 바로 파일을 끌어놓을 수 있게 업로드 칸을 열어 둔다.
+      if (payload.data?.id) {
+        handleAddSubproductFileDraft(payload.data.id)
+      }
+      toast.success('서브상품을 추가했습니다. 이제 파일을 올려주세요.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '서브상품 추가 중 오류가 발생했습니다.')
     } finally {
@@ -2114,6 +2118,39 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
           : '샘플 생성 중'
   const samplePreviewStatusLabel = isSampleSourceUploading ? sampleGenerationStatusLabel : samplePages.length > 0 ? '확인 가능' : '샘플 없음'
   const isAutoUploadDraft = Boolean(form.id && form.draftSource === 'auto_upload')
+  // 공개 전 점검: required 항목이 하나라도 빠지면 공개(공개 상품은 저장)를 막는다.
+  const activeSubproducts = subproducts.filter((subproduct) => subproduct.is_active)
+  const publishChecks = [
+    { key: 'category', label: '카테고리 선택', done: Boolean(categoryItemId), required: true },
+    { key: 'title', label: '제목 입력', done: Boolean(form.title.trim()), required: true },
+    { key: 'subproduct', label: '판매할 서브상품 1개 이상', done: activeSubproducts.length > 0, required: true },
+    {
+      key: 'files',
+      label: '모든 서브상품에 파일 업로드',
+      done: activeSubproducts.length > 0 && activeSubproducts.every((subproduct) => (subproductFilesBySubproductId.get(subproduct.id) || []).length > 0),
+      required: true,
+    },
+    ...(bundleForm.enabled
+      ? [{ key: 'bundle', label: '전체구매 가격 입력', done: parseCreditInputValue(bundleForm.priceCredits) > 0, required: true }]
+      : []),
+    { key: 'price', label: '서브상품 가격 입력(0 크레딧 없음)', done: activeSubproducts.length > 0 && activeSubproducts.every((subproduct) => subproduct.price_credits > 0), required: false },
+    { key: 'image', label: '상품 이미지(없으면 카테고리 기본 이미지)', done: Boolean(form.thumbnailImageId || selectedCategoryDefaultImage), required: false },
+    { key: 'sample', label: '샘플 이미지', done: samplePages.length > 0, required: false },
+  ]
+  const missingRequiredChecks = publishChecks.filter((check) => check.required && !check.done)
+  const isPublishBlocked = missingRequiredChecks.length > 0
+  // 자동 생성된 임시 상품은 DB 상태가 draft라 '공개 중'으로 보지 않는다.
+  const isPublishedItem = Boolean(form.id) && !isAutoUploadDraft && form.status === 'published'
+  const productSteps = [
+    { id: 'product-step-basic', label: '기본 정보', done: Boolean(categoryItemId && form.title.trim()) },
+    { id: 'product-step-sales', label: '판매 구성', done: publishChecks.filter((check) => check.required && ['subproduct', 'files', 'bundle'].includes(check.key)).every((check) => check.done) },
+    { id: 'product-step-sample', label: '샘플', done: samplePages.length > 0 },
+    { id: 'product-step-detail', label: '상세 정보', done: Boolean(form.description.trim()) },
+    { id: 'product-step-publish', label: '공개', done: !isPublishBlocked },
+  ]
+  const scrollToProductStep = (stepId: string) => {
+    document.getElementById(stepId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   return (
     <div className="space-y-6">
@@ -2164,730 +2201,760 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label>카테고리 <span className="text-red-500">*</span></Label>
-                <Button type="button" variant="outline" size="sm" onClick={() => setIsCategoryManagerOpen(true)}>
-                  카테고리 관리
-                </Button>
+          <CardContent className="space-y-8">
+            <nav aria-label="상품 등록 단계" className="flex flex-wrap gap-2">
+              {productSteps.map((step, index) => (
+                <button
+                  key={step.id}
+                  type="button"
+                  onClick={() => scrollToProductStep(step.id)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition ${
+                    step.done
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                      : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {step.done ? <CheckCircle2 className="h-3.5 w-3.5" /> : <span>{index + 1}</span>}
+                  {step.label}
+                </button>
+              ))}
+            </nav>
+
+            <section id="product-step-basic" className="scroll-mt-24 space-y-4">
+              <ProductStepHeading number={1} title="기본 정보" />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>카테고리 <span className="text-red-500">*</span></Label>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setIsCategoryManagerOpen(true)}>
+                    카테고리 관리
+                  </Button>
+                </div>
+                {selectedCategoryPath.length > 0 ? (
+                  <p className="text-sm text-gray-700">{selectedCategoryPath.map(categoryNodeLabel).join(' > ')}</p>
+                ) : null}
+                <CategoryStepSelect
+                  nodes={categoryNodes}
+                  value={categoryItemId}
+                  onChange={setCategoryItemId}
+                  emptyLabel="카테고리 선택"
+                  ariaLabel="상품 카테고리"
+                />
+                {selectedCategory && selectedCategory.children.length > 0 ? (
+                  <p className="text-xs text-amber-700">하위 칸이 있습니다. 하위 칸 선택을 권장합니다.</p>
+                ) : null}
               </div>
-              {selectedCategoryPath.length > 0 ? (
-                <p className="text-sm text-gray-700">{selectedCategoryPath.map(categoryNodeLabel).join(' > ')}</p>
-              ) : null}
-              <CategoryStepSelect
-                nodes={categoryNodes}
-                value={categoryItemId}
-                onChange={setCategoryItemId}
-                emptyLabel="카테고리 선택"
-                ariaLabel="상품 카테고리"
+
+              <div className="space-y-2">
+                <Label>제목 <span className="text-red-500">*</span></Label>
+                <Input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
+              </div>
+
+              <div className="space-y-2">
+                <Label>요약</Label>
+                <Input value={form.summary} onChange={(event) => setForm((current) => ({ ...current, summary: event.target.value }))} />
+                <p className="text-xs text-gray-500">상세 페이지 제목 아래에 한두 줄로 표시됩니다.</p>
+              </div>
+
+              <MarketImageField
+                label="상품 이미지"
+                value={thumbnailFieldValue}
+                onChange={(image) => {
+                  setThumbnailPreview(image)
+                  setForm((current) => ({ ...current, thumbnailImageId: image?.id ?? null }))
+                }}
+                fallback={selectedCategoryDefaultImage
+                  ? { image: selectedCategoryDefaultImage, description: '상품 이미지가 없어 카테고리 기본 이미지가 표시됩니다.' }
+                  : null}
               />
-              {selectedCategory && selectedCategory.children.length > 0 ? (
-                <p className="text-xs text-amber-700">하위 칸이 있습니다. 하위 칸 선택을 권장합니다.</p>
-              ) : null}
-            </div>
+            </section>
 
-            <div className="space-y-2">
-              <Label>제목</Label>
-              <Input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
-            </div>
+            <section id="product-step-sales" className="scroll-mt-24 space-y-4">
+              <ProductStepHeading number={2} title="판매 구성" description="서브상품(판매 단위)을 만들고 파일을 올립니다. 첫 서브상품을 추가할 때 상품이 임시저장되므로 카테고리와 제목을 먼저 입력하세요." />
+              <div className="space-y-4 rounded-lg border p-4">
+                <div>
+                  <p className="font-medium text-gray-900">서브상품 구성</p>
+                  <p className="text-sm text-gray-500">서브상품마다 가격을 정하고, 파일 추가+로 PDF/HWP/ZIP 등 파일을 여러 개 한 번에 올립니다.</p>
+                </div>
 
-            <div className="space-y-2">
-              <Label>요약</Label>
-              <Input value={form.summary} onChange={(event) => setForm((current) => ({ ...current, summary: event.target.value }))} />
-            </div>
+                {subproducts.length === 0 ? (
+                  <div className="rounded-md border border-dashed bg-white px-4 py-8 text-center text-sm text-gray-500">
+                    아직 서브상품이 없습니다. 아래에서 첫 서브상품을 추가하세요.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {subproducts.map((subproduct) => {
+                      const filesForSubproduct = subproductFilesBySubproductId.get(subproduct.id) || []
+                      const isEditingSubproduct = editingSubproductId === subproduct.id && subproductEditDraft
 
-            <MarketImageField
-              label="상품 이미지"
-              value={thumbnailFieldValue}
-              onChange={(image) => {
-                setThumbnailPreview(image)
-                setForm((current) => ({ ...current, thumbnailImageId: image?.id ?? null }))
-              }}
-              fallback={selectedCategoryDefaultImage
-                ? { image: selectedCategoryDefaultImage, description: '상품 이미지가 없어 카테고리 기본 이미지가 표시됩니다.' }
-                : null}
-            />
+                      return (
+                        <div key={subproduct.id} className="space-y-3 rounded-md border bg-white p-3">
+                          {isEditingSubproduct ? (
+                            <div className="space-y-3 rounded-md border bg-slate-50/80 p-3">
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <div className="space-y-2">
+                                  <Label>서브상품 카테고리</Label>
+                                  <select
+                                    value={subproductEditDraft.categoryId}
+                                    onChange={(event) => {
+                                      if (event.target.value === MANAGE_SUBPRODUCT_CATEGORIES_VALUE) {
+                                        setIsCategorySettingsOpen(true)
+                                        return
+                                      }
 
-            <div className="space-y-2">
-              <Label>상세 설명</Label>
-              <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} className="min-h-[140px]" />
-            </div>
+                                      setSubproductEditDraft((current) => current ? { ...current, categoryId: event.target.value } : current)
+                                    }}
+                                    className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
+                                  >
+                                    <option value="">카테고리 선택</option>
+                                    {subproductCategories.map((category) => (
+                                      <option key={category.id} value={category.id}>{category.name}</option>
+                                    ))}
+                                    <option value={MANAGE_SUBPRODUCT_CATEGORIES_VALUE}>설정하기</option>
+                                  </select>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>서브상품 가격</Label>
+                                  <Input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={subproductEditDraft.priceCredits}
+                                    onChange={(event) => setSubproductEditDraft((current) => current ? { ...current, priceCredits: formatCreditInputValue(event.target.value) } : current)}
+                                  />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                  <Label>서브상품 설명</Label>
+                                  <Textarea
+                                    value={subproductEditDraft.description}
+                                    onChange={(event) => setSubproductEditDraft((current) => current ? { ...current, description: event.target.value } : current)}
+                                    className="min-h-[72px]"
+                                  />
+                                </div>
+                                <details className="md:col-span-2" open={Boolean(subproductEditDraft.purchaseNoticeLabel || subproductEditDraft.purchaseNoticeText)}>
+                                  <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-900">고급 설정 (구매 안내 문구)</summary>
+                                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                      <Label>구매 안내 라벨</Label>
+                                      <Input
+                                        value={subproductEditDraft.purchaseNoticeLabel}
+                                        onChange={(event) => setSubproductEditDraft((current) => current ? { ...current, purchaseNoticeLabel: event.target.value } : current)}
+                                        maxLength={24}
+                                        placeholder="예: PDF 포함"
+                                      />
+                                    </div>
+                                    <div className="space-y-2 md:col-span-2">
+                                      <Label>구매 안내 문구</Label>
+                                      <Textarea
+                                        value={subproductEditDraft.purchaseNoticeText}
+                                        onChange={(event) => setSubproductEditDraft((current) => current ? { ...current, purchaseNoticeText: event.target.value } : current)}
+                                        className="min-h-[72px]"
+                                        maxLength={160}
+                                        placeholder="예: 편집 가능한 HWP와 문제(PDF)를 함께 제공합니다. PDF는 따로 구매하지 않아도 됩니다."
+                                      />
+                                      <p className="text-xs text-gray-500">사용자 상세 페이지의 구매 옵션 행에 표시됩니다. 비워두면 HWP+PDF 구성에서는 기본 안내 문구가 표시됩니다.</p>
+                                    </div>
+                                  </div>
+                                </details>
+                                <div className="flex items-center gap-3">
+                                  <Switch
+                                    checked={subproductEditDraft.isActive}
+                                    onCheckedChange={(checked) => setSubproductEditDraft((current) => current ? { ...current, isActive: checked } : current)}
+                                  />
+                                  <Label>활성화</Label>
+                                </div>
+                              </div>
+                              <div className="flex justify-end gap-2">
+                                <Button type="button" variant="ghost" size="sm" disabled={isSubproductSaving} onClick={handleCancelEditSubproduct}>
+                                  취소
+                                </Button>
+                                <Button type="button" size="sm" disabled={isSubproductSaving} onClick={() => void handleSaveSubproduct(subproduct.id)}>
+                                  {isSubproductSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                  저장
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="font-semibold text-gray-900">{getSubproductCategoryName(subproduct.category_id)}</p>
+                                  <Badge variant={subproduct.is_active ? 'outline' : 'secondary'}>{subproduct.is_active ? '활성' : '비활성'}</Badge>
+                                </div>
+                                <p className="mt-1 text-sm text-gray-500">{subproduct.description || '설명이 없습니다.'}</p>
+                                {subproduct.purchase_notice_text ? (
+                                  <p className="mt-1 text-sm text-indigo-700">
+                                    {subproduct.purchase_notice_label ? `${subproduct.purchase_notice_label} · ` : ''}
+                                    {subproduct.purchase_notice_text}
+                                  </p>
+                                ) : null}
+                                <p className="mt-1 text-sm font-medium text-gray-900">{formatCreditInputValue(subproduct.price_credits)} 크레딧 · 파일 {filesForSubproduct.length}개</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button type="button" variant="outline" size="sm" disabled={isSubproductSaving} onClick={() => handleEditSubproduct(subproduct)}>
+                                  수정
+                                </Button>
+                                <Button type="button" variant="outline" size="sm" disabled={isSubproductSaving} onClick={() => void handleDeleteSubproduct(subproduct.id)}>
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  삭제
+                                </Button>
+                              </div>
+                            </div>
+                          )}
 
-            <div className="space-y-3 rounded-lg border p-4">
-              <div>
-                <p className="font-medium text-gray-900">자료 정보</p>
-                <p className="text-sm text-gray-500">상세 페이지 자료 정보 카드에 노출되는 값을 입력합니다. 과목과 등록일자는 자동으로 표시됩니다.</p>
+                          <div className="space-y-3">
+                            {filesForSubproduct.length > 0 ? (
+                              <div className="space-y-2 rounded-md border bg-slate-50/70 p-3">
+                                <p className="text-sm font-medium text-gray-900">업로드된 파일</p>
+                                <div className="space-y-2">
+                                  {filesForSubproduct.map((file) => (
+                                    <div key={file.id} className="flex flex-col gap-2 rounded-md border bg-white px-3 py-2 text-sm md:flex-row md:items-center md:justify-between">
+                                      <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <Badge variant="outline">{getFileTypeLabel(file.file_type_id)}</Badge>
+                                          <span className="truncate font-medium text-gray-900">{file.original_file_name}</span>
+                                          <Badge variant="secondary">v{file.version}</Badge>
+                                        </div>
+                                        <p className="mt-1 text-xs text-gray-500">{formatFileSize(file.file_size_bytes)} · {formatDateTime(file.created_at)}</p>
+                                      </div>
+                                      <Button type="button" variant="ghost" size="sm" onClick={() => void handleDeleteSubproductFile(subproduct.id, file.id)}>
+                                        제거
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="rounded-md border border-dashed bg-slate-50 px-4 py-6 text-center text-sm text-gray-500">
+                                아직 업로드된 파일이 없습니다. 파일 추가+를 누른 뒤 여러 파일을 한 번에 끌어놓을 수 있습니다.
+                              </div>
+                            )}
+
+                            <div className="flex justify-end">
+                              <Button type="button" variant="outline" size="sm" disabled={activeFileTypes.length === 0} onClick={() => handleAddSubproductFileDraft(subproduct.id)}>
+                                <Plus className="mr-2 h-4 w-4" />
+                                파일 추가+
+                              </Button>
+                            </div>
+
+                            {activeFileTypes.length === 0 ? (
+                              <div className="rounded-md border border-dashed bg-slate-50 px-4 py-6 text-center text-sm text-gray-500">
+                                등록된 파일 유형이 없습니다. 파일 유형 설정에서 PDF/HWP/ZIP 등의 유형을 먼저 등록하세요.
+                              </div>
+                            ) : null}
+
+                            {subproductFileDrafts.filter((draft) => draft.subproductId === subproduct.id).map((draft) => {
+                              const isUploading = subproductUploadingKeys.includes(draft.id)
+                              const isDragActive = subproductDragActiveKeys.includes(draft.id)
+                              const inputId = `subproduct-file-draft-${draft.id}`
+
+                              return (
+                                <div key={draft.id} className="space-y-3 rounded-md border p-3">
+                                  <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                                    <div className="flex-1 space-y-2">
+                                      <Label>파일 유형</Label>
+                                      <select
+                                        value={draft.fileTypeId}
+                                        disabled={isUploading}
+                                        onChange={(event) => {
+                                          if (event.target.value === MANAGE_FILE_TYPES_VALUE) {
+                                            setIsFileTypeSettingsOpen(true)
+                                            return
+                                          }
+
+                                          handleUpdateSubproductFileDraft(draft.id, { fileTypeId: event.target.value })
+                                        }}
+                                        className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
+                                      >
+                                        <option value="">파일 유형 선택</option>
+                                        {activeFileTypes.map((fileType) => (
+                                          <option key={fileType.id} value={fileType.id}>{fileType.label}</option>
+                                        ))}
+                                        <option value={MANAGE_FILE_TYPES_VALUE}>설정하기</option>
+                                      </select>
+                                    </div>
+                                    <Button type="button" variant="ghost" size="sm" disabled={isUploading} onClick={() => handleRemoveSubproductFileDraft(draft.id)}>
+                                      row 삭제
+                                    </Button>
+                                  </div>
+                                  <input
+                                    id={inputId}
+                                    type="file"
+                                    className="hidden"
+                                    multiple
+                                    accept={activeFileTypes.map(getFileTypeAcceptValue).join(',')}
+                                    disabled={isUploading}
+                                    onChange={(event) => {
+                                      const selectedFiles = Array.from(event.target.files || [])
+                                      event.target.value = ''
+                                      void handleSubproductFileUpload(subproduct.id, draft.fileTypeId, selectedFiles, draft.id)
+                                    }}
+                                  />
+                                  <label
+                                    htmlFor={!isUploading ? inputId : undefined}
+                                    onDragEnter={(event) => {
+                                      if (isUploading) return
+                                      event.preventDefault()
+                                      setSubproductDragActive(draft.id, true)
+                                    }}
+                                    onDragOver={(event) => {
+                                      if (isUploading) return
+                                      event.preventDefault()
+                                      setSubproductDragActive(draft.id, true)
+                                    }}
+                                    onDragLeave={(event) => {
+                                      if (isUploading) return
+                                      event.preventDefault()
+                                      setSubproductDragActive(draft.id, false)
+                                    }}
+                                    onDrop={(event) => {
+                                      if (isUploading) return
+                                      event.preventDefault()
+                                      setSubproductDragActive(draft.id, false)
+                                      void handleSubproductFileUpload(subproduct.id, draft.fileTypeId, Array.from(event.dataTransfer.files || []), draft.id)
+                                    }}
+                                    className={`flex min-h-32 flex-col justify-center rounded-md border border-dashed px-4 py-4 text-left transition ${
+                                      isUploading
+                                        ? 'cursor-not-allowed border-emerald-300 bg-emerald-50 text-emerald-700'
+                                        : isDragActive
+                                          ? 'cursor-pointer border-primary bg-primary/5'
+                                          : 'cursor-pointer border-red-200 bg-red-50/40 hover:border-red-300 hover:bg-red-50'
+                                    }`}
+                                  >
+                                    <p className={`text-sm font-medium ${isUploading ? 'text-emerald-900' : 'text-red-900'}`}>드래그앤드랍 또는 클릭하여 업로드 (여러 파일 한 번에 가능)</p>
+                                    <p className={`mt-1 text-xs ${isUploading ? 'text-emerald-700' : 'text-red-700'}`}>허용 형식: {activeFileTypes.map(getFileTypeAcceptValue).join(', ')} · 파일 유형은 확장자로 정해집니다.</p>
+                                    {isUploading ? <p className="mt-2 text-xs text-emerald-700">업로드 중입니다...</p> : null}
+                                  </label>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                {subproducts.length === 0 || isSubproductFormOpen ? (
+                  <div className="rounded-md border bg-slate-50/60 p-3">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="font-medium text-gray-900">새 서브상품</p>
+                      {subproducts.length > 0 ? (
+                        <Button type="button" variant="ghost" size="sm" disabled={isSubproductSaving} onClick={() => setIsSubproductFormOpen(false)}>
+                          닫기
+                        </Button>
+                      ) : null}
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>서브상품 카테고리</Label>
+                        <select
+                          value={subproductDraft.categoryId}
+                          onChange={(event) => {
+                            if (event.target.value === MANAGE_SUBPRODUCT_CATEGORIES_VALUE) {
+                              setIsCategorySettingsOpen(true)
+                              return
+                            }
+
+                            setSubproductDraft((current) => ({ ...current, categoryId: event.target.value }))
+                          }}
+                          className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
+                        >
+                          <option value="">카테고리 선택</option>
+                          {activeSubproductCategories.map((category) => (
+                            <option key={category.id} value={category.id}>{category.name}</option>
+                          ))}
+                          <option value={MANAGE_SUBPRODUCT_CATEGORIES_VALUE}>설정하기</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>서브상품 가격</Label>
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          value={subproductDraft.priceCredits}
+                          placeholder="예: 1,000"
+                          onChange={(event) => setSubproductDraft((current) => ({ ...current, priceCredits: formatCreditInputValue(event.target.value) }))}
+                        />
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>서브상품 설명</Label>
+                        <Textarea value={subproductDraft.description} onChange={(event) => setSubproductDraft((current) => ({ ...current, description: event.target.value }))} className="min-h-[72px]" />
+                      </div>
+                      <details className="md:col-span-2">
+                        <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-900">고급 설정 (구매 안내 문구)</summary>
+                        <div className="mt-3 grid gap-3 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>구매 안내 라벨</Label>
+                            <Input
+                              value={subproductDraft.purchaseNoticeLabel}
+                              onChange={(event) => setSubproductDraft((current) => ({ ...current, purchaseNoticeLabel: event.target.value }))}
+                              maxLength={24}
+                              placeholder="예: PDF 포함"
+                            />
+                          </div>
+                          <div className="space-y-2 md:col-span-2">
+                            <Label>구매 안내 문구</Label>
+                            <Textarea
+                              value={subproductDraft.purchaseNoticeText}
+                              onChange={(event) => setSubproductDraft((current) => ({ ...current, purchaseNoticeText: event.target.value }))}
+                              className="min-h-[72px]"
+                              maxLength={160}
+                              placeholder="예: 편집 가능한 HWP와 문제(PDF)를 함께 제공합니다. PDF는 따로 구매하지 않아도 됩니다."
+                            />
+                            <p className="text-xs text-gray-500">사용자 상세 페이지의 구매 옵션 행에 표시됩니다. 비워두면 HWP+PDF 구성에서는 기본 안내 문구가 표시됩니다.</p>
+                          </div>
+                        </div>
+                      </details>
+                    </div>
+                    <div className="mt-3 flex items-center justify-end gap-3">
+                      {isUploadBlockedByCategory ? <p className="text-xs text-amber-700">카테고리를 먼저 선택해주세요.</p> : null}
+                      <Button type="button" disabled={isSubproductSaving || activeSubproductCategories.length === 0 || isUploadBlockedByCategory} onClick={() => void handleCreateSubproduct()}>
+                        {isSubproductSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                        서브상품 추가
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button type="button" variant="outline" className="w-full border-dashed" disabled={isSubproductSaving} onClick={() => setIsSubproductFormOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    서브상품 추가
+                  </Button>
+                )}
               </div>
+
+              <div className="space-y-3 rounded-lg border p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-gray-900">전체 한번에 구매하기</p>
+                    <p className="text-sm text-gray-500">옵션을 켜고 금액을 입력하면 등록된 서브상품의 모든 파일을 한 번에 구매할 수 있습니다.</p>
+                  </div>
+                  {bundleOption ? <Badge variant="outline">저장됨</Badge> : <Badge variant="secondary">미설정</Badge>}
+                </div>
+                <div className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">전체구매 옵션 사용</p>
+                    <p className="text-xs text-gray-500">기본값은 사용이며, 꺼두면 사용자 상세페이지에 전체구매 카드가 노출되지 않습니다.</p>
+                  </div>
+                  <Switch checked={bundleForm.enabled} onCheckedChange={(checked) => setBundleForm((current) => ({ ...current, enabled: checked }))} />
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>표시명</Label>
+                    <Input disabled={!bundleForm.enabled} value={bundleForm.label} onChange={(event) => setBundleForm((current) => ({ ...current, label: event.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>전체구매 가격</Label>
+                    <Input
+                      disabled={!bundleForm.enabled}
+                      type="text"
+                      inputMode="numeric"
+                      value={bundleForm.priceCredits}
+                      placeholder="예: 10,000"
+                      onChange={(event) => setBundleForm((current) => ({ ...current, priceCredits: formatCreditInputValue(event.target.value) }))}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>전체구매 설명</Label>
+                    <Textarea disabled={!bundleForm.enabled} value={bundleForm.description} onChange={(event) => setBundleForm((current) => ({ ...current, description: event.target.value }))} className="min-h-[72px]" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section id="product-step-sample" className="scroll-mt-24 space-y-4">
+              <ProductStepHeading number={3} title="샘플" optional />
+              <div className="space-y-3 rounded-lg border p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-gray-900">샘플 생성</p>
+                    <p className="text-sm text-gray-500">브라우저에서 샘플 JPG를 생성한 뒤 업로드합니다. 샘플로 사용할 페이지 번호만 JPG로 생성합니다.</p>
+                  </div>
+                  <Badge variant={samplePages.length > 0 ? 'outline' : 'secondary'}>{samplePreviewStatusLabel}</Badge>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label>샘플 페이지</Label>
+                    <Input
+                      value={samplePageSelection}
+                      onChange={(event) => setSamplePageSelection(event.target.value)}
+                      placeholder="예: 1,5,7"
+                    />
+                    <p className="text-xs text-gray-500">쉼표로 페이지 번호를 입력합니다. 예: 1,5,7</p>
+                  </div>
+                  <input
+                    ref={sampleSourceInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,application/pdf"
+                    disabled={isSampleSourceUploading || isUploadBlockedByCategory}
+                    onChange={(event) => handleSelectSampleSourceFile(event.target.files?.[0])}
+                  />
+                  <label
+                    onDragEnter={(event) => {
+                      if (isSampleSourceUploading || isUploadBlockedByCategory) return
+                      event.preventDefault()
+                      setIsSampleSourceDragActive(true)
+                    }}
+                    onDragOver={(event) => {
+                      // 막힌 상태에서도 기본 동작(브라우저가 파일을 여는 것)은 막는다.
+                      event.preventDefault()
+                      if (isSampleSourceUploading || isUploadBlockedByCategory) return
+                      setIsSampleSourceDragActive(true)
+                    }}
+                    onDragLeave={(event) => {
+                      if (isSampleSourceUploading || isUploadBlockedByCategory) return
+                      event.preventDefault()
+                      setIsSampleSourceDragActive(false)
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault()
+                      if (isUploadBlockedByCategory) {
+                        toast.error('카테고리를 먼저 선택해주세요.')
+                        return
+                      }
+                      if (isSampleSourceUploading) return
+                      setIsSampleSourceDragActive(false)
+                      handleSelectSampleSourceFile(event.dataTransfer.files?.[0])
+                    }}
+                    className={`flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed px-4 py-4 text-center transition ${
+                      isSampleSourceDragActive
+                        ? 'border-primary bg-primary/5'
+                        : selectedSampleSourceFile
+                          ? 'border-emerald-300 bg-emerald-50 hover:border-emerald-400 hover:bg-emerald-100'
+                        : 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100'
+                    }`}
+                    onClick={() => sampleSourceInputRef.current?.click()}
+                  >
+                    <Upload className={`mb-2 h-5 w-5 ${selectedSampleSourceFile ? 'text-emerald-700' : 'text-slate-500'}`} />
+                    <p className={`text-sm font-medium ${selectedSampleSourceFile ? 'text-emerald-900' : 'text-gray-900'}`}>샘플 PDF를 드래그앤드롭하거나 클릭해서 선택하세요.</p>
+                    <p className={`mt-1 text-xs ${selectedSampleSourceFile ? 'text-emerald-700' : 'text-gray-500'}`}>
+                      {selectedSampleSourceFile ? `선택 파일: ${selectedSampleSourceFile.name}` : 'PDF를 선택한 뒤 샘플 이미지 생성 버튼을 클릭해야 JPG가 생성됩니다.'}
+                    </p>
+                  </label>
+                  {isUploadBlockedByCategory ? <p className="text-xs text-amber-700">카테고리를 먼저 선택해주세요.</p> : null}
+                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={samplePages.length === 0 || deletingSamplePageId === '__all__'}
+                      onClick={() => void handleDeleteAllSamplePages()}
+                    >
+                      {deletingSamplePageId === '__all__' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                      샘플 이미지 전체 삭제
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={isSampleSourceUploading || !selectedSampleSourceFile || isUploadBlockedByCategory}
+                      onClick={() => void handleGenerateSampleImages()}
+                    >
+                      {isSampleSourceUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                      샘플 이미지 생성
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!canOpenSamplePreview}
+                      aria-label={`${form.title || '문제마켓 상품'} 샘플 JPG 확인`}
+                      onClick={() => {
+                        if (!form.id) {
+                          return
+                        }
+                        setSamplePreviewItemId(form.id)
+                        setIsSamplePreviewOpen(true)
+                      }}
+                    >
+                      샘플 확인
+                    </Button>
+                  </div>
+                </div>
+
+                {samplePages.length > 0 ? (
+                  <div className="flex flex-wrap gap-3 pt-2">
+                    {samplePages.map((page) => (
+                      <div
+                        key={page.id}
+                        draggable
+                        onDragStart={(event) => {
+                          setSamplePageDragId(page.id)
+                          event.dataTransfer.effectAllowed = 'move'
+                        }}
+                        onDragOver={(event) => {
+                          event.preventDefault()
+                          event.dataTransfer.dropEffect = 'move'
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault()
+                          if (samplePageDragId) {
+                            handleMoveSamplePage(samplePageDragId, page.id)
+                          }
+                          setSamplePageDragId(null)
+                        }}
+                        onDragEnd={() => setSamplePageDragId(null)}
+                        className={`relative h-24 w-20 cursor-move overflow-hidden rounded border bg-slate-50 shadow-sm transition ${
+                          samplePageDragId === page.id ? 'scale-95 opacity-60' : ''
+                        }`}
+                        title="드래그해서 샘플 이미지 순서를 변경할 수 있습니다."
+                      >
+                        <div
+                          aria-label={`샘플 ${page.pageNumber}페이지`}
+                          role="img"
+                          className="h-full w-full bg-cover bg-center"
+                          style={{ backgroundImage: `url(${page.signedUrl})` }}
+                        />
+                        <Badge className="absolute bottom-1 left-1 bg-black/60 text-white hover:bg-black/60">p.{page.pageNumber}</Badge>
+                        <button
+                          type="button"
+                          className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white"
+                          disabled={deletingSamplePageId === page.id || deletingSamplePageId === '__all__'}
+                          aria-label={`${page.pageNumber}페이지 샘플 삭제`}
+                          onClick={() => void handleDeleteSamplePage(page)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-dashed bg-slate-50 px-4 py-6 text-center text-sm text-gray-500">
+                    아직 생성된 샘플 JPG가 없습니다.
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section id="product-step-detail" className="scroll-mt-24 space-y-4">
+              <ProductStepHeading number={4} title="상세 정보" optional />
+              <div className="space-y-2">
+                <Label>상세 설명</Label>
+                <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} className="min-h-[140px]" />
+              </div>
+
+              <div className="space-y-3 rounded-lg border p-4">
+                <div>
+                  <p className="font-medium text-gray-900">자료 정보</p>
+                  <p className="text-sm text-gray-500">상세 페이지 자료 정보 카드에 노출되는 값을 입력합니다. 과목과 등록일자는 자동으로 표시됩니다.</p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>학년</Label>
+                    <select
+                      value={form.gradeLevel}
+                      onChange={(event) => setForm((current) => ({ ...current, gradeLevel: event.target.value }))}
+                      className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
+                    >
+                      <option value="">전체</option>
+                      {LISTBOARD_GRADE_OPTIONS.map((grade) => (
+                        <option key={grade} value={grade}>{grade}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>자료유형</Label>
+                    <Input value={form.sourceType} onChange={(event) => setForm((current) => ({ ...current, sourceType: event.target.value }))} placeholder="예: 모의고사" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>문항 수</Label>
+                    <Input type="number" min={0} value={form.questionCount} onChange={(event) => setForm((current) => ({ ...current, questionCount: event.target.value }))} placeholder="예: 24" />
+                  </div>
+                </div>
+              </div>
+
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>과목</Label>
-                  <Input value={workspaceSubject === 'korean' ? '국어' : '영어'} disabled />
-                </div>
-                <div className="space-y-2">
-                  <Label>학년</Label>
+                  <Label>연도</Label>
                   <select
-                    value={form.gradeLevel}
-                    onChange={(event) => setForm((current) => ({ ...current, gradeLevel: event.target.value }))}
+                    value={form.examYear}
+                    onMouseDown={focusCurrentExamYear}
+                    onChange={(event) => setForm((current) => ({ ...current, examYear: event.target.value }))}
                     className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
                   >
-                    <option value="">전체</option>
-                    {LISTBOARD_GRADE_OPTIONS.map((grade) => (
-                      <option key={grade} value={grade}>{grade}</option>
+                    <option value="">선택</option>
+                    {examYearOptions.map((year) => (
+                      <option key={year} value={year}>{year}</option>
                     ))}
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label>자료유형</Label>
-                  <Input value={form.sourceType} onChange={(event) => setForm((current) => ({ ...current, sourceType: event.target.value }))} placeholder="예: 모의고사" />
-                </div>
-                <div className="space-y-2">
-                  <Label>문항 수</Label>
-                  <Input type="number" min={0} value={form.questionCount} onChange={(event) => setForm((current) => ({ ...current, questionCount: event.target.value }))} placeholder="예: 24" />
-                </div>
-                <div className="space-y-2">
-                  <Label>출처 1</Label>
-                  <Input value={form.source1} onChange={(event) => setForm((current) => ({ ...current, source1: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label>출처 2</Label>
-                  <Input value={form.source2} onChange={(event) => setForm((current) => ({ ...current, source2: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label>출처 3</Label>
-                  <Input value={form.source3} onChange={(event) => setForm((current) => ({ ...current, source3: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label>출처 4</Label>
-                  <Input value={form.source4} onChange={(event) => setForm((current) => ({ ...current, source4: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label>등록일자</Label>
-                  <Input value={form.id ? '기존 등록일자 유지' : '저장 시 자동 기록'} disabled />
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-lg border bg-slate-50/60 p-4 text-sm text-gray-600">
-              <p className="font-medium text-gray-900">판매 구성 안내</p>
-              <p className="mt-1">PDF/HWP/ZIP 개별 가격은 더 이상 여기에서 직접 판매하지 않습니다. 아래 서브상품에 파일을 여러 개 연결하고, 서브상품별 가격 또는 전체 한번에 구매하기 가격을 설정하세요.</p>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>연도</Label>
-                <select
-                  value={form.examYear}
-                  onMouseDown={focusCurrentExamYear}
-                  onChange={(event) => setForm((current) => ({ ...current, examYear: event.target.value }))}
-                  className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
-                >
-                  <option value="">선택</option>
-                  {examYearOptions.map((year) => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label>월</Label>
-                <select
-                  value={form.examMonth}
-                  onChange={(event) => setForm((current) => ({ ...current, examMonth: event.target.value }))}
-                  className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
-                >
-                  <option value="">선택</option>
-                  {MONTH_OPTIONS.map((month) => (
-                    <option key={month} value={month}>{month}월</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>상태</Label>
-                <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as MarketItemFormState['status'] }))} className="flex h-10 w-full rounded-md border bg-white px-3 text-sm">
-                  <option value="draft">{MARKET_STATUS_LABELS.draft}</option>
-                  <option value="published">{MARKET_STATUS_LABELS.published}</option>
-                  <option value="hidden">{MARKET_STATUS_LABELS.hidden}</option>
-                  <option value="archived">{MARKET_STATUS_LABELS.archived}</option>
-                </select>
-              </div>
-              <div className="flex items-end">
-                <div className="flex h-10 w-full items-center justify-between rounded-md border px-3">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">활성화</p>
-                    <p className="text-xs text-gray-500">비활성화하면 노출되지 않습니다.</p>
-                  </div>
-                  <Switch checked={form.isActive} onCheckedChange={(checked) => setForm((current) => ({ ...current, isActive: checked }))} />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3 rounded-lg border p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium text-gray-900">샘플 생성</p>
-                  <p className="text-sm text-gray-500">브라우저에서 샘플 JPG를 생성한 뒤 업로드합니다. 샘플로 사용할 페이지 번호만 JPG로 생성합니다.</p>
-                </div>
-                <Badge variant={samplePages.length > 0 ? 'outline' : 'secondary'}>{samplePreviewStatusLabel}</Badge>
-              </div>
-
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <Label>샘플 페이지</Label>
-                  <Input
-                    value={samplePageSelection}
-                    onChange={(event) => setSamplePageSelection(event.target.value)}
-                    placeholder="예: 1,5,7"
-                  />
-                  <p className="text-xs text-gray-500">쉼표로 페이지 번호를 입력합니다. 예: 1,5,7</p>
-                </div>
-                <input
-                  ref={sampleSourceInputRef}
-                  type="file"
-                  className="hidden"
-                  accept=".pdf,application/pdf"
-                  disabled={isSampleSourceUploading || isUploadBlockedByCategory}
-                  onChange={(event) => handleSelectSampleSourceFile(event.target.files?.[0])}
-                />
-                <label
-                  onDragEnter={(event) => {
-                    if (isSampleSourceUploading || isUploadBlockedByCategory) return
-                    event.preventDefault()
-                    setIsSampleSourceDragActive(true)
-                  }}
-                  onDragOver={(event) => {
-                    // 막힌 상태에서도 기본 동작(브라우저가 파일을 여는 것)은 막는다.
-                    event.preventDefault()
-                    if (isSampleSourceUploading || isUploadBlockedByCategory) return
-                    setIsSampleSourceDragActive(true)
-                  }}
-                  onDragLeave={(event) => {
-                    if (isSampleSourceUploading || isUploadBlockedByCategory) return
-                    event.preventDefault()
-                    setIsSampleSourceDragActive(false)
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault()
-                    if (isUploadBlockedByCategory) {
-                      toast.error('카테고리를 먼저 선택해주세요.')
-                      return
-                    }
-                    if (isSampleSourceUploading) return
-                    setIsSampleSourceDragActive(false)
-                    handleSelectSampleSourceFile(event.dataTransfer.files?.[0])
-                  }}
-                  className={`flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed px-4 py-4 text-center transition ${
-                    isSampleSourceDragActive
-                      ? 'border-primary bg-primary/5'
-                      : selectedSampleSourceFile
-                        ? 'border-emerald-300 bg-emerald-50 hover:border-emerald-400 hover:bg-emerald-100'
-                      : 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100'
-                  }`}
-                  onClick={() => sampleSourceInputRef.current?.click()}
-                >
-                  <Upload className={`mb-2 h-5 w-5 ${selectedSampleSourceFile ? 'text-emerald-700' : 'text-slate-500'}`} />
-                  <p className={`text-sm font-medium ${selectedSampleSourceFile ? 'text-emerald-900' : 'text-gray-900'}`}>샘플 PDF를 드래그앤드롭하거나 클릭해서 선택하세요.</p>
-                  <p className={`mt-1 text-xs ${selectedSampleSourceFile ? 'text-emerald-700' : 'text-gray-500'}`}>
-                    {selectedSampleSourceFile ? `선택 파일: ${selectedSampleSourceFile.name}` : 'PDF를 선택한 뒤 샘플 이미지 생성 버튼을 클릭해야 JPG가 생성됩니다.'}
-                  </p>
-                </label>
-                {isUploadBlockedByCategory ? <p className="text-xs text-amber-700">카테고리를 먼저 선택해주세요.</p> : null}
-                <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={samplePages.length === 0 || deletingSamplePageId === '__all__'}
-                    onClick={() => void handleDeleteAllSamplePages()}
+                  <Label>월</Label>
+                  <select
+                    value={form.examMonth}
+                    onChange={(event) => setForm((current) => ({ ...current, examMonth: event.target.value }))}
+                    className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
                   >
-                    {deletingSamplePageId === '__all__' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                    샘플 이미지 전체 삭제
+                    <option value="">선택</option>
+                    {MONTH_OPTIONS.map((month) => (
+                      <option key={month} value={month}>{month}월</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            <section id="product-step-publish" className="scroll-mt-24 space-y-4">
+              <ProductStepHeading number={5} title="공개 전 점검" description="필수 항목을 모두 채워야 공개할 수 있습니다." />
+              <ul className="space-y-2 rounded-lg border p-4 text-sm">
+                {publishChecks.map((check) => (
+                  <li key={check.key} className="flex items-center gap-2">
+                    {check.done
+                      ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                      : check.required
+                        ? <XCircle className="h-4 w-4 shrink-0 text-red-500" />
+                        : <Circle className="h-4 w-4 shrink-0 text-gray-300" />}
+                    <span className={check.done ? 'text-gray-700' : check.required ? 'font-medium text-red-700' : 'text-gray-500'}>{check.label}</span>
+                    {check.required ? null : <span className="text-xs text-gray-400">선택</span>}
+                  </li>
+                ))}
+              </ul>
+
+                {isAutoUploadDraft ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <p className="font-semibold">임시 업로드 상태</p>
+                    <p className="mt-1">상품 등록을 완료하지 않고 업로드 파일을 삭제하려면 등록 취소 및 파일 삭제를 눌러주세요.</p>
+                  </div>
+                ) : null}
+            </section>
+
+            <div className="sticky bottom-4 z-10 -mx-2 space-y-2 rounded-xl border bg-white/95 px-2 py-3 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-white/85">
+              <p className="px-1 text-xs text-gray-500">
+                {form.id ? `현재 상태: ${MARKET_STATUS_LABELS[isAutoUploadDraft ? 'draft' : form.status]}` : '새 상품'}
+                {isPublishBlocked ? ` · 공개 전 필수 항목 ${missingRequiredChecks.length}개가 남았습니다.` : ''}
+              </p>
+              <div className="flex gap-2">
+                {isPublishedItem ? null : (
+                  <Button type="button" variant="outline" className="h-11" disabled={isSaving} onClick={() => void handleSave('draft')}>
+                    임시저장
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={isSampleSourceUploading || !selectedSampleSourceFile || isUploadBlockedByCategory}
-                    onClick={() => void handleGenerateSampleImages()}
-                  >
-                    {isSampleSourceUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                    샘플 이미지 생성
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={!canOpenSamplePreview}
-                    aria-label={`${form.title || '문제마켓 상품'} 샘플 JPG 확인`}
-                    onClick={() => {
-                      if (!form.id) {
-                        return
-                      }
-                      setSamplePreviewItemId(form.id)
-                      setIsSamplePreviewOpen(true)
-                    }}
-                  >
-                    샘플 확인
-                  </Button>
-                </div>
-              </div>
-
-              {samplePages.length > 0 ? (
-                <div className="flex flex-wrap gap-3 pt-2">
-                  {samplePages.map((page) => (
-                    <div
-                      key={page.id}
-                      draggable
-                      onDragStart={(event) => {
-                        setSamplePageDragId(page.id)
-                        event.dataTransfer.effectAllowed = 'move'
-                      }}
-                      onDragOver={(event) => {
-                        event.preventDefault()
-                        event.dataTransfer.dropEffect = 'move'
-                      }}
-                      onDrop={(event) => {
-                        event.preventDefault()
-                        if (samplePageDragId) {
-                          handleMoveSamplePage(samplePageDragId, page.id)
-                        }
-                        setSamplePageDragId(null)
-                      }}
-                      onDragEnd={() => setSamplePageDragId(null)}
-                      className={`relative h-24 w-20 cursor-move overflow-hidden rounded border bg-slate-50 shadow-sm transition ${
-                        samplePageDragId === page.id ? 'scale-95 opacity-60' : ''
-                      }`}
-                      title="드래그해서 샘플 이미지 순서를 변경할 수 있습니다."
-                    >
-                      <div
-                        aria-label={`샘플 ${page.pageNumber}페이지`}
-                        role="img"
-                        className="h-full w-full bg-cover bg-center"
-                        style={{ backgroundImage: `url(${page.signedUrl})` }}
-                      />
-                      <Badge className="absolute bottom-1 left-1 bg-black/60 text-white hover:bg-black/60">p.{page.pageNumber}</Badge>
-                      <button
-                        type="button"
-                        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white"
-                        disabled={deletingSamplePageId === page.id || deletingSamplePageId === '__all__'}
-                        aria-label={`${page.pageNumber}페이지 샘플 삭제`}
-                        onClick={() => void handleDeleteSamplePage(page)}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-md border border-dashed bg-slate-50 px-4 py-6 text-center text-sm text-gray-500">
-                  아직 생성된 샘플 JPG가 없습니다.
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-4 rounded-lg border p-4">
-              <div>
-                <p className="font-medium text-gray-900">서브상품 구성</p>
-                <p className="text-sm text-gray-500">서브상품추가+로 판매 단위를 만들고, 각 서브상품 안에서 파일추가+로 PDF/HWP/ZIP 등 파일을 여러 개 업로드합니다.</p>
-              </div>
-
-              <div className="rounded-md border bg-slate-50/60 p-3">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="font-medium text-gray-900">서브상품 추가+</p>
-                  <Badge variant="outline">{subproducts.length}개</Badge>
-                </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>서브상품 카테고리</Label>
-                    <select
-                      value={subproductDraft.categoryId}
-                      onChange={(event) => {
-                        if (event.target.value === MANAGE_SUBPRODUCT_CATEGORIES_VALUE) {
-                          setIsCategorySettingsOpen(true)
-                          return
-                        }
-
-                        setSubproductDraft((current) => ({ ...current, categoryId: event.target.value }))
-                      }}
-                      className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
-                    >
-                      <option value="">카테고리 선택</option>
-                      {activeSubproductCategories.map((category) => (
-                        <option key={category.id} value={category.id}>{category.name}</option>
-                      ))}
-                      <option value={MANAGE_SUBPRODUCT_CATEGORIES_VALUE}>설정하기</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>서브상품 가격</Label>
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      value={subproductDraft.priceCredits}
-                      placeholder="예: 1,000"
-                      onChange={(event) => setSubproductDraft((current) => ({ ...current, priceCredits: formatCreditInputValue(event.target.value) }))}
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>서브상품 설명</Label>
-                    <Textarea value={subproductDraft.description} onChange={(event) => setSubproductDraft((current) => ({ ...current, description: event.target.value }))} className="min-h-[72px]" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>구매 안내 라벨</Label>
-                    <Input
-                      value={subproductDraft.purchaseNoticeLabel}
-                      onChange={(event) => setSubproductDraft((current) => ({ ...current, purchaseNoticeLabel: event.target.value }))}
-                      maxLength={24}
-                      placeholder="예: PDF 포함"
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>구매 안내 문구</Label>
-                    <Textarea
-                      value={subproductDraft.purchaseNoticeText}
-                      onChange={(event) => setSubproductDraft((current) => ({ ...current, purchaseNoticeText: event.target.value }))}
-                      className="min-h-[72px]"
-                      maxLength={160}
-                      placeholder="예: 편집 가능한 HWP와 문제(PDF)를 함께 제공합니다. PDF는 따로 구매하지 않아도 됩니다."
-                    />
-                    <p className="text-xs text-gray-500">사용자 상세 페이지의 구매 옵션 행에 표시됩니다. 비워두면 HWP+PDF 구성에서는 기본 안내 문구가 표시됩니다.</p>
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center justify-end gap-3">
-                  {isUploadBlockedByCategory ? <p className="text-xs text-amber-700">카테고리를 먼저 선택해주세요.</p> : null}
-                  <Button type="button" disabled={isSubproductSaving || activeSubproductCategories.length === 0 || isUploadBlockedByCategory} onClick={() => void handleCreateSubproduct()}>
-                    {isSubproductSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                    서브상품 추가
-                  </Button>
-                </div>
-              </div>
-
-              {subproducts.length === 0 ? (
-                <div className="rounded-md border border-dashed bg-white px-4 py-8 text-center text-sm text-gray-500">
-                  아직 등록된 서브상품이 없습니다. 먼저 서브상품을 추가한 뒤 파일을 업로드하세요.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {subproducts.map((subproduct) => {
-                    const filesForSubproduct = subproductFilesBySubproductId.get(subproduct.id) || []
-                    const isEditingSubproduct = editingSubproductId === subproduct.id && subproductEditDraft
-
-                    return (
-                      <div key={subproduct.id} className="space-y-3 rounded-md border bg-white p-3">
-                        {isEditingSubproduct ? (
-                          <div className="space-y-3 rounded-md border bg-slate-50/80 p-3">
-                            <div className="grid gap-3 md:grid-cols-2">
-                              <div className="space-y-2">
-                                <Label>서브상품 카테고리</Label>
-                                <select
-                                  value={subproductEditDraft.categoryId}
-                                  onChange={(event) => {
-                                    if (event.target.value === MANAGE_SUBPRODUCT_CATEGORIES_VALUE) {
-                                      setIsCategorySettingsOpen(true)
-                                      return
-                                    }
-
-                                    setSubproductEditDraft((current) => current ? { ...current, categoryId: event.target.value } : current)
-                                  }}
-                                  className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
-                                >
-                                  <option value="">카테고리 선택</option>
-                                  {subproductCategories.map((category) => (
-                                    <option key={category.id} value={category.id}>{category.name}</option>
-                                  ))}
-                                  <option value={MANAGE_SUBPRODUCT_CATEGORIES_VALUE}>설정하기</option>
-                                </select>
-                              </div>
-                              <div className="space-y-2">
-                                <Label>서브상품 가격</Label>
-                                <Input
-                                  type="text"
-                                  inputMode="numeric"
-                                  value={subproductEditDraft.priceCredits}
-                                  onChange={(event) => setSubproductEditDraft((current) => current ? { ...current, priceCredits: formatCreditInputValue(event.target.value) } : current)}
-                                />
-                              </div>
-                              <div className="space-y-2 md:col-span-2">
-                                <Label>서브상품 설명</Label>
-                                <Textarea
-                                  value={subproductEditDraft.description}
-                                  onChange={(event) => setSubproductEditDraft((current) => current ? { ...current, description: event.target.value } : current)}
-                                  className="min-h-[72px]"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>구매 안내 라벨</Label>
-                                <Input
-                                  value={subproductEditDraft.purchaseNoticeLabel}
-                                  onChange={(event) => setSubproductEditDraft((current) => current ? { ...current, purchaseNoticeLabel: event.target.value } : current)}
-                                  maxLength={24}
-                                  placeholder="예: PDF 포함"
-                                />
-                              </div>
-                              <div className="space-y-2 md:col-span-2">
-                                <Label>구매 안내 문구</Label>
-                                <Textarea
-                                  value={subproductEditDraft.purchaseNoticeText}
-                                  onChange={(event) => setSubproductEditDraft((current) => current ? { ...current, purchaseNoticeText: event.target.value } : current)}
-                                  className="min-h-[72px]"
-                                  maxLength={160}
-                                  placeholder="예: 편집 가능한 HWP와 문제(PDF)를 함께 제공합니다. PDF는 따로 구매하지 않아도 됩니다."
-                                />
-                                <p className="text-xs text-gray-500">사용자 상세 페이지의 구매 옵션 행에 표시됩니다. 비워두면 HWP+PDF 구성에서는 기본 안내 문구가 표시됩니다.</p>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <Switch
-                                  checked={subproductEditDraft.isActive}
-                                  onCheckedChange={(checked) => setSubproductEditDraft((current) => current ? { ...current, isActive: checked } : current)}
-                                />
-                                <Label>활성화</Label>
-                              </div>
-                            </div>
-                            <div className="flex justify-end gap-2">
-                              <Button type="button" variant="ghost" size="sm" disabled={isSubproductSaving} onClick={handleCancelEditSubproduct}>
-                                취소
-                              </Button>
-                              <Button type="button" size="sm" disabled={isSubproductSaving} onClick={() => void handleSaveSubproduct(subproduct.id)}>
-                                {isSubproductSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                저장
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="font-semibold text-gray-900">{getSubproductCategoryName(subproduct.category_id)}</p>
-                                <Badge variant={subproduct.is_active ? 'outline' : 'secondary'}>{subproduct.is_active ? '활성' : '비활성'}</Badge>
-                              </div>
-                              <p className="mt-1 text-sm text-gray-500">{subproduct.description || '설명이 없습니다.'}</p>
-                              {subproduct.purchase_notice_text ? (
-                                <p className="mt-1 text-sm text-indigo-700">
-                                  {subproduct.purchase_notice_label ? `${subproduct.purchase_notice_label} · ` : ''}
-                                  {subproduct.purchase_notice_text}
-                                </p>
-                              ) : null}
-                              <p className="mt-1 text-sm font-medium text-gray-900">{formatCreditInputValue(subproduct.price_credits)} 크레딧 · 파일 {filesForSubproduct.length}개</p>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button type="button" variant="outline" size="sm" disabled={isSubproductSaving} onClick={() => handleEditSubproduct(subproduct)}>
-                                수정
-                              </Button>
-                              <Button type="button" variant="outline" size="sm" disabled={isSubproductSaving} onClick={() => void handleDeleteSubproduct(subproduct.id)}>
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                삭제
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="space-y-3">
-                          {filesForSubproduct.length > 0 ? (
-                            <div className="space-y-2 rounded-md border bg-slate-50/70 p-3">
-                              <p className="text-sm font-medium text-gray-900">업로드된 파일</p>
-                              <div className="space-y-2">
-                                {filesForSubproduct.map((file) => (
-                                  <div key={file.id} className="flex flex-col gap-2 rounded-md border bg-white px-3 py-2 text-sm md:flex-row md:items-center md:justify-between">
-                                    <div className="min-w-0">
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <Badge variant="outline">{getFileTypeLabel(file.file_type_id)}</Badge>
-                                        <span className="truncate font-medium text-gray-900">{file.original_file_name}</span>
-                                        <Badge variant="secondary">v{file.version}</Badge>
-                                      </div>
-                                      <p className="mt-1 text-xs text-gray-500">{formatFileSize(file.file_size_bytes)} · {formatDateTime(file.created_at)}</p>
-                                    </div>
-                                    <Button type="button" variant="ghost" size="sm" onClick={() => void handleDeleteSubproductFile(subproduct.id, file.id)}>
-                                      제거
-                                    </Button>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="rounded-md border border-dashed bg-slate-50 px-4 py-6 text-center text-sm text-gray-500">
-                              아직 업로드된 파일이 없습니다. 파일 추가+ 버튼으로 필요한 파일을 하나씩 업로드하세요.
-                            </div>
-                          )}
-
-                          <div className="flex justify-end">
-                            <Button type="button" variant="outline" size="sm" disabled={activeFileTypes.length === 0} onClick={() => handleAddSubproductFileDraft(subproduct.id)}>
-                              <Plus className="mr-2 h-4 w-4" />
-                              파일 추가+
-                            </Button>
-                          </div>
-
-                          {activeFileTypes.length === 0 ? (
-                            <div className="rounded-md border border-dashed bg-slate-50 px-4 py-6 text-center text-sm text-gray-500">
-                              등록된 파일 유형이 없습니다. 파일 유형 설정에서 PDF/HWP/ZIP 등의 유형을 먼저 등록하세요.
-                            </div>
-                          ) : null}
-
-                          {subproductFileDrafts.filter((draft) => draft.subproductId === subproduct.id).map((draft) => {
-                            const isUploading = subproductUploadingKeys.includes(draft.id)
-                            const isDragActive = subproductDragActiveKeys.includes(draft.id)
-                            const inputId = `subproduct-file-draft-${draft.id}`
-
-                            return (
-                              <div key={draft.id} className="space-y-3 rounded-md border p-3">
-                                <div className="flex flex-col gap-3 md:flex-row md:items-end">
-                                  <div className="flex-1 space-y-2">
-                                    <Label>파일 유형</Label>
-                                    <select
-                                      value={draft.fileTypeId}
-                                      disabled={isUploading}
-                                      onChange={(event) => {
-                                        if (event.target.value === MANAGE_FILE_TYPES_VALUE) {
-                                          setIsFileTypeSettingsOpen(true)
-                                          return
-                                        }
-
-                                        handleUpdateSubproductFileDraft(draft.id, { fileTypeId: event.target.value })
-                                      }}
-                                      className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
-                                    >
-                                      <option value="">파일 유형 선택</option>
-                                      {activeFileTypes.map((fileType) => (
-                                        <option key={fileType.id} value={fileType.id}>{fileType.label}</option>
-                                      ))}
-                                      <option value={MANAGE_FILE_TYPES_VALUE}>설정하기</option>
-                                    </select>
-                                  </div>
-                                  <Button type="button" variant="ghost" size="sm" disabled={isUploading} onClick={() => handleRemoveSubproductFileDraft(draft.id)}>
-                                    row 삭제
-                                  </Button>
-                                </div>
-                                <input
-                                  id={inputId}
-                                  type="file"
-                                  className="hidden"
-                                  multiple
-                                  accept={activeFileTypes.map(getFileTypeAcceptValue).join(',')}
-                                  disabled={isUploading}
-                                  onChange={(event) => {
-                                    const selectedFiles = Array.from(event.target.files || [])
-                                    event.target.value = ''
-                                    void handleSubproductFileUpload(subproduct.id, draft.fileTypeId, selectedFiles, draft.id)
-                                  }}
-                                />
-                                <label
-                                  htmlFor={!isUploading ? inputId : undefined}
-                                  onDragEnter={(event) => {
-                                    if (isUploading) return
-                                    event.preventDefault()
-                                    setSubproductDragActive(draft.id, true)
-                                  }}
-                                  onDragOver={(event) => {
-                                    if (isUploading) return
-                                    event.preventDefault()
-                                    setSubproductDragActive(draft.id, true)
-                                  }}
-                                  onDragLeave={(event) => {
-                                    if (isUploading) return
-                                    event.preventDefault()
-                                    setSubproductDragActive(draft.id, false)
-                                  }}
-                                  onDrop={(event) => {
-                                    if (isUploading) return
-                                    event.preventDefault()
-                                    setSubproductDragActive(draft.id, false)
-                                    void handleSubproductFileUpload(subproduct.id, draft.fileTypeId, Array.from(event.dataTransfer.files || []), draft.id)
-                                  }}
-                                  className={`flex min-h-32 flex-col justify-center rounded-md border border-dashed px-4 py-4 text-left transition ${
-                                    isUploading
-                                      ? 'cursor-not-allowed border-emerald-300 bg-emerald-50 text-emerald-700'
-                                      : isDragActive
-                                        ? 'cursor-pointer border-primary bg-primary/5'
-                                        : 'cursor-pointer border-red-200 bg-red-50/40 hover:border-red-300 hover:bg-red-50'
-                                  }`}
-                                >
-                                  <p className={`text-sm font-medium ${isUploading ? 'text-emerald-900' : 'text-red-900'}`}>드래그앤드랍 또는 클릭하여 업로드 (여러 파일 한 번에 가능)</p>
-                                  <p className={`mt-1 text-xs ${isUploading ? 'text-emerald-700' : 'text-red-700'}`}>허용 형식: {activeFileTypes.map(getFileTypeAcceptValue).join(', ')} · 파일 유형은 확장자로 정해집니다.</p>
-                                  {isUploading ? <p className="mt-2 text-xs text-emerald-700">업로드 중입니다...</p> : null}
-                                </label>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-3 rounded-lg border p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium text-gray-900">전체 한번에 구매하기</p>
-                  <p className="text-sm text-gray-500">옵션을 켜고 금액을 입력하면 등록된 서브상품의 모든 파일을 한 번에 구매할 수 있습니다.</p>
-                </div>
-                {bundleOption ? <Badge variant="outline">저장됨</Badge> : <Badge variant="secondary">미설정</Badge>}
-              </div>
-              <div className="flex items-center justify-between rounded-md border px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">전체구매 옵션 사용</p>
-                  <p className="text-xs text-gray-500">기본값은 사용이며, 꺼두면 사용자 상세페이지에 전체구매 카드가 노출되지 않습니다.</p>
-                </div>
-                <Switch checked={bundleForm.enabled} onCheckedChange={(checked) => setBundleForm((current) => ({ ...current, enabled: checked }))} />
-              </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>표시명</Label>
-                  <Input disabled={!bundleForm.enabled} value={bundleForm.label} onChange={(event) => setBundleForm((current) => ({ ...current, label: event.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label>전체구매 가격</Label>
-                  <Input
-                    disabled={!bundleForm.enabled}
-                    type="text"
-                    inputMode="numeric"
-                    value={bundleForm.priceCredits}
-                    placeholder="예: 10,000"
-                    onChange={(event) => setBundleForm((current) => ({ ...current, priceCredits: formatCreditInputValue(event.target.value) }))}
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>전체구매 설명</Label>
-                  <Textarea disabled={!bundleForm.enabled} value={bundleForm.description} onChange={(event) => setBundleForm((current) => ({ ...current, description: event.target.value }))} className="min-h-[72px]" />
-                </div>
-              </div>
-            </div>
-
-              {isAutoUploadDraft ? (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  <p className="font-semibold">임시 업로드 상태</p>
-                  <p className="mt-1">상품 등록을 완료하지 않고 업로드 파일을 삭제하려면 등록 취소 및 파일 삭제를 눌러주세요.</p>
-                </div>
-              ) : null}
-
-            <div className="sticky bottom-4 z-10 -mx-2 rounded-xl border bg-white/95 px-2 py-3 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-white/85">
-              <div className="flex flex-col gap-2 sm:flex-row">
-              <Button
-                onClick={handleSubmit}
-                disabled={isSaving}
-                className="h-11 flex-1 text-base font-semibold shadow-sm"
-              >
-                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {form.id
-                  ? requiresFinalRegistration
-                    ? '상품 등록'
-                    : '상품 저장'
-                  : '상품 등록'}
-              </Button>
-              <Button type="button" variant="secondary" disabled={isSaving} onClick={() => void handleStatusAction('draft')}>
-                임시저장
-              </Button>
-              <Button type="button" variant="outline" disabled={isSaving} onClick={() => void handleStatusAction('hidden')}>
-                숨김
-              </Button>
-              <Button type="button" variant="outline" disabled={isSaving} onClick={() => void handleStatusAction('published')}>
-                공개
-              </Button>
-              {form.id ? (
-                <Button type="button" variant="destructive" disabled={isArchiving} onClick={handleArchive}>
-                  {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                  {isAutoUploadDraft ? '등록 취소 및 파일 삭제' : '완전 삭제'}
+                )}
+                <Button
+                  type="button"
+                  onClick={() => void handleSave('published')}
+                  disabled={isSaving || isPublishBlocked}
+                  className="h-11 flex-1 text-base font-semibold shadow-sm"
+                >
+                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {isPublishedItem ? '저장' : '공개하기'}
                 </Button>
-              ) : null}
+                {form.id ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button type="button" variant="outline" size="icon" className="h-11 w-11" disabled={isSaving || isArchiving} aria-label="다른 상태로 저장·삭제">
+                        {isArchiving ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {isPublishedItem ? (
+                        <DropdownMenuItem onSelect={() => void handleSave('draft')}>임시저장으로 전환</DropdownMenuItem>
+                      ) : null}
+                      <DropdownMenuItem onSelect={() => void handleSave('hidden')}>숨김으로 저장</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => void handleSave('archived')}>보관으로 저장</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="text-red-600 focus:text-red-700" onSelect={() => void handleArchive()}>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        {isAutoUploadDraft ? '등록 취소 및 파일 삭제' : '완전 삭제'}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : null}
               </div>
             </div>
           </CardContent>

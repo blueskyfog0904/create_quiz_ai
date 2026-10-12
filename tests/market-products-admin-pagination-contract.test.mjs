@@ -62,7 +62,7 @@ test('목록 머리글 스크롤은 페이지·표시 개수 변경 핸들러 �
   assert.match(client, /<div ref=\{productListHeaderRef\}/)
   assert.match(body('changeListPage'), /listQuery\.setPage\(page\)\n\s+productListHeaderRef\.current\?\.scrollIntoView\(\{ block: 'start' \}\)/)
   assert.match(body('changeListPageSize'), /listQuery\.setPageSize\(size\)\n\s+productListHeaderRef\.current\?\.scrollIntoView\(\{ block: 'start' \}\)/)
-  assert.equal((client.match(/scrollIntoView/g) ?? []).length, 2)
+  assert.equal((client.match(/productListHeaderRef\.current\?\.scrollIntoView/g) ?? []).length, 2)
 })
 
 test('범위를 벗어난 page는 마지막 페이지로 보정되고 표시 개수는 20/50 표준을 따른다', () => {

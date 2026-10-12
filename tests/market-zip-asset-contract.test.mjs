@@ -21,7 +21,7 @@ test('admin product form persists zip price and exposes a zip upload slot', () =
   assert.match(adminClient, /MarketFileType/)
   assert.match(adminClient, /fileTypes/)
   assert.match(adminClient, /getFileTypeAcceptValue/)
-  assert.match(adminClient, /파일추가/)
+  assert.match(adminClient, /파일 추가\+/)
   assert.match(adminCreateRoute, /zipPrice/)
   assert.match(adminCreateRoute, /zip_price/)
   assert.match(adminUpdateRoute, /zipPrice/)
