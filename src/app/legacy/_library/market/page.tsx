@@ -1,8 +1,6 @@
 import { requireAuth } from '@/lib/auth'
 import { resolveWorkspaceSubject } from '@/lib/workspace-subject'
 import { listMarketLibraryRowsForUser } from '@/lib/market-items-server'
-import { buildMarketMenuHref } from '@/lib/market-menu'
-import { listVisibleMarketMenuEntries } from '@/lib/market-menu-server'
 import MarketLibraryClient from './market-library-client'
 
 interface MarketLibraryPageProps {
@@ -13,13 +11,9 @@ export default async function MarketLibraryPage({ searchParams }: MarketLibraryP
   const user = await requireAuth()
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const workspaceSubject = resolveWorkspaceSubject(resolvedSearchParams?.subject)
-  const [rows, marketEntries] = await Promise.all([
-    listMarketLibraryRowsForUser(user.id, workspaceSubject),
-    listVisibleMarketMenuEntries(workspaceSubject),
-  ])
-  const browseMarketHref = marketEntries[0]
-    ? buildMarketMenuHref(marketEntries[0])
-    : '/market'
+  const rows = await listMarketLibraryRowsForUser(user.id, workspaceSubject)
+  // 예전 게시판 목록 대신 과목 홈으로 보낸다(S4-5).
+  const browseMarketHref = `/?subject=${workspaceSubject}`
 
   return (
     <MarketLibraryClient

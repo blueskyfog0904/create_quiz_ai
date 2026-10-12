@@ -76,3 +76,9 @@ test('market library uses board-style one-line date formatting', () => {
   assert.match(libraryClient, /\$\{year\}\.\$\{month\}\.\$\{day\}/)
   assert.doesNotMatch(libraryClient, /toLocaleDateString\('ko-KR'/)
 })
+
+test('market library browse links go to the subject home instead of a legacy market board (S4-5)', () => {
+  const libraryPage = readFileSync(new URL('../src/app/legacy/_library/market/page.tsx', import.meta.url), 'utf8')
+  assert.match(libraryPage, /const browseMarketHref = `\/\?subject=\$\{workspaceSubject\}`/)
+  assert.doesNotMatch(libraryPage, /listVisibleMarketMenuEntries|buildMarketMenuHref|'\/market'/)
+})
