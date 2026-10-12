@@ -77,25 +77,16 @@ import {
   mergeGenerateEntriesIntoHeaderConfig,
   type GenerateMenuEntryAdminRow,
 } from '@/lib/generate-menu'
-import {
-  buildMarketMenuHref,
-  getMarketMenuEntryShowDividerBefore,
-  mergeMarketEntriesIntoHeaderConfig,
-  type MarketMenuEntryAdminRow,
-} from '@/lib/market-menu'
+import { mergeMarketEntriesIntoHeaderConfig } from '@/lib/market-menu'
 import {
   archiveGenerateMenuEntryAction,
-  archiveMarketMenuEntryAction,
   backfillGenerateMenuEntriesAction,
   backfillMarketMenuEntriesAction,
   createGenerateMenuEntryAction,
-  createMarketMenuEntryAction,
   reorderGenerateMenuEntriesAction,
-  reorderMarketMenuEntriesAction,
   saveAdminSidebarNavigationConfigAction,
   saveMenuManagementConfig,
   updateGenerateMenuEntryAction,
-  updateMarketMenuEntryAction,
   type MenuManagementPageData,
 } from './actions'
 
@@ -127,17 +118,6 @@ interface GenerateEntryFormState {
   showDividerBefore: boolean
   entryType: 'personal_generate' | 'listboard'
   postCount: number
-}
-
-interface MarketEntryFormState {
-  id?: string
-  title: string
-  slug: string
-  description: string
-  sortOrder: number
-  isVisible: boolean
-  isActive: boolean
-  showDividerBefore: boolean
 }
 
 const DEDICATED_CHILD_SECTION_PARENT_HREFS = ['/generate', '/market', '/library'] as const
@@ -213,31 +193,6 @@ function buildGenerateEntryForm(entry: GenerateMenuEntryAdminRow): GenerateEntry
   }
 }
 
-function buildEmptyMarketEntryForm(): MarketEntryFormState {
-  return {
-    title: '',
-    slug: '',
-    description: '',
-    sortOrder: 10,
-    isVisible: true,
-    isActive: true,
-    showDividerBefore: false,
-  }
-}
-
-function buildMarketEntryForm(entry: MarketMenuEntryAdminRow): MarketEntryFormState {
-  return {
-    id: entry.id,
-    title: entry.title,
-    slug: entry.slug,
-    description: entry.description || '',
-    sortOrder: entry.sort_order,
-    isVisible: entry.is_visible,
-    isActive: entry.is_active,
-    showDividerBefore: getMarketMenuEntryShowDividerBefore(entry),
-  }
-}
-
 function getMenuParentByHref(items: HeaderMenuItem[], href: string) {
   return items.find((item) => item.href === href) ?? null
 }
@@ -246,7 +201,7 @@ export default function MenuManagementClient({
   initialConfig,
   adminSidebarConfig: initialAdminSidebarConfig,
   generateMenuEntries: initialGenerateMenuEntries,
-  marketMenuEntries: initialMarketMenuEntries,
+  marketMenuEntries,
   generateChildrenSourceMode,
   marketChildrenSourceMode,
   backfillStatus,
@@ -266,15 +221,10 @@ export default function MenuManagementClient({
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string; parentId?: string; hasChildren?: boolean } | null>(null)
 
   const [generateMenuEntries, setGenerateMenuEntries] = useState(initialGenerateMenuEntries)
-  const [marketMenuEntries, setMarketMenuEntries] = useState(initialMarketMenuEntries)
   const [isGenerateEntryDialogOpen, setIsGenerateEntryDialogOpen] = useState(false)
-  const [isMarketEntryDialogOpen, setIsMarketEntryDialogOpen] = useState(false)
   const [generateEntryForm, setGenerateEntryForm] = useState<GenerateEntryFormState>(buildEmptyGenerateEntryForm())
-  const [marketEntryForm, setMarketEntryForm] = useState<MarketEntryFormState>(buildEmptyMarketEntryForm())
   const [isMutatingGenerateEntries, setIsMutatingGenerateEntries] = useState(false)
-  const [isMutatingMarketEntries, setIsMutatingMarketEntries] = useState(false)
   const [archiveTarget, setArchiveTarget] = useState<GenerateMenuEntryAdminRow | null>(null)
-  const [archiveMarketTarget, setArchiveMarketTarget] = useState<MarketMenuEntryAdminRow | null>(null)
   const [isBackfilling, setIsBackfilling] = useState(false)
   const [isBackfillingMarket, setIsBackfillingMarket] = useState(false)
   const [isSavingAdminSidebar, setIsSavingAdminSidebar] = useState(false)
@@ -324,18 +274,14 @@ export default function MenuManagementClient({
     setSavedAdminSidebarConfig(initialAdminSidebarConfig)
     setLogoText(initialConfig.logoText)
     setGenerateMenuEntries(initialGenerateMenuEntries)
-    setMarketMenuEntries(initialMarketMenuEntries)
     setDialogState(null)
     setFormState(buildEmptyMenuForm())
     setIsDialogOpen(false)
     setIsGenerateEntryDialogOpen(false)
-    setIsMarketEntryDialogOpen(false)
     setGenerateEntryForm(buildEmptyGenerateEntryForm())
-    setMarketEntryForm(buildEmptyMarketEntryForm())
     setDeleteTarget(null)
     setArchiveTarget(null)
-    setArchiveMarketTarget(null)
-  }, [initialConfig, initialAdminSidebarConfig, initialGenerateMenuEntries, initialMarketMenuEntries, workspaceSubject])
+  }, [initialConfig, initialAdminSidebarConfig, initialGenerateMenuEntries, workspaceSubject])
 
   const closeDialog = () => {
     setIsDialogOpen(false)
@@ -346,11 +292,6 @@ export default function MenuManagementClient({
   const closeGenerateEntryDialog = () => {
     setGenerateEntryForm(buildEmptyGenerateEntryForm())
     setIsGenerateEntryDialogOpen(false)
-  }
-
-  const closeMarketEntryDialog = () => {
-    setMarketEntryForm(buildEmptyMarketEntryForm())
-    setIsMarketEntryDialogOpen(false)
   }
 
   const updateConfigItems = (updater: (items: HeaderMenuItem[]) => HeaderMenuItem[]) => {
@@ -763,107 +704,6 @@ export default function MenuManagementClient({
     }
   }
 
-  const openCreateMarketEntryDialog = () => {
-    const nextSortOrder = marketMenuEntries.length === 0 ? 10 : Math.max(...marketMenuEntries.map((entry) => entry.sort_order)) + 10
-    setMarketEntryForm({ ...buildEmptyMarketEntryForm(), sortOrder: nextSortOrder })
-    setIsMarketEntryDialogOpen(true)
-  }
-
-  const openEditMarketEntryDialog = (entry: MarketMenuEntryAdminRow) => {
-    setMarketEntryForm(buildMarketEntryForm(entry))
-    setIsMarketEntryDialogOpen(true)
-  }
-
-  const persistMarketEntryState = (nextEntries: MarketMenuEntryAdminRow[]) => {
-    setMarketMenuEntries(nextEntries.sort((a, b) => a.sort_order - b.sort_order || a.title.localeCompare(b.title, 'ko')))
-  }
-
-  const handleSubmitMarketEntry = async () => {
-    const title = marketEntryForm.title.trim()
-    const slug = marketEntryForm.slug.trim()
-
-    if (!title || !slug) {
-      toast.error('메뉴명과 slug를 입력해주세요.')
-      return
-    }
-
-    setIsMutatingMarketEntries(true)
-    try {
-      const searchConfig = {
-        marketSlug: slug,
-        entryHref: buildMarketMenuHref({ slug }),
-        showDividerBefore: marketEntryForm.showDividerBefore,
-      }
-
-      if (marketEntryForm.id) {
-        const response = await updateMarketMenuEntryAction(marketEntryForm.id, {
-          title,
-          slug,
-          description: marketEntryForm.description,
-          sort_order: marketEntryForm.sortOrder,
-          is_visible: marketEntryForm.isVisible,
-          is_active: marketEntryForm.isActive,
-          search_config: searchConfig,
-        }, workspaceSubject)
-        persistMarketEntryState(marketMenuEntries.map((entry) => entry.id === marketEntryForm.id ? response.data : entry))
-        toast.success('문제마켓 메뉴를 수정했습니다.')
-      } else {
-        const response = await createMarketMenuEntryAction({
-          title,
-          slug,
-          description: marketEntryForm.description,
-          sort_order: marketEntryForm.sortOrder,
-          is_visible: marketEntryForm.isVisible,
-          is_active: marketEntryForm.isActive,
-          search_config: searchConfig,
-        }, workspaceSubject)
-        persistMarketEntryState([...marketMenuEntries, response.data])
-        toast.success('문제마켓 메뉴를 추가했습니다.')
-      }
-
-      closeMarketEntryDialog()
-      refreshRoute()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '문제마켓 메뉴 저장에 실패했습니다.')
-    } finally {
-      setIsMutatingMarketEntries(false)
-    }
-  }
-
-  const handleArchiveMarketEntry = async () => {
-    if (!archiveMarketTarget) return
-
-    setIsMutatingMarketEntries(true)
-    try {
-      await archiveMarketMenuEntryAction(archiveMarketTarget.id, workspaceSubject)
-      persistMarketEntryState(marketMenuEntries.filter((entry) => entry.id !== archiveMarketTarget.id))
-      setArchiveMarketTarget(null)
-      toast.success('문제마켓 메뉴를 보관 처리했습니다.')
-      refreshRoute()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '문제마켓 메뉴 보관에 실패했습니다.')
-    } finally {
-      setIsMutatingMarketEntries(false)
-    }
-  }
-
-  const handleMoveMarketEntry = async (index: number, direction: 'up' | 'down') => {
-    const nextEntries = moveArrayItem(marketMenuEntries, index, direction).map((entry, nextIndex) => ({
-      ...entry,
-      sort_order: (nextIndex + 1) * 10,
-    }))
-
-    setMarketMenuEntries(nextEntries)
-    try {
-      await reorderMarketMenuEntriesAction(nextEntries.map((entry) => entry.id), workspaceSubject)
-      toast.success('문제마켓 메뉴 정렬 순서를 저장했습니다.')
-      refreshRoute()
-    } catch (error) {
-      setMarketMenuEntries(marketMenuEntries)
-      toast.error(error instanceof Error ? error.message : '문제마켓 메뉴 정렬 저장에 실패했습니다.')
-    }
-  }
-
   const handleBackfillMarketChildren = async () => {
     setIsBackfillingMarket(true)
     try {
@@ -1242,59 +1082,6 @@ export default function MenuManagementClient({
       <Card>
         <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <CardTitle>문제마켓 2단계 메뉴 관리</CardTitle>
-            <CardDescription>DB 기반 source of truth입니다. href는 slug로 자동 계산됩니다.</CardDescription>
-          </div>
-          <Button onClick={openCreateMarketEntryDialog}>
-            <Plus className="mr-2 h-4 w-4" />문제마켓 메뉴 추가
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-lg border bg-white">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>메뉴명</TableHead>
-                  <TableHead>유형</TableHead>
-                  <TableHead>slug</TableHead>
-                  <TableHead>경로 미리보기</TableHead>
-                  <TableHead className="text-center">노출</TableHead>
-                  <TableHead className="text-center">활성</TableHead>
-                  <TableHead className="text-center">구분선</TableHead>
-                  <TableHead className="text-right">관리</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {marketMenuEntries.map((entry, index) => (
-                  <TableRow key={entry.id}>
-                    <TableCell className="font-medium">{entry.title}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">문제마켓</Badge>
-                    </TableCell>
-                    <TableCell>{entry.slug}</TableCell>
-                    <TableCell className="text-gray-600">{buildMarketMenuHref(entry)}</TableCell>
-                    <TableCell className="text-center">{entry.is_visible ? '표시' : '숨김'}</TableCell>
-                    <TableCell className="text-center">{entry.is_active ? '활성' : '비활성'}</TableCell>
-                    <TableCell className="text-center">{getMarketMenuEntryShowDividerBefore(entry) ? '표시' : '-'}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => handleMoveMarketEntry(index, 'up')} disabled={index === 0 || isMutatingMarketEntries}><ArrowUp className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleMoveMarketEntry(index, 'down')} disabled={index === marketMenuEntries.length - 1 || isMutatingMarketEntries}><ArrowDown className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => openEditMarketEntryDialog(entry)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => setArchiveMarketTarget(entry)}><Trash2 className="h-4 w-4" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
             <CardTitle>라이브러리 2단계 메뉴 관리</CardTitle>
             <CardDescription>헤더 설정(JSON) 기반 source of truth입니다. 저장 시 헤더 dropdown과 라이브러리 좌측 메뉴에 함께 반영됩니다.</CardDescription>
           </div>
@@ -1536,92 +1323,6 @@ export default function MenuManagementClient({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isMarketEntryDialogOpen} onOpenChange={(open) => !open && closeMarketEntryDialog()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{marketEntryForm.id ? '문제마켓 메뉴 수정' : '문제마켓 메뉴 추가'}</DialogTitle>
-            <DialogDescription>문제마켓 2단계 메뉴의 source of truth를 관리합니다.</DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>유형</Label>
-              <div className="rounded-md border bg-gray-50 px-3 py-2 text-sm text-gray-700">문제마켓</div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="market-title">메뉴명</Label>
-              <Input
-                id="market-title"
-                value={marketEntryForm.title}
-                onChange={(event) => setMarketEntryForm((current) => ({ ...current, title: event.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="market-slug">slug</Label>
-              <Input
-                id="market-slug"
-                value={marketEntryForm.slug}
-                onChange={(event) => setMarketEntryForm((current) => ({ ...current, slug: event.target.value }))}
-              />
-              <p className="text-sm text-gray-500">경로 미리보기: {buildMarketMenuHref({ slug: marketEntryForm.slug || 'slug' })}</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="market-description">설명</Label>
-              <Input
-                id="market-description"
-                value={marketEntryForm.description}
-                onChange={(event) => setMarketEntryForm((current) => ({ ...current, description: event.target.value }))}
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="market-sort-order">정렬 순서</Label>
-                <Input
-                  id="market-sort-order"
-                  type="number"
-                  value={marketEntryForm.sortOrder}
-                  onChange={(event) => setMarketEntryForm((current) => ({ ...current, sortOrder: Number(event.target.value) || 0 }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>노출</Label>
-                <div className="flex h-10 items-center gap-3 rounded-md border px-3">
-                  <Switch checked={marketEntryForm.isVisible} onCheckedChange={(checked) => setMarketEntryForm((current) => ({ ...current, isVisible: checked }))} />
-                  <span className="text-sm text-gray-700">{marketEntryForm.isVisible ? '표시' : '숨김'}</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>활성</Label>
-                <div className="flex h-10 items-center gap-3 rounded-md border px-3">
-                  <Switch checked={marketEntryForm.isActive} onCheckedChange={(checked) => setMarketEntryForm((current) => ({ ...current, isActive: checked }))} />
-                  <span className="text-sm text-gray-700">{marketEntryForm.isActive ? '활성' : '비활성'}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>구분선</Label>
-              <div className="flex h-10 items-center gap-3 rounded-md border px-3">
-                <Switch checked={marketEntryForm.showDividerBefore} onCheckedChange={(checked) => setMarketEntryForm((current) => ({ ...current, showDividerBefore: checked }))} />
-                <span className="text-sm text-gray-700">{marketEntryForm.showDividerBefore ? '이 메뉴 앞에 구분선 표시' : '구분선 없음'}</span>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={closeMarketEntryDialog}>취소</Button>
-            <Button onClick={handleSubmitMarketEntry} disabled={isMutatingMarketEntries}>
-              {isMutatingMarketEntries ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              저장
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1649,21 +1350,6 @@ export default function MenuManagementClient({
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleArchiveGenerateEntry}>보관</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={!!archiveMarketTarget} onOpenChange={(open) => !open && setArchiveMarketTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>문제마켓 메뉴를 보관할까요?</AlertDialogTitle>
-            <AlertDialogDescription>
-              <span className="font-medium">[{archiveMarketTarget?.title}]</span> 메뉴는 비노출/비활성 처리되며, hard delete 되지 않습니다.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleArchiveMarketEntry}>보관</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

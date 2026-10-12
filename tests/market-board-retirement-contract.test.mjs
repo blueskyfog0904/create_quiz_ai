@@ -5,7 +5,7 @@ import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 // docs/market-category-tree-plan.md 8.10(S4): 예전 게시판 화면을 지우고 공용 컴포넌트만 src/components/market에 남긴다.
-// 메뉴관리 카드 부재는 S4-3, 상품 API menuEntryId 부재는 S4-7에서 이 파일에 더한다.
+// 상품 API menuEntryId 부재는 S4-7에서 이 파일에 더한다.
 const root = fileURLToPath(new URL('..', import.meta.url))
 const read = (path) => readFileSync(join(root, path), 'utf8')
 const exists = (path) => existsSync(join(root, path))
@@ -78,5 +78,16 @@ test('예전 게시판 목록 주소는 next.config에서 홈으로 307 redirect
       new RegExp(`source: "${escape(source)}",\\s+destination: "${escape(destination)}",\\s+permanent: false,`),
       source
     )
+  }
+})
+
+test('메뉴관리에 문제마켓 2단계 메뉴 관리 카드와 그 생성·수정·보관·정렬 액션이 없다(S4-3)', () => {
+  const client = read('src/app/(admin)/admin/menu-management/menu-management-client.tsx')
+  assert.doesNotMatch(client, /문제마켓 2단계 메뉴 관리/)
+  assert.doesNotMatch(client, /MarketEntryForm|openCreateMarketEntryDialog|handleSubmitMarketEntry|archiveMarketTarget/)
+  const actions = read('src/app/(admin)/admin/menu-management/actions.ts')
+  for (const name of ['createMarketMenuEntry', 'updateMarketMenuEntry', 'archiveMarketMenuEntry', 'reorderMarketMenuEntries']) {
+    assert.doesNotMatch(actions, new RegExp(`\\b${name}`), name)
+    assert.doesNotMatch(read('src/lib/market-menu-server.ts'), new RegExp(`export async function ${name}\\(`), name)
   }
 })

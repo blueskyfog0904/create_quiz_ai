@@ -44,14 +44,10 @@ import type {
   GenerateMenuEntryAdminRow,
 } from '@/lib/generate-menu'
 import {
-  archiveMarketMenuEntry,
   backfillMarketMenuEntriesFromHeader,
-  createMarketMenuEntry,
   getMarketChildrenSourceMode,
   getMarketMenuEntriesBackfillStatus,
   listMarketMenuEntriesForAdmin,
-  reorderMarketMenuEntries,
-  updateMarketMenuEntry,
   type LegacyMarketChildSummary,
 } from '@/lib/market-menu-server'
 import type { MarketMenuEntryAdminRow } from '@/lib/market-menu'
@@ -117,7 +113,6 @@ function revalidateMenuRelatedPaths(workspaceSubject: WorkspaceSubject) {
   revalidatePath('/admin', 'layout')
   revalidatePath(`/admin/menu-management?subject=${workspaceSubject}`)
   revalidatePath('/preview/solvook-concept')
-  revalidatePath('/preview/solvook-concept/boards/[slug]', 'page')
   revalidatePath('/')
 }
 
@@ -322,41 +317,6 @@ export async function archiveGenerateListboardPostItemAction(id: string, workspa
   return { success: true }
 }
 
-
-export async function createMarketMenuEntryAction(
-  input: Pick<TablesInsert<'market_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>,
-  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
-) {
-  await requireAdmin()
-  const entry = await createMarketMenuEntry(input, workspaceSubject)
-  revalidateMenuRelatedPaths(workspaceSubject)
-  return { success: true, data: entry }
-}
-
-export async function updateMarketMenuEntryAction(
-  id: string,
-  input: Pick<TablesUpdate<'market_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>,
-  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
-) {
-  await requireAdmin()
-  const entry = await updateMarketMenuEntry(id, input)
-  revalidateMenuRelatedPaths(workspaceSubject)
-  return { success: true, data: entry }
-}
-
-export async function archiveMarketMenuEntryAction(id: string, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
-  await requireAdmin()
-  await archiveMarketMenuEntry(id)
-  revalidateMenuRelatedPaths(workspaceSubject)
-  return { success: true }
-}
-
-export async function reorderMarketMenuEntriesAction(ids: string[], workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
-  await requireAdmin()
-  await reorderMarketMenuEntries(ids)
-  revalidateMenuRelatedPaths(workspaceSubject)
-  return { success: true }
-}
 
 export async function backfillMarketMenuEntriesAction(workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await requireAdmin()

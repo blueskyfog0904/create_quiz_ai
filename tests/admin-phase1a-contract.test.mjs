@@ -25,9 +25,10 @@ test('U1: 메뉴관리에서 "문제마켓 그룹" 카드와 그 데이터·액�
   ]) {
     assert.doesNotMatch(actions, new RegExp(name), name)
   }
-  // 남은 메뉴 액션은 두 과목 프리뷰(홈·게시판)를 계속 갱신한다(삭제한 그룹 액션 테스트에서 옮겨 온 검사).
+  // 남은 메뉴 액션은 두 과목 프리뷰 홈을 계속 갱신한다(삭제한 그룹 액션 테스트에서 옮겨 온 검사).
+  // 게시판 목록 page는 S4-2b에서 지웠으므로 그 경로는 갱신하지 않는다(S4-3).
   assert.match(actions, /revalidatePath\('\/preview\/solvook-concept'\)/)
-  assert.match(actions, /revalidatePath\('\/preview\/solvook-concept\/boards\/\[slug\]', 'page'\)/)
+  assert.doesNotMatch(actions, /revalidatePath\('\/preview\/solvook-concept\/boards\/\[slug\]', 'page'\)/)
 
   assert.equal(existsSync(join(root, 'src/app/(admin)/admin/menu-management/market-menu-groups-manager.tsx')), false)
   assert.equal(existsSync(join(root, 'src/lib/market-menu-groups-server.ts')), false)

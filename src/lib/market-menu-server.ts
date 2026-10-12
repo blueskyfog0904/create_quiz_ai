@@ -6,7 +6,7 @@ import {
   type MarketMenuEntry,
   type MarketMenuEntryAdminRow,
 } from '@/lib/market-menu'
-import type { TablesInsert, TablesUpdate } from '@/types/supabase'
+import type { TablesInsert } from '@/types/supabase'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 const MARKET_CHILDREN_SOURCE_MODE: MarketChildrenSourceMode = 'hybrid_fallback'
@@ -24,10 +24,6 @@ export interface LegacyMarketChildSummary {
 
 function getAdminSupabase() {
   return createAdminClient()
-}
-
-function normalizeText(value?: string | null) {
-  return value?.trim() ?? ''
 }
 
 export function normalizeSlug(value: string) {
@@ -97,30 +93,6 @@ function getMappedLegacyKey(child: Pick<HeaderMenuChildItem, 'title' | 'href'>) 
 
   return {
     entryKey: slug,
-    slug,
-  }
-}
-
-function validateEntryInput(input: {
-  title?: string
-  slug?: string
-}) {
-  const title = normalizeText(input.title)
-  if (!title) {
-    throw new Error('메뉴명을 입력해주세요.')
-  }
-
-  if (title.length > 30) {
-    throw new Error('메뉴명은 30자 이하로 입력해주세요.')
-  }
-
-  const slug = normalizeSlug(input.slug || '')
-  if (!slug) {
-    throw new Error('slug를 입력해주세요.')
-  }
-
-  return {
-    title,
     slug,
   }
 }
@@ -299,139 +271,6 @@ export async function getMarketMenuEntriesBackfillStatus(baseConfig?: HeaderNavi
     sourceMode: getMarketChildrenSourceMode(),
     entryCount: entries.length,
     missingLegacyChildren: legacyChildren.filter((child) => !child.existsInDb),
-  }
-}
-
-export async function createMarketMenuEntry(
-  input: Pick<TablesInsert<'market_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>,
-  workspaceSubject: WorkspaceSubject = 'english'
-) {
-  const supabase = getAdminSupabase()
-  const normalized = validateEntryInput(input)
-
-  const payload: TablesInsert<'market_menu_entries'> & { subject_code: WorkspaceSubject, workspace_subject: WorkspaceSubject } = {
-    subject_code: workspaceSubject,
-    workspace_subject: workspaceSubject,
-    entry_key: normalized.slug,
-    slug: normalized.slug,
-    title: normalized.title,
-    description: normalizeText(input.description) || null,
-    sort_order: input.sort_order ?? 0,
-    is_visible: input.is_visible ?? true,
-    is_active: input.is_active ?? true,
-    search_config: input.search_config ?? buildSearchConfig(normalized.slug),
-  }
-
-  const { data, error } = await supabase
-    .from('market_menu_entries')
-    .insert(payload)
-    .select('*')
-    .single()
-
-  if (error) {
-    throw normalizeMarketMenuEntriesWriteError(error)
-  }
-
-  return data
-}
-
-export async function updateMarketMenuEntry(
-  id: string,
-  input: Pick<TablesUpdate<'market_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>
-) {
-  const supabase = getAdminSupabase()
-  const { data: current, error: currentError } = await supabase
-    .from('market_menu_entries')
-    .select('*')
-    .eq('id', id)
-    .single()
-
-  if (currentError) {
-    throw normalizeMarketMenuEntriesWriteError(currentError)
-  }
-
-  if (!current) {
-    throw new Error('수정할 문제마켓 메뉴를 찾을 수 없습니다.')
-  }
-
-  const normalizedTitle = normalizeText(input.title ?? current.title)
-  if (!normalizedTitle) {
-    throw new Error('메뉴명을 입력해주세요.')
-  }
-
-  const nextSlug = normalizeSlug(input.slug ?? current.slug)
-  if (!nextSlug) {
-    throw new Error('slug를 입력해주세요.')
-  }
-
-  const payload: TablesUpdate<'market_menu_entries'> = {
-    title: normalizedTitle,
-    slug: nextSlug,
-    entry_key: nextSlug,
-    description: normalizeText(input.description ?? current.description) || null,
-    sort_order: input.sort_order ?? current.sort_order,
-    is_visible: input.is_visible ?? current.is_visible,
-    is_active: input.is_active ?? current.is_active,
-    search_config: input.search_config ?? current.search_config ?? buildSearchConfig(nextSlug),
-  }
-
-  const { data, error } = await supabase
-    .from('market_menu_entries')
-    .update(payload)
-    .eq('id', id)
-    .select('*')
-    .single()
-
-  if (error) {
-    throw normalizeMarketMenuEntriesWriteError(error)
-  }
-
-  return data
-}
-
-export async function archiveMarketMenuEntry(id: string) {
-  const supabase = getAdminSupabase()
-  const { data: current, error: currentError } = await supabase
-    .from('market_menu_entries')
-    .select('*')
-    .eq('id', id)
-    .single()
-
-  if (currentError) {
-    throw normalizeMarketMenuEntriesWriteError(currentError)
-  }
-
-  if (!current) {
-    throw new Error('삭제할 문제마켓 메뉴를 찾을 수 없습니다.')
-  }
-
-  const { error } = await supabase
-    .from('market_menu_entries')
-    .update({
-      is_active: false,
-      is_visible: false,
-      deleted_at: new Date().toISOString(),
-    })
-    .eq('id', id)
-
-  if (error) {
-    throw normalizeMarketMenuEntriesWriteError(error)
-  }
-}
-
-export async function reorderMarketMenuEntries(ids: string[]) {
-  const supabase = getAdminSupabase()
-
-  const results = await Promise.all(ids.map((id, index) => (
-    supabase
-      .from('market_menu_entries')
-      .update({ sort_order: (index + 1) * 10 })
-      .eq('id', id)
-  )))
-
-  const failed = results.find((result) => result.error)
-  if (failed?.error) {
-    throw normalizeMarketMenuEntriesWriteError(failed.error)
   }
 }
 
