@@ -540,8 +540,8 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
           {pagedRows.map((row) => {
             const hasPendingRefund = row.refundTargets.some((target) => target.status === 'pending')
             const availableRefundTargets = row.refundTargets.filter((target) => target.status === 'available')
-            const detailHref = row.categorySlug
-              ? `/${subject}/market/${row.categorySlug}/items/${row.itemId}`
+            const detailHref = row.detailAvailable
+              ? `/items/${row.itemId}?subject=${subject}`
               : null
             const visibleV2Files = dedupeQuestionPdfFiles(row.v2DownloadFiles)
             const legacyDownloads = [

@@ -18,14 +18,11 @@ test('detail href follows the detail page visibility rules without hardcoded slu
     cartServer.indexOf('async function getMarketCartDetailHrefs'),
     cartServer.indexOf('export async function getMarketCartView')
   )
-  assert.match(helper, /\.from\('market_items'\)\s+\.select\('id, menu_entry_id, workspace_subject'\)\s+\.in\('id', itemIds\)\s+\.eq\('status', 'published'\)\s+\.eq\('is_active', true\)\s+\.is\('deleted_at', null\)/)
-  assert.match(helper, /\.from\('market_menu_entries'\)\s+\.select\('id, slug, workspace_subject'\)\s+\.in\('id', menuIds\)\s+\.eq\('is_visible', true\)\s+\.eq\('is_active', true\)\s+\.is\('deleted_at', null\)/)
-  // menu 조회는 items 결과의 menu_entry_id가 필요하므로 순차
-  assert.ok(helper.indexOf("from('market_items')") < helper.indexOf("from('market_menu_entries')"))
-  assert.doesNotMatch(helper, /Promise\.all/)
-  assert.match(helper, /menu\.workspace_subject === item\.workspace_subject/)
-  assert.match(helper, /`\/preview\/solvook-concept\/boards\/\$\{menu\.slug\}\/items\/\$\{item\.id\}\?subject=\$\{item\.workspace_subject\}`/)
-  assert.doesNotMatch(helper, /boards\/(entexam|[a-z]+-[a-z]+)\//)
+  assert.match(helper, /\.from\('market_items'\)\s+\.select\('id, workspace_subject'\)\s+\.in\('id', itemIds\)\s+\.eq\('status', 'published'\)\s+\.eq\('is_active', true\)\s+\.is\('deleted_at', null\)/)
+  // 상세 주소가 게시판과 무관해져 게시판 조회가 없다
+  assert.doesNotMatch(helper, /market_menu_entries/)
+  assert.match(helper, /`\/items\/\$\{item\.id\}\?subject=\$\{item\.workspace_subject\}`/)
+  assert.doesNotMatch(helper, /boards\//)
 })
 
 test('cart view links the item title only when a detail href exists', () => {

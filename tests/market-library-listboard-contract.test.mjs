@@ -61,10 +61,10 @@ test('market library purchase history shows product title only in product info c
 })
 
 test('market library rows navigate to subject-aware market item detail', () => {
-  assert.match(libraryClient, /`\/market\/\$\{row\.categorySlug\}\/items\/\$\{row\.itemId\}`/)
+  assert.match(libraryClient, /row\.detailAvailable \? `\/items\/\$\{row\.itemId\}\?subject=\$\{workspaceSubject\}` : null/)
   assert.match(libraryClient, /WorkspaceLink/)
   assert.match(libraryClient, /subject=\{workspaceSubject\}/)
-  assert.match(libraryClient, /withWorkspacePrefix\(workspaceSubject, detailHref\)/)
+  assert.match(libraryClient, /router\.push\(detailHref\)/)
   assert.match(libraryClient, /role=\{detailHref \? 'link' : undefined\}/)
   assert.match(libraryClient, /tabIndex=\{detailHref \? 0 : undefined\}/)
   assert.match(libraryClient, /event\.key === 'Enter'/)

@@ -81,7 +81,7 @@ export function workspaceHref(
     case 'marketCategory':
       return withWorkspacePrefix(subject, `/market/${requireParam(params.slug, 'slug')}`)
     case 'marketItem':
-      return withWorkspacePrefix(subject, `/market/${requireParam(params.slug, 'slug')}/items/${requireParam(params.id, 'id')}`)
+      return `/items/${requireParam(params.id, 'id')}?subject=${subject}`
     default:
       return withWorkspacePrefix(subject, '/')
   }

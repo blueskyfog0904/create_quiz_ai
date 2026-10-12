@@ -2,12 +2,11 @@ import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { connection } from 'next/server'
-import { unstable_cache } from 'next/cache'
 import {
   getMarketCategoryItemDetail,
-  listMarketCategoryMenu,
   listMarketItemsForCategory,
 } from '@/lib/market-categories-server'
+import { getCachedCategoryMenu } from '@/lib/market-category-tree-cache'
 import { CategoryItemsView } from './_components/category-items-view'
 import { normalizeListPage, normalizeListPageSize } from '@/lib/list-pagination'
 
@@ -15,14 +14,6 @@ export const metadata: Metadata = {
   title: '카테고리 | 써머썬 연구소',
   description: '카테고리에 등록된 수업 자료를 확인합니다.',
 }
-
-// 왼쪽 카테고리 목록(항목별 상품 수 포함)은 페이지마다 같은 값이라 60초 공유 캐시로 읽는다.
-// 상단 메가메뉴 API(/api/market/category-menu)도 같은 데이터를 60초 캐시한다.
-const getCachedCategoryMenu = unstable_cache(
-  () => listMarketCategoryMenu(true),
-  ['category-menu-with-counts'],
-  { revalidate: 60 }
-)
 
 export default async function CategoryPage({
   params,

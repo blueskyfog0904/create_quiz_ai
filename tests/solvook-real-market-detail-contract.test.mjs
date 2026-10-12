@@ -8,15 +8,14 @@ async function read(relativePath) {
   return readFile(new URL(relativePath, ROOT), 'utf8')
 }
 
-test('Solvook real market detail route loads one published item in its category and subject', async () => {
-  const source = await read('src/app/preview/solvook-concept/boards/[slug]/items/[itemId]/page.tsx')
+test('Solvook real market detail route loads one published item by id in its subject', async () => {
+  const source = await read('src/app/(solvook)/items/[itemId]/page.tsx')
 
-  assert.match(source, /getVisibleMarketMenuEntryBySlugForWorkspace/)
+  assert.doesNotMatch(source, /getVisibleMarketMenuEntryBySlugForWorkspace|menu_entry_id/)
   assert.match(source, /getPublishedMarketItemById/)
-  assert.match(source, /resolveWorkspaceSubject/)
-  assert.match(source, /item\.menu_entry_id !== category\.id/)
+  assert.match(source, /isWorkspaceSubject/)
   assert.match(source, /notFound\(\)/)
-  assert.match(source, /listActiveMarketItemSamplePages/)
+  assert.match(source, /countActiveMarketItemSamplePages/)
   assert.match(source, /listMarketSubproductPublicSummaries/)
   assert.match(source, /getMarketBundlePublicSummary/)
   assert.match(source, /listCompletedMarketPurchasesForItem/)

@@ -370,7 +370,7 @@ test('the market pilot adopts the canonical Studio board composition without mov
   assert.match(client, /const openSamplePreview = \(itemId: string, trigger: HTMLButtonElement\) => \{/)
   assert.match(
     client,
-    /const href = `\/market\/\$\{categorySlug\}\/items\/\$\{row\.itemId\}`/
+    /const href = `\/items\/\$\{row\.itemId\}\?subject=\$\{workspaceSubject\}`/
   )
   assert.doesNotMatch(
     `${server}\n${client}`,

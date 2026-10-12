@@ -20,7 +20,7 @@ test('market list api and server rows support zip and sample-pages-only sample f
 test('market listboard leaves zip purchase choices to the item detail page', () => {
   assert.doesNotMatch(listClient, /AssetKind|renderAssetOption/)
   assert.doesNotMatch(listClient, />파일<\/th>/)
-  assert.match(listClient, /const href = `\/market\/\$\{categorySlug\}\/items\/\$\{row\.itemId\}`/)
+  assert.match(listClient, /const href = `\/items\/\$\{row\.itemId\}\?subject=\$\{workspaceSubject\}`/)
   assert.doesNotMatch(listClient, /zipCount/)
   assert.doesNotMatch(listClient, /selectionSummary/)
   assert.match(listServer, /zip|ZIP/)

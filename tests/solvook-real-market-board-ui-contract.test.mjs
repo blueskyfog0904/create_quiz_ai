@@ -196,7 +196,7 @@ test('board results keep one semantic list and one shared market sample preview 
   assert.doesNotMatch(rows, /<Badge/)
   assert.match(
     source,
-    /`\/preview\/solvook-concept\/boards\/\$\{categorySlug\}\/items\/\$\{row\.id\}\?subject=\$\{subject\}`/
+    /`\/items\/\$\{row\.id\}\?subject=\$\{subject\}`/
   )
   assert.doesNotMatch(
     source,

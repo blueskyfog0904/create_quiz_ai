@@ -26,8 +26,8 @@ test('subject-aware preview links stay inside the selected Solvook preview', asy
   assert.match(header, /\?subject=english/)
   assert.match(header, /\?subject=korean/)
   assert.match(header, /aria-current=/)
-  assert.match(popular, /\/preview\/solvook-concept\/boards\/\$\{item\.categorySlug\}\/items\/\$\{item\.id\}/)
-  assert.match(sections, /\/preview\/solvook-concept\/boards\/\$\{item\.categorySlug\}\/items\/\$\{item\.id\}/)
+  assert.match(popular, /\/items\/\$\{item\.id\}/)
+  assert.match(sections, /\/items\/\$\{item\.id\}/)
 })
 
 test('preview renders database category board navigation beside the ad carousel', async () => {

@@ -54,18 +54,12 @@ export function MarketItemCard({ row, subject, onSamplePrefetch, onSampleOpen }:
             </span>
           ) : null}
           <h2 className="mt-1.5">
-            {row.categorySlug ? (
-              <Link
-                href={`/preview/solvook-concept/boards/${row.categorySlug}/items/${row.itemId}?subject=${subject}`}
-                className="break-keep text-base font-semibold leading-6 text-[var(--studio-ink)] outline-none after:absolute after:inset-0 hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-              >
-                {row.title}
-              </Link>
-            ) : (
-              <span className="break-keep text-base font-semibold leading-6 text-[var(--studio-ink)]">
-                {row.title}
-              </span>
-            )}
+            <Link
+              href={`/items/${row.itemId}?subject=${subject}`}
+              className="break-keep text-base font-semibold leading-6 text-[var(--studio-ink)] outline-none after:absolute after:inset-0 hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+            >
+              {row.title}
+            </Link>
           </h2>
           <p className="mt-1 text-base text-[var(--studio-muted)]">{row.categoryTitle}</p>
           {row.minPriceCredits !== null ? (

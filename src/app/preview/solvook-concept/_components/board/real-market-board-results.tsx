@@ -149,7 +149,7 @@ export function RealMarketBoardResults({
           id: row.id,
           title: row.title,
           thumbnailUrl: row.thumbnailUrl,
-          detailHref: `/preview/solvook-concept/boards/${categorySlug}/items/${row.id}?subject=${subject}`,
+          detailHref: `/items/${row.id}?subject=${subject}`,
           metadataLabels: Array.from(new Set([
             ...row.sourceFields.map((field) => field.value),
             row.materialType,

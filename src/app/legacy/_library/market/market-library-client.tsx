@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { WorkspaceLink } from '@/components/layout/workspace-link'
 import type { MarketLibraryRow } from '@/lib/market-items-server'
-import { withWorkspacePrefix, type WorkspaceSubject } from '@/lib/workspace-subject'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 interface MarketLibraryClientProps {
   rows: MarketLibraryRow[]
@@ -66,7 +66,7 @@ export default function MarketLibraryClient({
 
   const navigateToDetail = (detailHref: string | null) => {
     if (!detailHref) return
-    router.push(withWorkspacePrefix(workspaceSubject, detailHref))
+    router.push(detailHref)
   }
 
   const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, detailHref: string | null) => {
@@ -203,7 +203,7 @@ export default function MarketLibraryClient({
                   </thead>
                   <tbody>
                     {filteredRows.map((row, index) => {
-                      const detailHref = row.categorySlug ? `/market/${row.categorySlug}/items/${row.itemId}` : null
+                      const detailHref = row.detailAvailable ? `/items/${row.itemId}?subject=${workspaceSubject}` : null
                       const refundTarget = row.refundTargets.find((target) => target.status === 'available')
                         ?? null
 

@@ -27,7 +27,7 @@ test('market listboard no longer exposes direct purchase state or confirmation U
 
 test('market listboard title points users to item detail purchase flow without a file column', () => {
   assert.match(listClient, /WorkspaceLink/)
-  assert.match(listClient, /\/market\/\$\{categorySlug\}\/items\/\$\{row\.itemId\}/)
+  assert.match(listClient, /\/items\/\$\{row\.itemId\}\?subject=/)
   assert.match(listClient, /row\.sample\.available/)
   assert.doesNotMatch(listClient, />파일<\/th>/)
   assert.doesNotMatch(listClient, /상세에서 구매/)

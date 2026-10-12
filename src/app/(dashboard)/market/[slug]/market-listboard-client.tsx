@@ -115,7 +115,7 @@ export default function MarketListboardClient({ categorySlug, workspaceSubject, 
             </thead>
             <tbody>
               {pagedRows.map((row) => {
-                const href = `/market/${categorySlug}/items/${row.itemId}`
+                const href = `/items/${row.itemId}?subject=${workspaceSubject}`
 
                 return (
                   <tr key={row.itemId} className="border-b border-[var(--studio-border)] bg-[var(--studio-surface)] transition hover:bg-[var(--studio-primary-soft)]">

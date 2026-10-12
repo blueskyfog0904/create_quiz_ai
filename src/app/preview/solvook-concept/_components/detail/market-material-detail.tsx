@@ -12,7 +12,6 @@ import type {
   MarketBundlePublicSummary,
   MarketItem,
   MarketItemFile,
-  MarketMenuEntry,
   MarketPublishedItem,
   MarketPurchase,
   MarketSubproductDownloadFile,
@@ -26,7 +25,6 @@ import type { MegaMenuGroup } from '@/lib/market-categories-server'
 
 interface MarketMaterialDetailProps {
   bundleOption: MarketBundlePublicSummary | null
-  category: MarketMenuEntry
   downloadFiles: MarketSubproductDownloadFile[]
   files: MarketItemFile[]
   isLoggedIn: boolean
@@ -70,7 +68,6 @@ function getStartingPrice(
 
 export function MarketMaterialDetail({
   bundleOption,
-  category,
   downloadFiles,
   files,
   isLoggedIn,
@@ -82,11 +79,9 @@ export function MarketMaterialDetail({
   subproducts,
   categoryTree,
 }: MarketMaterialDetailProps) {
-  const activeCategory = categoryTree.flatMap((group) => group.items)
-    .find((entry) => entry.id === item.category_item_id)
-  const boardHref = activeCategory
-    ? `/categories/${activeCategory.id}?subject=${item.workspace_subject}`
-    : `/preview/solvook-concept/boards/${category.slug}?subject=${item.workspace_subject}`
+  const activeGroup = categoryTree.find((group) => group.items.some((entry) => entry.id === item.category_item_id))
+  const activeCategory = activeGroup?.items.find((entry) => entry.id === item.category_item_id)
+  const subjectLabel = item.workspace_subject === 'korean' ? '국어' : '영어'
   const startingPrice = getStartingPrice(item, files, subproducts, bundleOption)
   const hasSamplePages = samplePageCount > 0
   const hasLegacySample = files.some((file) => file.asset_kind === 'sample')
@@ -103,7 +98,7 @@ export function MarketMaterialDetail({
   const materialInfoRows = [
     {
       label: '과목',
-      value: item.workspace_subject === 'korean' ? '국어' : '영어',
+      value: subjectLabel,
     },
     {
       label: '학년',
@@ -147,19 +142,25 @@ export function MarketMaterialDetail({
               className="flex flex-wrap items-center gap-2 text-sm text-[var(--studio-muted)]"
             >
               <Link
-                href={`/preview/solvook-concept?subject=${item.workspace_subject}`}
+                href={`/?subject=${item.workspace_subject}`}
                 className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-sm px-2 outline-none hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
               >
                 홈
               </Link>
               <span aria-hidden="true">/</span>
-              <Link
-                href={boardHref}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-sm px-2 outline-none hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-              >
-                {activeCategory?.title ?? category.title}
-              </Link>
-              <span aria-hidden="true">/</span>
+              {activeGroup && activeCategory ? (
+                <>
+                  <span className="inline-flex min-h-11 items-center px-2">{activeGroup.title}</span>
+                  <span aria-hidden="true">/</span>
+                  <Link
+                    href={`/categories/${activeCategory.id}?subject=${item.workspace_subject}`}
+                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-sm px-2 outline-none hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                  >
+                    {activeCategory.title}
+                  </Link>
+                  <span aria-hidden="true">/</span>
+                </>
+              ) : null}
               <span
                 aria-current="page"
                 className="min-w-0 flex-1 truncate font-semibold text-[var(--studio-text)]"
@@ -183,7 +184,7 @@ export function MarketMaterialDetail({
             ) : (
               <div className="flex aspect-[3/4] w-full flex-col items-center justify-center rounded-[var(--studio-radius-card)] border border-dashed border-[var(--studio-border)] bg-[var(--studio-background)] px-4 text-center text-[var(--studio-muted)]">
                 <FileText aria-hidden="true" className="size-8" />
-                <span className="mt-3 text-sm font-bold">{category.title}</span>
+                <span className="mt-3 text-sm font-bold">{activeCategory?.title ?? subjectLabel}</span>
               </div>
             )}
             <MarketMaterialSampleButton

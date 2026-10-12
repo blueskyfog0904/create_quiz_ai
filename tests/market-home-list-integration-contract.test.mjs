@@ -39,7 +39,7 @@ test('home list rows link to the real-data Solvook preview detail', () => {
     read('src/app/preview/solvook-concept/_components/home/popular-downloads-slider.tsx'),
     read('src/app/preview/solvook-concept/_components/home/home-material-sections.tsx'),
   ]
-  const previewDetailPattern = /`\/preview\/solvook-concept\/boards\/\$\{item\.categorySlug\}\/items\/\$\{item\.id\}\?subject=\$\{subject\}`/
+  const previewDetailPattern = /`\/items\/\$\{item\.id\}\?subject=\$\{subject\}`/
 
   assert.match(popular, previewDetailPattern)
   assert.match(sections, previewDetailPattern)

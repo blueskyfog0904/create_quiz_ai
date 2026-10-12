@@ -168,7 +168,7 @@ test('market listboard removes direct purchase tray and sends purchase flow to d
   assert.doesNotMatch(listboardClient, /api\/market\/purchases\/batch/)
   assert.doesNotMatch(listboardClient, /status === 402/)
   assert.doesNotMatch(listboardClient, /상세에서 구매/)
-  assert.match(listboardClient, /const href = `\/market\/\$\{categorySlug\}\/items\/\$\{row\.itemId\}`/)
+  assert.match(listboardClient, /const href = `\/items\/\$\{row\.itemId\}\?subject=\$\{workspaceSubject\}`/)
   assert.match(listboardClient, /WorkspaceLink/)
   assert.doesNotMatch(
     pilotSources,

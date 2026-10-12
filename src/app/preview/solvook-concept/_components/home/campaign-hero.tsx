@@ -21,7 +21,7 @@ export function CampaignHero({ subject, categories, featuredItem, config }: Camp
     { label: '이번 주 업데이트', title: '최근 등록 자료 모아보기', href: config.recent.isActive ? '#recent-materials' : marketHref, tone: 'bg-[#28395f]' },
   ]
   const detailHref = featuredItem
-    ? `/${subject}/market/${featuredItem.categorySlug}/items/${featuredItem.id}`
+    ? `/items/${featuredItem.id}?subject=${subject}`
     : marketHref
 
   return (

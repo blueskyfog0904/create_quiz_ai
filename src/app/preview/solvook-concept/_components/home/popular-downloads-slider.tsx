@@ -29,7 +29,7 @@ export function PopularDownloadsSlider({ subject, items, rankingWindowDays }: Po
               id: item.id,
               title: item.title,
               thumbnailUrl: item.thumbnailUrl,
-              detailHref: `/preview/solvook-concept/boards/${item.categorySlug}/items/${item.id}?subject=${subject}`,
+              detailHref: `/items/${item.id}?subject=${subject}`,
               metadataLabels: Array.from(new Set([
                 ...item.sources,
                 item.sourceType,

@@ -76,7 +76,8 @@ export interface MarketLibraryRefundTarget {
 
 export interface MarketLibraryRow {
   itemId: string
-  categorySlug: string | null
+  // 상세 페이지가 열리는 상품(공개·활성·미삭제)인지. 아니면 화면에서 상세 링크를 걸지 않는다.
+  detailAvailable: boolean
   categoryTitle: string
   title: string
   summary: string | null
@@ -2911,7 +2912,7 @@ export async function listMarketLibraryRowsForUser(
 
       return {
         itemId,
-        categorySlug: menu?.slug ?? null,
+        detailAvailable: item?.status === 'published' && item.is_active && item.deleted_at === null,
         categoryTitle: menu?.title ?? '알 수 없는 카테고리',
         title: item?.title ?? '삭제되었거나 찾을 수 없는 상품',
         thumbnailUrl: item ? toMarketThumbnailUrl(supabase, item) : null,
