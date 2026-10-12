@@ -1,10 +1,10 @@
 import { Metadata } from 'next'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
-import MarketCategoriesClient from './market-categories-client'
+import { MarketCategoryTreeEditor } from '@/components/admin/market-category-tree-editor'
 
 export const metadata: Metadata = {
   title: '카테고리 메뉴 관리 | 관리자 패널',
-  description: '헤더 카테고리 메가메뉴에 노출되는 그룹과 항목을 관리합니다.',
+  description: '문제마켓 카테고리 칸(depth1~5)을 관리합니다.',
 }
 
 interface MarketCategoriesPageProps {
@@ -23,9 +23,9 @@ export default async function MarketCategoriesPage({ searchParams }: MarketCateg
         </h2>
       </div>
       <p className="text-sm text-muted-foreground">
-        헤더 카테고리 메가메뉴에 노출되는 그룹(2단계)과 항목(3단계)입니다. 비활성화하면 메뉴와 카테고리 페이지에서 숨겨집니다.
+        문제마켓 카테고리 칸입니다. 헤더 메가메뉴에는 depth1~depth2가 보이고, 칸마다 카테고리 페이지가 있습니다. 비활성화하면 그 칸과 아래 칸 전체가 메뉴와 카테고리 페이지에서 숨겨집니다.
       </p>
-      <MarketCategoriesClient workspaceSubject={workspaceSubject} />
+      <MarketCategoryTreeEditor key={workspaceSubject} subject={workspaceSubject} />
     </div>
   )
 }

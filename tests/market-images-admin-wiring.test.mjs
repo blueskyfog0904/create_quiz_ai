@@ -12,7 +12,7 @@ const productsClient = read('src/app/(admin)/admin/market/products/market-produc
 const categoriesRoute = read('src/app/api/admin/market-categories/route.ts')
 const categoryNodeRoute = read('src/app/api/admin/market-categories/[nodeId]/route.ts')
 const categoriesServer = read('src/lib/market-categories-server.ts')
-const categoriesClient = read('src/app/(admin)/admin/market-categories/market-categories-client.tsx')
+const categoriesClient = read('src/components/admin/market-category-tree-editor.tsx')
 const imageField = read('src/components/admin/market-image-field.tsx')
 const library = read('src/components/admin/market-image-library.tsx')
 
@@ -88,7 +88,7 @@ test('category items accept default_image_id and the admin tree returns defaultI
   assert.match(categoriesServer, /default_image:market_images\(id, storage_path\)/)
   assert.match(categoriesServer, /defaultImage: defaultImage\n\s+\? \{ id: defaultImage\.id, publicUrl:/)
   assert.match(categoriesRoute, /const nodes = await listMarketCategoryTreeForAdmin\(workspaceSubject\)/)
-  assert.match(categoriesClient, /<MarketImageField[\s\S]+?onChange=\{\(image\) => void patchItem\(item\.id, \{ default_image_id: image\?\.id \?\? null \}\)\}/)
+  assert.match(categoriesClient, /<MarketImageField[\s\S]+?onChange=\{\(image\) => void patchNode\(node\.id, \{ default_image_id: image\?\.id \?\? null \}\)\}/)
   assert.match(productsClient, /defaultImage: MarketImageFieldValue \| null/)
 })
 
@@ -221,8 +221,8 @@ test('category node update writes default_image_id and maps the image FK error t
 test('review fixes: group update has no image column, drafts merge, preview follows the form id, stale folder is forgotten', () => {
   assert.doesNotMatch(categoriesServer, /updateCategoryGroup|market_category_groups/)
 
-  assert.match(categoriesClient, /const loadGroups = useCallback\(async \(resetId\?: string\) =>/)
-  assert.match(categoriesClient, /await loadGroups\(savingKey\)/)
+  assert.match(categoriesClient, /const loadTree = useCallback\(async \(resetId\?: string\) =>/)
+  assert.match(categoriesClient, /await loadTree\(savingKey\)/)
   assert.match(categoriesClient, /isDirty && row\.id !== resetId \? draft : \{ title: row\.title, sortOrder: String\(row\.sortOrder\) \}/)
 
   assert.match(productsClient, /initialItems: MarketItemForAdmin\[\]/)
