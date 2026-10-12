@@ -1237,9 +1237,11 @@ export type Database = {
         Row: {
           created_at: string
           default_image_id: string | null
-          group_id: string
+          depth: number
+          group_id: string | null
           id: string
           is_active: boolean
+          parent_id: string | null
           sort_order: number
           title: string
           updated_at: string
@@ -1248,9 +1250,11 @@ export type Database = {
         Insert: {
           created_at?: string
           default_image_id?: string | null
-          group_id: string
+          depth: number
+          group_id?: string | null
           id?: string
           is_active?: boolean
+          parent_id?: string | null
           sort_order?: number
           title: string
           updated_at?: string
@@ -1259,9 +1263,11 @@ export type Database = {
         Update: {
           created_at?: string
           default_image_id?: string | null
-          group_id?: string
+          depth?: number
+          group_id?: string | null
           id?: string
           is_active?: boolean
+          parent_id?: string | null
           sort_order?: number
           title?: string
           updated_at?: string
@@ -1281,6 +1287,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "market_category_groups"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_category_items_parent_subject_fkey"
+            columns: ["parent_id", "workspace_subject"]
+            isOneToOne: false
+            referencedRelation: "market_category_items"
+            referencedColumns: ["id", "workspace_subject"]
           },
         ]
       }

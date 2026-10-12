@@ -7,6 +7,15 @@ import { isWorkspaceSubject, type WorkspaceSubject } from '@/lib/workspace-subje
 import { getListPagination } from '@/lib/list-pagination'
 import { readAllQueryRows } from '@/lib/read-all-query-rows'
 import { MARKET_IMAGES_BUCKET, MARKET_THUMBNAIL_EMBED, toMarketThumbnailUrl } from '@/lib/market-images'
+import {
+  applyCategoryItemCounts,
+  buildCategoryTree,
+  collectSubtreeIds,
+  findCategoryPath,
+  MARKET_CATEGORY_MAX_DEPTH,
+  type MarketCategoryNode,
+  type MarketCategoryTree,
+} from '@/lib/market-category-tree'
 
 // admin-accounts-server의 AdminAccountError와 동일한 status+message 패턴
 export class MarketCategoryError extends Error {
@@ -21,137 +30,93 @@ export class MarketCategoryError extends Error {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export interface MegaMenuGroup {
+// 공개 트리: 활성 칸만, 조상 중 비활성이 있으면 그 아래 전체를 뺀다. 노드는 한 쿼리로 읽는다.
+// includeCounts면 공개 상품을 한 번에 읽어 칸마다 하위 합산 개수를 채운다(칸 수와 무관한 쿼리 수).
+export async function listMarketCategoryTree(includeCounts = false): Promise<MarketCategoryTree> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('market_category_items')
+    .select('id, workspace_subject, parent_id, depth, title, sort_order, created_at')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) {
+    throw new Error(error.message)
+  }
+  const tree = buildCategoryTree(data ?? [])
+
+  if (includeCounts) {
+    // 노출 게시판의 상품만 센다(게시판 게이트는 S3에서 제거).
+    const { data: entries, error: entriesError } = await supabase.from('market_menu_entries').select('id')
+      .eq('is_visible', true).eq('is_active', true).is('deleted_at', null)
+    if (entriesError) throw new Error(entriesError.message)
+    const menuIds = (entries ?? []).map((entry) => entry.id)
+    const items = menuIds.length === 0 ? [] : await readAllQueryRows((from, to) => supabase
+      .from('market_items')
+      .select('id, category_item_id, workspace_subject')
+      .eq('status', 'published').eq('is_active', true).is('deleted_at', null).in('menu_entry_id', menuIds)
+      .order('id').range(from, to))
+    // 과목별로 센다(목록 조회와 같은 과목 조건).
+    const directCounts = { english: new Map<string, number>(), korean: new Map<string, number>() }
+    for (const item of items) {
+      if (!item.category_item_id || !isWorkspaceSubject(item.workspace_subject)) continue
+      const counts = directCounts[item.workspace_subject]
+      counts.set(item.category_item_id, (counts.get(item.category_item_id) ?? 0) + 1)
+    }
+    applyCategoryItemCounts(tree.english, directCounts.english)
+    applyCategoryItemCounts(tree.korean, directCounts.korean)
+  }
+  return tree
+}
+
+export interface MarketCategoryNodeSummary {
   id: string
   title: string
   itemCount?: number
-  items: { id: string; title: string; itemCount?: number }[]
 }
 
-export interface MarketCategoryMenu {
-  english: MegaMenuGroup[]
-  korean: MegaMenuGroup[]
-}
-
-// 공개 메가메뉴 트리: 활성 그룹 + 활성 항목만, sort_order 정렬.
-export async function listMarketCategoryMenu(includeCounts = false): Promise<MarketCategoryMenu> {
-  const supabase = createAdminClient()
-
-  const [groupsResult, itemsResult] = await Promise.all([
-    supabase
-      .from('market_category_groups')
-      .select('id, workspace_subject, title')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true })
-      .order('created_at', { ascending: true }),
-    supabase
-      .from('market_category_items')
-      .select('id, group_id, title')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true })
-      .order('created_at', { ascending: true }),
-  ])
-
-  if (groupsResult.error) {
-    throw new Error(groupsResult.error.message)
-  }
-  if (itemsResult.error) {
-    throw new Error(itemsResult.error.message)
-  }
-
-  const itemsByGroup = new Map<string, { id: string; title: string }[]>()
-  for (const item of itemsResult.data ?? []) {
-    const current = itemsByGroup.get(item.group_id) ?? []
-    current.push({ id: item.id, title: item.title })
-    itemsByGroup.set(item.group_id, current)
-  }
-
-  const menu: MarketCategoryMenu = { english: [], korean: [] }
-  for (const group of groupsResult.data ?? []) {
-    if (!isWorkspaceSubject(group.workspace_subject)) continue
-    const items = itemsByGroup.get(group.id) ?? []
-    // 활성 항목이 없는 그룹은 링크 없는 제목만 남으므로 메뉴에서 제외한다
-    if (items.length === 0) continue
-    menu[group.workspace_subject].push({
-      id: group.id,
-      title: group.title,
-      items,
-    })
-  }
-
-  if (includeCounts) {
-    await Promise.all((['english', 'korean'] as const).map(async (subject) => {
-      const { data: entries, error } = await supabase.from('market_menu_entries').select('id')
-        .eq('workspace_subject', subject).eq('is_visible', true).eq('is_active', true).is('deleted_at', null)
-      if (error) throw new Error(error.message)
-      const menuIds = (entries ?? []).map((entry) => entry.id)
-      await Promise.all(menu[subject].map(async (group) => {
-        await Promise.all(group.items.map(async (item) => {
-          if (menuIds.length === 0) {
-            item.itemCount = 0
-            return
-          }
-          const { count, error: countError } = await supabase.from('market_items').select('id', { count: 'exact', head: true })
-            .eq('category_item_id', item.id).eq('workspace_subject', subject)
-            .eq('status', 'published').eq('is_active', true).is('deleted_at', null).in('menu_entry_id', menuIds)
-          if (countError) throw new Error(countError.message)
-          item.itemCount = count ?? 0
-        }))
-        group.itemCount = group.items.reduce((sum, item) => sum + (item.itemCount ?? 0), 0)
-      }))
-    }))
-  }
-  return menu
-}
-
-export interface MarketCategoryItemDetail {
+export interface MarketCategoryNodeDetail {
   id: string
   title: string
+  depth: number
   workspaceSubject: WorkspaceSubject
-  groupTitle: string
+  ancestors: { id: string; title: string }[]
+  children: MarketCategoryNodeSummary[]
+  // 같은 부모 아래 칸(자신 포함). 말단 칸의 '더 자세히 찾기'에 쓴다.
+  siblings: MarketCategoryNodeSummary[]
+  subtreeIds: string[]
 }
 
-// 카테고리 페이지 헤더용: 활성 항목 + 활성 그룹. uuid 형식이 아니거나 없거나 비활성이면 null.
-export async function getMarketCategoryItemDetail(id: string): Promise<MarketCategoryItemDetail | null> {
+const toSummary = ({ id, title, itemCount }: MarketCategoryNode): MarketCategoryNodeSummary => ({ id, title, itemCount })
+
+// 카테고리 페이지용 칸 정보. uuid 형식이 아니거나 공개 트리에 없으면(없거나 자기·조상 중 비활성) null.
+// 트리를 넘기면 추가 쿼리 없이 찾는다.
+export async function getMarketCategoryNodeDetail(
+  id: string,
+  tree?: MarketCategoryTree
+): Promise<MarketCategoryNodeDetail | null> {
   if (!UUID_PATTERN.test(id)) {
     return null
   }
 
-  const supabase = createAdminClient()
-  const { data: item, error } = await supabase
-    .from('market_category_items')
-    .select('id, group_id, workspace_subject, title')
-    .eq('id', id)
-    .eq('is_active', true)
-    .maybeSingle()
-
-  if (error) {
-    throw new Error(error.message)
+  const source = tree ?? await listMarketCategoryTree()
+  for (const workspaceSubject of ['korean', 'english'] as const) {
+    const path = findCategoryPath(source[workspaceSubject], id)
+    if (!path) continue
+    const node = path[path.length - 1]
+    const parent = path.length > 1 ? path[path.length - 2] : null
+    return {
+      id: node.id,
+      title: node.title,
+      depth: node.depth,
+      workspaceSubject,
+      ancestors: path.slice(0, -1).map(({ id: ancestorId, title }) => ({ id: ancestorId, title })),
+      children: node.children.map(toSummary),
+      siblings: (parent ? parent.children : source[workspaceSubject]).map(toSummary),
+      subtreeIds: collectSubtreeIds(node),
+    }
   }
-  if (!item || !isWorkspaceSubject(item.workspace_subject)) {
-    return null
-  }
-
-  const { data: group, error: groupError } = await supabase
-    .from('market_category_groups')
-    .select('id, title')
-    .eq('id', item.group_id)
-    .eq('is_active', true)
-    .maybeSingle()
-
-  if (groupError) {
-    throw new Error(groupError.message)
-  }
-  if (!group) {
-    return null
-  }
-
-  return {
-    id: item.id,
-    title: item.title,
-    workspaceSubject: item.workspace_subject,
-    groupTitle: group.title,
-  }
+  return null
 }
 
 // 카테고리에 등록된 공개 상품 카드 데이터.
@@ -164,18 +129,20 @@ export interface CategoryListFilters {
   pageSize?: number
 }
 
-// 페이지가 이미 조회한 카테고리 정보(knownDetail)를 넘기면 같은 조회를 다시 하지 않는다.
+// 칸과 하위 칸 전체의 상품을 보여 준다.
+// 페이지가 이미 조회한 칸 정보(knownDetail)를 넘기면 같은 조회를 다시 하지 않는다.
 export async function listMarketItemsForCategory(
   categoryItemId: string,
   filters: CategoryListFilters = {},
-  knownDetail?: MarketCategoryItemDetail
+  knownDetail?: MarketCategoryNodeDetail
 ) {
   const empty = { rows: [] as MarketSearchRow[], ...getListPagination(0, 1, filters.pageSize) }
-  const detail = knownDetail ?? await getMarketCategoryItemDetail(categoryItemId)
+  const detail = knownDetail ?? await getMarketCategoryNodeDetail(categoryItemId)
   if (!detail) {
     return empty
   }
   const workspaceSubject = detail.workspaceSubject
+  const subtreeIds = detail.subtreeIds
 
   const supabase = createAdminClient()
   const menuResult = await supabase
@@ -194,7 +161,7 @@ export async function listMarketItemsForCategory(
   function itemQuery(head = false) {
     let query = supabase.from('market_items')
       .select(`id, title, summary, menu_entry_id, exam_year, grade_level, question_count, view_count, published_at, created_at, ${MARKET_THUMBNAIL_EMBED}`, { count: 'exact', head })
-      .eq('category_item_id', categoryItemId).eq('workspace_subject', workspaceSubject)
+      .in('category_item_id', subtreeIds).eq('workspace_subject', workspaceSubject)
       .eq('status', 'published').eq('is_active', true).is('deleted_at', null).in('menu_entry_id', menuIds)
     if (keyword) {
       const terms = [...new Set([keyword, keyword.normalize('NFD')])].flatMap((term) => {
@@ -331,190 +298,130 @@ export async function getMarketCategoryItemWorkspaceSubject(id: string): Promise
   return data.workspace_subject
 }
 
-export interface AdminCategoryItem {
+export interface AdminCategoryNode {
   id: string
   title: string
-  sort_order: number
-  is_active: boolean
-  // 카테고리 항목 기본 이미지(제안 E). 상품 이미지가 없을 때 표시된다.
-  default_image: { id: string; publicUrl: string } | null
+  depth: number
+  sortOrder: number
+  isActive: boolean
+  // 칸 기본 이미지. 상품 이미지가 없을 때 표시된다.
+  defaultImage: { id: string; publicUrl: string } | null
+  // 자기 칸 + 하위 칸에 연결된 상품 행 수(삭제된 상품 포함 — DB 삭제 차단과 같은 기준)
+  productCount: number
+  deletedProductCount: number
+  children: AdminCategoryNode[]
 }
 
-export interface AdminCategoryGroup {
-  id: string
-  workspace_subject: WorkspaceSubject
-  title: string
-  sort_order: number
-  is_active: boolean
-  items: AdminCategoryItem[]
-}
-
-// 관리자 트리: 비활성 포함, 그룹별 항목.
-export async function listMarketCategoryTreeForAdmin(subject: WorkspaceSubject): Promise<AdminCategoryGroup[]> {
+// 관리자 트리: 비활성 포함, 칸마다 하위 합산 상품 수.
+export async function listMarketCategoryTreeForAdmin(subject: WorkspaceSubject): Promise<AdminCategoryNode[]> {
   const supabase = createAdminClient()
 
-  const [groupsResult, itemsResult] = await Promise.all([
-    supabase
-      .from('market_category_groups')
-      .select('id, workspace_subject, title, sort_order, is_active')
-      .eq('workspace_subject', subject)
-      .order('sort_order', { ascending: true })
-      .order('created_at', { ascending: true }),
+  const [nodesResult, products] = await Promise.all([
     supabase
       .from('market_category_items')
-      .select('id, group_id, title, sort_order, is_active, default_image:market_images(id, storage_path)')
+      .select('id, parent_id, depth, title, sort_order, is_active, created_at, default_image:market_images(id, storage_path)')
       .eq('workspace_subject', subject)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true }),
+    readAllQueryRows((from, to) => supabase
+      .from('market_items')
+      .select('id, category_item_id, deleted_at')
+      .eq('workspace_subject', subject)
+      .order('id').range(from, to)),
   ])
 
-  if (groupsResult.error) {
-    throw new MarketCategoryError(500, `카테고리 그룹을 불러오지 못했습니다: ${groupsResult.error.message}`)
-  }
-  if (itemsResult.error) {
-    throw new MarketCategoryError(500, `카테고리 항목을 불러오지 못했습니다: ${itemsResult.error.message}`)
+  if (nodesResult.error) {
+    throw new MarketCategoryError(500, `카테고리를 불러오지 못했습니다: ${nodesResult.error.message}`)
   }
 
-  const itemsByGroup = new Map<string, AdminCategoryItem[]>()
-  for (const item of itemsResult.data ?? []) {
-    const current = itemsByGroup.get(item.group_id) ?? []
-    const defaultImage = item.default_image as { id: string; storage_path: string } | null
-    current.push({
-      id: item.id,
-      title: item.title,
-      sort_order: item.sort_order,
-      is_active: item.is_active,
-      default_image: defaultImage
+  const directCounts = new Map<string, { total: number; deleted: number }>()
+  for (const product of products) {
+    if (!product.category_item_id) continue
+    const current = directCounts.get(product.category_item_id) ?? { total: 0, deleted: 0 }
+    current.total += 1
+    if (product.deleted_at) current.deleted += 1
+    directCounts.set(product.category_item_id, current)
+  }
+
+  const rows = [...(nodesResult.data ?? [])]
+    .sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at))
+  const nodes = new Map<string, AdminCategoryNode>()
+  for (const row of rows) {
+    const defaultImage = row.default_image as { id: string; storage_path: string } | null
+    nodes.set(row.id, {
+      id: row.id,
+      title: row.title,
+      depth: row.depth,
+      sortOrder: row.sort_order,
+      isActive: row.is_active,
+      defaultImage: defaultImage
         ? { id: defaultImage.id, publicUrl: supabase.storage.from(MARKET_IMAGES_BUCKET).getPublicUrl(defaultImage.storage_path).data.publicUrl }
         : null,
+      productCount: 0,
+      deletedProductCount: 0,
+      children: [],
     })
-    itemsByGroup.set(item.group_id, current)
+  }
+  const roots: AdminCategoryNode[] = []
+  for (const row of rows) {
+    const node = nodes.get(row.id)!
+    if (row.parent_id === null) roots.push(node)
+    else nodes.get(row.parent_id)?.children.push(node)
   }
 
-  return (groupsResult.data ?? [])
-    .filter((group) => isWorkspaceSubject(group.workspace_subject))
-    .map((group) => ({
-      id: group.id,
-      workspace_subject: group.workspace_subject as WorkspaceSubject,
-      title: group.title,
-      sort_order: group.sort_order,
-      is_active: group.is_active,
-      items: itemsByGroup.get(group.id) ?? [],
-    }))
-}
-
-export async function createCategoryGroup(input: {
-  workspaceSubject: WorkspaceSubject
-  title: string
-  sortOrder?: number
-}) {
-  const title = input.title.trim()
-  if (!title) {
-    throw new MarketCategoryError(400, '그룹 이름을 입력해주세요.')
-  }
-
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('market_category_groups')
-    .insert({
-      workspace_subject: input.workspaceSubject,
-      title,
-      sort_order: input.sortOrder ?? 0,
-    })
-    .select('*')
-    .single()
-
-  if (error) {
-    throw new MarketCategoryError(500, `카테고리 그룹을 생성하지 못했습니다: ${error.message}`)
-  }
-  return data
-}
-
-export async function updateCategoryGroup(
-  groupId: string,
-  input: { title?: string; sortOrder?: number; isActive?: boolean }
-) {
-  const patch: { title?: string; sort_order?: number; is_active?: boolean } = {}
-  if (input.title !== undefined) {
-    const title = input.title.trim()
-    if (!title) {
-      throw new MarketCategoryError(400, '그룹 이름을 입력해주세요.')
+  const fillCounts = (list: AdminCategoryNode[]) => {
+    for (const node of list) {
+      fillCounts(node.children)
+      const direct = directCounts.get(node.id)
+      node.productCount = (direct?.total ?? 0) + node.children.reduce((sum, child) => sum + child.productCount, 0)
+      node.deletedProductCount = (direct?.deleted ?? 0) + node.children.reduce((sum, child) => sum + child.deletedProductCount, 0)
     }
-    patch.title = title
   }
-  if (input.sortOrder !== undefined) patch.sort_order = input.sortOrder
-  if (input.isActive !== undefined) patch.is_active = input.isActive
-  if (Object.keys(patch).length === 0) {
-    throw new MarketCategoryError(400, '변경할 내용이 없습니다.')
-  }
-
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('market_category_groups')
-    .update(patch)
-    .eq('id', groupId)
-    .select('*')
-    .maybeSingle()
-
-  if (error) {
-    throw new MarketCategoryError(500, `카테고리 그룹을 수정하지 못했습니다: ${error.message}`)
-  }
-  if (!data) {
-    throw new MarketCategoryError(404, '카테고리 그룹을 찾을 수 없습니다.')
-  }
-  return data
+  fillCounts(roots)
+  return roots
 }
 
-// 그룹 삭제 시 하위 항목은 FK on delete cascade로 함께 삭제되고,
-// 삭제된 항목에 연결돼 있던 상품(market_items.category_item_id)은
-// 복합 FK on delete set null로 카테고리 연결만 해제된다(상품은 유지).
-export async function deleteCategoryGroup(groupId: string) {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('market_category_groups')
-    .delete()
-    .eq('id', groupId)
-    .select('id')
-    .maybeSingle()
-
-  if (error) {
-    throw new MarketCategoryError(500, `카테고리 그룹을 삭제하지 못했습니다: ${error.message}`)
-  }
-  if (!data) {
-    throw new MarketCategoryError(404, '카테고리 그룹을 찾을 수 없습니다.')
-  }
-}
-
-export async function createCategoryItem(input: {
-  groupId: string
+export async function createCategoryNode(input: {
+  workspaceSubject: WorkspaceSubject
+  parentId: string | null
   title: string
   sortOrder?: number
 }) {
   const title = input.title.trim()
   if (!title) {
-    throw new MarketCategoryError(400, '항목 이름을 입력해주세요.')
+    throw new MarketCategoryError(400, '칸 이름을 입력해주세요.')
   }
 
   const supabase = createAdminClient()
-  const { data: group, error: groupError } = await supabase
-    .from('market_category_groups')
-    .select('id, workspace_subject')
-    .eq('id', input.groupId)
-    .maybeSingle()
+  let depth = 1
+  if (input.parentId) {
+    const { data: parent, error: parentError } = await supabase
+      .from('market_category_items')
+      .select('id, workspace_subject, depth')
+      .eq('id', input.parentId)
+      .maybeSingle()
 
-  if (groupError) {
-    throw new MarketCategoryError(500, `카테고리 그룹을 확인하지 못했습니다: ${groupError.message}`)
-  }
-  if (!group) {
-    throw new MarketCategoryError(404, '카테고리 그룹을 찾을 수 없습니다.')
+    if (parentError) {
+      throw new MarketCategoryError(500, `상위 칸을 확인하지 못했습니다: ${parentError.message}`)
+    }
+    if (!parent) {
+      throw new MarketCategoryError(404, '상위 칸을 찾을 수 없습니다.')
+    }
+    if (parent.workspace_subject !== input.workspaceSubject) {
+      throw new MarketCategoryError(400, '같은 과목의 칸 아래에만 추가할 수 있습니다.')
+    }
+    if (parent.depth >= MARKET_CATEGORY_MAX_DEPTH) {
+      throw new MarketCategoryError(400, `depth${MARKET_CATEGORY_MAX_DEPTH} 아래에는 칸을 추가할 수 없습니다.`)
+    }
+    depth = parent.depth + 1
   }
 
   const { data, error } = await supabase
     .from('market_category_items')
     .insert({
-      group_id: group.id,
-      // 그룹의 workspace_subject를 복사해 과목 정합 유지
-      workspace_subject: group.workspace_subject,
+      workspace_subject: input.workspaceSubject,
+      parent_id: input.parentId,
+      depth,
       title,
       sort_order: input.sortOrder ?? 0,
     })
@@ -522,20 +429,20 @@ export async function createCategoryItem(input: {
     .single()
 
   if (error) {
-    throw new MarketCategoryError(500, `카테고리 항목을 생성하지 못했습니다: ${error.message}`)
+    throw new MarketCategoryError(500, `칸을 만들지 못했습니다: ${error.message}`)
   }
   return data
 }
 
-export async function updateCategoryItem(
-  itemId: string,
+export async function updateCategoryNode(
+  nodeId: string,
   input: { title?: string; sortOrder?: number; isActive?: boolean; defaultImageId?: string | null }
 ) {
   const patch: { title?: string; sort_order?: number; is_active?: boolean; default_image_id?: string | null } = {}
   if (input.title !== undefined) {
     const title = input.title.trim()
     if (!title) {
-      throw new MarketCategoryError(400, '항목 이름을 입력해주세요.')
+      throw new MarketCategoryError(400, '칸 이름을 입력해주세요.')
     }
     patch.title = title
   }
@@ -550,7 +457,7 @@ export async function updateCategoryItem(
   const { data, error } = await supabase
     .from('market_category_items')
     .update(patch)
-    .eq('id', itemId)
+    .eq('id', nodeId)
     .select('*')
     .maybeSingle()
 
@@ -558,28 +465,79 @@ export async function updateCategoryItem(
     throw new MarketCategoryError(404, '선택한 이미지를 찾을 수 없습니다. 이미지를 다시 선택해주세요.')
   }
   if (error) {
-    throw new MarketCategoryError(500, `카테고리 항목을 수정하지 못했습니다: ${error.message}`)
+    throw new MarketCategoryError(500, `칸을 수정하지 못했습니다: ${error.message}`)
   }
   if (!data) {
-    throw new MarketCategoryError(404, '카테고리 항목을 찾을 수 없습니다.')
+    throw new MarketCategoryError(404, '칸을 찾을 수 없습니다.')
   }
   return data
 }
 
-// 항목 삭제 시 연결 상품은 복합 FK on delete set null로 카테고리 연결만 해제된다.
-export async function deleteCategoryItem(itemId: string) {
+const LINKED_PRODUCTS_MESSAGE = '연결된 상품이 있어 삭제할 수 없습니다. 비활성화하거나 상품을 옮긴 뒤 삭제해주세요.'
+const CHILD_NODES_MESSAGE = '하위 칸을 먼저 삭제해주세요.'
+
+// 자기·하위 칸에 상품이 있거나(삭제된 상품 포함) 하위 칸이 있으면 409로 막는다. 상품 연결은 풀지 않는다.
+export async function deleteCategoryNode(nodeId: string) {
   const supabase = createAdminClient()
+  const { data: nodes, error: nodesError } = await supabase
+    .from('market_category_items')
+    .select('id, parent_id')
+  if (nodesError) {
+    throw new MarketCategoryError(500, `칸을 확인하지 못했습니다: ${nodesError.message}`)
+  }
+  if (!(nodes ?? []).some((node) => node.id === nodeId)) {
+    throw new MarketCategoryError(404, '칸을 찾을 수 없습니다.')
+  }
+
+  const childrenByParent = new Map<string, string[]>()
+  for (const node of nodes ?? []) {
+    if (!node.parent_id) continue
+    childrenByParent.set(node.parent_id, [...(childrenByParent.get(node.parent_id) ?? []), node.id])
+  }
+  const subtreeIds: string[] = []
+  const collect = (id: string) => {
+    subtreeIds.push(id)
+    for (const childId of childrenByParent.get(id) ?? []) collect(childId)
+  }
+  collect(nodeId)
+
+  const products = await readAllQueryRows((from, to) => supabase
+    .from('market_items')
+    .select('id, deleted_at')
+    .in('category_item_id', subtreeIds)
+    .order('id').range(from, to))
+  if (products.length > 0) {
+    const deletedCount = products.filter((product) => product.deleted_at).length
+    throw new MarketCategoryError(409, deletedCount > 0
+      ? `${LINKED_PRODUCTS_MESSAGE} (삭제된 상품 ${deletedCount}개 포함)`
+      : LINKED_PRODUCTS_MESSAGE)
+  }
+  if ((childrenByParent.get(nodeId) ?? []).length > 0) {
+    throw new MarketCategoryError(409, CHILD_NODES_MESSAGE)
+  }
+
   const { data, error } = await supabase
     .from('market_category_items')
     .delete()
-    .eq('id', itemId)
+    .eq('id', nodeId)
     .select('id')
     .maybeSingle()
 
+  // 확인과 삭제 사이에 상품·하위 칸이 생긴 경우: 제약 이름으로 구분한다.
+  if (error?.code === '23503') {
+    const detail = `${error.message} ${error.details ?? ''}`
+    if (detail.includes('market_items_category_item_subject_fkey')) {
+      throw new MarketCategoryError(409, LINKED_PRODUCTS_MESSAGE)
+    }
+    if (detail.includes('market_category_items_parent_subject_fkey')) {
+      throw new MarketCategoryError(409, CHILD_NODES_MESSAGE)
+    }
+    throw new MarketCategoryError(409, '다른 데이터가 이 칸을 참조하고 있어 삭제할 수 없습니다.')
+  }
   if (error) {
-    throw new MarketCategoryError(500, `카테고리 항목을 삭제하지 못했습니다: ${error.message}`)
+    throw new MarketCategoryError(500, `칸을 삭제하지 못했습니다: ${error.message}`)
   }
   if (!data) {
-    throw new MarketCategoryError(404, '카테고리 항목을 찾을 수 없습니다.')
+    throw new MarketCategoryError(404, '칸을 찾을 수 없습니다.')
   }
 }
