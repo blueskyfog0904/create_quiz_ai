@@ -38,7 +38,6 @@ test('홈 설정 검증은 옛 sourceExplorer 키를 거절하고 기본값에�
   const valid = {
     version: 1,
     popular: { isActive: true, limit: 12, rankingWindowDays: 30 },
-    categories: { isActive: true, menuEntryIds: [] },
     recent: { isActive: true, limit: 8 },
   }
   assert.deepEqual(validateMarketHomeConfig(valid), valid)

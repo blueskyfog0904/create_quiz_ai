@@ -1,7 +1,4 @@
-import type {
-  MarketHomeItem,
-  MarketHomeMenuEntry,
-} from '@/lib/market-home'
+import type { MarketHomeItem } from '@/lib/market-home'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { MarketMaterialList } from '../market-material-list'
 import { SectionHeading } from './section-heading'
@@ -50,7 +47,6 @@ export function HomeFinalCta({
 }: {
   subject: WorkspaceSubject
   itemCount: number
-  categories: MarketHomeMenuEntry[]
 }) {
   const subjectLabel = subject === 'korean' ? '국어' : '영어'
   return (

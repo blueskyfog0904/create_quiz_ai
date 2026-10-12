@@ -6,7 +6,6 @@ import {
   validateMarketHomeConfig,
   type MarketHomeConfig,
 } from '@/lib/market-home'
-import { getMarketHomeAdminOptions } from '@/lib/market-home-server'
 import { isWorkspaceSubject } from '@/lib/workspace-subject'
 import { upsertWorkspaceSetting } from '@/lib/workspace-settings'
 import type { Json } from '@/types/supabase'
@@ -20,8 +19,6 @@ function errorResponse(code: string, message: string, status: number) {
   }, { status })
 }
 
-class MarketHomeAdminValidationError extends Error {}
-
 async function requireAdminUser() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -34,16 +31,6 @@ async function requireAdminUser() {
     .single()
 
   return { user, isAdmin: Boolean(profile?.is_admin) }
-}
-
-function validateAllowlist(
-  config: MarketHomeConfig,
-  categoryIds: Set<string>
-) {
-  const invalidCategory = config.categories.menuEntryIds.find((id) => !categoryIds.has(id))
-  if (invalidCategory) {
-    throw new MarketHomeAdminValidationError('선택한 카테고리가 현재 과목의 활성 메뉴에 없습니다.')
-  }
 }
 
 export async function POST(request: Request) {
@@ -69,12 +56,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    const options = await getMarketHomeAdminOptions(workspaceSubject)
-    validateAllowlist(
-      config,
-      new Set(options.categories.map((category) => category.id))
-    )
-
     await upsertWorkspaceSetting({
       workspaceSubject,
       settingKey: MARKET_HOME_SETTING_KEY,
@@ -87,10 +68,7 @@ export async function POST(request: Request) {
     revalidatePath('/preview/solvook-concept')
     revalidatePath('/')
     return NextResponse.json({ success: true, data: { config } })
-  } catch (error) {
-    if (error instanceof MarketHomeAdminValidationError) {
-      return errorResponse('INVALID_INPUT', error.message, 400)
-    }
+  } catch {
     return errorResponse('INTERNAL_ERROR', '문제마켓 메인 설정 저장에 실패했습니다.', 500)
   }
 }

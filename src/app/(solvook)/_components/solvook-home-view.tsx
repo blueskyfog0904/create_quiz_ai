@@ -51,7 +51,7 @@ export function SolvookHomeView({
       {homeData.config.recent.isActive && (
         <RecentMaterials subject={subject} items={homeData.recent} />
       )}
-      <HomeFinalCta subject={subject} itemCount={homeData.publicItemCount} categories={homeData.categories} />
+      <HomeFinalCta subject={subject} itemCount={homeData.publicItemCount} />
     </StudioLandingPageFrame>
   )
 }

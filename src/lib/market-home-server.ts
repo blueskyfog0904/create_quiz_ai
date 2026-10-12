@@ -51,11 +51,7 @@ type PopularRow = {
   download_issuer_user_count: number
 }
 
-export interface MarketHomeAdminOptions {
-  categories: MarketHomeMenuEntry[]
-}
-
-export interface MarketHomeAdminData extends MarketHomeAdminOptions {
+export interface MarketHomeAdminData {
   config: MarketHomeConfig
   preview: MarketHomeData
 }
@@ -155,18 +151,6 @@ async function loadVisibleMenus(workspaceSubject: WorkspaceSubject): Promise<Mar
 
   if (error) throw new Error(error.message)
   return (data as MenuRow[]).map(toMenuEntry)
-}
-
-function orderMenus(
-  menus: MarketHomeMenuEntry[],
-  configuredIds: string[]
-): MarketHomeMenuEntry[] {
-  if (configuredIds.length === 0) return menus.slice(0, 8)
-  const menusById = new Map(menus.map((menu) => [menu.id, menu]))
-  return configuredIds.flatMap((id) => {
-    const menu = menusById.get(id)
-    return menu ? [menu] : []
-  }).slice(0, 8)
 }
 
 async function loadRecent(
@@ -304,33 +288,18 @@ export async function getMarketHomeData(
   return {
     subject: workspaceSubject,
     config,
-    categories: config.categories.isActive
-      ? orderMenus(visibleMenus, config.categories.menuEntryIds)
-      : [],
     popular: fulfilledOr(popularResult, [...EMPTY_HOME_DATA.popular]),
     recent: fulfilledOr(recentResult, [...EMPTY_HOME_DATA.recent]),
     publicItemCount: fulfilledOr(countResult, 0),
   }
 }
 
-export async function getMarketHomeAdminOptions(
-  workspaceSubject: WorkspaceSubject
-): Promise<MarketHomeAdminOptions> {
-  return {
-    categories: await loadVisibleMenus(workspaceSubject),
-  }
-}
-
 export async function getMarketHomeAdminData(
   workspaceSubject: WorkspaceSubject
 ): Promise<MarketHomeAdminData> {
-  const [options, preview] = await Promise.all([
-    getMarketHomeAdminOptions(workspaceSubject),
-    getMarketHomeData(workspaceSubject),
-  ])
+  const preview = await getMarketHomeData(workspaceSubject)
 
   return {
-    ...options,
     config: preview.config,
     preview,
   }

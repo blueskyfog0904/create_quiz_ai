@@ -6,7 +6,6 @@ export const MARKET_HOME_LIMITS = {
   popular: { min: 1, max: 24 },
   rankingWindowDays: { min: 1, max: 90 },
   recent: { min: 1, max: 24 },
-  categories: { max: 8 },
 } as const
 
 export interface MarketHomeConfig {
@@ -15,10 +14,6 @@ export interface MarketHomeConfig {
     isActive: boolean
     limit: number
     rankingWindowDays: number
-  }
-  categories: {
-    isActive: boolean
-    menuEntryIds: string[]
   }
   recent: {
     isActive: boolean
@@ -32,10 +27,6 @@ export const DEFAULT_MARKET_HOME_CONFIG: MarketHomeConfig = {
     isActive: true,
     limit: 12,
     rankingWindowDays: 30,
-  },
-  categories: {
-    isActive: true,
-    menuEntryIds: [],
   },
   recent: {
     isActive: true,
@@ -80,7 +71,6 @@ export interface MarketHomePopularItem extends MarketHomeItem {
 export interface MarketHomeData {
   subject: WorkspaceSubject
   config: MarketHomeConfig
-  categories: MarketHomeMenuEntry[]
   popular: MarketHomePopularItem[]
   recent: MarketHomeItem[]
   publicItemCount: number
@@ -118,30 +108,22 @@ function assertIntegerInRange(
   }
 }
 
-function assertUniqueStrings(value: unknown, label: string, max?: number): asserts value is string[] {
-  if (
-    !Array.isArray(value)
-    || value.some((entry) => typeof entry !== 'string' || entry.trim() !== entry || entry.length === 0)
-    || new Set(value).size !== value.length
-    || (max !== undefined && value.length > max)
-  ) {
-    throw new Error(`${label} must contain unique non-empty strings`)
-  }
-}
-
-export function validateMarketHomeConfig(value: unknown): MarketHomeConfig {
-  if (!isRecord(value)) {
+export function validateMarketHomeConfig(input: unknown): MarketHomeConfig {
+  if (!isRecord(input)) {
     throw new Error('market home config must be an object')
   }
-  assertExactKeys(value, ['version', 'popular', 'categories', 'recent'], 'config')
+  // 삭제된 '문제마켓 카테고리' 설정(categories)이 남은 예전 값도 받아들여, 엄격 검사 실패로
+  // 인기·최근 설정까지 기본값으로 초기화되지 않게 한다. 복사본에서만 떼어 내 입력값은 그대로 둔다.
+  const value = { ...input }
+  delete value.categories
+  assertExactKeys(value, ['version', 'popular', 'recent'], 'config')
   if (value.version !== 1) {
     throw new Error('config.version must be 1')
   }
 
   const popular = value.popular
-  const categories = value.categories
   const recent = value.recent
-  if (!isRecord(popular) || !isRecord(categories) || !isRecord(recent)) {
+  if (!isRecord(popular) || !isRecord(recent)) {
     throw new Error('market home sections must be objects')
   }
 
@@ -154,10 +136,6 @@ export function validateMarketHomeConfig(value: unknown): MarketHomeConfig {
     'popular.rankingWindowDays'
   )
 
-  assertExactKeys(categories, ['isActive', 'menuEntryIds'], 'categories')
-  assertBoolean(categories.isActive, 'categories.isActive')
-  assertUniqueStrings(categories.menuEntryIds, 'categories.menuEntryIds', MARKET_HOME_LIMITS.categories.max)
-
   assertExactKeys(recent, ['isActive', 'limit'], 'recent')
   assertBoolean(recent.isActive, 'recent.isActive')
   assertIntegerInRange(recent.limit, MARKET_HOME_LIMITS.recent, 'recent.limit')
@@ -168,10 +146,6 @@ export function validateMarketHomeConfig(value: unknown): MarketHomeConfig {
       isActive: popular.isActive,
       limit: popular.limit,
       rankingWindowDays: popular.rankingWindowDays,
-    },
-    categories: {
-      isActive: categories.isActive,
-      menuEntryIds: [...categories.menuEntryIds],
     },
     recent: {
       isActive: recent.isActive,
@@ -187,7 +161,6 @@ export function normalizeMarketHomeConfig(value: unknown): MarketHomeConfig {
     return {
       ...DEFAULT_MARKET_HOME_CONFIG,
       popular: { ...DEFAULT_MARKET_HOME_CONFIG.popular },
-      categories: { ...DEFAULT_MARKET_HOME_CONFIG.categories },
       recent: { ...DEFAULT_MARKET_HOME_CONFIG.recent },
     }
   }

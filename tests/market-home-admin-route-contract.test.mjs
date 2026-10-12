@@ -35,9 +35,9 @@ test('market home admin page and API both enforce the admin boundary', () => {
   assert.match(routeSource, /FORBIDDEN[\s\S]*403/)
 })
 
-test('market home settings POST strictly validates subject-scoped allowlists and persists the shared setting', () => {
+test('market home settings POST strictly validates the config and persists the shared setting', () => {
   assert.match(routeSource, /isWorkspaceSubject/)
-  assert.match(routeSource, /getMarketHomeAdminOptions\(workspaceSubject\)/)
+  assert.doesNotMatch(routeSource, /getMarketHomeAdminOptions|validateAllowlist/)
   assert.match(routeSource, /validateMarketHomeConfig/)
   assert.match(routeSource, /upsertWorkspaceSetting/)
   assert.match(routeSource, /MARKET_HOME_SETTING_KEY/)
@@ -46,7 +46,7 @@ test('market home settings POST strictly validates subject-scoped allowlists and
   assert.match(routeSource, /success:\s*true/)
   assert.match(routeSource, /revalidatePath\('\/admin\/market-main-settings'\)/)
   assert.match(routeSource, /revalidatePath\('\/preview\/solvook-concept'\)/)
-  assert.match(serverSource, /export async function getMarketHomeAdminOptions/)
+  assert.doesNotMatch(serverSource, /getMarketHomeAdminOptions/)
   assert.match(serverSource, /\.eq\('workspace_subject', workspaceSubject\)/)
   assert.match(serverSource, /\.eq\('is_visible', true\)/)
   assert.match(serverSource, /\.eq\('is_active', true\)/)
@@ -56,9 +56,7 @@ test('market home settings UI exposes only the approved controls and management 
   assert.match(clientSource, /\(임시\) 문제마켓 메인 관리/)
   assert.match(clientSource, /AdminWorkspaceSwitcher/)
   assert.match(clientSource, /Switch/)
-  assert.match(clientSource, /Checkbox/)
-  assert.match(clientSource, /ArrowUp/)
-  assert.match(clientSource, /ArrowDown/)
+  assert.doesNotMatch(clientSource, /문제마켓 카테고리|menuEntryIds/)
   assert.match(clientSource, /withAdminWorkspaceSubject\('\/api\/admin\/market-main-settings'/)
   assert.match(clientSource, /\/admin\/market\/products/)
   assert.match(clientSource, /\/admin\/menu-management/)

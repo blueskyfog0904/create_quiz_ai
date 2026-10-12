@@ -1,13 +1,12 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowDown, ArrowUp, Loader2, Save } from 'lucide-react'
+import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminWorkspaceSwitcher } from '@/components/layout/admin-workspace-switcher'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -16,14 +15,12 @@ import {
   MARKET_HOME_LIMITS,
   type MarketHomeConfig,
   type MarketHomeData,
-  type MarketHomeMenuEntry,
 } from '@/lib/market-home'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 interface MarketMainSettingsClientProps {
   workspaceSubject: WorkspaceSubject
   config: MarketHomeConfig
-  categories: MarketHomeMenuEntry[]
   preview: MarketHomeData
 }
 
@@ -33,35 +30,13 @@ interface SaveResponse {
   error?: { message?: string }
 }
 
-function withExplicitSelections(
-  config: MarketHomeConfig,
-  categories: MarketHomeMenuEntry[]
-): MarketHomeConfig {
-  return {
-    ...config,
-    popular: { ...config.popular },
-    categories: {
-      ...config.categories,
-      menuEntryIds: config.categories.menuEntryIds.length > 0
-        ? [...config.categories.menuEntryIds]
-        : categories.slice(0, MARKET_HOME_LIMITS.categories.max).map((category) => category.id),
-    },
-    recent: { ...config.recent },
-  }
-}
-
 export default function MarketMainSettingsClient({
   workspaceSubject,
   config,
-  categories,
   preview,
 }: MarketMainSettingsClientProps) {
-  const initialConfig = useMemo(
-    () => withExplicitSelections(config, categories),
-    [categories, config]
-  )
-  const [draft, setDraft] = useState(initialConfig)
-  const [saved, setSaved] = useState(initialConfig)
+  const [draft, setDraft] = useState(config)
+  const [saved, setSaved] = useState(config)
   const [isSaving, setIsSaving] = useState(false)
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved)
 
@@ -69,28 +44,6 @@ export default function MarketMainSettingsClient({
     section: K,
     value: MarketHomeConfig[K]
   ) => setDraft((current) => ({ ...current, [section]: value }))
-
-  const toggleCategory = (id: string, checked: boolean) => {
-    const currentIds = draft.categories.menuEntryIds
-    if (checked && currentIds.length >= MARKET_HOME_LIMITS.categories.max) {
-      toast.error(`카테고리는 최대 ${MARKET_HOME_LIMITS.categories.max}개까지 선택할 수 있습니다.`)
-      return
-    }
-    updateSection('categories', {
-      ...draft.categories,
-      menuEntryIds: checked
-        ? [...currentIds, id]
-        : currentIds.filter((currentId) => currentId !== id),
-    })
-  }
-
-  const moveCategory = (index: number, direction: -1 | 1) => {
-    const nextIndex = index + direction
-    if (nextIndex < 0 || nextIndex >= draft.categories.menuEntryIds.length) return
-    const nextIds = [...draft.categories.menuEntryIds]
-    ;[nextIds[index], nextIds[nextIndex]] = [nextIds[nextIndex], nextIds[index]]
-    updateSection('categories', { ...draft.categories, menuEntryIds: nextIds })
-  }
 
   const handleSave = async () => {
     setIsSaving(true)
@@ -222,69 +175,6 @@ export default function MarketMainSettingsClient({
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <div className="flex min-h-11 items-center justify-between gap-4">
-            <div>
-              <CardTitle>문제마켓 카테고리</CardTitle>
-              <CardDescription>선택한 카테고리의 위·아래 순서가 메인 노출 순서입니다.</CardDescription>
-            </div>
-            <Switch
-              aria-label="카테고리 노출"
-              checked={draft.categories.isActive}
-              onCheckedChange={(isActive) => updateSection('categories', {
-                ...draft.categories,
-                isActive,
-              })}
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-2 sm:grid-cols-2">
-            {categories.map((category) => (
-              <Label key={category.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border px-3">
-                <Checkbox
-                  checked={draft.categories.menuEntryIds.includes(category.id)}
-                  onCheckedChange={(value) => toggleCategory(category.id, value === true)}
-                />
-                {category.title}
-              </Label>
-            ))}
-          </div>
-          <ol className="space-y-2">
-            {draft.categories.menuEntryIds.map((id, index) => {
-              const category = categories.find((option) => option.id === id)
-              if (!category) return null
-              return (
-                <li key={id} className="flex min-h-11 items-center gap-2 rounded-md border px-3">
-                  <span className="min-w-0 flex-1 truncate">{index + 1}. {category.title}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`${category.title} 위로 이동`}
-                    disabled={index === 0}
-                    onClick={() => moveCategory(index, -1)}
-                  >
-                    <ArrowUp className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`${category.title} 아래로 이동`}
-                    disabled={index === draft.categories.menuEntryIds.length - 1}
-                    onClick={() => moveCategory(index, 1)}
-                  >
-                    <ArrowDown className="size-4" />
-                  </Button>
-                </li>
-              )
-            })}
-          </ol>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>
