@@ -91,7 +91,7 @@ function SignupContent() {
   const [isKakaoProfileLoading, setIsKakaoProfileLoading] = useState(false)
   const [isEmailSignupMode, setIsEmailSignupMode] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
-  const [successData, setSuccessData] = useState<{ email: string, name: string, phone: string } | null>(null)
+  const [successData, setSuccessData] = useState<{ email: string, phone: string } | null>(null)
 
   // Controlled inputs
   const [password, setPassword] = useState('')
@@ -112,7 +112,6 @@ function SignupContent() {
   }).toString()
 
   const [kakaoEmail, setKakaoEmail] = useState('')
-  const [kakaoName, setKakaoName] = useState('')
   const [kakaoPhone, setKakaoPhone] = useState('')
 
   useEffect(() => {
@@ -143,7 +142,6 @@ function SignupContent() {
         ) as ({ id?: string, identity_id?: string, identity_data?: unknown } | undefined)
         const identityData = getFirstObject(kakaoIdentity?.identity_data) || {}
         const kakaoAccount = getFirstObject(identityData.kakao_account, metadata.kakao_account) || {}
-        const kakaoProfile = getFirstObject(kakaoAccount.profile) || {}
 
         const providerToken = sessionData.session?.provider_token || ''
         let kakaoApiPayload: JsonObject | null = null
@@ -171,7 +169,6 @@ function SignupContent() {
         }
 
         const apiKakaoAccount = getFirstObject(kakaoApiPayload?.kakao_account) || {}
-        const apiKakaoProfile = getFirstObject(apiKakaoAccount.profile) || {}
 
         const resolvedEmail = getFirstText(
           user.email,
@@ -204,18 +201,6 @@ function SignupContent() {
           appMetadata.sub,
         )
 
-        const resolvedName = getFirstText(
-          metadata.full_name,
-          metadata.name,
-          metadata.nickname,
-          identityData.name,
-          identityData.nickname,
-          kakaoAccount.name,
-          apiKakaoAccount.name,
-          kakaoProfile.nickname,
-          apiKakaoProfile.nickname,
-        )
-
         const resolvedPhone = normalizeKakaoPhoneNumber(
           getFirstText(
             metadata.phone,
@@ -231,7 +216,7 @@ function SignupContent() {
 
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('email, name, phone, kakao_email, kakao_id, provider, signup_completed')
+          .select('email, phone, kakao_email, kakao_id, provider, signup_completed')
           .eq('id', user.id)
           .maybeSingle()
 
@@ -240,7 +225,6 @@ function SignupContent() {
         }
 
         const mergedEmail = getFirstText(profileData?.email, resolvedEmail)
-        const mergedName = getFirstText(profileData?.name, resolvedName)
         const mergedPhone = getFirstText(profileData?.phone, resolvedPhone)
         const mergedKakaoEmail = getFirstText(profileData?.kakao_email, resolvedEmail)
         const mergedKakaoId = getFirstText(profileData?.kakao_id, resolvedUserId)
@@ -250,7 +234,6 @@ function SignupContent() {
           ? {
               ...profileData,
               email: mergedEmail || null,
-              name: mergedName || null,
               phone: mergedPhone || null,
               kakao_email: mergedKakaoEmail || null,
               kakao_id: mergedKakaoId || null,
@@ -263,12 +246,10 @@ function SignupContent() {
           syncedProfile?.kakao_email,
           mergedEmail,
         )
-        const profileName = getFirstText(syncedProfile?.name, mergedName)
         const profilePhone = getFirstText(syncedProfile?.phone, mergedPhone)
         const profileKakaoId = getFirstText(syncedProfile?.kakao_id, mergedKakaoId)
 
         setKakaoEmail(profileEmail)
-        setKakaoName(profileName)
         setKakaoPhone(profilePhone)
 
         if (syncedProfile?.signup_completed) {
@@ -282,10 +263,8 @@ function SignupContent() {
             resolvedEmail,
             resolvedProvider,
             resolvedUserId,
-            resolvedName,
             resolvedPhone,
             profileEmail,
-            profileName,
             profilePhone,
             profileKakaoId,
             providerTokenAvailable: Boolean(providerToken),
@@ -346,7 +325,6 @@ function SignupContent() {
       } else if (result?.success && result.data) {
         setSuccessData({
           email: result.data.email || '',
-          name: result.data.name,
           phone: result.data.phone
         })
         setIsSuccess(true)
@@ -377,7 +355,7 @@ function SignupContent() {
         redirectTo: `${window.location.origin}/auth/callback?${callbackPath}`,
         queryParams: {
           prompt: 'select_account',
-          scope: 'account_email,phone_number,name',
+          scope: 'account_email,phone_number',
         },
       },
     })
@@ -390,11 +368,6 @@ function SignupContent() {
 
   async function handleKakaoProfileSubmit(e: React.FormEvent) {
     e.preventDefault()
-
-    if (!kakaoName.trim()) {
-      toast.error('카카오 이름 정보를 확인할 수 없습니다.')
-      return
-    }
 
     setIsLoading(true)
     const supabase = createClient()
@@ -416,7 +389,6 @@ function SignupContent() {
       },
       body: JSON.stringify({
         action: 'complete_kakao_signup',
-        name: kakaoName.trim(),
         phone: sanitizedPhone,
       }),
     })
@@ -438,11 +410,9 @@ function SignupContent() {
     }
 
     const updatedEmail = getFirstText(confirmedProfile.email, sanitizedEmail)
-    const updatedName = getFirstText(confirmedProfile.name, kakaoName.trim())
     const updatedPhone = getFirstText(confirmedProfile.phone, sanitizedPhone)
 
     setKakaoEmail(updatedEmail)
-    setKakaoName(updatedName)
     setKakaoPhone(updatedPhone)
     toast.success('카카오 간편가입이 완료되었습니다. 메인 페이지로 이동합니다.')
     window.location.replace(next)
@@ -466,10 +436,6 @@ function SignupContent() {
               <div className="flex justify-between border-b border-gray-200 pb-2">
                 <span className="text-gray-500">아이디(이메일)</span>
                 <span className="font-medium">{successData.email}</span>
-              </div>
-              <div className="flex justify-between border-b border-gray-200 pb-2">
-                <span className="text-gray-500">이름</span>
-                <span className="font-medium">{successData.name}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">핸드폰</span>
@@ -512,7 +478,7 @@ function SignupContent() {
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center tracking-tight">카카오 간편가입</CardTitle>
             <CardDescription className="text-center text-gray-500">
-              카카오에서 전달받은 정보(이메일, 이름, 휴대폰 번호)를 확인합니다.
+              카카오에서 전달받은 정보(이메일, 휴대폰 번호)를 확인합니다.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -523,10 +489,6 @@ function SignupContent() {
                 <div className="grid gap-2">
                   <Label htmlFor="kakaoEmail">카카오 이메일</Label>
                   <Input id="kakaoEmail" value={kakaoEmail} readOnly disabled className="h-10 bg-gray-100 text-gray-700" />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="kakaoName">이름</Label>
-                  <Input id="kakaoName" value={kakaoName} readOnly disabled className="h-10 bg-gray-100 text-gray-700" />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="kakaoPhone">휴대폰 번호</Label>
@@ -635,10 +597,6 @@ function SignupContent() {
                     : '비밀번호가 일치하지 않습니다.'}
                 </p>
               )}
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="name">이름 *</Label>
-              <Input id="name" name="name" placeholder="홍길동" required className="h-10" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="phone">휴대폰 번호 *</Label>

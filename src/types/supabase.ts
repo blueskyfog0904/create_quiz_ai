@@ -3643,7 +3643,6 @@ export type Database = {
           is_admin: boolean | null
           kakao_email: string | null
           kakao_id: string | null
-          name: string | null
           organization: string | null
           phone: string | null
           provider: string | null
@@ -3663,7 +3662,6 @@ export type Database = {
           is_admin?: boolean | null
           kakao_email?: string | null
           kakao_id?: string | null
-          name?: string | null
           organization?: string | null
           phone?: string | null
           provider?: string | null
@@ -3683,7 +3681,6 @@ export type Database = {
           is_admin?: boolean | null
           kakao_email?: string | null
           kakao_id?: string | null
-          name?: string | null
           organization?: string | null
           phone?: string | null
           provider?: string | null

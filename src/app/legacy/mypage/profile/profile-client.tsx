@@ -185,14 +185,6 @@ export function ProfileClient({ profile, fallbackEmail }: ProfileClientProps) {
         <CardContent className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label className="text-gray-500">이름</Label>
-              <div className="p-3 bg-gray-50 rounded-lg border">
-                <span className="font-medium">{profile?.name || '미설정'}</span>
-                <span className="text-xs text-gray-400 ml-2">(변경 불가)</span>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
               <Label className="text-gray-500">이메일</Label>
               <div className="p-3 bg-gray-50 rounded-lg border">
                 <span className="font-medium">{profile?.email || fallbackEmail || '미설정'}</span>

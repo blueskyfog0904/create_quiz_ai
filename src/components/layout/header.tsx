@@ -4,6 +4,7 @@ import { getHeaderNavigationConfig } from '@/lib/header-navigation-server'
 import { getActiveHeaderNavigationItems } from '@/lib/header-navigation'
 import { getCreditBalanceSnapshot, logCreditBalanceMismatch, selectDisplayBalance } from '@/lib/credit-balance'
 import { getMarketCartBadgeCount } from '@/lib/market-cart-server'
+import { formatMemberDisplayName } from '@/lib/member-display-name'
 
 function reorderGenerateChildren(items: ReturnType<typeof getActiveHeaderNavigationItems>) {
   return items.map((item) => {
@@ -43,7 +44,7 @@ export async function Header() {
   if (user) {
     const { data } = await supabase
       .from('profiles')
-      .select('name, email, is_admin, credits')
+      .select('email, is_admin, credits')
       .eq('id', user.id)
       .single()
     profile = data
@@ -62,7 +63,7 @@ export async function Header() {
       englishMenuItems={reorderGenerateChildren(getActiveHeaderNavigationItems(englishConfig.items))}
       koreanMenuItems={reorderGenerateChildren(getActiveHeaderNavigationItems(koreanConfig.items))}
       isLoggedIn={Boolean(user)}
-      userName={profile?.name || profile?.email || user?.email || ''}
+      userName={user ? formatMemberDisplayName(profile?.email ?? user.email, user.id) : ''}
       isAdmin={isAdmin}
       creditBalance={snapshot && user ? selectDisplayBalance(user.id, snapshot) : 0}
       userId={user?.id ?? null}

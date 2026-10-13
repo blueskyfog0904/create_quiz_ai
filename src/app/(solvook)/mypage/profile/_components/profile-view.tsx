@@ -11,7 +11,8 @@ import { createClient } from '@/lib/supabase/client'
 
 interface ProfileViewProps {
   email: string
-  name: string | null
+  /** 리뷰 등에 보이는 회원 표시 이름(이메일 앞 3글자 + 4글자) */
+  displayName: string
   phone: string | null
   createdAt: string | null
 }
@@ -49,7 +50,7 @@ function formatPhoneNumber(value: string) {
   }
 }
 
-export function ProfileView({ email, name, phone: initialPhone, createdAt }: ProfileViewProps) {
+export function ProfileView({ email, displayName, phone: initialPhone, createdAt }: ProfileViewProps) {
   const router = useRouter()
 
   // 휴대폰 번호 수정
@@ -213,12 +214,12 @@ export function ProfileView({ email, name, phone: initialPhone, createdAt }: Pro
 
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label className={fieldLabelClassName}>이름</Label>
+              <Label className={fieldLabelClassName}>표시 이름</Label>
               <div className={readOnlyBandClassName}>
                 <span className="break-keep text-sm font-medium text-[var(--studio-ink)]">
-                  {name || '미설정'}
+                  {displayName}
                 </span>
-                <span className="ml-2 text-xs text-[var(--studio-muted)]">(변경 불가)</span>
+                <span className="ml-2 text-xs text-[var(--studio-muted)]">(리뷰 등에 표시, 변경 불가)</span>
               </div>
             </div>
 

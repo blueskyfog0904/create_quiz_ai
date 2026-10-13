@@ -4,11 +4,12 @@ import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getRequestAuthUserId } from '@/lib/request-auth'
+import { formatMemberDisplayName } from '@/lib/member-display-name'
 import { ProfileView } from './_components/profile-view'
 
 export const metadata: Metadata = {
   title: '내정보 관리 | 써머썬 연구소',
-  description: '이름·이메일·휴대폰 번호 확인과 비밀번호 변경',
+  description: '이메일·휴대폰 번호 확인과 비밀번호 변경',
 }
 
 export default async function ProfilePage() {
@@ -24,7 +25,7 @@ export default async function ProfilePage() {
     supabase.auth.getUser(),
     supabase
       .from('profiles')
-      .select('name, phone, created_at')
+      .select('phone, created_at')
       .eq('id', userId)
       .single(),
   ])
@@ -33,7 +34,7 @@ export default async function ProfilePage() {
     <Suspense fallback={null}>
       <ProfileView
         email={authData.user?.email ?? ''}
-        name={profile?.name ?? null}
+        displayName={userId ? formatMemberDisplayName(authData.user?.email, userId) : ''}
         phone={profile?.phone ?? null}
         createdAt={profile?.created_at ?? null}
       />

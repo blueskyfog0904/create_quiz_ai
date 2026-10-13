@@ -56,13 +56,12 @@ export async function signup(formData: FormData) {
   const password = formData.get('password') as string
 
   // Extract profile fields
-  const name = formData.get('name') as string
   const phone = formData.get('phone') as string
 
-  console.log(`[Signup Action] Data received - Email: ${email}, Name: ${name}, Phone: ${phone}`)
+  console.log(`[Signup Action] Data received - Email: ${email}, Phone: ${phone}`)
 
-  if (!email || !password || !name || !phone) {
-    return { success: false, error: '이메일, 비밀번호, 이름, 휴대폰 번호를 모두 입력해주세요.' }
+  if (!email || !password || !phone) {
+    return { success: false, error: '이메일, 비밀번호, 휴대폰 번호를 모두 입력해주세요.' }
   }
 
   // 관리자 ID용 내부 도메인은 일반 회원가입에서 선점할 수 없다
@@ -75,7 +74,6 @@ export async function signup(formData: FormData) {
     password,
     options: {
       data: {
-        full_name: name,
         phone: phone || null,
         provider: 'email'
       }
@@ -94,7 +92,6 @@ export async function signup(formData: FormData) {
       success: true,
       data: {
         email: data.user.email,
-        name: name,
         phone: phone
       }
     }
@@ -105,7 +102,6 @@ export async function signup(formData: FormData) {
       success: true,
       data: {
         email: email,
-        name: name,
         phone: phone
       }
     }

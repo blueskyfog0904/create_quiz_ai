@@ -34,7 +34,6 @@ type SupportCategory = Database['public']['Tables']['support_ticket_categories']
 type TicketBase = Database['public']['Tables']['support_tickets']['Row']
 type Ticket = TicketBase & {
   profiles: {
-    name: string | null
     email: string | null
     phone: string | null
   } | null
@@ -478,7 +477,7 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
                               {ticket.message}
                             </p>
                             <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-400">
-                              <span>{ticket.profiles?.name || ticket.profiles?.email || '알 수 없음'}</span>
+                              <span>{ticket.profiles?.email || '알 수 없음'}</span>
                               <span>•</span>
                               <span>{new Date(ticket.created_at).toLocaleDateString('ko-KR')}</span>
                               {ticket.responded_at && !isDeleted && (
@@ -559,7 +558,6 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
           <DialogHeader>
             <DialogTitle>{selectedTicket?.subject}</DialogTitle>
             <DialogDescription>
-              {selectedTicket?.profiles?.name || '이름 없음'} •{' '}
               {selectedTicket?.profiles?.phone || '전화번호 없음'} •{' '}
               {selectedTicket?.profiles?.email || '이메일 없음'} •{' '}
               {selectedTicket && new Date(selectedTicket.created_at).toLocaleString('ko-KR')}

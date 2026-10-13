@@ -61,12 +61,12 @@ export async function POST(request: NextRequest) {
     // Fetch profile for Slack notification
     const { data: profile } = await supabase
       .from('profiles')
-      .select('name, email, phone')
+      .select('email, phone')
       .eq('id', user.id)
       .single()
 
     // Send Slack Notification
-    const userName = profile?.name || user.email || 'Unknown User'
+    const userName = profile?.email || user.email || 'Unknown User'
     const userContact = profile?.phone || profile?.email || 'No contact info'
     const categoryName = getCategoryName(ticket?.category_snapshot)
     

@@ -53,7 +53,6 @@ const CreateSchema = z.object({
   login_id: z.string()
     .transform((value) => normalizeAdminLoginId(value))
     .refine((value) => ADMIN_LOGIN_ID_PATTERN.test(value), '아이디는 영문 소문자·숫자·-·_ 3~30자여야 합니다.'),
-  name: z.string().trim().min(1, '이름을 입력하세요.').max(60),
   password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다.'),
 })
 
@@ -70,7 +69,6 @@ export async function POST(request: NextRequest) {
   try {
     const account = await createAdminAccount({
       loginId: parsed.data.login_id,
-      name: parsed.data.name,
       password: parsed.data.password,
     })
     return NextResponse.json({ success: true, data: account })

@@ -10,11 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Search, Loader2, User, Check, AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { formatMemberDisplayName } from '@/lib/member-display-name'
 
 interface Profile {
   id: string
   email: string | null
-  name: string | null
   credit_balance?: number
 }
 
@@ -62,8 +62,8 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, name')
-        .or(`email.ilike.%${searchQuery}%,name.ilike.%${searchQuery}%`)
+        .select('id, email')
+        .ilike('email', `%${searchQuery}%`)
         .limit(5)
       
       if (error) throw error
@@ -116,7 +116,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || '지급 실패')
 
-      toast.success(`${selectedUser.name}님에게 크레딧이 지급되었습니다.`)
+      toast.success(`${selectedUser.email}님에게 크레딧이 지급되었습니다.`)
       onSuccess?.()
       onOpenChange(false)
     } catch (error: any) {
@@ -140,7 +140,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
           <div className="space-y-4 py-4">
             <div className="flex gap-2">
               <Input 
-                placeholder="이름 또는 이메일 검색..." 
+                placeholder="이메일 검색..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -162,7 +162,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
                       <User className="h-4 w-4 text-gray-500" />
                     </div>
                     <div>
-                      <div className="font-medium text-sm">{user.name || '이름 없음'}</div>
+                      <div className="font-medium text-sm">{formatMemberDisplayName(user.email, user.id)}</div>
                       <div className="text-xs text-gray-500">{user.email}</div>
                     </div>
                   </div>
@@ -180,7 +180,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
           <div className="space-y-4 py-4">
             <div className="flex items-center gap-3 p-3 bg-blue-50 text-blue-900 rounded-lg text-sm">
               <User className="h-4 w-4" />
-              <span className="font-semibold">{selectedUser.name}</span>
+              <span className="font-semibold">{formatMemberDisplayName(selectedUser.email, selectedUser.id)}</span>
               <span className="text-blue-700">({selectedUser.email})</span>
               <Button variant="ghost" className="ml-auto h-6 text-xs hover:bg-blue-100" onClick={() => setStep('search')}>변경</Button>
             </div>
@@ -243,7 +243,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
                 <div className="bg-gray-50 p-4 rounded-lg space-y-3 text-sm">
                     <div className="flex justify-between">
                         <span className="text-gray-500">받는 사람</span>
-                        <span className="font-medium">{selectedUser.name} ({selectedUser.email})</span>
+                        <span className="font-medium">{formatMemberDisplayName(selectedUser.email, selectedUser.id)} ({selectedUser.email})</span>
                     </div>
                     <div className="flex justify-between">
                         <span className="text-gray-500">지급 금액</span>

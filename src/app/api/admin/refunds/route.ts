@@ -56,7 +56,7 @@ export async function GET(request: Request) {
     .from('refund_requests')
     .select(`
       *,
-      user:profiles!refund_requests_user_id_fkey(id, name, email),
+      user:profiles!refund_requests_user_id_fkey(id, email),
       source:credit_sources(
         id,
         initial_credits,
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
         expires_at,
         plan:pricing_plans(name, price)
       ),
-      processor:profiles!refund_requests_processed_by_fkey(id, name)
+      processor:profiles!refund_requests_processed_by_fkey(id, email)
     `)
     .eq('status', status)
     .order('created_at', { ascending: false })

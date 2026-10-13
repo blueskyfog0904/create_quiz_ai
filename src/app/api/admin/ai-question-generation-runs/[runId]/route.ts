@@ -42,7 +42,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   const { data: runUser } = run.user_id
     ? await supabase
       .from('profiles')
-      .select('id,email,name')
+      .select('id,email')
       .eq('id', run.user_id)
       .maybeSingle()
     : { data: null }

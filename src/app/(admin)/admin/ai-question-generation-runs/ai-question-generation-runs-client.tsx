@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Json, Tables } from '@/types/supabase'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import { formatMemberDisplayName } from '@/lib/member-display-name'
 
 type AiGenerationRun = Pick<
   Tables<'ai_question_generation_runs'>,
@@ -28,7 +29,7 @@ type AiGenerationRun = Pick<
   | 'created_at'
   | 'expires_at'
 > & {
-  user: { id: string; email: string | null; name: string | null } | null
+  user: { id: string; email: string | null } | null
 }
 
 interface AiQuestionGenerationRunsClientProps {
@@ -151,7 +152,7 @@ export default function AiQuestionGenerationRunsClient({
                   <tr key={run.id} className="border-b last:border-0">
                     <td className="p-3 whitespace-nowrap">{new Date(run.created_at).toLocaleString('ko-KR')}</td>
                     <td className="p-3">
-                      <div className="font-medium">{run.user?.name || '이름 없음'}</div>
+                      <div className="font-medium">{run.user_id ? formatMemberDisplayName(run.user?.email, run.user_id) : '-'}</div>
                       <div className="text-xs text-gray-500">{run.user?.email || run.user_id || '-'}</div>
                     </td>
                     <td className="p-3">{sourceLabels[run.source] || run.source}</td>

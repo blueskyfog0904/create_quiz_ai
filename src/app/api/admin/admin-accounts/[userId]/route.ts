@@ -37,9 +37,8 @@ function toErrorResponse(error: unknown, fallbackMessage: string) {
 }
 
 const PatchSchema = z.object({
-  name: z.string().trim().min(1, '이름을 입력하세요.').max(60).optional(),
-  password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다.').optional(),
-}).refine((value) => value.name !== undefined || value.password !== undefined, '변경할 내용이 없습니다.')
+  password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다.'),
+})
 
 export async function PATCH(
   request: NextRequest,
@@ -58,7 +57,6 @@ export async function PATCH(
   try {
     await updateAdminAccount({
       userId,
-      name: parsed.data.name,
       password: parsed.data.password,
     })
     return NextResponse.json({ success: true })

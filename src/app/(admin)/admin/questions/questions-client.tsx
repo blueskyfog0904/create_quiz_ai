@@ -52,7 +52,7 @@ interface Question {
   updated_at: string
   problem_type_id: string | null
   problem_types: { type_name: string } | null
-  profiles: { id: string; name: string | null; email: string | null } | null
+  profiles: { id: string; email: string | null } | null
   year_id: string | null
   year_label: string | null
   book_id: string | null
@@ -377,7 +377,7 @@ export function QuestionsClient({
                       )}
                       <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
                         <span>
-                          업로더: {question.profiles?.name || question.profiles?.email || '알 수 없음'}
+                          업로더: {question.profiles?.email || '알 수 없음'}
                         </span>
                         <span>•</span>
                         <span>{new Date(question.created_at).toLocaleDateString('ko-KR')}</span>

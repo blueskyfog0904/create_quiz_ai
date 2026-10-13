@@ -11,6 +11,7 @@ import { buildAuthRedirectPath } from '@/lib/auth-paths'
 import { assertKakaoPayReady } from '@/lib/kakaopay-server'
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
 import { createClient } from '@/lib/supabase/server'
+import { formatMemberDisplayName } from '@/lib/member-display-name'
 import { assertTossPaymentsReady } from '@/lib/toss-payments-server'
 import { CheckoutClient } from './checkout-client'
 
@@ -38,7 +39,7 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, name, email')
+    .select('id, email')
     .eq('id', user.id)
     .single()
 
@@ -113,7 +114,8 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
       plan={plan}
       user={{
         id: user.id,
-        name: profile?.name || user.email?.split('@')[0] || '고객',
+        // 회원 이름은 저장하지 않는다. 결제창 구매자명은 회원 표시 이름을 쓴다.
+        name: formatMemberDisplayName(profile?.email ?? user.email, user.id),
         email: user.email || '',
       }}
       paymentConfig={paymentConfig}

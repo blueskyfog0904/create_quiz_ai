@@ -25,9 +25,11 @@ import {
   Calendar
 } from 'lucide-react'
 import { GrantCreditDialog } from './grant-credit-dialog'
+import { formatMemberDisplayName } from '@/lib/member-display-name'
 
 type Transaction = {
   id: string
+  user_id: string
   amount: number
   transaction_type: string
   description: string
@@ -36,7 +38,6 @@ type Transaction = {
   resource_id: string | null
   user: {
     email: string | null
-    name: string | null
   } | null
 }
 
@@ -62,7 +63,6 @@ export function CreditsClient({ initialTransactions, totalCount, stats }: Credit
     // Search filter
     const matchesSearch = 
       t.user?.email?.toLowerCase().includes(searchLower) ||
-      t.user?.name?.toLowerCase().includes(searchLower) ||
       t.description.toLowerCase().includes(searchLower)
 
     // Type filter
@@ -143,7 +143,7 @@ export function CreditsClient({ initialTransactions, totalCount, stats }: Credit
             <div className="relative flex-1 sm:w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                    placeholder="사용자명, 이메일, 내역 검색..."
+                    placeholder="이메일, 내역 검색..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="pl-10"
@@ -210,7 +210,7 @@ export function CreditsClient({ initialTransactions, totalCount, stats }: Credit
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="font-medium text-sm">{t.user?.name || '알 수 없음'}</span>
+                        <span className="font-medium text-sm">{formatMemberDisplayName(t.user?.email, t.user_id)}</span>
                         <span className="text-xs text-gray-400">{t.user?.email || '-'}</span>
                       </div>
                     </TableCell>

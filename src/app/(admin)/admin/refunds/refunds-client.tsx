@@ -43,6 +43,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
+import { formatMemberDisplayName } from '@/lib/member-display-name'
+import { extractAdminLoginId } from '@/lib/admin-accounts-shared'
 
 export interface RefundRequest {
     id: string
@@ -68,7 +70,6 @@ export interface RefundRequest {
     updated_at: string
     user: {
         id: string
-        name: string | null
         email: string | null
     } | null
     source: {
@@ -83,7 +84,7 @@ export interface RefundRequest {
     } | null
     processor: {
         id: string
-        name: string | null
+        email: string | null
     } | null
 }
 
@@ -277,7 +278,7 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex flex-col">
-                                                <span className="font-medium">{request.user?.name || '알 수 없음'}</span>
+                                                <span className="font-medium">{request.user ? formatMemberDisplayName(request.user.email, request.user.id) : '알 수 없음'}</span>
                                                 <span className="text-xs text-gray-400">{request.user?.email}</span>
                                             </div>
                                         </TableCell>
@@ -344,7 +345,7 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                                                 </div>
                                             ) : (
                                                 <span className="text-sm text-gray-400">
-                                                    {request.processor?.name || '처리됨'}
+                                                    {request.processor?.email ? extractAdminLoginId(request.processor.email) : '처리됨'}
                                                 </span>
                                             )}
                                         </TableCell>
@@ -366,7 +367,7 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                         <DialogDescription>
                             {selectedRequest && (
                                 <>
-                                    <strong>{selectedRequest.user?.name}</strong>님의 {' '}
+                                    <strong>{selectedRequest.user ? formatMemberDisplayName(selectedRequest.user.email, selectedRequest.user.id) : '알 수 없음'}</strong>님의 {' '}
                                     <strong>{selectedRequest.source?.plan?.name}</strong> 요금제 ({selectedRequest.source?.initial_credits?.toLocaleString()} 크레딧) 환불 요청
                                 </>
                             )}

@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input'
 interface AdminAccountRow {
   userId: string
   loginId: string
-  name: string | null
   createdAt: string | null
   lastSignInAt: string | null
   isBootstrapAccount: boolean
@@ -28,10 +27,8 @@ export default function AdminAccountsClient() {
   const [selfUserId, setSelfUserId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [newLoginId, setNewLoginId] = useState('')
-  const [newName, setNewName] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [savingId, setSavingId] = useState<string | null>(null)
-  const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({})
   const [passwordDrafts, setPasswordDrafts] = useState<Record<string, string>>({})
 
   const loadAccounts = useCallback(async () => {
@@ -45,7 +42,6 @@ export default function AdminAccountsClient() {
       const rows: AdminAccountRow[] = result.data
       setAccounts(rows)
       setSelfUserId(result.selfUserId ?? null)
-      setNameDrafts(Object.fromEntries(rows.map((row) => [row.userId, row.name ?? ''])))
       setPasswordDrafts({})
     } catch (error) {
       alert(error instanceof Error ? error.message : '관리자 목록을 불러오지 못했습니다.')
@@ -60,9 +56,8 @@ export default function AdminAccountsClient() {
 
   const createAccount = async () => {
     const loginId = newLoginId.trim()
-    const name = newName.trim()
-    if (!loginId || !name || !newPassword) {
-      alert('아이디, 이름, 비밀번호를 모두 입력하세요.')
+    if (!loginId || !newPassword) {
+      alert('아이디와 비밀번호를 모두 입력하세요.')
       return
     }
     setSavingId('new')
@@ -70,14 +65,13 @@ export default function AdminAccountsClient() {
       const response = await fetch('/api/admin/admin-accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ login_id: loginId, name, password: newPassword }),
+        body: JSON.stringify({ login_id: loginId, password: newPassword }),
       })
       const result = await response.json().catch(() => null)
       if (!response.ok || !result?.success) {
         throw new Error(result?.error ?? '관리자 ID 생성에 실패했습니다.')
       }
       setNewLoginId('')
-      setNewName('')
       setNewPassword('')
       await loadAccounts()
     } catch (error) {
@@ -87,7 +81,7 @@ export default function AdminAccountsClient() {
     }
   }
 
-  const patchAccount = async (userId: string, payload: { name?: string; password?: string }) => {
+  const patchAccount = async (userId: string, payload: { password: string }) => {
     setSavingId(userId)
     try {
       const response = await fetch(`/api/admin/admin-accounts/${userId}`, {
@@ -99,10 +93,8 @@ export default function AdminAccountsClient() {
       if (!response.ok || !result?.success) {
         throw new Error(result?.error ?? '저장에 실패했습니다.')
       }
-      if (payload.password !== undefined) {
-        setPasswordDrafts((current) => ({ ...current, [userId]: '' }))
-        alert('비밀번호를 변경했습니다.')
-      }
+      setPasswordDrafts((current) => ({ ...current, [userId]: '' }))
+      alert('비밀번호를 변경했습니다.')
       await loadAccounts()
     } catch (error) {
       alert(error instanceof Error ? error.message : '저장에 실패했습니다.')
@@ -132,15 +124,6 @@ export default function AdminAccountsClient() {
     }
   }
 
-  const saveName = (account: AdminAccountRow) => {
-    const draft = (nameDrafts[account.userId] ?? '').trim()
-    if (!draft) {
-      alert('이름을 입력하세요.')
-      return
-    }
-    void patchAccount(account.userId, { name: draft })
-  }
-
   const resetPassword = (account: AdminAccountRow) => {
     const draft = passwordDrafts[account.userId] ?? ''
     if (draft.length < 8) {
@@ -163,13 +146,6 @@ export default function AdminAccountsClient() {
             autoComplete="off"
           />
           <Input
-            value={newName}
-            onChange={(event) => setNewName(event.target.value)}
-            placeholder="이름"
-            className="w-44"
-            autoComplete="off"
-          />
-          <Input
             type="password"
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
@@ -188,7 +164,6 @@ export default function AdminAccountsClient() {
           <thead>
             <tr className="border-b bg-muted/50 text-left">
               <th className="px-4 py-3 font-medium">아이디</th>
-              <th className="w-44 px-4 py-3 font-medium">이름</th>
               <th className="w-28 px-4 py-3 font-medium">유형</th>
               <th className="w-28 px-4 py-3 font-medium">생성일</th>
               <th className="w-28 px-4 py-3 font-medium">최근 로그인</th>
@@ -198,17 +173,15 @@ export default function AdminAccountsClient() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">불러오는 중…</td>
+                <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">불러오는 중…</td>
               </tr>
             ) : accounts.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">등록된 관리자가 없습니다.</td>
+                <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">등록된 관리자가 없습니다.</td>
               </tr>
             ) : (
               accounts.map((account) => {
                 const isSelf = account.userId === selfUserId
-                const nameDraft = nameDrafts[account.userId] ?? ''
-                const isNameDirty = nameDraft !== (account.name ?? '')
                 return (
                   <tr key={account.userId} className="border-b last:border-b-0">
                     <td className="px-4 py-2">
@@ -220,15 +193,6 @@ export default function AdminAccountsClient() {
                       </div>
                     </td>
                     <td className="px-4 py-2">
-                      <Input
-                        value={nameDraft}
-                        onChange={(event) => setNameDrafts((current) => ({
-                          ...current,
-                          [account.userId]: event.target.value,
-                        }))}
-                      />
-                    </td>
-                    <td className="px-4 py-2">
                       <span className={`rounded px-2 py-1 text-xs font-medium ${account.isBootstrapAccount ? 'bg-slate-100 text-slate-600' : 'bg-emerald-50 text-emerald-700'}`}>
                         {account.isBootstrapAccount ? '기존 계정' : '관리자 ID'}
                       </span>
@@ -237,15 +201,6 @@ export default function AdminAccountsClient() {
                     <td className="px-4 py-2 text-muted-foreground">{formatDate(account.lastSignInAt)}</td>
                     <td className="px-4 py-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={savingId === account.userId || !isNameDirty}
-                          onClick={() => saveName(account)}
-                        >
-                          이름 저장
-                        </Button>
                         <Input
                           type="password"
                           value={passwordDrafts[account.userId] ?? ''}

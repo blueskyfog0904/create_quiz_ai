@@ -11,6 +11,7 @@ import {
   UserX,
 } from 'lucide-react'
 import { getRequestAuthUserId } from '@/lib/request-auth'
+import { formatMemberDisplayName } from '@/lib/member-display-name'
 import { createClient } from '@/lib/supabase/server'
 import {
   getCreditBalanceSnapshot,
@@ -53,7 +54,7 @@ export default async function MypageHomePage() {
   const supabase = await createClient()
 
   const [{ data: profile }, { data: userResult }, snapshot, purchasedCounts] = await Promise.all([
-    supabase.from('profiles').select('name, created_at').eq('id', userId).single(),
+    supabase.from('profiles').select('created_at').eq('id', userId).single(),
     supabase.auth.getUser(),
     getCreditBalanceSnapshot(userId),
     countMarketLibraryItemsForUser(userId),
@@ -84,7 +85,7 @@ export default async function MypageHomePage() {
             <div>
               <h2 className="text-sm font-bold text-[var(--studio-ink)]">내 정보</h2>
               <p className="mt-3 text-lg font-semibold text-[var(--studio-ink)] break-keep">
-                {profile?.name ?? '이름 미설정'}
+                {formatMemberDisplayName(email, userId)}
               </p>
               <p className="mt-1 text-sm text-[var(--studio-text)]">{email}</p>
               <p className="mt-1 text-xs text-[var(--studio-muted)]">

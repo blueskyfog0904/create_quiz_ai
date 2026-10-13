@@ -46,7 +46,6 @@ interface Stats {
     difficulty: string | null
     created_at: string
     profiles: {
-      name: string | null
       email: string | null
     } | null
   }>
@@ -214,7 +213,7 @@ export function DashboardClient() {
                           : question.question_text}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        {question.profiles?.name || question.profiles?.email || '알 수 없음'} •{' '}
+                        {question.profiles?.email || '알 수 없음'} •{' '}
                         {new Date(question.created_at).toLocaleDateString('ko-KR')}
                       </p>
                     </div>

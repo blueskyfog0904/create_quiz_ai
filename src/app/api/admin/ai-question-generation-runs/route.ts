@@ -66,9 +66,9 @@ export async function GET(request: Request) {
   const { data: profiles } = userIds.length > 0
     ? await supabase
       .from('profiles')
-      .select('id,email,name')
+      .select('id,email')
       .in('id', userIds)
-    : { data: [] as Array<{ id: string; email: string | null; name: string | null }> }
+    : { data: [] as Array<{ id: string; email: string | null }> }
   const profileMap = new Map((profiles ?? []).map((userProfile) => [userProfile.id, userProfile]))
 
   return NextResponse.json({

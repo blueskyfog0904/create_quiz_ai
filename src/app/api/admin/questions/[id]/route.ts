@@ -112,7 +112,7 @@ export async function GET(
       .from('questions')
       .select(`
         *,
-        profiles:user_id (id, name, email)
+        profiles:user_id (id, email)
       `)
       .eq('id', id)
       .eq('workspace_subject', workspaceSubject)
@@ -262,7 +262,7 @@ export async function PATCH(
       .from('questions')
       .select(`
         *,
-        profiles:user_id (id, name, email)
+        profiles:user_id (id, email)
       `)
       .eq('id', id)
       .eq('workspace_subject', workspaceSubject)

@@ -28,11 +28,11 @@ import {
   Plus
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { formatMemberDisplayName } from '@/lib/member-display-name'
 
 interface Profile {
   id: string
   email: string | null
-  name: string | null
   phone: string | null
   organization: string | null
   role: string | null
@@ -63,7 +63,6 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
     const searchLower = search.toLowerCase()
     return (
       user.email?.toLowerCase().includes(searchLower) ||
-      user.name?.toLowerCase().includes(searchLower) ||
       user.phone?.includes(search) ||
       user.organization?.toLowerCase().includes(searchLower)
     )
@@ -121,7 +120,7 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
           <DialogHeader>
             <DialogTitle>크레딧 지급</DialogTitle>
             <DialogDescription>
-              {selectedUser?.name} ({selectedUser?.email}) 님에게 크레딧을 지급합니다.
+              {selectedUser ? formatMemberDisplayName(selectedUser.email, selectedUser.id) : ''} ({selectedUser?.email}) 님에게 크레딧을 지급합니다.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -157,7 +156,7 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
-            placeholder="이름, 이메일, 전화번호로 검색..."
+            placeholder="이메일, 전화번호로 검색..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10"
@@ -187,7 +186,7 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-gray-900">
-                            {user.name || '이름 없음'}
+                            {formatMemberDisplayName(user.email, user.id)}
                           </span>
                           {user.is_admin && (
                             <Badge className="bg-orange-100 text-orange-700">

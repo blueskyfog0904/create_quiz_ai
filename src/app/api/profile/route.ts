@@ -19,7 +19,6 @@ const profileMutationSchema = z.discriminatedUnion('action', [
   }).strict(),
   z.object({
     action: z.literal('complete_kakao_signup'),
-    name: z.string().trim().min(1).max(60),
     phone: phoneSchema.optional(),
   }).strict(),
 ])
@@ -77,7 +76,7 @@ export async function PATCH(request: NextRequest) {
       .from('profiles')
       .update({ phone: parsed.data.phone || null })
       .eq('id', user.id)
-      .select('id, email, name, phone, signup_completed')
+      .select('id, email, phone, signup_completed')
       .single()
 
     if (error) {
@@ -115,7 +114,6 @@ export async function PATCH(request: NextRequest) {
     .from('profiles')
     .update({
       email,
-      name: parsed.data.name,
       phone: parsed.data.phone || null,
       kakao_email: email,
       kakao_id: kakaoId,
@@ -123,7 +121,7 @@ export async function PATCH(request: NextRequest) {
       signup_completed: true,
     })
     .eq('id', user.id)
-    .select('id, email, name, phone, signup_completed')
+    .select('id, email, phone, signup_completed')
     .single()
 
   if (error) {

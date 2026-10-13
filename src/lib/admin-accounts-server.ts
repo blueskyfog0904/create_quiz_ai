@@ -21,7 +21,6 @@ export class AdminAccountError extends Error {
 export interface AdminAccountSummary {
   userId: string
   loginId: string
-  name: string | null
   createdAt: string | null
   lastSignInAt: string | null
   isBootstrapAccount: boolean
@@ -32,7 +31,7 @@ export async function listAdminAccounts(): Promise<AdminAccountSummary[]> {
 
   const { data: profiles, error: profilesError } = await admin
     .from('profiles')
-    .select('id, name')
+    .select('id')
     .eq('is_admin', true)
   if (profilesError) {
     throw new AdminAccountError(500, `관리자 목록을 불러오지 못했습니다: ${profilesError.message}`)
@@ -56,7 +55,6 @@ export async function listAdminAccounts(): Promise<AdminAccountSummary[]> {
       return {
         userId: profile.id,
         loginId: email ? extractAdminLoginId(email) : profile.id,
-        name: profile.name,
         createdAt: authUser?.created_at ?? null,
         lastSignInAt: authUser?.last_sign_in_at ?? null,
         isBootstrapAccount: !isAdminAccountEmail(email),
@@ -67,11 +65,9 @@ export async function listAdminAccounts(): Promise<AdminAccountSummary[]> {
 
 export async function createAdminAccount({
   loginId,
-  name,
   password,
 }: {
   loginId: string
-  name: string
   password: string
 }): Promise<AdminAccountSummary> {
   const normalizedLoginId = normalizeAdminLoginId(loginId)
@@ -100,7 +96,7 @@ export async function createAdminAccount({
   const userId = created.user.id
   const { error: profileError } = await admin
     .from('profiles')
-    .update({ is_admin: true, name })
+    .update({ is_admin: true })
     .eq('id', userId)
     .select('id')
     .single()
@@ -113,7 +109,6 @@ export async function createAdminAccount({
   return {
     userId,
     loginId: normalizedLoginId,
-    name,
     createdAt: created.user.created_at ?? null,
     lastSignInAt: null,
     isBootstrapAccount: false,
@@ -136,38 +131,21 @@ async function requireAdminProfile(admin: ReturnType<typeof createAdminClient>, 
 
 export async function updateAdminAccount({
   userId,
-  name,
   password,
 }: {
   userId: string
-  name?: string
-  password?: string
+  password: string
 }) {
-  if (name === undefined && password === undefined) {
-    throw new AdminAccountError(400, '변경할 내용이 없습니다.')
-  }
-  if (password !== undefined && password.length < 8) {
+  if (password.length < 8) {
     throw new AdminAccountError(400, '비밀번호는 8자 이상이어야 합니다.')
   }
 
   const admin = createAdminClient()
   await requireAdminProfile(admin, userId)
 
-  if (password !== undefined) {
-    const { error } = await admin.auth.admin.updateUserById(userId, { password })
-    if (error) {
-      throw new AdminAccountError(500, `비밀번호를 변경하지 못했습니다: ${error.message}`)
-    }
-  }
-
-  if (name !== undefined) {
-    const { error } = await admin
-      .from('profiles')
-      .update({ name })
-      .eq('id', userId)
-    if (error) {
-      throw new AdminAccountError(500, `이름을 변경하지 못했습니다: ${error.message}`)
-    }
+  const { error } = await admin.auth.admin.updateUserById(userId, { password })
+  if (error) {
+    throw new AdminAccountError(500, `비밀번호를 변경하지 못했습니다: ${error.message}`)
   }
 }
 

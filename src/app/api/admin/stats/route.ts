@@ -67,7 +67,7 @@ export async function GET() {
           grade_level,
           difficulty,
           created_at,
-          profiles:user_id (name, email)
+          profiles:user_id (email)
         `)
         .order('created_at', { ascending: false })
         .limit(10),

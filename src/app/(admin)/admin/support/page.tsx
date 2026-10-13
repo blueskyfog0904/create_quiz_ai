@@ -29,7 +29,7 @@ export default async function AdminSupportPage({ searchParams }: AdminSupportPag
     .from('support_tickets')
     .select(`
       *,
-      profiles!support_tickets_user_id_profiles_fkey (name, email, phone),
+      profiles!support_tickets_user_id_profiles_fkey (email, phone),
       support_ticket_categories!support_tickets_category_id_fkey (id, slug, name, is_active, deleted_at)
     `)
     .order('created_at', { ascending: false })

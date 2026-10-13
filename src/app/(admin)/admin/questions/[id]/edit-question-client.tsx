@@ -48,7 +48,7 @@ interface Question {
   updated_at: string
   problem_type_id: string | null
   problem_types: { id: string; type_name: string } | null
-  profiles: { id: string; name: string | null; email: string | null } | null
+  profiles: { id: string; email: string | null } | null
 }
 
 interface EditQuestionClientProps {
@@ -341,7 +341,7 @@ export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestio
               ID: {question.id.slice(0, 8)}...
             </Badge>
             <Badge variant="outline">
-              업로더: {question.profiles?.name || question.profiles?.email || '알 수 없음'}
+              업로더: {question.profiles?.email || '알 수 없음'}
             </Badge>
             {question.problem_types && (
               <Badge className="bg-blue-100 text-blue-700">

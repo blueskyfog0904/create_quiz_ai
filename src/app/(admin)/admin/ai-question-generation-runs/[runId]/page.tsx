@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { QuestionPreview } from '@/components/features/quiz/question-preview'
 import { QuestionGenerationAttemptLogViewer } from '@/components/features/question-generation/QuestionGenerationAttemptLogViewer'
+import { formatMemberDisplayName } from '@/lib/member-display-name'
 import {
   formatDateTime,
   getEventLabel,
@@ -114,7 +115,7 @@ export default async function AiQuestionGenerationRunDetailPage({
   const { data: runUser } = run.user_id
     ? await supabase
       .from('profiles')
-      .select('id,email,name')
+      .select('id,email')
       .eq('id', run.user_id)
       .maybeSingle()
     : { data: null }
@@ -172,7 +173,7 @@ export default async function AiQuestionGenerationRunDetailPage({
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">사용자</CardTitle></CardHeader>
           <CardContent>
-            <div>{runUser?.name || '이름 없음'}</div>
+            <div>{formatMemberDisplayName(runUser?.email, run.user_id)}</div>
             <div className="break-all text-xs text-gray-500">{runUser?.email || run.user_id || '-'}</div>
           </CardContent>
         </Card>

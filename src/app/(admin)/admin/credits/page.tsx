@@ -25,7 +25,7 @@ export default async function AdminCreditsPage() {
   if (userIds.length > 0) {
     const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, email, name')
+        .select('id, email')
         .in('id', userIds)
     
     profiles?.forEach(p => {
@@ -35,7 +35,7 @@ export default async function AdminCreditsPage() {
 
   const safeTransactions = transactions?.map(t => ({
     ...t,
-    user: profileMap[t.user_id] || { email: 'Unknown', name: 'Unknown' }
+    user: profileMap[t.user_id] || { email: 'Unknown' }
   })) || []
 
   // Simple stats from the loaded data (MVP)
