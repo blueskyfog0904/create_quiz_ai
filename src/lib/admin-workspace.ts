@@ -1,9 +1,12 @@
-import { DEFAULT_WORKSPACE_SUBJECT, resolveWorkspaceSubject, type WorkspaceSubject } from '@/lib/workspace-subject'
+import { resolveWorkspaceSubject, type WorkspaceSubject } from '@/lib/workspace-subject'
 
 export const ADMIN_SUBJECT_QUERY_KEY = 'subject'
 
+// 관리자 화면은 주소에 과목이 없으면(처음 들어올 때) 국어로 시작한다
+export const DEFAULT_ADMIN_WORKSPACE_SUBJECT: WorkspaceSubject = 'korean'
+
 export function resolveAdminWorkspaceSubject(value: string | null | undefined): WorkspaceSubject {
-  return resolveWorkspaceSubject(value, DEFAULT_WORKSPACE_SUBJECT)
+  return resolveWorkspaceSubject(value, DEFAULT_ADMIN_WORKSPACE_SUBJECT)
 }
 
 export function withAdminWorkspaceSubject(href: string, workspaceSubject: WorkspaceSubject) {

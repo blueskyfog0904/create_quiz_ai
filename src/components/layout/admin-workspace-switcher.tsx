@@ -7,8 +7,8 @@ import { ADMIN_SUBJECT_QUERY_KEY, resolveAdminWorkspaceSubject } from '@/lib/adm
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 const SUBJECTS: Array<{ value: WorkspaceSubject; label: string }> = [
-  { value: 'english', label: '영어' },
   { value: 'korean', label: '국어' },
+  { value: 'english', label: '영어' },
 ]
 
 export function AdminWorkspaceSwitcher({ className }: { className?: string }) {
