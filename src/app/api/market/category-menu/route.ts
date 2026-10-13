@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server'
-import { listMarketCategoryTree } from '@/lib/market-categories-server'
+import { getCachedCategoryNodes, getCachedCategoryTree } from '@/lib/market-category-tree-cache'
 import { toMegaMenuTree } from '@/lib/market-category-tree'
 
 export const dynamic = 'force-dynamic'
 
 // 메가메뉴는 depth1~2만 보낸다. depth2 옆 상품 수는 카테고리 페이지 왼쪽 목록과 같은 하위 합산이다.
+// 카테고리 페이지와 같은 60초 공유 캐시(관리자 변경 시 태그로 즉시 무효화)로 읽는다.
 // 상품 수 계산이 실패해도 메뉴는 보이도록 수 없이 한 번 더 읽는다(이때 메가메뉴는 (N)을 표시하지 않는다).
 async function loadCategoryMenu() {
   try {
-    return toMegaMenuTree(await listMarketCategoryTree(true), 2)
+    return toMegaMenuTree(await getCachedCategoryTree(), 2)
   } catch (error) {
     console.error('카테고리 메뉴 상품 수를 불러오지 못했습니다.', error)
-    return toMegaMenuTree(await listMarketCategoryTree(), 2)
+    return toMegaMenuTree(await getCachedCategoryNodes(), 2)
   }
 }
 

@@ -49,8 +49,11 @@ export function CategoryMegaMenu({ open, currentSubject, onClose, panelRef }: Ca
   const [loaded, setLoaded] = useState(false)
   const [activeSubject, setActiveSubject] = useState<WorkspaceSubject>(currentSubject)
 
-  // 메뉴 트리는 마운트 후 1회만 조회한다 (실패 시 조용히 빈 상태 유지).
+  // 메뉴 트리는 패널을 처음 열 때 1회만 조회한다(열지 않는 방문에는 요청하지 않는다. 실패 시 조용히 빈 상태 유지).
+  const [requested, setRequested] = useState(false)
+  if (open && !requested) setRequested(true)
   useEffect(() => {
+    if (!requested) return
     let cancelled = false
     // ?v=tree: 예전 형태 응답이 캐시된 주소와 캐시 키를 나눈다(라우트는 쿼리를 무시한다).
     fetch('/api/market/category-menu?v=tree')
@@ -71,7 +74,7 @@ export function CategoryMegaMenu({ open, currentSubject, onClose, panelRef }: Ca
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [requested])
 
   // 패널이 열릴 때마다 현재 페이지 과목을 기본 활성 과목으로 되돌린다 (렌더 중 상태 보정 패턴).
   const [prevOpen, setPrevOpen] = useState(open)

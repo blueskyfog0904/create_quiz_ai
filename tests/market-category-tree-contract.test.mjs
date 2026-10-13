@@ -52,7 +52,7 @@ test('캐시 키·태그와 사용처: 카테고리·상세 page는 공유 캐�
 })
 
 test('메가메뉴 API는 depth2까지 자른 트리를 보낸다', () => {
-  assert.match(read('src/app/api/market/category-menu/route.ts'), /toMegaMenuTree\(await listMarketCategoryTree\(true\), 2\)/)
+  assert.match(read('src/app/api/market/category-menu/route.ts'), /toMegaMenuTree\(await getCachedCategoryTree\(\), 2\)/)
 })
 
 test("카테고리 관리 화면은 공용 편집기를 쓰고 'N단계' 용어를 쓴다", () => {

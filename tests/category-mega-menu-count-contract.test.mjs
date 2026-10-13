@@ -8,7 +8,7 @@ test('메가메뉴 API는 왼쪽 목록과 같은 상품 수 계산을 쓰고, �
   const route = read('src/app/api/market/category-menu/route.ts')
   assert.match(
     route,
-    /try \{\n\s+return toMegaMenuTree\(await listMarketCategoryTree\(true\), 2\)\n\s+\} catch \(error\) \{\n\s+console\.error\([^)]*error\)\n\s+return toMegaMenuTree\(await listMarketCategoryTree\(\), 2\)\n\s+\}/,
+    /try \{\n\s+return toMegaMenuTree\(await getCachedCategoryTree\(\), 2\)\n\s+\} catch \(error\) \{\n\s+console\.error\([^)]*error\)\n\s+return toMegaMenuTree\(await getCachedCategoryNodes\(\), 2\)\n\s+\}/,
   )
   assert.match(route, /const data = await loadCategoryMenu\(\)/)
   assert.match(route, /'Cache-Control': 'public, max-age=60, s-maxage=60'/)
@@ -31,4 +31,14 @@ test('메가메뉴는 트리 형태 전용 주소로 읽고, 예전 형태 응�
   assert.match(menu, /Array\.isArray\(\(node as \{ children\?: unknown \}\)\.children\)/)
   assert.match(menu, /Array\.isArray\(group\.children\) \? group\.children : \[\]/)
   assert.match(menu, /href=\{`\/categories\/\$\{group\.id\}\?subject=\$\{activeSubject\}`\}/)
+})
+
+test('메가메뉴는 패널을 처음 열 때만 트리를 요청하고, API는 카테고리 트리 공유 캐시를 쓴다', () => {
+  const menu = read('src/components/layout/category-mega-menu.tsx')
+  assert.match(menu, /if \(open && !requested\) setRequested\(true\)/)
+  assert.match(menu, /if \(!requested\) return\n\s+let cancelled = false/)
+  assert.match(menu, /\}, \[requested\]\)/)
+  const route = read('src/app/api/market/category-menu/route.ts')
+  assert.match(route, /from '@\/lib\/market-category-tree-cache'/)
+  assert.doesNotMatch(route, /listMarketCategoryTree/)
 })
