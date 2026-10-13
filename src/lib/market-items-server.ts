@@ -1256,31 +1256,27 @@ export async function listMarketSubproductPublicSummaries(
     workspaceSubject
   )
 
-  const { data: subproducts, error: subproductError } = await subproductQuery
-  if (subproductError) {
-    throw new Error(subproductError.message)
-  }
-
-  if (!subproducts || subproducts.length === 0) {
-    return []
-  }
-
-  const subproductIds = subproducts.map((subproduct) => subproduct.id)
-  const categoryIds = Array.from(new Set(subproducts.map((subproduct) => subproduct.category_id)))
+  // 서브상품·분류·파일·소유권·파일 유형을 한 번에 읽는다(DB 왕복 1회).
+  // 분류·파일 유형은 과목의 작은 목록 전체를, 파일은 상품 단위로 읽고 아래에서 서브상품 id로 맞춘다.
   const [
+    { data: subproducts, error: subproductError },
     { data: categories, error: categoryError },
     { data: files, error: fileError },
     { data: entitlements, error: entitlementError },
+    { data: fileTypes, error: fileTypeError },
   ] = await Promise.all([
-    supabase
-      .from('market_subproduct_categories')
-      .select('id, name, slug')
-      .in('id', categoryIds),
+    subproductQuery,
+    applyWorkspaceSubjectFilter(
+      supabase
+        .from('market_subproduct_categories')
+        .select('id, name, slug'),
+      workspaceSubject
+    ),
     applyWorkspaceSubjectFilter(
       supabase
         .from('market_subproduct_files')
         .select('id, subproduct_id, file_type_id, original_file_name')
-        .in('subproduct_id', subproductIds)
+        .eq('item_id', itemId)
         .eq('is_active', true)
         .is('deleted_at', null)
         .order('sort_order', { ascending: true })
@@ -1299,7 +1295,21 @@ export async function listMarketSubproductPublicSummaries(
         workspaceSubject
       )
       : Promise.resolve({ data: [], error: null }),
+    applyWorkspaceSubjectFilter(
+      supabase
+        .from('market_file_types')
+        .select('id, code, label, extension'),
+      workspaceSubject
+    ),
   ])
+
+  if (subproductError) {
+    throw new Error(subproductError.message)
+  }
+
+  if (!subproducts || subproducts.length === 0) {
+    return []
+  }
 
   if (categoryError) {
     throw new Error(categoryError.message)
@@ -1312,14 +1322,6 @@ export async function listMarketSubproductPublicSummaries(
   if (entitlementError) {
     throw new Error(entitlementError.message)
   }
-
-  const fileTypeIds = Array.from(new Set((files ?? []).map((file) => file.file_type_id)))
-  const { data: fileTypes, error: fileTypeError } = fileTypeIds.length > 0
-    ? await supabase
-      .from('market_file_types')
-      .select('id, code, label, extension')
-      .in('id', fileTypeIds)
-    : { data: [], error: null }
 
   if (fileTypeError) {
     throw new Error(fileTypeError.message)
@@ -1429,7 +1431,25 @@ export async function getMarketBundlePublicSummary(
     workspaceSubject
   )
 
-  const { data: bundle, error: bundleError } = await bundleQuery
+  // 전체구매 소유 여부는 묶음 옵션과 무관하게 읽을 수 있어 함께 조회한다(DB 왕복 1회).
+  const [
+    { data: bundle, error: bundleError },
+    { data: entitlements, error: entitlementError },
+  ] = await Promise.all([
+    bundleQuery,
+    userId
+      ? applyWorkspaceSubjectFilter(
+        supabase
+          .from('market_entitlements')
+          .select('created_at')
+          .eq('item_id', itemId)
+          .eq('user_id', userId)
+          .eq('scope', 'item')
+          .eq('status', 'active'),
+        workspaceSubject
+      )
+      : Promise.resolve({ data: [], error: null }),
+  ])
   if (bundleError) {
     throw new Error(bundleError.message)
   }
@@ -1437,19 +1457,6 @@ export async function getMarketBundlePublicSummary(
   if (!bundle) {
     return null
   }
-
-  const { data: entitlements, error: entitlementError } = userId
-    ? await applyWorkspaceSubjectFilter(
-      supabase
-        .from('market_entitlements')
-        .select('created_at')
-        .eq('item_id', itemId)
-        .eq('user_id', userId)
-        .eq('scope', 'item')
-        .eq('status', 'active'),
-      workspaceSubject
-    )
-    : { data: [], error: null }
 
   if (entitlementError) {
     throw new Error(entitlementError.message)
@@ -1580,35 +1587,53 @@ export async function listMarketSubproductDownloadFilesForUser(
   workspaceSubject?: WorkspaceSubject
 ): Promise<MarketSubproductDownloadFile[]> {
   const supabase = getAdminSupabase()
-  const entitlements = await listMarketV2EntitlementsForItem(userId, itemId, workspaceSubject)
+  // 1단계: 소유권과 상품(과목)을 함께 읽는다. 소유권이 없으면 여기서 끝난다.
+  const [entitlements, item] = await Promise.all([
+    listMarketV2EntitlementsForItem(userId, itemId, workspaceSubject),
+    getMarketItemById(itemId, workspaceSubject),
+  ])
   if (entitlements.length === 0) {
     return []
   }
 
-  const item = await getMarketItemById(itemId, workspaceSubject)
   if (!item) {
     return []
   }
 
-  const files = (await listMarketSubproductFilesForAdmin(itemId, undefined, item.workspace_subject))
-    .filter((file) => file.is_active && file.deleted_at === null)
-
-  if (files.length === 0) {
-    return []
-  }
-
-  const [subproductResult, fileTypeResult] = await Promise.all([
+  // 2단계: 파일·서브상품·파일 유형·분류를 한 번에 읽는다(상품·과목 단위로 읽고 아래에서 id로 맞춘다).
+  const [fileResult, subproductResult, fileTypeResult, categoryResult] = await Promise.all([
+    supabase
+      .from('market_subproduct_files')
+      .select('id, item_id, subproduct_id, file_type_id, original_file_name')
+      .eq('item_id', itemId)
+      .eq('workspace_subject', item.workspace_subject)
+      .eq('is_active', true)
+      .is('deleted_at', null)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true }),
     supabase
       .from('market_item_subproducts')
       .select('id, title, category_id')
-      .in('id', Array.from(new Set(files.map((file) => file.subproduct_id))))
+      .eq('item_id', itemId)
       .eq('workspace_subject', item.workspace_subject),
     supabase
       .from('market_file_types')
       .select('id, code, label')
-      .in('id', Array.from(new Set(files.map((file) => file.file_type_id))))
+      .eq('workspace_subject', item.workspace_subject),
+    supabase
+      .from('market_subproduct_categories')
+      .select('id, name, slug, sort_order')
       .eq('workspace_subject', item.workspace_subject),
   ])
+
+  if (fileResult.error) {
+    throw new Error(fileResult.error.message)
+  }
+
+  const files = fileResult.data ?? []
+  if (files.length === 0) {
+    return []
+  }
 
   if (subproductResult.error) {
     throw new Error(subproductResult.error.message)
@@ -1617,15 +1642,6 @@ export async function listMarketSubproductDownloadFilesForUser(
   if (fileTypeResult.error) {
     throw new Error(fileTypeResult.error.message)
   }
-
-  const categoryIds = Array.from(new Set((subproductResult.data ?? []).map((subproduct) => subproduct.category_id)))
-  const categoryResult = categoryIds.length > 0
-    ? await supabase
-      .from('market_subproduct_categories')
-      .select('id, name, slug, sort_order')
-      .in('id', categoryIds)
-      .eq('workspace_subject', item.workspace_subject)
-    : { data: [], error: null }
 
   if (categoryResult.error) {
     throw new Error(categoryResult.error.message)
