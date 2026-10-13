@@ -368,6 +368,7 @@ export default function MenuManagementClient({
 
   const handleMoveAdminSidebarNode = (node: AdminSidebarMenuGroupNode | AdminSidebarMenuItemNode, direction: 'up' | 'down') => {
     setAdminSidebarConfig((current) => ({
+      ...current,
       items: moveAdminSidebarNavigationNode(
         current.items,
         adminSidebarNavigationNodes,
@@ -379,6 +380,7 @@ export default function MenuManagementClient({
 
   const handleMoveAdminSidebarChild = (groupNode: AdminSidebarMenuGroupNode, item: AdminSidebarMenuItem, direction: 'up' | 'down') => {
     setAdminSidebarConfig((current) => ({
+      ...current,
       items: moveAdminSidebarHref(
         current.items,
         item.href,

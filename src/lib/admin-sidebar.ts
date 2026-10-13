@@ -43,11 +43,17 @@ export interface AdminSidebarMenuItem {
   href: string
   icon: AdminSidebarIconName
   exact?: boolean
+  // 관리자가 이름을 바꿨을 때 되돌릴 기본 이름
+  defaultName?: string
 }
 
 export interface AdminSidebarNavigationConfig {
   items: string[]
+  // 관리자가 바꾼 메뉴 이름. 키는 메뉴 주소(href) 또는 대메뉴 그룹 id
+  labels?: Record<string, string>
 }
+
+export const ADMIN_SIDEBAR_LABEL_MAX_LENGTH = 30
 
 export const ADMIN_QUESTION_BANK_MENU_HREFS = [
   '/admin/questions',
@@ -83,6 +89,7 @@ export interface AdminSidebarMenuGroupNode {
   type: 'group'
   id: AdminSidebarMenuGroupDefinition['id']
   name: string
+  defaultName: string
   icon: AdminSidebarIconName
   items: AdminSidebarMenuItem[]
 }
@@ -206,7 +213,23 @@ export function normalizeAdminSidebarNavigationConfig(
     }
   })
 
-  return { items: ordered }
+  const candidateLabels = (input as AdminSidebarNavigationConfig | null)?.labels
+  const labels: Record<string, string> = {}
+  if (candidateLabels && typeof candidateLabels === 'object' && !Array.isArray(candidateLabels)) {
+    Object.entries(candidateLabels).forEach(([key, value]) => {
+      const label = typeof value === 'string' ? value.trim().slice(0, ADMIN_SIDEBAR_LABEL_MAX_LENGTH) : ''
+      if (label && isAdminSidebarLabelKey(key)) {
+        labels[key] = label
+      }
+    })
+  }
+
+  return { items: ordered, labels }
+}
+
+export function isAdminSidebarLabelKey(key: string) {
+  return DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG.items.includes(key)
+    || ADMIN_SIDEBAR_MENU_GROUPS.some((group) => group.id === key)
 }
 
 export function resolveAdminSidebarMenuItems(
@@ -220,6 +243,7 @@ export function resolveAdminSidebarMenuItems(
   return normalizedConfig.items
     .map((href) => defaultItemsByHref.get(href))
     .filter((item): item is AdminSidebarMenuItem => Boolean(item))
+    .map((item) => ({ ...item, name: normalizedConfig.labels?.[item.href] ?? item.name, defaultName: item.name }))
 }
 
 export function resolveAdminSidebarNavigationNodes(
@@ -227,6 +251,7 @@ export function resolveAdminSidebarNavigationNodes(
   config?: AdminSidebarNavigationConfig | null
 ): AdminSidebarNavigationNode[] {
   const items = resolveAdminSidebarMenuItems(workspaceSubject, config)
+  const labels = normalizeAdminSidebarNavigationConfig(config).labels
   const findGroup = (href: string): AdminSidebarMenuGroupDefinition | undefined => (
     ADMIN_SIDEBAR_MENU_GROUPS.find((group) => (group.hrefs as readonly string[]).includes(href))
   )
@@ -247,7 +272,8 @@ export function resolveAdminSidebarNavigationNodes(
     nodes.push({
       type: 'group',
       id: group.id,
-      name: group.name,
+      name: labels?.[group.id] ?? group.name,
+      defaultName: group.name,
       icon: group.icon,
       items: items.filter((candidate) => findGroup(candidate.href)?.id === group.id),
     })

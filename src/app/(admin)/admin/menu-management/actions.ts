@@ -4,9 +4,14 @@ import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth'
 import {
 } from '@/lib/admin-sidebar'
-import type { AdminSidebarNavigationConfig } from '@/lib/admin-sidebar'
+import {
+  ADMIN_SIDEBAR_LABEL_MAX_LENGTH,
+  isAdminSidebarLabelKey,
+  type AdminSidebarNavigationConfig,
+} from '@/lib/admin-sidebar'
 import {
   getAdminSidebarNavigationConfig,
+  saveAdminSidebarMenuLabel,
   saveAdminSidebarNavigationConfig,
 } from '@/lib/admin-sidebar-server'
 import {
@@ -53,6 +58,7 @@ import {
 import type { MarketMenuEntryAdminRow } from '@/lib/market-menu'
 import {
   DEFAULT_WORKSPACE_SUBJECT,
+  isWorkspaceSubject,
   withWorkspacePrefix,
   type WorkspaceSubject,
 } from '@/lib/workspace-subject'
@@ -155,6 +161,29 @@ export async function saveAdminSidebarNavigationConfigAction(
 
   const savedConfig = await saveAdminSidebarNavigationConfig(input, workspaceSubject)
   revalidateMenuRelatedPaths(workspaceSubject)
+
+  return {
+    success: true,
+    data: savedConfig,
+  }
+}
+
+export async function renameAdminSidebarMenuAction(
+  key: string,
+  label: string,
+  workspaceSubject: WorkspaceSubject
+): Promise<{ success: true, data: AdminSidebarNavigationConfig } | { success: false, error: string }> {
+  await requireAdmin()
+
+  if (!isWorkspaceSubject(workspaceSubject) || !isAdminSidebarLabelKey(key)) {
+    return { success: false, error: '이름을 바꿀 수 없는 메뉴입니다.' }
+  }
+  if (label.trim().length > ADMIN_SIDEBAR_LABEL_MAX_LENGTH) {
+    return { success: false, error: `메뉴 이름은 ${ADMIN_SIDEBAR_LABEL_MAX_LENGTH}자 이하로 입력해 주세요.` }
+  }
+
+  const savedConfig = await saveAdminSidebarMenuLabel(key, label, workspaceSubject)
+  revalidatePath('/admin', 'layout')
 
   return {
     success: true,
