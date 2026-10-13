@@ -6,7 +6,6 @@ import { existsSync, readFileSync } from 'node:fs'
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
 const authLayoutPath = '../src/app/(auth)/layout.tsx'
 const authLayout = existsSync(new URL(authLayoutPath, import.meta.url)) ? read(authLayoutPath) : ''
-const pathAware = read('../src/components/layout/path-aware-site-chrome.tsx')
 const header = read('../src/app/preview/solvook-concept/_components/preview-header.tsx')
 
 test('(auth) layout renders the Studio shell with the Solvook header, one main and the Solvook footer', () => {
@@ -20,11 +19,11 @@ test('(auth) layout renders the Studio shell with the Solvook header, one main a
   assert.doesNotMatch(authLayout, /#[0-9a-fA-F]{3,8}\b/)
 })
 
-test('path-aware chrome skips the legacy chrome only for exact /login and /signup', () => {
-  assert.match(pathAware, /pathname === '\/login' \|\| pathname === '\/signup'/)
-  assert.doesNotMatch(pathAware, /startsWith\('\/login|startsWith\('\/signup/)
-  // 관리자 로그인은 기존 /admin/ 제외로 처리된다
-  assert.match(pathAware, /pathname\.startsWith\('\/admin\/'\)/)
+test('login and admin login pages do not get the legacy global chrome', () => {
+  assert.doesNotMatch(authLayout, /SiteChrome/)
+  // 전역 크롬은 루트 template이 아니라 그 크롬을 쓰는 화면의 layout이 그린다
+  assert.doesNotMatch(read('../src/app/template.tsx'), /<Header\b|SiteChrome/)
+  assert.doesNotMatch(read('../src/app/(admin-auth)/admin/login/page.tsx'), /SiteChrome/)
 })
 
 test('header auth links keep the incoming next on /login and /signup', () => {

@@ -1,9 +1,8 @@
 import { Suspense } from 'react'
 import { LoginCompleteDialog } from '@/components/auth/login-complete-dialog'
-import { Header } from '@/components/layout/header'
-import { Footer } from '@/components/layout/footer'
-import { PathAwareSiteChrome } from '@/components/layout/path-aware-site-chrome'
 
+// 전역 헤더·푸터는 그 크롬을 쓰는 화면의 layout이 그린다(components/layout/site-chrome).
+// 여기서 그리면 자체 헤더를 쓰는 화면에서도 서버가 헤더를 만들고 버리게 된다.
 export default function RootTemplate({
   children,
 }: {
@@ -11,12 +10,7 @@ export default function RootTemplate({
 }) {
   return (
     <>
-      <PathAwareSiteChrome
-        header={<Header />}
-        footer={<Footer />}
-      >
-        {children}
-      </PathAwareSiteChrome>
+      {children}
       <Suspense fallback={null}>
         <LoginCompleteDialog />
       </Suspense>

@@ -67,7 +67,8 @@ test('예전 게시판 목록 주소 7종은 상세 규칙 뒤에서 홈으로 3
 })
 
 test('/items/는 전역 헤더·푸터를 생략하는 경로다(헤더 이중 렌더 방지)', () => {
-  assert.match(read('src/components/layout/path-aware-site-chrome.tsx'), /pathname\.startsWith\('\/items\/'\)/)
+  assert.doesNotMatch(read('src/app/(solvook)/layout.tsx'), /SiteChrome/)
+  assert.doesNotMatch(read('src/app/template.tsx'), /<Header\b|SiteChrome/)
 })
 
 test('상세 layout은 id 형식을 검사해 실제 HTTP 404를 보내고, (solvook) not-found 화면이 있다', () => {

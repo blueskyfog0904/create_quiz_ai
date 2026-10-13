@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { notFound } from 'next/navigation'
+import { SiteChrome } from '@/components/layout/site-chrome'
 import { isWorkspaceSubject } from '@/lib/workspace-subject'
 
 export const dynamicParams = false
@@ -29,5 +30,5 @@ export default async function WorkspaceSubjectLayout({
     notFound()
   }
 
-  return children
+  return <SiteChrome>{children}</SiteChrome>
 }

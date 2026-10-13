@@ -11,8 +11,12 @@ const previewHeaderPath = new URL('_components/preview-header.tsx', previewRoot)
 const previewFooterPath = new URL('_components/preview-footer.tsx', previewRoot)
 const sampleDataPath = new URL('_data/sample-data.json', previewRoot)
 const sampleDataModulePath = new URL('_data/sample-data.ts', previewRoot)
-const pathAwareChromePath = new URL(
-  '../src/components/layout/path-aware-site-chrome.tsx',
+const siteChromePath = new URL(
+  '../src/components/layout/site-chrome.tsx',
+  import.meta.url
+)
+const scholarlyLayoutPath = new URL(
+  '../src/app/preview/scholarly-library/layout.tsx',
   import.meta.url
 )
 const rootTemplatePath = new URL('../src/app/template.tsx', import.meta.url)
@@ -308,57 +312,26 @@ test('the preview header matches the requested Solvook navigation scope', () => 
   assert.doesNotMatch(header, /라이브러리/)
 })
 
-test('path-aware chrome excludes only the exact Solvook concept preview subtree', () => {
+test('the Solvook concept preview does not get the global chrome, the scholarly preview does', () => {
   const rootTemplate = readUtf8(rootTemplatePath, 'root template')
-  const pathAwareChrome = readUtf8(pathAwareChromePath, 'path-aware site chrome')
+  const previewLayout = readUtf8(previewLayoutPath, 'preview layout')
+  const scholarlyLayout = readUtf8(scholarlyLayoutPath, 'scholarly library layout')
 
-  assert.match(rootTemplate, /PathAwareSiteChrome/)
-  assert.match(
-    pathAwareChrome,
-    /export\s+function\s+isSolvookConceptPreviewPath/
-  )
-  assert.match(pathAwareChrome, /['"]\/preview\/solvook-concept['"]/)
-  assert.doesNotMatch(
-    pathAwareChrome,
-    /startsWith\(\s*['"]\/preview\/?['"]\s*\)/
-  )
-  assert.doesNotMatch(pathAwareChrome, /scholarly-library/)
-})
-
-test('a similar preview prefix is not classified as the Solvook concept preview', () => {
-  const pathAwareChrome = readUtf8(pathAwareChromePath, 'path-aware site chrome')
-
-  const hasExactRootCheck =
-    /pathname\s*===\s*(?:[A-Za-z_$][\w$]*|['"]\/preview\/solvook-concept['"])/.test(
-      pathAwareChrome
-    )
-  const hasSegmentBoundaryCheck =
-    /pathname\.startsWith\(\s*(?:`\$\{[A-Za-z_$][\w$]*\}\/`|['"]\/preview\/solvook-concept\/['"])\s*\)/.test(
-      pathAwareChrome
-    )
-
-  assert.ok(
-    hasExactRootCheck && hasSegmentBoundaryCheck,
-    'preview matching should require the exact root or the root followed by a slash'
-  )
-  assert.doesNotMatch(
-    pathAwareChrome,
-    /pathname\.startsWith\(\s*[A-Za-z_$][\w$]*\s*\)/
-  )
+  assert.doesNotMatch(rootTemplate, /<Header\b|<Footer\b|SiteChrome/)
+  assert.doesNotMatch(previewLayout, /SiteChrome/)
+  assert.match(scholarlyLayout, /<SiteChrome>\{children\}<\/SiteChrome>/)
 })
 
 test('normal and preview shells each have exactly one main owner', () => {
   const rootTemplate = readUtf8(rootTemplatePath, 'root template')
-  const pathAwareChrome = readUtf8(pathAwareChromePath, 'path-aware site chrome')
+  const siteChrome = readUtf8(siteChromePath, 'site chrome')
   const previewLayout = readUtf8(previewLayoutPath, 'preview layout')
 
   assert.equal(countMatches(rootTemplate, /<main\b/g), 0)
-  assert.equal(countMatches(pathAwareChrome, /<main\b/g), 1)
+  assert.equal(countMatches(siteChrome, /<main\b/g), 1)
   assert.equal(countMatches(previewLayout, /<main\b/g), 1)
-  assert.equal(countMatches(rootTemplate, /<Header\b/g), 1)
-  assert.equal(countMatches(rootTemplate, /<Footer\b/g), 1)
-  assert.equal(countMatches(pathAwareChrome, /\{header\}/g), 1)
-  assert.equal(countMatches(pathAwareChrome, /\{footer\}/g), 1)
+  assert.equal(countMatches(siteChrome, /<Header\b/g), 1)
+  assert.equal(countMatches(siteChrome, /<Footer\b/g), 1)
   assert.equal(countMatches(previewLayout, /<PreviewHeader\b/g), 1)
   assert.equal(countMatches(previewLayout, /<PreviewFooter\b/g), 1)
 })
