@@ -33,6 +33,7 @@ import {
   type MainAdSaveResponse,
   type MainAdSubject,
 } from '@/lib/main-ad-carousel'
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 const IMAGE_ACCEPT = '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp'
 
@@ -375,7 +376,7 @@ export default function MainAdSettingsClient({
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">(임시)메인광고설정</h1>
+          <h1 className="text-3xl font-bold text-gray-900"><AdminMenuName href="/admin/main-ad-settings" fallback="(임시)메인광고설정" /></h1>
           <p className="mt-1 text-gray-500">
             {workspaceSubject === 'english' ? '영어' : '국어'} 문제마켓 메인 광고의 순서, 이미지, 연결 주소와 노출 시간을 관리합니다.
           </p>

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { CreditsClient } from './credits-client'
 import { requireAdmin } from '@/lib/auth'
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 export default async function AdminCreditsPage() {
   await requireAdmin()
@@ -47,7 +48,7 @@ export default async function AdminCreditsPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">크레딧 관리</h1>
+        <h1 className="text-3xl font-bold text-gray-900"><AdminMenuName href="/admin/credits" fallback="크레딧 관리" /></h1>
         <p className="text-gray-500 mt-1">시스템 전체 크레딧 거래 내역을 조회합니다</p>
       </div>
 

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 type ProviderName = 'openai' | 'gemini' | 'claude'
 
@@ -251,7 +252,7 @@ export default function AIConnectionsClient() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">AI API 연결 관리</h1>
+        <h1 className="text-2xl font-bold text-gray-900"><AdminMenuName href="/admin/ai-connections" fallback="AI API 연결 관리" /></h1>
         <p className="text-sm text-gray-500 mt-1">
           OpenAI, Gemini, Claude API 키와 연결 옵션을 관리합니다. API Key는 저장 후 전체값을 다시 표시하지 않습니다.
         </p>

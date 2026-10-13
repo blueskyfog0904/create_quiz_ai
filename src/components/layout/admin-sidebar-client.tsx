@@ -9,7 +9,6 @@ import { renameAdminSidebarMenuAction } from '@/app/(admin)/admin/menu-managemen
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { resolveAdminWorkspaceSubject, withAdminWorkspaceSubject } from '@/lib/admin-workspace'
-import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import {
   ADMIN_SIDEBAR_LABEL_MAX_LENGTH,
   adminSidebarIconComponents,
@@ -17,6 +16,7 @@ import {
   type AdminSidebarMenuItem,
   type AdminSidebarNavigationConfig,
 } from '@/lib/admin-sidebar'
+import { useAdminMenuLabels } from './admin-menu-labels'
 import { AdminWorkspaceSwitcher } from './admin-workspace-switcher'
 
 interface AdminSidebarClientProps {
@@ -32,8 +32,7 @@ export function AdminSidebarClient({ navigationConfigs }: AdminSidebarClientProp
   const [editingMenuKey, setEditingMenuKey] = useState<string | null>(null)
   const [menuLabelDraft, setMenuLabelDraft] = useState('')
   const [isSavingMenuLabel, setIsSavingMenuLabel] = useState(false)
-  // 저장한 이름을 새로고침 전에도 바로 보여 준다
-  const [savedMenuLabels, setSavedMenuLabels] = useState<Partial<Record<WorkspaceSubject, Record<string, string>>>>({})
+  const menuLabels = useAdminMenuLabels()
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
@@ -54,9 +53,9 @@ export function AdminSidebarClient({ navigationConfigs }: AdminSidebarClientProp
     const config = navigationConfigs[workspaceSubject]
     return resolveAdminSidebarNavigationNodes(workspaceSubject, {
       ...config,
-      labels: { ...config.labels, ...savedMenuLabels[workspaceSubject] },
+      labels: menuLabels?.labelsBySubject[workspaceSubject] ?? config.labels,
     })
-  }, [navigationConfigs, savedMenuLabels, workspaceSubject])
+  }, [menuLabels, navigationConfigs, workspaceSubject])
 
   const startEditingMenuLabel = (key: string, currentName: string) => {
     setEditingMenuKey(key)
@@ -79,10 +78,7 @@ export function AdminSidebarClient({ navigationConfigs }: AdminSidebarClientProp
         toast.error(result.error)
         return
       }
-      setSavedMenuLabels((current) => ({
-        ...current,
-        [workspaceSubject]: { ...current[workspaceSubject], [key]: labelToSave },
-      }))
+      menuLabels?.rememberSavedLabel(workspaceSubject, key, labelToSave)
       cancelEditingMenuLabel()
       router.refresh()
     } catch {

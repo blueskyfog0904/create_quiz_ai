@@ -71,3 +71,29 @@ test('사이드바 메뉴 옆 연필 버튼으로 이름을 바꾼다 (Enter 저
   assert.match(sidebarClient, /event\.key === 'Escape'/)
   assert.match(sidebarClient, /비우고 저장하면 기본 이름/)
 })
+
+test('바꾼 메뉴 이름은 페이지 제목·탭 제목·관련 링크에도 그대로 쓰인다', () => {
+  const read = (path) => readFileSync(new URL(`../src/app/(admin)/admin/${path}`, import.meta.url), 'utf8')
+  const layout = read('layout.tsx')
+  assert.match(layout, /<AdminSidebar>\n[\s\S]*\{children\}[\s\S]*<\/AdminSidebar>/)
+  const sidebar = readFileSync(new URL('../src/components/layout/admin-sidebar.tsx', import.meta.url), 'utf8')
+  assert.match(sidebar, /<AdminMenuLabelsProvider navigationConfigs=\{navigationConfigs\}>/)
+  assert.match(sidebarClient, /menuLabels\?\.rememberSavedLabel\(workspaceSubject, key, labelToSave\)/)
+
+  const headingPages = {
+    'market-main-settings/market-main-settings-client.tsx': '/admin/market-main-settings',
+    'main-ad-settings/main-ad-settings-client.tsx': '/admin/main-ad-settings',
+    'market/products/market-products-client.tsx': '/admin/market/products',
+    'questions/page.tsx': '/admin/questions',
+    'refunds/refunds-client.tsx': '/admin/refunds',
+  }
+  for (const [path, href] of Object.entries(headingPages)) {
+    assert.match(read(path), new RegExp(`<AdminMenuName href="${href}" fallback="`), path)
+  }
+  assert.match(read('market-main-settings/market-main-settings-client.tsx'), /<AdminMenuName href=\{href\} fallback=\{label\} \/>/)
+
+  const metadataPage = read('market-main-settings/page.tsx')
+  assert.match(metadataPage, /export function generateMetadata[\s\S]*buildAdminMenuMetadata\(\{\n\s+href: '\/admin\/market-main-settings',/)
+  assert.doesNotMatch(metadataPage, /export const metadata/)
+  assert.match(sidebarServer, /const name = config\.labels\?\.\[input\.href\] \?\? input\.fallbackName/)
+})

@@ -42,6 +42,7 @@ import {
     Coins
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 export interface RefundRequest {
     id: string
@@ -177,7 +178,7 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold">환불 요청 관리</h1>
+                    <h1 className="text-2xl font-bold"><AdminMenuName href="/admin/refunds" fallback="환불 요청 관리" /></h1>
                     <p className="text-gray-500">사용자의 환불 요청을 검토하고 처리합니다.</p>
                 </div>
                 <Button variant="outline" onClick={() => router.refresh()}>

@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/auth'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { pruneExpiredAiQuestionGenerationRuns } from '@/lib/ai/question-generation-run-logs'
 import AiQuestionGenerationRunsClient from './ai-question-generation-runs-client'
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 interface AiQuestionGenerationRunsPageProps {
   searchParams?: Promise<{
@@ -52,7 +53,7 @@ export default async function AiQuestionGenerationRunsPage({ searchParams }: AiQ
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">AI 생성 로그 · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
+        <h1 className="text-3xl font-bold text-gray-900"><AdminMenuName href="/admin/ai-question-generation-runs" fallback="AI 생성 로그" /> · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
         <p className="text-gray-500 mt-1">사용자의 AI 문제 생성 요청, 검토, 재생성, 실패 사유를 확인합니다.</p>
       </div>
 

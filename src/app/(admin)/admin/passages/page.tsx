@@ -13,12 +13,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 export default function AdminPassagesPage() {
   return (
     <div className="space-y-8 p-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">영어지문 관리</h1>
+        <h1 className="text-3xl font-bold tracking-tight"><AdminMenuName href="/admin/passages" fallback="영어지문 관리" /></h1>
         <p className="text-muted-foreground mt-2">
           지문 생성/업로드 기능 및 관련 AI 프롬프트를 관리합니다.
         </p>

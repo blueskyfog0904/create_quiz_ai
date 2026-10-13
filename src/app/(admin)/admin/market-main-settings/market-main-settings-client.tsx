@@ -17,6 +17,7 @@ import {
   type MarketHomeData,
 } from '@/lib/market-home'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 interface MarketMainSettingsClientProps {
   workspaceSubject: WorkspaceSubject
@@ -81,7 +82,7 @@ export default function MarketMainSettingsClient({
     <main className="flex w-full flex-col gap-6 p-4 sm:p-6 lg:p-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">(임시) 문제마켓 메인 관리</h1>
+          <h1 className="text-3xl font-bold tracking-tight"><AdminMenuName href="/admin/market-main-settings" fallback="(임시) 문제마켓 메인 관리" /></h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {workspaceSubject === 'english' ? '영어' : '국어'} 문제마켓 메인의 자동 편성 범위를 설정합니다.
           </p>
@@ -183,7 +184,7 @@ export default function MarketMainSettingsClient({
         <CardContent className="flex flex-wrap gap-2">
           {links.map(([href, label]) => (
             <Button key={href} asChild variant="outline">
-              <Link href={withAdminWorkspaceSubject(href, workspaceSubject)}>{label}</Link>
+              <Link href={withAdminWorkspaceSubject(href, workspaceSubject)}><AdminMenuName href={href} fallback={label} /></Link>
             </Button>
           ))}
         </CardContent>

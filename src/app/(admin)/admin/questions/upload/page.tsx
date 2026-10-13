@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import AdminUploadClient from './admin-upload-client'
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 interface AdminUploadPageProps {
   searchParams?: Promise<{ subject?: string }>
@@ -26,7 +27,7 @@ export default async function AdminUploadPage({ searchParams }: AdminUploadPageP
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">문제 업로드 · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
+        <h1 className="text-3xl font-bold text-gray-900"><AdminMenuName href="/admin/questions/upload" fallback="문제 업로드" /> · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
         <p className="text-gray-500 mt-1">선택한 과목의 문제를 업로드하고 관리합니다</p>
       </div>
       

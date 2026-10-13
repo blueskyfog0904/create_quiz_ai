@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import ProblemTypesClient from './problem-types-client'
 import { redirect } from 'next/navigation'
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 interface ProblemTypesPageProps {
   searchParams?: Promise<{ subject?: string }>
@@ -53,7 +54,7 @@ export default async function ProblemTypesPage({ searchParams }: ProblemTypesPag
 
   return (
     <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">문제 유형 관리 · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
+      <h1 className="text-3xl font-bold mb-6"><AdminMenuName href="/admin/problem-types" fallback="문제 유형 관리" /> · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
       <ProblemTypesClient
         initialTypes={types || []}
         initialModels={aiModels || []}

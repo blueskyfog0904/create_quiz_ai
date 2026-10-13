@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Loader2, Pencil, Check, X } from 'lucide-react'
 import { getDisplayLabels, updateDisplayLabel, DisplayLabel } from '@/app/api/admin/labels/actions'
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 export default function LabelsAdminPage() {
   const [labels, setLabels] = useState<DisplayLabel[]>([])
@@ -77,7 +78,7 @@ export default function LabelsAdminPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">표기값 관리</h1>
+        <h1 className="text-3xl font-bold"><AdminMenuName href="/admin/labels" fallback="표기값 관리" /></h1>
         <p className="text-gray-500 mt-1">화면에 표시되는 라벨 값을 관리합니다</p>
       </div>
 

@@ -1,10 +1,16 @@
-import { Metadata } from 'next'
+import type { Metadata } from 'next'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import ReviewTagsClient from './review-tags-client'
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
+import { buildAdminMenuMetadata } from '@/lib/admin-sidebar-server'
 
-export const metadata: Metadata = {
-  title: '후기 태그 관리 | 관리자 패널',
-  description: '후기 작성 시 선택할 수 있는 추천 태그를 관리합니다.',
+export function generateMetadata({ searchParams }: { searchParams?: Promise<{ subject?: string }> }): Promise<Metadata> {
+  return buildAdminMenuMetadata({
+    href: '/admin/review-tags',
+    fallbackName: '후기 태그 관리',
+    searchParams,
+    description: '후기 작성 시 선택할 수 있는 추천 태그를 관리합니다.',
+  })
 }
 
 interface ReviewTagsPageProps {
@@ -19,7 +25,7 @@ export default async function ReviewTagsPage({ searchParams }: ReviewTagsPagePro
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">
-          후기 태그 관리 · {workspaceSubject === 'english' ? '영어' : '국어'}
+          <AdminMenuName href="/admin/review-tags" fallback="후기 태그 관리" /> · {workspaceSubject === 'english' ? '영어' : '국어'}
         </h2>
       </div>
       <p className="text-sm text-muted-foreground">

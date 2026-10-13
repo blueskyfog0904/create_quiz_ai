@@ -3,10 +3,15 @@ import { requireAdmin } from '@/lib/auth'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { getMarketHomeAdminData } from '@/lib/market-home-server'
 import MarketMainSettingsClient from './market-main-settings-client'
+import { buildAdminMenuMetadata } from '@/lib/admin-sidebar-server'
 
-export const metadata: Metadata = {
-  title: '(임시) 문제마켓 메인 관리 | 관리자 패널',
-  description: '문제마켓 메인의 과목별 노출 설정을 관리합니다.',
+export function generateMetadata({ searchParams }: { searchParams?: Promise<{ subject?: string }> }): Promise<Metadata> {
+  return buildAdminMenuMetadata({
+    href: '/admin/market-main-settings',
+    fallbackName: '(임시) 문제마켓 메인 관리',
+    searchParams,
+    description: '문제마켓 메인의 과목별 노출 설정을 관리합니다.',
+  })
 }
 
 interface MarketMainSettingsPageProps {

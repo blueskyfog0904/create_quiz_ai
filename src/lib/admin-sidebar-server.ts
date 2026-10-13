@@ -1,3 +1,5 @@
+import type { Metadata } from 'next'
+import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { getWorkspaceSettingValue, upsertWorkspaceSetting, type WorkspaceSubject } from '@/lib/workspace-settings'
 import {
   ADMIN_SIDEBAR_NAVIGATION_SETTING_KEY,
@@ -58,4 +60,23 @@ export async function saveAdminSidebarMenuLabel(
   }
 
   return persistAdminSidebarNavigationConfig({ items: current.items, labels }, workspaceSubject)
+}
+
+// 사이드바에서 바꾼 메뉴 이름을 브라우저 탭 제목에도 쓴다
+export async function buildAdminMenuMetadata(input: {
+  href: string
+  fallbackName: string
+  searchParams?: Promise<{ subject?: string }>
+  titleSuffix?: string
+  description?: string
+}): Promise<Metadata> {
+  const resolvedSearchParams = input.searchParams ? await input.searchParams : undefined
+  const workspaceSubject = resolveAdminWorkspaceSubject(resolvedSearchParams?.subject)
+  const config = await getAdminSidebarNavigationConfig(workspaceSubject)
+  const name = config.labels?.[input.href] ?? input.fallbackName
+
+  return {
+    title: `${name} | ${input.titleSuffix ?? '관리자 패널'}`,
+    ...(input.description ? { description: input.description } : {}),
+  }
 }

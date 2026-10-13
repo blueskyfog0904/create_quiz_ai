@@ -89,6 +89,7 @@ import {
   updateGenerateMenuEntryAction,
   type MenuManagementPageData,
 } from './actions'
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 type MenuManagementClientProps = MenuManagementPageData
 
@@ -723,7 +724,7 @@ export default function MenuManagementClient({
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">메뉴관리 · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
+          <h1 className="text-3xl font-bold text-gray-900"><AdminMenuName href="/admin/menu-management" fallback="메뉴관리" /> · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
           <p className="mt-1 text-gray-500">일반 헤더 메뉴와 DB 연동 대상 2단계 메뉴를 분리해서 관리합니다.</p>
         </div>
         <Button onClick={handleSaveAll} disabled={isSaving || !hasUnsavedChanges}>

@@ -50,6 +50,7 @@ import {
   type GenerateListboardPost,
   type GenerateMenuEntryAdminRow,
 } from '@/lib/generate-menu'
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 interface GenerateProductsClientProps {
   generateMenuEntries: GenerateMenuEntryAdminRow[]
@@ -351,7 +352,7 @@ export default function GenerateProductsClient({
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">문제생성 상품 관리 · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
+          <h1 className="text-3xl font-bold text-gray-900"><AdminMenuName href="/admin/generate/products" fallback="문제생성 상품 관리" /> · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
           <p className="mt-1 text-gray-500">문제생성 2단계 리스트보드 메뉴별 게시글과 문항 행을 운영합니다.</p>
         </div>
       </div>

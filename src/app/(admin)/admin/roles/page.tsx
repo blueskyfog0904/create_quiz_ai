@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { RolesClient } from './roles-client'
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 export default async function AdminRolesPage() {
     const supabase = await createClient()
@@ -34,7 +35,7 @@ export default async function AdminRolesPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">회원가입 관리</h1>
+                <h1 className="text-2xl font-bold text-gray-900"><AdminMenuName href="/admin/roles" fallback="회원가입 관리" /></h1>
                 <p className="text-gray-500 mt-1">회원가입 시 선택 가능한 역할을 관리합니다.</p>
             </div>
 

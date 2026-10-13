@@ -37,6 +37,7 @@ import {
   type LandingEditorTarget,
   type LandingPagesAdminData,
 } from './actions'
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 interface LandingPagesClientProps extends LandingPagesAdminData {
   initialTarget: LandingEditorTarget
@@ -290,7 +291,7 @@ export default function LandingPagesClient({
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">랜딩페이지 관리</h1>
+        <h1 className="text-3xl font-bold text-gray-900"><AdminMenuName href="/admin/landing-pages" fallback="랜딩페이지 관리" /></h1>
         <p className="mt-2 text-sm text-gray-600">메인/영어/국어 랜딩페이지의 카피와 제한된 디자인 슬롯을 관리합니다.</p>
       </div>
 

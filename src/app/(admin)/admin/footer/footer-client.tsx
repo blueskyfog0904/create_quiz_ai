@@ -19,6 +19,7 @@ import {
   type FooterPolicyDocumentKey,
 } from '@/lib/footer-content'
 import { saveFooterContentAction, type FooterSettingsPageData } from './actions'
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -121,7 +122,7 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Footer 설정</h1>
+          <h1 className="text-3xl font-bold text-gray-900"><AdminMenuName href="/admin/footer" fallback="Footer 설정" /></h1>
           <p className="mt-1 text-gray-500">사이트 하단에 노출되는 사업자 정보와 추가 안내 문구를 관리합니다.</p>
         </div>
         <div className="flex flex-wrap gap-2">

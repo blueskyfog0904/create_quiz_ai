@@ -80,6 +80,7 @@ import { MARKET_IMAGE_MAX_BULK_ITEM_IDS, chunkArray } from '@/lib/market-images'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { useListQuery } from '@/hooks/use-list-query'
 import { getListPagination } from '@/lib/list-pagination'
+import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 interface MarketProductsClientProps {
   // create: '문제마켓 상품 등록'(폼만), manage: '문제마켓 상품 관리'(목록·필터, 수정할 때만 폼)
@@ -2210,7 +2211,9 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            {mode === 'create' ? '문제마켓 상품 등록' : '문제마켓 상품 관리'} · {workspaceSubject === 'english' ? '영어' : '국어'}
+            {mode === 'create'
+              ? <AdminMenuName href="/admin/market/products/new" fallback="문제마켓 상품 등록" />
+              : <AdminMenuName href="/admin/market/products" fallback="문제마켓 상품 관리" />} · {workspaceSubject === 'english' ? '영어' : '국어'}
           </h1>
           <p className="mt-1 text-gray-500">
             {mode === 'create'
