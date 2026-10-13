@@ -1,15 +1,13 @@
 'use client'
 
-/* eslint-disable @next/next/no-img-element */
-
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { StudioDialogContent } from '@/components/design-system'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -75,18 +73,6 @@ interface SampleFileGroupMeta {
   styleIndex: number
 }
 
-function formatFileSize(bytes?: number | null) {
-  if (!bytes) {
-    return '-'
-  }
-
-  if (bytes < 1024 * 1024) {
-    return `${Math.round(bytes / 1024)}KB`
-  }
-
-  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
-}
-
 function getSampleSourceDisplayFileName(originalFileName?: string | null) {
   const displayFileName = originalFileName
     ?.replace(SAMPLE_PAGE_GENERATED_FILE_NAME_SUFFIX_PATTERN, '')
@@ -132,20 +118,14 @@ export default function AdminMarketSamplePreviewDialog({
   onOpenChange,
 }: AdminMarketSamplePreviewDialogProps) {
   const [pages, setPages] = useState<SamplePagePreview[]>([])
-  const [selectedPageId, setSelectedPageId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const selectedPage = pages.find((page) => page.id === selectedPageId) ?? pages[0] ?? null
   const sampleFileGroupMetaByName = buildSampleFileGroupMeta(pages)
-  const selectedDisplayFileName = selectedPage ? getSampleSourceDisplayFileName(selectedPage.originalFileName) : null
-  const selectedSampleFileGroupMeta = selectedDisplayFileName ? sampleFileGroupMetaByName.get(selectedDisplayFileName) : null
-  const selectedSampleFileGroupStyle = getSampleFileGroupStyle(selectedSampleFileGroupMeta?.styleIndex ?? 0)
 
   const loadSamplePages = useCallback(async () => {
     if (!itemId) {
       setPages([])
-      setSelectedPageId(null)
       return
     }
 
@@ -165,12 +145,9 @@ export default function AdminMarketSamplePreviewDialog({
         throw new Error(payload.error?.message || '샘플 JPG를 불러오지 못했습니다.')
       }
 
-      const nextPages = (payload.pages ?? []) as SamplePagePreview[]
-      setPages(nextPages)
-      setSelectedPageId(nextPages[0]?.id ?? null)
+      setPages((payload.pages ?? []) as SamplePagePreview[])
     } catch (error) {
       setPages([])
-      setSelectedPageId(null)
       setErrorMessage(error instanceof Error ? error.message : '샘플 JPG를 불러오지 못했습니다.')
     } finally {
       setIsLoading(false)
@@ -185,106 +162,77 @@ export default function AdminMarketSamplePreviewDialog({
     void loadSamplePages()
   }, [open, loadSamplePages])
 
+  // 구매자가 상품 상세에서 보는 샘플 미리보기 창(market-sample-preview-dialog)과 같은 모양으로 보여 준다
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>샘플 JPG 확인</DialogTitle>
-          <DialogDescription>
-            [{itemTitle}] 등록된 샘플 JPG를 파일명과 페이지 번호로 확인하세요.
-          </DialogDescription>
+      <StudioDialogContent className="max-h-[88vh] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+        <DialogHeader className="shrink-0 border-b border-[var(--studio-border)] px-6 py-4">
+          <DialogTitle>샘플 미리보기</DialogTitle>
+          <DialogDescription>[{itemTitle}] 구매자에게 이 모양 그대로 보입니다.</DialogDescription>
         </DialogHeader>
 
-        {isLoading ? (
-          <div role="status" aria-live="polite" className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed text-sm text-gray-500">
-            <Loader2 className="mb-3 h-6 w-6 animate-spin" />
-            샘플 이미지를 불러오는 중입니다.
-          </div>
-        ) : errorMessage ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            <p className="font-medium">샘플 JPG를 불러오지 못했습니다.</p>
-            <p className="mt-1">{errorMessage}</p>
-          </div>
-        ) : pages.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-8 text-center text-sm text-gray-500">
-            생성된 샘플 JPG가 없습니다. PDF를 다시 업로드해 샘플을 재생성하세요.
-          </div>
-        ) : (
-          <div className="grid gap-4 lg:grid-cols-[160px,minmax(0,1fr)]">
-            <div className="flex gap-2 overflow-x-auto lg:flex-col lg:overflow-visible">
-              {pages.map((page) => {
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          {isLoading ? (
+            <div role="status" aria-live="polite" className="rounded-xl border border-dashed py-10 text-center text-sm text-slate-500">샘플 이미지를 불러오는 중입니다...</div>
+          ) : errorMessage ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{errorMessage}</div>
+          ) : pages.length === 0 ? (
+            <div className="rounded-xl border border-dashed py-10 text-center text-sm text-slate-500">등록된 샘플 JPG가 없습니다.</div>
+          ) : (
+            <div className="space-y-4">
+              {pages.map((page, index) => {
                 const samplePageLabel = formatSamplePageLabel(page)
                 const displayFileName = getSampleSourceDisplayFileName(page.originalFileName)
                 const sampleFileGroupMeta = displayFileName ? sampleFileGroupMetaByName.get(displayFileName) : null
                 const sampleFileGroupStyle = getSampleFileGroupStyle(sampleFileGroupMeta?.styleIndex ?? 0)
                 return (
-                  <button
-                    key={page.id}
-                    type="button"
-                    aria-pressed={selectedPageId === page.id}
-                    aria-label={`${samplePageLabel} 보기`}
-                    onClick={() => setSelectedPageId(page.id)}
-                    className={`rounded-lg border p-2 text-left text-xs transition ${
-                      selectedPageId === page.id
-                        ? 'border-primary ring-2 ring-primary/40'
-                        : 'hover:border-primary/50'
-                    }`}
-                  >
-                    <img
-                      src={page.signedUrl}
-                      alt={samplePageLabel}
-                      className="aspect-[3/4] w-28 rounded bg-gray-100 object-cover lg:w-full"
-                      loading={page.pageNumber === 1 ? 'eager' : 'lazy'}
-                    />
-                    <span className={`mt-2 flex flex-wrap items-center gap-1 break-words rounded-md border px-2 py-1 font-semibold ${sampleFileGroupStyle.barClassName} ${sampleFileGroupStyle.labelClassName}`}>
+                  <figure key={page.id} className="overflow-hidden rounded-xl border bg-white">
+                    <figcaption className={`flex flex-wrap items-center gap-2 break-words border-b px-4 py-2 text-sm font-semibold ${sampleFileGroupStyle.barClassName} ${sampleFileGroupStyle.labelClassName}`}>
                       {sampleFileGroupMeta ? (
-                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${sampleFileGroupStyle.badgeClassName}`}>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${sampleFileGroupStyle.badgeClassName}`}>
                           파일 {sampleFileGroupMeta.groupNumber}
                         </span>
                       ) : null}
-                      <span className="min-w-0 break-words">{samplePageLabel}</span>
-                    </span>
-                    <span className="block text-gray-500">{formatFileSize(page.fileSizeBytes)}</span>
-                  </button>
+                      <span className="min-w-0 flex-1 break-words">{samplePageLabel}</span>
+                    </figcaption>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- Signed Supabase preview URLs are short-lived and not suitable for Next image optimization. */}
+                    <img
+                      src={page.signedUrl}
+                      alt={samplePageLabel}
+                      width={page.widthPx ?? undefined}
+                      height={page.heightPx ?? undefined}
+                      loading={index === 0 ? 'eager' : 'lazy'}
+                      decoding="async"
+                      fetchPriority={index === 0 ? 'high' : 'low'}
+                      className="h-auto w-full"
+                    />
+                  </figure>
                 )
               })}
             </div>
-
-            {selectedPage ? (
-              <figure className="rounded-lg border bg-gray-50 p-3">
-                <img
-                  src={selectedPage.signedUrl}
-                  alt={formatSamplePageLabel(selectedPage)}
-                  width={selectedPage.widthPx ?? undefined}
-                  height={selectedPage.heightPx ?? undefined}
-                  className="mx-auto max-h-[68vh] w-auto rounded bg-white object-contain shadow-sm"
-                />
-                <figcaption className="mt-3 text-center text-sm text-gray-600">
-                  <span className={`inline-flex max-w-full flex-wrap items-center justify-center gap-2 break-words rounded-full border px-3 py-1 font-semibold ${selectedSampleFileGroupStyle.barClassName} ${selectedSampleFileGroupStyle.labelClassName}`}>
-                    {selectedSampleFileGroupMeta ? (
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${selectedSampleFileGroupStyle.badgeClassName}`}>
-                        파일 {selectedSampleFileGroupMeta.groupNumber}
-                      </span>
-                    ) : null}
-                    <span className="min-w-0 break-words">{formatSamplePageLabel(selectedPage)}</span>
-                  </span>
-                  <span className="mt-2 block">{formatFileSize(selectedPage.fileSizeBytes)}</span>
-                </figcaption>
-              </figure>
-            ) : null}
-          </div>
-        )}
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => void loadSamplePages()} disabled={isLoading || !itemId}>
+          )}
+        </div>
+        <DialogFooter className="shrink-0 border-t border-[var(--studio-border)] px-6 py-4">
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11"
+            onClick={() => void loadSamplePages()}
+            disabled={isLoading || !itemId}
+          >
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             다시 불러오기
           </Button>
-          <Button type="button" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="brandOutline"
+            className="min-h-11 min-w-11"
+            onClick={() => onOpenChange(false)}
+          >
             닫기
           </Button>
         </DialogFooter>
-      </DialogContent>
+      </StudioDialogContent>
     </Dialog>
   )
 }
