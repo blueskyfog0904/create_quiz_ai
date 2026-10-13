@@ -1,8 +1,10 @@
+import { revalidateTag } from 'next/cache'
 import { NextResponse } from 'next/server'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { createClient } from '@/lib/supabase/server'
 import { getMarketItemById } from '@/lib/market-items-server'
+import { getMarketSamplePagesCacheTag } from '@/lib/market-sample-pages-cache'
 import {
   listActiveMarketItemSamplePagesWithSourceFileNames,
   updateMarketItemSamplePageDisplayOrder,
@@ -122,6 +124,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     }
 
     await updateMarketItemSamplePageDisplayOrder(item.id, pageIds, item.workspace_subject)
+    // 공개 샘플 미리보기(서명 주소 캐시)를 바로 새로 만든다.
+    revalidateTag(getMarketSamplePagesCacheTag(item.id), { expire: 0 })
     return NextResponse.json({ success: true })
   } catch (error) {
     return NextResponse.json({

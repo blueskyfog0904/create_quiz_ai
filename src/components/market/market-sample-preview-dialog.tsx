@@ -127,6 +127,20 @@ function formatSamplePageLabel(page: Pick<SamplePage, 'originalFileName' | 'page
     : `샘플 페이지 ${page.pageNumber}`
 }
 
+// 미리 불러오기(버튼에 마우스·포커스를 올렸을 때)에서는 처음 보이는 이미지도 미리 받아 둔다.
+const PRELOAD_SAMPLE_IMAGE_COUNT = 2
+const preloadedSampleImageUrls = new Set<string>()
+
+function preloadSampleImages(pages: SamplePage[]) {
+  for (const page of pages.slice(0, PRELOAD_SAMPLE_IMAGE_COUNT)) {
+    if (preloadedSampleImageUrls.has(page.signedUrl)) continue
+    preloadedSampleImageUrls.add(page.signedUrl)
+    const image = new Image()
+    image.decoding = 'async'
+    image.src = page.signedUrl
+  }
+}
+
 function getCachedSamplePages(cacheKey: string) {
   const cached = samplePagePreviewCache.get(cacheKey)
   if (!cached) return null
@@ -208,6 +222,7 @@ export default function MarketSamplePreviewDialog({
       }
       setPages(cached.pages)
       setErrorMessage(null)
+      if (silent) preloadSampleImages(cached.pages)
       return
     }
 
@@ -219,6 +234,7 @@ export default function MarketSamplePreviewDialog({
     try {
       const nextPages = await fetchSamplePages(itemId, workspaceSubject, cacheKey)
       setPages(nextPages)
+      if (silent) preloadSampleImages(nextPages)
     } catch (error) {
       if (!silent) {
         setPages([])

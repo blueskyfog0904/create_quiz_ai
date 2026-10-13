@@ -1,8 +1,10 @@
+import { revalidateTag } from 'next/cache'
 import { NextResponse } from 'next/server'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { createClient } from '@/lib/supabase/server'
 import { getMarketItemById } from '@/lib/market-items-server'
+import { getMarketSamplePagesCacheTag } from '@/lib/market-sample-pages-cache'
 import {
   deactivateMarketItemSamplePage,
   listActiveMarketItemSamplePages,
@@ -87,6 +89,10 @@ export async function DELETE(request: Request, { params }: RouteContext) {
       : await deactivateMarketItemSamplePage(pageId, item.id, item.workspace_subject)
     if (!deletedPage) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '샘플 페이지를 찾을 수 없습니다.' } }, { status: 404 })
+    }
+    if (!draftToken) {
+      // 공개 샘플 미리보기(서명 주소 캐시)를 바로 새로 만든다(지운 이미지 주소를 더 내주지 않는다).
+      revalidateTag(getMarketSamplePagesCacheTag(item.id), { expire: 0 })
     }
 
     await createAdminClient()

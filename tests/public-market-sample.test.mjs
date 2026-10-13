@@ -17,6 +17,11 @@ function harness({ published = true, pages = true } = {}) {
       sourceRequests.push({ id, subject })
       return pages ? [{ id: 'sample-page', page_number: 1, storage_bucket: 'market-files', storage_path: 'samples/preview.jpg', source_original_file_name: 'sample.pdf', width_px: 500, height_px: 700, file_size_bytes: 100 }] : []
     } },
+    // 공유 캐시는 그대로 통과시켜(매 요청 새로 만든다) 경로 자체의 공개 조건을 확인한다
+    '@/lib/market-sample-pages-cache': {
+      PUBLIC_SAMPLE_PAGE_SIGNED_URL_TTL_SECONDS: 86400,
+      getCachedPublicMarketSamplePages: (id, subject, build) => build(id, subject),
+    },
     '@/lib/supabase/bypass': { createAdminClient: () => ({
       from: (table) => {
         tables.push(table)

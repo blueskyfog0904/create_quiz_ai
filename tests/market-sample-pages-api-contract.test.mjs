@@ -42,11 +42,12 @@ test('market sample page helper resolves preview labels from source pdf names be
 })
 
 test('market sample pages api exposes ttl and file size metadata for client caching', () => {
-  assert.match(route, /SAMPLE_PAGE_SIGNED_URL_TTL_SECONDS = 60 \* 5/)
+  const cache = readFileSync(new URL('../src/lib/market-sample-pages-cache.ts', import.meta.url), 'utf8')
+  assert.match(cache, /PUBLIC_SAMPLE_PAGE_SIGNED_URL_TTL_SECONDS = 24 \* 60 \* 60/)
   assert.match(route, /expiresAt/)
   assert.match(route, /fileSizeBytes/)
   assert.match(route, /file_size_bytes/)
-  assert.match(route, /createSignedUrl\(page\.storage_path, SAMPLE_PAGE_SIGNED_URL_TTL_SECONDS\)/)
+  assert.match(route, /createSignedUrls\(paths, PUBLIC_SAMPLE_PAGE_SIGNED_URL_TTL_SECONDS\)/)
 })
 
 test('market item detail uses generated sample page preview instead of sample pdf download', () => {
