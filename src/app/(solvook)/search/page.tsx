@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { connection } from 'next/server'
-import { searchMarketItemsForSubject, type MarketSearchSort } from '@/lib/market-search-server'
+import { searchCachedMarketItemsForSubject } from '@/lib/market-search-cache'
+import type { MarketSearchSort } from '@/lib/market-search-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { SearchView } from './_components/search-view'
 import { normalizeListPage, normalizeListPageSize } from '@/lib/list-pagination'
@@ -43,7 +44,7 @@ export default async function MarketSearchPage({
   const sort = resolveSort(params.sort)
   const page = normalizeListPage(params.page)
 
-  const result = await searchMarketItemsForSubject(subject, {
+  const result = await searchCachedMarketItemsForSubject(subject, {
     q,
     categoryIds: selections.category,
     typeSlugs: selections.type,

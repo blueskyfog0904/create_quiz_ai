@@ -70,14 +70,9 @@ export interface MarketSearchResult {
   }
 }
 
-// 과목 전체 공개 자료를 검색어 + 상세 필터로 조회한다.
-// 카탈로그 규모가 작아(수백 건) 과목 전체를 1회 로드 후 서버 메모리에서
-// 필터·패싯 집계·정렬·페이지네이션을 수행한다.
-// 집계 대상은 고정 정렬로 분할 조회해 PostgREST 응답 상한에 따른 누락을 막는다.
-export async function searchMarketItemsForSubject(
-  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT,
-  filters: MarketSearchFilters = {}
-): Promise<MarketSearchResult> {
+// 검색 대상 카탈로그(과목 전체 공개 상품·카테고리 칸·서브상품·분류). 검색어·필터와 무관하므로
+// 공개 검색 화면은 market-search-cache의 공유 캐시로 읽는다.
+export async function loadMarketSearchCatalog(workspaceSubject: WorkspaceSubject) {
   const supabase = createAdminClient()
 
   const [items, nodesResult, subproducts, typeCategoriesResult] = await Promise.all([
@@ -114,11 +109,39 @@ export async function searchMarketItemsForSubject(
     }
   }
 
-  const categoryRoots = buildCategoryTree(nodesResult.data ?? [])[workspaceSubject]
+  return {
+    items,
+    nodes: nodesResult.data ?? [],
+    subproducts,
+    typeCategories: typeCategoriesResult.data ?? [],
+  }
+}
+
+export type MarketSearchCatalog = Awaited<ReturnType<typeof loadMarketSearchCatalog>>
+
+// 과목 전체 공개 자료를 검색어 + 상세 필터로 조회한다.
+// 카탈로그 규모가 작아(수백 건) 과목 전체를 1회 로드 후 서버 메모리에서
+// 필터·패싯 집계·정렬·페이지네이션을 수행한다.
+// 집계 대상은 고정 정렬로 분할 조회해 PostgREST 응답 상한에 따른 누락을 막는다.
+export async function searchMarketItemsForSubject(
+  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT,
+  filters: MarketSearchFilters = {}
+): Promise<MarketSearchResult> {
+  return searchMarketCatalog(await loadMarketSearchCatalog(workspaceSubject), workspaceSubject, filters)
+}
+
+// 미리 읽은 카탈로그에 검색어·필터를 적용한다(샘플 가용 여부만 현재 페이지 행에 대해 새로 조회).
+export async function searchMarketCatalog(
+  { items, nodes, subproducts, typeCategories }: MarketSearchCatalog,
+  workspaceSubject: WorkspaceSubject,
+  filters: MarketSearchFilters = {}
+): Promise<MarketSearchResult> {
+  const supabase = createAdminClient()
+
+  const categoryRoots = buildCategoryTree(nodes)[workspaceSubject]
   const categoryPathOf = (categoryId: string | null): MarketCategoryPathNode[] => (categoryId
     ? (findCategoryPath(categoryRoots, categoryId) ?? []).map(({ id, title }) => ({ id, title }))
     : [])
-  const typeCategories = typeCategoriesResult.data ?? []
 
   const minPriceByItem = new Map<string, number>()
   const typeCategoryIdsByItem = new Map<string, Set<string>>()
