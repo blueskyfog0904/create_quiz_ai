@@ -125,6 +125,9 @@ export async function getMarketCategoryNodeDetail(
   return null
 }
 
+// PostgREST: 개수를 함께 요청한 범위가 전체 개수를 넘을 때의 오류 코드
+const RANGE_NOT_SATISFIABLE_ERROR_CODE = 'PGRST103'
+
 // 카테고리에 등록된 공개 상품 카드 데이터.
 // market-search-server.searchMarketItemsForSubject와 동일한 조립 방식(서브상품 최저가, 유형명,
 // 샘플 가용성)을 category_item_id 필터로 재현한다. 노출은 상품 상태만으로 정한다(게시판 무관).
@@ -169,16 +172,31 @@ export async function listMarketItemsForCategory(
     }
     return query
   }
-  const { count, error: countError } = await itemQuery(true)
-  if (countError) throw new Error(countError.message)
-  const pagination = getListPagination(count ?? 0, filters.page, filters.pageSize)
+  function pageQuery(offset: number, pageSize: number) {
+    let query = itemQuery()
+    if (filters.sort !== 'latest') query = query.order('view_count', { ascending: false })
+    return query.order('published_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false }).order('id', { ascending: true })
+      .range(offset, offset + pageSize - 1)
+  }
+  // 개수와 요청한 페이지를 한 번에 읽는다. 요청 페이지가 마지막 페이지를 넘었을 때만 마지막 페이지로 다시 읽는다.
+  const requested = getListPagination(Number.MAX_SAFE_INTEGER, filters.page, filters.pageSize)
+  let itemsResult = await pageQuery(requested.offset, requested.pageSize)
+  let totalCount = itemsResult.count ?? 0
+  if (itemsResult.error?.code === RANGE_NOT_SATISFIABLE_ERROR_CODE) {
+    // 요청 범위가 전체 개수를 넘으면 PostgREST는 개수 없이 범위 오류를 돌려준다 → 개수만 읽어 마지막 페이지로 맞춘다
+    const { count, error: countError } = await itemQuery(true)
+    if (countError) throw new Error(countError.message)
+    totalCount = count ?? 0
+  } else if (itemsResult.error) {
+    throw new Error(itemsResult.error.message)
+  }
+  const pagination = getListPagination(totalCount, filters.page, filters.pageSize)
   if (!pagination.totalCount) return { ...empty, ...pagination }
-  let query = itemQuery()
-  if (filters.sort !== 'latest') query = query.order('view_count', { ascending: false })
-  const itemsResult = await query.order('published_at', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false }).order('id', { ascending: true })
-    .range(pagination.offset, pagination.offset + pagination.pageSize - 1)
-  if (itemsResult.error) throw new Error(itemsResult.error.message)
+  if (pagination.offset !== requested.offset) {
+    itemsResult = await pageQuery(pagination.offset, pagination.pageSize)
+    if (itemsResult.error) throw new Error(itemsResult.error.message)
+  }
   const itemIds = (itemsResult.data ?? []).map((item) => item.id)
   if (!itemIds.length) return { ...empty, ...pagination }
   // 샘플 가용성도 나머지 보강 조회와 함께 한 번에 읽는다.

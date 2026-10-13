@@ -53,7 +53,7 @@ function harness() {
   const queries = []
   class Query {
     constructor(table) { this.table = table; this.filters = []; this.orders = []; this.from = 0; this.to = Infinity; queries.push(this) }
-    select(columns, options = {}) { this.head = options.head; return this }
+    select(columns, options = {}) { this.head = options.head; this.countExact = options.count === 'exact'; return this }
     eq(key, value) { this.filters.push((row) => row[key] === value); return this }
     is(key, value) { return this.eq(key, value) }
     in(key, values) { this.filters.push((row) => values.includes(row[key])); return this }
@@ -70,6 +70,10 @@ function harness() {
         }
         return 0
       })
+      // 실제 PostgREST처럼: 개수를 함께 요청한 범위가 전체 개수를 넘으면 범위 오류(PGRST103)
+      if (this.countExact && !this.head && this.from > 0 && this.from >= count) {
+        return Promise.resolve({ data: null, count: null, error: { code: 'PGRST103', message: 'Requested range not satisfiable' } }).then(resolve, reject)
+      }
       rows = rows.slice(this.from, this.to + 1)
       return Promise.resolve({ data: this.head ? null : this.single ? rows[0] ?? null : rows, count, error: null }).then(resolve, reject)
     }
@@ -193,10 +197,24 @@ test('a category page request with the cached node tree makes no more queries th
   assert.equal(countByTable(app.queries).market_category_items, undefined)
 })
 
-test('out of range pages clamp before the item range query', async () => {
+test('out of range pages clamp to the last page (only that case re-reads the page)', async () => {
   const app = harness()
   const result = await app.listMarketItemsForCategory(categoryId, { page: Number.MAX_SAFE_INTEGER })
   assert.equal(result.page, 4)
   assert.equal(result.rows.length, 4)
-  assert.equal(app.queries.find((query) => query.table === 'market_items' && !query.head).from, 60)
+  // 범위 오류 → 개수만 읽기 → 마지막 페이지 읽기
+  const itemQueries = app.queries.filter((query) => query.table === 'market_items')
+  assert.deepEqual(itemQueries.map((query) => Boolean(query.head)), [false, true, false])
+  assert.equal(itemQueries.at(-1).from, 60)
+})
+
+test('an in-range page reads the count and the page rows in one market_items query', async () => {
+  const app = harness()
+  const result = await app.listMarketItemsForCategory(categoryId, { page: 2 })
+  assert.equal(result.page, 2)
+  assert.equal(result.rows.length, 20)
+  const itemQueries = app.queries.filter((query) => query.table === 'market_items')
+  assert.equal(itemQueries.length, 1)
+  assert.equal(Boolean(itemQueries[0].head), false)
+  assert.equal(itemQueries[0].from, 20)
 })
