@@ -54,7 +54,7 @@ test('profiles 타입에 name이 없고, 마이그레이션은 함수부터 바�
   const profilesBlock = types.slice(profilesStart, types.indexOf('Relationships:', profilesStart))
   assert.doesNotMatch(profilesBlock, /^\s+name\??: string \| null$/m)
 
-  const migration = read('supabase/migrations/20261013120000_remove_profile_name.sql')
+  const migration = read('supabase/migrations/20261013053528_remove_profile_name.sql')
   const triggerAt = migration.indexOf('CREATE OR REPLACE FUNCTION public.handle_new_user()')
   const rpcAt = migration.indexOf('CREATE OR REPLACE FUNCTION public.admin_list_bank_questions(')
   const dropAt = migration.indexOf('alter table public.profiles drop column name;')
