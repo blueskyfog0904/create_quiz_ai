@@ -90,9 +90,9 @@
      where p.pronamespace='public'::regnamespace and p.prokind='f'
        and pg_get_functiondef(p.oid) ~* 'insert into (public\.)?refund_requests[^;]*on conflict';
      ```
-6. 로컬에서 `supabase db reset`을 한 뒤 마이그레이션 계약 테스트를 통과시킨다.
+6. 마이그레이션 계약 테스트(정적, `node --test`)를 통과시킨다. 로컬 `supabase db reset`은 이 환경에 Docker·Supabase CLI가 없어 쓰지 않는다(2026-10-19 사용자 결정). 대신 8의 운영 리허설로 실제 스키마에서 검증한다.
 7. 대사 후보 식을 비교할 준비를 한다. `claim_payment_reconciliation_batch`의 이전 후보 식을 SELECT로 옮겨 적고, 적용 전 `payment_reconciliation_backlog_count()` 값을 기록한다(현재 0).
-8. 운영 리허설을 한다(사용자 승인 필요). `BEGIN; <A 전문>; <A-post 검증>; ROLLBACK;`으로 실행한다. 리허설 중에도 DDL 잠금이 걸리므로, 대화형으로 나누지 않고 `execute_sql` 한 번 호출로 끝까지 보낸다(A-post 13·14의 임시 행 생성까지 포함).
+8. 운영 리허설을 한다. 1단계 동안 필요할 때 반복해도 되며 매번 승인받지 않는다(2026-10-19 사용자 결정, 실제 적용만 승인). `BEGIN; <A 전문>; <A-post 검증>; ROLLBACK;`으로 실행한다. 리허설 중에도 DDL 잠금이 걸리므로, 대화형으로 나누지 않고 `execute_sql` 한 번 호출로 끝까지 보낸다(A-post 13·14의 임시 행 생성까지 포함).
 
 ## A-post (마이그레이션 안의 검증 블록 + 적용 후 재확인)
 
