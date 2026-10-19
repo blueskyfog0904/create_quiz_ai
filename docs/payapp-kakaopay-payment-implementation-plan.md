@@ -30,8 +30,9 @@
   - `enforce_payment_reconciliation_health`는 `manual_review` 주문이 1건만 있어도 해당 결제사(현재 카카오페이)의 신규 주문을 자동으로 끈다. 다시 켜려면 마이그레이션이 필요하다. 페이앱은 5.7의 기준을 따른다.
 - DB 기본 권한(`pg_default_acl`)은 public 스키마에 새로 만든 함수를 anon·authenticated에 실행 가능하게 연다. 기존 결제 함수는 모두 마이그레이션에서 명시적으로 회수해 service_role 전용이다.
 - `refund_requests_cancel_idempotency_key`는 상태와 무관한 unique 인덱스다(기존 결함, 5.5).
-- `payment_reconciliation_alerts`는 service_role 읽기 전용이고, 미해소 경보가 code당 1건으로 제한되며, 운영에 미해소 2건이 있다.
-- `mark_payment_reconciliation_terminal`은 기대 상태 비교 없이 `completed`·`refunded`가 아니면 덮어쓴다.
+- `payment_reconciliation_alerts`는 service_role 읽기 전용이고, 미해소 경보가 code당 1건으로 제한된다. 2026-09-11·12 스케줄러 경보 2건이 미해소로 남아 같은 code의 새 경보를 막고 있었으나, 스케줄러 정상(연속 실패 0)을 확인하고 2026-10-19 마이그레이션 `20261019061626_resolve_stale_reconciliation_scheduler_alerts`로 해소했다(현재 미해소 0건).
+- `mark_payment_reconciliation_terminal`은 기대 상태 비교 없이 `completed`·`refunded`가 아니면 덮어쓴다. `completed` 주문에는 아무것도 하지 않는다.
+- 카카오 지급(`finalize_kakaopay_payment`)은 크레딧 원천 생성과 `completed` 전환을 한 트랜잭션에서 한다. 운영에서 `completed`·`refunded`·`manual_review`가 아닌 주문에 붙은 원천은 0건이다.
 - 결제사 값 `'toss'`, `'kakaopay'`가 박혀 있는 곳:
   - CHECK 제약: `payment_orders`, `checkout_attempts`, `payment_provider_transactions`, `refund_requests`, `payment_reconciliation_items`
   - RPC 분기
@@ -134,7 +135,7 @@
 | `provider_status` | 최근 `pay_state` (표시용, 판단에 쓰지 않음, 되돌리지 않음) |
 | `payment_method_type` | 통보의 `pay_type` |
 
-- 기존 트리거 `prevent_payment_provider_identifier_replacement`에 조건을 더한다: `paid_feedback_recorded_at`, `paid_amount`, `cancel_feedback_recorded_at`, `partial_cancel_feedback_recorded_at`, `admin_paid_confirmed_at`, `provider_paid_at`, `cancel_processed_at`, `partial_cancel_processed_at`은 한 번 설정하면 바꿀 수 없다(되돌리면 같은 처리가 다시 실행된다). 카카오는 이 컬럼을 쓰지 않으므로 영향이 없다.
+- 기존 트리거 `prevent_payment_provider_identifier_replacement`에 조건을 더한다: `paid_feedback_recorded_at`, `paid_amount`, `cancel_feedback_recorded_at`, `partial_cancel_feedback_recorded_at`, `admin_paid_confirmed_at`, `provider_paid_at`, `cancel_processed_at`, `partial_cancel_processed_at`은 한 번 설정하면 바꿀 수 없다(되돌리면 같은 처리가 다시 실행된다). 카카오는 이 중 `partial_cancel_feedback_recorded_at`·`partial_cancel_processed_at` 두 개만 쓴다(대사가 확인한 부분취소 표식, 6.5 "카카오 대사 부분취소"). 나머지는 카카오에서 늘 NULL이다.
   - RPC는 이 값들을 "NULL일 때만 설정하고, 이미 있으면 비교해서 다르면 경보만" 남긴다. 같은 사실이 두 번 오면서 시각이 다를 때 트리거 예외로 `FAIL`이 반복되지 않게 하기 위해서다.
 - 기존 `(provider, provider_transaction_id)` unique와 null→값 1회 트리거가 `mul_no` 유일성을 이미 DB에서 강제한다.
 - **지급 차단 표식:** `cancel_feedback_recorded_at`과 `partial_cancel_feedback_recorded_at`을 합쳐 "취소 기록"이라 부른다. 지급하는 모든 경로(`apply_payapp_feedback`의 4, `retry_payapp_fulfillment`, `resolve_payment_order_review`의 `paid_confirmed`)는 취소 기록이 있으면 거부한다.
@@ -163,7 +164,7 @@
 - **잠금 순서:**
   - 지급 경로: `payment_orders → payment_provider_transactions → profiles → credit_sources`
   - 환불·취소 경로: `refund_requests → credit_sources → payment_orders → payment_provider_transactions → profiles` (`finalize_point_charge_refund`와 같다).
-  - 기존 `quarantine_external_provider_cancellation`은 반대 순서(`payment_orders → credit_sources → profiles → refund_requests`)다. payapp 분기와 `quarantine_payapp_partial_cancellation`은 열린 환불 요청을 잠금 없이 찾은 뒤, 위 환불 순서로 잠그고 다시 검증한다. 카카오 분기는 그대로 둔다.
+  - 기존 `quarantine_external_provider_cancellation`은 반대 순서(`payment_orders → credit_sources → profiles → refund_requests`)다. payapp 분기, `quarantine_payapp_partial_cancellation`, `quarantine_kakaopay_partial_cancellation`은 열린 환불 요청을 잠금 없이 찾은 뒤, 위 환불 순서로 잠그고 다시 검증한다(다르면 40001). 카카오 외부 전취소 분기는 그대로 둔다.
   - **취소 통보는 두 단계로 처리한다.** ① `apply_payapp_feedback`이 검증 후 `payment_provider_transactions` 한 행만 잠그고 표식을 기록·커밋한다(다른 행을 기다리지 않으므로 교착 고리가 생기지 않는다). 이 트랜잭션은 주문 행을 쓰지 않는다. 취소 통보의 검증 실패도 주문을 바꾸지 않고 표식 없이 `ignored`와 경보만 남긴다. ② 별도 트랜잭션의 `process_payapp_cancellation`(5.5.2)이 환불 순서로 잠그고 처리한다. 이렇게 해야 관리자 환불 처리(`finalize`)와 동시에 온 취소 통보가 교착되지 않고, 지급 중에 온 취소가 미지급으로 오판되지 않는다.
   - 4·1·8·16·32·10 분기와 `retry_payapp_fulfillment`, `paid_confirmed`, `mark_payapp_order_terminal`, `store_payapp_request`는 `payment_orders FOR UPDATE` → `payment_provider_transactions FOR UPDATE` 순으로 잠근 뒤 **잠근 행을 다시 읽어** 취소 표식, `source_id`, `mul_no`를 판단한다. 잠그기 전에 읽은 값은 주문 id를 찾는 데만 쓴다.
   - 두 경로가 엇갈려 교착(40P01)이 나면 PostgreSQL이 한쪽을 롤백한다. 롤백된 쪽은 재시도 가능 오류로 처리한다. 통보는 `FAIL` 응답으로 재통보를 받고, 대사는 다음 회차에 재시도한다.
@@ -192,11 +193,13 @@
 | `mark_payment_reconciliation_terminal` | 2차 방어선. 위와 같은 결제완료 가드를 payapp 분기에만 추가한다. 카카오·토스 동작은 그대로다 |
 | `requeue_stuck_point_charge_refund` (신규) | `processing` 환불이 10분 넘게 멈춰 있으면 `retryable_failed`로 바꾼다(CAS). 서버가 claim 직후 죽은 경우를 위한 것이다 |
 | `fail_point_charge_refund` | 변경 없음. payapp `retryable_failed`는 자동 재시도하지 않고 관리자 재승인으로만 재시도한다(아래 대사 후보 조건에서 제외) |
-| `claim_payment_reconciliation_batch`, `payment_reconciliation_backlog_count` | payapp 조건 두 가지를 더한다. ① (`cancel_feedback_recorded_at` 있음 AND `cancel_processed_at` NULL) 또는 (`partial_cancel_feedback_recorded_at` 있음 AND `partial_cancel_processed_at` NULL)인 payapp 주문을 후보로 포함한다(지급 완료 주문도 포함). ② payapp 환불의 `retryable_failed`는 후보에서 뺀다(자동 재시도 없음). 카카오·토스 조건은 그대로 둔다. `'infinity'` 같은 특수 시각은 쓰지 않는다(TS에서 Invalid Date). 작성 규칙: 인자·반환형 유지(`CREATE OR REPLACE`, DROP 불필요). ①은 `OR (po.provider='payapp' AND EXISTS (… ppt 표식 AND 짝 처리 시각 IS NULL))`, ②는 기존 환불 EXISTS 안에 `AND NOT (rr.provider='payapp' AND rr.status='retryable_failed')`만 더한다(provider 한정을 빼면 카카오 자동 재시도가 사라진다). ①과 ②는 OR 관계다. 환불이 `retryable_failed`여도 취소 표식이 미처리면 ①로 후보가 된다. ①은 기존 백오프 조건(`next_reconcile_at IS NULL OR <= now()`) **밖에** 둔다: `WHERE (기존 후보 조건 AND 백오프 조건) OR (payapp 미처리 표식 조건)`. 누적된 `reconcile_attempt_count` 때문에 최대 60분을 기다리면 취소된 결제의 크레딧 동결이 늦어지기 때문이다. 계약 테스트: `reconcile_attempt_count=10`이고 `next_reconcile_at`이 미래인 주문도 미처리 취소 표식이 있으면 다음 회차 후보가 된다. 잠금은 `FOR UPDATE OF po SKIP LOCKED`(ppt를 잠그지 않음). 후보 정렬은 기존 `ORDER BY po.updated_at ASC`를 유지한다. claim UPDATE 때 `update_payment_orders_updated_at` 트리거가 `updated_at`을 now()로 바꾸므로, 처리에 계속 실패하는 주문도 매 회차 뒤로 밀려 limit을 독점하지 않는다. 이 순환은 트리거 동작에 기대므로 계약 테스트로 고정한다(① 주문 수가 `p_limit` 이상이어도 기존 후보가 몇 회차 안에 잡힌다). TS는 `process_payapp_cancellation`의 보류·일시 오류 결과를 성공이 아니라 `retry_required`/`provider_not_final`로 매핑한다. 두 함수의 조건식은 글자 그대로 같아야 한다(계약 테스트) |
+| `claim_payment_reconciliation_batch`, `payment_reconciliation_backlog_count` | 조건 두 가지를 더한다. ① (`cancel_feedback_recorded_at` 있음 AND `cancel_processed_at` NULL) 또는 (`partial_cancel_feedback_recorded_at` 있음 AND `partial_cancel_processed_at` NULL)인 payapp·**kakaopay** 주문을 후보로 포함한다(지급 완료 주문도 포함. 카카오는 부분취소 표식만 쓴다). ② payapp 환불의 `retryable_failed`는 후보에서 뺀다(자동 재시도 없음). 기존 카카오·토스 조건은 그대로 두고 ①만 카카오에도 적용한다. `'infinity'` 같은 특수 시각은 쓰지 않는다(TS에서 Invalid Date). 작성 규칙: 인자·반환형 유지(`CREATE OR REPLACE`, DROP 불필요). ①은 `OR (po.provider IN ('payapp','kakaopay') AND EXISTS (… ppt 표식 AND 짝 처리 시각 IS NULL))`, ②는 기존 환불 EXISTS 안에 `AND NOT (rr.provider='payapp' AND rr.status='retryable_failed')`만 더한다(provider 한정을 빼면 카카오 자동 재시도가 사라진다). ①과 ②는 OR 관계다. 환불이 `retryable_failed`여도 취소 표식이 미처리면 ①로 후보가 된다. ①은 기존 백오프 조건(`next_reconcile_at IS NULL OR <= now()`) **밖에** 둔다: `WHERE (기존 후보 조건 AND 백오프 조건) OR (payapp·kakaopay 미처리 표식 조건)`. 누적된 `reconcile_attempt_count` 때문에 최대 60분을 기다리면 취소된 결제의 크레딧 동결이 늦어지기 때문이다. 계약 테스트: `reconcile_attempt_count=10`이고 `next_reconcile_at`이 미래인 주문도 미처리 취소 표식이 있으면 다음 회차 후보가 된다. 잠금은 `FOR UPDATE OF po SKIP LOCKED`(ppt를 잠그지 않음). 후보 정렬은 기존 `ORDER BY po.updated_at ASC`를 유지한다. claim UPDATE 때 `update_payment_orders_updated_at` 트리거가 `updated_at`을 now()로 바꾸므로, 처리에 계속 실패하는 주문도 매 회차 뒤로 밀려 limit을 독점하지 않는다. 이 순환은 트리거 동작에 기대므로 계약 테스트로 고정한다(① 주문 수가 `p_limit` 이상이어도 기존 후보가 몇 회차 안에 잡힌다). TS는 `process_payapp_cancellation`의 보류·일시 오류 결과를 성공이 아니라 `retry_required`/`provider_not_final`로 매핑한다. 두 함수의 조건식은 글자 그대로 같아야 한다(계약 테스트) |
 | `get_point_charge_refund_eligibility`, `request_point_charge_refund`, `claim_point_charge_refund` | payapp 조건: `mul_no` 있음, `paid_feedback_recorded_at` 또는 `admin_paid_confirmed_at` 있음, 취소 기록 없음, `approved_at` 있음. claim은 `mul_no`를 반환한다. 모든 provider 공통으로, 원천에 `completed` 환불 요청이 있으면 기존 reason_code `REFUND_SOURCE_NOT_ACTIVE`로 불가(마이그레이션 A, 6.5, 기존 코드라 TS 매핑 변경 없음). 토스 원천 "환불 불가"는 마이그레이션 B2에 넣는다(A에 넣으면 지금 배포된 토스 환불이 바뀐다) |
-| `finalize_point_charge_refund` | payapp은 provider 상태 `'CANCELED'`, 취소 키 `payapp-cancel:${mul_no}`, 취소 시각은 `canceldate` 또는 now(). `payment_provider_transactions.provider_cancelled_at`은 `COALESCE(기존 값, 인자)`로 쓴다 |
+| `finalize_point_charge_refund` | payapp은 provider 상태 `'CANCELED'`, 취소 키 `payapp-cancel:${mul_no}`, 취소 시각은 `canceldate` 또는 now(). `payment_provider_transactions.provider_cancelled_at`은 `COALESCE(기존 값, 인자)`로 쓴다. `provider='kakaopay' AND origin='partial_cancel'` 요청은 `REFUND_REQUIRES_MANUAL_COMPLETION` 예외로 거부한다(카카오 부분취소 격리는 수동 완료로만 끝난다. 실제 환불액이 아닌 `refund_amount`가 완료 금액으로 남는 것을 막음). payapp 부분취소 격리 요청은 5.5.2의 승인취소(9) 처리 경로가 있으므로 이 거부를 적용하지 않는다 |
 | `quarantine_external_provider_cancellation` | payapp 분기 추가(잠금은 5.4 환불 순서). 미지급 payapp 주문에는 호출하지 않는다(5.5.2에서 "지급 전 취소"로 처리). 카카오 분기를 포함한 모든 INSERT·UPDATE가 `origin='external_cancel'`을 설정한다. **지금 배포된 카카오 경로도 바뀌는 변경**이다. 기존 반환 키(`already_completed`, `already_quarantined`, `request_id`, `credits_used`, `used_credit_amount`)는 유지하고 추가만 한다 |
 | `quarantine_payapp_partial_cancellation` (신규) | 지급된 주문의 부분취소 70·71. 원천을 `pending_refund`로 묶고, `manual_review` 환불 요청(`origin='partial_cancel'`)을 만든다. 주문은 `manual_review`(`PAYAPP_PARTIAL_CANCEL_QUARANTINED`). 잠금은 5.4 환불 순서. 열린 환불 상태별: `processing`이면 전취소가 진행 중이므로 아무것도 바꾸지 않고 경보만 남기고, **처리 시각(`partial_cancel_processed_at`)을 설정하지 않는다.** 환불이 끝난 뒤 대사가 다시 집는다. 그때 환불이 `completed`면 처리 시각만 설정하고(전액 환불로 부분취소가 흡수됨, 크레딧은 전액 회수가 맞다), 실제 환불액(`expected_amount` − 부분취소 금액)을 감사 기록에 남긴다(`refund_amount`는 신청 때 값으로 남으므로), `retryable_failed`·`manual_review`면 이 격리로 전환한다. `pending_review`·`retryable_failed`·일반 `manual_review`면 이 격리로 전환(`origin` 단방향 전환), 이미 외부 취소 격리 건이면 그대로 둔다 |
+| `record_kakaopay_partial_cancel_marker(p_payment_order_id, p_provider_status)` (신규) | 카카오 대사가 `PART_CANCEL_PAYMENT`를 확인하면 **먼저 별도 트랜잭션으로** 부른다. `p_provider_status`는 `'PART_CANCEL_PAYMENT'`만 받는다. `payment_provider_transactions` 카카오 행 한 개만 잠그고 `partial_cancel_feedback_recorded_at`이 NULL이면 now()로 설정해 커밋한다(이미 있으면 그대로, 멱등). 주문 행은 쓰지 않는다(잠금 한 개뿐이라 교착 고리가 없다). 이 표식이 남아 있는 동안 대사 후보 ①이 매 회차 백오프 밖에서 주문을 다시 집는다 |
+| `quarantine_kakaopay_partial_cancellation(p_payment_order_id, p_provider_status, p_cancelled_amount)` (신규) | 표식 기록 다음에 부른다. 표식이 없으면 예외. `p_provider_status`는 대사가 조회한 현재 상태를 그대로 받는다(빈 값만 거부). 표식이 있다는 것은 부분취소를 이미 확인했다는 뜻이므로, 그 뒤 결제사에서 잔액까지 취소돼 `CANCEL_PAYMENT`가 됐거나 조회 결과가 스냅샷과 어긋나도 분기는 같고 격리로 끝낸다(표식이 영구히 닫히지 않는 경로를 없앰). 주문·ppt `provider_status`에는 `PART_CANCEL_PAYMENT`·`CANCEL_PAYMENT`일 때만 그 값을 쓰고, 그 밖이면 기존 값을 두고 경보 `KAKAOPAY_PARTIAL_CANCEL_STATE_UNEXPECTED`를 남긴다. 표식이 이미 처리됐으면 아무것도 바꾸지 않고 `already_quarantined=true`. `p_cancelled_amount`는 카카오 응답 `canceled_amount.total`(없으면 NULL, 있으면 1 이상 `expected_amount` 미만)이고, 관리자 알림과 요청 `last_error_message`에 "카카오 부분취소 N원"으로만 남긴다(`refund_amount`에는 쓰지 않는다). 잠금은 5.4 환불 순서이고, **분기는 잠근 뒤 다시 읽은 상태로 정한다**(잠금 전 판단과 다르면 40001). ① `refunded`: 처리 시각 설정, `already_completed`. ② 미지급(`completed`·`manual_review`·`refunded` 아님, 원천 없음): 주문을 `manual_review`(`KAKAOPAY_PARTIAL_CANCELLATION_REQUIRES_REVIEW`)로 바꾸고 처리 시각 설정. 승인 콜백은 `manual_review` 주문을 지급하지 못한다(`record_kakaopay_approval`·`finalize_kakaopay_payment` 상태 가드). ②′ 주문 `manual_review`이고 원천 없음: 변경 없이 처리 시각만 설정, `outcome='manual_review'`, `already_quarantined=true`. ③ 지급됨(원천 있음): 열린 환불(`pending_review`·`processing`·`retryable_failed`·`manual_review`, `completed`·`rejected`는 무시)이 `pending_review`·`processing`·`retryable_failed`·`origin='user'`인 `manual_review`면 `manual_review`·`origin='partial_cancel'`로 전환한다(단방향). `processing`도 바로 전환한다: 처리기는 원금 전액(`refund_amount`=`expected_amount`)을 취소하는데 부분취소 뒤에는 취소 가능액이 모자라 성공할 수 없고, 처리기의 `fail`은 `status='processing'` 가드에 걸려 아무것도 하지 않으며, 카카오에는 멈춘 `processing`을 되살리는 경로가 없기 때문이다(외부 전취소 격리와 같은 근거). 이미 `external_cancel`·`partial_cancel`이면 요청은 그대로 두고 처리 시각만 설정한다(멱등, 알림 없음). 열린 환불이 없으면 `manual_review`·`origin='partial_cancel'` 요청을 만든다(`refund_amount`=`expected_amount`, `cancel_idempotency_key`=`v_order.cancel_idempotency_key`로 `quarantine_external_provider_cancellation`·`request_point_charge_refund`와 같다. 같은 마이그레이션 A에서 `refund_requests_cancel_idempotency_key`를 열린 상태 partial unique로 먼저 재생성하므로 거절·완료 요청이 있어도 23505가 나지 않는다). 전환·생성 모두 `refund_amount`는 신청 기준액(`expected_amount`) 의미 하나로 두고, 실제 고객 총 환불액은 수동 완료 때 확정한다. 원천은 `pending_refund`, 주문은 `manual_review`(같은 code), `last_error_code`도 같은 code(거절 가드·회수량 인자 목록에 이미 있음). 주문과 ppt의 `provider_status`는 위 머리말 규칙대로 현재 상태(`PART_CANCEL_PAYMENT` 또는 `CANCEL_PAYMENT`)로 바꾼다(잔액까지 취소됐다는 사실이 관리자 수동 완료의 판단 근거로 남는다). 그래서 이 주문의 `claim_point_charge_refund`(`SUCCESS_PAYMENT` 요구)와 `finalize_point_charge_refund`는 반드시 실패하고, 종료 경로는 `complete_manual_point_charge_refund`(회수량 인자, ppt 상태를 요구하지 않음)뿐이다. 그 뒤 결제사 관리자에서 잔액이 취소돼 `CANCEL_PAYMENT`가 돼도 주문·환불이 `manual_review`라 자동으로는 잡히지 않고, 관리자가 수동 완료로 끝낸다. ③은 전환·생성·멱등 어느 경우든 끝나면 처리 시각(`partial_cancel_processed_at`)을 설정한다. 처리 시각을 두지 않는 결과는 예외(롤백)뿐이다. 모든 분기에서 처리 시각은 `COALESCE(partial_cancel_processed_at, now())`로 쓴다(불변 트리거와 충돌하지 않게. 처리기와 대사가 같은 주문을 두 번 불러도 멱등). 관리자 알림은 처음 격리할 때 1회. 40001·40P01·55P03이나 중단으로 실패해도 표식이 남아 다음 회차에 다시 처리된다. 반환은 `quarantine_external_provider_cancellation`과 같은 키 + `outcome` |
 | `resolve_payment_order_review` (신규) | 6.4 |
 | `complete_manual_point_charge_refund` (신규) | 6.5 |
 | `reject_point_charge_refund` | `manual_review` 환불 거절을 허용한다(크레딧 동결 해제). **지금 배포된 카카오 환불 동작도 바뀌는 변경**이다. 다음 중 하나라도 해당하면 거부한다: `origin <> 'user'`, `payment_orders.canceled_at IS NOT NULL`, payapp 취소 기록, 카카오 `ppt.provider_status = 'CANCEL_PAYMENT'`, `last_error_code IN ('KAKAOPAY_PARTIAL_CANCELLATION_REQUIRES_REVIEW')`(현재 코드에 있는 부분취소 코드 전부, 명시 목록). 카카오 `CANCEL_PAYMENT` 조건은 `canceled_at`과 겹치지만 그대로 둔다. payapp `provider_status`(숫자)에는 이 비교를 적용하지 않는다. 관리자 확인 항목("결제사 관리자에서 미취소 확인")을 필수로 받고 감사 기록에 남긴다. 기존 반환 키는 유지한다 |
@@ -285,13 +288,13 @@ route는 결과 코드로 이벤트 상태와 응답을 정한다(취소 표식�
 - **현재 경보 테이블의 제약:**
   - `payment_reconciliation_alerts`는 지금 service_role이 읽기만 할 수 있다.
   - 미해소 경보는 code당 1건만 둘 수 있다(partial unique).
-  - 운영에 미해소 경보 2건(2026-09-11·12, 스케줄러 관련)이 남아 있다.
+  - 남아 있던 미해소 경보 2건(2026-09-11·12, 스케줄러 관련)은 2026-10-19에 해소했다.
 - **신규 `record_payment_alert(p_code, p_severity, p_message, p_details)`:**
   - `ON CONFLICT DO NOTHING`으로 쓴다.
   - route와 대사가 지급·환불과 **별도 트랜잭션**으로 호출한다. 경보 실패가 결제 처리를 실패시키지 않는다.
 - **주문별 이상**(금액·`pay_type` 불일치, 이중 환불 의심)은 code 1건 제한에 묻히지 않도록 주문 id를 담아 관리자 `notifications`로도 남긴다.
 - **관리자 결제 확인 화면:** 미해소 경보와 `manual_review` 주문을 함께 보여준다. `resolve_payment_order_review`가 관련 경보를 해소한다.
-- **출시 전:** 기존 미해소 2건을 확인한 뒤 해소한다(데이터 수정이라 사용자 승인 필요).
+- **기존 미해소 2건:** 사용자 승인을 받아 2026-10-19에 해소했다(2장 기준선). 출시 전에는 미해소 0건만 다시 확인한다.
 - **감사 테이블 `payment_admin_actions` (신규, append-only):**
   - 컬럼: actor, action, `payment_order_id`, `refund_request_id`, 변경 전후 상태, note, 회수·미회수 크레딧, 외부 처리 방식, `created_at`.
   - 대상: 관리자 해소, 수동 환불 완료, 관리자 지급, `manual_review` 거절.
@@ -311,6 +314,11 @@ route는 결과 코드로 이벤트 상태와 응답을 정한다(취소 표식�
 3. **대사 스케줄러 이상:** 기존 stale·연속 실패 3회 조건. 통보가 유실됐을 때 대사가 유일한 백업이기 때문이다.
 4. **취소 표식 미처리 + 크레딧 사용 가능:** (`cancel_feedback_recorded_at <= now() - 10분 AND cancel_processed_at IS NULL` 또는 `partial_cancel_feedback_recorded_at <= now() - 10분 AND partial_cancel_processed_at IS NULL`) 이면서 그 주문의 원천이 아직 `active`(`EXISTS (SELECT 1 FROM credit_sources cs WHERE cs.payment_order_id = po.id AND cs.status = 'active')`). 경보 code `PAYAPP_CANCEL_UNPROCESSED`. 취소된 결제의 크레딧이 쓰일 수 있기 때문이다.
    - 원천이 이미 `pending_refund`이거나(환불 처리 중 부분취소 등) 미지급 주문(원천 없음, 표식이 지급을 막음)의 미처리 표식은 돈 위험이 없으므로 판매는 끄지 않고 경보만 남긴다.
+
+카카오 부분취소 표식 블록(신규, 기존 카카오 블록과 별도로 둔다):
+- `po.provider='kakaopay' AND ppt.partial_cancel_feedback_recorded_at <= now() - 10분 AND ppt.partial_cancel_processed_at IS NULL`이면서 원천이 `active`면 `kakaopay_accepts_new_orders=false`, 경보 code `KAKAOPAY_PARTIAL_CANCEL_UNPROCESSED`. 원천이 없거나 `pending_refund`·`refunded`면 경보만 남긴다.
+- 기존 카카오 블록 본문 비교 계약 테스트는 그대로 통과해야 한다. 비교 범위는 기존 카카오 `SELECT COUNT …`부터 경보 INSERT의 `END IF`까지다. 새 블록은 그 밖에 두고 자기 변수(`v_kakao_marker_disable`)와 자기 code만 쓴다(기존 `v_should_disable`·`v_code`를 재사용하지 않는다).
+- 반환: `'kakaopay_disabled', v_should_disable OR v_kakao_marker_disable`, `'healthy', NOT (v_should_disable OR v_kakao_marker_disable)`(payapp 조건은 `payapp_disabled`로 따로). 반환값을 읽는 TS는 없다(`record_payment_reconciliation_result`가 그대로 넘길 뿐).
 
 끄지 않는 것:
 - 외부 취소·부분취소 격리(`EXTERNAL_PROVIDER_CANCELLATION`, `PAYAPP_PARTIAL_CANCEL_QUARANTINED`): 크레딧이 이미 묶여 있다.
@@ -399,7 +407,7 @@ route는 결과 코드로 이벤트 상태와 응답을 정한다(취소 표식�
 |---|---|
 | `paid_confirmed` (결제 확인됨) | 취소 기록이 있거나 격리 건이면 거부한다. 결제완료 기록이 있으면 그 값으로 지급한다. 없으면 관리자 지급이다: `mul_no` 필수(unique라 다른 주문에 다시 쓸 수 없음), 지급액은 `expected_amount`, `admin_paid_confirmed_at`·`approved_at`은 관리자가 입력한 결제 시각(없으면 now()), 감사 기록에 지급 방식 admin을 남긴다. 환불 자격은 일반 건과 같다(`admin_paid_confirmed_at`으로 인정) |
 | `unpaid_confirmed` (미결제 확인) | `source_id`, 결제완료 기록, 취소 기록 중 하나라도 있으면 거부한다. 그 밖에는 `expired` |
-| `cancel_handled` (취소 처리 확인) | 대상: 미지급 부분취소(`PAYAPP_PARTIAL_CANCEL`), 그리고 원천이 없거나 이미 환불된 `PAYAPP_CANCEL_HANDLING_FAILED`. 활성·묶인 원천이 있으면 거부하고 `complete_manual_point_charge_refund`로 보낸다. 처리자·메모·외부 처리 방식이 필수다. 결과는 미지급이면 `failed`, 지급 후 환불됐으면 `refunded`. 감사 기록을 남긴다 |
+| `cancel_handled` (취소 처리 확인) | 대상: 미지급 부분취소(`PAYAPP_PARTIAL_CANCEL`), 원천이 없거나 이미 환불된 `PAYAPP_CANCEL_HANDLING_FAILED`, 그리고 원천이 없는 카카오 `KAKAOPAY_PARTIAL_CANCELLATION_REQUIRES_REVIEW`(5.5 ②·②′, 처리된 부분취소 표식이 있어 `unpaid_confirmed`가 거부되므로 이것이 유일한 해소 경로). 활성·묶인 원천이 있으면 거부하고 `complete_manual_point_charge_refund`로 보낸다. 처리자·메모·외부 처리 방식이 필수다. 결과는 미지급이면 `failed`, 지급 후 환불됐으면 `refunded`. 감사 기록을 남긴다 |
 
 - 외부 취소·부분취소 격리 건은 이 RPC가 아니라 `complete_manual_point_charge_refund`(6.5)로 해소한다.
 - **판매 재개:** 5.7 조건이 0건인지 확인한 뒤 마이그레이션으로 `payapp_accepts_new_orders=true`를 설정한다(`changed_by`, `change_ticket` 기록, 사용자 승인 후 적용).
@@ -437,9 +445,29 @@ route는 결과 코드로 이벤트 상태와 응답을 정한다(취소 표식�
 
 **`manual_review` 환불 거절:** 확장한 `reject_point_charge_refund`로 처리한다. 환불하지 않기로 했을 때 크레딧 동결을 푼다. 격리 건은 거절할 수 없다.
 
+**카카오 대사 부분취소 (사용자 결정 2026-10-19: 페이앱처럼 크레딧을 묶는다, 마이그레이션 A + 단계 4):**
+- 지금 동작(`payment-reconciliation-server.ts:473-479`, `PART_CANCEL_PAYMENT` → `markManualReview`)을 운영 함수 정의로 다시 확인한 결과:
+  - 미지급 주문: 원천이 없으므로 크레딧 노출은 없다. 다만 대사가 `PART_CANCEL_PAYMENT`를 읽은 뒤 승인 콜백이 지급을 끝내면, `mark_payment_reconciliation_terminal`이 `completed` 주문을 건너뛰어 부분취소가 기록되지 않고 원천이 `active`로 남는다(경합).
+  - 지급된 주문(열린 환불이 `processing`·`retryable_failed`라 대사 후보가 된 경우): 같은 함수가 `completed` 주문을 건너뛰어 아무것도 바뀌지 않는다. 결과 `manual_review`는 `next_reconcile_at`을 NULL로 두므로 매 회차 다시 집혀 카카오 조회를 반복하고, 환불 요청이 `manual_review`가 아니라 `complete_manual`로 끝낼 수도 없다. 원천은 사용자 신청 때 `pending_refund`로 묶여 있어 크레딧 노출은 없다.
+- 수정 (페이앱 취소 통보와 같은 2단계):
+  1. 대사가 `PART_CANCEL_PAYMENT`를 확인하면 `record_kakaopay_partial_cancel_marker`로 표식을 먼저 커밋한다.
+  - 대사 카카오 분기는 결제사 조회 직후, 조회 상태 분기보다 먼저 ppt 표식을 본다. 표식이 미처리면 조회 상태가 무엇이든(스냅샷 검증 실패 포함) 2번을 그 상태로 부르고, `reconcileCancellation`·`markManualReview`로 가지 않는다. 조회 자체가 실패(네트워크)한 경우만 `retry_required`다.
+  2. 이어서 `quarantine_kakaopay_partial_cancellation`(5.5)을 부르고 결과를 대사 결과로 쓴다(40001·40P01·55P03은 `retry_required`).
+  3. 환불 처리기(`src/lib/point-charge-refund-processor.ts`)도 같은 두 RPC를 부른다. 사전 조회가 `PART_CANCEL_PAYMENT`인 분기(지금은 `fail`만 해서 사용자 `origin`·주문 `completed`로 남고 판매도 멈추지 않음), 그리고 취소 API가 확정 실패(`retryable:false`)했을 때 결제사 주문을 다시 조회해 `PART_CANCEL_PAYMENT`인 경우다. 둘 다 `fail` 뒤에 부르고, 실패해도 표식이 남아 대사가 이어받는다.
+  - 표식이 처리 시각 없이 남아 있으면 대사 후보 ①이 백오프 밖에서 매 회차 다시 집는다. 그래서 대사가 읽은 뒤 승인 콜백이 지급을 끝낸 경합(40001), 교착, 중단이 있어도 다음 회차에 지급된 주문 경로로 격리된다. 지금 후보 조건만으로는 `completed`·열린 환불 없음 주문이 후보에서 영구히 빠지므로 표식이 꼭 필요하다.
+  - 표식 덕분에 `completed` 주문 + `pending_review`·사용자 `manual_review` 환불도 재처리 때 격리 분기에 도달한다. 환불 처리기가 부분취소 뒤 전취소에 실패해 사용자 `manual_review`가 된 경우도 처리기(3) 또는 다음 회차 대사가 `partial_cancel`로 전환한다.
+  - 지급된 주문은 원천 `pending_refund` + `manual_review`·`origin='partial_cancel'` 환불로 격리돼 `complete_manual`(회수량 인자)로 끝낼 수 있다.
+- health 영향: 카카오 health 함수 본문(기존 카카오 블록)은 그대로지만 **효과가 넓어진다.** 지금은 지급된 주문의 부분취소가 건너뛰어져 판매가 꺼지지 않았는데, 변경 뒤에는 ③이 주문을 `manual_review`로 바꾸므로 카카오 신규 주문이 꺼진다(외부 전취소 격리와 같은 동작, 다시 켜려면 마이그레이션). 또 5.7의 카카오 표식 블록이 미처리 표식 + 원천 `active`가 10분 넘으면 판매를 끈다.
+- 범위 밖 한계: 카카오는 통보가 없어, 지급 완료·열린 환불 없음 주문이 카카오 관리자에서 부분취소되면 대사 후보가 아니므로 감지되지 않는다(지금도 같다). 결제사 관리자 취소는 운영 절차로 우리 관리자 화면에 반영한다.
+- 배포 순서: RPC는 마이그레이션 A에 추가만 하고, TS 호출 변경은 단계 4(A 적용 뒤 배포)에 넣는다. A만 적용된 동안은 지금 동작과 같다.
+
+**크레딧 함수 권한 (사용자 결정 2026-10-19: 회수, 마이그레이션 A):**
+- `consume_credits_once(uuid,integer,text,uuid,text,text)`, `refund_credits_once(uuid,integer,text,uuid,text,text,text,integer)`는 운영에만 있는 함수(마이그레이션 정의 없음, `docs/cart-db-audit.md`)이고 SECURITY INVOKER다. 현재 ACL: `consume_credits_once`는 PUBLIC·anon·authenticated·service_role, `refund_credits_once`는 anon·service_role.
+- 저장소 코드·다른 DB 함수에서 호출하는 곳이 없다(2026-10-19 확인: `src` grep 0건, `pg_proc.prosrc` 참조 0건).
+- 마이그레이션 A에서 `REVOKE EXECUTE … FROM PUBLIC, anon, authenticated`를 하고 service_role·postgres는 남긴다. 함수 본문은 건드리지 않는다. 롤백 파일은 기존 ACL을 그대로 되돌린다.
+- 두 함수는 저장소 마이그레이션에 없어 로컬 `supabase db reset`에는 존재하지 않는다. 그래서 회수·검증·롤백 GRANT를 모두 `to_regprocedure('<인자 타입까지 쓴 서명>') IS NOT NULL`일 때만 실행하는 DO 블록으로 감싼다(없으면 `RAISE NOTICE`). 서명이 틀려 운영에서 조용히 건너뛰는 일을 막기 위해, 운영 리허설과 적용 뒤 확인(체크리스트 A-post 3)에서는 두 `to_regprocedure`가 NOT NULL인지를 필수로 확인한다.
+
 **기존 결함 (이번 범위 밖, 기록만):**
-- 카카오 대사 경로의 부분취소(`payment-reconciliation-server.ts:473-479`, `PART_CANCEL_PAYMENT`)는 주문만 `manual_review`로 바꾸고 원천을 `active`로 둔다. 환불 요청도 만들지 않아 `complete_manual`로 해소할 수 없다. 카카오 health가 판매를 끄므로 묻히지는 않는다. 카카오 부분취소도 원천을 묶는 격리로 바꿀지는 사용자 결정 사항이다.
-- `consume_credits_once`, `refund_credits_once`에 anon 실행 권한이 있다. SECURITY INVOKER이고 크레딧 테이블에 anon 정책이 없어 실제 위험은 낮다. 권한 회수 여부는 사용자 결정 사항이다.
 - `refund_credits`가 원천 상태를 보지 않고 remaining을 복원한다.
 - `consume_credits`와 환불 함수의 잠금 순서가 서로 반대다.
 
@@ -525,14 +553,14 @@ route는 결과 코드로 이벤트 상태와 응답을 정한다(취소 표식�
 | 단계 | 내용 | 검증 |
 |---|---|---|
 | 0 | 토스를 읽는 테스트 목록 고정, 충돌 테스트 2개 정리 방침 확정 | 현재 실패 목록 baseline 기록 |
-| 1 | 마이그레이션 A(추가 + 기존 결함 수정): `payment_methods`와 초기 행, `'payapp'` CHECK, 복합 FK, runtime 컬럼(스위치 false), `prepare_payment_order` 재정의, `payment_provider_transactions` 전용 컬럼과 트리거, `payment_admin_actions`, 5.5의 새 RPC와 기존 RPC payapp 분기, `refund_requests_cancel_idempotency_key` partial 재생성, `get_my_payment_history` 재생성. 토스·카카오 동작은 그대로 | [`docs/payapp-db-migration-checklist.md`](payapp-db-migration-checklist.md)의 A-pre·A-post 전체. 로컬 `supabase db reset` + 계약 테스트 → 운영 리허설(`BEGIN … ROLLBACK`, 사용자 승인) → 적용(사용자 승인) |
+| 1 | 마이그레이션 A(추가 + 기존 결함 수정): `payment_methods`와 초기 행, `'payapp'` CHECK, 복합 FK, runtime 컬럼(스위치 false), `prepare_payment_order` 재정의, `payment_provider_transactions` 전용 컬럼과 트리거, `payment_admin_actions`, 5.5의 새 RPC와 기존 RPC payapp 분기, `refund_requests_cancel_idempotency_key` partial 재생성, `get_my_payment_history` 재생성, `record_kakaopay_partial_cancel_marker`·`quarantine_kakaopay_partial_cancellation`(호출은 단계 4), 대사 후보 ①의 카카오 확장, health 카카오 표식 블록, `*_credits_once` 실행 권한 회수. 토스·카카오 동작은 그대로 | [`docs/payapp-db-migration-checklist.md`](payapp-db-migration-checklist.md)의 A-pre·A-post 전체. 로컬 `supabase db reset` + 계약 테스트 → 운영 리허설(`BEGIN … ROLLBACK`, 사용자 승인) → 적용(사용자 승인) |
 | 2 | `payapp-server.ts` + 단위 테스트(응답 파싱, 통보 인증, 요청 파라미터) | 가짜 fetch로 정상·`state=0`·타임아웃 |
 | 3 | 주문·통보·복귀·상태 route와 결과 화면 | 가짜 통보 시나리오(아래) |
-| 4 | 대사 payapp 분기, 환불 payapp 분기, 수동 환불 완료와 `manual_review` 해소 관리자 UI | 대사·환불 계약 테스트, 성공·`state=0`·네트워크 오류별 상태 |
+| 4 | 대사 payapp 분기, 카카오 대사 부분취소와 환불 처리기의 카카오 부분취소 분기를 표식 기록 → `quarantine_kakaopay_partial_cancellation` 2단계 호출로 교체, 환불 payapp 분기, 수동 환불 완료와 `manual_review` 해소 관리자 UI | 대사·환불 계약 테스트, 성공·`state=0`·네트워크 오류별 상태 |
 | 5 | 결제 화면 UI 교체(9장), 결제내역 라벨 | 로컬 화면 확인(데스크톱·모바일 폭), 접근성(라벨·포커스·44px), 수단 변경 시 새 시도 ID |
 | 6 | 토스 코드·테스트·문구 제거, `env.local.example` 갱신 | `grep -ri toss src` 결과가 이력 라벨 외 0건, 전체 테스트 baseline 대비 신규 실패 0 |
 | 7 | 배포 → 마이그레이션 B2(정리): 토스 RPC 7개와 `toss_*` 컬럼 2개 drop, 토스 원천 환불 불가, `prepare_payment_order`의 `'toss'` 입력 거부. `payment_orders.mid`·`payment_key`, CHECK의 `'toss'`, 스냅샷 CHECK의 toss 분기는 남긴다 | 체크리스트 B-pre·B-post. Production과 살아 있는 Preview 배포가 토스 객체를 참조하지 않는지 확인 후 적용 |
-| 8 | 출시: 마이그레이션 B1(약관·푸터 문구, `jsonb_set` + md5 조건) → 기존 미해소 경보 해소(승인) → Vercel Production에 페이앱 변수 → 마이그레이션으로 `payapp_merchant_id` 설정과 `payapp_accepts_new_orders=true` → 운영자가 실결제 1건(카드) → 크레딧 지급 확인 → 관리자 환불 → 취소 통보 확인 | 체크리스트 출시 항목. 실패 시 마이그레이션으로 스위치 off |
+| 8 | 출시: 마이그레이션 B1(약관·푸터 문구, `jsonb_set` + md5 조건) → 미해소 경보 0건 확인 → Vercel Production에 페이앱 변수 → 마이그레이션으로 `payapp_merchant_id` 설정과 `payapp_accepts_new_orders=true` → 운영자가 실결제 1건(카드) → 크레딧 지급 확인 → 관리자 환불 → 취소 통보 확인 | 체크리스트 출시 항목. 실패 시 마이그레이션으로 스위치 off |
 
 단계 3의 가짜 통보 시나리오:
 - 정상 결제는 1회 지급된다.
@@ -563,6 +591,20 @@ route는 결과 코드로 이벤트 상태와 응답을 정한다(취소 표식�
 - 부분 회수 수동 완료에서 총 환불액 0은 입력 검증에서 거부된다.
 - 백오프가 커진 오래된 주문도 미처리 취소 표식이 생기면 다음 대사 회차에 처리된다.
 - 카카오 부분취소 `manual_review`도 회수량을 받아 수동 완료되고, 그 원천은 다시 환불 신청할 수 없다.
+- 카카오 대사 부분취소(표식 → `quarantine_kakaopay_partial_cancellation`):
+  - 미지급 주문은 `manual_review`만 되고 원천이 생기지 않으며 처리 시각이 남는다. 그 뒤 승인 콜백이 와도 지급되지 않는다.
+  - 대사가 미지급으로 읽은 뒤 승인 콜백이 지급을 끝내면 40001로 끝나고, 주문이 `completed`·열린 환불 없음이어도 표식 때문에 다음 회차 후보가 되어 지급된 주문 경로로 격리된다(원천이 `active`로 남지 않는다). 계약 테스트로 고정한다.
+  - 표식 기록 뒤 격리 함수가 실패(40P01·중단)해도 다음 회차에 처리된다. `reconcile_attempt_count`가 크고 `next_reconcile_at`이 미래여도 후보가 된다.
+  - 지급 + 환불 `retryable_failed`·`pending_review`·사용자 `manual_review`: 환불이 `manual_review`·`origin='partial_cancel'`, 원천 `pending_refund`, 주문 `manual_review`가 되고 처리 시각이 남아 후보에서 빠진다.
+  - 지급 + 환불 `processing`: 바로 `manual_review`·`origin='partial_cancel'`로 전환되고, 그 뒤 처리기의 `fail`은 아무것도 바꾸지 않는다.
+  - 환불 처리기가 사전 조회나 확정 실패 재조회에서 `PART_CANCEL_PAYMENT`를 보면 `fail` 뒤 격리되어 주문이 `manual_review`가 된다.
+  - 격리된 요청에 `finalize_point_charge_refund`를 부르면 `REFUND_REQUIRES_MANUAL_COMPLETION`으로 거부되고, `complete_manual`로만 끝난다.
+  - 거절된 요청이 있는 주문에도 새 `partial_cancel` 요청이 23505 없이 만들어진다.
+  - 주문 `manual_review`·원천 없음: 변경 없이 처리 시각만 남는다.
+  - 표식 미처리인 채 결제사 상태가 `CANCEL_PAYMENT`가 되면, 한 회차 뒤 `partial_cancel` 격리(또는 `refunded`·`external_cancel`이면 처리 시각만)로 끝나고 후보에서 빠진다. `reconcileCancellation`·외부 전취소 격리는 타지 않는다.
+  - 같은 주문을 두 번 처리해도 요청·알림이 1건이다. 대사가 처리 시각을 설정한 뒤 환불 처리기가 두 RPC를 다시 불러도 트리거 예외 없이 성공한다.
+  - 표식 미처리 + 조회 결과가 스냅샷과 어긋남 → 한 회차 뒤 격리되고 처리 시각이 남는다.
+  - 표식 미처리 + 원천 `active` 10분이면 카카오 판매가 꺼진다. 기존 카카오 health 블록 본문은 그대로다.
 - 부분 회수 수동 완료 뒤 남은 크레딧은 다시 쓸 수 있고, 원장·감사 기록이 사용·회수·잔여를 따로 보여 준다.
 - 대사 후보 수정 전후로 카카오·토스 후보 집합이 같다.
 - 취소 처리 실패 대체 처리는 이미 환불된 원천을 되살리지 않는다.
@@ -690,3 +732,8 @@ route는 결과 코드로 이벤트 상태와 응답을 정한다(취소 표식�
   - (환불 5회차 major 1·minor 5) 미처리 취소 표식 후보를 백오프 밖으로, 카카오 부분취소 회수량 인자와 재신청 차단, 총 환불액 정의, 결제내역 부분 환불 표시. P 중 부분취소와 health 조건 4의 겹침은 '원천 active일 때만' 규칙으로 이미 해소됨
 - 2026-10-19 6회차 재검증: 마이그레이션 PASS(minor 3), 환불 PASS(minor 3) 반영 — 재신청 차단 reason_code를 기존 `REFUND_SOURCE_NOT_ACTIVE`로 정하고 RPC 표에 명시, `refunded_amount` 스칼라 서브쿼리(`source_id` 기준), 출시 쿼리 `blocks_launch`, 후보 정렬 회전 근거
 - 2026-10-19 6회차 재검증 결과: 결제·지급 PASS, 환불·취소 PASS, 마이그레이션 PASS. 남은 minor는 반영했다(후보 순환 계약 테스트, 보류 결과 매핑, 카카오 대사 부분취소·`*_credits_once` 권한을 기존 결함으로 기록).
+- 2026-10-19 사용자 결정 반영: 카카오 대사 부분취소를 `quarantine_kakaopay_partial_cancellation`으로 격리(운영 함수 재확인으로 실제 결함을 '완료 주문 건너뜀으로 인한 반복·미기록과 지급 경합'으로 정정), `*_credits_once` 실행 권한 회수를 마이그레이션 A에 포함, 미해소 경보 2건 해소 완료.
+- 2026-10-19 사용자 결정분 검증 1회차(지급: major 1·minor 3, 마이그레이션: major 1·minor 4) 반영: 카카오 부분취소를 표식 → 격리 2단계로 바꾸고 대사 후보 ①을 카카오에 확장(40001·교착·중단 뒤 후보 이탈 방지), 주문 `manual_review`·원천 없음 분기 정의, health 효과 확대 명시와 카카오 표식 블록, `*_credits_once` 회수의 `to_regprocedure` 존재 가드와 운영 필수 확인, 롤백 GRANT 목록·롤백 조건(단계 4 배포 전, 격리 origin 0건), 리허설 예외 확인 방법·한 번 호출. (환불: major 2·minor 3) `processing` 환불도 바로 격리(멈춘 환불 방지), 환불 처리기의 카카오 부분취소 분기 연결, `origin='partial_cancel'` 요청의 `finalize` 거부, `refund_amount` 의미 통일, `provider_status` 기록과 종료 경로, INSERT 키·열린 환불 정의.
+- 사용자 결정분 검증 2회차(환불: major 1·minor 2) 반영: 표식 미처리 + 결제사 `CANCEL_PAYMENT`도 같은 격리로 끝내도록 대사 카카오 분기에서 표식을 먼저 확인, ③ 멱등 분기의 처리 시각 설정 명시, 카카오 표식 블록의 `refunded` 원천, 리허설 ⑦ 서브트랜잭션.
+- 사용자 결정분 검증 2회차(지급: major 1·minor 2, 마이그레이션: PASS·minor 3) 반영: 표식이 있으면 조회 상태·스냅샷과 무관하게 격리로 닫음, 처리 시각 `COALESCE`, 후보 의사식 카카오 포함, health 반환식·비교 범위, 단계 4 코드 되돌림 전 미처리 표식 0건 확인, 롤백 조건 "세 조건", 예외 확인 일반화.
+- 사용자 결정분 검증 3회차: 마이그레이션 PASS(minor 1), 환불 PASS(minor 3) 반영 — 리허설 ④를 표식 RPC·격리 RPC 계약별로 나누고 ⑧(`CANCEL_PAYMENT`로 닫기) 추가, ③의 `provider_status` 문구 통일, 원천 없는 카카오 부분취소 `manual_review`의 `cancel_handled` 해소 경로.

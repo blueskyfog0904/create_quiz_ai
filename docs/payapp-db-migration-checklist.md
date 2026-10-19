@@ -22,9 +22,12 @@
 8. **CHECK 교체:** 대상 테이블이 12행 이하로 작으므로, 한 `ALTER TABLE` 문에서 DROP과 ADD를 하고 바로 validated 상태로 둔다.
 9. **파일명:** 적용 직후 `list_migrations`에 기록된 버전으로 로컬 파일명을 바꾼다.
 10. **롤백 범위:**
-    - A는 다음 두 조건이 모두 0건일 때만 롤백할 수 있다. 그 뒤로는 스위치를 끄고 앞으로 고치는 방식(forward-fix)만 한다.
+    - A는 다음 세 조건이 모두 0건일 때만 롤백할 수 있다. 그 뒤로는 스위치를 끄고 앞으로 고치는 방식(forward-fix)만 한다.
       - payapp 행: `select count(*) from payment_orders where provider='payapp'`
       - 같은 환불 키 중복(전체 unique 복원 불가 판정): `select cancel_idempotency_key from refund_requests where cancel_idempotency_key is not null group by 1 having count(*) > 1`
+      - 격리 origin 환불: `select count(*) from refund_requests where origin <> 'user'`(origin 컬럼이 사라지면 격리 건이 일반 `manual_review`처럼 보여 거절될 수 있다)
+    - 그리고 단계 4 코드(`quarantine_kakaopay_partial_cancellation` 호출)가 배포되기 전이어야 한다. 이미 배포됐으면 코드를 먼저 되돌린 뒤 롤백한다.
+    - 단계 4 코드를 되돌리기 전에(A 유지 여부와 무관) 미처리 카카오 표식이 0건인지 확인한다: `select count(*) from payment_provider_transactions ppt join payment_orders po on po.id = ppt.payment_order_id where po.provider = 'kakaopay' and ppt.partial_cancel_feedback_recorded_at is not null and ppt.partial_cancel_processed_at is null`. 0건이 아니면 이전 코드는 표식을 처리하지 못하므로(매 회차 재조회, 원천 `active`면 판매 중지) 되돌리지 않고 forward-fix한다.
     - A 롤백 파일에는 다음이 모두 들어간다.
       - 교체한 함수의 이전 정의와 GRANT/REVOKE 문
       - 새로 만든 객체의 DROP 문(신규 함수 전부, 지급 내부 함수, `payment_methods`, `payment_admin_actions`, 새 컬럼, 복합 FK, 새 CHECK, 새 인덱스, 새 트리거)
@@ -67,12 +70,12 @@
        'claim_payment_reconciliation_batch','payment_reconciliation_backlog_count',
        'prevent_payment_order_snapshot_update','prevent_payment_provider_identifier_replacement');
      ```
-   - 같은 함수들의 권한을 복원할 GRANT 문을 만든다.
+   - 같은 함수들과 `consume_credits_once`, `refund_credits_once`의 권한을 복원할 GRANT 문을 만든다(아래 두 쿼리의 목록에 두 함수를 넣는다).
      ```sql
      select p.oid::regprocedure, p.proacl::text from pg_proc p
      where p.pronamespace='public'::regnamespace and p.prokind='f' and p.proname in (<위 목록>);
      ```
-     롤백 파일에 붙일 GRANT 문은 아래 쿼리로 바로 만든다. CREATE OR REPLACE는 ACL을 유지하므로, 실제 복원이 필요한 것은 DROP 후 다시 만드는 3개(`prepare_payment_order`, `get_my_payment_history`, `get_my_refund_requests`)다.
+     롤백 파일에 붙일 GRANT 문은 아래 쿼리로 바로 만든다. CREATE OR REPLACE는 ACL을 유지하므로, 실제 복원이 필요한 것은 DROP 후 다시 만드는 3개(`prepare_payment_order`, `get_my_payment_history`, `get_my_refund_requests`)와 권한을 회수하는 `*_credits_once` 2개다. 2개의 기대 출력은 `consume_credits_once` → PUBLIC·anon·authenticated·service_role, `refund_credits_once` → anon·service_role이다. 이 2개의 GRANT는 롤백 파일에서도 `to_regprocedure(…) IS NOT NULL` DO 블록으로 감싼다.
      ```sql
      select format('GRANT EXECUTE ON FUNCTION %s TO %s;', p.oid::regprocedure,
             case when a.grantee = 0 then 'PUBLIC' else quote_ident(pg_get_userbyid(a.grantee)) end)
@@ -89,7 +92,7 @@
      ```
 6. 로컬에서 `supabase db reset`을 한 뒤 마이그레이션 계약 테스트를 통과시킨다.
 7. 대사 후보 식을 비교할 준비를 한다. `claim_payment_reconciliation_batch`의 이전 후보 식을 SELECT로 옮겨 적고, 적용 전 `payment_reconciliation_backlog_count()` 값을 기록한다(현재 0).
-8. 운영 리허설을 한다(사용자 승인 필요). `BEGIN; <A 전문>; <A-post 검증>; ROLLBACK;`으로 실행한다. 리허설 중에도 DDL 잠금이 잠깐 걸린다.
+8. 운영 리허설을 한다(사용자 승인 필요). `BEGIN; <A 전문>; <A-post 검증>; ROLLBACK;`으로 실행한다. 리허설 중에도 DDL 잠금이 걸리므로, 대화형으로 나누지 않고 `execute_sql` 한 번 호출로 끝까지 보낸다(A-post 13·14의 임시 행 생성까지 포함).
 
 ## A-post (마이그레이션 안의 검증 블록 + 적용 후 재확인)
 
@@ -113,7 +116,9 @@
    ```
    - (b) 목록에서 빼는 것: 트리거 함수(`prorettype='trigger'::regtype`, INVOKER), (c)의 `get_my_*` 2개. 이것들을 넣으면 검증 블록이 항상 롤백된다.
    - 지급 내부 함수는 (b)에 넣되, 추가로 `proacl`이 정확히 `{postgres=X/postgres}`인지 확인한다(`service_role=X`가 없어야 한다).
-   - 범위 밖 기존 문제: `refund_credits_once`에 `anon=X`가 있다(SECURITY INVOKER). 따로 보고·처리한다.
+   - `consume_credits_once`, `refund_credits_once`(SECURITY INVOKER라 (a)에 안 잡힘): `proacl`에 `=X`·`anon=X`·`authenticated=X`가 없고 `service_role=X`는 있다(마이그레이션 A에서 회수).
+     - 파일 안 회수와 검증 블록은 `to_regprocedure('public.consume_credits_once(uuid,integer,text,uuid,text,text)')`, `to_regprocedure('public.refund_credits_once(uuid,integer,text,uuid,text,text,text,integer)')`가 NOT NULL일 때만 실행한다(로컬에는 두 함수가 없다). `'…'::regprocedure` 캐스팅은 로컬에서 실패하므로 쓰지 않는다.
+     - 운영 리허설과 적용 뒤에는 두 `to_regprocedure`가 **NOT NULL인지 필수로 확인**한다(서명 오타로 회수가 조용히 건너뛰어지는 것을 막는다).
 4. `payment_methods`와 `payment_admin_actions`: RLS가 켜져 있고, ACL에 anon·authenticated가 없으며, service_role은 SELECT만 있다. `payment_methods`는 5행이다. `payment_admin_actions`의 참조 컬럼(주문·환불·처리자 id)은 FK 없이 uuid만 저장한다(FK의 SET NULL·CASCADE가 append-only 트리거와 충돌하고, RESTRICT는 계정 삭제를 막기 때문).
 5. CHECK 6개(provider 5곳 + 스냅샷)에 `'payapp'`이 들어 있고 모두 `convalidated=true`다. 복합 FK와 `provider <> 'payapp' OR payment_method_code IS NOT NULL` CHECK가 있다.
 6. `refund_requests_cancel_idempotency_key`가 열린 상태로 한정된 partial unique다.
@@ -121,15 +126,16 @@
 8. 트리거 함수가 반영됐다.
    - `prevent_payment_order_snapshot_update`에 `payment_method_code`가 있다.
    - `prevent_payment_provider_identifier_replacement`에 결제완료·취소 표식 컬럼이 있다.
-9. health 함수의 카카오페이 블록이 저장해 둔 이전 정의와 같다(계약 테스트). 반환 키 `kakaopay_disabled`도 유지된다.
+9. health 함수의 카카오페이 블록이 저장해 둔 이전 정의와 같다(계약 테스트). 반환 키 `kakaopay_disabled`도 유지된다. 카카오 부분취소 표식 블록은 그 밖에 따로 있다.
 10. 호환 smoke test:
     - **(사용자 승인 필요)** 토스 test 결제 1건을 주문 생성 → 승인 → 지급까지 진행한다(현재 test 모드). 운영 DB에 주문·크레딧·결제내역 행이 실제로 생기므로, 끝난 뒤 그 건을 관리자 환불로 정리할지 남길지 미리 정한다.
     - 다음 cron 뒤 `payment_reconciliation_runs` 최근 2건이 succeeded이고 `payment_reconciliation_scheduler.consecutive_failures=0`이다.
     - 결제내역 페이지 2곳(`/mypage/payments`, legacy)이 정상이다.
 11. 출시 1의 두 쿼리(미지급 판정, 취소 표식 미처리)를 한 번 실행해 문법을 확인한다(새 컬럼이 생긴 뒤라야 실행된다).
-12. 대사 후보 비교: 이전 식과 새 식을 각각 SELECT로 실행해 양방향 `EXCEPT`가 모두 0건이다(현재 payapp 행이 없으므로 같아야 한다). `payment_reconciliation_backlog_count()`가 적용 전 값과 같다.
+12. 대사 후보 비교: 이전 식과 새 식을 각각 SELECT로 실행해 양방향 `EXCEPT`가 모두 0건이다(현재 payapp 행과 카카오 부분취소 표식이 없으므로 같아야 한다). `payment_reconciliation_backlog_count()`가 적용 전 값과 같다.
 13. `refund_requests.origin` 트리거: `'user'→'external_cancel'` UPDATE는 되고, `'external_cancel'→'user'`는 예외가 나는지 리허설 트랜잭션 안에서 확인한다.
-14. `list_migrations` 버전으로 파일명을 바꾼다.
+14. `record_kakaopay_partial_cancel_marker`, `quarantine_kakaopay_partial_cancellation`: (b) 목록에 들어 있다. 리허설 트랜잭션 안에서 임시 카카오 주문으로 ① 미지급 → 표식 기록 → 주문만 `manual_review`, 처리 시각 설정 ② 지급 + 사용자 환불 `pending_review` → 표식 기록 뒤 대사 후보 식에 잡힘 → 격리 후 환불 `manual_review`·`origin='partial_cancel'`, 원천 `pending_refund`, 처리 시각 설정, 후보 식에서 빠짐 ③ 같은 호출 반복 → 알림·요청 수 변화 없음 ⑤ 거절된 요청이 있는 주문에서 새 `partial_cancel` 요청 생성(23505 없음) ⑥ 지급 + 환불 `processing` → 바로 `partial_cancel` 전환 ⑦ 격리 요청에 `finalize_point_charge_refund` → 예외 ⑧ 표식 미처리 + 격리 RPC를 `'CANCEL_PAYMENT'`로 호출 → 격리 완료, 처리 시각 설정, `provider_status='CANCEL_PAYMENT'` ④-a 표식 RPC에 `'PART_CANCEL_PAYMENT'`가 아닌 값 → 예외 ④-b 격리 RPC에 빈 상태 값 → 예외 ④-c 표식 없이 격리 RPC 호출 → 예외, 를 확인하고 롤백한다. 예외를 기대하는 확인(④·⑦·13번, 그 밖에 넣는 예외 확인 전부)은 `DO $$ BEGIN PERFORM …; RAISE EXCEPTION 'EXPECTED_ERROR_NOT_RAISED'; EXCEPTION WHEN <기대 SQLSTATE> THEN NULL; END $$`처럼 서브트랜잭션 안에서 한다(그냥 호출하면 리허설 트랜잭션이 abort돼 뒤 검증이 돌지 않는다).
+15. `list_migrations` 버전으로 파일명을 바꾼다.
 
 ## B1 (약관·푸터 문구, 출시 직전)
 
@@ -202,7 +208,7 @@
          or (ppt.partial_cancel_feedback_recorded_at <= now() - interval '10 minutes' and ppt.partial_cancel_processed_at is null));
      ```
      - 0건이 아니면 원천 상태를 확인한다. 원천이 `active`인 건이 있으면 출시를 멈추고, `pending_refund`이거나 원천이 없는 건은 처리를 끝낸 뒤 출시한다.
-   - 미해소 경보가 없다(기존 2건은 승인을 받아 해소).
+   - 미해소 경보가 0건이다(기존 2건은 2026-10-19 `20261019061626`으로 해소함). 새로 생긴 경보가 있으면 원인을 확인한 뒤 출시한다.
 2. **스위치 마이그레이션:**
    - `payapp_merchant_id`를 설정하고 `payapp_accepts_new_orders=true`로 바꾼다.
    - `changed_by`, `change_ticket`을 기록하고, 이전 값을 주석에 남긴다.
