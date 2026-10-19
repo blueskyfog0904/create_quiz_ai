@@ -490,7 +490,7 @@ route는 결과 코드로 이벤트 상태와 응답을 정한다(취소 표식�
   - 약관·푸터 문구는 DB(`system_settings`의 footer content)에 있으므로 마이그레이션으로 수정한다(하드코딩 금지). `src/lib/footer-content.ts`의 기본값도 맞춘다.
   - 결제대행사 표기(상호·사업자 정보)는 사용자 확인 값을 받는다.
 - 환경변수 삭제(Vercel·`.env.local`·`env.local.example`): `TOSS_PAYMENTS_ENABLED`, `NEXT_PUBLIC_TOSS_CLIENT_KEY`, `TOSS_SECRET_KEY`, `TOSS_MID`, `NEXT_PUBLIC_TOSS_PAYMENT_WIDGET_VARIANT_KEY`, `NEXT_PUBLIC_TOSS_AGREEMENT_VARIANT_KEY`, `TOSS_WEBHOOK_TOKEN`. `PAYMENTS_ENABLED`는 배포 단위 전체 차단용으로 유지한다.
-- 테스트: 토스를 읽는 테스트를 페이앱 기준으로 교체하거나 삭제한다. 대상은 `payment-confirm`, `payment-order`, `payment-reconciliation`, `provider-reconciliation-scheduler`, `provider-refund-processing`, `toss-refund-workflow`, `payment-provider-schema`, `checkout-payment-methods`, `credit-mutation-snapshot`, `credit-source-category`, `payment-history-filter`, `point-charge-operations`, `payment-provider-policy`, `point-charge-compliance-ui` 등이며, 정확한 목록은 단계 0에서 `grep -il toss tests`로 고정한다.
+- 테스트: 토스를 읽는 테스트를 페이앱 기준으로 교체하거나 삭제한다. 대상은 `payment-confirm`, `payment-order`, `payment-reconciliation`, `provider-reconciliation-scheduler`, `provider-refund-processing`, `toss-refund-workflow`, `payment-provider-schema`, `checkout-payment-methods`, `credit-mutation-snapshot`, `credit-source-category`, `payment-history-filter`, `point-charge-operations`, `payment-provider-policy`, `point-charge-compliance-ui` 등이며, 정확한 목록은 단계 0에서 고정했다([`payapp-phase0-baseline.md`](payapp-phase0-baseline.md) 4장, `footer-content`·`admin-phase1a-contract` 추가로 16개, 단언은 읽는 파일을 바꾸는 단계에서 교체).
 - 토스 전용 docs 3개(`docs/tosspayments-*.md`)를 읽는 테스트는 이 문서 기준으로 바꾼다. `docs/toss-kakaopay-dual-payment-implementation-plan.md`는 이력으로 남긴다.
 
 ## 8. 환경변수와 외부 설정
@@ -552,7 +552,7 @@ route는 결과 코드로 이벤트 상태와 응답을 정한다(취소 표식�
 
 | 단계 | 내용 | 검증 |
 |---|---|---|
-| 0 | 토스를 읽는 테스트 목록 고정, 충돌 테스트 2개 정리 방침 확정 | 현재 실패 목록 baseline 기록 |
+| 0 | 토스를 읽는 테스트 목록 고정, 충돌 테스트 2개 정리 방침 확정 | 현재 실패 목록 baseline 기록. 완료: [`payapp-phase0-baseline.md`](payapp-phase0-baseline.md) (1169개 중 실패 48, 타입 오류 0) |
 | 1 | 마이그레이션 A(추가 + 기존 결함 수정): `payment_methods`와 초기 행, `'payapp'` CHECK, 복합 FK, runtime 컬럼(스위치 false), `prepare_payment_order` 재정의, `payment_provider_transactions` 전용 컬럼과 트리거, `payment_admin_actions`, 5.5의 새 RPC와 기존 RPC payapp 분기, `refund_requests_cancel_idempotency_key` partial 재생성, `get_my_payment_history` 재생성, `record_kakaopay_partial_cancel_marker`·`quarantine_kakaopay_partial_cancellation`(호출은 단계 4), 대사 후보 ①의 카카오 확장, health 카카오 표식 블록, `*_credits_once` 실행 권한 회수. 토스·카카오 동작은 그대로 | [`docs/payapp-db-migration-checklist.md`](payapp-db-migration-checklist.md)의 A-pre·A-post 전체. 로컬 `supabase db reset` + 계약 테스트 → 운영 리허설(`BEGIN … ROLLBACK`, 사용자 승인) → 적용(사용자 승인) |
 | 2 | `payapp-server.ts` + 단위 테스트(응답 파싱, 통보 인증, 요청 파라미터) | 가짜 fetch로 정상·`state=0`·타임아웃 |
 | 3 | 주문·통보·복귀·상태 route와 결과 화면 | 가짜 통보 시나리오(아래) |
