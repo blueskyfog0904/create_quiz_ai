@@ -54,19 +54,17 @@ test('user refund route uses strict input and the database eligibility decision'
   assert.doesNotMatch(requestRoute, /CreditService/)
 })
 
-test('admin approval delegates to a processor that cancels Toss before local completion', () => {
+test('admin approval delegates to a processor that cancels at the provider before local completion', () => {
   const claimIndex = refundProcessor.indexOf('claimed = await claimPointChargeRefund')
-  const cancelIndex = refundProcessor.indexOf(
-    'const canceledPayment = await cancelTossPayment'
-  )
+  const cancelIndex = refundProcessor.indexOf('await cancelPayAppPayment(')
   const finalizeIndex = refundProcessor.indexOf(
     'const result = await finalizePointChargeRefund'
   )
 
   assert.ok(claimIndex >= 0)
+  assert.ok(cancelIndex >= 0)
   assert.ok(finalizeIndex > cancelIndex)
   assert.match(adminRoute, /processPointChargeRefund/)
-  assert.match(refundProcessor, /cancel_idempotency_key/)
   assert.match(refundProcessor, /failPointChargeRefund/)
   assert.doesNotMatch(adminRoute, /CreditService\.approveRefund/)
 })

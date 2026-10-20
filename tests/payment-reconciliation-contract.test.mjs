@@ -11,15 +11,16 @@ const migration = read(
   '../supabase/migrations/20260805130000_create_payment_webhook_events.sql'
 )
 const webhookRoute = read(
-  '../src/app/api/payments/webhooks/toss/route.ts'
+  '../src/app/api/payments/webhooks/payapp/route.ts'
 )
+const webhookHandler = read('../src/lib/payapp-webhook-server.ts')
 const reconcileRoute = read(
   '../src/app/api/internal/payments/reconcile/route.ts'
 )
 const reconciliationServer = read(
   '../src/lib/payment-reconciliation-server.ts'
 )
-const tossServer = read('../src/lib/toss-payments-server.ts')
+const payappServer = read('../src/lib/payapp-server.ts')
 
 test('webhook transmissions are durable, deduplicated, and private', () => {
   assert.match(migration, /create table public\.payment_webhook_events/i)
@@ -31,25 +32,22 @@ test('webhook transmissions are durable, deduplicated, and private', () => {
   )
 })
 
-test('Toss payment webhook persists for asynchronous provider reconciliation', () => {
-  assert.match(webhookRoute, /tosspayments-webhook-transmission-id/i)
-  assert.match(webhookRoute, /TOSS_WEBHOOK_TOKEN/)
-  assert.match(webhookRoute, /timingSafeEqual/)
-  assert.match(webhookRoute, /PAYMENT_STATUS_CHANGED/)
-  assert.match(webhookRoute, /z\.object/)
-
-  assert.match(webhookRoute, /\.from\('payment_webhook_events'\)/)
-  assert.match(webhookRoute, /accepted:\s*true/)
-  assert.doesNotMatch(webhookRoute, /reconcilePaymentOrder/)
+test('PayApp payment webhook is authenticated and durably recorded', () => {
+  assert.match(webhookRoute, /handlePayAppFeedback/)
+  assert.match(payappServer, /timingSafeEqual/)
+  assert.match(payappServer, /PAYAPP_LINKVAL/)
+  assert.match(webhookHandler, /verifyPayAppFeedback/)
+  assert.match(webhookHandler, /\.from\('payment_webhook_events'\)/)
+  assert.doesNotMatch(webhookHandler, /reconcilePaymentOrder/)
 })
 
-test('reconciliation trusts a fresh Toss lookup, not webhook payment state', () => {
-  assert.match(tossServer, /getTossPaymentByPaymentKey/)
-  assert.match(reconciliationServer, /getTossPaymentByPaymentKey/)
-  assert.match(reconciliationServer, /validateReconciledTossPayment/)
-  assert.match(reconciliationServer, /finalize_toss_payment/)
+test('reconciliation uses stored PayApp records and fresh KakaoPay lookups', () => {
+  assert.match(reconciliationServer, /retry_payapp_fulfillment/)
+  assert.match(reconciliationServer, /mark_payapp_order_terminal/)
+  assert.match(reconciliationServer, /getKakaoPayOrder/)
   assert.match(reconciliationServer, /finalizePointChargeRefund/)
   assert.match(reconciliationServer, /manual_review/)
+  assert.doesNotMatch(reconciliationServer, /getTossPaymentByPaymentKey|finalize_toss_payment/)
 })
 
 test('internal reconcile job is secret-protected and bounded', () => {

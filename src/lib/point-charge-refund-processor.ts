@@ -19,13 +19,6 @@ import {
   RefundRpcError,
   type ClaimedPointChargeRefund,
 } from '@/lib/point-charge-refunds-server'
-import {
-  cancelTossPayment,
-  getCompletedFullCancellation,
-  getTossPaymentByPaymentKey,
-  TossPaymentsError,
-  validateTossRefundPaymentSnapshot,
-} from '@/lib/toss-payments-server'
 
 export class PointChargeRefundProcessingError extends Error {
   readonly code: string
@@ -88,15 +81,6 @@ function normalizeRefundError(error: unknown) {
     })
   }
 
-  if (error instanceof TossPaymentsError) {
-    return new PointChargeRefundProcessingError({
-      code: error.code,
-      message: error.message,
-      status: error.status,
-      retryable: error.status === 408 || error.status === 429 || error.status >= 500,
-    })
-  }
-
   return new PointChargeRefundProcessingError({
     code: 'REFUND_PROCESSING_FAILED',
     message:
@@ -106,53 +90,6 @@ function normalizeRefundError(error: unknown) {
     status: 502,
     retryable: true,
   })
-}
-
-async function processTossRefund(
-  claimed: ClaimedPointChargeRefund,
-  cancelReason: string
-) {
-  if (
-    !claimed.payment_key ||
-    !claimed.provider_order_id ||
-    !claimed.provider_merchant_id ||
-    !claimed.cancel_idempotency_key ||
-    !claimed.refund_amount
-  ) {
-    throw invalidRefundSnapshot()
-  }
-
-  const expected = {
-    paymentKey: claimed.payment_key,
-    orderId: claimed.provider_order_id,
-    amount: claimed.refund_amount,
-    mid: claimed.provider_merchant_id,
-  }
-  const currentPayment = await getTossPaymentByPaymentKey(claimed.payment_key)
-  validateTossRefundPaymentSnapshot(currentPayment, expected)
-
-  if (currentPayment.status === 'CANCELED') {
-    return {
-      ...getCompletedFullCancellation(currentPayment, claimed.refund_amount),
-      providerStatus: 'CANCELED',
-    }
-  }
-
-  if (currentPayment.status !== 'DONE') {
-    throw invalidRefundSnapshot('환불할 일반결제 상태를 확인할 수 없습니다.')
-  }
-
-  const canceledPayment = await cancelTossPayment({
-    paymentKey: claimed.payment_key,
-    cancelReason,
-    idempotencyKey: claimed.cancel_idempotency_key,
-  })
-  validateTossRefundPaymentSnapshot(canceledPayment, expected)
-
-  return {
-    ...getCompletedFullCancellation(canceledPayment, claimed.refund_amount),
-    providerStatus: 'CANCELED',
-  }
 }
 
 // 페이앱은 전취소만 한다. state=0(정산 후·휴대폰 당월 경과 등)은 수동 처리로 넘어간다.
@@ -301,20 +238,15 @@ export async function processPointChargeRefund(input: {
       return { alreadyCompleted: true, claimed, newBalance: null }
     }
 
-    const cancellation = claimed.provider === 'toss'
-      ? await processTossRefund(
-          claimed,
-          input.adminNote || '충전 크레딧 환불 승인'
-        )
-      : claimed.provider === 'kakaopay'
-        ? await processKakaoPayRefund(claimed, () => {
-            kakaoCancelAttempted = true
-          })
-        : claimed.provider === 'payapp'
-          ? await processPayAppRefund(claimed)
-          : (() => {
-              throw invalidRefundSnapshot('지원하지 않는 결제수단입니다.')
-            })()
+    const cancellation = claimed.provider === 'kakaopay'
+      ? await processKakaoPayRefund(claimed, () => {
+          kakaoCancelAttempted = true
+        })
+      : claimed.provider === 'payapp'
+        ? await processPayAppRefund(claimed)
+        : (() => {
+            throw invalidRefundSnapshot('지원하지 않는 결제수단입니다.')
+          })()
 
     const result = await finalizePointChargeRefund({
       requestId: input.requestId,

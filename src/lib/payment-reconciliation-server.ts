@@ -27,13 +27,6 @@ import {
   type KakaoOrderResponse,
   KakaoPayError,
 } from '@/lib/kakaopay-server'
-import {
-  getCompletedFullCancellation,
-  getTossPaymentByPaymentKey,
-  isAllowedPointChargeMethod,
-  type TossPayment,
-  TossPaymentsError,
-} from '@/lib/toss-payments-server'
 
 export type PaymentReconciliationOutcome =
   | 'already_completed'
@@ -76,19 +69,6 @@ const KAKAO_FAILED_STATUSES = [
 
 function isPast(value: string | null) {
   return Boolean(value && Date.parse(value) <= Date.now())
-}
-
-function validateReconciledTossPayment(
-  payment: TossPayment,
-  order: PaymentOrderRow
-) {
-  return (
-    payment.paymentKey === order.payment_key &&
-    payment.orderId === order.order_id &&
-    payment.totalAmount === order.expected_amount &&
-    payment.currency === 'KRW' &&
-    payment.mId === order.provider_merchant_id
-  )
 }
 
 async function markTerminal(input: {
@@ -191,130 +171,6 @@ async function reconcileCancellation(input: {
     providerStatus: input.providerStatus,
   })
   return 'manual_review' as const
-}
-
-async function reconcileTossPayment(order: PaymentOrderRow) {
-  if (!order.payment_key) {
-    if (isPast(order.checkout_expires_at)) {
-      await markTerminal({
-        order,
-        status: 'expired',
-        providerStatus: null,
-        code: 'TOSS_CHECKOUT_EXPIRED',
-        message: '결제 승인 없이 일반결제 유효시간이 만료되었습니다.',
-      })
-      return 'payment_expired' as const
-    }
-    return 'provider_not_final' as const
-  }
-
-  const payment = await getTossPaymentByPaymentKey(order.payment_key)
-  if (!validateReconciledTossPayment(payment, order)) {
-    return markManualReview(
-      order,
-      payment.status,
-      'PAYMENT_RECONCILIATION_MISMATCH',
-      'Toss 조회 결과와 저장된 주문 정보가 일치하지 않습니다.'
-    )
-  }
-
-  if (payment.status === 'DONE') {
-    if (order.status === 'completed') {
-      return 'already_completed' as const
-    }
-
-    if (
-      !payment.approvedAt ||
-      !isAllowedPointChargeMethod(payment) ||
-      !['confirming', 'fulfillment_pending'].includes(order.status)
-    ) {
-      return markManualReview(
-        order,
-        payment.status,
-        'PAYMENT_RECONCILIATION_REQUIRES_REVIEW',
-        '승인 결제의 지급 조건을 자동으로 확정할 수 없습니다.'
-      )
-    }
-
-    const admin = createPaymentAdminClient()
-    const { data, error } = await admin.rpc('finalize_toss_payment', {
-      p_payment_order_id: order.id,
-      p_payment_key: payment.paymentKey,
-      p_provider_method: payment.method,
-      p_provider_status: payment.status,
-      p_mid: order.provider_merchant_id,
-      p_approved_at: payment.approvedAt,
-    })
-
-    if (error || !data) {
-      throw new Error('PAYMENT_FULFILLMENT_RETRY_REQUIRED')
-    }
-    return 'payment_fulfilled' as const
-  }
-
-  if (payment.status === 'CANCELED') {
-    const cancellation = getCompletedFullCancellation(
-      payment,
-      order.expected_amount
-    )
-    return reconcileCancellation({
-      order,
-      transactionKey: cancellation.transactionKey,
-      cancelledAt: cancellation.canceledAt,
-      providerStatus: payment.status,
-    })
-  }
-
-  if (payment.status === 'PARTIAL_CANCELED') {
-    return markManualReview(
-      order,
-      payment.status,
-      'TOSS_PARTIAL_CANCELLATION_REQUIRES_REVIEW',
-      '부분 취소된 일반결제는 수동 확인이 필요합니다.'
-    )
-  }
-
-  if (payment.status === 'ABORTED') {
-    await markTerminal({
-      order,
-      status: 'failed',
-      providerStatus: payment.status,
-      code: 'PROVIDER_ABORTED',
-      message: '일반결제가 승인되지 않고 종료되었습니다.',
-    })
-    return 'payment_failed' as const
-  }
-
-  if (payment.status === 'EXPIRED') {
-    await markTerminal({
-      order,
-      status: 'expired',
-      providerStatus: payment.status,
-      code: 'PROVIDER_EXPIRED',
-      message: '일반결제 유효시간이 만료되었습니다.',
-    })
-    return 'payment_expired' as const
-  }
-
-  if (['READY', 'IN_PROGRESS'].includes(payment.status)) {
-    return 'provider_not_final' as const
-  }
-
-  if (payment.status === 'WAITING_FOR_DEPOSIT') {
-    return markManualReview(
-      order,
-      payment.status,
-      'TOSS_UNSUPPORTED_VIRTUAL_ACCOUNT',
-      '지원하지 않는 가상계좌 상태가 확인되었습니다.'
-    )
-  }
-
-  return markManualReview(
-    order,
-    payment.status,
-    'TOSS_UNKNOWN_STATUS',
-    '알 수 없는 일반결제 상태가 확인되었습니다.'
-  )
 }
 
 async function getKakaoProviderTransaction(paymentOrderId: string) {
@@ -916,9 +772,6 @@ export async function reconcilePaymentOrder(
   }
 
   const order = orderData as PaymentOrderRow
-  if (order.provider === 'toss') {
-    return reconcileTossPayment(order)
-  }
   if (order.provider === 'kakaopay') {
     return reconcileKakaoPayPayment(order)
   }
@@ -936,7 +789,6 @@ export async function reconcilePaymentOrder(
 function getReconciliationError(error: unknown) {
   if (
     error instanceof KakaoPayError ||
-    error instanceof TossPaymentsError ||
     error instanceof PayAppError ||
     error instanceof RefundRpcError
   ) {

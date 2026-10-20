@@ -61,7 +61,8 @@ export interface RefundRequest {
         | 'rejected'
         | 'retryable_failed'
         | 'manual_review'
-    provider: 'toss' | 'kakaopay' | 'payapp'
+    // 'toss'는 과거 결제 이력용이다.
+    provider: 'kakaopay' | 'payapp' | 'toss'
     origin: 'user' | 'external_cancel' | 'partial_cancel'
     admin_note: string | null
     refund_amount: number | null
@@ -92,6 +93,9 @@ export interface RefundRequest {
     } | null
     order: {
         expected_amount: number
+        method: {
+            label: string
+        } | null
         transaction: {
             partial_cancel_feedback_recorded_at: string | null
         } | null
@@ -147,8 +151,10 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
         statusFilter === 'all' || r.status === statusFilter
     )
 
-    const getProviderLabel = (provider: RefundRequest['provider']) =>
-        provider === 'payapp' ? '페이앱' : provider === 'kakaopay' ? '카카오페이' : '일반결제'
+    // 결제수단 이름은 DB(payment_methods.label)에서 읽는다. 라벨이 없는 카카오·과거 결제만 결제사로 표시한다.
+    const getProviderLabel = (request: RefundRequest) =>
+        request.order?.method?.label ??
+        (request.provider === 'kakaopay' ? '카카오페이' : request.provider === 'toss' ? '일반결제(이전)' : '페이앱')
 
     // 상태 배지
     const getStatusBadge = (status: string) => {
@@ -370,7 +376,7 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                                         </TableCell>
                                         <TableCell className="max-w-[220px] text-xs text-gray-500">
                                             <p className="mb-1 font-medium text-gray-700">
-                                                {getProviderLabel(request.provider)}
+                                                {getProviderLabel(request)}
                                             </p>
                                             {request.provider_cancel_transaction_key ? (
                                                 <div className="space-y-1">
@@ -472,7 +478,7 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                         {processAction === 'approve' && (
                             <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                                 <p className="text-sm text-green-700">
-                                    승인 시 {selectedRequest ? getProviderLabel(selectedRequest.provider) : '원 결제수단'}으로 ₩{selectedRequest?.source?.plan?.price?.toLocaleString() || 0}을 먼저 취소한 뒤,
+                                    승인 시 {selectedRequest ? getProviderLabel(selectedRequest) : '원 결제수단'}으로 ₩{selectedRequest?.source?.plan?.price?.toLocaleString() || 0}을 먼저 취소한 뒤,
                                     취소 성공이 확인되면 {selectedRequest?.source?.initial_credits?.toLocaleString() || 0} 크레딧을 회수합니다.
                                 </p>
                             </div>

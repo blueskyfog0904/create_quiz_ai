@@ -50,6 +50,7 @@ export default async function AdminRefundsPage() {
       processor:profiles!refund_requests_processed_by_fkey(id, email),
       order:payment_orders!refund_requests_payment_order_id_fkey(
         expected_amount,
+        method:payment_methods!payment_orders_payment_method_fkey(label),
         transaction:payment_provider_transactions!payment_provider_transactions_payment_order_id_fkey(
           partial_cancel_feedback_recorded_at
         )

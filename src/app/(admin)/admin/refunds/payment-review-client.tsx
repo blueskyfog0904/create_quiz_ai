@@ -74,7 +74,7 @@ const externalMethodLabels: Record<ExternalMethod, string> = {
 }
 
 const providerLabel = (provider: string) =>
-    provider === 'payapp' ? '페이앱' : provider === 'kakaopay' ? '카카오페이' : '일반결제'
+    provider === 'payapp' ? '페이앱' : provider === 'kakaopay' ? '카카오페이' : '일반결제(이전)'
 
 export function PaymentReviewClient({
     orders,

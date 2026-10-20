@@ -2,7 +2,6 @@ admin market product price fields display comma-formatted credit values and save
 admin questions API delegates list retrieval to admin_list_bank_questions RPC
 admin questions API forwards bank filters, type, subject, and pagination args
 admin questions API recovers total_count for empty out-of-range RPC pages via minimal fallback RPC
-admin refund view exposes provider completion and retry evidence
 all public.is_admin admin policies are either authenticated or remediated
 answer-only double preview should not leave a large final-page bottom gap
 answer-only double preview should not leave large non-terminal blank areas for the underfill fixture
@@ -24,7 +23,6 @@ measured two-column pagination does not leave a weak body word alone at a column
 measured two-column preview should use rendered DOM heights before final pagination
 measurement body renders as multiple visual lines in Chromium before pagination splitting
 normal and preview shells each have exactly one main owner
-operations runbook keeps payments fail-closed until external gates pass
 preview injects real subject market data without sample home imports
 preview keeps the original chrome and section visual grammar
 preview page always renders one subject-aware carousel shell and all lower sections

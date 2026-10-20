@@ -14,19 +14,17 @@ test('point-charge policy limits the current credit use case to the problem mark
     migration,
     /'사용 경로: 영어·국어 문제마켓 자료 구매\. 사용 내역은 \/mypage\/credits/
   )
-  assert.match(termsPage, /카카오페이 직접결제는 별도 운영 승인 후/)
-  assert.match(termsPage, /카카오페이머니만/)
+  assert.match(termsPage, /신용·체크카드, 네이버페이, 토스페이, 휴대폰\s+결제와 카카오페이를 사용할 수 있습니다/)
+  assert.doesNotMatch(termsPage, /페이코|카카오페이머니만|일반결제/)
 })
 
-test('operations runbook keeps provider gates and the Toss variant blocker explicit', () => {
-  const runbook = read('docs/tosspayments-point-charge-operations.md')
-  const plan = read('docs/toss-kakaopay-dual-payment-implementation-plan.md')
+test('operations docs keep provider gates explicit for PayApp and KakaoPay', () => {
+  const plan = read('docs/payapp-kakaopay-payment-implementation-plan.md')
+  const checklist = read('docs/payapp-db-migration-checklist.md')
 
-  assert.match(runbook, /TOSS_PAYMENTS_ENABLED/)
-  assert.match(runbook, /KAKAOPAY_PAYMENTS_ENABLED/)
-  assert.match(runbook, /kakaopay_accepts_new_orders/)
-  assert.match(runbook, /카카오페이머니/)
-  assert.match(plan, /HscADqm7wtbjZLag9xdFx6V4pLsZ/)
-  assert.match(plan, /Toss 상점관리자 로그인 필요/)
-  assert.match(plan, /kakaopay_accepts_new_orders=false/)
+  assert.match(plan, /PAYAPP_USERID/)
+  assert.match(plan, /PAYMENTS_ENABLED/)
+  assert.match(plan, /payapp_accepts_new_orders/)
+  assert.match(plan, /KAKAOPAY_\*/)
+  assert.match(checklist, /payapp_accepts_new_orders=true/)
 })

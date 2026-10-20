@@ -36,9 +36,10 @@ test('U1: 메뉴관리에서 "문제마켓 그룹" 카드와 그 데이터·액�
 })
 
 test('U2: 결제 성공 화면과 홈 광고 빈 상태 버튼이 과거 /{과목}/market 화면으로 보내지 않는다', () => {
-  const success = read('src/app/checkout/success/page.tsx')
+  // 토스 결제 성공 화면 대신 페이앱 결제 결과 화면을 본다.
+  const success = read('src/app/checkout/payapp/result/result-client.tsx')
   assert.doesNotMatch(success, /'\/market'/)
-  assert.match(success, /href=\{isSuccess \? '\/' : '\/mypage\/support'\}/)
+  assert.match(success, /'\/mypage\/credits'/)
 
   const carousel = read('src/app/preview/solvook-concept/_components/home/main-ad-carousel.tsx')
   assert.doesNotMatch(carousel, /\/\$\{subject\}\/market/)

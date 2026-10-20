@@ -4,8 +4,6 @@ import test from 'node:test'
 
 const checkoutPage = readFileSync('src/app/checkout/page.tsx', 'utf8')
 const checkoutClient = readFileSync('src/app/checkout/checkout-client.tsx', 'utf8')
-const successPage = readFileSync('src/app/checkout/success/page.tsx', 'utf8')
-const failPage = readFileSync('src/app/checkout/fail/page.tsx', 'utf8')
 
 test('checkout server lists only enabled methods of runtime-enabled providers from the database', () => {
   assert.match(checkoutPage, /payment_runtime_config/)
@@ -53,15 +51,6 @@ test('checkout asks for a phone only for PayApp methods and requires agreement',
   assert.match(checkoutClient, /disabled=\{isBusy \|\| !selectedMethod \|\| !agreed \|\| \(needsPhone && !phoneValid\)\}/)
   // 마지막에 쓴 수단은 브라우저 저장소에서 읽고, 실패하면 무시한다.
   assert.match(checkoutClient, /window\.localStorage\.getItem\(getLastMethodStorageKey\(user\.id\)\)/)
-})
-
-test('Toss result pages use the same Studio frame and semantic tokens', () => {
-  for (const source of [successPage, failPage]) {
-    assert.match(source, /studio-theme/)
-    assert.match(source, /StudioContainer/)
-    assert.match(source, /var\(--studio-/)
-    assert.doesNotMatch(source, /max-w-md|bg-gray-50|text-(?:blue|green|red|gray)-/)
-  }
 })
 
 test('checkout recovers from back navigation and starts a new attempt after showing a result', () => {

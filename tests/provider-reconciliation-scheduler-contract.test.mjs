@@ -20,15 +20,16 @@ const migration = migrationNames
   .join('\n')
 const server = read('../src/lib/payment-reconciliation-server.ts')
 const route = read('../src/app/api/internal/payments/reconcile/route.ts')
-const webhook = read('../src/app/api/payments/webhooks/toss/route.ts')
+const webhook = read('../src/lib/payapp-webhook-server.ts')
 const kakaoServer = read('../src/lib/kakaopay-server.ts')
 
 test('reconciliation dispatches fresh provider queries from the stored provider', () => {
-  assert.match(server, /order\.provider === 'toss'/)
+  assert.match(server, /order\.provider === 'payapp'/)
   assert.match(server, /order\.provider === 'kakaopay'/)
-  assert.match(server, /getTossPaymentByPaymentKey/)
   assert.match(server, /getKakaoPayOrder/)
-  assert.match(server, /finalize_toss_payment/)
+  assert.match(server, /retry_payapp_fulfillment/)
+  assert.match(server, /process_payapp_cancellation/)
+  assert.doesNotMatch(server, /toss-payments-server|finalize_toss_payment/)
   assert.match(server, /record_kakaopay_approval/)
   assert.match(server, /finalize_kakaopay_payment/)
   assert.match(server, /quarantineExternalProviderCancellation/)
@@ -112,9 +113,10 @@ test('cron endpoint owns the durable run and remains secret-protected and bounde
   assert.match(server, /finish_payment_reconciliation_run/)
 })
 
-test('Toss webhook durably ingests and returns without a provider query', () => {
+// 페이앱 통보는 이벤트를 기록하고 DB 함수로 처리한다. 결제사 조회 API가 없다.
+test('PayApp webhook durably ingests and processes without a provider query', () => {
   assert.match(webhook, /payment_webhook_events/)
-  assert.match(webhook, /PAYMENT_STATUS_CHANGED/)
+  assert.match(webhook, /apply_payapp_feedback/)
   assert.doesNotMatch(webhook, /reconcilePaymentOrder/)
-  assert.match(webhook, /accepted:\s*true/)
+  assert.match(webhook, /body: 'SUCCESS'/)
 })

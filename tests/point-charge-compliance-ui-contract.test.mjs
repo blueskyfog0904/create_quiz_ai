@@ -89,5 +89,6 @@ test('mypage exposes server refund cutoff and navigable paths', () => {
 test('admin refund view exposes provider completion and retry evidence', () => {
   assert.match(adminRefunds, /provider_cancel_transaction_key/)
   assert.match(adminRefunds, /last_error_message/)
-  assert.match(adminRefunds, /Toss 취소 거래키/)
+  assert.match(adminRefunds, /취소 거래키/)
+  assert.doesNotMatch(adminRefunds, /Toss/)
 })

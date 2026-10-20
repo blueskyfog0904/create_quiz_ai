@@ -84,10 +84,9 @@ export default async function TermsDocumentPage({ params }: TermsDocumentPagePro
                   당시 사용한 원 결제수단으로 처리합니다.
                 </li>
                 <li>
-                  일반결제는 신용·체크카드와 계약된 네이버페이, 페이코,
-                  토스페이를 지원합니다. 카카오페이 직접결제는 별도 운영 승인 후
-                  카카오페이머니만 제공하며 계좌이체, 퀵계좌이체, 가상계좌,
-                  하나카드와 일부 카드사는 이용이 제한될 수 있습니다.
+                  포인트 충전에는 신용·체크카드, 네이버페이, 토스페이, 휴대폰
+                  결제와 카카오페이를 사용할 수 있습니다. 계좌이체, 가상계좌 등
+                  그 밖의 결제수단은 지원하지 않습니다.
                 </li>
               </ul>
               <div className="mt-5 flex flex-wrap gap-3">

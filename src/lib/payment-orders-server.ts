@@ -24,7 +24,8 @@ export interface PaymentOrderRow {
   plan_name_snapshot: string
   expected_amount: number
   expected_credits: number
-  provider: 'toss' | 'kakaopay' | 'payapp'
+  // 'toss'는 과거 주문 이력용이다.
+  provider: 'kakaopay' | 'payapp' | 'toss'
   environment: 'test' | 'live'
   provider_environment: 'test' | 'live'
   mid: string | null
@@ -54,14 +55,6 @@ export interface PaymentOrderRow {
   canceled_at: string | null
   created_at: string
   updated_at: string
-}
-
-export interface FinalizeTossPaymentResult {
-  source_id: string
-  payment_history_id: string
-  new_balance: number
-  credits: number
-  already_completed: boolean
 }
 
 export function createPaymentAdminClient() {

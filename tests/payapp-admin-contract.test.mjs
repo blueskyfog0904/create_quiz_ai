@@ -41,7 +41,8 @@ test('the admin refund list offers manual completion and confirmed rejection for
   assert.match(refundsClient, /!requiresRecovery\(request\) && request\.refund_amount/)
   assert.match(refundsClient, /isWholeNumberBetween\(refundAmount, 1, maxRefundAmount\)/)
   assert.match(refundsPage, /partial_cancel_feedback_recorded_at/)
-  assert.match(refundsClient, /provider === 'payapp' \? '페이앱'/)
+  assert.match(refundsClient, /request\.order\?\.method\?\.label/)
+  assert.match(refundsPage, /method:payment_methods!payment_orders_payment_method_fkey\(label\)/)
   assert.match(refundsClient, /결제사 부분취소 확인 중/)
 })
 

@@ -18,7 +18,7 @@ const fulfillmentMigration = readMigration(
   'guard_payment_environment_and_add_kakaopay_fulfillment'
 )
 const orderRoute = readFileSync(
-  new URL('../src/app/api/payments/orders/route.ts', import.meta.url),
+  new URL('../src/app/api/payments/payapp/orders/route.ts', import.meta.url),
   'utf8'
 )
 const paymentServer = readFileSync(
@@ -150,7 +150,10 @@ test('refund database boundary is provider-neutral without exposing provider ide
 
 test('payment admin client uses generated database types and documents server secrets', () => {
   assert.match(paymentServer, /createSupabaseClient<Database>/)
-  assert.match(envExample, /^TOSS_PAYMENTS_ENABLED=/m)
+  assert.match(envExample, /^PAYAPP_USERID=/m)
+  assert.match(envExample, /^PAYAPP_LINKKEY=/m)
+  assert.match(envExample, /^PAYAPP_LINKVAL=/m)
+  assert.doesNotMatch(envExample, /TOSS/)
   assert.match(envExample, /^KAKAOPAY_PAYMENTS_ENABLED=false$/m)
   assert.match(envExample, /^KAKAOPAY_CID=TC0ONETIME$/m)
   assert.match(envExample, /^KAKAOPAY_SECRET_KEY=/m)

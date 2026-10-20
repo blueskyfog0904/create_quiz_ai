@@ -16,7 +16,7 @@ const migration = migrationName
   : ''
 const processor = read('../src/lib/point-charge-refund-processor.ts')
 const kakaoServer = read('../src/lib/kakaopay-server.ts')
-const tossServer = read('../src/lib/toss-payments-server.ts')
+const payappServer = read('../src/lib/payapp-server.ts')
 const adminRoute = read('../src/app/api/admin/refunds/route.ts')
 const adminClient = read(
   '../src/app/(admin)/admin/refunds/refunds-client.tsx'
@@ -24,43 +24,34 @@ const adminClient = read(
 
 test('refund processor dispatches by the immutable stored provider', () => {
   assert.match(processor, /claimPointChargeRefund/)
-  assert.match(processor, /claimed\.provider\s*===\s*'toss'/)
+  assert.match(processor, /claimed\.provider\s*===\s*'payapp'/)
   assert.match(processor, /claimed\.provider\s*===\s*'kakaopay'/)
-  assert.match(processor, /getTossPaymentByPaymentKey/)
   assert.match(processor, /getKakaoPayOrder/)
-  assert.match(processor, /cancelTossPayment/)
+  assert.match(processor, /cancelPayAppPayment/)
   assert.match(processor, /cancelKakaoPayPayment/)
+  assert.doesNotMatch(processor, /toss-payments-server|cancelTossPayment/)
   assert.match(processor, /finalizePointChargeRefund/)
 })
 
+// 페이앱은 결제 상태 조회 API가 없어 전취소 결과(state)로만 판단한다(계획 6.5).
 test('provider status is queried before issuing a retryable cancellation', () => {
-  const tossQuery = processor.indexOf('getTossPaymentByPaymentKey')
-  const tossCancel = processor.indexOf('cancelTossPayment({')
   const kakaoQuery = processor.indexOf('getKakaoPayOrder')
   const kakaoCancel = processor.indexOf('cancelKakaoPayPayment({')
 
-  assert.ok(tossQuery >= 0)
-  assert.ok(tossCancel > tossQuery)
   assert.ok(kakaoQuery >= 0)
   assert.ok(kakaoCancel > kakaoQuery)
-  assert.match(processor, /status\s*===\s*'CANCELED'/)
   assert.match(processor, /status\s*===\s*'CANCEL_PAYMENT'/)
   assert.match(processor, /status\s*===\s*'PART_CANCEL_PAYMENT'/)
 })
 
-test('disabling new Toss orders does not block approval and refund recovery', () => {
-  const checkoutConfig = tossServer.slice(
-    tossServer.indexOf('export function getTossCheckoutConfig'),
-    tossServer.indexOf('async function parseTossResponse')
-  )
-  const recoveryFunctions = tossServer.slice(
-    tossServer.indexOf('export async function confirmTossPayment'),
-    tossServer.indexOf('export function validateConfirmedPayment')
+test('disabling new PayApp orders does not block refund recovery', () => {
+  const cancel = payappServer.slice(
+    payappServer.indexOf('export async function cancelPayAppPayment'),
+    payappServer.indexOf('function safeEqual')
   )
 
-  assert.match(checkoutConfig, /assertTossPaymentsReady\(\)/)
-  assert.match(recoveryFunctions, /getTossPaymentsConfig\(\)/)
-  assert.doesNotMatch(recoveryFunctions, /assertTossPaymentsReady\(\)/)
+  assert.match(cancel, /getPayAppConfig\('cancel'\)/)
+  assert.doesNotMatch(cancel, /assertPayAppReady\(\)/)
 })
 
 test('Kakao full cancellation requires the original snapshot and cancel action', () => {
@@ -104,5 +95,6 @@ test('admin refund route and UI are provider-neutral', () => {
   assert.doesNotMatch(adminClient, /Toss 처리/)
   assert.doesNotMatch(adminClient, /Toss 취소 거래키/)
   assert.match(adminClient, /카카오페이/)
-  assert.match(adminClient, /일반결제/)
+  // 결제수단 이름은 DB 라벨(payment_methods.label)에서 읽는다.
+  assert.match(adminClient, /request\.order\?\.method\?\.label/)
 })

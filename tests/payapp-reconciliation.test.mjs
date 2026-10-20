@@ -28,7 +28,6 @@ class PayAppError extends Error {
   }
 }
 class KakaoPayError extends Error {}
-class TossPaymentsError extends Error {}
 class RefundRpcError extends Error {
   constructor(code, retryable = false) {
     super(code)
@@ -116,12 +115,6 @@ function createWorld({ order, transaction = {}, refunds = [], rpc = {}, payapp =
       validateKakaoPayOrderSnapshot: () => {
         if (kakao.snapshotMismatch) throw new Error('mismatch')
       },
-    },
-    '@/lib/toss-payments-server': {
-      TossPaymentsError,
-      getCompletedFullCancellation: () => ({}),
-      getTossPaymentByPaymentKey: async () => ({}),
-      isAllowedPointChargeMethod: () => true,
     },
   })
 
@@ -449,4 +442,13 @@ test('only one cancel marker is processed per run; the other stays for the next 
   })
   assert.equal(await world.reconcile(), 'manual_review')
   assert.equal(world.calls.rpc.filter((call) => call.name === 'process_payapp_cancellation').length, 1)
+})
+
+test('a historical Toss order is sent to manual review as an unsupported provider', async () => {
+  const world = createWorld({
+    order: { id: ORDER_UUID, user_id: USER_UUID, order_id: 'TOSS_ORDER_1', provider: 'toss', status: 'ready', provider_status: null },
+    rpc: { mark_payment_reconciliation_terminal: () => ok(null) },
+  })
+  assert.equal(await world.reconcile(), 'manual_review')
+  assert.equal(world.calls.rpc[0].args.p_failure_code, 'PAYMENT_PROVIDER_UNSUPPORTED')
 })

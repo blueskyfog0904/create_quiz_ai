@@ -10,7 +10,7 @@ const read = (path) => {
 const migration = read(
   '../supabase/migrations/20260805100000_create_payment_orders_and_atomic_fulfillment.sql'
 )
-const orderRoute = read('../src/app/api/payments/orders/route.ts')
+const orderRoute = read('../src/app/api/payments/payapp/orders/route.ts')
 const checkoutClient = read('../src/app/checkout/checkout-client.tsx')
 const pricingActions = read('../src/app/(admin)/admin/pricing/actions.ts')
 const pricingDialog = read(
@@ -42,7 +42,7 @@ test('order preparation is authenticated, server priced and fail-closed', () => 
   assert.match(orderRoute, /z\.object/)
   assert.match(orderRoute, /\.from\('pricing_plans'\)/)
   assert.match(orderRoute, /plan\.price\s*>\s*MAX_POINT_CHARGE_AMOUNT/)
-  assert.match(orderRoute, /assertTossPaymentsReady/)
+  assert.match(orderRoute, /assertPayAppReady/)
   assert.match(orderRoute, /crypto\.randomUUID\(\)/)
   assert.doesNotMatch(orderRoute, /amount:\s*body\./)
 })

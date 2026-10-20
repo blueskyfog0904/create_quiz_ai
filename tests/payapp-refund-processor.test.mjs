@@ -37,7 +37,6 @@ class KakaoPayError extends Error {
     this.status = 400
   }
 }
-class TossPaymentsError extends Error {}
 class RefundRpcError extends Error {
   constructor(code, retryable = false) {
     super('환불 요청을 처리하지 못했습니다.')
@@ -103,13 +102,6 @@ function createProcessor({ claimed, payapp = {}, kakao = {}, finalize, requestSt
       validateCompletedKakaoPayCancellation: () => ({}),
       validateFreshKakaoPayOrder: () => undefined,
       validateFullKakaoPayCancellation: () => ({ transactionKey: 'A', canceledAt: 'now', providerStatus: 'CANCEL_PAYMENT' }),
-    },
-    '@/lib/toss-payments-server': {
-      TossPaymentsError,
-      cancelTossPayment: async () => ({}),
-      getCompletedFullCancellation: () => ({ transactionKey: 'toss-cancel', canceledAt: 'now' }),
-      getTossPaymentByPaymentKey: async () => ({ status: 'DONE' }),
-      validateTossRefundPaymentSnapshot: () => undefined,
     },
   })
 
@@ -323,24 +315,6 @@ test('a permanent finalize failure after a successful paycancel does not cancel 
   assert.equal(processor.calls.fail.length, 1)
 })
 
-test('a Toss finalize failure from a transient database error stays retryable', async () => {
-  const processor = createProcessor({
-    claimed: {
-      already_completed: false,
-      request_id: 'refund-3',
-      provider: 'toss',
-      payment_key: 'pk',
-      provider_order_id: 'o',
-      provider_merchant_id: 'm',
-      cancel_idempotency_key: 'k',
-      refund_amount: 9900,
-    },
-    finalize: () => Promise.reject(new RefundRpcError('REFUND_RPC_FAILED', true)),
-  })
-  await assert.rejects(processor.run(), { retryable: true })
-  assert.equal(processor.calls.fail[0].retryable, true)
-})
-
 test('KakaoPay quarantine helpers never mask the original refund error', async () => {
   const processor = createProcessor({
     claimed: kakaoClaim,
@@ -385,4 +359,14 @@ test('refund RPC errors that are not business errors are retryable', async () =>
     responses.push({ data: null, error })
     await assert.rejects(finalize(), { code, retryable }, error.message)
   }
+})
+
+test('a historical Toss refund claim fails closed to manual review without calling any provider', async () => {
+  const processor = createProcessor({
+    claimed: { already_completed: false, request_id: 'refund-toss', provider: 'toss', refund_amount: 9900 },
+  })
+  await assert.rejects(processor.run(), { code: 'REFUND_PAYMENT_SNAPSHOT_INVALID', retryable: false })
+  assert.equal(processor.calls.cancel.length, 0)
+  assert.equal(processor.calls.fail.length, 1)
+  assert.equal(processor.calls.fail[0].retryable, false)
 })

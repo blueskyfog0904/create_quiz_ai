@@ -150,6 +150,7 @@
 
 ## B2-pre (토스 제거 코드가 Production에 배포된 뒤)
 
+0. 배포 직후 운영 정리(사용자 작업): 토스 상점관리자에 등록한 웹훅 URL(`/api/payments/webhooks/toss`, 배포 뒤 404)을 해제하고, Vercel의 `TOSS_*`·`NEXT_PUBLIC_TOSS_*` 환경변수 7개를 지운다.
 1. DB 의존성이 0건인지 본다.
    ```sql
    select p.oid::regprocedure from pg_proc p

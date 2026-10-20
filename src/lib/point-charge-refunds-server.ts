@@ -66,7 +66,8 @@ export interface ClaimedPointChargeRefund {
   already_completed: boolean
   request_id: string
   user_id?: string
-  provider?: 'toss' | 'kakaopay' | 'payapp'
+  // 'toss'는 과거 결제 이력용이다.
+  provider?: 'kakaopay' | 'payapp' | 'toss'
   payment_order_id?: string
   provider_order_id?: string
   payment_key?: string

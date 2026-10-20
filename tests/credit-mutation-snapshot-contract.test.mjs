@@ -7,11 +7,6 @@ const creditBalanceSource = readFileSync(
   'utf8'
 )
 
-const paymentsConfirmRouteSource = readFileSync(
-  new URL('../src/app/api/payments/confirm/route.ts', import.meta.url),
-  'utf8'
-)
-
 const marketPurchaseRouteSource = readFileSync(
   new URL('../src/app/api/market/items/[itemId]/purchase/route.ts', import.meta.url),
   'utf8'
@@ -52,12 +47,6 @@ test('credit balance helper exposes a reusable response-fields builder for mutat
   assert.match(creditBalanceSource, /latestTransactionBalance:\s*snapshot\.latestTransactionBalance/)
   assert.match(creditBalanceSource, /hasMismatch:\s*snapshot\.hasMismatch/)
   assert.match(creditBalanceSource, /mismatchReasons:\s*snapshot\.mismatchReasons/)
-})
-
-test('payments confirm route returns the atomic fulfillment balance', () => {
-  assert.match(paymentsConfirmRouteSource, /finalize_toss_payment/)
-  assert.match(paymentsConfirmRouteSource, /newBalance:\s*result\.new_balance/)
-  assert.doesNotMatch(paymentsConfirmRouteSource, /CreditService\.purchaseCredits/)
 })
 
 test('market purchase uses snapshot-backed balance fields and deprecated batch stays closed', () => {

@@ -23,6 +23,7 @@
 | `pricing-refund-summary.test.mjs` "highlights current credit refund rules" | 가격 페이지에 "AI 생성" 문구 없음 | 결제 전환과 무관한 문구 테스트. 이번 범위에서 고치지 않음 |
 
 - 5단계(2026-10-20)에서 위 표의 앞 3건(결제내역 RPC 기준 단언, 결제 화면 주문 API 기준, 결제 전 안내 문구)을 새 화면 기준으로 교체해 해결했다. [`payapp-phase0-baseline-fails.txt`](payapp-phase0-baseline-fails.txt)에서 지웠다(남은 실패 45건).
+- 6단계(2026-10-20)에서 토스 운영 문서 단언을 페이앱 계획·체크리스트·약관 기본값 기준으로, 관리자 환불 화면의 `Toss 취소 거래키` 단언을 `취소 거래키`로 바꿔 2건을 더 해결했다(남은 실패 43건, 모두 결제와 무관).
 
 ## 3. 서로 반대인 테스트 2개 정리 방침
 
