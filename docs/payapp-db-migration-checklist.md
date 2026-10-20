@@ -58,7 +58,7 @@
    ```sql
    select jobid, max(start_time) from cron.job_run_details where jobid in (1,3) group by 1;
    ```
-5. 롤백 파일 `supabase/rollback/<version>_down.sql`을 만든다(0-10의 범위 전부).
+5. 롤백 파일 `supabase/rollback/<version>_down.sql`을 만든다(0-10의 범위 전부). 작성본: `supabase/rollback/20261019090000_payapp_migration_a_down.sql`. 지우고 다시 만드는 함수(`prepare_payment_order`, `reject_point_charge_refund`, `get_my_*`)는 기본 권한이 PUBLIC·anon·authenticated를 다시 열므로 CREATE 직후 `REVOKE ALL … FROM PUBLIC, anon, authenticated`를 먼저 하고 GRANT 한다. 롤백 파일 끝에도 누수·서명 검증 블록을 둔다. `*_credits_once` 권한은 되돌리지 않는다(다시 열면 보안 구멍 복원).
    - 다음 함수들의 `pg_get_functiondef`를 저장한다.
      ```sql
      select string_agg(pg_get_functiondef(p.oid)||';', E'\n') from pg_proc p
@@ -70,12 +70,12 @@
        'claim_payment_reconciliation_batch','payment_reconciliation_backlog_count',
        'prevent_payment_order_snapshot_update','prevent_payment_provider_identifier_replacement');
      ```
-   - 같은 함수들과 `consume_credits_once`, `refund_credits_once`의 권한을 복원할 GRANT 문을 만든다(아래 두 쿼리의 목록에 두 함수를 넣는다).
+   - 같은 함수들의 권한을 복원할 GRANT 문을 만든다. `consume_credits_once`, `refund_credits_once`의 회수 전 ACL도 기록용으로 함께 조회한다(롤백에서 되돌리지는 않음).
      ```sql
      select p.oid::regprocedure, p.proacl::text from pg_proc p
      where p.pronamespace='public'::regnamespace and p.prokind='f' and p.proname in (<위 목록>);
      ```
-     롤백 파일에 붙일 GRANT 문은 아래 쿼리로 바로 만든다. CREATE OR REPLACE는 ACL을 유지하므로, 실제 복원이 필요한 것은 DROP 후 다시 만드는 3개(`prepare_payment_order`, `get_my_payment_history`, `get_my_refund_requests`)와 권한을 회수하는 `*_credits_once` 2개다. 2개의 기대 출력은 `consume_credits_once` → PUBLIC·anon·authenticated·service_role, `refund_credits_once` → anon·service_role이다. 이 2개의 GRANT는 롤백 파일에서도 `to_regprocedure(…) IS NOT NULL` DO 블록으로 감싼다.
+     롤백 파일에 붙일 GRANT 문은 아래 쿼리로 바로 만든다. CREATE OR REPLACE는 ACL을 유지하므로, 실제 복원이 필요한 것은 DROP 후 다시 만드는 4개(`prepare_payment_order`, `reject_point_charge_refund`, `get_my_payment_history`, `get_my_refund_requests`)다. 참고로 회수 전 `*_credits_once` ACL은 `consume_credits_once` → PUBLIC·anon·authenticated·service_role, `refund_credits_once` → anon·service_role이다. 이 2개는 다시 열면 보안 구멍이 복원되므로 롤백 파일에서 실행하지 않고 주석으로만 남긴다(필요하면 사용자 결정 후 `to_regprocedure(…) IS NOT NULL` 가드 안에서 실행).
      ```sql
      select format('GRANT EXECUTE ON FUNCTION %s TO %s;', p.oid::regprocedure,
             case when a.grantee = 0 then 'PUBLIC' else quote_ident(pg_get_userbyid(a.grantee)) end)
