@@ -214,6 +214,8 @@
    - `changed_by`, `change_ticket`을 기록하고, 이전 값을 주석에 남긴다.
 3. **직후 10분:** health가 2회 도는 동안 `changed_by`가 `payment_reconciliation_health`로 바뀌지 않는지 본다.
 4. **실결제 시험:** 운영자 카드로 1건 결제 → 크레딧 지급 확인 → 관리자 환불 → 취소 통보 처리 확인.
+   - 매뉴얼에 없는 실제 형식을 함께 확인한다: `payurl`이 https인지(모듈과 `store_payapp_request`가 https만 받는다. http면 둘 다 고친다), 통보의 `pay_date`·`canceldate`가 `YYYY-MM-DD HH:MM:SS`인지(아니면 `dateParseFailed` 경보가 남는다).
+   - 결제하지 않은 요청 1건을 `cancelmode=ready`로 취소해 `partcancel` 없이 전취소되는지 확인한다.
 5. **실패 시:** 스위치 off 마이그레이션을 적용한다.
 
 ## 카카오페이 live 전환 (별도)
