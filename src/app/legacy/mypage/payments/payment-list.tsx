@@ -6,7 +6,12 @@ import { Badge } from '@/components/ui/badge'
 import { CreditCard, Calendar, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import type { NormalizedPaymentHistoryRecord } from '@/lib/payment-history'
+import {
+  getPartialRefundAmount,
+  getPaymentMethodLabel,
+  getProviderStatusLabel,
+  type NormalizedPaymentHistoryRecord,
+} from '@/lib/payment-history'
 import { HistoryFilterBar } from '@/components/features/mypage/history-filter-bar'
 import {
   filterPaymentsByHistoryFilter,
@@ -15,17 +20,6 @@ import {
 
 interface PaymentListProps {
   payments: NormalizedPaymentHistoryRecord[]
-}
-
-function getProviderStatusLabel(providerStatus?: string | null) {
-  switch (providerStatus) {
-    case 'DONE':
-      return '승인 완료'
-    case 'CANCELED':
-      return '결제 취소 완료'
-    default:
-      return providerStatus ?? '상태 확인 중'
-  }
 }
 
 export function PaymentList({ payments }: PaymentListProps) {
@@ -113,7 +107,7 @@ export function PaymentList({ payments }: PaymentListProps) {
                     </div>
                     <div className="flex items-center gap-1">
                       <CreditCard className="h-3.5 w-3.5" />
-                      {payment.payment_method === 'toss' ? '토스페이먼츠' : payment.payment_method}
+                      {getPaymentMethodLabel(payment)}
                     </div>
                     {payment.order_id && (
                       <span>주문번호 {payment.order_id}</span>
@@ -140,6 +134,11 @@ export function PaymentList({ payments }: PaymentListProps) {
                 {payment.status === 'refunded' && (
                   <p className="text-xs font-medium text-red-500">환불됨</p>
                 )}
+                {getPartialRefundAmount(payment) ? (
+                  <p className="text-xs font-medium text-gray-500">
+                    부분 환불 {getPartialRefundAmount(payment)?.toLocaleString()}원
+                  </p>
+                ) : null}
               </div>
             </div>
           </CardContent>

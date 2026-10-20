@@ -249,9 +249,18 @@ export async function POST(request: Request) {
     if (preparedOrder.status === 'ready_unknown') {
       return pendingResponse(preparedOrder)
     }
+    // 결제됐을 수 있는 주문은 다시 결제하지 않게 결제내역으로 보낸다.
+    if (preparedOrder.status !== 'preparing' && !['failed', 'expired'].includes(preparedOrder.status)) {
+      return NextResponse.json({
+        status: 'result',
+        orderId: preparedOrder.order_id,
+        resultUrl: '/mypage/payments',
+      })
+    }
     if (preparedOrder.status !== 'preparing' || !preparedOrder.ready_expires_at) {
       return NextResponse.json(
-        { error: '현재 다시 사용할 수 없는 결제 시도입니다.' },
+        // 클라이언트가 새 결제 시도로 다시 할 수 있게 코드를 함께 보낸다.
+        { error: '현재 다시 사용할 수 없는 결제 시도입니다.', code: 'PAYMENT_ATTEMPT_EXPIRED' },
         { status: 409 }
       )
     }

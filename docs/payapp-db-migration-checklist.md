@@ -209,6 +209,7 @@
      ```
      - 0건이 아니면 원천 상태를 확인한다. 원천이 `active`인 건이 있으면 출시를 멈추고, `pending_refund`이거나 원천이 없는 건은 처리를 끝낸 뒤 출시한다.
    - 미해소 경보가 0건이다(기존 2건은 2026-10-19 `20261019061626`으로 해소함). 새로 생긴 경보가 있으면 원인을 확인한 뒤 출시한다.
+   - 관리자 화면의 경보 해소(`resolve_payment_alert`)로 닫은 경보는 `payment_admin_actions where action='alert_resolved'`에서 각각 원인 처리 메모가 있는지 확인한다. 해소 뒤 health가 1회 이상(5분 이상) 돈 다음에도 0건인지 다시 본다.
 2. **스위치 마이그레이션:**
    - `payapp_merchant_id`를 설정하고 `payapp_accepts_new_orders=true`로 바꾼다.
    - `changed_by`, `change_ticket`을 기록하고, 이전 값을 주석에 남긴다.

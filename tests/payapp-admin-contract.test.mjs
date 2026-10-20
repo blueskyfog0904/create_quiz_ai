@@ -66,3 +66,28 @@ test('the payment review screen lists manual review orders and unresolved alerts
   assert.match(reviewClient, /action === 'cancel_handled' \? \{ externalMethod \}/)
   assert.match(reviewClient, /note\.trim\(\)\.length === 0/)
 })
+
+const alertsRoute = read('../src/app/api/admin/payments/alerts/route.ts')
+const alertMigration = read('../supabase/migrations/20261020090000_payment_alert_resolution.sql')
+
+test('alerts are resolved by an admin with a note through the audited RPC', () => {
+  assert.match(alertsRoute, /profile\?\.is_admin/)
+  assert.match(alertsRoute, /note: z\.string\(\)\.trim\(\)\.min\(1\)\.max\(500\)/)
+  assert.match(alertsRoute, /admin\.rpc\('resolve_payment_alert'/)
+  assert.match(alertsRoute, /p_actor_id: adminCheck\.user\.id/)
+  assert.doesNotMatch(alertsRoute, /actorId/)
+  assert.doesNotMatch(alertsRoute, /from\('payment_reconciliation_alerts'\)/)
+
+  assert.match(alertMigration, /'alert_resolved'/)
+  assert.match(alertMigration, /REVOKE ALL ON FUNCTION public\.resolve_payment_alert\(uuid, uuid, text\) FROM PUBLIC, anon, authenticated/)
+  assert.match(alertMigration, /'alert_message', v_alert\.message/)
+  // 경보를 해소해도 판매 스위치는 바꾸지 않는다.
+  assert.doesNotMatch(alertMigration, /payment_runtime_config/)
+
+  assert.match(reviewClient, /fetch\('\/api\/admin\/payments\/alerts'/)
+  assert.match(reviewClient, /alertNote\.trim\(\)\.length === 0/)
+  assert.match(reviewClient, /위 주문 목록에서 확인 처리하면 경보도 함께 해소됩니다/)
+  // 처리할 조치가 없는 격리 주문은 경보가 자동 해소되지 않는다고 안내한다.
+  assert.match(reviewClient, /orders\.filter\(\(order\) => order\.allowedActions\.length > 0\)/)
+  assert.match(reviewClient, /수동 환불을 완료한 뒤 이 경보를 직접 해소하세요/)
+})

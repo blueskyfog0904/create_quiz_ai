@@ -17,7 +17,7 @@ const paymentsPage = read(
   '../src/app/(solvook)/mypage/payments/_components/payments-view.tsx'
 )
 const paymentList = read(
-  '../src/app/(solvook)/mypage/payments/_components/payments-view.tsx'
+  '../src/app/legacy/mypage/payments/payment-list.tsx'
 )
 const footerContent = read('../src/lib/footer-content.ts')
 const adminRefunds = read(
@@ -47,8 +47,7 @@ test('checkout shows the restrictions before payment', () => {
   assert.match(checkout, /자동결제 없음/)
   assert.match(checkout, /결제일로부터 1년/)
   assert.match(checkout, /양도/)
-  assert.match(checkout, /카카오페이/)
-  assert.match(checkout, /하나카드/)
+  assert.match(checkout, /method\.description/)
   assert.match(checkout, /문제마켓/)
   assert.doesNotMatch(checkout, /AI 문제 생성·문제은행/)
   assert.match(checkout, /\/terms\/refund/)
@@ -79,8 +78,12 @@ test('mypage exposes server refund cutoff and navigable paths', () => {
   assert.doesNotMatch(creditsPage, /AI 문제 생성, 문제은행/)
   assert.match(paymentsPage, /order_id/)
   assert.match(paymentsPage, /provider_status/)
+  assert.match(paymentsPage, /getPaymentMethodLabel\(payment\)/)
+  assert.match(paymentsPage, /부분 환불/)
   assert.match(paymentList, /주문번호/)
-  assert.match(paymentList, /providerStatus/)
+  assert.match(paymentList, /getProviderStatusLabel\(payment\.provider_status\)/)
+  assert.match(paymentList, /getPaymentMethodLabel\(payment\)/)
+  assert.match(paymentList, /부분 환불/)
 })
 
 test('admin refund view exposes provider completion and retry evidence', () => {

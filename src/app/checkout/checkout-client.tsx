@@ -1,14 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import Script from 'next/script'
 import {
   ArrowLeft,
   CreditCard,
   Loader2,
   ShieldCheck,
-  WalletCards,
 } from 'lucide-react'
 import {
   StudioContainer,
@@ -16,25 +14,20 @@ import {
 } from '@/components/design-system'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs'
 
-type PaymentProvider = 'toss' | 'kakaopay'
 type CheckoutPhase =
   | 'idle'
-  | 'providerLoading'
-  | 'ready'
   | 'preparingOrder'
   | 'openingProvider'
-  | 'awaitingReturn'
-  | 'cancelled'
-  | 'recoverableError'
   | 'pendingVerification'
-  | 'expired'
+  | 'recoverableError'
+
+export interface CheckoutPaymentMethod {
+  code: string
+  label: string
+  description: string | null
+  provider: 'payapp' | 'kakaopay'
+}
 
 interface PricingPlan {
   id: string
@@ -48,230 +41,99 @@ interface User {
   id: string
   name: string
   email: string
-}
-
-interface TossPaymentConfig {
-  clientKey: string
-  paymentVariantKey: string
-  agreementVariantKey: string
+  phone: string | null
 }
 
 interface CheckoutClientProps {
   plan: PricingPlan
   user: User
-  paymentConfig: TossPaymentConfig | null
-  availableProviders: PaymentProvider[]
-}
-
-interface PreparedOrder {
-  provider: PaymentProvider
-  orderId: string
-  orderName: string
-  amount: number
-  credits: number
-  expiresAt: string
-  nextRedirectPcUrl?: string
-  nextRedirectMobileUrl?: string
+  paymentMethods: CheckoutPaymentMethod[]
 }
 
 interface PaymentResponse {
   status?: string
   orderId?: string
-  orderName?: string
   amount?: number
-  credits?: number
-  expiresAt?: string
+  payUrl?: string
+  resultUrl?: string
   nextRedirectPcUrl?: string
   nextRedirectMobileUrl?: string
   error?: string
   code?: string
 }
 
-interface TossWidgets {
-  setAmount(input: { currency: 'KRW'; value: number }): Promise<void>
-  renderPaymentMethods(input: {
-    selector: string
-    variantKey: string
-  }): Promise<unknown>
-  renderAgreement(input: {
-    selector: string
-    variantKey: string
-  }): Promise<unknown>
-  requestPayment(input: {
-    orderId: string
-    orderName: string
-    customerEmail: string
-    customerName: string
-    successUrl: string
-    failUrl: string
-  }): Promise<void>
-}
+// 같은 결제 시도로 다시 요청하면 서버가 기존 결과를 돌려준다. 이 코드들은 새 시도로 다시 해야 한다.
+const NEW_ATTEMPT_CODES = [
+  'PAYMENT_ATTEMPT_PAYLOAD_CONFLICT',
+  'PAYMENT_ATTEMPT_UNKNOWN',
+  'PAYMENT_ATTEMPT_EXPIRED',
+]
 
-interface TossPaymentsFactory {
-  (clientKey: string): {
-    widgets(input: { customerKey: string }): TossWidgets
-  }
-}
-
-declare global {
-  interface Window {
-    TossPayments?: TossPaymentsFactory
-  }
-}
-
-function getPaymentErrorCode(error: unknown) {
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    typeof error.code === 'string'
-  ) {
-    return error.code
-  }
-  return null
-}
+const PHONE_PATTERN = /^01[016789][0-9]{7,8}$/
 
 function getCheckoutAttemptStorageKey(userId: string, planId: string) {
   return `point-checkout-attempt:${userId}:${planId}`
 }
 
-function getCheckoutAttemptId(userId: string, planId: string) {
+// 결제수단이나 휴대폰 번호가 바뀌면 새 결제 시도를 만든다. 같으면 같은 시도를 이어서 쓴다.
+function getCheckoutAttemptId(userId: string, planId: string, methodCode: string, phone: string) {
   const storageKey = getCheckoutAttemptStorageKey(userId, planId)
-  const stored = window.sessionStorage.getItem(storageKey)
-  if (stored) return stored
+  try {
+    const stored = JSON.parse(window.sessionStorage.getItem(storageKey) ?? 'null') as {
+      id?: string
+      method?: string
+      phone?: string
+    } | null
+    if (stored?.id && stored.method === methodCode && stored.phone === phone) {
+      return stored.id
+    }
+  } catch {
+    // 저장값을 읽지 못하면 새 시도로 시작한다.
+  }
 
   const checkoutAttemptId = crypto.randomUUID()
-  window.sessionStorage.setItem(storageKey, checkoutAttemptId)
+  try {
+    window.sessionStorage.setItem(
+      storageKey,
+      JSON.stringify({ id: checkoutAttemptId, method: methodCode, phone })
+    )
+  } catch {
+    // 저장하지 못해도 이번 요청은 진행한다.
+  }
   return checkoutAttemptId
 }
 
 function clearCheckoutAttempt(userId: string, planId: string) {
-  window.sessionStorage.removeItem(
-    getCheckoutAttemptStorageKey(userId, planId)
-  )
+  try {
+    window.sessionStorage.removeItem(getCheckoutAttemptStorageKey(userId, planId))
+  } catch {
+    // 무시한다.
+  }
+}
+
+function getLastMethodStorageKey(userId: string) {
+  return `point-checkout-method:${userId}`
 }
 
 function isMobileBrowser() {
   return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 }
 
-function TossPaymentPanel({
-  config,
-  amount,
-  userId,
-  onReady,
-  onError,
-}: {
-  config: TossPaymentConfig
-  amount: number
-  userId: string
-  onReady: (widgets: TossWidgets | null) => void
-  onError: (message: string) => void
-}) {
-  const [scriptLoaded, setScriptLoaded] = useState(false)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!scriptLoaded) return
-
-    let active = true
-    const timer = window.setTimeout(async () => {
-      try {
-        if (!window.TossPayments) {
-          throw new Error('결제 모듈을 불러오지 못했습니다.')
-        }
-
-        const widgets = window.TossPayments(config.clientKey).widgets({
-          customerKey: userId,
-        })
-        await widgets.setAmount({ currency: 'KRW', value: amount })
-        await widgets.renderPaymentMethods({
-          selector: '#payment-method',
-          variantKey: config.paymentVariantKey,
-        })
-        await widgets.renderAgreement({
-          selector: '#agreement',
-          variantKey: config.agreementVariantKey,
-        })
-
-        if (!active) return
-        onReady(widgets)
-        setLoading(false)
-      } catch {
-        if (!active) return
-        setLoading(false)
-        onError('일반결제 수단을 불러오지 못했습니다.')
-      }
-    }, 100)
-
-    return () => {
-      active = false
-      window.clearTimeout(timer)
-      onReady(null)
-    }
-  }, [amount, config, onError, onReady, scriptLoaded, userId])
-
-  return (
-    <div aria-busy={loading} className="min-h-72 max-w-full overflow-x-clip">
-      <Script
-        src="https://js.tosspayments.com/v2/standard"
-        onLoad={() => setScriptLoaded(true)}
-        onReady={() => setScriptLoaded(true)}
-      />
-
-      <div className="mb-4 rounded-[var(--studio-radius-control)] bg-[var(--studio-primary-soft)] p-4 text-sm leading-6 text-[var(--studio-text)]">
-        <p className="font-bold text-[var(--studio-ink)]">
-          이용 가능한 일반결제 수단
-        </p>
-        <p className="mt-1">
-          신용·체크카드, 네이버페이, 페이코, 토스페이를 이용할 수 있습니다.
-        </p>
-        <p className="mt-2 text-[var(--studio-muted)]">
-          계좌이체·가상계좌 및 하나카드는 크레딧 충전에 사용할 수 없습니다.
-        </p>
-      </div>
-
-      {loading ? (
-        <div
-          role="status"
-          className="flex min-h-52 items-center justify-center gap-3 text-sm text-[var(--studio-muted)]"
-        >
-          <Loader2
-            aria-hidden="true"
-            className="size-6 animate-spin motion-reduce:animate-none"
-          />
-          결제 수단을 불러오는 중입니다.
-        </div>
-      ) : null}
-
-      <div id="payment-method" className={loading ? 'hidden' : undefined} />
-      <div
-        id="agreement"
-        className={loading ? 'hidden' : 'mt-4'}
-      />
-    </div>
-  )
+function toPhoneDigits(value: string | null) {
+  return (value ?? '').replace(/[^0-9]/g, '')
 }
 
-function KakaoPayPanel() {
-  return (
-    <div className="min-h-72 rounded-[var(--studio-radius-control)] bg-[var(--studio-primary-soft)] p-5 sm:p-6">
-      <div className="flex size-11 items-center justify-center rounded-full bg-[var(--studio-surface)] text-[var(--studio-primary)]">
-        <WalletCards aria-hidden="true" className="size-5" />
-      </div>
-      <h2 className="mt-5 text-xl font-extrabold text-[var(--studio-ink)]">
-        카카오페이머니로 결제
-      </h2>
-      <p className="mt-2 break-keep text-sm leading-6 text-[var(--studio-text)]">
-        결제 버튼을 누르면 카카오페이 인증 화면으로 이동합니다. 초기 제공
-        수단은 카카오페이머니이며 카드 결제는 제공하지 않습니다.
-      </p>
-      <p className="mt-3 break-keep text-sm leading-6 text-[var(--studio-muted)]">
-        잔액이 부족한 경우 카카오페이의 표준 충전 안내에 따라 연결 계좌에서
-        충전할 수 있습니다.
-      </p>
-    </div>
-  )
+function maskPhone(digits: string) {
+  if (digits.length < 10) return digits
+  return `${digits.slice(0, 3)}-****-${digits.slice(-4)}`
+}
+
+// 받침이 있으면 '으로', 없거나 ㄹ 받침이면 '로'를 붙인다.
+function withDirectionParticle(word: string) {
+  const code = word.charCodeAt(word.length - 1) - 0xac00
+  if (code < 0 || code > 11171) return `${word}로`
+  const finalConsonant = code % 28
+  return finalConsonant === 0 || finalConsonant === 8 ? `${word}로` : `${word}으로`
 }
 
 function OrderSummary({
@@ -286,7 +148,7 @@ function OrderSummary({
   return (
     <aside
       aria-labelledby="order-summary-title"
-      className="min-w-0 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] sm:p-6"
+      className="order-first min-w-0 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] sm:p-6 lg:order-none"
     >
       <h2
         id="order-summary-title"
@@ -326,6 +188,7 @@ function OrderSummary({
           {amount.toLocaleString()}원
         </span>
       </div>
+      <p className="mt-1 text-right text-xs text-[var(--studio-muted)]">부가세 포함</p>
     </aside>
   )
 }
@@ -333,74 +196,74 @@ function OrderSummary({
 export function CheckoutClient({
   plan,
   user,
-  paymentConfig,
-  availableProviders,
+  paymentMethods,
 }: CheckoutClientProps) {
-  const initialProvider = availableProviders.includes('toss')
-    ? 'toss'
-    : availableProviders[0] ?? null
-  const [selectedProvider, setSelectedProvider] =
-    useState<PaymentProvider | null>(initialProvider)
-  const [phase, setPhase] = useState<CheckoutPhase>(
-    initialProvider === 'toss' ? 'providerLoading' : initialProvider ? 'ready' : 'idle'
-  )
+  const profilePhone = toPhoneDigits(user.phone)
+  const [selectedCode, setSelectedCode] = useState<string | null>(null)
+  const [phone, setPhone] = useState(profilePhone)
+  const [editingPhone, setEditingPhone] = useState(!PHONE_PATTERN.test(profilePhone))
+  const [savePhone, setSavePhone] = useState(false)
+  const [agreed, setAgreed] = useState(false)
+  const [phase, setPhase] = useState<CheckoutPhase>('idle')
   const [message, setMessage] = useState<string | null>(null)
   const [errorCode, setErrorCode] = useState<string | null>(null)
-  const [preparedOrder, setPreparedOrder] = useState<PreparedOrder | null>(null)
-  const [lockedProvider, setLockedProvider] = useState<PaymentProvider | null>(null)
-  const [tossMountKey, setTossMountKey] = useState(0)
-  const widgetsRef = useRef<TossWidgets | null>(null)
   const inFlightRef = useRef(false)
 
-  const handleTossReady = useCallback((widgets: TossWidgets | null) => {
-    widgetsRef.current = widgets
-    if (widgets) {
-      setPhase((current) =>
-        current === 'providerLoading' ? 'ready' : current
-      )
+  // 결제창에서 뒤로가기로 돌아와 페이지가 그대로 복원되면 잠긴 화면을 푼다.
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return
+      inFlightRef.current = false
+      setPhase('idle')
       setMessage(null)
     }
+    window.addEventListener('pageshow', handlePageShow)
+    return () => window.removeEventListener('pageshow', handlePageShow)
   }, [])
 
-  const handleTossError = useCallback((nextMessage: string) => {
-    widgetsRef.current = null
-    setPhase('recoverableError')
-    setMessage(nextMessage)
-  }, [])
+  // 마지막에 쓴 결제수단을 기본으로 고른다. 처음이면 고르지 않은 채로 둔다.
+  useEffect(() => {
+    try {
+      const lastCode = window.localStorage.getItem(getLastMethodStorageKey(user.id))
+      if (lastCode && paymentMethods.some((method) => method.code === lastCode)) {
+        setSelectedCode(lastCode)
+      }
+    } catch {
+      // 브라우저 저장소를 쓸 수 없으면 무시한다.
+    }
+  }, [paymentMethods, user.id])
 
-  const changeProvider = (value: string) => {
-    if (lockedProvider || inFlightRef.current) return
-    const provider = value as PaymentProvider
-    if (!availableProviders.includes(provider)) return
+  const selectedMethod = paymentMethods.find((method) => method.code === selectedCode) ?? null
+  const needsPhone = selectedMethod?.provider === 'payapp'
+  const phoneValid = PHONE_PATTERN.test(phone)
+  const isBusy = phase === 'preparingOrder' || phase === 'openingProvider'
+  const amount = plan.price
 
-    setSelectedProvider(provider)
+  const changeMethod = (code: string) => {
+    if (isBusy || inFlightRef.current) return
+    setSelectedCode(code)
     setMessage(null)
     setErrorCode(null)
-    setPhase(provider === 'toss' ? 'providerLoading' : 'ready')
+    setPhase('idle')
   }
 
-  const resetAttempt = () => {
+  const startNewAttempt = () => {
     clearCheckoutAttempt(user.id, plan.id)
-    setPreparedOrder(null)
-    setLockedProvider(null)
     setErrorCode(null)
     setMessage(null)
-    setPhase('ready')
+    setPhase('idle')
   }
 
-  const reloadTossPanel = () => {
-    setMessage(null)
-    setErrorCode(null)
-    setPhase('providerLoading')
-    setTossMountKey((current) => current + 1)
+  const failWith = (nextMessage: string, code: string | null = null) => {
+    setPhase('recoverableError')
+    setErrorCode(code)
+    setMessage(nextMessage)
   }
 
   const beginPayment = async () => {
-    if (!selectedProvider || inFlightRef.current) return
-    if (lockedProvider && lockedProvider !== selectedProvider) return
-    if (selectedProvider === 'toss' && !widgetsRef.current) {
-      setPhase('recoverableError')
-      setMessage('일반결제 수단을 먼저 불러와 주세요.')
+    if (!selectedMethod || !agreed || inFlightRef.current) return
+    if (needsPhone && !phoneValid) {
+      failWith('결제 안내를 받을 휴대폰 번호를 확인해 주세요.')
       return
     }
 
@@ -410,152 +273,88 @@ export function CheckoutClient({
     setErrorCode(null)
 
     try {
-      let order = preparedOrder
-      if (!order) {
-        const endpoint = selectedProvider === 'toss'
-          ? '/api/payments/orders'
-          : '/api/payments/kakaopay/orders'
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            planId: plan.id,
-            checkoutAttemptId: getCheckoutAttemptId(user.id, plan.id),
-          }),
-        })
-        const body = await response.json() as PaymentResponse
-
-        if (response.status === 202 || body.status === 'preparing') {
-          setLockedProvider(selectedProvider)
-          setPhase('pendingVerification')
-          setMessage(
-            '결제 준비 결과를 확인하고 있습니다. 잠시 후 같은 버튼으로 상태를 다시 확인해 주세요.'
-          )
-          return
-        }
-
-        if (!response.ok) {
-          setErrorCode(body.code ?? null)
-          throw new Error(body.error || '결제 주문을 준비하지 못했습니다.')
-        }
-
-        if (
-          !body.orderId ||
-          !body.orderName ||
-          typeof body.amount !== 'number' ||
-          typeof body.credits !== 'number' ||
-          !body.expiresAt
-        ) {
-          throw new Error('결제 주문 응답을 확인하지 못했습니다.')
-        }
-
-        order = {
-          provider: selectedProvider,
-          orderId: body.orderId,
-          orderName: body.orderName,
-          amount: body.amount,
-          credits: body.credits,
-          expiresAt: body.expiresAt,
-          nextRedirectPcUrl: body.nextRedirectPcUrl,
-          nextRedirectMobileUrl: body.nextRedirectMobileUrl,
-        }
-        setPreparedOrder(order)
-        setLockedProvider(selectedProvider)
+      try {
+        window.localStorage.setItem(getLastMethodStorageKey(user.id), selectedMethod.code)
+      } catch {
+        // 저장하지 못해도 결제는 진행한다.
       }
 
-      if (order.amount !== plan.price) {
-        throw new Error('상품 금액이 변경되었습니다. 충전 상품을 다시 확인해 주세요.')
-      }
+      const checkoutAttemptId = getCheckoutAttemptId(
+        user.id,
+        plan.id,
+        selectedMethod.code,
+        needsPhone ? phone : ''
+      )
+      const response = selectedMethod.provider === 'kakaopay'
+        ? await fetch('/api/payments/kakaopay/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ planId: plan.id, checkoutAttemptId }),
+          })
+        : await fetch('/api/payments/payapp/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              planId: plan.id,
+              checkoutAttemptId,
+              paymentMethodCode: selectedMethod.code,
+              phone,
+              savePhone: !profilePhone && savePhone,
+            }),
+          })
+      const body = await response.json() as PaymentResponse
 
-      if (order.provider === 'toss') {
-        const widgets = widgetsRef.current
-        if (!widgets) {
-          throw new Error('일반결제 수단을 다시 불러와 주세요.')
-        }
-
-        setPhase('openingProvider')
-        setMessage('일반결제 창을 열고 있습니다.')
-        await widgets.setAmount({ currency: 'KRW', value: order.amount })
-        setPhase('awaitingReturn')
-        await widgets.requestPayment({
-          orderId: order.orderId,
-          orderName: order.orderName,
-          customerEmail: user.email,
-          customerName: user.name,
-          successUrl: `${window.location.origin}/checkout/success`,
-          failUrl: `${window.location.origin}/checkout/fail`,
-        })
+      if (response.status === 202 || body.status === 'preparing') {
+        setPhase('pendingVerification')
+        setMessage('결제 준비 결과를 확인하고 있습니다. 잠시 후 같은 버튼으로 다시 시도해 주세요.')
         return
       }
 
-      const redirectUrl = isMobileBrowser()
-        ? order.nextRedirectMobileUrl
-        : order.nextRedirectPcUrl
-      if (!redirectUrl) {
+      if (!response.ok) {
+        failWith(body.error || '결제 주문을 준비하지 못했습니다.', body.code ?? null)
+        return
+      }
+
+      // 결제됐을 수 있는 이전 주문이면 다시 결제하지 않고 결과 화면으로 보낸다.
+      // 결과를 한 번 보여 준 뒤에는 다음 결제가 새 시도로 시작되게 한다(같은 상품 재구매).
+      if (body.status === 'result' && body.resultUrl) {
+        clearCheckoutAttempt(user.id, plan.id)
+        setPhase('openingProvider')
+        window.location.assign(body.resultUrl)
+        return
+      }
+
+      if (body.amount !== plan.price) {
+        failWith('상품 금액이 변경되었습니다. 충전 상품을 다시 확인해 주세요.')
+        return
+      }
+
+      const redirectUrl = selectedMethod.provider === 'kakaopay'
+        ? isMobileBrowser() ? body.nextRedirectMobileUrl : body.nextRedirectPcUrl
+        : body.payUrl
+      if (body.status !== 'ready' || !redirectUrl) {
         setPhase('pendingVerification')
-        setMessage(
-          '카카오페이 결제 준비 결과를 확인하고 있습니다. 잠시 후 다시 확인해 주세요.'
-        )
+        setMessage('결제 준비 결과를 확인하고 있습니다. 잠시 후 다시 시도해 주세요.')
         return
       }
 
       setPhase('openingProvider')
-      setMessage('카카오페이 인증 화면으로 이동합니다.')
+      setMessage(`${selectedMethod.label} 결제 화면으로 이동합니다.`)
       window.location.assign(redirectUrl)
-    } catch (error) {
-      if (getPaymentErrorCode(error) === 'USER_CANCEL') {
-        setPhase('cancelled')
-        setMessage('결제가 취소되었으며 금액은 청구되지 않았습니다.')
-      } else {
-        setPhase('recoverableError')
-        setMessage(
-          error instanceof Error
-            ? error.message
-            : '결제 요청을 처리하지 못했습니다.'
-        )
-      }
+    } catch {
+      failWith('결제 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.')
     } finally {
       inFlightRef.current = false
     }
   }
 
-  const isBusy = [
-    'preparingOrder',
-    'openingProvider',
-    'awaitingReturn',
-  ].includes(phase)
-  const amount = preparedOrder?.amount ?? plan.price
-  const hasProviders = availableProviders.length > 0 && selectedProvider
   const ctaLabel = phase === 'preparingOrder'
     ? '주문 준비 중'
-    : phase === 'openingProvider' || phase === 'awaitingReturn'
+    : phase === 'openingProvider'
       ? '결제 화면 여는 중'
-      : phase === 'pendingVerification'
-        ? '결제 준비 상태 다시 확인'
-        : phase === 'cancelled'
-          ? '같은 결제로 다시 시도'
-          : selectedProvider === 'kakaopay'
-            ? `카카오페이로 ${amount.toLocaleString()}원 결제하기`
-            : `일반결제로 ${amount.toLocaleString()}원 결제하기`
-
-  const paymentPanel = selectedProvider === 'toss' ? (
-    paymentConfig ? (
-      <TossPaymentPanel
-        key={tossMountKey}
-        config={paymentConfig}
-        amount={plan.price}
-        userId={user.id}
-        onReady={handleTossReady}
-        onError={handleTossError}
-      />
-    ) : (
-      <p role="alert" className="text-sm text-destructive">
-        일반결제 설정을 확인할 수 없습니다.
-      </p>
-    )
-  ) : selectedProvider === 'kakaopay' ? (
-    <KakaoPayPanel />
-  ) : null
+      : selectedMethod
+        ? `${withDirectionParticle(selectedMethod.label)} ${amount.toLocaleString()}원 결제하기`
+        : '결제수단을 선택해 주세요'
 
   return (
     <div className="studio-theme min-h-screen overflow-x-hidden bg-[var(--studio-background)]">
@@ -572,7 +371,7 @@ export function CheckoutClient({
       />
 
       <StudioContainer className="py-7 sm:py-9">
-        {!hasProviders ? (
+        {paymentMethods.length === 0 ? (
           <div className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-6 text-center shadow-[var(--studio-shadow-card)] sm:p-8">
             <h2 className="text-xl font-extrabold text-[var(--studio-ink)]">
               결제 기능을 준비 중입니다
@@ -594,78 +393,150 @@ export function CheckoutClient({
                 id="payment-method-title"
                 className="text-lg font-extrabold text-[var(--studio-ink)]"
               >
-                결제 방식
+                결제수단
               </h2>
 
-              {availableProviders.length === 2 ? (
-                <Tabs
-                  value={selectedProvider}
-                  onValueChange={changeProvider}
-                  className="mt-5"
-                >
-                  <TabsList
-                    aria-label="결제 방식 선택"
-                    className="grid h-auto min-h-11 w-full grid-cols-2 bg-[var(--studio-primary-soft)]"
-                  >
-                    <TabsTrigger
-                      value="toss"
-                      disabled={Boolean(lockedProvider) || isBusy}
-                      className="min-h-11 min-w-11 data-[state=active]:bg-[var(--studio-surface)] data-[state=active]:text-[var(--studio-primary)] focus-visible:ring-[var(--studio-focus-ring)]"
+              <fieldset className="mt-5 min-w-0" disabled={isBusy}>
+                <legend className="sr-only">결제수단 선택</legend>
+                <div className="space-y-2">
+                  {paymentMethods.map((method) => (
+                    <label
+                      key={method.code}
+                      className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] px-4 py-3 has-[:checked]:border-[var(--studio-primary)] has-[:checked]:bg-[var(--studio-primary-soft)] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--studio-focus-ring)] has-[:disabled]:cursor-not-allowed"
                     >
-                      일반결제
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="kakaopay"
-                      disabled={Boolean(lockedProvider) || isBusy}
-                      className="min-h-11 min-w-11 data-[state=active]:bg-[var(--studio-surface)] data-[state=active]:text-[var(--studio-primary)] focus-visible:ring-[var(--studio-focus-ring)]"
-                    >
-                      카카오페이
-                    </TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="toss" className="mt-5 min-w-0">
-                    {selectedProvider === 'toss' ? paymentPanel : null}
-                  </TabsContent>
-                  <TabsContent value="kakaopay" className="mt-5 min-w-0">
-                    {selectedProvider === 'kakaopay' ? paymentPanel : null}
-                  </TabsContent>
-                </Tabs>
-              ) : (
-                <div className="mt-5">{paymentPanel}</div>
-              )}
+                      <input
+                        type="radio"
+                        name="payment-method"
+                        value={method.code}
+                        checked={selectedCode === method.code}
+                        onChange={() => changeMethod(method.code)}
+                        className="mt-1 size-4 shrink-0 accent-[var(--studio-primary)]"
+                      />
+                      <span className="min-w-0">
+                        <span className="block font-bold text-[var(--studio-ink)]">{method.label}</span>
+                        {method.description ? (
+                          <span className="mt-0.5 block break-keep text-xs leading-5 text-[var(--studio-muted)]">
+                            {method.description}
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
 
-              {phase === 'recoverableError' && selectedProvider === 'toss' && !widgetsRef.current ? (
-                <Button
-                  type="button"
-                  variant="brandOutline"
-                  className="mt-4 min-h-11"
-                  onClick={reloadTossPanel}
-                >
-                  결제 수단 다시 불러오기
-                </Button>
+              {needsPhone ? (
+                <div className="mt-5 min-w-0 rounded-[var(--studio-radius-control)] bg-[var(--studio-primary-soft)] p-4 text-sm">
+                  {!editingPhone ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[var(--studio-text)]">
+                        결제 안내 휴대폰 <strong className="text-[var(--studio-ink)]">{maskPhone(phone)}</strong>
+                      </span>
+                      <Button
+                        type="button"
+                        variant="brandOutline"
+                        className="min-h-11"
+                        disabled={isBusy}
+                        onClick={() => setEditingPhone(true)}
+                      >
+                        변경
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="min-w-0">
+                      <label htmlFor="checkout-phone" className="block font-bold text-[var(--studio-ink)]">
+                        결제 안내를 받을 휴대폰 번호
+                      </label>
+                      <input
+                        id="checkout-phone"
+                        type="tel"
+                        inputMode="numeric"
+                        autoComplete="tel"
+                        placeholder="01012345678"
+                        value={phone}
+                        disabled={isBusy}
+                        onChange={(event) => setPhone(toPhoneDigits(event.target.value).slice(0, 11))}
+                        aria-invalid={phone.length > 0 && !phoneValid}
+                        className="mt-2 min-h-11 w-full rounded-[var(--studio-radius-control)] border border-[var(--studio-control-border)] bg-[var(--studio-surface)] px-3 text-[var(--studio-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                      />
+                      {phone.length > 0 && !phoneValid ? (
+                        <p className="mt-1 text-xs text-destructive">휴대폰 번호 형식을 확인해 주세요.</p>
+                      ) : null}
+                      {PHONE_PATTERN.test(profilePhone) ? (
+                        <Button
+                          type="button"
+                          variant="brandGhost"
+                          className="mt-2 min-h-11"
+                          disabled={isBusy}
+                          onClick={() => {
+                            setPhone(profilePhone)
+                            setEditingPhone(false)
+                          }}
+                        >
+                          변경 취소
+                        </Button>
+                      ) : null}
+                      {!profilePhone ? (
+                        <label className="mt-3 flex min-h-11 items-center gap-2 text-[var(--studio-text)]">
+                          <input
+                            type="checkbox"
+                            checked={savePhone}
+                            disabled={isBusy}
+                            onChange={(event) => setSavePhone(event.target.checked)}
+                            className="size-4 accent-[var(--studio-primary)]"
+                          />
+                          다음에도 이 번호 사용
+                        </label>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
               ) : null}
             </section>
 
             <OrderSummary plan={plan} user={user} amount={amount} />
 
             <div className="min-w-0 lg:col-span-2">
-              {message ? (
-                <p
-                  role={phase === 'recoverableError' ? 'alert' : 'status'}
-                  aria-live="polite"
-                  className="mb-3 break-words text-sm leading-6 text-[var(--studio-muted)]"
-                >
-                  {message}
-                </p>
-              ) : null}
+              <label className="mb-3 flex min-h-11 items-start gap-2 text-sm leading-6 text-[var(--studio-text)]">
+                <input
+                  type="checkbox"
+                  checked={agreed}
+                  disabled={isBusy}
+                  onChange={(event) => setAgreed(event.target.checked)}
+                  className="mt-1 size-4 shrink-0 accent-[var(--studio-primary)]"
+                />
+                <span>
+                  주문 내용과{' '}
+                  <Link
+                    href="/terms/refund"
+                    className="font-bold text-[var(--studio-ink)] underline underline-offset-4"
+                  >
+                    취소·환불정책
+                  </Link>
+                  을 확인했으며 결제에 동의합니다 (필수)
+                </span>
+              </label>
+
+              {/* 안내 영역은 항상 두고 내용만 바꾼다. 오류는 따로 알린다. */}
+              <p
+                role="status"
+                aria-live="polite"
+                className="break-words text-sm leading-6 text-[var(--studio-muted)] [&:not(:empty)]:mb-3"
+              >
+                {phase !== 'recoverableError' ? message : null}
+              </p>
+              <p
+                role="alert"
+                className="break-words text-sm leading-6 text-destructive [&:not(:empty)]:mb-3"
+              >
+                {phase === 'recoverableError' ? message : null}
+              </p>
 
               <Button
                 type="button"
                 variant="brand"
                 className="min-h-11 w-full text-base"
-                disabled={
-                  isBusy ||
-                  (selectedProvider === 'toss' && !widgetsRef.current)
-                }
+                disabled={isBusy || !selectedMethod || !agreed || (needsPhone && !phoneValid)}
                 onClick={beginPayment}
               >
                 {isBusy ? (
@@ -673,20 +544,18 @@ export function CheckoutClient({
                     aria-hidden="true"
                     className="size-5 animate-spin motion-reduce:animate-none"
                   />
-                ) : selectedProvider === 'kakaopay' ? (
-                  <WalletCards aria-hidden="true" className="size-5" />
                 ) : (
                   <CreditCard aria-hidden="true" className="size-5" />
                 )}
                 {ctaLabel}
               </Button>
 
-              {errorCode === 'PAYMENT_ATTEMPT_PAYLOAD_CONFLICT' ? (
+              {errorCode && NEW_ATTEMPT_CODES.includes(errorCode) ? (
                 <Button
                   type="button"
                   variant="brandGhost"
                   className="mt-2 min-h-11 w-full"
-                  onClick={resetAttempt}
+                  onClick={startNewAttempt}
                 >
                   새 결제 시도 시작하기
                 </Button>
@@ -695,15 +564,13 @@ export function CheckoutClient({
 
             <div className="flex min-h-11 min-w-0 items-center justify-center gap-2 text-sm text-[var(--studio-muted)]">
               <ShieldCheck aria-hidden="true" className="size-4" />
-              {selectedProvider === 'toss'
-                ? '토스페이먼츠 안전결제'
-                : '카카오페이 안전결제'}
+              결제는 결제사 안전결제 화면에서 진행됩니다
             </div>
 
             <div className="min-w-0 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 text-sm leading-6 text-[var(--studio-text)] shadow-[var(--studio-shadow-card)] lg:col-span-3">
               <p className="font-bold text-[var(--studio-ink)]">결제 전 확인</p>
               <ul className="mt-2 space-y-1 text-[var(--studio-muted)]">
-                <li>1회 최대 100,000원이며 자동결제되지 않습니다.</li>
+                <li>자동결제 없음 · 1회 최대 100,000원입니다.</li>
                 <li>사용기한은 결제일로부터 1년이며 회원 간 양도할 수 없습니다.</li>
                 <li>구매 후 7일 이내 완전 미사용 시 원 결제수단으로 환불합니다.</li>
               </ul>

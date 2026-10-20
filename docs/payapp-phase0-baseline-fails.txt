@@ -11,8 +11,6 @@ board category sidebar delegates the same transparent menu used by the home page
 buildExamPaperPrintHtml reserves chunk-aware pagination for 2-column preview pages
 buildExamPaperPrintHtml routes 2-column preview through chunk-based question markup
 buildMeasuredTwoColumnPreviewPages splits measured body into line chunks in Chromium runtime
-checkout shows the restrictions before payment
-checkout uses only the prepared server order
 english and korean share one subject-aware preview composition
 exam-only double preview should keep segmentation bounded for the segmentation fixture
 exam-with-answers double preview keeps the screenshot-like real fixture pair separated without overflow
@@ -25,7 +23,6 @@ measured two-column exam-with-answers final HTML renders answer section after al
 measured two-column pagination does not leave a weak body word alone at a column break
 measured two-column preview should use rendered DOM heights before final pagination
 measurement body renders as multiple visual lines in Chromium before pagination splitting
-mypage payments query excludes zero-won and planless credit records
 normal and preview shells each have exactly one main owner
 operations runbook keeps payments fail-closed until external gates pass
 preview injects real subject market data without sample home imports

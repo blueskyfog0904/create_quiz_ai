@@ -9,11 +9,11 @@
 import { redirect } from 'next/navigation'
 import { buildAuthRedirectPath } from '@/lib/auth-paths'
 import { assertKakaoPayReady } from '@/lib/kakaopay-server'
+import { assertPayAppReady } from '@/lib/payapp-server'
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
 import { createClient } from '@/lib/supabase/server'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
-import { assertTossPaymentsReady } from '@/lib/toss-payments-server'
-import { CheckoutClient } from './checkout-client'
+import { CheckoutClient, type CheckoutPaymentMethod } from './checkout-client'
 
 interface CheckoutPageProps {
   searchParams: Promise<{ planId?: string }>
@@ -39,7 +39,7 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, email')
+    .select('id, email, phone')
     .eq('id', user.id)
     .single()
 
@@ -54,23 +54,18 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
     redirect('/pricing')
   }
 
-  const availableProviders: Array<'toss' | 'kakaopay'> = []
-  let paymentConfig: {
-    clientKey: string
-    paymentVariantKey: string
-    agreementVariantKey: string
-  } | null = null
-
+  // 운영 스위치와 키 설정을 모두 통과한 결제사의 결제수단만 보여 준다.
+  const availableProviders = new Set<string>()
   const admin = createPaymentAdminClient()
   const { data: runtimeRows } = await admin
     .from('payment_runtime_config')
     .select(`
       accepted_provider_environment,
       master_accepts_new_orders,
-      toss_accepts_new_orders,
-      toss_merchant_id,
       kakaopay_accepts_new_orders,
-      kakaopay_merchant_id
+      kakaopay_merchant_id,
+      payapp_accepts_new_orders,
+      payapp_merchant_id
     `)
     .eq('id', true)
     .limit(2)
@@ -78,21 +73,15 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
 
   if (runtime?.master_accepts_new_orders) {
     try {
-      const toss = assertTossPaymentsReady()
+      const payapp = assertPayAppReady()
       if (
-        runtime.toss_accepts_new_orders &&
-        runtime.accepted_provider_environment === toss.environment &&
-        runtime.toss_merchant_id === toss.mid
+        runtime.payapp_accepts_new_orders &&
+        runtime.payapp_merchant_id === payapp.userId
       ) {
-        paymentConfig = {
-          clientKey: toss.clientKey,
-          paymentVariantKey: toss.paymentVariantKey,
-          agreementVariantKey: toss.agreementVariantKey,
-        }
-        availableProviders.push('toss')
+        availableProviders.add('payapp')
       }
     } catch {
-      paymentConfig = null
+      // Fail closed when PayApp configuration is incomplete.
     }
 
     try {
@@ -102,12 +91,31 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
         runtime.accepted_provider_environment === kakao.environment &&
         runtime.kakaopay_merchant_id === kakao.cid
       ) {
-        availableProviders.push('kakaopay')
+        availableProviders.add('kakaopay')
       }
     } catch {
       // Fail closed when KakaoPay configuration is incomplete.
     }
   }
+
+  // 결제수단 목록·순서·안내 문구는 DB(payment_methods)에서 읽는다.
+  const { data: methodRows } = availableProviders.size > 0
+    ? await admin
+      .from('payment_methods')
+      .select('code, label, description, provider, provider_open_pay_type')
+      .eq('is_enabled', true)
+      .order('sort_order')
+    : { data: [] }
+  const paymentMethods: CheckoutPaymentMethod[] = (methodRows ?? [])
+    // 페이앱 수단은 결제창 수단 값이 있어야 주문 route가 받는다.
+    .filter((method) => availableProviders.has(method.provider) &&
+      (method.provider !== 'payapp' || Boolean(method.provider_open_pay_type)))
+    .map((method) => ({
+      code: method.code,
+      label: method.label,
+      description: method.description,
+      provider: method.provider === 'kakaopay' ? 'kakaopay' : 'payapp',
+    }))
 
   return (
     <CheckoutClient
@@ -117,9 +125,9 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
         // 회원 이름은 저장하지 않는다. 결제창 구매자명은 회원 표시 이름을 쓴다.
         name: formatMemberDisplayName(profile?.email ?? user.email, user.id),
         email: user.email || '',
+        phone: profile?.phone ?? null,
       }}
-      paymentConfig={paymentConfig}
-      availableProviders={availableProviders}
+      paymentMethods={paymentMethods}
     />
   )
 }

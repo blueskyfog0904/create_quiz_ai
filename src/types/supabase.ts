@@ -5265,6 +5265,10 @@ export type Database = {
         Args: { p_request_id: string }
         Returns: Json
       }
+      resolve_payment_alert: {
+        Args: { p_actor_id: string; p_alert_id: string; p_note: string }
+        Returns: Json
+      }
       resolve_payment_order_review: {
         Args: {
           p_action: string

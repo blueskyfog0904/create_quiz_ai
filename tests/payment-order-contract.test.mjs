@@ -48,12 +48,12 @@ test('order preparation is authenticated, server priced and fail-closed', () => 
 })
 
 test('checkout uses only the prepared server order', () => {
-  assert.match(checkoutClient, /fetch\('\/api\/payments\/orders'/)
-  assert.match(checkoutClient, /order\.orderId/)
-  assert.match(checkoutClient, /order\.amount/)
+  assert.match(checkoutClient, /fetch\('\/api\/payments\/payapp\/orders'/)
+  assert.match(checkoutClient, /fetch\('\/api\/payments\/kakaopay\/orders'/)
+  assert.match(checkoutClient, /body\.amount !== plan\.price/)
+  assert.match(checkoutClient, /window\.location\.assign\(redirectUrl\)/)
   assert.doesNotMatch(checkoutClient, /generateOrderId/)
   assert.doesNotMatch(checkoutClient, /Math\.random/)
-  assert.doesNotMatch(checkoutClient, /variantKey:\s*'DEFAULT'/)
   assert.doesNotMatch(checkoutClient, /successUrl:[^\n]*planId/)
 })
 

@@ -76,3 +76,19 @@ test('filterRealPaidPlanPurchases removes legacy zero-won grant rows from paymen
 
   assert.deepEqual(filtered.map((payment) => payment.id), ['paid'])
 })
+
+test('payment method and provider status labels come from one place', async () => {
+  const history = await import('../src/lib/payment-history.ts')
+  assert.equal(history.getPaymentMethodLabel({ payment_method: 'card', provider: 'payapp', payment_method_label: '신용·체크카드' }), '신용·체크카드')
+  assert.equal(history.getPaymentMethodLabel({ payment_method: '간편결제', provider: 'toss', payment_method_label: null }), '일반결제(이전)')
+  assert.equal(history.getPaymentMethodLabel({ payment_method: '카드', provider: null, payment_method_label: null }), '카드')
+  assert.equal(history.getProviderStatusLabel('10'), '결제 대기')
+  assert.equal(history.getProviderStatusLabel('16'), '요청 취소')
+  assert.equal(history.getProviderStatusLabel('4'), '승인 완료')
+  assert.equal(history.getProviderStatusLabel('64'), '결제 취소 완료')
+  assert.equal(history.getProviderStatusLabel('PART_CANCEL_PAYMENT'), '부분 취소')
+  assert.equal(history.getProviderStatusLabel(null), '상태 확인 중')
+  assert.equal(history.getPartialRefundAmount({ status: 'completed', refunded_amount: 3000 }), 3000)
+  assert.equal(history.getPartialRefundAmount({ status: 'refunded', refunded_amount: 9900 }), null)
+  assert.equal(history.getPartialRefundAmount({ status: 'completed', refunded_amount: 0 }), null)
+})

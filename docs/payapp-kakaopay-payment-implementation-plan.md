@@ -296,10 +296,11 @@ route는 결과 코드로 이벤트 상태와 응답을 정한다(취소 표식�
   - route와 대사가 지급·환불과 **별도 트랜잭션**으로 호출한다. 경보 실패가 결제 처리를 실패시키지 않는다.
 - **주문별 이상**(금액·`pay_type` 불일치, 이중 환불 의심)은 code 1건 제한에 묻히지 않도록 주문 id를 담아 관리자 `notifications`로도 남긴다. `apply_payapp_feedback`은 이상 여부를 결과 키(`pay_type_mismatch`, `paid_amount_conflict`)로만 돌려주고, 알림과 경보는 route가 결제 트랜잭션 밖에서 남긴다.
 - **관리자 결제 확인 화면:** 미해소 경보와 `manual_review` 주문을 함께 보여준다. `resolve_payment_order_review`가 관련 경보를 해소한다.
+- **경보 해소 `resolve_payment_alert(p_alert_id, p_actor_id, p_note)` (사용자 결정 2026-10-20, 마이그레이션 `20261020090000`):** 주문과 연결되지 않았거나 주문 처리가 이미 끝난 경보를 처리자·메모와 함께 해소하고 `payment_admin_actions`에 `alert_resolved`로 남긴다(해소 당시 경보 내용·주문 상태 포함). 판매 스위치는 바꾸지 않는다(재개는 마이그레이션). health 조건이 남아 있으면 다음 health 실행(5분 이내)에 같은 code가 다시 생긴다. 주문에 연결된 경보는 화면에서 주문 확인 처리를 먼저 권한다.
 - **기존 미해소 2건:** 사용자 승인을 받아 2026-10-19에 해소했다(2장 기준선). 출시 전에는 미해소 0건만 다시 확인한다.
 - **감사 테이블 `payment_admin_actions` (신규, append-only):**
   - 컬럼: actor, action, `payment_order_id`, `refund_request_id`, 변경 전후 상태, note, 회수·미회수 크레딧, 외부 처리 방식, `created_at`.
-  - 대상: 관리자 해소, 수동 환불 완료, 관리자 지급, `manual_review` 거절.
+  - 대상: 관리자 해소, 수동 환불 완료, 관리자 지급, `manual_review` 거절, 경보 해소(`alert_resolved`).
   - 권한: RLS를 켜고 service_role은 SELECT만 받는다. 쓰기는 관리 RPC(SECURITY DEFINER) 안에서만 한다. UPDATE·DELETE를 막는 트리거로 append-only를 강제한다.
   - 수동 환불 완료와 지급처럼 `profiles.credits`를 다시 계산하는 조치는 재계산 전후 잔액을 둘 다 남긴다. 기존 잔액 드리프트가 함께 정정될 수 있기 때문이다.
   - `refund_requests.processed_by`·`admin_note`는 재승인 때 덮어써지므로 감사 기록으로 쓰지 않는다.

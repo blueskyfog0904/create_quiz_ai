@@ -91,6 +91,44 @@ export function PaymentReviewClient({
     const [paidAt, setPaidAt] = useState('')
     const [externalMethod, setExternalMethod] = useState<ExternalMethod>('payapp_cancel_request')
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [selectedAlert, setSelectedAlert] = useState<PaymentAlert | null>(null)
+    const [alertNote, setAlertNote] = useState('')
+
+    // 주문 확인 처리(resolve_payment_order_review)는 연결된 경보를 함께 해소한다.
+    // 처리할 조치가 없는 격리 주문은 환불 요청에서 수동 완료하며, 그때는 경보를 직접 해소해야 한다.
+    const reviewableOrderIds = new Set(orders.filter((order) => order.allowedActions.length > 0).map((order) => order.id))
+    const refundOnlyOrderIds = new Set(orders.filter((order) => order.allowedActions.length === 0).map((order) => order.id))
+    const linkedOrderId = (alert: PaymentAlert | null) =>
+        typeof alert?.details?.payment_order_id === 'string' ? alert.details.payment_order_id : null
+    const alertOrderUnderReview = (alert: PaymentAlert | null) =>
+        reviewableOrderIds.has(linkedOrderId(alert) ?? '')
+    const alertOrderInRefund = (alert: PaymentAlert | null) =>
+        refundOnlyOrderIds.has(linkedOrderId(alert) ?? '')
+
+    const handleResolveAlert = async () => {
+        if (!selectedAlert) return
+
+        setIsSubmitting(true)
+        try {
+            const response = await fetch('/api/admin/payments/alerts', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ alertId: selectedAlert.id, note: alertNote }),
+            })
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(data.error || '경보를 해소하지 못했습니다.')
+            }
+
+            toast.success(data.message)
+            setSelectedAlert(null)
+            router.refresh()
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : '경보를 해소하지 못했습니다.')
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
 
     const openDialog = (order: PaymentReviewOrder) => {
         setSelectedOrder(order)
@@ -214,6 +252,19 @@ export function PaymentReviewClient({
                                     {typeof alert.details?.order_id === 'string' && (
                                         <p className="mt-1 text-xs text-gray-500">주문 {alert.details.order_id}</p>
                                     )}
+                                    <div className="mt-2 flex justify-end">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            aria-label={`${alert.code} 경보 해소`}
+                                            onClick={() => {
+                                                setSelectedAlert(alert)
+                                                setAlertNote('')
+                                            }}
+                                        >
+                                            해소
+                                        </Button>
+                                    </div>
                                 </li>
                             ))}
                         </ul>
@@ -313,6 +364,62 @@ export function PaymentReviewClient({
                                     처리 중...
                                 </>
                             ) : '처리 기록'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={selectedAlert !== null} onOpenChange={(open) => !open && setSelectedAlert(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>경보 해소</DialogTitle>
+                        <DialogDescription>
+                            {selectedAlert && `${selectedAlert.code} · ${selectedAlert.message}`}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                            원인을 확인하고 처리한 뒤 해소하세요. 해소해도 판매 스위치는 바뀌지 않으며,
+                            원인이 남아 있으면 점검이 같은 경보를 다시 만듭니다.
+                        </div>
+                        {alertOrderUnderReview(selectedAlert) && (
+                            <p id="alert-order-hint" role="note" className="text-sm font-medium text-red-600">
+                                이 경보의 주문이 아직 수동 확인 중입니다. 위 주문 목록에서 확인 처리하면 경보도 함께 해소됩니다.
+                            </p>
+                        )}
+                        {alertOrderInRefund(selectedAlert) && (
+                            <p id="alert-order-hint" role="note" className="text-sm font-medium text-red-600">
+                                이 경보의 주문은 환불 요청에서 처리합니다. 수동 환불을 완료한 뒤 이 경보를 직접 해소하세요.
+                            </p>
+                        )}
+                        <div>
+                            <label htmlFor="alert-note" className="mb-2 block text-sm font-medium text-gray-700">
+                                처리 메모 (필수)
+                            </label>
+                            <Textarea
+                                id="alert-note"
+                                aria-describedby={alertOrderUnderReview(selectedAlert) || alertOrderInRefund(selectedAlert) ? 'alert-order-hint' : undefined}
+                                value={alertNote}
+                                onChange={(e) => setAlertNote(e.target.value)}
+                                rows={3}
+                                maxLength={500}
+                                placeholder="확인한 원인과 처리 내용을 적어 주세요."
+                            />
+                        </div>
+                    </div>
+
+                    <DialogFooter className="justify-center gap-2">
+                        <Button variant="outline" onClick={() => setSelectedAlert(null)} disabled={isSubmitting}>
+                            취소
+                        </Button>
+                        <Button onClick={handleResolveAlert} disabled={isSubmitting || alertNote.trim().length === 0}>
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    처리 중...
+                                </>
+                            ) : '해소 기록'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

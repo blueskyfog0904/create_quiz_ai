@@ -7,7 +7,8 @@ const paymentsPageSource = readFileSync(
   'utf8'
 )
 
+// 결제내역은 get_my_payment_history RPC로 읽고, 0원·요금제 없는 기록은 filterRealPaidPlanPurchases가 뺀다.
 test('mypage payments query excludes zero-won and planless credit records', () => {
-  assert.match(paymentsPageSource, /\.gt\('amount',\s*0\)/)
-  assert.match(paymentsPageSource, /\.not\('plan_id',\s*'is',\s*null\)/)
+  assert.match(paymentsPageSource, /supabase\.rpc\('get_my_payment_history'\)/)
+  assert.match(paymentsPageSource, /filterRealPaidPlanPurchases\(paymentRecords\)/)
 })

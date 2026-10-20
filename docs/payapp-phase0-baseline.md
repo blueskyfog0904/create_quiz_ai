@@ -22,6 +22,8 @@
 | `point-charge-operations-contract.test.mjs` "keeps payments fail-closed until external gates pass" | 운영 런북에 `PAYMENTS_ENABLED=false` 문구 없음 | 6단계 토스 문서 정리 때 페이앱 런북 기준으로 교체 |
 | `pricing-refund-summary.test.mjs` "highlights current credit refund rules" | 가격 페이지에 "AI 생성" 문구 없음 | 결제 전환과 무관한 문구 테스트. 이번 범위에서 고치지 않음 |
 
+- 5단계(2026-10-20)에서 위 표의 앞 3건(결제내역 RPC 기준 단언, 결제 화면 주문 API 기준, 결제 전 안내 문구)을 새 화면 기준으로 교체해 해결했다. [`payapp-phase0-baseline-fails.txt`](payapp-phase0-baseline-fails.txt)에서 지웠다(남은 실패 45건).
+
 ## 3. 서로 반대인 테스트 2개 정리 방침
 
 - `point-charge-compliance-ui-contract.test.mjs:89`는 관리자 환불 화면에 `Toss 취소 거래키`가 **있기를**, `provider-refund-processing-contract.test.mjs:105`는 **없기를** 기대한다. 지금 화면(`refunds-client.tsx:305`)은 결제사 구분 없는 "취소 거래키"를 쓰므로 앞쪽이 실패한다.

@@ -8,7 +8,12 @@ import { StudioEmptyState } from '@/components/design-system/studio-empty-state'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { useListQuery } from '@/hooks/use-list-query'
 import { getListPagination } from '@/lib/list-pagination'
-import type { NormalizedPaymentHistoryRecord } from '@/lib/payment-history'
+import {
+  getPartialRefundAmount,
+  getPaymentMethodLabel,
+  getProviderStatusLabel,
+  type NormalizedPaymentHistoryRecord,
+} from '@/lib/payment-history'
 import {
   buildQuickRangeFilter,
   filterPaymentsByHistoryFilter,
@@ -37,17 +42,6 @@ const STATUS_BADGES: Record<string, { label: string; className: string }> = {
     label: '결제 실패',
     className: 'bg-[var(--studio-highlight)] text-[var(--studio-ink)]',
   },
-}
-
-function getProviderStatusLabel(providerStatus?: string | null) {
-  switch (providerStatus) {
-    case 'DONE':
-      return '승인 완료'
-    case 'CANCELED':
-      return '결제 취소 완료'
-    default:
-      return providerStatus ?? '상태 확인 중'
-  }
 }
 
 function formatKoreanDateTime(value: string) {
@@ -157,7 +151,7 @@ export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryR
                   </div>
                   <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-[var(--studio-muted)]">
                     <span>{formatKoreanDateTime(payment.created_at)}</span>
-                    <span>{payment.payment_method === 'toss' ? '토스페이먼츠' : payment.payment_method}</span>
+                    <span>{getPaymentMethodLabel(payment)}</span>
                     {payment.order_id ? <span>주문번호 {payment.order_id}</span> : null}
                     <span>결제사 상태 {getProviderStatusLabel(payment.provider_status)}</span>
                   </p>
@@ -176,6 +170,11 @@ export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryR
                   </span>
                   {payment.status === 'refunded' ? (
                     <p className="text-xs font-medium text-red-500">환불됨</p>
+                  ) : null}
+                  {getPartialRefundAmount(payment) ? (
+                    <p className="text-xs font-medium text-[var(--studio-muted)]">
+                      부분 환불 {getPartialRefundAmount(payment)?.toLocaleString()}원
+                    </p>
                   ) : null}
                 </div>
               </li>
