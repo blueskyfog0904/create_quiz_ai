@@ -394,7 +394,7 @@ route는 결과 코드로 이벤트 상태와 응답을 정한다(취소 표식�
 | 주문 상태 | 처리 |
 |---|---|
 | (`cancel_feedback_recorded_at` 있음 AND `cancel_processed_at` NULL) 또는 (`partial_cancel_feedback_recorded_at` 있음 AND `partial_cancel_processed_at` NULL) (주문 상태 무관) | `process_payapp_cancellation`. 가장 먼저 처리한다 |
-| `fulfillment_pending` | `retry_payapp_fulfillment`. 결제완료(4) 처리가 `fulfillment_pending`으로 바꿀 때 결제 전 대기 동안 쌓인 백오프(`next_reconcile_at`, `reconcile_attempt_count`)를 지워 다음 회차에 바로 재시도한다. 실패하면 짧은 백오프(1·2·4분)로 재시도하고, 3회 실패하면 `manual_review`(`PAYAPP_FULFILLMENT_RETRY_EXHAUSTED`) + 경보 |
+| `fulfillment_pending` | `retry_payapp_fulfillment`. 결제완료(4) 처리가 `fulfillment_pending`으로 바꿀 때 결제 전 대기 동안 쌓인 백오프(`next_reconcile_at`, `reconcile_attempt_count`)를 지워 다음 회차에 바로 재시도한다. 실패하면 짧은 백오프(2·4분, 대사 claim이 시도 횟수를 먼저 1 올리므로)로 재시도하고, 3회 실패하면 `manual_review`(`PAYAPP_FULFILLMENT_RETRY_EXHAUSTED`) + 경보 |
 | `preparing`, 30분 경과 | `mark_payapp_order_terminal(expected='preparing', 'expired')` |
 | `ready_unknown`, 30분 경과 | `mul_no`가 있으면 `cancelmode=ready`를 시도한 뒤 `expired`(CAS), 없으면 바로 `expired`(CAS). 결제완료 기록이 있으면 terminal RPC가 거부하므로 지급 경로로 넘어간다 |
 | `ready`, 결제 만료 경과 | `paycancel cancelmode=ready`. 성공하면 `expired`(CAS). 실패하면 다음 회차에 다시 시도하고, 2시간 뒤에도 그대로면 `manual_review`(`PAYAPP_READY_CANCEL_FAILED`, CAS) |

@@ -17,7 +17,7 @@ export interface PayAppWebhookReply {
   status: number
 }
 
-interface RpcResult {
+export interface PayAppRpcResult {
   result?: string
   reason?: string
   payment_order_id?: string
@@ -34,7 +34,7 @@ interface RpcResult {
   actual_refund_amount?: number | null
 }
 
-interface Alert {
+export interface Alert {
   code: string
   severity: 'warning' | 'critical'
   message: string
@@ -42,7 +42,7 @@ interface Alert {
   notifyAdmins?: boolean
 }
 
-interface FollowUps {
+export interface FollowUps {
   alerts: Alert[]
   userNotification?: { userId: string; title: string; message: string; link: string }
 }
@@ -63,7 +63,7 @@ const COMPLETED_FEEDBACK_RESULTS = new Set([
   'recorded',
 ])
 
-function eventDetails(feedback: PayAppFeedback, result?: RpcResult) {
+function eventDetails(feedback: PayAppFeedback, result?: PayAppRpcResult) {
   return {
     mul_no: feedback.mulNo,
     orig_mul_no: feedback.origMulNo,
@@ -92,7 +92,7 @@ async function markEvent(
 }
 
 // 경보·알림은 결제 트랜잭션 밖에서 남기고, 실패해도 응답을 바꾸지 않는다.
-async function runFollowUps(admin: PaymentAdminClient, followUps: FollowUps) {
+export async function runFollowUps(admin: PaymentAdminClient, followUps: FollowUps) {
   for (const alert of followUps.alerts) {
     try {
       await admin.rpc('record_payment_alert', {
@@ -144,7 +144,7 @@ async function runFollowUps(admin: PaymentAdminClient, followUps: FollowUps) {
   }
 }
 
-function feedbackFollowUps(feedback: PayAppFeedback, result: RpcResult): FollowUps {
+function feedbackFollowUps(feedback: PayAppFeedback, result: PayAppRpcResult): FollowUps {
   const details = eventDetails(feedback, result)
   const alerts: Alert[] = []
 
@@ -182,7 +182,7 @@ function feedbackFollowUps(feedback: PayAppFeedback, result: RpcResult): FollowU
 // 표식 기록 결과로 정해지는 경보. 취소 처리가 실패해도 남도록 처리 전에 만든다.
 function markerAlerts(
   feedback: PayAppFeedback,
-  marker: RpcResult,
+  marker: PayAppRpcResult,
   repeatedPartialCancel: boolean
 ): Alert[] {
   const details = eventDetails(feedback, marker)
@@ -210,8 +210,11 @@ function markerAlerts(
   return alerts
 }
 
-function cancellationFollowUps(feedback: PayAppFeedback, result: RpcResult): FollowUps {
-  const details = eventDetails(feedback, result)
+// 통보와 대사가 같은 취소 처리 결과에 같은 경보를 남긴다.
+export function cancellationFollowUps(
+  details: Record<string, Json | undefined>,
+  result: PayAppRpcResult
+): FollowUps {
   const alerts: Alert[] = []
 
   switch (result.result) {
@@ -395,7 +398,7 @@ export async function handlePayAppFeedback(
     return RETRY
   }
 
-  const result = (data ?? {}) as RpcResult
+  const result = (data ?? {}) as PayAppRpcResult
 
   if (result.result === 'cancel_marker_recorded' && result.payment_order_id) {
     // 표식은 이미 커밋됐다. 처리가 실패하면 재통보나 대사가 다시 처리한다.
@@ -417,8 +420,8 @@ export async function handlePayAppFeedback(
         return RETRY
       }
 
-      const processedResult = (processed ?? {}) as RpcResult
-      const cancellation = cancellationFollowUps(feedback, processedResult)
+      const processedResult = (processed ?? {}) as PayAppRpcResult
+      const cancellation = cancellationFollowUps(eventDetails(feedback, processedResult), processedResult)
       followUps.alerts.push(...cancellation.alerts)
       followUps.userNotification ??= cancellation.userNotification
 

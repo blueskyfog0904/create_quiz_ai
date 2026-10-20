@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
     Table,
     TableBody,
@@ -45,6 +47,7 @@ import { toast } from 'sonner'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
 import { extractAdminLoginId } from '@/lib/admin-accounts-shared'
+import { refundRequiresRecovery } from '@/lib/payment-review-actions'
 
 export interface RefundRequest {
     id: string
@@ -58,7 +61,8 @@ export interface RefundRequest {
         | 'rejected'
         | 'retryable_failed'
         | 'manual_review'
-    provider: 'toss' | 'kakaopay'
+    provider: 'toss' | 'kakaopay' | 'payapp'
+    origin: 'user' | 'external_cancel' | 'partial_cancel'
     admin_note: string | null
     refund_amount: number | null
     provider_cancel_transaction_key: string | null
@@ -86,6 +90,24 @@ export interface RefundRequest {
         id: string
         email: string | null
     } | null
+    order: {
+        expected_amount: number
+        transaction: {
+            partial_cancel_feedback_recorded_at: string | null
+        } | null
+    } | null
+}
+
+const requiresRecovery = (request: RefundRequest) => refundRequiresRecovery({
+    origin: request.origin,
+    partialCancelMarker: Boolean(request.order?.transaction?.partial_cancel_feedback_recorded_at),
+    lastErrorCode: request.last_error_code,
+})
+
+const isWholeNumberBetween = (value: string, min: number, max: number) => {
+    if (!/^[0-9]+$/.test(value.trim())) return false
+    const parsed = Number(value)
+    return parsed >= min && parsed <= max
 }
 
 interface RefundsClientProps {
@@ -98,13 +120,26 @@ interface RefundsClientProps {
     }
 }
 
+type ProcessAction = 'approve' | 'reject' | 'complete_manual'
+type ExternalMethod = 'payapp_cancel_request' | 'bank_transfer' | 'provider_admin_cancel'
+
+const externalMethodLabels: Record<ExternalMethod, string> = {
+    payapp_cancel_request: '페이앱 취소 요청(정산금 반환)',
+    bank_transfer: '고객 계좌 송금',
+    provider_admin_cancel: '결제사 관리자에서 취소',
+}
+
 export function RefundsClient({ requests, stats }: RefundsClientProps) {
     const router = useRouter()
     const [statusFilter, setStatusFilter] = useState('pending_review')
     const [isProcessDialogOpen, setIsProcessDialogOpen] = useState(false)
     const [selectedRequest, setSelectedRequest] = useState<RefundRequest | null>(null)
-    const [processAction, setProcessAction] = useState<'approve' | 'reject'>('approve')
+    const [processAction, setProcessAction] = useState<ProcessAction>('approve')
     const [adminNote, setAdminNote] = useState('')
+    const [externalMethod, setExternalMethod] = useState<ExternalMethod>('payapp_cancel_request')
+    const [refundAmount, setRefundAmount] = useState('')
+    const [recoveredCredits, setRecoveredCredits] = useState('')
+    const [providerNotCancelledConfirmed, setProviderNotCancelledConfirmed] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
 
     // 필터링된 요청
@@ -113,7 +148,7 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
     )
 
     const getProviderLabel = (provider: RefundRequest['provider']) =>
-        provider === 'kakaopay' ? '카카오페이' : '일반결제'
+        provider === 'payapp' ? '페이앱' : provider === 'kakaopay' ? '카카오페이' : '일반결제'
 
     // 상태 배지
     const getStatusBadge = (status: string) => {
@@ -136,12 +171,30 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
     }
 
     // 처리 다이얼로그 열기
-    const openProcessDialog = (request: RefundRequest, action: 'approve' | 'reject') => {
+    const openProcessDialog = (request: RefundRequest, action: ProcessAction) => {
         setSelectedRequest(request)
         setProcessAction(action)
         setAdminNote('')
+        setExternalMethod(request.provider === 'payapp' ? 'payapp_cancel_request' : 'provider_admin_cancel')
+        // 부분취소 건의 refund_amount는 신청 기준액(전액)이므로 실제 환불액을 직접 입력하게 한다.
+        setRefundAmount(!requiresRecovery(request) && request.refund_amount ? String(request.refund_amount) : '')
+        setRecoveredCredits('')
+        setProviderNotCancelledConfirmed(false)
         setIsProcessDialogOpen(true)
     }
+
+    const selectedRequiresRecovery = selectedRequest ? requiresRecovery(selectedRequest) : false
+    const maxRefundAmount = selectedRequest?.order?.expected_amount ?? selectedRequest?.source?.plan?.price ?? 0
+    const remainingCredits = selectedRequest?.source?.remaining_credits ?? 0
+    const manualCompletionReady = processAction !== 'complete_manual' ||
+        (adminNote.trim().length > 0 &&
+            isWholeNumberBetween(refundAmount, 1, maxRefundAmount) &&
+            (!selectedRequiresRecovery || isWholeNumberBetween(recoveredCredits, 0, remainingCredits)))
+    // 수동 확인 환불을 거절하려면 결제사 미취소 확인과 처리 메모가 모두 필요하다.
+    const rejectingManualReview = processAction === 'reject' && selectedRequest?.status === 'manual_review'
+    const rejectReady = !rejectingManualReview ||
+        (providerNotCancelledConfirmed && adminNote.trim().length > 0)
+    const noteRequired = processAction === 'complete_manual' || rejectingManualReview
 
     // 환불 처리
     const handleProcess = async () => {
@@ -155,7 +208,19 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                 body: JSON.stringify({
                     requestId: selectedRequest.id,
                     action: processAction,
-                    adminNote: adminNote || undefined
+                    adminNote: adminNote || undefined,
+                    ...(processAction === 'reject' && selectedRequest.status === 'manual_review'
+                        ? { providerNotCancelledConfirmed }
+                        : {}),
+                    ...(processAction === 'complete_manual'
+                        ? {
+                            externalMethod,
+                            refundAmount: Number(refundAmount),
+                            ...(selectedRequiresRecovery
+                                ? { recoveredCredits: Number(recoveredCredits) }
+                                : {}),
+                        }
+                        : {}),
                 })
             })
 
@@ -295,7 +360,14 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                                         <TableCell className="max-w-[200px] truncate" title={request.reason || ''}>
                                             {request.reason || '-'}
                                         </TableCell>
-                                        <TableCell>{getStatusBadge(request.status)}</TableCell>
+                                        <TableCell>
+                                            {getStatusBadge(request.status)}
+                                            {request.origin !== 'user' && (
+                                                <p className="mt-1 text-xs text-gray-500">
+                                                    {request.origin === 'partial_cancel' ? '결제사 부분취소 확인 중' : '결제사 취소 확인 중'}
+                                                </p>
+                                            )}
+                                        </TableCell>
                                         <TableCell className="max-w-[220px] text-xs text-gray-500">
                                             <p className="mb-1 font-medium text-gray-700">
                                                 {getProviderLabel(request.provider)}
@@ -343,6 +415,26 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                                                         거부
                                                     </Button>
                                                 </div>
+                                            ) : request.status === 'manual_review' ? (
+                                                <div className="flex gap-2 justify-end">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => openProcessDialog(request, 'complete_manual')}
+                                                    >
+                                                        수동 완료
+                                                    </Button>
+                                                    {request.origin === 'user' && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="text-red-600 hover:bg-red-50"
+                                                            onClick={() => openProcessDialog(request, 'reject')}
+                                                        >
+                                                            거부
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             ) : (
                                                 <span className="text-sm text-gray-400">
                                                     {request.processor?.email ? extractAdminLoginId(request.processor.email) : '처리됨'}
@@ -362,7 +454,9 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>
-                            환불 {processAction === 'approve' ? '승인' : '거부'}
+                            {processAction === 'complete_manual'
+                                ? '수동 환불 완료'
+                                : `환불 ${processAction === 'approve' ? '승인' : '거부'}`}
                         </DialogTitle>
                         <DialogDescription>
                             {selectedRequest && (
@@ -392,11 +486,91 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                             </div>
                         )}
 
+                        {processAction === 'reject' && selectedRequest?.status === 'manual_review' && (
+                            <label className="flex items-start gap-2 text-sm text-gray-700">
+                                <Checkbox
+                                    checked={providerNotCancelledConfirmed}
+                                    onCheckedChange={(checked) => setProviderNotCancelledConfirmed(checked === true)}
+                                    className="mt-0.5"
+                                />
+                                결제사 관리자에서 이 결제가 취소되지 않았음을 확인했습니다.
+                            </label>
+                        )}
+
+                        {processAction === 'complete_manual' && (
+                            <div className="space-y-4">
+                                <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+                                    <p className="text-sm text-amber-800">
+                                        {selectedRequest?.provider === 'payapp'
+                                            ? '페이앱 관리자에서 취소 요청(정산금 반환) 또는 고객 계좌 송금을 마친 뒤 완료 처리하세요.'
+                                            : '결제사 관리자에서 취소하거나 고객 계좌 송금을 마친 뒤 완료 처리하세요.'}
+                                        {' '}완료하면 크레딧을 회수하고 환불 요청을 완료로 기록합니다.
+                                    </p>
+                                    {selectedRequiresRecovery && (
+                                        <p className="mt-2 text-sm font-medium text-amber-900">
+                                            부분취소된 결제입니다. 고객에게 실제로 환불한 총액과 회수할 크레딧을 직접 입력하세요.
+                                        </p>
+                                    )}
+                                </div>
+                                <div>
+                                    <label htmlFor="manual-external-method" className="text-sm font-medium text-gray-700 mb-2 block">외부 처리 방식</label>
+                                    <Select value={externalMethod} onValueChange={(value) => setExternalMethod(value as ExternalMethod)}>
+                                        <SelectTrigger id="manual-external-method">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {(Object.keys(externalMethodLabels) as ExternalMethod[]).map((method) => (
+                                                <SelectItem key={method} value={method}>{externalMethodLabels[method]}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <label htmlFor="manual-refund-amount" className="text-sm font-medium text-gray-700 mb-2 block">
+                                        고객에게 실제로 환불한 총액 (원, 결제 금액 {maxRefundAmount.toLocaleString()}원 이하)
+                                    </label>
+                                    <Input
+                                        id="manual-refund-amount"
+                                        type="number"
+                                        inputMode="numeric"
+                                        min={1}
+                                        max={maxRefundAmount}
+                                        value={refundAmount}
+                                        onChange={(e) => setRefundAmount(e.target.value)}
+                                    />
+                                </div>
+                                {selectedRequiresRecovery ? (
+                                    <div>
+                                        <label htmlFor="manual-recovered-credits" className="text-sm font-medium text-gray-700 mb-2 block">
+                                            회수할 크레딧 (필수, 0 이상 {remainingCredits.toLocaleString()} 이하)
+                                        </label>
+                                        <Input
+                                            id="manual-recovered-credits"
+                                            type="number"
+                                            inputMode="numeric"
+                                            min={0}
+                                            max={remainingCredits}
+                                            value={recoveredCredits}
+                                            onChange={(e) => setRecoveredCredits(e.target.value)}
+                                        />
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            남은 크레딧 {remainingCredits.toLocaleString()} / 구매 {selectedRequest?.source?.initial_credits?.toLocaleString() ?? 0}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-gray-600">
+                                        남은 크레딧 {remainingCredits.toLocaleString()}을 모두 회수합니다.
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
                         <div>
-                            <label className="text-sm font-medium text-gray-700 mb-2 block">
-                                관리자 메모 (선택)
+                            <label htmlFor="refund-admin-note" className="text-sm font-medium text-gray-700 mb-2 block">
+                                {noteRequired ? '처리 메모 (필수)' : '관리자 메모 (선택)'}
                             </label>
                             <Textarea
+                                id="refund-admin-note"
                                 placeholder="처리 관련 메모를 입력하세요..."
                                 value={adminNote}
                                 onChange={(e) => setAdminNote(e.target.value)}
@@ -415,8 +589,8 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                         </Button>
                         <Button
                             onClick={handleProcess}
-                            disabled={isSubmitting}
-                            className={processAction === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+                            disabled={isSubmitting || !manualCompletionReady || !rejectReady}
+                            className={processAction === 'reject' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}
                         >
                             {isSubmitting ? (
                                 <>
@@ -424,7 +598,9 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                                     처리 중...
                                 </>
                             ) : (
-                                processAction === 'approve' ? '원 결제수단 환불' : '거부'
+                                processAction === 'approve'
+                                    ? '원 결제수단 환불'
+                                    : processAction === 'complete_manual' ? '완료 처리' : '거부'
                             )}
                         </Button>
                     </DialogFooter>

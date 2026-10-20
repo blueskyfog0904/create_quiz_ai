@@ -7,6 +7,7 @@ import {
   processPointChargeRefund,
 } from '@/lib/point-charge-refund-processor'
 import {
+  completeManualPointChargeRefund,
   rejectPointChargeRefund,
 } from '@/lib/point-charge-refunds-server'
 
@@ -14,8 +15,12 @@ export const dynamic = 'force-dynamic'
 
 const processRefundSchema = z.object({
   requestId: z.string().uuid(),
-  action: z.enum(['approve', 'reject']),
+  action: z.enum(['approve', 'reject', 'complete_manual']),
   adminNote: z.string().trim().max(500).optional(),
+  providerNotCancelledConfirmed: z.boolean().optional(),
+  externalMethod: z.enum(['payapp_cancel_request', 'bank_transfer', 'provider_admin_cancel']).optional(),
+  refundAmount: z.number().int().min(1).max(100_000).optional(),
+  recoveredCredits: z.number().int().min(0).optional(),
 }).strict()
 
 async function requireAdmin() {
@@ -95,13 +100,20 @@ export async function GET(request: Request) {
   })
 }
 
-async function notifyRefundCompleted(userId: string, refundAmount: number) {
+async function notifyRefundCompleted(
+  userId: string,
+  refundAmount: number,
+  externalMethod?: 'payapp_cancel_request' | 'bank_transfer' | 'provider_admin_cancel'
+) {
   const admin = createPaymentAdminClient()
+  const bankTransfer = externalMethod === 'bank_transfer'
   const { error } = await admin.from('notifications').insert({
     user_id: userId,
     type: 'success',
-    title: '원 결제수단 환불이 완료되었습니다',
-    message: `${refundAmount.toLocaleString()}원 결제 취소가 완료되었습니다. 환불 반영 시점은 결제수단에 따라 다를 수 있습니다.`,
+    title: bankTransfer ? '환불이 완료되었습니다' : '원 결제수단 환불이 완료되었습니다',
+    message: bankTransfer
+      ? `${refundAmount.toLocaleString()}원을 계좌로 환불했습니다.`
+      : `${refundAmount.toLocaleString()}원 결제 취소가 완료되었습니다. 환불 반영 시점은 결제수단에 따라 다를 수 있습니다.`,
     link: '/mypage/payments',
     is_read: false,
   })
@@ -133,12 +145,54 @@ export async function PATCH(request: Request) {
   }
 
   const input = parsed.data
+  // 결제사 관리자 취소·계좌 송금으로 이미 환불한 건을 완료 처리한다. 메모와 처리 방식이 필수다.
+  if (input.action === 'complete_manual') {
+    if (!input.adminNote || !input.externalMethod || !input.refundAmount) {
+      return NextResponse.json(
+        { error: '처리 메모, 외부 처리 방식, 실제 환불 금액을 입력해 주세요.' },
+        { status: 400 }
+      )
+    }
+
+    try {
+      const result = await completeManualPointChargeRefund({
+        requestId: input.requestId,
+        adminId: adminCheck.user.id,
+        note: input.adminNote,
+        externalMethod: input.externalMethod,
+        refundAmount: input.refundAmount,
+        recoveredCredits: input.recoveredCredits ?? null,
+      }) as { already_completed?: boolean; user_id?: string } | null
+
+      if (result?.user_id && !result.already_completed) {
+        await notifyRefundCompleted(result.user_id, input.refundAmount, input.externalMethod)
+      }
+      return NextResponse.json({
+        success: true,
+        message: result?.already_completed
+          ? '이미 완료된 환불 요청입니다.'
+          : '수동 환불 완료와 크레딧 회수를 기록했습니다.',
+      })
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : '수동 환불 완료를 처리하지 못했습니다.',
+        },
+        { status: 409 }
+      )
+    }
+  }
+
   if (input.action === 'reject') {
     try {
       await rejectPointChargeRefund({
         requestId: input.requestId,
         adminId: adminCheck.user.id,
         adminNote: input.adminNote ?? null,
+        providerNotCancelledConfirmed: input.providerNotCancelledConfirmed ?? false,
       })
       return NextResponse.json({
         success: true,
