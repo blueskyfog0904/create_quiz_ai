@@ -24,7 +24,7 @@ export interface PaymentOrderRow {
   plan_name_snapshot: string
   expected_amount: number
   expected_credits: number
-  provider: 'toss' | 'kakaopay'
+  provider: 'toss' | 'kakaopay' | 'payapp'
   environment: 'test' | 'live'
   provider_environment: 'test' | 'live'
   mid: string | null
@@ -34,6 +34,7 @@ export interface PaymentOrderRow {
   tax_free_amount: number
   vat_amount: number | null
   payment_key: string | null
+  payment_method_code: string | null
   provider_method: string | null
   provider_status: string | null
   status: PaymentOrderStatus

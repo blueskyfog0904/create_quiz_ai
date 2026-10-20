@@ -2814,6 +2814,54 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_admin_actions: {
+        Row: {
+          action: string
+          actor_id: string
+          after_state: Json
+          before_state: Json
+          created_at: string
+          details: Json
+          external_method: string | null
+          id: string
+          note: string
+          payment_order_id: string | null
+          recovered_credits: number | null
+          refund_request_id: string | null
+          unrecovered_credits: number | null
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          after_state?: Json
+          before_state?: Json
+          created_at?: string
+          details?: Json
+          external_method?: string | null
+          id?: string
+          note: string
+          payment_order_id?: string | null
+          recovered_credits?: number | null
+          refund_request_id?: string | null
+          unrecovered_credits?: number | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          after_state?: Json
+          before_state?: Json
+          created_at?: string
+          details?: Json
+          external_method?: string | null
+          id?: string
+          note?: string
+          payment_order_id?: string | null
+          recovered_credits?: number | null
+          refund_request_id?: string | null
+          unrecovered_credits?: number | null
+        }
+        Relationships: []
+      }
       payment_history: {
         Row: {
           amount: number
@@ -2897,6 +2945,45 @@ export type Database = {
           },
         ]
       }
+      payment_methods: {
+        Row: {
+          code: string
+          created_at: string
+          description: string | null
+          is_enabled: boolean
+          label: string
+          provider: string
+          provider_open_pay_type: string | null
+          provider_pay_types: number[] | null
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description?: string | null
+          is_enabled?: boolean
+          label: string
+          provider: string
+          provider_open_pay_type?: string | null
+          provider_pay_types?: number[] | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string | null
+          is_enabled?: boolean
+          label?: string
+          provider?: string
+          provider_open_pay_type?: string | null
+          provider_pay_types?: number[] | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payment_orders: {
         Row: {
           approved_at: string | null
@@ -2925,6 +3012,7 @@ export type Database = {
           partner_user_id: string | null
           payment_history_id: string | null
           payment_key: string | null
+          payment_method_code: string | null
           plan_id: string | null
           plan_name_snapshot: string
           provider: string
@@ -2970,9 +3058,10 @@ export type Database = {
           partner_user_id?: string | null
           payment_history_id?: string | null
           payment_key?: string | null
+          payment_method_code?: string | null
           plan_id?: string | null
           plan_name_snapshot: string
-          provider?: string
+          provider: string
           provider_environment: string
           provider_merchant_id: string
           provider_method?: string | null
@@ -3015,6 +3104,7 @@ export type Database = {
           partner_user_id?: string | null
           payment_history_id?: string | null
           payment_key?: string | null
+          payment_method_code?: string | null
           plan_id?: string | null
           plan_name_snapshot?: string
           provider?: string
@@ -3049,6 +3139,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "payment_orders_payment_method_fkey"
+            columns: ["payment_method_code", "provider"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
+            referencedColumns: ["code", "provider"]
+          },
+          {
             foreignKeyName: "payment_orders_plan_id_fkey"
             columns: ["plan_id"]
             isOneToOne: false
@@ -3073,10 +3170,14 @@ export type Database = {
       }
       payment_provider_transactions: {
         Row: {
+          admin_paid_confirmed_at: string | null
           callback_state_consumed_at: string | null
           callback_state_expires_at: string | null
           callback_state_hash: string | null
+          cancel_feedback_recorded_at: string | null
+          cancel_processed_at: string | null
           created_at: string
+          fulfillment_attempt_count: number
           id: string
           last_error_code: string | null
           last_error_message: string | null
@@ -3085,11 +3186,18 @@ export type Database = {
           next_redirect_app_url: string | null
           next_redirect_mobile_url: string | null
           next_redirect_pc_url: string | null
+          paid_amount: number | null
+          paid_feedback_recorded_at: string | null
+          partial_cancel_amount: number | null
+          partial_cancel_feedback_recorded_at: string | null
+          partial_cancel_processed_at: string | null
           payment_method_type: string | null
           payment_order_id: string
           provider: string
           provider_approval_id: string | null
+          provider_cancelled_at: string | null
           provider_merchant_id: string
+          provider_paid_at: string | null
           provider_status: string | null
           provider_transaction_id: string | null
           ready_stored_at: string | null
@@ -3099,10 +3207,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          admin_paid_confirmed_at?: string | null
           callback_state_consumed_at?: string | null
           callback_state_expires_at?: string | null
           callback_state_hash?: string | null
+          cancel_feedback_recorded_at?: string | null
+          cancel_processed_at?: string | null
           created_at?: string
+          fulfillment_attempt_count?: number
           id?: string
           last_error_code?: string | null
           last_error_message?: string | null
@@ -3111,11 +3223,18 @@ export type Database = {
           next_redirect_app_url?: string | null
           next_redirect_mobile_url?: string | null
           next_redirect_pc_url?: string | null
+          paid_amount?: number | null
+          paid_feedback_recorded_at?: string | null
+          partial_cancel_amount?: number | null
+          partial_cancel_feedback_recorded_at?: string | null
+          partial_cancel_processed_at?: string | null
           payment_method_type?: string | null
           payment_order_id: string
           provider: string
           provider_approval_id?: string | null
+          provider_cancelled_at?: string | null
           provider_merchant_id: string
+          provider_paid_at?: string | null
           provider_status?: string | null
           provider_transaction_id?: string | null
           ready_stored_at?: string | null
@@ -3125,10 +3244,14 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          admin_paid_confirmed_at?: string | null
           callback_state_consumed_at?: string | null
           callback_state_expires_at?: string | null
           callback_state_hash?: string | null
+          cancel_feedback_recorded_at?: string | null
+          cancel_processed_at?: string | null
           created_at?: string
+          fulfillment_attempt_count?: number
           id?: string
           last_error_code?: string | null
           last_error_message?: string | null
@@ -3137,11 +3260,18 @@ export type Database = {
           next_redirect_app_url?: string | null
           next_redirect_mobile_url?: string | null
           next_redirect_pc_url?: string | null
+          paid_amount?: number | null
+          paid_feedback_recorded_at?: string | null
+          partial_cancel_amount?: number | null
+          partial_cancel_feedback_recorded_at?: string | null
+          partial_cancel_processed_at?: string | null
           payment_method_type?: string | null
           payment_order_id?: string
           provider?: string
           provider_approval_id?: string | null
+          provider_cancelled_at?: string | null
           provider_merchant_id?: string
+          provider_paid_at?: string | null
           provider_status?: string | null
           provider_transaction_id?: string | null
           ready_stored_at?: string | null
@@ -3344,6 +3474,8 @@ export type Database = {
           kakaopay_accepts_new_orders: boolean
           kakaopay_merchant_id: string | null
           master_accepts_new_orders: boolean
+          payapp_accepts_new_orders: boolean
+          payapp_merchant_id: string | null
           toss_accepts_new_orders: boolean
           toss_merchant_id: string | null
         }
@@ -3356,6 +3488,8 @@ export type Database = {
           kakaopay_accepts_new_orders?: boolean
           kakaopay_merchant_id?: string | null
           master_accepts_new_orders?: boolean
+          payapp_accepts_new_orders?: boolean
+          payapp_merchant_id?: string | null
           toss_accepts_new_orders?: boolean
           toss_merchant_id?: string | null
         }
@@ -3368,6 +3502,8 @@ export type Database = {
           kakaopay_accepts_new_orders?: boolean
           kakaopay_merchant_id?: string | null
           master_accepts_new_orders?: boolean
+          payapp_accepts_new_orders?: boolean
+          payapp_merchant_id?: string | null
           toss_accepts_new_orders?: boolean
           toss_merchant_id?: string | null
         }
@@ -4040,6 +4176,7 @@ export type Database = {
           last_error_code: string | null
           last_error_message: string | null
           next_attempt_at: string | null
+          origin: string
           payment_order_id: string | null
           processed_at: string | null
           processed_by: string | null
@@ -4062,6 +4199,7 @@ export type Database = {
           last_error_code?: string | null
           last_error_message?: string | null
           next_attempt_at?: string | null
+          origin?: string
           payment_order_id?: string | null
           processed_at?: string | null
           processed_by?: string | null
@@ -4084,6 +4222,7 @@ export type Database = {
           last_error_code?: string | null
           last_error_message?: string | null
           next_attempt_at?: string | null
+          origin?: string
           payment_order_id?: string | null
           processed_at?: string | null
           processed_by?: string | null
@@ -4511,6 +4650,21 @@ export type Database = {
           total_count: number
         }[]
       }
+      apply_payapp_feedback: {
+        Args: {
+          p_canceldate: string
+          p_mul_no: string
+          p_order_id: string
+          p_orig_mul_no: string
+          p_orig_price: number
+          p_pay_date: string
+          p_pay_state: number
+          p_pay_type: number
+          p_price: number
+          p_userid: string
+        }
+        Returns: Json
+      }
       backfill_question_bank_metadata: {
         Args: {
           p_book_id: string
@@ -4530,6 +4684,10 @@ export type Database = {
           p_callback_state_hash: string
           p_payment_order_id: string
         }
+        Returns: Json
+      }
+      begin_payapp_request: {
+        Args: { p_payment_order_id: string }
         Returns: Json
       }
       checkout_market_selection: {
@@ -4563,6 +4721,17 @@ export type Database = {
       }
       claim_toss_refund: {
         Args: { p_admin_id: string; p_admin_note: string; p_request_id: string }
+        Returns: Json
+      }
+      complete_manual_point_charge_refund: {
+        Args: {
+          p_admin_id: string
+          p_external_method: string
+          p_note: string
+          p_recovered_credits?: number
+          p_refund_amount: number
+          p_request_id: string
+        }
         Returns: Json
       }
       configure_payment_reconciliation_http_cron: {
@@ -4704,6 +4873,14 @@ export type Database = {
         Args: { p_targets: Json; p_user_id: string }
         Returns: Json
       }
+      fail_payapp_request: {
+        Args: {
+          p_error_code: string
+          p_error_message: string
+          p_payment_order_id: string
+        }
+        Returns: Json
+      }
       fail_point_charge_refund: {
         Args: {
           p_error_code: string
@@ -4791,10 +4968,12 @@ export type Database = {
           id: string
           order_id: string
           payment_method: string
+          payment_method_label: string
           plan_id: string
           plan_name: string
           provider: string
           provider_status: string
+          refunded_amount: number
           status: string
         }[]
       }
@@ -4803,6 +4982,7 @@ export type Database = {
         Returns: {
           created_at: string
           id: string
+          origin: string
           processed_at: string
           reason: string
           refund_amount: number
@@ -4841,6 +5021,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_payapp_order_terminal: {
+        Args: {
+          p_expected_status: string
+          p_failure_code: string
+          p_failure_message: string
+          p_payment_order_id: string
+          p_status: string
+        }
+        Returns: Json
+      }
       mark_payment_reconciliation_terminal: {
         Args: {
           p_failure_code: string
@@ -4850,6 +5040,10 @@ export type Database = {
           p_status: string
         }
         Returns: undefined
+      }
+      payapp_fulfill_order_internal: {
+        Args: { p_approved_at: string; p_payment_order_id: string }
+        Returns: Json
       }
       payment_reconciliation_backlog_count: { Args: never; Returns: number }
       prepare_payment_order: {
@@ -4862,6 +5056,7 @@ export type Database = {
           p_expires_at: string
           p_order_id: string
           p_partner_user_id: string
+          p_payment_method_code?: string
           p_plan_id: string
           p_plan_name_snapshot: string
           p_provider: string
@@ -4899,6 +5094,7 @@ export type Database = {
           partner_user_id: string | null
           payment_history_id: string | null
           payment_key: string | null
+          payment_method_code: string | null
           plan_id: string | null
           plan_name_snapshot: string
           provider: string
@@ -4924,6 +5120,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      process_payapp_cancellation: {
+        Args: { p_payment_order_id: string }
+        Returns: Json
+      }
       prune_expired_ai_question_generation_runs: {
         Args: never
         Returns: number
@@ -4937,6 +5137,18 @@ export type Database = {
         }
         Returns: Json
       }
+      quarantine_kakaopay_partial_cancellation: {
+        Args: {
+          p_cancelled_amount: number
+          p_payment_order_id: string
+          p_provider_status: string
+        }
+        Returns: Json
+      }
+      quarantine_payapp_partial_cancellation: {
+        Args: { p_payment_order_id: string }
+        Returns: Json
+      }
       record_kakaopay_approval: {
         Args: {
           p_approved_at: string
@@ -4947,6 +5159,19 @@ export type Database = {
           p_provider_transaction_id: string
         }
         Returns: Json
+      }
+      record_kakaopay_partial_cancel_marker: {
+        Args: { p_payment_order_id: string; p_provider_status: string }
+        Returns: Json
+      }
+      record_payment_alert: {
+        Args: {
+          p_code: string
+          p_details: Json
+          p_message: string
+          p_severity: string
+        }
+        Returns: boolean
       }
       record_payment_reconciliation_result: {
         Args: {
@@ -4984,7 +5209,12 @@ export type Database = {
         Returns: Json
       }
       reject_point_charge_refund: {
-        Args: { p_admin_id: string; p_admin_note: string; p_request_id: string }
+        Args: {
+          p_admin_id: string
+          p_admin_note: string
+          p_provider_not_cancelled_confirmed?: boolean
+          p_request_id: string
+        }
         Returns: undefined
       }
       reject_toss_refund: {
@@ -5031,6 +5261,26 @@ export type Database = {
         Args: { p_reason: string; p_source_id: string; p_user_id: string }
         Returns: Json
       }
+      requeue_stuck_point_charge_refund: {
+        Args: { p_request_id: string }
+        Returns: Json
+      }
+      resolve_payment_order_review: {
+        Args: {
+          p_action: string
+          p_actor_id: string
+          p_external_method?: string
+          p_mul_no?: string
+          p_note: string
+          p_paid_at?: string
+          p_payment_order_id: string
+        }
+        Returns: Json
+      }
+      retry_payapp_fulfillment: {
+        Args: { p_payment_order_id: string }
+        Returns: Json
+      }
       set_market_cart_selection: {
         Args: { p_ids: string[]; p_selected: boolean; p_user_id: string }
         Returns: Json
@@ -5071,6 +5321,10 @@ export type Database = {
           p_provider_transaction_id: string
           p_ready_stored_at: string
         }
+        Returns: Json
+      }
+      store_payapp_request: {
+        Args: { p_mul_no: string; p_payment_order_id: string; p_payurl: string }
         Returns: Json
       }
       update_admin_bank_question: {

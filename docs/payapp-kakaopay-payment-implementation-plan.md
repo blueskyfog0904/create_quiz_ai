@@ -279,6 +279,7 @@
 
 route는 결과 코드로 이벤트 상태와 응답을 정한다(취소 표식은 기록 후 `process_payapp_cancellation`까지 부른 결과로 정한다).
 - **일시 오류**(예외, 40P01·40001·55P03 포함): 이벤트 `failed`, 응답 `FAIL`.
+- 결제완료 기록 뒤 지급만 실패한 `recorded_pending`도 아래 "그 밖의 모든 결과"다. 대사가 `retry_payapp_fulfillment`로 다시 지급한다.
 - **그 밖의 모든 결과:** 이벤트 `completed`(검증 실패는 `ignored`), 응답 `SUCCESS`.
 - 이벤트 갱신은 `WHERE processing_status <> 'completed'` 조건을 건다. 늦게 끝난 쪽이 completed를 되돌리지 않게 하기 위해서다.
 - 이미 `completed`·`ignored`인 이벤트에 같은 통보가 다시 오면 처리를 생략하고 `SUCCESS`를 응답한다.
@@ -365,10 +366,13 @@ route는 결과 코드로 이벤트 상태와 응답을 정한다(취소 표식�
 
 | 기존 주문 상태 | 응답 |
 |---|---|
-| `ready`, 만료 전 | 기존 `payurl` 재사용 |
-| `completed`, `fulfillment_pending` | 결과 화면 주소. 다시 결제하지 않게 한다 |
-| `ready_unknown`, `preparing` | `PAYMENT_ATTEMPT_UNKNOWN` |
-| 만료·실패 | `PAYMENT_ATTEMPT_EXPIRED` |
+| `ready`, 만료까지 2분 넘게 남음 | 기존 `payurl` 재사용 |
+| `completed`, `fulfillment_pending`, `manual_review`, `refunded`, `cancel_pending`, `confirming` | 결과 화면 주소(`status:'result'`). 결제됐을 수 있으므로 다시 결제하지 않게 한다 |
+| `ready_unknown`, `preparing`(이번 요청이 만든 주문이 아닐 때) | `PAYMENT_ATTEMPT_UNKNOWN` |
+| `ready`(만료까지 2분 이하), 만료·실패 | `PAYMENT_ATTEMPT_EXPIRED` |
+
+   - 운영 스위치·결제수단·`PAYMENTS_ENABLED` 검사는 `prepare` 앞에 있다. 스위치를 닫은 뒤에는 같은 시도로 다시 요청해도 503을 받는다(판매 중지 우선). 결제된 주문은 결제내역과 결과 화면으로 확인한다.
+   - 요청을 선점(`begin`)한 뒤의 실패는 `state=0`만 `fail_payapp_request`로 닫고, 나머지는 모두 `PAYMENT_ATTEMPT_UNKNOWN`이다.
 
 4. 휴대폰 번호가 프로필에 없을 때 "다음에도 이 번호 사용"을 고르면 `profiles.phone`에 저장한다.
 
@@ -641,6 +645,7 @@ route는 결과 코드로 이벤트 상태와 응답을 정한다(취소 표식�
 | 판매자 관리 사이트에서 직접 취소 | 공통 통보 9·64 → 외부 취소 격리 RPC(크레딧 회수 또는 경보) |
 | health 점검의 자동 판매 중단 | 돈 위험 조건만 센다(5.7). 다시 켜는 것은 마이그레이션으로 한다 |
 | 샌드박스 없음 | 가짜 통보 자동 테스트 + 출시 직후 실결제 1건과 환불로 확인 |
+| 같은 결제에 부분취소가 두 번 이상 옴 | DB 표식은 첫 부분취소만 남는다. route가 새 `mul_no`의 70·71이 이미 표식된 주문에 오면 `PAYAPP_PARTIAL_CANCEL_REPEATED` 경보와 관리자 알림을 남긴다. feedbacktype 0·1이 동시에 오면 오탐이 날 수 있다(안전한 쪽). 근본 해결(부분취소 `mul_no` 기록)은 후속 마이그레이션 후보로 둔다 |
 
 ## 12. 범위 제외
 
