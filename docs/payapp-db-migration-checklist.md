@@ -218,7 +218,11 @@
 4. **실결제 시험:** 운영자 카드로 1건 결제 → 크레딧 지급 확인 → 관리자 환불 → 취소 통보 처리 확인.
    - 매뉴얼에 없는 실제 형식을 함께 확인한다: `payurl`이 https인지(모듈과 `store_payapp_request`가 https만 받는다. http면 둘 다 고친다), 통보의 `pay_date`·`canceldate`가 `YYYY-MM-DD HH:MM:SS`인지(아니면 `dateParseFailed` 경보가 남는다).
    - 결제하지 않은 요청 1건을 `cancelmode=ready`로 취소해 `partcancel` 없이 전취소되는지 확인한다.
-5. **실패 시:** 스위치 off 마이그레이션을 적용한다.
+5. **실패 시:** 스위치 off 마이그레이션을 적용한다(`supabase/rollback/20261021110000_payapp_launch_switch_down.sql`을 SQL Editor로 실행하고 운영 적용 기록에 남긴다).
+   - 신규 주문만 닫힌다. 이미 결제창에 들어간 건의 통보·지급·취소·환불·대사는 환경변수로 계속 처리되므로, `PAYAPP_*`·`PAYMENT_CALLBACK_ORIGIN`과 페이앱 통보 URL은 건드리지 않는다. `PAYAPP_USERID`를 바꾸면 진행 중 주문이 `PAYAPP_FEEDBACK_MERCHANT_MISMATCH`로 수동 확인에 들어간다.
+   - `ROLLBACK: payapp switch is already off`가 나면 health가 이미 끈 것이다. 그대로 둔다.
+   - 시험 주문은 관리자 환불이나 결제 확인 해소(계획 6.4)로 정리하고, `ready` 주문은 만료 정리를 기다린다.
+   - 다시 열 때는 출시 마이그레이션을 재사용하지 않는다(`payapp_merchant_id IS NULL` 조건). 계획 6.4대로 `payapp_merchant_id`가 그대로인지 확인하는 재개 마이그레이션을 새로 만든다.
 
 ## 카카오페이 live 전환 (별도)
 
