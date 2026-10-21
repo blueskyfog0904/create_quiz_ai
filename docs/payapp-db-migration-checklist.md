@@ -232,6 +232,7 @@
 - `apply_migration`에 큰 파일을 다시 입력하지 않으려고, Supabase SQL Editor에서 파일 전체와 `supabase_migrations.schema_migrations` INSERT(statements에 파일 원문)를 한 번에 실행했다.
 - SQL Editor는 한 번의 실행을 한 트랜잭션으로 처리한다. 리허설 파일 끝의 `RAISE`가 앞의 모든 변경을 되돌린 것으로 확인했다(`rehearsal.ran` 표식이 결과 메시지에 나와 전체가 실행됐음을 확인). 그래서 `SET LOCAL`도 그 트랜잭션 안에서 적용된다.
 - 적용 뒤 `length(statements[1])`이 파일 글자 수와 같은지 확인했다.
+- B2-pre 0(2026-10-21, 사용자 확인): Vercel 토스 환경변수를 삭제했다. 토스 상점관리자에는 웹훅 주소가 원래 등록되어 있지 않아 해제할 것이 없었다.
 
 | 마이그레이션 | 적용 시각(UTC) | 기록 길이 | 결과 |
 |---|---|---|---|
