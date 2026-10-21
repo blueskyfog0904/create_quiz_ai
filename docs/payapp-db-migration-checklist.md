@@ -239,3 +239,4 @@
 | `20261019090000_payapp_migration_a` | 2026-10-20 05:25 | 154052 | A-post 통과 |
 | `20261020090000_payment_alert_resolution` | 2026-10-20 08:05 | 4392 | 권한·CHECK 확인 |
 | `20261021090000_payapp_migration_b2` | 2026-10-21 01:37 | 21853 | B2-post 1~4 통과(토스 함수·컬럼 0, 보존 CHECK 6·컬럼 2, 실제 토스 건 `REFUND_CREDITS_ALREADY_USED` 유지, 타입 재생성) |
+| `20261021100000_payapp_migration_b1_terms` | 2026-10-21 06:41 | 4605 | 옛 문구 0건·새 문구 5곳 확인, 결과 value md5 `0eaa00b3…`가 B1 직전 원문에 같은 치환을 한 값과 일치, 운영 `/terms/refund`·`/terms/privacy` 화면 반영 |
