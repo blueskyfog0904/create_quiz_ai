@@ -225,3 +225,16 @@
 1. 진행 중인 카카오 주문이 0건인지 확인한다.
 2. Vercel에 live 키를 넣는다.
 3. 마이그레이션으로 `accepted_provider_environment='live'`, `kakaopay_merchant_id`, `kakaopay_accepts_new_orders=true`를 설정한다.
+
+## 운영 적용 기록
+
+적용 방식(공통 규칙 1·2·9 대신 실제로 쓴 방법):
+- `apply_migration`에 큰 파일을 다시 입력하지 않으려고, Supabase SQL Editor에서 파일 전체와 `supabase_migrations.schema_migrations` INSERT(statements에 파일 원문)를 한 번에 실행했다.
+- SQL Editor는 한 번의 실행을 한 트랜잭션으로 처리한다. 리허설 파일 끝의 `RAISE`가 앞의 모든 변경을 되돌린 것으로 확인했다(`rehearsal.ran` 표식이 결과 메시지에 나와 전체가 실행됐음을 확인). 그래서 `SET LOCAL`도 그 트랜잭션 안에서 적용된다.
+- 적용 뒤 `length(statements[1])`이 파일 글자 수와 같은지 확인했다.
+
+| 마이그레이션 | 적용 시각(UTC) | 기록 길이 | 결과 |
+|---|---|---|---|
+| `20261019090000_payapp_migration_a` | 2026-10-20 05:25 | 154052 | A-post 통과 |
+| `20261020090000_payment_alert_resolution` | 2026-10-20 08:05 | 4392 | 권한·CHECK 확인 |
+| `20261021090000_payapp_migration_b2` | 2026-10-21 01:37 | 21853 | B2-post 1~4 통과(토스 함수·컬럼 0, 보존 CHECK 6·컬럼 2, 실제 토스 건 `REFUND_CREDITS_ALREADY_USED` 유지, 타입 재생성) |

@@ -3476,8 +3476,6 @@ export type Database = {
           master_accepts_new_orders: boolean
           payapp_accepts_new_orders: boolean
           payapp_merchant_id: string | null
-          toss_accepts_new_orders: boolean
-          toss_merchant_id: string | null
         }
         Insert: {
           accepted_provider_environment?: string
@@ -3490,8 +3488,6 @@ export type Database = {
           master_accepts_new_orders?: boolean
           payapp_accepts_new_orders?: boolean
           payapp_merchant_id?: string | null
-          toss_accepts_new_orders?: boolean
-          toss_merchant_id?: string | null
         }
         Update: {
           accepted_provider_environment?: string
@@ -3504,8 +3500,6 @@ export type Database = {
           master_accepts_new_orders?: boolean
           payapp_accepts_new_orders?: boolean
           payapp_merchant_id?: string | null
-          toss_accepts_new_orders?: boolean
-          toss_merchant_id?: string | null
         }
         Relationships: []
       }
@@ -4719,10 +4713,6 @@ export type Database = {
         Args: { p_admin_id: string; p_admin_note: string; p_request_id: string }
         Returns: Json
       }
-      claim_toss_refund: {
-        Args: { p_admin_id: string; p_admin_note: string; p_request_id: string }
-        Returns: Json
-      }
       complete_manual_point_charge_refund: {
         Args: {
           p_admin_id: string
@@ -4890,15 +4880,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      fail_toss_refund: {
-        Args: {
-          p_error_code: string
-          p_error_message: string
-          p_request_id: string
-          p_retryable: boolean
-        }
-        Returns: undefined
-      }
       finalize_kakaopay_payment: {
         Args: {
           p_approved_at: string
@@ -4916,25 +4897,6 @@ export type Database = {
           p_provider_cancel_transaction_key: string
           p_provider_cancelled_at: string
           p_provider_status: string
-          p_request_id: string
-        }
-        Returns: Json
-      }
-      finalize_toss_payment: {
-        Args: {
-          p_approved_at: string
-          p_mid: string
-          p_payment_key: string
-          p_payment_order_id: string
-          p_provider_method: string
-          p_provider_status: string
-        }
-        Returns: Json
-      }
-      finalize_toss_refund: {
-        Args: {
-          p_cancel_transaction_key: string
-          p_cancelled_at: string
           p_request_id: string
         }
         Returns: Json
@@ -5006,10 +4968,6 @@ export type Database = {
           available_count: number
           problem_type_id: string
         }[]
-      }
-      get_toss_refund_eligibility: {
-        Args: { p_source_id: string; p_user_id: string }
-        Returns: Json
       }
       is_admin: { Args: never; Returns: boolean }
       mark_kakaopay_callback_failure: {
@@ -5217,10 +5175,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      reject_toss_refund: {
-        Args: { p_admin_id: string; p_admin_note: string; p_request_id: string }
-        Returns: undefined
-      }
       remove_market_cart_items: {
         Args: { p_ids: string[]; p_user_id: string }
         Returns: Json
@@ -5254,10 +5208,6 @@ export type Database = {
         }
       }
       request_point_charge_refund: {
-        Args: { p_reason: string; p_source_id: string; p_user_id: string }
-        Returns: Json
-      }
-      request_toss_refund: {
         Args: { p_reason: string; p_source_id: string; p_user_id: string }
         Returns: Json
       }
