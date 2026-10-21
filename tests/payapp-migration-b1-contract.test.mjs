@@ -42,14 +42,16 @@ test('migration B1 wording matches the code defaults from phase 6', () => {
       assert.ok(footerDefaults.includes(sentence), `${name}: ${sentence}`)
     }
   }
-  for (const name of ['c_refund_pg_new', 'c_refund_methods_new', 'c_privacy_new']) {
-    assert.doesNotMatch(constant(migration, name), /토스페이먼츠|페이코|일반결제|카카오페이머니만/)
+  for (const name of ['c_refund_pg_new', 'c_refund_methods_new', 'c_refund_original_new', 'c_privacy_new']) {
+    assert.doesNotMatch(constant(migration, name), /토스페이먼츠|페이코|일반결제|카카오페이머니만|반드시/)
   }
 })
 
 test('migration B1 verifies old wording is gone and unrelated content is unchanged', () => {
-  assert.match(migrationCode, /v_text ~ '\(토스페이먼츠\|페이코\|일반결제\|카카오페이머니만\)'/)
+  assert.match(migrationCode, /v_text ~ '\(토스페이먼츠\|페이코\|일반결제\|카카오페이머니만\|반드시 결제 당시\)'/)
   assert.match(migrationCode, /RAISE EXCEPTION 'VERIFY: unrelated footer content changed'/)
+  assert.match(migrationCode, /position\('가명 처리된 회원 식별값' IN v_text\) = 0/)
+  assert.match(migrationCode, /position\('원 결제수단으로 처리하는 것을 원칙으로 합니다\.' IN v_text\) = 0/)
 })
 
 test('B1 keeps the pre-B1 footer value whose md5 matches the dry-run guard', () => {
@@ -62,7 +64,7 @@ test('B1 keeps the pre-B1 footer value whose md5 matches the dry-run guard', () 
 })
 
 test('B1 checks each fragment once and both files end with a schema reload', () => {
-  for (const name of ['c_refund_pg_old', 'c_refund_methods_old', 'c_privacy_old']) {
+  for (const name of ['c_refund_pg_old', 'c_refund_methods_old', 'c_refund_original_old', 'c_privacy_old']) {
     assert.match(migrationCode, new RegExp(`/ length\\(${name}\\) IS DISTINCT FROM 1`), name)
   }
   assert.match(migrationCode.trimEnd(), /NOTIFY pgrst, 'reload schema';$/)
@@ -73,7 +75,10 @@ test('B1 checks each fragment once and both files end with a schema reload', () 
 
 test('B1 rollback reverses the same fragments and requires the original md5', () => {
   assert.ok(rollback, 'B1 rollback file exists')
-  for (const name of ['c_refund_pg_old', 'c_refund_pg_new', 'c_refund_methods_old', 'c_refund_methods_new', 'c_privacy_old', 'c_privacy_new']) {
+  for (const name of [
+    'c_refund_pg_old', 'c_refund_pg_new', 'c_refund_methods_old', 'c_refund_methods_new',
+    'c_refund_original_old', 'c_refund_original_new', 'c_privacy_old', 'c_privacy_new',
+  ]) {
     assert.equal(constant(rollback, name), constant(migration, name), name)
   }
   assert.equal(
