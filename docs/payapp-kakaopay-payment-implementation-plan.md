@@ -674,7 +674,7 @@ route는 결과 코드로 이벤트 상태와 응답을 정한다(취소 표식�
 **개인정보처리방침 6조(위탁)**
 - 변경: "토스페이먼츠: …" → "(주)유디아이디(페이앱): 크레딧 결제 승인, 결제수단 처리, 결제 결과 통보 및 환불 처리 (제공 정보: 주문번호, 상품명, 결제금액, 휴대폰 번호)"
 - 적용 방법(마이그레이션 B1):
-  - 문자열 치환을 하지 않는다. 운영 DB 문구(`site_footer_content`, jsonb)는 코드 기본값과 다르다. 그래서 실제 DB 문구를 읽어 `jsonb_set`으로 정확한 경로(`policyDocuments.refundPolicy.content` 등)만 고친다.
+  - 전체 문자열 치환을 하지 않는다. 운영 DB 문구(`site_footer_content`, jsonb)는 코드 기본값과 다르다. 그래서 실제 DB 문구를 읽어 `jsonb_set`으로 정확한 경로(`policyDocuments.refundPolicy.content` 등)만 고친다. 그 경로 안에서는 dry-run으로 정확히 1번 나오는 것을 확인한 조각만 바꾼다.
   - `WHERE key='site_footer_content' AND md5(value::text)='<dry-run 시점 해시>'` 조건을 걸어, 관리자 화면 수정과 덮어쓰기 충돌을 막는다. 바뀐 행이 1건이 아니면 RAISE 한다.
   - dry-run 검사어 '토스페이먼츠', '페이코', '일반결제', '카카오페이머니만'이 0건 남는지 확인한다.
 - 결정(2026-10-19): 사용자가 이 절의 추천 문구를 그대로 쓰기로 했다.
