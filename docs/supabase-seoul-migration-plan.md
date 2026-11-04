@@ -225,6 +225,7 @@ AI가 두 프로젝트에 같은 SELECT를 실행해 비교한다(값이 아니�
 | 항목 | 값 |
 |---|---|
 | H-0(2026-11-04) | 새 `xsvmbrgixgfqijneikjl`: PG 17.11(옛 17.6), auth `20260831180000`·storage `79` 같음, auth 테이블 27개 같음, event trigger 6개 같음(자동 RLS·자동 노출 없음), pg_cron 1.6.4 같음, **pg_net 0.20.4(옛 0.19.5) — `net.http_post`·`cron.schedule/alter_job/unschedule` 시그니처 같음**, public 객체·auth.users·cron·vault·버킷 0, 시간대 UTC. 새 `pg_default_acl`(postgres, public): S `postgres=rwU`, f `postgres=X`, r `postgres=arwdDxtm, anon/authenticated/service_role=Dxtm` → H-3 회수·H-5 부여 뒤 옛 값과 같아져야 함. role 설정 차이(authenticator `supautils, safeupdate`, `supabase_realtime_admin` 항목)는 플랫폼 값 — roles.sql이 예약 role의 statement_timeout 외 설정은 주석 처리하므로 덮어쓰지 않음(V-6에서 이 두 차이는 예상값) |
+| H-1~H-5·H-8(2026-11-04 1차 리허설) | 덤프 `dumps/20261104T090054Z`(옛 DB 시작 09:00:55 UTC): roles 297B·schema 556KB·data 20.2MB, COPY 93개(public 72 + auth 21), H-2 0줄, auth 트리거 1개. data-only 순환 FK 경고 6건(questions, credit_sources↔payment_orders 등)은 replica 적재라 무해. **복원 25초**, 디스크 17%(DB 48MB·WAL 128MB). **V-1** 일치(차이: `payment_reconciliation_runs` 옛 22104/새 22101 = 덤프 시각 이전 22101과 정확히 같음, 제외 auth 4개). **V-1b** FK 160개 고아 0. **V-2** public 70개 + auth.users·identities 해시 일치(다른 2개 `payment_reconciliation_runs`·`scheduler`는 덤프 뒤 cron 쓰기). **V-4** 함수 97·정책 122·트리거 38·RLS 해시 모두 일치(`source_configs` RLS 꺼짐 유지). **V-5** ACL 2193행 해시 일치, anon 실행 26·authenticated 41, 결제 테이블 service_role 쓰기 0. **V-6** `pg_default_acl`(postgres, public) 옛 값과 같음, role 시간 제한 같음, `cli_login_*` 없음, 시간대 UTC, cron 0. V-3(Storage)은 H-6 뒤 |
 | 덤프 시간 | (리허설 때 기록) |
 | 재적재 시간 | |
 | 파일 차이 반영 시간 | |
