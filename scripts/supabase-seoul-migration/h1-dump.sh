@@ -26,7 +26,8 @@ for t in "${AUTH_EXCLUDED_TABLES[@]}"; do exclude_args+=(-x "$t"); done
 dump() {
   local name="$1"; shift
   PGPASSWORD="$OLD_PW" supabase db dump --agent no --remote="$OLD_DB_URL" "$@" --dry-run 2>&1 | redact > "$out/dryrun/$name.sh"
-  if ! grep -q 'PGPASSWORD=<redacted>' "$out/dryrun/$name.sh" || grep -qF -- "$OLD_PW" "$out/dryrun/$name.sh"; then
+  # 비밀번호가 남았는지는 bash 내장 비교로 본다(외부 명령 인자에 비밀번호를 넣지 않게)
+  if ! grep -q 'PGPASSWORD=<redacted>' "$out/dryrun/$name.sh" || [[ "$(<"$out/dryrun/$name.sh")" == *"$OLD_PW"* ]]; then
     rm -f "$out/dryrun/$name.sh"
     die "$name dry-run 출력의 비밀번호 가림 확인에 실패해 그 파일을 지웠습니다. AI에게 알려 주세요."
   fi

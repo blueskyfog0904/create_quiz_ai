@@ -48,7 +48,9 @@ else
 fi
 # 삭제는 직전 실행에서 목록으로 확인한 항목만(목록 확인 없이 지우지 않게)
 prev_new_only=""
-[ -f storage-sync/LAST_NEW_ONLY.json ] && prev_new_only="storage-sync/LAST_NEW_ONLY.json"
+# 확인 목록도 새 ref별로 둔다(다른 새 프로젝트의 목록으로 지우지 않게)
+new_only_file="storage-sync/LAST_NEW_ONLY-$NEW_REF.json"
+[ -f "$new_only_file" ] && prev_new_only="$new_only_file"
 [ "$APPLY_DELETE" = 0 ] || [ -n "$prev_new_only" ] || die "--apply-delete 전에 옵션 없이 한 번 실행해 삭제 목록을 확인하세요."
 
 OLD_REF="$OLD_REF" NEW_REF="$NEW_REF" OLD_KEY="$OLD_KEY" NEW_KEY="$NEW_KEY" \
@@ -57,5 +59,5 @@ OLD_REF="$OLD_REF" NEW_REF="$NEW_REF" OLD_KEY="$OLD_KEY" NEW_KEY="$NEW_KEY" \
 
 # node가 실패 없이 끝났을 때만 기준 시각을 넘긴다
 printf '%s\t%s\n' "$NEW_REF" "$(cat "$work/old-now.txt")" > storage-sync/LAST_SYNC
-cp "$work/new-only.json" storage-sync/LAST_NEW_ONLY.json
+cp "$work/new-only.json" "$new_only_file"
 info "완료. 기준 시각(옛 DB) = $(cat "$work/old-now.txt"). AI에게 'H-6 끝'이라고 알려 주세요(V-3 비교)."
