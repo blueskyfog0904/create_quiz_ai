@@ -1,5 +1,5 @@
 -- 7절 검증 V-0(H-0)~V-6. AI가 MCP로 옛·새 프로젝트에 같은 쿼리를 실행해 결과를 비교한다(읽기 전용, 값이 아니라 개수·해시).
--- 각 블록은 SELECT 하나다. 블록 머리의 "-- [V-x]" 줄로 나눠 실행한다. 시간 값은 UTC로 문자열화한다(V-6에서 DB 시간대 UTC 확인).
+-- 각 블록은 블록 머리의 "-- [V-x]" 줄로 나눠 실행한다. 해시 블록(V-2·V-2b)은 앞의 SET으로 시간대·날짜·실수 표기를 고정한다(계획 7절).
 
 -- [V-0] H-0 버전·기본값
 select jsonb_build_object(
@@ -13,7 +13,7 @@ select jsonb_build_object(
                    from pg_default_acl)
 ) as v0;
 
--- [V-1] 행 수(public·auth·supabase_migrations 전부). H-1에서 뺀 auth 5개 테이블은 비교 제외(새 쪽엔 시험 세션이 있을 수 있음)
+-- [V-1] 행 수(public·auth·supabase_migrations 전부). 비교에서 뺄 것: H-1에서 뺀 auth 5개(sessions·refresh_tokens·flow_state·mfa_amr_claims·saml_relay_states, 새 쪽엔 시험 세션)와 auth.schema_migrations(프로젝트마다 다름)
 select n.nspname || '.' || c.relname as tbl,
        (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', n.nspname, c.relname), false, true, '')))[1]::text::bigint as row_count
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -45,6 +45,7 @@ union all
 select '(검사한 FK 수)', count(*)::text, 0 from counted;
 
 -- [V-2] 내용 해시: public 테이블 전부
+set timezone = 'UTC'; set datestyle = 'ISO, MDY'; set extra_float_digits = 1;
 select n.nspname || '.' || c.relname as tbl,
        (xpath('/row/h/text()', query_to_xml(format(
           'select md5(coalesce(string_agg(x::text, E''\n'' order by x::text collate "C"), '''')) as h from %I.%I x',
@@ -54,6 +55,7 @@ select n.nspname || '.' || c.relname as tbl,
  order by 1;
 
 -- [V-2b] 내용 해시: auth.users(고정 컬럼)·auth.identities
+set timezone = 'UTC'; set datestyle = 'ISO, MDY'; set extra_float_digits = 1;
 select 'auth.users' as tbl, md5(coalesce(string_agg(x, E'\n' order by x collate "C"), '')) as content_md5
   from (select concat_ws('|', id, email, md5(coalesce(encrypted_password, '')), email_confirmed_at, raw_app_meta_data, raw_user_meta_data) as x
           from auth.users) s
@@ -146,10 +148,10 @@ select obj, string_agg(concat_ws(':', case when grantee = 0 then 'PUBLIC' else g
   ) x
  group by obj order by obj;
 
--- [V-6] 설정: 기본 권한, 확장 버전, role 설정, 시간대
+-- [V-6] 설정: 기본 권한, 확장 버전, role 설정, 시간대. default_acl은 새 프로젝트 초기값에 따라 자기 항목(postgres=…/postgres)만 다를 수 있음 → H-0 기록과 대조해 권한 차이인지 판단
 select jsonb_build_object(
   'timezone', current_setting('TimeZone'),
-  'db_timezone', (select setting from pg_settings where name = 'TimeZone'),
+  'db_timezone', (select reset_val from pg_settings where name = 'TimeZone'),
   'default_acl', (select jsonb_agg(jsonb_build_object('role', defaclrole::regrole::text, 'schema', coalesce(defaclnamespace::regnamespace::text, '*'),
                     'type', defaclobjtype, 'acl', defaclacl::text) order by defaclrole::regrole::text, defaclnamespace::regnamespace::text, defaclobjtype)
                    from pg_default_acl),

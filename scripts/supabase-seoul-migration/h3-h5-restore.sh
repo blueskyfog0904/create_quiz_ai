@@ -16,9 +16,10 @@ info "새 DB가 비어 있는지 확인(두 번 실행·옛 DB 대상 실수 방
 counts="$(psql_new -At -c "
   select (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
            where n.nspname = 'public' and c.relkind in ('r','p','v','m'))
-       || ' ' || (select count(*) from auth.users)")"
-[ "$counts" = "0 0" ] || die "새 DB가 비어 있지 않습니다(public 객체 수, auth.users 수 = $counts). 재리허설이면 계획 4절대로 새 프로젝트를 다시 만드세요."
-confirm_ref "$NEW_REF" "새 DB($NEW_REF)에 덤프 $d 를 복원합니다"
+       || ' ' || (select count(*) from auth.users)
+       || ' ' || (to_regclass('supabase_migrations.schema_migrations') is not null)")"
+[ "$counts" = "0 0 false" ] || die "새 DB가 비어 있지 않습니다(public 객체 수, auth.users 수, 마이그레이션 이력 테이블 있음 = $counts). 재리허설이면 계획 4절대로 새 프로젝트를 다시 만드세요."
+confirm_target new "덤프 $d 를 복원합니다"
 
 info "H-3 기본 권한 회수"
 psql_new -c "

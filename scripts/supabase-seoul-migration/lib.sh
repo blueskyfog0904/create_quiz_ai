@@ -13,6 +13,10 @@ export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
 # SSL 없이 접속하지 않는다
 export PGSSLMODE=require
 
+# 이 이전의 방향(싱가포르 → 서울). Session pooler 주소의 지역으로 옛·새가 뒤바뀌지 않았는지 확인한다.
+MIG_OLD_REGION=ap-southeast-1
+MIG_NEW_REGION=ap-northeast-2
+
 # H-1에서 데이터 덤프에서 빼는 auth 테이블. C-3 비우기 목록에도 다시 넣는다(계획 H-1·C-3).
 AUTH_EXCLUDED_TABLES=(auth.sessions auth.refresh_tokens auth.flow_state auth.mfa_amr_claims auth.saml_relay_states)
 
@@ -65,6 +69,14 @@ validate_config() {
   [ "$OLD_REF" != "$NEW_REF" ] || die "OLD_REF와 NEW_REF가 같습니다"
   check_db_url "$OLD_DB_URL" "$OLD_REF" OLD_DB_URL
   check_db_url "$NEW_DB_URL" "$NEW_REF" NEW_DB_URL
+  [[ "$OLD_DB_URL" == *"-${MIG_OLD_REGION}.pooler.supabase.com:5432/"* ]] \
+    || die "OLD_DB_URL 이 싱가포르(${MIG_OLD_REGION}) Session pooler가 아닙니다. 옛·새가 뒤바뀌지 않았는지 확인하세요."
+  [[ "$NEW_DB_URL" == *"-${MIG_NEW_REGION}.pooler.supabase.com:5432/"* ]] \
+    || die "NEW_DB_URL 이 서울(${MIG_NEW_REGION}) Session pooler가 아닙니다. 옛·새가 뒤바뀌지 않았는지 확인하세요."
+  local linked="$MIG_REPO_DIR/supabase/.temp/project-ref"
+  if [ -f "$linked" ] && [ "$(cat "$linked")" != "$OLD_REF" ]; then
+    die "OLD_REF($OLD_REF)가 저장소에 연결된 현재 운영 프로젝트($(cat "$linked"))와 다릅니다."
+  fi
 }
 
 # 비밀번호가 들어 있지 않고 ref가 맞는 Session pooler URL인지 확인
@@ -87,7 +99,7 @@ read_db_password() {
 psql_old() { PGPASSWORD="$OLD_PW" PGAPPNAME=seoul-migration psql "$OLD_DB_URL" -X -q -v ON_ERROR_STOP=1 "$@"; }
 psql_new() { PGPASSWORD="$NEW_PW" PGAPPNAME=seoul-migration psql "$NEW_DB_URL" -X -q -v ON_ERROR_STOP=1 "$@"; }
 
-# 접속 대상이 정말 그 프로젝트인지 확인(새 쪽에서 옛 쪽을 건드리는 실수 방지)
+# postgres 계정으로 붙었는지 확인(어느 프로젝트인지는 validate_config의 ref·지역 검사가 맡음)
 assert_connected_ref() {
   local which="$1" got
   if [ "$which" = old ]; then got="$(psql_old -At -c 'select current_user')"; else got="$(psql_new -At -c 'select current_user')"; fi
@@ -97,11 +109,13 @@ assert_connected_ref() {
 # dry-run 출력의 비밀번호를 가린다(dry-run은 PGPASSWORD를 평문으로 출력함, 계획 H-1)
 redact() { sed -E 's/^(export PGPASSWORD=).*/\1<redacted>/'; }
 
-# 사람이 직접 ref를 입력해야 진행(옛 DB에 쓰는 단계 보호)
-confirm_ref() {
-  local ref="$1" what="$2" typed
-  read -r -p "$what — 계속하려면 대상 ref($ref)를 그대로 입력: " typed
-  [ "$typed" = "$ref" ] || die "입력한 ref가 다릅니다"
+# 사람이 대상 이름을 직접 입력해야 진행. 옛 = old-singapore, 새 = new-seoul (화면의 값을 따라 치지 않게 미리 보여 주지 않음)
+confirm_target() {
+  local which="$1" what="$2" typed expected ref
+  if [ "$which" = old ]; then expected=old-singapore; ref="$OLD_REF"; else expected=new-seoul; ref="$NEW_REF"; fi
+  printf '\n대상: %s DB (ref %s)\n%s\n' "$which" "$ref" "$what"
+  read -r -p "맞으면 대상 이름(옛이면 old-…, 새면 new-… 형식)을 입력: " typed
+  [ "$typed" = "$expected" ] || die "입력한 대상 이름이 다릅니다(옛 = old-singapore, 새 = new-seoul)"
 }
 
 latest_dump_dir() {
