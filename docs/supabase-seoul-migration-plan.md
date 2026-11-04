@@ -85,6 +85,7 @@
 | P-8 | Supabase MCP에 새 프로젝트용 항목 추가(`https://mcp.supabase.com/mcp?project_ref=<새 ref>&read_only=true`, 같은 조직이라 기존 OAuth 범위 안). 옛 항목은 전환 완료까지 유지 | AI의 검증용 SELECT. 설정 변경은 대표 확인 후 |
 | P-9 | Vercel: **플랜(Hobby/Pro)**, Supabase 환경변수 3개가 어느 환경(Production·Preview·Development)에 있는지, Supabase 연동이 자동 관리하는 값인지, `AI_CREDENTIAL_ENCRYPTION_KEY` 유무를 **이름만** 확인. **Vercel Firewall 사용자 규칙**을 플랜에서 쓸 수 있는지 확인. Hobby면 Instant Rollback은 직전 production 배포로만 가능하고, 롤백 뒤에는 새 배포가 운영 도메인에 자동 연결되지 않음(`vercel promote`·Undo Rollback 필요) → Supabase 연동이 값을 관리한다면 C-6 전에 연동을 끊거나 새 프로젝트로 다시 연결할지 결정(그대로 두면 수동 값이 덮어써질 수 있음) | C-1 입구 차단 수단, 9절 되돌리기 |
 | P-10 | 사전 공지 채널·문구 결정: 홈 광고 배너 또는 메인 공지로 "○월 ○일 ○시 점검, 점검 후 다시 로그인 필요" | 본 전환 2일 전 |
+| P-10a | **리허설 스크립트**: `scripts/supabase-seoul-migration/`(README에 단계별 실행 순서). 비밀값은 실행 시 `read -s`, 옛 DB는 읽기만 | AI 작성·검증 |
 | P-11 | **출력용 전환 런북** `docs/supabase-seoul-cutover-runbook.md`(AI 작성): C-0~C-9를 체크박스로, 단계마다 "AI가 SELECT로 확인 → 다음" 표시, 실패 시 9절 해당 줄 | 대표 1명이 실수 없이 따라가도록 |
 
 ## 6. 리허설 (무중단, 반복 가능)
@@ -93,7 +94,7 @@
 
 | ID | 단계 | 내용 | 확인 |
 |---|---|---|---|
-| H-0 | 버전·기본값 기록 | 두 DB의 `auth.schema_migrations`·`storage.migrations` 최대값 비교(옛 `20260831180000` / `73`), Postgres 버전, **새 DB의 `pg_default_acl`을 H-3 전에 기록**(새 프로젝트의 자동 노출 설정에 따라 다를 수 있음) | 다르면 COPY 컬럼 대조 후 진행 판단 |
+| H-0 | 버전·기본값 기록 | 두 DB의 `auth.schema_migrations`·`storage.migrations` 최대값 비교(옛 `20260831180000` / `73` 조사 당시, 2026-11-04 storage `79` — H-0 시점 값끼리 비교), Postgres 버전, **새 DB의 `pg_default_acl`을 H-3 전에 기록**(새 프로젝트의 자동 노출 설정에 따라 다를 수 있음) | 다르면 COPY 컬럼 대조 후 진행 판단 |
 | H-1 | 덤프(옛) | `roles.sql`(`--role-only`), `schema.sql`, **`data.sql`: `--use-copy --data-only --schema public,auth -x auth.sessions -x auth.refresh_tokens -x auth.flow_state -x auth.mfa_amr_claims -x auth.saml_relay_states`**(cron·net·storage·vault 제외, 쓰지 않는 세션·토큰과 그것을 참조하는 테이블 제외 — 하나만 빼면 FK 고아 행이 생김), `history_schema.sql`·`history_data.sql`(`--schema supabase_migrations`). 각 명령은 먼저 `--dry-run`으로 실제 pg_dump 인자를 기록하되 **출력은 `sed -E 's/^(export PGPASSWORD=).*/\1<redacted>/'`를 거친 뒤에만 화면·파일에**(dry-run은 환경변수를 펼친 스크립트를 출력해 비밀번호가 평문으로 찍힘) | `grep '^COPY' data.sql`로 대상 목록 저장·검토: cron·net·vault·storage·`auth.schema_migrations` 없음, 제외한 auth 테이블 없음 |
 | H-2 | 덤프 손질 | 공식 Troubleshooting: schema.sql의 `ALTER … OWNER TO "supabase_admin"`, roles.sql의 `GRANT "postgres" TO "cli_login_postgres"` 줄 주석(현재 해당 객체 0이라 바뀌는 줄 0 예상). sed로 하고 바뀐 줄 수 출력 | 바뀐 줄 목록 |
 | H-3 | 기본 권한 회수 | 새 DB SQL Editor: `ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated, service_role;` 같은 문장을 `FUNCTIONS`, `SEQUENCES`에도. 덤프가 기본값과 다른 권한만 쓰기 때문에, 회수 없이 복원하면 함수 71개에 anon EXECUTE, 결제 테이블 8개에 service_role 쓰기가 새로 생김 | — |
