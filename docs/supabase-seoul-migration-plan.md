@@ -1,7 +1,7 @@
 # Supabase 싱가포르 → 서울 이전 계획
 
-- 작성일: 2026-10-29 · 기준 HEAD 0e826cf · 상태: **확정안 — 전문 검증 3명 PASS(R4), 실행 대기(대표 P 단계부터)**
-- 요청: Supabase 프로젝트 지역을 싱가포르(Southeast)에서 서울(Northeast)로 옮긴다. 무료 활성 프로젝트 2개 한도(공무원맛집가이드 프로젝트가 같은 계정에 있음) 때문에 **새 조직을 Pro로 만들어 서울 프로젝트를 생성**한다(사용자 결정 2026-10-29, 생성은 2026-10-30 낮).
+- 작성일: 2026-10-29 · 기준 HEAD 0e826cf · 개정 4(무료 방식) 2026-11-04 · 상태: **확정안 — 개정 4 독립 검증 2명 PASS(R6), 개정 3은 전문 검증 3명 PASS(R4). 실행 대기(대표 P 단계부터)**
+- 요청: Supabase 프로젝트 지역을 싱가포르(Southeast)에서 서울(Northeast)로 옮긴다. 무료 활성 프로젝트 2개 한도(공무원맛집가이드 프로젝트가 같은 계정의 다른 조직에 있음) 때문에 **공무원맛집가이드를 일시정지해 자리를 비우고, 써머썬 무료 조직에 서울 프로젝트를 무료로 생성**한다(사용자 결정 2026-11-04: 개발 단계라 공무원맛집가이드가 꺼져 있어도 됨, Pro는 나중에 — A-11). 2026-10-29의 "새 Pro 조직" 방식은 폐기.
 - 이 문서는 계획이다. 코드·DB는 바꾸지 않았다. 근거는 저장소·운영 DB SELECT 조사와 Supabase 공식 문서·CLI 소스 조사.
 - 원칙: 대표는 DB 비밀번호·서비스 키를 AI에게 주지 않는다 → **비밀값이 필요한 명령은 대표가 자기 터미널에서 실행**하고 AI는 스크립트 작성·SELECT 검증·화면 확인을 맡는다. DB 쓰기는 리허설 → 승인 → 적용. 결제 DB는 전문 검증 3명.
 
@@ -29,6 +29,14 @@
 | 옛 프로젝트 토큰은 무효 → 사용자 재로그인 | self-hosting 이전 문서 |
 | `ALTER DATABASE … SET default_transaction_read_only`는 새 연결에만 적용(soft freeze) | KB read-only mode, PostgreSQL 동작 |
 | 덤프 도구: Supabase CLI + **Docker Desktop** + psql(`brew install postgresql@17`) | backup-restore |
+| 무료 프로젝트는 Owner·Admin인 모든 조직을 합쳐 **활성 2개**, 일시정지한 프로젝트는 세지 않음 | billing-on-supabase, billing-faq |
+| 일시정지한 무료 프로젝트는 **1년 안에** 대시보드 Resume으로 데이터·설정 그대로 복구(옛 문서·검색 색인의 "90일"은 예전 값) | free-project-pausing(2026-11-04 최신 페이지) |
+| 무료 프로젝트는 **7일간 DB 활동이 적으면 자동 일시정지**(약 1주 전 경고 메일, 대시보드 방문·API 호출로 막을 수 있음). 유료 조직 프로젝트는 일시정지 불가(일시정지하려면 무료 조직으로 이전) | free-project-pausing |
+| 무료 플랜은 **자동 일일 백업 없음**(Pro부터 7일) | backups |
+| 무료 디스크는 프로젝트당 **2GB 고정**(WAL 포함), 사용량 95%에서 읽기 전용. DB 크기 500MB는 **조직 합산 청구 한도**(청구 기간 일평균) — 넘으면 조직 전체 Fair Use 제한(402) | database-size(2026-11-04 최신 페이지) |
+| 무료 한도: Storage 1GB, Egress 조직당 월 5GB(비캐시)+5GB(캐시). 계속 넘기면 유예 후 **조직 전체** 제한(일시정지·읽기 전용·402) | storage-size, egress, billing-faq |
+| 무료 프로젝트 생성은 조직의 다른 Owner·Admin이 자기 무료 한도를 다 쓴 경우에도 막힘 | billing-faq |
+| 프로젝트는 조직 간 이전 가능(지역은 그대로, 원본 조직 Owner·대상 조직 멤버·GitHub 연동·Log Drain 없음 조건, 무료 조직으로 옮길 때는 무료 2개 한도 확인). 유료 조직은 프로젝트마다 compute 과금 | project-transfer, billing-faq |
 
 ## 3. 현재 상태 (조사 결과)
 
@@ -50,6 +58,7 @@
 | 코드 | 환경변수 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`(서버 14곳). JWT 형식 키 전제 코드 없음. 점검 모드 없음. 미들웨어가 요청마다 `getUser()`, 브라우저가 GoTrue에 직접 쓰는 경로(로그인·`updateUser`) 있음. 쿠키 이름 `sb-<ref>-auth-token`(옛 쿠키는 무시되고 무한 리다이렉트 없음) |
 | AI 키 | `AI_CREDENTIAL_ENCRYPTION_KEY` 없으면 `SUPABASE_SERVICE_ROLE_KEY`로 암호화(`src/lib/ai/provider-connections.ts:60`), 레거시 문제생성용 2행 |
 | 이 Mac | Supabase CLI·Docker·psql **없음**, Node 22·Homebrew 있음 |
+| 플랜·용량(2026-11-04) | 써머썬 조직 무료(프로젝트 1개), 공무원맛집가이드는 **다른** 무료 조직(개발 단계). DB 81MB, Storage 273MB(객체 1,173개), 지난달 Egress 0.75GB(대표 확인) → 무료 한도 안. 공무원맛집가이드와는 조직이 달라 한도·제한을 공유하지 않음. 단 **리허설~A-1 동안은 써머썬 조직에 옛·새 프로젝트 2개**라 합산 DB 약 162MB/500MB, Storage 약 546MB/1GB, 리허설 1회마다 Egress 약 0.28GB(파일 전체 다운로드) 추가 — 여전히 한도 안 |
 
 ## 4. 방식
 
@@ -59,20 +68,20 @@
 2. **본 전환(점검)**: 사이트 입구 차단 → 옛 DB 쓰기 중지 → **데이터만** 다시 덤프 → 새 DB 데이터를 한 트랜잭션으로 비우고 다시 적재(스키마는 리허설 것) → 파일 차이만 반영 → 검증 → Vercel 전환 → 확인 → 입구 차단 해제.
 
 - **Storage를 데이터 덤프에서 빼는 이유**: 객체·버킷 owner가 모두 NULL, storage RLS 0, public→storage FK 0, 진행 중 업로드 0이라 메타데이터 행을 옮겨도 얻는 것이 없고, 행만 있고 파일이 없는 상태·삭제 차단 트리거·고아 파일 문제가 생긴다. 스크립트가 버킷을 같은 설정으로 만들고 파일을 올리면 메타데이터 행은 Storage API가 만든다.
-- **본 전환에서 스키마를 다시 만들지 않는 이유**: 리허설로 검증한 스키마를 그대로 쓰면 당일 위험이 데이터 재적재 하나로 줄고, project ref가 바뀌지 않아 Auth·카카오·키 설정을 다시 할 필요가 없다. H-10에서 재적재가 안 되면 **P 단계에서** 최종 프로젝트를 새로 만들고(당일에는 불가) 처음부터 다시 리허설한다.
+- **본 전환에서 스키마를 다시 만들지 않는 이유**: 리허설로 검증한 스키마를 그대로 쓰면 당일 위험이 데이터 재적재 하나로 줄고, project ref가 바뀌지 않아 Auth·카카오·키 설정을 다시 할 필요가 없다. H-10에서 재적재가 안 되면 **P 단계에서** 최종 프로젝트를 새로 만들고(당일에는 불가) 처음부터 다시 리허설한다. 무료 활성 2개 한도(옛 + 실패한 새 프로젝트) 때문에 **실패한 새 프로젝트를 먼저 삭제**한 뒤 P-2부터 다시 하고, 새 ref가 생기므로 P-3·P-5·P-6(카카오 Redirect URI)·P-7(SMTP를 이미 설정했다면)·P-8(MCP 항목)도 다시 한다.
 
-## 5. 준비 (대표, 2026-10-30부터, 리허설 전)
+## 5. 준비 (대표, 리허설 전)
 
 | ID | 할 일 | 비고 |
 |---|---|---|
-| P-1 | 새 조직 생성 → **Pro 결제** | 카드, USD |
-| P-2 | 새 조직에 프로젝트 생성: 지역 **Northeast Asia (Seoul)**, Postgres 17, **Data API 사용 + public 스키마 노출**, DB 비밀번호 직접 생성·보관 | AI에게 비밀번호를 주지 않음 |
+| P-1 | **공무원맛집가이드 프로젝트 일시정지**(그 조직 → 프로젝트 → Settings → General → Pause project) → 일시정지 날짜 기록. 한도는 Owner·Admin인 모든 조직을 합쳐 세므로 다른 조직에 활성 무료 프로젝트가 더 없는지도 확인 | 복구 창 1년(A-10). 결제 없음 |
+| P-2 | **써머썬 조직(옛 프로젝트와 같은 무료 조직)** 에 프로젝트 생성: 지역 **Northeast Asia (Seoul)**, Postgres 17, **Data API 사용 + public 스키마 노출**, DB 비밀번호 직접 생성·보관. 한도 오류가 나면 P-1 일시정지가 끝났는지, 써머썬 조직에 다른 Owner·Admin 멤버가 있는지, (재생성이라면) 실패한 새 프로젝트를 지웠는지 확인. **리허설 시작 직전에** 만든다(활동 없이 7일이 지나면 자동 일시정지) | AI에게 비밀번호를 주지 않음 |
 | P-3 | Database → Extensions에서 **pg_cron, pg_net** 켜기, vault·pgcrypto·uuid-ossp·pg_stat_statements 확인 | 복원 전 |
 | P-4 | Mac 도구 설치: `brew install supabase/tap/supabase`, `brew install postgresql@17`, **Docker Desktop** 설치·실행 | |
-| P-5 | **Auth·API 설정 옮기기**: 옛 프로젝트 Authentication·API 설정 화면을 모두 캡처 → 체크리스트로 새 프로젝트에 입력. 항목: Site URL `https://www.summersuninst.com`, Redirect URLs(`https://www.summersuninst.com/**`, `https://summersuninst.com/**`, Vercel preview 주소, `http://localhost:4000/**`), Allow new users to sign up, Email provider, **Confirm email(현재 값 그대로)**, Secure email change, Secure password change, 비밀번호 최소 길이·조건, OTP 만료, Refresh token rotation·reuse interval, 세션 설정, JWT 만료(3600), Captcha, Rate Limits, 이메일 템플릿, Data API 최대 행·노출 스키마. **Leaked password protection**(Pro 기능, 관리자 계획 0-3) 켜기 | 새 프로젝트 기본 Site URL은 localhost라 반드시 입력 |
+| P-5 | **Auth·API 설정 옮기기**: 옛 프로젝트 Authentication·API 설정 화면을 모두 캡처 → 체크리스트로 새 프로젝트에 입력. 항목: Site URL `https://www.summersuninst.com`, Redirect URLs(`https://www.summersuninst.com/**`, `https://summersuninst.com/**`, Vercel preview 주소, `http://localhost:4000/**`), Allow new users to sign up, Email provider, **Confirm email(현재 값 그대로)**, Secure email change, Secure password change, 비밀번호 최소 길이·조건, OTP 만료, Refresh token rotation·reuse interval, 세션 설정, JWT 만료(3600), Captcha, Rate Limits, 이메일 템플릿, Data API 최대 행·노출 스키마. **Leaked password protection**은 Pro 기능이라 무료에서는 켤 수 없음 → A-11 뒤(관리자 계획 0-3) | 새 프로젝트 기본 Site URL은 localhost라 반드시 입력 |
 | P-6 | **카카오**: Kakao Developers → 카카오 로그인 Redirect URI에 `https://<새 ref>.supabase.co/auth/v1/callback` **추가**(옛 주소 유지). 새 프로젝트 Kakao provider에 REST API 키·Client Secret·"Allow users without an email" 값을 옛 프로젝트와 같게 | 같은 카카오 앱 → 카카오 사용자 2명 identity 유지 |
 | P-7 | **SMTP 판단**: P-5에서 Confirm email이 켜져 있으면 SMTP 없이는 새 프로젝트에서 이메일 가입이 막힘 → 그 경우 Resend·SMTP(관리자 계획 0-8)를 본 전환 전에 함. 꺼져 있으면 전환 후(A-4) | 운영 데이터상 일반 이메일 사용자 9명 중 3명만 확인 메일 기록 → 현재 값 확인 필요 |
-| P-8 | Supabase MCP에 새 조직용 항목 추가(OAuth로 새 조직 선택, URL에 `read_only=true`). 옛 항목은 전환 완료까지 유지 | AI의 검증용 SELECT. 설정 변경은 대표 확인 후 |
+| P-8 | Supabase MCP에 새 프로젝트용 항목 추가(`https://mcp.supabase.com/mcp?project_ref=<새 ref>&read_only=true`, 같은 조직이라 기존 OAuth 범위 안). 옛 항목은 전환 완료까지 유지 | AI의 검증용 SELECT. 설정 변경은 대표 확인 후 |
 | P-9 | Vercel: **플랜(Hobby/Pro)**, Supabase 환경변수 3개가 어느 환경(Production·Preview·Development)에 있는지, Supabase 연동이 자동 관리하는 값인지, `AI_CREDENTIAL_ENCRYPTION_KEY` 유무를 **이름만** 확인. **Vercel Firewall 사용자 규칙**을 플랜에서 쓸 수 있는지 확인. Hobby면 Instant Rollback은 직전 production 배포로만 가능하고, 롤백 뒤에는 새 배포가 운영 도메인에 자동 연결되지 않음(`vercel promote`·Undo Rollback 필요) → Supabase 연동이 값을 관리한다면 C-6 전에 연동을 끊거나 새 프로젝트로 다시 연결할지 결정(그대로 두면 수동 값이 덮어써질 수 있음) | C-1 입구 차단 수단, 9절 되돌리기 |
 | P-10 | 사전 공지 채널·문구 결정: 홈 광고 배너 또는 메인 공지로 "○월 ○일 ○시 점검, 점검 후 다시 로그인 필요" | 본 전환 2일 전 |
 | P-11 | **출력용 전환 런북** `docs/supabase-seoul-cutover-runbook.md`(AI 작성): C-0~C-9를 체크박스로, 단계마다 "AI가 SELECT로 확인 → 다음" 표시, 실패 시 9절 해당 줄 | 대표 1명이 실수 없이 따라가도록 |
@@ -141,7 +150,7 @@ AI가 두 프로젝트에 같은 SELECT를 실행해 비교한다(값이 아니�
 
 | ID | 할 일 | 시점 |
 |---|---|---|
-| A-1 | 옛 프로젝트: 읽기 전용·cron 비활성 상태로 **2주 보관** → 일시정지(무료 한도에서 빠짐) → 삭제는 대표 결정. 로컬 덤프 폴더는 옛 프로젝트 일시정지·삭제 때 함께 삭제(덤프에 bcrypt 해시·AI 키 암호문 포함) | 2주 |
+| A-1 | 옛 프로젝트: 읽기 전용·cron 비활성 상태로 **2주 보관** → 일시정지(무료 한도에서 빠짐) → 삭제는 대표 결정. 로컬 덤프 폴더는 **2주 보관을 마친 뒤의** 옛 프로젝트 일시정지·삭제 때 함께 삭제(덤프에 bcrypt 해시·AI 키 암호문 포함, 보관 중 자동 일시정지 때는 지우지 않음). 보관 중 활동이 없어 **약 7일 뒤 자동 일시정지될 수 있으며 무방**(1년 안 Resume 가능. A-10 뒤에 다시 열어야 하면 공무원맛집가이드를 먼저 일시정지) | 2주 |
 | A-2 | 개발 도구·문서의 옛 ref 갱신: `.env.local`, `.mcp.json`, `.codex/config.toml`, `supabase link`(`supabase/.temp/project-ref`·`pooler-url`), `AGENTS.md:81`, `project_architecture.md:97,437`(`gen types --project-id`), `docs/auth/kakao-login-settings-checklist.txt` 콜백 주소, `docs/payapp-db-migration-checklist.md`의 ref와 cron `jobid in (1,3)` → **jobname 기준**으로(새 DB에서 jobid가 달라짐) | 즉시 |
 | A-3 | 카카오 Redirect URI에서 옛 주소 삭제 | 1주 뒤 |
 | A-4 | **Resend + 새 프로젝트 SMTP 설정**(관리자 계획 0-8), P-7에서 이미 했으면 생략 | 즉시 |
@@ -150,6 +159,8 @@ AI가 두 프로젝트에 같은 SELECT를 실행해 비교한다(값이 아니�
 | A-7 | 관리자 계획의 DB 단계 시작(`docs/admin-implementation-workplan.md` 1절), 출시 스위치 마이그레이션은 새 DB에 적용(사전 점검 쿼리 그대로 통과 예상: 미해소 경보 0, 런타임 설정 동일) | 이후 |
 | A-8 | AI 키(레거시): service role 키가 바뀌어 기존 암호문 복호화 불가. 문제생성 미사용이라 그대로 둠(Q4). 다시 쓰면 키 재입력 | 기록만 |
 | A-9 | (C-7에서 vault 오류가 났던 경우만) `CRON_SECRET` 교체: cron 실행 직후(:01~:04) 시작, 10분 안에 끝냄. 새 값 생성 → Vercel `CRON_SECRET` 변경·재배포 → **새 배포 Ready 확인** → 바로 `select vault.update_secret((select id from vault.secrets where name = 'payment_reconcile_cron_secret'), '<새 값>');` → 다음 대사 200·미해소 경보 0 확인. 배포가 실패하면 Vercel 값을 되돌리고 vault는 건드리지 않음(갱신했다면 `update_secret`으로 예전 값 복원) | C-9 뒤 |
+| A-10 | **공무원맛집가이드 재개**: 옛 써머썬을 일시정지 또는 삭제한 **뒤**, 또는 A-11(Pro) 뒤에 Resume(그 전에 하면 활성 3개라 막힘). P-1 날짜로부터 1년 안 | A-1 뒤 |
+| A-11 | **Pro 전환**(대표 결정, Q7): 써머썬 조직을 Pro로 업그레이드. 유료 조직 프로젝트는 일시정지할 수 없고 프로젝트마다 compute가 과금되므로 **먼저 옛 써머썬 프로젝트를 삭제하거나 무료 조직으로 이전**(이전 대상 조직의 멤버여야 하고, 그 조직이 무료면 활성 2개 한도 확인). **A-1 2주 보관 중에 Pro로 바꾸면 옛 프로젝트는 삭제하지 말고 무료 조직(공무원맛집가이드 조직 또는 새 무료 조직)으로 이전**해 보관을 이어감. 전환 뒤 Leaked password protection 켜기(P-5) | 페이앱 출시 전 권장 |
 
 ## 11. 위험과 대응
 
@@ -167,6 +178,10 @@ AI가 두 프로젝트에 같은 SELECT를 실행해 비교한다(값이 아니�
 | Vercel 배포 롤백 함정 | 9절 Instant Rollback + 환경변수 원복, C-9 뒤 옛 배포 금지 |
 | 로컬 시험이 운영 DB에 씀 | H-9 ① 재시작·시크릿 창 ② `last_sign_in_at` 확인 뒤 쓰기 |
 | 비밀값 노출 | `read -s` → 환경변수, 작업 폴더 권한·위치, SQL Editor 스니펫 삭제, 덤프 삭제 시점 |
+| 새 프로젝트 자동 일시정지(무료, 7일 활동 적음 — 전환 전에는 cron 0) | 직전 7일 동안 활동이 적으면 일시정지 → P-2는 리허설 직전에, 리허설~본 전환 사이에 활동 없는 기간이 7일을 넘지 않게. 경고 메일이 오면 대시보드 방문. 일시정지됐으면 Resume 후 H-0(auth·storage 버전, Postgres 버전), P-3 확장, `cron.job` 0·vault 0(전환 전), V-4~V-6 다시 확인하고 진행 |
+| 새 프로젝트 디스크 가득(무료 2GB 고정, 대량 적재·재적재로 WAL 증가 → 95%에서 읽기 전용) | H-4·H-10(c)·C-3 뒤 대시보드 Database → Settings 디스크 사용량 확인. 80%를 넘으면 다음 단계 전에 멈추고 판단 |
+| 자동 백업 없음(무료) | 리허설·본 전환은 자체 덤프로 진행. 전환 뒤 Pro(A-11) 전까지 DB 작업 직전마다 H-1과 같은 덤프를 대표가 떠 둠(`docs/admin-implementation-workplan.md` 0절). 이 덤프로 되돌릴 수 있는 것은 public·auth 스키마·데이터까지(storage 파일·vault·cron은 없음). 작업 폴더 규칙은 6절과 같고, 덤프는 다음 덤프가 생기면 이전 것을 삭제, A-11 뒤 모두 삭제(bcrypt 해시 포함) |
+| 무료 한도 초과(조직 합산) | 3절 플랜·용량 행: 리허설~A-1 동안 합산 DB 약 162MB/500MB·Storage 약 546MB/1GB, Egress 0.75GB/5GB + 리허설당 약 0.28GB. 넘기면 조직 전체(새 DB 포함)가 제한됨. 일시정지·삭제하면 새 사용량은 쌓이지 않지만 그 청구 기간에 이미 쌓인 사용량은 기간이 끝날 때까지 남음 → A-1 뒤 조직 Usage 화면으로 확인. 상품 파일이 늘면 Storage부터 확인, 넘기 전에 A-11 |
 
 ## 12. 결정 질문
 
@@ -176,8 +191,9 @@ AI가 두 프로젝트에 같은 SELECT를 실행해 비교한다(값이 아니�
 | Q2 | 본 전환 시간 | 평일 밤, 대표가 함께 있는 시간 |
 | Q3 | `payment_reconciliation_runs` 20,196행 | 그대로 옮김 |
 | Q4 | AI 키(레거시) | 그대로 둠(A-8) |
-| Q5 | 옛 프로젝트 보관 기간 | 2주 후 일시정지 |
+| Q5 | 옛 프로젝트 보관 기간 | 2주 후 일시정지(무료라 활동이 없으면 약 7일 뒤 자동 일시정지될 수 있음 — 무방) |
 | Q6 | 입구 차단 수단 | Vercel Firewall 사용자 규칙. 플랜에서 불가하면 대안(점검 화면 코드 추가 후 환경변수로 켜기 — 리허설 전에 구현·시험) |
+| Q7 | Pro 전환 시점(A-11) | 대표 결정 "나중에"(2026-11-04). 권장: 페이앱 출시 전(자동 백업·자동 일시정지 없음) |
 
 ## 13. 검증 기록
 
@@ -195,6 +211,9 @@ AI가 두 프로젝트에 같은 SELECT를 실행해 비교한다(값이 아니�
 | R4 | 개정 3 | 2 Auth·Storage·연동 | **PASS** | R3 필수 해소, 새 모순 없음. 권고 반영: H-10(d) log 동작만, 대표 IP 재확인, A-9 시간·순서·복원 |
 | R4 | 개정 3 | 3 전환·되돌리기·결제 | **PASS** | R3 필수·권고 반영 확인. 권고 반영: A-9 순서·`update_secret` SQL, H-10(d) log 모드, C-7 configure 오류 처리 |
 | 확정 | 개정 3 + R4 권고 | 작성자 | 반영 | 검증 1은 R3 PASS, 2·3은 R4 PASS. R4 권고는 실행 시 유의 사항으로 문구만 반영(설계 변경 없음) |
+| R5 | 개정 4(무료 방식) | A 무료 플랜 사실 | **FAIL** | 복구 창은 1년(90일 아님), 500MB는 조직 합산 청구 한도이고 읽기 전용은 디스크 2GB의 95% → 2절·3절·11절 수정. 권고 반영: 조직 합산 수치, 디스크 확인, 다른 Owner·Admin, 경고 메일, 이전 조건 |
+| R5 | 개정 4 | B 자리 계산·순서 | **FAIL** | 재생성 시 활성 3개로 막힘 → 4절 실패 프로젝트 먼저 삭제·P 재실행, P-2 원인. 권고 반영: P-2 리허설 직전, Resume 뒤 재확인 항목, A-1·A-10·A-11·Q5, P-1 다른 조직, 관리자 작업계획 0절 덤프 행 |
+| R6 | 개정 4-1 | A·B | **PASS** | A 권고(이미 쌓인 사용량 문구, 7일 표현, A-10 이전 경로 제외)·B 권고(P-7 재실행, 덤프 삭제 시점, 덤프 복구 범위) 반영 |
 
 ## 14. 실측 기록 (H-10)
 
