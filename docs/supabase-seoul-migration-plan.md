@@ -58,6 +58,7 @@
 | 코드 | 환경변수 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`(서버 14곳). JWT 형식 키 전제 코드 없음. 점검 모드 없음. 미들웨어가 요청마다 `getUser()`, 브라우저가 GoTrue에 직접 쓰는 경로(로그인·`updateUser`) 있음. 쿠키 이름 `sb-<ref>-auth-token`(옛 쿠키는 무시되고 무한 리다이렉트 없음) |
 | AI 키 | `AI_CREDENTIAL_ENCRYPTION_KEY` 없으면 `SUPABASE_SERVICE_ROLE_KEY`로 암호화(`src/lib/ai/provider-connections.ts:60`), 레거시 문제생성용 2행 |
 | 이 Mac | Supabase CLI·Docker·psql **없음**, Node 22·Homebrew 있음 |
+| Vercel(2026-11-04 대표 확인) | **Hobby**(무료). Supabase 환경변수는 **대표가 수동 관리**(연동 자동 관리 아님 → C-6에서 덮어쓰기 걱정 없음). WAF Custom Rules는 모든 플랜에서 사용 가능(Vercel 문서) → C-1 입구 차단 수단 유지. Hobby Instant Rollback 제약은 9절 그대로 |
 | 플랜·용량(2026-11-04) | 써머썬 조직 무료(프로젝트 1개), 공무원맛집가이드는 **다른** 무료 조직(개발 단계). DB 81MB, Storage 273MB(객체 1,173개), 지난달 Egress 0.75GB(대표 확인) → 무료 한도 안. 공무원맛집가이드와는 조직이 달라 한도·제한을 공유하지 않음. 단 **리허설~A-1 동안은 써머썬 조직에 옛·새 프로젝트 2개**라 합산 DB 약 162MB/500MB, Storage 약 546MB/1GB, 리허설 1회마다 Egress 약 0.28GB(파일 전체 다운로드) 추가 — 여전히 한도 안 |
 
 ## 4. 방식
