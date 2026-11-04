@@ -57,7 +57,7 @@
 | 마이그레이션 이력 | `schema_migrations` 110행(최신 `20261021100000`). 저장소 파일과 버전 일치 33개 → **파일 재실행으로 재현 불가, 덤프 방식 필수** |
 | 코드 | 환경변수 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`(서버 14곳). JWT 형식 키 전제 코드 없음. 점검 모드 없음. 미들웨어가 요청마다 `getUser()`, 브라우저가 GoTrue에 직접 쓰는 경로(로그인·`updateUser`) 있음. 쿠키 이름 `sb-<ref>-auth-token`(옛 쿠키는 무시되고 무한 리다이렉트 없음) |
 | AI 키 | `AI_CREDENTIAL_ENCRYPTION_KEY` 없으면 `SUPABASE_SERVICE_ROLE_KEY`로 암호화(`src/lib/ai/provider-connections.ts:60`), 레거시 문제생성용 2행 |
-| 이 Mac | Supabase CLI·Docker·psql **없음**, Node 22·Homebrew 있음 |
+| 이 Mac | (조사 당시) Supabase CLI·Docker·psql 없음 → **2026-11-04 P-4 완료**: psql·pg_dump 17.11(Homebrew, PATH `/opt/homebrew/opt/postgresql@17/bin`), Supabase CLI 3.0.0, Docker Desktop 29.9.2. Node 22·Homebrew |
 | Vercel(2026-11-04 대표 확인) | **Hobby**(무료). Supabase 환경변수는 **대표가 수동 관리**(연동 자동 관리 아님 → C-6에서 덮어쓰기 걱정 없음). WAF Custom Rules는 모든 플랜에서 사용 가능(Vercel 문서) → C-1 입구 차단 수단 유지. Hobby Instant Rollback 제약은 9절 그대로 |
 | 플랜·용량(2026-11-04) | 써머썬 조직 무료(프로젝트 1개), 공무원맛집가이드는 **다른** 무료 조직(개발 단계). DB 81MB, Storage 273MB(객체 1,173개), 지난달 Egress 0.75GB(대표 확인) → 무료 한도 안. 공무원맛집가이드와는 조직이 달라 한도·제한을 공유하지 않음. 단 **리허설~A-1 동안은 써머썬 조직에 옛·새 프로젝트 2개**라 합산 DB 약 162MB/500MB, Storage 약 546MB/1GB, 리허설 1회마다 Egress 약 0.28GB(파일 전체 다운로드) 추가 — 여전히 한도 안 |
 
@@ -89,7 +89,7 @@
 
 ## 6. 리허설 (무중단, 반복 가능)
 
-**스크립트 규칙**: AI가 스크립트를 쓰고 대표가 자기 터미널에서 실행. 비밀번호·키는 `read -s`로 받아 **`PGPASSWORD`만 export**하고 `--db-url`·`--dbname`에는 **비밀번호 없는 URL**을 넣음(CLI의 `--db-url` 모드는 URL 또는 libpq `PG*` 환경변수에서만 비밀번호를 읽음, `SUPABASE_DB_PASSWORD`는 `--linked` 전용). 명령줄 인자에 비밀번호를 넣지 않음(`ps`·Docker 노출 방지). CLI가 작업 폴더의 `supabase/.env*`를 읽으므로 저장소 밖 작업 폴더에서 실행. 작업 폴더 `~/supabase-migration/<날짜>/`(iCloud 동기화 폴더 밖, `umask 077`, `chmod 700`). 연결은 각 프로젝트 Connect → **Session pooler(5432)**. 공식 Storage 스크립트는 키를 소스에 적지 않고 `read -s`로 받도록 고친 판을 쓴다.
+**스크립트 규칙**: AI가 스크립트를 쓰고 대표가 자기 터미널에서 실행. 비밀번호·키는 `read -s`로 받아 **`PGPASSWORD`만 export**하고 CLI `--remote=`·psql `--dbname`에는 **비밀번호 없는 URL**을 넣음(**CLI 3.0.0 기준**: `--db-url`은 없어지고 `--remote=<URL>`로 바뀜. URL 모드는 `PGPASSWORD` 환경변수를 그대로 pg_dump에 넘김 — 2026-11-04 가짜 주소 dry-run으로 확인. `--password` 옵션은 명령줄에 비밀번호가 남으므로 쓰지 않음). 명령줄 인자에 비밀번호를 넣지 않음(`ps`·Docker 노출 방지). CLI가 작업 폴더의 `supabase/.env*`를 읽으므로 저장소 밖 작업 폴더에서 실행. 작업 폴더 `~/supabase-migration/<날짜>/`(iCloud 동기화 폴더 밖, `umask 077`, `chmod 700`). 연결은 각 프로젝트 Connect → **Session pooler(5432)**. 공식 Storage 스크립트는 키를 소스에 적지 않고 `read -s`로 받도록 고친 판을 쓴다.
 
 | ID | 단계 | 내용 | 확인 |
 |---|---|---|---|
