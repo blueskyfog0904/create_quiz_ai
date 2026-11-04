@@ -37,13 +37,25 @@ psql_old -At -c "$OBJECTS_SQL" > "$work/old-objects.json"
 psql_new -At -c "$BUCKETS_SQL" > "$work/new-buckets.json"
 psql_new -At -c "$OBJECTS_SQL" > "$work/new-objects.json"
 
+# 기준 시각 파일은 "새 ref<TAB>옛 DB 시각". 다른 새 프로젝트의 기준 시각은 쓰지 않는다.
 last_sync=""
-[ -f storage-sync/LAST_SYNC ] && last_sync="$(cat storage-sync/LAST_SYNC)"
+if [ -f storage-sync/LAST_SYNC ]; then
+  IFS=$'\t' read -r sync_ref sync_at < storage-sync/LAST_SYNC || true
+  [ "${sync_ref:-}" = "$NEW_REF" ] || die "storage-sync/LAST_SYNC 가 다른 새 프로젝트(${sync_ref:-?}) 것입니다. 지우고 다시 실행하세요."
+  last_sync="$sync_at"
+else
+  info "기준 시각 없음(첫 동기화): 없거나 크기가 다른 파일만 올립니다. 본 전환(C-4)이면 리허설 때의 작업 폴더에서 실행하세요."
+fi
+# 삭제는 직전 실행에서 목록으로 확인한 항목만(목록 확인 없이 지우지 않게)
+prev_new_only=""
+[ -f storage-sync/LAST_NEW_ONLY.json ] && prev_new_only="storage-sync/LAST_NEW_ONLY.json"
+[ "$APPLY_DELETE" = 0 ] || [ -n "$prev_new_only" ] || die "--apply-delete 전에 옵션 없이 한 번 실행해 삭제 목록을 확인하세요."
 
 OLD_REF="$OLD_REF" NEW_REF="$NEW_REF" OLD_KEY="$OLD_KEY" NEW_KEY="$NEW_KEY" \
-  SYNC_DIR="$work" LAST_SYNC="$last_sync" APPLY_DELETE="$APPLY_DELETE" \
+  SYNC_DIR="$work" LAST_SYNC="$last_sync" APPLY_DELETE="$APPLY_DELETE" PREV_NEW_ONLY="$prev_new_only" \
   node "$MIG_SCRIPT_DIR/storage-sync.mjs"
 
 # node가 실패 없이 끝났을 때만 기준 시각을 넘긴다
-cp "$work/old-now.txt" storage-sync/LAST_SYNC
-info "완료. 기준 시각(옛 DB) = $(cat storage-sync/LAST_SYNC). AI에게 'H-6 끝'이라고 알려 주세요(V-3 비교)."
+printf '%s\t%s\n' "$NEW_REF" "$(cat "$work/old-now.txt")" > storage-sync/LAST_SYNC
+cp "$work/new-only.json" storage-sync/LAST_NEW_ONLY.json
+info "완료. 기준 시각(옛 DB) = $(cat "$work/old-now.txt"). AI에게 'H-6 끝'이라고 알려 주세요(V-3 비교)."

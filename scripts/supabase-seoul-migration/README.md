@@ -17,6 +17,8 @@ mkdir -p ~/supabase-migration/$(date +%Y%m%d) && cd ~/supabase-migration/$(date 
 S=~/Documents/project/create_quiz_ai/scripts/supabase-seoul-migration
 ```
 
+**리허설부터 본 전환까지 같은 작업 폴더를 계속 쓴다**(Storage 기준 시각 `storage-sync/LAST_SYNC`·삭제 확인 목록이 이 폴더에 있음). 폴더는 Time Machine 백업에서 자동으로 뺀다.
+
 첫 실행 때 ref 두 개와 Session pooler URL 두 개(비밀번호 부분을 뺀 것)를 묻고 `migration.env`에 저장한다. URL은 대시보드 → Connect → Session pooler에서 복사한 뒤 `:[YOUR-PASSWORD]` 부분을 지운다.
 
 ## 순서
@@ -31,7 +33,7 @@ S=~/Documents/project/create_quiz_ai/scripts/supabase-seoul-migration
 | H-7 | 대표·AI | 새 프로젝트 SQL Editor에서 `sql/h7-cron-vault-test.sql` 1~2단계 → 5~10분 뒤 AI가 403 확인 → 4~5단계 정리 |
 | H-8 | AI | V-1~V-6 비교, 판정 기록 |
 | P-7 | 대표 | Resend 가입·가비아 DNS·새 프로젝트 SMTP 설정(H-9 전, AI가 단계 안내) |
-| H-9 | 대표·AI | 로컬 앱 시험(계획 H-9 ①~⑤). ⑤는 `bash $S/storage-sync.sh` → 새 쪽에만 있는 파일 목록 확인 → `bash $S/storage-sync.sh --apply-delete` |
+| H-9 | 대표·AI | 로컬 앱 시험(계획 H-9 ①~⑤). ⑤는 `bash $S/storage-sync.sh` → 새 쪽에만 있는 파일 목록 확인 → `bash $S/storage-sync.sh --apply-delete`(직전 목록에 있던 것만 삭제) |
 | H-10 | 대표·AI | (a) `bash $S/freeze.sh new on` → 쓰기 실패 시험 (b) `bash $S/freeze.sh new off` (c) `bash $S/reload-data.sh` → AI V-1 (d) Vercel Firewall log 규칙 시험 (e) 시간 기록 |
 
 ## 스크립트

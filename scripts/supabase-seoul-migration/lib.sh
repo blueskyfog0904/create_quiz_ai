@@ -10,6 +10,8 @@ umask 077
 MIG_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 MIG_REPO_DIR="$(cd "$MIG_SCRIPT_DIR/../.." && pwd -P)"
 export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
+# SSL 없이 접속하지 않는다
+export PGSSLMODE=require
 
 # H-1에서 데이터 덤프에서 빼는 auth 테이블. C-3 비우기 목록에도 다시 넣는다(계획 H-1·C-3).
 AUTH_EXCLUDED_TABLES=(auth.sessions auth.refresh_tokens auth.flow_state auth.mfa_amr_claims auth.saml_relay_states)
@@ -29,6 +31,8 @@ require_workdir() {
   esac
   [ -e supabase ] && die "작업 폴더에 supabase/ 가 있으면 CLI가 그 안의 .env를 읽습니다. 지우거나 다른 폴더를 쓰세요."
   chmod 700 .
+  # 덤프에 비밀번호 해시가 들어가므로 Time Machine 백업에서 뺀다(실패해도 진행)
+  tmutil addexclusion "$here" >/dev/null 2>&1 || true
   for cmd in psql pg_dump supabase docker; do
     command -v "$cmd" >/dev/null || die "$cmd 명령이 없습니다(P-4)."
   done

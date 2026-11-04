@@ -26,7 +26,10 @@ for t in "${AUTH_EXCLUDED_TABLES[@]}"; do exclude_args+=(-x "$t"); done
 dump() {
   local name="$1"; shift
   PGPASSWORD="$OLD_PW" supabase db dump --agent no --remote="$OLD_DB_URL" "$@" --dry-run 2>&1 | redact > "$out/dryrun/$name.sh"
-  grep -q 'PGPASSWORD=<redacted>' "$out/dryrun/$name.sh" || die "$name dry-run 출력에서 비밀번호 줄을 찾지 못했습니다(가림 확인 실패). $out/dryrun/$name.sh 를 열지 말고 삭제한 뒤 알려 주세요."
+  if ! grep -q 'PGPASSWORD=<redacted>' "$out/dryrun/$name.sh" || grep -qF -- "$OLD_PW" "$out/dryrun/$name.sh"; then
+    rm -f "$out/dryrun/$name.sh"
+    die "$name dry-run 출력의 비밀번호 가림 확인에 실패해 그 파일을 지웠습니다. AI에게 알려 주세요."
+  fi
   PGPASSWORD="$OLD_PW" supabase db dump --agent no --remote="$OLD_DB_URL" "$@" -f "$out/$name.sql"
   [ -s "$out/$name.sql" ] || die "$name.sql 이 비었습니다"
   printf '  %-16s %10s bytes\n' "$name.sql" "$(wc -c < "$out/$name.sql" | tr -d ' ')"
