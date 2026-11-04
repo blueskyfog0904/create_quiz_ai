@@ -224,6 +224,7 @@ AI가 두 프로젝트에 같은 SELECT를 실행해 비교한다(값이 아니�
 
 | 항목 | 값 |
 |---|---|
+| H-0(2026-11-04) | 새 `xsvmbrgixgfqijneikjl`: PG 17.11(옛 17.6), auth `20260831180000`·storage `79` 같음, auth 테이블 27개 같음, event trigger 6개 같음(자동 RLS·자동 노출 없음), pg_cron 1.6.4 같음, **pg_net 0.20.4(옛 0.19.5) — `net.http_post`·`cron.schedule/alter_job/unschedule` 시그니처 같음**, public 객체·auth.users·cron·vault·버킷 0, 시간대 UTC. 새 `pg_default_acl`(postgres, public): S `postgres=rwU`, f `postgres=X`, r `postgres=arwdDxtm, anon/authenticated/service_role=Dxtm` → H-3 회수·H-5 부여 뒤 옛 값과 같아져야 함. role 설정 차이(authenticator `supautils, safeupdate`, `supabase_realtime_admin` 항목)는 플랫폼 값 — roles.sql이 예약 role의 statement_timeout 외 설정은 주석 처리하므로 덮어쓰지 않음(V-6에서 이 두 차이는 예상값) |
 | 덤프 시간 | (리허설 때 기록) |
 | 재적재 시간 | |
 | 파일 차이 반영 시간 | |
