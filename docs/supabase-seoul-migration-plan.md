@@ -75,7 +75,7 @@
 
 | ID | 할 일 | 비고 |
 |---|---|---|
-| P-1 | **공무원맛집가이드 프로젝트 일시정지**(그 조직 → 프로젝트 → Settings → General → Pause project) → 일시정지 날짜 기록. 한도는 Owner·Admin인 모든 조직을 합쳐 세므로 다른 조직에 활성 무료 프로젝트가 더 없는지도 확인 | 복구 창 1년(A-10). 결제 없음 |
+| P-1 | **(2026-11-04 완료)** **공무원맛집가이드 프로젝트 일시정지**(그 조직 → 프로젝트 → Settings → General → Pause project) → 일시정지 날짜 기록. 한도는 Owner·Admin인 모든 조직을 합쳐 세므로 다른 조직에 활성 무료 프로젝트가 더 없는지도 확인 | 복구 창 1년(A-10). 결제 없음 |
 | P-2 | **써머썬 조직(옛 프로젝트와 같은 무료 조직)** 에 프로젝트 생성: 지역 **Northeast Asia (Seoul)**, Postgres 17, **Data API 사용 + public 스키마 노출**, DB 비밀번호 직접 생성·보관. 한도 오류가 나면 P-1 일시정지가 끝났는지, 써머썬 조직에 다른 Owner·Admin 멤버가 있는지, (재생성이라면) 실패한 새 프로젝트를 지웠는지 확인. **리허설 시작 직전에** 만든다(활동 없이 7일이 지나면 자동 일시정지) | AI에게 비밀번호를 주지 않음 |
 | P-3 | Database → Extensions에서 **pg_cron, pg_net** 켜기, vault·pgcrypto·uuid-ossp·pg_stat_statements 확인 | 복원 전 |
 | P-4 | Mac 도구 설치: `brew install supabase/tap/supabase`, `brew install postgresql@17`, **Docker Desktop** 설치·실행 | |
