@@ -10,7 +10,7 @@ umask 077
 MIG_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 MIG_REPO_DIR="$(cd "$MIG_SCRIPT_DIR/../.." && pwd -P)"
 export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
-# SSL 없이 접속하지 않는다
+# psql 접속은 SSL 없이 하지 않는다(CLI가 Docker 안에서 돌리는 pg_dump에는 이 값이 넘어가지 않음 — Session pooler가 TLS를 씀)
 export PGSSLMODE=require
 
 # 이 이전의 방향(싱가포르 → 서울). Session pooler 주소의 지역으로 옛·새가 뒤바뀌지 않았는지 확인한다.

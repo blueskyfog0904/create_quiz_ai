@@ -21,6 +21,9 @@ select (:'a')::timestamptz > (:'b')::timestamptz;
 SQL
 )"
   [ "$newer" = t ] || die "LATEST 덤프($d)가 옛 DB 쓰기 중지(freeze-old-at.txt) 이전 것입니다. C-2(h1-dump.sh --data-only)를 다시 하세요."
+else
+  read -r -p "옛 DB 쓰기 중지 기록(freeze-old-at.txt)이 없습니다. 리허설(H-10)이면 rehearsal 입력(본 전환이면 멈추고 C-1부터): " mode
+  [ "$mode" = rehearsal ] || die "본 전환은 freeze.sh old on(C-1) 뒤에 C-2 덤프를 하고 재적재하세요."
 fi
 history_before="$(psql_new -At -c "select count(*) || ' ' || coalesce(max(version), '') from supabase_migrations.schema_migrations")"
 
