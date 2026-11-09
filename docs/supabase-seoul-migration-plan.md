@@ -219,6 +219,9 @@ AI가 두 프로젝트에 같은 SELECT를 실행해 비교한다(값이 아니�
 | S1 | 리허설 스크립트 82080b8 | 1 덤프·복원 / 2 Storage·보안 / 3 쓰기 중지·되돌리기 | **FAIL** | 1: 해시 블록 시간대 고정 없음. 2: H-7 정리 SQL을 옛 DB에서 단독 실행하면 운영 cron·vault 삭제 → DO 검사. 3: 옛·새 설정이 짝째로 뒤바뀌면 옛 DB TRUNCATE 가능 → pooler 지역·저장소 연결 ref 대조·새 DB cron 0 검사, freeze 기준 시각을 ALTER 뒤로 |
 | S2 | df8b45a | 1·2·3 | 1·2 **FAIL**, 3 **PASS** | 1·2: dry-run 비밀번호 잔존 검사가 grep 인자로 비밀번호 노출 → bash 내장 비교(881e555) |
 | S3 | 2d38928 | 1·2 | **PASS** | 3은 S2 PASS. 스크립트 확정 |
+| P-11 | 런북 초안 eb783cb | 데이터 이전·Auth·Storage·Vercel·결제·cron 3명 | **FAIL ×3** | 키 종류 계획 불일치, C-0 재적재 누락, 경보 0 기준 불가(기존 PAYAPP 경보 1건), R-3 vault 삭제 대상·안전장치 없음, 새 DB MCP read_only라 net.http 시험 불가, Vercel Data Cache가 배포를 넘어 옛 Storage 주소 유지 → 896e720 |
+| P-11 | 896e720 | 같은 3명 | 데이터 FAIL·Vercel FAIL·결제 **PASS** | 공지 시간·사용 금지 구간 계획서 미동기화, 퍼지 메뉴 경로 → 106555d |
+| P-11 | 106555d(+7f003f4·c16d86e 권고) | 같은 3명 | **PASS ×3** | 권고 반영: secret 로그 기록, update_secret 대상 없음 검사, C-7 가드를 `not active` 방식으로, R-2 가드는 R-1 전에만 |
 
 ## 14. 실측 기록 (H-10)
 

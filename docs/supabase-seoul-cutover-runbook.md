@@ -237,11 +237,11 @@ select cron.schedule('payment-reconciliation-health-5m', '*/5 * * * *', 'SELECT 
 - [ ] **[AI]** 새 DB `cron.job` 2개, 미해소 경보 = **C-2 목록과 같음(새 경보 0)** → "다음"
 
 오류 시(모두 **새 프로젝트** SQL Editor. 옛 DB는 읽기 전용이라 실패할 가능성이 높지만 SQL Editor 경로는 미검증 → 아래 SQL에 안전 검사를 넣음):
-- `create_secret` 오류 또는 해시 불일치: [AI]가 새 DB `select name from vault.secrets`로 남은 항목 확인 → 잘못된 항목만 아래처럼 삭제(옛 DB에서 실행하면 멈추는 검사 포함 — 옛 DB는 cron 2개, 새 DB는 이 시점 0~1개) → 같은 값을 다시 정확히 입력 → 해시 대조
+- `create_secret` 오류 또는 해시 불일치: [AI]가 새 DB `select name from vault.secrets`로 남은 항목 확인 → 잘못된 항목만 아래처럼 삭제(옛 DB에서 실행하면 멈추는 검사 포함 — 옛 DB cron은 C-1에서 모두 꺼져 있고, 새 DB cron은 켜져 있거나 없음) → 같은 값을 다시 정확히 입력 → 해시 대조
 
 ```sql
 do $$ begin
-  if (select count(*) from cron.job) >= 2 then raise exception 'STOP: 옛 DB일 수 있습니다(cron 2개).'; end if;
+  if exists (select 1 from cron.job where not active) then raise exception 'STOP: 꺼진 cron이 있습니다. 옛 DB일 수 있습니다.'; end if;
   delete from vault.secrets where name = '<그 이름>';
 end $$;
 ```
@@ -251,7 +251,7 @@ end $$;
 
 ```sql
 do $$ begin
-  if (select count(*) from cron.job) >= 2 then raise exception 'STOP: 옛 DB일 수 있습니다(cron 2개).'; end if;
+  if exists (select 1 from cron.job where not active) then raise exception 'STOP: 꺼진 cron이 있습니다. 옛 DB일 수 있습니다.'; end if;
   if not exists (select 1 from vault.secrets where name = 'payment_reconcile_cron_secret') then raise exception 'STOP: secret 항목이 없습니다.'; end if;
   perform vault.update_secret((select id from vault.secrets where name = 'payment_reconcile_cron_secret'), '<정확한 값>');
 end $$;
@@ -297,7 +297,7 @@ bash $S/freeze.sh old off                                   # 읽기 전용 해�
 
 ### R-2. C-6 뒤 실패 (앱이 새 DB)
 
-1. [ ] **[대표]** **새 프로젝트(summersun)** SQL Editor(옛 DB는 이때 cron 2개가 모두 꺼져 있으므로, 꺼진 작업이 있으면 멈춤):
+1. [ ] **[대표]** **새 프로젝트(summersun)** SQL Editor(옛 DB는 이때 cron 2개가 모두 꺼져 있으므로, 꺼진 작업이 있으면 멈춤. **R-1에서 옛 cron을 다시 켜기 전에만** 유효하므로 순서를 지킨다):
 
 ```sql
 do $$ begin
