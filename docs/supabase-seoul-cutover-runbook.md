@@ -3,6 +3,7 @@
 근거: `docs/supabase-seoul-migration-plan.md` 8절(C-0~C-9)·9절(되돌리기)·14절(H-10 실측). 이 런북과 계획서가 다르면 **멈추고 AI에게 묻는다**.
 
 - **일정(2026-11-09 대표 결정): 2026-11-10(월) 09:00 시작.** 사이트가 아직 운영 전이라 사전 공지(P-10)와 점검 공지는 생략하고, C-0을 같은 날 아침에 이어서 한다(09:00 C-0 → 끝나면 다음 5분 주기 :01에 C-1). 시간 예산·중단 기준은 그대로.
+- **2026-11-10 대표 결정: Firewall 생략**(개발 중, 이용자 0명). C-0 Firewall 사전 시험·C-1 ① 규칙·차단 확인·C-9 해제를 하지 않는다. 대표는 C-1~C-6 동안 사이트를 쓰지 않는다. C-8 옛 DB 비교에서 **페이앱 사이트 밖 결제 통보(`payment_webhook_events`·그로 인한 경보)만 다르면 통과**(7일간 4건 들어옴, 사이트 주문과 무관), 그 밖의 차이는 중단 기준 그대로.
 - 옛 DB = 싱가포르 `kzcweelnzhcmiuvjgeyi` (`old`, 확인 입력 `old-singapore`)
 - 새 DB = 서울 `xsvmbrgixgfqijneikjl` (`new`, 확인 입력 `new-seoul`)
 - Vercel 프로젝트 `create-quiz-ai` (팀 `blueskyfogs-projects`)
