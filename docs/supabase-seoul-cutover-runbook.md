@@ -69,7 +69,7 @@ bash $S/h1-dump.sh --data-only      # 옛 DB 비밀번호
 bash $S/reload-data.sh              # 새 DB 비밀번호 → 'rehearsal' 입력 → new-seoul 입력
 ```
 
-  [AI] V-1 일치·V-1b 고아 0·시간 기록
+  [AI] V-1은 **옛 DB 덤프 시작 시점 기준**으로 일치(옛 DB는 운영 중이라 대사 기록이 계속 늘어남, 14절 H-10(c)과 같은 판정)·V-1b 고아 0·시간 기록
 - [ ] **[AI]** V-4·V-5·V-6 두 DB 일치(리허설 뒤 스키마 변경 없음), 새 DB `cron.job` 0·`vault.secrets` 0
 - [ ] **[AI] 결제 전제조건**(옛 DB): `kakaopay_accepts_new_orders`·`payapp_accepts_new_orders` 둘 다 false, 대사 backlog 0, 종결되지 않은 주문 0. **하나라도 아니면 날짜를 미룬다**(점검 중 결제 통보가 막히므로)
 - [ ] **[AI]** 미해소 경보 목록 기록(2026-11-09: `PAYAPP_FEEDBACK_ORDER_NOT_FOUND` 1건 — 사이트 밖 결제 통보, 점검 중 해소하지 않음)
@@ -118,7 +118,7 @@ curl -s https://api.ipify.org; echo        # 대표 IP 재확인(브라우저도
 - [ ] **[함께] 차단 확인**
   - [대표] 휴대폰 모바일 데이터로 사이트 → **Vercel 403 화면**
   - [대표] PC 브라우저로 사이트 → 열림(이후 C-6 확인 전까지 쓰지 않음)
-  - [AI] (대표 승인) 옛 DB `net.http_post`로 reconcile에 **인증 없이** POST → 앱의 `{"error":"Forbidden"}`(= Firewall 통과, 앱이 거절). Vercel 차단 화면이면 규칙 1 오류
+  - [AI] (대표 승인) 옛 DB `net.http_post`로 reconcile에 **인증 없이** POST → 그 요청 id의 `net._http_response`가 JSON `{"error":"Forbidden"}`(= Firewall 통과, 앱이 DB 접근 없이 거절). Vercel 차단 화면(HTML)이면 규칙 1 오류. 옛 DB에 남는 것은 `net` 큐·응답 행뿐(덤프·검증 대상 아님)
   - 점검 동안 페이앱 결제 통보(`/api/payments/webhooks/payapp`, 공용 계정이라 사이트 밖 결제 포함)도 403을 받는다(계획 C-1 그대로). C-0 전제조건으로 사이트 주문은 없음.
 - [ ] **② [대표]** 옛 DB cron 끄기
 
@@ -126,7 +126,7 @@ curl -s https://api.ipify.org; echo        # 대표 IP 재확인(브라우저도
 bash $S/freeze.sh old cron-off      # 옛 DB 비밀번호 → old-singapore → 두 작업 active=f 확인
 ```
 
-- [ ] **[AI]** 진행 중인 대사 없음: 옛 DB `payment_reconciliation_scheduler.lease_owner` NULL, 마지막 http 실행의 `net._http_response` 도착 → "동결"
+- [ ] **[AI]** 진행 중인 대사 없음: 옛 DB `payment_reconciliation_scheduler.lease_owner` NULL, **cron이 보낸** 마지막 http 요청(AI 시험 요청과 구분)의 `net._http_response` 도착 → "동결". lease가 남아 있으면 `lease_expires_at`이 지날 때까지(최대 4분) 기다려 다시 확인, 그래도 남으면 멈춤
 - [ ] **③④⑤ [대표]** 옛 DB 쓰기 중지
 
 ```bash
@@ -135,7 +135,7 @@ bash $S/freeze.sh old on            # 읽기 전용 + 연결 종료 + backend_st
 
 - [ ] **[AI]** 옛 DB: 읽기 전용 저장 설정 true, cron 2개 비활성, 기준 시각 이전 연결 0 → "다음"
 
-실패 시: ①이 안 되거나 차단 확인이 기대와 다르면 **여기서 멈추고 날짜를 미룬다**(②를 했다면 R-1 2·3단계만). ②~⑤는 한 번 더 실행, 두 번째도 실패 → R-1.
+실패 시: ①이 안 되거나 차단 확인이 기대와 다르면 **여기서 멈추고 날짜를 미룬다** — 적용한 규칙이 있으면 [AI]가 삭제하고 빈 규칙 확인(R-1 4단계), ②를 했다면 R-1 2·3단계도. ②~⑤는 한 번 더 실행, 두 번째도 실패 → R-1.
 
 ### C-2. 최종 덤프·스냅샷 (예산 10분)
 
@@ -192,7 +192,13 @@ bash $S/storage-sync.sh             # 옛·새 DB 비밀번호 + 옛 service_rol
 
 - [ ] **[대표]** Deployments → 현재 Production 배포(C-0에 적은 ID) → ⋯ → **Redeploy** → **"Use existing Build Cache" 체크 해제** → Redeploy. **1회만**(push로 배포하지 않는다).
 - [ ] **[AI]** 새 배포 Ready, 운영 도메인이 새 배포 ID를 가리킴, 커밋이 C-0 배포와 같음 → 새 배포 ID `__________________`
-- [ ] **[대표] 데이터 캐시 비우기**: Vercel 프로젝트 → Settings → **Caches**(또는 CDN → Caches) → **Data Cache Purge**("Runtime and Data Cache"). Vercel 데이터 캐시는 배포가 바뀌어도 남아서, 비우지 않으면 메인 배너·로고(60초)·샘플 미리보기(1시간)가 **옛 Supabase 주소**로 나가 C-8을 잘못 통과시킨다. 팀 전체 캐시가 함께 비워질 수 있다(무해).
+- [ ] **[대표] 데이터 캐시 비우기**(Vercel 데이터 캐시는 배포가 바뀌어도 남아서, 비우지 않으면 로고·메인 배너(60초)·샘플 미리보기(1시간)가 **옛 Supabase 주소**로 나가 C-8을 잘못 통과시킨다):
+  1. 프로젝트 왼쪽 메뉴 **CDN** → **Caches**
+  2. **Purge cache** 칸에서 **All content**
+  3. **From which cache layer?** → **Runtime and Data Cache** (기본값 그대로 두면 안 됨)
+  4. **Purge** → 확인 창에서 확인
+  5. **Purge history**에 runtime cache purge 기록이 생겼는지 확인
+  팀 전체 캐시가 함께 비워진다(무해).
 - [ ] → "다음"
 
 실패 시(빌드 오류 등) → R-2.
@@ -230,17 +236,33 @@ select cron.schedule('payment-reconciliation-health-5m', '*/5 * * * *', 'SELECT 
 
 - [ ] **[AI]** 새 DB `cron.job` 2개, 미해소 경보 = **C-2 목록과 같음(새 경보 0)** → "다음"
 
-오류 시(모두 **새 프로젝트** SQL Editor. 이 시점 옛 DB는 읽기 전용이라 잘못 실행해도 실패한다):
-- `create_secret` 오류 또는 해시 불일치: [AI]가 새 DB `select name from vault.secrets`로 남은 항목 확인 → 잘못된 항목만 `delete from vault.secrets where name = '<그 이름>';` → 같은 값을 다시 정확히 입력 → 해시 대조
+오류 시(모두 **새 프로젝트** SQL Editor. 옛 DB는 읽기 전용이라 실패할 가능성이 높지만 SQL Editor 경로는 미검증 → 아래 SQL에 안전 검사를 넣음):
+- `create_secret` 오류 또는 해시 불일치: [AI]가 새 DB `select name from vault.secrets`로 남은 항목 확인 → 잘못된 항목만 아래처럼 삭제(옛 DB에서 실행하면 멈추는 검사 포함 — 옛 DB는 cron 2개, 새 DB는 이 시점 0~1개) → 같은 값을 다시 정확히 입력 → 해시 대조
+
+```sql
+do $$ begin
+  if (select count(*) from cron.job) >= 2 then raise exception 'STOP: 옛 DB일 수 있습니다(cron 2개).'; end if;
+  delete from vault.secrets where name = '<그 이름>';
+end $$;
+```
+
 - `configure` 오류 `PAYMENT_RECONCILIATION_VAULT_SECRETS_MISSING`·`…_ORIGIN_INVALID`·`…_CRON_SECRET_INVALID`: 같은 처리
-- 다음 실행이 403(`{"error":"Forbidden"}`): secret 불일치 → `select vault.update_secret((select id from vault.secrets where name = 'payment_reconcile_cron_secret'), '<정확한 값>');` → 해시 대조
+- 다음 실행이 403(`{"error":"Forbidden"}`): secret 불일치 → 아래 실행 → 해시 대조
+
+```sql
+do $$ begin
+  if (select count(*) from cron.job) >= 2 then raise exception 'STOP: 옛 DB일 수 있습니다(cron 2개).'; end if;
+  perform vault.update_secret((select id from vault.secrets where name = 'payment_reconcile_cron_secret'), '<정확한 값>');
+end $$;
+```
+
 - **secret을 새로 만들지 않는다.** 두 번 실패 → R-2.
 
 ### C-8. 확인 (예산 15분)
 
 - [ ] **[대표]** 대표 IP 브라우저, 새 창(이전 로그인은 풀려 있음):
   - [ ] 이메일 로그인 · [ ] 카카오 로그인
-  - [ ] 메인 배너·상품 목록 이미지 → 이미지 우클릭 → 이미지 주소 복사 → 주소가 **`xsvmbrgixgfqijneikjl.supabase.co`**인지 눈으로 확인(주소를 AI에게 붙여 넣지 않음, 서명 토큰 포함)
+  - [ ] 상단 로고·메인 배너·상품 목록 이미지 → 이미지 우클릭 → 이미지 주소 복사 → 주소가 **`xsvmbrgixgfqijneikjl.supabase.co`**인지 눈으로 확인(주소를 AI에게 붙여 넣지 않음, 서명 토큰 포함). 옛 주소(`kzcweelnzhcmiuvjgeyi`)가 보이면: 10초 뒤 새로고침해 다시 확인 → 그래도 옛 주소면 Purge history 확인 후 C-6 퍼지 1회 더 → 그래도 옛 주소면 실패
   - [ ] 상품 상세 샘플 미리보기(같은 방법으로 주소 확인) · [ ] 구매한 파일 다운로드
   - [ ] 관리자 화면 · [ ] 관리자 계정 화면 · [ ] 크레딧 잔액 · [ ] 크레딧 충전 화면 **열기만**(결제하지 않음)
 - [ ] **[AI]** 새 DB: 방금 로그인 `last_sign_in_at` 갱신, health 1회 이상 실행 뒤 미해소 경보 = C-2 목록(새 경보 0)
@@ -273,8 +295,17 @@ bash $S/freeze.sh old off                                   # 읽기 전용 해�
 
 ### R-2. C-6 뒤 실패 (앱이 새 DB)
 
-1. [ ] **[대표]** **새 프로젝트(summersun)** SQL Editor: `select cron.unschedule(jobname) from cron.job;` → **[AI]** 새 DB cron 0, **옛 DB cron 2개 그대로** 확인
-2. [ ] **[대표]** Vercel → Deployments → C-0 배포 → **Instant Rollback**. 그리고 환경변수 3개를 **옛 값으로 원복**(작업 폴더 `env.local.prod`의 값. 다음 배포가 새 DB를 보지 않게)
+1. [ ] **[대표]** **새 프로젝트(summersun)** SQL Editor(옛 DB는 이때 cron 2개가 모두 꺼져 있으므로, 꺼진 작업이 있으면 멈춤):
+
+```sql
+do $$ begin
+  if exists (select 1 from cron.job where not active) then raise exception 'STOP: 꺼진 cron이 있습니다. 옛 DB일 수 있습니다.'; end if;
+  perform cron.unschedule(jobname) from cron.job;
+end $$;
+```
+
+   → **[AI]** 새 DB cron 0, **옛 DB cron 2개 그대로** 확인
+2. [ ] **[대표]** Vercel → Deployments → C-0 배포 → **Instant Rollback**. 그리고 환경변수 3개를 **옛 값으로 원복**(작업 폴더 `env.local.prod`의 값. 다음 배포가 새 DB를 보지 않게) → C-6과 같은 방법으로 데이터 캐시 비우기(서울 주소가 남지 않게)
 3. [ ] **[AI]** 운영 도메인이 C-0 배포 ID인지 확인
 4. [ ] R-1 전체(옛 DB 다시 열기 → 쓰기 확인 → cron → Firewall 해제)
 
