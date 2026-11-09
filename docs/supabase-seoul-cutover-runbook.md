@@ -256,6 +256,7 @@ do $$ begin
 end $$;
 ```
 
+- secret 값이 들어간 문장(`create_secret`·`update_secret`)이 오류나 STOP으로 끝나면 그 DB의 Postgres 로그에 값이 남았을 수 있다 → 그 사실만 14절에 기록(계획 C-7과 같은 처리)
 - **secret을 새로 만들지 않는다.** 두 번 실패 → R-2.
 
 ### C-8. 확인 (예산 15분)
