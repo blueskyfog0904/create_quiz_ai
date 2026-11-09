@@ -252,6 +252,7 @@ end $$;
 ```sql
 do $$ begin
   if (select count(*) from cron.job) >= 2 then raise exception 'STOP: 옛 DB일 수 있습니다(cron 2개).'; end if;
+  if not exists (select 1 from vault.secrets where name = 'payment_reconcile_cron_secret') then raise exception 'STOP: secret 항목이 없습니다.'; end if;
   perform vault.update_secret((select id from vault.secrets where name = 'payment_reconcile_cron_secret'), '<정확한 값>');
 end $$;
 ```
