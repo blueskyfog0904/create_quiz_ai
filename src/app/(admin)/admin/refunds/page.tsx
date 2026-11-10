@@ -52,6 +52,7 @@ export default async function AdminRefundsPage() {
         expected_amount,
         method:payment_methods!payment_orders_payment_method_fkey(label),
         transaction:payment_provider_transactions!payment_provider_transactions_payment_order_id_fkey(
+          cancel_feedback_recorded_at,
           partial_cancel_feedback_recorded_at
         )
       )

@@ -259,14 +259,27 @@ test('expired payment requests are cancelled at PayApp before expiring the order
   await assert.rejects(retry.reconcile(), /PAYAPP_REQUEST_TIMEOUT/)
   assert.equal(retry.calls.rpc.length, 0)
 
+  const rejected = new PayAppError('PAYAPP_REQUEST_REJECTED')
+  rejected.providerErrorCode = '70080'
   const escalated = createWorld({
     order: payappOrder({ status: 'ready', ready_expires_at: minutesAgo(121) }),
     transaction: { provider_transaction_id: '2000' },
-    payapp: { cancel: () => Promise.reject(new PayAppError('PAYAPP_REQUEST_REJECTED')) },
+    payapp: { cancel: () => Promise.reject(rejected) },
     rpc: terminal(),
   })
   assert.equal(await escalated.reconcile(), 'manual_review')
   assert.equal(escalated.calls.rpc[0].args.p_failure_code, 'PAYAPP_READY_CANCEL_FAILED')
+  // 관리자가 페이앱 콘솔에서 대조할 수 있게 마지막 오류 코드가 메시지에 남는다.
+  assert.match(escalated.calls.rpc[0].args.p_failure_message, /\(마지막 오류: PAYAPP_REQUEST_REJECTED\/70080\)$/)
+
+  const escalatedWithoutProviderCode = createWorld({
+    order: payappOrder({ status: 'ready', ready_expires_at: minutesAgo(121) }),
+    transaction: { provider_transaction_id: '2000' },
+    payapp: { cancel: () => Promise.reject(new PayAppError('PAYAPP_REQUEST_TIMEOUT', 'outcome_unknown')) },
+    rpc: terminal(),
+  })
+  assert.equal(await escalatedWithoutProviderCode.reconcile(), 'manual_review')
+  assert.match(escalatedWithoutProviderCode.calls.rpc[0].args.p_failure_message, /\(마지막 오류: PAYAPP_REQUEST_TIMEOUT\)$/)
 
   const notExpired = createWorld({ order: payappOrder({ status: 'ready' }) })
   assert.equal(await notExpired.reconcile(), 'provider_not_final')

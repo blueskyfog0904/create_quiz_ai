@@ -75,3 +75,10 @@ test('partial cancel refunds require an explicit recovery amount', () => {
   assert.equal(actions.refundRequiresRecovery({ origin: 'user', partialCancelMarker: false, lastErrorCode: 'KAKAOPAY_PARTIAL_CANCELLATION_REQUIRES_REVIEW' }), true)
   assert.equal(actions.refundRequiresRecovery({ origin: 'external_cancel', partialCancelMarker: false, lastErrorCode: 'EXTERNAL_PROVIDER_CANCELLATION' }), false)
 })
+
+test('a recorded full cancel forces full recovery even for partial cancel requests', () => {
+  assert.equal(actions.refundRequiresRecovery({ origin: 'partial_cancel', cancelMarker: true, partialCancelMarker: true, lastErrorCode: null }), false)
+  assert.equal(actions.refundRequiresRecovery({ origin: 'external_cancel', cancelMarker: true, partialCancelMarker: true, lastErrorCode: null }), false)
+  assert.equal(actions.refundRequiresRecovery({ origin: 'user', cancelMarker: true, partialCancelMarker: false, lastErrorCode: 'KAKAOPAY_PARTIAL_CANCELLATION_REQUIRES_REVIEW' }), false)
+  assert.equal(actions.refundRequiresRecovery({ origin: 'partial_cancel', cancelMarker: false, partialCancelMarker: true, lastErrorCode: null }), true)
+})

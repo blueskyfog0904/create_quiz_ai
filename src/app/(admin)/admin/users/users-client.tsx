@@ -58,6 +58,8 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
   const [grantAmount, setGrantAmount] = useState<number>(0)
   const [grantReason, setGrantReason] = useState('')
   const [isGranting, setIsGranting] = useState(false)
+  // 응답 유실 뒤 다시 눌러도 한 번만 지급되도록 모달을 열 때 만든 키를 재사용한다.
+  const [grantIdempotencyKey, setGrantIdempotencyKey] = useState('')
 
   const filteredUsers = users.filter((user) => {
     const searchLower = search.toLowerCase()
@@ -72,6 +74,7 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
     setSelectedUser(user)
     setGrantAmount(0)
     setGrantReason('')
+    setGrantIdempotencyKey(crypto.randomUUID())
     setIsGrantModalOpen(true)
   }
 
@@ -86,7 +89,8 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
         body: JSON.stringify({
           userId: selectedUser.id,
           amount: grantAmount,
-          description: grantReason || '관리자 수동 지급'
+          description: grantReason || '관리자 수동 지급',
+          idempotencyKey: grantIdempotencyKey
         })
       })
 
@@ -104,6 +108,7 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
       ))
 
       toast.success('크레딧이 지급되었습니다.')
+      setGrantIdempotencyKey(crypto.randomUUID())
       setIsGrantModalOpen(false)
     } catch (error: any) {
       toast.error(error.message)

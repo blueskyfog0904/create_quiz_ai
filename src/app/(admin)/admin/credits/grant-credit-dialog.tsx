@@ -39,12 +39,15 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
   const [category, setCategory] = useState<string>('compensation')
   const [reason, setReason] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // 응답 유실 뒤 다시 눌러도 한 번만 지급되도록 대상을 고를 때 만든 키를 재사용한다.
+  const [idempotencyKey, setIdempotencyKey] = useState('')
 
   const supabase = createClient()
 
   useEffect(() => {
     if (initialUser) {
       setSelectedUser(initialUser)
+      setIdempotencyKey(crypto.randomUUID())
       setStep('details')
     } else {
       setStep('search')
@@ -78,6 +81,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
 
   const handleUserSelect = (user: Profile) => {
     setSelectedUser(user)
+    setIdempotencyKey(crypto.randomUUID())
     setStep('details')
   }
 
@@ -109,7 +113,8 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
           userId: selectedUser.id,
           amount,
           description: reason,
-          category
+          category,
+          idempotencyKey
         })
       })
 
@@ -117,6 +122,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
       if (!response.ok) throw new Error(data.error || '지급 실패')
 
       toast.success(`${selectedUser.email}님에게 크레딧이 지급되었습니다.`)
+      setIdempotencyKey(crypto.randomUUID())
       onSuccess?.()
       onOpenChange(false)
     } catch (error: any) {

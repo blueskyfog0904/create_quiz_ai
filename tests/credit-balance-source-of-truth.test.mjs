@@ -48,16 +48,29 @@ test('snapshot compares profile, ledger, and latest transaction balances', () =>
   assert.match(balanceSource, /\.from\('notifications'\)[\s\S]*?\.insert/)
 })
 
-test('purchase and refund write paths also run post-write balance snapshot verification', () => {
+// CreditService의 한 정적 메서드 본문(다음 정적 메서드 전까지)을 잘라 낸다.
+function methodBody(name) {
+  const start = creditsSource.indexOf(`static async ${name}(`)
+  assert.notEqual(start, -1, name)
+  const next = creditsSource.indexOf('static async ', start + 1)
+  return creditsSource.slice(start, next === -1 ? undefined : next)
+}
+
+test('write paths run post-write balance snapshot verification; only purchase still syncs the cache itself', () => {
   assert.match(creditsSource, /async function finalizeCreditBalanceMutation/)
   assert.match(creditsSource, /finalizeCreditBalanceMutation[\s\S]*?syncProfileBalanceCacheFromLedger/)
   assert.match(creditsSource, /finalizeCreditBalanceMutation[\s\S]*?getCreditBalanceSnapshot/)
   assert.match(creditsSource, /finalizeCreditBalanceMutation[\s\S]*?reportCreditBalanceMismatch/)
   assert.match(balanceSource, /export async function syncProfileBalanceCacheFromLedger/)
-  assert.match(creditsSource, /purchaseCredits[\s\S]*?finalizeCreditBalanceMutation\(userId,\s*'Purchase',\s*adminSupabase\)/)
-  assert.match(creditsSource, /grantCreditsAsAdmin[\s\S]*?finalizeCreditBalanceMutation\(userId,\s*'Admin grant',\s*adminSupabase\)/)
-  assert.match(creditsSource, /deductCredits[\s\S]*?finalizeCreditBalanceMutation\(\s*userId,\s*'Deduct',\s*adminSupabase\s*\)/)
-  assert.match(creditsSource, /refundCredits[\s\S]*?finalizeCreditBalanceMutation\(\s*userId,\s*'Refund',\s*adminSupabase\s*\)/)
+  assert.match(methodBody('purchaseCredits'), /finalizeCreditBalanceMutation\(userId,\s*'Purchase',\s*adminSupabase\)/)
+  // RPC가 profiles 잠금 아래 캐시를 맞추므로, 커밋 뒤에는 실패를 무시하는 점검만 한다.
+  assert.match(creditsSource, /async function reportCreditBalanceAfterMutation[\s\S]*?getCreditBalanceSnapshot[\s\S]*?reportCreditBalanceMismatch[\s\S]*?catch/)
+  assert.match(methodBody('grantCreditsAsAdmin'), /reportCreditBalanceAfterMutation\(userId,\s*'Admin grant'\)/)
+  assert.match(methodBody('deductCredits'), /reportCreditBalanceAfterMutation\(userId,\s*'Deduct'\)/)
+  assert.match(methodBody('refundCredits'), /reportCreditBalanceAfterMutation\(userId,\s*'Refund'\)/)
+  for (const name of ['grantCreditsAsAdmin', 'deductCredits', 'refundCredits']) {
+    assert.doesNotMatch(methodBody(name), /finalizeCreditBalanceMutation|syncProfileBalanceCacheFromLedger/, name)
+  }
   assert.doesNotMatch(creditsSource, /static async approveRefund/)
 })
 

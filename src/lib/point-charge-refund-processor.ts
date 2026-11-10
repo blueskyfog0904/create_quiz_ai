@@ -238,6 +238,11 @@ export async function processPointChargeRefund(input: {
       return { alreadyCompleted: true, claimed, newBalance: null }
     }
 
+    // 관리자가 결제를 확인한 주문은 claim이 이미 수동 확인으로 바꿨다. 페이앱 취소를 보내지 않는다.
+    if (claimed.manual_review_required) {
+      return { alreadyCompleted: false, manualReviewRequired: true, claimed, newBalance: null }
+    }
+
     const cancellation = claimed.provider === 'kakaopay'
       ? await processKakaoPayRefund(claimed, () => {
           kakaoCancelAttempted = true

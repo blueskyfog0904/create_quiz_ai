@@ -59,11 +59,14 @@ export function allowedReviewActions(order: ReviewOrderFacts): ReviewAction[] {
 }
 
 // 부분취소 건은 실제 환불액과 회수할 크레딧을 관리자가 정해야 한다.
+// 승인취소(전액) 표식이 있으면 DB가 전량 회수를 강제하므로 회수량을 받지 않는다.
 export function refundRequiresRecovery(input: {
   origin: string
+  cancelMarker: boolean
   partialCancelMarker: boolean
   lastErrorCode: string | null
 }) {
+  if (input.cancelMarker) return false
   return input.origin === 'partial_cancel' ||
     input.partialCancelMarker ||
     input.lastErrorCode === 'KAKAOPAY_PARTIAL_CANCELLATION_REQUIRES_REVIEW'

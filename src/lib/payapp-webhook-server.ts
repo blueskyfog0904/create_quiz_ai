@@ -394,6 +394,14 @@ export async function handlePayAppFeedback(
 
   if (error) {
     await markEvent(admin, transmissionId, 'failed', `APPLY:${error.code ?? 'FAILED'}`)
+    // 재통보가 모두 실패하면 표식이 남지 않으므로 실패 자체를 경보로 남긴다.
+    followUps.alerts.push({
+      code: 'PAYAPP_FEEDBACK_APPLY_FAILED',
+      severity: 'critical',
+      message: '페이앱 통보를 기록하지 못했습니다. 재통보가 끝나도 실패하면 페이앱 관리자 내역과 대조하세요.',
+      details: { ...eventDetails(feedback), price: feedback.price, error_code: error.code ?? null },
+      notifyAdmins: true,
+    })
     await runFollowUps(admin, followUps)
     return RETRY
   }
@@ -445,17 +453,20 @@ export async function handlePayAppFeedback(
 
   if (result.result === 'ignored' || result.result === 'order_not_found') {
     const orderNotFound = result.result === 'order_not_found'
+    // 취소 계열(승인취소·부분취소)을 처리하지 못하면 PG 환불 뒤 크레딧이 남을 수 있다. 바로 보게 한다.
+    const cancelFamily = feedback.payState === 9 || feedback.payState === 64 ||
+      feedback.payState === 70 || feedback.payState === 71
     followUps.alerts.push({
       code: orderNotFound
         ? 'PAYAPP_FEEDBACK_ORDER_NOT_FOUND'
         : result.reason ?? 'PAYAPP_FEEDBACK_IGNORED',
-      severity: 'warning',
+      severity: cancelFamily ? 'critical' : 'warning',
       message: orderNotFound
         ? '주문을 찾을 수 없는 페이앱 통보를 받았습니다.'
         : `페이앱 통보 검증에 실패했습니다: ${result.reason ?? '사유 없음'}`,
       details: { ...eventDetails(feedback, result), price: feedback.price },
       // 결제완료인데 주문이 없으면 돈만 받은 상태일 수 있다.
-      notifyAdmins: !orderNotFound || feedback.payState === 4,
+      notifyAdmins: cancelFamily || !orderNotFound || feedback.payState === 4,
     })
     await markEvent(admin, transmissionId, 'ignored', result.reason ?? result.result)
     await runFollowUps(admin, followUps)

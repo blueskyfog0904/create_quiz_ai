@@ -143,6 +143,29 @@ test('a PayApp rejection goes to manual review with the provider message kept', 
   assert.match(processor.calls.fail[0].message, /정산 완료 건/)
 })
 
+test('a claim that requires manual review never calls paycancel or fail', async () => {
+  const processor = createProcessor({
+    claimed: {
+      already_completed: false,
+      manual_review_required: true,
+      request_id: 'refund-1',
+      user_id: 'user-1',
+      provider: 'payapp',
+      payment_order_id: 'order-1',
+      provider_transaction_id: null,
+      refund_amount: null,
+    },
+  })
+
+  const result = await processor.run()
+  assert.equal(result.manualReviewRequired, true)
+  assert.equal(result.alreadyCompleted, false)
+  assert.equal(result.newBalance, null)
+  assert.equal(processor.calls.cancel.length, 0)
+  assert.equal(processor.calls.fail.length, 0)
+  assert.equal(processor.calls.finalize.length, 0)
+})
+
 test('PayApp timeouts leave the refund retryable', async () => {
   const processor = createProcessor({
     claimed: payappClaim,

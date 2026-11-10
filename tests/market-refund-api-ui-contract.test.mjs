@@ -29,9 +29,10 @@ test('market refund service performs eligibility checks, stale approval recheck,
   assert.match(marketRefunds, /const isWithinRefundPeriod = new Date\(\) <= refundDeadline/)
   assert.match(marketRefunds, /downloadCount > 0 \|\| !isWithinRefundPeriod/)
   assert.match(marketRefunds, /구매 후 7일/)
-  assert.match(marketRefunds, /CreditService\.refundCredits/)
+  assert.match(marketRefunds, /rpc\('approve_market_refund'/)
+  assert.doesNotMatch(marketRefunds, /CreditService\.refundCredits/)
   assert.match(marketRefunds, /승인 전 환불 조건/)
-  assert.match(marketRefunds, /status: 'refunded'/)
+  // 주문·라인·이용권 refunded 전환은 approve_market_refund RPC 안에서 한다(마이그레이션 계약 테스트가 본다).
 })
 
 test('market library exposes refund targets and a refund request dialog', () => {

@@ -14,6 +14,14 @@ const adminGrantRouteSource = readFileSync(
   'utf8'
 )
 
+// CreditService의 한 정적 메서드 본문(다음 정적 메서드 전까지)을 잘라 낸다.
+function methodBody(name) {
+  const start = creditsSource.indexOf(`static async ${name}(`)
+  assert.notEqual(start, -1, name)
+  const next = creditsSource.indexOf('static async ', start + 1)
+  return creditsSource.slice(start, next === -1 ? undefined : next)
+}
+
 const refundMigrationSource = readFileSync(
   new URL('../supabase/migrations/20260805120000_create_toss_refund_workflow.sql', import.meta.url),
   'utf8'
@@ -32,7 +40,10 @@ test('maps admin event grants to bonus and refund grants to system_refund', () =
 test('admin grants use a dedicated admin-client credit path that verifies profile balance updates', () => {
   assert.match(creditsSource, /static async grantCreditsAsAdmin/)
   assert.match(creditsSource, /const adminSupabase = createAdminClient\(\)/)
-  assert.match(creditsSource, /grantCreditsAsAdmin[\s\S]*finalizeCreditBalanceMutation\(userId,\s*'Admin grant',\s*adminSupabase\)/)
+  // 원천·결제 이력·거래·캐시는 grant_admin_credits RPC 한 트랜잭션에서 기록한다.
+  assert.match(methodBody('grantCreditsAsAdmin'), /rpc\('grant_admin_credits'/)
+  assert.match(methodBody('grantCreditsAsAdmin'), /reportCreditBalanceAfterMutation\(userId,\s*'Admin grant'\)/)
+  assert.doesNotMatch(methodBody('grantCreditsAsAdmin'), /finalizeCreditBalanceMutation|\.from\('credit_sources'\)/)
 })
 
 test('admin user credit route uses the dedicated admin grant service instead of purchaseCredits', () => {
@@ -49,9 +60,11 @@ test('credit mutations share a common ledger-first balance finalizer', () => {
   assert.match(creditsSource, /async function finalizeCreditBalanceMutation/)
   assert.match(creditsSource, /syncProfileBalanceCacheFromLedger/)
   assert.match(creditsSource, /reportCreditBalanceMismatch/)
-  assert.match(creditsSource, /purchaseCredits[\s\S]*finalizeCreditBalanceMutation\(/)
-  assert.match(creditsSource, /grantCreditsAsAdmin[\s\S]*finalizeCreditBalanceMutation\(/)
-  assert.match(creditsSource, /deductCredits[\s\S]*finalizeCreditBalanceMutation\(/)
-  assert.match(creditsSource, /refundCredits[\s\S]*finalizeCreditBalanceMutation\(/)
+  assert.match(methodBody('purchaseCredits'), /finalizeCreditBalanceMutation\(/)
+  // deduct·refund·grant는 RPC 커밋 뒤 실패를 무시하는 점검만 한다.
+  for (const name of ['grantCreditsAsAdmin', 'deductCredits', 'refundCredits']) {
+    assert.doesNotMatch(methodBody(name), /finalizeCreditBalanceMutation\(/, name)
+    assert.match(methodBody(name), /reportCreditBalanceAfterMutation\(/, name)
+  }
   assert.doesNotMatch(creditsSource, /static async approveRefund/)
 })

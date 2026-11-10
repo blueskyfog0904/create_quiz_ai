@@ -80,6 +80,8 @@ export interface ClaimedPointChargeRefund {
   refund_amount?: number
   tax_free_amount?: number
   vat_amount?: number
+  // 관리자가 결제를 확인한 주문은 자동 취소하지 않고 수동 확인으로 보낸다.
+  manual_review_required?: boolean
 }
 
 interface FinalizedPointChargeRefund {

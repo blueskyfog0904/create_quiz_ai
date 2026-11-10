@@ -1,7 +1,7 @@
-import { CreditService } from '@/lib/credits'
+import { reportCreditBalanceAfterMutation } from '@/lib/credits'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
-import type { Json, Tables, TablesInsert } from '@/types/supabase'
+import type { Database, Json, Tables, TablesInsert } from '@/types/supabase'
 
 type MarketRefundRequest = Tables<'market_refund_requests'>
 type MarketRefundTargetKind = 'legacy_purchase' | 'v2_order'
@@ -39,6 +39,11 @@ export interface MarketRefundProcessInput {
   requestId: string
   adminId: string
   adminNote?: string | null
+}
+
+export interface MarketRefundApproveInput extends MarketRefundProcessInput {
+  // 부족분 안내를 본 관리자가 확인한 복구량. DB가 잠금 아래 다시 계산한 값과 같아야 승인된다.
+  confirmedRefundCredits?: number
 }
 
 // loadRefundTarget과 동일한 형태. 호출자가 이미 로드한 구매/주문 행으로 왕복을 생략할 때 사용한다.
@@ -493,7 +498,35 @@ async function getRefundRequest(requestId: string) {
 // 이미 다른 승인/거부가 처리한 요청. 라우트에서 409로 응답한다.
 export class MarketRefundConflictError extends Error {}
 
-export async function approveMarketRefund(input: MarketRefundProcessInput): Promise<MarketRefundRequest> {
+// 환불됐거나 만료된 원천 때문에 요청량 전부를 되돌릴 수 없다. 라우트에서 409로 응답하고 관리자 확인을 받는다.
+export class MarketRefundShortfallError extends Error {
+  readonly requested: number
+  readonly restorable: number
+
+  constructor(requested: number, restorable: number) {
+    super(`환불됐거나 만료된 결제 크레딧으로 산 상품이라 ${requested.toLocaleString()}크레딧 중 ${restorable.toLocaleString()}크레딧만 되돌릴 수 있습니다. 확인하면 ${restorable.toLocaleString()}크레딧만 복구하고 이용권을 회수합니다.`)
+    this.requested = requested
+    this.restorable = restorable
+  }
+}
+
+function parseShortfallDetail(details: unknown) {
+  try {
+    const parsed = JSON.parse(typeof details === 'string' ? details : '') as { requested?: unknown; restorable?: unknown }
+    const requested = Number(parsed.requested)
+    const restorable = Number(parsed.restorable)
+    if (Number.isInteger(requested) && Number.isInteger(restorable)) {
+      return { requested, restorable }
+    }
+  } catch {
+    // 형식이 다르면 아래에서 일반 오류로 처리한다.
+  }
+  return null
+}
+
+type ApproveMarketRefundArgs = Database['public']['Functions']['approve_market_refund']['Args']
+
+export async function approveMarketRefund(input: MarketRefundApproveInput): Promise<MarketRefundRequest> {
   const supabase = createAdminClient()
   const request = await getRefundRequest(input.requestId)
   if (request.status !== 'pending') {
@@ -505,6 +538,7 @@ export async function approveMarketRefund(input: MarketRefundProcessInput): Prom
     throw new Error('환불 대상 구매 정보가 없습니다.')
   }
 
+  // 빠른 안내용 사전 검사다. 다운로드·대상 상태·소비 내역은 RPC가 잠금 아래에서 다시 본다.
   const eligibility = await getMarketRefundEligibility({
     userId: request.user_id,
     targetKind: request.target_kind as MarketRefundTargetKind,
@@ -516,72 +550,39 @@ export async function approveMarketRefund(input: MarketRefundProcessInput): Prom
     throw new Error(`승인 전 환불 조건이 변경되었습니다. ${eligibility.reason ?? '환불 요청을 승인할 수 없습니다.'}`)
   }
 
-  // 2.3(d) 최소 CAS: 크레딧 복구 전에 pending → approved로 선점한다. 0행이면 이미 처리된 요청이다.
-  const { data: claimed, error: claimError } = await supabase
-    .from('market_refund_requests')
-    .update({
-      status: 'approved',
-      approved_refund_credits: request.requested_refund_credits,
-      admin_note: input.adminNote ?? null,
-      processed_by: input.adminId,
-      processed_at: new Date().toISOString(),
-    })
-    .eq('id', input.requestId)
-    .eq('status', 'pending')
-    .select('*')
-    .maybeSingle()
+  // 승인·크레딧 복구·이용권 회수·부족분 경보를 한 트랜잭션으로 처리한다. 실패하면 아무것도 바뀌지 않는다.
+  // 생성 타입은 null 인자를 표현하지 못하지만 RPC는 NULL을 받는다.
+  const { data, error } = await supabase.rpc('approve_market_refund', {
+    p_request_id: input.requestId,
+    p_admin_id: input.adminId,
+    p_admin_note: input.adminNote ?? null,
+    p_confirmed_refund_credits: input.confirmedRefundCredits ?? null,
+  } as unknown as ApproveMarketRefundArgs)
 
-  if (claimError) {
-    throw new Error(claimError.message)
-  }
-
-  if (!claimed) {
-    throw new MarketRefundConflictError('이미 처리된 환불 요청입니다.')
-  }
-
-  // 선점 이후 실패는 approved를 유지하고 admin_note에 실패 단계를 남겨 수동 처리한다.
-  // failed는 재요청 허용 상태라 이중 환불을 다시 열기 때문에 쓰지 않는다.
-  const recordFailure = async (stage: string, message: string): Promise<never> => {
-    const note = [input.adminNote, `[환불 처리 실패: ${stage}] ${message}`].filter(Boolean).join('\n')
-    await supabase.from('market_refund_requests').update({ admin_note: note }).eq('id', input.requestId)
-    throw new Error(`환불 처리 중 ${stage} 단계에서 실패했습니다. 요청은 승인 상태로 유지되며 수동 확인이 필요합니다. (${message})`)
-  }
-
-  try {
-    await CreditService.refundCredits(
-      request.user_id,
-      request.requested_refund_credits,
-      'market_refund',
-      request.id,
-      '문제마켓 구매 환불',
-      eligibility.creditConsumptions
-    )
-  } catch (error) {
-    return recordFailure('크레딧 복구', error instanceof Error ? error.message : String(error))
-  }
-
-  if (request.target_kind === 'v2_order') {
-    const updateResults = await Promise.all([
-      supabase.from('market_purchase_orders').update({ status: 'refunded' }).eq('id', targetId),
-      supabase.from('market_purchase_lines').update({ status: 'refunded' }).eq('order_id', targetId),
-      supabase.from('market_entitlements').update({ status: 'refunded' }).eq('source_order_id', targetId),
-    ])
-    const updateError = updateResults.find((result) => result.error)?.error
-    if (updateError) {
-      return recordFailure('주문 상태 변경', updateError.message)
+  if (error) {
+    const message = error.message ?? ''
+    if (message.includes('MARKET_REFUND_NOT_PENDING')) {
+      throw new MarketRefundConflictError('이미 처리된 환불 요청입니다.')
     }
-  } else {
-    const { error } = await supabase
-      .from('market_purchases')
-      .update({ status: 'refunded', refunded_at: new Date().toISOString() })
-      .eq('id', targetId)
-
-    if (error) {
-      return recordFailure('구매 상태 변경', error.message)
+    if (message.includes('MARKET_REFUND_TARGET_CHANGED')) {
+      throw new Error('승인 전 환불 조건이 변경되었습니다.')
     }
+    if (message.includes('MARKET_REFUND_SHORTFALL')) {
+      const shortfall = parseShortfallDetail(error.details)
+      if (shortfall) {
+        throw new MarketRefundShortfallError(shortfall.requested, shortfall.restorable)
+      }
+    }
+    // 같은 사용자의 다른 크레딧 처리와 잠금이 엇갈려 롤백됐다. 아무것도 바뀌지 않았다.
+    if (error.code === '40P01' || error.code === '40001') {
+      throw new MarketRefundConflictError('다른 처리와 겹쳤습니다. 잠시 후 다시 시도하세요.')
+    }
+    throw new Error(message || '문제마켓 환불 처리에 실패했습니다.')
   }
 
-  return claimed
+  await reportCreditBalanceAfterMutation(request.user_id, 'Market refund')
+
+  return data as unknown as MarketRefundRequest
 }
 
 export async function rejectMarketRefund(input: MarketRefundProcessInput): Promise<MarketRefundRequest> {

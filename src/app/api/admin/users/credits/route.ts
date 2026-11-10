@@ -9,7 +9,9 @@ const GrantCreditSchema = z.object({
   userId: z.string().uuid(),
   amount: z.number().int().positive('Amount must be positive').max(10000, '한 번에 최대 10,000 크레딧까지만 지급할 수 있습니다.'),
   description: z.string().min(1, 'Description is required'),
-  category: z.enum(['compensation', 'event', 'refund', 'other']).default('other')
+  category: z.enum(['compensation', 'event', 'refund', 'other']).default('other'),
+  // 재전송·더블클릭에도 한 번만 지급되도록 화면이 만든 키
+  idempotencyKey: z.string().uuid()
 })
 
 export async function POST(request: Request) {
@@ -34,7 +36,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { userId, amount, description, category } = GrantCreditSchema.parse(body)
+    const { userId, amount, description, category, idempotencyKey } = GrantCreditSchema.parse(body)
 
     // 2. Grant Credits
     const categoryLabel = {
@@ -52,16 +54,19 @@ export async function POST(request: Request) {
       amount,
       sourceCategory,
       'admin_grant',
+      `admin_grant:${idempotencyKey}`,
     )
 
-    // 3. Send Notification
-    await supabase.from('notifications').insert({
-      user_id: userId,
-      type: 'info',
-      title: '크레딧이 지급되었습니다',
-      message: `${categoryLabel} 사유로 ${amount.toLocaleString()} 크레딧이 지급되었습니다. (내용: ${description})`,
-      is_read: false
-    })
+    // 3. Send Notification (같은 키로 이미 지급된 재요청이면 다시 보내지 않는다)
+    if (!result.alreadyGranted) {
+      await supabase.from('notifications').insert({
+        user_id: userId,
+        type: 'info',
+        title: '크레딧이 지급되었습니다',
+        message: `${categoryLabel} 사유로 ${amount.toLocaleString()} 크레딧이 지급되었습니다. (내용: ${description})`,
+        is_read: false
+      })
+    }
 
     const snapshot = await getCreditBalanceSnapshot(userId)
 
@@ -79,6 +84,13 @@ export async function POST(request: Request) {
         error: 'Validation failed',
         details: error.issues
       }, { status: 400 })
+    }
+
+    if (error instanceof Error && error.message === 'ADMIN_GRANT_IDEMPOTENCY_CONFLICT') {
+      return NextResponse.json({
+        error: '이전 요청과 내용이 다릅니다. 창을 닫고 다시 열어 지급하세요.',
+        code: 'ADMIN_GRANT_IDEMPOTENCY_CONFLICT'
+      }, { status: 409 })
     }
 
     return NextResponse.json({

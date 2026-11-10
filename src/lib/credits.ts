@@ -76,6 +76,12 @@ interface CreditRpcRefundResult {
   refunded: number
 }
 
+interface CreditRpcAdminGrantResult {
+  already_granted: boolean
+  source_id: string
+  new_balance: number
+}
+
 async function finalizeCreditBalanceMutation(
   userId: string,
   context: string,
@@ -91,6 +97,16 @@ async function finalizeCreditBalanceMutation(
   return {
     newBalance,
     snapshot,
+  }
+}
+
+// RPC가 커밋된 뒤의 잔액 점검이다. 실패해도 커밋된 결과를 실패로 바꾸지 않고 로그만 남긴다.
+export async function reportCreditBalanceAfterMutation(userId: string, context: string) {
+  try {
+    const snapshot = await getCreditBalanceSnapshot(userId)
+    if (snapshot.hasMismatch) await reportCreditBalanceMismatch(context, userId, snapshot)
+  } catch {
+    console.error('[CreditService] post-commit balance check failed', { context, userId })
   }
 }
 
@@ -220,15 +236,11 @@ export class CreditService {
       throw new Error('크레딧 차감 응답이 올바르지 않습니다.')
     }
 
-    const { newBalance: syncedBalance } = await finalizeCreditBalanceMutation(
-      userId,
-      'Deduct',
-      adminSupabase
-    )
+    await reportCreditBalanceAfterMutation(userId, 'Deduct')
 
     return {
       success: true,
-      newBalance: syncedBalance,
+      newBalance,
       consumptions
     }
   }
@@ -288,6 +300,25 @@ export class CreditService {
     })
 
     if (error) {
+      // 크레딧이 돌아가지 않았다는 사실을 지워지지 않는 경보로 남긴다. 호출마다 1행이다.
+      try {
+        await rpcClient.rpc('record_payment_alert', {
+          p_code: 'CREDIT_REFUND_FAILED',
+          p_severity: 'warning',
+          p_message: '크레딧 환불 처리에 실패했습니다. 사용자 잔액을 확인하고 필요하면 관리자 지급으로 보상하세요.',
+          p_details: {
+            user_id: userId,
+            resource_type: resourceType,
+            resource_id: resourceId,
+            amount,
+            description,
+            error_message: error.message,
+            dedupe_key: `credit_refund_failed:${crypto.randomUUID()}`,
+          },
+        })
+      } catch {
+        // 경보 기록 실패는 원래 오류를 바꾸지 않는다.
+      }
       throw new Error(error.message || '잔액 복구 중 오류가 발생했습니다.')
     }
 
@@ -297,13 +328,9 @@ export class CreditService {
       return this.getBalance(userId)
     }
 
-    const { newBalance: syncedBalance } = await finalizeCreditBalanceMutation(
-      userId,
-      'Refund',
-      adminSupabase
-    )
+    await reportCreditBalanceAfterMutation(userId, 'Refund')
 
-    return syncedBalance
+    return newBalance
   }
 
   /**
@@ -389,71 +416,54 @@ export class CreditService {
   /**
    * 관리자가 사용자의 크레딧을 직접 지급합니다.
    *
-   * 관리자 지급은 service role 클라이언트로 처리해서 대상 사용자 profile을
-   * 안정적으로 갱신하고, 기록(source/transaction/payment history)과 잔액이
-   * 서로 어긋나지 않도록 합니다.
+   * 원천·결제 이력·거래·잔액 캐시를 grant_admin_credits RPC 한 트랜잭션으로 기록합니다.
+   * 같은 operationKey로 다시 부르면 기존 지급을 그대로 돌려줍니다(alreadyGranted).
    */
   static async grantCreditsAsAdmin(
     userId: string,
     credits: number,
-    sourceCategory: CreditSourceCategory = 'admin_grant',
-    paymentMethod: string = 'admin_grant',
-  ): Promise<{ sourceId: string; newBalance: number }> {
+    sourceCategory: CreditSourceCategory,
+    paymentMethod: string,
+    operationKey: string,
+  ): Promise<{ sourceId: string; newBalance: number; alreadyGranted: boolean }> {
     const adminSupabase = createAdminClient()
-
-    const { data: source, error: sourceError } = await adminSupabase
-      .from('credit_sources')
-      .insert({
-        user_id: userId,
-        plan_id: null,
-        initial_credits: credits,
-        remaining_credits: credits,
-        status: 'active',
-        source_category: sourceCategory
-      })
-      .select()
-      .single()
-
-    if (sourceError || !source) {
-      console.error('[CreditService] Failed to create admin grant source:', sourceError)
-      throw new Error('관리자 지급 구매건 생성 중 오류가 발생했습니다.')
+    const rpcClient = adminSupabase as unknown as {
+      rpc: (fn: string, params: Record<string, unknown>) => Promise<{
+        data: unknown
+        error: { message: string } | null
+      }>
     }
 
-    const { newBalance } = await finalizeCreditBalanceMutation(userId, 'Admin grant', adminSupabase)
+    const { data, error } = await rpcClient.rpc('grant_admin_credits', {
+      p_user_id: userId,
+      p_amount: credits,
+      p_source_category: sourceCategory,
+      p_payment_method: paymentMethod,
+      p_operation_key: operationKey,
+    })
 
-    const { error: paymentError } = await adminSupabase
-      .from('payment_history')
-      .insert({
-        user_id: userId,
-        source_id: source.id,
-        plan_id: null,
-        amount: 0,
-        payment_method: paymentMethod,
-        status: 'completed'
-      })
-
-    if (paymentError) {
-      console.error('[CreditService] Failed to create admin grant payment history:', paymentError)
+    if (error) {
+      const message = rpcErrorMessage(error)
+      console.error('[CreditService] Admin grant failed:', message)
+      throw new Error(
+        message.includes('ADMIN_GRANT_IDEMPOTENCY_CONFLICT')
+          ? 'ADMIN_GRANT_IDEMPOTENCY_CONFLICT'
+          : '관리자 크레딧 지급 중 오류가 발생했습니다.'
+      )
     }
 
-    const { error: txError } = await adminSupabase
-      .from('credit_transactions')
-      .insert({
-        user_id: userId,
-        type: 'purchase',
-        amount: credits,
-        balance_after: newBalance,
-        description: `크레딧 ${credits.toLocaleString()}개 구매`,
-        source_id: source.id
-      })
-
-    if (txError) {
-      console.error('[CreditService] Failed to insert admin grant transaction:', txError)
+    const result = (Array.isArray(data) ? data[0] : data) as CreditRpcAdminGrantResult | undefined
+    const newBalance = toFiniteNumber(result?.new_balance)
+    if (!result?.source_id || newBalance === null) {
+      throw new Error('관리자 크레딧 지급 응답이 올바르지 않습니다.')
     }
+
+    await reportCreditBalanceAfterMutation(userId, 'Admin grant')
 
     return {
-      sourceId: source.id,
-      newBalance
+      sourceId: result.source_id,
+      newBalance,
+      alreadyGranted: result.already_granted === true,
     }
   }
 

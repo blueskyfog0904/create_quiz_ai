@@ -733,12 +733,17 @@ async function reconcilePayAppPayment(order: PaymentOrderRow) {
         if (Date.now() - expiredAt < PAYAPP_READY_CANCEL_GRACE_MS) {
           throw error
         }
+        // 관리자가 페이앱 콘솔에서 바로 대조할 수 있게 마지막 오류 코드를 남긴다.
+        const lastErrorCode = [
+          getReconciliationError(error).code,
+          error instanceof PayAppError ? error.providerErrorCode : null,
+        ].filter(Boolean).join('/') || '알 수 없음'
         return markPayAppTerminal({
           order,
           expectedStatus: 'ready',
           status: 'manual_review',
           code: 'PAYAPP_READY_CANCEL_FAILED',
-          message: '만료된 페이앱 결제 요청을 2시간 동안 취소하지 못했습니다. 결제 여부를 확인하세요.',
+          message: `만료된 페이앱 결제 요청을 2시간 동안 취소하지 못했습니다. 결제 여부를 확인하세요. (마지막 오류: ${lastErrorCode})`,
         })
       }
       return markPayAppTerminal({

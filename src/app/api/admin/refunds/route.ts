@@ -162,7 +162,15 @@ export async function PATCH(request: Request) {
         externalMethod: input.externalMethod,
         refundAmount: input.refundAmount,
         recoveredCredits: input.recoveredCredits ?? null,
-      }) as { already_completed?: boolean; user_id?: string } | null
+      }) as { already_completed?: boolean; user_id?: string; double_refund_suspected?: boolean } | null
+
+      // 다른 방식으로 이미 완료된 요청에 계좌 송금 완료가 들어왔다. DB가 이중 환불 의심 경보를 남겼다.
+      if (result?.double_refund_suspected) {
+        return NextResponse.json(
+          { error: '이미 다른 방식으로 환불이 완료된 요청입니다. 계좌로 송금했다면 이중 환불이므로 회수해야 합니다.' },
+          { status: 409 }
+        )
+      }
 
       if (result?.user_id && !result.already_completed) {
         await notifyRefundCompleted(result.user_id, input.refundAmount, input.externalMethod)
@@ -222,6 +230,14 @@ export async function PATCH(request: Request) {
       return NextResponse.json({
         success: true,
         message: '이미 원 결제수단 환불이 완료된 요청입니다.',
+      })
+    }
+
+    // 관리자 결제 확인 주문은 자동 취소하지 않는다. 사용자 알림도 보내지 않는다.
+    if (result.manualReviewRequired) {
+      return NextResponse.json({
+        success: true,
+        message: '관리자 결제 확인 주문이라 자동 취소하지 않고 수동 확인으로 보냈습니다. 페이앱 관리자에서 결제를 대조해 취소한 뒤 수동 완료로 처리하세요.',
       })
     }
 

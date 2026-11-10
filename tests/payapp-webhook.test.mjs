@@ -175,6 +175,65 @@ test('a failed first attempt answers FAIL and the re-notification is processed',
   assert.equal(admin.events.get('payapp:2000:4').processing_status, 'completed')
 })
 
+test('an apply failure records a critical PAYAPP_FEEDBACK_APPLY_FAILED alert and answers FAIL', async () => {
+  const admin = createFakeAdmin({
+    rpc: { apply_payapp_feedback: () => fail('57014') },
+  })
+
+  assert.deepEqual(await handlePayAppFeedback(feedbackBody({ pay_state: '9', price: '9900' }), admin), { body: 'FAIL', status: 503 })
+  assert.equal(admin.events.get('payapp:2000:9').processing_status, 'failed')
+  assert.equal(admin.events.get('payapp:2000:9').last_error_code, 'APPLY:57014')
+  assert.equal(admin.calls.alerts.length, 1)
+  const [alert] = admin.calls.alerts
+  assert.equal(alert.p_code, 'PAYAPP_FEEDBACK_APPLY_FAILED')
+  assert.equal(alert.p_severity, 'critical')
+  assert.match(alert.p_message, /페이앱 관리자 내역과 대조/)
+  assert.equal(alert.p_details.mul_no, '2000')
+  assert.equal(alert.p_details.pay_state, 9)
+  assert.equal(alert.p_details.price, 9900)
+  assert.equal(alert.p_details.error_code, '57014')
+  assert.equal(admin.calls.notifications[0].user_id, 'admin-1')
+})
+
+test('an ignored cancel notification is alerted as critical, other ignored ones stay warning', async () => {
+  for (const [payState, severity] of [['9', 'critical'], ['64', 'critical'], ['70', 'critical'], ['71', 'critical'], ['4', 'warning'], ['1', 'warning']]) {
+    const admin = createFakeAdmin({
+      rpc: {
+        apply_payapp_feedback: () => ok({
+          result: 'ignored',
+          reason: 'PAYAPP_FEEDBACK_AMOUNT_MISMATCH',
+          payment_order_id: ORDER_UUID,
+          order_id: 'PAYAPP_ORDER_1',
+        }),
+      },
+    })
+
+    const body = feedbackBody({ pay_state: payState, orig_mul_no: '1999', price: '1000' })
+    assert.equal((await handlePayAppFeedback(body, admin)).body, 'SUCCESS')
+    assert.equal(admin.events.get(`payapp:2000:${payState}`).processing_status, 'ignored')
+    assert.equal(admin.calls.alerts[0].p_code, 'PAYAPP_FEEDBACK_AMOUNT_MISMATCH')
+    assert.equal(admin.calls.alerts[0].p_severity, severity, `pay_state ${payState}`)
+    assert.equal(admin.calls.notifications.length > 0, true)
+  }
+
+  // 주문이 없는 비취소 통보는 지금처럼 결제완료만 관리자에게 알린다.
+  const notPaid = createFakeAdmin({
+    rpc: { apply_payapp_feedback: () => ok({ result: 'order_not_found' }) },
+  })
+  await handlePayAppFeedback(feedbackBody({ pay_state: '1' }), notPaid)
+  assert.equal(notPaid.calls.alerts[0].p_severity, 'warning')
+  assert.equal(notPaid.calls.notifications.length, 0)
+
+  // 주문이 없는 취소 통보는 critical로 관리자에게 알린다.
+  const cancelled = createFakeAdmin({
+    rpc: { apply_payapp_feedback: () => ok({ result: 'order_not_found' }) },
+  })
+  await handlePayAppFeedback(feedbackBody({ pay_state: '9' }), cancelled)
+  assert.equal(cancelled.calls.alerts[0].p_code, 'PAYAPP_FEEDBACK_ORDER_NOT_FOUND')
+  assert.equal(cancelled.calls.alerts[0].p_severity, 'critical')
+  assert.equal(cancelled.calls.notifications.length > 0, true)
+})
+
 test('every non-exception feedback result closes the event and answers SUCCESS', async () => {
   for (const result of [
     'fulfilled',
@@ -306,6 +365,29 @@ test('partial cancels without var1 or orig_mul_no had no lookup key and still al
     assert.equal(admin.events.get(`payapp:2000:${payState}`).processing_status, 'ignored')
     assert.equal(admin.calls.alerts[0].p_code, 'PAYAPP_FEEDBACK_ORDER_NOT_FOUND')
   }
+})
+
+test('a partial cancel without orig_mul_no or var1 is a critical alert that notifies admins', async () => {
+  for (const payState of ['70', '71']) {
+    const admin = createFakeAdmin({
+      rpc: { apply_payapp_feedback: () => ok({ result: 'order_not_found' }) },
+    })
+
+    assert.equal((await handlePayAppFeedback(feedbackBody({ var1: '', pay_state: payState }), admin)).body, 'SUCCESS')
+    assert.equal(admin.events.get(`payapp:2000:${payState}`).processing_status, 'ignored')
+    assert.equal(admin.events.get(`payapp:2000:${payState}`).last_error_code, 'order_not_found')
+    assert.equal(admin.calls.alerts[0].p_code, 'PAYAPP_FEEDBACK_ORDER_NOT_FOUND')
+    assert.equal(admin.calls.alerts[0].p_severity, 'critical')
+    assert.equal(admin.calls.notifications[0].user_id, 'admin-1')
+  }
+
+  // orig_mul_no가 있으면 사이트 밖 분기 조건은 그대로다(경보 없음).
+  const foreign = createFakeAdmin({
+    rpc: { apply_payapp_feedback: () => ok({ result: 'order_not_found' }) },
+  })
+  await handlePayAppFeedback(feedbackBody({ var1: '', pay_state: '70', orig_mul_no: '1999' }), foreign)
+  assert.equal(foreign.events.get('payapp:2000:70').last_error_code, 'PAYAPP_FOREIGN_FEEDBACK')
+  assert.equal(foreign.calls.alerts.length, 0)
 })
 
 test('notifications without var1 that match a site order by mul_no are still processed', async () => {
@@ -501,7 +583,10 @@ test('the repeated partial cancel alert survives a failed first attempt', async 
   })
   assert.equal((await handlePayAppFeedback(body, applyFails)).body, 'FAIL')
   assert.equal((await handlePayAppFeedback(body, applyFails)).body, 'SUCCESS')
-  assert.deepEqual(applyFails.calls.alerts.map((alert) => alert.p_code), ['PAYAPP_PARTIAL_CANCEL_REPEATED'])
+  assert.deepEqual(
+    applyFails.calls.alerts.map((alert) => alert.p_code),
+    ['PAYAPP_FEEDBACK_APPLY_FAILED', 'PAYAPP_PARTIAL_CANCEL_REPEATED']
+  )
 })
 
 test('marker alerts are sent once even when two cancellation calls run', async () => {

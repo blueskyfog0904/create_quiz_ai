@@ -450,14 +450,19 @@ export async function POST(request: Request, { params }: RouteContext) {
   }
 
   if (deductionResult && failedRetries > 0) {
-    await CreditService.refundCredits(
-      user.id,
-      failedRetries * COST_PER_GENERATION,
-      'listboard_batch_generation_retry_refund',
-      job.id,
-      `리스트보드 배치 생성 재시도 실패 환불 (${job.id})`,
-      getRefundConsumptions(deductionResult.consumptions, failedRetries * COST_PER_GENERATION)
-    )
+    // 환불이 실패해도 job은 마감한다. 실패는 CreditService가 경보로 남긴다.
+    try {
+      await CreditService.refundCredits(
+        user.id,
+        failedRetries * COST_PER_GENERATION,
+        'listboard_batch_generation_retry_refund',
+        job.id,
+        `리스트보드 배치 생성 재시도 실패 환불 (${job.id})`,
+        getRefundConsumptions(deductionResult.consumptions, failedRetries * COST_PER_GENERATION)
+      )
+    } catch (error) {
+      console.error('Failed to refund failed batch retries:', error)
+    }
   }
 
   const { data: allJobItems, error: allJobItemsError } = await adminSupabase

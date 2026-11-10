@@ -385,14 +385,19 @@ export async function POST(request: Request, { params }: RouteContext) {
   let finalBalance = deductionResult.newBalance
 
   if (failedRefundAmount > 0) {
-    finalBalance = await CreditService.refundCredits(
-      user.id,
-      failedRefundAmount,
-      'listboard_batch_generation_refund',
-      job.id,
-      `리스트보드 배치 생성 실패 환불 (${job.id})`,
-      getRefundConsumptions(deductionResult.consumptions, failedRefundAmount)
-    )
+    // 환불이 실패해도 job은 마감한다. 실패는 CreditService가 경보로 남긴다.
+    try {
+      finalBalance = await CreditService.refundCredits(
+        user.id,
+        failedRefundAmount,
+        'listboard_batch_generation_refund',
+        job.id,
+        `리스트보드 배치 생성 실패 환불 (${job.id})`,
+        getRefundConsumptions(deductionResult.consumptions, failedRefundAmount)
+      )
+    } catch (error) {
+      console.error('Failed to refund failed batch generations:', error)
+    }
   }
 
   const finalStatus = completedCount === job.requested_generation_count

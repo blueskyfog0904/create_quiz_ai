@@ -4659,6 +4659,15 @@ export type Database = {
         }
         Returns: Json
       }
+      approve_market_refund: {
+        Args: {
+          p_admin_id: string
+          p_admin_note: string
+          p_confirmed_refund_credits?: number
+          p_request_id: string
+        }
+        Returns: Json
+      }
       backfill_question_bank_metadata: {
         Args: {
           p_book_id: string
@@ -4732,17 +4741,6 @@ export type Database = {
         Args: {
           p_amount: number
           p_description: string
-          p_resource_id: string
-          p_resource_type: string
-          p_user_id: string
-        }
-        Returns: Json
-      }
-      consume_credits_once: {
-        Args: {
-          p_amount: number
-          p_description: string
-          p_operation_key: string
           p_resource_id: string
           p_resource_type: string
           p_user_id: string
@@ -4969,6 +4967,16 @@ export type Database = {
           problem_type_id: string
         }[]
       }
+      grant_admin_credits: {
+        Args: {
+          p_amount: number
+          p_operation_key: string
+          p_payment_method: string
+          p_source_category: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       is_admin: { Args: never; Returns: boolean }
       mark_kakaopay_callback_failure: {
         Args: {
@@ -5146,19 +5154,6 @@ export type Database = {
           p_amount: number
           p_consumptions: Json
           p_description: string
-          p_resource_id: string
-          p_resource_type: string
-          p_target_balance?: number
-          p_user_id: string
-        }
-        Returns: Json
-      }
-      refund_credits_once: {
-        Args: {
-          p_amount: number
-          p_description: string
-          p_operation_key: string
-          p_original_operation_key: string
           p_resource_id: string
           p_resource_type: string
           p_target_balance?: number

@@ -97,6 +97,7 @@ export interface RefundRequest {
             label: string
         } | null
         transaction: {
+            cancel_feedback_recorded_at: string | null
             partial_cancel_feedback_recorded_at: string | null
         } | null
     } | null
@@ -104,6 +105,7 @@ export interface RefundRequest {
 
 const requiresRecovery = (request: RefundRequest) => refundRequiresRecovery({
     origin: request.origin,
+    cancelMarker: Boolean(request.order?.transaction?.cancel_feedback_recorded_at),
     partialCancelMarker: Boolean(request.order?.transaction?.partial_cancel_feedback_recorded_at),
     lastErrorCode: request.last_error_code,
 })

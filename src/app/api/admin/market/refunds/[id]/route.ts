@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { approveMarketRefund, MarketRefundConflictError, rejectMarketRefund } from '@/lib/market-refunds'
+import {
+  approveMarketRefund,
+  MarketRefundConflictError,
+  MarketRefundShortfallError,
+  rejectMarketRefund,
+} from '@/lib/market-refunds'
 
 export const dynamic = 'force-dynamic'
 
 const BodySchema = z.object({
   action: z.enum(['approve', 'reject']),
   adminNote: z.string().trim().max(1000).optional(),
+  // 부족분 안내를 확인한 뒤 다시 보내는 복구량
+  confirmedRefundCredits: z.number().int().min(0).optional(),
 })
 
 interface RouteContext {
@@ -53,7 +60,12 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   try {
     const data = parsed.data.action === 'approve'
-      ? await approveMarketRefund({ requestId: id, adminId: adminCheck.user.id, adminNote: parsed.data.adminNote ?? null })
+      ? await approveMarketRefund({
+        requestId: id,
+        adminId: adminCheck.user.id,
+        adminNote: parsed.data.adminNote ?? null,
+        confirmedRefundCredits: parsed.data.confirmedRefundCredits,
+      })
       : await rejectMarketRefund({ requestId: id, adminId: adminCheck.user.id, adminNote: parsed.data.adminNote ?? null })
 
     return NextResponse.json({
@@ -62,6 +74,16 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       message: parsed.data.action === 'approve' ? '문제마켓 환불이 승인되었습니다.' : '문제마켓 환불이 거부되었습니다.',
     })
   } catch (error) {
+    if (error instanceof MarketRefundShortfallError) {
+      return NextResponse.json({
+        success: false,
+        error: error.message,
+        code: 'MARKET_REFUND_SHORTFALL',
+        requested: error.requested,
+        restorable: error.restorable,
+      }, { status: 409 })
+    }
+
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : '문제마켓 환불 처리에 실패했습니다.',

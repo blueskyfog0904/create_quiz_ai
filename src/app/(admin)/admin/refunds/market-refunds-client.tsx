@@ -38,12 +38,27 @@ export function MarketRefundsClient({ requests }: MarketRefundsClientProps) {
   const processRefund = async (requestId: string, action: 'approve' | 'reject') => {
     setProcessingId(requestId)
     try {
-      const response = await fetch(`/api/admin/market/refunds/${requestId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      })
-      const result = await response.json().catch(() => null)
+      const send = async (confirmedRefundCredits?: number) => {
+        const response = await fetch(`/api/admin/market/refunds/${requestId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, confirmedRefundCredits }),
+        })
+        return { response, result: await response.json().catch(() => null) }
+      }
+
+      let attempt = await send()
+      // 되돌릴 수 없는 크레딧이 있으면 두 숫자를 보여 주고, 확인하면 복구 가능한 양으로 다시 보낸다.
+      if (attempt.response.status === 409 && attempt.result?.code === 'MARKET_REFUND_SHORTFALL') {
+        const shortfall = attempt.result
+        const confirmed = window.confirm(
+          `${shortfall.error}\n\n요청 ${Number(shortfall.requested).toLocaleString()}C / 복구 가능 ${Number(shortfall.restorable).toLocaleString()}C`
+        )
+        if (!confirmed) return
+        attempt = await send(shortfall.restorable)
+      }
+
+      const { response, result } = attempt
       if (!response.ok || !result?.success) {
         throw new Error(result?.error ?? '문제마켓 환불 처리에 실패했습니다.')
       }
