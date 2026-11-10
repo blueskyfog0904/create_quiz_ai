@@ -254,8 +254,50 @@ test('notifications rejected by validation are ignored with an alert and admin n
   assert.match(admin.calls.notifications[0].message, /PAYAPP_ORDER_1/)
 })
 
-test('notifications without an order are recorded and alerted, admins only for paid ones', async () => {
+test('notifications with an order id but no order are recorded and alerted, admins only for paid ones', async () => {
   for (const [payState, adminNotified] of [['1', false], ['4', true]]) {
+    const admin = createFakeAdmin({
+      rpc: { apply_payapp_feedback: () => ok({ result: 'order_not_found' }) },
+    })
+
+    assert.equal((await handlePayAppFeedback(feedbackBody({ pay_state: payState }), admin)).body, 'SUCCESS')
+    assert.equal(admin.events.get(`payapp:2000:${payState}`).processing_status, 'ignored')
+    assert.equal(admin.calls.alerts[0].p_code, 'PAYAPP_FEEDBACK_ORDER_NOT_FOUND')
+    assert.equal(admin.calls.alerts[0].p_details.order_id, 'PAYAPP_ORDER_1')
+    assert.equal(admin.calls.notifications.length > 0, adminNotified)
+  }
+})
+
+test('notifications without var1 that match no order are foreign sales: recorded without alerts', async () => {
+  for (const payState of ['1', '4', '9', '70']) {
+    for (const var1 of ['', '   ']) {
+      const admin = createFakeAdmin({
+        rpc: { apply_payapp_feedback: () => ok({ result: 'order_not_found' }) },
+      })
+
+      const body = feedbackBody({ var1, pay_state: payState, orig_mul_no: '1999' })
+      assert.equal((await handlePayAppFeedback(body, admin)).body, 'SUCCESS')
+      const event = admin.events.get(`payapp:2000:${payState}`)
+      assert.equal(event.processing_status, 'ignored')
+      assert.equal(event.last_error_code, 'PAYAPP_FOREIGN_FEEDBACK')
+      assert.equal(admin.calls.alerts.length, 0)
+      assert.equal(admin.calls.notifications.length, 0)
+    }
+  }
+})
+
+test('foreign sales with an unreadable date still leave no alert', async () => {
+  const admin = createFakeAdmin({
+    rpc: { apply_payapp_feedback: () => ok({ result: 'order_not_found' }) },
+  })
+
+  assert.equal((await handlePayAppFeedback(feedbackBody({ var1: '', pay_date: 'not-a-date' }), admin)).body, 'SUCCESS')
+  assert.equal(admin.events.get('payapp:2000:4').last_error_code, 'PAYAPP_FOREIGN_FEEDBACK')
+  assert.equal(admin.calls.alerts.length, 0)
+})
+
+test('partial cancels without var1 or orig_mul_no had no lookup key and still alert', async () => {
+  for (const payState of ['70', '71']) {
     const admin = createFakeAdmin({
       rpc: { apply_payapp_feedback: () => ok({ result: 'order_not_found' }) },
     })
@@ -263,8 +305,24 @@ test('notifications without an order are recorded and alerted, admins only for p
     assert.equal((await handlePayAppFeedback(feedbackBody({ var1: '', pay_state: payState }), admin)).body, 'SUCCESS')
     assert.equal(admin.events.get(`payapp:2000:${payState}`).processing_status, 'ignored')
     assert.equal(admin.calls.alerts[0].p_code, 'PAYAPP_FEEDBACK_ORDER_NOT_FOUND')
-    assert.equal(admin.calls.notifications.length > 0, adminNotified)
   }
+})
+
+test('notifications without var1 that match a site order by mul_no are still processed', async () => {
+  const admin = createFakeAdmin({
+    rpc: {
+      apply_payapp_feedback: () => ok({
+        result: 'fulfilled',
+        payment_order_id: ORDER_UUID,
+        order_id: 'PAYAPP_ORDER_1',
+        user_id: USER_UUID,
+      }),
+    },
+  })
+
+  assert.equal((await handlePayAppFeedback(feedbackBody({ var1: '' }), admin)).body, 'SUCCESS')
+  assert.equal(admin.events.get('payapp:2000:4').processing_status, 'completed')
+  assert.equal(admin.calls.notifications[0].user_id, USER_UUID)
 })
 
 test('a cancel marker is processed in a separate call and retried after a failure', async () => {

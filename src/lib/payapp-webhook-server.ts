@@ -433,6 +433,16 @@ export async function handlePayAppFeedback(
     return SUCCESS
   }
 
+  // 페이앱 계정을 사이트 밖 판매에도 쓴다. 사이트 주문은 항상 var1(주문번호)을 보내므로,
+  // var1이 없고 결제요청번호로도 주문을 찾지 못한 통보는 사이트 밖 결제로 보고 경보 없이 기록만 남긴다.
+  // 부분취소(70·71)는 원 결제요청번호로 찾으므로, 그 번호가 없으면 찾을 단서가 없었던 것이라 경보 경로로 보낸다.
+  const lookupKeyPresent = (feedback.payState !== 70 && feedback.payState !== 71) || Boolean(feedback.origMulNo)
+  if (result.result === 'order_not_found' && !feedback.orderId && lookupKeyPresent) {
+    // 사이트 밖 통보의 일시 형식 등은 우리와 무관하므로 앞 단계 경보도 남기지 않는다.
+    await markEvent(admin, transmissionId, 'ignored', 'PAYAPP_FOREIGN_FEEDBACK')
+    return SUCCESS
+  }
+
   if (result.result === 'ignored' || result.result === 'order_not_found') {
     const orderNotFound = result.result === 'order_not_found'
     followUps.alerts.push({
