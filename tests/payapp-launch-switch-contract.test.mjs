@@ -29,6 +29,33 @@ test('launch switch rechecks the launch preconditions before opening payapp', ()
   assert.doesNotMatch(migrationCode, /\bCASCADE\b|^\s*(BEGIN|COMMIT)\s*;/im)
 })
 
+test('launch switch precheck still stops on any unresolved alert without an UNAUTHORIZED exception', () => {
+  assert.match(
+    migrationCode,
+    /IF EXISTS \(SELECT 1 FROM public\.payment_reconciliation_alerts WHERE resolved_at IS NULL\) THEN\n\s+RAISE EXCEPTION 'PAYAPP_LAUNCH_PRECHECK: unresolved payment alerts';/
+  )
+  assert.doesNotMatch(migrationCode, /UNAUTHORIZED/)
+})
+
+test('launch switch audit strings and rollback path carry the new version', () => {
+  assert.match(migration, /^-- 되돌리기\(스위치 off\): supabase\/rollback\/20261110120000_payapp_launch_switch_down\.sql$/m)
+  assert.match(migrationCode, /changed_by = 'migration_20261110120000_payapp_launch_switch',/)
+  assert.match(rollback, /^-- 20261110120000_payapp_launch_switch 되돌리기/)
+  assert.match(rollbackCode, /changed_by = 'rollback_20261110120000_payapp_launch_switch',/)
+  assert.doesNotMatch(migration + rollback, /20261021110000/)
+})
+
+test('launch switch sorts after both payment integrity migrations', () => {
+  const names = readdirSync(new URL('../supabase/migrations/', import.meta.url)).sort()
+  const launch = names.findIndex((name) => name.endsWith('_payapp_launch_switch.sql'))
+  const fixes = names.findIndex((name) => name.endsWith('_payment_integrity_fixes.sql'))
+  const ledger = names.findIndex((name) => name.endsWith('_credit_ledger_integrity.sql'))
+  assert.notEqual(fixes, -1, 'payment integrity migration exists')
+  assert.notEqual(ledger, -1, 'credit ledger migration exists')
+  assert.ok(fixes < ledger && ledger < launch, 'launch switch is applied last')
+  assert.equal(names[launch], '20261110120000_payapp_launch_switch.sql')
+})
+
 test('launch switch only opens payapp from the recorded pre-launch state', () => {
   assert.match(migrationCode, /c_merchant_id constant text := '[^']+';/)
   assert.match(

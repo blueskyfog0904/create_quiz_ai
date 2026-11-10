@@ -6,7 +6,7 @@
 --   change_ticket 'PHASE6_LOCAL_UI_CHECK_COMPLETE'
 -- 출시 1의 사전 점검 중 취소 표식 미처리 0건과 미해소 경보 0건을 여기서 다시 확인하고, 아니면 아무것도 바꾸지 않는다.
 -- 나머지(페이앱 주문·manual_review 0건, 대사 스케줄러 정상, 경보 해소 메모)는 적용 직전에 수동으로 확인한다.
--- 되돌리기(스위치 off): supabase/rollback/20261021110000_payapp_launch_switch_down.sql
+-- 되돌리기(스위치 off): supabase/rollback/20261110120000_payapp_launch_switch_down.sql
 SET LOCAL lock_timeout = '3s';
 SET LOCAL statement_timeout = '60s';
 
@@ -34,7 +34,7 @@ BEGIN
      SET payapp_merchant_id = c_merchant_id,
          payapp_accepts_new_orders = true,
          changed_at = now(),
-         changed_by = 'migration_20261021110000_payapp_launch_switch',
+         changed_by = 'migration_20261110120000_payapp_launch_switch',
          change_ticket = 'PAYAPP_LAUNCH'
    WHERE id = true
      AND master_accepts_new_orders = true

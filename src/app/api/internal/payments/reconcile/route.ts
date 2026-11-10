@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { reconcilePendingPayments } from '@/lib/payment-reconciliation-server'
 
 export const dynamic = 'force-dynamic'
+// 대사 리스(240초)보다 길게 둔다. 함수 제한으로 강제 종료된 run은 abandoned로 세어져 3회 연속이면 페이앱 판매가 꺼진다.
+export const maxDuration = 300
 
 const reconcileSchema = z.object({
   limit: z.number().int().min(1).max(50).optional().default(20),

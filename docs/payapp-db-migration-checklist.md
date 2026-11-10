@@ -212,6 +212,7 @@
      - 0건이 아니면 원천 상태를 확인한다. 원천이 `active`인 건이 있으면 출시를 멈추고, `pending_refund`이거나 원천이 없는 건은 처리를 끝낸 뒤 출시한다.
    - 미해소 경보가 0건이다(기존 2건은 2026-10-19 `20261019061626`으로 해소함). 새로 생긴 경보가 있으면 원인을 확인한 뒤 출시한다.
    - 관리자 화면의 경보 해소(`resolve_payment_alert`)로 닫은 경보는 `payment_admin_actions where action='alert_resolved'`에서 각각 원인 처리 메모가 있는지 확인한다. 해소 뒤 health가 1회 이상(5분 이상) 돈 다음에도 0건인지 다시 본다.
+   - `PAYAPP_FEEDBACK_UNAUTHORIZED`, 카페 부분취소로 생긴 `PAYAPP_FEEDBACK_UNPROCESSED`는 아래 "결제·크레딧 정합성 수정 → 미해소 경보 해소" 절차로 확인한 뒤 해소한다.
 2. **스위치 마이그레이션:**
    - `payapp_merchant_id`를 설정하고 `payapp_accepts_new_orders=true`로 바꾼다.
    - `changed_by`, `change_ticket`을 기록하고, 이전 값을 주석에 남긴다.
@@ -219,11 +220,101 @@
 4. **실결제 시험:** 운영자 카드로 1건 결제 → 크레딧 지급 확인 → 관리자 환불 → 취소 통보 처리 확인.
    - 매뉴얼에 없는 실제 형식을 함께 확인한다: `payurl`이 https인지(모듈과 `store_payapp_request`가 https만 받는다. http면 둘 다 고친다), 통보의 `pay_date`·`canceldate`가 `YYYY-MM-DD HH:MM:SS`인지(아니면 `dateParseFailed` 경보가 남는다).
    - 결제하지 않은 요청 1건을 `cancelmode=ready`로 취소해 `partcancel` 없이 전취소되는지 확인한다.
-5. **실패 시:** 스위치 off 마이그레이션을 적용한다(`supabase/rollback/20261021110000_payapp_launch_switch_down.sql`을 SQL Editor로 실행하고 운영 적용 기록에 남긴다).
+5. **실패 시:** 스위치 off 마이그레이션을 적용한다(`supabase/rollback/20261110120000_payapp_launch_switch_down.sql`을 SQL Editor로 실행하고 운영 적용 기록에 남긴다).
    - 신규 주문만 닫힌다. 이미 결제창에 들어간 건의 통보·지급·취소·환불·대사는 환경변수로 계속 처리되므로, `PAYAPP_*`·`PAYMENT_CALLBACK_ORIGIN`과 페이앱 통보 URL은 건드리지 않는다. `PAYAPP_USERID`를 바꾸면 진행 중 주문이 `PAYAPP_FEEDBACK_MERCHANT_MISMATCH`로 수동 확인에 들어간다.
    - `ROLLBACK: payapp switch is already off`가 나면 health가 이미 끈 것이다. 그대로 둔다.
    - 시험 주문은 관리자 환불이나 결제 확인 해소(계획 6.4)로 정리하고, `ready` 주문은 만료 정리를 기다린다.
    - 다시 열 때는 출시 마이그레이션을 재사용하지 않는다(`payapp_merchant_id IS NULL` 조건). 계획 6.4대로 `payapp_merchant_id`가 그대로인지 확인하는 재개 마이그레이션을 새로 만든다.
+
+## 결제·크레딧 정합성 수정 (출시 전)
+
+[수정 계획](payment-integrity-fixes-plan.md)의 운영 절차다. 마이그레이션은 `20261110100000_payment_integrity_fixes` → `20261110110000_credit_ledger_integrity` 순서로 적용하고, 출시 스위치(`20261110120000_payapp_launch_switch`)는 그 뒤에 적용한다.
+
+### 적용 전 확인(계획 2.12, 6.2)
+- 대사 route의 `maxDuration = 300`을 Vercel 프로젝트 설정(플랜·fluid compute)이 허용하는지 확인한다. 허용 최대치가 240초보다 짧으면 마이그레이션 1을 적용하지 않고 대사 `limit` 축소안을 따로 정한다.
+  - 결과: (미확인)
+- 마이그레이션 2는 페이앱 판매가 꺼진 동안(`payapp_accepts_new_orders=false`)에만 적용한다. 적용부터 커밋 B 배포 확인까지 마켓 환불 승인·관리자 지급을 하지 않는다.
+
+### 미해소 경보 해소(계획 6.5)
+마이그레이션 적용 뒤 `/admin/refunds` 경보 목록에서 `PAYAPP_FEEDBACK_ORDER_NOT_FOUND`(2026-11-01)를 해소한다. 메모 예: `사이트 밖(카페) 결제 통보. 0adda5e 이전 기록, 사이트 주문 아님`. 출시 스위치 사전 점검이 미해소 0건을 요구한다.
+
+`PAYAPP_FEEDBACK_UNAUTHORIZED`가 미해소로 있으면 출시 직전에 다음 순서로 확인한 뒤 해소한다. 이 경보는 details가 비어 code당 1행이라, created_at은 처음 인증 실패 시각이다. 사전 점검에서 예외로 빼지 않는다.
+1. Vercel 런타임 로그에서 페이앱 웹훅 route의 401 응답을 경보 created_at부터 지금까지 찾고, 마지막 401 시각을 적는다(로그 보존 기간 밖이면 "확인 불가"로 적는다).
+2. `SELECT max(received_at) FROM payment_webhook_events WHERE transmission_id LIKE 'payapp:%';`로 마지막 인증 통과 통보 시각을 본다. 1의 마지막 401보다 뒤여야 한다.
+3. 둘 다 맞으면 `resolve_payment_alert`로 해소하고 두 시각을 메모에 남긴다. 1이 "확인 불가"면 해소만 하고 4로 넘어간다.
+4. 해소 뒤 새로 인증 통과 통보(카페 결제 등)가 1건 이상 기록되고, 그사이 UNAUTHORIZED 미해소 행이 다시 생기지 않았는지 확인한 뒤 출시 스위치를 적용한다. 해소 뒤 첫 401은 새 미해소 행을 만들므로 사전 점검이 다시 멈춘다.
+
+카페(사이트 밖) 부분취소로 생긴 `PAYAPP_FEEDBACK_UNPROCESSED`가 미해소로 있으면(70·71 통보에 `orig_mul_no`가 없어 `order_not_found`로 남은 경우) 출시 직전에 다음 순서로 확인한 뒤 해소한다.
+1. 아래 런북 4의 질의로 경보의 `latest_received_at`까지 남은 대상 이벤트를 모두 뽑는다.
+2. 각 이벤트의 시각·금액을 페이앱 콘솔의 부분취소 내역과 맞춰, 사이트 주문이 아니라 카페 결제임을 확인한다(사이트 페이앱 주문은 출시 전 0건이라 모두 카페 결제여야 한다).
+3. 행별 판정을 메모에 남기고 `resolve_payment_alert`로 해소한다. 같은 관리자 알림(`order_not_found` critical)도 함께 확인한 것으로 적는다.
+
+### 수동 런북: 장애 뒤 페이앱 콘솔 취소 내역과 DB 대조(계획 6.6)
+대상 상황:
+- 웹훅 5xx·DB 장애·Vercel 장애가 있었던 경우(이벤트 insert·조회 실패로 경보 없이 RETRY한 구간 포함)
+- `PAYAPP_FEEDBACK_APPLY_FAILED`·`PAYAPP_FEEDBACK_UNPROCESSED` 경보가 생긴 경우
+- 출시 뒤 4주간 매주 정기 대조
+
+절차:
+1. 페이앱 판매자 관리 사이트에서 장애 시작 1시간 전부터 지금까지의 승인취소·부분취소 내역(결제요청번호 mul_no, 금액, 취소일)을 내려받는다.
+2. DB와 대조한다.
+   ```sql
+   SELECT ppt.provider_transaction_id AS mul_no, po.order_id, po.status, ppt.cancel_feedback_recorded_at,
+          ppt.partial_cancel_feedback_recorded_at, ppt.partial_cancel_amount, cs.status AS source_status
+     FROM payment_provider_transactions ppt
+     JOIN payment_orders po ON po.id = ppt.payment_order_id
+     LEFT JOIN credit_sources cs ON cs.payment_order_id = po.id
+    WHERE ppt.provider = 'payapp' AND ppt.provider_transaction_id = ANY (ARRAY['<콘솔 mul_no 목록>']);
+   ```
+   - 결과에 없는 mul_no는 사이트 밖(카페) 결제다. 조치하지 않는다.
+   - 결과에 있는데 해당 표식(9·64 → cancel, 70·71 → partial)이 NULL이면 통보가 유실된 것이다.
+3. 유실분 처리
+   - 페이앱 관리자에 통보 재전송 기능이 있으면 먼저 쓴다(출시 직후 확인 항목).
+   - 없으면 SQL Editor에서 `BEGIN;`으로 시작해 콘솔 값 그대로 `SELECT public.apply_payapp_feedback(...)`(웹훅과 같은 인자) → `SELECT public.process_payapp_cancellation('<payment_order_id>')`를 실행한다. 결과 jsonb를 확인한 뒤 `COMMIT;`한다. 웹훅이 할 일을 같은 함수로 재현하는 것이라 새 경로가 생기지 않는다.
+4. 확인한 `PAYAPP_FEEDBACK_*` 경보를 해소한다. 메모에 대조 범위와 결과를 남긴다.
+   - `PAYAPP_FEEDBACK_UNPROCESSED`는 해소하면 `latest_received_at` 이전 이벤트를 다시 세지 않는다(영구 확인). 해소 전에 다음 질의로 그 시각까지의 대상 이벤트가 모두 처리됐는지 본다.
+     ```sql
+     SELECT transmission_id, event_type, processing_status, last_error_code, received_at
+       FROM payment_webhook_events
+      WHERE transmission_id LIKE 'payapp:%' AND received_at <= '<details.latest_received_at>'
+        AND (processing_status IN ('pending', 'failed')
+             OR (processing_status = 'ignored'
+                 AND event_type IN ('PAYAPP_PAY_STATE_9','PAYAPP_PAY_STATE_64','PAYAPP_PAY_STATE_70','PAYAPP_PAY_STATE_71')
+                 AND COALESCE(last_error_code, '') <> 'PAYAPP_FOREIGN_FEEDBACK'));
+     ```
+     각 행이 (가) 재통보로 completed가 됐거나, (나) 3의 수동 apply·process로 해당 주문 표식·처리 시각이 생겼거나, (다) 콘솔 대조로 사이트 밖 결제임이 확인된 경우에만 해소한다. 메모에 행별 판정을 남긴다.
+     - 이 질의는 `details.latest_received_at` 이전만 본다. 경보가 생긴 뒤에 들어온 대상 이벤트는 해소 뒤 health가 만드는 다음 `PAYAPP_FEEDBACK_UNPROCESSED`로 넘어간다. 해소 직후 새 경보가 또 생기는 것은 정상이며 같은 절차로 처리한다.
+   - 오탐 판정: `markEvent`는 오류를 확인하지 않으므로 처리는 커밋됐는데 이벤트만 pending으로 남을 수 있다. 그 이벤트의 mul_no로 2의 질의를 돌려 해당 표식(`cancel_feedback_recorded_at`·`partial_cancel_feedback_recorded_at`, 결제완료면 `paid_feedback_recorded_at`)과 처리 시각(`cancel_processed_at`·`partial_cancel_processed_at`)이 이미 있으면 오탐이다. 메모에 "처리 완료·이벤트 상태만 미갱신"으로 남기고 해소한다.
+
+관리자 결제확인(`paid_confirmed`)에 결제번호를 넣을 때와 수동 환불 전 콘솔 취소 때는 콘솔 행의 금액·결제일·구매자 연락처 끝자리를 주문과 대조한 뒤 진행한다. 관리자 결제확인 주문에 승인취소 통보가 와서 `PAYAPP_CANCEL_AFTER_QUARANTINE`(details `reason = admin_confirmed_mul_no_unverified`)이 생기면, 콘솔에서 그 취소가 우리 고객 결제인지 대조한다. 열린 환불 요청이 없거나 pending_review였던 경우(결과 `external_cancel_quarantined`)도 같은 경보·같은 대조 대상이다. 화면에는 "외부 전취소" 격리로 보이므로, 대조 없이 `complete_manual`로 전량 회수하지 않는다(우리 결제가 아니면 돈을 낸 고객의 크레딧을 회수하게 된다). 우리 결제면 `complete_manual`(`payapp_cancel_request` 또는 `provider_admin_cancel`, 전량 회수)로 마감한다. 카페 결제면 저장된 결제번호가 틀린 것이니 우리 고객 결제를 콘솔에서 찾아 취소한 뒤 같은 방식으로 마감하고 경보에 경위를 남긴다.
+
+관리자 결제확인 주문의 환불: `paid_feedback_recorded_at` 없이 `admin_paid_confirmed_at`만 있는 주문은 모두 수동 환불(manual_review)로 간다. 이런 주문의 환불 승인은 항상 콘솔 취소 + `complete_manual`로 마감한다.
+
+주문 검토 처리 전 확인: `resolve_payment_order_review`는 어떤 조치든 `details->>'payment_order_id'`가 그 주문인 미해소 경보를 모두 해소한다. 같은 주문의 `cancel_handled`·`paid_confirmed` 처리가 critical 경보(`PAYAPP_DOUBLE_REFUND_SUSPECTED`, `PAYAPP_CANCEL_AFTER_QUARANTINE`)까지 함께 닫는다. 주문 검토를 처리하기 전에 그 주문의 미해소 경보 목록을 먼저 보고, 이 두 경보가 있으면 이중 환불 회수·콘솔 대조를 끝낸 뒤 처리한다.
+
+경보별 해소 시점:
+- `PAYAPP_PARTIAL_CANCEL_DEFERRED`: 환불이 끝난 뒤 해소한다. 환불이 끝나기 전에 해소하면 대사가 다시 만든다.
+- `CREDIT_REFUND_FAILED`: details의 `user_id`·`amount`·`description`과 같은 'refund' 거래 행이 경보 `created_at` 직전(같은 요청 처리 시간 안, 몇 초~1분)에 있으면 RPC는 커밋됐고 응답만 유실된 오탐이다. `resource_id`만으로 판정하지 않는다(같은 리소스의 앞선 성공 환불 행이 있으면 진짜 실패를 오탐으로 닫게 되고, `resource_id`가 NULL인 호출은 비교할 수 없다). 같은 사용자·금액·문구의 실패 경보가 여러 건이면 거래 행과 1:1로 짝지어 남는 경보만 실패로 본다. 실패면 details의 사용자·금액만큼 관리자 지급(`system_refund`)으로 보상하고 메모를 남긴 뒤 해소한다.
+- 조건별 health 경보(`PAYAPP_PAID_UNFULFILLED`·`PAYAPP_CANCEL_UNPROCESSED`·`PAYAPP_MONEY_RISK_REVIEW`)와 `PAYAPP_FEEDBACK_UNPROCESSED`의 details 건수는 경보가 생긴 시점 값이다(`DO NOTHING`이라 갱신되지 않음). 현재 건수는 질의로 다시 확인한다.
+- `CREDIT_REFUND_SOURCE_SKIPPED`·`MARKET_REFUND_SHORTFALL`: details의 사용자·금액·리소스(그리고 `skipped_unrestorable`·`skipped_capped`·`skipped_unmatched` 구분)를 본다. `skipped_capped`는 같은 소비를 두 번 환불하려 한 흔적이라 보상하지 않고 원인 호출을 확인한다. 그 밖에는 사용자가 받아야 할 몫이면 관리자 지급(`system_refund`)으로 보상한 뒤 지급 내역을 메모에 남기고 해소한다. 결제 환불로 이미 현금이 나간 원천이라 보상하지 않는 경우도 이유를 메모에 남긴다.
+
+READY_CANCEL_FAILED로 판매가 멈춘 경우:
+1. 콘솔에서 해당 mul_no가 미결제·요청취소인지 확인한다.
+2. `unpaid_confirmed`로 처리한다.
+3. 다른 money-review 건이 0인지 확인한 뒤 `payment_runtime_config.payapp_accepts_new_orders`를 기존 출시 절차의 SQL로 다시 켠다.
+
+### 출시 직후 확인할 페이앱 동작(계획 6.7)
+설계는 두 결과 모두에서 안전하다. 결과를 이 표에 적는다.
+
+| 항목 | 방법 | 결과 |
+|---|---|---|
+| ready 만료 뒤 8/16/32 통보 여부 | 테스트 결제 요청 1건을 결제하지 않고 30분 만료시킨다 | (미확인) |
+| 부분취소 뒤 승인취소(9)의 price | 테스트 결제 1건을 부분취소한 뒤 승인취소해, 9 통보의 price가 원금인지 잔액인지 본다 | (미확인) |
+| 통보 재전송 기능 | 페이앱 관리자 메뉴 확인 | (미확인) |
+| 부분취소 통보(70·71)의 `orig_mul_no` | 카페·사이트 부분취소 통보. 출시 전에도 `payment_webhook_events`의 70·71 행과 `last_error_code`로 먼저 확인할 수 있다. 오지 않으면 카페 부분취소마다 critical 관리자 알림과 30분 뒤 `PAYAPP_FEEDBACK_UNPROCESSED`가 생긴다(위 해소 절차) | (미확인) |
+
+### 기존 동작 기록(계획 6.3)
+- 요청 시점에는 7일 안이었던 마켓 환불 pending 요청이 승인 시점 기준으로 막힌다(TS 자격 검사 기준). 이번 변경과 무관한 기존 동작이다. 현재 pending 1건(주문일 2026-10-10)은 승인을 눌러도 `승인 전 환불 조건이 변경되었습니다`로 끝나므로 정상 업무로 판단(거부 등)한다.
 
 ## 카카오페이 live 전환 (별도)
 
