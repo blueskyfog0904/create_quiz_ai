@@ -39,7 +39,7 @@ https://create-quiz-ai.vercel.app
 
 Supabase OAuth를 사용하므로, 카카오 Developers에는 Supabase callback URL을 등록하세요.
 
-https://kzcweelnzhcmiuvjgeyi.supabase.co/auth/v1/callback
+https://xsvmbrgixgfqijneikjl.supabase.co/auth/v1/callback
 
 주의:
 카카오 Developers Redirect URI에는 아래 주소를 등록하는 것이 아닙니다.
@@ -187,7 +187,7 @@ https://summersuninst.com
 http://localhost:4000
 
 카카오 Developers Redirect URI:
-https://kzcweelnzhcmiuvjgeyi.supabase.co/auth/v1/callback
+https://xsvmbrgixgfqijneikjl.supabase.co/auth/v1/callback
 
 카카오 Developers Logout Redirect URI:
 https://summersuninst.com/login?logout=success

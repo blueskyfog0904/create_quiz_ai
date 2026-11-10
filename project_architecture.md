@@ -94,7 +94,7 @@
 
 ## 5. 데이터베이스 스키마 상세 (Database Schema)
 
-**진실의 원천**: Supabase 프로젝트 (`kzcweelnzhcmiuvjgeyi`)  
+**진실의 원천**: Supabase 프로젝트 (`xsvmbrgixgfqijneikjl`)  
 **마지막 동기화**: 2026-02-09
 
 > **참고**: 모든 테이블에는 Row Level Security (RLS)가 활성화되어 있습니다. (`source_configs` 제외)
@@ -434,7 +434,7 @@ erDiagram
 
 1.  **스키마 변경**: Supabase 대시보드에서 변경 후 반드시 다음 명령어로 타입을 동기화합니다.
     ```bash
-    npx supabase gen types typescript --project-id kzcweelnzhcmiuvjgeyi > src/types/supabase.ts
+    npx supabase gen types typescript --project-id xsvmbrgixgfqijneikjl > src/types/supabase.ts
     ```
 2.  **API 작성**: 모든 백엔드 로직은 `src/app/api` 내의 Route Handler로 작성하며, 클라이언트에서는 `fetch` 또는 `React Query`를 사용하지 않고 Server Actions 또는 API 호출을 `useEffect`로 처리하는 패턴을 확인해야 합니다.
 3.  **컴포넌트**: 재사용 가능한 UI는 `components/ui` (Shadcn)를 사용하고, 비즈니스 로직이 포함된 컴포넌트는 `components/features`에 배치합니다.

@@ -1,7 +1,7 @@
 # 페이앱 전환 DB 마이그레이션 체크리스트
 
 [구현 계획](payapp-kakaopay-payment-implementation-plan.md)의 운영 DB 적용 규칙과 확인 쿼리다.
-- 운영과 로컬이 같은 DB(`kzcweelnzhcmiuvjgeyi`)를 쓴다.
+- 운영과 로컬이 같은 DB(`xsvmbrgixgfqijneikjl`)를 쓴다.
 - 모든 쓰기는 dry-run 결과를 보여 준 뒤 사용자 승인을 받고 적용한다.
 
 ## 0. 공통 규칙
@@ -56,7 +56,8 @@
    ```
 4. cron 실행 시각을 확인한다.
    ```sql
-   select jobid, max(start_time) from cron.job_run_details where jobid in (1,3) group by 1;
+   select j.jobname, max(d.start_time) from cron.job_run_details d join cron.job j using (jobid)
+    where j.jobname in ('payment-reconciliation-http-5m', 'payment-reconciliation-health-5m') group by 1;
    ```
 5. 롤백 파일 `supabase/rollback/<version>_down.sql`을 만든다(0-10의 범위 전부). 작성본: `supabase/rollback/20261019090000_payapp_migration_a_down.sql`. 지우고 다시 만드는 함수(`prepare_payment_order`, `reject_point_charge_refund`, `get_my_*`)는 기본 권한이 PUBLIC·anon·authenticated를 다시 열므로 CREATE 직후 `REVOKE ALL … FROM PUBLIC, anon, authenticated`를 먼저 하고 GRANT 한다. 롤백 파일 끝에도 누수·서명 검증 블록을 둔다. `*_credits_once` 권한은 되돌리지 않는다(다시 열면 보안 구멍 복원).
    - 다음 함수들의 `pg_get_functiondef`를 저장한다.

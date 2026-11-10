@@ -1,5 +1,5 @@
 [mcp_servers.supabase]
-url = "https://mcp.supabase.com/mcp?project_ref=kzcweelnzhcmiuvjgeyi"
+url = "https://mcp.supabase.com/mcp?project_ref=xsvmbrgixgfqijneikjl"
 
 [mcp_servers.supabase.tools.execute_sql]
 approval_mode = "approve"

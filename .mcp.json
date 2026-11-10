@@ -20,11 +20,11 @@
     },
     "supabase": {
       "type": "http",
-      "url": "https://mcp.supabase.com/mcp?project_ref=kzcweelnzhcmiuvjgeyi"
+      "url": "https://mcp.supabase.com/mcp?project_ref=xsvmbrgixgfqijneikjl"
     },
-    "supabase-seoul": {
+    "supabase-old-singapore": {
       "type": "http",
-      "url": "https://mcp.supabase.com/mcp?project_ref=xsvmbrgixgfqijneikjl&read_only=true"
+      "url": "https://mcp.supabase.com/mcp?project_ref=kzcweelnzhcmiuvjgeyi&read_only=true"
     }
   }
 }

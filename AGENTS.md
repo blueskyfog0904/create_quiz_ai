@@ -78,7 +78,7 @@
 - `npm run start`: run built app on port `4000`.
 - `npm run lint`: run ESLint (Next.js + TypeScript rules).
 - `npx supabase db push`: apply migrations.
-- `npx supabase gen types typescript --project-id kzcweelnzhcmiuvjgeyi > src/types/supabase.ts`: sync DB types after schema updates.
+- `npx supabase gen types typescript --project-id xsvmbrgixgfqijneikjl > src/types/supabase.ts`: sync DB types after schema updates.
 
 ## Coding Style & Naming Conventions
 
