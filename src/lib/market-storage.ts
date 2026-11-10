@@ -93,10 +93,23 @@ export function assertMarketSubproductUploadIsAllowed(
     throw new Error(`${fileType.code.toUpperCase()} 파일 유형에 허용되지 않는 MIME 타입입니다.`)
   }
 
-  const maxFileSizeBytes = 100 * 1024 * 1024
-  if (file.size > maxFileSizeBytes) {
-    throw new Error('문제마켓 파일은 100MB 이하만 업로드할 수 있습니다.')
+  // market-files 버킷 한도(50MB)와 같게 둔다. 파일은 브라우저가 서명 업로드 URL로 Storage에 바로 올린다.
+  if (file.size > MAX_MARKET_SUBPRODUCT_FILE_SIZE) {
+    throw new Error('문제마켓 파일은 50MB 이하만 업로드할 수 있습니다.')
   }
+}
+
+export const MAX_MARKET_SUBPRODUCT_FILE_SIZE = 50 * 1024 * 1024
+
+export function buildMarketSubproductStoragePrefix(
+  workspaceSubject: WorkspaceSubject,
+  itemId: string,
+  subproductId: string,
+  fileTypeCode: string,
+  version: number
+) {
+  const safeCode = normalizeFileName(fileTypeCode.toLowerCase())
+  return `market/${workspaceSubject}/${itemId}/subproducts/${subproductId}/${safeCode}/v${version}/`
 }
 
 export function buildMarketSubproductStoragePath(
@@ -108,9 +121,16 @@ export function buildMarketSubproductStoragePath(
   fileName: string
 ) {
   const safeName = normalizeFileName(fileName)
-  const safeCode = normalizeFileName(fileTypeCode.toLowerCase())
   const timestamp = Date.now()
-  return `market/${workspaceSubject}/${itemId}/subproducts/${subproductId}/${safeCode}/v${version}/${timestamp}-${safeName}`
+  return `${buildMarketSubproductStoragePrefix(workspaceSubject, itemId, subproductId, fileTypeCode, version)}${timestamp}-${safeName}`
+}
+
+// 업로드 완료 요청의 경로가 이 서브상품·파일 유형 폴더 바로 아래의 `<시각>-<안전한 이름>` 형식인지 확인한다.
+export function isMarketSubproductStoragePath(storagePath: string, prefix: string) {
+  if (!storagePath.startsWith(prefix)) {
+    return false
+  }
+  return /^\d+-[A-Za-z0-9._-]+$/.test(storagePath.slice(prefix.length))
 }
 
 export function buildMarketSamplePageStoragePath(

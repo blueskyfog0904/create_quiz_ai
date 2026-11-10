@@ -2106,13 +2106,37 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
     try {
       for (const { file, fileType } of accepted) {
         try {
-          const formData = new FormData()
-          formData.append('fileTypeId', fileType.id)
-          formData.append('file', file)
-
-          const response = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/subproducts/${subproductId}/files`, workspaceSubject), {
+          // 파일 본문은 서명 업로드 URL로 Storage에 직접 올린다(Vercel 함수 요청 4.5MB 제한을 피함).
+          const filesUrl = withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/subproducts/${subproductId}/files`, workspaceSubject)
+          const prepareResponse = await fetch(filesUrl, {
             method: 'POST',
-            body: formData,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              step: 'prepare',
+              fileTypeId: fileType.id,
+              fileName: file.name,
+              fileSize: file.size,
+              contentType: file.type || null,
+            }),
+          })
+          const preparePayload = await prepareResponse.json()
+          if (!prepareResponse.ok || !preparePayload.success) {
+            throw new Error(preparePayload.error?.message || '서브상품 파일 업로드 준비에 실패했습니다.')
+          }
+
+          const { bucket, storagePath, token } = preparePayload.data as { bucket: string; storagePath: string; token: string }
+          const { error: uploadError } = await createBrowserSupabaseClient()
+            .storage
+            .from(bucket)
+            .uploadToSignedUrl(storagePath, token, file)
+          if (uploadError) {
+            throw new Error(uploadError.message)
+          }
+
+          const response = await fetch(filesUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ step: 'complete', fileTypeId: fileType.id, fileName: file.name, storagePath }),
           })
           const payload = await response.json()
 
