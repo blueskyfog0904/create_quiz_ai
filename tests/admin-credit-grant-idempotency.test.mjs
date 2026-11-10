@@ -106,7 +106,7 @@ test('the grant route answers ADMIN_GRANT_IDEMPOTENCY_CONFLICT with 409', async 
 
   const response = await post(body())
   assert.equal(response.status, 409)
-  assert.equal(response.body.error, '이전 요청과 내용이 다릅니다. 창을 닫고 다시 열어 지급하세요.')
+  assert.equal(response.body.error, '이 창에서 보낸 이전 지급이 이미 처리되었습니다. 지급 내역을 먼저 확인하고, 추가 지급이 필요할 때만 창을 닫고 다시 열어 지급하세요.')
   assert.equal(calls.notifications.length, 0)
 })
 
@@ -162,6 +162,12 @@ test('both admin grant screens send a crypto.randomUUID() key and renew it after
   }
   assert.match(usersClient, /idempotencyKey: grantIdempotencyKey/)
   assert.match(usersClient, /openGrantModal = \(user: Profile\) => \{[\s\S]*?setGrantIdempotencyKey\(crypto\.randomUUID\(\)\)/)
-  assert.match(grantDialog, /handleUserSelect = \(user: Profile\) => \{[\s\S]*?setIdempotencyKey\(crypto\.randomUUID\(\)\)/)
+  // 창을 열 때만 키를 만든다. 응답 유실 뒤 같은 창에서 대상을 다시 골라도 같은 키를 보낸다.
+  assert.match(grantDialog, /useEffect\(\(\) => \{\s*if \(open\) \{\s*setIdempotencyKey\(crypto\.randomUUID\(\)\)\s*\}/)
+  const userSelect = grantDialog.match(/handleUserSelect = \(user: Profile\) => \{[\s\S]*?\n  \}/)
+  assert.ok(userSelect)
+  assert.doesNotMatch(userSelect[0], /setIdempotencyKey/)
+  // 키를 바꾸는 곳은 창을 열 때와 지급 성공 직후 두 곳뿐이다.
+  assert.equal(grantDialog.match(/setIdempotencyKey\(/g).length, 2)
   assert.match(grantDialog, /category,\s*idempotencyKey\s*\}/)
 })

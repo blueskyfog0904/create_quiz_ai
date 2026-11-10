@@ -88,7 +88,7 @@ export async function POST(request: Request) {
 
     if (error instanceof Error && error.message === 'ADMIN_GRANT_IDEMPOTENCY_CONFLICT') {
       return NextResponse.json({
-        error: '이전 요청과 내용이 다릅니다. 창을 닫고 다시 열어 지급하세요.',
+        error: '이 창에서 보낸 이전 지급이 이미 처리되었습니다. 지급 내역을 먼저 확인하고, 추가 지급이 필요할 때만 창을 닫고 다시 열어 지급하세요.',
         code: 'ADMIN_GRANT_IDEMPOTENCY_CONFLICT'
       }, { status: 409 })
     }

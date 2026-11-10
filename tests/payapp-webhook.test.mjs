@@ -21,7 +21,7 @@ function loadModule(path, modules = {}) {
 }
 
 const payapp = loadModule('../src/lib/payapp-server.ts')
-const { handlePayAppFeedback } = loadModule('../src/lib/payapp-webhook-server.ts', {
+const { handlePayAppFeedback, cancellationFollowUps } = loadModule('../src/lib/payapp-webhook-server.ts', {
   '@/lib/payapp-server': payapp,
 })
 
@@ -684,4 +684,21 @@ test('secrets never reach events, RPC arguments, alerts or notifications', async
   const stored = JSON.stringify({ events: [...admin.events.values()], calls: admin.calls })
   assert.equal(stored.includes('link-key-secret'), false)
   assert.equal(stored.includes('link-val-secret'), false)
+})
+
+test('admin-confirmed cancel alert asks to check the PayApp console instead of full refund', () => {
+  const details = { order_id: 'ORDER-1', payment_order_id: ORDER_UUID }
+  const adminConfirmed = cancellationFollowUps(details, {
+    result: 'already_quarantined',
+    marker: 'cancel',
+    reason: 'admin_confirmed_mul_no_unverified',
+  })
+  assert.equal(adminConfirmed.alerts.length, 1)
+  assert.equal(adminConfirmed.alerts[0].code, 'PAYAPP_CANCEL_AFTER_QUARANTINE')
+  assert.equal(adminConfirmed.alerts[0].severity, 'critical')
+  assert.match(adminConfirmed.alerts[0].message, /페이앱 콘솔과 먼저 대조하세요\.$/)
+  assert.doesNotMatch(adminConfirmed.alerts[0].message, /전액 환불 기준/)
+
+  const quarantined = cancellationFollowUps(details, { result: 'already_quarantined', marker: 'cancel' })
+  assert.match(quarantined.alerts[0].message, /전액 환불 기준으로 처리하세요\.$/)
 })

@@ -242,7 +242,10 @@ export function cancellationFollowUps(
         alerts.push({
           code: 'PAYAPP_CANCEL_AFTER_QUARANTINE',
           severity: 'critical',
-          message: '수동 확인 중인 결제가 페이앱에서 승인취소되었습니다. 전액 환불 기준으로 처리하세요.',
+          // 관리자가 입력한 결제번호는 검증되지 않았다(카페 결제 취소일 수 있음). 문구는 DB 경보와 같다.
+          message: result.reason === 'admin_confirmed_mul_no_unverified'
+            ? '관리자가 결제확인한 결제가 페이앱에서 승인취소되었습니다. 이 사이트 결제의 취소인지 페이앱 콘솔과 먼저 대조하세요.'
+            : '수동 확인 중인 결제가 페이앱에서 승인취소되었습니다. 전액 환불 기준으로 처리하세요.',
           details,
           notifyAdmins: true,
         })
