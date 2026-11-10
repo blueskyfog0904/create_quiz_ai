@@ -228,7 +228,7 @@
 
 ## 결제·크레딧 정합성 수정 (출시 전)
 
-[수정 계획](payment-integrity-fixes-plan.md)의 운영 절차다. 마이그레이션은 `20261110100000_payment_integrity_fixes` → `20261110110000_credit_ledger_integrity` → `20261110115000_cancel_alert_admin_confirmed_message` 순서로 적용하고, 출시 스위치(`20261110120000_payapp_launch_switch`)는 그 뒤에 적용한다. 115000은 관리자 결제확인 주문의 승인취소 경보 문구만 "페이앱 콘솔과 먼저 대조"로 바꾼다(롤백은 100000 롤백보다 먼저).
+[수정 계획](payment-integrity-fixes-plan.md)의 운영 절차다. 마이그레이션은 `20261110100000_payment_integrity_fixes` → `20261110110000_credit_ledger_integrity` → `20261110115000_cancel_alert_admin_confirmed_message` → `20261110116000_terms_remove_kakaopay` 순서로 적용하고, 출시 스위치(`20261110120000_payapp_launch_switch`)는 그 뒤에 적용한다. 115000은 관리자 결제확인 주문의 승인취소 경보 문구만 "페이앱 콘솔과 먼저 대조"로 바꾼다(롤백은 100000 롤백보다 먼저). 116000(DB-13)은 약관(`site_footer_content`)의 카카오페이 문구 4곳을 지운다(카카오페이 미사용 결정, 결제 코드·DB는 꺼진 채 보존). 적용 전 md5 `0eaa00b3…`, 적용 후 md5 `ab734dab…`. 적용 뒤 `/terms/privacy`, `/terms/refund` 화면을 확인한다.
 
 ### 적용 전 확인(계획 2.12, 6.2)
 - 대사 route의 `maxDuration = 300`을 Vercel 프로젝트 설정(플랜·fluid compute)이 허용하는지 확인한다. 허용 최대치가 240초보다 짧으면 마이그레이션 1을 적용하지 않고 대사 `limit` 축소안을 따로 정한다.

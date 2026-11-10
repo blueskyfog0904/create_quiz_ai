@@ -14,8 +14,8 @@ test('point-charge policy limits the current credit use case to the problem mark
     migration,
     /'사용 경로: 영어·국어 문제마켓 자료 구매\. 사용 내역은 \/mypage\/credits/
   )
-  assert.match(termsPage, /신용·체크카드, 네이버페이, 토스페이, 휴대폰\s+결제와 카카오페이를 사용할 수 있습니다/)
-  assert.doesNotMatch(termsPage, /페이코|카카오페이머니만|일반결제/)
+  assert.match(termsPage, /신용·체크카드, 네이버페이, 토스페이, 휴대폰\s+결제를 사용할 수 있습니다/)
+  assert.doesNotMatch(termsPage, /페이코|카카오페이|일반결제/)
 })
 
 test('operations docs keep provider gates explicit for PayApp and KakaoPay', () => {

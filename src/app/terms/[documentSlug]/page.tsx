@@ -85,8 +85,8 @@ export default async function TermsDocumentPage({ params }: TermsDocumentPagePro
                 </li>
                 <li>
                   포인트 충전에는 신용·체크카드, 네이버페이, 토스페이, 휴대폰
-                  결제와 카카오페이를 사용할 수 있습니다. 계좌이체, 가상계좌 등
-                  그 밖의 결제수단은 지원하지 않습니다.
+                  결제를 사용할 수 있습니다. 계좌이체, 가상계좌 등 그 밖의
+                  결제수단은 지원하지 않습니다.
                 </li>
               </ul>
               <div className="mt-5 flex flex-wrap gap-3">

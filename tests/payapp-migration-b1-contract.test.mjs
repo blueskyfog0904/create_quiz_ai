@@ -36,8 +36,15 @@ test('migration B1 changes only the dry-run footer value through fixed jsonb pat
 })
 
 test('migration B1 wording matches the code defaults from phase 6', () => {
+  // 20261110116000(DB-13)이 B1 문구에서 카카오페이를 지웠으므로, 그 치환을 거친 문장을 코드 기본값과 비교한다.
+  const db13 = readSql('migrations', '_terms_remove_kakaopay.sql')
+  const afterDb13 = (text) =>
+    ['c_refund_pg', 'c_refund_methods', 'c_privacy'].reduce(
+      (value, name) => value.replace(constant(db13, `${name}_old`), constant(db13, `${name}_new`)),
+      text
+    )
   for (const name of ['c_refund_pg_new', 'c_refund_methods_new', 'c_privacy_new']) {
-    for (const line of constant(migration, name).split('\n')) {
+    for (const line of afterDb13(constant(migration, name)).split('\n')) {
       const sentence = line.replace(/^- /, '')
       assert.ok(footerDefaults.includes(sentence), `${name}: ${sentence}`)
     }
