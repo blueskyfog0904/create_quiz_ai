@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { Database } from '@/types/supabase'
-import { MAX_POINT_CHARGE_AMOUNT } from '@/lib/payment-constants'
+import { MAX_POINT_CHARGE_AMOUNT, MIN_POINT_CHARGE_AMOUNT } from '@/lib/payment-constants'
 
 export type PricingPlan = Database['public']['Tables']['pricing_plans']['Row']
 export type PricingPlanInsert = Database['public']['Tables']['pricing_plans']['Insert']
@@ -37,10 +37,10 @@ export async function upsertPricingPlan(data: PricingPlanInsert) {
 
     if (
         !Number.isInteger(data.price) ||
-        data.price < 1 ||
+        data.price < MIN_POINT_CHARGE_AMOUNT ||
         data.price > MAX_POINT_CHARGE_AMOUNT
     ) {
-        throw new Error('가격은 1원 이상 100,000원 이하여야 합니다.')
+        throw new Error('가격은 1,000원 이상 100,000원 이하여야 합니다.')
     }
 
     if (!Number.isInteger(data.credits) || data.credits < 1) {

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import {
   MAX_POINT_CHARGE_AMOUNT,
+  MIN_POINT_CHARGE_AMOUNT,
   PAYMENT_ORDER_TTL_MINUTES,
 } from '@/lib/payment-constants'
 import {
@@ -162,7 +163,7 @@ export async function POST(request: Request) {
 
     if (
       !Number.isInteger(plan.price) ||
-      plan.price < 1 ||
+      plan.price < MIN_POINT_CHARGE_AMOUNT ||
       plan.price > MAX_POINT_CHARGE_AMOUNT ||
       !Number.isInteger(plan.credits) ||
       plan.credits < 1
@@ -398,8 +399,14 @@ export async function POST(request: Request) {
           errorCode: failError.code,
         })
       }
+      // 페이앱이 알려 준 거절 사유(200자 이내)가 있으면 함께 보여 준다.
       return NextResponse.json(
-        { error: '결제 요청을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.', code: error.code },
+        {
+          error: error.providerMessage
+            ? `결제 요청을 만들지 못했습니다. (${error.providerMessage})`
+            : '결제 요청을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.',
+          code: error.code,
+        },
         { status: 502 }
       )
     }

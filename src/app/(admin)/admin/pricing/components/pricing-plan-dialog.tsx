@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { upsertPricingPlan, PricingPlan, PricingPlanInsert } from '../actions'
 import { Loader2 } from 'lucide-react'
-import { MAX_POINT_CHARGE_AMOUNT } from '@/lib/payment-constants'
+import { MAX_POINT_CHARGE_AMOUNT, MIN_POINT_CHARGE_AMOUNT } from '@/lib/payment-constants'
 // If sonner not installed, I might need to check. But standard shadcn often uses sonner or useToast.
 // Let's implement a simple error message in the UI.
 
@@ -69,10 +69,10 @@ export function PricingPlanDialog({
             if (!formData.name) throw new Error('상품명은 필수입니다.')
             if (
                 formData.price === undefined ||
-                formData.price < 1 ||
+                formData.price < MIN_POINT_CHARGE_AMOUNT ||
                 formData.price > MAX_POINT_CHARGE_AMOUNT
             ) {
-                throw new Error('가격은 1원 이상 100,000원 이하여야 합니다.')
+                throw new Error('가격은 1,000원 이상 100,000원 이하여야 합니다.')
             }
             if (formData.credits === undefined || formData.credits < 1) throw new Error('크레딧은 1 이상이어야 합니다.')
 
@@ -126,12 +126,12 @@ export function PricingPlanDialog({
                                 type="number"
                                 value={formData.price}
                                 onChange={(e) => setFormData({ ...formData, price: parseInt(e.target.value) || 0 })}
-                                min="1"
+                                min={MIN_POINT_CHARGE_AMOUNT}
                                 max={MAX_POINT_CHARGE_AMOUNT}
                                 required
                             />
                             <p className="text-xs text-muted-foreground">
-                                1회 충전 한도: 100,000원
+                                1회 충전 한도: 1,000원 ~ 100,000원 (결제 최소 금액 1,000원)
                             </p>
                         </div>
                         <div className="space-y-2">

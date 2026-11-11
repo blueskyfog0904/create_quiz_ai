@@ -75,16 +75,30 @@ function getCheckoutAttemptStorageKey(userId: string, planId: string) {
   return `point-checkout-attempt:${userId}:${planId}`
 }
 
-// 결제수단이나 휴대폰 번호가 바뀌면 새 결제 시도를 만든다. 같으면 같은 시도를 이어서 쓴다.
-function getCheckoutAttemptId(userId: string, planId: string, methodCode: string, phone: string) {
+// 결제수단·휴대폰 번호·상품 금액·크레딧이 바뀌면 새 결제 시도를 만든다. 같으면 같은 시도를 이어서 쓴다.
+// 서버도 같은 시도인지 이 값들로 판단하므로(요청 지문), 관리자가 가격을 바꾸면 여기서도 새 시도로 시작한다.
+function getCheckoutAttemptId(
+  userId: string,
+  planId: string,
+  methodCode: string,
+  phone: string,
+  amount: number,
+  credits: number
+) {
   const storageKey = getCheckoutAttemptStorageKey(userId, planId)
   try {
     const stored = JSON.parse(window.sessionStorage.getItem(storageKey) ?? 'null') as {
       id?: string
       method?: string
       phone?: string
+      amount?: number
+      credits?: number
     } | null
-    if (stored?.id && stored.method === methodCode && stored.phone === phone) {
+    if (
+      stored?.id &&
+      stored.method === methodCode && stored.phone === phone &&
+      stored.amount === amount && stored.credits === credits
+    ) {
       return stored.id
     }
   } catch {
@@ -95,7 +109,7 @@ function getCheckoutAttemptId(userId: string, planId: string, methodCode: string
   try {
     window.sessionStorage.setItem(
       storageKey,
-      JSON.stringify({ id: checkoutAttemptId, method: methodCode, phone })
+      JSON.stringify({ id: checkoutAttemptId, method: methodCode, phone, amount, credits })
     )
   } catch {
     // 저장하지 못해도 이번 요청은 진행한다.
@@ -283,7 +297,9 @@ export function CheckoutClient({
         user.id,
         plan.id,
         selectedMethod.code,
-        needsPhone ? phone : ''
+        needsPhone ? phone : '',
+        plan.price,
+        plan.credits
       )
       const response = selectedMethod.provider === 'kakaopay'
         ? await fetch('/api/payments/kakaopay/orders', {
@@ -311,6 +327,12 @@ export function CheckoutClient({
       }
 
       if (!response.ok) {
+        // 페이앱이 요청을 거절(state=0)해 결제창이 만들어지지 않았다. 이 주문은 결제될 수 없다
+        // (실패로 닫히고, 닫지 못했으면 대사가 정리한다). 같은 시도로 다시 보내면 만료나 확인 불가 응답만
+        // 받으므로 다음 클릭은 새 시도로 시작한다.
+        if (body.code === 'PAYAPP_REQUEST_REJECTED') {
+          clearCheckoutAttempt(user.id, plan.id)
+        }
         failWith(body.error || '결제 주문을 준비하지 못했습니다.', body.code ?? null)
         return
       }

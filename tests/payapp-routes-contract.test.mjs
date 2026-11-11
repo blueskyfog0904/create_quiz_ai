@@ -60,6 +60,8 @@ test('only a definite state=0 rejection closes the order as failed', () => {
   const rejected = indexOf(failCall, /PAYAPP_REQUEST_REJECTED/)
   const claimed = indexOf(failCall, /if \(requestClaimed\) \{\s*return attemptUnknownResponse\(\)/)
   assert.ok(rejected < claimed)
+  // 거절 사유(예: 최소 결제금액)를 화면에 보여 준다.
+  assert.match(failCall, /error\.providerMessage\s*\?\s*`결제 요청을 만들지 못했습니다\. \(\$\{error\.providerMessage\}\)`/)
 })
 
 test('repeated attempts never resend payrequest and follow the shared classification', () => {

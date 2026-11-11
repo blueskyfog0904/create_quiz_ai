@@ -28,6 +28,21 @@ test('checkout owns one attempt per method and phone and creates orders only fro
   assert.match(checkoutClient, /paymentMethodCode: selectedMethod\.code/)
 })
 
+test('checkout starts a new attempt when the price changes or payapp rejected the request', () => {
+  // 서버 요청 지문에 들어가는 금액·크레딧도 비교해야 가격 변경 뒤 PAYLOAD_CONFLICT에 걸리지 않는다.
+  assert.match(checkoutClient, /stored\.amount === amount && stored\.credits === credits/)
+  assert.match(checkoutClient, /JSON\.stringify\(\{ id: checkoutAttemptId, method: methodCode, phone, amount, credits \}\)/)
+  assert.match(checkoutClient, /needsPhone \? phone : '',\s*plan\.price,\s*plan\.credits\s*\)/)
+  // 페이앱이 확실히 거절한 주문은 결제될 수 없으므로 시도를 지우고 나서 오류를 보여 준다.
+  const notOk = checkoutClient.slice(checkoutClient.indexOf('if (!response.ok) {'))
+  assert.match(
+    notOk,
+    /^if \(!response\.ok\) \{[\s\S]*?if \(body\.code === 'PAYAPP_REQUEST_REJECTED'\) \{\s*clearCheckoutAttempt\(user\.id, plan\.id\)\s*\}\s*failWith\(/
+  )
+  // 만료 응답은 결제창이 아직 열려 있을 수 있어 자동으로 새 시도를 만들지 않는다(버튼으로만).
+  assert.doesNotMatch(checkoutClient, /PAYMENT_ATTEMPT_EXPIRED'\)\s*\{\s*clearCheckoutAttempt/)
+})
+
 test('checkout shows one accessible method list with a method-and-amount button', () => {
   assert.match(checkoutClient, /StudioContainer/)
   assert.match(checkoutClient, /StudioPageHeader/)

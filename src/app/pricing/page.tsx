@@ -6,7 +6,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getCreditBalanceSnapshot, selectDisplayBalance } from '@/lib/credit-balance'
-import { MAX_POINT_CHARGE_AMOUNT } from '@/lib/payment-constants'
+import { MAX_POINT_CHARGE_AMOUNT, MIN_POINT_CHARGE_AMOUNT } from '@/lib/payment-constants'
 import { PricingClient } from './pricing-client'
 
 export const dynamic = 'force-dynamic'
@@ -19,6 +19,7 @@ export default async function PricingPage() {
         .from('pricing_plans')
         .select('*')
         .eq('is_active', true)
+        .gte('price', MIN_POINT_CHARGE_AMOUNT)
         .lte('price', MAX_POINT_CHARGE_AMOUNT)
         .order('sort_order', { ascending: true })
 
