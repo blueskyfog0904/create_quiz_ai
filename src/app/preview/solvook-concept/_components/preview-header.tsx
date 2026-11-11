@@ -50,35 +50,52 @@ export function PreviewHeader({
   const [searchSubjectOverride, setSearchSubjectOverride] = useState<WorkspaceSubject | null>(null)
   const [searchSubjectMenuOpen, setSearchSubjectMenuOpen] = useState(false)
   const [creditBalance, setCreditBalance] = useState<number | null>(null)
+  const balanceRequestRef = useRef(0)
 
-  // 보유 크레딧은 렌더를 막지 않도록 마운트 후 조회한다 (실패 시 표시 생략)
+  // 보유 크레딧은 렌더를 막지 않도록 마운트 후 조회한다 (실패 시 표시 생략).
+  // 헤더는 레이아웃에 있어 페이지를 옮겨도 다시 만들어지지 않는다. 다른 탭의 관리자 환불·지급이나 결제창 복귀를
+  // 반영하도록 페이지를 옮길 때와 탭·창으로 돌아올 때 다시 조회한다(창을 나란히 띄우면 visibilitychange가 없어 focus도 본다). 늦게 온 응답이 새 값을 덮지 않게 마지막 요청만 반영한다.
   useEffect(() => {
     if (!isLoggedIn) {
+      balanceRequestRef.current += 1
       setCreditBalance(null)
       return
     }
-    let cancelled = false
-    fetch('/api/credits/balance')
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => {
-        if (!cancelled && typeof data?.balance === 'number') {
-          setCreditBalance(data.balance)
-        }
-      })
-      .catch(() => undefined)
-    // 구매 후 잔액 갱신 이벤트를 반영한다.
+    const refreshBalance = () => {
+      const requestId = ++balanceRequestRef.current
+      fetch('/api/credits/balance', { cache: 'no-store' })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((data) => {
+          if (requestId === balanceRequestRef.current && typeof data?.balance === 'number') {
+            setCreditBalance(data.balance)
+          }
+        })
+        .catch(() => undefined)
+    }
+    refreshBalance()
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshBalance()
+      }
+    }
+    // 구매 후 잔액 갱신 이벤트를 반영한다. 진행 중인 조회 응답이 이 값을 덮지 않게 한다.
     const handleBalanceUpdated = (event: Event) => {
       const balance = (event as CustomEvent<{ balance?: unknown }>).detail?.balance
       if (typeof balance === 'number') {
+        balanceRequestRef.current += 1
         setCreditBalance(balance)
       }
     }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', refreshBalance)
     window.addEventListener('credit-balance-updated', handleBalanceUpdated)
     return () => {
-      cancelled = true
+      balanceRequestRef.current += 1
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', refreshBalance)
       window.removeEventListener('credit-balance-updated', handleBalanceUpdated)
     }
-  }, [isLoggedIn])
+  }, [isLoggedIn, pathname])
   const searchSubjectMenuRef = useRef<HTMLDivElement | null>(null)
   const searchSubject: WorkspaceSubject = searchSubjectOverride ?? subject
 
