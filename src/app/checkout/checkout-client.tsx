@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import {
   ArrowLeft,
-  CreditCard,
   Loader2,
   ShieldCheck,
 } from 'lucide-react'
@@ -13,7 +13,6 @@ import {
   StudioPageHeader,
 } from '@/components/design-system'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 
 type CheckoutPhase =
   | 'idle'
@@ -150,6 +149,37 @@ function withDirectionParticle(word: string) {
   return finalConsonant === 0 || finalConsonant === 8 ? `${word}로` : `${word}으로`
 }
 
+// 결제수단 대표 이미지. 파일은 public/payment-methods/{결제수단 code}.svg 규칙으로 둔다
+// (결제사가 PNG만 준 로고는 SVG로 감싸 둔다). 파일이 없으면 자리만 두고 이름만 보인다.
+function PaymentMethodMark({ code }: { code: string }) {
+  const [missing, setMissing] = useState(false)
+  return (
+    <span aria-hidden="true" className="flex h-9 w-24 shrink-0 items-center justify-center">
+      {missing ? null : (
+        <Image
+          src={`/payment-methods/${code}.svg`}
+          alt=""
+          width={96}
+          height={24}
+          unoptimized
+          className="h-6 w-auto max-w-24 object-contain"
+          style={{ width: 'auto' }}
+          onError={() => setMissing(true)}
+        />
+      )}
+    </span>
+  )
+}
+
+function ReceiptRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 items-baseline justify-between gap-4">
+      <dt className="shrink-0 text-[var(--ck-muted)]">{label}</dt>
+      <dd className="min-w-0 break-words text-right tabular-nums text-[var(--ck-ink)]">{value}</dd>
+    </div>
+  )
+}
+
 function OrderSummary({
   plan,
   user,
@@ -160,50 +190,33 @@ function OrderSummary({
   amount: number
 }) {
   return (
-    <aside
-      aria-labelledby="order-summary-title"
-      className="order-first min-w-0 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] sm:p-6 lg:order-none"
-    >
+    <>
       <h2
         id="order-summary-title"
-        className="text-lg font-extrabold text-[var(--studio-ink)]"
+        className="text-base font-bold text-[var(--ck-ink)]"
       >
-        주문 정보
+        결제 정보
       </h2>
-
-      <dl className="mt-5 space-y-4 text-sm">
-        <div className="flex min-w-0 justify-between gap-4">
-          <dt className="text-[var(--studio-muted)]">상품</dt>
-          <dd className="min-w-0 break-words text-right font-bold text-[var(--studio-ink)]">
-            {plan.name} 크레딧 충전
-          </dd>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <dt className="text-[var(--studio-muted)]">충전 크레딧</dt>
-          <dd className="font-bold text-[var(--studio-ink)]">
-            {plan.credits.toLocaleString()} 크레딧
-          </dd>
-        </div>
+      <dl className="mt-5 space-y-3 text-sm">
+        <ReceiptRow label="충전 상품" value={plan.name} />
+        <ReceiptRow label="충전 크레딧" value={`${plan.credits.toLocaleString()} 크레딧`} />
+        <ReceiptRow label="상품 금액" value={`${amount.toLocaleString()}원`} />
       </dl>
-
-      <Separator className="my-5 bg-[var(--studio-border)]" />
-
-      <div className="min-w-0 text-sm">
-        <p className="font-bold text-[var(--studio-ink)]">구매자 정보</p>
-        <p className="mt-2 break-words text-[var(--studio-text)]">{user.name}</p>
-        <p className="break-all text-[var(--studio-muted)]">{user.email}</p>
-      </div>
-
-      <Separator className="my-5 bg-[var(--studio-border)]" />
-
-      <div className="flex items-center justify-between gap-4">
-        <span className="font-bold text-[var(--studio-ink)]">총 결제금액</span>
-        <span className="text-2xl font-black text-[var(--studio-primary)]">
+      <div className="my-5 border-t border-dashed border-[var(--ck-line-strong)]" />
+      <div className="flex items-baseline justify-between gap-4">
+        <span className="text-sm font-bold text-[var(--ck-ink)]">총 결제금액</span>
+        <span className="text-2xl font-bold tabular-nums tracking-tight text-[var(--ck-ink)]">
           {amount.toLocaleString()}원
         </span>
       </div>
-      <p className="mt-1 text-right text-xs text-[var(--studio-muted)]">부가세 포함</p>
-    </aside>
+      <p className="mt-1 text-right text-xs text-[var(--ck-muted)]">부가세 포함</p>
+      <div className="my-5 border-t border-dashed border-[var(--ck-line-strong)]" />
+      <div className="min-w-0 text-sm">
+        <p className="text-[var(--ck-muted)]">구매자</p>
+        <p className="mt-1 break-words text-[var(--ck-ink)]">{user.name}</p>
+        <p className="break-all text-[var(--ck-muted)]">{user.email}</p>
+      </div>
+    </>
   )
 }
 
@@ -379,7 +392,7 @@ export function CheckoutClient({
         : '결제수단을 선택해 주세요'
 
   return (
-    <div className="studio-theme min-h-screen overflow-x-hidden bg-[var(--studio-background)]">
+    <div className="studio-theme min-h-screen overflow-x-clip bg-[var(--ck-bg)] [--ck-bg:#FAF8F5] [--ck-ink:#1C1917] [--ck-text:#44403C] [--ck-muted:#78716C] [--ck-line:#E7E5E4] [--ck-line-strong:#D6D3D1]">
       <StudioPageHeader
         breadcrumbs={(
           <Link href="/pricing" className="inline-flex min-h-11 items-center gap-2">
@@ -387,60 +400,69 @@ export function CheckoutClient({
             충전 상품으로 돌아가기
           </Link>
         )}
-        eyebrow="CREDIT CHECKOUT"
         title="크레딧 충전 결제"
         description="자동결제 없이 한 번만 결제되는 충전 상품입니다. 모든 표시 금액에는 부가세가 포함되어 있습니다."
       />
 
-      <StudioContainer className="py-7 sm:py-9">
+      <StudioContainer className="py-8 sm:py-10">
         {paymentMethods.length === 0 ? (
-          <div className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-6 text-center shadow-[var(--studio-shadow-card)] sm:p-8">
-            <h2 className="text-xl font-extrabold text-[var(--studio-ink)]">
+          <div className="rounded-lg border border-[var(--ck-line)] bg-white p-6 text-center sm:p-8">
+            <h2 className="text-xl font-bold text-[var(--ck-ink)]">
               결제 기능을 준비 중입니다
             </h2>
-            <p className="mt-2 break-keep text-sm leading-6 text-[var(--studio-muted)]">
+            <p className="mt-2 break-keep text-sm leading-6 text-[var(--ck-muted)]">
               현재 사용할 수 있는 결제수단이 없습니다. 잠시 후 다시 확인해 주세요.
             </p>
-            <Button asChild variant="brandOutline" className="mt-6 min-h-11">
-              <Link href="/pricing">충전 상품으로 돌아가기</Link>
-            </Button>
+            <Link
+              href="/pricing"
+              className="mt-6 inline-flex min-h-11 items-center rounded-lg border border-[var(--ck-ink)] px-5 text-sm font-bold text-[var(--ck-ink)]"
+            >
+              충전 상품으로 돌아가기
+            </Link>
           </div>
         ) : (
-          <div className="grid min-w-0 gap-6 lg:grid-cols-3">
-            <section
-              aria-labelledby="payment-method-title"
-              className="min-w-0 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] sm:p-6 lg:col-span-2"
-            >
-              <h2
-                id="payment-method-title"
-                className="text-lg font-extrabold text-[var(--studio-ink)]"
-              >
-                결제수단
-              </h2>
+          <div className="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-x-12 lg:gap-y-10">
+            <section aria-labelledby="payment-method-title" className="min-w-0 lg:col-start-1 lg:row-start-1">
+              <div className="flex items-center gap-4">
+                <h2
+                  id="payment-method-title"
+                  className="shrink-0 text-base font-bold text-[var(--ck-ink)]"
+                >
+                  결제수단
+                </h2>
+                <span aria-hidden="true" className="h-px flex-1 bg-[var(--ck-line)]" />
+              </div>
 
-              <fieldset className="mt-5 min-w-0" disabled={isBusy}>
+              <fieldset className="mt-4 min-w-0" disabled={isBusy}>
                 <legend className="sr-only">결제수단 선택</legend>
-                <div className="space-y-2">
+                <div className="space-y-1">
                   {paymentMethods.map((method) => (
                     <label
                       key={method.code}
-                      className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] px-4 py-3 has-[:checked]:border-[var(--studio-primary)] has-[:checked]:bg-[var(--studio-primary-soft)] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--studio-focus-ring)] has-[:disabled]:cursor-not-allowed"
+                      className="group flex min-h-11 cursor-pointer items-center gap-4 rounded-lg border-[1.5px] border-transparent px-3 py-3.5 transition-colors hover:has-[:enabled]:bg-white has-[:checked]:border-[var(--ck-ink)] has-[:checked]:bg-white has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--ck-ink)] has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-[var(--ck-bg)] has-[:disabled]:cursor-not-allowed"
                     >
+                      <PaymentMethodMark code={method.code} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-bold text-[var(--ck-ink)]">{method.label}</span>
+                        {method.description ? (
+                          <span className="mt-0.5 block break-keep text-xs leading-5 text-[var(--ck-muted)]">
+                            {method.description}
+                          </span>
+                        ) : null}
+                      </span>
                       <input
                         type="radio"
                         name="payment-method"
                         value={method.code}
                         checked={selectedCode === method.code}
                         onChange={() => changeMethod(method.code)}
-                        className="mt-1 size-4 shrink-0 accent-[var(--studio-primary)]"
+                        className="sr-only"
                       />
-                      <span className="min-w-0">
-                        <span className="block font-bold text-[var(--studio-ink)]">{method.label}</span>
-                        {method.description ? (
-                          <span className="mt-0.5 block break-keep text-xs leading-5 text-[var(--studio-muted)]">
-                            {method.description}
-                          </span>
-                        ) : null}
+                      <span
+                        aria-hidden="true"
+                        className="flex size-5 shrink-0 items-center justify-center rounded-full border-[1.5px] border-[var(--ck-muted)] group-has-[:checked]:border-[var(--ck-ink)]"
+                      >
+                        <span className="size-2.5 rounded-full bg-[var(--ck-ink)] opacity-0 group-has-[:checked]:opacity-100" />
                       </span>
                     </label>
                   ))}
@@ -448,25 +470,23 @@ export function CheckoutClient({
               </fieldset>
 
               {needsPhone ? (
-                <div className="mt-5 min-w-0 rounded-[var(--studio-radius-control)] bg-[var(--studio-primary-soft)] p-4 text-sm">
+                <div className="mt-4 min-w-0 border-t border-[var(--ck-line)] px-3 pt-4 text-sm">
                   {!editingPhone ? (
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-[var(--studio-text)]">
-                        결제 안내 휴대폰 <strong className="text-[var(--studio-ink)]">{maskPhone(phone)}</strong>
-                      </span>
-                      <Button
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="text-[var(--ck-muted)]">결제 안내 휴대폰</span>
+                      <strong className="tabular-nums text-[var(--ck-ink)]">{maskPhone(phone)}</strong>
+                      <button
                         type="button"
-                        variant="brandOutline"
-                        className="min-h-11"
+                        className="min-h-11 font-bold text-[var(--ck-ink)] underline underline-offset-4 disabled:opacity-50"
                         disabled={isBusy}
                         onClick={() => setEditingPhone(true)}
                       >
                         변경
-                      </Button>
+                      </button>
                     </div>
                   ) : (
-                    <div className="min-w-0">
-                      <label htmlFor="checkout-phone" className="block font-bold text-[var(--studio-ink)]">
+                    <div className="min-w-0 max-w-sm">
+                      <label htmlFor="checkout-phone" className="block font-bold text-[var(--ck-ink)]">
                         결제 안내를 받을 휴대폰 번호
                       </label>
                       <input
@@ -479,16 +499,15 @@ export function CheckoutClient({
                         disabled={isBusy}
                         onChange={(event) => setPhone(toPhoneDigits(event.target.value).slice(0, 11))}
                         aria-invalid={phone.length > 0 && !phoneValid}
-                        className="mt-2 min-h-11 w-full rounded-[var(--studio-radius-control)] border border-[var(--studio-control-border)] bg-[var(--studio-surface)] px-3 text-[var(--studio-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                        className="mt-2 min-h-11 w-full rounded-lg border border-[var(--ck-line-strong)] bg-white px-3 tabular-nums text-[var(--ck-ink)] outline-none focus-visible:border-[var(--ck-ink)] focus-visible:ring-1 focus-visible:ring-[var(--ck-ink)]"
                       />
                       {phone.length > 0 && !phoneValid ? (
                         <p className="mt-1 text-xs text-destructive">휴대폰 번호 형식을 확인해 주세요.</p>
                       ) : null}
                       {PHONE_PATTERN.test(profilePhone) ? (
-                        <Button
+                        <button
                           type="button"
-                          variant="brandGhost"
-                          className="mt-2 min-h-11"
+                          className="mt-1 min-h-11 text-sm font-bold text-[var(--ck-ink)] underline underline-offset-4 disabled:opacity-50"
                           disabled={isBusy}
                           onClick={() => {
                             setPhone(profilePhone)
@@ -496,16 +515,16 @@ export function CheckoutClient({
                           }}
                         >
                           변경 취소
-                        </Button>
+                        </button>
                       ) : null}
                       {!profilePhone ? (
-                        <label className="mt-3 flex min-h-11 items-center gap-2 text-[var(--studio-text)]">
+                        <label className="mt-2 flex min-h-11 items-center gap-2 text-[var(--ck-text)]">
                           <input
                             type="checkbox"
                             checked={savePhone}
                             disabled={isBusy}
                             onChange={(event) => setSavePhone(event.target.checked)}
-                            className="size-4 accent-[var(--studio-primary)]"
+                            className="size-4 accent-[var(--ck-ink)]"
                           />
                           다음에도 이 번호 사용
                         </label>
@@ -516,22 +535,40 @@ export function CheckoutClient({
               ) : null}
             </section>
 
-            <OrderSummary plan={plan} user={user} amount={amount} />
+            <section className="order-last min-w-0 border-t border-[var(--ck-line)] pt-6 text-sm leading-6 lg:order-none lg:col-start-1 lg:row-start-2">
+              <h2 className="font-bold text-[var(--ck-ink)]">결제 전 확인</h2>
+              <ul className="mt-2 space-y-1 text-[var(--ck-muted)]">
+                <li>자동결제 없음 · 1회 최대 100,000원입니다.</li>
+                <li>사용기한은 결제일로부터 1년이며 회원 간 양도할 수 없습니다.</li>
+                <li>구매 후 7일 이내 완전 미사용 시 원 결제수단으로 환불합니다.</li>
+              </ul>
+              <Link
+                href="/terms/refund"
+                className="mt-2 inline-flex min-h-11 items-center font-bold text-[var(--ck-ink)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ck-ink)]"
+              >
+                취소·환불정책 전문 보기
+              </Link>
+            </section>
 
-            <div className="min-w-0 lg:col-span-2">
-              <label className="mb-3 flex min-h-11 items-start gap-2 text-sm leading-6 text-[var(--studio-text)]">
+            <aside
+              aria-labelledby="order-summary-title"
+              className="min-w-0 self-start rounded-lg border border-[var(--ck-line)] bg-white p-5 sm:p-6 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-2 lg:row-start-1"
+            >
+              <OrderSummary plan={plan} user={user} amount={amount} />
+
+              <label className="mt-6 flex min-h-11 items-start gap-2 text-sm leading-6 text-[var(--ck-text)]">
                 <input
                   type="checkbox"
                   checked={agreed}
                   disabled={isBusy}
                   onChange={(event) => setAgreed(event.target.checked)}
-                  className="mt-1 size-4 shrink-0 accent-[var(--studio-primary)]"
+                  className="mt-1 size-4 shrink-0 accent-[var(--ck-ink)]"
                 />
                 <span>
                   주문 내용과{' '}
                   <Link
                     href="/terms/refund"
-                    className="font-bold text-[var(--studio-ink)] underline underline-offset-4"
+                    className="font-bold text-[var(--ck-ink)] underline underline-offset-4"
                   >
                     취소·환불정책
                   </Link>
@@ -543,21 +580,20 @@ export function CheckoutClient({
               <p
                 role="status"
                 aria-live="polite"
-                className="break-words text-sm leading-6 text-[var(--studio-muted)] [&:not(:empty)]:mb-3"
+                className="break-words text-sm leading-6 text-[var(--ck-muted)] [&:not(:empty)]:mt-3"
               >
                 {phase !== 'recoverableError' ? message : null}
               </p>
               <p
                 role="alert"
-                className="break-words text-sm leading-6 text-destructive [&:not(:empty)]:mb-3"
+                className="break-words text-sm leading-6 text-destructive [&:not(:empty)]:mt-3"
               >
                 {phase === 'recoverableError' ? message : null}
               </p>
 
               <Button
                 type="button"
-                variant="brand"
-                className="min-h-11 w-full text-base"
+                className="mt-4 h-auto min-h-12 w-full whitespace-normal break-keep rounded-lg bg-[var(--ck-ink)] py-3 text-base font-bold text-white shadow-none hover:bg-[var(--ck-ink)]/90 disabled:bg-[var(--ck-line)] disabled:text-[var(--ck-muted)] disabled:opacity-100"
                 disabled={isBusy || !selectedMethod || !agreed || (needsPhone && !phoneValid)}
                 onClick={beginPayment}
               >
@@ -566,47 +602,29 @@ export function CheckoutClient({
                     aria-hidden="true"
                     className="size-5 animate-spin motion-reduce:animate-none"
                   />
-                ) : (
-                  <CreditCard aria-hidden="true" className="size-5" />
-                )}
+                ) : null}
                 {ctaLabel}
               </Button>
 
               {errorCode && NEW_ATTEMPT_CODES.includes(errorCode) ? (
-                <Button
+                <button
                   type="button"
-                  variant="brandGhost"
-                  className="mt-2 min-h-11 w-full"
+                  className="mt-2 min-h-11 w-full text-sm font-bold text-[var(--ck-ink)] underline underline-offset-4"
                   onClick={startNewAttempt}
                 >
                   새 결제 시도 시작하기
-                </Button>
+                </button>
               ) : null}
-            </div>
 
-            <div className="flex min-h-11 min-w-0 items-center justify-center gap-2 text-sm text-[var(--studio-muted)]">
-              <ShieldCheck aria-hidden="true" className="size-4" />
-              결제는 결제사 안전결제 화면에서 진행됩니다
-            </div>
-
-            <div className="min-w-0 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 text-sm leading-6 text-[var(--studio-text)] shadow-[var(--studio-shadow-card)] lg:col-span-3">
-              <p className="font-bold text-[var(--studio-ink)]">결제 전 확인</p>
-              <ul className="mt-2 space-y-1 text-[var(--studio-muted)]">
-                <li>자동결제 없음 · 1회 최대 100,000원입니다.</li>
-                <li>사용기한은 결제일로부터 1년이며 회원 간 양도할 수 없습니다.</li>
-                <li>구매 후 7일 이내 완전 미사용 시 원 결제수단으로 환불합니다.</li>
-              </ul>
-              <Link
-                href="/terms/refund"
-                className="mt-3 inline-flex min-h-11 items-center font-bold text-[var(--studio-ink)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-              >
-                취소·환불정책 전문 보기
-              </Link>
-            </div>
+              <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-[var(--ck-muted)]">
+                <ShieldCheck aria-hidden="true" className="size-3.5" />
+                결제는 결제사(페이앱) 안전결제 화면에서 진행됩니다
+              </p>
+            </aside>
           </div>
         )}
 
-        <div className="mt-8 text-center text-sm leading-6 text-[var(--studio-muted)]">
+        <div className="mt-12 text-center text-sm leading-6 text-[var(--ck-muted)]">
           <p>결제 문의: support@createquizai.com</p>
           <p>
             결제 후 충전된 크레딧은 문제마켓 자료 구매에 사용할 수 있습니다.
