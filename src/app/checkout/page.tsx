@@ -39,7 +39,7 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, email, phone')
+    .select('id, email, phone, display_tag')
     .eq('id', user.id)
     .single()
 
@@ -123,7 +123,7 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
       user={{
         id: user.id,
         // 회원 이름은 저장하지 않는다. 결제창 구매자명은 회원 표시 이름을 쓴다.
-        name: formatMemberDisplayName(profile?.email ?? user.email, user.id),
+        name: formatMemberDisplayName(profile?.email ?? user.email, profile?.display_tag),
         email: user.email || '',
         phone: profile?.phone ?? null,
       }}

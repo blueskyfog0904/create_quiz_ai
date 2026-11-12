@@ -25,7 +25,7 @@ export default async function AdminCreditsPage() {
   if (userIds.length > 0) {
     const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, email')
+        .select('id, email, display_tag')
         .in('id', userIds)
     
     profiles?.forEach(p => {

@@ -44,7 +44,7 @@ export async function Header() {
   if (user) {
     const { data } = await supabase
       .from('profiles')
-      .select('email, is_admin, credits')
+      .select('email, is_admin, credits, display_tag')
       .eq('id', user.id)
       .single()
     profile = data
@@ -63,7 +63,7 @@ export async function Header() {
       englishMenuItems={reorderGenerateChildren(getActiveHeaderNavigationItems(englishConfig.items))}
       koreanMenuItems={reorderGenerateChildren(getActiveHeaderNavigationItems(koreanConfig.items))}
       isLoggedIn={Boolean(user)}
-      userName={user ? formatMemberDisplayName(profile?.email ?? user.email, user.id) : ''}
+      userName={user ? formatMemberDisplayName(profile?.email ?? user.email, profile?.display_tag) : ''}
       isAdmin={isAdmin}
       creditBalance={snapshot && user ? selectDisplayBalance(user.id, snapshot) : 0}
       userId={user?.id ?? null}

@@ -38,6 +38,7 @@ type Transaction = {
   resource_id: string | null
   user: {
     email: string | null
+    display_tag?: string
   } | null
 }
 
@@ -210,7 +211,7 @@ export function CreditsClient({ initialTransactions, totalCount, stats }: Credit
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="font-medium text-sm">{formatMemberDisplayName(t.user?.email, t.user_id)}</span>
+                        <span className="font-medium text-sm">{formatMemberDisplayName(t.user?.email, t.user?.display_tag)}</span>
                         <span className="text-xs text-gray-400">{t.user?.email || '-'}</span>
                       </div>
                     </TableCell>

@@ -105,10 +105,10 @@ export async function listMarketItemReviewsForItem(
         .in('review_id', reviewIds)
       : Promise.resolve({ data: [], error: null } as const),
     userIds.length > 0
-      // 민감정보 제외 — 명시적 select만 허용 (phone 등 금지). email은 표시 이름(앞 3글자)을 만드는 데만 쓰고 내보내지 않는다.
+      // 민감정보 제외 — 명시적 select만 허용 (phone 등 금지). email은 표시 이름(앞 4글자)을 만드는 데만 쓰고 내보내지 않는다.
       ? supabase
         .from('profiles')
-        .select('id, email, role, avatar_url')
+        .select('id, email, role, avatar_url, display_tag')
         .in('id', userIds)
       : Promise.resolve({ data: [], error: null } as const),
     viewerId ? isItemPurchaser(viewerId, itemId, workspaceSubject) : Promise.resolve(false),
@@ -143,7 +143,7 @@ export async function listMarketItemReviewsForItem(
       isMine: viewerId !== null && review.user_id === viewerId,
       createdAt: review.created_at,
       author: {
-        name: formatMemberDisplayName(profile?.email, review.user_id),
+        name: formatMemberDisplayName(profile?.email, profile?.display_tag),
         role: profile?.role ?? null,
         avatarUrl: profile?.avatar_url ?? null,
       },
@@ -402,7 +402,7 @@ export async function listMarketReviewsForAdmin(options: {
 
   const [profilesResult, votesResult, tagsResult] = await Promise.all([
     userIds.length > 0
-      ? supabase.from('profiles').select('id, email').in('id', userIds)
+      ? supabase.from('profiles').select('id, email, display_tag').in('id', userIds)
       : Promise.resolve({ data: [], error: null } as const),
     reviewIds.length > 0
       ? supabase.from('market_item_review_votes').select('review_id').in('review_id', reviewIds)
@@ -413,6 +413,7 @@ export async function listMarketReviewsForAdmin(options: {
   ])
 
   const emailById = new Map((profilesResult.data ?? []).map((profile) => [profile.id, profile.email]))
+  const displayTagById = new Map((profilesResult.data ?? []).map((profile) => [profile.id, profile.display_tag]))
   const voteCounts = new Map<string, number>()
   for (const vote of votesResult.data ?? []) {
     voteCounts.set(vote.review_id, (voteCounts.get(vote.review_id) ?? 0) + 1)
@@ -430,7 +431,7 @@ export async function listMarketReviewsForAdmin(options: {
       tagLabels: row.tag_ids.map((tagId) => tagLabelById.get(tagId)).filter((label): label is string => Boolean(label)),
       helpfulCount: voteCounts.get(row.id) ?? 0,
       // 관리자 화면: 공개 표시 이름과 이메일을 함께 보여 준다
-      authorName: `${formatMemberDisplayName(emailById.get(row.user_id), row.user_id)} (${emailById.get(row.user_id) ?? '이메일 없음'})`,
+      authorName: `${formatMemberDisplayName(emailById.get(row.user_id), displayTagById.get(row.user_id))} (${emailById.get(row.user_id) ?? '이메일 없음'})`,
       createdAt: row.created_at,
     })),
     totalCount,

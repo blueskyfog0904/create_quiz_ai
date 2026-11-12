@@ -25,7 +25,7 @@ export default async function ProfilePage() {
     supabase.auth.getUser(),
     supabase
       .from('profiles')
-      .select('phone, created_at')
+      .select('phone, created_at, display_tag')
       .eq('id', userId)
       .single(),
   ])
@@ -34,7 +34,7 @@ export default async function ProfilePage() {
     <Suspense fallback={null}>
       <ProfileView
         email={authData.user?.email ?? ''}
-        displayName={userId ? formatMemberDisplayName(authData.user?.email, userId) : ''}
+        displayName={formatMemberDisplayName(authData.user?.email, profile?.display_tag)}
         phone={profile?.phone ?? null}
         createdAt={profile?.created_at ?? null}
       />

@@ -33,6 +33,7 @@ import { formatMemberDisplayName } from '@/lib/member-display-name'
 interface Profile {
   id: string
   email: string | null
+  display_tag: string
   phone: string | null
   organization: string | null
   role: string | null
@@ -125,7 +126,7 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
           <DialogHeader>
             <DialogTitle>크레딧 지급</DialogTitle>
             <DialogDescription>
-              {selectedUser ? formatMemberDisplayName(selectedUser.email, selectedUser.id) : ''} ({selectedUser?.email}) 님에게 크레딧을 지급합니다.
+              {selectedUser ? formatMemberDisplayName(selectedUser.email, selectedUser.display_tag) : ''} ({selectedUser?.email}) 님에게 크레딧을 지급합니다.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -191,7 +192,7 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-gray-900">
-                            {formatMemberDisplayName(user.email, user.id)}
+                            {formatMemberDisplayName(user.email, user.display_tag)}
                           </span>
                           {user.is_admin && (
                             <Badge className="bg-orange-100 text-orange-700">

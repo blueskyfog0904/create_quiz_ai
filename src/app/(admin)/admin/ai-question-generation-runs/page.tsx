@@ -40,9 +40,9 @@ export default async function AiQuestionGenerationRunsPage({ searchParams }: AiQ
   const { data: profiles } = userIds.length > 0
     ? await supabase
       .from('profiles')
-      .select('id,email')
+      .select('id,email,display_tag')
       .in('id', userIds)
-    : { data: [] as Array<{ id: string; email: string | null }> }
+    : { data: [] as Array<{ id: string; email: string | null; display_tag: string }> }
   const profileMap = new Map((profiles ?? []).map((profile) => [profile.id, profile]))
 
   const enrichedRuns = (runs ?? []).map((run) => ({

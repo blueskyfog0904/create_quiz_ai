@@ -39,7 +39,7 @@ export default async function AdminRefundsPage() {
         .from('refund_requests')
         .select(`
       *,
-      user:profiles!refund_requests_user_id_fkey(id, email),
+      user:profiles!refund_requests_user_id_fkey(id, email, display_tag),
       source:credit_sources(
         id, 
         initial_credits, 

@@ -115,7 +115,7 @@ export default async function AiQuestionGenerationRunDetailPage({
   const { data: runUser } = run.user_id
     ? await supabase
       .from('profiles')
-      .select('id,email')
+      .select('id,email,display_tag')
       .eq('id', run.user_id)
       .maybeSingle()
     : { data: null }
@@ -173,7 +173,7 @@ export default async function AiQuestionGenerationRunDetailPage({
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">사용자</CardTitle></CardHeader>
           <CardContent>
-            <div>{formatMemberDisplayName(runUser?.email, run.user_id)}</div>
+            <div>{formatMemberDisplayName(runUser?.email, runUser?.display_tag)}</div>
             <div className="break-all text-xs text-gray-500">{runUser?.email || run.user_id || '-'}</div>
           </CardContent>
         </Card>

@@ -3767,6 +3767,7 @@ export type Database = {
           birthdate: string | null
           created_at: string
           credits: number
+          display_tag: string
           email: string | null
           gender: string | null
           id: string
@@ -3786,6 +3787,7 @@ export type Database = {
           birthdate?: string | null
           created_at?: string
           credits?: number
+          display_tag?: string
           email?: string | null
           gender?: string | null
           id: string
@@ -3805,6 +3807,7 @@ export type Database = {
           birthdate?: string | null
           created_at?: string
           credits?: number
+          display_tag?: string
           email?: string | null
           gender?: string | null
           id?: string

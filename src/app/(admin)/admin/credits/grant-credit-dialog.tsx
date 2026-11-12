@@ -15,6 +15,7 @@ import { formatMemberDisplayName } from '@/lib/member-display-name'
 interface Profile {
   id: string
   email: string | null
+  display_tag: string
   credit_balance?: number
 }
 
@@ -67,7 +68,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email')
+        .select('id, email, display_tag')
         .ilike('email', `%${searchQuery}%`)
         .limit(5)
       
@@ -169,7 +170,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
                       <User className="h-4 w-4 text-gray-500" />
                     </div>
                     <div>
-                      <div className="font-medium text-sm">{formatMemberDisplayName(user.email, user.id)}</div>
+                      <div className="font-medium text-sm">{formatMemberDisplayName(user.email, user.display_tag)}</div>
                       <div className="text-xs text-gray-500">{user.email}</div>
                     </div>
                   </div>
@@ -187,7 +188,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
           <div className="space-y-4 py-4">
             <div className="flex items-center gap-3 p-3 bg-blue-50 text-blue-900 rounded-lg text-sm">
               <User className="h-4 w-4" />
-              <span className="font-semibold">{formatMemberDisplayName(selectedUser.email, selectedUser.id)}</span>
+              <span className="font-semibold">{formatMemberDisplayName(selectedUser.email, selectedUser.display_tag)}</span>
               <span className="text-blue-700">({selectedUser.email})</span>
               <Button variant="ghost" className="ml-auto h-6 text-xs hover:bg-blue-100" onClick={() => setStep('search')}>변경</Button>
             </div>
@@ -250,7 +251,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
                 <div className="bg-gray-50 p-4 rounded-lg space-y-3 text-sm">
                     <div className="flex justify-between">
                         <span className="text-gray-500">받는 사람</span>
-                        <span className="font-medium">{formatMemberDisplayName(selectedUser.email, selectedUser.id)} ({selectedUser.email})</span>
+                        <span className="font-medium">{formatMemberDisplayName(selectedUser.email, selectedUser.display_tag)} ({selectedUser.email})</span>
                     </div>
                     <div className="flex justify-between">
                         <span className="text-gray-500">지급 금액</span>

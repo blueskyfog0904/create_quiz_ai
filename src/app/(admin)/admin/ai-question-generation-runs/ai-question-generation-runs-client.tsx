@@ -29,7 +29,7 @@ type AiGenerationRun = Pick<
   | 'created_at'
   | 'expires_at'
 > & {
-  user: { id: string; email: string | null } | null
+  user: { id: string; email: string | null; display_tag: string } | null
 }
 
 interface AiQuestionGenerationRunsClientProps {
@@ -152,7 +152,7 @@ export default function AiQuestionGenerationRunsClient({
                   <tr key={run.id} className="border-b last:border-0">
                     <td className="p-3 whitespace-nowrap">{new Date(run.created_at).toLocaleString('ko-KR')}</td>
                     <td className="p-3">
-                      <div className="font-medium">{run.user_id ? formatMemberDisplayName(run.user?.email, run.user_id) : '-'}</div>
+                      <div className="font-medium">{run.user_id ? formatMemberDisplayName(run.user?.email, run.user?.display_tag) : '-'}</div>
                       <div className="text-xs text-gray-500">{run.user?.email || run.user_id || '-'}</div>
                     </td>
                     <td className="p-3">{sourceLabels[run.source] || run.source}</td>

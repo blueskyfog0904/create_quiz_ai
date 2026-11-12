@@ -76,6 +76,7 @@ export interface RefundRequest {
     user: {
         id: string
         email: string | null
+        display_tag: string
     } | null
     source: {
         id: string
@@ -351,7 +352,7 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex flex-col">
-                                                <span className="font-medium">{request.user ? formatMemberDisplayName(request.user.email, request.user.id) : '알 수 없음'}</span>
+                                                <span className="font-medium">{request.user ? formatMemberDisplayName(request.user.email, request.user.display_tag) : '알 수 없음'}</span>
                                                 <span className="text-xs text-gray-400">{request.user?.email}</span>
                                             </div>
                                         </TableCell>
@@ -469,7 +470,7 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                         <DialogDescription>
                             {selectedRequest && (
                                 <>
-                                    <strong>{selectedRequest.user ? formatMemberDisplayName(selectedRequest.user.email, selectedRequest.user.id) : '알 수 없음'}</strong>님의 {' '}
+                                    <strong>{selectedRequest.user ? formatMemberDisplayName(selectedRequest.user.email, selectedRequest.user.display_tag) : '알 수 없음'}</strong>님의 {' '}
                                     <strong>{selectedRequest.source?.plan?.name}</strong> 요금제 ({selectedRequest.source?.initial_credits?.toLocaleString()} 크레딧) 환불 요청
                                 </>
                             )}
