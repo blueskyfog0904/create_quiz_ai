@@ -5,7 +5,7 @@ import ts from 'typescript'
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-// 회원 이름은 받지도 저장하지도 않는다. 화면에는 이메일 앞 3글자 + 회원 id 끝 4글자의 표시 이름을 쓴다.
+// 회원 이름은 받지도 저장하지도 않는다. 화면에는 이메일 앞 4글자 + # + 회원 id로 만든 영문·숫자 4글자의 표시 이름을 쓴다.
 function loadDisplayName() {
   const { outputText } = ts.transpileModule(read('src/lib/member-display-name.ts'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -15,13 +15,17 @@ function loadDisplayName() {
   return loaded.exports.formatMemberDisplayName
 }
 
-test('표시 이름은 이메일 앞 3글자 + 회원 id 끝 4글자이고 같은 회원은 항상 같다', () => {
+test('표시 이름은 이메일 앞 4글자 + # + 회원 id로 만든 영문·숫자 4글자이고 같은 회원은 항상 같다', () => {
   const format = loadDisplayName()
   const userId = '83d5ad03-3723-4dd3-9924-836c7c6e1f04'
-  assert.equal(format('kimteacher@example.com', userId), 'kim1f04')
+  assert.equal(format('kimteacher@example.com', userId), 'kimt#WC1W')
   assert.equal(format('kimteacher@example.com', userId), format('kimteacher@example.com', userId))
-  assert.equal(format('ab@example.com', userId), 'ab1f04')
-  assert.equal(format(null, userId), '회원1f04')
+  assert.equal(format('ab@example.com', userId), 'ab#WC1W')
+  assert.equal(format(null, userId), '회원#WC1W')
+  // 뒤 4글자는 항상 영문 대문자·숫자 4글자
+  for (const id of [userId, '00000000-0000-4000-8000-000000000000', 'ffffffff-ffff-4fff-bfff-ffffffffffff']) {
+    assert.match(format('kimteacher@example.com', id), /^kimt#[0-9A-Z]{4}$/)
+  }
   // 이메일 전체(도메인 포함)는 드러나지 않는다
   assert.doesNotMatch(format('kimteacher@example.com', userId), /@|example/)
 })
