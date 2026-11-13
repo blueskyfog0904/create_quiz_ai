@@ -96,68 +96,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PATCH - Admin reply compatibility endpoint. New admin UI uses /api/admin/support/tickets/[id].
-export async function PATCH(request: NextRequest) {
-  try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    // Check Admin
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile?.is_admin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const body = await request.json()
-    const { ticketId, adminResponse, status } = body
-
-    if (!ticketId || !adminResponse) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
-    }
-
-    // Update Ticket
-    const { data: ticket, error } = await supabase
-      .from('support_tickets')
-      .update({
-        admin_response: adminResponse,
-        status: status || 'resolved',
-        responded_at: new Date().toISOString(),
-      })
-      .eq('id', ticketId)
-      .select()
-      .single()
-
-    if (error) throw error
-
-    // Create Notification for User
-    if (ticket) {
-      await supabase.from('notifications').insert({
-        user_id: ticket.user_id,
-        type: 'inquiry_reply',
-        title: '문의하신 내용에 답변이 등록되었습니다.',
-        message: `제목: ${ticket.subject}\n\n답변을 확인해보세요.`,
-        link: '/mypage/support'
-      })
-    }
-
-    return NextResponse.json({ success: true, ticket })
-
-  } catch (error) {
-    console.error('Support ticket update error:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : '답변 등록 실패' },
-      { status: 500 }
-    )
-  }
-}
-
 // PUT - User update ticket
 export async function PUT(request: NextRequest) {
   try {
