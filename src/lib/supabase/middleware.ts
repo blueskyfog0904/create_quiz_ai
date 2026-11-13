@@ -11,7 +11,8 @@ import {
 } from '@/lib/workspace-subject'
 import { isPublicBrowseableSubjectPath } from '@/lib/workspace-public-browse'
 import { isAdminPathDisabled, resolveAdminFeature } from '@/lib/admin-features'
-import { getDisabledAdminFeatures } from '@/lib/admin-features-server'
+import { getDisabledAdminFeatures, getDisabledSiteFeatures, isSiteFeatureDisabled } from '@/lib/admin-features-server'
+import { resolveSiteFeatureRoute } from '@/lib/site-features'
 
 const WORKSPACE_SUBJECT_HEADER = 'x-workspace-subject'
 const WORKSPACE_HEADER_MODE_HEADER = 'x-workspace-header-mode'
@@ -313,8 +314,31 @@ async function buildDisabledAdminFeatureResponse(request: NextRequest) {
   )
 }
 
+// 닫아 둔 옛 기능(사용자 쪽): 페이지는 문제마켓의 대응 화면으로 보내고, API는 404로 막는다.
+// 로그인 확인·과목 접두 처리보다 먼저 판단한다(닫힌 주소 때문에 로그인 화면으로 보내지 않게).
+async function buildDisabledSiteFeatureResponse(request: NextRequest) {
+  const route = resolveSiteFeatureRoute(request.nextUrl.pathname, request.nextUrl.searchParams.get('subject'))
+  if (!route) {
+    return null
+  }
+  if (!isSiteFeatureDisabled(route.feature, await getDisabledSiteFeatures())) {
+    return null
+  }
+
+  if (route.kind === 'api') {
+    return NextResponse.json(
+      { success: false, error: { code: 'NOT_FOUND', message: '사용하지 않는 기능입니다.' } },
+      { status: 404 }
+    )
+  }
+
+  // 다시 켤 수 있어야 하므로 영구 이동(308)이 아니라 임시 이동(307)으로 보낸다.
+  return NextResponse.redirect(new URL(route.redirectTo, request.url), 307)
+}
+
 export async function updateSession(request: NextRequest) {
   const disabledFeatureResponse = await buildDisabledAdminFeatureResponse(request)
+    ?? await buildDisabledSiteFeatureResponse(request)
   if (disabledFeatureResponse) {
     return disabledFeatureResponse
   }

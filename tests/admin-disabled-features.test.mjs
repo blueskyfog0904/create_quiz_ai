@@ -6,6 +6,8 @@ import { load, NextResponse } from './helpers/market-images-harness.mjs'
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 const features = load('src/lib/admin-features.ts')
+const workspaceSubject = load('src/lib/workspace-subject.ts')
+const siteFeatures = load('src/lib/site-features.ts', { '@/lib/workspace-subject': workspaceSubject })
 
 const ALL_OFF = { ok: true, features: features.ADMIN_FEATURES.map((feature) => feature.id) }
 
@@ -94,7 +96,7 @@ function loadServer(fetchImpl) {
     calls.push({ url, init })
     return fetchImpl(calls.length)
   }
-  const server = load('src/lib/admin-features-server.ts', { '@/lib/admin-features': features })
+  const server = load('src/lib/admin-features-server.ts', { '@/lib/admin-features': features, '@/lib/site-features': siteFeatures })
   const restore = () => {
     globalThis.fetch = previous.fetch
     process.env.NEXT_PUBLIC_SUPABASE_URL = previous.url
@@ -169,7 +171,7 @@ test('꺼진 묶음의 쓰기 액션은 직접 호출해도 실패한다', async
 })
 
 // 미들웨어: 꺼진 경로는 세션 처리 전에 404
-function loadMiddleware(state) {
+function loadMiddleware(state, siteState = { ok: true, features: [] }) {
   let supabaseCreated = false
   // 막지 않은 요청은 원래 흐름으로 넘어간다. 원래 흐름의 첫 동작(NextResponse.next)에서 표시용 오류를 낸다.
   class PassThroughResponse extends NextResponse {
@@ -181,12 +183,17 @@ function loadMiddleware(state) {
     '@supabase/ssr': { createServerClient: () => { supabaseCreated = true; return {} } },
     'next/server': { NextResponse: PassThroughResponse },
     './session-cookies': { toSessionCookieOptions: (options) => options },
-    '@/lib/workspace-subject': load('src/lib/workspace-subject.ts'),
+    '@/lib/workspace-subject': workspaceSubject,
     '@/lib/workspace-public-browse': {},
     '@/lib/admin-features': features,
-    '@/lib/admin-features-server': { getDisabledAdminFeatures: async () => state },
+    '@/lib/site-features': siteFeatures,
+    '@/lib/admin-features-server': {
+      getDisabledAdminFeatures: async () => state,
+      getDisabledSiteFeatures: async () => siteState,
+      isSiteFeatureDisabled: (feature, current) => (current.ok ? current.features.includes(feature) : true),
+    },
   })
-  const request = (pathname) => ({ nextUrl: new URL(`http://localhost${pathname}`), cookies: { get: () => undefined, getAll: () => [] }, headers: new Headers() })
+  const request = (pathname) => ({ url: `http://localhost${pathname}`, nextUrl: new URL(`http://localhost${pathname}`), cookies: { get: () => undefined, getAll: () => [] }, headers: new Headers() })
   return { middleware, request, wasSupabaseCreated: () => supabaseCreated }
 }
 

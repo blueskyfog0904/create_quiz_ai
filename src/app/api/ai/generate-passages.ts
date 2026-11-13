@@ -1,5 +1,6 @@
 'use server';
 
+import { assertSiteFeatureEnabled } from '@/lib/admin-features-server'
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from "@/lib/supabase/server";
 import { getSystemSettings, getAIModelSettings } from "@/app/api/admin/settings/actions";
@@ -23,6 +24,7 @@ export interface GeneratedPassage {
 }
 
 export async function generatePassages(input: GeneratePassagesInput): Promise<{ success: boolean; data?: GeneratedPassage[]; error?: string }> {
+  await assertSiteFeatureEnabled('site_passages')
   try {
     const supabase = await createClient();
     

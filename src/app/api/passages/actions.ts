@@ -1,5 +1,6 @@
 'use server';
 
+import { assertSiteFeatureEnabled } from '@/lib/admin-features-server'
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
@@ -19,6 +20,7 @@ export interface PassageAnalysis {
 }
 
 export async function enrichPassages(contents: string[]): Promise<PassageAnalysis[]> {
+  await assertSiteFeatureEnabled('site_passages')
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Unauthorized');
@@ -101,6 +103,7 @@ export async function enrichPassages(contents: string[]): Promise<PassageAnalysi
 
 // Legacy single-item wrapper (optional, keep if used elsewhere)
 export async function enrichPassage(content: string): Promise<PassageAnalysis> {
+  await assertSiteFeatureEnabled('site_passages')
     const results = await enrichPassages([content]);
     return results[0];
 }
@@ -139,6 +142,7 @@ export async function createPassage(
   input: Omit<CreatePassageInput, 'user_id'>,
   options: { workspaceSubject?: WorkspaceSubjectInput } = {}
 ) {
+  await assertSiteFeatureEnabled('site_passages')
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const workspaceSubject = resolvePassageWorkspaceSubject(options.workspaceSubject)
@@ -331,6 +335,7 @@ export async function updatePassage(
   input: UpdatePassageInput,
   options: { workspaceSubject?: WorkspaceSubjectInput } = {}
 ) {
+  await assertSiteFeatureEnabled('site_passages')
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const workspaceSubject = resolvePassageWorkspaceSubject(options.workspaceSubject)
@@ -365,6 +370,7 @@ export async function deletePassage(
   id: string,
   options: { workspaceSubject?: WorkspaceSubjectInput } = {}
 ) {
+  await assertSiteFeatureEnabled('site_passages')
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const workspaceSubject = resolvePassageWorkspaceSubject(options.workspaceSubject)

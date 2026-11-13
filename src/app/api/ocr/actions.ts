@@ -1,5 +1,6 @@
 'use server';
 
+import { assertSiteFeatureEnabled } from '@/lib/admin-features-server'
 import { GoogleAIFileManager, FileState } from "@google/generative-ai/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { writeFile, unlink } from "fs/promises";
@@ -22,6 +23,7 @@ const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY!);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function extractTextFromFile(formData: FormData) {
+  await assertSiteFeatureEnabled('site_passages')
   const files = formData.getAll("files") as File[];
   
   if (!files || files.length === 0) {

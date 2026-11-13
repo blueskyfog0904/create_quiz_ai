@@ -12,5 +12,18 @@ export const config = {
     '/admin/:path*',
     '/api/admin/:path*',
     '/dashboard/admin/:path*',
+    // 닫아 둔 옛 기능의 경로도 같은 이유로 확장자와 무관하게 거친다(src/lib/site-features.ts).
+    '/:subject(korean|english)/:path*',
+    '/legacy/:path*',
+    '/generate/:path*',
+    '/bank/:path*',
+    '/exam-papers/:path*',
+    '/passages/:path*',
+    '/library/:path*',
+    // '/preview'는 넣지 않는다: public/preview 아래 정적 파일(확장자로 끝남)까지 닫히지 않게 한다.
+    '/api/questions/:path*',
+    '/api/generate/:path*',
+    '/api/question-bank/:path*',
+    '/api/exam-papers/:path*',
   ],
 }
