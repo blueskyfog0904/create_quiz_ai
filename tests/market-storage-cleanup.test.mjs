@@ -169,3 +169,63 @@ test('다시 정리는 아직 시도하지 않은 행과 오래전에 시도한 
   const source = read('src/lib/market-storage-cleanup.ts')
   assert.match(source, /\.order\('last_attempt_at', \{ ascending: true, nullsFirst: true \}\)\s+\.order\('created_at', \{ ascending: true \}\)/)
 })
+
+test('정리 route는 tasks로 실행할 작업을 고를 수 있고, 생략하면 전부 실행한다', async () => {
+  const calls = []
+  const loadCron = () => {
+    process.env.CRON_SECRET = 'test-secret'
+    return loadRoute('src/app/api/cron/market/cleanup-auto-upload-drafts/route.ts', {
+      mocks: {
+        '@/lib/market-item-cleanup': { cleanupAutoUploadDraftMarketItems: async (input) => { calls.push(['drafts', input.dryRun]); return { deleted: 0 } } },
+        '@/lib/market-sample-pages-server': { cleanupRemovedManualSampleUploadTargets: async (input) => { calls.push(['samples', input.dryRun]); return { removed: 0 } } },
+        '@/lib/market-storage-cleanup': { retryMarketStorageCleanup: async (input) => { calls.push(['storage', input.dryRun]); return { cleaned: 0 } } },
+        '@/lib/workspace-subject': { resolveWorkspaceSubject: () => 'korean' },
+      },
+    }).route
+  }
+  const post = (route, body, secret = 'test-secret') => route.POST(new Request('http://localhost/x', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }))
+
+  // 작업을 고르면 그 작업만 실제로 실행
+  const selected = await post(loadCron(), { dryRun: false, tasks: ['storageCleanup'] })
+  assert.equal(selected.status, 200)
+  assert.deepEqual(calls, [['storage', false]])
+  assert.deepEqual((await selected.json()).data, { autoUploadDrafts: null, manualSampleUploadTargets: null, storageCleanup: { cleaned: 0 } })
+
+  // 자동 실행이 보내는 본문(국어): 세 가지 모두 실제로 실행
+  calls.length = 0
+  await post(loadCron(), { dryRun: false, subject: 'korean', tasks: ['autoUploadDrafts', 'manualSampleUploadTargets', 'storageCleanup'] })
+  assert.deepEqual(calls, [['drafts', false], ['samples', false], ['storage', false]])
+
+  // 자동 실행이 보내는 본문(영어): 과목별 정리 두 가지만
+  calls.length = 0
+  await post(loadCron(), { dryRun: false, subject: 'english', tasks: ['autoUploadDrafts', 'manualSampleUploadTargets'] })
+  assert.deepEqual(calls, [['drafts', false], ['samples', false]])
+
+  calls.length = 0
+  await post(loadCron(), {})
+  assert.deepEqual(calls, [['drafts', true], ['samples', true], ['storage', true]], '생략하면 전부, dryRun 기본값은 true')
+
+  assert.equal((await post(loadCron(), { tasks: [] })).status, 400)
+  assert.equal((await post(loadCron(), { tasks: ['unknown'] })).status, 400)
+  assert.equal((await post(loadCron(), { dryRun: false, task: ['storageCleanup'] })).status, 400, '모르는 키는 거절')
+  assert.equal((await post(loadCron(), { dryRun: false }, 'wrong')).status, 403)
+})
+
+test('자동 실행 cron은 국어(세 가지)·영어(과목별 두 가지)를 호출하고, 주소·인증값은 vault에서 읽는다', () => {
+  const migration = read('supabase/migrations/20261113130000_market_cleanup_cron.sql')
+  assert.match(migration, /cron\.schedule\(\s+'market-cleanup-daily',\s+'0 19 \* \* \*',/)
+  assert.match(migration, /\|\| '\/api\/cron\/market\/cleanup-auto-upload-drafts'/)
+  assert.match(migration, /jsonb_build_object\('dryRun', false, 'subject', 'korean',\s+'tasks', jsonb_build_array\('autoUploadDrafts', 'manualSampleUploadTargets', 'storageCleanup'\)\)/)
+  assert.match(migration, /jsonb_build_object\('dryRun', false, 'subject', 'english',\s+'tasks', jsonb_build_array\('autoUploadDrafts', 'manualSampleUploadTargets'\)\)/)
+  assert.match(migration, /name = 'payment_reconcile_origin'/)
+  assert.match(migration, /name = 'payment_reconcile_cron_secret'/)
+  assert.doesNotMatch(migration, /https?:\/\//, '주소를 SQL에 직접 적지 않는다')
+  assert.match(migration, /RAISE EXCEPTION 'MARKET_CLEANUP_CRON: vault secrets are missing'/)
+  const rollback = read('supabase/rollback/20261113130000_market_cleanup_cron_down.sql')
+  assert.match(rollback, /jobname = 'market-cleanup-daily'/)
+  assert.match(rollback, /cron\.unschedule\(v_job_id\)/)
+})
