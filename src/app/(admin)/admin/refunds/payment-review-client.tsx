@@ -47,6 +47,8 @@ export interface PaymentReviewOrder {
     failure_code: string | null
     failure_message: string | null
     created_at: string
+    email: string | null
+    providerTransactionId: string | null
     allowedActions: ReviewAction[]
 }
 
@@ -179,58 +181,11 @@ export function PaymentReviewClient({
                     결제 확인 필요
                 </CardTitle>
                 <p className="text-sm text-gray-500">
-                    수동 확인 주문과 미해소 결제 경보입니다. 취소·부분취소로 격리된 건은 위 환불 요청에서 수동 완료하세요.
+                    수동 확인 주문과 미해소 결제 경보입니다. 취소·부분취소로 격리된 건은 아래 환불 요청에서 수동 완료하세요.
                 </p>
             </CardHeader>
             <CardContent className="space-y-6">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>주문일</TableHead>
-                            <TableHead>주문번호</TableHead>
-                            <TableHead>결제사</TableHead>
-                            <TableHead>상품·금액</TableHead>
-                            <TableHead>사유</TableHead>
-                            <TableHead className="text-right">처리</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {orders.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={6} className="py-6 text-center text-gray-500">
-                                    수동 확인이 필요한 주문이 없습니다.
-                                </TableCell>
-                            </TableRow>
-                        ) : orders.map((order) => (
-                            <TableRow key={order.id}>
-                                <TableCell className="text-sm text-gray-500">
-                                    {new Date(order.created_at).toLocaleString('ko-KR')}
-                                </TableCell>
-                                <TableCell className="max-w-[180px] truncate text-xs" title={order.order_id}>
-                                    {order.order_id}
-                                </TableCell>
-                                <TableCell>{providerLabel(order.provider)}</TableCell>
-                                <TableCell className="text-sm">
-                                    {order.plan_name_snapshot} · ₩{order.expected_amount.toLocaleString()}
-                                </TableCell>
-                                <TableCell className="max-w-[260px] text-xs">
-                                    <p className="font-medium text-red-600">{order.failure_code ?? '-'}</p>
-                                    <p className="text-gray-500">{order.failure_message}</p>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    {order.allowedActions.length > 0 ? (
-                                        <Button size="sm" variant="outline" onClick={() => openDialog(order)}>
-                                            확인 처리
-                                        </Button>
-                                    ) : (
-                                        <span className="text-xs text-gray-500">위 환불 요청에서 처리</span>
-                                    )}
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-
+                {/* 경보가 가장 급하므로 주문 목록보다 먼저 보여 준다. */}
                 <div>
                     <h3 className="mb-2 text-sm font-semibold text-gray-700">미해소 결제 경보</h3>
                     {alerts.length === 0 ? (
@@ -269,6 +224,63 @@ export function PaymentReviewClient({
                             ))}
                         </ul>
                     )}
+                </div>
+
+                <div>
+                    <h3 className="mb-2 text-sm font-semibold text-gray-700">수동 확인 주문</h3>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>주문일</TableHead>
+                                <TableHead>회원</TableHead>
+                                <TableHead>주문번호·결제사 거래번호</TableHead>
+                                <TableHead>결제사</TableHead>
+                                <TableHead>상품·금액</TableHead>
+                                <TableHead>사유</TableHead>
+                                <TableHead className="text-right">처리</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {orders.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={7} className="py-6 text-center text-gray-500">
+                                        수동 확인이 필요한 주문이 없습니다.
+                                    </TableCell>
+                                </TableRow>
+                            ) : orders.map((order) => (
+                                <TableRow key={order.id}>
+                                    <TableCell className="text-sm text-gray-500">
+                                        {new Date(order.created_at).toLocaleString('ko-KR')}
+                                    </TableCell>
+                                    <TableCell className="text-xs">{order.email ?? '-'}</TableCell>
+                                    <TableCell className="max-w-[200px] text-xs">
+                                        <p className="truncate" title={order.order_id}>{order.order_id}</p>
+                                        {/* 결제사 관리자 화면에서 이 결제를 찾을 때 쓰는 번호 */}
+                                        <p className="truncate text-gray-500" title={order.providerTransactionId ?? undefined}>
+                                            {order.providerTransactionId ?? '거래번호 없음'}
+                                        </p>
+                                    </TableCell>
+                                    <TableCell>{providerLabel(order.provider)}</TableCell>
+                                    <TableCell className="text-sm">
+                                        {order.plan_name_snapshot} · ₩{order.expected_amount.toLocaleString()}
+                                    </TableCell>
+                                    <TableCell className="max-w-[260px] text-xs">
+                                        <p className="font-medium text-red-600">{order.failure_code ?? '-'}</p>
+                                        <p className="text-gray-500">{order.failure_message}</p>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        {order.allowedActions.length > 0 ? (
+                                            <Button size="sm" variant="outline" onClick={() => openDialog(order)}>
+                                                확인 처리
+                                            </Button>
+                                        ) : (
+                                            <span className="text-xs text-gray-500">아래 환불 요청에서 처리</span>
+                                        )}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
                 </div>
             </CardContent>
 
@@ -385,7 +397,7 @@ export function PaymentReviewClient({
                         </div>
                         {alertOrderUnderReview(selectedAlert) && (
                             <p id="alert-order-hint" role="note" className="text-sm font-medium text-red-600">
-                                이 경보의 주문이 아직 수동 확인 중입니다. 위 주문 목록에서 확인 처리하면 경보도 함께 해소됩니다.
+                                이 경보의 주문이 아직 수동 확인 중입니다. 아래 주문 목록에서 확인 처리하면 경보도 함께 해소됩니다.
                             </p>
                         )}
                         {alertOrderInRefund(selectedAlert) && (

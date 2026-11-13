@@ -225,6 +225,6 @@ test('the admin screen confirms a shortfall and resends with confirmedRefundCred
   const client = readFileSync(new URL('../src/app/(admin)/admin/refunds/market-refunds-client.tsx', import.meta.url), 'utf8')
   assert.match(client, /result\?\.code === 'MARKET_REFUND_SHORTFALL'/)
   assert.match(client, /window\.confirm\(/)
-  assert.match(client, /JSON\.stringify\(\{ action, confirmedRefundCredits \}\)/)
+  assert.match(client, /JSON\.stringify\(\{ action, confirmedRefundCredits, adminNote: adminNote\.trim\(\) \|\| undefined \}\)/)
   assert.match(client, /send\(shortfall\.restorable\)/)
 })

@@ -87,7 +87,7 @@ test('alerts are resolved by an admin with a note through the audited RPC', () =
 
   assert.match(reviewClient, /fetch\('\/api\/admin\/payments\/alerts'/)
   assert.match(reviewClient, /alertNote\.trim\(\)\.length === 0/)
-  assert.match(reviewClient, /위 주문 목록에서 확인 처리하면 경보도 함께 해소됩니다/)
+  assert.match(reviewClient, /아래 주문 목록에서 확인 처리하면 경보도 함께 해소됩니다/)
   // 처리할 조치가 없는 격리 주문은 경보가 자동 해소되지 않는다고 안내한다.
   assert.match(reviewClient, /orders\.filter\(\(order\) => order\.allowedActions\.length > 0\)/)
   assert.match(reviewClient, /수동 환불을 완료한 뒤 이 경보를 직접 해소하세요/)

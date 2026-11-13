@@ -4,7 +4,7 @@
  * 관리자 환불 관리 클라이언트 컴포넌트
  */
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -125,7 +125,20 @@ interface RefundsClientProps {
         rejectedCount: number
         attentionCount: number
     }
+    // 제목 바로 아래, 환불 요청보다 먼저 보여 줄 영역(결제 경보·수동 확인 주문)
+    children?: ReactNode
 }
+
+// 여러 상태를 묶어 보는 필터. 그 밖의 값은 상태 하나와 그대로 비교한다.
+const STATUS_GROUPS: Record<string, RefundRequest['status'][]> = {
+    needs_action: ['pending_review', 'retryable_failed', 'manual_review'],
+    attention: ['retryable_failed', 'manual_review'],
+}
+
+// 표시 금액: 환불 요청에 기록된 금액, 없으면 그 주문의 결제 금액. 요금제의 현재 가격은 결제 뒤에 바뀔 수 있어 쓰지 않는다.
+const getRequestAmount = (request: RefundRequest | null) =>
+    request?.refund_amount ?? request?.order?.expected_amount ?? null
+const formatWon = (amount: number | null) => (amount === null ? '-' : `₩${amount.toLocaleString()}`)
 
 type ProcessAction = 'approve' | 'reject' | 'complete_manual'
 type ExternalMethod = 'payapp_cancel_request' | 'bank_transfer' | 'provider_admin_cancel'
@@ -136,9 +149,9 @@ const externalMethodLabels: Record<ExternalMethod, string> = {
     provider_admin_cancel: '결제사 관리자에서 취소',
 }
 
-export function RefundsClient({ requests, stats }: RefundsClientProps) {
+export function RefundsClient({ requests, stats, children }: RefundsClientProps) {
     const router = useRouter()
-    const [statusFilter, setStatusFilter] = useState('pending_review')
+    const [statusFilter, setStatusFilter] = useState('needs_action')
     const [isProcessDialogOpen, setIsProcessDialogOpen] = useState(false)
     const [selectedRequest, setSelectedRequest] = useState<RefundRequest | null>(null)
     const [processAction, setProcessAction] = useState<ProcessAction>('approve')
@@ -151,7 +164,7 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
 
     // 필터링된 요청
     const filteredRequests = requests.filter(r =>
-        statusFilter === 'all' || r.status === statusFilter
+        statusFilter === 'all' || (STATUS_GROUPS[statusFilter]?.includes(r.status) ?? r.status === statusFilter)
     )
 
     // 결제수단 이름은 DB(payment_methods.label)에서 읽는다. 라벨이 없는 카카오·과거 결제만 결제사로 표시한다.
@@ -262,6 +275,8 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                 </Button>
             </div>
 
+            {children}
+
             {/* 통계 카드 */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card className="cursor-pointer hover:bg-yellow-50 transition-colors" onClick={() => setStatusFilter('pending_review')}>
@@ -291,7 +306,7 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                         <div className="text-2xl font-bold text-red-700">{stats.rejectedCount}</div>
                     </CardContent>
                 </Card>
-                <Card className="cursor-pointer hover:bg-orange-50 transition-colors" onClick={() => setStatusFilter('retryable_failed')}>
+                <Card className="cursor-pointer hover:bg-orange-50 transition-colors" onClick={() => setStatusFilter('attention')}>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">확인 필요</CardTitle>
                         <RefreshCcw className="h-4 w-4 text-orange-600" />
@@ -305,10 +320,12 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
             {/* 필터 */}
             <div className="flex items-center gap-4">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-[280px]">
                         <SelectValue placeholder="상태 필터" />
                     </SelectTrigger>
                     <SelectContent>
+                        <SelectItem value="needs_action">처리할 건 (대기·재처리·수동 확인)</SelectItem>
+                        <SelectItem value="attention">확인 필요 (재처리·수동 확인)</SelectItem>
                         <SelectItem value="all">전체</SelectItem>
                         <SelectItem value="pending_review">대기중</SelectItem>
                         <SelectItem value="processing">처리중</SelectItem>
@@ -364,7 +381,11 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            ₩{request.source?.plan?.price?.toLocaleString() || 0}
+                                            {formatWon(getRequestAmount(request))}
+                                            {/* 부분취소 건의 기록 금액은 실제 환불액이 아니라 신청 기준액(전액)이다. */}
+                                            {requiresRecovery(request) && request.status !== 'completed' && (
+                                                <p className="text-xs text-gray-500">신청 기준액</p>
+                                            )}
                                         </TableCell>
                                         <TableCell className="max-w-[200px] truncate" title={request.reason || ''}>
                                             {request.reason || '-'}
@@ -481,7 +502,7 @@ export function RefundsClient({ requests, stats }: RefundsClientProps) {
                         {processAction === 'approve' && (
                             <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                                 <p className="text-sm text-green-700">
-                                    승인 시 {selectedRequest ? getProviderLabel(selectedRequest) : '원 결제수단'}으로 ₩{selectedRequest?.source?.plan?.price?.toLocaleString() || 0}을 먼저 취소한 뒤,
+                                    승인 시 {selectedRequest ? getProviderLabel(selectedRequest) : '원 결제수단'}으로 {formatWon(getRequestAmount(selectedRequest))}을 먼저 취소한 뒤,
                                     취소 성공이 확인되면 {selectedRequest?.source?.initial_credits?.toLocaleString() || 0} 크레딧을 회수합니다.
                                 </p>
                             </div>
