@@ -20,6 +20,9 @@ const WORKSPACE_SCOPED_PATH_HEADER = 'x-workspace-scoped-path'
 // src/lib/request-auth.ts 의 AUTH_USER_ID_HEADER 와 같은 값이어야 한다.
 const AUTH_USER_ID_HEADER = 'x-auth-user-id'
 
+// 정적 파일처럼 보이는 경로(public 아래 이미지 등). 세션 작업은 하지 않는다.
+const STATIC_ASSET_PATH_PATTERN = /\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/
+
 // 로그인 후 절대 만료: 브라우저 유지 여부와 무관하게 이 시간이 지나면 재로그인을 강제한다.
 const AUTH_ABSOLUTE_MAX_AGE_MS = 3 * 60 * 60 * 1000
 const AUTH_SESSION_STARTED_COOKIE = 'sst-session-started-at'
@@ -341,6 +344,14 @@ export async function updateSession(request: NextRequest) {
     ?? await buildDisabledSiteFeatureResponse(request)
   if (disabledFeatureResponse) {
     return disabledFeatureResponse
+  }
+
+  // 정적 파일 요청은 세션 확인 없이 통과시킨다. 다만 같은 모양의 주소가 동적 페이지에 닿을 수 있으므로
+  // (예: /items/a.png) 외부에서 넣은 사용자 ID 헤더는 반드시 지운다 — 이 경로에서는 비로그인으로 취급된다.
+  if (STATIC_ASSET_PATH_PATTERN.test(request.nextUrl.pathname)) {
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.delete(AUTH_USER_ID_HEADER)
+    return NextResponse.next({ request: { headers: requestHeaders } })
   }
 
   const routingContext = resolveWorkspaceRoutingContext(request)

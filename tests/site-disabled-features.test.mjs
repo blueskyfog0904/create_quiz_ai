@@ -41,6 +41,10 @@ test('옛 페이지는 묶음과 보낼 곳이 정해져 있다(과목 접두가
     ['/preview/solvook-concept', page('site_preview', '/')],
     ['/preview/design-system', page('site_preview', '/')],
     ['/preview/scholarly-library/x', page('site_preview', '/')],
+    ['/legacy/mypage/a.png', page('site_legacy_mypage', '/mypage')],
+    // 시안 화면의 예외는 이미지 파일뿐이다(다른 확장자를 붙여도 닫힌다)
+    ['/preview/solvook-concept/boards/s/posts/p.x', page('site_preview', '/')],
+    ['/preview/solvook-concept/boards/s/posts/v1.2', page('site_preview', '/')],
     // 확장자·인코딩으로 피할 수 없다
     ['/korean/generate/a.png', page('site_generate', '/?subject=korean')],
     ['/%67enerate', page('site_generate', '/')],
@@ -83,6 +87,8 @@ test('문제마켓 운영 화면과 공유 API는 어느 묶음에도 속하지 
     // 접두가 비슷할 뿐 다른 경로
     '/generated', '/banking', '/librarys/purchased', '/api/questionnaire', '/api/generates', '/legacyx', '/previews', '/preview',
     '/payment-methods/card.svg',
+    // public/preview 아래 정적 파일은 화면이 아니므로 닫지 않는다
+    '/preview/solvook-concept/brand-mark.svg',
   ]) {
     assert.equal(site.resolveSiteFeatureRoute(path), null, path)
   }
@@ -211,7 +217,7 @@ test('AI를 부르거나 지문을 쓰는 서버 액션은 맨 먼저 묶음 검
   }
 })
 
-test('설정 행은 정의된 묶음을 모두 닫고, matcher는 옛 경로를 확장자와 무관하게 덮는다', () => {
+test('설정 행은 정의된 묶음을 모두 닫는다', () => {
   const migration = read('supabase/migrations/20261113160000_site_disabled_features.sql')
   const value = JSON.parse(migration.match(/'(\{"features": \[[^\]]+\]\})'::jsonb/)[1])
   assert.deepEqual([...value.features].sort(), [...site.SITE_FEATURE_IDS].sort())
@@ -219,13 +225,6 @@ test('설정 행은 정의된 묶음을 모두 닫고, matcher는 옛 경로를 
   assert.match(migration, /ON CONFLICT \(key\) DO NOTHING;/)
   assert.match(read('supabase/rollback/20261113160000_site_disabled_features_down.sql'), /DELETE FROM public\.system_settings WHERE key = 'site_disabled_features';/)
 
-  const middleware = read('src/middleware.ts')
-  for (const pattern of ['/:subject(korean|english)/:path*', '/legacy/:path*', '/generate/:path*', '/bank/:path*', '/exam-papers/:path*',
-    '/passages/:path*', '/library/:path*', '/api/questions/:path*', '/api/generate/:path*', '/api/question-bank/:path*', '/api/exam-papers/:path*']) {
-    assert.ok(middleware.includes(`'${pattern}'`), pattern)
-  }
-  // public/preview 아래 정적 파일은 미들웨어를 타지 않는다(확장자 제외 규칙 그대로)
-  assert.equal(middleware.includes("'/preview/:path*'"), false)
 })
 
 // 실제 파일 구조와 대조: 옛 화면 디렉터리의 페이지·API가 모두 어떤 묶음에 들어 있는지
@@ -272,4 +271,57 @@ test('옛 화면 디렉터리의 페이지와 옛 API route는 빠짐없이 묶�
       assert.equal(site.resolveSiteFeatureRoute(route), null, route)
     }
   }
+})
+
+test('정적 파일 모양의 주소는 세션 작업 없이 통과시키되, 외부에서 넣은 사용자 ID 헤더는 지운다', async () => {
+  let supabaseCreated = false
+  let forwarded = null
+  class CapturingResponse extends NextResponse {
+    static next(init) {
+      forwarded = init?.request?.headers ?? null
+      return new NextResponse(null, { status: 200 })
+    }
+    static redirect(url, status) {
+      return new NextResponse(null, { status, headers: { location: String(url) } })
+    }
+  }
+  const middleware = load('src/lib/supabase/middleware.ts', {
+    '@supabase/ssr': { createServerClient: () => { supabaseCreated = true; return {} } },
+    'next/server': { NextResponse: CapturingResponse },
+    './session-cookies': { toSessionCookieOptions: (options) => options },
+    '@/lib/workspace-subject': workspaceSubject,
+    '@/lib/workspace-public-browse': {},
+    '@/lib/admin-features': adminFeatures,
+    '@/lib/site-features': site,
+    '@/lib/admin-features-server': {
+      getDisabledAdminFeatures: async () => ({ ok: true, features: ['ai_generation'] }),
+      getDisabledSiteFeatures: async () => ({ ok: true, features: ['site_generate'] }),
+      isSiteFeatureDisabled: (feature, current) => current.features.includes(feature),
+    },
+  })
+  const request = (path) => ({
+    url: `http://localhost${path}`,
+    nextUrl: new URL(`http://localhost${path}`),
+    cookies: { get: () => undefined, getAll: () => [] },
+    headers: new Headers({ 'x-auth-user-id': '11111111-1111-4111-8111-111111111111', accept: 'text/html' }),
+  })
+
+  // 동적 페이지에 닿을 수 있는 주소: 통과는 하지만 위조 헤더는 없다
+  for (const path of ['/items/a.png', '/payment-methods/card.svg', '/preview/solvook-concept/brand-mark.svg']) {
+    forwarded = null
+    const response = await middleware.updateSession(request(path))
+    assert.equal(response.status, 200, path)
+    assert.equal(forwarded.get('x-auth-user-id'), null, path)
+    assert.equal(forwarded.get('accept'), 'text/html', path)
+  }
+  assert.equal(supabaseCreated, false, '정적 파일 요청에는 세션 작업을 하지 않는다')
+
+  // 닫힌 기능은 확장자를 붙여도 정적 파일 처리보다 먼저 막힌다
+  assert.equal((await middleware.updateSession(request('/admin/ai-question-generation-runs/a.png'))).status, 404)
+  assert.equal((await middleware.updateSession(request('/korean/generate/a.png'))).status, 307)
+})
+
+test('사용자 ID 헤더를 믿는 전제(미들웨어가 모든 페이지 요청을 거친다)가 코드에 적혀 있다', () => {
+  assert.match(read('src/lib/request-auth.ts'), /확장자로 끝나는 경로도 거치게 되어 있다/)
+  assert.match(read('src/lib/supabase/middleware.ts'), /requestHeaders\.delete\(AUTH_USER_ID_HEADER\)\n    return NextResponse\.next\(\{ request: \{ headers: requestHeaders \} \}\)/)
 })

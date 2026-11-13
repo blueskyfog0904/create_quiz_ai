@@ -112,6 +112,10 @@ export function resolveSiteFeatureRoute(pathname: string, subjectParam?: string 
   }
 
   if (PREVIEW_PREFIXES.some((prefix) => matchesPrefix(normalized, prefix))) {
+    // public/preview 아래 이미지 파일(예: /preview/solvook-concept/brand-mark.svg)은 화면이 아니므로 닫지 않는다.
+    if (/\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/.test(normalized)) {
+      return null
+    }
     return { feature: 'site_preview', kind: 'page', redirectTo: '/' }
   }
 

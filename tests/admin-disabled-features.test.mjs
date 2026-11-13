@@ -344,15 +344,17 @@ test('관리자 페이지와 API 경로는 "운영 화면" 또는 "기능 묶음
   assert.ok(pages.length >= 39 && apis.length >= 78)
 })
 
-test('미들웨어 matcher는 확장자로 끝나는 관리자 경로도 덮는다', () => {
+test('미들웨어 matcher는 확장자로 끝나는 경로를 건너뛰지 않는다', () => {
   const source = read('src/middleware.ts')
-  for (const pattern of ["'/admin/:path*'", "'/api/admin/:path*'", "'/dashboard/admin/:path*'"]) {
-    assert.ok(source.includes(pattern), pattern)
+  const pattern = source.match(/'(\/\(\(\?!.+)',\n/)[1]
+  assert.doesNotMatch(pattern, /svg|png|jpg/, '확장자 제외 규칙이 없어야 한다')
+  const matcher = new RegExp(`^${pattern}$`)
+  for (const path of ['/admin/ai-question-generation-runs/a.png', '/api/admin/questions/x.ico', '/items/a.png', '/korean/generate/a.png', '/payment-methods/card.svg', '/admin']) {
+    assert.equal(matcher.test(path), true, path)
   }
-  // 기존 규칙만으로는 확장자 경로가 빠진다는 사실을 고정해 둔다(그래서 위 세 줄이 필요하다)
-  const general = new RegExp('^/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)$')
-  assert.equal(general.test('/admin/ai-question-generation-runs/a.png'), false)
-  assert.equal(general.test('/admin/ai-question-generation-runs/run-1'), true)
+  for (const path of ['/_next/static/chunks/a.js', '/_next/image', '/favicon.ico', '/robots.txt']) {
+    assert.equal(matcher.test(path), false, path)
+  }
 })
 
 test('풀 수 없는 퍼센트 인코딩은 오류 없이 그대로 판정한다', () => {
