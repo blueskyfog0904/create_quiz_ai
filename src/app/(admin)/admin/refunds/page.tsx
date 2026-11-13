@@ -15,6 +15,8 @@ import {
     type PaymentReviewOrder,
 } from './payment-review-client'
 import { allowedReviewActions } from '@/lib/payment-review-actions'
+import { PaymentSalesPanel } from '@/components/admin/payment-sales-panel'
+import { getPaymentSalesStatus } from '@/lib/payment-sales-status-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -119,8 +121,11 @@ export default async function AdminRefundsPage() {
         .order('created_at', { ascending: false })
     if (marketRefundsError) loadErrors.push('문제마켓 환불 요청')
 
+    const salesStatus = await getPaymentSalesStatus()
+
     return (
         <div className="space-y-8">
+            <PaymentSalesPanel status={salesStatus} />
             {loadErrors.length > 0 && (
                 <div role="alert" className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
                     <p className="font-semibold">다음 목록을 불러오지 못했습니다: {loadErrors.join(', ')}</p>

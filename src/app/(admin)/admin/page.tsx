@@ -1,8 +1,14 @@
 import { Suspense } from 'react'
 import { DashboardClient } from './dashboard-client'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
+import { PaymentSalesPanel } from '@/components/admin/payment-sales-panel'
+import { requireAdminPanelUser } from '@/lib/auth'
+import { getPaymentSalesStatus } from '@/lib/payment-sales-status-server'
 
-export default function AdminDashboardPage() {
+export default async function AdminDashboardPage() {
+  await requireAdminPanelUser()
+  const salesStatus = await getPaymentSalesStatus()
+
   return (
     <div>
       <div className="mb-8">
@@ -10,6 +16,10 @@ export default function AdminDashboardPage() {
         <p className="text-gray-500 mt-1">서비스 현황을 한눈에 확인하세요</p>
       </div>
       
+      <div className="mb-6">
+        <PaymentSalesPanel status={salesStatus} />
+      </div>
+
       <Suspense fallback={<DashboardSkeleton />}>
         <DashboardClient />
       </Suspense>

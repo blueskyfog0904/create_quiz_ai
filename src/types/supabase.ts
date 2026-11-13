@@ -5303,6 +5303,10 @@ export type Database = {
         Args: { p_limit: number }
         Returns: Json
       }
+      stop_payment_sales: {
+        Args: { p_changed_by: string; p_reason: string; p_scope: string }
+        Returns: Json
+      }
       store_kakaopay_ready: {
         Args: {
           p_next_redirect_app_url: string
