@@ -375,3 +375,12 @@ test('만료 로그 정리는 AI 묶음이 꺼져 있으면 실행하지 않는�
   await assert.rejects(() => logs.pruneExpiredAiQuestionGenerationRuns(), /사용하지 않는 기능입니다/)
   assert.equal(updated, false)
 })
+
+test('랜딩페이지 관리는 옛 첫 화면을 닫은 뒤 별도 마이그레이션으로 끈다(이미 있으면 그대로)', () => {
+  const migration = read('supabase/migrations/20261113170000_admin_disable_landing_pages.sql')
+  assert.match(migration, /\(value -> 'features'\) \|\| '\["landing_pages"\]'::jsonb/)
+  assert.match(migration, /WHERE key = 'admin_disabled_features'/)
+  assert.match(migration, /AND NOT \(value -> 'features'\) \? 'landing_pages';/)
+  assert.ok(features.ADMIN_FEATURES.some((feature) => feature.id === 'landing_pages'))
+  assert.match(read('supabase/rollback/20261113170000_admin_disable_landing_pages_down.sql'), /\(value -> 'features'\) - 'landing_pages'/)
+})
