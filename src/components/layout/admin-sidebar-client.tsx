@@ -21,9 +21,10 @@ import { AdminWorkspaceSwitcher } from './admin-workspace-switcher'
 
 interface AdminSidebarClientProps {
   navigationConfigs: Record<'english' | 'korean', AdminSidebarNavigationConfig>
+  hiddenHrefs: readonly string[]
 }
 
-export function AdminSidebarClient({ navigationConfigs }: AdminSidebarClientProps) {
+export function AdminSidebarClient({ navigationConfigs, hiddenHrefs }: AdminSidebarClientProps) {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -54,8 +55,8 @@ export function AdminSidebarClient({ navigationConfigs }: AdminSidebarClientProp
     return resolveAdminSidebarNavigationNodes(workspaceSubject, {
       ...config,
       labels: menuLabels?.labelsBySubject[workspaceSubject] ?? config.labels,
-    })
-  }, [menuLabels, navigationConfigs, workspaceSubject])
+    }, hiddenHrefs)
+  }, [hiddenHrefs, menuLabels, navigationConfigs, workspaceSubject])
 
   const startEditingMenuLabel = (key: string, currentName: string) => {
     setEditingMenuKey(key)

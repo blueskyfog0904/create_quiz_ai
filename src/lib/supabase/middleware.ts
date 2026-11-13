@@ -10,6 +10,8 @@ import {
   withWorkspacePrefix,
 } from '@/lib/workspace-subject'
 import { isPublicBrowseableSubjectPath } from '@/lib/workspace-public-browse'
+import { isAdminPathDisabled, resolveAdminFeature } from '@/lib/admin-features'
+import { getDisabledAdminFeatures } from '@/lib/admin-features-server'
 
 const WORKSPACE_SUBJECT_HEADER = 'x-workspace-subject'
 const WORKSPACE_HEADER_MODE_HEADER = 'x-workspace-header-mode'
@@ -285,7 +287,38 @@ const buildAuthRedirectResponse = (
   return response
 }
 
+// 운영하지 않는 관리자 기능(꺼진 묶음)의 페이지·API는 페이지 코드가 실행되기 전에 404로 막는다(관리자도 같다).
+async function buildDisabledAdminFeatureResponse(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+  // 묶음에 속한 경로일 때만 설정을 읽는다(그 밖의 요청에는 비용이 없다).
+  if (!resolveAdminFeature(pathname)) {
+    return null
+  }
+  if (!isAdminPathDisabled(pathname, await getDisabledAdminFeatures())) {
+    return null
+  }
+
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.json(
+      { success: false, error: { code: 'NOT_FOUND', message: '사용하지 않는 기능입니다.' } },
+      { status: 404 }
+    )
+  }
+
+  return new NextResponse(
+    '<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>페이지를 찾을 수 없습니다</title></head>'
+      + '<body style="font-family:sans-serif;padding:48px"><h1 style="font-size:20px">페이지를 찾을 수 없습니다</h1>'
+      + '<p>현재 사용하지 않는 기능입니다.</p><p><a href="/admin">관리자 홈으로</a></p></body></html>',
+    { status: 404, headers: { 'content-type': 'text/html; charset=utf-8' } }
+  )
+}
+
 export async function updateSession(request: NextRequest) {
+  const disabledFeatureResponse = await buildDisabledAdminFeatureResponse(request)
+  if (disabledFeatureResponse) {
+    return disabledFeatureResponse
+  }
+
   const routingContext = resolveWorkspaceRoutingContext(request)
   let verifiedUserId: string | null = null
   let response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath)

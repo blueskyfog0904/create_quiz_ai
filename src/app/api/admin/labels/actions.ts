@@ -1,5 +1,6 @@
 'use server';
 
+import { assertAdminFeatureEnabled } from '@/lib/admin-features-server'
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { DEFAULT_WORKSPACE_SUBJECT, withWorkspacePrefix } from '@/lib/workspace-subject';
@@ -79,6 +80,7 @@ export async function updateDisplayLabel(
   id: string, 
   displayValue: string
 ): Promise<{ success: boolean; error?: string }> {
+  await assertAdminFeatureEnabled('labels')
   const supabase = await createClient();
   
   const { error } = await supabase
@@ -107,6 +109,7 @@ export async function addDisplayLabel(
   displayValue: string,
   sortOrder?: number
 ): Promise<{ success: boolean; error?: string }> {
+  await assertAdminFeatureEnabled('labels')
   const supabase = await createClient();
   
   const { error } = await supabase
@@ -131,6 +134,7 @@ export async function addDisplayLabel(
 
 // Delete a display label
 export async function deleteDisplayLabel(id: string): Promise<{ success: boolean; error?: string }> {
+  await assertAdminFeatureEnabled('labels')
   const supabase = await createClient();
   
   const { error } = await supabase

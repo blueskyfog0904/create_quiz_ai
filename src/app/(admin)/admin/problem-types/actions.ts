@@ -1,5 +1,6 @@
 'use server'
 
+import { assertAdminFeatureEnabled } from '@/lib/admin-features-server'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
@@ -112,6 +113,7 @@ const buildProblemTypePayload = (data: z.infer<typeof ProblemTypeSchema>, worksp
 })
 
 export async function createProblemType(_prevState: unknown, formData: FormData) {
+  await assertAdminFeatureEnabled('ai_generation')
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -141,6 +143,7 @@ export async function createProblemType(_prevState: unknown, formData: FormData)
 }
 
 export async function updateProblemType(id: string, _prevState: unknown, formData: FormData) {
+  await assertAdminFeatureEnabled('ai_generation')
   const supabase = await createClient()
 
   const validated = ProblemTypeSchema.safeParse(readProblemTypeFormData(formData))
@@ -169,6 +172,7 @@ export async function updateProblemType(id: string, _prevState: unknown, formDat
 }
 
 export async function deleteProblemType(id: string) {
+  await assertAdminFeatureEnabled('ai_generation')
   const supabase = await createClient()
 
   const { data: current } = await supabase
@@ -198,6 +202,7 @@ export async function updateProblemTypeSortOrder(
   workspaceSubject: WorkspaceSubject,
   sortOrder: number
 ) {
+  await assertAdminFeatureEnabled('ai_generation')
   const supabase = await createClient()
   const validated = z.coerce.number().int().min(0).safeParse(sortOrder)
 
@@ -227,6 +232,7 @@ export async function updateProblemTypeDefaultPrompts(
   workspaceSubject: WorkspaceSubject,
   prompts: Array<z.infer<typeof DefaultPromptSchema>>
 ) {
+  await assertAdminFeatureEnabled('ai_generation')
   const supabase = await createClient()
   const validatedPrompts = z.array(DefaultPromptSchema).safeParse(prompts)
 

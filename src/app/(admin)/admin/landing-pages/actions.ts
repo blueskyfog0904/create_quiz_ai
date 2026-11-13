@@ -1,5 +1,6 @@
 'use server'
 
+import { assertAdminFeatureEnabled } from '@/lib/admin-features-server'
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth'
 import { getActiveHeaderNavigationItems } from '@/lib/header-navigation'
@@ -55,6 +56,7 @@ export async function getLandingPagesAdminData(): Promise<LandingPagesAdminData>
 }
 
 export async function saveMainLandingConfigAction(config: MainLandingConfig) {
+  await assertAdminFeatureEnabled('landing_pages')
   await requireAdmin()
   const saved = await saveMainLandingConfig(config)
   revalidateLandingPaths()
@@ -65,6 +67,7 @@ export async function saveWorkspaceLandingConfigAction(
   subject: WorkspaceSubject,
   config: WorkspaceLandingConfig
 ) {
+  await assertAdminFeatureEnabled('landing_pages')
   const user = await requireAdmin()
   const saved = await saveWorkspaceLandingConfig(subject, config, user.id)
   revalidateLandingPaths()

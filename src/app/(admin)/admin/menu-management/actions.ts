@@ -1,5 +1,6 @@
 'use server'
 
+import { assertAdminFeatureEnabled } from '@/lib/admin-features-server'
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth'
 import {
@@ -157,6 +158,7 @@ export async function saveAdminSidebarNavigationConfigAction(
   input: AdminSidebarNavigationConfig,
   workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
+  await assertAdminFeatureEnabled('menu_management')
   await requireAdmin()
 
   const savedConfig = await saveAdminSidebarNavigationConfig(input, workspaceSubject)
@@ -204,6 +206,7 @@ export async function getGenerateListboardPostItemsAction(postId: string, worksp
 }
 
 export async function saveMenuManagementConfig(input: HeaderNavigationConfig, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
+  await assertAdminFeatureEnabled('menu_management')
   await requireAdmin()
 
   const normalizedConfig = normalizeHeaderNavigationConfig(input)
@@ -222,6 +225,7 @@ export async function createGenerateMenuEntryAction(
   input: Pick<TablesInsert<'generate_menu_entries'>, 'title' | 'slug' | 'entry_type' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>,
   workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
+  await assertAdminFeatureEnabled('generate')
   await requireAdmin()
   const entry = await createGenerateMenuEntry(input, workspaceSubject)
   revalidateMenuRelatedPaths(workspaceSubject)
@@ -233,6 +237,7 @@ export async function updateGenerateMenuEntryAction(
   input: Pick<TablesUpdate<'generate_menu_entries'>, 'title' | 'slug' | 'description' | 'sort_order' | 'is_visible' | 'is_active' | 'search_config'>,
   workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
+  await assertAdminFeatureEnabled('generate')
   await requireAdmin()
   const entry = await updateGenerateMenuEntry(id, input)
   revalidateMenuRelatedPaths(workspaceSubject)
@@ -240,6 +245,7 @@ export async function updateGenerateMenuEntryAction(
 }
 
 export async function archiveGenerateMenuEntryAction(id: string, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
+  await assertAdminFeatureEnabled('generate')
   await requireAdmin()
   await archiveGenerateMenuEntry(id)
   revalidateMenuRelatedPaths(workspaceSubject)
@@ -247,6 +253,7 @@ export async function archiveGenerateMenuEntryAction(id: string, workspaceSubjec
 }
 
 export async function reorderGenerateMenuEntriesAction(ids: string[], workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
+  await assertAdminFeatureEnabled('generate')
   await requireAdmin()
   await reorderGenerateMenuEntries(ids)
   revalidateMenuRelatedPaths(workspaceSubject)
@@ -254,6 +261,7 @@ export async function reorderGenerateMenuEntriesAction(ids: string[], workspaceS
 }
 
 export async function backfillGenerateMenuEntriesAction(workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
+  await assertAdminFeatureEnabled('generate')
   await requireAdmin()
   const config = await getBaseHeaderNavigationConfig(workspaceSubject)
   const entries = await backfillGenerateMenuEntriesFromHeader(config, workspaceSubject)
@@ -265,6 +273,7 @@ export async function createGenerateListboardPostAction(
   input: Pick<TablesInsert<'generate_listboard_posts'>, 'menu_entry_id' | 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'status' | 'is_active'>,
   workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
+  await assertAdminFeatureEnabled('generate')
   const user = await requireAdmin()
   const post = await createGenerateListboardPost({
     ...input,
@@ -280,6 +289,7 @@ export async function createGenerateListboardPostWithItemsAction(
   items: Array<Pick<TablesInsert<'generate_listboard_post_items'>, 'question_number' | 'passage_text' | 'sort_order' | 'is_active'>>,
   workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
+  await assertAdminFeatureEnabled('generate')
   const user = await requireAdmin()
   const result = await createGenerateListboardPostWithItems({
     ...input,
@@ -295,6 +305,7 @@ export async function updateGenerateListboardPostAction(
   input: Pick<TablesUpdate<'generate_listboard_posts'>, 'title' | 'passage_text' | 'exam_year' | 'exam_month' | 'grade_level' | 'status' | 'is_active'>,
   workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
+  await assertAdminFeatureEnabled('generate')
   const user = await requireAdmin()
   const post = await updateGenerateListboardPost(id, {
     ...input,
@@ -305,6 +316,7 @@ export async function updateGenerateListboardPostAction(
 }
 
 export async function archiveGenerateListboardPostAction(id: string, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
+  await assertAdminFeatureEnabled('generate')
   await requireAdmin()
   await archiveGenerateListboardPost(id)
   revalidateMenuRelatedPaths(workspaceSubject)
@@ -315,6 +327,7 @@ export async function createGenerateListboardPostItemAction(
   input: Pick<TablesInsert<'generate_listboard_post_items'>, 'post_id' | 'question_number' | 'passage_text' | 'sort_order' | 'is_active'>,
   workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
+  await assertAdminFeatureEnabled('generate')
   const user = await requireAdmin()
   const item = await createGenerateListboardPostItem({
     ...input,
@@ -330,6 +343,7 @@ export async function updateGenerateListboardPostItemAction(
   input: Pick<TablesUpdate<'generate_listboard_post_items'>, 'question_number' | 'passage_text' | 'sort_order' | 'is_active'>,
   workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
 ) {
+  await assertAdminFeatureEnabled('generate')
   const user = await requireAdmin()
   const item = await updateGenerateListboardPostItem(id, {
     ...input,
@@ -340,6 +354,7 @@ export async function updateGenerateListboardPostItemAction(
 }
 
 export async function archiveGenerateListboardPostItemAction(id: string, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
+  await assertAdminFeatureEnabled('generate')
   await requireAdmin()
   await archiveGenerateListboardPostItem(id)
   revalidateMenuRelatedPaths(workspaceSubject)
@@ -348,6 +363,7 @@ export async function archiveGenerateListboardPostItemAction(id: string, workspa
 
 
 export async function backfillMarketMenuEntriesAction(workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
+  await assertAdminFeatureEnabled('menu_management')
   await requireAdmin()
   const config = await getBaseHeaderNavigationConfig(workspaceSubject)
   const entries = await backfillMarketMenuEntriesFromHeader(config, workspaceSubject)

@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { assertAdminFeatureEnabled } from '@/lib/admin-features-server'
 import type { Json, TablesInsert } from '@/types/supabase'
 import type {
   Question,
@@ -234,6 +235,8 @@ export async function linkAiQuestionGenerationRunToQuestion(input: LinkAiQuestio
 }
 
 export async function pruneExpiredAiQuestionGenerationRuns() {
+  // 만료 로그의 내용을 영구히 비우는 작업이다. AI 기능 묶음이 꺼져 있으면 어떤 경로로 불려도 실행하지 않는다.
+  await assertAdminFeatureEnabled('ai_generation')
   const now = new Date().toISOString()
   const { error } = await createAdminClient()
     .from('ai_question_generation_runs')

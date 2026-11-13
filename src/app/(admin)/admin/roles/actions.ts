@@ -1,5 +1,6 @@
 'use server'
 
+import { assertAdminFeatureEnabled } from '@/lib/admin-features-server'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
@@ -11,6 +12,7 @@ interface RoleData {
 }
 
 export async function createRole(data: RoleData) {
+  await assertAdminFeatureEnabled('signup_roles')
     const supabase = await createClient()
 
     // Check admin
@@ -55,6 +57,7 @@ export async function createRole(data: RoleData) {
 }
 
 export async function updateRole(id: string, data: Partial<RoleData>) {
+  await assertAdminFeatureEnabled('signup_roles')
     const supabase = await createClient()
 
     // Check admin
@@ -94,6 +97,7 @@ export async function updateRole(id: string, data: Partial<RoleData>) {
 }
 
 export async function deleteRole(id: string) {
+  await assertAdminFeatureEnabled('signup_roles')
     const supabase = await createClient()
 
     // Check admin

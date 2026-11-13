@@ -1,5 +1,6 @@
 'use server';
 
+import { assertAdminFeatureEnabled } from '@/lib/admin-features-server'
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
@@ -47,6 +48,7 @@ export async function getSystemSettings(): Promise<SystemSetting | null> {
 }
 
 export async function updateSystemSettings(key: string, value: AIConfig) {
+  await assertAdminFeatureEnabled('passages')
   const supabase = await createClient();
 
   // Check admin
@@ -97,6 +99,7 @@ export async function getAIModelSettings(): Promise<AIModelConfig> {
 
   // Check admin privileges using standard client
 export async function updateAIModelSettings(config: AIModelConfig) {
+  await assertAdminFeatureEnabled('passages')
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Unauthorized');
@@ -150,6 +153,7 @@ export async function getAvailableAIModels(): Promise<AIModelOption[]> {
 }
 
 export async function saveAvailableAIModels(models: AIModelOption[]) {
+  await assertAdminFeatureEnabled('passages')
   // Check admin privileges
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

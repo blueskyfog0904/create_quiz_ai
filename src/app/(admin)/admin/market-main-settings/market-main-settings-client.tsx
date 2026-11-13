@@ -73,8 +73,7 @@ export default function MarketMainSettingsClient({
 
   const links = [
     ['/admin/market/products', '상품 관리'],
-    ['/admin/menu-management', '카테고리 관리'],
-    ['/admin/source-configs', '출처 관리'],
+    ['/admin/market-categories', '카테고리 관리'],
     ['/admin/main-ad-settings', '메인 광고 설정'],
   ] as const
 

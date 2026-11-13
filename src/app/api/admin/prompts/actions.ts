@@ -1,5 +1,6 @@
 'use server';
 
+import { assertAdminFeatureEnabled } from '@/lib/admin-features-server'
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
@@ -39,6 +40,7 @@ export async function getSystemPrompts(): Promise<SystemPrompt[]> {
 }
 
 export async function updateSystemPrompt(key: string, content: string) {
+  await assertAdminFeatureEnabled('passages')
   const supabase = await createClient();
 
   // Check admin permission

@@ -248,9 +248,11 @@ export function resolveAdminSidebarMenuItems(
 
 export function resolveAdminSidebarNavigationNodes(
   workspaceSubject: WorkspaceSubject,
-  config?: AdminSidebarNavigationConfig | null
+  config?: AdminSidebarNavigationConfig | null,
+  // 꺼진 기능 묶음의 메뉴(그리지 않는다)
+  hiddenHrefs: readonly string[] = []
 ): AdminSidebarNavigationNode[] {
-  const items = resolveAdminSidebarMenuItems(workspaceSubject, config)
+  const items = resolveAdminSidebarMenuItems(workspaceSubject, config).filter((item) => !hiddenHrefs.includes(item.href))
   const labels = normalizeAdminSidebarNavigationConfig(config).labels
   const findGroup = (href: string): AdminSidebarMenuGroupDefinition | undefined => (
     ADMIN_SIDEBAR_MENU_GROUPS.find((group) => (group.hrefs as readonly string[]).includes(href))
