@@ -1,38 +1,16 @@
-import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/auth'
+import { listAdminUsers } from '@/lib/admin-users-server'
 import { UsersClient } from './users-client'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
-export default async function AdminUsersPage() {
-  const supabase = await createClient()
+interface AdminUsersPageProps {
+  searchParams?: Promise<{ q?: string; page?: string; pageSize?: string }>
+}
 
-  // Fetch initial users
-  const { data: users, count } = await supabase
-    .from('profiles')
-    .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false })
-    .limit(20)
-
-    .limit(20)
-
-  // Fetch credits for these users
-  const userIds = users?.map(u => u.id) || []
-  let creditMap: Record<string, number> = {}
-  
-  if (userIds.length > 0) {
-    const { data: credits } = await supabase
-      .from('user_credits')
-      .select('user_id, balance')
-      .in('user_id', userIds)
-    
-    credits?.forEach(c => {
-      creditMap[c.user_id] = c.balance
-    })
-  }
-
-  const usersWithCredits = users?.map(u => ({
-    ...u,
-    credit_balance: creditMap[u.id] || 0
-  })) || []
+export default async function AdminUsersPage({ searchParams }: AdminUsersPageProps) {
+  await requireAdmin()
+  const params = searchParams ? await searchParams : undefined
+  const result = await listAdminUsers({ q: params?.q, page: params?.page, pageSize: params?.pageSize })
 
   return (
     <div>
@@ -41,8 +19,15 @@ export default async function AdminUsersPage() {
         <p className="text-gray-500 mt-1">가입된 사용자를 조회하고 관리합니다</p>
       </div>
 
-      <UsersClient initialUsers={usersWithCredits} totalCount={count || 0} />
+      {/* 검색어가 바뀌면(뒤로 가기·메뉴 이동 포함) 입력칸도 주소의 검색어로 다시 맞춘다. */}
+      <UsersClient
+        key={result.query}
+        users={result.users}
+        totalCount={result.totalCount}
+        page={result.page}
+        pageSize={result.pageSize}
+        query={result.query}
+      />
     </div>
   )
 }
-

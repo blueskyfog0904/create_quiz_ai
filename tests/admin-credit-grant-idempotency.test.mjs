@@ -154,14 +154,13 @@ test('grantCreditsAsAdmin calls grant_admin_credits with the operation key and m
   )
 })
 
-test('both admin grant screens send a crypto.randomUUID() key and renew it after success', () => {
-  for (const source of [usersClient, grantDialog]) {
-    assert.match(source, /crypto\.randomUUID\(\)/)
-    assert.match(source, /idempotencyKey/)
-    assert.match(source, /toast\.success[\s\S]*?crypto\.randomUUID\(\)/)
-  }
-  assert.match(usersClient, /idempotencyKey: grantIdempotencyKey/)
-  assert.match(usersClient, /openGrantModal = \(user: Profile\) => \{[\s\S]*?setGrantIdempotencyKey\(crypto\.randomUUID\(\)\)/)
+test('the admin grant dialog sends a crypto.randomUUID() key and renews it after success; the users screen reuses that dialog', () => {
+  assert.match(grantDialog, /crypto\.randomUUID\(\)/)
+  assert.match(grantDialog, /idempotencyKey/)
+  assert.match(grantDialog, /toast\.success[\s\S]*?crypto\.randomUUID\(\)/)
+  // 사용자 관리 화면은 자체 지급 창 없이 같은 대화상자를 쓴다(확인 단계·분류·중복 방지 키가 한 곳에만 있다).
+  assert.match(usersClient, /<GrantCreditDialog/)
+  assert.doesNotMatch(usersClient, /\/api\/admin\/users\/credits/)
   // 창을 열 때만 키를 만든다. 응답 유실 뒤 같은 창에서 대상을 다시 골라도 같은 키를 보낸다.
   assert.match(grantDialog, /useEffect\(\(\) => \{\s*if \(open\) \{\s*setIdempotencyKey\(crypto\.randomUUID\(\)\)\s*\}/)
   const userSelect = grantDialog.match(/handleUserSelect = \(user: Profile\) => \{[\s\S]*?\n  \}/)

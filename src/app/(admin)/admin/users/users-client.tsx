@@ -1,20 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Search,
   User,
@@ -22,167 +13,89 @@ import {
   Phone,
   Calendar,
   Shield,
-  ChevronLeft,
-  ChevronRight,
   Coins,
   Plus
 } from 'lucide-react'
-import { toast } from 'sonner'
+import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
+import { updateListQuery } from '@/lib/list-pagination'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
-
-interface Profile {
-  id: string
-  email: string | null
-  display_tag: string
-  phone: string | null
-  organization: string | null
-  role: string | null
-  is_admin: boolean | null
-  provider: string | null
-  created_at: string
-  updated_at: string
-  credit_balance?: number
-}
+import type { AdminUserListItem } from '@/lib/admin-users-server'
+import { GrantCreditDialog } from '../credits/grant-credit-dialog'
 
 interface UsersClientProps {
-  initialUsers: Profile[]
+  users: AdminUserListItem[]
   totalCount: number
+  page: number
+  pageSize: number
+  query: string
 }
 
-export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
-  const [users, setUsers] = useState<Profile[]>(initialUsers)
-  const [search, setSearch] = useState('')
+// 목록·검색·페이지는 서버가 정한다(주소의 q·page·pageSize). 이 화면은 받은 값을 그대로 그린다.
+export function UsersClient({ users, totalCount, page, pageSize, query }: UsersClientProps) {
+  const router = useRouter()
+  const [search, setSearch] = useState(query)
+  // 지급 창에는 대상 회원의 식별 정보만 넘긴다(창은 이 값이 바뀔 때 입력을 초기화하므로 같은 객체를 유지한다).
+  const [selectedUser, setSelectedUser] = useState<Pick<AdminUserListItem, 'id' | 'email' | 'display_tag'> | null>(null)
+  const [isGrantDialogOpen, setIsGrantDialogOpen] = useState(false)
 
-  // Grant Credit Logic
-  const [selectedUser, setSelectedUser] = useState<Profile | null>(null)
-  const [isGrantModalOpen, setIsGrantModalOpen] = useState(false)
-  const [grantAmount, setGrantAmount] = useState<number>(0)
-  const [grantReason, setGrantReason] = useState('')
-  const [isGranting, setIsGranting] = useState(false)
-  // 응답 유실 뒤 다시 눌러도 한 번만 지급되도록 모달을 열 때 만든 키를 재사용한다.
-  const [grantIdempotencyKey, setGrantIdempotencyKey] = useState('')
-
-  const filteredUsers = users.filter((user) => {
-    const searchLower = search.toLowerCase()
-    return (
-      user.email?.toLowerCase().includes(searchLower) ||
-      user.phone?.includes(search) ||
-      user.organization?.toLowerCase().includes(searchLower)
-    )
-  })
-
-  const openGrantModal = (user: Profile) => {
-    setSelectedUser(user)
-    setGrantAmount(0)
-    setGrantReason('')
-    setGrantIdempotencyKey(crypto.randomUUID())
-    setIsGrantModalOpen(true)
+  const buildHref = (changes: Record<string, string | number | null>) => {
+    const next = updateListQuery(new URLSearchParams({
+      ...(query ? { q: query } : {}),
+      page: String(page),
+      pageSize: String(pageSize),
+    }).toString(), changes)
+    return next ? `/admin/users?${next}` : '/admin/users'
   }
 
-  const handleGrantCredit = async () => {
-    if (!selectedUser || grantAmount <= 0) return
+  const handleSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    router.push(buildHref({ q: search.trim() || null, page: 1 }))
+  }
 
-    setIsGranting(true)
-    try {
-      const response = await fetch('/api/admin/users/credits', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: selectedUser.id,
-          amount: grantAmount,
-          description: grantReason || '관리자 수동 지급',
-          idempotencyKey: grantIdempotencyKey
-        })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to grant credits')
-      }
-
-      // Update local state
-      setUsers(users.map(u =>
-        u.id === selectedUser.id
-          ? { ...u, credit_balance: data.newBalance }
-          : u
-      ))
-
-      toast.success('크레딧이 지급되었습니다.')
-      setGrantIdempotencyKey(crypto.randomUUID())
-      setIsGrantModalOpen(false)
-    } catch (error: any) {
-      toast.error(error.message)
-    } finally {
-      setIsGranting(false)
-    }
+  const openGrantDialog = (user: AdminUserListItem) => {
+    setSelectedUser({ id: user.id, email: user.email, display_tag: user.display_tag })
+    setIsGrantDialogOpen(true)
   }
 
   return (
     <div className="space-y-6">
-      {/* Grant Credit Modal */}
-      <Dialog open={isGrantModalOpen} onOpenChange={setIsGrantModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>크레딧 지급</DialogTitle>
-            <DialogDescription>
-              {selectedUser ? formatMemberDisplayName(selectedUser.email, selectedUser.display_tag) : ''} ({selectedUser?.email}) 님에게 크레딧을 지급합니다.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>지급할 크레딧</Label>
-              <Input
-                type="number"
-                value={grantAmount}
-                onChange={(e) => setGrantAmount(Number(e.target.value))}
-                placeholder="1000"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>지급 사유</Label>
-              <Textarea
-                value={grantReason}
-                onChange={(e) => setGrantReason(e.target.value)}
-                placeholder="예: 이벤트 당첨, 시스템 환불 등"
-              />
-            </div>
-          </div>
-          <DialogFooter className="justify-center gap-2">
-            <Button variant="outline" onClick={() => setIsGrantModalOpen(false)}>취소</Button>
-            <Button onClick={handleGrantCredit} disabled={isGranting || grantAmount <= 0}>
-              {isGranting ? '지급 중...' : '지급하기'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <GrantCreditDialog
+        open={isGrantDialogOpen}
+        onOpenChange={setIsGrantDialogOpen}
+        initialUser={selectedUser}
+        onSuccess={() => router.refresh()}
+      />
 
       {/* Search */}
       <div className="flex gap-4 items-center">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="이메일, 전화번호로 검색..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-          />
-        </div>
+        <form onSubmit={handleSearch} className="flex flex-1 max-w-md gap-2" role="search">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="이메일, 전화번호, 소속으로 검색..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+              aria-label="사용자 검색"
+            />
+          </div>
+          <Button type="submit" variant="outline">검색</Button>
+        </form>
         <Badge variant="secondary" className="text-sm">
-          총 {totalCount}명
+          {query ? `검색 결과 ${totalCount.toLocaleString()}명` : `총 ${totalCount.toLocaleString()}명`}
         </Badge>
       </div>
 
       {/* Users List */}
       <Card className="border-0 shadow-sm">
         <CardContent className="p-0">
-          {filteredUsers.length === 0 ? (
+          {users.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
-              검색 결과가 없습니다.
+              {query ? '검색 결과가 없습니다.' : '가입한 사용자가 없습니다.'}
             </div>
           ) : (
             <div className="divide-y">
-              {filteredUsers.map((user) => (
+              {users.map((user) => (
                 <div key={user.id} className="p-4 hover:bg-gray-50 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-4">
@@ -231,7 +144,7 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
                           {/* Credit Display */}
                           <div className="flex items-center gap-1 text-sm font-semibold text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded">
                             <Coins className="h-3 w-3" />
-                            {user.credit_balance?.toLocaleString() || 0} C
+                            {user.credit_balance === null ? '잔액 확인 불가' : `${user.credit_balance.toLocaleString()} C`}
                           </div>
                         </div>
                       </div>
@@ -251,7 +164,7 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
                         size="sm"
                         variant="outline"
                         className="h-8 gap-1"
-                        onClick={() => openGrantModal(user)}
+                        onClick={() => openGrantDialog(user)}
                       >
                         <Plus className="h-3 w-3" />
                         크레딧 지급
@@ -265,24 +178,14 @@ export function UsersClient({ initialUsers, totalCount }: UsersClientProps) {
         </CardContent>
       </Card>
 
-      {/* Pagination (placeholder) */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          {filteredUsers.length}명 표시 중
-        </p>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled>
-            <ChevronLeft className="h-4 w-4" />
-            이전
-          </Button>
-          <span className="text-sm text-gray-600 px-2">1 / 1</span>
-          <Button variant="outline" size="sm" disabled>
-            다음
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      <StudioListPagination
+        page={page}
+        pageSize={pageSize}
+        totalCount={totalCount}
+        onPageChange={(nextPage) => router.push(buildHref({ page: nextPage }))}
+        onPageSizeChange={(nextSize) => router.push(buildHref({ pageSize: nextSize, page: 1 }))}
+        getPageHref={(nextPage) => buildHref({ page: nextPage })}
+      />
     </div>
   )
 }
-
