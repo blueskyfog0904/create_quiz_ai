@@ -1,59 +1,30 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import {
-  Users,
-  FileText,
-  Sparkles,
-  AlertTriangle,
-  TrendingUp,
-  Clock,
-  RefreshCw,
-  CreditCard,
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { AlertTriangle, ClipboardList, RefreshCw, Users } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import type { AdminWorkSummary } from '@/lib/admin-work-summary-server'
 
 interface Stats {
-  signups: {
-    today: number
-    month: number
-  }
-  questions: {
-    total: number
-  }
-  aiGenerations: {
-    today: number
-    month: number
-  }
-  downloads: {
-    today: number
-    month: number
-  }
-  errorLogs: {
-    today: number
-  }
-  revenue: {
-    total: number
-    month: number
-  }
-  recentQuestions: Array<{
-    id: string
-    question_text: string
-    grade_level: string | null
-    difficulty: string | null
-    created_at: string
-    profiles: {
-      email: string | null
-    } | null
-  }>
-  topGradeLevels: Array<{
-    grade_level: string
-    count: number
-  }>
+  signups: { today: number | null; month: number | null }
+  work: AdminWorkSummary
+  period: { year: number; month: number }
 }
+
+// 처리 대기 항목: 어떤 숫자를, 어떤 이름으로, 어느 화면에서 처리하는지
+const WORK_ITEMS: Array<{ key: keyof AdminWorkSummary; label: string; href: string }> = [
+  { key: 'paymentAlertOpen', label: '미해소 결제 경보', href: '/admin/refunds' },
+  { key: 'paymentOrderReview', label: '수동 확인이 필요한 결제 주문', href: '/admin/refunds' },
+  { key: 'refundAttention', label: '충전 환불 — 재처리·수동 확인', href: '/admin/refunds' },
+  { key: 'refundPending', label: '충전 환불 — 승인 대기', href: '/admin/refunds' },
+  { key: 'marketRefundPending', label: '문제마켓 환불 대기', href: '/admin/refunds' },
+  { key: 'supportPending', label: '답변 대기 문의', href: '/admin/support' },
+]
+
+// 세지 못한 값(null)은 0으로 보이지 않게 따로 표시한다.
+const formatCount = (value: number | null) => (value === null ? '확인 불가' : value.toLocaleString())
 
 export function DashboardClient() {
   const [stats, setStats] = useState<Stats | null>(null)
@@ -98,53 +69,10 @@ export function DashboardClient() {
 
   if (!stats) return null
 
-  const statCards = [
-    {
-      title: '신규 가입자',
-      value: stats.signups.today,
-      subValue: `이번 달 ${stats.signups.month}명`,
-      icon: Users,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-    },
-    {
-      title: '총 매출',
-      value: `₩${stats.revenue.total.toLocaleString()}`,
-      subValue: `이번 달 ₩${stats.revenue.month.toLocaleString()}`,
-      icon: CreditCard,
-      color: 'text-indigo-600',
-      bgColor: 'bg-indigo-50',
-    },
-    {
-      title: '문제 판매/다운로드',
-      value: stats.downloads.today,
-      subValue: `이번 달 ${stats.downloads.month}건`,
-      icon: FileText,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
-    },
-    {
-      title: 'AI 문제 생성',
-      value: stats.aiGenerations.today,
-      subValue: `이번 달 ${stats.aiGenerations.month}회`,
-      icon: Sparkles,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
-    },
-    {
-      title: '에러/실패 로그',
-      value: stats.errorLogs.today,
-      subValue: '오늘 발생',
-      icon: AlertTriangle,
-      color: stats.errorLogs.today > 0 ? 'text-red-600' : 'text-gray-600',
-      bgColor: stats.errorLogs.today > 0 ? 'bg-red-50' : 'bg-gray-50',
-    },
-  ]
-
   return (
     <div className="space-y-6">
-      {/* Refresh Button */}
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-500">기준: 한국 시간</p>
         <Button
           variant="outline"
           size="sm"
@@ -156,178 +84,64 @@ export function DashboardClient() {
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((card) => {
-          const Icon = card.icon
-          return (
-            <Card key={card.title} className="border-0 shadow-sm hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">{card.title}</p>
-                    <p className="text-3xl font-bold mt-1">{card.value}</p>
-                    <p className="text-xs text-gray-400 mt-1">{card.subValue}</p>
-                  </div>
-                  <div className={`p-3 rounded-full ${card.bgColor}`}>
-                    <Icon className={`h-6 w-6 ${card.color}`} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
-
-      {/* Bottom Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Questions */}
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Clock className="h-5 w-5 text-gray-400" />
-                최근 업로드된 문제
-              </CardTitle>
-              <Link href="/admin/questions">
-                <Button variant="ghost" size="sm">
-                  전체보기 →
-                </Button>
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {stats.recentQuestions.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">아직 업로드된 문제가 없습니다.</p>
-            ) : (
-              <div className="space-y-3">
-                {stats.recentQuestions.slice(0, 5).map((question) => (
-                  <div
-                    key={question.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {question.question_text.length > 50
-                          ? question.question_text.slice(0, 50) + '...'
-                          : question.question_text}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {question.profiles?.email || '알 수 없음'} •{' '}
-                        {new Date(question.created_at).toLocaleDateString('ko-KR')}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 ml-4">
-                      {question.grade_level && (
-                        <Badge variant="secondary" className="text-xs">
-                          {question.grade_level}
-                        </Badge>
-                      )}
-                      {question.difficulty && (
-                        <Badge
-                          variant="outline"
-                          className={`text-xs ${question.difficulty === '상'
-                              ? 'border-red-300 text-red-600'
-                              : question.difficulty === '중'
-                                ? 'border-yellow-300 text-yellow-600'
-                                : 'border-green-300 text-green-600'
-                            }`}
-                        >
-                          {question.difficulty}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Top Grade Levels */}
-        <Card className="border-0 shadow-sm">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="border-0 shadow-sm lg:col-span-2">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-gray-400" />
-              자주 사용된 학년 TOP 5
+              <ClipboardList className="h-5 w-5 text-gray-400" aria-hidden="true" />
+              처리 대기
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {stats.topGradeLevels.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">아직 데이터가 없습니다.</p>
-            ) : (
-              <div className="space-y-3">
-                {stats.topGradeLevels.map((item, index) => {
-                  const maxCount = stats.topGradeLevels[0]?.count || 1
-                  const percentage = (item.count / maxCount) * 100
+            <ul className="divide-y">
+              {WORK_ITEMS.map((item) => {
+                const value = stats.work[item.key]
+                // 0이 아니면(확인 불가 포함) 눈에 띄게 한다.
+                const needsAttention = value !== 0
+                return (
+                  <li key={item.key}>
+                    <Link
+                      href={item.href}
+                      className="flex items-center justify-between gap-4 py-3 hover:bg-gray-50"
+                    >
+                      <span className={needsAttention ? 'font-semibold text-gray-900' : 'text-gray-600'}>
+                        {item.label}
+                      </span>
+                      <span
+                        className={
+                          needsAttention
+                            ? 'rounded-full bg-red-100 px-3 py-0.5 text-sm font-bold text-red-700'
+                            : 'px-3 text-sm text-gray-400'
+                        }
+                      >
+                        {formatCount(value)}
+                      </span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </CardContent>
+        </Card>
 
-                  return (
-                    <div key={item.grade_level} className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className={`
-                            w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
-                            ${index === 0 ? 'bg-yellow-100 text-yellow-700' :
-                              index === 1 ? 'bg-gray-100 text-gray-700' :
-                                index === 2 ? 'bg-orange-100 text-orange-700' :
-                                  'bg-gray-50 text-gray-500'}
-                          `}>
-                            {index + 1}
-                          </span>
-                          <span className="font-medium text-gray-900">{item.grade_level}</span>
-                        </div>
-                        <span className="text-sm text-gray-600">{item.count}문제</span>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${index === 0 ? 'bg-orange-500' :
-                              index === 1 ? 'bg-orange-400' :
-                                index === 2 ? 'bg-orange-300' :
-                                  'bg-orange-200'
-                            }`}
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-500">오늘 신규 가입자</p>
+                <p className="text-3xl font-bold mt-1">{formatCount(stats.signups.today)}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {stats.period.year}년 {stats.period.month}월 {formatCount(stats.signups.month)}
+                  {stats.signups.month === null ? '' : '명'}
+                </p>
               </div>
-            )}
+              <div className="p-3 rounded-full bg-blue-50">
+                <Users className="h-6 w-6 text-blue-600" aria-hidden="true" />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Server Status */}
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">시스템 상태</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-              <div>
-                <p className="font-medium text-green-800">API 서버</p>
-                <p className="text-sm text-green-600">정상 작동 중</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-              <div>
-                <p className="font-medium text-green-800">데이터베이스</p>
-                <p className="text-sm text-green-600">정상 작동 중</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-              <div>
-                <p className="font-medium text-green-800">AI 서비스</p>
-                <p className="text-sm text-green-600">정상 작동 중</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }
@@ -335,9 +149,9 @@ export function DashboardClient() {
 function DashboardSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white rounded-xl p-6 shadow-sm border animate-pulse">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {[1, 2].map((i) => (
+          <div key={i} className={`bg-white rounded-xl p-6 shadow-sm border animate-pulse ${i === 1 ? 'lg:col-span-2' : ''}`}>
             <div className="h-4 bg-gray-200 rounded w-24 mb-3" />
             <div className="h-8 bg-gray-200 rounded w-16 mb-2" />
             <div className="h-3 bg-gray-200 rounded w-32" />
@@ -347,4 +161,3 @@ function DashboardSkeleton() {
     </div>
   )
 }
-
