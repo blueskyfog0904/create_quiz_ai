@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { cleanupAutoUploadDraftMarketItems } from '@/lib/market-item-cleanup'
 import { cleanupRemovedManualSampleUploadTargets } from '@/lib/market-sample-pages-server'
+import { retryMarketStorageCleanup } from '@/lib/market-storage-cleanup'
 import { resolveWorkspaceSubject } from '@/lib/workspace-subject'
 
 export const dynamic = 'force-dynamic'
@@ -50,7 +51,14 @@ export async function POST(request: Request) {
       dryRun: parsed.data.dryRun ?? true,
     })
 
-    return NextResponse.json({ success: true, data: { autoUploadDrafts: result, manualSampleUploadTargets } })
+    // 상품 삭제 뒤 지우지 못한 파일을 다시 정리한다(과목과 무관한 대기 표).
+    // 이 단계가 실패해도 앞에서 끝난 정리 결과는 그대로 돌려준다.
+    const storageCleanup = await retryMarketStorageCleanup({
+      limit: parsed.data.limit,
+      dryRun: parsed.data.dryRun ?? true,
+    }).catch((error: unknown) => ({ error: error instanceof Error ? error.message : '남은 파일 정리에 실패했습니다.' }))
+
+    return NextResponse.json({ success: true, data: { autoUploadDrafts: result, manualSampleUploadTargets, storageCleanup } })
   } catch (error) {
     return NextResponse.json({
       success: false,

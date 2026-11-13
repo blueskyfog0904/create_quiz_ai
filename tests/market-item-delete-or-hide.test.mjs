@@ -17,7 +17,7 @@ const HISTORY_TABLES = [
 ]
 
 // historyTable: 이력이 있는 표 이름, historyError: 이력 조회 오류, deleteError: market_items delete 오류, removeError: 파일 삭제 오류
-function loadCleanup({ historyTable = null, historyError = null, deleteError = null, removeError = null, itemStatus = 'published' } = {}) {
+function loadCleanup({ historyTable = null, historyError = null, deleteError = null, removeError = null, enqueueError = null, itemStatus = 'published' } = {}) {
   const events = []
   const errors = []
   const { client, calls } = createFakeAdmin(({ table, ops }) => {
@@ -29,6 +29,21 @@ function loadCleanup({ historyTable = null, historyError = null, deleteError = n
       events.push('db-delete')
       return { error: deleteError }
     }
+    if (table === 'market_storage_cleanup_queue') {
+      if (op(ops, 'upsert')) {
+        events.push('queue-add')
+        return { error: enqueueError ? { message: enqueueError } : null }
+      }
+      if (op(ops, 'delete')) {
+        events.push('queue-clear')
+        return { error: null }
+      }
+      if (op(ops, 'update')) {
+        events.push(`queue-fail:${op(ops, 'update')[1].attempt_count}`)
+        return { error: null }
+      }
+      return { data: [{ id: 'q1', storage_bucket: 'market-files', storage_path: 'a/b.pdf', attempt_count: 0, last_error: null }], error: null }
+    }
     return { data: [], error: null }
   }, {
     remove: () => {
@@ -36,8 +51,11 @@ function loadCleanup({ historyTable = null, historyError = null, deleteError = n
       return removeError ? { message: removeError } : null
     },
   })
+  const bypass = { createAdminClient: () => client }
+  const storageCleanup = load('src/lib/market-storage-cleanup.ts', { '@/lib/supabase/bypass': bypass }, errors)
   const cleanup = load('src/lib/market-item-cleanup.ts', {
-    '@/lib/supabase/bypass': { createAdminClient: () => client },
+    '@/lib/supabase/bypass': bypass,
+    '@/lib/market-storage-cleanup': storageCleanup,
     '@/lib/market-items-server': {
       getMarketItemById: async () => ({ id: ITEM_ID, workspace_subject: 'korean', status: itemStatus, draft_source: null }),
       listMarketItemFiles: async () => {
@@ -73,19 +91,30 @@ test('이미 숨김인 이력 상품은 다시 고치지 않는다', async () =>
   assert.deepEqual(events, [])
 })
 
-test('이력이 없으면 파일 경로 수집 → DB 삭제 → 파일 삭제 순서로 지운다', async () => {
+test('이력이 없으면 파일 경로 수집 → DB 삭제 → 대기 표 기록 → 파일 삭제 → 대기 행 정리 순서로 지운다', async () => {
   const { cleanup, events } = loadCleanup()
   const result = await cleanup.deleteOrHideMarketItem(input)
   assert.deepEqual(result, { result: 'deleted', storageCleanupFailed: false })
-  assert.deepEqual(events, ['collect-files', 'db-delete', 'storage-remove'])
+  assert.deepEqual(events, ['collect-files', 'db-delete', 'queue-add', 'storage-remove', 'queue-clear'])
 })
 
-test('파일 삭제가 실패해도 삭제는 성공으로 돌려주고 기록만 남긴다', async () => {
+test('파일 삭제가 실패해도 삭제는 성공으로 돌려주고, 대기 행을 남겨 나중에 다시 정리할 수 있게 한다', async () => {
   const { cleanup, events, errors } = loadCleanup({ removeError: 'storage down' })
   const result = await cleanup.deleteOrHideMarketItem(input)
   assert.deepEqual(result, { result: 'deleted', storageCleanupFailed: true })
-  assert.deepEqual(events, ['collect-files', 'db-delete', 'storage-remove'])
+  // 대기 행은 지우지 않고 시도 횟수 1과 사유만 남긴다
+  assert.deepEqual(events, ['collect-files', 'db-delete', 'queue-add', 'storage-remove', 'queue-fail:1'])
   assert.equal(errors.length, 1)
+})
+
+test('대기 표에 기록하지 못해도 파일은 바로 지워 본다', async () => {
+  const { cleanup, events } = loadCleanup({ enqueueError: 'relation does not exist' })
+  const result = await cleanup.deleteOrHideMarketItem(input)
+  assert.deepEqual(result, { result: 'deleted', storageCleanupFailed: false })
+  assert.deepEqual(events, ['collect-files', 'db-delete', 'queue-add', 'storage-remove'])
+
+  const both = loadCleanup({ enqueueError: 'relation does not exist', removeError: 'storage down' })
+  assert.deepEqual(await both.cleanup.deleteOrHideMarketItem(input), { result: 'deleted', storageCleanupFailed: true })
 })
 
 test('이력 조회가 실패하면 아무것도 지우거나 숨기지 않고 오류를 던진다', async () => {

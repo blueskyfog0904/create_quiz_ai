@@ -6,6 +6,7 @@ import {
   updateMarketItem,
 } from '@/lib/market-items-server'
 import { listMarketItemSamplePagesForCleanup } from '@/lib/market-sample-pages-server'
+import { enqueueMarketStorageCleanup, processMarketStorageCleanupRows } from '@/lib/market-storage-cleanup'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
 import type { MarketItem } from '@/lib/market-items-server'
 
@@ -184,18 +185,46 @@ export async function hardDeleteMarketItemWithAssets(input: {
     throw new MarketItemDeleteError(error.message, error.code ?? null)
   }
 
+  // 상품은 이미 지워졌다. 지울 파일을 대기 표에 적어 두고 지우므로, 여기서 실패해도 나중에 다시 정리할 수 있다.
+  // 삭제 자체는 성공으로 돌려준다.
+  let queuedRows: Awaited<ReturnType<typeof enqueueMarketStorageCleanup>>
   try {
-    await removeStorageTargets(storageTargets)
-  } catch (storageError) {
-    // 상품은 이미 지워졌다. 남은 파일은 기록만 하고 삭제 자체는 성공으로 돌려준다.
+    queuedRows = await enqueueMarketStorageCleanup({
+      targets: storageTargets,
+      source: 'market_item_delete',
+      sourceItemId: input.itemId,
+      sourceItemTitle: item.title,
+    })
+  } catch (enqueueError) {
+    // 대기 표에 적지 못했다. 기록 없이라도 파일은 바로 지워 본다(여기서도 실패하면 로그에만 남는다).
+    console.error('[market-item-cleanup] 파일 정리 대기 표에 기록하지 못했습니다.', {
+      itemId: input.itemId,
+      message: enqueueError instanceof Error ? enqueueError.message : String(enqueueError),
+    })
+    try {
+      await removeStorageTargets(storageTargets)
+      return { storageCleanupFailed: false }
+    } catch (storageError) {
+      console.error('[market-item-cleanup] 상품 삭제 뒤 파일 정리에 실패했습니다(기록 없음).', {
+        itemId: input.itemId,
+        message: storageError instanceof Error ? storageError.message : String(storageError),
+        targets: Array.from(storageTargets.entries()),
+      })
+      return { storageCleanupFailed: true }
+    }
+  }
+
+  try {
+    const { failed } = await processMarketStorageCleanupRows(queuedRows)
+    return { storageCleanupFailed: failed > 0 }
+  } catch (processError) {
+    // 대기 행은 남아 있으므로 나중에 다시 정리된다. 상품 삭제는 이미 끝났으니 오류로 돌려주지 않는다.
     console.error('[market-item-cleanup] 상품 삭제 뒤 파일 정리에 실패했습니다.', {
       itemId: input.itemId,
-      message: storageError instanceof Error ? storageError.message : String(storageError),
+      message: processError instanceof Error ? processError.message : String(processError),
     })
     return { storageCleanupFailed: true }
   }
-
-  return { storageCleanupFailed: false }
 }
 
 // Postgres FK 위반. 판정과 삭제 사이에 구매가 끼어들면(구매 기록 FK가 RESTRICT인 경우) 이 코드가 온다.

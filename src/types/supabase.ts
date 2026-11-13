@@ -2621,6 +2621,45 @@ export type Database = {
         }
         Relationships: []
       }
+      market_storage_cleanup_queue: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          id: string
+          last_attempt_at: string | null
+          last_error: string | null
+          source: string
+          source_item_id: string | null
+          source_item_title: string | null
+          storage_bucket: string
+          storage_path: string
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          source: string
+          source_item_id?: string | null
+          source_item_title?: string | null
+          storage_bucket: string
+          storage_path: string
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          source?: string
+          source_item_id?: string | null
+          source_item_title?: string | null
+          storage_bucket?: string
+          storage_path?: string
+        }
+        Relationships: []
+      }
       market_subproduct_files: {
         Row: {
           checksum: string | null
