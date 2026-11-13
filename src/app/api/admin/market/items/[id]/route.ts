@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { getMarketCategoryItemWorkspaceSubject } from '@/lib/market-categories-server'
 import { createClient } from '@/lib/supabase/server'
-import { hardDeleteMarketItemWithAssets } from '@/lib/market-item-cleanup'
+import { deleteOrHideMarketItem } from '@/lib/market-item-cleanup'
 import { MARKET_IMAGE_NOT_FOUND_MESSAGE, isMarketImageReferenceError } from '@/lib/market-images-server'
 import { MARKET_CATEGORY_TREE_CACHE_TAG, MARKET_PUBLIC_LIST_CACHE_TAG } from '@/lib/market-images'
 import {
@@ -223,15 +223,17 @@ export async function DELETE(_: Request, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: '문제마켓 상품을 찾을 수 없습니다.' } }, { status: 404 })
     }
 
-    await hardDeleteMarketItemWithAssets({
+    // 구매·환불·후기 이력이 있으면 지우지 않고 숨김으로 바꾼다.
+    const { result } = await deleteOrHideMarketItem({
       itemId: id,
       workspaceSubject: item.workspace_subject,
+      updatedBy: user.id,
     })
-    // 상품이 사라지면 공개 목록과 칸별 상품 수가 바뀐다.
+    // 상품이 사라지거나 숨겨지면 공개 목록과 칸별 상품 수가 바뀐다.
     revalidateTag(MARKET_PUBLIC_LIST_CACHE_TAG, { expire: 0 })
     revalidateTag(MARKET_CATEGORY_TREE_CACHE_TAG, { expire: 0 })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, data: { result } })
   } catch (error) {
     return NextResponse.json({
       success: false,

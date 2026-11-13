@@ -27,7 +27,7 @@ test('sample page helper exposes cleanup listing before cascade delete', () => {
 })
 
 test('hard delete route delegates to the shared cleanup helper instead of deleting files only', () => {
-  assert.match(itemRoute, /hardDeleteMarketItemWithAssets/)
+  assert.match(itemRoute, /deleteOrHideMarketItem/)
   assert.doesNotMatch(itemRoute, /const storageTargets = new Map/)
   assert.doesNotMatch(itemRoute, /adminSupabase\.storage\.from\(bucket\)\.remove/)
 })

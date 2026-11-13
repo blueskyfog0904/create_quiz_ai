@@ -1507,7 +1507,9 @@ export async function getActiveMarketSubproductFileForDownload(
 ): Promise<(MarketSubproductFile & { subproduct_title: string; file_type_code: string; file_type_label: string }) | null> {
   const supabase = getAdminSupabase()
   const item = await getMarketItemById(itemId, workspaceSubject)
-  if (!item || item.deleted_at !== null || item.is_active === false || item.status !== 'published') {
+  // 숨김(hidden)은 새 노출·구매만 막는다. 이미 산 사람은 계속 내려받는다(권한 검사는 다운로드 route가 한다).
+  const isDownloadableStatus = item?.status === 'published' || item?.status === 'hidden'
+  if (!item || item.deleted_at !== null || item.is_active === false || !isDownloadableStatus) {
     return null
   }
 

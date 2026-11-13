@@ -175,7 +175,7 @@ test('item hard delete revalidates the public list and category tree caches', as
     mocks: {
       '@/lib/admin-workspace': { resolveAdminWorkspaceSubject: () => 'english' },
       '@/lib/market-categories-server': { getMarketCategoryItemWorkspaceSubject: async () => 'english' },
-      '@/lib/market-item-cleanup': { hardDeleteMarketItemWithAssets: async () => {} },
+      '@/lib/market-item-cleanup': { deleteOrHideMarketItem: async () => ({ result: 'deleted', storageCleanupFailed: false }) },
       '@/lib/market-items-server': { getMarketItemById: async () => ({ id: ITEM_ID, workspace_subject: 'english' }) },
     },
   })

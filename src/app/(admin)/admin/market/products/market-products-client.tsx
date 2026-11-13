@@ -487,6 +487,7 @@ interface FileTypeSettingsFormState {
 
 const MANAGE_SUBPRODUCT_CATEGORIES_VALUE = '__manage_subproduct_categories__'
 const MANAGE_FILE_TYPES_VALUE = '__manage_file_types__'
+const MARKET_ITEM_HIDDEN_INSTEAD_MESSAGE = '구매·환불·후기 이력이 있어 삭제하지 않고 숨김 처리했습니다.'
 
 function buildEmptySubproductDraft(categoryId = ''): SubproductDraftState {
   return {
@@ -1233,7 +1234,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
     const isCancellingAutoUploadDraft = form.draftSource === 'auto_upload'
     const confirmMessage = isCancellingAutoUploadDraft
       ? '상품 등록을 완료하지 않고 업로드 파일을 삭제할까요? 임시 상품과 생성된 샘플 JPG가 모두 삭제되며 되돌릴 수 없습니다.'
-      : '이 상품을 완전 삭제하시겠습니까? DB 데이터와 업로드된 파일이 모두 삭제되며 되돌릴 수 없습니다.'
+      : '이 상품을 완전 삭제하시겠습니까? DB 데이터와 업로드된 파일이 모두 삭제되며 되돌릴 수 없습니다. 구매·환불·후기 이력이 있는 상품은 삭제되지 않고 숨김 처리됩니다(구매자 다운로드는 유지).'
 
     if (!window.confirm(confirmMessage)) {
       return
@@ -1252,7 +1253,11 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
 
       await refreshItems()
       resetForm(categoryItemId)
-      toast.success(isCancellingAutoUploadDraft ? '임시 업로드 파일을 삭제했습니다.' : '문제마켓 상품을 완전 삭제했습니다.')
+      if (payload.data?.result === 'hidden') {
+        toast.success(MARKET_ITEM_HIDDEN_INSTEAD_MESSAGE)
+      } else {
+        toast.success(isCancellingAutoUploadDraft ? '임시 업로드 파일을 삭제했습니다.' : '문제마켓 상품을 완전 삭제했습니다.')
+      }
       router.refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '문제마켓 상품 완전 삭제 중 오류가 발생했습니다.')
@@ -1283,7 +1288,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
       }
       setSelectedItemIds((current) => current.filter((itemId) => itemId !== deleteTarget.id))
       setDeleteTarget(null)
-      toast.success('문제마켓 상품을 완전 삭제했습니다.')
+      toast.success(payload.data?.result === 'hidden' ? MARKET_ITEM_HIDDEN_INSTEAD_MESSAGE : '문제마켓 상품을 완전 삭제했습니다.')
       router.refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '문제마켓 상품 완전 삭제 중 오류가 발생했습니다.')
@@ -1449,29 +1454,38 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
           throw new Error(payload.error?.message || `${item.title} 완전 삭제에 실패했습니다.`)
         }
 
-        return item
+        return { item, result: payload.data?.result === 'hidden' ? 'hidden' as const : 'deleted' as const }
       }))
 
-      const successIds = targetItems
-        .filter((_, index) => results[index].status === 'fulfilled')
-        .map((item) => item.id)
-      const failedIds = targetItems
-        .filter((_, index) => results[index].status === 'rejected')
-        .map((item) => item.id)
+      // 이력이 있는 상품은 서버가 지우지 않고 숨김으로 바꾼다. 지운 것만 목록에서 뺀다.
+      const deletedIds: string[] = []
+      const hiddenIds: string[] = []
+      const failedIds: string[] = []
+      results.forEach((settled, index) => {
+        if (settled.status === 'rejected') {
+          failedIds.push(targetItems[index].id)
+        } else if (settled.value.result === 'hidden') {
+          hiddenIds.push(settled.value.item.id)
+        } else {
+          deletedIds.push(settled.value.item.id)
+        }
+      })
 
-      setItems((current) => current.filter((item) => !successIds.includes(item.id)))
-      setHiddenItemIds((current) => current.filter((itemId) => !successIds.includes(itemId)))
+      setItems((current) => current.filter((item) => !deletedIds.includes(item.id)))
+      setHiddenItemIds((current) => current.filter((itemId) => !deletedIds.includes(itemId)))
       setSelectedItemIds(failedIds)
       setBulkDeleteTargetIds(null)
 
-      if (form.id && successIds.includes(form.id)) {
+      if (form.id && deletedIds.includes(form.id)) {
         resetForm(categoryItemId)
       }
 
       await refreshItems()
 
-      if (successIds.length > 0) {
-        toast.success(`선택한 상품 ${successIds.length}개를 완전 삭제했습니다.`)
+      if (deletedIds.length > 0 || hiddenIds.length > 0) {
+        toast.success(hiddenIds.length > 0
+          ? `삭제 ${deletedIds.length}개 / 이력이 있어 숨김 처리 ${hiddenIds.length}개`
+          : `선택한 상품 ${deletedIds.length}개를 완전 삭제했습니다.`)
       }
       if (failedIds.length > 0) {
         toast.error(`선택한 상품 ${failedIds.length}개 완전 삭제에 실패했습니다.`)
@@ -3532,6 +3546,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
             <AlertDialogTitle>문제마켓 상품을 완전 삭제할까요?</AlertDialogTitle>
             <AlertDialogDescription>
               <span className="font-medium">[{deleteTarget?.title}]</span> 상품의 DB 데이터와 업로드된 파일이 모두 삭제되며 되돌릴 수 없습니다.
+              <span className="mt-2 block">구매·환불·후기 이력이 있는 상품은 삭제되지 않고 숨김 처리됩니다(구매자 다운로드는 유지).</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -3600,6 +3615,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
             <AlertDialogTitle>선택한 문제마켓 상품 {bulkDeleteTargetIds?.length ?? 0}개를 완전 삭제할까요?</AlertDialogTitle>
             <AlertDialogDescription>
               DB 데이터와 업로드된 파일이 모두 삭제되며 되돌릴 수 없습니다.
+              <span className="mt-2 block">구매·환불·후기 이력이 있는 상품은 삭제되지 않고 숨김 처리됩니다(구매자 다운로드는 유지).</span>
               {bulkDeleteTargetItems.length > 0 ? (
                 <span className="mt-2 block text-gray-700">
                   {bulkDeleteTargetItems.slice(0, 3).map((item) => item.title).join(', ')}

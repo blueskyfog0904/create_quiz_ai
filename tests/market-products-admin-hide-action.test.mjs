@@ -85,8 +85,8 @@ test('admin market bulk actions keep failed items selected and clear successful 
   assert.match(marketProductsClient, /setSelectedItemIds\(failedIds\)/, 'failed item ids should remain selected after partial failure')
   assert.match(
     marketProductsClient,
-    /setItems\(\(current\) => current\.filter\(\(item\) => !successIds\.includes\(item\.id\)\)\)/,
-    'successful bulk deletes should be removed from local list'
+    /setItems\(\(current\) => current\.filter\(\(item\) => !deletedIds\.includes\(item\.id\)\)\)/,
+    'only actually deleted items should be removed from local list (items with history are hidden instead)'
   )
   assert.match(
     marketProductsClient,
@@ -95,7 +95,7 @@ test('admin market bulk actions keep failed items selected and clear successful 
   )
   assert.match(
     marketProductsClient,
-    /선택한 상품 \$\{successIds\.length\}개를 완전 삭제했습니다\./,
+    /선택한 상품 \$\{deletedIds\.length\}개를 완전 삭제했습니다\./,
     'bulk delete should report successful deleted count'
   )
 })
