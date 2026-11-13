@@ -1,49 +1,21 @@
-import { createClient } from '@/lib/supabase/server'
 import { CreditsClient } from './credits-client'
 import { requireAdmin } from '@/lib/auth'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
+import { listAdminCreditTransactions } from '@/lib/admin-credit-transactions-server'
 
-export default async function AdminCreditsPage() {
+interface AdminCreditsPageProps {
+  searchParams?: Promise<{ type?: string; q?: string; page?: string; pageSize?: string }>
+}
+
+export default async function AdminCreditsPage({ searchParams }: AdminCreditsPageProps) {
   await requireAdmin()
-  const supabase = await createClient()
-
-  // Fetch recent transactions first (without join)
-  const { data: transactions, error } = await supabase
-    .from('credit_transactions')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(100)
-
-  if (error) {
-    console.error('Error fetching transactions:', error)
-  }
-
-  // Then fetch profiles for these transactions manually to avoid join issues
-  const userIds = Array.from(new Set(transactions?.map(t => t.user_id) || []))
-  let profileMap: Record<string, any> = {}
-
-  if (userIds.length > 0) {
-    const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, email, display_tag')
-        .in('id', userIds)
-    
-    profiles?.forEach(p => {
-        profileMap[p.id] = p
-    })
-  }
-
-  const safeTransactions = transactions?.map(t => ({
-    ...t,
-    user: profileMap[t.user_id] || { email: 'Unknown' }
-  })) || []
-
-  // Simple stats from the loaded data (MVP)
-  const stats = {
-    totalGrant: safeTransactions.filter(t => t.amount > 0 && t.transaction_type !== 'system_refund').reduce((acc, t) => acc + t.amount, 0),
-    totalConsume: safeTransactions.filter(t => t.amount < 0).reduce((acc, t) => acc + t.amount, 0),
-    totalRefund: safeTransactions.filter(t => t.transaction_type === 'system_refund').reduce((acc, t) => acc + t.amount, 0)
-  }
+  const params = searchParams ? await searchParams : undefined
+  const result = await listAdminCreditTransactions({
+    type: params?.type,
+    q: params?.q,
+    page: params?.page,
+    pageSize: params?.pageSize,
+  })
 
   return (
     <div>
@@ -52,10 +24,16 @@ export default async function AdminCreditsPage() {
         <p className="text-gray-500 mt-1">시스템 전체 크레딧 거래 내역을 조회합니다</p>
       </div>
 
-      <CreditsClient 
-        initialTransactions={safeTransactions} 
-        totalCount={safeTransactions.length} // Just showing count of fetched items
-        stats={stats}
+      {/* 검색어가 바뀌면(뒤로 가기·메뉴 이동 포함) 입력칸도 주소의 검색어로 다시 맞춘다. */}
+      <CreditsClient
+        key={result.query}
+        transactions={result.transactions}
+        totalCount={result.totalCount}
+        page={result.page}
+        pageSize={result.pageSize}
+        query={result.query}
+        type={result.type}
+        monthlyStats={result.monthlyStats}
       />
     </div>
   )
