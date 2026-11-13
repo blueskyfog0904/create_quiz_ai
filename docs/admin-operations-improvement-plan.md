@@ -537,6 +537,18 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.admin_events;
 | Q-N | 야간 알림: critical(판매 자동 중지, 통지 실패 등)은 밤에도 멘션으로 깨울지 | 깨운다. 그 밖은 아침에 모아서. 슬랙 방해 금지 시간에는 멘션도 푸시가 안 올 수 있으므로 대표 휴대폰의 슬랙 알림 일정을 8절 0B 푸시 확인 때 함께 점검 |
 | Q-O | 통지가 멈췄을 때의 2차 수단: 외부 감시 하트비트(감시 서비스가 메일·앱으로 알림) | 사용한다(W0-9와 같은 서비스) |
 
+### 9-1. 결정 결과 (2026-11-13 사용자)
+
+| Q | 결정 |
+|---|---|
+| Q-G | 슬랙은 기존 채널(`create_ai_quiz`)을 그대로 쓴다. 대표가 그 웹훅 주소를 Vault에 `admin_alert_slack_webhook_url`로 등록(U0-4 때 안내) |
+| Q-I | 대표 전용 "충전 판매 중지" 버튼을 둔다(중지만, 재개는 SQL) → U0-7 확정 |
+| Q-H | `test` 요금제는 대표가 직접 끈다(AI는 건드리지 않음). 나머지 U0-2 항목은 조회 뒤 결정 |
+| Q-J | 기존 관리자 4명은 그대로 둔다(테스트로 사용 중). DB-P1에서 **네 계정 모두 `owner`**로 시작하고, 조정은 대표가 권한 부여 화면에서 |
+| Q-D | `/admin/roles`·`/admin/labels`·`/admin/landing-pages`는 0단계(U0-5)에서 차단 — 이 데이터를 읽는 곳이 관리 화면·예전 화면뿐임을 코드로 확인(`user_roles`는 관리 화면만, `display_labels`는 `features/bank/question-list`만, 랜딩은 `legacy/page.tsx`·`[workspaceSubject]/page.tsx`만). `[workspaceSubject]` 경로가 방문자에게 열리는지는 U0-5에서 확인해 열리면 먼저 보고. `/admin/menu-management`는 2차(U0-5b) |
+| Q-A | Resend·Supabase 메일 설정 완료(수신 테스트는 아직). W3-7·U1-6 배포 때 실제 수신 확인 |
+| 그 밖(Q-B, Q-C, Q-E, Q-F, Q-K~Q-O) | 해당 단계에 들어갈 때 확인. 그 전에는 권장안으로 진행 |
+
 ## 10. 위험과 대응
 
 | 위험 | 대응 |
