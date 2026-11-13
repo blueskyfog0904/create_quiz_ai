@@ -98,12 +98,15 @@ export async function togglePlanStatus(id: string, isActive: boolean) {
 
     if (!profile?.is_admin) throw new Error('Forbidden')
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
         .from('pricing_plans')
         .update({ is_active: isActive })
         .eq('id', id)
+        .select('id')
 
     if (error) throw new Error(error.message)
+    // 바뀐 행이 없으면(없는 요금제·권한 문제) 성공으로 보이지 않게 한다.
+    if (!updated || updated.length === 0) throw new Error('요금제를 찾지 못했습니다.')
 
     revalidatePath('/admin/pricing')
     return { success: true }

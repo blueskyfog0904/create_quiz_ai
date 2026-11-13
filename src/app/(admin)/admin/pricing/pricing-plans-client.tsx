@@ -15,6 +15,15 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { PricingPlanDialog } from './components/pricing-plan-dialog'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog'
+import { toast } from 'sonner'
 
 export function PricingPlansClient() {
     const [plans, setPlans] = useState<PricingPlan[]>([])
@@ -53,14 +62,24 @@ export function PricingPlansClient() {
         setDialogOpen(true)
     }
 
-    const handleToggleActive = async (id: string, currentStatus: boolean) => {
+    // 판매 상태는 바꾸는 즉시 고객의 충전 화면에 반영된다. 스위치를 눌러도 바로 바꾸지 않고 확인 창을 거친다.
+    const [toggleTarget, setToggleTarget] = useState<PricingPlan | null>(null)
+    const [toggling, setToggling] = useState(false)
+
+    const handleConfirmToggle = async () => {
+        if (!toggleTarget) return
+        const nextActive = !toggleTarget.is_active
+        setToggling(true)
         try {
-            // Optimistic update
-            setPlans(plans.map(p => p.id === id ? { ...p, is_active: !currentStatus } : p))
-            await togglePlanStatus(id, !currentStatus)
+            await togglePlanStatus(toggleTarget.id, nextActive)
+            toast.success(`'${toggleTarget.name}' 요금제를 ${nextActive ? '판매중' : '비활성'}으로 바꿨습니다.`)
+            setToggleTarget(null)
         } catch (err) {
             console.error(err)
-            // Revert on failure
+            toast.error('판매 상태를 바꾸지 못했습니다. 목록의 현재 상태를 확인해 주세요.')
+        } finally {
+            setToggling(false)
+            // 성공·실패와 무관하게 DB의 실제 상태를 다시 읽어 보여 준다.
             fetchPlans()
         }
     }
@@ -135,7 +154,8 @@ export function PricingPlansClient() {
                                         <div className="flex items-center gap-2">
                                             <Switch
                                                 checked={plan.is_active}
-                                                onCheckedChange={() => handleToggleActive(plan.id, plan.is_active)}
+                                                aria-label={`${plan.name} 판매 상태`}
+                                                onCheckedChange={() => setToggleTarget(plan)}
                                             />
                                             <span className={`text-xs ${plan.is_active ? 'text-green-600' : 'text-gray-400'}`}>
                                                 {plan.is_active ? '판매중' : '비활성'}
@@ -153,6 +173,36 @@ export function PricingPlansClient() {
                     </TableBody>
                 </Table>
             </div>
+
+            <Dialog open={toggleTarget !== null} onOpenChange={(open) => !open && !toggling && setToggleTarget(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>
+                            {toggleTarget?.is_active ? '요금제 판매 중지' : '요금제 판매 시작'}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {toggleTarget && (
+                                <>
+                                    <strong>{toggleTarget.name}</strong> (₩{toggleTarget.price.toLocaleString()} · {toggleTarget.credits.toLocaleString()} C)
+                                </>
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <p className="text-sm text-gray-700">
+                        {toggleTarget?.is_active
+                            ? '중지하면 고객의 충전 화면에서 이 요금제가 바로 사라지고 새로 결제할 수 없습니다. 이미 결제한 건에는 영향이 없습니다.'
+                            : '시작하면 고객의 충전 화면에 이 요금제가 바로 나타나고 누구나 결제할 수 있습니다.'}
+                    </p>
+                    <DialogFooter className="justify-center gap-2">
+                        <Button variant="outline" onClick={() => setToggleTarget(null)} disabled={toggling}>
+                            취소
+                        </Button>
+                        <Button onClick={handleConfirmToggle} disabled={toggling}>
+                            {toggling ? '처리 중...' : toggleTarget?.is_active ? '판매 중지' : '판매 시작'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <PricingPlanDialog
                 open={dialogOpen}
