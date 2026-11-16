@@ -95,32 +95,15 @@ async function markEvent(
 export async function runFollowUps(admin: PaymentAdminClient, followUps: FollowUps) {
   for (const alert of followUps.alerts) {
     try {
-      await admin.rpc('record_payment_alert', {
+      const { error } = await admin.rpc('record_payment_alert', {
         p_code: alert.code,
         p_severity: alert.severity,
         p_message: alert.message,
         p_details: alert.details as Json,
       })
-
-      if (alert.notifyAdmins) {
-        const { data: admins } = await admin
-          .from('profiles')
-          .select('id')
-          .eq('is_admin', true)
-        const orderId = typeof alert.details.order_id === 'string'
-          ? alert.details.order_id
-          : '확인 필요'
-
-        if (admins?.length) {
-          await admin.from('notifications').insert(admins.map((row) => ({
-            user_id: row.id,
-            type: 'warning',
-            title: '페이앱 결제 확인 필요',
-            message: `${alert.message} (주문 ${orderId})`,
-            link: '/admin/refunds',
-            is_read: false,
-          })))
-        }
+      // 관리자 알림은 이 경보 기록에서만 나온다. 기록이 안 되면 흔적을 남긴다.
+      if (error) {
+        console.error('[PayappWebhook] Alert record failed', { alertCode: alert.code, errorCode: error.code })
       }
     } catch {
       // 경보 기록 실패는 결제 처리 결과와 무관하다.

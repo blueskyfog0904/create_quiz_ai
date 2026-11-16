@@ -192,7 +192,8 @@ test('an apply failure records a critical PAYAPP_FEEDBACK_APPLY_FAILED alert and
   assert.equal(alert.p_details.pay_state, 9)
   assert.equal(alert.p_details.price, 9900)
   assert.equal(alert.p_details.error_code, '57014')
-  assert.equal(admin.calls.notifications[0].user_id, 'admin-1')
+  // 관리자 알림은 경보 INSERT 트리거가 admin_events로 만든다. 웹훅은 관리자에게 notifications를 넣지 않는다.
+  assert.equal(admin.calls.notifications.length, 0)
 })
 
 test('an ignored cancel notification is alerted as critical, other ignored ones stay warning', async () => {
@@ -213,10 +214,10 @@ test('an ignored cancel notification is alerted as critical, other ignored ones 
     assert.equal(admin.events.get(`payapp:2000:${payState}`).processing_status, 'ignored')
     assert.equal(admin.calls.alerts[0].p_code, 'PAYAPP_FEEDBACK_AMOUNT_MISMATCH')
     assert.equal(admin.calls.alerts[0].p_severity, severity, `pay_state ${payState}`)
-    assert.equal(admin.calls.notifications.length > 0, true)
+    assert.equal(admin.calls.notifications.length, 0)
   }
 
-  // 주문이 없는 비취소 통보는 지금처럼 결제완료만 관리자에게 알린다.
+  // 주문이 없는 비취소 통보는 warning 경보로 남는다.
   const notPaid = createFakeAdmin({
     rpc: { apply_payapp_feedback: () => ok({ result: 'order_not_found' }) },
   })
@@ -224,14 +225,14 @@ test('an ignored cancel notification is alerted as critical, other ignored ones 
   assert.equal(notPaid.calls.alerts[0].p_severity, 'warning')
   assert.equal(notPaid.calls.notifications.length, 0)
 
-  // 주문이 없는 취소 통보는 critical로 관리자에게 알린다.
+  // 주문이 없는 취소 통보는 critical 경보로 남는다.
   const cancelled = createFakeAdmin({
     rpc: { apply_payapp_feedback: () => ok({ result: 'order_not_found' }) },
   })
   await handlePayAppFeedback(feedbackBody({ pay_state: '9' }), cancelled)
   assert.equal(cancelled.calls.alerts[0].p_code, 'PAYAPP_FEEDBACK_ORDER_NOT_FOUND')
   assert.equal(cancelled.calls.alerts[0].p_severity, 'critical')
-  assert.equal(cancelled.calls.notifications.length > 0, true)
+  assert.equal(cancelled.calls.notifications.length, 0)
 })
 
 test('every non-exception feedback result closes the event and answers SUCCESS', async () => {
@@ -293,7 +294,7 @@ test('missing PayApp configuration answers FAIL with a configuration alert', asy
   }
 })
 
-test('notifications rejected by validation are ignored with an alert and admin notice', async () => {
+test('notifications rejected by validation are ignored with an alert', async () => {
   const admin = createFakeAdmin({
     rpc: {
       apply_payapp_feedback: () => ok({
@@ -309,12 +310,11 @@ test('notifications rejected by validation are ignored with an alert and admin n
   assert.equal(admin.events.get('payapp:2000:4').processing_status, 'ignored')
   assert.equal(admin.calls.alerts[0].p_code, 'PAYAPP_FEEDBACK_AMOUNT_MISMATCH')
   assert.equal(admin.calls.alerts[0].p_details.order_id, 'PAYAPP_ORDER_1')
-  assert.equal(admin.calls.notifications[0].user_id, 'admin-1')
-  assert.match(admin.calls.notifications[0].message, /PAYAPP_ORDER_1/)
+  assert.equal(admin.calls.notifications.length, 0)
 })
 
-test('notifications with an order id but no order are recorded and alerted, admins only for paid ones', async () => {
-  for (const [payState, adminNotified] of [['1', false], ['4', true]]) {
+test('notifications with an order id but no order are recorded and alerted', async () => {
+  for (const payState of ['1', '4']) {
     const admin = createFakeAdmin({
       rpc: { apply_payapp_feedback: () => ok({ result: 'order_not_found' }) },
     })
@@ -323,7 +323,7 @@ test('notifications with an order id but no order are recorded and alerted, admi
     assert.equal(admin.events.get(`payapp:2000:${payState}`).processing_status, 'ignored')
     assert.equal(admin.calls.alerts[0].p_code, 'PAYAPP_FEEDBACK_ORDER_NOT_FOUND')
     assert.equal(admin.calls.alerts[0].p_details.order_id, 'PAYAPP_ORDER_1')
-    assert.equal(admin.calls.notifications.length > 0, adminNotified)
+    assert.equal(admin.calls.notifications.length, 0)
   }
 })
 
@@ -367,7 +367,7 @@ test('partial cancels without var1 or orig_mul_no had no lookup key and still al
   }
 })
 
-test('a partial cancel without orig_mul_no or var1 is a critical alert that notifies admins', async () => {
+test('a partial cancel without orig_mul_no or var1 is a critical alert', async () => {
   for (const payState of ['70', '71']) {
     const admin = createFakeAdmin({
       rpc: { apply_payapp_feedback: () => ok({ result: 'order_not_found' }) },
@@ -378,7 +378,7 @@ test('a partial cancel without orig_mul_no or var1 is a critical alert that noti
     assert.equal(admin.events.get(`payapp:2000:${payState}`).last_error_code, 'order_not_found')
     assert.equal(admin.calls.alerts[0].p_code, 'PAYAPP_FEEDBACK_ORDER_NOT_FOUND')
     assert.equal(admin.calls.alerts[0].p_severity, 'critical')
-    assert.equal(admin.calls.notifications[0].user_id, 'admin-1')
+    assert.equal(admin.calls.notifications.length, 0)
   }
 
   // orig_mul_no가 있으면 사이트 밖 분기 조건은 그대로다(경보 없음).
@@ -461,20 +461,19 @@ test('every cancellation result closes the event with the alerts it needs', asyn
   const cases = [
     { marker: 'cancel', result: { result: 'cancelled_before_fulfillment' }, alerts: [] },
     { marker: 'cancel', result: { result: 'already_refunded' }, alerts: [] },
-    { marker: 'cancel', result: { result: 'double_refund_suspected' }, alerts: ['PAYAPP_DOUBLE_REFUND_SUSPECTED'], admins: true },
-    { marker: 'cancel', result: { result: 'already_quarantined' }, alerts: ['PAYAPP_CANCEL_AFTER_QUARANTINE'], admins: true },
+    { marker: 'cancel', result: { result: 'double_refund_suspected' }, alerts: ['PAYAPP_DOUBLE_REFUND_SUSPECTED'] },
+    { marker: 'cancel', result: { result: 'already_quarantined' }, alerts: ['PAYAPP_CANCEL_AFTER_QUARANTINE'] },
     { marker: 'cancel', result: { result: 'refund_finalized', user_id: USER_UUID }, alerts: [], userNotified: true },
     { marker: 'cancel', result: { result: 'external_cancel_quarantined' }, alerts: [] },
-    { marker: 'cancel', result: { result: 'cancel_handling_failed' }, alerts: ['PAYAPP_CANCEL_HANDLING_FAILED'], admins: true },
+    { marker: 'cancel', result: { result: 'cancel_handling_failed' }, alerts: ['PAYAPP_CANCEL_HANDLING_FAILED'] },
     { marker: 'cancel', result: { result: 'nothing_to_process' }, alerts: [] },
-    { marker: 'partial_cancel', result: { result: 'partial_cancel_after_cancel' }, alerts: ['PAYAPP_PARTIAL_CANCEL_AFTER_CANCEL'], admins: true },
+    { marker: 'partial_cancel', result: { result: 'partial_cancel_after_cancel' }, alerts: ['PAYAPP_PARTIAL_CANCEL_AFTER_CANCEL'] },
     { marker: 'partial_cancel', result: { result: 'partial_cancel_unpaid' }, alerts: [] },
     { marker: 'partial_cancel', result: { result: 'partial_cancel_quarantined', outcome: 'quarantined' }, alerts: [] },
     {
       marker: 'partial_cancel',
       result: { result: 'partial_cancel_quarantined', outcome: 'absorbed_by_refund', partial_cancel_amount: 3000, actual_refund_amount: 6900 },
       alerts: ['PAYAPP_PARTIAL_CANCEL_ABSORBED'],
-      admins: true,
     },
     { marker: 'partial_cancel', result: { result: 'deferred_refund_processing' }, alerts: ['PAYAPP_PARTIAL_CANCEL_DEFERRED'] },
     { marker: 'partial_cancel', result: { result: 'already_quarantined' }, alerts: [] },
@@ -496,7 +495,7 @@ test('every cancellation result closes the event with the alerts it needs', asyn
     assert.equal((await handlePayAppFeedback(body, admin)).body, 'SUCCESS', label)
     assert.equal([...admin.events.values()][0].processing_status, 'completed', label)
     assert.deepEqual(admin.calls.alerts.map((alert) => alert.p_code), item.alerts, label)
-    assert.equal(admin.calls.notifications.some((row) => row.user_id === 'admin-1'), Boolean(item.admins), label)
+    assert.equal(admin.calls.notifications.some((row) => row.user_id !== USER_UUID), false, label)
     assert.equal(admin.calls.notifications.some((row) => row.user_id === USER_UUID), Boolean(item.userNotified), label)
   }
 

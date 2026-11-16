@@ -45,7 +45,7 @@ test('snapshot compares profile, ledger, and latest transaction balances', () =>
   assert.doesNotMatch(balanceSource, /CREDIT_LEDGER_DISPLAY_ENABLED/)
   assert.match(balanceSource, /export async function reportCreditBalanceMismatch/)
   assert.match(balanceSource, /createAdminClient/)
-  assert.match(balanceSource, /\.from\('notifications'\)[\s\S]*?\.insert/)
+  assert.match(balanceSource, /\.from\('admin_events'\)[\s\S]*?\.insert/)
 })
 
 // CreditService의 한 정적 메서드 본문(다음 정적 메서드 전까지)을 잘라 낸다.

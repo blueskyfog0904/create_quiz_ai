@@ -74,27 +74,27 @@ export async function reportCreditBalanceMismatch(
 
   try {
     const adminSupabase = createAdminClient()
-    const { data: admins, error: adminError } = await adminSupabase
-      .from('profiles')
-      .select('id')
-      .eq('is_admin', true)
+    // 같은 회원의 불일치는 한국 시간(UTC+9) 하루에 1건만 남긴다(dedupe_key 유니크).
+    const kstDate = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    // 제목·본문은 슬랙으로 나간다. 회원 식별 정보는 ref_id에만 둔다.
+    const { error } = await adminSupabase
+      .from('admin_events')
+      .insert({
+        kind: 'credit_balance_mismatch',
+        severity: 'warning',
+        title: '크레딧 잔액 정합성 확인 필요',
+        body: `${context} · 원인 ${snapshot.mismatchReasons.join(', ')}`,
+        link: '/admin/credits',
+        ref_table: 'profiles',
+        ref_id: userId,
+        required_permission: 'refunds.payment',
+        dedupe_key: `mismatch:${userId}:${kstDate}`,
+      })
 
-    if (adminError || !admins || admins.length === 0) {
-      return
+    // 23505: 오늘 이미 남긴 이벤트(ON CONFLICT DO NOTHING과 같은 결과).
+    if (error && error.code !== '23505') {
+      console.error('[CreditBalance] Failed to persist reconcile signal:', error)
     }
-
-    const notificationRows = admins.map((admin) => ({
-      user_id: admin.id,
-      type: 'warning',
-      title: '크레딧 잔액 정합성 확인 필요',
-      message: `크레딧 잔액 정합성 확인 필요: ${context} / 대상 사용자 ${userId} / 원인 ${snapshot.mismatchReasons.join(', ')}`,
-      link: '/admin/credits',
-      is_read: false,
-    }))
-
-    await adminSupabase
-      .from('notifications')
-      .insert(notificationRows)
   } catch (error) {
     console.error('[CreditBalance] Failed to persist reconcile signal:', error)
   }
