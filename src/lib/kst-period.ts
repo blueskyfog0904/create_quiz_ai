@@ -17,3 +17,14 @@ export function getKstPeriodStarts(now: Date = new Date()) {
     month: month + 1,
   }
 }
+
+// 한국 날짜('YYYY-MM-DD')가 시작하는 시각을 UTC ISO 문자열로 돌려준다. addDays=1이면 다음 날 시작(기간 끝의 경계).
+// 형식이 틀리거나 없는 날짜면 null.
+export function getKstDateStart(date: string | null | undefined, addDays = 0) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date ?? '')
+  if (!match) return null
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])]
+  const utcMidnight = new Date(Date.UTC(year, month - 1, day))
+  if (utcMidnight.getUTCFullYear() !== year || utcMidnight.getUTCMonth() !== month - 1 || utcMidnight.getUTCDate() !== day) return null
+  return new Date(utcMidnight.getTime() + addDays * 24 * 60 * 60 * 1000 - KST_OFFSET_MS).toISOString()
+}

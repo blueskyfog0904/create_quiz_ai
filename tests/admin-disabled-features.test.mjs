@@ -48,12 +48,12 @@ test('경로가 속한 기능 묶음을 조각 경계로 판정한다', () => {
 
 test('운영 화면과 비슷한 이름의 경로는 어느 묶음에도 속하지 않는다', () => {
   for (const path of [
-    '/admin', '/admin/login', '/admin/support', '/admin/refunds', '/admin/users', '/admin/credits', '/admin/pricing',
+    '/admin', '/admin/login', '/admin/support', '/admin/refunds', '/admin/orders', '/admin/users', '/admin/credits', '/admin/pricing',
     '/admin/market/products', '/admin/market/products/new', '/admin/market/images', '/admin/market-categories',
     '/admin/main-ad-settings', '/admin/market-main-settings', '/admin/reviews', '/admin/review-tags',
     '/admin/footer', '/admin/admin-accounts',
     '/api/admin/market/items', '/api/admin/market/file-types', '/api/admin/market/storage-cleanup', '/api/admin/support/tickets/1',
-    '/api/admin/refunds', '/api/admin/payments/review', '/api/admin/users/credits', '/api/admin/reviews', '/api/admin/site-logo',
+    '/api/admin/refunds', '/api/admin/orders/payments', '/api/admin/payments/review', '/api/admin/users/credits', '/api/admin/reviews', '/api/admin/site-logo',
     '/api/admin/session', '/api/admin/stats', '/api/admin/admin-accounts',
     // 접두가 비슷할 뿐 다른 경로
     '/admin/questions-export', '/admin/rolesx', '/admin/labels-new', '/api/admin/providersx',
@@ -235,7 +235,7 @@ test('사이드바는 꺼진 묶음의 메뉴를 그리지 않고, 묶음에 남
   assert.deepEqual(hrefs, [
     '/admin', '/admin/menu-management', '/admin/landing-pages',
     '/admin/main-ad-settings', '/admin/market-main-settings', '/admin/market/products/new', '/admin/market/products', '/admin/market/images', '/admin/market-categories',
-    '/admin/users', '/admin/support', '/admin/footer', '/admin/pricing', '/admin/credits', '/admin/refunds', '/admin/reviews', '/admin/review-tags', '/admin/admin-accounts',
+    '/admin/users', '/admin/support', '/admin/footer', '/admin/pricing', '/admin/credits', '/admin/refunds', '/admin/orders', '/admin/reviews', '/admin/review-tags', '/admin/admin-accounts',
   ])
   assert.deepEqual(nodes.filter((node) => node.type === 'group').map((node) => node.id), ['market'])
   // 숨길 것이 없으면 지금과 같다
@@ -329,9 +329,9 @@ test('관리자 페이지와 API 경로는 "운영 화면" 또는 "기능 묶음
   const apis = listRoutes(join(root, 'api/admin'), 'route.ts').map((file) => toRoute(file, '/route.ts'))
 
   const OPERATIONAL_PREFIXES = [
-    '/admin/support', '/admin/refunds', '/admin/users', '/admin/credits', '/admin/pricing', '/admin/market', '/admin/market-categories',
+    '/admin/support', '/admin/refunds', '/admin/orders', '/admin/users', '/admin/credits', '/admin/pricing', '/admin/market', '/admin/market-categories',
     '/admin/main-ad-settings', '/admin/market-main-settings', '/admin/reviews', '/admin/review-tags', '/admin/footer', '/admin/admin-accounts', '/admin/forbidden',
-    '/api/admin/support', '/api/admin/refunds', '/api/admin/payments', '/api/admin/users', '/api/admin/market', '/api/admin/market-categories',
+    '/api/admin/support', '/api/admin/refunds', '/api/admin/orders', '/api/admin/payments', '/api/admin/users', '/api/admin/market', '/api/admin/market-categories',
     '/api/admin/main-ad-settings', '/api/admin/market-main-settings', '/api/admin/reviews', '/api/admin/review-tags', '/api/admin/site-logo',
     '/api/admin/admin-accounts', '/api/admin/session', '/api/admin/stats', '/api/admin/alerts',
   ]
