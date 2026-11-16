@@ -46,6 +46,8 @@
 }
 
 :root {
+  /* 밝은 화면 고정(레이아웃의 viewport.colorScheme과 같은 뜻). 다크 화면을 만들면 함께 바꾼다. */
+  color-scheme: only light;
   --radius: 0.625rem;
   /* Brand Colors (Deep Navy, Indigo, Electric Violet) */
   --background: #F8FAFC; /* Slate-50 for expansive airy feel */
