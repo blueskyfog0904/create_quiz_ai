@@ -33,6 +33,7 @@ export interface AdminPaymentOrderAction {
 export interface AdminPaymentOrder {
   id: string
   orderId: string
+  userId: string
   provider: string
   environment: string
   status: string
@@ -91,7 +92,7 @@ export interface AdminPaymentOrderListResult {
 
 // FK가 양방향인 관계(payment_orders ↔ credit_sources)가 있어 관계마다 FK 이름을 적는다.
 const ORDER_COLUMNS = `
-  id, order_id, provider, environment, status, plan_name_snapshot, expected_amount, expected_credits,
+  id, order_id, user_id, provider, environment, status, plan_name_snapshot, expected_amount, expected_credits,
   failure_code, failure_message, created_at, approved_at, fulfilled_at, canceled_at,
   user:profiles!payment_orders_user_id_fkey(email, display_tag),
   method:payment_methods!payment_orders_payment_method_fkey(label),
@@ -117,6 +118,8 @@ export async function listPaymentOrdersForAdmin(input: {
   to?: string | null
   page?: unknown
   pageSize?: unknown
+  // 회원 상세용: 이 회원의 주문만(검색어와 달리 id 정확 일치)
+  userId?: string
 }): Promise<AdminPaymentOrderListResult> {
   const supabase = createPaymentAdminClient()
   const query = (input.q ?? '').trim()
@@ -182,6 +185,10 @@ export async function listPaymentOrdersForAdmin(input: {
     countQuery = countQuery.or(searchFilter)
     dataQuery = dataQuery.or(searchFilter)
   }
+  if (input.userId) {
+    countQuery = countQuery.eq('user_id', input.userId)
+    dataQuery = dataQuery.eq('user_id', input.userId)
+  }
 
   const { count, error: countError } = await countQuery
   if (countError) throw new Error(countError.message)
@@ -224,6 +231,7 @@ export async function listPaymentOrdersForAdmin(input: {
     orders: rows.map((row) => ({
       id: row.id,
       orderId: row.order_id,
+      userId: row.user_id,
       provider: row.provider,
       environment: row.environment,
       status: row.status,
@@ -275,6 +283,7 @@ export interface AdminMarketOrderFile {
 
 export interface AdminMarketOrder {
   id: string
+  userId: string
   workspaceSubject: string
   status: string
   originalPriceCredits: number
@@ -358,6 +367,8 @@ export async function listMarketOrdersForAdmin(input: {
   to?: string | null
   page?: unknown
   pageSize?: unknown
+  // 회원 상세용: 이 회원의 주문만(검색어와 달리 id 정확 일치)
+  userId?: string
 }): Promise<AdminMarketOrderListResult> {
   const supabase = createAdminClient()
   const query = (input.q ?? '').trim()
@@ -412,6 +423,10 @@ export async function listMarketOrdersForAdmin(input: {
   if (searchFilter) {
     countQuery = countQuery.or(searchFilter)
     dataQuery = dataQuery.or(searchFilter)
+  }
+  if (input.userId) {
+    countQuery = countQuery.eq('user_id', input.userId)
+    dataQuery = dataQuery.eq('user_id', input.userId)
   }
 
   // 검색어가 있는데 맞는 주문 id·회원·상품이 하나도 없으면 조회하지 않고 0건이다.
@@ -526,6 +541,7 @@ export async function listMarketOrdersForAdmin(input: {
 
       return {
         id: row.id,
+        userId: row.user_id,
         workspaceSubject: row.workspace_subject,
         status: row.status,
         originalPriceCredits: row.original_price_credits,

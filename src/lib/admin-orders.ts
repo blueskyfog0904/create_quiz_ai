@@ -153,7 +153,7 @@ export const WORKSPACE_SUBJECT_LABELS = {
   english: '영어',
 } as const
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // 검색어 한 칸: 주문 id 정확 일치 + 이메일이 맞는 회원의 주문 + 상품명이 맞는 상품의 주문.
 // 주문 id는 uuid 열이라 uuid 모양일 때만 조건에 넣는다(아니면 DB가 오류를 낸다). 맞는 조건이 하나도 없으면 null(= 결과 0건).

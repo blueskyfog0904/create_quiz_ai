@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAdminAlerts } from '@/components/admin/admin-alert-context'
 import { toast } from 'sonner'
@@ -141,7 +142,7 @@ export function MarketRefundsClient({ requests }: MarketRefundsClientProps) {
                   <TableCell>{new Date(request.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="text-sm font-medium">{memberName(request)}</span>
+                      <Link href={`/admin/users/${request.user_id}`} className="text-sm font-medium hover:underline">{memberName(request)}</Link>
                       <span className="text-xs text-gray-400">{request.user?.email ?? '-'}</span>
                     </div>
                   </TableCell>

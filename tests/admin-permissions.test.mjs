@@ -293,7 +293,7 @@ test('서버 모듈 계약: 요청당 한 번 읽기, 세션 클라이언트만,
   // 순수 모듈은 DB·next에 기대지 않는다.
   assert.doesNotMatch(read('src/lib/admin-permissions.ts'), /^import /m)
 
-  // 전면 적용은 U3-3. 그 전에는 관리자 계정 관리(대표 전용)와 처음부터 가드로 만든 화면(주문 조회)에만 쓴다.
+  // 전면 적용은 U3-3. 그 전에는 관리자 계정 관리(대표 전용)와 처음부터 가드로 만든 화면(주문 조회·회원 상세)에만 쓴다.
   const users = []
   const walk = (dir) => {
     for (const entry of readdirSync(dir)) {
@@ -307,10 +307,12 @@ test('서버 모듈 계약: 요청당 한 번 읽기, 세션 클라이언트만,
   assert.deepEqual(users.map((file) => file.slice(src.length)).sort(), [
     'app/(admin)/admin/admin-accounts/page.tsx',
     'app/(admin)/admin/orders/page.tsx',
+    'app/(admin)/admin/users/[id]/page.tsx',
     'app/api/admin/admin-accounts/[userId]/route.ts',
     'app/api/admin/admin-accounts/route.ts',
     'app/api/admin/orders/market/route.ts',
     'app/api/admin/orders/payments/route.ts',
+    'lib/admin-member-detail-server.ts',
     'lib/admin-permissions-server.ts',
   ])
 })

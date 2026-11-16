@@ -5,6 +5,7 @@
  */
 
 import { useState, type ReactNode } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAdminAlerts } from '@/components/admin/admin-alert-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -378,7 +379,7 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex flex-col">
-                                                <span className="font-medium">{request.user ? formatMemberDisplayName(request.user.email, request.user.display_tag) : '알 수 없음'}</span>
+                                                <Link href={`/admin/users/${request.user_id}`} className="font-medium hover:underline">{request.user ? formatMemberDisplayName(request.user.email, request.user.display_tag) : '알 수 없음'}</Link>
                                                 <span className="text-xs text-gray-400">{request.user?.email}</span>
                                             </div>
                                         </TableCell>

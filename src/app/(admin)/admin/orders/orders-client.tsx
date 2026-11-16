@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, type ReactNode } from 'react'
+import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -188,7 +189,7 @@ export function PaymentOrdersClient() {
                       <TableCell className="text-xs text-gray-500">{formatDateTime(order.createdAt)}</TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="text-sm font-medium">{formatMemberDisplayName(order.user?.email, order.user?.display_tag)}</span>
+                          <Link href={`/admin/users/${order.userId}`} className="text-sm font-medium hover:underline">{formatMemberDisplayName(order.user?.email, order.user?.display_tag)}</Link>
                           <span className="text-xs text-gray-400">{order.user?.email || '-'}</span>
                         </div>
                       </TableCell>

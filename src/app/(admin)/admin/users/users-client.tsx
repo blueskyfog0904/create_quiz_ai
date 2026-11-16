@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -104,9 +105,9 @@ export function UsersClient({ users, totalCount, page, pageSize, query }: UsersC
                       </div>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium text-gray-900 break-all">
+                          <Link href={`/admin/users/${user.id}`} className="font-medium text-gray-900 break-all hover:underline">
                             {formatMemberDisplayName(user.email, user.display_tag)}
-                          </span>
+                          </Link>
                           {user.is_admin && (
                             <Badge className="bg-orange-100 text-orange-700">
                               <Shield className="h-3 w-3 mr-1" />

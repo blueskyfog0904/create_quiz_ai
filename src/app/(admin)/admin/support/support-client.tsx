@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAdminAlerts } from '@/components/admin/admin-alert-context'
@@ -571,6 +572,7 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
             <DialogDescription>
               {selectedTicket?.profiles?.phone || '전화번호 없음'} •{' '}
               {selectedTicket?.profiles?.email || '이메일 없음'} •{' '}
+              {selectedTicket && <Link href={`/admin/users/${selectedTicket.user_id}`} className="text-blue-700 hover:underline">회원 상세</Link>} •{' '}
               {selectedTicket && new Date(selectedTicket.created_at).toLocaleString('ko-KR')}
             </DialogDescription>
           </DialogHeader>
