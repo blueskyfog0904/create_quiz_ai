@@ -11,6 +11,7 @@ import { StudioListPagination } from '@/components/design-system/studio-list-pag
 import { useListQuery } from '@/hooks/use-list-query'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
 import {
+  MARKET_DOWNLOAD_BLOCK_REASON_LABELS,
   MARKET_ENTITLEMENT_SCOPE_LABELS,
   MARKET_ENTITLEMENT_STATUS_LABELS,
   MARKET_ITEM_STATUS_LABELS,
@@ -21,7 +22,6 @@ import {
   labelOf,
 } from '@/lib/admin-orders'
 import type { AdminMarketOrder, AdminMarketOrderListResult } from '@/lib/admin-orders-server'
-import { MARKET_DOWNLOAD_BLOCK_REASON_LABELS } from '@/lib/market-download-diagnosis'
 import { DetailList, DetailSection, FILTER_SELECT_CLASS, formatDateTime } from './orders-client'
 
 const OK_BADGE_CLASS = 'bg-green-100 text-green-700 hover:bg-green-100'
@@ -44,10 +44,9 @@ function itemStateNote(item: AdminMarketOrder['item']) {
   return item.status === 'published' ? null : `${labelOf(MARKET_ITEM_STATUS_LABELS, item.status)} 상품`
 }
 
-// 회원이 실제로 받을 수 있는지(그 회원이 이 상품에 가진 모든 권한 기준, 지금 제공 중인 파일로 셈): 가능 / 일부만 / 막힐 수 있음 / 불가
+// 회원이 실제로 받을 수 있는지(그 회원이 이 상품에 가진 모든 권한 기준, 지금 제공 중인 파일로 셈): 가능 / 일부만 / 불가
 function DownloadSummaryBadge({ download }: { download: AdminMarketOrder['download'] }) {
   const reason = labelOf(MARKET_DOWNLOAD_BLOCK_REASON_LABELS, download.reason)
-  if (download.uncertainCount > 0) return <Badge variant="secondary" className={PARTIAL_BADGE_CLASS}>확인 필요: {reason}</Badge>
   if (download.downloadableCount === 0) return <Badge variant="secondary" className={BLOCKED_BADGE_CLASS}>회원 다운로드 불가: {reason}</Badge>
   if (download.downloadableCount < download.fileCount) {
     return <Badge variant="secondary" className={PARTIAL_BADGE_CLASS}>회원 다운로드 일부만 가능 {download.downloadableCount}/{download.fileCount} · {reason}</Badge>
@@ -60,7 +59,7 @@ function ownEntitlementNote(download: AdminMarketOrder['download']) {
   if (!download.ownEntitlementReason) return null
   const own = `이 주문: ${labelOf(MARKET_DOWNLOAD_BLOCK_REASON_LABELS, download.ownEntitlementReason)}`
   return download.otherOrderIds.length > 0
-    ? `${own} · 같은 회원의 다른 주문(${download.otherOrderIds.map((orderId) => orderId.slice(0, 8)).join(', ')}) 권한으로 판정`
+    ? `${own} · 같은 회원의 다른 주문(${download.otherOrderIds.map((orderId) => orderId.slice(0, 8)).join(', ')}) 권한으로 다운로드`
     : own
 }
 
@@ -297,9 +296,12 @@ export function MarketOrdersClient() {
                       {selectedOrder.files.map((file) => (
                         <li key={file.id} className={`rounded-md border p-3 text-sm ${file.removed ? 'bg-gray-50 text-gray-500' : ''}`}>
                           <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="secondary" className={file.diagnosis.downloadable ? OK_BADGE_CLASS : file.removed ? '' : file.diagnosis.uncertain ? PARTIAL_BADGE_CLASS : BLOCKED_BADGE_CLASS}>
-                              {file.diagnosis.downloadable ? '가능' : `${file.diagnosis.uncertain ? '확인 필요' : '불가'}: ${labelOf(MARKET_DOWNLOAD_BLOCK_REASON_LABELS, file.diagnosis.reason)}`}
+                            <Badge variant="secondary" className={file.diagnosis.downloadable ? OK_BADGE_CLASS : file.removed ? '' : BLOCKED_BADGE_CLASS}>
+                              {file.diagnosis.downloadable ? '가능' : `불가: ${labelOf(MARKET_DOWNLOAD_BLOCK_REASON_LABELS, file.diagnosis.reason)}`}
                             </Badge>
+                            {file.diagnosis.entitlementOrderId && file.diagnosis.entitlementOrderId !== selectedOrder.id && (
+                              <span className="text-xs text-gray-500">다른 주문({file.diagnosis.entitlementOrderId.slice(0, 8)}) 권한</span>
+                            )}
                             <span className="break-all">{file.fileName}</span>
                           </div>
                           <p className="mt-1 text-xs text-gray-500">{[file.subproductTitle, file.fileTypeLabel].filter(Boolean).join(' · ') || '-'}</p>
@@ -310,7 +312,7 @@ export function MarketOrdersClient() {
                   <p className="mt-2 text-xs text-gray-500">
                     회원이 실제로 받을 수 있는지를, 그 회원이 이 상품에 가진 모든 주문의 권한으로 판정합니다(이 주문의 권한 상태는 위 &lsquo;다운로드 권한&rsquo;에 있습니다).
                     파일 자체가 삭제·비활성이면 요약 건수에서 빼고, 구성·상품이 내려가 받을 수 없는 파일은 &lsquo;불가&rsquo;로 셉니다.
-                    &lsquo;확인 필요&rsquo;는 같은 상품의 권한이 여러 개이고 일부 주문만 막혀 있어, 어느 권한이 먼저 적용되느냐에 따라 결과가 달라지는 경우입니다.
+                    같은 상품의 권한이 여러 개면 환불 심사 중이 아닌 주문의 권한으로 받고, 다운로드 기록도 그 주문에 남습니다.
                     저장소에서 파일이 사라진 경우는 여기서 알 수 없습니다.
                   </p>
                 </DetailSection>

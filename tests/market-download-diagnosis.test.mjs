@@ -3,7 +3,11 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { load, createFakeAdmin, marketImages, loadRoute } from './helpers/market-images-harness.mjs'
 
-const { diagnoseMarketFileDownload, MARKET_DOWNLOAD_BLOCK_REASON_LABELS } = load('src/lib/market-download-diagnosis.ts')
+// 진단은 route와 같은 권한 선택 함수(market-purchase.ts)를 쓴다.
+const { diagnoseMarketFileDownload } = load('src/lib/market-download-diagnosis.ts', {
+  '@/lib/market-purchase': load('src/lib/market-purchase.ts', { '@/lib/market-items-server': {} }),
+})
+const { MARKET_DOWNLOAD_BLOCK_REASON_LABELS } = load('src/lib/admin-orders.ts')
 
 const ITEM_ID = '11111111-1111-4111-8111-111111111111'
 const FILE_ID = '22222222-2222-4222-8222-222222222222'
@@ -29,6 +33,7 @@ const normal = { item, file, subproduct, fileType, entitlements: [entitlement], 
 const ORDER_B = '55555555-5555-4555-8555-555555555555'
 const entitlementB = { ...entitlement, id: 'ent-b', scope: 'item', subproduct_id: null, source_order_id: ORDER_B }
 const refundB = { ...refund, id: 'rb', order_id: ORDER_B }
+const ORDER_F = '66666666-6666-4666-8666-666666666666'
 
 // [이름, DB 상태, 기대 사유(null = 다운로드 가능)] — 현재 규칙이 구분하는 모든 경우.
 // entitlements는 그 회원이 그 상품에 가진 권한 전부(주문 무관)이고, 관리자 화면이 보는 주문은 ORDER_ID(주문 A)다.
@@ -61,16 +66,23 @@ const CASES = [
   ['환불 대기 중', { ...normal, refunds: [refund] }, 'pending_refund'],
   ['처리가 끝난 환불 요청', { ...normal, refunds: [{ ...refund, status: 'rejected' }, { ...refund, id: 'r2', status: 'canceled' }] }, null],
   ['다른 주문의 환불 대기', { ...normal, refunds: [{ ...refund, order_id: 'other' }] }, null],
-  // 권한이 여러 개: route는 처음 걸린 권한 하나만 보므로, 일부 주문만 막혀 있으면 단정할 수 없다.
-  ['권한 2개, 둘 다 정상', { ...normal, entitlements: [entitlement, entitlementB] }, null],
-  ['권한 2개, 주문 B만 환불 대기', { ...normal, entitlements: [entitlement, entitlementB], refunds: [refundB] }, 'uncertain_pending_refund'],
-  ['권한 2개, 주문 A만 환불 대기', { ...normal, entitlements: [entitlement, entitlementB], refunds: [refund] }, 'uncertain_pending_refund'],
+  // 권한이 여러 개: 파일을 덮는 권한 중 환불 심사 중이 아닌 주문의 권한으로 받는다. 네 번째 값은 그때 쓰이는(다운로드 기록이 남는) 주문.
+  ['권한 2개, 둘 다 정상 → 더 좁은 범위(구성) 권한', { ...normal, entitlements: [entitlement, entitlementB] }, null, ORDER_ID],
+  ['권한 2개, 주문 B만 환불 대기', { ...normal, entitlements: [entitlement, entitlementB], refunds: [refundB] }, null, ORDER_ID],
+  ['권한 2개, 주문 A만 환불 대기', { ...normal, entitlements: [entitlement, entitlementB], refunds: [refund] }, null, ORDER_B],
   ['권한 2개, 둘 다 환불 대기', { ...normal, entitlements: [entitlement, entitlementB], refunds: [refund, refundB] }, 'pending_refund'],
-  ['주문 A 정상 + 주문 B 환불 완료', { ...normal, entitlements: [entitlement, { ...entitlementB, status: 'refunded' }] }, null],
-  ['주문 A 환불 완료 + 주문 B 정상', { ...normal, entitlements: [{ ...entitlement, status: 'refunded' }, entitlementB] }, null],
+  ['주문 A 정상 + 주문 B 환불 완료', { ...normal, entitlements: [entitlement, { ...entitlementB, status: 'refunded' }] }, null, ORDER_ID],
+  ['주문 A 환불 완료 + 주문 B 정상', { ...normal, entitlements: [{ ...entitlement, status: 'refunded' }, entitlementB] }, null, ORDER_B],
   ['주문 A 환불 완료 + 주문 B 환불 대기', { ...normal, entitlements: [{ ...entitlement, status: 'refunded' }, entitlementB], refunds: [refundB] }, 'pending_refund'],
-  ['권한 2개, 하나만 주문 정보 없음', { ...normal, entitlements: [entitlement, { ...entitlementB, source_order_id: null }] }, 'uncertain_entitlement_order_missing'],
-  ['권한 2개, 환불 대기 + 주문 정보 없음', { ...normal, entitlements: [entitlement, { ...entitlementB, source_order_id: null }], refunds: [refund] }, 'pending_refund'],
+  ['권한 2개, 주문 B에만 주문 정보 없음', { ...normal, entitlements: [entitlement, { ...entitlementB, source_order_id: null }] }, null, ORDER_ID],
+  ['권한 2개, 주문 A에만 주문 정보 없음', { ...normal, entitlements: [{ ...entitlement, source_order_id: null }, entitlementB] }, null, ORDER_B],
+  ['권한 2개, 환불 대기 + 주문 정보 없음 → 환불 심사 안내가 먼저', { ...normal, entitlements: [entitlement, { ...entitlementB, source_order_id: null }], refunds: [refund] }, 'pending_refund'],
+  ['권한 2개, 둘 다 주문 정보 없음', { ...normal, entitlements: [{ ...entitlement, source_order_id: null }, { ...entitlementB, source_order_id: null }] }, 'entitlement_order_missing'],
+  ['파일 권한 + 구성 권한 + 상품 전체 권한 → 파일 권한', {
+    ...normal,
+    entitlements: [entitlementB, entitlement, { ...entitlement, id: 'ent-f', scope: 'file', subproduct_id: null, file_id: FILE_ID, source_order_id: ORDER_F }],
+  }, null, ORDER_F],
+  ['같은 범위 권한 2개 → 권한 id가 앞선 것', { ...normal, entitlements: [entitlementB, { ...entitlementB, id: 'ent-a2', source_order_id: ORDER_F }] }, null, ORDER_F],
 ]
 
 // 관리자 조회(admin-orders-server.ts의 listMarketOrdersForAdmin)가 주문 A를 볼 때 만드는 입력과 같은 재료:
@@ -92,32 +104,22 @@ const diagnose = (state) => {
   })
 }
 
-const isUncertain = (reason) => Boolean(reason?.startsWith('uncertain_'))
-
 test('진단: 현재 규칙이 구분하는 경우마다 사유가 맞다', () => {
-  for (const [name, state, reason] of CASES) {
-    const { downloadable, uncertain, reason: actual } = diagnose(state)
-    assert.deepEqual({ downloadable, uncertain, reason: actual }, { downloadable: reason === null, uncertain: isUncertain(reason), reason }, name)
+  for (const [name, state, reason, orderId = ORDER_ID] of CASES) {
+    assert.deepEqual(diagnose(state), { downloadable: reason === null, reason, entitlementOrderId: reason === null ? orderId : null }, name)
   }
   // 모든 사유 코드를 적어도 한 경우가 다루고, 한글 이름표가 있다.
   assert.deepEqual(
     [...new Set(CASES.map(([, , reason]) => reason).filter(Boolean))].sort(),
     Object.keys(MARKET_DOWNLOAD_BLOCK_REASON_LABELS).sort()
   )
-  // 어느 주문의 권한으로 받는지: 파일을 덮는 사용 가능 권한의 주문 id
-  assert.deepEqual(diagnose({ ...normal, entitlements: [entitlement, entitlementB] }).entitlementOrderIds, [ORDER_ID, ORDER_B])
-  assert.deepEqual(diagnose({ ...normal, entitlements: [{ ...entitlement, status: 'refunded' }, entitlementB] }).entitlementOrderIds, [ORDER_B])
-  assert.deepEqual(diagnose({ ...normal, entitlements: [] }).entitlementOrderIds, [])
 })
 
 // 회원에게 보이는 route 응답(상태 코드·오류 코드)과 진단 사유의 대응
-// 단정할 수 없는 사유(uncertain_*)는 DB가 권한을 돌려주는 순서에 따라 나올 수 있는 두 응답을 돌려준다.
 const ROUTE_RESPONSE = (reason) => {
   if (reason === null) return [302, null]
   if (reason === 'pending_refund') return [403, 'PENDING_REFUND']
   if (reason === 'entitlement_order_missing') return [500, 'INVALID_ENTITLEMENT']
-  if (reason === 'uncertain_pending_refund') return [[302, null], [403, 'PENDING_REFUND']]
-  if (reason === 'uncertain_entitlement_order_missing') return [[302, null], [500, 'INVALID_ENTITLEMENT']]
   if (reason === 'no_entitlement' || reason === 'entitlement_refunded' || reason === 'entitlement_revoked') return [403, 'FORBIDDEN']
   return [404, 'NOT_FOUND']
 }
@@ -125,6 +127,7 @@ const ROUTE_RESPONSE = (reason) => {
 // 실제 다운로드 route + 실제 market-items-server·market-purchase·market-refunds를, 조회 조건(eq·is)을 그대로 적용하는 가짜 DB로 돌린다.
 async function runDownloadRoute(state) {
   const events = []
+  const recorded = []
   const tables = {
     market_items: [state.item],
     market_subproduct_files: [state.file],
@@ -137,6 +140,7 @@ async function runDownloadRoute(state) {
     if (ops.some(([name]) => name === 'insert')) {
       assert.equal(table, 'market_download_events')
       events.push('download-recorded')
+      recorded.push(ops.find(([name]) => name === 'insert')[1])
       return { data: {}, error: null }
     }
     const rows = tables[table].filter(Boolean).filter((row) => ops.every(([name, column, value]) => (
@@ -173,27 +177,26 @@ async function runDownloadRoute(state) {
   const request = new Request(`http://localhost/api/market/items/${ITEM_ID}/download?fileId=${FILE_ID}`)
   request.nextUrl = new URL(request.url)
   const response = await route.GET(request, { params: Promise.resolve({ itemId: ITEM_ID }) })
-  return { status: response.status, code: response.status === 302 ? null : (await response.json()).error.code, events }
+  return { status: response.status, code: response.status === 302 ? null : (await response.json()).error.code, events, recorded }
 }
 
-test('진단은 회원 다운로드 route의 허용·거부와 경우마다 일치한다(권한 반환 순서 두 가지 모두)', async () => {
-  for (const [name, state, reason] of CASES) {
-    // route는 권한을 정렬 없이 읽는다 → DB가 돌려주는 순서를 두 가지로 돌린다.
-    const results = []
+test('진단은 회원 다운로드 route의 응답과 경우마다 일치하고, route는 권한 반환 순서와 무관하게 같은 결과를 낸다', async () => {
+  for (const [name, state, reason, orderId = ORDER_ID] of CASES) {
+    // route는 권한을 정렬 없이 읽는다 → DB가 돌려주는 순서를 두 가지(정순·역순)로 돌려도 응답·기록이 같아야 한다.
     for (const entitlements of [state.entitlements, [...state.entitlements].reverse()]) {
       const result = await runDownloadRoute({ ...state, entitlements })
+      assert.deepEqual([result.status, result.code], ROUTE_RESPONSE(reason), name)
       // 허용될 때만 서명 URL을 만들고 다운로드 기록을 남긴다.
-      assert.deepEqual(result.events, result.status === 302 ? ['signed-url', 'download-recorded'] : [], name)
-      results.push([result.status, result.code])
-    }
-    if (isUncertain(reason)) {
-      // 순서에 따라 route 결과가 실제로 갈리고, 둘 다 진단이 알린 범위 안이다.
-      assert.deepEqual(results.map(String).sort(), ROUTE_RESPONSE(reason).map(String).sort(), name)
-      assert.deepEqual(diagnose(state).uncertain, true, name)
-    } else {
-      // 단정한 경우는 어느 순서로도 허용·거부가 진단과 같고, 적힌 순서에서는 오류 코드까지 같다.
-      assert.deepEqual(results[0], ROUTE_RESPONSE(reason), name)
-      for (const [status] of results) assert.equal(status === 302, diagnose(state).downloadable, name)
+      assert.deepEqual(result.events, reason === null ? ['signed-url', 'download-recorded'] : [], name)
+      if (reason === null) {
+        // 다운로드 기록은 실제로 쓰인 권한과 그 주문에 남는다(환불 심사 중인 주문에는 남지 않는다) — 진단이 알린 주문과 같다.
+        const [event] = result.recorded
+        const used = state.entitlements.find((row) => row.id === event.entitlement_id)
+        assert.equal(event.order_id, orderId, name)
+        assert.deepEqual([used.status, used.source_order_id], ['active', orderId], name)
+        assert.equal(state.refunds.some((row) => row.status === 'pending' && row.order_id === event.order_id), false, name)
+        assert.equal(diagnose(state).entitlementOrderId, event.order_id, name)
+      }
     }
   }
 })
@@ -201,10 +204,14 @@ test('진단은 회원 다운로드 route의 허용·거부와 경우마다 일�
 test('다운로드 route와 그 판정 함수는 이 진단이 옮겨 적은 조건 그대로다', () => {
   const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
   const route = read('src/app/api/market/items/[itemId]/download/route.ts')
-  // route는 진단 함수를 쓰지 않는다(회원 쪽 동작을 건드리지 않음). 판정 순서: 파일(상품·파일·구성) → 권한 → 주문 id → 환불 대기.
-  assert.doesNotMatch(route, /market-download-diagnosis/)
+  // 판정 순서: 파일(상품·파일·구성) → 파일을 덮는 권한 → 권한별 환불 대기 확인 → 쓸 권한 선택 → 서명 URL → 기록.
+  // 권한 범위·순서·선택은 route와 진단이 같은 함수(market-purchase.ts)를 쓴다.
+  const diagnosisSource = read('src/lib/market-download-diagnosis.ts')
+  for (const shared of ['listMarketSubproductFileV2Entitlements(target, ', 'findMarketSubproductFileV2Entitlement(target, ']) {
+    assert.ok(route.includes(shared) && diagnosisSource.includes(shared), shared)
+  }
   const v2 = route.slice(route.indexOf('async function handleMarketV2Download'), route.indexOf('async function handleLegacyMarketDownload'))
-  const order = ['getActiveMarketSubproductFileForDownload(', 'findMarketSubproductFileV2Entitlement(', '!entitlement.source_order_id', 'hasPendingMarketRefundRequestForTarget(', 'createSignedUrl(', 'recordMarketV2DownloadEvent(']
+  const order = ['getActiveMarketSubproductFileForDownload(', 'listMarketSubproductFileV2Entitlements(', 'hasPendingMarketRefundRequestForTarget(', 'findMarketSubproductFileV2Entitlement(', 'createSignedUrl(', 'recordMarketV2DownloadEvent(']
     .map((marker) => v2.indexOf(marker))
   assert.ok(order.every((index, position) => index > 0 && (position === 0 || index > order[position - 1])), JSON.stringify(order))
 

@@ -59,11 +59,32 @@ export function isMarketSubproductFileCoveredByV2Entitlement(
   return false
 }
 
-export function findMarketSubproductFileV2Entitlement(
+const V2_ENTITLEMENT_SCOPE_ORDER = ['file', 'subproduct', 'item']
+
+// 파일을 덮는 사용 가능 권한 전부를 다운로드에 쓸 순서로 돌려준다(DB가 돌려준 순서에 기대지 않는다).
+// 그 파일에 더 좁게 걸린 권한(파일 > 구성 > 상품 전체)이 먼저고, 같은 범위면 권한 id 순이다.
+export function listMarketSubproductFileV2Entitlements<T extends MarketV2EntitlementLike>(
   target: MarketV2SubproductFileTarget,
-  entitlements: MarketV2EntitlementLike[]
+  entitlements: T[]
 ) {
-  return entitlements.find((entitlement) => isMarketSubproductFileCoveredByV2Entitlement(target, entitlement)) ?? null
+  return entitlements
+    .filter((entitlement) => isMarketSubproductFileCoveredByV2Entitlement(target, entitlement))
+    .sort((left, right) => (
+      V2_ENTITLEMENT_SCOPE_ORDER.indexOf(left.scope) - V2_ENTITLEMENT_SCOPE_ORDER.indexOf(right.scope) ||
+      (left.id ?? '').localeCompare(right.id ?? '')
+    ))
+}
+
+// 다운로드에 쓸 권한: 파일을 덮는 권한 중 주문 정보가 있고 그 주문이 환불 심사 중이 아닌 첫 권한. 없으면 null.
+// pendingRefundOrderIds는 환불 요청이 심사 중(pending)인 주문 id다.
+export function findMarketSubproductFileV2Entitlement<T extends MarketV2EntitlementLike>(
+  target: MarketV2SubproductFileTarget,
+  entitlements: T[],
+  pendingRefundOrderIds: string[]
+) {
+  return listMarketSubproductFileV2Entitlements(target, entitlements).find((entitlement) => (
+    entitlement.source_order_id && !pendingRefundOrderIds.includes(entitlement.source_order_id)
+  )) ?? null
 }
 
 export function normalizeMarketBundleSelections<T extends { itemId: string; assetKind: MarketPaidAssetKind }>(

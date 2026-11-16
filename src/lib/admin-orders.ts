@@ -128,6 +128,26 @@ export const MARKET_ITEM_STATUS_LABELS = {
   archived: '보관',
 } as const
 
+// 다운로드 진단(market-download-diagnosis.ts)이 돌려주는 사유
+export const MARKET_DOWNLOAD_BLOCK_REASON_LABELS = {
+  item_missing: '상품을 찾을 수 없음',
+  item_deleted: '상품이 삭제됨',
+  item_inactive: '상품이 비활성 상태',
+  item_unpublished: '상품이 임시저장·보관 상태',
+  file_missing: '파일을 찾을 수 없음',
+  file_deleted: '파일이 삭제됨',
+  file_inactive: '파일이 비활성 상태',
+  subproduct_missing: '구성을 찾을 수 없음',
+  subproduct_inactive: '구성이 비활성 상태',
+  subproduct_deleted: '구성이 삭제됨',
+  file_type_missing: '파일 유형을 찾을 수 없음',
+  no_entitlement: '다운로드 권한이 없음',
+  entitlement_refunded: '권한이 환불로 회수됨',
+  entitlement_revoked: '권한이 회수됨',
+  entitlement_order_missing: '권한에 주문 정보가 없음',
+  pending_refund: '환불 요청 심사 중',
+} as const
+
 export const WORKSPACE_SUBJECT_LABELS = {
   korean: '국어',
   english: '영어',

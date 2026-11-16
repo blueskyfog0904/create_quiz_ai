@@ -13,6 +13,7 @@ import {
 import {
   findMarketSubproductFileV2Entitlement,
   getMarketPurchaseKindsToCheck,
+  listMarketSubproductFileV2Entitlements,
   isMarketAssetCoveredByPurchaseKind,
   type MarketPaidAssetKind,
 } from '@/lib/market-purchase'
@@ -63,30 +64,35 @@ async function handleMarketV2Download(
     }
 
     const entitlements = await listMarketV2EntitlementsForItem(userId, itemId, file.workspace_subject)
-    const entitlement = findMarketSubproductFileV2Entitlement({
-      itemId,
-      subproductId: file.subproduct_id,
-      fileId: file.id,
-    }, entitlements)
+    // 같은 상품에 권한이 여러 개일 수 있다(구성 구매 뒤 묶음 구매 등). 파일을 덮는 권한을 정해진 순서로 보면서
+    // 환불 심사 중이 아닌 주문의 권한을 찾으면 그 권한으로 내려받는다. 다른 주문이 심사 중이어도 막지 않는다.
+    const target = { itemId, subproductId: file.subproduct_id, fileId: file.id }
+    const coveringEntitlements = listMarketSubproductFileV2Entitlements(target, entitlements)
+    const pendingRefundOrderIds: string[] = []
+    for (const candidate of coveringEntitlements) {
+      if (!candidate.source_order_id) continue
+      const hasPendingRefund = await hasPendingMarketRefundRequestForTarget({
+        targetKind: 'v2_order',
+        orderId: candidate.source_order_id,
+      })
+      if (!hasPendingRefund) break
+      pendingRefundOrderIds.push(candidate.source_order_id)
+    }
+    const entitlement = findMarketSubproductFileV2Entitlement(target, coveringEntitlements, pendingRefundOrderIds)
 
     if (!entitlement) {
-      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: '구매 후 다운로드할 수 있습니다.' } }, { status: 403 })
-    }
+      if (coveringEntitlements.length === 0) {
+        return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: '구매 후 다운로드할 수 있습니다.' } }, { status: 403 })
+      }
 
-    if (!entitlement.source_order_id) {
+      if (pendingRefundOrderIds.length > 0) {
+        return NextResponse.json({
+          success: false,
+          error: { code: 'PENDING_REFUND', message: '환불 요청이 접수되어 심사 중입니다. 심사 중에는 다운로드할 수 없습니다.' },
+        }, { status: 403 })
+      }
+
       return NextResponse.json({ success: false, error: { code: 'INVALID_ENTITLEMENT', message: '다운로드 권한의 구매 정보를 확인할 수 없습니다.' } }, { status: 500 })
-    }
-
-    const hasPendingRefund = await hasPendingMarketRefundRequestForTarget({
-      targetKind: 'v2_order',
-      orderId: entitlement.source_order_id,
-    })
-
-    if (hasPendingRefund) {
-      return NextResponse.json({
-        success: false,
-        error: { code: 'PENDING_REFUND', message: '환불 요청이 접수되어 심사 중입니다. 심사 중에는 다운로드할 수 없습니다.' },
-      }, { status: 403 })
     }
 
     const adminSupabase = createAdminClient()

@@ -290,13 +290,11 @@ export interface AdminMarketOrder {
   download: {
     fileCount: number
     downloadableCount: number
-    // 받을 수 있는지 단정할 수 없는 파일 수
-    uncertainCount: number
-    // 받을 수 없거나 단정할 수 없는 파일이 있을 때 그 사유(단정할 수 없는 쪽 먼저)
+    // 받을 수 없는 파일이 있을 때 그 첫 사유
     reason: MarketDownloadBlockReason | null
     // 이 주문 자체에 사용 가능한 권한이 없는 이유. 있으면 null
     ownEntitlementReason: MarketDownloadBlockReason | null
-    // 이 주문의 파일을 덮는, 같은 회원의 다른 주문(사용 가능 권한) id
+    // 이 주문의 파일을 실제로 내려받게 해 주는, 같은 회원의 다른 주문 id(다운로드 기록도 그 주문에 남는다)
     otherOrderIds: string[]
   }
   downloads: { count: number; latestAt: string | null; recent: Array<{ id: string; createdAt: string; fileName: string | null }> }
@@ -521,7 +519,7 @@ export async function listMarketOrdersForAdmin(input: {
           diagnosis: diagnoseMarketFileDownload({ ...diagnosisBase, file, subproduct: file.subproduct, fileTypeExists: Boolean(file.file_type) }),
         }))
       const currentFiles = files.filter((file) => !file.removed)
-      const notDownloadable = currentFiles.find((file) => file.diagnosis.uncertain) ?? currentFiles.find((file) => !file.diagnosis.downloadable)
+      const blockedFile = currentFiles.find((file) => !file.diagnosis.downloadable)
       // 파일이 하나도 없을 때: 상품 쪽 사유가 먼저고, 상품이 멀쩡하면 이 주문의 권한 사유, 그것도 없으면 '파일 없음'
       const noFileReason = diagnoseMarketFileDownload({ ...diagnosisBase, file: null, subproduct: null, fileTypeExists: false }).reason
       const events = eventRows.filter((event) => event.order_id === row.id)
@@ -558,13 +556,12 @@ export async function listMarketOrdersForAdmin(input: {
         download: {
           fileCount: currentFiles.length,
           downloadableCount: currentFiles.filter((file) => file.diagnosis.downloadable).length,
-          uncertainCount: currentFiles.filter((file) => file.diagnosis.uncertain).length,
           // 제공 중인 파일이 하나도 없으면 내려간 파일의 사유
           reason: currentFiles.length > 0
-            ? notDownloadable?.diagnosis.reason ?? null
+            ? blockedFile?.diagnosis.reason ?? null
             : files[0]?.diagnosis.reason ?? (noFileReason === 'file_missing' ? ownEntitlementReason ?? noFileReason : noFileReason),
           ownEntitlementReason,
-          otherOrderIds: Array.from(new Set(currentFiles.flatMap((file) => file.diagnosis.entitlementOrderIds))).filter((orderId) => orderId !== row.id),
+          otherOrderIds: Array.from(new Set(currentFiles.flatMap((file) => file.diagnosis.entitlementOrderId ?? []))).filter((orderId) => orderId !== row.id),
         },
         downloads: {
           count: events.length,

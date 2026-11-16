@@ -17,7 +17,9 @@ test('마켓 구매 부분을 가르는 표식이 lib에 정확히 한 번 있�
 })
 
 const orders = load('src/lib/admin-orders.ts')
-const diagnosis = load('src/lib/market-download-diagnosis.ts')
+const diagnosis = load('src/lib/market-download-diagnosis.ts', {
+  '@/lib/market-purchase': load('src/lib/market-purchase.ts', { '@/lib/market-items-server': {} }),
+})
 
 test('마켓 구매 탭: 같은 페이지의 두 번째 탭이고 route는 orders.view 가드를 쓴다', () => {
   assert.match(page, /\{ id: 'payments', label: '충전 결제' \},\s*\{ id: 'market', label: '마켓 구매' \},/)
@@ -236,7 +238,7 @@ test('검색어에 맞는 것이 없으면 주문을 읽지 않고 0건, 건수 
 })
 
 const summary = (fileCount, downloadableCount, reason, extra = {}) => (
-  { fileCount, downloadableCount, uncertainCount: 0, reason, ownEntitlementReason: null, otherOrderIds: [], ...extra }
+  { fileCount, downloadableCount, reason, ownEntitlementReason: null, otherOrderIds: [], ...extra }
 )
 
 // 한 회원이 같은 상품을 두 번 산 경우: 주문 A(구성 1개 권한) 뒤 주문 B(묶음 → 상품 전체 권한)
@@ -258,14 +260,19 @@ function twoOrders({ bStatus = 'active', pendingRefundOrderIds = [] } = {}) {
 }
 
 test('같은 회원이 같은 상품에 권한을 2개 가지면, 주문이 아니라 회원이 실제로 받을 수 있는지로 판정한다', async () => {
-  // 1·2) A 정상 + B 환불 대기: f1은 두 권한이 모두 덮어 어느 쪽이 먼저 걸리느냐에 달렸다 → 두 주문 모두 '확인 필요'(가능/불가로 단정하지 않음)
+  // 1·2) A 정상 + B 환불 대기: f1은 주문 A의 권한으로 받는다(route가 환불 심사 중이 아닌 주문의 권한을 쓴다). 두 주문 줄 모두 같은 답이다.
   const pendingB = await twoOrders({ pendingRefundOrderIds: ['oB'] })
   const [a1, b1] = pendingB.orders
-  assert.deepEqual(a1.files.map((file) => [file.id, file.diagnosis.downloadable, file.diagnosis.uncertain, file.diagnosis.reason]), [['f1', false, true, 'uncertain_pending_refund']])
-  assert.deepEqual(a1.download, summary(1, 0, 'uncertain_pending_refund', { uncertainCount: 1, otherOrderIds: ['oB'] }))
-  // 주문 B: f1은 확인 필요, f2는 B의 권한만 덮으므로 확실히 불가
-  assert.deepEqual(b1.files.map((file) => [file.id, file.diagnosis.reason]), [['f1', 'uncertain_pending_refund'], ['f2', 'pending_refund']])
-  assert.deepEqual(b1.download, summary(2, 0, 'uncertain_pending_refund', { uncertainCount: 1, otherOrderIds: ['oA'] }))
+  assert.deepEqual(a1.files.map((file) => [file.id, file.diagnosis.downloadable, file.diagnosis.entitlementOrderId]), [['f1', true, 'oA']])
+  assert.deepEqual(a1.download, summary(1, 1, null))
+  // 주문 B: f1은 주문 A의 권한으로 가능, f2는 B의 권한만 덮으므로 불가
+  assert.deepEqual(b1.files.map((file) => [file.id, file.diagnosis.reason, file.diagnosis.entitlementOrderId]), [['f1', null, 'oA'], ['f2', 'pending_refund', null]])
+  assert.deepEqual(b1.download, summary(2, 1, 'pending_refund', { otherOrderIds: ['oA'] }))
+
+  // A 환불 대기 + B 정상: f1은 주문 B의 권한으로 받는다.
+  const pendingA = await twoOrders({ pendingRefundOrderIds: ['oA'] })
+  assert.deepEqual(pendingA.orders[0].download, summary(1, 1, null, { otherOrderIds: ['oB'] }))
+  assert.deepEqual(pendingA.orders[1].download, summary(2, 2, null))
 
   // 3) A 정상 + B 환불 완료: 주문 B 줄에서도 f1은 주문 A의 권한으로 받을 수 있다고 나오고, 이 주문 자체의 권한은 회수됐다고 따로 알린다.
   const refundedB = await twoOrders({ bStatus: 'refunded' })
@@ -274,9 +281,9 @@ test('같은 회원이 같은 상품에 권한을 2개 가지면, 주문이 아�
   assert.deepEqual(b3.files.map((file) => [file.id, file.diagnosis.downloadable, file.diagnosis.reason]), [['f1', true, null], ['f2', false, 'entitlement_refunded']])
   assert.deepEqual(b3.download, summary(2, 1, 'entitlement_refunded', { ownEntitlementReason: 'entitlement_refunded', otherOrderIds: ['oA'] }))
 
-  // 둘 다 정상이면 둘 다 가능
+  // 둘 다 정상이면 겹치는 f1은 더 좁은 범위인 주문 A의 권한으로, f2는 주문 B의 권한으로 받는다.
   const both = await twoOrders()
-  assert.deepEqual(both.orders.map((order) => [order.download.downloadableCount, order.download.fileCount, order.download.otherOrderIds]), [[1, 1, ['oB']], [2, 2, ['oA']]])
+  assert.deepEqual(both.orders.map((order) => [order.download.downloadableCount, order.download.fileCount, order.download.otherOrderIds]), [[1, 1, []], [2, 2, ['oA']]])
 
   // 다른 회원의 권한은 섞이지 않는다.
   const other = await loadMarketOrders({
@@ -288,11 +295,11 @@ test('같은 회원이 같은 상품에 권한을 2개 가지면, 주문이 아�
 })
 
 test('화면은 회원이 받을 수 있는지와 이 주문의 권한 상태를 따로 보여 준다', () => {
-  assert.match(client, /if \(download\.uncertainCount > 0\) return <Badge[^>]*>확인 필요: \{reason\}<\/Badge>/)
+  assert.doesNotMatch(client + lib, /uncertain|확인 필요/)
   assert.match(client, /회원 다운로드 불가: \{reason\}/)
   assert.match(client, /회원 다운로드 가능 \(파일 \{download\.fileCount\}개\)/)
   assert.match(client, /const own = `이 주문: \$\{labelOf\(MARKET_DOWNLOAD_BLOCK_REASON_LABELS, download\.ownEntitlementReason\)\}`/)
-  assert.match(client, /같은 회원의 다른 주문\(\$\{download\.otherOrderIds\.map\(\(orderId\) => orderId\.slice\(0, 8\)\)\.join\(', '\)\}\) 권한으로 판정/)
+  assert.match(client, /같은 회원의 다른 주문\(\$\{download\.otherOrderIds\.map\(\(orderId\) => orderId\.slice\(0, 8\)\)\.join\(', '\)\}\) 권한으로 다운로드/)
   assert.equal(client.match(/ownEntitlementNote\((order|selectedOrder)\.download\) &&/g).length, 2)
 })
 
