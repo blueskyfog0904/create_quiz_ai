@@ -7,7 +7,14 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf
 const page = read('src/app/(admin)/admin/orders/page.tsx')
 const client = read('src/app/(admin)/admin/orders/orders-client.tsx')
 const route = read('src/app/api/admin/orders/payments/route.ts')
-const lib = read('src/lib/admin-orders-server.ts')
+// 같은 파일 뒤쪽의 '마켓 구매' 조회는 tests/admin-market-orders-contract.test.mjs가 본다. 여기서는 충전 결제 부분만 본다.
+const PAYMENT_PART_END = '// ───── 주문 조회 › 마켓 구매'
+const paymentPart = (source) => source.slice(0, source.indexOf(PAYMENT_PART_END))
+const lib = paymentPart(read('src/lib/admin-orders-server.ts'))
+
+test('충전 결제 부분을 가르는 표식이 lib에 정확히 한 번 있다', () => {
+  assert.equal(read('src/lib/admin-orders-server.ts').split(PAYMENT_PART_END).length - 1, 1)
+})
 
 const orders = load('src/lib/admin-orders.ts')
 const kstPeriod = load('src/lib/kst-period.ts')
@@ -35,7 +42,7 @@ test('조회 전용: 쓰기(insert·update·upsert·delete·rpc)와 GET 외 핸�
 
 test('결제 표는 service role 결제 클라이언트로 읽고, 관계마다 FK 이름을 적는다', () => {
   assert.match(lib, /const supabase = createPaymentAdminClient\(\)/)
-  assert.doesNotMatch(lib, /supabase\/server|supabase\/bypass/)
+  assert.doesNotMatch(lib, /supabase\/server|createAdminClient\(/)
   for (const relation of [
     'user:profiles!payment_orders_user_id_fkey(email, display_tag)',
     'method:payment_methods!payment_orders_payment_method_fkey(label)',
@@ -152,6 +159,8 @@ function loadOrders({ rows = [], matchedUsers = [], matchedTransactions = [], ac
     '@/lib/kst-period': kstPeriod,
     '@/lib/list-pagination': listPagination,
     '@/lib/admin-orders': orders,
+    '@/lib/supabase/bypass': {},
+    '@/lib/market-download-diagnosis': {},
   })
   return { server, queries }
 }
@@ -234,7 +243,7 @@ test('관리자 조치 기록은 주문 id로 따로 읽어 주문에 붙이고,
 })
 
 test('이메일 검색: 상한을 넘으면 알리고, 쪽마다 같은 회원을 잡고, *를 와일드카드로 쓰지 않는다', () => {
-  const lib = readFileSync(new URL('../src/lib/admin-orders-server.ts', import.meta.url), 'utf8')
+  const lib = paymentPart(readFileSync(new URL('../src/lib/admin-orders-server.ts', import.meta.url), 'utf8'))
   assert.match(lib, /const emailKeyword = query\.replaceAll\('\*', ''\)/)
   assert.match(lib, /\.ilike\('email', `%\$\{escapeIlike\(emailKeyword\)\}%`\)\.order\('id'\)\.limit\(SEARCH_MATCH_LIMIT \+ 1\)/)
   assert.match(lib, /searchTruncated = matchedUsers\.length > SEARCH_MATCH_LIMIT/)
@@ -246,7 +255,7 @@ test('이메일 검색: 상한을 넘으면 알리고, 쪽마다 같은 회원�
 })
 
 test('기간이 뒤바뀌어 들어오면 바로잡고, 조치 이름표는 DB가 허용하는 조치를 모두 덮는다', () => {
-  const lib = readFileSync(new URL('../src/lib/admin-orders-server.ts', import.meta.url), 'utf8')
+  const lib = paymentPart(readFileSync(new URL('../src/lib/admin-orders-server.ts', import.meta.url), 'utf8'))
   assert.match(lib, /input\.from && input\.to && input\.from > input\.to \? \[input\.to, input\.from\] : \[input\.from, input\.to\]/)
   const labels = readFileSync(new URL('../src/lib/admin-orders.ts', import.meta.url), 'utf8')
   const block = labels.slice(labels.indexOf('PAYMENT_ADMIN_ACTION_LABELS'), labels.indexOf('PAYMENT_EXTERNAL_METHOD_LABELS'))

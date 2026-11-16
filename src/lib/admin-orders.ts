@@ -85,3 +85,62 @@ export function buildPaymentOrderSearchFilter(query: string, matchedUserIds: str
 export function escapeIlike(keyword: string) {
   return keyword.replace(/[\\%_]/g, '\\$&')
 }
+
+// ───── 마켓 구매 ─────
+
+export const MARKET_ORDER_STATUS_LABELS = {
+  completed: '구매 완료',
+  refunded: '환불 완료',
+  revoked: '회수됨',
+  failed: '구매 실패',
+} as const
+
+export const MARKET_PURCHASE_LINE_TYPE_LABELS = {
+  subproduct: '개별 구성',
+  bundle: '묶음',
+} as const
+
+export const MARKET_ENTITLEMENT_SCOPE_LABELS = {
+  item: '상품 전체',
+  subproduct: '구성 1개',
+  file: '파일 1개',
+  legacy_asset: '이전 방식 자료',
+} as const
+
+export const MARKET_ENTITLEMENT_STATUS_LABELS = {
+  active: '사용 가능',
+  refunded: '환불로 회수',
+  revoked: '회수됨',
+} as const
+
+export const MARKET_REFUND_REQUEST_STATUS_LABELS = {
+  pending: '대기중',
+  approved: '승인',
+  rejected: '거부',
+  canceled: '요청 취소',
+  failed: '처리 실패',
+} as const
+
+export const MARKET_ITEM_STATUS_LABELS = {
+  draft: '임시저장',
+  published: '공개',
+  hidden: '숨김',
+  archived: '보관',
+} as const
+
+export const WORKSPACE_SUBJECT_LABELS = {
+  korean: '국어',
+  english: '영어',
+} as const
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// 검색어 한 칸: 주문 id 정확 일치 + 이메일이 맞는 회원의 주문 + 상품명이 맞는 상품의 주문.
+// 주문 id는 uuid 열이라 uuid 모양일 때만 조건에 넣는다(아니면 DB가 오류를 낸다). 맞는 조건이 하나도 없으면 null(= 결과 0건).
+export function buildMarketOrderSearchFilter(query: string, matchedUserIds: string[], matchedItemIds: string[]) {
+  const conditions: string[] = []
+  if (UUID_PATTERN.test(query)) conditions.push(`id.eq.${query}`)
+  if (matchedUserIds.length > 0) conditions.push(`user_id.in.(${matchedUserIds.join(',')})`)
+  if (matchedItemIds.length > 0) conditions.push(`item_id.in.(${matchedItemIds.join(',')})`)
+  return conditions.length > 0 ? conditions.join(',') : null
+}

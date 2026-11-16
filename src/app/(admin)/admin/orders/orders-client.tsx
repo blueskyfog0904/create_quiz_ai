@@ -23,9 +23,9 @@ import {
 } from '@/lib/admin-orders'
 import type { AdminPaymentOrder, AdminPaymentOrderListResult } from '@/lib/admin-orders-server'
 
-const FILTER_SELECT_CLASS = 'h-10 rounded-md border border-input bg-background px-3 text-sm max-sm:w-full'
+export const FILTER_SELECT_CLASS = 'h-10 rounded-md border border-input bg-background px-3 text-sm max-sm:w-full'
 
-const formatDateTime = (value: string | null | undefined) =>
+export const formatDateTime = (value: string | null | undefined) =>
   value ? new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-'
 const formatWon = (value: number | null | undefined) => (value == null ? '-' : `${value.toLocaleString()}원`)
 
@@ -40,7 +40,7 @@ function statusBadgeClass(status: string) {
 // 결제수단 이름은 DB(payment_methods.label)에서 읽는다. 라벨이 없는 카카오·과거 결제만 결제사 이름으로 표시한다.
 const methodLabel = (order: AdminPaymentOrder) => order.methodLabel ?? labelOf(PAYMENT_PROVIDER_LABELS, order.provider)
 
-function DetailSection({ title, children }: { title: string; children: ReactNode }) {
+export function DetailSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
       <h3 className="mb-2 text-sm font-semibold text-gray-700">{title}</h3>
@@ -49,7 +49,7 @@ function DetailSection({ title, children }: { title: string; children: ReactNode
   )
 }
 
-function DetailList({ rows }: { rows: Array<[string, ReactNode]> }) {
+export function DetailList({ rows }: { rows: Array<[string, ReactNode]> }) {
   return (
     <dl className="grid grid-cols-[7.5rem_1fr] gap-x-3 gap-y-1.5 text-sm">
       {rows.map(([label, value]) => (

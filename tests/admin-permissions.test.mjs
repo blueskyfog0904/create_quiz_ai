@@ -309,6 +309,7 @@ test('서버 모듈 계약: 요청당 한 번 읽기, 세션 클라이언트만,
     'app/(admin)/admin/orders/page.tsx',
     'app/api/admin/admin-accounts/[userId]/route.ts',
     'app/api/admin/admin-accounts/route.ts',
+    'app/api/admin/orders/market/route.ts',
     'app/api/admin/orders/payments/route.ts',
     'lib/admin-permissions-server.ts',
   ])

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { MarketOrdersClient } from './market-orders-client'
 import { PaymentOrdersClient } from './orders-client'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 import { buildAdminMenuMetadata } from '@/lib/admin-sidebar-server'
@@ -10,13 +11,14 @@ export function generateMetadata({ searchParams }: { searchParams?: Promise<{ su
     href: '/admin/orders',
     fallbackName: '주문 조회',
     searchParams,
-    description: '충전 결제 주문을 회원·주문번호·거래번호로 조회합니다.',
+    description: '충전 결제·마켓 구매 주문을 조회합니다.',
   })
 }
 
 // 탭은 주소의 ?tab= 으로 고른다. 탭을 늘릴 때는 여기에 한 줄을 더하고 아래에서 그 탭의 화면을 그린다.
 const ORDER_TABS = [
   { id: 'payments', label: '충전 결제' },
+  { id: 'market', label: '마켓 구매' },
 ] as const
 
 interface AdminOrdersPageProps {
@@ -51,6 +53,7 @@ export default async function AdminOrdersPage({ searchParams }: AdminOrdersPageP
       </nav>
 
       {activeTab.id === 'payments' && <PaymentOrdersClient />}
+      {activeTab.id === 'market' && <MarketOrdersClient />}
     </div>
   )
 }
