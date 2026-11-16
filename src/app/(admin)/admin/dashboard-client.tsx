@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { AlertTriangle, ClipboardList, RefreshCw, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ADMIN_WORK_ITEMS } from '@/lib/admin-alerts'
 import type { AdminWorkSummary } from '@/lib/admin-work-summary-server'
 
 interface Stats {
@@ -12,16 +13,6 @@ interface Stats {
   work: AdminWorkSummary
   period: { year: number; month: number }
 }
-
-// 처리 대기 항목: 어떤 숫자를, 어떤 이름으로, 어느 화면에서 처리하는지
-const WORK_ITEMS: Array<{ key: keyof AdminWorkSummary; label: string; href: string }> = [
-  { key: 'paymentAlertOpen', label: '미해소 결제 경보', href: '/admin/refunds' },
-  { key: 'paymentOrderReview', label: '수동 확인이 필요한 결제 주문', href: '/admin/refunds' },
-  { key: 'refundAttention', label: '충전 환불 — 재처리·수동 확인', href: '/admin/refunds' },
-  { key: 'refundPending', label: '충전 환불 — 승인 대기', href: '/admin/refunds' },
-  { key: 'marketRefundPending', label: '문제마켓 환불 대기', href: '/admin/refunds' },
-  { key: 'supportPending', label: '답변 대기 문의', href: '/admin/support' },
-]
 
 // 세지 못한 값(null)은 0으로 보이지 않게 따로 표시한다.
 const formatCount = (value: number | null) => (value === null ? '확인 불가' : value.toLocaleString())
@@ -94,7 +85,7 @@ export function DashboardClient() {
           </CardHeader>
           <CardContent>
             <ul className="divide-y">
-              {WORK_ITEMS.map((item) => {
+              {ADMIN_WORK_ITEMS.map((item) => {
                 const value = stats.work[item.key]
                 // 0이 아니면(확인 불가 포함) 눈에 띄게 한다.
                 const needsAttention = value !== 0

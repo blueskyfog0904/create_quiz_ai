@@ -14,6 +14,131 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_event_deliveries: {
+        Row: {
+          attempt_count: number
+          channel: string | null
+          delivered_at: string | null
+          event_id: string
+          gave_up_at: string | null
+          last_error: string | null
+          request_id: number | null
+          requested_at: string | null
+        }
+        Insert: {
+          attempt_count?: number
+          channel?: string | null
+          delivered_at?: string | null
+          event_id: string
+          gave_up_at?: string | null
+          last_error?: string | null
+          request_id?: number | null
+          requested_at?: string | null
+        }
+        Update: {
+          attempt_count?: number
+          channel?: string | null
+          delivered_at?: string | null
+          event_id?: string
+          gave_up_at?: string | null
+          last_error?: string | null
+          request_id?: number | null
+          requested_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_event_deliveries_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: true
+            referencedRelation: "admin_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_event_dispatch_state: {
+        Row: {
+          id: boolean
+          last_heartbeat_at: string | null
+          last_run_at: string | null
+          last_run_error: string | null
+          last_success_at: string | null
+        }
+        Insert: {
+          id?: boolean
+          last_heartbeat_at?: string | null
+          last_run_at?: string | null
+          last_run_error?: string | null
+          last_success_at?: string | null
+        }
+        Update: {
+          id?: boolean
+          last_heartbeat_at?: string | null
+          last_run_at?: string | null
+          last_run_error?: string | null
+          last_success_at?: string | null
+        }
+        Relationships: []
+      }
+      admin_event_reads: {
+        Row: {
+          admin_id: string
+          last_seen_at: string | null
+        }
+        Insert: {
+          admin_id: string
+          last_seen_at?: string | null
+        }
+        Update: {
+          admin_id?: string
+          last_seen_at?: string | null
+        }
+        Relationships: []
+      }
+      admin_events: {
+        Row: {
+          body: string | null
+          created_at: string
+          dedupe_key: string | null
+          delivery: string
+          id: string
+          kind: string
+          link: string
+          ref_id: string | null
+          ref_table: string | null
+          required_permission: string
+          severity: string
+          title: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          delivery?: string
+          id?: string
+          kind: string
+          link: string
+          ref_id?: string | null
+          ref_table?: string | null
+          required_permission: string
+          severity: string
+          title: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          delivery?: string
+          id?: string
+          kind?: string
+          link?: string
+          ref_id?: string | null
+          ref_table?: string | null
+          required_permission?: string
+          severity?: string
+          title?: string
+        }
+        Relationships: []
+      }
       ai_models: {
         Row: {
           created_at: string

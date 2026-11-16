@@ -7,6 +7,8 @@ import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { renameAdminSidebarMenuAction } from '@/app/(admin)/admin/menu-management/actions'
 import { Button } from '@/components/ui/button'
+import { AdminAlertCenter } from '@/components/admin/admin-alert-center'
+import { AdminMenuBadge } from '@/components/admin/admin-menu-badge'
 import { cn } from '@/lib/utils'
 import { resolveAdminWorkspaceSubject, withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import {
@@ -191,6 +193,7 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs }: AdminSide
           <span className={cn('text-sm font-medium', collapsed && 'md:hidden')}>
             {item.name}
           </span>
+          <AdminMenuBadge href={item.href} className={cn(collapsed && 'md:absolute md:right-0 md:top-0')} />
         </Link>
         {!collapsed ? renderMenuLabelEditButton(item.href, item.name, active) : null}
       </div>
@@ -208,6 +211,11 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs }: AdminSide
         <Menu className="h-5 w-5" />
       </Button>
 
+      {/* 모바일: 사이드바가 접혀 있어도 종이 보이게 메뉴 버튼 옆에 둔다(데스크톱은 사이드바 맨 위) */}
+      <div className="fixed left-16 top-4 z-50 md:hidden">
+        <AdminAlertCenter compact className="bg-white text-gray-900 shadow-md" />
+      </div>
+
       <aside
         className={cn(
           'fixed left-0 top-0 z-40 h-screen bg-slate-900 text-white transition-all duration-300',
@@ -215,7 +223,8 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs }: AdminSide
           'md:relative md:top-0 md:h-auto'
         )}
       >
-        <div className="hidden justify-end p-2 md:flex">
+        <div className={cn('hidden items-center justify-between gap-1 p-2 md:flex', collapsed && 'md:flex-col')}>
+          <AdminAlertCenter compact={collapsed} className="text-slate-300 hover:bg-slate-800 hover:text-white" />
           <Button
             variant="ghost"
             size="icon"

@@ -1,5 +1,6 @@
 import { requireAdminPanelUser } from '@/lib/auth'
 import { AdminSidebar } from '@/components/layout/admin-sidebar'
+import { AdminAlertProvider } from '@/components/admin/admin-alert-context'
 
 export default async function AdminLayout({
   children,
@@ -7,10 +8,12 @@ export default async function AdminLayout({
   children: React.ReactNode
 }) {
   // 관리자 패널은 헤더 없이 사이드바+본문만 사용하며, 인증은 /admin/login으로 유도한다
-  await requireAdminPanelUser()
+  const admin = await requireAdminPanelUser()
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* 알림 조회·실시간 구독은 여기서 한 번만 하고, 종과 메뉴 배지가 같이 쓴다 */}
+      <AdminAlertProvider adminId={admin.id}>
       <div className="flex">
         {/* Sidebar (본문도 바꾼 메뉴 이름을 쓰도록 children으로 감싼다) */}
         <AdminSidebar>
@@ -24,6 +27,7 @@ export default async function AdminLayout({
           </div>
         </AdminSidebar>
       </div>
+      </AdminAlertProvider>
     </div>
   )
 }

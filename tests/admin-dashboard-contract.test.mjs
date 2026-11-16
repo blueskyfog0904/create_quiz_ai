@@ -6,6 +6,7 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf
 const route = read('src/app/api/admin/stats/route.ts')
 const summary = read('src/lib/admin-work-summary-server.ts')
 const dashboard = read('src/app/(admin)/admin/dashboard-client.tsx')
+const workItems = read('src/lib/admin-alerts.ts')
 
 test('통계 API는 없는 표·옛 문제 표·서버 시간대에 기대지 않는다', () => {
   assert.doesNotMatch(route, /admin_logs/)
@@ -35,6 +36,8 @@ test('대시보드는 거짓 표시를 하지 않고, 세지 못한 값을 0으�
   assert.doesNotMatch(dashboard, /총 매출|AI 문제 생성|에러\/실패 로그/)
   assert.match(dashboard, /value === null \? '확인 불가'/)
   assert.match(dashboard, /기준: 한국 시간/)
-  assert.match(dashboard, /\/admin\/support/)
-  assert.match(dashboard, /\/admin\/refunds/)
+  // 처리 대기 항목(이름·이동할 화면)은 알림과 같이 쓰는 목록에 있다.
+  assert.match(dashboard, /ADMIN_WORK_ITEMS\.map\(/)
+  assert.match(workItems, /\/admin\/support/)
+  assert.match(workItems, /\/admin\/refunds/)
 })

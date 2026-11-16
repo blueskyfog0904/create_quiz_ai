@@ -333,7 +333,7 @@ test('관리자 페이지와 API 경로는 "운영 화면" 또는 "기능 묶음
     '/admin/main-ad-settings', '/admin/market-main-settings', '/admin/reviews', '/admin/review-tags', '/admin/footer', '/admin/admin-accounts',
     '/api/admin/support', '/api/admin/refunds', '/api/admin/payments', '/api/admin/users', '/api/admin/market', '/api/admin/market-categories',
     '/api/admin/main-ad-settings', '/api/admin/market-main-settings', '/api/admin/reviews', '/api/admin/review-tags', '/api/admin/site-logo',
-    '/api/admin/admin-accounts', '/api/admin/session', '/api/admin/stats',
+    '/api/admin/admin-accounts', '/api/admin/session', '/api/admin/stats', '/api/admin/alerts',
   ]
   const isOperational = (route) => route === '/admin' || OPERATIONAL_PREFIXES.some((prefix) => route === prefix || route.startsWith(`${prefix}/`))
 
