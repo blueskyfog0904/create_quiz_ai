@@ -29,14 +29,18 @@ type RefundTarget = MarketLibraryRow['refundTargets'][number]
 
 // 문제(PDF)의 PDF와 문제(HWP)에 포함된 PDF는 동일 내용이므로, 전자가 있으면 후자를 숨긴다.
 // categorySlug가 null이면(매핑 실패) 숨기지 않는 방향으로만 퇴화한다(fail-safe).
+// 단, 전자가 모두 환불 심사로 막혀 있고 후자 중 받을 수 있는 것이 있으면 반대로 전자를 숨긴다(받을 수 있는 쪽을 남긴다).
 function dedupeQuestionPdfFiles(files: MarketLibraryRow['v2DownloadFiles']) {
-  const hasQuestionPdfPdf = files.some((file) => (
-    file.categorySlug === 'question_pdf' && file.fileTypeCode.toLowerCase() === 'pdf'
-  ))
-  if (!hasQuestionPdfPdf) return files
-  return files.filter((file) => !(
-    file.categorySlug === 'question_hwp' && file.fileTypeCode.toLowerCase() === 'pdf'
-  ))
+  const isPdfOf = (file: MarketLibraryRow['v2DownloadFiles'][number], slug: string) => (
+    file.categorySlug === slug && file.fileTypeCode.toLowerCase() === 'pdf'
+  )
+  const questionPdfPdfs = files.filter((file) => isPdfOf(file, 'question_pdf'))
+  if (questionPdfPdfs.length === 0) return files
+  const hiddenSlug = questionPdfPdfs.every((file) => file.pendingRefundBlocked) &&
+    files.some((file) => isPdfOf(file, 'question_hwp') && !file.pendingRefundBlocked)
+    ? 'question_pdf'
+    : 'question_hwp'
+  return files.filter((file) => !isPdfOf(file, hiddenSlug))
 }
 
 const SUBJECT_TABS: { value: WorkspaceSubject; label: string }[] = [
@@ -552,6 +556,8 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
               row.hwpAvailable && row.hwpDownloadUrl ? { key: 'hwp', label: 'HWP', url: row.hwpDownloadUrl } : null,
               row.zipAvailable && row.zipDownloadUrl ? { key: 'zip', label: 'ZIP', url: row.zipDownloadUrl } : null,
             ].filter((entry): entry is { key: string; label: string; url: string } => entry !== null)
+            // 다른 주문의 권한으로 받을 수 있는 파일은 환불 심사 중에도 열어 둔다(서버가 파일마다 판정해 준다).
+            const hasBlockedDownload = visibleV2Files.some((file) => file.pendingRefundBlocked) || legacyDownloads.length > 0
 
             return (
               <li key={row.itemId} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-4 sm:flex-nowrap sm:gap-4 sm:px-5">
@@ -572,7 +578,7 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
                 <div className="flex w-full flex-wrap items-center justify-start gap-2 sm:w-auto sm:max-w-[55%] sm:shrink-0 sm:justify-end">
                   {hasPendingRefund && (
                     <span className="inline-flex items-center rounded-full bg-[var(--studio-highlight)] px-2.5 py-0.5 text-xs font-semibold text-[var(--studio-ink)]">
-                      환불 심사 중 (다운로드 제한)
+                      {hasBlockedDownload ? '환불 심사 중 (다운로드 제한)' : '환불 심사 중'}
                     </span>
                   )}
                   {availableRefundTargets.length > 0 && (
@@ -585,7 +591,7 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
                     </button>
                   )}
                   {visibleV2Files.map((file) =>
-                    hasPendingRefund ? (
+                    file.pendingRefundBlocked ? (
                       <span key={file.id} className={`${downloadButtonClassName} cursor-not-allowed opacity-50`}>
                         <FileTypeDocIcon code={file.fileTypeCode} />
                         {downloadLabels.get(file.id) ?? ''}

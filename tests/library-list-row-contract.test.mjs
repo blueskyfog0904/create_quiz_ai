@@ -76,3 +76,41 @@ test('library rows carry thumbnailUrl from the already-loaded item without sampl
   assert.doesNotMatch(page, REMOVED_COVER)
   assert.match(page, /const rows = await listMarketLibraryRowsForUser\(userId, subject\)/)
 })
+
+test('환불 심사 중에도 다른 주문의 권한으로 받을 수 있는 파일은 열어 둔다(다운로드 route와 같은 규칙)', () => {
+  const server = read('../src/lib/market-items-server.ts')
+  const purchase = read('../src/lib/market-purchase.ts')
+  // 다운로드 route가 권한을 고르는 규칙
+  assert.match(purchase, /entitlement\.source_order_id && !pendingRefundOrderIds\.includes\(entitlement\.source_order_id\)/)
+  // 보관함: 심사 중인 주문 목록은 pending 환불 요청에서, 파일마다 같은 규칙으로 판정한다
+  assert.match(server, /const pendingRefundV2OrderIds = \(v2RefundRequestsResult\.data \?\? \[\]\)\s*\.filter\(\(request\) => request\.status === 'pending' && request\.order_id\)/)
+  assert.match(server, /Boolean\(entitlement\.source_order_id\) &&\s*!pendingRefundV2OrderIds\.includes\(entitlement\.source_order_id as string\)/)
+  assert.match(server, /pendingRefundBlocked: !downloadable,/)
+  // 화면: 상품 단위가 아니라 파일 단위로 막는다
+  assert.match(view, /visibleV2Files\.map\(\(file\) =>\s*file\.pendingRefundBlocked \? \(/)
+  assert.doesNotMatch(view, /visibleV2Files\.map\(\(file\) =>\s*hasPendingRefund \? \(/)
+  assert.match(view, /\{hasBlockedDownload \? '환불 심사 중 \(다운로드 제한\)' : '환불 심사 중'\}/)
+})
+
+test('같은 문제 PDF가 두 구성에 있을 때는 받을 수 있는 쪽을 남긴다', () => {
+  // 화면 파일의 함수 본문을 꺼내 실행한다(타입 표기만 걷어 낸다).
+  const start = view.indexOf('function dedupeQuestionPdfFiles(')
+  const end = view.indexOf('\n}\n', start) + 3
+  const source = view.slice(start, end)
+    .replace("files: MarketLibraryRow['v2DownloadFiles']", 'files')
+    .replace("file: MarketLibraryRow['v2DownloadFiles'][number], slug: string", 'file, slug')
+  const dedupe = new Function(`${source}; return dedupeQuestionPdfFiles`)()
+  const file = (id, categorySlug, fileTypeCode, pendingRefundBlocked = false) => ({ id, categorySlug, fileTypeCode, pendingRefundBlocked })
+  const ids = (files) => dedupe(files).map((entry) => entry.id)
+
+  // 평소: 문제(PDF)의 PDF가 있으면 문제(HWP)에 든 PDF를 숨긴다
+  assert.deepEqual(ids([file('p', 'question_pdf', 'pdf'), file('hp', 'question_hwp', 'PDF'), file('hh', 'question_hwp', 'hwp')]), ['p', 'hh'])
+  // 문제(PDF) 주문만 환불 심사 중: 받을 수 있는 문제(HWP) 쪽 PDF를 남긴다
+  assert.deepEqual(ids([file('p', 'question_pdf', 'pdf', true), file('hp', 'question_hwp', 'pdf'), file('hh', 'question_hwp', 'hwp')]), ['hp', 'hh'])
+  // 문제(HWP) 주문만 심사 중: 평소대로
+  assert.deepEqual(ids([file('p', 'question_pdf', 'pdf'), file('hp', 'question_hwp', 'pdf', true), file('hh', 'question_hwp', 'hwp', true)]), ['p', 'hh'])
+  // 둘 다 심사 중: 평소대로(막힌 채로 하나만)
+  assert.deepEqual(ids([file('p', 'question_pdf', 'pdf', true), file('hp', 'question_hwp', 'pdf', true)]), ['p'])
+  // 문제(PDF)가 없거나 분류를 모르면 숨기지 않는다
+  assert.deepEqual(ids([file('hp', 'question_hwp', 'pdf'), file('x', null, 'pdf')]), ['hp', 'x'])
+})

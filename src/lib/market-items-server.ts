@@ -175,6 +175,8 @@ export interface MarketSubproductDownloadFile {
   fileTypeLabel: string
   originalFileName: string
   downloadUrl: string
+  // 이 파일을 받을 수 있는 권한의 주문이 모두 환불 심사 중이라 지금은 받을 수 없다(자료 보관함에서만 채운다).
+  pendingRefundBlocked?: boolean
 }
 
 function normalizeWorkspaceSubject(value?: string | null): WorkspaceSubject {
@@ -2471,6 +2473,9 @@ export async function listMarketLibraryRowsForUser(
   const categorySlugByCategoryId = new Map((categoriesResult.data ?? []).map((category) => [category.id, category.slug]))
   const categoryIdBySubproductId = new Map((subproductsResult.data ?? []).map((subproduct) => [subproduct.id, subproduct.category_id]))
   const v2DownloadFileMap = new Map<string, MarketSubproductDownloadFile[]>()
+  const pendingRefundV2OrderIds = (v2RefundRequestsResult.data ?? [])
+    .filter((request) => request.status === 'pending' && request.order_id)
+    .map((request) => request.order_id as string)
   for (const file of withWorkspaceSubjects(subproductFilesResult.data)) {
     if (!file.is_active) continue
     const itemEntitlements = groupedEntitlements.get(file.item_id) ?? []
@@ -2480,6 +2485,15 @@ export async function listMarketLibraryRowsForUser(
       (entitlement.scope === 'file' && entitlement.file_id === file.id)
     ))
     if (!covered) continue
+    // 다운로드 route(findMarketSubproductFileV2Entitlement)와 같은 규칙: 파일을 덮는 권한 중
+    // 주문 정보가 있고 그 주문이 환불 심사 중이 아닌 것이 하나라도 있으면 받을 수 있다.
+    const downloadable = itemEntitlements.some((entitlement) => (
+      (entitlement.scope === 'item' ||
+        (entitlement.scope === 'subproduct' && entitlement.subproduct_id === file.subproduct_id) ||
+        (entitlement.scope === 'file' && entitlement.file_id === file.id)) &&
+      Boolean(entitlement.source_order_id) &&
+      !pendingRefundV2OrderIds.includes(entitlement.source_order_id as string)
+    ))
     const fileType = fileTypeMap.get(file.file_type_id)
     const current = v2DownloadFileMap.get(file.item_id) ?? []
     const fileCategoryId = categoryIdBySubproductId.get(file.subproduct_id)
@@ -2493,6 +2507,7 @@ export async function listMarketLibraryRowsForUser(
       fileTypeLabel: fileType?.label ?? '파일',
       originalFileName: file.original_file_name,
       downloadUrl: `/api/market/items/${file.item_id}/download?fileId=${file.id}`,
+      pendingRefundBlocked: !downloadable,
     })
     v2DownloadFileMap.set(file.item_id, current)
   }
