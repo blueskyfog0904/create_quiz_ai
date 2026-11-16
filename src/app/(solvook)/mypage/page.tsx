@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
 import {
+  Bell,
   Coins,
   CreditCard,
   FileText,
@@ -32,6 +33,7 @@ const MENU_ITEMS = [
   { href: '/mypage/credits', label: '크레딧 관리', description: '잔액·구매·거래 내역', icon: Coins },
   { href: '/mypage/profile', label: '내정보 관리', description: '휴대폰 번호·비밀번호 변경', icon: User },
   { href: '/mypage/support', label: '고객지원', description: '1:1 문의 접수·확인', icon: HelpCircle },
+  { href: '/mypage/notifications', label: '알림', description: '지난 알림 전체 보기', icon: Bell },
   { href: '/mypage/withdraw', label: '회원 탈퇴', description: '계정 및 데이터 삭제', icon: UserX },
 ] as const
 

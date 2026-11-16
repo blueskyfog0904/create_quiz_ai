@@ -26,9 +26,10 @@ interface Notification {
 
 interface NotificationBellProps {
   isAdmin?: boolean
+  className?: string
 }
 
-export function NotificationBell({ isAdmin = false }: NotificationBellProps) {
+export function NotificationBell({ isAdmin = false, className }: NotificationBellProps) {
   const router = useRouter()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -136,7 +137,7 @@ export function NotificationBell({ isAdmin = false }: NotificationBellProps) {
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button variant="ghost" size="icon" aria-label="알림" className={cn("relative", className)}>
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
             <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-white">

@@ -7,6 +7,7 @@ import {
   MarketRefundShortfallError,
   rejectMarketRefund,
 } from '@/lib/market-refunds'
+import { createAdminClient } from '@/lib/supabase/bypass'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +43,38 @@ async function requireAdmin() {
   return { user } as const
 }
 
+// 처리 결과를 요청한 회원에게 알린다. 알림이 실패해도 환불 처리 결과는 바꾸지 않는다.
+async function notifyMarketRefundProcessed(
+  action: 'approve' | 'reject',
+  request: { user_id: string; approved_refund_credits: number | null }
+) {
+  try {
+    const approved = action === 'approve'
+    const { error } = await createAdminClient().from('notifications').insert({
+      user_id: request.user_id,
+      type: approved ? 'success' : 'info',
+      title: approved ? '문제마켓 환불이 승인되었습니다' : '문제마켓 환불 요청이 거절되었습니다',
+      message: approved
+        ? typeof request.approved_refund_credits === 'number'
+          ? `${request.approved_refund_credits.toLocaleString()} 크레딧이 복구되었습니다.`
+          : '크레딧 복구 내역은 크레딧 관리에서 확인해 주세요.'
+        : '환불 요청이 승인되지 않았습니다. 자세한 내용은 고객지원으로 문의해 주세요.',
+      link: approved ? '/mypage/credits' : '/mypage/support',
+      is_read: false,
+    })
+
+    if (error) {
+      console.error('[MarketRefund] Processed notification failed', {
+        errorCode: error.code,
+      })
+    }
+  } catch {
+    console.error('[MarketRefund] Processed notification failed', {
+      errorCode: 'exception',
+    })
+  }
+}
+
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const adminCheck = await requireAdmin()
   if ('error' in adminCheck) {
@@ -67,6 +100,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         confirmedRefundCredits: parsed.data.confirmedRefundCredits,
       })
       : await rejectMarketRefund({ requestId: id, adminId: adminCheck.user.id, adminNote: parsed.data.adminNote ?? null })
+
+    await notifyMarketRefundProcessed(parsed.data.action, data)
 
     return NextResponse.json({
       success: true,

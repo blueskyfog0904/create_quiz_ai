@@ -64,6 +64,7 @@ export async function POST(request: Request) {
         type: 'info',
         title: '크레딧이 지급되었습니다',
         message: `${categoryLabel} 사유로 ${amount.toLocaleString()} 크레딧이 지급되었습니다. (내용: ${description})`,
+        link: '/mypage/credits',
         is_read: false
       })
     }

@@ -8,6 +8,7 @@ import { ChevronDown, Coins, Grid2X2, Library, Search, WalletCards } from 'lucid
 import { StudioContainer } from '@/components/design-system'
 import { CategoryMegaMenu } from '@/components/layout/category-mega-menu'
 import { MarketCartIndicator } from '@/components/market/market-cart-indicator'
+import { NotificationBell } from '@/components/ui/notification-bell'
 import { buildAuthRedirectPath } from '@/lib/auth-paths'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { MypageMenu } from './mypage-menu'
@@ -216,6 +217,9 @@ export function PreviewHeader({
             </span>
           </Link>
           <div className="flex shrink-0 items-center">
+            {isLoggedIn && (
+              <NotificationBell className="min-h-11 min-w-11 rounded-md text-[var(--studio-ink)] hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]" />
+            )}
             <MarketCartIndicator
               ownerId={userId}
               initialCount={cartCount}
@@ -367,6 +371,7 @@ export function PreviewHeader({
 
             {isLoggedIn ? (
               <>
+                <NotificationBell className="min-h-11 min-w-11 rounded-md text-[var(--studio-ink)] hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]" />
                 {creditBalance !== null && (
                   <Link
                     href="/mypage/credits"

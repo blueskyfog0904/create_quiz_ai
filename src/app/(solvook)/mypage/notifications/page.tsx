@@ -1,0 +1,131 @@
+import type { Metadata } from 'next'
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { connection } from 'next/server'
+import { Bell } from 'lucide-react'
+import { getRequestAuthUserId } from '@/lib/request-auth'
+import { createClient } from '@/lib/supabase/server'
+import { getListPagination } from '@/lib/list-pagination'
+import { StudioContainer } from '@/components/design-system/studio-container'
+import { StudioEmptyState } from '@/components/design-system/studio-empty-state'
+
+export const metadata: Metadata = {
+  title: '알림 | 써머썬 연구소',
+  description: '받은 알림 전체를 확인합니다.',
+}
+
+function formatKoreanDateTime(value: string) {
+  return new Date(value).toLocaleString('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+}
+
+const pageLinkClassName =
+  'inline-flex min-h-11 items-center rounded-[var(--studio-radius-control)] border border-[var(--studio-control-border)] bg-[var(--studio-surface)] px-4 text-sm font-medium text-[var(--studio-ink)] outline-none transition-colors hover:border-[var(--studio-primary-border)] hover:text-[var(--studio-primary)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]'
+
+// 조회만 한다. 읽음 처리는 헤더 벨이 맡는다.
+export default async function MypageNotificationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>
+}) {
+  await connection()
+  const userId = await getRequestAuthUserId()
+  if (!userId) {
+    redirect(`/login?next=${encodeURIComponent('/mypage/notifications')}`)
+  }
+
+  const supabase = await createClient()
+  const { count, error: countError } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+
+  if (countError) {
+    throw new Error(countError.message)
+  }
+
+  const { page: requestedPage } = await searchParams
+  const pagination = getListPagination(count ?? 0, requestedPage, undefined)
+
+  const { data: notifications, error } = await supabase
+    .from('notifications')
+    .select('id, title, message, link, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .order('id')
+    .range(pagination.offset, pagination.offset + pagination.pageSize - 1)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (
+    <StudioContainer className="py-8 sm:py-10">
+      <Link
+        href="/mypage"
+        className="inline-flex min-h-9 items-center rounded-[var(--studio-radius-control)] text-sm font-medium text-[var(--studio-muted)] outline-none transition-colors hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+      >
+        ← 마이페이지
+      </Link>
+      <h1 className="mt-2 text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">알림</h1>
+      <p className="mt-2 text-sm text-[var(--studio-muted)]">
+        받은 알림 전체입니다.
+      </p>
+
+      {pagination.totalCount === 0 ? (
+        <div className="mt-6">
+          <StudioEmptyState
+            icon={<Bell aria-hidden="true" className="size-6" />}
+            title="알림이 없습니다"
+            description="아직 받은 알림이 없습니다."
+          />
+        </div>
+      ) : (
+        <ul className="mt-6 divide-y divide-[var(--studio-border)] rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] shadow-[var(--studio-shadow-card)]">
+          {(notifications ?? []).map((notification) => (
+            <li key={notification.id} className="px-4 py-4 sm:px-5">
+              <p className="text-base font-semibold text-[var(--studio-ink)] break-keep">{notification.title}</p>
+              <p className="mt-1 whitespace-pre-wrap break-words text-sm text-[var(--studio-text)]">{notification.message}</p>
+              <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--studio-muted)]">
+                {notification.created_at ? <span>{formatKoreanDateTime(notification.created_at)}</span> : null}
+                {notification.link ? (
+                  <Link
+                    href={notification.link}
+                    className="font-semibold text-[var(--studio-primary)] outline-none transition-colors hover:text-[var(--studio-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                  >
+                    바로가기 →
+                  </Link>
+                ) : null}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {pagination.totalPages > 1 ? (
+        <nav aria-label="알림 페이지" className="mt-6 flex items-center justify-between gap-3">
+          {pagination.page > 1 ? (
+            <Link href={`/mypage/notifications?page=${pagination.page - 1}`} className={pageLinkClassName}>
+              이전
+            </Link>
+          ) : <span />}
+          <p className="text-sm text-[var(--studio-muted)]">
+            {pagination.page} / {pagination.totalPages} 페이지
+          </p>
+          {pagination.page < pagination.totalPages ? (
+            <Link href={`/mypage/notifications?page=${pagination.page + 1}`} className={pageLinkClassName}>
+              다음
+            </Link>
+          ) : <span />}
+        </nav>
+      ) : null}
+    </StudioContainer>
+  )
+}

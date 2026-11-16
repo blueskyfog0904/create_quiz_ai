@@ -32,3 +32,16 @@ test('header auth links keep the incoming next on /login and /signup', () => {
   assert.match(header, /buildAuthRedirectPath\(currentLocation, '\/login'\)/)
   assert.match(header, /buildAuthRedirectPath\(currentLocation, '\/signup'\)/)
 })
+
+// docs/admin-implementation-workplan.md W3-8a: 문제마켓 헤더 알림 벨은 로그인 상태에서만
+test('market header renders the notification bell only when logged in', () => {
+  const bell = read('../src/components/ui/notification-bell.tsx')
+  assert.match(header, /import \{ NotificationBell \} from '@\/components\/ui\/notification-bell'/)
+  assert.equal(header.match(/<NotificationBell\b/g)?.length, 2, 'mobile bar and desktop bar')
+  // 모바일 상단: 장바구니 바로 앞, isLoggedIn && 안
+  assert.match(header, /\{isLoggedIn && \(\s+<NotificationBell\b[^>]*\/>\s+\)\}\s+<MarketCartIndicator/)
+  // 데스크톱: 로그인 분기 안, 크레딧 링크 앞
+  assert.match(header, /\{isLoggedIn \? \(\s+<>\s+<NotificationBell\b[^>]*\/>\s+\{creditBalance !== null && \(\s+<Link\s+href="\/mypage\/credits"/)
+  assert.doesNotMatch(header, /<NotificationBell\b[^>]*isAdmin/, 'member header does not pull admin counts')
+  assert.match(bell, /<Button variant="ghost" size="icon" aria-label="알림"/)
+})

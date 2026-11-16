@@ -207,6 +207,8 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
         throw new Error(data.error || '답변 등록에 실패했습니다.')
       }
 
+      const result = await res.json().catch(() => ({}))
+
       setTickets(tickets.map((ticket) =>
         ticket.id === selectedTicket.id
           ? { ...ticket, admin_response: response, status: 'resolved', responded_at: new Date().toISOString() }
@@ -214,7 +216,11 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
       ))
       setSelectedTicket(null)
       setResponse('')
-      toast.success('답변이 등록되었습니다.')
+      if (result.notificationFailed) {
+        toast.warning('답변은 저장했지만 회원 알림을 만들지 못했습니다.')
+      } else {
+        toast.success('답변이 등록되었습니다.')
+      }
       // 답변 대기 건수가 줄었으니 종·메뉴 배지를 바로 맞춘다.
       alerts?.refresh()
     } catch (error) {

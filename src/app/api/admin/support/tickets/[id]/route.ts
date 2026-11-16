@@ -62,13 +62,21 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  await admin.supabase.from('notifications').insert({
+  const { error: notificationError } = await admin.supabase.from('notifications').insert({
     user_id: ticket.user_id,
     type: 'inquiry_reply',
     title: '문의하신 내용에 답변이 등록되었습니다.',
     message: `제목: ${ticket.subject}\n\n답변을 확인해보세요.`,
     link: '/mypage/support',
   })
+
+  // 답변은 이미 저장됐다. 알림만 실패한 경우 화면이 안내하도록 표시한다.
+  if (notificationError) {
+    console.error('[SupportTicket] Reply notification failed', {
+      errorCode: notificationError.code,
+    })
+    return NextResponse.json({ success: true, ticket, notificationFailed: true })
+  }
 
   return NextResponse.json({ success: true, ticket })
 }
