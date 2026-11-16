@@ -175,7 +175,7 @@ export interface MarketSubproductDownloadFile {
   fileTypeLabel: string
   originalFileName: string
   downloadUrl: string
-  // 이 파일을 받을 수 있는 권한의 주문이 모두 환불 심사 중이라 지금은 받을 수 없다(자료 보관함에서만 채운다).
+  // 이 파일을 받을 수 있는 권한의 주문이 모두 환불 심사 중이라 지금은 받을 수 없다(자료 보관함·상품 상세에서 채운다).
   pendingRefundBlocked?: boolean
 }
 
@@ -1604,8 +1604,12 @@ export async function listMarketSubproductDownloadFilesForUser(
     return []
   }
 
-  // 2단계: 파일·서브상품·파일 유형·분류를 한 번에 읽는다(상품·과목 단위로 읽고 아래에서 id로 맞춘다).
-  const [fileResult, subproductResult, fileTypeResult, categoryResult] = await Promise.all([
+  const sourceOrderIds = Array.from(new Set(entitlements
+    .map((entitlement) => entitlement.source_order_id)
+    .filter((orderId): orderId is string => Boolean(orderId))))
+
+  // 2단계: 파일·서브상품·파일 유형·분류·심사 중인 환불 요청을 한 번에 읽는다(상품·과목 단위로 읽고 아래에서 id로 맞춘다).
+  const [fileResult, subproductResult, fileTypeResult, categoryResult, pendingRefundResult] = await Promise.all([
     supabase
       .from('market_subproduct_files')
       .select('id, item_id, subproduct_id, file_type_id, original_file_name')
@@ -1628,6 +1632,12 @@ export async function listMarketSubproductDownloadFilesForUser(
       .from('market_subproduct_categories')
       .select('id, name, slug, sort_order')
       .eq('workspace_subject', item.workspace_subject),
+    supabase
+      .from('market_refund_requests')
+      .select('order_id')
+      .eq('target_kind', 'v2_order')
+      .eq('status', 'pending')
+      .in('order_id', sourceOrderIds),
   ])
 
   if (fileResult.error) {
@@ -1665,15 +1675,29 @@ export async function listMarketSubproductDownloadFilesForUser(
     categoryById.get(subproduct.category_id),
   ]))
 
+  if (pendingRefundResult.error) {
+    throw new Error(pendingRefundResult.error.message)
+  }
+  // 환불 심사 중(pending)인 주문. 그 주문의 권한으로만 받을 수 있는 파일은 화면에서 막아 보여 준다.
+  const pendingRefundOrderIds = (pendingRefundResult.data ?? []).map((request) => request.order_id)
+  const coversFile = (entitlement: (typeof entitlements)[number], file: (typeof files)[number]) => (
+    entitlement.scope === 'item' ||
+    (entitlement.scope === 'subproduct' && entitlement.subproduct_id === file.subproduct_id) ||
+    (entitlement.scope === 'file' && entitlement.file_id === file.id)
+  )
+
   const downloadFiles = files
-    .filter((file) => entitlements.some((entitlement) => (
-      entitlement.scope === 'item' ||
-      (entitlement.scope === 'subproduct' && entitlement.subproduct_id === file.subproduct_id) ||
-      (entitlement.scope === 'file' && entitlement.file_id === file.id)
-    )))
+    .filter((file) => entitlements.some((entitlement) => coversFile(entitlement, file)))
     .map((file) => {
       const fileType = fileTypeMap.get(file.file_type_id)
       const categoryId = subproductCategoryIdMap.get(file.subproduct_id)
+      // 다운로드 route(findMarketSubproductFileV2Entitlement)와 같은 규칙: 파일을 덮는 권한 중
+      // 주문 정보가 있고 그 주문이 환불 심사 중이 아닌 것이 하나라도 있으면 받을 수 있다.
+      const downloadable = entitlements.some((entitlement) => (
+        coversFile(entitlement, file) &&
+        Boolean(entitlement.source_order_id) &&
+        !pendingRefundOrderIds.includes(entitlement.source_order_id as string)
+      ))
       return {
         id: file.id,
         itemId: file.item_id,
@@ -1684,6 +1708,7 @@ export async function listMarketSubproductDownloadFilesForUser(
         fileTypeLabel: fileType?.label ?? '파일',
         originalFileName: file.original_file_name,
         downloadUrl: `/api/market/items/${file.item_id}/download?fileId=${file.id}`,
+        pendingRefundBlocked: !downloadable,
       }
     })
 

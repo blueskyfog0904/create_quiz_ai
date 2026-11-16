@@ -26,11 +26,11 @@ test('전체구매 요약은 묶음 옵션과 소유 여부를 함께 읽는다'
   assert.match(body, /\] = await Promise\.all\(\[\n\s+bundleQuery,/)
 })
 
-test('구매자 다운로드 목록은 2단계(소유권·상품 → 파일·서브상품·유형·분류)로 읽는다', () => {
+test('구매자 다운로드 목록은 2단계(소유권·상품 → 파일·서브상품·유형·분류·심사 중 환불)로 읽는다', () => {
   const body = functionBody('listMarketSubproductDownloadFilesForUser')
   assert.equal((body.match(/await /g) ?? []).length, 2)
   assert.match(body, /const \[entitlements, item\] = await Promise\.all\(\[/)
-  assert.match(body, /const \[fileResult, subproductResult, fileTypeResult, categoryResult\] = await Promise\.all\(\[/)
+  assert.match(body, /const \[fileResult, subproductResult, fileTypeResult, categoryResult, pendingRefundResult\] = await Promise\.all\(\[/)
   assert.doesNotMatch(body, /listMarketSubproductFilesForAdmin/)
   // 다운로드 가능 판정은 그대로 소유 범위(item·subproduct·file)를 따른다
   assert.match(body, /entitlement\.scope === 'item' \|\|/)

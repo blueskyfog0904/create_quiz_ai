@@ -944,16 +944,19 @@ export default function MarketItemActions({
     // 문제(PDF)의 PDF와 문제(HWP)에 포함된 PDF는 동일 내용이므로, 전자가 보이면 후자를 숨긴다.
     // 카테고리 매핑 실패(비활성 서브상품 등) 시에는 숨기지 않는 방향으로만 퇴화한다(fail-safe).
     const categorySlugBySubproductId = new Map(subproducts.map((subproduct) => [subproduct.id, subproduct.categorySlug]))
+    // 단, 전자가 모두 환불 심사로 막혀 있고 후자 중 받을 수 있는 것이 있으면 반대로 전자를 숨긴다(자료 보관함과 같은 규칙).
     const dedupeQuestionPdfFiles = (files: MarketSubproductDownloadFile[]) => {
-      const hasQuestionPdfPdf = files.some((file) => (
-        categorySlugBySubproductId.get(file.subproductId) === 'question_pdf'
+      const isPdfOf = (file: MarketSubproductDownloadFile, slug: string) => (
+        categorySlugBySubproductId.get(file.subproductId) === slug
         && file.fileTypeCode.toLowerCase() === 'pdf'
-      ))
-      if (!hasQuestionPdfPdf) return files
-      return files.filter((file) => !(
-        categorySlugBySubproductId.get(file.subproductId) === 'question_hwp'
-        && file.fileTypeCode.toLowerCase() === 'pdf'
-      ))
+      )
+      const questionPdfPdfs = files.filter((file) => isPdfOf(file, 'question_pdf'))
+      if (questionPdfPdfs.length === 0) return files
+      const hiddenSlug = questionPdfPdfs.every((file) => file.pendingRefundBlocked) &&
+        files.some((file) => isPdfOf(file, 'question_hwp') && !file.pendingRefundBlocked)
+        ? 'question_pdf'
+        : 'question_hwp'
+      return files.filter((file) => !isPdfOf(file, hiddenSlug))
     }
 
     // emptyTextClassName: 잉크 블록 안에서는 대비가 충분한 글자색을 넘긴다.
@@ -964,9 +967,24 @@ export default function MarketItemActions({
 
       const downloadLabels = getMarketDownloadButtonLabels(files)
       return (
-        <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
+        <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+          {files.some((file) => file.pendingRefundBlocked) && (
+            <span className="inline-flex items-center rounded-full bg-[var(--studio-highlight)] px-2.5 py-0.5 text-xs font-semibold text-[var(--studio-ink)]">
+              환불 심사 중 (다운로드 제한)
+            </span>
+          )}
           {files.map((file) => {
             const downloadLabel = downloadLabels.get(file.id) ?? ''
+
+            // 환불 심사 중이라 받을 수 없는 파일은 누를 수 없게 보여 준다(서버도 막는다).
+            if (file.pendingRefundBlocked) {
+              return (
+                <span key={file.id} className={`${MARKET_DOWNLOAD_BUTTON_CLASS} inline-flex cursor-not-allowed items-center opacity-50`}>
+                  <FileTypeDocIcon code={file.fileTypeCode} />
+                  {downloadLabel}
+                </span>
+              )
+            }
 
             return (
               <Button key={file.id} asChild className={MARKET_DOWNLOAD_BUTTON_CLASS}>
@@ -1100,7 +1118,17 @@ export default function MarketItemActions({
               <ul className="divide-y divide-[var(--studio-border)] overflow-hidden rounded-[var(--studio-radius-card)] border border-[var(--studio-border)]">
                 {subproducts.map((subproduct) => {
                   if (subproduct.categorySlug === 'question_pdf' && hasOwnedPdfInclusiveHwp) {
-                    return null
+                    // 예외: 문제(HWP) 쪽 PDF가 환불 심사로 모두 막혀 있고 이 문제(PDF)의 파일은 받을 수 있으면 숨기지 않는다.
+                    const hwpSidePdfs = downloadFiles.filter((file) => (
+                      categorySlugBySubproductId.get(file.subproductId) === 'question_hwp'
+                      && file.fileTypeCode.toLowerCase() === 'pdf'
+                    ))
+                    const keepVisible = hwpSidePdfs.length > 0
+                      && hwpSidePdfs.every((file) => file.pendingRefundBlocked)
+                      && (filesBySubproduct.get(subproduct.id) ?? []).some((file) => !file.pendingRefundBlocked)
+                    if (!keepVisible) {
+                      return null
+                    }
                   }
 
                   const key = `subproduct:${subproduct.id}`

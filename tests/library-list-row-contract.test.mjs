@@ -114,3 +114,27 @@ test('같은 문제 PDF가 두 구성에 있을 때는 받을 수 있는 쪽을 
   // 문제(PDF)가 없거나 분류를 모르면 숨기지 않는다
   assert.deepEqual(ids([file('hp', 'question_hwp', 'pdf'), file('x', null, 'pdf')]), ['hp', 'x'])
 })
+
+test('상품 상세도 환불 심사로 받을 수 없는 파일은 누를 수 없게 보여 준다(자료 보관함과 같은 규칙)', () => {
+  const actions = read('../src/components/market/market-item-actions.tsx')
+  const itemsServer = read('../src/lib/market-items-server.ts')
+  const start = itemsServer.indexOf('export async function listMarketSubproductDownloadFilesForUser(')
+  const body = itemsServer.slice(start, itemsServer.indexOf('\nexport async function ', start + 10))
+  // 심사 중인 주문은 이 회원 권한들의 주문에 걸린 pending v2 환불 요청에서 읽는다
+  assert.match(body, /\.from\('market_refund_requests'\)\s*\.select\('order_id'\)\s*\.eq\('target_kind', 'v2_order'\)\s*\.eq\('status', 'pending'\)\s*\.in\('order_id', sourceOrderIds\)/)
+  assert.match(body, /if \(pendingRefundResult\.error\) \{\s*throw new Error/)
+  // 다운로드 route와 같은 판정
+  assert.match(body, /coversFile\(entitlement, file\) &&\s*Boolean\(entitlement\.source_order_id\) &&\s*!pendingRefundOrderIds\.includes\(entitlement\.source_order_id as string\)/)
+  assert.match(body, /pendingRefundBlocked: !downloadable,/)
+  // 화면: 막힌 파일은 링크가 아니고, 표시가 붙고, 중복 PDF는 받을 수 있는 쪽을 남긴다
+  assert.match(actions, /if \(file\.pendingRefundBlocked\) \{\s*return \(\s*<span key=\{file\.id\}/)
+  assert.match(actions, /files\.some\(\(file\) => file\.pendingRefundBlocked\) && \(/)
+  assert.match(actions, /환불 심사 중 \(다운로드 제한\)/)
+  assert.match(actions, /questionPdfPdfs\.every\(\(file\) => file\.pendingRefundBlocked\) &&\s*files\.some\(\(file\) => isPdfOf\(file, 'question_hwp'\) && !file\.pendingRefundBlocked\)/)
+})
+
+test('상품 상세: 문제(HWP) 쪽이 환불 심사로 막혀 있으면 받을 수 있는 문제(PDF) 줄을 숨기지 않는다', () => {
+  const actions = read('../src/components/market/market-item-actions.tsx')
+  assert.match(actions, /const keepVisible = hwpSidePdfs\.length > 0\s*&& hwpSidePdfs\.every\(\(file\) => file\.pendingRefundBlocked\)\s*&& \(filesBySubproduct\.get\(subproduct\.id\) \?\? \[\]\)\.some\(\(file\) => !file\.pendingRefundBlocked\)/)
+  assert.match(actions, /if \(!keepVisible\) \{\s*return null\s*\}/)
+})
