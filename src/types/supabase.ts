@@ -139,6 +139,38 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_permission_grants: {
+        Row: {
+          granted_at: string
+          granted_by: string
+          limits: Json
+          permission: string
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by: string
+          limits?: Json
+          permission: string
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string
+          limits?: Json
+          permission?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_permission_grants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_models: {
         Row: {
           created_at: string
@@ -3927,6 +3959,7 @@ export type Database = {
       profiles: {
         Row: {
           address: string | null
+          admin_role: string | null
           avatar_url: string | null
           birthdate: string | null
           created_at: string
@@ -3947,6 +3980,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          admin_role?: string | null
           avatar_url?: string | null
           birthdate?: string | null
           created_at?: string
@@ -3967,6 +4001,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          admin_role?: string | null
           avatar_url?: string | null
           birthdate?: string | null
           created_at?: string
@@ -5144,7 +5179,12 @@ export type Database = {
         }
         Returns: Json
       }
+      has_admin_permission: {
+        Args: { p_permission: string }
+        Returns: boolean
+      }
       is_admin: { Args: never; Returns: boolean }
+      is_owner: { Args: never; Returns: boolean }
       mark_kakaopay_callback_failure: {
         Args: {
           p_failure_code: string

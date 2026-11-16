@@ -330,7 +330,7 @@ test('관리자 페이지와 API 경로는 "운영 화면" 또는 "기능 묶음
 
   const OPERATIONAL_PREFIXES = [
     '/admin/support', '/admin/refunds', '/admin/users', '/admin/credits', '/admin/pricing', '/admin/market', '/admin/market-categories',
-    '/admin/main-ad-settings', '/admin/market-main-settings', '/admin/reviews', '/admin/review-tags', '/admin/footer', '/admin/admin-accounts',
+    '/admin/main-ad-settings', '/admin/market-main-settings', '/admin/reviews', '/admin/review-tags', '/admin/footer', '/admin/admin-accounts', '/admin/forbidden',
     '/api/admin/support', '/api/admin/refunds', '/api/admin/payments', '/api/admin/users', '/api/admin/market', '/api/admin/market-categories',
     '/api/admin/main-ad-settings', '/api/admin/market-main-settings', '/api/admin/reviews', '/api/admin/review-tags', '/api/admin/site-logo',
     '/api/admin/admin-accounts', '/api/admin/session', '/api/admin/stats', '/api/admin/alerts',
