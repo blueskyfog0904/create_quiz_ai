@@ -133,7 +133,7 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
             {credits.sources.length === 0 ? (
               <Empty>남은 수량이 있는 크레딧이 없습니다.</Empty>
             ) : (
-              <Table>
+              <Table className="max-md:min-w-[640px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>받은 날</TableHead>
@@ -174,7 +174,7 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
       >
         {({ orders, totalCount }) => orders.length === 0 ? <Empty>충전 결제가 없습니다.</Empty> : (
           <>
-            <Table>
+            <Table className="max-md:min-w-[640px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>주문 시각</TableHead>
@@ -219,7 +219,7 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
         {({ orders, totalCount, downloadsUnavailable, downloadsTruncated }) => orders.length === 0 ? <Empty>마켓 구매가 없습니다.</Empty> : (
           <>
             {downloadsUnavailable && <p role="alert" className="mb-2 text-sm text-red-700">다운로드 기록을 불러오지 못했습니다. 아래 다운로드 횟수는 실제와 다를 수 있습니다.</p>}
-            <Table>
+            <Table className="max-md:min-w-[640px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>구매 시각</TableHead>
@@ -271,7 +271,7 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
       >
         {(transactions) => transactions.length === 0 ? <Empty>크레딧 거래가 없습니다.</Empty> : (
           <>
-            <Table>
+            <Table className="max-md:min-w-[640px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>일시</TableHead>
