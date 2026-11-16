@@ -6,25 +6,17 @@ import {
   listAdminAccounts,
 } from '@/lib/admin-accounts-server'
 import { ADMIN_LOGIN_ID_PATTERN, normalizeAdminLoginId } from '@/lib/admin-accounts-shared'
-import { createClient } from '@/lib/supabase/server'
+import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 
 export const dynamic = 'force-dynamic'
 
-async function requireAdminUser() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: NextResponse.json({ error: 'Authentication required' }, { status: 401 }) }
+// 관리자 계정 관리는 대표 관리자만 한다.
+async function requireOwner() {
+  const guard = await requireAdminApiPermission('owner')
+  if ('error' in guard) {
+    return { error: NextResponse.json({ error: guard.error }, { status: guard.status }) }
   }
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-  if (!profile?.is_admin) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 403 }) }
-  }
-  return { user }
+  return { userId: guard.access.userId }
 }
 
 function toErrorResponse(error: unknown, fallbackMessage: string) {
@@ -38,12 +30,12 @@ function toErrorResponse(error: unknown, fallbackMessage: string) {
 }
 
 export async function GET() {
-  const guard = await requireAdminUser()
+  const guard = await requireOwner()
   if ('error' in guard) return guard.error
 
   try {
     const accounts = await listAdminAccounts()
-    return NextResponse.json({ success: true, data: accounts, selfUserId: guard.user.id })
+    return NextResponse.json({ success: true, data: accounts, selfUserId: guard.userId })
   } catch (error) {
     return toErrorResponse(error, '관리자 목록을 불러오지 못했습니다.')
   }
@@ -57,7 +49,7 @@ const CreateSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const guard = await requireAdminUser()
+  const guard = await requireOwner()
   if ('error' in guard) return guard.error
 
   const body = await request.json().catch(() => null)

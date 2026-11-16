@@ -96,7 +96,8 @@ export async function createAdminAccount({
   const userId = created.user.id
   const { error: profileError } = await admin
     .from('profiles')
-    .update({ is_admin: true })
+    // 새 관리자는 권한 0개 일반 관리자로 시작한다. 권한은 대표가 따로 준다.
+    .update({ is_admin: true, admin_role: 'staff' })
     .eq('id', userId)
     .select('id')
     .single()

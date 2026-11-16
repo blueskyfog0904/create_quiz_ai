@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import AdminAccountsClient from './admin-accounts-client'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 import { buildAdminMenuMetadata } from '@/lib/admin-sidebar-server'
+import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 
 export function generateMetadata({ searchParams }: { searchParams?: Promise<{ subject?: string }> }): Promise<Metadata> {
   return buildAdminMenuMetadata({
@@ -12,7 +13,9 @@ export function generateMetadata({ searchParams }: { searchParams?: Promise<{ su
   })
 }
 
-export default function AdminAccountsPage() {
+export default async function AdminAccountsPage() {
+  await requireAdminPagePermission('owner')
+
   return (
     <div className="flex-1 space-y-4 p-8 pt-6 max-md:p-0">
       <div className="flex items-center justify-between space-y-2">

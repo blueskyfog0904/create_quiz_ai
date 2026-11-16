@@ -5,25 +5,17 @@ import {
   deleteAdminAccount,
   updateAdminAccount,
 } from '@/lib/admin-accounts-server'
-import { createClient } from '@/lib/supabase/server'
+import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 
 export const dynamic = 'force-dynamic'
 
-async function requireAdminUser() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: NextResponse.json({ error: 'Authentication required' }, { status: 401 }) }
+// 관리자 계정 관리는 대표 관리자만 한다.
+async function requireOwner() {
+  const guard = await requireAdminApiPermission('owner')
+  if ('error' in guard) {
+    return { error: NextResponse.json({ error: guard.error }, { status: guard.status }) }
   }
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-  if (!profile?.is_admin) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 403 }) }
-  }
-  return { user }
+  return { userId: guard.access.userId }
 }
 
 function toErrorResponse(error: unknown, fallbackMessage: string) {
@@ -44,7 +36,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
-  const guard = await requireAdminUser()
+  const guard = await requireOwner()
   if ('error' in guard) return guard.error
 
   const { userId } = await params
@@ -69,13 +61,13 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
-  const guard = await requireAdminUser()
+  const guard = await requireOwner()
   if ('error' in guard) return guard.error
 
   const { userId } = await params
 
   try {
-    await deleteAdminAccount({ userId, actorId: guard.user.id })
+    await deleteAdminAccount({ userId, actorId: guard.userId })
     return NextResponse.json({ success: true })
   } catch (error) {
     return toErrorResponse(error, '관리자 계정을 삭제하지 못했습니다.')

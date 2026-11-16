@@ -293,7 +293,7 @@ test('서버 모듈 계약: 요청당 한 번 읽기, 세션 클라이언트만,
   // 순수 모듈은 DB·next에 기대지 않는다.
   assert.doesNotMatch(read('src/lib/admin-permissions.ts'), /^import /m)
 
-  // 이번 단위는 만들기만 한다. 적용은 U3-3.
+  // 전면 적용은 U3-3. 그 전에는 관리자 계정 관리(대표 전용)에만 쓴다.
   const users = []
   const walk = (dir) => {
     for (const entry of readdirSync(dir)) {
@@ -304,5 +304,35 @@ test('서버 모듈 계약: 요청당 한 번 읽기, 세션 클라이언트만,
   }
   const src = new URL('../src/', import.meta.url).pathname
   walk(src)
-  assert.deepEqual(users.map((file) => file.slice(src.length)), ['lib/admin-permissions-server.ts'])
+  assert.deepEqual(users.map((file) => file.slice(src.length)).sort(), [
+    'app/(admin)/admin/admin-accounts/page.tsx',
+    'app/api/admin/admin-accounts/[userId]/route.ts',
+    'app/api/admin/admin-accounts/route.ts',
+    'lib/admin-permissions-server.ts',
+  ])
+})
+
+test('관리자 계정 관리는 대표만: 페이지·route 가드, 새 계정은 staff, 관리자는 탈퇴 불가', () => {
+  const page = read('src/app/(admin)/admin/admin-accounts/page.tsx')
+  assert.match(page, /export default async function AdminAccountsPage\(\) \{\s*await requireAdminPagePermission\('owner'\)/)
+
+  for (const path of ['src/app/api/admin/admin-accounts/route.ts', 'src/app/api/admin/admin-accounts/[userId]/route.ts']) {
+    const route = read(path)
+    assert.match(route, /const guard = await requireAdminApiPermission\('owner'\)/, path)
+    // 모든 핸들러가 대표 확인을 거치고, is_admin만 보는 옛 확인은 남아 있지 않다.
+    const handlers = route.match(/export async function (GET|POST|PATCH|DELETE)\(/g).length
+    assert.equal(route.match(/const guard = await requireOwner\(\)\s*if \('error' in guard\) return guard\.error/g).length, handlers, path)
+    assert.doesNotMatch(route, /requireAdminUser|\.select\('is_admin'\)/, path)
+  }
+
+  // 대표만 계정을 지울 수 있고 본인은 지울 수 없으므로, 삭제로 대표가 0명이 되지 않는다.
+  const lib = read('src/lib/admin-accounts-server.ts')
+  assert.match(lib, /if \(userId === actorId\) \{\s*throw new AdminAccountError\(400, '본인 계정은 삭제할 수 없습니다\.'\)/)
+  assert.match(lib, /\.update\(\{ is_admin: true, admin_role: 'staff' \}\)/)
+  assert.doesNotMatch(lib, /admin_role: 'owner'/)
+
+  const withdraw = read('src/app/api/auth/withdraw/route.ts')
+  const adminCheck = withdraw.indexOf("if (profile?.is_admin) {")
+  assert.ok(adminCheck > 0 && adminCheck < withdraw.indexOf('createAdminClient()'), '관리자 확인이 삭제보다 앞이다')
+  assert.match(withdraw, /if \(profileLookupError\) \{\s*throw new Error/)
 })

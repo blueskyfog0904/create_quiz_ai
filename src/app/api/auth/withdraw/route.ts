@@ -26,6 +26,22 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
+    // 관리자 계정은 여기서 지우지 않는다(대표 관리자가 0명이 되는 길을 막는다). 관리자 ID 관리에서 처리한다.
+    const { data: profile, error: profileLookupError } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (profileLookupError) {
+      throw new Error(`profiles 조회 실패: ${profileLookupError.message}`)
+    }
+    if (profile?.is_admin) {
+      return NextResponse.json(
+        { error: '관리자 계정은 탈퇴할 수 없습니다.' },
+        { status: 403 }
+      )
+    }
+
     // RLS를 우회해 확실히 지워야 하므로 service role로 삭제한다.
     // (유저 세션 클라이언트는 delete가 RLS에 막혀도 에러 없이 0건 삭제로 끝난다)
     const admin = createAdminClient()
