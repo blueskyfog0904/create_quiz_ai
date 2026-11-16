@@ -6,6 +6,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAdminAlerts } from '@/components/admin/admin-alert-context'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -86,6 +87,7 @@ export function PaymentReviewClient({
     alerts: PaymentAlert[]
 }) {
     const router = useRouter()
+    const adminAlerts = useAdminAlerts()
     const [selectedOrder, setSelectedOrder] = useState<PaymentReviewOrder | null>(null)
     const [action, setAction] = useState<ReviewAction>('unpaid_confirmed')
     const [note, setNote] = useState('')
@@ -125,6 +127,7 @@ export function PaymentReviewClient({
             toast.success(data.message)
             setSelectedAlert(null)
             router.refresh()
+            adminAlerts?.refresh()
         } catch (error) {
             toast.error(error instanceof Error ? error.message : '경보를 해소하지 못했습니다.')
         } finally {
@@ -166,6 +169,7 @@ export function PaymentReviewClient({
             toast.success(data.message)
             setSelectedOrder(null)
             router.refresh()
+            adminAlerts?.refresh()
         } catch (error) {
             toast.error(error instanceof Error ? error.message : '처리 중 오류가 발생했습니다.')
         } finally {
@@ -203,7 +207,7 @@ export function PaymentReviewClient({
                                             {new Date(alert.created_at).toLocaleString('ko-KR')}
                                         </span>
                                     </div>
-                                    <p className="mt-1">{alert.message}</p>
+                                    <p className="mt-1 break-words">{alert.message}</p>
                                     {typeof alert.details?.order_id === 'string' && (
                                         <p className="mt-1 text-xs text-gray-500">주문 {alert.details.order_id}</p>
                                     )}
@@ -228,7 +232,7 @@ export function PaymentReviewClient({
 
                 <div>
                     <h3 className="mb-2 text-sm font-semibold text-gray-700">수동 확인 주문</h3>
-                    <Table>
+                    <Table className="max-md:min-w-[760px]">
                         <TableHeader>
                             <TableRow>
                                 <TableHead>주문일</TableHead>
@@ -285,7 +289,7 @@ export function PaymentReviewClient({
             </CardContent>
 
             <Dialog open={selectedOrder !== null} onOpenChange={(open) => !open && setSelectedOrder(null)}>
-                <DialogContent>
+                <DialogContent className="max-md:max-h-[calc(100dvh-2rem)] max-md:max-w-[calc(100vw-2rem)] max-md:overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>결제 확인 처리</DialogTitle>
                         <DialogDescription>
@@ -382,7 +386,7 @@ export function PaymentReviewClient({
             </Dialog>
 
             <Dialog open={selectedAlert !== null} onOpenChange={(open) => !open && setSelectedAlert(null)}>
-                <DialogContent>
+                <DialogContent className="max-md:max-h-[calc(100dvh-2rem)] max-md:max-w-[calc(100vw-2rem)] max-md:overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>경보 해소</DialogTitle>
                         <DialogDescription>

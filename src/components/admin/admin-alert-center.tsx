@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Bell } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { ADMIN_WORK_ITEMS, dispatchStatusMessages } from '@/lib/admin-alerts'
+import { ADMIN_WORK_ITEMS, dispatchStatusMessages, workTotal } from '@/lib/admin-alerts'
 import { useAdminAlerts } from './admin-alert-context'
 
 // 심각도는 색만이 아니라 글자로도 보인다.
@@ -32,24 +32,18 @@ export function AdminAlertCenter({ className, compact = false }: { className?: s
   const [permission, setPermission] = useState(() => (typeof Notification === 'undefined' ? null : Notification.permission))
 
   if (!alerts) return null
-  const { realtimeDown, soundOn, toggleSound, markSeen, openLink } = alerts
+  const { realtimeDown, soundOn, toggleSound, openLink } = alerts
   // 가장 최근 조회가 실패했으면 옛 값을 현재 값처럼 보여 주지 않는다.
   const summary = alerts.loadFailed ? null : alerts.summary
-  const unreadCount = alerts.loadFailed ? null : summary ? summary.unreadCount : 0
+  // 종의 숫자는 "처리하지 않은 건수"다. 패널을 열어 확인해도 줄지 않고, 처리해야 준다.
+  // 첫 조회 전에는 표시하지 않고(0), 조회 실패·일부 확인 불가면 null('!').
+  const pendingCount = alerts.loadFailed ? null : summary ? workTotal(summary.work) : 0
   const bellLabel = [
     alerts.loadFailed ? '알림 확인 불가' : '알림',
-    ...(summary ? [unreadCount === null ? '미확인 건수 확인 불가' : `미확인 ${unreadCount}건`] : []),
+    ...(summary ? [pendingCount === null ? '처리 대기 건수 확인 불가' : `처리 대기 ${pendingCount}건`] : []),
     ...(realtimeDown ? ['실시간 연결 끊김'] : []),
   ].join(', ')
   const statusMessages = summary ? dispatchStatusMessages(summary.dispatch) : []
-
-  const handleOpenChange = (next: boolean) => {
-    setOpen(next)
-    // 화면에 실제로 보인 가장 최근 이벤트까지만 확인한 것으로 기록한다(열 때, 그리고 열어 둔 동안 온 것은 닫을 때).
-    // 목록을 보여 주지 못했으면(조회 실패·목록 없음) 기록하지 않는다.
-    const newestId = summary?.events?.[0]?.id
-    if (newestId && summary.unreadCount !== 0) markSeen(newestId)
-  }
 
   const askNotificationPermission = () => {
     try {
@@ -63,7 +57,7 @@ export function AdminAlertCenter({ className, compact = false }: { className?: s
 
   return (
     <div className="flex items-center gap-2">
-      <Popover open={open} onOpenChange={handleOpenChange}>
+      <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -71,12 +65,12 @@ export function AdminAlertCenter({ className, compact = false }: { className?: s
             className={cn('relative rounded-md p-2 outline-none focus-visible:ring-2 focus-visible:ring-orange-500', className)}
           >
             <Bell className="h-5 w-5" aria-hidden="true" />
-            {unreadCount !== 0 ? (
+            {pendingCount !== 0 ? (
               <span
                 aria-hidden="true"
                 className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white"
               >
-                {unreadCount === null ? '!' : unreadCount > 99 ? '99+' : unreadCount}
+                {pendingCount === null ? '!' : pendingCount > 99 ? '99+' : pendingCount}
               </span>
             ) : null}
             {realtimeDown && compact ? (
@@ -89,7 +83,13 @@ export function AdminAlertCenter({ className, compact = false }: { className?: s
             ) : null}
           </button>
         </PopoverTrigger>
-        <PopoverContent align="start" aria-label="알림" className="w-80 max-w-[calc(100vw-2rem)] p-0 text-gray-900">
+        {/* 화면 가장자리에서 8px 띄우고, 화면보다 길면 패널 안에서 스크롤한다(맨 아래 버튼이 잘리지 않게). */}
+        <PopoverContent
+          align="start"
+          aria-label="알림"
+          collisionPadding={8}
+          className="max-h-[var(--radix-popover-content-available-height)] w-80 max-w-[calc(100vw-1rem)] overflow-y-auto p-0 text-gray-900"
+        >
           <div className="flex items-center justify-between border-b px-4 py-3">
             <h2 className="text-sm font-semibold">알림</h2>
             {realtimeDown ? <span className="text-xs font-medium text-amber-700">실시간 연결 끊김</span> : null}
@@ -101,6 +101,38 @@ export function AdminAlertCenter({ className, compact = false }: { className?: s
             </p>
           ) : (
             <>
+              <div className="border-b px-4 py-3">
+                <h3 className="mb-1 text-xs font-semibold text-gray-500">처리 대기</h3>
+                <ul>
+                  {ADMIN_WORK_ITEMS.map((item) => {
+                    const value = summary.work[item.key]
+                    // 0이 아니면(확인 불가 포함) 눈에 띄게 한다.
+                    const needsAttention = value !== 0
+                    return (
+                      <li key={item.key}>
+                        <Link
+                          href={item.href}
+                          onClick={() => setOpen(false)}
+                          className="flex items-center justify-between gap-3 py-1.5 text-sm hover:bg-gray-50 max-md:min-h-10"
+                        >
+                          <span className={needsAttention ? 'font-semibold text-gray-900' : 'text-gray-600'}>{item.label}</span>
+                          <span
+                            className={
+                              needsAttention
+                                ? 'shrink-0 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700'
+                                : 'shrink-0 px-2.5 text-xs text-gray-400'
+                            }
+                          >
+                            {value === null ? '확인 불가' : value.toLocaleString()}
+                          </span>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+
+              <h3 className="px-4 pt-3 text-xs font-semibold text-gray-500">최근 알림</h3>
               <div className="max-h-72 overflow-y-auto">
                 {summary.events === null ? (
                   <p className="px-4 py-6 text-center text-sm text-gray-500">알림 목록 확인 불가</p>
@@ -138,29 +170,6 @@ export function AdminAlertCenter({ className, compact = false }: { className?: s
                 )}
               </div>
 
-              <div className="border-t px-4 py-3">
-                <h3 className="mb-1 text-xs font-semibold text-gray-500">처리 대기</h3>
-                <ul>
-                  {ADMIN_WORK_ITEMS.map((item) => {
-                    const value = summary.work[item.key]
-                    return (
-                      <li key={item.key}>
-                        <Link
-                          href={item.href}
-                          onClick={() => setOpen(false)}
-                          className="flex items-center justify-between gap-3 py-1 text-sm hover:underline"
-                        >
-                          <span className={value !== 0 ? 'font-semibold' : 'text-gray-600'}>{item.label}</span>
-                          <span className={value !== 0 ? 'font-bold text-red-700' : 'text-gray-400'}>
-                            {value === null ? '확인 불가' : value.toLocaleString()}
-                          </span>
-                        </Link>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-
               {statusMessages.length > 0 ? (
                 <p role="status" className="border-t bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-800">
                   {statusMessages.join(' · ')}
@@ -174,7 +183,7 @@ export function AdminAlertCenter({ className, compact = false }: { className?: s
               type="button"
               aria-pressed={soundOn}
               onClick={toggleSound}
-              className="rounded border px-2 py-1 hover:bg-gray-50"
+              className="rounded border px-3 py-1 hover:bg-gray-50 max-md:min-h-10"
             >
               {soundOn ? '소리 켜짐' : '소리 꺼짐'}
             </button>
@@ -182,7 +191,7 @@ export function AdminAlertCenter({ className, compact = false }: { className?: s
               <button
                 type="button"
                 onClick={askNotificationPermission}
-                className="rounded border px-2 py-1 hover:bg-gray-50"
+                className="rounded border px-3 py-1 hover:bg-gray-50 max-md:min-h-10"
               >
                 브라우저 알림 허용
               </button>

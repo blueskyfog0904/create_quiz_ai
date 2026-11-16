@@ -20,7 +20,6 @@ export type AdminAlertDispatchStatus = 'ok' | 'not_configured' | 'config_error' 
 export interface AdminAlertSummary {
   work: AdminWorkSummary
   events: AdminAlertEvent[] | null
-  unreadCount: number | null
   dispatch: {
     status: AdminAlertDispatchStatus
     gaveUpCount: number | null
@@ -56,25 +55,27 @@ export function deriveDispatchStatus(
   return 'ok'
 }
 
-// 아직 한 번도 확인하지 않은 관리자는 최근 목록 크기까지만 센다.
-export function capUnreadCount(count: number | null, lastSeenAt: string | null): number | null {
-  if (count === null) return null
-  return lastSeenAt === null ? Math.min(count, ADMIN_ALERT_RECENT_LIMIT) : count
+// 종의 숫자 = 처리하지 않은 건수(처리 대기 항목의 합). 확인만 해서는 줄지 않고, 처리해야 준다.
+// 하나라도 세지 못했거나 요약 조회가 실패했으면(work가 null) 틀린 합 대신 null("확인 불가").
+export function workTotal(work: AdminWorkSummary | null): number | null {
+  if (!work) return null
+  let total = 0
+  for (const item of ADMIN_WORK_ITEMS) {
+    const value = work[item.key]
+    if (value === null) return null
+    total += value
+  }
+  return total
 }
 
-// DB가 준 시각 문자열끼리 마이크로초까지 비교한다(Date는 밀리초에서 잘린다). than이 null이면 항상 더 늦다.
-export function isLaterTimestamp(value: string, than: string | null): boolean {
-  if (than === null) return true
-  const seconds = (text: string) => Math.floor(Date.parse(text) / 1000)
-  const micros = (text: string) => Number((/\.(\d+)/.exec(text)?.[1] ?? '').padEnd(6, '0').slice(0, 6))
-  const difference = seconds(value) - seconds(than)
-  return difference !== 0 ? difference > 0 : micros(value) > micros(than)
-}
-
-// 폴링에서 늘어난 미확인 건수. 어느 한쪽이라도 확인 불가면 0(알리지 않는다).
-export function unreadIncrease(previous: number | null, next: number | null): number {
-  if (previous === null || next === null) return 0
-  return Math.max(0, next - previous)
+// 폴링으로 다시 읽은 목록에서 처음 보는 이벤트 수(실시간으로 받지 못한 알림). 어느 한쪽이라도 목록이 없으면 0(알리지 않는다).
+export function countNewEvents(
+  previous: readonly Pick<AdminAlertEvent, 'id'>[] | null | undefined,
+  next: readonly Pick<AdminAlertEvent, 'id'>[] | null
+): number {
+  if (!previous || !next) return 0
+  const known = new Set(previous.map((event) => event.id))
+  return next.filter((event) => !known.has(event.id)).length
 }
 
 // 5초 안에 모인 이벤트를 토스트 하나로: 1건이면 그대로, 여러 건이면 "새 알림 N건" + 첫 제목.

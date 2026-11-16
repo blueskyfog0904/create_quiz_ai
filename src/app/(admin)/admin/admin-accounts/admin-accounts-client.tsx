@@ -142,7 +142,7 @@ export default function AdminAccountsClient() {
             value={newLoginId}
             onChange={(event) => setNewLoginId(event.target.value)}
             placeholder="아이디 (영문 소문자·숫자·-·_ 3~30자)"
-            className="w-72"
+            className="w-72 max-w-full"
             autoComplete="off"
           />
           <Input
@@ -150,7 +150,7 @@ export default function AdminAccountsClient() {
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
             placeholder="비밀번호 (8자 이상)"
-            className="w-56"
+            className="w-56 max-w-full"
             autoComplete="new-password"
           />
           <Button type="button" disabled={savingId === 'new'} onClick={() => void createAccount()}>
@@ -159,8 +159,8 @@ export default function AdminAccountsClient() {
         </div>
       </div>
 
-      <div className="rounded-lg border">
-        <table className="w-full text-sm">
+      <div className="rounded-lg border max-md:overflow-x-auto">
+        <table className="w-full text-sm max-md:min-w-[860px]">
           <thead>
             <tr className="border-b bg-muted/50 text-left">
               <th className="px-4 py-3 font-medium">아이디</th>

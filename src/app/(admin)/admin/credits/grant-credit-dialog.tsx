@@ -136,7 +136,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-md:max-h-[calc(100dvh-2rem)] max-md:max-w-[calc(100vw-2rem)] max-md:overflow-y-auto">
         <DialogHeader>
           <DialogTitle>크레딧 수동 지급</DialogTitle>
           <DialogDescription>
@@ -193,7 +193,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
               <Button variant="ghost" className="ml-auto h-6 text-xs hover:bg-blue-100" onClick={() => setStep('search')}>변경</Button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
               <div className="space-y-2">
                 <Label>지급 금액</Label>
                 <div className="relative">

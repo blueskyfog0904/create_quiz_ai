@@ -90,7 +90,7 @@ export function PaymentSalesPanel({ status }: { status: PaymentSalesStatus | nul
       </Button>
 
       <Dialog open={open} onOpenChange={(next) => !submitting && setOpen(next)}>
-        <DialogContent>
+        <DialogContent className="max-md:max-h-[calc(100dvh-2rem)] max-md:max-w-[calc(100vw-2rem)] max-md:overflow-y-auto">
           <DialogHeader>
             <DialogTitle>충전 판매 중지</DialogTitle>
             <DialogDescription>

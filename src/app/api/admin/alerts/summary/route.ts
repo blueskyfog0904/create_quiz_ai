@@ -24,7 +24,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    return NextResponse.json(await getAdminAlertSummary(user.id))
+    return NextResponse.json(await getAdminAlertSummary())
   } catch (error) {
     console.error('Error fetching admin alert summary:', error)
     return NextResponse.json({ error: 'Failed to fetch alert summary' }, { status: 500 })

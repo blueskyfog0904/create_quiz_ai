@@ -6,6 +6,7 @@
 
 import { useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAdminAlerts } from '@/components/admin/admin-alert-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -151,6 +152,7 @@ const externalMethodLabels: Record<ExternalMethod, string> = {
 
 export function RefundsClient({ requests, stats, children }: RefundsClientProps) {
     const router = useRouter()
+    const alerts = useAdminAlerts()
     const [statusFilter, setStatusFilter] = useState('needs_action')
     const [isProcessDialogOpen, setIsProcessDialogOpen] = useState(false)
     const [selectedRequest, setSelectedRequest] = useState<RefundRequest | null>(null)
@@ -255,6 +257,7 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
             toast.success(data.message)
             setIsProcessDialogOpen(false)
             router.refresh()
+            alerts?.refresh()
         } catch (error) {
             toast.error(error instanceof Error ? error.message : '처리 중 오류가 발생했습니다.')
         } finally {
@@ -264,12 +267,18 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-bold"><AdminMenuName href="/admin/refunds" fallback="환불 요청 관리" /></h1>
                     <p className="text-gray-500">사용자의 환불 요청을 검토하고 처리합니다.</p>
                 </div>
-                <Button variant="outline" onClick={() => router.refresh()}>
+                <Button
+                    variant="outline"
+                    onClick={() => {
+                        router.refresh()
+                        alerts?.refresh()
+                    }}
+                >
                     <RefreshCcw className="h-4 w-4 mr-2" />
                     새로고침
                 </Button>
@@ -320,7 +329,7 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
             {/* 필터 */}
             <div className="flex items-center gap-4">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[280px]">
+                    <SelectTrigger className="w-[280px] max-w-full">
                         <SelectValue placeholder="상태 필터" />
                     </SelectTrigger>
                     <SelectContent>
@@ -340,7 +349,7 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
             {/* 요청 테이블 */}
             <Card>
                 <CardContent className="p-0">
-                    <Table>
+                    <Table className="max-md:min-w-[900px]">
                         <TableHeader>
                             <TableRow>
                                 <TableHead>요청일</TableHead>
@@ -481,7 +490,7 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
 
             {/* 처리 다이얼로그 */}
             <Dialog open={isProcessDialogOpen} onOpenChange={setIsProcessDialogOpen}>
-                <DialogContent>
+                <DialogContent className="max-md:max-h-[calc(100dvh-2rem)] max-md:max-w-[calc(100vw-2rem)] max-md:overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>
                             {processAction === 'complete_manual'

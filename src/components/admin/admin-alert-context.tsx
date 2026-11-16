@@ -8,9 +8,9 @@ import {
   ADMIN_ALERT_POLL_MS,
   ADMIN_ALERT_SAFETY_POLL_MS,
   ADMIN_ALERT_TOAST_BATCH_MS,
+  countNewEvents,
   isLoudAlertEvent,
   summarizeToastBatch,
-  unreadIncrease,
   type AdminAlertEvent,
   type AdminAlertSummary,
 } from '@/lib/admin-alerts'
@@ -23,7 +23,8 @@ interface AdminAlertContextValue {
   realtimeDown: boolean
   soundOn: boolean
   toggleSound: () => void
-  markSeen: (eventId: string) => void
+  // 처리 동작(답변·환불 처리 등)이 끝난 뒤 불러 처리 대기 숫자를 바로 맞춘다.
+  refresh: () => void
   openLink: (link: string) => void
 }
 
@@ -40,7 +41,17 @@ function readSoundOn(adminId: string) {
 }
 
 // 관리자 영역 전체에서 알림 조회·실시간 구독을 한 번만 한다(종과 메뉴 배지가 같은 값을 본다).
-export function AdminAlertProvider({ adminId, children }: { adminId: string; children: ReactNode }) {
+// renderedAt: 서버 레이아웃이 그려질 때마다 바뀌는 값. router.refresh()·서버 액션의 재검증으로
+// 레이아웃이 다시 그려지면(= 관리자가 무언가 처리한 뒤) 요약도 다시 읽는다.
+export function AdminAlertProvider({
+  adminId,
+  renderedAt,
+  children,
+}: {
+  adminId: string
+  renderedAt: number
+  children: ReactNode
+}) {
   const router = useRouter()
   const [summary, setSummary] = useState<AdminAlertSummary | null>(null)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -69,8 +80,8 @@ export function AdminAlertProvider({ adminId, children }: { adminId: string; chi
       if (!response.ok) throw new Error('ADMIN_ALERT_SUMMARY_FAILED')
       const next: AdminAlertSummary = await response.json()
       if (seq !== requestSeqRef.current) return
-      // 실시간으로 받지 못한 알림(끊김·재연결·안전 폴링)은 늘어난 미확인 건수로 한 번 알린다.
-      const added = fromPoll ? unreadIncrease(summaryRef.current?.unreadCount ?? null, next.unreadCount) : 0
+      // 실시간으로 받지 못한 알림(끊김·재연결·안전 폴링)은 목록에 처음 보이는 이벤트 수로 한 번 알린다.
+      const added = fromPoll ? countNewEvents(summaryRef.current?.events, next.events) : 0
       if (added > 0) {
         toast(`새 알림 ${added}건`, { description: next.events?.[0]?.title })
       }
@@ -153,9 +164,13 @@ export function AdminAlertProvider({ adminId, children }: { adminId: string; chi
     void refresh()
   }, [openLink, playBeep, refresh])
 
-  // 첫 조회 + 탭이 다시 보일 때 조회
+  // 첫 조회 + 서버 레이아웃이 다시 그려질 때마다 조회
   useEffect(() => {
     void refresh()
+  }, [refresh, renderedAt])
+
+  // 탭이 다시 보일 때 조회
+  useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) return
       restoreTitle()
@@ -250,23 +265,13 @@ export function AdminAlertProvider({ adminId, children }: { adminId: string; chi
     }
   }, [adminId])
 
-  // eventId: 화면에 실제로 보인 가장 최근 이벤트. 서버가 그 이벤트의 시각까지만 확인 처리한다.
-  const markSeen = useCallback((eventId: string) => {
-    fetch('/api/admin/alerts/seen', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ eventId }),
-    })
-      .then((response) => {
-        // 미확인 건수는 지어내지 않고 다시 조회한다(그 사이 온 알림은 미확인으로 남는다).
-        if (response.ok) void refresh()
-      })
-      .catch(() => undefined)
+  const refreshNow = useCallback(() => {
+    void refresh()
   }, [refresh])
 
   const value = useMemo<AdminAlertContextValue>(
-    () => ({ summary, loadFailed, realtimeDown, soundOn, toggleSound, markSeen, openLink }),
-    [summary, loadFailed, realtimeDown, soundOn, toggleSound, markSeen, openLink]
+    () => ({ summary, loadFailed, realtimeDown, soundOn, toggleSound, refresh: refreshNow, openLink }),
+    [summary, loadFailed, realtimeDown, soundOn, toggleSound, refreshNow, openLink]
   )
 
   return <AdminAlertContext.Provider value={value}>{children}</AdminAlertContext.Provider>

@@ -107,7 +107,7 @@ export function PricingPlansClient() {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-wrap justify-between items-center gap-3">
                 <h2 className="text-xl font-semibold text-gray-800">요금제 목록</h2>
                 <Button onClick={handleCreate}>
                     <Plus className="h-4 w-4 mr-2" />
@@ -116,7 +116,7 @@ export function PricingPlansClient() {
             </div>
 
             <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
-                <Table>
+                <Table className="max-md:min-w-[720px]">
                     <TableHeader>
                         <TableRow>
                             <TableHead className="w-[80px]">순서</TableHead>
@@ -175,7 +175,7 @@ export function PricingPlansClient() {
             </div>
 
             <Dialog open={toggleTarget !== null} onOpenChange={(open) => !open && !toggling && setToggleTarget(null)}>
-                <DialogContent>
+                <DialogContent className="max-md:max-h-[calc(100dvh-2rem)] max-md:max-w-[calc(100vw-2rem)] max-md:overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>
                             {toggleTarget?.is_active ? '요금제 판매 중지' : '요금제 판매 시작'}

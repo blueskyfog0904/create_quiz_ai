@@ -135,7 +135,7 @@ export function CreditsClient({ transactions, totalCount, page, pageSize, query,
 
       {/* Filters & Actions */}
       <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-white p-4 rounded-lg border shadow-sm">
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto max-sm:flex-col max-sm:items-stretch">
           <form onSubmit={handleSearch} className="flex flex-1 gap-2 sm:w-96" role="search">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -150,7 +150,7 @@ export function CreditsClient({ transactions, totalCount, page, pageSize, query,
             <Button type="submit" variant="outline">검색</Button>
           </form>
           <Select value={type} onValueChange={(value) => router.push(buildHref({ type: value === 'all' ? null : value, page: 1 }))}>
-            <SelectTrigger className="w-[150px]" aria-label="거래 유형">
+            <SelectTrigger className="w-[150px] max-sm:w-full" aria-label="거래 유형">
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-gray-500" />
                 <SelectValue />
@@ -164,10 +164,10 @@ export function CreditsClient({ transactions, totalCount, page, pageSize, query,
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 max-sm:w-full">
           <Button
             onClick={() => setIsGrantDialogOpen(true)}
-            className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+            className="gap-2 bg-blue-600 hover:bg-blue-700 text-white max-sm:w-full"
           >
             <Coins className="h-4 w-4" />
             크레딧 지급
@@ -178,7 +178,7 @@ export function CreditsClient({ transactions, totalCount, page, pageSize, query,
       {/* Transaction Table */}
       <Card>
         <CardContent className="p-0 overflow-x-auto">
-          <Table>
+          <Table className="max-md:min-w-[760px]">
             <TableHeader>
               <TableRow>
                 <TableHead>일시</TableHead>

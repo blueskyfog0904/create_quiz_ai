@@ -67,8 +67,8 @@ export function UsersClient({ users, totalCount, page, pageSize, query }: UsersC
       />
 
       {/* Search */}
-      <div className="flex gap-4 items-center">
-        <form onSubmit={handleSearch} className="flex flex-1 max-w-md gap-2" role="search">
+      <div className="flex flex-wrap gap-4 items-center max-md:gap-2">
+        <form onSubmit={handleSearch} className="flex flex-1 max-w-md gap-2 max-md:min-w-full" role="search">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
@@ -97,14 +97,14 @@ export function UsersClient({ users, totalCount, page, pageSize, query }: UsersC
             <div className="divide-y">
               {users.map((user) => (
                 <div key={user.id} className="p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                  <div className="flex items-start justify-between max-md:flex-col max-md:gap-3">
+                    <div className="flex min-w-0 items-start gap-4 max-md:gap-3">
+                      <div className="w-10 h-10 shrink-0 rounded-full bg-gray-100 flex items-center justify-center">
                         <User className="h-5 w-5 text-gray-400" />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-gray-900 break-all">
                             {formatMemberDisplayName(user.email, user.display_tag)}
                           </span>
                           {user.is_admin && (
@@ -119,7 +119,7 @@ export function UsersClient({ users, totalCount, page, pageSize, query }: UsersC
                             </Badge>
                           )}
                         </div>
-                        <div className="flex flex-wrap items-center gap-4 mt-1 text-sm text-gray-500">
+                        <div className="flex flex-wrap items-center gap-4 mt-1 text-sm text-gray-500 break-all max-md:gap-x-3 max-md:gap-y-1">
                           {user.email && (
                             <span className="flex items-center gap-1">
                               <Mail className="h-3 w-3" />
@@ -136,7 +136,7 @@ export function UsersClient({ users, totalCount, page, pageSize, query }: UsersC
                             <span className="text-blue-600">{user.organization}</span>
                           )}
                         </div>
-                        <div className="flex items-center gap-4 mt-2">
+                        <div className="flex flex-wrap items-center gap-4 mt-2 max-md:gap-2">
                           <div className="flex items-center gap-1 text-xs text-gray-400">
                             <Calendar className="h-3 w-3" />
                             가입일: {new Date(user.created_at).toLocaleDateString('ko-KR')}

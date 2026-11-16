@@ -102,7 +102,7 @@ export function PricingPlanDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[425px] max-md:max-h-[calc(100dvh-2rem)] max-md:max-w-[calc(100vw-2rem)] max-md:overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{planToEdit ? '요금제 수정' : '새 요금제 추가'}</DialogTitle>
                 </DialogHeader>

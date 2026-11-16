@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Check, ChevronLeft, LogOut, Menu, Pencil, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { renameAdminSidebarMenuAction } from '@/app/(admin)/admin/menu-management/actions'
 import { Button } from '@/components/ui/button'
@@ -30,7 +30,10 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs }: AdminSide
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
+  // collapsed: 데스크톱에서 사이드바를 좁게 접었는지. mobileOpen: 모바일에서 서랍을 열었는지(처음엔 닫혀 있다).
+  // 예전에는 collapsed 하나로 둘을 같이 표현해서, 데스크톱 기본값(펼침)이 모바일에서는 "서랍이 열린 채 시작"이 됐다.
   const [collapsed, setCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [editingMenuKey, setEditingMenuKey] = useState<string | null>(null)
   const [menuLabelDraft, setMenuLabelDraft] = useState('')
@@ -51,6 +54,25 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs }: AdminSide
       setIsLoggingOut(false)
     }
   }
+  // 모바일 서랍이 열려 있는 동안: 뒤 화면 스크롤 잠금, Escape로 닫기, 화면이 넓어지면(데스크톱 폭) 닫기
+  useEffect(() => {
+    if (!mobileOpen) return
+    const close = () => setMobileOpen(false)
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close()
+    }
+    const desktop = window.matchMedia('(min-width: 768px)')
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', handleKeyDown)
+    desktop.addEventListener('change', close)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleKeyDown)
+      desktop.removeEventListener('change', close)
+    }
+  }, [mobileOpen])
+
   const workspaceSubject = resolveAdminWorkspaceSubject(searchParams.get('subject'))
   const resolvedNavigationNodes = useMemo(() => {
     const config = navigationConfigs[workspaceSubject]
@@ -183,11 +205,7 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs }: AdminSide
             collapsed && 'md:justify-center md:px-2'
           )}
           title={collapsed ? item.name : undefined}
-          onClick={() => {
-            if (window.innerWidth < 768) {
-              setCollapsed(true)
-            }
-          }}
+          onClick={() => setMobileOpen(false)}
         >
           <Icon className={cn('h-5 w-5 flex-shrink-0', variant === 'child' && !collapsed && 'h-4 w-4')} />
           <span className={cn('text-sm font-medium', collapsed && 'md:hidden')}>
@@ -202,24 +220,30 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs }: AdminSide
 
   return (
     <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="fixed top-4 left-4 z-50 bg-white shadow-md md:hidden"
-        onClick={() => setCollapsed(!collapsed)}
-      >
-        <Menu className="h-5 w-5" />
-      </Button>
+      {/* 모바일 상단 바: 메뉴 · 제목 · 종. 본문은 이 바 아래에서 시작한다(레이아웃의 위 여백). 데스크톱에는 없다. */}
+      <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-2 border-b bg-white px-2 text-gray-900 md:hidden">
+        <button
+          type="button"
+          aria-label="메뉴 열기"
+          aria-expanded={mobileOpen}
+          aria-controls="admin-sidebar"
+          className="flex h-10 w-10 items-center justify-center rounded-md outline-none hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-orange-500"
+          onClick={() => setMobileOpen(true)}
+        >
+          <Menu className="h-5 w-5" aria-hidden="true" />
+        </button>
+        <p className="min-w-0 flex-1 truncate text-base font-bold">관리자 패널</p>
+        <AdminAlertCenter compact className="flex h-10 w-10 items-center justify-center p-0 hover:bg-gray-100" />
+      </header>
 
-      {/* 모바일: 사이드바가 접혀 있어도 종이 보이게 메뉴 버튼 옆에 둔다(데스크톱은 사이드바 맨 위) */}
-      <div className="fixed left-16 top-4 z-50 md:hidden">
-        <AdminAlertCenter compact className="bg-white text-gray-900 shadow-md" />
-      </div>
-
+      {/* 모바일에서는 서랍(처음엔 닫힘, 닫혀 있으면 초점·읽기 대상에서 빠진다), 데스크톱에서는 예전과 같은 사이드바 */}
       <aside
+        id="admin-sidebar"
         className={cn(
-          'fixed left-0 top-0 z-40 h-screen bg-slate-900 text-white transition-all duration-300',
-          collapsed ? '-translate-x-full md:translate-x-0 md:w-16' : 'w-64',
+          'fixed left-0 top-0 z-40 h-screen w-64 bg-slate-900 text-white transition-all duration-300',
+          'max-md:max-w-[85vw] max-md:overflow-y-auto',
+          mobileOpen ? 'max-md:translate-x-0' : 'max-md:invisible max-md:-translate-x-full',
+          collapsed && 'md:w-16',
           'md:relative md:top-0 md:h-auto'
         )}
       >
@@ -297,10 +321,10 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs }: AdminSide
         </nav>
       </aside>
 
-      {!collapsed && (
+      {mobileOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/50 md:hidden"
-          onClick={() => setCollapsed(true)}
+          onClick={() => setMobileOpen(false)}
         />
       )}
     </>

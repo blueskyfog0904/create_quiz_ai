@@ -12,7 +12,7 @@ export default async function AdminDashboardPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900"><AdminMenuName href="/admin" fallback="관리자 대시보드" /></h1>
+        <h1 className="text-3xl font-bold text-gray-900 max-md:text-2xl"><AdminMenuName href="/admin" fallback="관리자 대시보드" /></h1>
         <p className="text-gray-500 mt-1">서비스 현황을 한눈에 확인하세요</p>
       </div>
       

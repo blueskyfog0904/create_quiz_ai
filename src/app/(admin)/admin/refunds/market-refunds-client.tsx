@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAdminAlerts } from '@/components/admin/admin-alert-context'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -58,6 +59,7 @@ const ACTION_LABELS: Record<RefundAction, string> = { approve: '승인', reject:
 
 export function MarketRefundsClient({ requests }: MarketRefundsClientProps) {
   const router = useRouter()
+  const alerts = useAdminAlerts()
   const [processingId, setProcessingId] = useState<string | null>(null)
   // 승인·거부는 되돌릴 수 없으므로 누른 즉시 처리하지 않고 확인 창에서 한 번 더 묻는다.
   const [pending, setPending] = useState<{ request: MarketRefundRequestRow; action: RefundAction } | null>(null)
@@ -94,6 +96,7 @@ export function MarketRefundsClient({ requests }: MarketRefundsClientProps) {
       toast.success(result.message)
       setPending(null)
       router.refresh()
+      alerts?.refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '문제마켓 환불 처리에 실패했습니다.')
     } finally {
@@ -111,7 +114,7 @@ export function MarketRefundsClient({ requests }: MarketRefundsClientProps) {
         <CardDescription>문제마켓 상품 환불 요청을 다운로드 이력 기준으로 검토합니다.</CardDescription>
       </CardHeader>
       <CardContent className="p-0">
-        <Table>
+        <Table className="max-md:min-w-[900px]">
           <TableHeader>
             <TableRow>
               <TableHead>요청일</TableHead>
@@ -188,7 +191,7 @@ export function MarketRefundsClient({ requests }: MarketRefundsClientProps) {
       </CardContent>
 
       <Dialog open={pending !== null} onOpenChange={(open) => !open && processingId === null && setPending(null)}>
-        <DialogContent>
+        <DialogContent className="max-md:max-h-[calc(100dvh-2rem)] max-md:max-w-[calc(100vw-2rem)] max-md:overflow-y-auto">
           <DialogHeader>
             <DialogTitle>문제마켓 환불 {pending ? ACTION_LABELS[pending.action] : ''}</DialogTitle>
             <DialogDescription>

@@ -65,7 +65,7 @@ export default async function AdminSupportPage({ searchParams }: AdminSupportPag
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900"><AdminMenuName href="/admin/support" fallback="고객지원 관리" /></h1>
+        <h1 className="text-3xl font-bold text-gray-900 max-md:text-2xl"><AdminMenuName href="/admin/support" fallback="고객지원 관리" /></h1>
         <p className="text-gray-500 mt-1">고객 문의 카테고리와 티켓을 관리합니다</p>
       </div>
 

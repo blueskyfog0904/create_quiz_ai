@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { load } from './helpers/market-images-harness.mjs'
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 const summaryRoute = read('src/app/api/admin/alerts/summary/route.ts')
-const seenRoute = read('src/app/api/admin/alerts/seen/route.ts')
 const server = read('src/lib/admin-alerts-server.ts')
 const provider = read('src/components/admin/admin-alert-context.tsx')
 const center = read('src/components/admin/admin-alert-center.tsx')
@@ -13,6 +12,10 @@ const badge = read('src/components/admin/admin-menu-badge.tsx')
 const dashboard = read('src/app/(admin)/admin/dashboard-client.tsx')
 const sidebar = read('src/components/layout/admin-sidebar-client.tsx')
 const layout = read('src/app/(admin)/admin/layout.tsx')
+const supportClient = read('src/app/(admin)/admin/support/support-client.tsx')
+const refundsClient = read('src/app/(admin)/admin/refunds/refunds-client.tsx')
+const paymentReviewClient = read('src/app/(admin)/admin/refunds/payment-review-client.tsx')
+const marketRefundsClient = read('src/app/(admin)/admin/refunds/market-refunds-client.tsx')
 const alerts = load('src/lib/admin-alerts.ts')
 
 const NOW = Date.parse('2026-11-16T03:00:00Z')
@@ -22,62 +25,84 @@ const event = (overrides = {}) => ({
   link: '/admin/support', delivery: 'full', created_at: secondsAgo(1), ...overrides,
 })
 
-test('알림 API 두 개 모두 관리자 확인이 데이터 접근보다 먼저다', () => {
-  for (const [route, call] of [[summaryRoute, 'getAdminAlertSummary('], [seenRoute, 'markAdminAlertsSeen(']]) {
-    assert.match(route, /export const dynamic = 'force-dynamic'/)
-    assert.match(route, /status: 401/)
-    assert.match(route, /status: 403/)
-    const adminCheck = route.indexOf('profile?.is_admin')
-    assert.ok(adminCheck > 0 && adminCheck < route.lastIndexOf(call))
-    // 확인한 관리자 본인의 id만 넘긴다(요청 값으로 대상을 바꿀 수 없다).
-    assert.match(route, new RegExp(`${call.replace('(', '\\(')}user\\.id[,)]`))
-  }
-  // 확인 기록은 { eventId: uuid } 하나만 받는다. 형식이 틀리면 400, 볼 수 없는 이벤트면 404.
-  assert.ok(seenRoute.indexOf('readEventId(request)') < seenRoute.lastIndexOf('markAdminAlertsSeen('))
-  assert.match(seenRoute, /keys\.length !== 1 \|\| typeof eventId !== 'string' \|\| !UUID_PATTERN\.test\(eventId\)/)
-  assert.match(seenRoute, /if \(!eventId\) \{\s*return NextResponse\.json\(\{ error: 'Invalid request' \}, \{ status: 400 \}\)/)
-  assert.match(seenRoute, /result === 'not_found'[\s\S]*?status: 404/)
-  const uuidPattern = new RegExp(/const UUID_PATTERN = \/(.+)\/i/.exec(seenRoute)[1], 'i')
-  assert.ok(uuidPattern.test('00000000-0000-4000-8000-000000000001'))
-  for (const bad of ['', 'abc', '00000000-0000-4000-8000-00000000000', "00000000-0000-4000-8000-000000000001' or 1=1"]) {
-    assert.ok(!uuidPattern.test(bad), bad)
-  }
+test('알림 요약 API는 관리자 확인이 데이터 접근보다 먼저다', () => {
+  assert.match(summaryRoute, /export const dynamic = 'force-dynamic'/)
+  assert.match(summaryRoute, /status: 401/)
+  assert.match(summaryRoute, /status: 403/)
+  const adminCheck = summaryRoute.indexOf('profile?.is_admin')
+  assert.ok(adminCheck > 0 && adminCheck < summaryRoute.lastIndexOf('getAdminAlertSummary('))
 })
 
-test('확인 기록: 서버의 현재 시각이 아니라 화면에 보인 이벤트의 created_at까지만, 뒤로 돌리지 않는다', () => {
-  const mark = server.slice(server.indexOf('export async function markAdminAlertsSeen('))
-  assert.match(mark, /markAdminAlertsSeen\(adminId: string, eventId: string\)/)
-  // 이벤트는 관리자 세션(조회 정책)으로 읽는다.
-  assert.match(mark, /const supabase = await createClient\(\)[\s\S]*?supabase\s*\.from\('admin_events'\)\s*\.select\('created_at'\)\s*\.eq\('id', eventId\)/)
-  assert.match(mark, /if \(!event\) return 'not_found'/)
-  assert.match(mark, /if \(isLaterTimestamp\(event\.created_at, seen\?\.last_seen_at \?\? null\)\) \{/)
-  assert.match(mark, /\.upsert\(\{ admin_id: adminId, last_seen_at: event\.created_at \}\)/)
-  // DB가 준 문자열 그대로 쓴다(현재 시각·Date 재조립 없음).
-  assert.doesNotMatch(mark, /new Date|Date\.now|toISOString/)
+test('"확인함" 기록은 쓰지 않는다: 종의 숫자는 처리해야만 줄어든다', () => {
+  // 확인 기록 API·함수·미확인 건수는 걷어 냈다(표 admin_event_reads와 타입은 DB에 그대로 있다).
+  assert.equal(existsSync(new URL('../src/app/api/admin/alerts/seen/route.ts', import.meta.url)), false)
+  for (const source of [server, provider, center, badge]) {
+    assert.doesNotMatch(source, /admin_event_reads|markSeen|markAdminAlertsSeen|unreadCount|alerts\/seen/)
+  }
+  // 종의 숫자 = 처리 대기 합계. 패널을 여닫는 것은 아무것도 기록·변경하지 않는다.
+  assert.match(center, /const pendingCount = alerts\.loadFailed \? null : summary \? workTotal\(summary\.work\) : 0/)
+  assert.match(center, /<Popover open=\{open\} onOpenChange=\{setOpen\}>/)
+  assert.match(center, /\{pendingCount !== 0 \? \(/)
+  assert.match(center, /pendingCount === null \? '!' : pendingCount > 99 \? '99\+' : pendingCount/)
+  assert.match(center, /`처리 대기 \$\{pendingCount\}건`/)
+  assert.match(center, /처리 대기 건수 확인 불가/)
+  assert.doesNotMatch(center, /미확인/)
+  // 패널 안에서는 처리 대기가 알림 목록보다 위다.
+  assert.ok(center.indexOf('ADMIN_WORK_ITEMS.map(') < center.indexOf('summary.events.map('))
+})
 
-  // 패널은 보여 준 목록의 맨 위 이벤트 id만 보낸다. 목록이 없으면 보내지 않는다.
-  assert.match(center, /const newestId = summary\?\.events\?\.\[0\]\?\.id\s*if \(newestId && summary\.unreadCount !== 0\) markSeen\(newestId\)/)
-  assert.equal([...center.matchAll(/markSeen\(/g)].length, 1)
-  assert.match(center, /const summary = alerts\.loadFailed \? null : alerts\.summary/)
-  assert.match(provider, /body: JSON\.stringify\(\{ eventId \}\)/)
-  // 성공 뒤에는 건수를 0으로 지어내지 않고 다시 조회한다.
-  assert.match(provider, /if \(response\.ok\) void refresh\(\)/)
-  assert.doesNotMatch(provider, /unreadCount: 0/)
+test('처리 대기 합계: 전부 숫자면 합, 하나라도 세지 못하면 null, 0이면 배지 없음', () => {
+  const work = {
+    supportPending: 1, marketRefundPending: 1, refundPending: 1, refundAttention: 1, paymentOrderReview: 0, paymentAlertOpen: 1,
+  }
+  assert.equal(alerts.workTotal(work), 5)
+  // 5건 중 1건을 처리하면 4
+  assert.equal(alerts.workTotal({ ...work, supportPending: 0 }), 4)
+  assert.equal(alerts.workTotal({ ...work, paymentAlertOpen: null }), null)
+  assert.equal(alerts.workTotal(null), null)
+  const none = Object.fromEntries(Object.keys(work).map((key) => [key, 0]))
+  assert.equal(alerts.workTotal(none), 0)
+  // 합계는 처리 대기 항목 전부를 더한다(항목이 늘면 같이 늘어난다).
+  assert.equal(alerts.workTotal(Object.fromEntries(alerts.ADMIN_WORK_ITEMS.map((item) => [item.key, 2]))), alerts.ADMIN_WORK_ITEMS.length * 2)
+})
 
-  const later = alerts.isLaterTimestamp
-  assert.equal(later('2026-11-16T03:00:00.123456+00:00', null), true)
-  assert.equal(later('2026-11-16T03:00:00.123457+00:00', '2026-11-16T03:00:00.123456+00:00'), true)
-  assert.equal(later('2026-11-16T03:00:00.123456+00:00', '2026-11-16T03:00:00.123456+00:00'), false)
-  assert.equal(later('2026-11-16T03:00:00.123456+00:00', '2026-11-16T03:00:00.123457+00:00'), false)
-  // 소수부 길이가 달라도(뒤 0 생략) 맞게 비교한다.
-  assert.equal(later('2026-11-16T03:00:00.2+00:00', '2026-11-16T03:00:00.123456+00:00'), true)
-  assert.equal(later('2026-11-16T03:00:00+00:00', '2026-11-16T03:00:00.000001+00:00'), false)
-  assert.equal(later('2026-11-16T03:00:01+00:00', '2026-11-16T03:00:00.999999+00:00'), true)
-  assert.equal(later('2026-11-16T12:00:00.5+09:00', '2026-11-16T03:00:00.4+00:00'), true)
+test('처리한 뒤에는 새로고침 없이 숫자가 맞는다: 처리 성공 경로마다 요약을 다시 읽는다', () => {
+  // (가) 서버 레이아웃이 다시 그려질 때마다(router.refresh·재검증) provider가 다시 조회한다.
+  assert.match(layout, /const renderedAt = Date\.now\(\)/)
+  assert.match(layout, /<AdminAlertProvider adminId=\{admin\.id\} renderedAt=\{renderedAt\}>/)
+  assert.match(provider, /useEffect\(\(\) => \{\s*void refresh\(\)\s*\}, \[refresh, renderedAt\]\)/)
+  assert.match(provider, /refresh: refreshNow/)
+
+  // (나) 처리 동작의 성공 경로가 직접 다시 읽게 한다.
+  const successPaths = [
+    [supportClient, "toast.success('답변이 등록되었습니다.')", 'alerts?.refresh()'],
+    [refundsClient, 'setIsProcessDialogOpen(false)\n            router.refresh()', 'alerts?.refresh()'],
+    [paymentReviewClient, 'setSelectedAlert(null)\n            router.refresh()', 'adminAlerts?.refresh()'],
+    [paymentReviewClient, 'setSelectedOrder(null)\n            router.refresh()', 'adminAlerts?.refresh()'],
+    [marketRefundsClient, 'setPending(null)\n      router.refresh()', 'alerts?.refresh()'],
+  ]
+  for (const [source, success, call] of successPaths) {
+    const at = source.indexOf(success)
+    assert.ok(at > 0, success)
+    const after = source.slice(at + success.length, at + success.length + 160)
+    assert.ok(after.includes(call), success)
+    // 실패 경로(catch)보다 앞이다.
+    assert.ok(after.indexOf(call) < (after.includes('catch') ? after.indexOf('catch') : Infinity), success)
+  }
+  // 환불 화면들은 처리 뒤 router.refresh()도 부른다(목록 갱신). 그 횟수만큼 요약 갱신이 붙어 있다.
+  for (const source of [refundsClient, paymentReviewClient, marketRefundsClient]) {
+    assert.equal([...source.matchAll(/router\.refresh\(\)/g)].length, [...source.matchAll(/[aA]lerts\?\.refresh\(\)/g)].length)
+  }
+
+  // 대시보드의 처리 대기 카드는 종·배지와 같은 값을 쓴다(가입자 수 조회는 그대로).
+  assert.match(dashboard, /alerts\?\.loadFailed \? null : alerts\?\.summary\?\.work \?\? stats\.work/)
+  assert.match(dashboard, /const value = work \? work\[item\.key\] : null/)
+  assert.match(dashboard, /fetch\('\/api\/admin\/stats'\)/)
+  assert.match(dashboard, /void fetchStats\(\)\s*alerts\?\.refresh\(\)/)
 })
 
 test('요약: service role 전용 표는 세션 클라이언트로 읽지 않고, 읽지 못한 부분은 null·unknown이다', () => {
-  for (const table of ['admin_event_reads', 'admin_event_dispatch_state', 'admin_event_deliveries']) {
+  for (const table of ['admin_event_dispatch_state', 'admin_event_deliveries']) {
     const uses = [...server.matchAll(new RegExp(`(\\w+\\(?\\)?)\\s*\\.from\\('${table}'\\)`, 'g'))]
     assert.ok(uses.length > 0, table)
     for (const use of uses) assert.equal(use[1], 'createAdminClient()', table)
@@ -88,11 +113,10 @@ test('요약: service role 전용 표는 세션 클라이언트로 읽지 않고
   assert.match(server, /getAdminWorkSummary\(\)/)
   // 폴링되는 조회라 건수는 head 조회, 목록은 최근 것만
   assert.match(server, /\.limit\(ADMIN_ALERT_RECENT_LIMIT\)/)
-  assert.equal([...server.matchAll(/count: 'exact', head: true/g)].length, 2)
+  assert.equal([...server.matchAll(/count: 'exact', head: true/g)].length, 1)
   // 실패한 부분은 0이 아닌 값으로 내려간다.
   assert.match(server, /catch \(error\) \{[\s\S]*?return fallback/)
   assert.match(server, /readOr<AdminAlertEvent\[\] \| null>\('최근 알림', null/)
-  assert.match(server, /readOr<number \| null>\(\s*'미확인 건수',\s*null/)
   // 화면이 쓰지 않는 값은 내려보내지 않는다.
   assert.doesNotMatch(server, /lastSeenAt[,:]|lastRunAt/)
   assert.match(server, /readOr<number \| null>\('전송 포기 건수', null/)
@@ -123,19 +147,16 @@ test('전송 상태 줄: 정상이면 없음, 실패 건수와 확인 불가를 
   assert.deepEqual(messages('unknown', null), ['통지 상태 확인 불가', '통지 실패 건수 확인 불가'])
 })
 
-test('미확인 건수: 처음 보는 관리자는 최근 목록 크기까지만, 세지 못하면 null', () => {
-  assert.equal(alerts.capUnreadCount(null, null), null)
-  assert.equal(alerts.capUnreadCount(null, secondsAgo(60)), null)
-  assert.equal(alerts.capUnreadCount(3, null), 3)
-  assert.equal(alerts.capUnreadCount(500, null), alerts.ADMIN_ALERT_RECENT_LIMIT)
-  assert.equal(alerts.capUnreadCount(500, secondsAgo(60)), 500)
-  assert.equal(alerts.capUnreadCount(0, secondsAgo(60)), 0)
-
-  assert.equal(alerts.unreadIncrease(2, 5), 3)
-  assert.equal(alerts.unreadIncrease(5, 5), 0)
-  assert.equal(alerts.unreadIncrease(5, 0), 0)
-  assert.equal(alerts.unreadIncrease(null, 5), 0)
-  assert.equal(alerts.unreadIncrease(5, null), 0)
+test('폴링 토스트: 목록에 처음 보이는 이벤트 수로 알리고, 목록을 모르면 알리지 않는다', () => {
+  const ids = (...list) => list.map((id) => ({ id }))
+  assert.equal(alerts.countNewEvents(ids('a', 'b'), ids('c', 'a', 'b')), 1)
+  assert.equal(alerts.countNewEvents(ids('a', 'b'), ids('d', 'c', 'a')), 2)
+  assert.equal(alerts.countNewEvents(ids('a', 'b'), ids('a', 'b')), 0)
+  assert.equal(alerts.countNewEvents([], ids('a')), 1)
+  // 첫 조회(이전 목록 없음)·조회 실패한 목록으로는 알리지 않는다.
+  assert.equal(alerts.countNewEvents(undefined, ids('a')), 0)
+  assert.equal(alerts.countNewEvents(null, ids('a')), 0)
+  assert.equal(alerts.countNewEvents(ids('a'), null), 0)
 })
 
 test('토스트 묶음: 1건은 그대로, 여러 건은 "새 알림 N건"과 첫 제목', () => {
@@ -189,7 +210,7 @@ test('대시보드와 알림 패널은 처리 대기 항목 목록 하나를 같
 })
 
 test('조회·구독은 provider 한 곳에서만 하고, 종과 배지는 그 값을 쓴다', () => {
-  assert.match(layout, /<AdminAlertProvider adminId=\{admin\.id\}>/)
+  assert.match(layout, /<AdminAlertProvider adminId=\{admin\.id\}/)
   assert.equal([...provider.matchAll(/\.channel\(/g)].length, 1)
   for (const source of [center, badge, sidebar]) {
     assert.doesNotMatch(source, /\.channel\(|alerts\/summary|createClient/)
@@ -213,7 +234,7 @@ test('실시간: 관리자 세션으로 admin_events INSERT를 구독하고, 끊
   assert.equal(alerts.ADMIN_ALERT_SAFETY_POLL_MS, 300000)
   // 재연결 직후에는 끊긴 사이 온 알림도 알린다.
   assert.match(provider, /if \(wasDown\) void refresh\(true\)/)
-  assert.match(provider, /fromPoll \? unreadIncrease\(/)
+  assert.match(provider, /fromPoll \? countNewEvents\(summaryRef\.current\?\.events, next\.events\) : 0/)
   assert.match(provider, /addEventListener\('visibilitychange'/)
   assert.match(center, /실시간 연결 끊김/)
 })
@@ -260,14 +281,11 @@ test('소리·브라우저 알림: 화면 전용 이벤트는 조용히, 소리�
   assert.match(center, /soundOn \? '소리 켜짐' : '소리 꺼짐'/)
 })
 
-test('종: 실제 버튼, 미확인 건수를 글자로 알리고, 열면 확인 기록을 남긴다', () => {
+test('종: 실제 버튼, 처리 대기 건수를 글자로 알리고, 패널은 화면 안에 들어온다', () => {
   assert.match(center, /<button\s+type="button"\s+aria-label=\{bellLabel\}/)
-  assert.match(center, /`미확인 \$\{unreadCount\}건`/)
-  assert.match(center, /미확인 건수 확인 불가/)
-  // 닫기(Escape·바깥 클릭)와 초점 이동은 Popover가 맡는다.
-  assert.match(center, /<Popover open=\{open\} onOpenChange=\{handleOpenChange\}>/)
-  assert.match(center, /<PopoverContent align="start" aria-label="알림"/)
-  assert.match(provider, /fetch\('\/api\/admin\/alerts\/seen', \{\s*method: 'POST'/)
+  assert.match(center, /<PopoverContent\s+align="start"\s+aria-label="알림"\s+collisionPadding=\{8\}/)
+  // 화면보다 길면 패널 안에서 스크롤한다(맨 아래 버튼이 잘리지 않게).
+  assert.match(center, /max-h-\[var\(--radix-popover-content-available-height\)\][^"]*max-w-\[calc\(100vw-1rem\)\][^"]*overflow-y-auto/)
   // 심각도는 색과 함께 글자로 표시한다.
   for (const label of ['긴급', '주의', '안내']) assert.match(center, new RegExp(`label: '${label}'`))
   assert.match(center, /timeZone: 'Asia\/Seoul'/)
@@ -286,8 +304,33 @@ test('조회 실패는 0건처럼 보이지 않는다: 종·패널·메뉴 배�
   assert.match(refresh, /if \(seq !== requestSeqRef\.current\) return/)
   assert.ok(refresh.indexOf('if (seq !== requestSeqRef.current) return') < refresh.indexOf('setSummary(next)'))
 
-  assert.match(center, /const unreadCount = alerts\.loadFailed \? null : summary \? summary\.unreadCount : 0/)
   assert.match(center, /alerts\.loadFailed \? '알림 확인 불가' : '알림'/)
-  assert.match(center, /unreadCount === null \? '!'/)
   assert.match(center, /alerts\.loadFailed \? '알림을 불러오지 못했습니다\.' : '불러오는 중…'/)
+})
+
+test('모바일 껍데기: 상단 바와 처음엔 닫힌 서랍, 데스크톱 사이드바는 그대로', () => {
+  // 서랍 열림(모바일)과 접힘(데스크톱)은 서로 다른 상태다. 서랍은 닫힌 채 시작한다.
+  assert.match(sidebar, /const \[mobileOpen, setMobileOpen\] = useState\(false\)/)
+  assert.match(sidebar, /const \[collapsed, setCollapsed\] = useState\(false\)/)
+  assert.doesNotMatch(sidebar, /window\.innerWidth/)
+  // 상단 바는 모바일에만 있고, 메뉴 버튼은 서랍 상태를 알린다.
+  assert.match(sidebar, /<header className="fixed inset-x-0 top-0 z-30 flex h-14 [^"]*md:hidden">/)
+  assert.match(sidebar, /aria-label="메뉴 열기"\s+aria-expanded=\{mobileOpen\}\s+aria-controls="admin-sidebar"/)
+  assert.match(sidebar, /<aside\s+id="admin-sidebar"/)
+  // 닫힌 서랍은 보이지 않고 초점도 받지 않는다. 이 규칙은 모바일 폭에만 걸린다.
+  assert.match(sidebar, /mobileOpen \? 'max-md:translate-x-0' : 'max-md:invisible max-md:-translate-x-full'/)
+  assert.match(sidebar, /collapsed && 'md:w-16'/)
+  // 메뉴 이동·바깥 누르기·Escape로 닫히고, 열려 있는 동안 뒤 화면 스크롤을 잠근다.
+  assert.match(sidebar, /onClick=\{\(\) => setMobileOpen\(false\)\}/)
+  assert.match(sidebar, /\{mobileOpen && \(\s*<div\s+className="fixed inset-0 z-30 bg-black\/50 md:hidden"/)
+  const effect = sidebar.slice(sidebar.indexOf('if (!mobileOpen) return'), sidebar.indexOf('}, [mobileOpen])'))
+  assert.match(effect, /event\.key === 'Escape'\) close\(\)/)
+  assert.match(effect, /document\.body\.style\.overflow = 'hidden'/)
+  assert.match(effect, /document\.body\.style\.overflow = previousOverflow/)
+  assert.match(effect, /removeEventListener\('keydown', handleKeyDown\)/)
+  // 종은 모바일 상단 바와 데스크톱 사이드바 맨 위에 하나씩(한쪽만 보인다).
+  assert.equal([...sidebar.matchAll(/<AdminAlertCenter /g)].length, 2)
+  // 본문은 상단 바 아래에서 시작하고, 넓은 표가 페이지 전체를 옆으로 밀지 않는다(모바일 폭에서만).
+  assert.match(layout, /max-md:min-w-0/)
+  assert.match(layout, /className="p-6 max-md:px-4 max-md:pt-\[4\.5rem\] md:p-8"/)
 })

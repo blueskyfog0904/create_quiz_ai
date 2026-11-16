@@ -15,7 +15,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900"><AdminMenuName href="/admin/users" fallback="사용자 관리" /></h1>
+        <h1 className="text-3xl font-bold text-gray-900 max-md:text-2xl"><AdminMenuName href="/admin/users" fallback="사용자 관리" /></h1>
         <p className="text-gray-500 mt-1">가입된 사용자를 조회하고 관리합니다</p>
       </div>
 

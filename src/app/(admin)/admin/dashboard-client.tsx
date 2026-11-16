@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { AlertTriangle, ClipboardList, RefreshCw, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useAdminAlerts } from '@/components/admin/admin-alert-context'
 import { ADMIN_WORK_ITEMS } from '@/lib/admin-alerts'
 import type { AdminWorkSummary } from '@/lib/admin-work-summary-server'
 
@@ -21,6 +22,7 @@ export function DashboardClient() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const alerts = useAdminAlerts()
 
   const fetchStats = async () => {
     try {
@@ -60,14 +62,22 @@ export function DashboardClient() {
 
   if (!stats) return null
 
+  // 처리 대기 숫자는 종·메뉴 배지와 같은 값(알림 요약)을 쓴다. 처리 직후에도 서로 어긋나지 않는다.
+  // 요약 조회가 실패했으면 옛 숫자 대신 "확인 불가", 아직 못 받았으면 통계 응답의 값.
+  const work: AdminWorkSummary | null = alerts?.loadFailed ? null : alerts?.summary?.work ?? stats.work
+  const refreshAll = () => {
+    void fetchStats()
+    alerts?.refresh()
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-gray-500">기준: 한국 시간</p>
         <Button
           variant="outline"
           size="sm"
-          onClick={fetchStats}
+          onClick={refreshAll}
           disabled={loading}
         >
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -86,7 +96,7 @@ export function DashboardClient() {
           <CardContent>
             <ul className="divide-y">
               {ADMIN_WORK_ITEMS.map((item) => {
-                const value = stats.work[item.key]
+                const value = work ? work[item.key] : null
                 // 0이 아니면(확인 불가 포함) 눈에 띄게 한다.
                 const needsAttention = value !== 0
                 return (
