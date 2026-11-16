@@ -218,7 +218,7 @@ export function PreviewHeader({
           </Link>
           <div className="flex shrink-0 items-center">
             {isLoggedIn && (
-              <NotificationBell className="min-h-11 min-w-11 rounded-md text-[var(--studio-ink)] hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]" />
+              <NotificationBell className="min-h-11 min-w-11 rounded-md text-[var(--studio-ink)] hover:bg-[var(--studio-background)] hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]" />
             )}
             <MarketCartIndicator
               ownerId={userId}
@@ -371,7 +371,7 @@ export function PreviewHeader({
 
             {isLoggedIn ? (
               <>
-                <NotificationBell className="min-h-11 min-w-11 rounded-md text-[var(--studio-ink)] hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]" />
+                <NotificationBell className="min-h-11 min-w-11 rounded-md text-[var(--studio-ink)] hover:bg-[var(--studio-background)] hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]" />
                 {creditBalance !== null && (
                   <Link
                     href="/mypage/credits"
