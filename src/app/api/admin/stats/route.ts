@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getAdminDashboard } from '@/lib/admin-dashboard-server'
+import { getAdminAccess } from '@/lib/admin-permissions-server'
 import { getAdminWorkSummary } from '@/lib/admin-work-summary-server'
 import { getKstPeriodStarts } from '@/lib/kst-period'
 
@@ -34,15 +36,25 @@ export async function GET() {
       return error ? null : count
     }
 
-    const [today, month, work] = await Promise.all([
+    // 매출·판매 지표와 최근 주문·문의는 계정 권한이 있는 구역만 읽는다.
+    // 권한을 읽지 못해도 가입 수·처리 대기는 보여 준다(권한이 필요한 구역만 빠진다).
+    const access = await getAdminAccess().catch((error) => {
+      console.error('[admin-stats] 권한 조회 실패', error)
+      return null
+    })
+    const [today, month, work, dashboard] = await Promise.all([
       countSignups(period.todayStart),
       countSignups(period.monthStart),
       getAdminWorkSummary(),
+      access ? getAdminDashboard(access, period) : null,
     ])
 
     return NextResponse.json({
       signups: { today, month },
       work,
+      metrics: dashboard?.metrics ?? null,
+      recentOrders: dashboard?.recentOrders ?? null,
+      recentTickets: dashboard?.recentTickets ?? null,
       period: { year: period.year, month: period.month },
     })
   } catch (error) {

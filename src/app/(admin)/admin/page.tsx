@@ -16,12 +16,8 @@ export default async function AdminDashboardPage() {
         <p className="text-gray-500 mt-1">서비스 현황을 한눈에 확인하세요</p>
       </div>
       
-      <div className="mb-6">
-        <PaymentSalesPanel status={salesStatus} />
-      </div>
-
       <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardClient />
+        <DashboardClient salesPanel={<PaymentSalesPanel status={salesStatus} />} />
       </Suspense>
     </div>
   )
