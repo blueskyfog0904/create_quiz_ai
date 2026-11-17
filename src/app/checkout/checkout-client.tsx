@@ -552,7 +552,7 @@ export function CheckoutClient({
 
             <aside
               aria-labelledby="order-summary-title"
-              className="min-w-0 self-start rounded-lg border border-[var(--ck-line)] bg-white p-5 sm:p-6 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-2 lg:row-start-1"
+              className="min-w-0 self-start rounded-lg border border-[var(--ck-line)] bg-white p-5 sm:p-6 lg:sticky lg:top-36 lg:col-start-2 lg:row-span-2 lg:row-start-1"
             >
               <OrderSummary plan={plan} user={user} amount={amount} />
 

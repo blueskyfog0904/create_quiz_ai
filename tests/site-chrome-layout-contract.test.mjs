@@ -9,7 +9,6 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf
 const CHROME_LAYOUTS = [
   'src/app/(dashboard)/layout.tsx',
   'src/app/[workspaceSubject]/layout.tsx',
-  'src/app/checkout/layout.tsx',
   'src/app/dashboard/layout.tsx',
   'src/app/legacy/layout.tsx',
   'src/app/preview/design-system/layout.tsx',
@@ -20,6 +19,7 @@ const OWN_CHROME_LAYOUTS = [
   'src/app/(auth)/layout.tsx',
   'src/app/(admin)/admin/layout.tsx',
   'src/app/pricing/layout.tsx',
+  'src/app/checkout/layout.tsx',
   'src/app/terms/layout.tsx',
   'src/app/preview/solvook-concept/layout.tsx',
 ]
@@ -46,4 +46,19 @@ test('자체 헤더를 쓰는 화면은 SiteChrome을 쓰지 않는다', () => {
   for (const path of OWN_CHROME_LAYOUTS) {
     assert.doesNotMatch(read(path), /SiteChrome/, path)
   }
+})
+
+test('충전·결제 화면은 마켓 layout을 그대로 쓴다', () => {
+  for (const path of ['src/app/pricing/layout.tsx', 'src/app/checkout/layout.tsx']) {
+    assert.match(read(path), /^export \{ default \} from '@\/app\/\(solvook\)\/layout'\s*$/, path)
+  }
+  // layout이 이미 <main>으로 감싸므로 결과 화면은 <main>을 다시 두지 않는다.
+  for (const path of ['src/app/checkout/payapp/result/page.tsx', 'src/app/checkout/kakaopay/result/page.tsx']) {
+    assert.doesNotMatch(read(path), /<main\b/, path)
+  }
+  // 충전이 완료된 분기에서만 머리말의 보유 크레딧을 갱신하고, 실패는 결과 표시에 영향을 주지 않는다.
+  assert.match(
+    read('src/app/checkout/payapp/result/result-client.tsx'),
+    /if \(body\.status === 'completed'\) \{\s*fetch\('\/api\/credits\/balance', \{ cache: 'no-store' \}\)[\s\S]*?new CustomEvent\('credit-balance-updated', \{ detail: \{ balance: data\.balance \} \}\)[\s\S]*?\.catch\(\(\) => undefined\)/
+  )
 })

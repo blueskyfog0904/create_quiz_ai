@@ -53,6 +53,18 @@ export function PayAppResultClient({ orderId }: { orderId: string }) {
         }
         setLoading(false)
 
+        // 충전이 끝났으면 머리말의 보유 크레딧을 새 값으로 맞춘다(완료는 마지막 상태라 한 번만 실행된다). 실패는 무시한다.
+        if (body.status === 'completed') {
+          fetch('/api/credits/balance', { cache: 'no-store' })
+            .then((balanceResponse) => (balanceResponse.ok ? balanceResponse.json() : null))
+            .then((data) => {
+              if (typeof data?.balance === 'number') {
+                window.dispatchEvent(new CustomEvent('credit-balance-updated', { detail: { balance: data.balance } }))
+              }
+            })
+            .catch(() => undefined)
+        }
+
         if (body.status === 'pending' && attempt < MAX_POLL_ATTEMPTS) {
           timeoutId = setTimeout(loadResult, POLL_INTERVAL_MS)
         }

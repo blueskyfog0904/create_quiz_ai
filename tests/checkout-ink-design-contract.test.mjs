@@ -39,7 +39,7 @@ test('focus, unselected radio and sticky summary stay visible', () => {
   // overflow-x-hidden은 sticky를 깨뜨린다.
   assert.match(checkoutClient, /overflow-x-clip/)
   assert.doesNotMatch(checkoutClient, /overflow-x-hidden/)
-  assert.match(checkoutClient, /lg:sticky lg:top-24/)
+  assert.match(checkoutClient, /lg:sticky lg:top-36/)
   // 좁은 화면에서 결제 버튼 문구가 넘치지 않게 줄바꿈을 허용한다.
   assert.match(checkoutClient, /whitespace-normal break-keep/)
 })
