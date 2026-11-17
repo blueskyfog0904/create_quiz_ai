@@ -124,6 +124,9 @@ export function checkAdminLimit(
   return typeof limit === 'number' && Number.isFinite(limit) && limit > 0 && amount <= limit
 }
 
+// 한도 값의 상한. DB의 지급 수량·한도 비교가 integer라 그 최대값과 같다(권한 교체 함수 20261117120000도 같은 값으로 거부한다).
+export const ADMIN_PERMISSION_LIMIT_MAX = 2147483647
+
 // 한 계정에 주려는 권한 조합을 검사한다. 돌려주는 값은 오류 문구 목록이고, 비어 있으면 저장해도 된다.
 export function validateAdminPermissionGrants(
   grants: ReadonlyArray<{ permission: string; limits?: unknown }>
@@ -147,6 +150,8 @@ export function validateAdminPermissionGrants(
       const value = limits[limitKey]
       if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
         errors.push(`${grant.permission} 권한의 ${limitLabel}는 1 이상의 정수로 입력해야 합니다.`)
+      } else if (value > ADMIN_PERMISSION_LIMIT_MAX) {
+        errors.push(`${grant.permission} 권한의 ${limitLabel}는 ${ADMIN_PERMISSION_LIMIT_MAX.toLocaleString('ko-KR')} 이하로 입력해야 합니다.`)
       }
     }
   }

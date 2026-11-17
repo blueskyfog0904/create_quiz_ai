@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { checkAdminLimit } from '@/lib/admin-permissions'
+import { alertAdminAuditFailure, recordAdminAudit } from '@/lib/admin-audit-log-server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { CreditService } from '@/lib/credits'
@@ -28,6 +29,14 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     const { userId, amount, description, category, idempotencyKey } = GrantCreditSchema.parse(body)
+
+    // 본인 계정에는 지급하지 않는다(대표 포함 — 필요하면 다른 관리자가 지급한다).
+    if (userId === guard.access.userId) {
+      return NextResponse.json({
+        error: '본인 계정에는 크레딧을 지급할 수 없습니다. 다른 관리자에게 요청해 주세요.',
+        code: 'ADMIN_SELF_TARGET'
+      }, { status: 403 })
+    }
 
     // 계정의 1회 지급 한도(대표는 한도 없음). 하루 누적 한도(per_day)는 지급 함수(DB)가 같은 트랜잭션에서
     // 합산해야 해서 여기서 검사하지 않는다 — 지급 함수 개정(U3-6) 전에는 하루 한도가 적용되지 않는다.
@@ -57,6 +66,26 @@ export async function POST(request: Request) {
       `admin_grant:${idempotencyKey}`,
     )
 
+    // 지급이 끝난 뒤 작업 기록을 남긴다(실패해도 응답은 그대로). 같은 키의 재요청은 새 지급이 아니므로 남기지 않는다.
+    // 지급 함수 개정(U3-6, DB-6') 뒤에는 함수 안에서 같은 트랜잭션으로 적고 이 호출은 뺀다.
+    let audited = true
+    if (!result.alreadyGranted) {
+      audited = await recordAdminAudit({
+        actorId: guard.access.userId,
+        action: 'credit_grant',
+        targetType: 'member',
+        targetId: userId,
+        targetUserId: userId,
+        amount,
+        reason: description,
+        details: { category, source_category: sourceCategory, operation_key: `admin_grant:${idempotencyKey}`, new_balance: result.newBalance },
+      })
+      // 돈이 움직인 일의 기록이 빠지면 대표에게 알린다(지급 결과는 그대로).
+      if (!audited) {
+        await alertAdminAuditFailure({ action: 'credit_grant', refTable: 'profiles', refId: userId, link: `/admin/users/${userId}`, dedupeId: idempotencyKey })
+      }
+    }
+
     // 3. Send Notification (같은 키로 이미 지급된 재요청이면 다시 보내지 않는다)
     if (!result.alreadyGranted) {
       await supabase.from('notifications').insert({
@@ -75,6 +104,7 @@ export async function POST(request: Request) {
       success: true,
       newBalance: result.newBalance,
       ...buildCreditBalanceResponseFields(snapshot),
+      ...(audited ? {} : { auditWarning: '지급은 완료됐지만 작업 기록을 남기지 못했습니다. 대표 관리자에게 알렸습니다.' }),
     })
 
   } catch (error: unknown) {

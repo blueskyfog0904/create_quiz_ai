@@ -5,6 +5,7 @@ import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { getMarketCategoryItemWorkspaceSubject } from '@/lib/market-categories-server'
 import { adminApiGuardMessage, requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import type { AdminPermissionRequirement } from '@/lib/admin-permissions'
+import { recordAdminAudit } from '@/lib/admin-audit-log-server'
 import { deleteOrHideMarketItem } from '@/lib/market-item-cleanup'
 import { MARKET_IMAGE_NOT_FOUND_MESSAGE, isMarketImageReferenceError } from '@/lib/market-images-server'
 import { MARKET_CATEGORY_TREE_CACHE_TAG, MARKET_PUBLIC_LIST_CACHE_TAG } from '@/lib/market-images'
@@ -169,6 +170,35 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       revalidateTag(MARKET_CATEGORY_TREE_CACHE_TAG, { expire: 0 })
     }
 
+    // 상태(공개·숨김 등)와 가격이 바뀐 저장만 작업 기록에 남긴다(실패해도 응답은 그대로).
+    if (publicStateChanged) {
+      await recordAdminAudit({
+        actorId: user.id,
+        action: 'market_item_status_change',
+        targetType: 'market_item',
+        targetId: id,
+        details: {
+          title: currentItem.title,
+          before: { status: currentItem.status, is_active: currentItem.is_active },
+          after: { status: item?.status ?? null, is_active: item?.is_active ?? null },
+        },
+      })
+    }
+    const priceKeys = ['pdf_price', 'hwp_price', 'zip_price'] as const
+    if (item && priceKeys.some((key) => currentItem[key] !== item[key])) {
+      await recordAdminAudit({
+        actorId: user.id,
+        action: 'market_item_price_change',
+        targetType: 'market_item',
+        targetId: id,
+        details: {
+          title: currentItem.title,
+          before: Object.fromEntries(priceKeys.map((key) => [key, currentItem[key]])),
+          after: Object.fromEntries(priceKeys.map((key) => [key, item[key]])),
+        },
+      })
+    }
+
     return NextResponse.json({ success: true, data: item })
   } catch (error) {
     if (isMarketImageReferenceError(error)) {
@@ -212,6 +242,14 @@ export async function DELETE(_: Request, { params }: RouteContext) {
     // 상품이 사라지거나 숨겨지면 공개 목록과 칸별 상품 수가 바뀐다.
     revalidateTag(MARKET_PUBLIC_LIST_CACHE_TAG, { expire: 0 })
     revalidateTag(MARKET_CATEGORY_TREE_CACHE_TAG, { expire: 0 })
+
+    await recordAdminAudit({
+      actorId: user.id,
+      action: 'market_item_delete',
+      targetType: 'market_item',
+      targetId: id,
+      details: { title: item.title, result },
+    })
 
     return NextResponse.json({ success: true, data: { result } })
   } catch (error) {

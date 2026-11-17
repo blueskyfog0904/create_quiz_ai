@@ -95,6 +95,7 @@ export function MarketRefundsClient({ requests }: MarketRefundsClientProps) {
       }
 
       toast.success(result.message)
+      if (result.auditWarning) toast.warning(result.auditWarning)
       setPending(null)
       router.refresh()
       alerts?.refresh()

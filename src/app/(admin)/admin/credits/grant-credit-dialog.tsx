@@ -124,6 +124,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
       if (!response.ok) throw new Error(data.error || '지급 실패')
 
       toast.success(`${selectedUser.email}님에게 크레딧이 지급되었습니다.`)
+      if (data.auditWarning) toast.warning(data.auditWarning)
       setIdempotencyKey(crypto.randomUUID())
       onSuccess?.()
       onOpenChange(false)

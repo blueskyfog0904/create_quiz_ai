@@ -43,6 +43,8 @@ function loadMarketRefundRoute({ approve, reject, insert }) {
     '@/lib/supabase/bypass': {
       createAdminClient: () => ({
         from: (table) => ({
+          // 처리 전 본인 요청 확인(U3-4 검증 반영)이 읽는 요청. 다른 회원의 요청으로 둔다.
+          select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { user_id: 'member-1', requested_refund_credits: 500 }, error: null }) }) }),
           insert: async (row) => {
             order.push({ table, row })
             return insert ? insert() : { error: null }

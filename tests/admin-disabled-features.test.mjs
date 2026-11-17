@@ -236,6 +236,7 @@ test('사이드바는 꺼진 묶음의 메뉴를 그리지 않고, 묶음에 남
     '/admin', '/admin/menu-management', '/admin/landing-pages',
     '/admin/main-ad-settings', '/admin/market-main-settings', '/admin/market/products/new', '/admin/market/products', '/admin/market/images', '/admin/market-categories',
     '/admin/users', '/admin/support', '/admin/footer', '/admin/pricing', '/admin/credits', '/admin/refunds', '/admin/orders', '/admin/reviews', '/admin/review-tags', '/admin/admin-accounts',
+    '/admin/audit-log',
   ])
   assert.deepEqual(nodes.filter((node) => node.type === 'group').map((node) => node.id), ['market'])
   // 숨길 것이 없으면 지금과 같다
@@ -334,6 +335,7 @@ test('관리자 페이지와 API 경로는 "운영 화면" 또는 "기능 묶음
     '/api/admin/support', '/api/admin/refunds', '/api/admin/orders', '/api/admin/payments', '/api/admin/users', '/api/admin/market', '/api/admin/market-categories',
     '/api/admin/main-ad-settings', '/api/admin/market-main-settings', '/api/admin/reviews', '/api/admin/review-tags', '/api/admin/site-logo',
     '/api/admin/admin-accounts', '/api/admin/session', '/api/admin/stats', '/api/admin/alerts',
+    '/admin/audit-log', '/admin/my-password', '/api/admin/audit-log', '/api/admin/my-password',
   ]
   const isOperational = (route) => route === '/admin' || OPERATIONAL_PREFIXES.some((prefix) => route === prefix || route.startsWith(`${prefix}/`))
 

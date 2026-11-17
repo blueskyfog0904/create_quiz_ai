@@ -47,8 +47,11 @@ const PAGE_ROOT = 'src/app/(admin)/admin'
 const PAGE_REQUIREMENTS = {
   // 공통
   'page.tsx': 'admin',
+  // 본인 비밀번호 변경(관리자면 누구나, 본인 계정만)
+  'my-password/page.tsx': 'admin',
   // 대표 고정
   'admin-accounts/page.tsx': OWNER,
+  'audit-log/page.tsx': OWNER,
   // 문의 · 주문 조회 · 회원 · 크레딧 · 환불
   'support/page.tsx': 'support.manage',
   'orders/page.tsx': 'orders.view',
@@ -173,9 +176,13 @@ const ROUTE_REQUIREMENTS = {
   // 공통: 관리자면 통과
   'stats/route.ts': all('admin', 'GET'),
   'alerts/summary/route.ts': all('admin', 'GET'),
+  'my-password/route.ts': all('admin', 'POST'),
   // 대표 고정
   'admin-accounts/route.ts': all(OWNER, 'GET', 'POST'),
   'admin-accounts/[userId]/route.ts': all(OWNER, 'PATCH', 'DELETE'),
+  'admin-accounts/[userId]/permissions/route.ts': all(OWNER, 'PUT'),
+  'admin-accounts/[userId]/revoke/route.ts': all(OWNER, 'POST'),
+  'audit-log/route.ts': all(OWNER, 'GET'),
   // 문의
   'support/stats/route.ts': all('support.manage', 'GET'),
   'support/categories/route.ts': all('support.manage', 'GET', 'POST'),
@@ -545,7 +552,8 @@ test('③ 관리자 서버 액션의 모든 export는 표의 권한으로 액션
       assertKnownRequirement(requirement, where)
       const guardLine = bodyLines.findIndex((line) => /await assertAdminActionPermission\(/.test(line))
       assert.ok(guardLine >= 0, `${where}: 가드를 부르지 않는다`)
-      assert.equal(bodyLines[guardLine].trim(), `await assertAdminActionPermission('${requirement}')`, where)
+      // 결과(처리자 id — 작업 기록용)를 access로 받아도 된다.
+      assert.equal(bodyLines[guardLine].trim().replace(/^const access = /, ''), `await assertAdminActionPermission('${requirement}')`, where)
       const before = bodyLines.slice(0, guardLine)
       // 여러 줄 인자 목록의 닫는 줄(") {" 형태)은 본문이 아니다.
       const firstBodyLine = before.findIndex((line) => /^\)(: [^{]+)? \{$/.test(line)) + 1
@@ -641,7 +649,7 @@ test('⑤ 크레딧 지급: 대표는 한도 없이, staff는 1회 지급 한도
   assert.doesNotMatch(source, /checkAdminLimit\([^)]*'per_day'/)
 })
 
-function loadMarketRefundRoute(session, { requested = 5000, lookupError = null } = {}) {
+function loadMarketRefundRoute(session, { requested = 5000, lookupError = null, requester = MEMBER_ID } = {}) {
   const calls = { approve: [], reject: [], lookups: 0 }
   const route = load('src/app/api/admin/market/refunds/[id]/route.ts', {
     'next/server': json,
@@ -652,7 +660,7 @@ function loadMarketRefundRoute(session, { requested = 5000, lookupError = null }
           select: () => ({ eq: () => ({ maybeSingle: async () => {
             assert.equal(table, 'market_refund_requests')
             calls.lookups += 1
-            return lookupError ? { data: null, error: lookupError } : { data: { requested_refund_credits: requested }, error: null }
+            return lookupError ? { data: null, error: lookupError } : { data: { user_id: requester, requested_refund_credits: requested }, error: null }
           } }) }),
           insert: async () => ({ error: null }),
         }),
@@ -669,10 +677,11 @@ function loadMarketRefundRoute(session, { requested = 5000, lookupError = null }
   return { patch, calls }
 }
 
-test('⑤ 마켓 환불: 대표는 한도 없이(조회도 없이), staff는 1건 승인 한도 안에서만 승인하고 거부는 한도와 무관하다', async () => {
+test('⑤ 마켓 환불: 대표는 한도 없이, staff는 1건 승인 한도 안에서만 승인하고 거부는 한도와 무관하다', async () => {
   const owner = loadMarketRefundRoute({}, { requested: 9_000_000 })
   assert.equal((await owner.patch({ action: 'approve' })).status, 200)
-  assert.equal(owner.calls.lookups, 0, '대표의 처리 순서는 그대로다')
+  // 대표도 처리 전에 요청을 한 번 읽는다(본인이 낸 요청인지 확인).
+  assert.equal(owner.calls.lookups, 1)
 
   const session = { role: 'staff', grants: [grant('orders.view'), grant('refunds.market', { per_request: 5000 })] }
   const within = loadMarketRefundRoute(session, { requested: 5000 })

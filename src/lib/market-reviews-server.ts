@@ -447,10 +447,11 @@ export async function adminSoftDeleteMarketReview(reviewId: string) {
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', reviewId)
     .is('deleted_at', null)
-    .select('id')
+    .select('id, user_id, item_id')
   if (error) return { ok: false as const, message: error.message }
   if (!data?.length) return { ok: false as const, message: '삭제할 후기를 찾을 수 없습니다.' }
-  return { ok: true as const }
+  // 작업 기록에 쓸 작성자·상품
+  return { ok: true as const, userId: data[0].user_id, itemId: data[0].item_id }
 }
 
 export interface AdminMarketReviewTagRow {

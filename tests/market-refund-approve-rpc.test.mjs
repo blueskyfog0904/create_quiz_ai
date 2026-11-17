@@ -195,7 +195,13 @@ test('the admin route answers a shortfall with 409 and the numbers, and forwards
     },
     // 승인 성공 뒤 회원 알림 INSERT(W3-8b)가 쓰는 클라이언트
     '@/lib/supabase/bypass': {
-      createAdminClient: () => ({ from: () => ({ insert: async () => ({ error: null }) }) }),
+      createAdminClient: () => ({
+        from: () => ({
+          // 처리 전 본인 요청 확인이 읽는 요청(다른 회원의 요청)
+          select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { user_id: 'member-1', requested_refund_credits: 100 }, error: null }) }) }),
+          insert: async () => ({ error: null }),
+        }),
+      }),
     },
     '@/lib/market-refunds': {
       MarketRefundConflictError,

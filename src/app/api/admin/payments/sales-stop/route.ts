@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { extractAdminLoginId } from '@/lib/admin-accounts-shared'
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
+import { recordAdminAudit } from '@/lib/admin-audit-log-server'
 import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -56,6 +57,17 @@ export async function POST(request: Request) {
       { error: '충전 판매를 중지하지 못했습니다. 화면을 새로고침해 현재 상태를 확인하고, 그대로면 SQL Editor에서 중지해 주세요.' },
       { status: 500 }
     )
+  }
+
+  // 실제로 멈춘 경우만 작업 기록에 남긴다(실패해도 응답은 그대로).
+  if (result.changed) {
+    await recordAdminAudit({
+      actorId: user.id,
+      action: 'payment_sales_stop',
+      targetType: 'payment_sales',
+      targetId: 'master',
+      reason: parsed.data.reason,
+    })
   }
 
   return NextResponse.json({

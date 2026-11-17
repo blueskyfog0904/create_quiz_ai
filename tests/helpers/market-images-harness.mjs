@@ -109,7 +109,12 @@ export function adminGuardMocks(session = {}, errors = []) {
     '@/lib/supabase/server': { createClient: async () => client },
     '@/lib/admin-permissions': adminPermissions,
   }, errors)
-  return { '@/lib/admin-permissions': adminPermissions, '@/lib/admin-permissions-server': server }
+  return {
+    '@/lib/admin-permissions': adminPermissions,
+    '@/lib/admin-permissions-server': server,
+    // 관리자 동작은 성공 뒤 작업 기록(U3-5)을 남긴다. 기록을 보는 테스트는 이 값을 덮어쓴다.
+    '@/lib/admin-audit-log-server': { recordAdminAudit: async () => true, alertAdminAuditFailure: async () => {} },
+  }
 }
 
 // 라우트 파일을 가짜 인증·서비스 롤 클라이언트로 불러온다. mocks는 라우트가 쓰는 다른 모듈을 바꾼다.

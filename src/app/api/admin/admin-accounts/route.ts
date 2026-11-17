@@ -4,9 +4,11 @@ import {
   AdminAccountError,
   createAdminAccount,
   listAdminAccounts,
+  readAdminPermissionPresets,
 } from '@/lib/admin-accounts-server'
 import { ADMIN_LOGIN_ID_PATTERN, normalizeAdminLoginId } from '@/lib/admin-accounts-shared'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
+import { recordAdminAudit } from '@/lib/admin-audit-log-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,8 +36,8 @@ export async function GET() {
   if ('error' in guard) return guard.error
 
   try {
-    const accounts = await listAdminAccounts()
-    return NextResponse.json({ success: true, data: accounts, selfUserId: guard.userId })
+    const [accounts, presets] = await Promise.all([listAdminAccounts(), readAdminPermissionPresets()])
+    return NextResponse.json({ success: true, data: accounts, selfUserId: guard.userId, presets })
   } catch (error) {
     return toErrorResponse(error, '관리자 목록을 불러오지 못했습니다.')
   }
@@ -62,6 +64,13 @@ export async function POST(request: NextRequest) {
     const account = await createAdminAccount({
       loginId: parsed.data.login_id,
       password: parsed.data.password,
+    })
+    await recordAdminAudit({
+      actorId: guard.userId,
+      action: 'admin_account_create',
+      targetType: 'admin_account',
+      targetId: account.userId,
+      details: { login_id: account.loginId, role: account.role },
     })
     return NextResponse.json({ success: true, data: account })
   } catch (error) {

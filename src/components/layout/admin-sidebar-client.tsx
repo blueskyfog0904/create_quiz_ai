@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Check, ChevronLeft, LogOut, Menu, Pencil, X } from 'lucide-react'
+import { Check, ChevronLeft, KeyRound, LogOut, Menu, Pencil, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { renameAdminSidebarMenuAction } from '@/app/(admin)/admin/menu-management/actions'
@@ -303,6 +303,18 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs }: AdminSide
           })}
 
           <div className="mt-2 border-t border-slate-700 pt-2">
+            <Link
+              href="/admin/my-password"
+              onClick={() => setMobileOpen(false)}
+              className={cn(
+                'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-white',
+                pathname === '/admin/my-password' && 'bg-slate-800 text-white',
+                collapsed && 'md:justify-center md:px-2'
+              )}
+            >
+              <KeyRound className="h-5 w-5 flex-shrink-0" />
+              <span className={cn(collapsed && 'md:hidden')}>내 비밀번호 변경</span>
+            </Link>
             <button
               type="button"
               onClick={() => void handleLogout()}

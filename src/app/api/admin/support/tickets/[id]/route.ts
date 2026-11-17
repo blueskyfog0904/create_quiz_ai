@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
+import { recordAdminAudit } from '@/lib/admin-audit-log-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,6 +57,16 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if (!ticket) {
     return NextResponse.json({ error: '문의를 찾을 수 없거나 회원이 삭제한 문의입니다.' }, { status: 404 })
   }
+
+  // 답변이 저장된 뒤 작업 기록을 남긴다(실패해도 응답은 그대로).
+  await recordAdminAudit({
+    actorId: admin.user.id,
+    action: 'support_ticket_reply',
+    targetType: 'support_ticket',
+    targetId: id,
+    targetUserId: ticket.user_id,
+    details: { status: ticket.status },
+  })
 
   const { error: notificationError } = await admin.supabase.from('notifications').insert({
     user_id: ticket.user_id,

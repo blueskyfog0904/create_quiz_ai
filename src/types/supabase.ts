@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_audit_log: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string
+          amount: number | null
+          created_at: string
+          details: Json
+          id: string
+          reason: string | null
+          request_id: string | null
+          target_id: string | null
+          target_type: string | null
+          target_user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id: string
+          amount?: number | null
+          created_at?: string
+          details?: Json
+          id?: string
+          reason?: string | null
+          request_id?: string | null
+          target_id?: string | null
+          target_type?: string | null
+          target_user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string
+          amount?: number | null
+          created_at?: string
+          details?: Json
+          id?: string
+          reason?: string | null
+          request_id?: string | null
+          target_id?: string | null
+          target_type?: string | null
+          target_user_id?: string | null
+        }
+        Relationships: []
+      }
       admin_event_deliveries: {
         Row: {
           attempt_count: number
@@ -4764,6 +4809,23 @@ export type Database = {
       }
     }
     Views: {
+      admin_audit_timeline: {
+        Row: {
+          action: string | null
+          actor_email: string | null
+          actor_id: string | null
+          amount: number | null
+          created_at: string | null
+          details: Json | null
+          id: string | null
+          reason: string | null
+          source: string | null
+          target_id: string | null
+          target_type: string | null
+          target_user_id: string | null
+        }
+        Relationships: []
+      }
       workspace_subject_backfill_audit: {
         Row: {
           non_english_count: number | null
@@ -5331,6 +5393,20 @@ export type Database = {
         Args: { p_payment_order_id: string }
         Returns: Json
       }
+      record_admin_audit: {
+        Args: {
+          p_action: string
+          p_actor_id: string
+          p_amount: number
+          p_details: Json
+          p_reason: string
+          p_request_id: string
+          p_target_id: string
+          p_target_type: string
+          p_target_user_id: string
+        }
+        Returns: string
+      }
       record_kakaopay_approval: {
         Args: {
           p_approved_at: string
@@ -5390,6 +5466,10 @@ export type Database = {
         Args: { p_ids: string[]; p_user_id: string }
         Returns: Json
       }
+      replace_admin_permission_grants: {
+        Args: { p_actor_id: string; p_grants: Json; p_user_id: string }
+        Returns: Json
+      }
       replace_generate_listboard_post_items: {
         Args: {
           p_admin_user_id: string
@@ -5444,6 +5524,10 @@ export type Database = {
       }
       retry_payapp_fulfillment: {
         Args: { p_payment_order_id: string }
+        Returns: Json
+      }
+      revoke_admin_account: {
+        Args: { p_actor_id: string; p_user_id: string }
         Returns: Json
       }
       set_market_cart_selection: {

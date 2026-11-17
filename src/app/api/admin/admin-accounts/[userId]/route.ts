@@ -6,6 +6,7 @@ import {
   updateAdminAccount,
 } from '@/lib/admin-accounts-server'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
+import { recordAdminAudit } from '@/lib/admin-audit-log-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,9 +48,16 @@ export async function PATCH(
   }
 
   try {
-    await updateAdminAccount({
+    const target = await updateAdminAccount({
       userId,
       password: parsed.data.password,
+    })
+    await recordAdminAudit({
+      actorId: guard.userId,
+      action: 'admin_account_password_reset',
+      targetType: 'admin_account',
+      targetId: userId,
+      details: { login_id: target.loginId },
     })
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -67,7 +75,14 @@ export async function DELETE(
   const { userId } = await params
 
   try {
-    await deleteAdminAccount({ userId, actorId: guard.userId })
+    const target = await deleteAdminAccount({ userId, actorId: guard.userId })
+    await recordAdminAudit({
+      actorId: guard.userId,
+      action: 'admin_account_delete',
+      targetType: 'admin_account',
+      targetId: userId,
+      details: { login_id: target.loginId, role: target.role },
+    })
     return NextResponse.json({ success: true })
   } catch (error) {
     return toErrorResponse(error, '관리자 계정을 삭제하지 못했습니다.')
