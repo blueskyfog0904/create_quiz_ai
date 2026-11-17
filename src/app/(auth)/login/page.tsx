@@ -46,6 +46,7 @@ function LoginContent() {
   const errorCode = searchParams.get('error')
   const errorDescription = searchParams.get('error_description')
   const errorMessage = getKakaoErrorMessage(errorCode, errorDescription)
+  const isPasswordResetDone = searchParams.get('reset') === 'done'
   const nextQuery = next === '/' ? '' : `?${new URLSearchParams({ next }).toString()}`
   const callbackPath = new URLSearchParams({ next }).toString()
 
@@ -112,6 +113,11 @@ function LoginContent() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6">
+          {isPasswordResetDone && (
+            <div role="status" className="rounded-md bg-green-50 text-sm text-green-700 px-3 py-2 border border-green-200">
+              비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.
+            </div>
+          )}
           {errorMessage && (
             <div className="rounded-md bg-red-50 text-sm text-red-600 px-3 py-2 border border-red-200">
               {errorMessage}
@@ -149,6 +155,9 @@ function LoginContent() {
               <div className="grid gap-2">
                 <Label htmlFor="password">비밀번호</Label>
                 <Input id="password" name="password" type="password" required className="h-11" />
+                <Link href="/forgot-password" className="justify-self-end text-sm text-gray-500 underline underline-offset-4 hover:text-primary">
+                  비밀번호를 잊으셨나요?
+                </Link>
               </div>
               <Button className="w-full h-11 mt-2 text-md font-medium" type="submit" disabled={isLoading}>
                 {isLoading ? '로그인 중...' : '로그인'}

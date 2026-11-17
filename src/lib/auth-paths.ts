@@ -24,6 +24,11 @@ export function normalizeAuthNextPath(path: string | null | undefined) {
       return getWorkspaceHomePath(pathname)
     }
 
+    // 비밀번호 재설정 화면도 로그인 뒤 돌아갈 곳이 아니다.
+    if (pathname === '/forgot-password' || pathname === '/reset-password') {
+      return '/'
+    }
+
     return `${pathname}${url.search}${url.hash}`
   } catch {
     return '/'
