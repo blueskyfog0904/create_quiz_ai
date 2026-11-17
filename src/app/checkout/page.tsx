@@ -12,6 +12,7 @@ import { assertKakaoPayReady } from '@/lib/kakaopay-server'
 import { assertPayAppReady } from '@/lib/payapp-server'
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
 import { createClient } from '@/lib/supabase/server'
+import { getSolvookFooterData } from '@/lib/solvook-footer-data'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
 import { CheckoutClient, type CheckoutPaymentMethod } from './checkout-client'
 
@@ -117,9 +118,14 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
       provider: method.provider === 'kakaopay' ? 'kakaopay' : 'payapp',
     }))
 
+  // 결제 문의 연락처는 관리자 'Footer 설정'의 상담/주문 이메일·고객센터 값을 쓴다(코드에 적지 않는다).
+  const { cs } = await getSolvookFooterData()
+  const supportContact = [cs.email, cs.phone].filter(Boolean).join(' · ')
+
   return (
     <CheckoutClient
       plan={plan}
+      supportContact={supportContact}
       user={{
         id: user.id,
         // 회원 이름은 저장하지 않는다. 결제창 구매자명은 회원 표시 이름을 쓴다.

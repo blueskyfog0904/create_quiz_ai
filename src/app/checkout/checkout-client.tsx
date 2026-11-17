@@ -47,6 +47,8 @@ interface CheckoutClientProps {
   plan: PricingPlan
   user: User
   paymentMethods: CheckoutPaymentMethod[]
+  // 결제 문의 연락처(관리자 Footer 설정 값). 비어 있으면 그 줄을 그리지 않는다.
+  supportContact: string
 }
 
 interface PaymentResponse {
@@ -224,6 +226,7 @@ export function CheckoutClient({
   plan,
   user,
   paymentMethods,
+  supportContact,
 }: CheckoutClientProps) {
   const profilePhone = toPhoneDigits(user.phone)
   const [selectedCode, setSelectedCode] = useState<string | null>(null)
@@ -625,7 +628,7 @@ export function CheckoutClient({
         )}
 
         <div className="mt-12 text-center text-sm leading-6 text-[var(--ck-muted)]">
-          <p>결제 문의: support@createquizai.com</p>
+          {supportContact ? <p>결제 문의: {supportContact}</p> : null}
           <p>
             결제 후 충전된 크레딧은 문제마켓 자료 구매에 사용할 수 있습니다.
           </p>

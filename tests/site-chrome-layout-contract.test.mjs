@@ -62,3 +62,13 @@ test('충전·결제 화면은 마켓 layout을 그대로 쓴다', () => {
     /if \(body\.status === 'completed'\) \{\s*fetch\('\/api\/credits\/balance', \{ cache: 'no-store' \}\)[\s\S]*?new CustomEvent\('credit-balance-updated', \{ detail: \{ balance: data\.balance \} \}\)[\s\S]*?\.catch\(\(\) => undefined\)/
   )
 })
+
+test('결제 문의 연락처는 코드에 적지 않고 Footer 설정 값을 쓴다', () => {
+  const page = read('src/app/checkout/page.tsx')
+  const client = read('src/app/checkout/checkout-client.tsx')
+  assert.match(page, /getSolvookFooterData\(\)/)
+  assert.match(page, /supportContact=\{supportContact\}/)
+  assert.match(client, /\{supportContact \? <p>결제 문의: \{supportContact\}<\/p> : null\}/)
+  assert.doesNotMatch(client, /@[a-z0-9-]+\.(com|kr|net)/i)
+})
+
