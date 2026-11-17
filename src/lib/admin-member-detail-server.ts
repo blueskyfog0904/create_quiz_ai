@@ -170,3 +170,29 @@ export async function getAdminMemberDetail(access: AdminAccess, userId: string) 
 
   return { profile, credits, creditTransactions, paymentOrders, marketOrders, paymentRefunds, marketRefunds, supportTickets }
 }
+
+async function countRows(query: PromiseLike<{ count: number | null; error: { message: string } | null }>) {
+  const { count, error } = await query
+  if (error) throw new Error(error.message)
+  return count ?? 0
+}
+
+// 문의 상세 창의 회원 요약: 건수만 센다. 회원 상세와 같이 권한이 없는 항목은 세지 않는다(null).
+export async function getAdminMemberSummary(access: AdminAccess, userId: string, currentTicketId: string) {
+  const head = { count: 'exact', head: true } as const
+  const [paymentOrders, marketOrders, otherTickets] = await Promise.all([
+    readSection(access, 'orders.view', '충전 결제 건수', () => countRows(
+      createPaymentAdminClient().from('payment_orders').select('id', head).eq('user_id', userId)
+    )),
+    readSection(access, 'orders.view', '마켓 구매 건수', () => countRows(
+      createAdminClient().from('market_purchase_orders').select('id', head).eq('user_id', userId)
+    )),
+    // 지금 보고 있는 문의는 빼고 센다. 회원이 삭제한 문의도 포함한다.
+    readSection(access, 'support.manage', '다른 문의 건수', () => countRows(
+      createAdminClient().from('support_tickets').select('id', head).eq('user_id', userId).neq('id', currentTicketId)
+    )),
+  ])
+  return { paymentOrders, marketOrders, otherTickets }
+}
+
+export type AdminMemberSummary = Awaited<ReturnType<typeof getAdminMemberSummary>>

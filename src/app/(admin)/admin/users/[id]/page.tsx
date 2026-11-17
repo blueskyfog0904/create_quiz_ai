@@ -370,7 +370,7 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
               {tickets.map((ticket) => (
                 <li key={ticket.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                   <div className="min-w-0">
-                    <p className="break-all font-medium">{ticket.subject}</p>
+                    <Link href={`/admin/support?ticket=${ticket.id}`} className={`break-all font-medium ${LINK_CLASS}`}>{ticket.subject}</Link>
                     <p className="mt-0.5 text-xs text-gray-500">
                       접수 {formatDateTime(ticket.created_at)}{ticket.responded_at && ` · 답변 ${formatDateTime(ticket.responded_at)}`}
                     </p>

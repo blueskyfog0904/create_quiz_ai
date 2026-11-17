@@ -163,7 +163,9 @@ function loadTicketRoute(notificationError) {
       return {
         update: () => ({
           eq: () => ({
-            select: () => ({ single: async () => ({ data: { id: 'ticket-1', user_id: 'member-1', subject: '문의' }, error: null }) }),
+            eq: () => ({
+              select: () => ({ maybeSingle: async () => ({ data: { id: 'ticket-1', user_id: 'member-1', subject: '문의' }, error: null }) }),
+            }),
           }),
         }),
       }

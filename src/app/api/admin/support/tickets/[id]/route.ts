@@ -55,11 +55,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
+    // 회원이 삭제한 문의는 읽기 전용이다. 답변을 저장하지 않는다.
+    .eq('is_deleted_by_user', false)
     .select()
-    .single()
+    .maybeSingle()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  if (!ticket) {
+    return NextResponse.json({ error: '문의를 찾을 수 없거나 회원이 삭제한 문의입니다.' }, { status: 404 })
   }
 
   const { error: notificationError } = await admin.supabase.from('notifications').insert({

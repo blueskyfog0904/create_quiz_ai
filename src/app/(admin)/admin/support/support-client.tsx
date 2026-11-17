@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -31,6 +31,9 @@ import {
   FolderCog,
 } from 'lucide-react'
 import { Database } from '@/types/supabase'
+import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
+import { DEFAULT_LIST_PAGE_SIZE, updateListQuery } from '@/lib/list-pagination'
+import type { AdminMemberSummary } from '@/lib/admin-member-detail-server'
 
 type SupportCategory = Database['public']['Tables']['support_ticket_categories']['Row']
 type TicketBase = Database['public']['Tables']['support_tickets']['Row']
@@ -62,7 +65,14 @@ type CategoryForm = {
 }
 
 interface SupportClientProps {
-  initialTickets: Ticket[]
+  // 서버가 주소의 필터·page·pageSize로 걸러 준 한 쪽
+  tickets: Ticket[]
+  // 필터와 무관한 전체 건수. 세지 못한 값은 null
+  ticketCounts: { pending: number | null; resolved: number | null; deleted: number | null }
+  pagination: { page: number; pageSize: number; totalCount: number }
+  searchTruncated: boolean
+  // 주소의 ?ticket= 으로 바로 여는 문의(없으면 null)
+  linkedTicket: Ticket | null
   initialCategories: SupportCategory[]
   initialFilters: FilterState
 }
@@ -137,13 +147,16 @@ function buildCategoryPayload(form: CategoryForm) {
   }
 }
 
-export function SupportClient({ initialTickets, initialCategories, initialFilters }: SupportClientProps) {
+const formatCount = (count: number | null) => (count === null ? '-' : count.toLocaleString())
+
+export function SupportClient({ tickets, ticketCounts, pagination, searchTruncated, linkedTicket, initialCategories, initialFilters }: SupportClientProps) {
   const router = useRouter()
   const [activeSection, setActiveSection] = useState<'tickets' | 'categories'>('tickets')
-  const [tickets, setTickets] = useState<Ticket[]>(initialTickets)
   const [categories, setCategories] = useState<SupportCategory[]>(initialCategories)
-  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
-  const [response, setResponse] = useState('')
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(linkedTicket)
+  const [response, setResponse] = useState(linkedTicket?.admin_response || '')
+  // 상세 창을 연 문의의 회원 요약. 마지막으로 응답을 받은 문의 id와 함께 둔다(다르면 아직 불러오는 중).
+  const [memberSummary, setMemberSummary] = useState<{ ticketId: string; data: AdminMemberSummary | null; failed: boolean } | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [statusFilter, setStatusFilter] = useState(initialFilters.status)
   const [categoryFilter, setCategoryFilter] = useState(initialFilters.categoryId)
@@ -154,13 +167,37 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
   const [categoryForm, setCategoryForm] = useState<CategoryForm>(emptyCategoryForm)
   const [categorySubmitting, setCategorySubmitting] = useState(false)
 
-  const pendingCount = tickets.filter((ticket) => ticket.status === 'pending' && !ticket.is_deleted_by_user).length
-  const resolvedCount = tickets.filter((ticket) => ticket.status === 'resolved' && !ticket.is_deleted_by_user).length
-  const deletedCount = tickets.filter((ticket) => ticket.is_deleted_by_user).length
   const activeCategoryCount = useMemo(
     () => categories.filter((category) => category.is_active && !category.deleted_at).length,
     [categories]
   )
+
+  const selectedTicketId = selectedTicket?.id ?? null
+  useEffect(() => {
+    if (!selectedTicketId) return
+    let ignore = false
+    fetch(`/api/admin/support/tickets/${selectedTicketId}/member-summary`)
+      .then(async (res) => {
+        const result = await res.json().catch(() => null)
+        // 문의 권한이 없는 계정에는 요약을 보여 주지 않는다(오류가 아니다).
+        if (res.status === 403) return { data: null, failed: false }
+        if (!res.ok || !result?.success) throw new Error('member summary failed')
+        return { data: result.data as AdminMemberSummary, failed: false }
+      })
+      .catch(() => ({ data: null, failed: true }))
+      .then((loaded) => {
+        if (!ignore) setMemberSummary({ ticketId: selectedTicketId, ...loaded })
+      })
+    return () => {
+      ignore = true
+    }
+  }, [selectedTicketId])
+
+  // 서버가 목록을 다시 읽도록 주소를 바꾼다. 바로 여는 문의(ticket)는 쪽을 옮길 때 뗀다.
+  const changeListQuery = (changes: Record<string, string | number | null>) => {
+    const query = updateListQuery(window.location.search, { ...changes, ticket: null })
+    router.push(`/admin/support${query ? `?${query}` : ''}`)
+  }
 
   const openTicket = (ticket: Ticket) => {
     setSelectedTicket(ticket)
@@ -174,6 +211,7 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
     if (categoryFilter !== 'all') params.set('categoryId', categoryFilter)
     if (queryText.trim()) params.set('q', queryText.trim())
     if (includeDeleted) params.set('includeDeleted', 'true')
+    if (pagination.pageSize !== DEFAULT_LIST_PAGE_SIZE) params.set('pageSize', String(pagination.pageSize))
 
     router.push(`/admin/support${params.toString() ? `?${params.toString()}` : ''}`)
   }
@@ -189,7 +227,7 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
   const alerts = useAdminAlerts()
 
   const handleRespond = async () => {
-    if (!selectedTicket || !response.trim()) return
+    if (!selectedTicket || selectedTicket.is_deleted_by_user || !response.trim()) return
 
     try {
       setSubmitting(true)
@@ -210,11 +248,6 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
 
       const result = await res.json().catch(() => ({}))
 
-      setTickets(tickets.map((ticket) =>
-        ticket.id === selectedTicket.id
-          ? { ...ticket, admin_response: response, status: 'resolved', responded_at: new Date().toISOString() }
-          : ticket
-      ))
       setSelectedTicket(null)
       setResponse('')
       if (result.notificationFailed) {
@@ -224,6 +257,8 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
       }
       // 답변 대기 건수가 줄었으니 종·메뉴 배지를 바로 맞춘다.
       alerts?.refresh()
+      // 목록과 건수 카드는 서버가 센 값이라 다시 읽는다.
+      router.refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '답변 등록에 실패했습니다.')
     } finally {
@@ -318,7 +353,7 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
               </div>
               <div>
                 <p className="text-sm text-gray-500">대기 중</p>
-                <p className="text-2xl font-bold text-yellow-600">{pendingCount}</p>
+                <p className="text-2xl font-bold text-yellow-600">{formatCount(ticketCounts.pending)}</p>
               </div>
             </div>
           </CardContent>
@@ -331,7 +366,7 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
               </div>
               <div>
                 <p className="text-sm text-gray-500">해결됨</p>
-                <p className="text-2xl font-bold text-green-600">{resolvedCount}</p>
+                <p className="text-2xl font-bold text-green-600">{formatCount(ticketCounts.resolved)}</p>
               </div>
             </div>
           </CardContent>
@@ -344,7 +379,7 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
               </div>
               <div>
                 <p className="text-sm text-gray-500">고객 삭제</p>
-                <p className="text-2xl font-bold text-red-600">{deletedCount}</p>
+                <p className="text-2xl font-bold text-red-600">{formatCount(ticketCounts.deleted)}</p>
               </div>
             </div>
           </CardContent>
@@ -425,7 +460,7 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
                   <Input
                     value={queryText}
                     onChange={(e) => setQueryText(e.target.value)}
-                    placeholder="제목/내용 검색"
+                    placeholder="제목/내용/회원 이메일 검색"
                   />
                 </div>
                 <div className="flex flex-wrap items-end gap-2">
@@ -443,6 +478,12 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
               </div>
             </CardContent>
           </Card>
+
+          {searchTruncated && (
+            <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              검색어에 맞는 회원이 많아 일부 회원의 문의만 보입니다. 이메일을 더 길게 입력해 주세요.
+            </div>
+          )}
 
           <Card className="border-0 shadow-sm">
             <CardHeader>
@@ -466,10 +507,10 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
                         key={ticket.id}
                         className={`p-4 transition-colors ${
                           isDeleted
-                            ? 'opacity-60 bg-gray-50 cursor-not-allowed'
+                            ? 'opacity-60 bg-gray-50 cursor-pointer'
                             : 'hover:bg-gray-50 cursor-pointer'
                         }`}
-                        onClick={() => !isDeleted && openTicket(ticket)}
+                        onClick={() => openTicket(ticket)}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1 break-words">
@@ -510,6 +551,14 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
               )}
             </CardContent>
           </Card>
+
+          <StudioListPagination
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            totalCount={pagination.totalCount}
+            onPageChange={(page) => changeListQuery({ page })}
+            onPageSizeChange={(pageSize) => changeListQuery({ pageSize, page: 1 })}
+          />
         </div>
       )}
 
@@ -582,8 +631,14 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
               <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100">
                 {selectedTicket ? getTicketCategoryName(selectedTicket) : '미분류'}
               </Badge>
-              {selectedTicket && getStatusBadge(selectedTicket.status)}
+              {selectedTicket && getStatusBadge(selectedTicket.is_deleted_by_user ? 'deleted' : selectedTicket.status)}
             </div>
+            {selectedTicket?.is_deleted_by_user && (
+              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                회원이 삭제한 문의입니다. 내용만 볼 수 있고 답변은 등록할 수 없습니다.
+              </p>
+            )}
+            {selectedTicket && <MemberSummary ticket={selectedTicket} summary={memberSummary?.ticketId === selectedTicket.id ? memberSummary : null} />}
             <div className="p-4 bg-gray-50 rounded-lg">
               <p className="text-sm font-medium text-gray-700 mb-2">문의 내용</p>
               <p className="text-gray-600 whitespace-pre-wrap">{selectedTicket?.message}</p>
@@ -596,7 +651,7 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
               </div>
             )}
 
-            {selectedTicket?.status === 'pending' && (
+            {selectedTicket?.status === 'pending' && !selectedTicket.is_deleted_by_user && (
               <div>
                 <p className="text-sm font-medium text-gray-700 mb-2">답변 작성</p>
                 <Textarea
@@ -613,7 +668,7 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
             <Button variant="outline" onClick={() => setSelectedTicket(null)}>
               닫기
             </Button>
-            {selectedTicket?.status === 'pending' && (
+            {selectedTicket?.status === 'pending' && !selectedTicket.is_deleted_by_user && (
               <Button onClick={handleRespond} disabled={submitting || !response.trim()}>
                 <Send className="h-4 w-4 mr-2" />
                 {submitting ? '전송 중...' : '답변 등록'}
@@ -715,6 +770,45 @@ export function SupportClient({ initialTickets, initialCategories, initialFilter
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+// 상세 창의 회원 요약. 권한이 없어 서버가 세지 않은 항목(null)은 그리지 않는다.
+function MemberSummary({ ticket, summary }: {
+  ticket: Ticket
+  summary: { data: AdminMemberSummary | null; failed: boolean } | null
+}) {
+  if (!summary) return <p className="text-sm text-gray-500">회원 요약을 불러오는 중…</p>
+  if (summary.failed) return <p role="alert" className="text-sm text-red-700">회원 요약을 불러오지 못했습니다.</p>
+  if (!summary.data) return null
+
+  // 각 화면을 이 회원의 이메일로 검색한 상태로 연다(부분 일치라 비슷한 이메일의 다른 회원이 섞일 수 있다. 이메일이 없으면 링크를 두지 않는다).
+  const emailQuery = ticket.profiles?.email ? encodeURIComponent(ticket.profiles.email) : null
+  const items = [
+    { label: '충전 결제', section: summary.data.paymentOrders, href: emailQuery && `/admin/orders?tab=payments&q=${emailQuery}` },
+    { label: '마켓 구매', section: summary.data.marketOrders, href: emailQuery && `/admin/orders?tab=market&q=${emailQuery}` },
+    { label: '다른 문의', section: summary.data.otherTickets, href: emailQuery && `/admin/support?q=${emailQuery}&includeDeleted=true` },
+  ].filter((item) => item.section)
+  if (items.length === 0) return null
+
+  return (
+    <div className="rounded-lg border p-3 text-sm">
+      <p className="mb-1 font-medium text-gray-700">회원 요약</p>
+      <ul className="flex flex-wrap gap-x-4 gap-y-1">
+        {items.map(({ label, section, href }) => (
+          <li key={label}>
+            <span className="text-gray-500">{label} </span>
+            {!section || section.failed ? (
+              <span className="text-red-700">확인 불가</span>
+            ) : href ? (
+              <Link href={href} className="text-blue-700 hover:underline">{section.data.toLocaleString()}건</Link>
+            ) : (
+              <span>{section.data.toLocaleString()}건</span>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

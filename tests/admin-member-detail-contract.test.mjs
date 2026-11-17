@@ -215,8 +215,9 @@ test('회원 삭제 문의도 읽고(삭제 표시), 상태 이름표는 주문 
   assert.equal(detail.supportTickets.data.tickets[0].is_deleted_by_user, true)
   assert.equal(queries.find((query) => query.table === 'support_tickets').ops.some(([name, column]) => name === 'eq' && column === 'is_deleted_by_user'), false)
   assert.match(page, /ticket\.is_deleted_by_user && <Badge[^>]*>회원이 삭제함<\/Badge>/)
-  // 문의별 제목 검색 링크는 두지 않는다(쉼표·괄호·같은 제목에서 깨진다). 구역 머리의 문의 관리 링크만 있다.
-  assert.doesNotMatch(page, /\/admin\/support\?|ticket\.subject\)/)
+  // 문의별 링크는 제목 검색이 아니라(쉼표·괄호·같은 제목에서 깨진다) 문의 id로 그 문의를 바로 연다.
+  assert.doesNotMatch(page, /\/admin\/support\?q=|ticket\.subject\)/)
+  assert.ok(page.includes('<Link href={`/admin/support?ticket=${ticket.id}`}'))
   assert.match(page, /link=\{\{ href: '\/admin\/support', label: '문의 관리' \}\}/)
 
   for (const name of ['PAYMENT_ORDER_STATUS_LABELS', 'MARKET_ORDER_STATUS_LABELS', 'REFUND_REQUEST_STATUS_LABELS', 'MARKET_REFUND_REQUEST_STATUS_LABELS', 'CREDIT_SOURCE_STATUS_LABELS', 'MARKET_DOWNLOAD_BLOCK_REASON_LABELS']) {
