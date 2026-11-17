@@ -1,6 +1,7 @@
 import { revalidatePath } from 'next/cache'
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { adminApiGuardMessage, requireAdminApiPermission } from '@/lib/admin-permissions-server'
+import type { AdminPermissionRequirement } from '@/lib/admin-permissions'
 import {
   MARKET_HOME_SETTING_KEY,
   validateMarketHomeConfig,
@@ -19,24 +20,19 @@ function errorResponse(code: string, message: string, status: number) {
   }, { status })
 }
 
-async function requireAdminUser() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { user: null, isAdmin: false }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  return { user, isAdmin: Boolean(profile?.is_admin) }
+// 홈 화면 광고·진열 권한(storefront.edit)을 공용 가드로 확인한다. 오류 응답은 이 route의 기존 형식을 따른다.
+async function requireAdminUser(permission: AdminPermissionRequirement = 'storefront.edit') {
+  const guard = await requireAdminApiPermission(permission)
+  if ('error' in guard) {
+    const code = guard.status === 401 ? 'UNAUTHORIZED' : guard.status === 403 ? 'FORBIDDEN' : 'INTERNAL_SERVER_ERROR'
+    return { user: null, denied: NextResponse.json({ success: false, error: { code, message: adminApiGuardMessage(guard) } }, { status: guard.status }) } as const
+  }
+  return { user: { id: guard.access.userId }, denied: null } as const
 }
 
 export async function POST(request: Request) {
-  const { user, isAdmin } = await requireAdminUser()
-  if (!user) return errorResponse('UNAUTHORIZED', '로그인이 필요합니다.', 401)
-  if (!isAdmin) return errorResponse('FORBIDDEN', '관리자 권한이 필요합니다.', 403)
+  const { user, denied } = await requireAdminUser()
+  if (denied) return denied
 
   const subject = new URL(request.url).searchParams.get('subject')
   if (!isWorkspaceSubject(subject)) {

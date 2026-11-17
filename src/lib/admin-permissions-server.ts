@@ -3,9 +3,9 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import {
   buildAdminAccess,
-  hasAdminPermission,
+  meetsAdminRequirement,
   type AdminAccess,
-  type AdminPermissionRequirement,
+  type AdminGuardRequirement,
 } from '@/lib/admin-permissions'
 
 // 로그인한 사용자의 관리자 역할·권한·한도를 요청당 한 번 읽는다(계획 4-1절).
@@ -37,28 +37,38 @@ export async function getAdminAccess(): Promise<AdminAccess | null> {
 }
 
 // 페이지용. 조회 오류는 그대로 던져 오류 화면이 뜨게 한다.
-export async function requireAdminPagePermission(requirement: AdminPermissionRequirement): Promise<AdminAccess> {
+export async function requireAdminPagePermission(requirement: AdminGuardRequirement): Promise<AdminAccess> {
   const { userId, access } = await readAdminSession()
   if (!userId) redirect('/admin/login')
   if (!access) redirect('/admin/login?error=forbidden')
-  if (!hasAdminPermission(access, requirement)) redirect('/admin/forbidden')
+  if (!meetsAdminRequirement(access, requirement)) redirect('/admin/forbidden')
   return access
 }
 
+const NOT_ADMIN_ERROR = 'Forbidden: Admin only'
+
+// 원래 한글 문구로 답하던 route용. 비로그인·비관리자는 예전 문구 그대로, 그 밖(권한 없음·조회 실패)은 가드 문구를 쓴다.
+export function adminApiGuardMessage(guard: { error: string; status: number }): string {
+  if (guard.status === 401) return '로그인이 필요합니다.'
+  return guard.error === NOT_ADMIN_ERROR ? '관리자 권한이 필요합니다.' : guard.error
+}
+
+export type AdminApiGuardResult = { error: string; status: 401 | 403 | 500 } | { access: AdminAccess }
+
 // route용. 'error' in 결과이면 NextResponse.json({ error }, { status })로 돌려준다.
-export async function requireAdminApiPermission(requirement: AdminPermissionRequirement) {
+export async function requireAdminApiPermission(requirement: AdminGuardRequirement): Promise<AdminApiGuardResult> {
   let session: Awaited<ReturnType<typeof readAdminSession>>
   try {
     session = await readAdminSession()
   } catch {
-    return { error: '권한을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.', status: 500 } as const
+    return { error: '권한을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.', status: 500 }
   }
-  if (!session.userId) return { error: 'Unauthorized', status: 401 } as const
-  if (!session.access) return { error: 'Forbidden: Admin only', status: 403 } as const
-  if (!hasAdminPermission(session.access, requirement)) {
-    return { error: '이 작업을 할 권한이 없습니다.', status: 403 } as const
+  if (!session.userId) return { error: 'Unauthorized', status: 401 }
+  if (!session.access) return { error: NOT_ADMIN_ERROR, status: 403 }
+  if (!meetsAdminRequirement(session.access, requirement)) {
+    return { error: '이 작업을 할 권한이 없습니다.', status: 403 }
   }
-  return { access: session.access } as const
+  return { access: session.access }
 }
 
 // 서버 액션용 예외. 액션은 이것을 잡아 { success: false, error: error.message }로 돌려준다.
@@ -73,7 +83,7 @@ export class AdminPermissionError extends Error {
 }
 
 // 서버 액션용. redirect하지 않고 AdminPermissionError를 던진다.
-export async function assertAdminActionPermission(requirement: AdminPermissionRequirement): Promise<AdminAccess> {
+export async function assertAdminActionPermission(requirement: AdminGuardRequirement): Promise<AdminAccess> {
   let session: Awaited<ReturnType<typeof readAdminSession>>
   try {
     session = await readAdminSession()
@@ -81,7 +91,7 @@ export async function assertAdminActionPermission(requirement: AdminPermissionRe
     throw new AdminPermissionError('unavailable', '권한을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.')
   }
   if (!session.userId) throw new AdminPermissionError('unauthenticated', '로그인이 필요합니다.')
-  if (!session.access || !hasAdminPermission(session.access, requirement)) {
+  if (!session.access || !meetsAdminRequirement(session.access, requirement)) {
     throw new AdminPermissionError('forbidden', '이 작업을 할 권한이 없습니다.')
   }
   return session.access

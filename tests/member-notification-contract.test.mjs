@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import test from 'node:test'
 import ts from 'typescript'
+import { adminGuardMocks } from './helpers/market-images-harness.mjs'
 
 // 계획 W3-8b(마켓 환불 처리 알림), U1-5(사용자 알림 보강)
 const require = createRequire(import.meta.url)
@@ -37,6 +38,7 @@ function loadMarketRefundRoute({ approve, reject, insert }) {
   const order = []
   const route = loadModule('../src/app/api/admin/market/refunds/[id]/route.ts', {
     'next/server': json,
+    ...adminGuardMocks({ userId: 'admin-1' }),
     '@/lib/supabase/server': adminSession(() => adminProfile),
     '@/lib/supabase/bypass': {
       createAdminClient: () => ({
@@ -157,6 +159,7 @@ test('the admin credit grant notification links to the credits page', () => {
 function loadTicketRoute(notificationError) {
   const route = loadModule('../src/app/api/admin/support/tickets/[id]/route.ts', {
     'next/server': json,
+    ...adminGuardMocks({ userId: 'admin-1' }),
     '@/lib/supabase/server': adminSession((table) => {
       if (table === 'profiles') return adminProfile
       if (table === 'notifications') return { insert: async () => ({ error: notificationError }) }

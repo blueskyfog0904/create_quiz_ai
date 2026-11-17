@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import test from 'node:test'
 import ts from 'typescript'
+import { adminGuardMocks } from './helpers/market-images-harness.mjs'
 import sharp from 'sharp'
 
 const require = createRequire(import.meta.url)
@@ -94,6 +95,7 @@ function routeHarness({ loggedIn = true, isAdmin = true, uploadFails = false, sa
       auth: { getUser: async () => ({ data: { user: loggedIn ? { id: 'test-admin' } : null } }) },
       from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { is_admin: isAdmin } }) }) }) }),
     }) },
+    ...adminGuardMocks({ loggedIn, isAdmin, userId: 'test-admin' }),
     '@/lib/supabase/bypass': { createAdminClient: () => ({
       storage: { from: () => storage },
       from: () => ({ upsert: async (value) => {

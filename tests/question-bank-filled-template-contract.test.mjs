@@ -8,8 +8,8 @@ const templateRoute = () => readFileSync(new URL('../src/app/api/admin/questions
 test('filled template route is admin-only parse-only and delegates workbook construction', () => {
   const source = route()
 
-  assert.match(source, /auth\.getUser\(\)/)
-  assert.match(source, /select\('is_admin'\)/)
+  assert.match(source, /await requireAdminApiPermission\('owner'\)/)
+  assert.match(source, /const admin = await requireAdminUser\(\)/)
   assert.match(source, /validateFilledTemplateQuestions/)
   assert.match(source, /buildFilledTemplateWorkbook/)
   assert.doesNotMatch(source, /\.rpc\(/)

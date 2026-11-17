@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { Database } from '@/types/supabase'
@@ -10,20 +11,10 @@ const promptModeSchema = z.enum(['default', 'custom', 'disabled']).default('cust
 export async function GET(request: Request) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single()
-    
-    if (!profile?.is_admin) {
-      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
+    // 꺼 둔 기능의 API다. 미들웨어가 먼저 404로 막고(계획 4-2절), 다시 켜더라도 대표 관리자만 쓴다.
+    const guard = await requireAdminApiPermission('owner')
+    if ('error' in guard) {
+      return NextResponse.json({ error: guard.error }, { status: guard.status })
     }
     
     const workspaceSubject = resolveAdminWorkspaceSubject(new URL(request.url).searchParams.get('subject'))
@@ -118,20 +109,10 @@ export async function POST(request: Request) {
   try {
     // 1. Check authentication and admin status
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single()
-    
-    if (!profile?.is_admin) {
-      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
+    // 꺼 둔 기능의 API다. 미들웨어가 먼저 404로 막고(계획 4-2절), 다시 켜더라도 대표 관리자만 쓴다.
+    const guard = await requireAdminApiPermission('owner')
+    if ('error' in guard) {
+      return NextResponse.json({ error: guard.error }, { status: guard.status })
     }
     
     // 2. Validate request data
@@ -202,20 +183,10 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile?.is_admin) {
-      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
+    // 꺼 둔 기능의 API다. 미들웨어가 먼저 404로 막고(계획 4-2절), 다시 켜더라도 대표 관리자만 쓴다.
+    const guard = await requireAdminApiPermission('owner')
+    if ('error' in guard) {
+      return NextResponse.json({ error: guard.error }, { status: guard.status })
     }
 
     const body = await request.json()

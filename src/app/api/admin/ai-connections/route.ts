@@ -1,28 +1,16 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { listProviderConnectionsForAdmin } from '@/lib/ai/provider-connections'
 
 export const dynamic = 'force-dynamic'
 
+// 꺼 둔 기능의 API다. 미들웨어가 먼저 404로 막고(계획 4-2절), 다시 켜더라도 대표 관리자만 쓴다.
 async function requireAdmin() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  const guard = await requireAdminApiPermission('owner')
+  if ('error' in guard) {
+    return { error: NextResponse.json({ error: guard.error }, { status: guard.status }) }
   }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.is_admin) {
-    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
-  }
-
-  return { user }
+  return { userId: guard.access.userId }
 }
 
 export async function GET() {

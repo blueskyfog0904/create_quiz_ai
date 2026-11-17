@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
-import { createClient } from '@/lib/supabase/server'
+import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,27 +28,11 @@ const reviewErrorMessages: Record<string, string> = {
 
 const TRANSIENT_DATABASE_ERRORS = ['40P01', '40001', '55P03', '57014']
 
+// 충전 환불 실행·결제 수동확인·경보 해소 권한(refunds.payment)을 공용 가드로 확인한다.
 async function requireAdmin() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { error: 'Unauthorized', status: 401 } as const
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.is_admin) {
-    return { error: 'Forbidden', status: 403 } as const
-  }
-
-  return { user } as const
+  const guard = await requireAdminApiPermission('refunds.payment')
+  if ('error' in guard) return { error: guard.error, status: guard.status } as const
+  return { user: { id: guard.access.userId } } as const
 }
 
 // 관리자 결제 확인(계획 6.4). 모든 조치는 감사 기록으로 남고 관련 경보를 해소한다.

@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
+import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
+import { checkAdminLimit } from '@/lib/admin-permissions'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { CreditService } from '@/lib/credits'
@@ -17,26 +19,24 @@ const GrantCreditSchema = z.object({
 export async function POST(request: Request) {
   const supabase = await createClient()
 
-  // 1. Auth Check (Admin Only)
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  // Check admin role via profiles table
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.is_admin) {
-    return NextResponse.json({ error: 'Forbidden: Admin only' }, { status: 403 })
+  // 1. Auth Check (크레딧 수동 지급 권한)
+  const guard = await requireAdminApiPermission('credits.grant')
+  if ('error' in guard) {
+    return NextResponse.json({ error: guard.error }, { status: guard.status })
   }
 
   try {
     const body = await request.json()
     const { userId, amount, description, category, idempotencyKey } = GrantCreditSchema.parse(body)
+
+    // 계정의 1회 지급 한도(대표는 한도 없음). 하루 누적 한도(per_day)는 지급 함수(DB)가 같은 트랜잭션에서
+    // 합산해야 해서 여기서 검사하지 않는다 — 지급 함수 개정(U3-6) 전에는 하루 한도가 적용되지 않는다.
+    if (!checkAdminLimit(guard.access, 'credits.grant', 'per_grant', amount)) {
+      return NextResponse.json({
+        error: '이 계정의 1회 지급 한도를 넘는 금액입니다. 대표 관리자에게 요청해 주세요.',
+        code: 'ADMIN_LIMIT_EXCEEDED'
+      }, { status: 403 })
+    }
 
     // 2. Grant Credits
     const categoryLabel = {

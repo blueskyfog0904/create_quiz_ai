@@ -75,19 +75,54 @@ export function op(ops, name) {
   return ops.find(([opName]) => opName === name)
 }
 
+const DEFAULT_USER_ID = '00000000-0000-4000-8000-000000000001'
+const adminPermissions = load('src/lib/admin-permissions.ts')
+
+// 가짜 세션 클라이언트. 공용 가드가 읽는 profiles(is_admin, admin_role)와 admin_permission_grants에 답한다.
+// 관리자는 따로 정하지 않으면 대표(owner)다. role: 'staff'와 grants([{ permission, limits }])로 직원 계정을 흉내 낸다.
+export function createFakeSessionClient({ loggedIn = true, isAdmin = true, userId = DEFAULT_USER_ID, role = 'owner', grants = [] } = {}) {
+  return {
+    auth: { getUser: async () => ({ data: { user: loggedIn ? { id: userId } : null } }) },
+    from: (table) => {
+      const result = table === 'admin_permission_grants'
+        ? { data: grants, error: null }
+        : { data: { is_admin: isAdmin, admin_role: isAdmin ? role : null }, error: null }
+      const query = {
+        select: () => query,
+        eq: () => query,
+        single: async () => result,
+        maybeSingle: async () => result,
+        then: (resolve, reject) => Promise.resolve(result).then(resolve, reject),
+      }
+      return query
+    },
+  }
+}
+
+// 공용 가드 모듈(admin-permissions-server)을 가짜 세션으로 실제로 돌린다. route·액션을 불러올 때 mocks에 펼쳐 넣는다.
+// client를 주면 그 세션 클라이언트로 판정한다(테스트가 직접 만든 가짜 세션을 그대로 쓸 때).
+export function adminGuardMocks(session = {}, errors = []) {
+  const client = session.client ?? createFakeSessionClient(session)
+  const server = load('src/lib/admin-permissions-server.ts', {
+    react: { cache: (fn) => fn },
+    'next/navigation': { redirect: (path) => { throw new Error(`NEXT_REDIRECT:${path}`) } },
+    '@/lib/supabase/server': { createClient: async () => client },
+    '@/lib/admin-permissions': adminPermissions,
+  }, errors)
+  return { '@/lib/admin-permissions': adminPermissions, '@/lib/admin-permissions-server': server }
+}
+
 // 라우트 파일을 가짜 인증·서비스 롤 클라이언트로 불러온다. mocks는 라우트가 쓰는 다른 모듈을 바꾼다.
-export function loadRoute(path, { loggedIn = true, isAdmin = true, admin, userId = '00000000-0000-4000-8000-000000000001', mocks = {} } = {}) {
+export function loadRoute(path, { loggedIn = true, isAdmin = true, admin, userId = DEFAULT_USER_ID, role, grants, mocks = {} } = {}) {
   const errors = []
   const revalidations = []
-  const authClient = {
-    auth: { getUser: async () => ({ data: { user: loggedIn ? { id: userId } : null } }) },
-    from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { is_admin: isAdmin } }) }) }) }),
-  }
+  const authClient = createFakeSessionClient({ loggedIn, isAdmin, userId, role, grants })
   const common = {
     'server-only': {},
     'next/server': { NextResponse },
     'next/cache': { revalidateTag: (...args) => revalidations.push(args) },
     '@/lib/supabase/server': { createClient: async () => authClient },
+    ...adminGuardMocks({ client: authClient }, errors),
     '@/lib/supabase/bypass': { createAdminClient: () => admin?.client },
     '@/lib/read-all-query-rows': readAllQueryRows,
     '@/lib/market-images': marketImages,

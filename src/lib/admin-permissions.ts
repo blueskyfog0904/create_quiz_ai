@@ -98,6 +98,17 @@ export function hasAdminPermission(access: AdminAccess | null, requirement: Admi
   return [requirement, ...requiredPermissions(requirement)].every((key) => access.grants[key] !== undefined)
 }
 
+// 가드에 넘기는 값. 하나의 요구 조건, "이 중 하나라도"(배열 — 화면이 여러 권한에 걸칠 때), 'admin'(관리자면 누구나 — 대시보드·알림 같은 공통 화면).
+export type AdminGuardRequirement = AdminPermissionRequirement | readonly AdminPermissionRequirement[] | 'admin'
+
+// 가드의 통과 판정. 빈 배열은 아무도 통과시키지 않는다.
+export function meetsAdminRequirement(access: AdminAccess | null, requirement: AdminGuardRequirement): boolean {
+  if (!access) return false
+  if (requirement === 'admin') return true
+  if (Array.isArray(requirement)) return requirement.some((item) => hasAdminPermission(access, item))
+  return hasAdminPermission(access, requirement as AdminPermissionRequirement)
+}
+
 // 한 번에 다루는 양이 그 계정의 한도 안인지. owner는 한도가 없다.
 // staff는 한도 값이 없거나 양수가 아니면 불가이고, 양(amount)도 양수여야 한다. 하루 합계 같은 누적 판정은 DB 함수가 한다.
 export function checkAdminLimit(

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createClient } from '@/lib/supabase/server'
+import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
 import {
   PointChargeRefundProcessingError,
@@ -23,27 +23,11 @@ const processRefundSchema = z.object({
   recoveredCredits: z.number().int().min(0).optional(),
 }).strict()
 
+// 충전 환불 실행·결제 수동확인·경보 해소 권한(refunds.payment)을 공용 가드로 확인한다.
 async function requireAdmin() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { error: 'Unauthorized', status: 401 } as const
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.is_admin) {
-    return { error: 'Forbidden', status: 403 } as const
-  }
-
-  return { user } as const
+  const guard = await requireAdminApiPermission('refunds.payment')
+  if ('error' in guard) return { error: guard.error, status: guard.status } as const
+  return { user: { id: guard.access.userId } } as const
 }
 
 export async function GET(request: Request) {

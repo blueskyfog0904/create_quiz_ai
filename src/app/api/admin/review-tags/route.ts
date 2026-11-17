@@ -2,25 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { createMarketReviewTag, listMarketReviewTagsForAdmin } from '@/lib/market-reviews-server'
-import { createClient } from '@/lib/supabase/server'
+import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 
 export const dynamic = 'force-dynamic'
 
+// 후기 태그는 후기 관리 권한(reviews.manage)으로 다룬다.
 async function requireAdminUser() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: NextResponse.json({ error: 'Authentication required' }, { status: 401 }) }
+  const guard = await requireAdminApiPermission('reviews.manage')
+  if ('error' in guard) {
+    return { error: NextResponse.json({ error: guard.error }, { status: guard.status }) }
   }
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-  if (!profile?.is_admin) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 403 }) }
-  }
-  return { user }
+  return { userId: guard.access.userId }
 }
 
 export async function GET(request: NextRequest) {

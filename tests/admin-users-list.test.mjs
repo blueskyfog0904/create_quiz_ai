@@ -108,7 +108,7 @@ test('회원이 없으면 잔액 조회를 하지 않는다', async () => {
 test('화면: 없는 표·전체 컬럼 조회·화면 안 검색·고정 페이지 버튼이 없고, 서버 결과를 그대로 그린다', () => {
   const page = read('src/app/(admin)/admin/users/page.tsx')
   assert.doesNotMatch(page, /user_credits|select\('\*'|\.limit\(20\)/)
-  assert.match(page, /await requireAdmin\(\)/)
+  assert.match(page, /await requireAdminPagePermission\('members\.view'\)/)
   assert.match(page, /listAdminUsers\(\{ q: params\?\.q, page: params\?\.page, pageSize: params\?\.pageSize \}\)/)
 
   const client = read('src/app/(admin)/admin/users/users-client.tsx')

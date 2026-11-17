@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { load } from './helpers/market-images-harness.mjs'
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 const permissions = load('src/lib/admin-permissions.ts')
 const {
-  ADMIN_PERMISSIONS, ADMIN_PERMISSION_KEYS, buildAdminAccess, hasAdminPermission, checkAdminLimit, validateAdminPermissionGrants,
+  ADMIN_PERMISSIONS, ADMIN_PERMISSION_KEYS, buildAdminAccess, hasAdminPermission, meetsAdminRequirement, checkAdminLimit, validateAdminPermissionGrants,
 } = permissions
 
 const USER_ID = '00000000-0000-4000-8000-000000000001'
@@ -135,6 +134,42 @@ test('권한 판정: 목록에 없는 요구 조건은 owner에게도 통과시�
   for (const bogus of ['bogus', '__proto__', 'constructor', 'toString', 'owner ', '', undefined]) {
     assert.equal(hasAdminPermission(owner, bogus), false, `owner ${String(bogus)}`)
     assert.equal(hasAdminPermission(member, bogus), false, `staff ${String(bogus)}`)
+  }
+})
+
+test('가드 요구 조건: "이 중 하나라도"(배열)와 "관리자면 누구나"(admin)', () => {
+  const legacy = buildAdminAccess(USER_ID, { is_admin: true, admin_role: null }, [])
+  const market = staff(grant('orders.view'), grant('refunds.market', { per_request: 5000 }))
+  const either = ['refunds.payment', 'refunds.market']
+
+  // 둘 중 하나: 하나만 있어도 통과, 둘 다 없으면 불가, 의존이 빠진 권한은 없는 것으로 본다.
+  assert.equal(meetsAdminRequirement(market, either), true)
+  assert.equal(meetsAdminRequirement(staff(grant('orders.view'), grant('refunds.payment')), either), true)
+  assert.equal(meetsAdminRequirement(staff(grant('orders.view')), either), false)
+  assert.equal(meetsAdminRequirement(staff(grant('refunds.market', { per_request: 5000 })), either), false)
+  assert.equal(meetsAdminRequirement(legacy, either), false)
+  assert.equal(meetsAdminRequirement(owner, either), true)
+  // 빈 배열은 대표도 통과시키지 않고, 배열 안의 모르는 값은 통과 조건이 되지 않는다.
+  assert.equal(meetsAdminRequirement(owner, []), false)
+  assert.equal(meetsAdminRequirement(owner, ['bogus']), false)
+  assert.equal(meetsAdminRequirement(market, ['bogus', 'refunds.market']), true)
+  assert.equal(meetsAdminRequirement(market, ['owner']), false)
+
+  // 관리자면 누구나: 권한 0개 staff·admin_role 없는 관리자도 통과, 관리자가 아니면 불가.
+  assert.equal(meetsAdminRequirement(legacy, 'admin'), true)
+  assert.equal(meetsAdminRequirement(staff(), 'admin'), true)
+  assert.equal(meetsAdminRequirement(owner, 'admin'), true)
+  assert.equal(meetsAdminRequirement(null, 'admin'), false)
+  assert.equal(meetsAdminRequirement(null, either), false)
+  // 'admin'은 권한 항목이 아니다: 권한 하나를 묻는 판정에서는 통과하지 않고, 배열 안에서도 통하지 않는다.
+  assert.equal(hasAdminPermission(owner, 'admin'), false)
+  assert.equal(meetsAdminRequirement(owner, ['admin']), false)
+
+  // 하나를 묻는 경우는 hasAdminPermission과 같다.
+  for (const access of [owner, legacy, market, null]) {
+    for (const key of [...ADMIN_PERMISSION_KEYS, 'owner', 'bogus', undefined]) {
+      assert.equal(meetsAdminRequirement(access, key), hasAdminPermission(access, key), String(key))
+    }
   }
 })
 
@@ -267,6 +302,30 @@ test('route 가드: 401 / 403 / 통과', async () => {
   assert.equal((await check({ profile: { is_admin: true, admin_role: 'owner' } }, 'owner')).access.role, 'owner')
 })
 
+test('세 가드 모두 "이 중 하나라도"와 "관리자면 누구나"를 같은 판정으로 받는다', async () => {
+  const either = ['refunds.payment', 'refunds.market']
+  const market = { grants: [grant('orders.view'), grant('refunds.market', { per_request: 5000 })] }
+  const outcome = (promise) => promise.then(
+    (value) => ('error' in value ? value.status : 'pass'),
+    (error) => (error instanceof RedirectSignal ? error.message : error.reason)
+  )
+  const run = (options, requirement) => Promise.all([
+    outcome(loadServer(options).server.requireAdminPagePermission(requirement)),
+    outcome(loadServer(options).server.requireAdminApiPermission(requirement)),
+    outcome(loadServer(options).server.assertAdminActionPermission(requirement)),
+  ])
+
+  assert.deepEqual(await run(market, either), ['pass', 'pass', 'pass'])
+  assert.deepEqual(await run({ grants: [grant('orders.view')] }, either), ['/admin/forbidden', 403, 'forbidden'])
+  assert.deepEqual(await run({ profile: { is_admin: true, admin_role: 'owner' } }, either), ['pass', 'pass', 'pass'])
+  // 관리자면 누구나: 권한 0개 staff도 통과, 관리자가 아니거나 비로그인은 기존과 같은 거부.
+  assert.deepEqual(await run({}, 'admin'), ['pass', 'pass', 'pass'])
+  assert.deepEqual(await run({ profile: { is_admin: true, admin_role: null } }, 'admin'), ['pass', 'pass', 'pass'])
+  assert.deepEqual(await run({ profile: { is_admin: false, admin_role: null } }, 'admin'), ['/admin/login?error=forbidden', 403, 'forbidden'])
+  assert.deepEqual(await run({ user: null }, 'admin'), ['/admin/login', 401, 'unauthenticated'])
+  assert.deepEqual(await run({ user: null }, either), ['/admin/login', 401, 'unauthenticated'])
+})
+
 test('액션 가드: redirect 없이 전용 예외를 던진다', async () => {
   const check = (options, requirement) => loadServer(options).server.assertAdminActionPermission(requirement)
   const rejectsWith = (reason) => (error) => error instanceof Error && error.name === 'AdminPermissionError' && error.reason === reason && error.message.length > 0
@@ -278,7 +337,7 @@ test('액션 가드: redirect 없이 전용 예외를 던진다', async () => {
   assert.equal((await check({ grants: [grant('pricing.manage')] }, 'pricing.manage')).role, 'staff')
 })
 
-test('서버 모듈 계약: 요청당 한 번 읽기, 세션 클라이언트만, 아직 어디에도 적용하지 않음', () => {
+test('서버 모듈 계약: 요청당 한 번 읽기, 세션 클라이언트만', () => {
   const source = read('src/lib/admin-permissions-server.ts')
   assert.match(source, /import \{ cache \} from 'react'/)
   assert.match(source, /const readAdminSession = cache\(async/)
@@ -293,31 +352,7 @@ test('서버 모듈 계약: 요청당 한 번 읽기, 세션 클라이언트만,
   // 순수 모듈은 DB·next에 기대지 않는다.
   assert.doesNotMatch(read('src/lib/admin-permissions.ts'), /^import /m)
 
-  // 전면 적용은 U3-3. 그 전에는 관리자 계정 관리(대표 전용)와 처음부터 가드로 만든 화면(주문 조회·회원 상세·문의 상세의 회원 요약·대시보드 지표)에만 쓴다.
-  const users = []
-  const walk = (dir) => {
-    for (const entry of readdirSync(dir)) {
-      const full = join(dir, entry)
-      if (statSync(full).isDirectory()) walk(full)
-      else if (/\.(ts|tsx)$/.test(entry) && /admin-permissions(-server)?['"]/.test(readFileSync(full, 'utf8'))) users.push(full)
-    }
-  }
-  const src = new URL('../src/', import.meta.url).pathname
-  walk(src)
-  assert.deepEqual(users.map((file) => file.slice(src.length)).sort(), [
-    'app/(admin)/admin/admin-accounts/page.tsx',
-    'app/(admin)/admin/orders/page.tsx',
-    'app/(admin)/admin/users/[id]/page.tsx',
-    'app/api/admin/admin-accounts/[userId]/route.ts',
-    'app/api/admin/admin-accounts/route.ts',
-    'app/api/admin/orders/market/route.ts',
-    'app/api/admin/orders/payments/route.ts',
-    'app/api/admin/stats/route.ts',
-    'app/api/admin/support/tickets/[id]/member-summary/route.ts',
-    'lib/admin-dashboard-server.ts',
-    'lib/admin-member-detail-server.ts',
-    'lib/admin-permissions-server.ts',
-  ])
+  // 어느 화면·route·액션이 어느 권한을 요구하는지는 tests/admin-guard-coverage-contract.test.mjs가 전수로 본다(U3-3 전면 적용).
 })
 
 test('관리자 계정 관리는 대표만: 페이지·route 가드, 새 계정은 staff, 관리자는 탈퇴 불가', () => {

@@ -32,7 +32,7 @@ test('sidebar lists 문제마켓 이미지 관리 right after 문제마켓 상�
 })
 
 test('library page is admin-guarded and renders the manage mode library', () => {
-  assert.match(page, /await requireAdmin\('\/admin\/market\/images'\)/)
+  assert.match(page, /await requireAdminPagePermission\('products\.edit'\)/)
   assert.match(page, /<MarketImageLibrary mode="manage" \/>/)
   assert.match(page, /문제마켓 이미지 관리/)
 })

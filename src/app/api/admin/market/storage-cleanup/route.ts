@@ -1,27 +1,16 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { adminApiGuardMessage, requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { retryMarketStorageCleanup } from '@/lib/market-storage-cleanup'
 
 export const dynamic = 'force-dynamic'
 
+// 상품 파일 정리는 상품 등록·수정 권한(products.edit)으로 다룬다. 오류 응답은 이 route의 기존 형식을 따른다.
 async function requireAdminUser() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
+  const guard = await requireAdminApiPermission('products.edit')
+  if ('error' in guard) {
+    const code = guard.status === 401 ? 'UNAUTHORIZED' : guard.status === 403 ? 'FORBIDDEN' : 'INTERNAL_SERVER_ERROR'
+    return NextResponse.json({ success: false, error: { code, message: adminApiGuardMessage(guard) } }, { status: guard.status })
   }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.is_admin) {
-    return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: '관리자 권한이 필요합니다.' } }, { status: 403 })
-  }
-
   return null
 }
 

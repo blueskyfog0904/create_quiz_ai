@@ -1,26 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 import { RolesClient } from './roles-client'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 export default async function AdminRolesPage() {
     const supabase = await createClient()
 
-    // Check if user is admin
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-        redirect('/login')
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single()
-
-    if (!profile?.is_admin) {
-        redirect('/')
-    }
+    // 꺼 둔 기능의 화면이다. 미들웨어가 먼저 404로 막고(계획 4-2절), 다시 켜더라도 대표 관리자만 본다.
+    await requireAdminPagePermission('owner')
 
     // Fetch all roles (including inactive)
     const { data: roles, error } = await supabase

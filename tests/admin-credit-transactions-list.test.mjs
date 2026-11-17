@@ -139,7 +139,7 @@ test('집계를 읽지 못하면 0이 아니라 null(확인 불가)로 돌려주
 test('화면: 없는 컬럼·최근 100건 고정·동작 없는 엑셀 버튼·전체 새로고침이 없다', () => {
   const page = read('src/app/(admin)/admin/credits/page.tsx')
   assert.doesNotMatch(page, /transaction_type|system_refund|\.limit\(100\)|select\('\*'\)/)
-  assert.match(page, /await requireAdmin\(\)/)
+  assert.match(page, /await requireAdminPagePermission\('credits\.view'\)/)
   assert.match(page, /listAdminCreditTransactions\(\{/)
 
   const client = read('src/app/(admin)/admin/credits/credits-client.tsx')

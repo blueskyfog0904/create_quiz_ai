@@ -38,7 +38,7 @@ test('admin generate product edit route loads a post and its items for the activ
   assert.equal(existsSync(editPagePath), true)
   const editPage = readFileSync(editPagePath, 'utf8')
 
-  assert.match(editPage, /requireAdmin\(\)/)
+  assert.match(editPage, /await requireAdminPagePermission\('owner'\)/)
   assert.match(editPage, /resolveAdminWorkspaceSubject/)
   assert.match(editPage, /getGenerateListboardPostForAdmin/)
   assert.match(editPage, /listGenerateListboardPostItemsForAdmin/)

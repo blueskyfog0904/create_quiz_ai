@@ -1,5 +1,5 @@
 import { CreditsClient } from './credits-client'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 import { listAdminCreditTransactions } from '@/lib/admin-credit-transactions-server'
 
@@ -8,7 +8,7 @@ interface AdminCreditsPageProps {
 }
 
 export default async function AdminCreditsPage({ searchParams }: AdminCreditsPageProps) {
-  await requireAdmin()
+  await requireAdminPagePermission('credits.view')
   const params = searchParams ? await searchParams : undefined
   const result = await listAdminCreditTransactions({
     type: params?.type,

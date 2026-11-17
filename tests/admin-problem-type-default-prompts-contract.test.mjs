@@ -91,7 +91,7 @@ test('server actions and admin APIs persist prompt modes and default prompt sett
   assert.match(defaultPromptRouteSource, /PATCH/)
   assert.match(defaultPromptRouteSource, /is_enabled/)
   assert.match(defaultPromptRouteSource, /content\.trim\(\)\.length/)
-  assert.match(defaultPromptRouteSource, /is_admin/)
+  assert.match(defaultPromptRouteSource, /requireAdminApiPermission\('owner'\)/)
 })
 
 test('problem type pages and forms expose default prompt management and per-field modes', () => {

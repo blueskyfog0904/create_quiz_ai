@@ -3,6 +3,7 @@
 import { assertAdminFeatureEnabled } from '@/lib/admin-features-server'
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth'
+import { assertAdminActionPermission } from '@/lib/admin-permissions-server'
 import { getActiveHeaderNavigationItems } from '@/lib/header-navigation'
 import { getHeaderNavigationConfig } from '@/lib/header-navigation-server'
 import {
@@ -33,6 +34,7 @@ function revalidateLandingPaths() {
 
 export async function getLandingPagesAdminData(): Promise<LandingPagesAdminData> {
   await requireAdmin()
+  await assertAdminActionPermission('owner')
 
   const [mainConfig, englishConfig, koreanConfig, englishNav, koreanNav] = await Promise.all([
     getMainLandingConfig(),
@@ -58,6 +60,7 @@ export async function getLandingPagesAdminData(): Promise<LandingPagesAdminData>
 export async function saveMainLandingConfigAction(config: MainLandingConfig) {
   await assertAdminFeatureEnabled('landing_pages')
   await requireAdmin()
+  await assertAdminActionPermission('owner')
   const saved = await saveMainLandingConfig(config)
   revalidateLandingPaths()
   return { success: true, data: saved }
@@ -69,6 +72,7 @@ export async function saveWorkspaceLandingConfigAction(
 ) {
   await assertAdminFeatureEnabled('landing_pages')
   const user = await requireAdmin()
+  await assertAdminActionPermission('owner')
   const saved = await saveWorkspaceLandingConfig(subject, config, user.id)
   revalidateLandingPaths()
   return { success: true, data: saved }

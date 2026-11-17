@@ -1,6 +1,7 @@
 'use server';
 
 import { assertAdminFeatureEnabled } from '@/lib/admin-features-server'
+import { assertAdminActionPermission } from '@/lib/admin-permissions-server'
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
@@ -14,17 +15,7 @@ export interface SystemPrompt {
 export async function getSystemPrompts(): Promise<SystemPrompt[]> {
   const supabase = await createClient();
   
-  // Check admin permission
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthorized');
-  
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single();
-    
-  if (!profile?.is_admin) throw new Error('Unauthorized');
+  await assertAdminActionPermission('owner')
 
   const { data, error } = await supabase
     .from('system_prompts')
@@ -43,17 +34,7 @@ export async function updateSystemPrompt(key: string, content: string) {
   await assertAdminFeatureEnabled('passages')
   const supabase = await createClient();
 
-  // Check admin permission
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthorized');
-  
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single();
-    
-  if (!profile?.is_admin) throw new Error('Unauthorized');
+  await assertAdminActionPermission('owner')
 
   const { error } = await supabase
     .from('system_prompts')

@@ -1,29 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { listMarketRefundRequestsForAdmin } from '@/lib/market-refunds'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
 
 export const dynamic = 'force-dynamic'
 
+// 마켓 환불 승인·거부 권한(refunds.market)을 공용 가드로 확인한다.
 async function requireAdmin() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { error: 'Unauthorized', status: 401 } as const
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.is_admin) {
-    return { error: 'Forbidden: Admin only', status: 403 } as const
-  }
-
-  return { user } as const
+  const guard = await requireAdminApiPermission('refunds.market')
+  if ('error' in guard) return { error: guard.error, status: guard.status } as const
+  return { user: { id: guard.access.userId } } as const
 }
 
 function normalizeWorkspaceSubject(value?: string | null): WorkspaceSubject {

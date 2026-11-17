@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { extractAdminLoginId } from '@/lib/admin-accounts-shared'
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
+import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -20,15 +21,9 @@ async function requireAdmin() {
     return { error: 'Unauthorized', status: 401 } as const
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.is_admin) {
-    return { error: 'Forbidden', status: 403 } as const
-  }
+  // 충전 판매 전체를 멈추고 재개는 SQL로만 되므로 대표 관리자만 한다. 처리자 표기에 email이 필요해 세션 사용자는 그대로 읽는다.
+  const guard = await requireAdminApiPermission('owner')
+  if ('error' in guard) return { error: guard.error, status: guard.status } as const
 
   return { user } as const
 }

@@ -20,19 +20,18 @@ const serverSource = readFileSync(
 )
 
 test('market home admin page and API both enforce the admin boundary', () => {
-  assert.match(pageSource, /requireAdmin\('\/admin\/market-main-settings'\)/)
+  assert.match(pageSource, /await requireAdminPagePermission\('storefront\.edit'\)/)
   assert.match(pageSource, /getMarketHomeAdminData\(workspaceSubject\)/)
   assert.match(
     pageSource,
     /<MarketMainSettingsClient[\s\S]*key=\{workspaceSubject\}[\s\S]*workspaceSubject=\{workspaceSubject\}/
   )
-  assert.match(routeSource, /auth\.getUser\(\)/)
-  assert.match(routeSource, /\.from\('profiles'\)/)
-  assert.match(routeSource, /is_admin/)
+  assert.match(routeSource, /requireAdminApiPermission\(permission\)/)
+  assert.match(routeSource, /permission: AdminPermissionRequirement = 'storefront\.edit'/)
   assert.match(routeSource, /UNAUTHORIZED/)
   assert.match(routeSource, /FORBIDDEN/)
-  assert.match(routeSource, /UNAUTHORIZED[\s\S]*401/)
-  assert.match(routeSource, /FORBIDDEN[\s\S]*403/)
+  assert.match(routeSource, /guard\.status === 401 \? 'UNAUTHORIZED'/)
+  assert.match(routeSource, /guard\.status === 403 \? 'FORBIDDEN'/)
 })
 
 test('market home settings POST strictly validates the config and persists the shared setting', () => {

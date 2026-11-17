@@ -78,7 +78,7 @@ test('admin AI connection UI and APIs expose provider-specific fields without re
   assert.match(clientSource, /Anthropic Version/)
   assert.match(clientSource, /Base URL/)
   assert.match(clientSource, /연결 테스트/)
-  assert.match(routeSource, /select\('is_admin'\)/)
+  assert.match(routeSource, /requireAdminApiPermission\('owner'\)/)
   assert.match(providerRouteSource, /saveProviderConnection/)
   assert.match(providerRouteSource, /apiKey/)
   assert.doesNotMatch(routeSource, /api_key:[\s\S]{0,80}encrypted_api_key/)

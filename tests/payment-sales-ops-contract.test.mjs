@@ -88,7 +88,9 @@ test('권한: 중지만 service_role, 재개와 조건 조회는 SQL Editor 전�
 })
 
 test('중지 API: 관리자 확인 뒤 전체 스위치만 끄고, 처리자는 세션에서, 꺼진 것을 확인해야 성공', () => {
-  assert.ok(route.indexOf('profile?.is_admin') < route.indexOf("rpc('stop_payment_sales'"))
+  // 충전 판매 전체 중지는 대표 관리자만 한다(공용 가드).
+  const ownerCheck = route.indexOf("await requireAdminApiPermission('owner')")
+  assert.ok(ownerCheck > 0 && ownerCheck < route.indexOf("rpc('stop_payment_sales'"))
   assert.match(route, /reason: z\.string\(\)\.trim\(\)\.min\(1\)\.max\(300\)/)
   assert.match(route, /\}\)\.strict\(\)/)
   assert.match(route, /p_scope: 'master'/)

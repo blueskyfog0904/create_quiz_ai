@@ -2,11 +2,14 @@ import { getAIModelSettings, getAvailableAIModels } from '@/app/api/admin/settin
 import AIModelSettings from './model-settings';
 import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
+import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 
 // Force dynamic since settings change
 export const dynamic = 'force-dynamic';
 
 export default async function AIModelSettingsPage() {
+  // 꺼 둔 기능의 화면이다. 미들웨어가 먼저 404로 막고(계획 4-2절), 다시 켜더라도 대표 관리자만 본다.
+  await requireAdminPagePermission('owner')
   const [settings, availableModels] = await Promise.all([
     getAIModelSettings(),
     getAvailableAIModels()

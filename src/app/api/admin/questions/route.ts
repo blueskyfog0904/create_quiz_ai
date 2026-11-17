@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { normalizeListPage } from '@/lib/list-pagination'
 import { isUuidishString } from '@/lib/question-bank/validation'
@@ -20,19 +21,10 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     
     // Check admin authentication
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile?.is_admin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // 꺼 둔 기능의 API다. 미들웨어가 먼저 404로 막고(계획 4-2절), 다시 켜더라도 대표 관리자만 쓴다.
+    const guard = await requireAdminApiPermission('owner')
+    if ('error' in guard) {
+      return NextResponse.json({ error: guard.error }, { status: guard.status })
     }
 
     // Parse query parameters

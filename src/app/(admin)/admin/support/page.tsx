@@ -4,6 +4,7 @@ import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 import { UUID_PATTERN, escapeIlike } from '@/lib/admin-orders'
 import { buildSupportTicketSearchFilter } from '@/lib/admin-support'
 import { getListPagination } from '@/lib/list-pagination'
+import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 
 interface AdminSupportPageProps {
   searchParams?: Promise<{
@@ -27,6 +28,7 @@ const TICKET_COLUMNS = `
 const SEARCH_MATCH_LIMIT = 50
 
 export default async function AdminSupportPage({ searchParams }: AdminSupportPageProps) {
+  await requireAdminPagePermission('support.manage')
   const supabase = await createClient()
   const resolvedSearchParams = searchParams ? await searchParams : {}
   const statusFilter = resolvedSearchParams.status || 'all'

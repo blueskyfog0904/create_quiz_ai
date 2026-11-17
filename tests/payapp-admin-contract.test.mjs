@@ -47,7 +47,7 @@ test('the admin refund list offers manual completion and confirmed rejection for
 })
 
 test('payment review resolves manual review orders through the audited RPC only', () => {
-  assert.match(reviewRoute, /profile\?\.is_admin/)
+  assert.match(reviewRoute, /const guard = await requireAdminApiPermission\('refunds\.payment'\)/)
   assert.match(reviewRoute, /action: z\.enum\(\['paid_confirmed', 'unpaid_confirmed', 'cancel_handled'\]\)/)
   assert.match(reviewRoute, /note: z\.string\(\)\.trim\(\)\.min\(1\)\.max\(500\)/)
   assert.match(reviewRoute, /admin\.rpc\('resolve_payment_order_review'/)
@@ -72,7 +72,7 @@ const alertsRoute = read('../src/app/api/admin/payments/alerts/route.ts')
 const alertMigration = read('../supabase/migrations/20261020090000_payment_alert_resolution.sql')
 
 test('alerts are resolved by an admin with a note through the audited RPC', () => {
-  assert.match(alertsRoute, /profile\?\.is_admin/)
+  assert.match(alertsRoute, /const guard = await requireAdminApiPermission\('refunds\.payment'\)/)
   assert.match(alertsRoute, /note: z\.string\(\)\.trim\(\)\.min\(1\)\.max\(500\)/)
   assert.match(alertsRoute, /admin\.rpc\('resolve_payment_alert'/)
   assert.match(alertsRoute, /p_actor_id: adminCheck\.user\.id/)

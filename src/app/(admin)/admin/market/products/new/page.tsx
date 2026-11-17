@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/lib/auth'
+import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { listMarketCategoryTreeForAdmin } from '@/lib/market-categories-server'
 import { listMarketItemsForAdmin } from '@/lib/market-items-server'
@@ -9,7 +9,7 @@ interface AdminMarketProductNewPageProps {
 }
 
 export default async function AdminMarketProductNewPage({ searchParams }: AdminMarketProductNewPageProps) {
-  await requireAdmin()
+  await requireAdminPagePermission('products.edit')
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const workspaceSubject = resolveAdminWorkspaceSubject(resolvedSearchParams?.subject)
 

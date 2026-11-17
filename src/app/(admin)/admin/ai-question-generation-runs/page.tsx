@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { pruneExpiredAiQuestionGenerationRuns } from '@/lib/ai/question-generation-run-logs'
 import AiQuestionGenerationRunsClient from './ai-question-generation-runs-client'
@@ -14,7 +14,8 @@ interface AiQuestionGenerationRunsPageProps {
 }
 
 export default async function AiQuestionGenerationRunsPage({ searchParams }: AiQuestionGenerationRunsPageProps) {
-  await requireAdmin()
+  // 꺼 둔 기능의 화면이다. 미들웨어가 먼저 404로 막고(계획 4-2절), 다시 켜더라도 대표 관리자만 본다.
+  await requireAdminPagePermission('owner')
   const supabase = await createClient()
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const workspaceSubject = resolveAdminWorkspaceSubject(resolvedSearchParams?.subject)

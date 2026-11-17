@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { getMarketHomeAdminData } from '@/lib/market-home-server'
 import MarketMainSettingsClient from './market-main-settings-client'
@@ -21,7 +21,7 @@ interface MarketMainSettingsPageProps {
 export default async function MarketMainSettingsPage({
   searchParams,
 }: MarketMainSettingsPageProps) {
-  await requireAdmin('/admin/market-main-settings')
+  await requireAdminPagePermission('storefront.edit')
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const workspaceSubject = resolveAdminWorkspaceSubject(resolvedSearchParams?.subject)
   const data = await getMarketHomeAdminData(workspaceSubject)

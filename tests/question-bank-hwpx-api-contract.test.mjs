@@ -7,8 +7,8 @@ const route = () => readFileSync(new URL('../src/app/api/admin/questions/hwpx-an
 test('hwpx analyze route is admin-only parse-only and uses safe helpers', () => {
   const source = route()
 
-  assert.match(source, /auth\.getUser\(\)/)
-  assert.match(source, /select\('is_admin'\)/)
+  assert.match(source, /await requireAdminApiPermission\('owner'\)/)
+  assert.match(source, /const admin = await requireAdminUser\(\)/)
   assert.match(source, /validateHwpxUploadFile/)
   assert.match(source, /extractHwpxTextFromBuffer/)
   assert.match(source, /analyzeHwpxTextWithOpenAI/)

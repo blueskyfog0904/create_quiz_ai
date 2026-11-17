@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 import { resolveAdminWorkspaceSubject, withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import {
   getGenerateListboardPostForAdmin,
@@ -14,7 +14,8 @@ interface GenerateProductEditPageProps {
 }
 
 export default async function GenerateProductEditPage({ params, searchParams }: GenerateProductEditPageProps) {
-  await requireAdmin()
+  // 꺼 둔 기능의 화면이다. 미들웨어가 먼저 404로 막고(계획 4-2절), 다시 켜더라도 대표 관리자만 본다.
+  await requireAdminPagePermission('owner')
 
   const { postId } = await params
   const resolvedSearchParams = searchParams ? await searchParams : undefined

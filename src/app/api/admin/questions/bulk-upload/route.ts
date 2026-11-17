@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
@@ -83,24 +84,13 @@ type BankYear = { id: string, year: number, label: string | null, is_active: boo
 type BankBook = { id: string, slug: string, name: string, is_active: boolean | null }
 type BankProblemType = { id: string, type_name: string, is_active: boolean | null }
 
-async function requireAdminUser(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+// 꺼 둔 기능의 API다. 미들웨어가 먼저 404로 막고(계획 4-2절), 다시 켜더라도 대표 관리자만 쓴다.
+async function requireAdminUser() {
+  const guard = await requireAdminApiPermission('owner')
+  if ('error' in guard) {
+    return { error: NextResponse.json({ error: guard.error }, { status: guard.status }) }
   }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.is_admin) {
-    return { error: NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 }) }
-  }
-
-  return { user }
+  return { userId: guard.access.userId }
 }
 
 function parseChoices(row: QuestionRow) {
@@ -224,7 +214,7 @@ function buildPartialQuestion(row: QuestionRow, rowNumber: number, error: unknow
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
-    const admin = await requireAdminUser(supabase)
+    const admin = await requireAdminUser()
 
     if (admin.error) {
       return admin.error

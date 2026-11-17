@@ -3,10 +3,10 @@
  * 관리자용 환불 요청 관리 페이지
  */
 
-import { requireAuth } from '@/lib/auth'
+import { hasAdminPermission } from '@/lib/admin-permissions'
+import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 import { createClient } from '@/lib/supabase/server'
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
-import { redirect } from 'next/navigation'
 import { RefundsClient, type RefundRequest } from './refunds-client'
 import { MarketRefundsClient, type MarketRefundRequestRow } from './market-refunds-client'
 import {
@@ -21,25 +21,19 @@ import { getPaymentSalesStatus } from '@/lib/payment-sales-status-server'
 export const dynamic = 'force-dynamic'
 
 export default async function AdminRefundsPage() {
-    const user = await requireAuth()
+    // 충전 환불(refunds.payment)·마켓 환불(refunds.market) 중 하나라도 있으면 열린다.
+    // 권한이 없는 구역은 조회하지 않고 그리지도 않는다.
+    const access = await requireAdminPagePermission(['refunds.payment', 'refunds.market'])
+    const canPayment = hasAdminPermission(access, 'refunds.payment')
+    const canMarket = hasAdminPermission(access, 'refunds.market')
+    const notLoaded = { data: null, error: null }
     const supabase = await createClient()
-
-    // 관리자 권한 확인
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single()
-
-    if (!profile?.is_admin) {
-        redirect('/')
-    }
 
     // 환불 요청 목록 조회
     // 목록을 읽지 못했는데 "없음"으로 보이면 처리할 건을 놓친다. 실패한 목록 이름을 모아 맨 위에 알린다.
     const loadErrors: string[] = []
     const paymentAdmin = createPaymentAdminClient()
-    const { data: requests, error: requestsError } = await paymentAdmin
+    const { data: requests, error: requestsError } = !canPayment ? notLoaded : await paymentAdmin
         .from('refund_requests')
         .select(`
       *,
@@ -73,7 +67,7 @@ export default async function AdminRefundsPage() {
     ).length || 0
 
     // 수동 확인 주문과 미해소 결제 경보(계획 6.4)
-    const { data: reviewOrderRows, error: reviewOrdersError } = await paymentAdmin
+    const { data: reviewOrderRows, error: reviewOrdersError } = !canPayment ? notLoaded : await paymentAdmin
         .from('payment_orders')
         .select(`
       id, order_id, provider, plan_name_snapshot, expected_amount, failure_code, failure_message, created_at,
@@ -108,24 +102,24 @@ export default async function AdminRefundsPage() {
             partialCancelMarker: Boolean(transaction?.partial_cancel_feedback_recorded_at),
         }),
     }))
-    const { data: paymentAlerts, error: paymentAlertsError } = await paymentAdmin
+    const { data: paymentAlerts, error: paymentAlertsError } = !canPayment ? notLoaded : await paymentAdmin
         .from('payment_reconciliation_alerts')
         .select('id, code, severity, message, details, created_at')
         .is('resolved_at', null)
         .order('created_at', { ascending: false })
     if (paymentAlertsError) loadErrors.push('미해소 결제 경보')
 
-    const { data: marketRefundRequests, error: marketRefundsError } = await supabase
+    const { data: marketRefundRequests, error: marketRefundsError } = !canMarket ? notLoaded : await supabase
         .from('market_refund_requests')
         .select('*, user:profiles!market_refund_requests_user_id_fkey(email, display_tag), item:market_items!market_refund_requests_item_id_fkey(title)')
         .order('created_at', { ascending: false })
     if (marketRefundsError) loadErrors.push('문제마켓 환불 요청')
 
-    const salesStatus = await getPaymentSalesStatus()
+    const salesStatus = canPayment ? await getPaymentSalesStatus() : null
 
     return (
         <div className="space-y-8">
-            <PaymentSalesPanel status={salesStatus} />
+            {canPayment && <PaymentSalesPanel status={salesStatus} />}
             {loadErrors.length > 0 && (
                 <div role="alert" className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
                     <p className="font-semibold">다음 목록을 불러오지 못했습니다: {loadErrors.join(', ')}</p>
@@ -133,6 +127,7 @@ export default async function AdminRefundsPage() {
                 </div>
             )}
             {/* 결제 경보와 수동 확인 주문을 환불 요청보다 위에 둔다(가장 먼저 봐야 하는 것). */}
+            {canPayment && (
             <RefundsClient
                 requests={(requests || []) as RefundRequest[]}
                 stats={{ pendingCount, completedCount, rejectedCount, attentionCount }}
@@ -142,8 +137,9 @@ export default async function AdminRefundsPage() {
                     alerts={(paymentAlerts || []) as PaymentAlert[]}
                 />
             </RefundsClient>
-            <h2 className="sr-only">문제마켓 환불</h2>
-            <MarketRefundsClient requests={(marketRefundRequests || []) as MarketRefundRequestRow[]} />
+            )}
+            {canMarket && <h2 className="sr-only">문제마켓 환불</h2>}
+            {canMarket && <MarketRefundsClient requests={(marketRefundRequests || []) as MarketRefundRequestRow[]} />}
         </div>
     )
 }

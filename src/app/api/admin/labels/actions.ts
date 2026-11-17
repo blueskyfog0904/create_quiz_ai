@@ -1,6 +1,7 @@
 'use server';
 
 import { assertAdminFeatureEnabled } from '@/lib/admin-features-server'
+import { assertAdminActionPermission } from '@/lib/admin-permissions-server'
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { DEFAULT_WORKSPACE_SUBJECT, withWorkspacePrefix } from '@/lib/workspace-subject';
@@ -23,6 +24,7 @@ function revalidateLegacyAndEnglishPath(path: string, type: 'layout' | 'page' = 
 
 // Get all display labels
 export async function getDisplayLabels(): Promise<DisplayLabel[]> {
+  await assertAdminActionPermission('owner')
   const supabase = await createClient();
   
   const { data, error } = await supabase
@@ -41,6 +43,7 @@ export async function getDisplayLabels(): Promise<DisplayLabel[]> {
 
 // Get display labels by category
 export async function getDisplayLabelsByCategory(category: string): Promise<DisplayLabel[]> {
+  await assertAdminActionPermission('owner')
   const supabase = await createClient();
   
   const { data, error } = await supabase
@@ -59,6 +62,7 @@ export async function getDisplayLabelsByCategory(category: string): Promise<Disp
 
 // Get display value for a specific db value
 export async function getDisplayValue(category: string, dbValue: string): Promise<string> {
+  await assertAdminActionPermission('owner')
   const supabase = await createClient();
   
   const { data, error } = await supabase
@@ -81,6 +85,7 @@ export async function updateDisplayLabel(
   displayValue: string
 ): Promise<{ success: boolean; error?: string }> {
   await assertAdminFeatureEnabled('labels')
+  await assertAdminActionPermission('owner')
   const supabase = await createClient();
   
   const { error } = await supabase
@@ -110,6 +115,7 @@ export async function addDisplayLabel(
   sortOrder?: number
 ): Promise<{ success: boolean; error?: string }> {
   await assertAdminFeatureEnabled('labels')
+  await assertAdminActionPermission('owner')
   const supabase = await createClient();
   
   const { error } = await supabase
@@ -135,6 +141,7 @@ export async function addDisplayLabel(
 // Delete a display label
 export async function deleteDisplayLabel(id: string): Promise<{ success: boolean; error?: string }> {
   await assertAdminFeatureEnabled('labels')
+  await assertAdminActionPermission('owner')
   const supabase = await createClient();
   
   const { error } = await supabase

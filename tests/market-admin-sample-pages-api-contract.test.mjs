@@ -8,7 +8,8 @@ const route = existsSync(routePath) ? readFileSync(routePath, 'utf8') : ''
 test('admin sample pages api is admin gated and supports draft item previews', () => {
   assert.ok(existsSync(routePath), 'admin sample pages route should exist')
   assert.match(route, /requireAdminUser/)
-  assert.match(route, /is_admin/)
+  assert.match(route, /requireAdminApiPermission\(permission\)/)
+  assert.match(route, /permission: AdminPermissionRequirement = 'products\.edit'/)
   assert.match(route, /resolveAdminWorkspaceSubject/)
   assert.match(route, /getMarketItemById/)
   assert.doesNotMatch(route, /getPublishedMarketItemById/)

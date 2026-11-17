@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminSoftDeleteMarketReview } from '@/lib/market-reviews-server'
-import { createClient } from '@/lib/supabase/server'
+import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,18 +8,9 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ reviewId: string }> }
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-  }
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-  if (!profile?.is_admin) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+  const guard = await requireAdminApiPermission('reviews.manage')
+  if ('error' in guard) {
+    return NextResponse.json({ error: guard.error }, { status: guard.status })
   }
 
   const { reviewId } = await params

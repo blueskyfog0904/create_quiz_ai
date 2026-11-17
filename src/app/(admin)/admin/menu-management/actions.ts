@@ -3,6 +3,7 @@
 import { assertAdminFeatureEnabled } from '@/lib/admin-features-server'
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth'
+import { AdminPermissionError, assertAdminActionPermission } from '@/lib/admin-permissions-server'
 import {
 } from '@/lib/admin-sidebar'
 import {
@@ -125,6 +126,7 @@ function revalidateMenuRelatedPaths(workspaceSubject: WorkspaceSubject) {
 
 export async function getMenuManagementData(workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT): Promise<MenuManagementPageData> {
   await requireAdmin()
+  await assertAdminActionPermission('owner')
 
   const initialConfig = await getBaseHeaderNavigationConfig(workspaceSubject)
   const adminSidebarConfig = await getAdminSidebarNavigationConfig(workspaceSubject)
@@ -160,6 +162,7 @@ export async function saveAdminSidebarNavigationConfigAction(
 ) {
   await assertAdminFeatureEnabled('menu_management')
   await requireAdmin()
+  await assertAdminActionPermission('owner')
 
   const savedConfig = await saveAdminSidebarNavigationConfig(input, workspaceSubject)
   revalidateMenuRelatedPaths(workspaceSubject)
@@ -176,6 +179,13 @@ export async function renameAdminSidebarMenuAction(
   workspaceSubject: WorkspaceSubject
 ): Promise<{ success: true, data: AdminSidebarNavigationConfig } | { success: false, error: string }> {
   await requireAdmin()
+  // 메뉴 이름 바꾸기는 운영 기능이라 기능 묶음 검사 없이 사이트 관리 권한(site.manage)만 본다.
+  try {
+    await assertAdminActionPermission('site.manage')
+  } catch (error) {
+    if (error instanceof AdminPermissionError) return { success: false, error: error.message }
+    throw error
+  }
 
   if (!isWorkspaceSubject(workspaceSubject) || !isAdminSidebarLabelKey(key)) {
     return { success: false, error: '이름을 바꿀 수 없는 메뉴입니다.' }
@@ -195,12 +205,14 @@ export async function renameAdminSidebarMenuAction(
 
 export async function getGenerateListboardPostsAction(menuEntryId: string, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await requireAdmin()
+  await assertAdminActionPermission('owner')
   const posts = await listGenerateListboardPostsForAdmin(menuEntryId, workspaceSubject)
   return { success: true, data: posts }
 }
 
 export async function getGenerateListboardPostItemsAction(postId: string, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT): Promise<{ success: true, data: GenerateListboardPostItem[] }> {
   await requireAdmin()
+  await assertAdminActionPermission('owner')
   const items = await listGenerateListboardPostItemsForAdmin(postId, workspaceSubject)
   return { success: true, data: items }
 }
@@ -208,6 +220,7 @@ export async function getGenerateListboardPostItemsAction(postId: string, worksp
 export async function saveMenuManagementConfig(input: HeaderNavigationConfig, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await assertAdminFeatureEnabled('menu_management')
   await requireAdmin()
+  await assertAdminActionPermission('owner')
 
   const normalizedConfig = normalizeHeaderNavigationConfig(input)
   validateHeaderNavigationConfig(normalizedConfig)
@@ -227,6 +240,7 @@ export async function createGenerateMenuEntryAction(
 ) {
   await assertAdminFeatureEnabled('generate')
   await requireAdmin()
+  await assertAdminActionPermission('owner')
   const entry = await createGenerateMenuEntry(input, workspaceSubject)
   revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true, data: entry }
@@ -239,6 +253,7 @@ export async function updateGenerateMenuEntryAction(
 ) {
   await assertAdminFeatureEnabled('generate')
   await requireAdmin()
+  await assertAdminActionPermission('owner')
   const entry = await updateGenerateMenuEntry(id, input)
   revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true, data: entry }
@@ -247,6 +262,7 @@ export async function updateGenerateMenuEntryAction(
 export async function archiveGenerateMenuEntryAction(id: string, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await assertAdminFeatureEnabled('generate')
   await requireAdmin()
+  await assertAdminActionPermission('owner')
   await archiveGenerateMenuEntry(id)
   revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true }
@@ -255,6 +271,7 @@ export async function archiveGenerateMenuEntryAction(id: string, workspaceSubjec
 export async function reorderGenerateMenuEntriesAction(ids: string[], workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await assertAdminFeatureEnabled('generate')
   await requireAdmin()
+  await assertAdminActionPermission('owner')
   await reorderGenerateMenuEntries(ids)
   revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true }
@@ -263,6 +280,7 @@ export async function reorderGenerateMenuEntriesAction(ids: string[], workspaceS
 export async function backfillGenerateMenuEntriesAction(workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await assertAdminFeatureEnabled('generate')
   await requireAdmin()
+  await assertAdminActionPermission('owner')
   const config = await getBaseHeaderNavigationConfig(workspaceSubject)
   const entries = await backfillGenerateMenuEntriesFromHeader(config, workspaceSubject)
   revalidateMenuRelatedPaths(workspaceSubject)
@@ -275,6 +293,7 @@ export async function createGenerateListboardPostAction(
 ) {
   await assertAdminFeatureEnabled('generate')
   const user = await requireAdmin()
+  await assertAdminActionPermission('owner')
   const post = await createGenerateListboardPost({
     ...input,
     created_by: user.id,
@@ -291,6 +310,7 @@ export async function createGenerateListboardPostWithItemsAction(
 ) {
   await assertAdminFeatureEnabled('generate')
   const user = await requireAdmin()
+  await assertAdminActionPermission('owner')
   const result = await createGenerateListboardPostWithItems({
     ...input,
     created_by: user.id,
@@ -307,6 +327,7 @@ export async function updateGenerateListboardPostAction(
 ) {
   await assertAdminFeatureEnabled('generate')
   const user = await requireAdmin()
+  await assertAdminActionPermission('owner')
   const post = await updateGenerateListboardPost(id, {
     ...input,
     updated_by: user.id,
@@ -318,6 +339,7 @@ export async function updateGenerateListboardPostAction(
 export async function archiveGenerateListboardPostAction(id: string, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await assertAdminFeatureEnabled('generate')
   await requireAdmin()
+  await assertAdminActionPermission('owner')
   await archiveGenerateListboardPost(id)
   revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true }
@@ -329,6 +351,7 @@ export async function createGenerateListboardPostItemAction(
 ) {
   await assertAdminFeatureEnabled('generate')
   const user = await requireAdmin()
+  await assertAdminActionPermission('owner')
   const item = await createGenerateListboardPostItem({
     ...input,
     created_by: user.id,
@@ -345,6 +368,7 @@ export async function updateGenerateListboardPostItemAction(
 ) {
   await assertAdminFeatureEnabled('generate')
   const user = await requireAdmin()
+  await assertAdminActionPermission('owner')
   const item = await updateGenerateListboardPostItem(id, {
     ...input,
     updated_by: user.id,
@@ -356,6 +380,7 @@ export async function updateGenerateListboardPostItemAction(
 export async function archiveGenerateListboardPostItemAction(id: string, workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await assertAdminFeatureEnabled('generate')
   await requireAdmin()
+  await assertAdminActionPermission('owner')
   await archiveGenerateListboardPostItem(id)
   revalidateMenuRelatedPaths(workspaceSubject)
   return { success: true }
@@ -365,6 +390,7 @@ export async function archiveGenerateListboardPostItemAction(id: string, workspa
 export async function backfillMarketMenuEntriesAction(workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT) {
   await assertAdminFeatureEnabled('menu_management')
   await requireAdmin()
+  await assertAdminActionPermission('owner')
   const config = await getBaseHeaderNavigationConfig(workspaceSubject)
   const entries = await backfillMarketMenuEntriesFromHeader(config, workspaceSubject)
   revalidateMenuRelatedPaths(workspaceSubject)

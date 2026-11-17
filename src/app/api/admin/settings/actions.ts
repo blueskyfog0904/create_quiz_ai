@@ -1,6 +1,7 @@
 'use server';
 
 import { assertAdminFeatureEnabled } from '@/lib/admin-features-server'
+import { assertAdminActionPermission } from '@/lib/admin-permissions-server'
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
@@ -51,17 +52,7 @@ export async function updateSystemSettings(key: string, value: AIConfig) {
   await assertAdminFeatureEnabled('passages')
   const supabase = await createClient();
 
-  // Check admin
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthorized');
-  
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single();
-    
-  if (!profile?.is_admin) throw new Error('Unauthorized');
+  await assertAdminActionPermission('owner')
 
   const { error } = await supabase
     .from('system_settings')
@@ -100,17 +91,7 @@ export async function getAIModelSettings(): Promise<AIModelConfig> {
   // Check admin privileges using standard client
 export async function updateAIModelSettings(config: AIModelConfig) {
   await assertAdminFeatureEnabled('passages')
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthorized');
-  
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single();
-    
-  if (!profile?.is_admin) throw new Error('Unauthorized');
+  await assertAdminActionPermission('owner')
 
   // Perform update using Service Role Key to bypass RLS
   const adminSupabase = createSupabaseClient(
@@ -137,6 +118,7 @@ export async function updateAIModelSettings(config: AIModelConfig) {
 }
 
 export async function getAvailableAIModels(): Promise<AIModelOption[]> {
+  await assertAdminActionPermission('owner')
   const supabase = await createClient();
   
   const { data, error } = await supabase
@@ -154,18 +136,7 @@ export async function getAvailableAIModels(): Promise<AIModelOption[]> {
 
 export async function saveAvailableAIModels(models: AIModelOption[]) {
   await assertAdminFeatureEnabled('passages')
-  // Check admin privileges
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthorized');
-  
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single();
-    
-  if (!profile?.is_admin) throw new Error('Unauthorized');
+  await assertAdminActionPermission('owner')
 
   // Perform update using Service Role Key
   const adminSupabase = createSupabaseClient(

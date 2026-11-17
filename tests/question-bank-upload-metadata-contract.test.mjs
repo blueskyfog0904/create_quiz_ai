@@ -34,8 +34,8 @@ const editPatchBlock = functionBlock(editRoute, 'PATCH')
 const editGetBlock = functionBlock(editRoute, 'GET')
 
 test('admin upload route writes through metadata RPCs with sanitized question payloads', () => {
-  assert.match(uploadRoute, /auth\.getUser\(\)/)
-  assert.match(uploadRoute, /select\('is_admin'\)/)
+  assert.match(uploadRoute, /await requireAdminApiPermission\('owner'\)/)
+  assert.match(uploadRoute, /const admin = await requireAdminUser\(\)/)
 
   assert.match(uploadRoute, /yearId: z\.string\(\)\.uuid/)
   assert.match(uploadRoute, /bookId: z\.string\(\)\.uuid/)

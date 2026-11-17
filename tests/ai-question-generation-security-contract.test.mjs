@@ -16,9 +16,9 @@ const adminTestRoutePath = 'src/app/api/admin/problem-types/[id]/test/route.ts'
 test('review route is admin-only and does not trust client-supplied prompt fields', () => {
   assert.equal(existsSync(new URL(`../${reviewRoutePath}`, import.meta.url)), true)
   const reviewRouteSource = readSource(reviewRoutePath)
-  assert.match(reviewRouteSource, /select\('is_admin'\)/)
-  assert.match(reviewRouteSource, /!profile\?\.is_admin/)
-  assert.match(reviewRouteSource, /status:\s*403/)
+  // 접근 검사는 공용 가드다(꺼 둔 기능이라 대표 전용). 401·403은 가드가 정한다.
+  assert.match(reviewRouteSource, /const guard = await requireAdminApiPermission\('owner'\)\s*if \('error' in guard\)/)
+  assert.match(reviewRouteSource, /status:\s*guard\.status/)
   assert.match(reviewRouteSource, /problemTypeId/)
   assert.match(reviewRouteSource, /generatedQuestion/)
   assert.match(reviewRouteSource, /buildQuestionGenerationConfigFromProblemType/)
@@ -51,9 +51,9 @@ test('admin full trace payloads are redacted and bounded before display', () => 
 test('admin test route is the only full-trace no-credit test surface', () => {
   assert.equal(existsSync(new URL(`../${adminTestRoutePath}`, import.meta.url)), true)
   const adminTestRouteSource = readSource(adminTestRoutePath)
-  assert.match(adminTestRouteSource, /select\('is_admin'\)/)
-  assert.match(adminTestRouteSource, /!profile\?\.is_admin/)
-  assert.match(adminTestRouteSource, /status:\s*403/)
+  // 접근 검사는 공용 가드다(꺼 둔 기능이라 대표 전용). 401·403은 가드가 정한다.
+  assert.match(adminTestRouteSource, /const guard = await requireAdminApiPermission\('owner'\)\s*if \('error' in guard\)/)
+  assert.match(adminTestRouteSource, /status:\s*guard\.status/)
   assert.match(adminTestRouteSource, /traceMode:\s*'admin_full'/)
   assert.match(adminTestRouteSource, /attempts:\s*loopResult\.attempts/)
   assert.doesNotMatch(adminTestRouteSource, /CreditService\.deductCredits/)

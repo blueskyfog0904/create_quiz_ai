@@ -26,14 +26,14 @@ test('user support APIs read active categories and create/update/delete tickets 
 
 test('admin support APIs manage categories by soft delete and replies through an admin ticket route', () => {
   assert.match(adminCategoriesRoute, /support_ticket_categories/)
-  assert.match(adminCategoriesRoute, /is_admin/)
+  assert.match(adminCategoriesRoute, /requireAdminApiPermission\('support\.manage'\)/)
   assert.match(adminCategoryRoute, /deleted_at/)
   assert.match(adminCategoryRoute, /is_active: false/)
   assert.doesNotMatch(adminCategoryRoute, /\.delete\(/)
   assert.match(adminTicketRoute, /admin_response/)
   assert.match(adminTicketRoute, /responded_at/)
   assert.match(adminTicketRoute, /notifications/)
-  assert.match(adminTicketRoute, /is_admin/)
+  assert.match(adminTicketRoute, /requireAdminApiPermission\('support\.manage'\)/)
 })
 
 test('support pages pass categories and render category-first UX with admin filters', () => {

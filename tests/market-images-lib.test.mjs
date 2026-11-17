@@ -2,12 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import sharp from 'sharp'
 import { createHash } from 'node:crypto'
-import { NextResponse, load, marketImages } from './helpers/market-images-harness.mjs'
+import { NextResponse, adminGuardMocks, load, marketImages } from './helpers/market-images-harness.mjs'
 
 const server = load('src/lib/market-images-server.ts', {
   'server-only': {},
   'next/server': { NextResponse },
-  '@/lib/supabase/server': { createClient: async () => { throw new Error('not used') } },
+  ...adminGuardMocks(),
   '@/lib/read-all-query-rows': {},
   '@/lib/market-images': marketImages,
 })

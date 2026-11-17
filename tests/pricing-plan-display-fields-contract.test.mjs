@@ -104,7 +104,8 @@ test('배지·할인 문구는 앞뒤 공백을 떼고, 비면 null, 20자를 �
 })
 
 test('서버 액션은 접근 검사·가격 검증 뒤에 문구를 정리해서 저장한다', () => {
-  const adminCheck = actions.indexOf("if (!profile?.is_admin) throw new Error('Forbidden')")
+  const upsertAction = actions.indexOf('export async function upsertPricingPlan(')
+  const adminCheck = actions.indexOf("await assertAdminActionPermission('pricing.manage')", upsertAction)
   const priceCheck = actions.indexOf('data.price < MIN_POINT_CHARGE_AMOUNT')
   const normalize = actions.indexOf("normalizePricingPlanDisplayText(data.badge_text, '배지 문구')")
   const upsert = actions.indexOf('.upsert({ ...data, badge_text: badgeText, discount_text: discountText })')

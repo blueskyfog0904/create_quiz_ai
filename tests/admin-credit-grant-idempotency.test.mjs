@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import test from 'node:test'
 import ts from 'typescript'
+import { adminGuardMocks } from './helpers/market-images-harness.mjs'
 
 const require = createRequire(import.meta.url)
 
@@ -31,6 +32,7 @@ const USER_ID = '00000000-0000-4000-8000-000000000002'
 function loadRoute(grant) {
   const calls = { grants: [], notifications: [] }
   const route = loadModule('../src/app/api/admin/users/credits/route.ts', {
+    ...adminGuardMocks({ userId: 'admin-1' }),
     'next/server': {
       NextResponse: { json: (body, init) => ({ body, status: init?.status ?? 200 }) },
     },

@@ -14,8 +14,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
+import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 
-export default function AdminPassagesPage() {
+export default async function AdminPassagesPage() {
+  // 꺼 둔 기능의 화면이다. 미들웨어가 먼저 404로 막고(계획 4-2절), 다시 켜더라도 대표 관리자만 본다.
+  await requireAdminPagePermission('owner')
   return (
     <div className="space-y-8 p-8">
       <div>

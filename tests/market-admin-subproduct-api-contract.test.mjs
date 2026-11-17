@@ -25,7 +25,7 @@ test('admin subproduct API exposes guarded CRUD routes below an item', () => {
   assert.match(subproductsRoute, /export async function POST/)
   assert.match(subproductRoute, /export async function PATCH/)
   assert.match(subproductRoute, /export async function DELETE/)
-  assert.match(subproductsRoute + subproductRoute, /관리자 권한이 필요합니다/)
+  assert.match(subproductsRoute + subproductRoute, /permission: AdminPermissionRequirement = 'products\.edit'/)
   assert.match(subproductsRoute + subproductRoute, /workspaceSubject/)
   assert.match(subproductsRoute + subproductRoute, /getMarketItemById/)
 })

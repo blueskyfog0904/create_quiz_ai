@@ -1,9 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
+import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { NextResponse } from 'next/server'
 
 // GET: 모든 Provider 목록 조회
 export async function GET(request: Request) {
   try {
+    // 꺼 둔 기능의 API다. 미들웨어가 먼저 404로 막고(계획 4-2절), 다시 켜더라도 대표 관리자만 쓴다.
+    const guard = await requireAdminApiPermission('owner')
+    if ('error' in guard) {
+      return NextResponse.json({ error: guard.error }, { status: guard.status })
+    }
+
     const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     const includeInactive = searchParams.get('includeInactive') === 'true'
@@ -35,19 +42,10 @@ export async function POST(request: Request) {
     const supabase = await createClient()
     
     // Admin 체크
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile?.is_admin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // 꺼 둔 기능의 API다. 미들웨어가 먼저 404로 막고(계획 4-2절), 다시 켜더라도 대표 관리자만 쓴다.
+    const guard = await requireAdminApiPermission('owner')
+    if ('error' in guard) {
+      return NextResponse.json({ error: guard.error }, { status: guard.status })
     }
 
     const body = await request.json()
@@ -111,19 +109,10 @@ export async function PUT(request: Request) {
     const supabase = await createClient()
     
     // Admin 체크
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile?.is_admin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // 꺼 둔 기능의 API다. 미들웨어가 먼저 404로 막고(계획 4-2절), 다시 켜더라도 대표 관리자만 쓴다.
+    const guard = await requireAdminApiPermission('owner')
+    if ('error' in guard) {
+      return NextResponse.json({ error: guard.error }, { status: guard.status })
     }
 
     const body = await request.json()
@@ -165,19 +154,10 @@ export async function DELETE(request: Request) {
     const supabase = await createClient()
     
     // Admin 체크
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile?.is_admin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // 꺼 둔 기능의 API다. 미들웨어가 먼저 404로 막고(계획 4-2절), 다시 켜더라도 대표 관리자만 쓴다.
+    const guard = await requireAdminApiPermission('owner')
+    if ('error' in guard) {
+      return NextResponse.json({ error: guard.error }, { status: guard.status })
     }
 
     const { searchParams } = new URL(request.url)

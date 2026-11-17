@@ -3,25 +3,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { deleteCategoryNode, MarketCategoryError, updateCategoryNode } from '@/lib/market-categories-server'
 import { MARKET_CATEGORY_TREE_CACHE_TAG, MARKET_PUBLIC_LIST_CACHE_TAG } from '@/lib/market-images'
-import { createClient } from '@/lib/supabase/server'
+import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 
 export const dynamic = 'force-dynamic'
 
+// 상품 카테고리는 상품 등록·수정 권한(products.edit)으로 다룬다.
 async function requireAdminUser() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: NextResponse.json({ error: 'Authentication required' }, { status: 401 }) }
+  const guard = await requireAdminApiPermission('products.edit')
+  if ('error' in guard) {
+    return { error: NextResponse.json({ error: guard.error }, { status: guard.status }) }
   }
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-  if (!profile?.is_admin) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 403 }) }
-  }
-  return { user }
+  return { userId: guard.access.userId }
 }
 
 function toErrorResponse(error: unknown, fallback: string) {

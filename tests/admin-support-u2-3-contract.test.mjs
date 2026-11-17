@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
-import { load, createFakeAdmin, NextResponse } from './helpers/market-images-harness.mjs'
+import { load, createFakeAdmin, NextResponse, adminGuardMocks } from './helpers/market-images-harness.mjs'
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 const page = read('src/app/(admin)/admin/support/page.tsx')
@@ -112,6 +112,7 @@ function loadTicketRoute(ticketRow) {
   const route = load('src/app/api/admin/support/tickets/[id]/route.ts', {
     'next/server': { NextResponse },
     '@/lib/supabase/server': { createClient: async () => session },
+    ...adminGuardMocks({ userId: 'admin-1' }),
   })
   const patch = () => route.PATCH({ json: async () => ({ adminResponse: '답변' }) }, { params: Promise.resolve({ id: TICKET }) })
   return { patch, queries }
@@ -194,9 +195,9 @@ test('회원 요약 route는 권한 가드를 쓰고 조회만 하며, 회원은
   assert.doesNotMatch(summaryRoute, /\.(insert|update|upsert|delete|rpc)\(|\.select\('is_admin'\)|searchParams/)
   assert.match(summaryRoute, /if \(!UUID_PATTERN\.test\(id\)\)/)
   assert.match(summaryRoute, /getAdminMemberSummary\(guard\.access, ticket\.user_id, id\)/)
-  // 이 단위는 기존 답변 route의 접근 검사 방식을 바꾸지 않는다(전면 적용은 U3-3).
-  assert.match(ticketRoute, /\.select\('is_admin'\)/)
-  assert.doesNotMatch(ticketRoute, /admin-permissions/)
+  // 답변 route도 같은 권한 가드를 쓴다(U3-3 전면 적용).
+  assert.match(ticketRoute, /const guard = await requireAdminApiPermission\('support\.manage'\)/)
+  assert.doesNotMatch(ticketRoute, /\.select\('is_admin'\)/)
 })
 
 test('상세 창의 회원 요약: 창을 열 때 한 번 읽고, 서버가 세지 않은 항목은 그리지 않는다', () => {

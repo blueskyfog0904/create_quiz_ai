@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { adminApiGuardMessage, requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import {
   MAX_ADMIN_REVIEW_ATTEMPTS,
   buildQuestionGenerationConfigFromProblemType,
@@ -30,20 +31,10 @@ const toJson = (value: unknown): Json => (
 export async function POST(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.is_admin) {
-    return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: '관리자 권한이 필요합니다.' } }, { status: 403 })
+  // 꺼 둔 기능의 API다. 미들웨어가 먼저 404로 막고(계획 4-2절), 다시 켜더라도 대표 관리자만 쓴다.
+  const guard = await requireAdminApiPermission('owner')
+  if ('error' in guard) {
+    return NextResponse.json({ success: false, error: { code: guard.status === 401 ? 'UNAUTHORIZED' : guard.status === 403 ? 'FORBIDDEN' : 'INTERNAL_SERVER_ERROR', message: adminApiGuardMessage(guard) } }, { status: guard.status })
   }
 
   const body = await request.json().catch(() => null)
@@ -92,7 +83,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     .from('problem_type_test_runs')
     .insert({
       problem_type_id: id,
-      user_id: user.id,
+      user_id: guard.access.userId,
       workspace_subject: workspaceSubject,
       status: loopResult.status,
       stop_reason: loopResult.stopReason,

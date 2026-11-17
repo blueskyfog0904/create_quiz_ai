@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import ts from 'typescript'
+import { adminGuardMocks } from './helpers/market-images-harness.mjs'
 import { normalizeListPage } from '../src/lib/list-pagination.ts'
 
 function route({ loggedIn = true, admin = true } = {}) {
@@ -17,6 +18,7 @@ function route({ loggedIn = true, admin = true } = {}) {
   const mocks = {
     'next/server': { NextResponse: { json: (body, options) => Response.json(body, options) } },
     '@/lib/supabase/server': { createClient: async () => supabase },
+    ...adminGuardMocks({ loggedIn, isAdmin: admin, userId: 'fixture' }),
     '@/lib/admin-workspace': { resolveAdminWorkspaceSubject: () => 'korean' },
     '@/lib/list-pagination': { normalizeListPage },
     '@/lib/question-bank/validation': { isUuidishString: () => true },

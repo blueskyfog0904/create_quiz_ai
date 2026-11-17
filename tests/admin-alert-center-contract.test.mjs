@@ -27,9 +27,9 @@ const event = (overrides = {}) => ({
 
 test('알림 요약 API는 관리자 확인이 데이터 접근보다 먼저다', () => {
   assert.match(summaryRoute, /export const dynamic = 'force-dynamic'/)
-  assert.match(summaryRoute, /status: 401/)
-  assert.match(summaryRoute, /status: 403/)
-  const adminCheck = summaryRoute.indexOf('profile?.is_admin')
+  // 공통 화면이라 관리자면 통과한다. 401·403은 공용 가드가 정한다.
+  assert.match(summaryRoute, /const guard = await requireAdminApiPermission\('admin'\)\s*if \('error' in guard\) \{\s*return NextResponse\.json\(\{ error: guard\.error \}, \{ status: guard\.status \}\)/)
+  const adminCheck = summaryRoute.indexOf("requireAdminApiPermission('admin')")
   assert.ok(adminCheck > 0 && adminCheck < summaryRoute.lastIndexOf('getAdminAlertSummary('))
 })
 

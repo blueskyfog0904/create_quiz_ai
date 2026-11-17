@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 import { MarketImageLibrary } from '@/components/admin/market-image-library'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 import { buildAdminMenuMetadata } from '@/lib/admin-sidebar-server'
@@ -14,7 +14,7 @@ export function generateMetadata({ searchParams }: { searchParams?: Promise<{ su
 }
 
 export default async function AdminMarketImagesPage() {
-  await requireAdmin('/admin/market/images')
+  await requireAdminPagePermission('products.edit')
 
   return (
     <div className="flex flex-col gap-6">

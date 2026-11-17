@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { PricingPlansClient } from './pricing-plans-client'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 import { buildAdminMenuMetadata } from '@/lib/admin-sidebar-server'
+import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 
 export function generateMetadata({ searchParams }: { searchParams?: Promise<{ subject?: string }> }): Promise<Metadata> {
   return buildAdminMenuMetadata({
@@ -12,7 +13,8 @@ export function generateMetadata({ searchParams }: { searchParams?: Promise<{ su
   })
 }
 
-export default function AdminPricingPage() {
+export default async function AdminPricingPage() {
+    await requireAdminPagePermission('pricing.manage')
     return (
         <div>
             <div className="mb-8">

@@ -3,6 +3,7 @@ import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import ReviewTagsClient from './review-tags-client'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 import { buildAdminMenuMetadata } from '@/lib/admin-sidebar-server'
+import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 
 export function generateMetadata({ searchParams }: { searchParams?: Promise<{ subject?: string }> }): Promise<Metadata> {
   return buildAdminMenuMetadata({
@@ -18,6 +19,7 @@ interface ReviewTagsPageProps {
 }
 
 export default async function ReviewTagsPage({ searchParams }: ReviewTagsPageProps) {
+  await requireAdminPagePermission('reviews.manage')
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const workspaceSubject = resolveAdminWorkspaceSubject(resolvedSearchParams?.subject)
 

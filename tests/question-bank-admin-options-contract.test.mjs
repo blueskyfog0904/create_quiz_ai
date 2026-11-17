@@ -25,9 +25,9 @@ function withoutComments(source) {
 }
 
 function assertAdminGuard(source) {
-  assert.match(source, /supabase\.auth\.getUser\s*\(\s*\)/)
-  assert.match(source, /from\(\s*['"]profiles['"]\s*\)[\s\S]*select\(\s*['"]is_admin['"]\s*\)/)
-  assert.match(source, /profile\?\.is_admin|requireAdmin(User)?/)
+  // 접근 검사는 공용 가드다(꺼 둔 기능이라 대표 전용).
+  assert.match(source, /await requireAdminApiPermission\('owner'\)/)
+  assert.match(source, /requireAdminUser\(\)/)
 }
 
 function assertExports(source, names) {

@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/lib/auth'
+import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 import { listAdminUsers } from '@/lib/admin-users-server'
 import { UsersClient } from './users-client'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
@@ -8,7 +8,7 @@ interface AdminUsersPageProps {
 }
 
 export default async function AdminUsersPage({ searchParams }: AdminUsersPageProps) {
-  await requireAdmin()
+  await requireAdminPagePermission('members.view')
   const params = searchParams ? await searchParams : undefined
   const result = await listAdminUsers({ q: params?.q, page: params?.page, pageSize: params?.pageSize })
 

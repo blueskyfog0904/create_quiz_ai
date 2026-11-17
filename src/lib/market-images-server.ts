@@ -2,10 +2,9 @@ import 'server-only'
 
 import { createHash } from 'node:crypto'
 import sharp from 'sharp'
-import type { User } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createClient } from '@/lib/supabase/server'
+import { adminApiGuardMessage, requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import type { createAdminClient } from '@/lib/supabase/bypass'
 import { readAllQueryRows } from '@/lib/read-all-query-rows'
 import {
@@ -62,24 +61,15 @@ export function marketImageErrorResponse(
   return NextResponse.json({ success: false, error: { code, message, ...details } }, { status })
 }
 
-// 비로그인 401, 비관리자 403. 통과하면 로그인 사용자를 반환한다.
-export async function requireMarketImageAdmin(): Promise<User | NextResponse> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return marketImageErrorResponse(401, 'UNAUTHORIZED', '로그인이 필요합니다.')
+// 비로그인 401, 관리자가 아니거나 상품 등록·수정 권한(products.edit)이 없으면 403. 통과하면 로그인 사용자의 id를 반환한다.
+export async function requireMarketImageAdmin(): Promise<{ id: string } | NextResponse> {
+  const guard = await requireAdminApiPermission('products.edit')
+  if ('error' in guard) {
+    const code = guard.status === 401 ? 'UNAUTHORIZED' : guard.status === 403 ? 'FORBIDDEN' : 'INTERNAL_SERVER_ERROR'
+    return marketImageErrorResponse(guard.status, code, adminApiGuardMessage(guard))
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-  if (!profile?.is_admin) {
-    return marketImageErrorResponse(403, 'FORBIDDEN', '관리자 권한이 필요합니다.')
-  }
-
-  return user
+  return { id: guard.access.userId }
 }
 
 // 없는(또는 방금 삭제된) 이미지를 상품·카테고리 항목이 참조하면 FK(…_image_id_fkey, restrict)가 막는다.

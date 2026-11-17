@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createClient } from '@/lib/supabase/server'
+import { adminApiGuardMessage, requireAdminApiPermission } from '@/lib/admin-permissions-server'
+import type { AdminPermissionRequirement } from '@/lib/admin-permissions'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import {
   createMarketFileType,
@@ -18,35 +19,21 @@ const FileTypeSchema = z.object({
   isActive: z.boolean().optional(),
 })
 
-async function requireAdminUser() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { user: null, isAdmin: false }
+// 상품 등록·수정 권한(products.edit)을 공용 가드로 확인한다. 오류 응답은 이 route의 기존 형식을 따른다.
+async function requireAdminUser(permission: AdminPermissionRequirement = 'products.edit') {
+  const guard = await requireAdminApiPermission(permission)
+  if ('error' in guard) {
+    const code = guard.status === 401 ? 'UNAUTHORIZED' : guard.status === 403 ? 'FORBIDDEN' : 'INTERNAL_SERVER_ERROR'
+    return { user: null, denied: NextResponse.json({ success: false, error: { code, message: adminApiGuardMessage(guard) } }, { status: guard.status }) } as const
   }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  return {
-    user,
-    isAdmin: Boolean(profile?.is_admin),
-  }
+  return { user: { id: guard.access.userId }, denied: null } as const
 }
 
 export async function GET(request: Request) {
-  const { user, isAdmin } = await requireAdminUser()
+  const { denied } = await requireAdminUser()
 
-  if (!user) {
-    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
-  }
-
-  if (!isAdmin) {
-    return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: '관리자 권한이 필요합니다.' } }, { status: 403 })
+  if (denied) {
+    return denied
   }
 
   try {
@@ -65,14 +52,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { user, isAdmin } = await requireAdminUser()
+  const { denied } = await requireAdminUser()
 
-  if (!user) {
-    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
-  }
-
-  if (!isAdmin) {
-    return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: '관리자 권한이 필요합니다.' } }, { status: 403 })
+  if (denied) {
+    return denied
   }
 
   try {

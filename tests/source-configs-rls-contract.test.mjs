@@ -19,7 +19,7 @@ test('source_configs는 RLS를 켜고 관리자만 읽고 쓰게 한다', () => 
 test('source_configs를 쓰는 route는 관리자 확인 뒤 세션 클라이언트로 접근한다', () => {
   for (const path of ['src/app/api/admin/source-configs/route.ts', 'src/app/api/admin/source-configs/[id]/route.ts']) {
     const source = read(path)
-    assert.match(source, /is_admin/, path)
+    assert.match(source, /await requireAdminApiPermission\('owner'\)/, path)
     assert.match(source, /from\('source_configs'\)/, path)
   }
 })

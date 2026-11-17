@@ -32,12 +32,12 @@ test('image and folder routes run on nodejs and check admin first in every handl
   }
 })
 
-test('requireMarketImageAdmin checks profiles.is_admin and returns 401 / 403', () => {
+test('requireMarketImageAdmin uses the shared admin guard (products.edit) and returns 401 / 403', () => {
   const body = serverLib.match(/export async function requireMarketImageAdmin[\s\S]+?\n}\n/)[0]
-  assert.match(body, /auth\.getUser\(\)/)
-  assert.match(body, /\.select\('is_admin'\)/)
-  assert.match(body, /401, 'UNAUTHORIZED'/)
-  assert.match(body, /403, 'FORBIDDEN'/)
+  assert.match(body, /const guard = await requireAdminApiPermission\('products\.edit'\)/)
+  assert.match(body, /guard\.status === 401 \? 'UNAUTHORIZED'/)
+  assert.match(body, /guard\.status === 403 \? 'FORBIDDEN'/)
+  assert.match(body, /marketImageErrorResponse\(guard\.status, code,/)
   assert.match(serverLib, /^import 'server-only'/)
 })
 

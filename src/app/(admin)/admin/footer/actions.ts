@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth'
+import { assertAdminActionPermission } from '@/lib/admin-permissions-server'
 import { getSiteFooterContent, saveSiteFooterContent } from '@/lib/footer-content-server'
 import type { FooterContentConfig } from '@/lib/footer-content'
 
@@ -20,6 +21,7 @@ export interface FooterSettingsPageData {
 
 export async function getFooterSettingsData(): Promise<FooterSettingsPageData> {
   await requireAdmin()
+  await assertAdminActionPermission('site.manage')
 
   return {
     footerContent: await getSiteFooterContent(),
@@ -28,6 +30,7 @@ export async function getFooterSettingsData(): Promise<FooterSettingsPageData> {
 
 export async function saveSiteFooterContentAction(input: FooterContentConfig) {
   await requireAdmin()
+  await assertAdminActionPermission('site.manage')
   const saved = await saveSiteFooterContent(input)
   revalidateFooterPaths()
 

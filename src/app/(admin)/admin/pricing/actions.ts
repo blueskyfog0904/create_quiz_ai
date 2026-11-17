@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { assertAdminActionPermission } from '@/lib/admin-permissions-server'
 import { revalidatePath } from 'next/cache'
 import { Database } from '@/types/supabase'
 import { MAX_POINT_CHARGE_AMOUNT, MIN_POINT_CHARGE_AMOUNT } from '@/lib/payment-constants'
@@ -11,6 +12,7 @@ export type PricingPlanInsert = Database['public']['Tables']['pricing_plans']['I
 export type PricingPlanUpdate = Database['public']['Tables']['pricing_plans']['Update']
 
 export async function getPricingPlans() {
+    await assertAdminActionPermission('pricing.manage')
     const supabase = await createClient()
     const { data, error } = await supabase
         .from('pricing_plans')
@@ -24,17 +26,7 @@ export async function getPricingPlans() {
 export async function upsertPricingPlan(data: PricingPlanInsert) {
     const supabase = await createClient()
 
-    // Check admin
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Unauthorized')
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single()
-
-    if (!profile?.is_admin) throw new Error('Forbidden')
+    await assertAdminActionPermission('pricing.manage')
 
     if (
         !Number.isInteger(data.price) ||
@@ -65,17 +57,7 @@ export async function upsertPricingPlan(data: PricingPlanInsert) {
 export async function deletePricingPlan(id: string) {
     const supabase = await createClient()
 
-    // Check admin
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Unauthorized')
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single()
-
-    if (!profile?.is_admin) throw new Error('Forbidden')
+    await assertAdminActionPermission('pricing.manage')
 
     const { error } = await supabase
         .from('pricing_plans')
@@ -91,17 +73,7 @@ export async function deletePricingPlan(id: string) {
 export async function togglePlanStatus(id: string, isActive: boolean) {
     const supabase = await createClient()
 
-    // Check admin
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Unauthorized')
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single()
-
-    if (!profile?.is_admin) throw new Error('Forbidden')
+    await assertAdminActionPermission('pricing.manage')
 
     const { data: updated, error } = await supabase
         .from('pricing_plans')

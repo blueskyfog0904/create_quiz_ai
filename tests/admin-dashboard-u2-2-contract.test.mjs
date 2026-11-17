@@ -227,7 +227,10 @@ test('조회 전용이고, 결제 lib은 읽기 클라이언트만 가져다 쓴
 })
 
 test('통계 API: 관리자 확인 뒤에 계정 권한으로 지표를 읽고, 가입 수 집계는 기존 것을 그대로 쓴다', () => {
-  assert.ok(route.indexOf('profile?.is_admin') < route.indexOf('getAdminAccess()'))
+  // 공통 화면이라 관리자면 통과한다. 권한을 읽지 못하면(가드 500) 관리자 여부만 직접 확인하고 권한이 필요한 구역은 뺀다.
+  assert.match(route, /const guard = await requireAdminApiPermission\('admin'\)\s*if \('error' in guard && guard\.status !== 500\)/)
+  assert.match(route, /const access = 'error' in guard \? null : guard\.access/)
+  assert.ok(route.indexOf('profile?.is_admin') > 0 && route.indexOf('profile?.is_admin') < route.indexOf('getAdminDashboard('))
   assert.match(route, /access \? getAdminDashboard\(access, period\) : null/)
   assert.match(route, /metrics: dashboard\?\.metrics \?\? null/)
   assert.equal(route.match(/const countSignups/g).length, 1)

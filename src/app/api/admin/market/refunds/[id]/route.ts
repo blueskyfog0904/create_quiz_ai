@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createClient } from '@/lib/supabase/server'
+import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
+import { checkAdminLimit } from '@/lib/admin-permissions'
 import {
   approveMarketRefund,
   MarketRefundConflictError,
@@ -22,25 +23,11 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
+// 마켓 환불 승인·거부 권한(refunds.market)을 공용 가드로 확인한다.
 async function requireAdmin() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { error: 'Unauthorized', status: 401 } as const
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.is_admin) {
-    return { error: 'Forbidden: Admin only', status: 403 } as const
-  }
-
-  return { user } as const
+  const guard = await requireAdminApiPermission('refunds.market')
+  if ('error' in guard) return { error: guard.error, status: guard.status } as const
+  return { user: { id: guard.access.userId }, access: guard.access } as const
 }
 
 // 처리 결과를 요청한 회원에게 알린다. 알림이 실패해도 환불 처리 결과는 바꾸지 않는다.
@@ -89,6 +76,31 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       success: false,
       error: parsed.error.issues[0]?.message || '처리 요청이 올바르지 않습니다.',
     }, { status: 400 })
+  }
+
+  // 승인은 계정의 1건 승인 한도 안에서만 한다(거부는 한도 없음, 대표는 한도 없음 — 대표는 아래 조회도 하지 않는다).
+  // 기준은 그 요청의 환불 요청 크레딧(확인한 복구량이 더 크면 그 값)이다. 하루 누적 한도는 이 권한에 없다.
+  if (parsed.data.action === 'approve' && adminCheck.access.role !== 'owner') {
+    const { data: refundRequest, error: refundRequestError } = await createAdminClient()
+      .from('market_refund_requests')
+      .select('requested_refund_credits')
+      .eq('id', id)
+      .maybeSingle()
+    if (refundRequestError) {
+      return NextResponse.json({ success: false, error: '환불 요청을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.' }, { status: 500 })
+    }
+    // 없는 요청은 아래 처리 함수가 기존대로 오류로 돌려준다.
+    if (refundRequest) {
+      const refundCredits = Math.max(refundRequest.requested_refund_credits, parsed.data.confirmedRefundCredits ?? 0)
+      // 복구할 크레딧이 0인 요청은 한도와 무관하다.
+      if (refundCredits > 0 && !checkAdminLimit(adminCheck.access, 'refunds.market', 'per_request', refundCredits)) {
+        return NextResponse.json({
+          success: false,
+          error: '이 환불은 계정의 1건 승인 한도를 넘습니다. 대표 관리자에게 확인을 요청해 주세요.',
+          code: 'ADMIN_LIMIT_EXCEEDED',
+        }, { status: 403 })
+      }
+    }
   }
 
   try {

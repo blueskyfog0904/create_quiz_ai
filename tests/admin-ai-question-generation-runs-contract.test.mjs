@@ -21,8 +21,8 @@ test('admin AI generation run APIs exist and enforce admin access', () => {
   for (const path of [listApiPath, detailApiPath, downloadApiPath]) {
     assert.equal(existsSync(new URL(`../${path}`, import.meta.url)), true, `${path} should exist`)
     const source = readSource(path)
-    assert.match(source, /select\('is_admin'\)/)
-    assert.match(source, /!profile\?\.is_admin/)
+    // 접근 검사는 공용 가드다(꺼 둔 기능이라 대표 전용).
+    assert.match(source, /const guard = await requireAdminApiPermission\('owner'\)\s*if \('error' in guard\)/)
     assert.match(source, /ai_question_generation_runs/)
     assert.match(source, /pruneExpiredAiQuestionGenerationRuns/)
   }
@@ -48,7 +48,7 @@ test('admin AI generation run pages show list, detail, filters, and JSON downloa
   assert.match(clientSource, /교재형 생성/)
   assert.match(clientSource, /JSON 다운로드/)
   assert.match(clientSource, /redaction_flags|redactionFlags/)
-  assert.match(detailPageSource, /requireAdmin\(\)/)
+  assert.match(detailPageSource, /await requireAdminPagePermission\('owner'\)/)
   assert.match(detailPageSource, /QuestionPreview/)
   assert.match(detailPageSource, /QuestionGenerationAttemptLogViewer/)
   assert.match(detailPageSource, /safeAttemptLogs/)

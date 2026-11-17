@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { adminApiGuardMessage, requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { QuestionSchema } from '@/lib/ai/types'
 import { buildQuestionGenerationConfigFromProblemType, reviewGeneratedQuestion } from '@/lib/ai/question-generation-workflow'
 import { getProblemTypeDefaultPrompts } from '@/lib/ai/problem-type-default-prompts'
@@ -18,20 +19,10 @@ const ReviewRequestSchema = z.object({
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.is_admin) {
-    return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: '관리자 권한이 필요합니다.' } }, { status: 403 })
+  // 꺼 둔 기능(AI 문제 생성)의 관리자용 검수 API다. 다시 켜더라도 대표 관리자만 쓴다.
+  const guard = await requireAdminApiPermission('owner')
+  if ('error' in guard) {
+    return NextResponse.json({ success: false, error: { code: guard.status === 401 ? 'UNAUTHORIZED' : guard.status === 403 ? 'FORBIDDEN' : 'INTERNAL_SERVER_ERROR', message: adminApiGuardMessage(guard) } }, { status: guard.status })
   }
 
   const body = await request.json().catch(() => null)

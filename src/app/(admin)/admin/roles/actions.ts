@@ -1,6 +1,7 @@
 'use server'
 
 import { assertAdminFeatureEnabled } from '@/lib/admin-features-server'
+import { AdminPermissionError, assertAdminActionPermission } from '@/lib/admin-permissions-server'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
@@ -15,20 +16,11 @@ export async function createRole(data: RoleData) {
   await assertAdminFeatureEnabled('signup_roles')
     const supabase = await createClient()
 
-    // Check admin
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-        return { error: '로그인이 필요합니다.' }
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single()
-
-    if (!profile?.is_admin) {
-        return { error: '권한이 없습니다.' }
+    try {
+        await assertAdminActionPermission('owner')
+    } catch (error) {
+        if (error instanceof AdminPermissionError) return { error: error.message }
+        throw error
     }
 
     const { data: newRole, error } = await supabase
@@ -60,20 +52,11 @@ export async function updateRole(id: string, data: Partial<RoleData>) {
   await assertAdminFeatureEnabled('signup_roles')
     const supabase = await createClient()
 
-    // Check admin
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-        return { error: '로그인이 필요합니다.' }
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single()
-
-    if (!profile?.is_admin) {
-        return { error: '권한이 없습니다.' }
+    try {
+        await assertAdminActionPermission('owner')
+    } catch (error) {
+        if (error instanceof AdminPermissionError) return { error: error.message }
+        throw error
     }
 
     const { error } = await supabase
@@ -100,20 +83,11 @@ export async function deleteRole(id: string) {
   await assertAdminFeatureEnabled('signup_roles')
     const supabase = await createClient()
 
-    // Check admin
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-        return { error: '로그인이 필요합니다.' }
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single()
-
-    if (!profile?.is_admin) {
-        return { error: '권한이 없습니다.' }
+    try {
+        await assertAdminActionPermission('owner')
+    } catch (error) {
+        if (error instanceof AdminPermissionError) return { error: error.message }
+        throw error
     }
 
     const { error } = await supabase
