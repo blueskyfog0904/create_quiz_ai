@@ -17,11 +17,14 @@ const AGREEMENT_ITEMS = [
   { key: 'finalConfirm', label: '회원 탈퇴를 최종적으로 확인하며, 모든 약관에 동의합니다.' },
 ] as const
 
+export type WithdrawBlockedReason = 'payment' | 'admin'
+
 interface WithdrawViewProps {
   email: string
+  blockedReason?: WithdrawBlockedReason | null
 }
 
-export function WithdrawView({ email }: WithdrawViewProps) {
+export function WithdrawView({ email, blockedReason = null }: WithdrawViewProps) {
   const router = useRouter()
   const [confirmEmail, setConfirmEmail] = useState('')
   const [agreements, setAgreements] = useState({
@@ -80,11 +83,36 @@ export function WithdrawView({ email }: WithdrawViewProps) {
         ← 마이페이지
       </Link>
       <h1 className="mt-2 text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">회원 탈퇴</h1>
-      <p className="mt-2 text-sm text-[var(--studio-muted)] break-keep">
-        회원 탈퇴 전 아래 내용을 반드시 확인해주세요.
-      </p>
+      {blockedReason ? null : (
+        <p className="mt-2 text-sm text-[var(--studio-muted)] break-keep">
+          회원 탈퇴 전 아래 내용을 반드시 확인해주세요.
+        </p>
+      )}
 
       <div className="mt-6 max-w-2xl space-y-6">
+        {blockedReason ? (
+        <section className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] sm:p-7">
+          <div className="rounded-[var(--studio-radius-control)] bg-red-50 p-4">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-red-800 break-keep">
+              <AlertTriangle aria-hidden="true" className="size-4 shrink-0" />
+              이 화면에서는 탈퇴할 수 없습니다
+            </h2>
+            <p className="mt-3 text-sm text-red-700 break-keep">
+              {blockedReason === 'payment'
+                ? '결제 기록이 있는 계정은 관련 법령에 따라 결제 기록을 보관해야 해서 이 화면에서 바로 탈퇴할 수 없습니다. 1:1 문의로 탈퇴를 요청해 주세요.'
+                : '관리자 계정은 탈퇴할 수 없습니다.'}
+            </p>
+          </div>
+          {blockedReason === 'payment' && (
+            <Link
+              href="/mypage/support"
+              className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-[var(--studio-radius-control)] bg-[var(--studio-primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--studio-primary-hover)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+            >
+              1:1 문의로 탈퇴 요청하기
+            </Link>
+          )}
+        </section>
+        ) : (
         <section className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] sm:p-7">
           <div className="rounded-[var(--studio-radius-control)] bg-red-50 p-4">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-red-800 break-keep">
@@ -153,6 +181,7 @@ export function WithdrawView({ email }: WithdrawViewProps) {
             {isDeleting ? '탈퇴 처리 중…' : '회원 탈퇴하기'}
           </button>
         </section>
+        )}
 
         <section className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] sm:p-7">
           <h2 className="text-lg font-bold text-[var(--studio-ink)] break-keep">

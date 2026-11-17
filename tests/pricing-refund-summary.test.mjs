@@ -13,8 +13,8 @@ const pricingClientSource = readFileSync(
 )
 
 test('pricing page refund summary highlights current credit refund rules', () => {
-  assert.match(pricingPageSource, /7일/)
-  assert.match(pricingPageSource, /1년/)
+  assert.match(pricingPageSource, /\{POINT_CHARGE_REFUND_DAYS\}일/)
+  assert.match(pricingPageSource, /\{POINT_CHARGE_VALIDITY_YEARS\}년/)
   assert.match(pricingPageSource, /사용/)
   assert.match(pricingPageSource, /취소|환불/)
   assert.match(pricingPageSource, /1개도 사용하지/)
@@ -29,7 +29,7 @@ test('pricing page refund summary highlights current credit refund rules', () =>
 })
 
 test('pricing cards do not advertise unlimited credit validity', () => {
-  assert.match(pricingClientSource, /사용 기한 1년/)
-  assert.doesNotMatch(pricingClientSource, /사용·환불 기한 1년/)
+  assert.match(pricingClientSource, /사용 기한 \{POINT_CHARGE_VALIDITY_YEARS\}년/)
+  assert.doesNotMatch(pricingClientSource, /사용·환불 기한/)
   assert.doesNotMatch(pricingClientSource, /유효기간 없음/)
 })

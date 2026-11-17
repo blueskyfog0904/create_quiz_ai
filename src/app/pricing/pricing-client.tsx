@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Check, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { buildAuthRedirectPath } from '@/lib/auth-paths'
+import { POINT_CHARGE_VALIDITY_YEARS } from '@/lib/point-charge-policy'
 
 interface PricingPlan {
     id: string
@@ -89,7 +90,7 @@ export function PricingClient({ plans, isLoggedIn }: PricingClientProps) {
                         <CardHeader className="text-center pt-8">
                             <CardTitle className="text-2xl">{plan.name}</CardTitle>
                             <CardDescription className="text-gray-500">
-                                {plan.description || '크레딧 요금제'}
+                                {plan.description || '크레딧 충전 상품'}
                             </CardDescription>
                         </CardHeader>
 
@@ -117,7 +118,7 @@ export function PricingClient({ plans, isLoggedIn }: PricingClientProps) {
                                 </li>
                                 <li className="flex items-center gap-2 text-sm text-gray-600">
                                     <Check className="w-4 h-4 text-green-500" />
-                                    사용 기한 1년
+                                    사용 기한 {POINT_CHARGE_VALIDITY_YEARS}년
                                 </li>
                             </ul>
 

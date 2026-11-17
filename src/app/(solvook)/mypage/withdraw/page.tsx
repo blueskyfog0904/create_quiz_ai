@@ -3,8 +3,10 @@ import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/bypass'
+import { hasPaymentRecordsBlockingWithdrawal } from '@/lib/withdraw-eligibility'
 import { getRequestAuthUserId } from '@/lib/request-auth'
-import { WithdrawView } from './_components/withdraw-view'
+import { WithdrawView, type WithdrawBlockedReason } from './_components/withdraw-view'
 
 export const metadata: Metadata = {
   title: '회원 탈퇴 | 써머썬 연구소',
@@ -22,9 +24,30 @@ export default async function WithdrawPage() {
   const supabase = await createClient()
   const { data: authData } = await supabase.auth.getUser()
 
+  // 탈퇴 route(/api/auth/withdraw)가 막는 계정에는 폼 대신 안내를 미리 보여 준다.
+  // 조회가 실패하면 폼을 그대로 보여 준다(최종 판정은 route가 한다).
+  let blockedReason: WithdrawBlockedReason | null = null
+  const user = authData.user
+  try {
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', user.id)
+        .maybeSingle()
+      if (profile?.is_admin) {
+        blockedReason = 'admin'
+      } else if (await hasPaymentRecordsBlockingWithdrawal(createAdminClient(), user.id)) {
+        blockedReason = 'payment'
+      }
+    }
+  } catch (error) {
+    console.error('Withdraw eligibility lookup error:', error)
+  }
+
   return (
     <Suspense fallback={null}>
-      <WithdrawView email={authData.user?.email || ''} />
+      <WithdrawView email={user?.email || ''} blockedReason={blockedReason} />
     </Suspense>
   )
 }

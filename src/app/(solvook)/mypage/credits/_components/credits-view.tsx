@@ -343,7 +343,7 @@ export function CreditsView({
 
   const sourceCategoryOptions = [
     { value: 'all', label: '구분 전체' },
-    { value: 'plan_purchase', label: '요금제 구매' },
+    { value: 'plan_purchase', label: '충전 상품 구매' },
     { value: 'admin_grant', label: '관리자 지급' },
     { value: 'system_refund', label: '환불' },
     { value: 'bonus', label: '보너스' },
@@ -452,7 +452,7 @@ export function CreditsView({
                   href="/pricing"
                   className="inline-flex min-h-11 items-center rounded-[var(--studio-radius-control)] bg-[var(--studio-primary)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--studio-primary-hover)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
                 >
-                  요금제 보기
+                  충전 상품 보기
                 </Link>
               }
             />

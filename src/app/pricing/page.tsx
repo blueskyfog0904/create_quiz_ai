@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getCreditBalanceSnapshot, selectDisplayBalance } from '@/lib/credit-balance'
 import { MAX_POINT_CHARGE_AMOUNT, MIN_POINT_CHARGE_AMOUNT } from '@/lib/payment-constants'
+import { POINT_CHARGE_MAX_AMOUNT_TEXT, POINT_CHARGE_REFUND_DAYS, POINT_CHARGE_VALIDITY_YEARS } from '@/lib/point-charge-policy'
 import { PricingClient } from './pricing-client'
 
 export const dynamic = 'force-dynamic'
@@ -81,8 +82,8 @@ export default async function PricingPage() {
                     <div className="mt-8 bg-blue-50 p-6 rounded-xl border border-blue-100">
                         <h3 className="font-medium text-blue-800 mb-2">💡 환불 정책</h3>
                         <ul className="flex flex-col gap-1 text-blue-700 text-sm">
-                            <li>• 1회 최대 100,000원까지만 충전할 수 있으며 자동결제되지 않습니다.</li>
-                            <li>• 구매한 크레딧은 결제일로부터 1년 동안 사용할 수 있으며, 환불은 구매 후 7일 이내에 크레딧을 1개도 사용하지 않은 경우 가능합니다.</li>
+                            <li>• 1회 최대 {POINT_CHARGE_MAX_AMOUNT_TEXT}까지만 충전할 수 있으며 자동결제되지 않습니다.</li>
+                            <li>• 구매한 크레딧은 결제일로부터 {POINT_CHARGE_VALIDITY_YEARS}년 동안 사용할 수 있으며, 환불은 구매 후 {POINT_CHARGE_REFUND_DAYS}일 이내에 크레딧을 1개도 사용하지 않은 경우 가능합니다.</li>
                             <li>• 문제마켓 자료의 다운로드/열람이 완료된 사용분은 환불이 제한됩니다.</li>
                             <li>• 충전한 크레딧은 구매 계정에서만 사용할 수 있으며, 회원 간 양도·이전은 지원하지 않습니다.</li>
                             <li>• 결제 오류·중복 결제·서비스 장애는 확인 후 환불 또는 크레딧 복구가 가능합니다.</li>

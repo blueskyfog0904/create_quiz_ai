@@ -74,7 +74,7 @@ export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryR
       </Link>
       <h1 className="mt-2 text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">결제 내역</h1>
       <p className="mt-2 text-sm text-[var(--studio-muted)] break-keep">
-        요금제에서 실제로 결제한 구매 및 환불 기록을 확인하실 수 있습니다.
+        충전 상품을 실제로 결제한 구매 및 환불 기록을 확인하실 수 있습니다.
       </p>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
@@ -120,7 +120,7 @@ export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryR
           <StudioEmptyState
             icon={<CreditCard aria-hidden="true" className="size-6" />}
             title="결제 내역이 없습니다"
-            description="아직 요금제를 실제로 결제하신 내역이 없습니다."
+            description="아직 충전 상품을 실제로 결제하신 내역이 없습니다."
           />
         </div>
       ) : filteredPayments.length === 0 ? (
@@ -143,7 +143,7 @@ export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryR
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-base font-semibold text-[var(--studio-ink)] break-keep">
-                      {payment.pricing_plans?.name || '요금제 결제'}
+                      {payment.pricing_plans?.name || '충전 상품 결제'}
                     </p>
                     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${badge.className}`}>
                       {badge.label}

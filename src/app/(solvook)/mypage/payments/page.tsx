@@ -11,7 +11,7 @@ import { readAllQueryRows } from '@/lib/read-all-query-rows'
 
 export const metadata: Metadata = {
   title: '결제 내역 | 써머썬 연구소',
-  description: '요금제 결제 및 환불 기록을 확인합니다.',
+  description: '충전 상품 결제 및 환불 기록을 확인합니다.',
 }
 
 type SafePaymentHistory =

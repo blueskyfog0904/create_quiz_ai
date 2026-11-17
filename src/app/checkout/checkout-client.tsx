@@ -13,6 +13,7 @@ import {
   StudioPageHeader,
 } from '@/components/design-system'
 import { Button } from '@/components/ui/button'
+import { POINT_CHARGE_MAX_AMOUNT_TEXT, POINT_CHARGE_REFUND_DAYS, POINT_CHARGE_VALIDITY_YEARS } from '@/lib/point-charge-policy'
 
 type CheckoutPhase =
   | 'idle'
@@ -541,9 +542,9 @@ export function CheckoutClient({
             <section className="order-last min-w-0 border-t border-[var(--ck-line)] pt-6 text-sm leading-6 lg:order-none lg:col-start-1 lg:row-start-2">
               <h2 className="font-bold text-[var(--ck-ink)]">결제 전 확인</h2>
               <ul className="mt-2 space-y-1 text-[var(--ck-muted)]">
-                <li>자동결제 없음 · 1회 최대 100,000원입니다.</li>
-                <li>사용기한은 결제일로부터 1년이며 회원 간 양도할 수 없습니다.</li>
-                <li>구매 후 7일 이내 완전 미사용 시 원 결제수단으로 환불합니다.</li>
+                <li>자동결제 없음 · 1회 최대 {POINT_CHARGE_MAX_AMOUNT_TEXT}입니다.</li>
+                <li>사용기한은 결제일로부터 {POINT_CHARGE_VALIDITY_YEARS}년이며 회원 간 양도할 수 없습니다.</li>
+                <li>구매 후 {POINT_CHARGE_REFUND_DAYS}일 이내 완전 미사용 시 원 결제수단으로 환불합니다.</li>
               </ul>
               <Link
                 href="/terms/refund"

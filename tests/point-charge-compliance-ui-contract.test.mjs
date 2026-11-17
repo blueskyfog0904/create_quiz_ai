@@ -30,7 +30,7 @@ const termsPage = read('../src/app/terms/[documentSlug]/page.tsx')
 
 test('pricing explains the one-time charge limit and real usage paths', () => {
   assert.match(pricingPage, /크레딧 충전 상품/)
-  assert.match(pricingPage, /1회 최대 100,000원/)
+  assert.match(pricingPage, /1회 최대 \{POINT_CHARGE_MAX_AMOUNT_TEXT\}/)
   assert.match(pricingPage, /문제마켓/)
   assert.doesNotMatch(pricingPage, /AI 문제 생성/)
   assert.doesNotMatch(pricingPage, /문제은행/)
@@ -45,7 +45,7 @@ test('pricing explains the one-time charge limit and real usage paths', () => {
 
 test('checkout shows the restrictions before payment', () => {
   assert.match(checkout, /자동결제 없음/)
-  assert.match(checkout, /결제일로부터 1년/)
+  assert.match(checkout, /결제일로부터 \{POINT_CHARGE_VALIDITY_YEARS\}년/)
   assert.match(checkout, /양도/)
   assert.match(checkout, /method\.description/)
   assert.match(checkout, /문제마켓/)

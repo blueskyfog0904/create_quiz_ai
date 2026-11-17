@@ -277,7 +277,7 @@ export function PreviewHeader({
             className={`${isLoggedIn ? '' : 'ml-auto '}inline-flex min-h-11 shrink-0 items-center gap-1.5 px-2 text-xs font-bold text-[var(--studio-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]`}
           >
             <WalletCards aria-hidden="true" className="h-4 w-4" />
-            <span>캐시 충전</span>
+            <span>크레딧 충전</span>
           </Link>
         </StudioContainer>
       </div>
@@ -458,7 +458,7 @@ export function PreviewHeader({
             className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-bold text-[var(--studio-primary)] outline-none hover:bg-[var(--studio-primary-soft)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
           >
             <WalletCards aria-hidden="true" className="h-4 w-4" />
-            <span>캐시 충전</span>
+            <span>크레딧 충전</span>
           </Link>
         </StudioContainer>
       </div>

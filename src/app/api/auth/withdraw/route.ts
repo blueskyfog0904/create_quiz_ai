@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { hasPaymentRecordsBlockingWithdrawal } from '@/lib/withdraw-eligibility'
 import { NextRequest, NextResponse } from 'next/server'
 
 // DELETE - Handle account withdrawal
@@ -48,11 +49,7 @@ export async function DELETE(request: NextRequest) {
 
     // 결제 이력(payment_orders/checkout_attempts)은 재무 감사를 위해 profiles를
     // ON DELETE RESTRICT로 참조하므로, 이 경우 계정 삭제가 불가능하다.
-    const [{ count: paymentOrderCount }, { count: checkoutAttemptCount }] = await Promise.all([
-      admin.from('payment_orders').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-      admin.from('checkout_attempts').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-    ])
-    if ((paymentOrderCount ?? 0) > 0 || (checkoutAttemptCount ?? 0) > 0) {
+    if (await hasPaymentRecordsBlockingWithdrawal(admin, user.id)) {
       return NextResponse.json(
         { error: '결제 이력이 있는 계정은 관련 법령에 따른 기록 보존을 위해 즉시 삭제할 수 없습니다. 고객지원(1:1 문의)으로 탈퇴를 요청해주세요.' },
         { status: 409 }

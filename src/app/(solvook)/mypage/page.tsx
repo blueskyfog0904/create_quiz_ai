@@ -29,7 +29,7 @@ export const metadata: Metadata = {
 }
 
 const MENU_ITEMS = [
-  { href: '/mypage/payments', label: '결제 내역', description: '요금제 결제·환불 기록', icon: CreditCard },
+  { href: '/mypage/payments', label: '결제 내역', description: '충전 상품 결제·환불 기록', icon: CreditCard },
   { href: '/mypage/credits', label: '크레딧 관리', description: '잔액·구매·거래 내역', icon: Coins },
   { href: '/mypage/profile', label: '내정보 관리', description: '휴대폰 번호·비밀번호 변경', icon: User },
   { href: '/mypage/support', label: '고객지원', description: '1:1 문의 접수·확인', icon: HelpCircle },

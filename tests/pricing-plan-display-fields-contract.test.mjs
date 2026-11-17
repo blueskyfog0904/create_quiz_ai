@@ -76,7 +76,7 @@ test('회원 충전 상품 화면은 이름 비교·자동 계산 없이 DB 값�
 
   // 그대로 두는 줄
   assert.match(pricingClient, /문제마켓 이용/)
-  assert.match(pricingClient, /사용 기한 1년/)
+  assert.match(pricingClient, /사용 기한 \{POINT_CHARGE_VALIDITY_YEARS\}년/)
   assert.match(pricingClient, /크레딧당 ₩\{pricePerCredit\.toFixed\(2\)\}/)
 
   // 새 열이 아직 없는 응답(undefined)도 받을 수 있게 선택 항목이다.

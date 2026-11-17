@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { PolicyDocumentContent } from '@/components/legal/policy-document-content'
 import { getFooterPolicyDocumentBySlug } from '@/lib/footer-content'
 import { getSiteFooterContent } from '@/lib/footer-content-server'
+import { POINT_CHARGE_MAX_AMOUNT_TEXT, POINT_CHARGE_REFUND_DAYS } from '@/lib/point-charge-policy'
 
 interface TermsDocumentPageProps {
   params: Promise<{ documentSlug: string }>
@@ -71,7 +72,7 @@ export default async function TermsDocumentPage({ params }: TermsDocumentPagePro
               <ul className="mt-4 list-disc space-y-2 pl-5 leading-7">
                 <li>
                   크레딧은 월 구독이나 자동결제가 아닌 1회 충전 상품이며,
-                  1회 충전금액은 100,000원 이하로 제한됩니다.
+                  1회 충전금액은 {POINT_CHARGE_MAX_AMOUNT_TEXT} 이하로 제한됩니다.
                 </li>
                 <li>{REQUIRED_POINT_CHARGE_POLICY_SENTENCE}</li>
                 <li>
@@ -79,7 +80,7 @@ export default async function TermsDocumentPage({ params }: TermsDocumentPagePro
                   양도·이전하거나 현금으로 교환할 수 없습니다.
                 </li>
                 <li>
-                  구매 후 7일 이내이고 해당 충전 건을 전혀 사용하지 않은
+                  구매 후 {POINT_CHARGE_REFUND_DAYS}일 이내이고 해당 충전 건을 전혀 사용하지 않은
                   경우에만 환불을 신청할 수 있으며, 승인된 환불은 결제
                   당시 사용한 원 결제수단으로 처리합니다.
                 </li>
