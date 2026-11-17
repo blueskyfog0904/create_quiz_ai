@@ -92,10 +92,9 @@ export function WithdrawView({ email }: WithdrawViewProps) {
               회원 탈퇴 시 다음 내용이 삭제됩니다:
             </h2>
             <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-red-700 break-keep">
-              <li>생성한 모든 문제 및 문제지</li>
-              <li>저장한 문제 은행 데이터</li>
-              <li>결제 및 크레딧 내역</li>
-              <li>모든 활동 기록 및 통계</li>
+              <li>남은 크레딧과 크레딧 적립·사용 내역</li>
+              <li>문제마켓 구매 내역과 구매한 자료의 다운로드 권한</li>
+              <li>작성한 후기와 1:1 문의, 알림, 장바구니</li>
               <li>계정 정보 및 프로필</li>
             </ul>
             <p className="mt-3 text-sm font-medium text-red-800 break-keep">
