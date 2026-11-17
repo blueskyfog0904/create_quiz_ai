@@ -22,6 +22,9 @@ interface PricingPlan {
     description: string | null
     is_active: boolean
     sort_order: number
+    badge_text?: string | null
+    is_highlighted?: boolean
+    discount_text?: string | null
 }
 
 interface PricingClientProps {
@@ -44,48 +47,41 @@ export function PricingClient({ plans, isLoggedIn }: PricingClientProps) {
         router.push(`/checkout?planId=${plan.id}`)
     }
 
-    // 크레딧당 가격 계산 (할인율 표시용)
+    // 크레딧당 가격 계산
     const getPricePerCredit = (plan: PricingPlan) => {
         return plan.price / plan.credits
     }
-
-    // 가장 인기있는 요금제 찾기 (Basic)
-    const isPopular = (plan: PricingPlan) => plan.name === 'Basic'
-
-    // 가장 저렴한 크레딧당 가격 찾기
-    const lowestPricePerCredit = Math.min(...plans.map(getPricePerCredit))
 
     return (
         <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {plans.map((plan) => {
                 const pricePerCredit = getPricePerCredit(plan)
-                const savingsPercent = Math.round((1 - pricePerCredit / (plans[0]?.price / plans[0]?.credits || 1)) * 100)
-                const isLowestPrice = pricePerCredit === lowestPricePerCredit
-                const popular = isPopular(plan)
+                // 배지·강조·할인 문구는 관리자가 요금제 화면에서 정한 DB 값으로만 그린다.
+                const highlighted = plan.is_highlighted === true
 
                 return (
                     <Card
                         key={plan.id}
-                        className={`relative flex flex-col ${popular
+                        className={`relative flex flex-col ${highlighted
                             ? 'border-2 border-blue-500 shadow-lg scale-105'
                             : 'border border-gray-200'
                             }`}
                     >
-                        {/* 인기 배지 */}
-                        {popular && (
-                            <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                                <Badge className="bg-blue-500 text-white px-4 py-1">
+                        {/* 강조 카드의 배지 */}
+                        {plan.badge_text && highlighted && (
+                            <div className="absolute -top-3 left-1/2 w-max max-w-full -translate-x-1/2">
+                                <Badge className="bg-blue-500 text-white px-4 py-1 whitespace-normal text-center">
                                     <Sparkles className="w-3 h-3 mr-1" />
-                                    가장 인기
+                                    {plan.badge_text}
                                 </Badge>
                             </div>
                         )}
 
-                        {/* 가장 저렴 배지 */}
-                        {isLowestPrice && !popular && (
-                            <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                                <Badge className="bg-green-500 text-white px-4 py-1">
-                                    최고 가성비
+                        {/* 그 외 카드의 배지 */}
+                        {plan.badge_text && !highlighted && (
+                            <div className="absolute -top-3 left-1/2 w-max max-w-full -translate-x-1/2">
+                                <Badge className="bg-green-500 text-white px-4 py-1 whitespace-normal text-center">
+                                    {plan.badge_text}
                                 </Badge>
                             </div>
                         )}
@@ -106,9 +102,9 @@ export function PricingClient({ plans, isLoggedIn }: PricingClientProps) {
                                 <div className="text-gray-500 mt-1">
                                     {plan.credits.toLocaleString()} 크레딧
                                 </div>
-                                {savingsPercent > 0 && plan.sort_order > 1 && (
-                                    <Badge variant="secondary" className="mt-2 bg-green-100 text-green-700">
-                                        {savingsPercent}% 할인
+                                {plan.discount_text && (
+                                    <Badge variant="secondary" className="mt-2 max-w-full whitespace-normal text-center bg-green-100 text-green-700">
+                                        {plan.discount_text}
                                     </Badge>
                                 )}
                             </div>
@@ -123,18 +119,12 @@ export function PricingClient({ plans, isLoggedIn }: PricingClientProps) {
                                     <Check className="w-4 h-4 text-green-500" />
                                     사용 기한 1년
                                 </li>
-                                {plan.sort_order >= 2 && (
-                                    <li className="flex items-center gap-2 text-sm text-gray-600">
-                                        <Check className="w-4 h-4 text-green-500" />
-                                        우선 고객 지원
-                                    </li>
-                                )}
                             </ul>
 
                             {/* 구매 버튼 */}
                             <Button
                                 onClick={() => handlePurchase(plan)}
-                                className={`min-h-11 w-full ${popular
+                                className={`min-h-11 w-full ${highlighted
                                     ? 'bg-blue-600 hover:bg-blue-700'
                                     : ''
                                     }`}

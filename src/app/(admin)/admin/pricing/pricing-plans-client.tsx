@@ -123,6 +123,7 @@ export function PricingPlansClient() {
                             <TableHead>상품명</TableHead>
                             <TableHead>크레딧</TableHead>
                             <TableHead>가격</TableHead>
+                            <TableHead>화면 표시</TableHead>
                             <TableHead>상태</TableHead>
                             <TableHead className="text-right">관리</TableHead>
                         </TableRow>
@@ -130,7 +131,7 @@ export function PricingPlansClient() {
                     <TableBody>
                         {plans.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                                <TableCell colSpan={7} className="text-center text-gray-500 py-8">
                                     등록된 요금제가 없습니다.
                                 </TableCell>
                             </TableRow>
@@ -150,6 +151,11 @@ export function PricingPlansClient() {
                                         </Badge>
                                     </TableCell>
                                     <TableCell>₩{plan.price.toLocaleString()}</TableCell>
+                                    <TableCell className="text-xs text-gray-600">
+                                        <p>배지: {plan.badge_text || '없음'}</p>
+                                        <p>강조: {plan.is_highlighted ? '예' : '아니오'}</p>
+                                        <p>할인·혜택: {plan.discount_text || '없음'}</p>
+                                    </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
                                             <Switch

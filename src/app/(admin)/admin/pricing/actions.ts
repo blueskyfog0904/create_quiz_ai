@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { Database } from '@/types/supabase'
 import { MAX_POINT_CHARGE_AMOUNT, MIN_POINT_CHARGE_AMOUNT } from '@/lib/payment-constants'
+import { normalizePricingPlanDisplayText } from '@/lib/pricing-plan-display'
 
 export type PricingPlan = Database['public']['Tables']['pricing_plans']['Row']
 export type PricingPlanInsert = Database['public']['Tables']['pricing_plans']['Insert']
@@ -47,9 +48,13 @@ export async function upsertPricingPlan(data: PricingPlanInsert) {
         throw new Error('제공 크레딧은 1 이상이어야 합니다.')
     }
 
+    // 배지·할인 문구: 앞뒤 공백을 떼고, 비어 있으면 null, 20자를 넘으면 오류.
+    const badgeText = normalizePricingPlanDisplayText(data.badge_text, '배지 문구')
+    const discountText = normalizePricingPlanDisplayText(data.discount_text, '할인·혜택 문구')
+
     const { error } = await supabase
         .from('pricing_plans')
-        .upsert(data)
+        .upsert({ ...data, badge_text: badgeText, discount_text: discountText })
 
     if (error) throw new Error(error.message)
 

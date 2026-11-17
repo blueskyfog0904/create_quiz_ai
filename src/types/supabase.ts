@@ -3740,33 +3740,42 @@ export type Database = {
       }
       pricing_plans: {
         Row: {
+          badge_text: string | null
           created_at: string
           credits: number
           description: string | null
+          discount_text: string | null
           id: string
           is_active: boolean
+          is_highlighted: boolean
           name: string
           price: number
           sort_order: number
           updated_at: string
         }
         Insert: {
+          badge_text?: string | null
           created_at?: string
           credits: number
           description?: string | null
+          discount_text?: string | null
           id?: string
           is_active?: boolean
+          is_highlighted?: boolean
           name: string
           price: number
           sort_order?: number
           updated_at?: string
         }
         Update: {
+          badge_text?: string | null
           created_at?: string
           credits?: number
           description?: string | null
+          discount_text?: string | null
           id?: string
           is_active?: boolean
+          is_highlighted?: boolean
           name?: string
           price?: number
           sort_order?: number

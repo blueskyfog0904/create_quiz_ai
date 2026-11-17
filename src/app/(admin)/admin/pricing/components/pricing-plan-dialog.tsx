@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch'
 import { upsertPricingPlan, PricingPlan, PricingPlanInsert } from '../actions'
 import { Loader2 } from 'lucide-react'
 import { MAX_POINT_CHARGE_AMOUNT, MIN_POINT_CHARGE_AMOUNT } from '@/lib/payment-constants'
+import { PRICING_PLAN_DISPLAY_TEXT_MAX_LENGTH } from '@/lib/pricing-plan-display'
 // If sonner not installed, I might need to check. But standard shadcn often uses sonner or useToast.
 // Let's implement a simple error message in the UI.
 
@@ -33,6 +34,9 @@ export function PricingPlanDialog({
         description: '',
         is_active: true,
         sort_order: 0,
+        badge_text: '',
+        is_highlighted: false,
+        discount_text: '',
     })
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -46,6 +50,9 @@ export function PricingPlanDialog({
                 description: planToEdit.description || '',
                 is_active: planToEdit.is_active,
                 sort_order: planToEdit.sort_order,
+                badge_text: planToEdit.badge_text || '',
+                is_highlighted: planToEdit.is_highlighted ?? false,
+                discount_text: planToEdit.discount_text || '',
             })
         } else {
             setFormData({
@@ -55,6 +62,9 @@ export function PricingPlanDialog({
                 description: '',
                 is_active: true,
                 sort_order: 0,
+                badge_text: '',
+                is_highlighted: false,
+                discount_text: '',
             })
         }
         setError(null)
@@ -83,6 +93,9 @@ export function PricingPlanDialog({
                 description: formData.description,
                 is_active: formData.is_active ?? true,
                 sort_order: formData.sort_order ?? 0,
+                badge_text: formData.badge_text,
+                is_highlighted: formData.is_highlighted ?? false,
+                discount_text: formData.discount_text,
             }
 
             if (planToEdit) {
@@ -102,7 +115,7 @@ export function PricingPlanDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[425px] max-md:max-h-[calc(100dvh-2rem)] max-md:max-w-[calc(100vw-2rem)] max-md:overflow-y-auto">
+            <DialogContent className="sm:max-w-[425px] max-h-[calc(100dvh-2rem)] max-md:max-w-[calc(100vw-2rem)] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{planToEdit ? '요금제 수정' : '새 요금제 추가'}</DialogTitle>
                 </DialogHeader>
@@ -175,6 +188,48 @@ export function PricingPlanDialog({
                                 onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
                             />
                         </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="badge_text">배지 문구 (선택)</Label>
+                        <Input
+                            id="badge_text"
+                            value={formData.badge_text || ''}
+                            onChange={(e) => setFormData({ ...formData, badge_text: e.target.value })}
+                            placeholder="예: 가장 인기"
+                            maxLength={PRICING_PLAN_DISPLAY_TEXT_MAX_LENGTH}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            회원 충전 상품 화면의 카드 맨 위에 배지로 보입니다. 비우면 배지가 없습니다. (20자 이내)
+                        </p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="is_highlighted" className="cursor-pointer">강조 카드</Label>
+                            <Switch
+                                id="is_highlighted"
+                                checked={formData.is_highlighted ?? false}
+                                onCheckedChange={(checked) => setFormData({ ...formData, is_highlighted: checked })}
+                            />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            켜면 회원 충전 상품 화면에서 이 카드가 파란 테두리로 크게 보이고, 충전 버튼과 배지도 파란색이 됩니다.
+                        </p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="discount_text">할인·혜택 문구 (선택)</Label>
+                        <Input
+                            id="discount_text"
+                            value={formData.discount_text || ''}
+                            onChange={(e) => setFormData({ ...formData, discount_text: e.target.value })}
+                            placeholder="예: 10% 추가 적립"
+                            maxLength={PRICING_PLAN_DISPLAY_TEXT_MAX_LENGTH}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            회원 충전 상품 화면의 카드에서 가격·크레딧 아래에 초록 배지로 보입니다. 비우면 없습니다. (20자 이내)
+                        </p>
                     </div>
 
                     {error && (
