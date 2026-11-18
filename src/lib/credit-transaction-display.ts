@@ -65,6 +65,11 @@ export function getCreditTransactionTypeLabel(transaction: CreditTransactionDisp
   }
 
   if (transaction.type === 'refund') {
+    // 관리자 지급분에서 빠진 음수 기록은 관리자 회수(20261118150000).
+    const category = transaction.source?.source_category
+    if (transaction.amount < 0 && (category === 'admin_grant' || category === 'bonus' || category === 'system_refund')) {
+      return '회수'
+    }
     return '환불'
   }
 

@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 import { getAdminMemberDetail, type MemberDetailSection } from '@/lib/admin-member-detail-server'
-import { getAdminCreditTransactionKind } from '@/lib/admin-credit-transaction-kind'
+import { ADMIN_GRANT_SOURCE_CATEGORIES, getAdminCreditTransactionKind } from '@/lib/admin-credit-transaction-kind'
+import { hasAdminPermission } from '@/lib/admin-permissions'
+import { RevokeCreditButton } from './revoke-credit-button'
 import { getCreditSourceCategoryLabel, type CreditSourceDisplayInput } from '@/lib/credit-source-display'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
 import {
@@ -88,13 +90,15 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
   // 각 관리 화면을 이 회원의 이메일로 검색한 상태로 연다(부분 일치라 비슷한 이메일의 다른 회원이 섞일 수 있다. 이메일이 없으면 링크를 두지 않는다).
   const emailQuery = profile.email ? encodeURIComponent(profile.email) : null
   const orderHref = (tab: 'payments' | 'market', query: string) => `/admin/orders?tab=${tab}&q=${encodeURIComponent(query)}`
+  // 회수: 회수 권한이 있고 본인 계정이 아닐 때, 관리자 지급분 중 쓸 수 있는(활성·만료 전) 건에만 버튼을 둔다. 판정은 회수 함수(DB)가 다시 한다.
+  const canRevoke = hasAdminPermission(access, 'credits.revoke') && profile.id !== access.userId
 
   return (
     <div className="space-y-6">
       <div>
         <Link href="/admin/users" className={`text-sm ${LINK_CLASS}`}>← 사용자 관리</Link>
         <h1 className="mt-2 text-3xl font-bold text-gray-900 max-md:text-2xl">회원 상세</h1>
-        <p className="mt-1 text-gray-500">고객 문의에 답할 때 회원의 결제·크레딧·구매 이력을 보는 화면입니다. 조회만 할 수 있습니다.</p>
+        <p className="mt-1 text-gray-500">고객 문의에 답할 때 회원의 결제·크레딧·구매 이력을 보는 화면입니다. 잘못 지급한 크레딧의 회수도 여기서 합니다.</p>
       </div>
 
       <Card className="border-0 shadow-sm">
@@ -141,6 +145,7 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
                     <TableHead className="text-right">남은 수량</TableHead>
                     <TableHead>만료일</TableHead>
                     <TableHead>상태</TableHead>
+                    {canRevoke && <TableHead className="text-right">회수</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -157,6 +162,20 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
                           ? '만료됨'
                           : labelOf(CREDIT_SOURCE_STATUS_LABELS, source.status)}
                       </TableCell>
+                      {canRevoke && (
+                        <TableCell className="text-right">
+                          {ADMIN_GRANT_SOURCE_CATEGORIES.includes(source.source_category)
+                            && source.status === 'active'
+                            && !(source.expires_at && source.expires_at <= credits.databaseNow)
+                            && source.remaining_credits > 0 ? (
+                              <RevokeCreditButton
+                                sourceId={source.id}
+                                remaining={source.remaining_credits}
+                                sourceLabel={`${formatDateTime(source.purchased_at)} ${getCreditSourceCategoryLabel({ status: source.status, plan: source.plan, sourceCategory: source.source_category } as CreditSourceDisplayInput)}`}
+                              />
+                            ) : null}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>

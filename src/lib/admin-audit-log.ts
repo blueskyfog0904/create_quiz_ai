@@ -4,6 +4,7 @@
 export const ADMIN_AUDIT_ACTIONS = {
   credit_grant: '크레딧 수동 지급',
   credit_grant_limits_update: '크레딧 지급 기본 한도 변경',
+  credit_revoke: '크레딧 수동 회수',
   market_refund_approve: '마켓 환불 승인',
   market_refund_reject: '마켓 환불 거부',
   support_ticket_reply: '문의 답변',

@@ -479,6 +479,70 @@ export class CreditService {
   }
 
   /**
+   * 관리자가 잘못 지급한 크레딧을 회수합니다(지급 건 하나의 남은 수량 안에서, 관리자 지급분만).
+   *
+   * 원천·거래·잔액 캐시·작업 기록을 revoke_admin_credits RPC(20261118150000) 한 트랜잭션으로 기록합니다.
+   * 직원의 1회 회수 한도도 이 함수가 봅니다(대표는 한도 없음). 같은 operationKey로 다시 부르면 기존 결과를 돌려줍니다(alreadyRevoked).
+   * 함수가 거부하면 그 예외 문구(ADMIN_REVOKE_… / CREDIT_USER_NOT_FOUND, 숫자 포함)를 그대로 Error 메시지로 던집니다.
+   */
+  static async revokeCreditsAsAdmin({
+    actorId,
+    sourceId,
+    credits,
+    reason,
+    operationKey,
+  }: {
+    actorId: string
+    sourceId: string
+    credits: number
+    reason: string
+    operationKey: string
+  }): Promise<{ userId: string; newBalance: number; sourceRemaining: number; alreadyRevoked: boolean }> {
+    const rpcClient = createAdminClient() as unknown as {
+      rpc: (fn: string, params: Record<string, unknown>) => Promise<{
+        data: unknown
+        error: { message: string } | null
+      }>
+    }
+
+    const { data, error } = await rpcClient.rpc('revoke_admin_credits', {
+      p_actor_id: actorId,
+      p_source_id: sourceId,
+      p_amount: credits,
+      p_reason: reason,
+      p_operation_key: operationKey,
+    })
+
+    if (error) {
+      const message = rpcErrorMessage(error)
+      console.error('[CreditService] Admin revoke failed:', message)
+      const known = message.match(/(ADMIN_REVOKE_[A-Z_]+|CREDIT_USER_NOT_FOUND)(?: (?:limit|remaining)=\d+)?/)
+      throw new Error(known ? known[0] : '관리자 크레딧 회수 중 오류가 발생했습니다.')
+    }
+
+    const result = (Array.isArray(data) ? data[0] : data) as {
+      already_revoked?: boolean
+      user_id?: string
+      new_balance?: unknown
+      source_remaining?: unknown
+    } | undefined
+    const newBalance = toFiniteNumber(result?.new_balance)
+    const sourceRemaining = toFiniteNumber(result?.source_remaining)
+    if (!result?.user_id || newBalance === null || sourceRemaining === null) {
+      throw new Error('관리자 크레딧 회수 응답이 올바르지 않습니다.')
+    }
+
+    await reportCreditBalanceAfterMutation(result.user_id, 'Admin revoke')
+
+    return {
+      userId: result.user_id,
+      newBalance,
+      sourceRemaining,
+      alreadyRevoked: result.already_revoked === true,
+    }
+  }
+
+  /**
    * 크레딧 거래 내역을 조회합니다.
    */
   static async getTransactions(userId: string, limit = 50): Promise<CreditTransaction[]> {

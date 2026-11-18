@@ -12,12 +12,14 @@ const MIGRATION = read('supabase/migrations/20261117110000_admin_audit_log.sql')
 const ROLLBACK = read('supabase/rollback/20261117110000_admin_audit_log_down.sql')
 const PERMISSION_MIGRATION = read('supabase/migrations/20261117120000_admin_permission_grants_replace.sql')
 const LIMITS_MIGRATION = read('supabase/migrations/20261118120000_admin_credit_grant_limits.sql')
+const REVOKE_MIGRATION = read('supabase/migrations/20261118150000_admin_credit_revoke.sql')
 // DB 함수가 같은 트랜잭션으로 적는 종류
 const DB_FUNCTION_ACTIONS = [
   [PERMISSION_MIGRATION, 'admin_permissions_replace'],
   [PERMISSION_MIGRATION, 'admin_account_revoke'],
   [LIMITS_MIGRATION, 'credit_grant'],
   [LIMITS_MIGRATION, 'credit_grant_limits_update'],
+  [REVOKE_MIGRATION, 'credit_revoke'],
 ]
 const { ADMIN_AUDIT_ACTIONS } = load('src/lib/admin-audit-log.ts')
 

@@ -24,7 +24,7 @@ export interface AdminCreditTransaction {
 export interface AdminCreditMonthlyStats {
   year: number
   month: number
-  // 충전·지급으로 들어온 크레딧(+), 사용(−), 사용 취소로 되돌려 준 크레딧(+), 환불로 회수한 크레딧(−)
+  // 충전·지급으로 들어온 크레딧(+), 사용(−), 사용 취소로 되돌려 준 크레딧(+), 결제 환불·관리자 회수로 빠진 크레딧(−, 둘 다 음수 refund 기록)
   added: number
   consumed: number
   restored: number

@@ -195,6 +195,7 @@ const ROUTE_REQUIREMENTS = {
   // 크레딧
   'users/credits/route.ts': all('credits.grant', 'POST'),
   'users/credits/limits/route.ts': all('credits.limits.manage', 'PUT'),
+  'users/credits/revoke/route.ts': all('credits.revoke', 'POST'),
   // 환불
   'market/refunds/route.ts': all('refunds.market', 'GET'),
   'market/refunds/[id]/route.ts': all('refunds.market', 'PATCH'),

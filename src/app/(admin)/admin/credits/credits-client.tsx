@@ -125,12 +125,12 @@ export function CreditsClient({ transactions, totalCount, page, pageSize, query,
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">환불 회수</CardTitle>
+            <CardTitle className="text-sm font-medium">환불·관리자 회수</CardTitle>
             <RotateCcw className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-700">{statValue(monthlyStats?.recovered)}</div>
-            <p className="text-xs text-muted-foreground">{statsPeriod} · 결제 환불로 회수한 크레딧</p>
+            <p className="text-xs text-muted-foreground">{statsPeriod} · 결제 환불·관리자 회수로 빠진 크레딧</p>
           </CardContent>
         </Card>
       </div>
@@ -162,7 +162,7 @@ export function CreditsClient({ transactions, totalCount, page, pageSize, query,
               <SelectItem value="all">전체 내역</SelectItem>
               <SelectItem value="purchase">충전·지급</SelectItem>
               <SelectItem value="consume">사용</SelectItem>
-              <SelectItem value="refund">환불</SelectItem>
+              <SelectItem value="refund">환불·회수</SelectItem>
             </SelectContent>
           </Select>
         </div>

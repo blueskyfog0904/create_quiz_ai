@@ -334,7 +334,7 @@ export function CreditsView({
     const className =
       label === '충전' || label === '지급'
         ? `${badgeBaseClassName} bg-[var(--studio-primary-soft)] text-[var(--studio-primary)]`
-        : label === '환불'
+        : label === '환불' || label === '회수'
           ? `${badgeBaseClassName} bg-[var(--studio-highlight)] text-[var(--studio-ink)]`
           : `${badgeBaseClassName} bg-[var(--studio-background)] text-[var(--studio-muted)]`
 
@@ -354,7 +354,7 @@ export function CreditsView({
     { value: 'all', label: '유형 전체' },
     { value: 'purchase', label: '충전/지급' },
     { value: 'consume', label: '사용' },
-    { value: 'refund', label: '환불' },
+    { value: 'refund', label: '환불/회수' },
     { value: 'admin_grant', label: '지급' },
   ]
 
