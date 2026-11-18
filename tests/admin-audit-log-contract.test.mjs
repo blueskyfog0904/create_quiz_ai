@@ -11,6 +11,14 @@ const read = (path) => readFileSync(join(ROOT, path), 'utf8')
 const MIGRATION = read('supabase/migrations/20261117110000_admin_audit_log.sql')
 const ROLLBACK = read('supabase/rollback/20261117110000_admin_audit_log_down.sql')
 const PERMISSION_MIGRATION = read('supabase/migrations/20261117120000_admin_permission_grants_replace.sql')
+const LIMITS_MIGRATION = read('supabase/migrations/20261118120000_admin_credit_grant_limits.sql')
+// DB 함수가 같은 트랜잭션으로 적는 종류
+const DB_FUNCTION_ACTIONS = [
+  [PERMISSION_MIGRATION, 'admin_permissions_replace'],
+  [PERMISSION_MIGRATION, 'admin_account_revoke'],
+  [LIMITS_MIGRATION, 'credit_grant'],
+  [LIMITS_MIGRATION, 'credit_grant_limits_update'],
+]
 const { ADMIN_AUDIT_ACTIONS } = load('src/lib/admin-audit-log.ts')
 
 const ADMIN_ID = '00000000-0000-4000-8000-000000000001'
@@ -98,8 +106,8 @@ const FORBIDDEN = (path) => /^src\/lib\/(payment-|payapp-|kakaopay-)/.test(path)
 
 test('기록하는 종류는 모두 ADMIN_AUDIT_ACTIONS(한 곳)에 있고, DB 함수가 적는 종류도 같다', () => {
   const keys = Object.keys(ADMIN_AUDIT_ACTIONS)
-  for (const action of ['admin_permissions_replace', 'admin_account_revoke']) {
-    assert.ok(PERMISSION_MIGRATION.includes(`'${action}',`), action)
+  for (const [migration, action] of DB_FUNCTION_ACTIONS) {
+    assert.ok(migration.includes(`'${action}',`), action)
     assert.ok(keys.includes(action), action)
   }
   const used = new Set()
@@ -123,7 +131,7 @@ test('기록하는 종류는 모두 ADMIN_AUDIT_ACTIONS(한 곳)에 있고, DB �
     }
   }
   // 코드에서 남기는 종류 + DB 함수가 남기는 종류 = 목록 전체(쓰지 않는 항목이 없다).
-  assert.deepEqual([...used, 'admin_permissions_replace', 'admin_account_revoke'].sort(), [...keys].sort())
+  assert.deepEqual([...new Set([...used, ...DB_FUNCTION_ACTIONS.map(([, action]) => action)])].sort(), [...keys].sort())
 })
 
 test('결제 쪽 조치(충전 환불 실행·수동 확인·경보 해소)는 payment_admin_actions에 이미 남으므로 다시 적지 않는다', () => {
@@ -293,39 +301,49 @@ function loadCreditRoute({ audit = auditMock(), grant, session = { userId: ADMIN
   return (amount) => route.POST({ json: async () => ({ userId: target, amount, description: '보상 지급', category: 'compensation', idempotencyKey: '0f8fad5b-d9cb-469f-a165-70867728950e' }) })
 }
 
-test('크레딧 수동 지급: 새 지급만 기록하고(amount=지급량, reason=내용), 재요청·한도 초과·지급 실패는 기록하지 않는다', async () => {
+test('크레딧 수동 지급: 기록은 지급 함수가 같은 트랜잭션으로 남기고(20261118120000), route는 행위자·사유·분류를 넘긴다', async () => {
+  const calls = []
   const audit = auditMock()
-  assert.equal((await loadCreditRoute({ audit })(500)).status, 200)
-  assert.deepEqual(audit.audits.map(({ action, targetUserId, amount, reason }) => ({ action, targetUserId, amount, reason })), [{ action: 'credit_grant', targetUserId: MEMBER_ID, amount: 500, reason: '보상 지급' }])
+  const ok = await loadCreditRoute({ audit, grant: async (args) => { calls.push(args); return { newBalance: 700, alreadyGranted: false } } })(500)
+  assert.equal(ok.status, 200)
+  assert.equal(ok.body.auditWarning, undefined)
+  assert.deepEqual(calls, [{
+    actorId: ADMIN_ID,
+    userId: MEMBER_ID,
+    credits: 500,
+    sourceCategory: 'admin_other',
+    reason: '보상 지급',
+    details: { category: 'compensation' },
+    operationKey: 'admin_grant:0f8fad5b-d9cb-469f-a165-70867728950e',
+  }])
+  // route는 따로 기록하지 않는다(지급과 기록이 갈라지지 않게).
+  assert.equal(audit.audits.length + audit.alerts.length, 0)
+  const source = read('src/app/api/admin/users/credits/route.ts')
+  assert.doesNotMatch(source, /recordAdminAudit|alertAdminAuditFailure|admin-audit-log/)
+  assert.doesNotMatch(read('src/app/(admin)/admin/credits/grant-credit-dialog.tsx'), /auditWarning/)
 
-  const replay = auditMock()
-  assert.equal((await loadCreditRoute({ audit: replay, grant: async () => ({ newBalance: 700, alreadyGranted: true }) })(500)).status, 200)
-  assert.equal(replay.audits.length, 0)
+  // 지급 함수: 새 지급 뒤에만 'credit_grant'를 amount·사유와 함께 적는다(재요청은 그 전에 돌아간다).
+  const body = LIMITS_MIGRATION.match(/CREATE FUNCTION public\.grant_admin_credits\([\s\S]*?\$fn_grant_admin_credits\$;/)[0]
+  const replayReturn = body.indexOf("'already_granted', true")
+  const insertTx = body.indexOf('INSERT INTO public.credit_transactions')
+  const record = body.indexOf('PERFORM public.record_admin_audit(')
+  assert.ok(replayReturn > 0 && replayReturn < insertTx && insertTx < record)
+  assert.match(body.slice(record), /p_actor_id,\n\s+'credit_grant',\n\s+'member',\n\s+p_user_id::text,\n\s+p_user_id,\n\s+p_amount,\n\s+btrim\(p_reason\),/)
 
-  const over = auditMock()
-  const staff = { userId: ADMIN_ID, role: 'staff', grants: [{ permission: 'members.view', limits: {} }, { permission: 'credits.view', limits: {} }, { permission: 'credits.grant', limits: { per_grant: 100, per_day: 100 } }] }
-  assert.equal((await loadCreditRoute({ audit: over, session: staff })(101)).status, 403)
-  assert.equal(over.audits.length, 0)
-
-  const failed = auditMock()
-  assert.equal((await loadCreditRoute({ audit: failed, grant: async () => { throw new Error('DB down') } })(500)).status, 500)
-  assert.equal(failed.audits.length, 0)
-
-  // 기록이 실패해도 지급은 성공이고, 응답에 경고를 싣고 대표에게 알린다. 정상일 때는 경고 필드가 없다.
-  assert.equal((await loadCreditRoute({ audit: auditMock() })(500)).body.auditWarning, undefined)
-  const failing = auditMock(false)
-  const warned = await loadCreditRoute({ audit: failing })(500)
-  assert.equal(warned.status, 200)
-  assert.equal(warned.body.success, true)
-  assert.equal(warned.body.newBalance, 700)
-  assert.match(warned.body.auditWarning, /작업 기록을 남기지 못했습니다/)
-  assert.deepEqual(failing.alerts, [{ action: 'credit_grant', refTable: 'profiles', refId: MEMBER_ID, link: `/admin/users/${MEMBER_ID}`, dedupeId: '0f8fad5b-d9cb-469f-a165-70867728950e' }])
-  // 같은 키의 재요청은 기록하지 않으므로 경고·알림도 없다.
-  const replayFailing = auditMock(false)
-  const replayed = await loadCreditRoute({ audit: replayFailing, grant: async () => ({ newBalance: 700, alreadyGranted: true }) })(500)
-  assert.equal(replayed.body.auditWarning, undefined)
-  assert.equal(replayFailing.alerts.length, 0)
-  assert.match(read('src/app/(admin)/admin/credits/grant-credit-dialog.tsx'), /if \(data\.auditWarning\) toast\.warning\(data\.auditWarning\)/)
+  // 지급 실패는 500, 한도 거부는 403(지급 함수의 문구를 안내로 바꾼다).
+  assert.equal((await loadCreditRoute({ grant: async () => { throw new Error('DB down') } })(500)).status, 500)
+  const perGrant = await loadCreditRoute({ grant: async () => { throw new Error('ADMIN_GRANT_LIMIT_PER_GRANT limit=10000') } })(10001)
+  assert.equal(perGrant.status, 403)
+  assert.equal(perGrant.body.code, 'ADMIN_LIMIT_EXCEEDED')
+  assert.match(perGrant.body.error, /1회 지급 한도\(10,000 크레딧\)/)
+  const perDay = await loadCreditRoute({ grant: async () => { throw new Error('ADMIN_GRANT_LIMIT_PER_DAY limit=50000 used=49990') } })(100)
+  assert.equal(perDay.status, 403)
+  assert.equal(perDay.body.code, 'ADMIN_DAILY_LIMIT_EXCEEDED')
+  assert.match(perDay.body.error, /오늘 지급 한도\(50,000 크레딧\)[\s\S]*오늘 지급한 크레딧 49,990, 남은 한도 10/)
+  const conflict = await loadCreditRoute({ grant: async () => { throw new Error('ADMIN_GRANT_IDEMPOTENCY_CONFLICT') } })(500)
+  assert.equal(conflict.status, 409)
+  const notSet = await loadCreditRoute({ grant: async () => { throw new Error('ADMIN_GRANT_LIMIT_NOT_SET') } })(1)
+  assert.equal(notSet.status, 403)
 })
 
 test('크레딧 수동 지급: 본인 계정에는 대표도 지급하지 못한다(지급 함수 호출 전 403)', async () => {

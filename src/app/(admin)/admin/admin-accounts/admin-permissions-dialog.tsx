@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import {
   ADMIN_PERMISSIONS,
   ADMIN_PERMISSION_KEYS,
+  isAdminPermissionLimitOptional,
   validateAdminPermissionGrants,
   type AdminPermissionKey,
 } from '@/lib/admin-permissions'
@@ -91,11 +92,12 @@ export function AdminPermissionsDialog({ account, presets, onClose, onSaved }: A
     setNotice(`'${preset.name}' 묶음으로 체크를 채웠습니다. 한도가 있는 권한은 한도를 입력한 뒤 저장하세요.`)
   }
 
+  // 빈 칸은 보내지 않는다(필수 한도는 검증이 막고, 비울 수 있는 한도는 기본 한도를 쓴다).
   const buildGrants = () => ADMIN_PERMISSION_KEYS.filter((key) => checked.has(key)).map((key) => ({
     permission: key,
-    limits: Object.fromEntries(Object.keys(ADMIN_PERMISSIONS[key].limits).map((limitKey) => {
+    limits: Object.fromEntries(Object.keys(ADMIN_PERMISSIONS[key].limits).flatMap((limitKey) => {
       const raw = (limitDrafts[key]?.[limitKey] ?? '').trim()
-      return [limitKey, raw === '' ? null : Number(raw)]
+      return raw === '' ? [] : [[limitKey, Number(raw)]]
     })),
   }))
 
@@ -177,7 +179,7 @@ export function AdminPermissionsDialog({ account, presets, onClose, onSaved }: A
                   <div className="mt-2 flex flex-wrap gap-3 pl-6">
                     {limitEntries.map(([limitKey, limitLabel]) => (
                       <label key={limitKey} className="flex items-center gap-2 text-sm">
-                        <span>{limitLabel} (크레딧, 필수)</span>
+                        <span>{limitLabel} (크레딧, {isAdminPermissionLimitOptional(key) ? '비우면 기본 한도' : '필수'})</span>
                         <Input
                           type="number"
                           min={1}

@@ -194,6 +194,7 @@ const ROUTE_REQUIREMENTS = {
   'orders/payments/route.ts': all('orders.view', 'GET'),
   // 크레딧
   'users/credits/route.ts': all('credits.grant', 'POST'),
+  'users/credits/limits/route.ts': all('credits.limits.manage', 'PUT'),
   // 환불
   'market/refunds/route.ts': all('refunds.market', 'GET'),
   'market/refunds/[id]/route.ts': all('refunds.market', 'PATCH'),
@@ -620,33 +621,72 @@ function loadCreditGrantRoute(session) {
   return { post, grants }
 }
 
-test('⑤ 크레딧 지급: 대표는 한도 없이, staff는 1회 지급 한도 안에서만 지급한다', async () => {
+test('⑤ 크레딧 지급: 권한(의존 포함)이 있으면 지급 함수를 부르고, 1회·하루 한도는 지급 함수(DB)가 본다', async () => {
+  // 대표: 1만 넘는 수량도 지급 함수까지 간다(대표는 한도 없음 — 20261118120000).
   const owner = loadCreditGrantRoute({})
-  assert.equal((await owner.post(10000)).status, 200)
+  assert.equal((await owner.post(50000)).status, 200)
   assert.equal(owner.grants.length, 1)
 
-  const staff = loadCreditGrantRoute({ role: 'staff', grants: [...CREDIT_STAFF, grant('credits.grant', { per_grant: 1000, per_day: 5000 })] })
-  assert.equal((await staff.post(1000)).status, 200)
-  const over = await staff.post(1001)
-  assert.equal(over.status, 403)
-  assert.equal(over.body.code, 'ADMIN_LIMIT_EXCEEDED')
-  assert.equal(staff.grants.length, 1, '한도를 넘으면 지급 함수를 부르지 않는다')
+  // 직원: 계정별 한도가 없어도(기본 한도) route는 막지 않는다. 한도 판정은 지급 함수가 한다.
+  for (const limits of [{}, { per_grant: 1000, per_day: 5000 }]) {
+    const staff = loadCreditGrantRoute({ role: 'staff', grants: [...CREDIT_STAFF, grant('credits.grant', limits)] })
+    assert.equal((await staff.post(1001)).status, 200, JSON.stringify(limits))
+    assert.equal(staff.grants.length, 1)
+  }
 
-  // 한도 값이 없는 권한, 의존 권한이 빠진 권한, 권한 없음, 관리자 아님, 비로그인
-  const noLimit = loadCreditGrantRoute({ role: 'staff', grants: [...CREDIT_STAFF, grant('credits.grant')] })
-  assert.equal((await noLimit.post(1)).status, 403)
+  // 의존 권한이 빠진 권한, 권한 없음, 관리자 아님, 비로그인
   const noDependency = loadCreditGrantRoute({ role: 'staff', grants: [grant('credits.grant', { per_grant: 1000 })] })
   assert.equal((await noDependency.post(1)).status, 403)
   const viewOnly = loadCreditGrantRoute({ role: 'staff', grants: CREDIT_STAFF })
   assert.deepEqual(await viewOnly.post(1), { body: { error: '이 작업을 할 권한이 없습니다.' }, status: 403 })
   assert.deepEqual(await loadCreditGrantRoute({ isAdmin: false }).post(1), { body: { error: 'Forbidden: Admin only' }, status: 403 })
   assert.deepEqual(await loadCreditGrantRoute({ loggedIn: false }).post(1), { body: { error: 'Unauthorized' }, status: 401 })
-  for (const blocked of [noLimit, noDependency, viewOnly]) assert.equal(blocked.grants.length, 0)
+  for (const blocked of [noDependency, viewOnly]) assert.equal(blocked.grants.length, 0)
 
-  // 하루 누적 한도는 DB 함수(U3-6)가 맡는다. route는 그 사실을 적어 두고 1회 한도만 본다.
+  // route는 한도를 직접 보지 않고(하드코딩 10,000 없음) 행위자를 지급 함수에 넘긴다.
   const source = read('src/app/api/admin/users/credits/route.ts')
-  assert.match(source, /per_day[^\n]*\n[^\n]*U3-6/)
-  assert.doesNotMatch(source, /checkAdminLimit\([^)]*'per_day'/)
+  assert.doesNotMatch(source, /checkAdminLimit|10000|10,000/)
+  assert.match(source, /actorId: guard\.access\.userId/)
+})
+
+function loadCreditLimitsRoute(session, rpc = async () => ({ data: { after: { per_grant: 5000, per_day: 20000 } }, error: null })) {
+  const calls = []
+  const route = load('src/app/api/admin/users/credits/limits/route.ts', {
+    'next/server': json,
+    ...adminGuardMocks(session),
+    '@/lib/admin-credit-grant-limits-server': load('src/lib/admin-credit-grant-limits-server.ts', {
+      '@/lib/supabase/bypass': { createAdminClient: () => ({ rpc: async (name, args) => { calls.push([name, args]); return rpc(name, args) } }) },
+    }),
+  })
+  const put = (body) => route.PUT({ json: async () => body })
+  return { put, calls }
+}
+
+test('⑤ 지급 기본 한도 변경: 대표와 credits.limits.manage(+credits.view)를 받은 직원만, 행위자를 함수에 넘긴다', async () => {
+  const owner = loadCreditLimitsRoute({})
+  const saved = await owner.put({ perGrant: 5000, perDay: 20000 })
+  assert.equal(saved.status, 200)
+  assert.deepEqual(saved.body, { success: true, limits: { perGrant: 5000, perDay: 20000 } })
+  assert.deepEqual(owner.calls, [['set_admin_credit_grant_limits', { p_actor_id: '00000000-0000-4000-8000-000000000001', p_per_grant: 5000, p_per_day: 20000 }]])
+
+  const manager = loadCreditLimitsRoute({ role: 'staff', grants: [grant('credits.view'), grant('credits.limits.manage')] })
+  assert.equal((await manager.put({ perGrant: 1, perDay: 1 })).status, 200)
+
+  // 권한 없음·의존 빠짐 → 함수를 부르지 않는다
+  for (const grants of [[grant('credits.view'), grant('credits.grant')], [grant('credits.limits.manage')]]) {
+    const denied = loadCreditLimitsRoute({ role: 'staff', grants })
+    assert.equal((await denied.put({ perGrant: 1, perDay: 1 })).status, 403)
+    assert.equal(denied.calls.length, 0)
+  }
+  // 입력 검증: 1회 > 하루, 0, 소수, 문자열
+  for (const body of [{ perGrant: 2, perDay: 1 }, { perGrant: 0, perDay: 1 }, { perGrant: 1.5, perDay: 2 }, { perGrant: '1', perDay: 2 }, null]) {
+    const bad = loadCreditLimitsRoute({})
+    assert.equal((await bad.put(body)).status, 400, JSON.stringify(body))
+    assert.equal(bad.calls.length, 0)
+  }
+  // 함수 거부는 상태·문구로
+  const rejected = loadCreditLimitsRoute({}, async () => ({ data: null, error: { message: 'ADMIN_GRANT_LIMITS_ACTOR_NOT_ALLOWED' } }))
+  assert.equal((await rejected.put({ perGrant: 1, perDay: 2 })).status, 403)
 })
 
 function loadMarketRefundRoute(session, { requested = 5000, lookupError = null, requester = MEMBER_ID } = {}) {

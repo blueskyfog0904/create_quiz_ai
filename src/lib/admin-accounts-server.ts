@@ -305,9 +305,10 @@ export async function replaceAdminPermissionGrants({
   await requireStaffTarget(admin, userId, actorId)
 
   // 검증을 지났으므로 모두 아는 권한이다. 한도 칸은 그 권한에 정의된 키만 남긴다(모르는 키를 저장하지 않는다).
+  // 비워 둔 한도(비울 수 있는 권한만 검증을 지난다)는 저장하지 않는다 — 없으면 기본 한도를 쓴다.
   const payload = grants.map((grant) => {
     const definedLimits: Readonly<Record<string, string>> = ADMIN_PERMISSIONS[grant.permission as AdminPermissionKey].limits
-    const limits = Object.fromEntries(Object.entries(grant.limits ?? {}).filter(([key]) => key in definedLimits))
+    const limits = Object.fromEntries(Object.entries(grant.limits ?? {}).filter(([key, value]) => key in definedLimits && value !== null && value !== undefined))
     return { permission: grant.permission, limits }
   })
 

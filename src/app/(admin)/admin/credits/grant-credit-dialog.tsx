@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, Loader2, User, Check, AlertTriangle } from 'lucide-react'
+import { Search, Loader2, User, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
@@ -93,12 +93,17 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
       toast.error('지급할 크레딧을 입력해주세요.')
       return
     }
-    if (amount > 10000) {
-      toast.error('한 번에 최대 10,000 크레딧까지만 지급할 수 있습니다.')
+    // 지급 한도(직원의 1회·하루)는 서버가 확인하고, 넘으면 남은 한도를 안내한다.
+    if (!Number.isInteger(amount)) {
+      toast.error('지급할 크레딧은 정수로 입력해주세요.')
       return
     }
     if (!reason.trim()) {
       toast.error('지급 사유를 입력해주세요.')
+      return
+    }
+    if (reason.trim().length > 500) {
+      toast.error('지급 사유는 500자 이내로 입력해주세요.')
       return
     }
     setStep('confirm')
@@ -124,7 +129,6 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
       if (!response.ok) throw new Error(data.error || '지급 실패')
 
       toast.success(`${selectedUser.email}님에게 크레딧이 지급되었습니다.`)
-      if (data.auditWarning) toast.warning(data.auditWarning)
       setIdempotencyKey(crypto.randomUUID())
       onSuccess?.()
       onOpenChange(false)
@@ -207,12 +211,6 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">Credit</span>
                 </div>
-                {amount > 10000 && (
-                  <p className="text-xs text-red-600 flex items-center gap-1">
-                    <AlertTriangle className="h-3 w-3" />
-                    최대 10,000 크레딧까지만 가능합니다.
-                  </p>
-                )}
               </div>
               <div className="space-y-2">
                 <Label>사유 카테고리</Label>

@@ -3,6 +3,7 @@
 // DB 함수 안에서 적는 종류(admin_permissions_replace, admin_account_revoke)도 이 목록에 있어야 한다(계약 테스트가 맞춰 본다).
 export const ADMIN_AUDIT_ACTIONS = {
   credit_grant: '크레딧 수동 지급',
+  credit_grant_limits_update: '크레딧 지급 기본 한도 변경',
   market_refund_approve: '마켓 환불 승인',
   market_refund_reject: '마켓 환불 거부',
   support_ticket_reply: '문의 답변',

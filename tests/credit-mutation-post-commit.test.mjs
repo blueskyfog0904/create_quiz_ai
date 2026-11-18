@@ -168,7 +168,7 @@ test('a committed admin grant is returned with the RPC balance even when the pos
   })
   const { CreditService } = loadCredits(admin)
 
-  const result = await CreditService.grantCreditsAsAdmin('user-1', 500, 'admin_grant', 'admin_grant', 'admin_grant:key')
+  const result = await CreditService.grantCreditsAsAdmin({ actorId: 'admin-1', userId: 'user-1', credits: 500, sourceCategory: 'admin_grant', reason: '보상', details: {}, operationKey: 'admin_grant:key' })
   assert.deepEqual(result, { sourceId: 'source-9', newBalance: 500, alreadyGranted: false })
   assert.equal(admin.calls.profileUpdates.length, 0)
 })

@@ -28,6 +28,7 @@ const grantDialog = readSource('../src/app/(admin)/admin/credits/grant-credit-di
 
 const KEY = '0f8fad5b-d9cb-469f-a165-70867728950e'
 const USER_ID = '00000000-0000-4000-8000-000000000002'
+const ACTOR_ID = '00000000-0000-4000-8000-000000000001'
 
 function loadRoute(grant) {
   const calls = { grants: [], notifications: [] }
@@ -90,7 +91,15 @@ test('the grant route passes an admin_grant: operation key and notifies only a n
 
   const first = await post(body())
   assert.equal(first.status, 200)
-  assert.deepEqual(calls.grants[0], [USER_ID, 500, 'admin_grant', 'admin_grant', `admin_grant:${KEY}`])
+  assert.deepEqual(calls.grants[0], [{
+    actorId: 'admin-1',
+    userId: USER_ID,
+    credits: 500,
+    sourceCategory: 'admin_grant',
+    reason: '보상 지급',
+    details: { category: 'compensation' },
+    operationKey: `admin_grant:${KEY}`,
+  }])
   assert.equal(calls.notifications.length, 1)
 
   // 응답 유실 뒤 같은 키로 다시 보내면 성공을 응답하지만 사용자 알림은 다시 보내지 않는다.
@@ -111,7 +120,7 @@ test('the grant route answers ADMIN_GRANT_IDEMPOTENCY_CONFLICT with 409', async 
   assert.equal(calls.notifications.length, 0)
 })
 
-test('grantCreditsAsAdmin calls grant_admin_credits with the operation key and maps a conflict', async () => {
+test('grantCreditsAsAdmin calls grant_admin_credits(7 args, actor included) with the operation key and passes known rejections through', async () => {
   const rpcCalls = []
   let response = { data: { already_granted: true, source_id: 'source-1', new_balance: 800 }, error: null }
   const admin = {
@@ -135,24 +144,32 @@ test('grantCreditsAsAdmin calls grant_admin_credits with the operation key and m
     },
   })
 
-  const result = await CreditService.grantCreditsAsAdmin(USER_ID, 300, 'bonus', 'admin_grant', `admin_grant:${KEY}`)
+  const GRANT_ARGS = { actorId: ACTOR_ID, userId: USER_ID, credits: 300, sourceCategory: 'bonus', reason: '보상', details: { category: 'event' }, operationKey: `admin_grant:${KEY}` }
+  const result = await CreditService.grantCreditsAsAdmin(GRANT_ARGS)
   assert.deepEqual(result, { sourceId: 'source-1', newBalance: 800, alreadyGranted: true })
   assert.deepEqual(rpcCalls[0], {
     name: 'grant_admin_credits',
     args: {
+      p_actor_id: ACTOR_ID,
       p_user_id: USER_ID,
       p_amount: 300,
       p_source_category: 'bonus',
-      p_payment_method: 'admin_grant',
+      p_reason: '보상',
+      p_details: { category: 'event' },
       p_operation_key: `admin_grant:${KEY}`,
     },
   })
 
   response = { data: null, error: { message: 'ADMIN_GRANT_IDEMPOTENCY_CONFLICT' } }
   await assert.rejects(
-    CreditService.grantCreditsAsAdmin(USER_ID, 300, 'bonus', 'admin_grant', `admin_grant:${KEY}`),
+    CreditService.grantCreditsAsAdmin(GRANT_ARGS),
     { message: 'ADMIN_GRANT_IDEMPOTENCY_CONFLICT' }
   )
+  // 한도 거부는 숫자까지 넘기고(route가 안내 문구로 바꾼다), 모르는 오류는 일반 문구로 감춘다.
+  response = { data: null, error: { message: 'ADMIN_GRANT_LIMIT_PER_DAY limit=50000 used=49000' } }
+  await assert.rejects(CreditService.grantCreditsAsAdmin(GRANT_ARGS), { message: 'ADMIN_GRANT_LIMIT_PER_DAY limit=50000 used=49000' })
+  response = { data: null, error: { message: 'relation "x" does not exist' } }
+  await assert.rejects(CreditService.grantCreditsAsAdmin(GRANT_ARGS), { message: '관리자 크레딧 지급 중 오류가 발생했습니다.' })
 })
 
 test('the admin grant dialog sends a crypto.randomUUID() key and renews it after success; the users screen reuses that dialog', () => {

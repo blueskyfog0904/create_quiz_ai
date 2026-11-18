@@ -67,12 +67,35 @@ test('권한 교체·해제 함수는 함수 안에서 행위자=대표·대상=
   assert.match(revoke, /DELETE FROM public\.admin_permission_grants g WHERE g\.user_id = p_user_id/)
 })
 
-test('권한 교체 함수는 모르는 권한 이름을 거부하고, 그 목록은 코드의 권한 목록과 같다', () => {
-  const body = functionBody('replace_admin_permission_grants')
+// 권한 교체 함수를 가장 마지막에 정의한 마이그레이션의 정의(권한 항목을 더할 때마다 새 마이그레이션이 이 함수를 다시 만든다).
+function latestReplaceDefinition() {
+  const files = readdirSync(join(ROOT, 'supabase/migrations')).filter((name) => name.endsWith('.sql')).sort()
+  for (const name of files.reverse()) {
+    const source = read(`supabase/migrations/${name}`)
+    const match = source.match(/CREATE (?:OR REPLACE )?FUNCTION public\.replace_admin_permission_grants\([\s\S]*?\$fn_replace_admin_permission_grants\$;/)
+    if (match) return { name, body: match[0] }
+  }
+  assert.fail('권한 교체 함수 정의를 찾지 못했다')
+}
+
+const permissionList = (body) => {
   const list = body.match(/= ANY \(ARRAY\[([\s\S]*?)\]::text\[\]\)/)
   assert.ok(list)
-  const sqlKeys = [...list[1].matchAll(/'([^']+)'/g)].map((match) => match[1])
+  return [...list[1].matchAll(/'([^']+)'/g)].map((match) => match[1])
+}
+
+test('권한 교체 함수는 모르는 권한 이름을 거부하고, 그 목록(가장 최근 정의)은 코드의 권한 목록과 같다', () => {
+  const body = functionBody('replace_admin_permission_grants')
+  const latest = latestReplaceDefinition()
+  assert.equal(latest.name, '20261118120000_admin_credit_grant_limits.sql')
+  const sqlKeys = permissionList(latest.body)
   assert.deepEqual([...sqlKeys].sort(), [...permissions.ADMIN_PERMISSION_KEYS].sort())
+  // 최근 정의는 처음 정의에서 credits.limits.manage 한 이름만 더했다(나머지 본문은 같다).
+  assert.deepEqual([...permissionList(body), 'credits.limits.manage'].sort(), [...sqlKeys].sort())
+  assert.equal(
+    latest.body.replace("'reports.view', 'credits.limits.manage'", "'reports.view'"),
+    body.replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION')
+  )
   assert.match(body, /RAISE EXCEPTION 'ADMIN_PERMISSION_UNKNOWN'/)
   // 'owner'는 부여할 수 있는 권한이 아니다.
   assert.ok(!sqlKeys.includes('owner'))
@@ -219,6 +242,18 @@ test('권한 저장 route: 대표가 일반 관리자의 권한을 통째로 바
     },
   ]])
 
+  // 크레딧 지급 한도는 비워 둘 수 있고, 비운 칸(null)은 저장하지 않는다(DB 기본 한도를 쓴다). 새 권한 credits.limits.manage도 저장된다.
+  const optional = createWorld()
+  assert.equal((await put(optional, STAFF_ID, {
+    grants: [grant('members.view'), grant('credits.view'), grant('credits.grant', { per_grant: null, per_day: 3000 }), grant('credits.limits.manage')],
+  })).status, 200)
+  assert.deepEqual(optional.rpcs()[0].args.p_grants, [
+    { permission: 'members.view', limits: {} },
+    { permission: 'credits.view', limits: {} },
+    { permission: 'credits.grant', limits: { per_day: 3000 } },
+    { permission: 'credits.limits.manage', limits: {} },
+  ])
+
   // 빈 목록 = 권한 모두 회수(관리자 자격은 유지)
   const empty = createWorld()
   assert.equal((await put(empty, STAFF_ID, { grants: [] })).status, 200)
@@ -232,7 +267,8 @@ test('권한 저장 route: 앱 검증(모르는 권한·의존 빠짐·한도 �
     [[grant('refunds.market', { per_request: 5000 })], /orders\.view 권한이 함께 필요/],
     [[grant('orders.view'), grant('refunds.market')], /1건 승인 한도/],
     [[grant('orders.view'), grant('refunds.market', { per_request: 0 })], /1건 승인 한도/],
-    [[grant('members.view'), grant('credits.view'), grant('credits.grant', { per_grant: 100 })], /하루 지급 한도/],
+    // 크레딧 지급 한도는 비워 둘 수 있지만(기본 한도), 적었다면 1 이상의 정수여야 한다.
+    [[grant('members.view'), grant('credits.view'), grant('credits.grant', { per_grant: 100, per_day: 0 })], /하루 지급 한도/],
     [[grant('orders.view'), grant('orders.view')], /두 번/],
   ]
   for (const [grants, message] of cases) {

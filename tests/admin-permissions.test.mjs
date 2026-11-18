@@ -7,6 +7,7 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf
 const permissions = load('src/lib/admin-permissions.ts')
 const {
   ADMIN_PERMISSIONS, ADMIN_PERMISSION_KEYS, buildAdminAccess, hasAdminPermission, meetsAdminRequirement, checkAdminLimit, validateAdminPermissionGrants,
+  isAdminPermissionLimitOptional,
 } = permissions
 
 const USER_ID = '00000000-0000-4000-8000-000000000001'
@@ -14,14 +15,17 @@ const grant = (permission, limits = {}) => ({ permission, limits })
 const staff = (...rows) => buildAdminAccess(USER_ID, { is_admin: true, admin_role: 'staff' }, rows)
 const owner = buildAdminAccess(USER_ID, { is_admin: true, admin_role: 'owner' }, [])
 
-test('권한 항목은 계획 표의 16개이고, 의존과 한도 키가 표와 같다', () => {
+test('권한 항목은 계획 표의 16개 + 지급 기본 한도 변경(2026-11-18)이고, 의존과 한도 키가 표와 같다', () => {
   assert.deepEqual(ADMIN_PERMISSION_KEYS, [
-    'support.manage', 'content.manage', 'orders.view', 'members.view', 'credits.view', 'credits.grant', 'credits.revoke',
+    'support.manage', 'content.manage', 'orders.view', 'members.view', 'credits.view', 'credits.grant', 'credits.limits.manage', 'credits.revoke',
     'refunds.market', 'refunds.payment', 'products.edit', 'products.delete', 'storefront.edit', 'reviews.manage',
     'pricing.manage', 'site.manage', 'reports.view',
   ])
   const shape = (key) => [ADMIN_PERMISSIONS[key].requires, Object.keys(ADMIN_PERMISSIONS[key].limits)]
   assert.deepEqual(shape('credits.grant'), [['members.view', 'credits.view'], ['per_grant', 'per_day']])
+  assert.deepEqual(shape('credits.limits.manage'), [['credits.view'], []])
+  // 크레딧 지급 한도만 비워 둘 수 있다(비우면 DB 기본 한도). 다른 한도는 필수.
+  assert.deepEqual(ADMIN_PERMISSION_KEYS.filter((key) => isAdminPermissionLimitOptional(key)), ['credits.grant'])
   assert.deepEqual(shape('credits.revoke'), [['members.view', 'credits.view'], ['per_grant']])
   assert.deepEqual(shape('refunds.market'), [['orders.view'], ['per_request']])
   assert.deepEqual(shape('refunds.payment'), [['orders.view'], []])
@@ -198,12 +202,13 @@ test('부여 조합 검증: 의존 빠짐, 한도 비었거나 양의 정수가 
   for (const bad of [undefined, null, {}, [5000], { per_request: 0 }, { per_request: -1 }, { per_request: 1.5 }, { per_request: '5000' }, { per_request: null }]) {
     assert.deepEqual(withLimits(bad), ['refunds.market 권한의 1건 승인 한도는 1 이상의 정수로 입력해야 합니다.'], JSON.stringify(bad))
   }
-  // 한도 키가 둘이면 빠진 것마다 알린다.
-  assert.equal(
-    validateAdminPermissionGrants([grant('members.view'), grant('credits.view'), grant('credits.grant', { per_grant: 1000 })]).length,
-    1
-  )
-  assert.equal(validateAdminPermissionGrants([grant('members.view'), grant('credits.view'), grant('credits.grant')]).length, 2)
+  // 크레딧 지급 한도는 비워 둘 수 있다(빈 칸·null = 기본 한도). 적었다면 1 이상의 정수여야 하고, 틀린 것마다 알린다.
+  const creditGrant = (limits) => validateAdminPermissionGrants([grant('members.view'), grant('credits.view'), { permission: 'credits.grant', limits }])
+  for (const empty of [undefined, {}, { per_grant: 1000 }, { per_day: 5000 }, { per_grant: null, per_day: null }]) {
+    assert.deepEqual(creditGrant(empty), [], JSON.stringify(empty))
+  }
+  assert.deepEqual(creditGrant({ per_grant: 0, per_day: 5000 }), ['credits.grant 권한의 1회 지급 한도는 1 이상의 정수로 입력해야 합니다.'])
+  assert.equal(creditGrant({ per_grant: '1000', per_day: 1.5 }).length, 2)
 
   assert.deepEqual(validateAdminPermissionGrants([grant('members.manage')]), ['알 수 없는 권한입니다: members.manage'])
   assert.deepEqual(validateAdminPermissionGrants([grant('owner')]), ['알 수 없는 권한입니다: owner'])

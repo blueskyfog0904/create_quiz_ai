@@ -416,16 +416,28 @@ export class CreditService {
   /**
    * 관리자가 사용자의 크레딧을 직접 지급합니다.
    *
-   * 원천·결제 이력·거래·잔액 캐시를 grant_admin_credits RPC 한 트랜잭션으로 기록합니다.
-   * 같은 operationKey로 다시 부르면 기존 지급을 그대로 돌려줍니다(alreadyGranted).
+   * 원천·결제 이력·거래·잔액 캐시·작업 기록을 grant_admin_credits RPC(20261118120000, 행위자 포함 7인자) 한 트랜잭션으로 기록합니다.
+   * 직원(staff)의 1회·하루 지급 한도도 이 함수가 봅니다(대표는 한도 없음).
+   * 같은 operationKey로 다시 부르면 기존 지급을 그대로 돌려줍니다(alreadyGranted, 한도와 무관).
+   * 함수가 거부하면 그 예외 문구(ADMIN_GRANT_… / CREDIT_USER_NOT_FOUND, 한도는 "limit=N used=N" 포함)를 그대로 Error 메시지로 던집니다.
    */
-  static async grantCreditsAsAdmin(
-    userId: string,
-    credits: number,
-    sourceCategory: CreditSourceCategory,
-    paymentMethod: string,
-    operationKey: string,
-  ): Promise<{ sourceId: string; newBalance: number; alreadyGranted: boolean }> {
+  static async grantCreditsAsAdmin({
+    actorId,
+    userId,
+    credits,
+    sourceCategory,
+    reason,
+    details,
+    operationKey,
+  }: {
+    actorId: string
+    userId: string
+    credits: number
+    sourceCategory: CreditSourceCategory
+    reason: string
+    details: Record<string, unknown>
+    operationKey: string
+  }): Promise<{ sourceId: string; newBalance: number; alreadyGranted: boolean }> {
     const adminSupabase = createAdminClient()
     const rpcClient = adminSupabase as unknown as {
       rpc: (fn: string, params: Record<string, unknown>) => Promise<{
@@ -435,21 +447,20 @@ export class CreditService {
     }
 
     const { data, error } = await rpcClient.rpc('grant_admin_credits', {
+      p_actor_id: actorId,
       p_user_id: userId,
       p_amount: credits,
       p_source_category: sourceCategory,
-      p_payment_method: paymentMethod,
+      p_reason: reason,
+      p_details: details,
       p_operation_key: operationKey,
     })
 
     if (error) {
       const message = rpcErrorMessage(error)
       console.error('[CreditService] Admin grant failed:', message)
-      throw new Error(
-        message.includes('ADMIN_GRANT_IDEMPOTENCY_CONFLICT')
-          ? 'ADMIN_GRANT_IDEMPOTENCY_CONFLICT'
-          : '관리자 크레딧 지급 중 오류가 발생했습니다.'
-      )
+      const known = message.match(/(ADMIN_GRANT_[A-Z_]+|CREDIT_USER_NOT_FOUND)(?: limit=\d+(?: used=\d+)?)?/)
+      throw new Error(known ? known[0] : '관리자 크레딧 지급 중 오류가 발생했습니다.')
     }
 
     const result = (Array.isArray(data) ? data[0] : data) as CreditRpcAdminGrantResult | undefined

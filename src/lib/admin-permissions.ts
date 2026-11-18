@@ -7,8 +7,10 @@ interface AdminPermissionDefinition {
   label: string
   // 함께 필요한 권한. 하나라도 빠지면 이 권한은 없는 것으로 판정한다.
   requires: readonly string[]
-  // 한도 키 → 설명. 한도가 있는 권한은 부여할 때 한도 입력이 필수다.
+  // 한도 키 → 설명. 한도가 있는 권한은 부여할 때 한도 입력이 필수다(limitsOptional이면 비워 둘 수 있다).
   limits: Readonly<Record<string, string>>
+  // true면 한도 칸을 비워 둘 수 있고, 비우면 DB의 기본 한도를 쓴다(크레딧 지급: system_settings 'admin_credit_grant_limits').
+  limitsOptional?: boolean
 }
 
 export const ADMIN_PERMISSIONS = {
@@ -21,6 +23,13 @@ export const ADMIN_PERMISSIONS = {
     label: '크레딧 수동 지급',
     requires: ['members.view', 'credits.view'],
     limits: { per_grant: '1회 지급 한도', per_day: '하루 지급 한도' },
+    // 비우면 기본 한도. 한도 판정(1회·하루 합계)은 지급 함수(DB)가 한다(20261118120000).
+    limitsOptional: true,
+  },
+  'credits.limits.manage': {
+    label: '크레딧 지급 기본 한도 변경(직원)',
+    requires: ['credits.view'],
+    limits: {},
   },
   'credits.revoke': {
     label: '크레딧 수동 회수',
@@ -62,6 +71,11 @@ function isAdminPermissionKey(value: string): value is AdminPermissionKey {
 
 function requiredPermissions(key: AdminPermissionKey): readonly AdminPermissionKey[] {
   return ADMIN_PERMISSIONS[key].requires
+}
+
+// 그 권한의 한도 칸을 비워 둘 수 있는지(비우면 기본 한도).
+export function isAdminPermissionLimitOptional(key: AdminPermissionKey): boolean {
+  return (ADMIN_PERMISSIONS[key] as AdminPermissionDefinition).limitsOptional === true
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -146,8 +160,10 @@ export function validateAdminPermissionGrants(
       }
     }
     const limits = isPlainObject(grant.limits) ? grant.limits : {}
+    const optional = isAdminPermissionLimitOptional(grant.permission)
     for (const [limitKey, limitLabel] of Object.entries<string>(ADMIN_PERMISSIONS[grant.permission].limits)) {
       const value = limits[limitKey]
+      if (optional && (value === undefined || value === null)) continue
       if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
         errors.push(`${grant.permission} 권한의 ${limitLabel}는 1 이상의 정수로 입력해야 합니다.`)
       } else if (value > ADMIN_PERMISSION_LIMIT_MAX) {
