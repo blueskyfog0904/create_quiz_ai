@@ -9,6 +9,8 @@
 --   UPDATE: 바꾸기 전 행(USING)과 바꾼 뒤 행(WITH CHECK) 모두, source가 'admin_uploaded'이면 대표만.
 --   RESTRICTIVE라 기존 "자기 행" 조건과 함께(AND) 걸린다. service_role과 표 소유자(정의자 함수)는 RLS를 거치지 않는다.
 -- 영향: 일반 회원·직원의 일반 문제 저장·수정은 그대로. 대표 세션의 동작도 그대로.
+--       비로그인(anon)의 INSERT·UPDATE는 원래도 막혀 있었고(auth.uid()가 NULL), 이제는 is_owner() 실행 권한이 없어
+--       "permission denied for function is_owner"로 거부될 수 있다(거부라는 결과는 같다. 앱에 anon 쓰기 경로 없음).
 -- 잠금: questions에 정책을 더하며 ACCESS EXCLUSIVE를 커밋까지 잡는다(짧음). 잡지 못하면 최대 3초 대기 뒤 전체 취소.
 -- 되돌리기: supabase/rollback/20261118140000_questions_admin_uploaded_owner_only_down.sql
 SET LOCAL lock_timeout = '3s';
