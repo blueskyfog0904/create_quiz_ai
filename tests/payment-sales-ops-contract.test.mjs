@@ -107,6 +107,8 @@ test('화면: 상태를 읽지 못하면 판매 중으로 보이지 않고, 재�
   assert.match(panel, /fetch\('\/api\/admin\/payments\/sales-stop'/)
   assert.doesNotMatch(panel, /resume/)
   for (const page of ['src/app/(admin)/admin/page.tsx', 'src/app/(admin)/admin/refunds/page.tsx']) {
-    assert.match(read(page), /<PaymentSalesPanel status=\{salesStatus\} \/>/)
+    // 중지 버튼은 대표에게만 보인다(중지 API도 대표 전용).
+    assert.match(read(page), /<PaymentSalesPanel status=\{salesStatus\} canStopSales=\{hasAdminPermission\(access, 'owner'\)\} \/>/)
   }
+  assert.match(panel, /\{canStopSales \? \(\s*<Button[\s\S]{0,400}충전 판매 중지\s*<\/Button>\s*\) : null\}/)
 })

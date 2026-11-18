@@ -43,6 +43,8 @@ interface CreditsClientProps {
   query: string
   type: AdminCreditTransactionType | 'all'
   monthlyStats: AdminCreditMonthlyStats | null
+  // 크레딧 지급(credits.grant). 없으면 지급 버튼을 그리지 않는다.
+  canGrantCredits: boolean
 }
 
 const KIND_BADGE_CLASS = {
@@ -58,7 +60,7 @@ function formatSigned(amount: number) {
 }
 
 // 목록·검색·유형·페이지는 서버가 정한다(주소의 type·q·page·pageSize). 이 화면은 받은 값을 그대로 그린다.
-export function CreditsClient({ transactions, totalCount, page, pageSize, query, type, monthlyStats }: CreditsClientProps) {
+export function CreditsClient({ transactions, totalCount, page, pageSize, query, type, monthlyStats, canGrantCredits }: CreditsClientProps) {
   const router = useRouter()
   const [search, setSearch] = useState(query)
   const [isGrantDialogOpen, setIsGrantDialogOpen] = useState(false)
@@ -164,15 +166,17 @@ export function CreditsClient({ transactions, totalCount, page, pageSize, query,
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center gap-2 max-sm:w-full">
-          <Button
-            onClick={() => setIsGrantDialogOpen(true)}
-            className="gap-2 bg-blue-600 hover:bg-blue-700 text-white max-sm:w-full"
-          >
-            <Coins className="h-4 w-4" />
-            크레딧 지급
-          </Button>
-        </div>
+        {canGrantCredits ? (
+          <div className="flex items-center gap-2 max-sm:w-full">
+            <Button
+              onClick={() => setIsGrantDialogOpen(true)}
+              className="gap-2 bg-blue-600 hover:bg-blue-700 text-white max-sm:w-full"
+            >
+              <Coins className="h-4 w-4" />
+              크레딧 지급
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {/* Transaction Table */}

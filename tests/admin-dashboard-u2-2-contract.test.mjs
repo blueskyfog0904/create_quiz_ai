@@ -239,8 +239,8 @@ test('통계 API: 관리자 확인 뒤에 계정 권한으로 지표를 읽고, 
 
 test('화면 순서: 처리 대기 → 판매 상태·전송 상태 → 지표 → 최근 주문·문의', () => {
   // 대시보드 페이지의 접근 검사와 판매 상태 조회는 그대로다.
-  assert.match(page, /await requireAdminPanelUser\(\)\s*const salesStatus = await getPaymentSalesStatus\(\)/)
-  assert.match(page, /<DashboardClient salesPanel=\{<PaymentSalesPanel status=\{salesStatus\} \/>\} \/>/)
+  assert.match(page, /await requireAdminPanelUser\(\)\s*const \[salesStatus, access\] = await Promise\.all\(\[\s*getPaymentSalesStatus\(\),/)
+  assert.match(page, /<DashboardClient salesPanel=\{<PaymentSalesPanel status=\{salesStatus\} canStopSales=\{hasAdminPermission\(access, 'owner'\)\} \/>\} \/>/)
 
   const body = dashboard.slice(dashboard.lastIndexOf('기준: 한국 시간'))
   const positions = ['ADMIN_WORK_ITEMS.map(', '{salesPanel}', '관리자 알림 전송(슬랙)', 'aria-label="지표"', '최근 충전 주문', '최근 문의'].map((mark) => body.indexOf(mark))

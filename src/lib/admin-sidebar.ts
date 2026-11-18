@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import type { WorkspaceSubject } from '@/lib/workspace-settings'
 import type { Json } from '@/types/supabase'
+import type { AdminGuardRequirement } from '@/lib/admin-permissions'
 
 export const ADMIN_SIDEBAR_NAVIGATION_SETTING_KEY = 'admin_sidebar_navigation'
 
@@ -139,6 +140,44 @@ export const DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG: AdminSidebarNavigationConf
   ],
 }
 
+// 메뉴 → 그 화면을 여는 데 필요한 권한. 각 화면(page.tsx)의 requireAdminPagePermission과 같은 값이다
+// (tests/admin-sidebar-permission-contract.test.mjs가 맞춰 본다). 'admin'은 관리자면 누구나.
+export const ADMIN_SIDEBAR_MENU_REQUIREMENTS: Readonly<Record<string, AdminGuardRequirement>> = {
+  '/admin': 'admin',
+  '/admin/menu-management': 'owner',
+  '/admin/landing-pages': 'owner',
+  '/admin/main-ad-settings': 'storefront.edit',
+  '/admin/market-main-settings': 'storefront.edit',
+  '/admin/market/products/new': 'products.edit',
+  '/admin/market/products': 'products.edit',
+  '/admin/market/images': 'products.edit',
+  '/admin/market-categories': 'products.edit',
+  '/admin/generate/products': 'owner',
+  '/admin/problem-types': 'owner',
+  '/admin/ai-connections': 'owner',
+  '/admin/ai-question-generation-runs': 'owner',
+  '/admin/questions': 'owner',
+  '/admin/questions/upload': 'owner',
+  '/admin/question-bank/options': 'owner',
+  '/admin/question-bank/problem-types': 'owner',
+  '/admin/question-bank/backfill': 'owner',
+  '/admin/passages': 'owner',
+  '/admin/users': 'members.view',
+  '/admin/roles': 'owner',
+  '/admin/support': 'support.manage',
+  '/admin/labels': 'owner',
+  '/admin/source-configs': 'owner',
+  '/admin/footer': 'site.manage',
+  '/admin/pricing': 'pricing.manage',
+  '/admin/credits': 'credits.view',
+  '/admin/refunds': ['refunds.payment', 'refunds.market'],
+  '/admin/orders': 'orders.view',
+  '/admin/reviews': 'reviews.manage',
+  '/admin/review-tags': 'reviews.manage',
+  '/admin/admin-accounts': 'owner',
+  '/admin/audit-log': 'owner',
+}
+
 export const adminSidebarIconComponents: Record<AdminSidebarIconName, LucideIcon> = {
   layoutDashboard: LayoutDashboard,
   layoutPanelTop: LayoutPanelTop,
@@ -253,7 +292,7 @@ export function resolveAdminSidebarMenuItems(
 export function resolveAdminSidebarNavigationNodes(
   workspaceSubject: WorkspaceSubject,
   config?: AdminSidebarNavigationConfig | null,
-  // 꺼진 기능 묶음의 메뉴(그리지 않는다)
+  // 꺼진 기능 묶음의 메뉴와 이 계정의 권한으로 열 수 없는 메뉴(그리지 않는다)
   hiddenHrefs: readonly string[] = []
 ): AdminSidebarNavigationNode[] {
   const items = resolveAdminSidebarMenuItems(workspaceSubject, config).filter((item) => !hiddenHrefs.includes(item.href))

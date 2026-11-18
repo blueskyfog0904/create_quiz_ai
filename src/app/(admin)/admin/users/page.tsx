@@ -1,3 +1,4 @@
+import { hasAdminPermission } from '@/lib/admin-permissions'
 import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 import { listAdminUsers } from '@/lib/admin-users-server'
 import { UsersClient } from './users-client'
@@ -8,7 +9,7 @@ interface AdminUsersPageProps {
 }
 
 export default async function AdminUsersPage({ searchParams }: AdminUsersPageProps) {
-  await requireAdminPagePermission('members.view')
+  const access = await requireAdminPagePermission('members.view')
   const params = searchParams ? await searchParams : undefined
   const result = await listAdminUsers({ q: params?.q, page: params?.page, pageSize: params?.pageSize })
 
@@ -27,6 +28,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
         page={result.page}
         pageSize={result.pageSize}
         query={result.query}
+        canGrantCredits={hasAdminPermission(access, 'credits.grant')}
       />
     </div>
   )

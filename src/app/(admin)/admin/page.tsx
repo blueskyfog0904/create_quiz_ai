@@ -3,11 +3,17 @@ import { DashboardClient } from './dashboard-client'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 import { PaymentSalesPanel } from '@/components/admin/payment-sales-panel'
 import { requireAdminPanelUser } from '@/lib/auth'
+import { hasAdminPermission } from '@/lib/admin-permissions'
+import { getAdminAccess } from '@/lib/admin-permissions-server'
 import { getPaymentSalesStatus } from '@/lib/payment-sales-status-server'
 
 export default async function AdminDashboardPage() {
   await requireAdminPanelUser()
-  const salesStatus = await getPaymentSalesStatus()
+  const [salesStatus, access] = await Promise.all([
+    getPaymentSalesStatus(),
+    // 권한을 읽지 못하면 중지 버튼만 숨긴다(상태 표시는 그대로).
+    getAdminAccess().catch(() => null),
+  ])
 
   return (
     <div>
@@ -17,7 +23,7 @@ export default async function AdminDashboardPage() {
       </div>
       
       <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardClient salesPanel={<PaymentSalesPanel status={salesStatus} />} />
+        <DashboardClient salesPanel={<PaymentSalesPanel status={salesStatus} canStopSales={hasAdminPermission(access, 'owner')} />} />
       </Suspense>
     </div>
   )

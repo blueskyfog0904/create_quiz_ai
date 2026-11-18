@@ -1,4 +1,5 @@
 import { CreditsClient } from './credits-client'
+import { hasAdminPermission } from '@/lib/admin-permissions'
 import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 import { listAdminCreditTransactions } from '@/lib/admin-credit-transactions-server'
@@ -8,7 +9,7 @@ interface AdminCreditsPageProps {
 }
 
 export default async function AdminCreditsPage({ searchParams }: AdminCreditsPageProps) {
-  await requireAdminPagePermission('credits.view')
+  const access = await requireAdminPagePermission('credits.view')
   const params = searchParams ? await searchParams : undefined
   const result = await listAdminCreditTransactions({
     type: params?.type,
@@ -34,6 +35,7 @@ export default async function AdminCreditsPage({ searchParams }: AdminCreditsPag
         query={result.query}
         type={result.type}
         monthlyStats={result.monthlyStats}
+        canGrantCredits={hasAdminPermission(access, 'credits.grant')}
       />
     </div>
   )

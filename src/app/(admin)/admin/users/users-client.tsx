@@ -29,10 +29,12 @@ interface UsersClientProps {
   page: number
   pageSize: number
   query: string
+  // 크레딧 지급(credits.grant). 없으면 지급 버튼을 그리지 않는다.
+  canGrantCredits: boolean
 }
 
 // 목록·검색·페이지는 서버가 정한다(주소의 q·page·pageSize). 이 화면은 받은 값을 그대로 그린다.
-export function UsersClient({ users, totalCount, page, pageSize, query }: UsersClientProps) {
+export function UsersClient({ users, totalCount, page, pageSize, query, canGrantCredits }: UsersClientProps) {
   const router = useRouter()
   const [search, setSearch] = useState(query)
   // 지급 창에는 대상 회원의 식별 정보만 넘긴다(창은 이 값이 바뀔 때 입력을 초기화하므로 같은 객체를 유지한다).
@@ -161,15 +163,17 @@ export function UsersClient({ users, totalCount, page, pageSize, query }: UsersC
                                     user.role}
                         </Badge>
                       )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 gap-1"
-                        onClick={() => openGrantDialog(user)}
-                      >
-                        <Plus className="h-3 w-3" />
-                        크레딧 지급
-                      </Button>
+                      {canGrantCredits ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-1"
+                          onClick={() => openGrantDialog(user)}
+                        >
+                          <Plus className="h-3 w-3" />
+                          크레딧 지급
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 </div>

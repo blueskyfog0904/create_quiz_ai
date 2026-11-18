@@ -24,9 +24,11 @@ import { AdminWorkspaceSwitcher } from './admin-workspace-switcher'
 interface AdminSidebarClientProps {
   navigationConfigs: Record<'english' | 'korean', AdminSidebarNavigationConfig>
   hiddenHrefs: readonly string[]
+  // 메뉴 이름 바꾸기(site.manage). 없으면 연필 버튼을 그리지 않는다.
+  canRenameMenus: boolean
 }
 
-export function AdminSidebarClient({ navigationConfigs, hiddenHrefs }: AdminSidebarClientProps) {
+export function AdminSidebarClient({ navigationConfigs, hiddenHrefs, canRenameMenus }: AdminSidebarClientProps) {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -213,7 +215,7 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs }: AdminSide
           </span>
           <AdminMenuBadge href={item.href} className={cn(collapsed && 'md:absolute md:right-0 md:top-0')} />
         </Link>
-        {!collapsed ? renderMenuLabelEditButton(item.href, item.name, active) : null}
+        {!collapsed && canRenameMenus ? renderMenuLabelEditButton(item.href, item.name, active) : null}
       </div>
     )
   }
@@ -292,7 +294,7 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs }: AdminSide
                       return <Icon className="h-5 w-5 flex-shrink-0" />
                     })()}
                     <span>{node.name}</span>
-                    {renderMenuLabelEditButton(node.id, node.name, false, 'heading')}
+                    {canRenameMenus ? renderMenuLabelEditButton(node.id, node.name, false, 'heading') : null}
                   </div>
                 ) : null}
                 <div className={cn('space-y-1', !collapsed && 'ml-4 border-l border-slate-700 pl-2')}>

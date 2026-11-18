@@ -162,7 +162,7 @@ test('① 환불 화면은 권한이 있는 구역만 조회하고 그린다', (
   assert.equal(page.match(/= !canMarket \? notLoaded : await supabase\s*\.from\('market_refund_requests'\)/g).length, 1)
   assert.equal(page.match(/await (paymentAdmin|supabase)\s*\.from\(/g).length, 4, '권한 조건 없는 조회가 없다')
   assert.match(page, /const salesStatus = canPayment \? await getPaymentSalesStatus\(\) : null/)
-  assert.match(page, /\{canPayment && <PaymentSalesPanel status=\{salesStatus\} \/>\}/)
+  assert.match(page, /\{canPayment && <PaymentSalesPanel status=\{salesStatus\} canStopSales=\{hasAdminPermission\(access, 'owner'\)\} \/>\}/)
   assert.match(page, /\{canPayment && \(\s*<RefundsClient/)
   assert.match(page, /\{canMarket && <MarketRefundsClient /)
 })

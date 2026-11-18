@@ -1,3 +1,4 @@
+import { hasAdminPermission } from '@/lib/admin-permissions'
 import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { listMarketCategoryTreeForAdmin } from '@/lib/market-categories-server'
@@ -11,7 +12,7 @@ interface AdminMarketProductsPageProps {
 }
 
 export default async function AdminMarketProductsPage({ searchParams }: AdminMarketProductsPageProps) {
-  await requireAdminPagePermission('products.edit')
+  const access = await requireAdminPagePermission('products.edit')
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const workspaceSubject = resolveAdminWorkspaceSubject(resolvedSearchParams?.subject)
 
@@ -32,6 +33,7 @@ export default async function AdminMarketProductsPage({ searchParams }: AdminMar
         initialCategoryNodes={categoryNodes}
         initialItems={items}
         workspaceSubject={workspaceSubject}
+        canDeleteProducts={hasAdminPermission(access, 'products.delete')}
       />
     </>
   )

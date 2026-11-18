@@ -17,7 +17,8 @@ import { PAYMENT_ORDER_TTL_MINUTES } from '@/lib/payment-constants'
 import type { PaymentSalesStatus } from '@/lib/payment-sales-status-server'
 
 // 충전 판매 상태와 "충전 판매 중지" 버튼. 중지만 할 수 있고, 재개는 SQL Editor에서 한다.
-export function PaymentSalesPanel({ status }: { status: PaymentSalesStatus | null }) {
+// 중지는 대표 전용(api/admin/payments/sales-stop). 대표가 아니면 상태만 보인다.
+export function PaymentSalesPanel({ status, canStopSales }: { status: PaymentSalesStatus | null; canStopSales: boolean }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState('')
@@ -77,17 +78,19 @@ export function PaymentSalesPanel({ status }: { status: PaymentSalesStatus | nul
         <span className="font-semibold text-green-700">충전 판매 중</span>
         <span className="ml-2 text-gray-500">마지막 변경 {changedAt}</span>
       </p>
-      <Button
-        variant="outline"
-        size="sm"
-        className="border-red-300 text-red-700 hover:bg-red-50"
-        onClick={() => {
-          setReason('')
-          setOpen(true)
-        }}
-      >
-        충전 판매 중지
-      </Button>
+      {canStopSales ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="border-red-300 text-red-700 hover:bg-red-50"
+          onClick={() => {
+            setReason('')
+            setOpen(true)
+          }}
+        >
+          충전 판매 중지
+        </Button>
+      ) : null}
 
       <Dialog open={open} onOpenChange={(next) => !submitting && setOpen(next)}>
         <DialogContent className="max-md:max-h-[calc(100dvh-2rem)] max-md:max-w-[calc(100vw-2rem)] max-md:overflow-y-auto">

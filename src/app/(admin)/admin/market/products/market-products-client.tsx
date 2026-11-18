@@ -88,6 +88,8 @@ interface MarketProductsClientProps {
   initialCategoryNodes: AdminCategoryTreeNode[]
   initialItems: MarketItemForAdmin[]
   workspaceSubject: WorkspaceSubject
+  // 상품 완전 삭제(products.delete). 없으면 삭제 메뉴·버튼을 그리지 않는다(삭제 API도 같은 권한을 요구한다).
+  canDeleteProducts: boolean
 }
 
 interface MarketItemFormState {
@@ -561,7 +563,7 @@ function buildFileTypeSettingsForm(fileType: MarketFileType): FileTypeSettingsFo
   }
 }
 
-export default function MarketProductsClient({ mode, initialCategoryNodes, initialItems, workspaceSubject }: MarketProductsClientProps) {
+export default function MarketProductsClient({ mode, initialCategoryNodes, initialItems, workspaceSubject, canDeleteProducts }: MarketProductsClientProps) {
   const router = useRouter()
   // 상품 목록 상단 필터(가장 깊이 고른 칸, '' = 전체). 서버가 하위 칸까지 포함해 거른다.
   const [filterCategoryId, setFilterCategoryId] = useState('')
@@ -3029,7 +3031,11 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                 {isAutoUploadDraft ? (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                     <p className="font-semibold">임시 업로드 상태</p>
-                    <p className="mt-1">상품 등록을 완료하지 않고 업로드 파일을 삭제하려면 등록 취소 및 파일 삭제를 눌러주세요.</p>
+                    <p className="mt-1">
+                      {canDeleteProducts
+                        ? '상품 등록을 완료하지 않고 업로드 파일을 삭제하려면 등록 취소 및 파일 삭제를 눌러주세요.'
+                        : '등록을 취소하고 업로드 파일을 지우려면 상품 삭제 권한이 필요합니다. 대표 관리자에게 요청해 주세요.'}
+                    </p>
                   </div>
                 ) : null}
             </section>
@@ -3067,11 +3073,15 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                       ) : null}
                       <DropdownMenuItem onSelect={() => void handleSave('hidden')}>숨김으로 저장</DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => void handleSave('archived')}>보관으로 저장</DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-red-600 focus:text-red-700" onSelect={() => void handleArchive()}>
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        {isAutoUploadDraft ? '등록 취소 및 파일 삭제' : '완전 삭제'}
-                      </DropdownMenuItem>
+                      {canDeleteProducts ? (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-red-600 focus:text-red-700" onSelect={() => void handleArchive()}>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            {isAutoUploadDraft ? '등록 취소 및 파일 삭제' : '완전 삭제'}
+                          </DropdownMenuItem>
+                        </>
+                      ) : null}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 ) : null}
@@ -3189,16 +3199,18 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                 >
                   이미지 일괄 해제
                 </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  disabled={isBulkActionRunning}
-                  onClick={() => setBulkDeleteTargetIds(selectedItems.map((item) => item.id))}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  선택 삭제
-                </Button>
+                {canDeleteProducts ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    disabled={isBulkActionRunning}
+                    onClick={() => setBulkDeleteTargetIds(selectedItems.map((item) => item.id))}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    선택 삭제
+                  </Button>
+                ) : null}
                 <Button type="button" variant="ghost" size="sm" disabled={isBulkActionRunning} onClick={() => setSelectedItemIds([])}>
                   선택 해제
                 </Button>
@@ -3308,38 +3320,45 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                                 <Pencil className="mr-1.5 h-3.5 w-3.5" />
                                 수정
                               </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button type="button" variant="ghost" size="icon" aria-label={`${item.title} 더보기`} disabled={hidingItemId === item.id}>
-                                    {hidingItemId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  {status === 'published' ? (
-                                    <DropdownMenuItem asChild>
-                                      <a href={`/items/${item.id}?subject=${workspaceSubject}`} target="_blank" rel="noreferrer">
-                                        <ExternalLink className="mr-2 h-4 w-4" />
-                                        상세 페이지 보기
-                                      </a>
-                                    </DropdownMenuItem>
-                                  ) : null}
-                                  {/* 숨김 전환은 공개·숨김 상품만(임시저장을 바로 공개하면 공개 전 점검을 건너뛴다) */}
-                                  {status === 'published' || isHidden ? (
-                                    <DropdownMenuItem
-                                      aria-label={isHidden ? `${item.title} 숨김 해제` : `${item.title} 숨김 처리`}
-                                      onSelect={() => void handleVisibilityFromList(item)}
-                                    >
-                                      {isHidden ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
-                                      {isHidden ? '다시 공개' : '숨기기'}
-                                    </DropdownMenuItem>
-                                  ) : null}
-                                  {status === 'published' || isHidden ? <DropdownMenuSeparator /> : null}
-                                  <DropdownMenuItem className="text-red-600 focus:text-red-700" onSelect={() => setDeleteTarget(item)}>
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    삭제
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              {/* 메뉴 항목이 하나도 없으면(삭제 권한 없음 + 공개·숨김이 아닌 상품) 더보기 버튼을 그리지 않는다 */}
+                              {status === 'published' || isHidden || canDeleteProducts ? (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button type="button" variant="ghost" size="icon" aria-label={`${item.title} 더보기`} disabled={hidingItemId === item.id}>
+                                      {hidingItemId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    {status === 'published' ? (
+                                      <DropdownMenuItem asChild>
+                                        <a href={`/items/${item.id}?subject=${workspaceSubject}`} target="_blank" rel="noreferrer">
+                                          <ExternalLink className="mr-2 h-4 w-4" />
+                                          상세 페이지 보기
+                                        </a>
+                                      </DropdownMenuItem>
+                                    ) : null}
+                                    {/* 숨김 전환은 공개·숨김 상품만(임시저장을 바로 공개하면 공개 전 점검을 건너뛴다) */}
+                                    {status === 'published' || isHidden ? (
+                                      <DropdownMenuItem
+                                        aria-label={isHidden ? `${item.title} 숨김 해제` : `${item.title} 숨김 처리`}
+                                        onSelect={() => void handleVisibilityFromList(item)}
+                                      >
+                                        {isHidden ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
+                                        {isHidden ? '다시 공개' : '숨기기'}
+                                      </DropdownMenuItem>
+                                    ) : null}
+                                    {canDeleteProducts ? (
+                                      <>
+                                        {status === 'published' || isHidden ? <DropdownMenuSeparator /> : null}
+                                        <DropdownMenuItem className="text-red-600 focus:text-red-700" onSelect={() => setDeleteTarget(item)}>
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          삭제
+                                        </DropdownMenuItem>
+                                      </>
+                                    ) : null}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              ) : null}
                             </div>
                           </TableCell>
                         </TableRow>

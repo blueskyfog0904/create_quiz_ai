@@ -119,7 +119,7 @@ export default async function AdminRefundsPage() {
 
     return (
         <div className="space-y-8">
-            {canPayment && <PaymentSalesPanel status={salesStatus} />}
+            {canPayment && <PaymentSalesPanel status={salesStatus} canStopSales={hasAdminPermission(access, 'owner')} />}
             {loadErrors.length > 0 && (
                 <div role="alert" className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
                     <p className="font-semibold">다음 목록을 불러오지 못했습니다: {loadErrors.join(', ')}</p>
