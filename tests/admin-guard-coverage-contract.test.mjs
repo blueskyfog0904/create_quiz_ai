@@ -807,7 +807,7 @@ test('⑤ 상품: 수정 권한만으로는 완전 삭제를 못 하고, 오류�
 })
 
 function loadStatsRoute(session, { lookupFails = false } = {}) {
-  const calls = { dashboard: 0 }
+  const calls = { dashboard: 0, workAccess: [] }
   const guard = adminGuardMocks(session)
   const route = load('src/app/api/admin/stats/route.ts', {
     'next/server': json,
@@ -819,24 +819,34 @@ function loadStatsRoute(session, { lookupFails = false } = {}) {
       return { auth: client.auth, from: (table) => ({ ...client.from(table), select: (_columns, options) => (options?.head ? { gte: async () => ({ count: 3, error: null }) } : client.from(table)) }) }
     } },
     '@/lib/admin-dashboard-server': { getAdminDashboard: async () => { calls.dashboard += 1; return { metrics: { ok: true }, recentOrders: [], recentTickets: [] } } },
-    '@/lib/admin-work-summary-server': { getAdminWorkSummary: async () => ({ supportPending: 1 }) },
+    '@/lib/admin-work-summary-server': { getAdminWorkSummary: async (access) => { calls.workAccess.push(access); return { supportPending: 1 } } },
     '@/lib/kst-period': { getKstPeriodStarts: () => ({ todayStart: 't', monthStart: 'm', year: 2026, month: 11 }) },
   })
   return { get: () => route.GET(), calls }
 }
 
-test('⑤ 통계: 권한 조회가 실패해도 관리자에게는 가입 수·처리 대기를 보여 주고, 권한이 필요한 구역만 뺀다', async () => {
+test('⑤ 통계: 가입 수는 회원 조회 권한, 처리 대기는 항목별 권한으로 거르고, 권한 조회가 실패하면 "확인 불가"로 보낸다', async () => {
+  // 권한 0개 staff: 가입 수는 빠지고(null), 처리 대기는 그 계정의 권한으로 센다.
   const normal = loadStatsRoute({ role: 'staff' })
   const ok = await normal.get()
   assert.equal(ok.status, 200)
+  assert.equal(ok.body.signups, null)
   assert.deepEqual(ok.body.metrics, { ok: true })
   assert.equal(normal.calls.dashboard, 1)
+  assert.equal(normal.calls.workAccess.length, 1)
+  assert.equal(normal.calls.workAccess[0].role, 'staff')
 
+  // 회원 조회 권한이 있는 staff와 대표는 가입 수를 본다.
+  for (const session of [{ role: 'staff', grants: [grant('members.view')] }, {}]) {
+    assert.deepEqual((await loadStatsRoute(session).get()).body.signups, { today: 3, month: 3 }, JSON.stringify(session))
+  }
+
+  // 권한을 읽지 못하면: 가입 수는 세지 않고 "확인 불가"(null 값), 처리 대기도 권한 없이(null) 부르고, 권한 구역은 뺀다.
   const degraded = loadStatsRoute({}, { lookupFails: true })
   const partial = await degraded.get()
   assert.equal(partial.status, 200)
-  assert.deepEqual(partial.body.signups, { today: 3, month: 3 })
-  assert.deepEqual(partial.body.work, { supportPending: 1 })
+  assert.deepEqual(partial.body.signups, { today: null, month: null })
+  assert.deepEqual(degraded.calls.workAccess, [null])
   assert.equal(partial.body.metrics, null)
   assert.equal(degraded.calls.dashboard, 0)
 

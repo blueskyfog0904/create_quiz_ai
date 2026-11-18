@@ -1,4 +1,5 @@
 import type { AdminWorkSummary } from '@/lib/admin-work-summary-server'
+import type { AdminPermissionKey } from '@/lib/admin-permissions'
 
 // 관리자 알림(종·토스트·메뉴 배지)이 쓰는 형식과 판정 규칙. 서버·브라우저·테스트가 같이 쓰므로 순수 함수만 둔다.
 
@@ -27,14 +28,20 @@ export interface AdminAlertSummary {
 }
 
 // 처리 대기 항목: 어떤 숫자를, 어떤 이름으로, 어느 화면에서 처리하는지(대시보드·알림·메뉴 배지가 같이 쓴다)
-export const ADMIN_WORK_ITEMS: Array<{ key: keyof AdminWorkSummary; label: string; href: string }> = [
-  { key: 'paymentAlertOpen', label: '미해소 결제 경보', href: '/admin/refunds' },
-  { key: 'paymentOrderReview', label: '수동 확인이 필요한 결제 주문', href: '/admin/refunds' },
-  { key: 'refundAttention', label: '충전 환불 — 재처리·수동 확인', href: '/admin/refunds' },
-  { key: 'refundPending', label: '충전 환불 — 승인 대기', href: '/admin/refunds' },
-  { key: 'marketRefundPending', label: '문제마켓 환불 대기', href: '/admin/refunds' },
-  { key: 'supportPending', label: '답변 대기 문의', href: '/admin/support' },
+// requirement: 그 숫자를 볼 수 있는 권한. 권한이 없는 항목은 서버가 세지 않고 요약에서 뺀다(값 undefined → 화면에 그리지 않는다).
+export const ADMIN_WORK_ITEMS: Array<{ key: keyof AdminWorkSummary; label: string; href: string; requirement: AdminPermissionKey }> = [
+  { key: 'paymentAlertOpen', label: '미해소 결제 경보', href: '/admin/refunds', requirement: 'refunds.payment' },
+  { key: 'paymentOrderReview', label: '수동 확인이 필요한 결제 주문', href: '/admin/refunds', requirement: 'refunds.payment' },
+  { key: 'refundAttention', label: '충전 환불 — 재처리·수동 확인', href: '/admin/refunds', requirement: 'refunds.payment' },
+  { key: 'refundPending', label: '충전 환불 — 승인 대기', href: '/admin/refunds', requirement: 'refunds.payment' },
+  { key: 'marketRefundPending', label: '문제마켓 환불 대기', href: '/admin/refunds', requirement: 'refunds.market' },
+  { key: 'supportPending', label: '답변 대기 문의', href: '/admin/support', requirement: 'support.manage' },
 ]
+
+// 이 계정이 보는 처리 대기 항목. 요약 조회가 실패했으면(work가 null) 모두 "확인 불가"로 보인다.
+export function visibleWorkItems(work: AdminWorkSummary | null) {
+  return ADMIN_WORK_ITEMS.filter((item) => work === null || work[item.key] !== undefined)
+}
 
 export const ADMIN_ALERT_RECENT_LIMIT = 20
 export const ADMIN_ALERT_TOAST_BATCH_MS = 5_000
@@ -56,12 +63,13 @@ export function deriveDispatchStatus(
 }
 
 // 종의 숫자 = 처리하지 않은 건수(처리 대기 항목의 합). 확인만 해서는 줄지 않고, 처리해야 준다.
-// 하나라도 세지 못했거나 요약 조회가 실패했으면(work가 null) 틀린 합 대신 null("확인 불가").
+// 하나라도 세지 못했거나 요약 조회가 실패했으면(work가 null) 틀린 합 대신 null("확인 불가"). 권한이 없어 빠진 항목은 더하지 않는다.
 export function workTotal(work: AdminWorkSummary | null): number | null {
   if (!work) return null
   let total = 0
   for (const item of ADMIN_WORK_ITEMS) {
     const value = work[item.key]
+    if (value === undefined) continue
     if (value === null) return null
     total += value
   }
@@ -94,14 +102,17 @@ export function isLoudAlertEvent(event: Pick<AdminAlertEvent, 'delivery'>) {
 
 // 메뉴(href)에 붙일 처리 대기 건수. 해당 없는 메뉴는 undefined, 하나라도 세지 못했으면 null("확인 불가").
 // work가 null이면(요약 조회 실패) 배지가 붙는 메뉴는 모두 null이다.
+// 권한이 없어 요약에서 빠진 항목만 있는 메뉴도 undefined(배지 없음)다.
 export function menuBadgeCount(href: string, work: AdminWorkSummary | null): number | null | undefined {
   const items = ADMIN_WORK_ITEMS.filter((item) => item.href === href)
   if (items.length === 0) return undefined
   if (!work) return null
+  const visible = items.filter((item) => work[item.key] !== undefined)
+  if (visible.length === 0) return undefined
   let total = 0
-  for (const item of items) {
+  for (const item of visible) {
     const value = work[item.key]
-    if (value === null) return null
+    if (value === null || value === undefined) return null
     total += value
   }
   return total

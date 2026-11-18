@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Bell } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { ADMIN_WORK_ITEMS, dispatchStatusMessages, workTotal } from '@/lib/admin-alerts'
+import { dispatchStatusMessages, visibleWorkItems, workTotal } from '@/lib/admin-alerts'
 import { useAdminAlerts } from './admin-alert-context'
 
 // 심각도는 색만이 아니라 글자로도 보인다.
@@ -101,11 +101,13 @@ export function AdminAlertCenter({ className, compact = false }: { className?: s
             </p>
           ) : (
             <>
+              {/* 권한이 없는 처리 대기 항목은 요약에 없으므로 그리지 않는다. 하나도 없으면 묶음째 숨긴다. */}
+              {visibleWorkItems(summary.work).length > 0 ? (
               <div className="border-b px-4 py-3">
                 <h3 className="mb-1 text-xs font-semibold text-gray-500">처리 대기</h3>
                 <ul>
-                  {ADMIN_WORK_ITEMS.map((item) => {
-                    const value = summary.work[item.key]
+                  {visibleWorkItems(summary.work).map((item) => {
+                    const value = summary.work[item.key] ?? null
                     // 0이 아니면(확인 불가 포함) 눈에 띄게 한다.
                     const needsAttention = value !== 0
                     return (
@@ -131,6 +133,7 @@ export function AdminAlertCenter({ className, compact = false }: { className?: s
                   })}
                 </ul>
               </div>
+              ) : null}
 
               <h3 className="px-4 pt-3 text-xs font-semibold text-gray-500">최근 알림</h3>
               <div className="max-h-72 overflow-y-auto">

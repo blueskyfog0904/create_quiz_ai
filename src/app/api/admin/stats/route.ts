@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getAdminDashboard } from '@/lib/admin-dashboard-server'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
+import { hasAdminPermission } from '@/lib/admin-permissions'
 import { getAdminWorkSummary } from '@/lib/admin-work-summary-server'
 import { getKstPeriodStarts } from '@/lib/kst-period'
 
@@ -15,7 +16,7 @@ export async function GET() {
     if ('error' in guard && guard.status !== 500) {
       return NextResponse.json({ error: guard.error }, { status: guard.status })
     }
-    // 권한을 읽지 못해도(가드 500) 가입 수·처리 대기는 보여 준다. 이때는 관리자 여부만 직접 확인하고 권한이 필요한 구역은 뺀다.
+    // 권한을 읽지 못해도(가드 500) 화면은 열린다. 이때는 관리자 여부만 직접 확인하고, 가입 수·처리 대기는 "확인 불가", 권한 구역은 뺀다.
     const access = 'error' in guard ? null : guard.access
     if (!access) {
       const { data: { user } } = await supabase.auth.getUser()
@@ -45,16 +46,19 @@ export async function GET() {
       return error ? null : count
     }
 
-    // 매출·판매 지표와 최근 주문·문의는 계정 권한이 있는 구역만 읽는다.
+    // 가입 수(회원 조회 권한), 처리 대기(항목별 권한), 매출·판매 지표와 최근 주문·문의는 계정 권한이 있는 구역만 읽는다.
+    // 권한을 읽지 못했으면(access null) 숫자를 세지 않고 "확인 불가"로 보낸다.
+    const canSeeSignups = access !== null && hasAdminPermission(access, 'members.view')
     const [today, month, work, dashboard] = await Promise.all([
-      countSignups(period.todayStart),
-      countSignups(period.monthStart),
-      getAdminWorkSummary(),
+      canSeeSignups ? countSignups(period.todayStart) : null,
+      canSeeSignups ? countSignups(period.monthStart) : null,
+      getAdminWorkSummary(access),
       access ? getAdminDashboard(access, period) : null,
     ])
 
     return NextResponse.json({
-      signups: { today, month },
+      // null = 권한 없음(그리지 않음). 권한을 읽지 못했으면 값만 null인 객체("확인 불가").
+      signups: access === null || canSeeSignups ? { today, month } : null,
       work,
       metrics: dashboard?.metrics ?? null,
       recentOrders: dashboard?.recentOrders ?? null,

@@ -14,7 +14,7 @@ export async function GET() {
       return NextResponse.json({ error: guard.error }, { status: guard.status })
     }
 
-    return NextResponse.json(await getAdminAlertSummary())
+    return NextResponse.json(await getAdminAlertSummary(guard.access))
   } catch (error) {
     console.error('Error fetching admin alert summary:', error)
     return NextResponse.json({ error: 'Failed to fetch alert summary' }, { status: 500 })

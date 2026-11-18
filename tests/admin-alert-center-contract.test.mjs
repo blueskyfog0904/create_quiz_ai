@@ -96,7 +96,7 @@ test('처리한 뒤에는 새로고침 없이 숫자가 맞는다: 처리 성공
 
   // 대시보드의 처리 대기 카드는 종·배지와 같은 값을 쓴다(가입자 수 조회는 그대로).
   assert.match(dashboard, /alerts\?\.loadFailed \? null : alerts\?\.summary\?\.work \?\? stats\.work/)
-  assert.match(dashboard, /const value = work \? work\[item\.key\] : null/)
+  assert.match(dashboard, /const value = work \? work\[item\.key\] \?\? null : null/)
   assert.match(dashboard, /fetch\('\/api\/admin\/stats'\)/)
   assert.match(dashboard, /void fetchStats\(\)\s*alerts\?\.refresh\(\)/)
 })
@@ -110,7 +110,9 @@ test('요약: service role 전용 표는 세션 클라이언트로 읽지 않고
   // 이벤트 목록·미확인 건수는 관리자 세션으로 읽어 조회 정책을 따른다.
   assert.match(server, /supabase\s*\.from\('admin_events'\)/)
   assert.doesNotMatch(server, /createAdminClient\(\)\s*\.from\('admin_events'\)/)
-  assert.match(server, /getAdminWorkSummary\(\)/)
+  // 처리 대기 건수는 그 계정의 권한에 맞는 항목만 센다.
+  assert.match(server, /getAdminWorkSummary\(access\)/)
+  assert.match(read('src/app/api/admin/alerts/summary/route.ts'), /getAdminAlertSummary\(guard\.access\)/)
   // 폴링되는 조회라 건수는 head 조회, 목록은 최근 것만
   assert.match(server, /\.limit\(ADMIN_ALERT_RECENT_LIMIT\)/)
   assert.equal([...server.matchAll(/count: 'exact', head: true/g)].length, 1)
@@ -199,10 +201,10 @@ test('메뉴 배지: 메뉴 주소로 맞추고, 하나라도 세지 못하면 �
   assert.doesNotMatch(badge, /item\.id|menuId/)
 })
 
-test('대시보드와 알림 패널은 처리 대기 항목 목록 하나를 같이 쓴다', () => {
+test('대시보드와 알림 패널은 처리 대기 항목 목록 하나를 같이 쓴다(권한이 없어 빠진 항목은 그리지 않는다)', () => {
   for (const source of [dashboard, center]) {
-    assert.match(source, /import \{[^}]*ADMIN_WORK_ITEMS[^}]*\} from '@\/lib\/admin-alerts'/)
-    assert.match(source, /ADMIN_WORK_ITEMS\.map\(/)
+    assert.match(source, /import \{[^}]*visibleWorkItems[^}]*\} from '@\/lib\/admin-alerts'/)
+    assert.match(source, /visibleWorkItems\([^)]*\)\.map\(|workItems\.map\(/)
     assert.match(source, /value === null \? '확인 불가'/)
   }
   assert.doesNotMatch(dashboard, /const WORK_ITEMS/)

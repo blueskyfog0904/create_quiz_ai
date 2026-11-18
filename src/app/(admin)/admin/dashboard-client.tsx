@@ -7,13 +7,14 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAdminAlerts } from '@/components/admin/admin-alert-context'
-import { ADMIN_WORK_ITEMS, dispatchStatusMessages } from '@/lib/admin-alerts'
+import { dispatchStatusMessages, visibleWorkItems } from '@/lib/admin-alerts'
 import type { AdminDashboard } from '@/lib/admin-dashboard-server'
 import { PAYMENT_ORDER_STATUS_LABELS, labelOf } from '@/lib/admin-orders'
 import type { AdminWorkSummary } from '@/lib/admin-work-summary-server'
 
 interface Stats {
-  signups: { today: number | null; month: number | null }
+  // null이면 가입 수를 볼 권한(회원 조회)이 없어 그리지 않는다.
+  signups: { today: number | null; month: number | null } | null
   work: AdminWorkSummary
   // 권한이 없는 구역은 null로 오고 그리지 않는다.
   metrics: AdminDashboard['metrics']
@@ -105,6 +106,8 @@ export function DashboardClient({ salesPanel }: { salesPanel: ReactNode }) {
       ? '확인 중…'
       : dispatchMessages.length === 0 ? '정상' : dispatchMessages.join(' · ')
   const { metrics, recentOrders, recentTickets } = stats
+  // 권한이 없는 처리 대기 항목은 요약에 없으므로 그리지 않는다. 볼 항목이 하나도 없으면 카드째 숨긴다.
+  const workItems = visibleWorkItems(work)
   const monthLabel = `${stats.period.year}년 ${stats.period.month}월`
 
   return (
@@ -122,6 +125,7 @@ export function DashboardClient({ salesPanel }: { salesPanel: ReactNode }) {
         </Button>
       </div>
 
+      {workItems.length > 0 ? (
       <Card className="border-0 shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
@@ -131,8 +135,8 @@ export function DashboardClient({ salesPanel }: { salesPanel: ReactNode }) {
         </CardHeader>
         <CardContent>
           <ul className="divide-y">
-            {ADMIN_WORK_ITEMS.map((item) => {
-              const value = work ? work[item.key] : null
+            {workItems.map((item) => {
+              const value = work ? work[item.key] ?? null : null
               // 0이 아니면(확인 불가 포함) 눈에 띄게 한다.
               const needsAttention = value !== 0
               return (
@@ -160,6 +164,7 @@ export function DashboardClient({ salesPanel }: { salesPanel: ReactNode }) {
           </ul>
         </CardContent>
       </Card>
+      ) : null}
 
       <div key="sales-panel">{salesPanel}</div>
 
@@ -172,12 +177,14 @@ export function DashboardClient({ salesPanel }: { salesPanel: ReactNode }) {
 
       <section aria-label="지표" className="space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <MetricCard
-            title="신규 가입자"
-            today={formatValue(stats.signups.today, '명')}
-            month={`${monthLabel} ${formatValue(stats.signups.month, '명')}`}
-            icon={<Users className="h-6 w-6 text-blue-600" aria-hidden="true" />}
-          />
+          {stats.signups ? (
+            <MetricCard
+              title="신규 가입자"
+              today={formatValue(stats.signups.today, '명')}
+              month={`${monthLabel} ${formatValue(stats.signups.month, '명')}`}
+              icon={<Users className="h-6 w-6 text-blue-600" aria-hidden="true" />}
+            />
+          ) : null}
           {metrics ? (
             <>
               <MetricCard

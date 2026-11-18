@@ -14,9 +14,10 @@ test('통계 API는 없는 표·옛 문제 표·서버 시간대에 기대지 �
   assert.doesNotMatch(route, /from\('questions'\)/)
   assert.doesNotMatch(route, /setHours/)
   assert.match(route, /getKstPeriodStarts\(\)/)
-  assert.match(route, /getAdminWorkSummary\(\)/)
+  // 처리 대기는 그 계정의 권한(access)에 맞는 항목만 센다.
+  assert.match(route, /getAdminWorkSummary\(access\)/)
   // 관리자 확인이 집계보다 먼저다(집계는 service role을 쓴다).
-  assert.ok(route.indexOf('profile?.is_admin') < route.indexOf('getAdminWorkSummary()'))
+  assert.ok(route.indexOf('profile?.is_admin') < route.indexOf('getAdminWorkSummary(access)'))
 })
 
 test('처리 대기 집계: 결제 쪽 표는 service role로, 실패한 항목은 null로', () => {
@@ -37,7 +38,8 @@ test('대시보드는 거짓 표시를 하지 않고, 세지 못한 값을 0으�
   assert.match(dashboard, /value === null \? '확인 불가'/)
   assert.match(dashboard, /기준: 한국 시간/)
   // 처리 대기 항목(이름·이동할 화면)은 알림과 같이 쓰는 목록에 있다.
-  assert.match(dashboard, /ADMIN_WORK_ITEMS\.map\(/)
+  assert.match(dashboard, /const workItems = visibleWorkItems\(work\)/)
+  assert.match(dashboard, /workItems\.map\(/)
   assert.match(workItems, /\/admin\/support/)
   assert.match(workItems, /\/admin\/refunds/)
 })

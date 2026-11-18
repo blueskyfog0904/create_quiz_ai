@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { getAdminWorkSummary } from '@/lib/admin-work-summary-server'
+import type { AdminAccess } from '@/lib/admin-permissions'
 import {
   ADMIN_ALERT_RECENT_LIMIT,
   deriveDispatchStatus,
@@ -22,7 +23,8 @@ async function readOr<T>(label: string, fallback: T, read: () => Promise<T>): Pr
 
 // 관리자 확인을 마친 요청에서만 부른다.
 // admin_events는 관리자 세션으로(조회 정책을 따른다), 전송 상태 표는 service role로 읽는다.
-export async function getAdminAlertSummary(): Promise<AdminAlertSummary> {
+// 처리 대기 건수는 그 계정의 권한(access)에 맞는 항목만 센다.
+export async function getAdminAlertSummary(access: AdminAccess): Promise<AdminAlertSummary> {
   const supabase = await createClient()
 
   const readEvents = () => readOr<AdminAlertEvent[] | null>('최근 알림', null, async () => {
@@ -58,7 +60,7 @@ export async function getAdminAlertSummary(): Promise<AdminAlertSummary> {
   })
 
   const [work, events, dispatchState, gaveUpCount] = await Promise.all([
-    getAdminWorkSummary(),
+    getAdminWorkSummary(access),
     readEvents(),
     readDispatchState(),
     readGaveUpCount(),

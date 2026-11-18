@@ -243,7 +243,7 @@ test('화면 순서: 처리 대기 → 판매 상태·전송 상태 → 지표 �
   assert.match(page, /<DashboardClient salesPanel=\{<PaymentSalesPanel status=\{salesStatus\} canStopSales=\{hasAdminPermission\(access, 'owner'\)\} \/>\} \/>/)
 
   const body = dashboard.slice(dashboard.lastIndexOf('기준: 한국 시간'))
-  const positions = ['ADMIN_WORK_ITEMS.map(', '{salesPanel}', '관리자 알림 전송(슬랙)', 'aria-label="지표"', '최근 충전 주문', '최근 문의'].map((mark) => body.indexOf(mark))
+  const positions = ['workItems.map(', '{salesPanel}', '관리자 알림 전송(슬랙)', 'aria-label="지표"', '최근 충전 주문', '최근 문의'].map((mark) => body.indexOf(mark))
   assert.ok(positions.every((position) => position >= 0))
   assert.deepEqual(positions, [...positions].sort((a, b) => a - b))
   // 전송 상태는 알림 패널과 같은 값·같은 문구를 쓴다(따로 조회하지 않는다).
