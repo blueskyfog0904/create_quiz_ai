@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/bypass'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { recordAdminAudit } from '@/lib/admin-audit-log-server'
 
@@ -68,7 +69,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     details: { status: ticket.status },
   })
 
-  const { error: notificationError } = await admin.supabase.from('notifications').insert({
+  // 회원 알림은 서버 키로 넣는다(관리자 세션의 알림 INSERT 정책을 없앨 수 있게 — 20261117140000 3절).
+  const { error: notificationError } = await createAdminClient().from('notifications').insert({
     user_id: ticket.user_id,
     type: 'inquiry_reply',
     title: '문의하신 내용에 답변이 등록되었습니다.',

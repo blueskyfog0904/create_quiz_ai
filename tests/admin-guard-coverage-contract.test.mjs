@@ -609,7 +609,7 @@ function loadCreditGrantRoute(session) {
   const route = load('src/app/api/admin/users/credits/route.ts', {
     'next/server': json,
     ...adminGuardMocks(session),
-    '@/lib/supabase/server': { createClient: async () => ({ from: () => ({ insert: async () => ({ error: null }) }) }) },
+    '@/lib/supabase/bypass': { createAdminClient: () => ({ from: () => ({ insert: async () => ({ error: null }) }) }) },
     '@/lib/credits': { CreditService: { grantCreditsAsAdmin: async (...args) => { grants.push(args); return { newBalance: 1, alreadyGranted: false } } } },
     '@/lib/credit-source-display': { resolveAdminGrantSourceCategory: () => 'admin_other' },
     '@/lib/credit-balance': { getCreditBalanceSnapshot: async () => ({}), buildCreditBalanceResponseFields: () => ({}) },

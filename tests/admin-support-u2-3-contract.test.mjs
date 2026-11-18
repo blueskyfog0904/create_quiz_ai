@@ -112,6 +112,12 @@ function loadTicketRoute(ticketRow) {
   const route = load('src/app/api/admin/support/tickets/[id]/route.ts', {
     'next/server': { NextResponse },
     '@/lib/supabase/server': { createClient: async () => session },
+    // 회원 알림은 서버 키로 넣는다(세션 쪽 queries에는 알림이 남지 않는다).
+    '@/lib/supabase/bypass': {
+      createAdminClient: () => ({
+        from: (table) => ({ insert: async (row) => (queries.push({ table, ops: [['insert', row]], viaServiceRole: true }), { error: null }) }),
+      }),
+    },
     ...adminGuardMocks({ userId: 'admin-1' }),
   })
   const patch = () => route.PATCH({ json: async () => ({ adminResponse: '답변' }) }, { params: Promise.resolve({ id: TICKET }) })
@@ -123,7 +129,8 @@ test('답변 route는 삭제되지 않은 문의만 고치고, 삭제된 문의�
   assert.equal((await ok.patch()).status, 200)
   const update = ok.queries.find((query) => query.table === 'support_tickets')
   assert.deepEqual(update.ops.filter(([name]) => name === 'eq'), [['eq', 'id', TICKET], ['eq', 'is_deleted_by_user', false]])
-  assert.ok(ok.queries.some((query) => query.table === 'notifications'))
+  assert.ok(ok.queries.some((query) => query.table === 'notifications' && query.viaServiceRole))
+  assert.equal(ok.queries.some((query) => query.table === 'notifications' && !query.viaServiceRole), false)
 
   // 조건에 맞는 행이 없다(없는 문의 또는 회원이 삭제한 문의)
   const rejected = loadTicketRoute(null)

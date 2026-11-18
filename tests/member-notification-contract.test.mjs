@@ -162,9 +162,18 @@ function loadTicketRoute(notificationError) {
   const route = loadModule('../src/app/api/admin/support/tickets/[id]/route.ts', {
     'next/server': json,
     ...adminGuardMocks({ userId: 'admin-1' }),
+    // 회원 알림은 서버 키(bypass)로 넣는다. 세션으로 알림을 넣으면 이 테스트가 실패한다.
+    '@/lib/supabase/bypass': {
+      createAdminClient: () => ({
+        from: (table) => {
+          assert.equal(table, 'notifications')
+          return { insert: async () => ({ error: notificationError }) }
+        },
+      }),
+    },
     '@/lib/supabase/server': adminSession((table) => {
       if (table === 'profiles') return adminProfile
-      if (table === 'notifications') return { insert: async () => ({ error: notificationError }) }
+      if (table === 'notifications') throw new Error('session must not insert notifications')
       return {
         update: () => ({
           eq: () => ({

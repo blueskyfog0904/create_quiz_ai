@@ -285,7 +285,7 @@ function loadCreditRoute({ audit = auditMock(), grant, session = { userId: ADMIN
     'next/server': json,
     ...adminGuardMocks(session),
     '@/lib/admin-audit-log-server': audit.module,
-    '@/lib/supabase/server': { createClient: async () => ({ from: () => ({ insert: async () => ({ error: null }) }) }) },
+    '@/lib/supabase/bypass': { createAdminClient: () => ({ from: () => ({ insert: async () => ({ error: null }) }) }) },
     '@/lib/credits': { CreditService: { grantCreditsAsAdmin: grant ?? (async () => ({ newBalance: 700, alreadyGranted: false })) } },
     '@/lib/credit-source-display': { resolveAdminGrantSourceCategory: () => 'admin_other' },
     '@/lib/credit-balance': { getCreditBalanceSnapshot: async () => ({}), buildCreditBalanceResponseFields: () => ({}) },
@@ -346,6 +346,7 @@ function loadTicketRoute(ticketRow, audit = auditMock()) {
   const route = load('src/app/api/admin/support/tickets/[id]/route.ts', {
     'next/server': { NextResponse },
     '@/lib/supabase/server': { createClient: async () => session },
+    '@/lib/supabase/bypass': { createAdminClient: () => ({ from: () => ({ insert: async () => ({ error: null }) }) }) },
     ...adminGuardMocks({ userId: ADMIN_ID }),
     '@/lib/admin-audit-log-server': audit.module,
   })

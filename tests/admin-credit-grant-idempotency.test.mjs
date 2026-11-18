@@ -36,11 +36,10 @@ function loadRoute(grant) {
     'next/server': {
       NextResponse: { json: (body, init) => ({ body, status: init?.status ?? 200 }) },
     },
-    '@/lib/supabase/server': {
-      createClient: async () => ({
-        auth: { getUser: async () => ({ data: { user: { id: 'admin-1' } } }) },
+    // 회원 알림은 서버 키(bypass)로 넣는다. 관리자 세션 클라이언트는 쓰지 않는다.
+    '@/lib/supabase/bypass': {
+      createAdminClient: () => ({
         from: (table) => ({
-          select: () => ({ eq: () => ({ single: async () => ({ data: { is_admin: true } }) }) }),
           insert: async (row) => {
             if (table === 'notifications') calls.notifications.push(row)
             return { error: null }

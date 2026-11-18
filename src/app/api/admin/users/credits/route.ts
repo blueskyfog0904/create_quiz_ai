@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/bypass'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { checkAdminLimit } from '@/lib/admin-permissions'
 import { alertAdminAuditFailure, recordAdminAudit } from '@/lib/admin-audit-log-server'
@@ -18,8 +18,6 @@ const GrantCreditSchema = z.object({
 })
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
-
   // 1. Auth Check (크레딧 수동 지급 권한)
   const guard = await requireAdminApiPermission('credits.grant')
   if ('error' in guard) {
@@ -87,8 +85,9 @@ export async function POST(request: Request) {
     }
 
     // 3. Send Notification (같은 키로 이미 지급된 재요청이면 다시 보내지 않는다)
+    // 회원 알림은 서버 키로 넣는다(관리자 세션의 알림 INSERT 정책을 없앨 수 있게 — 20261117140000 3절).
     if (!result.alreadyGranted) {
-      await supabase.from('notifications').insert({
+      await createAdminClient().from('notifications').insert({
         user_id: userId,
         type: 'info',
         title: '크레딧이 지급되었습니다',
