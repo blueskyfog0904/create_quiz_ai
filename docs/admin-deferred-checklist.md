@@ -35,7 +35,8 @@
 | ⑥ | `20261118110000_question_bank_rpcs_owner_only` | 닫아 둔 문제은행 함수 7개의 검사를 관리자→대표로 | ✅ 2026-11-18 적용(7개 정의 md5 일치, 대표 호출 정상·회원 `ADMIN_REQUIRED` 확인) |
 | ⑤ | `20261118100000_drop_admin_notifications_insert` | 관리자 세션의 회원 알림 추가 정책 삭제·INSERT 권한 회수 | ✅ 2026-11-18 적용(`317d2be` 배포 뒤) |
 | ⑦ | `20261118120000_admin_credit_grant_limits` | 직원 크레딧 지급 1회·하루 한도(기본 10,000·50,000, 대표는 한도 없음), 기본 한도 설정·변경 함수, 새 권한 `credits.limits.manage` | ✅ 2026-11-18 적용 → 코드 `96c0858` push·배포 성공 |
-| ⑧ | (⑦ 코드 배포 뒤 작성) | 옛 5인자 지급 함수 `grant_admin_credits(uuid,integer,text,text,text)` 삭제 | ⑦ 적용 → 코드 push·배포 뒤 |
+| ⑧ | `20261118130000_drop_old_grant_admin_credits` | 옛 5인자 지급 함수 `grant_admin_credits(uuid,integer,text,text,text)` 삭제(한도·작업 기록 없는 지급 길을 닫음) | 승인 대기. 전문 3명 PASS. 되돌리기에 사후 확인을 더해 리허설 한 번 더 필요. **주의: 적용 뒤 Vercel에서 `96c0858` 이전 배포로 되돌리면 관리자 크레딧 지급만 실패한다 — 그때는 먼저 이 파일의 되돌리기를 실행** |
+| ⑨ | `20261118140000_questions_admin_uploaded_owner_only` | 회원·직원이 세션으로 '관리자 업로드' 문제를 넣거나 바꾸지 못하게(RESTRICTIVE 정책 2개, 대표만 허용) | 리허설 대기(DB 실행 확인 창 만료로 미실행) → 전문 검증 → 승인 |
 
 - [x] ①② 적용 (2026-11-17, 승인 받음)
 - [x] push (2026-11-18, `441720d`까지 배포 성공)

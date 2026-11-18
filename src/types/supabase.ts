@@ -5242,9 +5242,11 @@ export type Database = {
       }
       grant_admin_credits: {
         Args: {
+          p_actor_id: string
           p_amount: number
+          p_details: Json
           p_operation_key: string
-          p_payment_method: string
+          p_reason: string
           p_source_category: string
           p_user_id: string
         }
