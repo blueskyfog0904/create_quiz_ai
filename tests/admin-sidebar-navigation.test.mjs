@@ -9,6 +9,7 @@ import {
   DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG,
   moveAdminSidebarHref,
   moveAdminSidebarNavigationNode,
+  expandAdminSidebarSubjectGroups,
   normalizeAdminSidebarNavigationConfig,
   resolveAdminSidebarMenuItems,
   resolveAdminSidebarNavigationNodes,
@@ -260,17 +261,39 @@ test('moveAdminSidebarHref reorders only question bank child href peers', () => 
   ])
 })
 
-test('admin sidebar server wrapper preloads navigation configs for both subjects', () => {
-  assert.match(adminSidebarSource, /getAdminSidebarNavigationConfig\('english'\)/)
-  assert.match(adminSidebarSource, /getAdminSidebarNavigationConfig\('korean'\)/)
+test('admin sidebar server wrapper loads one navigation config shared by both subjects', () => {
+  // 순서·이름은 과목과 상관없이 하나다(2026-11-20). 국어·영어 마켓 묶음도 같은 설정을 쓴다.
+  assert.match(adminSidebarSource, /const navigationConfig = await getAdminSidebarNavigationConfig\(\)/)
+  assert.doesNotMatch(adminSidebarSource, /getAdminSidebarNavigationConfig\('(english|korean)'\)/)
   assert.match(adminSidebarSource, /AdminSidebarClient/)
 })
 
-test('admin sidebar client renders grouped question bank navigation and preserves subject query', () => {
+test('admin sidebar client expands subject groups and only subject menus carry the subject query', () => {
   assert.match(adminSidebarClientSource, /resolveAdminSidebarNavigationNodes/)
+  assert.match(adminSidebarClientSource, /expandAdminSidebarSubjectGroups\(/)
   assert.match(adminSidebarClientSource, /aria-current=\{active \? 'page' : undefined\}/)
-  assert.match(adminSidebarClientSource, /href=\{withAdminWorkspaceSubject\(item\.href, workspaceSubject\)\}/)
+  assert.match(adminSidebarClientSource, /href=\{item\.subject \? withAdminWorkspaceSubject\(item\.href, item\.subject\) : item\.href\}/)
+  // 사이드바 위쪽의 전역 과목 전환기는 없앴다
+  assert.doesNotMatch(adminSidebarClientSource, /AdminWorkspaceSwitcher|현재 관리 대상/)
   assert.doesNotMatch(adminSidebarClientSource, /subjectScopedAdminHrefs/)
+})
+
+test('subject market group is drawn once per subject (korean then english) with subject-scoped items', () => {
+  const nodes = resolveAdminSidebarNavigationNodes('korean', { items: ['/admin', '/admin/market/products', '/admin/orders'] })
+  const expanded = expandAdminSidebarSubjectGroups(nodes, { korean: '국어', english: '영어' })
+  const marketGroups = expanded.filter((node) => node.type === 'group' && node.labelKey === 'market')
+  assert.deepEqual(marketGroups.map((node) => [node.id, node.name, node.subject]), [
+    ['market:korean', '국어 문제마켓', 'korean'],
+    ['market:english', '영어 문제마켓', 'english'],
+  ])
+  assert.ok(marketGroups.every((group) => group.items.every((item) => item.subject === group.subject)))
+  const payments = expanded.find((node) => node.type === 'group' && node.id === 'payments')
+  assert.ok(payments)
+  assert.ok(payments.items.every((item) => item.subject === undefined))
+  // 공통 묶음에는 과목별 메뉴가 섞이지 않는다
+  for (const href of ADMIN_MARKET_MENU_HREFS) {
+    assert.equal(payments.items.some((item) => item.href === href), false)
+  }
 })
 
 test('menu management presents question bank entries as an admin sidebar group without changing storage shape', () => {

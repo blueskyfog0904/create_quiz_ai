@@ -60,7 +60,6 @@ import {
 import type { MarketMenuEntryAdminRow } from '@/lib/market-menu'
 import {
   DEFAULT_WORKSPACE_SUBJECT,
-  isWorkspaceSubject,
   withWorkspacePrefix,
   type WorkspaceSubject,
 } from '@/lib/workspace-subject'
@@ -129,7 +128,8 @@ export async function getMenuManagementData(workspaceSubject: WorkspaceSubject =
   await assertAdminActionPermission('owner')
 
   const initialConfig = await getBaseHeaderNavigationConfig(workspaceSubject)
-  const adminSidebarConfig = await getAdminSidebarNavigationConfig(workspaceSubject)
+  // 관리자 사이드바 순서·이름은 과목과 상관없이 하나다
+  const adminSidebarConfig = await getAdminSidebarNavigationConfig()
   const generateMenuEntries = await listGenerateMenuEntriesForAdmin(workspaceSubject)
   const marketMenuEntries = await listMarketMenuEntriesForAdmin(workspaceSubject)
   const backfillStatus = await getGenerateMenuEntriesBackfillStatus(initialConfig, workspaceSubject)
@@ -156,16 +156,14 @@ export async function getMenuManagementData(workspaceSubject: WorkspaceSubject =
   }
 }
 
-export async function saveAdminSidebarNavigationConfigAction(
-  input: AdminSidebarNavigationConfig,
-  workspaceSubject: WorkspaceSubject = DEFAULT_WORKSPACE_SUBJECT
-) {
+export async function saveAdminSidebarNavigationConfigAction(input: AdminSidebarNavigationConfig) {
   await assertAdminFeatureEnabled('menu_management')
   await requireAdmin()
   await assertAdminActionPermission('owner')
 
-  const savedConfig = await saveAdminSidebarNavigationConfig(input, workspaceSubject)
-  revalidateMenuRelatedPaths(workspaceSubject)
+  const savedConfig = await saveAdminSidebarNavigationConfig(input)
+  // 사이드바 순서는 과목과 상관없이 하나라 관리자 레이아웃만 다시 그린다
+  revalidatePath('/admin', 'layout')
 
   return {
     success: true,
@@ -175,8 +173,7 @@ export async function saveAdminSidebarNavigationConfigAction(
 
 export async function renameAdminSidebarMenuAction(
   key: string,
-  label: string,
-  workspaceSubject: WorkspaceSubject
+  label: string
 ): Promise<{ success: true, data: AdminSidebarNavigationConfig } | { success: false, error: string }> {
   await requireAdmin()
   // 메뉴 이름 바꾸기는 운영 기능이라 기능 묶음 검사 없이 사이트 관리 권한(site.manage)만 본다.
@@ -187,14 +184,14 @@ export async function renameAdminSidebarMenuAction(
     throw error
   }
 
-  if (!isWorkspaceSubject(workspaceSubject) || !isAdminSidebarLabelKey(key)) {
+  if (!isAdminSidebarLabelKey(key)) {
     return { success: false, error: '이름을 바꿀 수 없는 메뉴입니다.' }
   }
   if (label.trim().length > ADMIN_SIDEBAR_LABEL_MAX_LENGTH) {
     return { success: false, error: `메뉴 이름은 ${ADMIN_SIDEBAR_LABEL_MAX_LENGTH}자 이하로 입력해 주세요.` }
   }
 
-  const savedConfig = await saveAdminSidebarMenuLabel(key, label, workspaceSubject)
+  const savedConfig = await saveAdminSidebarMenuLabel(key, label)
   revalidatePath('/admin', 'layout')
 
   return {

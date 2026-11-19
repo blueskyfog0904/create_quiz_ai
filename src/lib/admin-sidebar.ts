@@ -46,6 +46,8 @@ export interface AdminSidebarMenuItem {
   exact?: boolean
   // 관리자가 이름을 바꿨을 때 되돌릴 기본 이름
   defaultName?: string
+  // 과목별 묶음(국어 마켓·영어 마켓) 안의 메뉴일 때 그 과목. 링크와 활성 표시에 쓴다.
+  subject?: WorkspaceSubject
 }
 
 export interface AdminSidebarNavigationConfig {
@@ -64,35 +66,62 @@ export const ADMIN_QUESTION_BANK_MENU_HREFS = [
   '/admin/question-bank/backfill',
 ] as const
 
+// 과목(국어·영어)마다 따로 운영하는 메뉴. 회원 화면에서 국어·영어 탭마다 내용이 다른 것(상품·카테고리·홈·후기)이다.
+// 사이드바에는 과목마다 한 묶음씩("국어 마켓", "영어 마켓") 나오고, 링크는 그 과목을 들고 간다.
 export const ADMIN_MARKET_MENU_HREFS = [
+  '/admin/market/products',
+  '/admin/market/products/new',
+  '/admin/market-categories',
   '/admin/main-ad-settings',
   '/admin/market-main-settings',
-  '/admin/market/products/new',
-  '/admin/market/products',
-  '/admin/market/images',
-  '/admin/market-categories',
+  '/admin/reviews',
+  '/admin/review-tags',
 ] as const
 
+// 과목과 상관없는 공통 메뉴 묶음
+export const ADMIN_PAYMENT_MENU_HREFS = ['/admin/orders', '/admin/refunds', '/admin/credits', '/admin/pricing'] as const
+export const ADMIN_MEMBER_MENU_HREFS = ['/admin/users', '/admin/support'] as const
+export const ADMIN_SITE_MENU_HREFS = [
+  '/admin/market/images',
+  '/admin/footer',
+  '/admin/admin-accounts',
+  '/admin/audit-log',
+  '/admin/menu-management',
+] as const
+
+// 과목별 묶음을 펼치는 순서(회원 화면의 국어 → 영어 탭과 같다)
+export const ADMIN_SIDEBAR_SUBJECT_ORDER: readonly WorkspaceSubject[] = ['korean', 'english']
+
 // 사이드바 대메뉴(depth1) 그룹. 저장된 순서에서 그룹 소속 메뉴가 처음 나오는 자리에 그룹이 놓인다.
+// perSubject 그룹은 사이드바에서 과목마다 한 번씩 나온다(순서·이름 설정은 하나를 같이 쓴다).
 const ADMIN_SIDEBAR_MENU_GROUPS = [
-  { id: 'questionBank', name: '문제은행', icon: 'database', hrefs: ADMIN_QUESTION_BANK_MENU_HREFS },
-  { id: 'market', name: '문제마켓', icon: 'layoutPanelTop', hrefs: ADMIN_MARKET_MENU_HREFS },
+  { id: 'questionBank', name: '문제은행', icon: 'database', hrefs: ADMIN_QUESTION_BANK_MENU_HREFS, perSubject: false },
+  { id: 'market', name: '문제마켓', icon: 'layoutPanelTop', hrefs: ADMIN_MARKET_MENU_HREFS, perSubject: true },
+  { id: 'payments', name: '주문·결제', icon: 'creditCard', hrefs: ADMIN_PAYMENT_MENU_HREFS, perSubject: false },
+  { id: 'members', name: '회원·고객', icon: 'users', hrefs: ADMIN_MEMBER_MENU_HREFS, perSubject: false },
+  { id: 'site', name: '사이트 설정', icon: 'settings', hrefs: ADMIN_SITE_MENU_HREFS, perSubject: false },
 ] as const satisfies readonly {
   id: string
   name: string
   icon: AdminSidebarIconName
   hrefs: readonly string[]
+  perSubject: boolean
 }[]
 
 type AdminSidebarMenuGroupDefinition = (typeof ADMIN_SIDEBAR_MENU_GROUPS)[number]
 
 export interface AdminSidebarMenuGroupNode {
   type: 'group'
-  id: AdminSidebarMenuGroupDefinition['id']
+  // 과목별로 펼친 묶음은 "market:korean"처럼 과목이 붙는다
+  id: string
+  // 이름 바꾸기 키(그룹 정의 id). 과목별 묶음은 둘이 같은 키를 쓴다.
+  labelKey: AdminSidebarMenuGroupDefinition['id']
   name: string
   defaultName: string
   icon: AdminSidebarIconName
   items: AdminSidebarMenuItem[]
+  perSubject: boolean
+  subject?: WorkspaceSubject
 }
 
 export interface AdminSidebarMenuItemNode {
@@ -317,14 +346,36 @@ export function resolveAdminSidebarNavigationNodes(
     nodes.push({
       type: 'group',
       id: group.id,
+      labelKey: group.id,
       name: labels?.[group.id] ?? group.name,
       defaultName: group.name,
       icon: group.icon,
       items: items.filter((candidate) => findGroup(candidate.href)?.id === group.id),
+      perSubject: group.perSubject,
     })
   })
 
   return nodes
+}
+
+// 사이드바에 그릴 때: 과목별 묶음을 과목마다 하나씩 펼친다("국어 문제마켓", "영어 문제마켓").
+// 메뉴관리(순서 편집)는 펼치지 않은 노드를 그대로 쓴다.
+export function expandAdminSidebarSubjectGroups(
+  nodes: AdminSidebarNavigationNode[],
+  subjectLabels: Readonly<Record<WorkspaceSubject, string>>
+): AdminSidebarNavigationNode[] {
+  return nodes.flatMap((node) => {
+    if (node.type !== 'group' || !node.perSubject) {
+      return [node]
+    }
+    return ADMIN_SIDEBAR_SUBJECT_ORDER.map((subject): AdminSidebarMenuGroupNode => ({
+      ...node,
+      id: `${node.id}:${subject}`,
+      name: `${subjectLabels[subject]} ${node.name}`,
+      subject,
+      items: node.items.map((item) => ({ ...item, subject })),
+    }))
+  })
 }
 
 function getAdminSidebarNodeKey(node: AdminSidebarNavigationNode) {

@@ -90,6 +90,7 @@ import {
   type MenuManagementPageData,
 } from './actions'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
+import { AdminWorkspaceSwitcher } from '@/components/layout/admin-workspace-switcher'
 
 type MenuManagementClientProps = MenuManagementPageData
 
@@ -573,7 +574,7 @@ export default function MenuManagementClient({
   const handleSaveAdminSidebar = async () => {
     setIsSavingAdminSidebar(true)
     try {
-      const response = await saveAdminSidebarNavigationConfigAction(adminSidebarConfig, workspaceSubject)
+      const response = await saveAdminSidebarNavigationConfigAction(adminSidebarConfig)
       if (!response.success) {
         throw new Error('저장에 실패했습니다.')
       }
@@ -727,10 +728,14 @@ export default function MenuManagementClient({
           <h1 className="text-3xl font-bold text-gray-900"><AdminMenuName href="/admin/menu-management" fallback="메뉴관리" /> · {workspaceSubject === 'english' ? '영어' : '국어'}</h1>
           <p className="mt-1 text-gray-500">일반 헤더 메뉴와 DB 연동 대상 2단계 메뉴를 분리해서 관리합니다.</p>
         </div>
-        <Button onClick={handleSaveAll} disabled={isSaving || !hasUnsavedChanges}>
-          {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-          일반 메뉴 저장
-        </Button>
+        {/* 회원 사이트 상단 메뉴는 과목마다 따로라, 사이드바 대신 화면 안에서 과목을 바꾼다 */}
+        <div className="flex flex-wrap items-center gap-2">
+          <AdminWorkspaceSwitcher />
+          <Button onClick={handleSaveAll} disabled={isSaving || !hasUnsavedChanges}>
+            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            일반 메뉴 저장
+          </Button>
+        </div>
       </div>
 
       <Card className="border-slate-200 bg-slate-50/80">
@@ -810,7 +815,7 @@ export default function MenuManagementClient({
         <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle>관리자 패널 메뉴 순서</CardTitle>
-            <CardDescription>현재 subject 기준으로 관리자 사이드바 메뉴 위치를 위/아래 버튼으로 조정합니다.</CardDescription>
+            <CardDescription>관리자 사이드바 메뉴 위치를 위/아래 버튼으로 조정합니다. 국어·영어와 상관없이 하나의 순서를 씁니다.</CardDescription>
           </div>
           <Button onClick={handleSaveAdminSidebar} disabled={isSavingAdminSidebar || !hasUnsavedAdminSidebarChanges}>
             {isSavingAdminSidebar ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
@@ -854,7 +859,7 @@ export default function MenuManagementClient({
                     <Fragment key={node.id}>
                       <TableRow className="bg-slate-50">
                         <TableCell className="font-semibold text-slate-900">{node.name}</TableCell>
-                        <TableCell className="text-gray-500">대메뉴</TableCell>
+                        <TableCell className="text-gray-500">{node.perSubject ? '대메뉴(국어·영어 각각 표시)' : '대메뉴'}</TableCell>
                         <TableCell>
                           <Badge variant="secondary">소메뉴 {node.items.length}개</Badge>
                         </TableCell>
@@ -892,7 +897,7 @@ export default function MenuManagementClient({
               </TableBody>
             </Table>
           </div>
-          <p className="mt-3 text-sm text-gray-500">영어/국어 관리 대상별로 서로 다른 순서를 저장합니다. 문제은행 대메뉴는 위/아래 버튼으로 block 이동하고, 하위 메뉴는 문제은행 내부에서만 순서를 조정합니다. 저장값은 기존처럼 href 순서 배열만 사용합니다.</p>
+          <p className="mt-3 text-sm text-gray-500">순서는 국어·영어가 함께 씁니다. 대메뉴는 묶음째 이동하고, 하위 메뉴는 묶음 안에서만 순서를 조정합니다. 과목별 대메뉴는 사이드바에서 국어·영어 묶음으로 나뉘어 같은 순서로 보입니다.</p>
         </CardContent>
       </Card>
 

@@ -232,13 +232,16 @@ test('사이드바는 꺼진 묶음의 메뉴를 그리지 않고, 묶음에 남
   const hiddenHrefs = config.items.filter((href) => features.isAdminPathDisabled(href, state))
   const nodes = sidebar.resolveAdminSidebarNavigationNodes('korean', config, hiddenHrefs)
   const hrefs = nodes.flatMap((node) => (node.type === 'group' ? node.items.map((item) => item.href) : [node.item.href]))
+  // 묶음은 저장 순서에서 소속 메뉴가 처음 나오는 자리에 놓인다(기본 순서 기준. 실제 순서는 DB 설정이 정한다)
   assert.deepEqual(hrefs, [
-    '/admin', '/admin/menu-management', '/admin/landing-pages',
-    '/admin/main-ad-settings', '/admin/market-main-settings', '/admin/market/products/new', '/admin/market/products', '/admin/market/images', '/admin/market-categories',
-    '/admin/users', '/admin/support', '/admin/footer', '/admin/pricing', '/admin/credits', '/admin/refunds', '/admin/orders', '/admin/reviews', '/admin/review-tags', '/admin/admin-accounts',
-    '/admin/audit-log',
+    '/admin',
+    '/admin/menu-management', '/admin/market/images', '/admin/footer', '/admin/admin-accounts', '/admin/audit-log',
+    '/admin/landing-pages',
+    '/admin/main-ad-settings', '/admin/market-main-settings', '/admin/market/products/new', '/admin/market/products', '/admin/market-categories', '/admin/reviews', '/admin/review-tags',
+    '/admin/users', '/admin/support',
+    '/admin/pricing', '/admin/credits', '/admin/refunds', '/admin/orders',
   ])
-  assert.deepEqual(nodes.filter((node) => node.type === 'group').map((node) => node.id), ['market'])
+  assert.deepEqual(nodes.filter((node) => node.type === 'group').map((node) => node.id), ['site', 'market', 'members', 'payments'])
   // 숨길 것이 없으면 지금과 같다
   assert.equal(sidebar.resolveAdminSidebarNavigationNodes('korean', config).length, sidebar.resolveAdminSidebarNavigationNodes('korean', config, []).length)
 })

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Check, ChevronLeft, KeyRound, LogOut, Menu, Pencil, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronLeft, KeyRound, LogOut, Menu, Pencil, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { renameAdminSidebarMenuAction } from '@/app/(admin)/admin/menu-management/actions'
@@ -13,22 +13,26 @@ import { cn } from '@/lib/utils'
 import { resolveAdminWorkspaceSubject, withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import {
   ADMIN_SIDEBAR_LABEL_MAX_LENGTH,
+  ADMIN_SIDEBAR_SUBJECT_ORDER,
   adminSidebarIconComponents,
+  expandAdminSidebarSubjectGroups,
   resolveAdminSidebarNavigationNodes,
+  type AdminSidebarMenuGroupNode,
   type AdminSidebarMenuItem,
   type AdminSidebarNavigationConfig,
 } from '@/lib/admin-sidebar'
+import { WORKSPACE_SUBJECT_LABELS } from '@/lib/admin-orders'
 import { useAdminMenuLabels } from './admin-menu-labels'
-import { AdminWorkspaceSwitcher } from './admin-workspace-switcher'
 
 interface AdminSidebarClientProps {
-  navigationConfigs: Record<'english' | 'korean', AdminSidebarNavigationConfig>
+  // 순서·이름 설정은 과목과 상관없이 하나다
+  navigationConfig: AdminSidebarNavigationConfig
   hiddenHrefs: readonly string[]
   // 메뉴 이름 바꾸기(site.manage). 없으면 연필 버튼을 그리지 않는다.
   canRenameMenus: boolean
 }
 
-export function AdminSidebarClient({ navigationConfigs, hiddenHrefs, canRenameMenus }: AdminSidebarClientProps) {
+export function AdminSidebarClient({ navigationConfig, hiddenHrefs, canRenameMenus }: AdminSidebarClientProps) {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -37,7 +41,10 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs, canRenameMe
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const [editingMenuKey, setEditingMenuKey] = useState<string | null>(null)
+  // 이름을 고치는 중인 자리(같은 메뉴가 국어·영어 묶음에 두 번 나오므로 자리 id와 저장 키를 따로 둔다)
+  const [editingSlotId, setEditingSlotId] = useState<string | null>(null)
+  // 과목 묶음을 직접 펼치거나 접은 기록. 없으면 지금 화면이 속한 묶음(공통 화면이면 첫 과목)을 펼친다.
+  const [subjectGroupOpen, setSubjectGroupOpen] = useState<Record<string, boolean>>({})
   const [menuLabelDraft, setMenuLabelDraft] = useState('')
   const [isSavingMenuLabel, setIsSavingMenuLabel] = useState(false)
   const menuLabels = useAdminMenuLabels()
@@ -76,21 +83,19 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs, canRenameMe
   }, [mobileOpen])
 
   const workspaceSubject = resolveAdminWorkspaceSubject(searchParams.get('subject'))
-  const resolvedNavigationNodes = useMemo(() => {
-    const config = navigationConfigs[workspaceSubject]
-    return resolveAdminSidebarNavigationNodes(workspaceSubject, {
-      ...config,
-      labels: menuLabels?.labelsBySubject[workspaceSubject] ?? config.labels,
-    }, hiddenHrefs)
-  }, [hiddenHrefs, menuLabels, navigationConfigs, workspaceSubject])
+  const menuLabelMap = useMemo(() => menuLabels?.labels ?? navigationConfig.labels ?? {}, [menuLabels, navigationConfig])
+  const resolvedNavigationNodes = useMemo(() => expandAdminSidebarSubjectGroups(
+    resolveAdminSidebarNavigationNodes(workspaceSubject, { ...navigationConfig, labels: menuLabelMap }, hiddenHrefs),
+    WORKSPACE_SUBJECT_LABELS
+  ), [hiddenHrefs, menuLabelMap, navigationConfig, workspaceSubject])
 
-  const startEditingMenuLabel = (key: string, currentName: string) => {
-    setEditingMenuKey(key)
+  const startEditingMenuLabel = (slotId: string, currentName: string) => {
+    setEditingSlotId(slotId)
     setMenuLabelDraft(currentName)
   }
 
   const cancelEditingMenuLabel = () => {
-    setEditingMenuKey(null)
+    setEditingSlotId(null)
     setMenuLabelDraft('')
   }
 
@@ -100,12 +105,12 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs, canRenameMe
     const labelToSave = nextLabel === defaultName ? '' : nextLabel
     setIsSavingMenuLabel(true)
     try {
-      const result = await renameAdminSidebarMenuAction(key, labelToSave, workspaceSubject)
+      const result = await renameAdminSidebarMenuAction(key, labelToSave)
       if (!result.success) {
         toast.error(result.error)
         return
       }
-      menuLabels?.rememberSavedLabel(workspaceSubject, key, labelToSave)
+      menuLabels?.rememberSavedLabel(key, labelToSave)
       cancelEditingMenuLabel()
       router.refresh()
     } catch {
@@ -115,9 +120,9 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs, canRenameMe
     }
   }
 
-  const renderMenuLabelEditor = (key: string, defaultName: string) => (
+  const renderMenuLabelEditor = (slotId: string, key: string, defaultName: string) => (
     <form
-      key={key}
+      key={slotId}
       className="space-y-1 rounded-lg bg-slate-800 p-2"
       onSubmit={(event) => {
         event.preventDefault()
@@ -163,12 +168,12 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs, canRenameMe
   )
 
   // 글자 자리를 따로 비우지 않고(긴 메뉴 이름 줄바꿈 방지) 마우스를 올렸을 때 오른쪽 끝에 겹쳐 보인다
-  const renderMenuLabelEditButton = (key: string, currentName: string, active = false, surface: 'link' | 'heading' = 'link') => (
+  const renderMenuLabelEditButton = (slotId: string, _key: string, currentName: string, active = false, surface: 'link' | 'heading' = 'link') => (
     <button
       type="button"
       aria-label={`${currentName} 이름 바꾸기`}
       title="이름 바꾸기"
-      onClick={() => startEditingMenuLabel(key, currentName)}
+      onClick={() => startEditingMenuLabel(slotId, currentName)}
       className={cn(
         'absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-1.5 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/menu:opacity-100 [@media(hover:none)]:opacity-100',
         active
@@ -180,25 +185,36 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs, canRenameMe
     </button>
   )
 
+  // 과목 묶음 안의 메뉴는 주소의 과목까지 같아야 활성이다(국어 상품 관리 ≠ 영어 상품 관리)
   const isActive = (item: AdminSidebarMenuItem) => {
-    if (item.exact) {
-      return pathname === item.href
-    }
-    return pathname.startsWith(item.href)
+    const pathMatches = item.exact ? pathname === item.href : pathname.startsWith(item.href)
+    return pathMatches && (!item.subject || item.subject === workspaceSubject)
+  }
+
+  const isSubjectGroupOpen = (node: AdminSidebarMenuGroupNode) => {
+    const toggled = subjectGroupOpen[node.id]
+    if (toggled !== undefined) return toggled
+    if (node.items.some((item) => isActive(item))) return true
+    const anySubjectGroupActive = resolvedNavigationNodes.some(
+      (candidate) => candidate.type === 'group' && candidate.perSubject && candidate.items.some((item) => isActive(item))
+    )
+    return !anySubjectGroupActive && node.subject === ADMIN_SIDEBAR_SUBJECT_ORDER[0]
   }
 
   const renderMenuLink = (item: AdminSidebarMenuItem, variant: 'root' | 'child' = 'root') => {
     const Icon = adminSidebarIconComponents[item.icon]
     const active = isActive(item)
+    const slotId = `${item.subject ?? 'common'}|${item.href}`
 
-    if (!collapsed && editingMenuKey === item.href) {
-      return renderMenuLabelEditor(item.href, item.defaultName ?? item.name)
+    if (!collapsed && editingSlotId === slotId) {
+      return renderMenuLabelEditor(slotId, item.href, item.defaultName ?? item.name)
     }
 
     return (
-      <div key={item.href} className="group/menu relative">
+      <div key={slotId} className="group/menu relative">
         <Link
-          href={withAdminWorkspaceSubject(item.href, workspaceSubject)}
+          // 과목 묶음의 메뉴는 그 과목을 들고 가고, 공통 메뉴는 과목 없이 간다
+          href={item.subject ? withAdminWorkspaceSubject(item.href, item.subject) : item.href}
           aria-current={active ? 'page' : undefined}
           className={cn(
             'flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors',
@@ -206,7 +222,7 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs, canRenameMe
             active ? 'bg-orange-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white',
             collapsed && 'md:justify-center md:px-2'
           )}
-          title={collapsed ? item.name : undefined}
+          title={collapsed ? (item.subject ? `${WORKSPACE_SUBJECT_LABELS[item.subject]} ${item.name}` : item.name) : undefined}
           onClick={() => setMobileOpen(false)}
         >
           <Icon className={cn('h-5 w-5 flex-shrink-0', variant === 'child' && !collapsed && 'h-4 w-4')} />
@@ -215,7 +231,7 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs, canRenameMe
           </span>
           <AdminMenuBadge href={item.href} className={cn(collapsed && 'md:absolute md:right-0 md:top-0')} />
         </Link>
-        {!collapsed && canRenameMenus ? renderMenuLabelEditButton(item.href, item.name, active) : null}
+        {!collapsed && canRenameMenus ? renderMenuLabelEditButton(slotId, item.href, item.name, active) : null}
       </div>
     )
   }
@@ -265,12 +281,6 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs, canRenameMe
           <h2 className={cn('text-lg font-bold text-orange-400', collapsed && 'md:text-center md:text-sm')}>
             {collapsed ? '관리' : '관리자 패널'}
           </h2>
-          {!collapsed ? (
-            <div className="mt-3 space-y-3">
-              <AdminWorkspaceSwitcher className="w-full" />
-              <p className="text-xs text-slate-400">현재 관리 대상: {workspaceSubject === 'english' ? '영어' : '국어'}</p>
-            </div>
-          ) : null}
         </div>
 
         <nav className="space-y-1 p-2">
@@ -279,10 +289,55 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs, canRenameMe
               return renderMenuLink(node.item)
             }
 
+            // 과목 묶음(국어·영어 마켓): 제목을 눌러 펼치고 접는다. 이름 바꾸기는 두 묶음이 같은 키를 쓴다.
+            if (node.perSubject) {
+              const open = isSubjectGroupOpen(node)
+              const groupActive = node.items.some((item) => isActive(item))
+              const baseName = menuLabelMap[node.labelKey] || node.defaultName
+              const listId = `admin-sidebar-${node.id.replace(':', '-')}`
+              return (
+                <div key={node.id} className="space-y-1" role="group" aria-label={`${node.name} 메뉴`}>
+                  {!collapsed && editingSlotId === node.id ? renderMenuLabelEditor(node.id, node.labelKey, node.defaultName) : null}
+                  {!collapsed && editingSlotId !== node.id ? (
+                    <div className="group/menu relative">
+                      <button
+                        type="button"
+                        aria-expanded={open}
+                        aria-controls={listId}
+                        onClick={() => setSubjectGroupOpen((current) => ({ ...current, [node.id]: !open }))}
+                        className={cn(
+                          'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold transition-colors hover:bg-slate-800',
+                          // 이름 바꾸기 연필(오른쪽 끝)이 펼침 화살표를 덮지 않게 자리를 비운다
+                          canRenameMenus && 'pr-10',
+                          groupActive ? 'text-orange-300' : 'text-slate-300'
+                        )}
+                      >
+                        {(() => {
+                          const Icon = adminSidebarIconComponents[node.icon]
+                          return <Icon className="h-5 w-5 flex-shrink-0" />
+                        })()}
+                        <span className="min-w-0 flex-1">{node.name}</span>
+                        <ChevronDown aria-hidden="true" className={cn('h-4 w-4 flex-shrink-0 transition-transform', !open && '-rotate-90')} />
+                      </button>
+                      {canRenameMenus ? renderMenuLabelEditButton(node.id, node.labelKey, baseName, false, 'heading') : null}
+                    </div>
+                  ) : null}
+                  {collapsed && node.subject ? (
+                    <p className="hidden text-center text-[10px] font-semibold text-slate-500 md:block">
+                      {WORKSPACE_SUBJECT_LABELS[node.subject]}
+                    </p>
+                  ) : null}
+                  <div id={listId} hidden={!collapsed && !open} className={cn('space-y-1', !collapsed && 'ml-4 border-l border-slate-700 pl-2')}>
+                    {node.items.map((item) => renderMenuLink(item, 'child'))}
+                  </div>
+                </div>
+              )
+            }
+
             return (
               <div key={node.id} className="space-y-1" role="group" aria-label={`${node.name} 메뉴`}>
-                {!collapsed && editingMenuKey === node.id ? renderMenuLabelEditor(node.id, node.defaultName) : null}
-                {!collapsed && editingMenuKey !== node.id ? (
+                {!collapsed && editingSlotId === node.id ? renderMenuLabelEditor(node.id, node.labelKey, node.defaultName) : null}
+                {!collapsed && editingSlotId !== node.id ? (
                   <div
                     className={cn(
                       'group/menu relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold',
@@ -294,7 +349,7 @@ export function AdminSidebarClient({ navigationConfigs, hiddenHrefs, canRenameMe
                       return <Icon className="h-5 w-5 flex-shrink-0" />
                     })()}
                     <span>{node.name}</span>
-                    {canRenameMenus ? renderMenuLabelEditButton(node.id, node.name, false, 'heading') : null}
+                    {canRenameMenus ? renderMenuLabelEditButton(node.id, node.labelKey, node.name, false, 'heading') : null}
                   </div>
                 ) : null}
                 <div className={cn('space-y-1', !collapsed && 'ml-4 border-l border-slate-700 pl-2')}>

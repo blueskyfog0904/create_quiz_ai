@@ -55,7 +55,8 @@ test('사이드바는 바꾼 이름을 보여 주고 기본 이름도 함께 알
 })
 
 test('순서 저장은 이름을 지우지 않고, 이름 저장은 관리자만 가능하다', () => {
-  assert.match(sidebarServer, /persistAdminSidebarNavigationConfig\(\{ items: config\.items, labels: current\.labels \}, workspaceSubject\)/)
+  // 사이드바 순서·이름은 과목과 상관없이 하나다(2026-11-20, 국어·영어 마켓 묶음 구조)
+  assert.match(sidebarServer, /persistAdminSidebarNavigationConfig\(\{ items: config\.items, labels: current\.labels \}\)/)
   assert.match(sidebarServer, /export async function saveAdminSidebarMenuLabel/)
   assert.match(menuActions, /export async function renameAdminSidebarMenuAction[\s\S]*?await requireAdmin\(\)[\s\S]*?isAdminSidebarLabelKey\(key\)/)
   // 메뉴관리 화면이 순서를 옮길 때 이름을 떨어뜨리지 않는다
@@ -65,9 +66,11 @@ test('순서 저장은 이름을 지우지 않고, 이름 저장은 관리자만
 test('사이드바 메뉴 옆 연필 버튼으로 이름을 바꾼다 (Enter 저장, Esc 취소)', () => {
   assert.match(sidebarClient, /aria-label=\{`\$\{currentName\} 이름 바꾸기`\}/)
   assert.match(sidebarClient, /<Pencil className="h-3\.5 w-3\.5" \/>/)
-  assert.match(sidebarClient, /renderMenuLabelEditButton\(item\.href, item\.name, active\)/)
-  assert.match(sidebarClient, /renderMenuLabelEditButton\(node\.id, node\.name, false, 'heading'\)/)
-  assert.match(sidebarClient, /renameAdminSidebarMenuAction\(key, labelToSave, workspaceSubject\)/)
+  // 같은 메뉴가 국어·영어 묶음에 두 번 나오므로 자리(slotId)와 저장 키를 따로 넘긴다
+  assert.match(sidebarClient, /renderMenuLabelEditButton\(slotId, item\.href, item\.name, active\)/)
+  assert.match(sidebarClient, /renderMenuLabelEditButton\(node\.id, node\.labelKey, node\.name, false, 'heading'\)/)
+  assert.match(sidebarClient, /renderMenuLabelEditButton\(node\.id, node\.labelKey, baseName, false, 'heading'\)/)
+  assert.match(sidebarClient, /renameAdminSidebarMenuAction\(key, labelToSave\)/)
   assert.match(sidebarClient, /event\.key === 'Escape'/)
   assert.match(sidebarClient, /비우고 저장하면 기본 이름/)
 })
@@ -77,8 +80,8 @@ test('바꾼 메뉴 이름은 페이지 제목·탭 제목·관련 링크에도 
   const layout = read('layout.tsx')
   assert.match(layout, /<AdminSidebar>\n[\s\S]*\{children\}[\s\S]*<\/AdminSidebar>/)
   const sidebar = readFileSync(new URL('../src/components/layout/admin-sidebar.tsx', import.meta.url), 'utf8')
-  assert.match(sidebar, /<AdminMenuLabelsProvider navigationConfigs=\{navigationConfigs\}>/)
-  assert.match(sidebarClient, /menuLabels\?\.rememberSavedLabel\(workspaceSubject, key, labelToSave\)/)
+  assert.match(sidebar, /<AdminMenuLabelsProvider navigationConfig=\{navigationConfig\}>/)
+  assert.match(sidebarClient, /menuLabels\?\.rememberSavedLabel\(key, labelToSave\)/)
 
   const headingPages = {
     'market-main-settings/market-main-settings-client.tsx': '/admin/market-main-settings',

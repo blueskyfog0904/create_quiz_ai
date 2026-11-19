@@ -78,9 +78,11 @@ test('사이드바: 권한 없는 메뉴를 숨기고, 메뉴 이름 바꾸기�
   assert.match(sidebar, /canRenameMenus=\{hasAdminPermission\(access, 'site\.manage'\)\}/)
 
   const client = read('src/components/layout/admin-sidebar-client.tsx')
-  assert.match(client, /\{!collapsed && canRenameMenus \? renderMenuLabelEditButton\(item\.href, item\.name, active\) : null\}/)
-  assert.match(client, /\{canRenameMenus \? renderMenuLabelEditButton\(node\.id, node\.name, false, 'heading'\) : null\}/)
-  assert.equal(client.match(/renderMenuLabelEditButton\(/g).length, 2, '연필 버튼을 그리는 곳은 위 두 곳뿐이다')
+  assert.match(client, /\{!collapsed && canRenameMenus \? renderMenuLabelEditButton\(slotId, item\.href, item\.name, active\) : null\}/)
+  assert.match(client, /\{canRenameMenus \? renderMenuLabelEditButton\(node\.id, node\.labelKey, node\.name, false, 'heading'\) : null\}/)
+  assert.match(client, /\{canRenameMenus \? renderMenuLabelEditButton\(node\.id, node\.labelKey, baseName, false, 'heading'\) : null\}/)
+  // 메뉴·공통 묶음 제목·과목 묶음 제목 3곳. 모두 canRenameMenus 조건 안에서만 그린다.
+  assert.equal(client.match(/renderMenuLabelEditButton\(/g).length, 3, '연필 버튼을 그리는 곳은 위 세 곳뿐이다')
   assert.match(read('src/app/(admin)/admin/menu-management/actions.ts'), /assertAdminActionPermission\('site\.manage'\)/)
 })
 
