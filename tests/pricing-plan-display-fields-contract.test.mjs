@@ -71,7 +71,11 @@ test('회원 충전 상품 화면은 이름 비교·자동 계산 없이 DB 값�
   assert.match(pricingClient, /getChargePlanBonus\(plan\.price, plan\.credits\)/)
 
   assert.match(pricingClient, /const highlighted = plan\.is_highlighted === true/)
-  assert.match(pricingClient, /\{plan\.badge_text && \([\s\S]{0,400}\$\{highlighted[\s\S]{0,600}\{plan\.badge_text\}/)
+  // 배지 글자는 DB 값 그대로, 색과 이모지는 강조 여부(is_highlighted)로만 고른다(글자 비교 없음).
+  assert.match(pricingClient, /\{plan\.badge_text && \([\s\S]{0,1500}\{plan\.badge_text\}/)
+  assert.match(pricingClient, /\$\{highlighted\s+\? 'bg-\[var\(--studio-highlight-soft\)\]/)
+  assert.match(pricingClient, /highlighted \? '\/emoji\/fire_3d\.png' : '\/emoji\/gem_stone_3d\.png'/)
+  assert.doesNotMatch(pricingClient, /badge_text ===|badge_text\.includes/)
   assert.match(pricingClient, /\{plan\.discount_text && \([\s\S]{0,240}\{plan\.discount_text\}/)
   // 사이트 공통 색(studio 토큰)만 쓴다. 예전 기본 파랑·초록·반짝이 아이콘은 쓰지 않는다.
   assert.doesNotMatch(pricingClient, /bg-blue-|bg-green-|Sparkles|scale-105/)

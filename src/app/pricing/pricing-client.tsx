@@ -8,7 +8,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Flame, Tag } from 'lucide-react'
+import Image from 'next/image'
+import { Tag } from 'lucide-react'
 import { toast } from 'sonner'
 import { buildAuthRedirectPath } from '@/lib/auth-paths'
 import { POINT_CHARGE_REFUND_DAYS, POINT_CHARGE_VALIDITY_YEARS } from '@/lib/point-charge-policy'
@@ -186,7 +187,14 @@ export function PricingClient({ plans, isLoggedIn, currentCredits }: PricingClie
                                                             : 'bg-[var(--studio-primary-soft)] text-[var(--studio-primary)]'
                                                             }`}
                                                     >
-                                                        {highlighted && <Flame aria-hidden="true" className="size-4 shrink-0" />}
+                                                        {/* 강조 상품 배지는 불꽃, 그 외 배지는 보석. Microsoft Fluent Emoji(MIT, public/emoji/LICENSE-fluentui-emoji.txt) */}
+                                                        <Image
+                                                            src={highlighted ? '/emoji/fire_3d.png' : '/emoji/gem_stone_3d.png'}
+                                                            alt=""
+                                                            width={18}
+                                                            height={18}
+                                                            className="size-[18px] shrink-0"
+                                                        />
                                                         {plan.badge_text}
                                                     </span>
                                                 )}
