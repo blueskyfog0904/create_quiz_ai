@@ -1,12 +1,14 @@
 'use client'
 
 /**
- * 크레딧 충전 화면의 상품 선택과 결제 요약
- * 상품(금액·크레딧·이름·설명·배지·강조·문구)은 관리자 요금제 화면(DB) 값으로만 그린다.
+ * 크레딧 충전 화면: 안내 배너, 보유 크레딧, 충전 상품 선택, 결제 요약
+ * 상품(금액·크레딧·이름·배지·강조·문구)은 관리자 요금제 화면(DB) 값으로만 그린다.
  */
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Flame, Tag } from 'lucide-react'
 import { toast } from 'sonner'
 import { buildAuthRedirectPath } from '@/lib/auth-paths'
 import { POINT_CHARGE_REFUND_DAYS, POINT_CHARGE_VALIDITY_YEARS } from '@/lib/point-charge-policy'
@@ -33,6 +35,8 @@ interface PricingClientProps {
 
 const formatNumber = (value: number) => value.toLocaleString('ko-KR')
 
+const cardClass = 'rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]'
+
 export function PricingClient({ plans, isLoggedIn, currentCredits }: PricingClientProps) {
     const router = useRouter()
     // 처음에는 관리자가 강조한 상품을, 없으면 첫 상품을 고른 상태로 연다.
@@ -41,6 +45,11 @@ export function PricingClient({ plans, isLoggedIn, currentCredits }: PricingClie
     )
     const selected = plans.find((plan) => plan.id === selectedId) ?? null
     const selectedBonus = selected ? getChargePlanBonus(selected.price, selected.credits) : null
+    // 배너의 "보너스 최대 N%"는 판매 중인 상품의 금액·크레딧으로 계산한다.
+    const maxBonusPercent = plans.reduce(
+        (max, plan) => Math.max(max, getChargePlanBonus(plan.price, plan.credits)?.percent ?? 0),
+        0
+    )
 
     const handlePurchase = () => {
         if (!selected) return
@@ -61,164 +70,212 @@ export function PricingClient({ plans, isLoggedIn, currentCredits }: PricingClie
     const purchaseButtonClass =
         'inline-flex min-h-11 items-center justify-center rounded-[var(--studio-radius-control)] bg-[var(--studio-primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--studio-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] focus-visible:ring-offset-2 disabled:opacity-50'
 
-    if (plans.length === 0) {
-        return (
-            <p className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] px-6 py-10 text-center text-sm text-[var(--studio-muted)]">
-                지금 판매 중인 충전 상품이 없습니다.
-            </p>
-        )
-    }
-
     return (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-            <section aria-labelledby="charge-plan-heading">
-                <h2 id="charge-plan-heading" className="mb-3 text-sm font-semibold text-[var(--studio-text)]">
-                    크레딧 충전 상품
-                </h2>
-                <div role="radiogroup" aria-labelledby="charge-plan-heading" className="flex flex-col gap-2">
-                    {plans.map((plan) => {
-                        const isSelected = plan.id === selectedId
-                        // 배지·강조·문구는 관리자가 요금제 화면에서 정한 DB 값으로만 그린다.
-                        const highlighted = plan.is_highlighted === true
-                        const bonus = getChargePlanBonus(plan.price, plan.credits)
-                        const subline = [plan.name, plan.description].filter(Boolean).join(' · ')
-
-                        return (
-                            <label
-                                key={plan.id}
-                                className={`group relative flex min-h-11 cursor-pointer items-center gap-4 rounded-[var(--studio-radius-card)] border bg-[var(--studio-surface)] px-4 py-4 transition-colors sm:px-5 ${isSelected
-                                    ? 'border-[var(--studio-primary)] ring-1 ring-[var(--studio-primary)]'
-                                    : 'border-[var(--studio-border)] hover:border-[var(--studio-primary-border)]'
-                                    } has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--studio-focus-ring)]`}
-                            >
-                                <input
-                                    type="radio"
-                                    name="charge-plan"
-                                    value={plan.id}
-                                    checked={isSelected}
-                                    onChange={() => setSelectedId(plan.id)}
-                                    className="sr-only"
-                                />
-                                <span
-                                    aria-hidden="true"
-                                    className={`flex size-5 shrink-0 items-center justify-center rounded-full border-2 ${isSelected
-                                        ? 'border-[var(--studio-primary)]'
-                                        : 'border-[var(--studio-control-border)]'
-                                        }`}
-                                >
-                                    {isSelected && <span className="size-2.5 rounded-full bg-[var(--studio-primary)]" />}
-                                </span>
-
-                                <span className="flex min-w-0 flex-1 flex-col gap-1">
-                                    <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-                                        <span className="[font-family:var(--studio-font-price)] text-xl font-bold tabular-nums text-[var(--studio-ink)] max-sm:w-full sm:w-32">
-                                            {formatNumber(plan.price)}원
-                                        </span>
-                                        <span className="[font-family:var(--studio-font-price)] text-base font-semibold tabular-nums text-[var(--studio-text)]">
-                                            {formatNumber(plan.credits)} 크레딧
-                                        </span>
-                                        {bonus && (
-                                            <span className="rounded-full bg-[var(--studio-primary-soft)] px-2 py-0.5 text-xs font-semibold tabular-nums text-[var(--studio-primary)]">
-                                                보너스 +{formatNumber(bonus.credits)} · {bonus.percent}%
-                                            </span>
-                                        )}
-                                        {plan.discount_text && (
-                                            <span className="text-xs font-medium text-[var(--studio-highlight-text)]">
-                                                {plan.discount_text}
-                                            </span>
-                                        )}
-                                    </span>
-                                    {subline && (
-                                        <span className="text-xs text-[var(--studio-muted)] break-keep">{subline}</span>
-                                    )}
-                                </span>
-
-                                {plan.badge_text && (
-                                    <span
-                                        className={`max-w-[40%] rounded-[var(--studio-radius-control)] px-2 py-1 text-center text-xs font-semibold break-keep ${highlighted
-                                            ? 'bg-[var(--studio-primary)] text-white'
-                                            : 'border border-[var(--studio-border)] text-[var(--studio-text)]'
-                                            }`}
-                                    >
-                                        {plan.badge_text}
-                                    </span>
-                                )}
-                            </label>
-                        )
-                    })}
+        <div className="flex flex-col gap-4 sm:gap-5">
+            {/* 안내 배너 */}
+            <div className="flex items-center justify-between gap-4 rounded-[var(--studio-radius-card)] bg-[var(--studio-banner)] px-6 py-5 sm:px-10 sm:py-6">
+                <div className="min-w-0">
+                    <p className="text-sm text-[var(--studio-muted)] break-keep sm:text-base">월 구독·자동결제 없는 1회 충전</p>
+                    <p className="mt-1 text-base font-bold text-[var(--studio-ink)] break-keep sm:text-xl">
+                        {maxBonusPercent > 0
+                            ? `많이 충전할수록 보너스 크레딧 최대 ${maxBonusPercent}%!`
+                            : '문제마켓 자료를 크레딧으로 간편하게 구매하세요'}
+                    </p>
                 </div>
-            </section>
+                <span
+                    aria-hidden="true"
+                    className="flex size-12 shrink-0 rotate-12 items-center justify-center rounded-xl bg-[var(--studio-highlight)] text-white shadow-sm sm:size-14"
+                >
+                    <Tag className="size-6 sm:size-7" strokeWidth={2.5} />
+                </span>
+            </div>
 
-            <aside
-                aria-label="결제 요약"
-                className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] lg:sticky lg:top-28"
-            >
-                <h2 className="text-sm font-semibold text-[var(--studio-text)]">결제 요약</h2>
-                {selected && (
-                    <dl className="mt-4 flex flex-col gap-3 text-sm">
-                        <div className="flex items-baseline justify-between gap-3">
-                            <dt className="text-[var(--studio-muted)]">결제 금액</dt>
-                            <dd className="[font-family:var(--studio-font-price)] text-lg font-bold tabular-nums text-[var(--studio-ink)]">
-                                {formatNumber(selected.price)}원
-                            </dd>
+            {/* 보유 크레딧 */}
+            <div className={`${cardClass} flex flex-wrap items-center justify-between gap-3 px-6 py-5 sm:px-8 sm:py-6`}>
+                {isLoggedIn ? (
+                    <p className="flex items-baseline gap-3 text-lg font-bold text-[var(--studio-ink)] sm:text-2xl">
+                        보유 크레딧
+                        <span className="[font-family:var(--studio-font-price)] tabular-nums text-[var(--studio-primary)]">
+                            {formatNumber(currentCredits)}
+                        </span>
+                    </p>
+                ) : (
+                    <>
+                        <p className="text-base font-bold text-[var(--studio-ink)] sm:text-lg">로그인하면 보유 크레딧을 볼 수 있습니다</p>
+                        <Link
+                            href={buildAuthRedirectPath('/pricing')}
+                            className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--studio-primary)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                        >
+                            로그인
+                        </Link>
+                    </>
+                )}
+            </div>
+
+            <div className="grid gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+                {/* 충전 상품 */}
+                <section className={`${cardClass} overflow-hidden`}>
+                    <nav aria-label="크레딧 메뉴" className="flex gap-6 border-b border-[var(--studio-border)] px-6 sm:px-8">
+                        <span
+                            aria-current="page"
+                            id="charge-plan-heading"
+                            className="inline-flex min-h-14 items-center border-b-2 border-[var(--studio-ink)] text-base font-bold text-[var(--studio-ink)] sm:text-lg"
+                        >
+                            크레딧 충전
+                        </span>
+                        <Link
+                            href="/mypage/credits"
+                            className="inline-flex min-h-14 items-center border-b-2 border-transparent text-base font-semibold text-[var(--studio-muted)] hover:text-[var(--studio-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] sm:text-lg"
+                        >
+                            크레딧 내역
+                        </Link>
+                    </nav>
+
+                    {plans.length === 0 ? (
+                        <p className="px-6 py-10 text-center text-sm text-[var(--studio-muted)]">지금 판매 중인 크레딧 충전 상품이 없습니다.</p>
+                    ) : (
+                        <div role="radiogroup" aria-labelledby="charge-plan-heading" className="flex flex-col">
+                            {plans.map((plan) => {
+                                const isSelected = plan.id === selectedId
+                                // 배지·강조·문구는 관리자가 요금제 화면에서 정한 DB 값으로만 그린다.
+                                const highlighted = plan.is_highlighted === true
+                                const bonus = getChargePlanBonus(plan.price, plan.credits)
+                                const subline = bonus
+                                    ? `${plan.name} · ${formatNumber(bonus.credits)} 크레딧 추가 증정`
+                                    : `${plan.name} · ${formatNumber(plan.credits)} 크레딧`
+
+                                return (
+                                    <label
+                                        key={plan.id}
+                                        className={`relative flex min-h-11 cursor-pointer items-center gap-4 border-b border-[var(--studio-border)] px-6 py-5 last:border-b-0 transition-colors sm:gap-5 sm:px-8 sm:py-6 ${isSelected
+                                            ? 'bg-[var(--studio-primary-soft)]'
+                                            : 'hover:bg-[var(--studio-background)]'
+                                            } has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-[var(--studio-focus-ring)]`}
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="charge-plan"
+                                            value={plan.id}
+                                            checked={isSelected}
+                                            onChange={() => setSelectedId(plan.id)}
+                                            className="sr-only"
+                                        />
+                                        <span
+                                            aria-hidden="true"
+                                            className={`size-6 shrink-0 rounded-full ${isSelected
+                                                ? 'border-[7px] border-[var(--studio-primary)] bg-white'
+                                                : 'border-2 border-[var(--studio-border)] bg-white'
+                                                }`}
+                                        />
+
+                                        <span className="flex min-w-0 flex-1 flex-col gap-1">
+                                            <span className="text-sm text-[var(--studio-muted)] break-keep">{subline}</span>
+                                            <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                                                <span className="[font-family:var(--studio-font-price)] text-2xl font-bold tabular-nums text-[var(--studio-ink)] sm:text-[1.75rem]">
+                                                    {formatNumber(plan.price)}원
+                                                </span>
+                                                {bonus && (
+                                                    <span className="[font-family:var(--studio-font-price)] text-lg font-semibold tabular-nums text-[var(--studio-bonus)] sm:text-xl">
+                                                        +{formatNumber(bonus.credits)} 크레딧
+                                                    </span>
+                                                )}
+                                                {plan.badge_text && (
+                                                    <span
+                                                        className={`inline-flex max-w-full items-center gap-1 rounded-[var(--studio-radius-control)] px-2 py-1 text-sm font-semibold break-keep ${highlighted
+                                                            ? 'bg-[var(--studio-highlight-soft)] text-[var(--studio-highlight-text)]'
+                                                            : 'bg-[var(--studio-primary-soft)] text-[var(--studio-primary)]'
+                                                            }`}
+                                                    >
+                                                        {highlighted && <Flame aria-hidden="true" className="size-4 shrink-0" />}
+                                                        {plan.badge_text}
+                                                    </span>
+                                                )}
+                                                {plan.discount_text && (
+                                                    <span className="text-sm font-medium text-[var(--studio-highlight-text)]">
+                                                        {plan.discount_text}
+                                                    </span>
+                                                )}
+                                            </span>
+                                        </span>
+                                    </label>
+                                )
+                            })}
                         </div>
-                        <div className="flex items-baseline justify-between gap-3">
-                            <dt className="text-[var(--studio-muted)]">받는 크레딧</dt>
-                            <dd className="[font-family:var(--studio-font-price)] font-semibold tabular-nums text-[var(--studio-text)]">
-                                {formatNumber(selected.credits)}
-                                {selectedBonus && (
-                                    <span className="ml-1 text-xs font-medium text-[var(--studio-primary)]">
-                                        (보너스 +{formatNumber(selectedBonus.credits)})
-                                    </span>
-                                )}
-                            </dd>
-                        </div>
-                        {isLoggedIn && (
-                            <div className="flex items-baseline justify-between gap-3 border-t border-[var(--studio-border)] pt-3">
-                                <dt className="text-[var(--studio-muted)]">충전 후 잔액</dt>
-                                <dd className="[font-family:var(--studio-font-price)] font-semibold tabular-nums text-[var(--studio-ink)]">
-                                    {formatNumber(currentCredits + selected.credits)} 크레딧
+                    )}
+                </section>
+
+                {/* 결제 요약 */}
+                <aside aria-label="결제 요약" className={`${cardClass} p-6 lg:sticky lg:top-28`}>
+                    <h2 className="text-base font-bold text-[var(--studio-ink)]">결제 요약</h2>
+                    {selected && (
+                        <dl className="mt-4 flex flex-col gap-3 text-sm">
+                            <div className="flex items-baseline justify-between gap-3">
+                                <dt className="text-[var(--studio-muted)]">결제 금액</dt>
+                                <dd className="[font-family:var(--studio-font-price)] text-xl font-bold tabular-nums text-[var(--studio-ink)]">
+                                    {formatNumber(selected.price)}원
                                 </dd>
                             </div>
-                        )}
-                    </dl>
-                )}
+                            <div className="flex items-baseline justify-between gap-3">
+                                <dt className="text-[var(--studio-muted)]">받는 크레딧</dt>
+                                <dd className="[font-family:var(--studio-font-price)] font-semibold tabular-nums text-[var(--studio-text)]">
+                                    {formatNumber(selected.credits)}
+                                </dd>
+                            </div>
+                            {selectedBonus && (
+                                <div className="flex items-baseline justify-between gap-3">
+                                    <dt className="text-[var(--studio-muted)]">추가 증정</dt>
+                                    <dd className="[font-family:var(--studio-font-price)] font-semibold tabular-nums text-[var(--studio-bonus)]">
+                                        +{formatNumber(selectedBonus.credits)} ({selectedBonus.percent}%)
+                                    </dd>
+                                </div>
+                            )}
+                            {isLoggedIn && (
+                                <div className="flex items-baseline justify-between gap-3 border-t border-[var(--studio-border)] pt-3">
+                                    <dt className="text-[var(--studio-muted)]">충전 후 잔액</dt>
+                                    <dd className="[font-family:var(--studio-font-price)] font-bold tabular-nums text-[var(--studio-primary)]">
+                                        {formatNumber(currentCredits + selected.credits)} 크레딧
+                                    </dd>
+                                </div>
+                            )}
+                        </dl>
+                    )}
 
-                <button
-                    type="button"
-                    onClick={handlePurchase}
-                    disabled={!selected}
-                    className={`mt-5 w-full max-lg:hidden ${purchaseButtonClass}`}
-                >
-                    {purchaseLabel}
-                </button>
+                    <button
+                        type="button"
+                        onClick={handlePurchase}
+                        disabled={!selected}
+                        className={`mt-5 w-full max-lg:hidden ${purchaseButtonClass}`}
+                    >
+                        {purchaseLabel}
+                    </button>
 
-                <p className="mt-3 text-xs leading-5 text-[var(--studio-muted)] break-keep">
-                    문제마켓 이용에 쓰는 선불 크레딧입니다. 사용 기한 {POINT_CHARGE_VALIDITY_YEARS}년, 자동결제 없음.
-                    구매 후 {POINT_CHARGE_REFUND_DAYS}일 안에 1개도 쓰지 않았다면 환불을 요청할 수 있습니다.
-                </p>
-            </aside>
+                    <p className="mt-4 text-xs leading-5 text-[var(--studio-muted)] break-keep">
+                        문제마켓 이용에 쓰는 선불 크레딧입니다. 사용 기한 {POINT_CHARGE_VALIDITY_YEARS}년, 자동결제 없음.
+                        구매 후 {POINT_CHARGE_REFUND_DAYS}일 안에 1개도 쓰지 않았다면 환불을 요청할 수 있습니다.
+                    </p>
+                </aside>
 
-            {/* 모바일: 고른 상품과 결제 버튼을 상품 영역의 화면 아래에 붙인다(목록을 내려 보지 않아도 결제할 수 있게).
-                상품 영역 안에서만 붙어 있으므로 아래 안내·바닥글을 가리지 않는다. */}
-            {selected && (
-                <div className="sticky bottom-0 z-30 -mx-4 border-t border-[var(--studio-border)] bg-[var(--studio-surface)] px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 lg:hidden">
-                    <div className="mx-auto flex max-w-5xl items-center gap-3">
-                        <div className="min-w-0 flex-1">
-                            <p className="[font-family:var(--studio-font-price)] text-base font-bold tabular-nums text-[var(--studio-ink)]">
-                                {formatNumber(selected.price)}원
-                            </p>
-                            <p className="truncate text-xs tabular-nums text-[var(--studio-muted)]">
-                                {formatNumber(selected.credits)} 크레딧
-                                {isLoggedIn && ` · 충전 후 ${formatNumber(currentCredits + selected.credits)}`}
-                            </p>
+                {/* 모바일: 고른 상품과 결제 버튼을 상품 영역의 화면 아래에 붙인다(목록을 내려 보지 않아도 결제할 수 있게).
+                    상품 영역 안에서만 붙어 있으므로 아래 안내·바닥글을 가리지 않는다. */}
+                {selected && (
+                    <div className="sticky bottom-0 z-30 -mx-4 border-t border-[var(--studio-border)] bg-[var(--studio-surface)] px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 lg:hidden">
+                        <div className="mx-auto flex max-w-5xl items-center gap-3">
+                            <div className="min-w-0 flex-1">
+                                <p className="[font-family:var(--studio-font-price)] text-base font-bold tabular-nums text-[var(--studio-ink)]">
+                                    {formatNumber(selected.price)}원
+                                </p>
+                                <p className="truncate text-xs tabular-nums text-[var(--studio-muted)]">
+                                    {formatNumber(selected.credits)} 크레딧
+                                    {isLoggedIn && ` · 충전 후 ${formatNumber(currentCredits + selected.credits)}`}
+                                </p>
+                            </div>
+                            <button type="button" onClick={handlePurchase} className={`shrink-0 ${purchaseButtonClass}`}>
+                                {isLoggedIn ? '충전하기' : '로그인하고 충전하기'}
+                            </button>
                         </div>
-                        <button type="button" onClick={handlePurchase} className={`shrink-0 ${purchaseButtonClass}`}>
-                            {isLoggedIn ? '충전하기' : '로그인하고 충전하기'}
-                        </button>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </div>
     )
 }

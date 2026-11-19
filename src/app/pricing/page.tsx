@@ -37,27 +37,11 @@ export default async function PricingPage() {
         'inline-flex min-h-11 items-center text-[var(--studio-text)] underline underline-offset-4 hover:text-[var(--studio-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]'
 
     return (
-        <div className="min-h-screen bg-[var(--studio-background)] px-4 py-10 sm:py-12">
+        <div className="min-h-screen bg-[var(--studio-background-sunken)] px-4 py-8 sm:py-12">
             <div className="mx-auto max-w-5xl">
-                {/* 머리말: 제목과 보유 크레딧 */}
-                <div className="mb-8 flex flex-col gap-4 border-b border-[var(--studio-border)] pb-6 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">크레딧 충전</h1>
-                        <p className="mt-2 text-sm text-[var(--studio-muted)] break-keep">
-                            영어·국어 문제마켓에서 자료를 구매할 때 쓰는 선불 크레딧입니다. 월 구독이나 자동결제가 아닌 1회 충전 상품입니다.
-                        </p>
-                    </div>
-                    {user && (
-                        <div className="flex items-center gap-3 sm:flex-col sm:items-end sm:gap-1">
-                            <span className="text-xs text-[var(--studio-muted)]">보유 크레딧</span>
-                            <span className="[font-family:var(--studio-font-price)] text-2xl font-bold tabular-nums text-[var(--studio-primary)]">
-                                {credits.toLocaleString('ko-KR')}
-                            </span>
-                        </div>
-                    )}
-                </div>
+                <h1 className="sr-only">크레딧 충전</h1>
 
-                {/* 상품 선택과 결제 요약 */}
+                {/* 안내 배너, 보유 크레딧, 상품 선택과 결제 요약 */}
                 <PricingClient
                     plans={plans || []}
                     isLoggedIn={!!user}
@@ -65,8 +49,11 @@ export default async function PricingPage() {
                 />
 
                 {/* 결제 전에 확인할 것 */}
-                <section aria-labelledby="charge-notice-heading" className="mt-10 border-t border-[var(--studio-border)] pt-6">
-                    <h2 id="charge-notice-heading" className="text-sm font-semibold text-[var(--studio-ink)]">
+                <section
+                    aria-labelledby="charge-notice-heading"
+                    className="mt-4 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] px-6 py-6 sm:mt-5 sm:px-8"
+                >
+                    <h2 id="charge-notice-heading" className="text-base font-bold text-[var(--studio-ink)]">
                         결제 전에 확인해 주세요
                     </h2>
                     <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
@@ -84,7 +71,7 @@ export default async function PricingPage() {
                         </div>
                     </dl>
 
-                    <details className="group mt-6 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]">
+                    <details className="group mt-6 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-background)]">
                         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-4 text-sm font-semibold text-[var(--studio-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] [&::-webkit-details-marker]:hidden">
                             환불 정책 자세히 보기
                             <span aria-hidden="true" className="text-[var(--studio-muted)] transition-transform group-open:rotate-180">▾</span>
