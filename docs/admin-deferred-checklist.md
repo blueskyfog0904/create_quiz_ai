@@ -128,6 +128,8 @@
 
 ## 1. 대표님이 직접 하실 설정
 
+- [ ] **(중요) Supabase 무료 요금제 한도 초과 표시** (2026-11-19 사용량 화면에서 확인): 조직 `thenaum`이 Free Plan이고, **같은 조직의 다른 프로젝트 `office_restaurant`의 DB가 602MB로 프로젝트당 한도 0.5GB를 넘어** "Exceeding usage limits"가 떠 있다. 우리 운영 프로젝트 `summersun`은 63MB로 한도 안이다. Supabase는 한도를 넘으면 "제한이 걸릴 수 있다"고 안내한다. 운영 DB가 같은 무료 조직에 있으므로 출시 전에 셋 중 하나를 정한다. ① 조직을 유료(Pro)로 올리기 ② `office_restaurant` 용량 줄이기 또는 다른 조직으로 옮기기 ③ `summersun`을 별도 조직으로 옮기기. 무료 요금제는 오래 쓰지 않으면 프로젝트가 일시 중지되는 제약도 있어, 출시 전 유료 전환을 권한다.
+
 - [x] **슬랙 웹훅 등록** (2026-11-19 대표 등록, 슬랙 비공개 채널 `관리자알림`, 앱 `summersuninst-admin-alarm`): Vault `admin_alert_slack_webhook_url`. 등록 직후 전송 작업이 최근 24시간 알림 2건(마켓 환불 요청·새 문의)을 한 메시지로 보내 슬랙이 200 `ok`로 응답.
 - [x] **옛 슬랙 직접 호출 제거(2026-11-19)**: 문의 등록 route의 `sendSlackNotification`과 `src/lib/slack.ts`를 지움. 운영 Vercel에 `SLACK_WEBHOOK_URL`이 없어 원래 아무것도 보내지 않았고, 새 문의는 DB 트리거가 관리자 이벤트(`support_ticket_created`, 슬랙 대상)로 남기므로 줄어든 알림 없음. 계획 문서(readiness 88·392행, improvement 70·267행)의 옛 슬랙 서술은 작성 당시 기록이라 고치지 않음.
 - [x] **Resend 메일 수신 확인** (2026-11-17 복구 메일이 받은편지함에 도착, 보낸 사람 `no-reply@summersuninst.com`. 본문은 영문 기본 문구 → 0번 구역의 템플릿 교체)
