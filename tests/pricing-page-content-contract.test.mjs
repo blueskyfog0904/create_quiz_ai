@@ -124,9 +124,10 @@ test('충전 화면은 설정 문구를 정책 값으로 채워 그리고, 환�
     assert.ok(!page.includes(text) && !client.includes(text), text)
   }
   assert.match(client, /\{copy && \(/)
-  assert.match(page, /\{content && \(\s+<section/)
-  // 약관·내역 링크는 문구가 없어도 보인다(문구 section 뒤)
-  assert.ok(page.lastIndexOf('</section>') < page.indexOf('href="/terms/refund"'))
+  // 문구 목록은 문구가 있을 때만, 약관·내역 링크는 문구가 없어도 보인다(문구 블록 뒤)
+  assert.match(page, /\{content && \(\s+<>/)
+  assert.ok(page.indexOf('content.refund_items.map') < page.indexOf('href="/terms/refund"'))
+  assert.ok(page.indexOf('href="/terms/refund"') < page.indexOf('</section>'))
 })
 
 test('문구(환불 정책 포함)를 읽지 못하면 결제 버튼을 막는다(PC 버튼·모바일 하단 바 모두)', () => {

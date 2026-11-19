@@ -326,7 +326,7 @@ export function PreviewHeader({
                     aria-label="검색 과목"
                     className="absolute left-0 top-full z-30 mt-2 w-24 rounded-md border border-[var(--studio-border)] bg-[var(--studio-surface)] py-1 shadow-[var(--studio-shadow-card)]"
                   >
-                    {(['english', 'korean'] as const).map((option) => {
+                    {(['korean', 'english'] as const).map((option) => {
                       const selected = option === searchSubject
                       return (
                         <button

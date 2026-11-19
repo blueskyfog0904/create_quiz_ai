@@ -59,7 +59,7 @@ export default async function PricingPage() {
         : null
 
     const linkClass =
-        'inline-flex min-h-11 items-center text-[var(--studio-text)] underline underline-offset-4 hover:text-[var(--studio-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]'
+        'inline-flex min-h-11 items-center text-[var(--studio-muted)] underline underline-offset-4 hover:text-[var(--studio-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]'
 
     return (
         <div className="min-h-screen bg-[var(--studio-background-sunken)] px-4 py-8 sm:py-12">
@@ -74,54 +74,56 @@ export default async function PricingPage() {
                     copy={copy}
                 />
 
-                {/* 결제 전에 확인할 것. 문구를 읽지 못했으면 그리지 않고, 결제 버튼도 막힌다(PricingClient). */}
-                {content && (
-                    <section
-                        aria-labelledby="charge-notice-heading"
-                        className="mt-4 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] px-6 py-6 sm:mt-5 sm:px-8"
-                    >
-                        <h2 id="charge-notice-heading" className="text-base font-bold text-[var(--studio-ink)]">
-                            {fill(content.notice_title)}
-                        </h2>
-                        {content.notice_items.length > 0 && (
-                            <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
-                                {content.notice_items.map((item, index) => (
-                                    <div key={index}>
-                                        <dt className="font-semibold text-[var(--studio-text)]">{fill(item.title)}</dt>
-                                        <dd className="mt-1 text-[var(--studio-muted)] break-keep">{fill(item.body)}</dd>
-                                    </div>
-                                ))}
-                            </dl>
-                        )}
+                {/* 결제 전 안내(유의사항). 카드 없이 바탕 위에 작은 제목과 목록으로 둔다.
+                    문구를 읽지 못했으면 그리지 않고, 결제 버튼도 막힌다(PricingClient). */}
+                <section aria-label="유의사항" className="mt-8 px-1 sm:mt-10">
+                    {content && (
+                        <>
+                            <h2 className="text-sm font-bold text-[var(--studio-ink)]">{fill(content.notice_title)}</h2>
+                            {content.notice_items.length > 0 && (
+                                <ul className="mt-3 flex flex-col gap-1.5 text-[13px] leading-5 text-[var(--studio-muted)] break-keep">
+                                    {content.notice_items.map((item, index) => (
+                                        <li key={index} className="flex gap-1.5">
+                                            <span aria-hidden="true">·</span>
+                                            <span>
+                                                <strong className="font-semibold text-[var(--studio-text)]">{fill(item.title)}</strong>{' '}
+                                                {fill(item.body)}
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
 
-                        {/* 환불 정책은 접지 않고 항상 보인다. */}
-                        <div className="mt-6 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-background)] px-4 py-4">
-                            <h3 className="text-sm font-semibold text-[var(--studio-text)]">{fill(content.refund_title)}</h3>
-                            <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-5 text-sm leading-6 text-[var(--studio-muted)] break-keep">
+                            {/* 환불 정책은 접지 않고 항상 보인다. */}
+                            <h2 className="mt-6 text-sm font-bold text-[var(--studio-ink)]">{fill(content.refund_title)}</h2>
+                            <ul className="mt-3 flex flex-col gap-1.5 text-[13px] leading-5 text-[var(--studio-muted)] break-keep">
                                 {content.refund_items.map((item, index) => (
-                                    <li key={index}>{fill(item)}</li>
+                                    <li key={index} className="flex gap-1.5">
+                                        <span aria-hidden="true">·</span>
+                                        <span>{fill(item)}</span>
+                                    </li>
                                 ))}
                             </ul>
-                        </div>
-                    </section>
-                )}
-
-                {/* 약관·내역 링크는 문구 유무와 상관없이 항상 보인다. */}
-                <div className="mt-3 flex flex-wrap gap-x-5 px-1 text-sm">
-                    <Link href="/terms/refund" className={linkClass}>
-                        취소/환불정책 전문
-                    </Link>
-                    {user && (
-                        <>
-                            <Link href="/mypage/credits" className={linkClass}>
-                                충전·사용 내역
-                            </Link>
-                            <Link href="/mypage/payments" className={linkClass}>
-                                결제 내역
-                            </Link>
                         </>
                     )}
-                </div>
+
+                    {/* 약관·내역 링크는 문구 유무와 상관없이 항상 보인다. */}
+                    <div className="mt-4 flex flex-wrap gap-x-5 text-[13px]">
+                        <Link href="/terms/refund" className={linkClass}>
+                            취소/환불정책 전문
+                        </Link>
+                        {user && (
+                            <>
+                                <Link href="/mypage/credits" className={linkClass}>
+                                    충전·사용 내역
+                                </Link>
+                                <Link href="/mypage/payments" className={linkClass}>
+                                    결제 내역
+                                </Link>
+                            </>
+                        )}
+                    </div>
+                </section>
             </div>
         </div>
     )
