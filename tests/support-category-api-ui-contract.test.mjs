@@ -21,7 +21,8 @@ test('user support APIs read active categories and create/update/delete tickets 
   assert.match(supportRoute, /soft_delete_own_support_ticket/)
   assert.match(supportRoute, /categoryId/)
   assert.match(supportRoute, /카테고리|문의 유형/)
-  assert.match(supportRoute, /sendSlackNotification[\s\S]+카테고리/)
+  // 옛 슬랙 직접 호출은 없앴다. 관리자 알림은 DB의 관리자 이벤트(support_ticket_created)로 간다.
+  assert.doesNotMatch(supportRoute, /sendSlackNotification|lib\/slack/)
 })
 
 test('admin support APIs manage categories by soft delete and replies through an admin ticket route', () => {

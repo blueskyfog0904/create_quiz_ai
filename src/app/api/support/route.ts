@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { sendSlackNotification } from '@/lib/slack'
 
 const CreateTicketSchema = z.object({
   categoryId: z.string().uuid({ message: '문의 카테고리를 선택해주세요.' }),
@@ -15,15 +14,6 @@ const UpdateTicketSchema = z.object({
   subject: z.string().trim().min(1, '제목을 입력해주세요.'),
   message: z.string().trim().min(1, '내용을 입력해주세요.'),
 })
-
-function getCategoryName(snapshot: unknown) {
-  if (snapshot && typeof snapshot === 'object' && 'name' in snapshot) {
-    const name = (snapshot as { name?: unknown }).name
-    return typeof name === 'string' && name.trim() ? name : '미분류'
-  }
-
-  return '미분류'
-}
 
 // POST - Create new support ticket
 export async function POST(request: NextRequest) {
@@ -58,33 +48,7 @@ export async function POST(request: NextRequest) {
       throw error
     }
 
-    // Fetch profile for Slack notification
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('email, phone')
-      .eq('id', user.id)
-      .single()
-
-    // Send Slack Notification
-    const userName = profile?.email || user.email || 'Unknown User'
-    const userContact = profile?.phone || profile?.email || 'No contact info'
-    const categoryName = getCategoryName(ticket?.category_snapshot)
-    
-    // Format Date: yyyy-mm-dd-hh-mm
-    const now = new Date()
-    const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`
-
-    await sendSlackNotification(
-      `🔔 *새로운 1:1 문의가 등록되었습니다*`,
-      {
-        '보낸 시간': formattedDate,
-        '사용자': `${userName} (${userContact})`,
-        '카테고리': categoryName,
-        '제목': parsed.data.subject,
-        '내용': parsed.data.message,
-      }
-    )
-
+    // 관리자 알림(화면·슬랙)은 문의 행이 생길 때 DB가 남기는 관리자 이벤트(support_ticket_created)로 간다.
     return NextResponse.json({ success: true, ticket })
 
   } catch (error) {
