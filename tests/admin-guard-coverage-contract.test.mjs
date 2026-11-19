@@ -73,6 +73,7 @@ const PAGE_REQUIREMENTS = {
   // 요금제 · 사이트
   'pricing/page.tsx': 'pricing.manage',
   'footer/page.tsx': 'site.manage',
+  'storefront-menu/page.tsx': 'site.manage',
   // 닫을 예정(4-2절 2차)이라 그 전까지 대표 전용
   'menu-management/page.tsx': OWNER,
   // 꺼 둔 기능(4-2절): 미들웨어가 먼저 404로 막고, 다시 켜더라도 대표 전용
@@ -437,6 +438,9 @@ test('② 예외 route(session)는 본인 세션의 관리자 여부만 돌려�
 // ---------------------------------------------------------------------------------------------------------------
 const LEGACY = (feature) => ({ requirement: OWNER, feature })
 const ACTION_REQUIREMENTS = {
+  'src/app/(admin)/admin/storefront-menu/actions.ts': {
+    saveStorefrontHeaderLinksAction: 'site.manage',
+  },
   'src/app/(admin)/admin/footer/actions.ts': {
     getFooterSettingsData: 'site.manage',
     saveSiteFooterContentAction: 'site.manage',

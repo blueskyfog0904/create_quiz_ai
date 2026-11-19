@@ -87,6 +87,7 @@ export const ADMIN_SITE_MENU_HREFS = [
   '/admin/admin-accounts',
   '/admin/audit-log',
   '/admin/menu-management',
+  '/admin/storefront-menu',
 ] as const
 
 // 과목별 묶음을 펼치는 순서(회원 화면의 국어 → 영어 탭과 같다)
@@ -166,6 +167,7 @@ export const DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG: AdminSidebarNavigationConf
     '/admin/review-tags',
     '/admin/admin-accounts',
     '/admin/audit-log',
+    '/admin/storefront-menu',
   ],
 }
 
@@ -205,6 +207,7 @@ export const ADMIN_SIDEBAR_MENU_REQUIREMENTS: Readonly<Record<string, AdminGuard
   '/admin/review-tags': 'reviews.manage',
   '/admin/admin-accounts': 'owner',
   '/admin/audit-log': 'owner',
+  '/admin/storefront-menu': 'site.manage',
 }
 
 export const adminSidebarIconComponents: Record<AdminSidebarIconName, LucideIcon> = {
@@ -260,6 +263,7 @@ function getDefaultAdminSidebarMenuItems(workspaceSubject: WorkspaceSubject): Ad
     { name: '후기 태그 관리', href: '/admin/review-tags', icon: 'settings' },
     { name: '관리자 ID 관리', href: '/admin/admin-accounts', icon: 'userCog' },
     { name: '작업 기록', href: '/admin/audit-log', icon: 'fileText' },
+    { name: '상단 메뉴', href: '/admin/storefront-menu', icon: 'layoutPanelTop' },
   ]
 }
 

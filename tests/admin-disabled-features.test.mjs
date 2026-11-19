@@ -235,7 +235,7 @@ test('사이드바는 꺼진 묶음의 메뉴를 그리지 않고, 묶음에 남
   // 묶음은 저장 순서에서 소속 메뉴가 처음 나오는 자리에 놓인다(기본 순서 기준. 실제 순서는 DB 설정이 정한다)
   assert.deepEqual(hrefs, [
     '/admin',
-    '/admin/menu-management', '/admin/market/images', '/admin/footer', '/admin/admin-accounts', '/admin/audit-log',
+    '/admin/menu-management', '/admin/market/images', '/admin/footer', '/admin/admin-accounts', '/admin/audit-log', '/admin/storefront-menu',
     '/admin/landing-pages',
     '/admin/main-ad-settings', '/admin/market-main-settings', '/admin/market/products/new', '/admin/market/products', '/admin/market-categories', '/admin/reviews', '/admin/review-tags',
     '/admin/users', '/admin/support',
@@ -339,6 +339,7 @@ test('관리자 페이지와 API 경로는 "운영 화면" 또는 "기능 묶음
     '/api/admin/main-ad-settings', '/api/admin/market-main-settings', '/api/admin/reviews', '/api/admin/review-tags', '/api/admin/site-logo',
     '/api/admin/admin-accounts', '/api/admin/session', '/api/admin/stats', '/api/admin/alerts',
     '/admin/audit-log', '/admin/my-password', '/api/admin/audit-log', '/api/admin/my-password',
+    '/admin/storefront-menu',
   ]
   const isOperational = (route) => route === '/admin' || OPERATIONAL_PREFIXES.some((prefix) => route === prefix || route.startsWith(`${prefix}/`))
 

@@ -517,7 +517,7 @@ test('조회 route: 대표만, 읽지 못하면(표가 아직 없을 때 포함)
 
 test('사이드바: 작업 기록 메뉴를 코드 기본 메뉴에 더한다(저장된 설정에 없으면 자동으로 붙는다)', () => {
   const sidebar = read('src/lib/admin-sidebar.ts')
-  assert.match(sidebar, /'\/admin\/admin-accounts',\n {4}'\/admin\/audit-log',\n {2}\],/)
+  assert.match(sidebar, /'\/admin\/admin-accounts',\n {4}'\/admin\/audit-log',\n {4}'\/admin\/storefront-menu',\n {2}\],/)
   assert.match(sidebar, /\{ name: '작업 기록', href: '\/admin\/audit-log', icon: 'fileText' \}/)
   assert.match(read('src/components/layout/admin-sidebar-client.tsx'), /href="\/admin\/my-password"/)
 })

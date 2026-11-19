@@ -16,6 +16,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -736,6 +737,14 @@ export default function MenuManagementClient({
           </Button>
         </div>
       </div>
+
+      {/* 회원 사이트(문제마켓) 헤더는 이 화면의 헤더 설정을 읽지 않는다. 운영자가 헷갈리지 않게 알린다. */}
+      <Card className="border-amber-200 bg-amber-50/80">
+        <CardContent className="p-4 text-sm text-amber-900">
+          회원 사이트(문제마켓) 헤더 오른쪽 링크는 <Link href="/admin/storefront-menu" className="font-semibold underline">상단 메뉴</Link> 화면에서 관리합니다.
+          이 화면의 헤더 메뉴 설정은 옛 화면에만 쓰이며 지금 회원 화면에는 보이지 않습니다.
+        </CardContent>
+      </Card>
 
       <Card className="border-slate-200 bg-slate-50/80">
         <CardContent className="flex flex-col gap-2 p-4 text-sm text-slate-700">

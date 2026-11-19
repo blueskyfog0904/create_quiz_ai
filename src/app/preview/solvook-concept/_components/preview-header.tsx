@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { SiteLogo } from '@/components/layout/site-logo'
 import { useSiteBrandName } from '@/components/layout/site-brand'
+import { useStorefrontHeaderLinks } from '@/components/layout/storefront-header-links'
+import { isExternalStorefrontHref } from '@/lib/storefront-header-links'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { ChevronDown, Coins, Grid2X2, Library, Search, WalletCards } from 'lucide-react'
@@ -35,6 +37,8 @@ export function PreviewHeader({
   // 사이트 이름은 관리자 "사이트 기본 정보"(DB) 값을 쓴다
   const siteName = useSiteBrandName()
   const homeLabel = siteName ? `${siteName} 홈` : '홈'
+  // 오른쪽 운영 링크(크레딧 충전 등)는 관리자 "상단 메뉴"(DB) 값을 쓴다
+  const headerLinks = useStorefrontHeaderLinks()
   const paramSubject = searchParams.get('subject')
   const subject: WorkspaceSubject =
     paramSubject === 'korean' || paramSubject === 'english'
@@ -278,13 +282,17 @@ export function PreviewHeader({
               <span>보관함</span>
             </Link>
           )}
-          <Link
-            href="/pricing"
-            className={`${isLoggedIn ? '' : 'ml-auto '}inline-flex min-h-11 shrink-0 items-center gap-1.5 px-2 text-xs font-bold text-[var(--studio-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]`}
-          >
-            <WalletCards aria-hidden="true" className="h-4 w-4" />
-            <span>크레딧 충전</span>
-          </Link>
+          {headerLinks.map((link, index) => (
+            <Link
+              key={`${link.href}-${index}`}
+              href={link.href}
+              {...(isExternalStorefrontHref(link.href) ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+              className={`${!isLoggedIn && index === 0 ? 'ml-auto ' : ''}inline-flex min-h-11 shrink-0 items-center gap-1.5 px-2 text-xs font-bold ${link.emphasis ? 'text-[var(--studio-primary)]' : 'text-[var(--studio-text)]'} outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]`}
+            >
+              {link.emphasis ? <WalletCards aria-hidden="true" className="h-4 w-4" /> : null}
+              <span>{link.label}</span>
+            </Link>
+          ))}
         </StudioContainer>
       </div>
 
@@ -461,13 +469,21 @@ export function PreviewHeader({
             </Link>
           </nav>
 
-          <Link
-            href="/pricing"
-            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-bold text-[var(--studio-primary)] outline-none hover:bg-[var(--studio-primary-soft)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-          >
-            <WalletCards aria-hidden="true" className="h-4 w-4" />
-            <span>크레딧 충전</span>
-          </Link>
+          {headerLinks.length > 0 ? (
+            <nav aria-label="바로가기" className="flex shrink-0 items-center gap-1">
+              {headerLinks.map((link, index) => (
+                <Link
+                  key={`${link.href}-${index}`}
+                  href={link.href}
+                  {...(isExternalStorefrontHref(link.href) ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                  className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-bold outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${link.emphasis ? 'text-[var(--studio-primary)] hover:bg-[var(--studio-primary-soft)]' : 'text-[var(--studio-text)] hover:text-[var(--studio-ink)]'}`}
+                >
+                  {link.emphasis ? <WalletCards aria-hidden="true" className="h-4 w-4" /> : null}
+                  <span>{link.label}</span>
+                </Link>
+              ))}
+            </nav>
+          ) : null}
         </StudioContainer>
       </div>
 

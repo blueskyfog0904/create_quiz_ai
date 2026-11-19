@@ -20,6 +20,7 @@ export const ADMIN_AUDIT_ACTIONS = {
   site_brand_update: '사이트 이름·소개 문구 수정',
   site_logo_update: '사이트 로고 변경',
   site_logo_reset: '사이트 로고 기본값으로 되돌리기',
+  storefront_header_links_update: '회원 헤더 상단 메뉴 수정',
   market_review_delete: '후기 삭제',
   payment_sales_stop: '충전 판매 중지',
   admin_account_create: '관리자 계정 생성',

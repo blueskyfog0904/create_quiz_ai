@@ -3,9 +3,11 @@ import './globals.css'
 import { Toaster } from '@/components/ui/sonner'
 import { SiteBrandProvider } from '@/components/layout/site-brand'
 import { SiteLogoProvider } from '@/components/layout/site-logo'
+import { StorefrontHeaderLinksProvider } from '@/components/layout/storefront-header-links'
 import { buildSiteTitleTemplate } from '@/lib/site-brand'
 import { getSiteBrand } from '@/lib/site-brand-server'
 import { getSiteLogoUrl } from '@/lib/site-logo-server'
+import { getActiveStorefrontHeaderLinks } from '@/lib/storefront-header-links-server'
 
 // 사이트 이름·소개 문구는 DB(관리자 "사이트 기본 정보")에서 읽는다.
 // 각 화면은 제목에 화면 이름만 적고, 뒤의 " | 사이트 이름"은 이 템플릿이 붙인다.
@@ -28,12 +30,14 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const [logoUrl, brand] = await Promise.all([getSiteLogoUrl(), getSiteBrand()])
+  const [logoUrl, brand, headerLinks] = await Promise.all([getSiteLogoUrl(), getSiteBrand(), getActiveStorefrontHeaderLinks()])
   return (
     <html lang="ko">
       <body className="antialiased font-sans">
         <SiteBrandProvider name={brand.name}>
-          <SiteLogoProvider url={logoUrl}>{children}</SiteLogoProvider>
+          <SiteLogoProvider url={logoUrl}>
+            <StorefrontHeaderLinksProvider links={headerLinks}>{children}</StorefrontHeaderLinksProvider>
+          </SiteLogoProvider>
         </SiteBrandProvider>
         <Toaster />
       </body>
