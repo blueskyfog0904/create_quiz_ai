@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { StudioAlertDialog } from '@/components/design-system/studio-dialog'
 import { createClient } from '@/lib/supabase/client'
 
 const controlClassName =
@@ -32,6 +33,7 @@ export function WithdrawView({ email, blockedReason = null }: WithdrawViewProps)
     finalConfirm: false,
   })
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   const allAgreed = agreements.dataLoss && agreements.noRecovery && agreements.finalConfirm
   const emailMatches = confirmEmail === email
@@ -42,10 +44,10 @@ export function WithdrawView({ email, blockedReason = null }: WithdrawViewProps)
       return
     }
 
-    if (!confirm('정말로 회원 탈퇴를 진행하시겠습니까? 이 작업은 취소할 수 없습니다.')) {
-      return
-    }
+    setShowConfirmDialog(true)
+  }
 
+  const performWithdraw = async () => {
     setIsDeleting(true)
 
     try {
@@ -70,6 +72,7 @@ export function WithdrawView({ email, blockedReason = null }: WithdrawViewProps)
       toast.error(error.message)
     } finally {
       setIsDeleting(false)
+      setShowConfirmDialog(false)
     }
   }
 
@@ -194,6 +197,18 @@ export function WithdrawView({ email, blockedReason = null }: WithdrawViewProps)
           </div>
         </section>
       </div>
+
+      <StudioAlertDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+        title="정말 탈퇴하시겠어요?"
+        description="탈퇴하면 되돌릴 수 없습니다."
+        cancelLabel="취소"
+        confirmLabel="탈퇴하기"
+        destructive
+        pending={isDeleting}
+        onConfirm={() => void performWithdraw()}
+      />
     </div>
   )
 }

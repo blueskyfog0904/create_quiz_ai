@@ -2,16 +2,15 @@
 
 import { useRef } from 'react'
 import Link from 'next/link'
-import { CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog } from '@/components/ui/dialog'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  StudioDialogDescription,
+  StudioDialogFooter,
+  StudioDialogHeader,
+  StudioDialogPanel,
+  StudioDialogTitle,
+} from '@/components/design-system/studio-dialog'
 
 export interface MarketPurchaseCompleteOrder {
   orderId: string
@@ -56,27 +55,23 @@ export function MarketPurchaseCompleteDialog({ result, libraryHref, onClose }: M
 
   return (
     <Dialog open={result !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
+      <StudioDialogPanel
         showCloseButton={false}
+        className="sm:max-w-md"
         // 확정 버튼을 누른 Enter가 곧바로 보관함 링크를 열지 않도록 닫기 버튼에 먼저 포커스한다.
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           closeButtonRef.current?.focus()
         }}
-        // shadow-[var(...)]는 tailwind-merge가 기본 shadow-lg를 지우지 못해 shadow-(...) 형식을 쓴다.
-        className="max-w-[calc(100%-2rem)] gap-5 rounded-[var(--studio-radius-card)] border-[var(--studio-border)] bg-[var(--studio-surface)] shadow-(--studio-shadow-card) sm:max-w-md"
       >
-        <DialogHeader className="items-center text-center sm:text-center">
-          <div className="flex size-12 items-center justify-center rounded-full bg-[var(--studio-primary-soft)] text-[var(--studio-primary)]">
-            <CheckCircle2 className="size-6" aria-hidden="true" />
-          </div>
-          <DialogTitle className="text-[var(--studio-ink)]">구매 완료</DialogTitle>
-          <DialogDescription className="break-keep leading-6 text-[var(--studio-text)]">
+        <StudioDialogHeader>
+          <StudioDialogTitle>구매 완료</StudioDialogTitle>
+          <StudioDialogDescription>
             {result?.alreadyCompleted
               ? '이미 처리된 구매입니다. 같은 요청이 중복으로 차감되지는 않았습니다.'
               : `${result?.orders.length ?? 0}건 구매가 완료되었습니다.`}
-          </DialogDescription>
-        </DialogHeader>
+          </StudioDialogDescription>
+        </StudioDialogHeader>
 
         {result ? (
           <div className="min-w-0 space-y-4">
@@ -110,16 +105,16 @@ export function MarketPurchaseCompleteDialog({ result, libraryHref, onClose }: M
           </div>
         ) : null}
 
-        {/* 모바일에서도 시각 순서를 DOM·Tab 순서(닫기 → 보관함)와 맞춘다. */}
-        <DialogFooter className="flex-col sm:flex-row">
-          <Button ref={closeButtonRef} type="button" variant="brandOutline" className="sm:flex-1" onClick={onClose}>
+        {/* 모바일에서도 시각 순서를 DOM·Tab 순서(닫기 → 보관함)와 맞춘다(공통 틀이 flex-col). */}
+        <StudioDialogFooter>
+          <Button ref={closeButtonRef} type="button" variant="brandOutline" onClick={onClose}>
             계속 둘러보기
           </Button>
-          <Button asChild variant="brand" className="sm:flex-1">
+          <Button asChild variant="brand">
             <Link href={libraryHref}>자료 보관함에서 받기</Link>
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </StudioDialogFooter>
+      </StudioDialogPanel>
     </Dialog>
   )
 }

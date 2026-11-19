@@ -7,13 +7,15 @@ import { ChevronDown, FileImage, Loader2, RotateCcw, X } from 'lucide-react'
 import { StudioContainer, StudioEmptyState } from '@/components/design-system'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { useListQuery } from '@/hooks/use-list-query'
+import { toast } from 'sonner'
+import { Dialog } from '@/components/ui/dialog'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  StudioAlertDialog,
+  StudioDialogDescription,
+  StudioDialogHeader,
+  StudioDialogPanel,
+  StudioDialogTitle,
+} from '@/components/design-system/studio-dialog'
 import { FileTypeDocIcon } from '@/components/market/file-type-doc-icon'
 import type { MarketLibraryRow } from '@/lib/market-items-server'
 import { getMarketDownloadButtonLabels } from '@/lib/market-download-label'
@@ -160,6 +162,7 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
   const { page, pageSize: PAGE_SIZE, setPage } = listQuery
   const [refundSubmitting, setRefundSubmitting] = useState<string | null>(null)
   const [refundDialogItemId, setRefundDialogItemId] = useState<string | null>(null)
+  const [refundConfirmTarget, setRefundConfirmTarget] = useState<RefundTarget | null>(null)
   const [subjectMenuOpen, setSubjectMenuOpen] = useState(false)
   const [isSubjectSwitching, startSubjectSwitch] = useTransition()
   const subjectMenuRef = useRef<HTMLDivElement | null>(null)
@@ -309,11 +312,7 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
 
   const handleRefundRequest = async (target: RefundTarget): Promise<boolean> => {
     if (target.status !== 'available') {
-      alert(target.reason ?? '현재 환불 신청할 수 없습니다.')
-      return false
-    }
-
-    if (!confirm(`${target.label} 환불을 신청하시겠습니까?`)) {
+      toast.error(target.reason ?? '현재 환불 신청할 수 없습니다.')
       return false
     }
 
@@ -333,11 +332,11 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
         throw new Error(result?.error?.message ?? '환불 신청 처리에 실패했습니다.')
       }
 
-      alert('환불 신청이 접수되었습니다.')
+      toast.success('환불 신청이 접수되었습니다.')
       router.refresh()
       return true
     } catch (error) {
-      alert(error instanceof Error ? error.message : '환불 신청 처리에 실패했습니다.')
+      toast.error(error instanceof Error ? error.message : '환불 신청 처리에 실패했습니다.')
       return false
     } finally {
       setRefundSubmitting(null)
@@ -642,13 +641,13 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
               if (!open) setRefundDialogItemId(null)
             }}
           >
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>환불 신청</DialogTitle>
-                <DialogDescription className="break-keep">
+            <StudioDialogPanel className="sm:max-w-md">
+              <StudioDialogHeader>
+                <StudioDialogTitle>환불 신청</StudioDialogTitle>
+                <StudioDialogDescription>
                   {refundDialogRow?.title}
-                </DialogDescription>
-              </DialogHeader>
+                </StudioDialogDescription>
+              </StudioDialogHeader>
               <p className="text-sm text-[var(--studio-muted)]">
                 환불할 구매 건을 선택하세요.
               </p>
@@ -672,10 +671,7 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
                         <button
                           type="button"
                           disabled={refundSubmitting === target.targetId}
-                          onClick={async () => {
-                            const succeeded = await handleRefundRequest(target)
-                            if (succeeded) setRefundDialogItemId(null)
-                          }}
+                          onClick={() => setRefundConfirmTarget(target)}
                           className={refundButtonClassName}
                         >
                           {refundSubmitting === target.targetId ? '신청 중…' : '이 건 환불 신청'}
@@ -693,7 +689,23 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
                   </li>
                 ))}
               </ul>
-            </DialogContent>
+
+              <StudioAlertDialog
+                open={refundConfirmTarget !== null}
+                onOpenChange={(open) => !open && setRefundConfirmTarget(null)}
+                title="환불을 신청할까요?"
+                description={refundConfirmTarget?.label}
+                cancelLabel="취소"
+                confirmLabel="환불 신청"
+                pending={refundSubmitting !== null}
+                onConfirm={async () => {
+                  if (!refundConfirmTarget) return
+                  const succeeded = await handleRefundRequest(refundConfirmTarget)
+                  setRefundConfirmTarget(null)
+                  if (succeeded) setRefundDialogItemId(null)
+                }}
+              />
+            </StudioDialogPanel>
           </Dialog>
         )
       })()}

@@ -4,14 +4,14 @@ import Link from 'next/link'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Dialog } from '@/components/ui/dialog'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  StudioDialogDescription,
+  StudioDialogFooter,
+  StudioDialogHeader,
+  StudioDialogPanel,
+  StudioDialogTitle,
+} from '@/components/design-system/studio-dialog'
 
 export interface MarketCheckoutConfirmLine {
   key: string
@@ -77,11 +77,11 @@ export function MarketCheckoutConfirmDialog({
         }
       }}
     >
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
+      <StudioDialogPanel showCloseButton={false} className="sm:max-w-md">
+        <StudioDialogHeader>
+          <StudioDialogTitle>{title}</StudioDialogTitle>
+          <StudioDialogDescription>{description}</StudioDialogDescription>
+        </StudioDialogHeader>
 
         {open ? (
           <div className="min-w-0 space-y-4">
@@ -155,7 +155,7 @@ export function MarketCheckoutConfirmDialog({
           </div>
         ) : null}
 
-        <DialogFooter>
+        <StudioDialogFooter>
           <Button
             variant="brandOutline"
             disabled={submitting}
@@ -167,8 +167,8 @@ export function MarketCheckoutConfirmDialog({
             {submitting ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : null}
             {retryable ? '같은 요청으로 다시 시도' : `${formatCredits(total)} 크레딧 구매`}
           </Button>
-        </DialogFooter>
-      </DialogContent>
+        </StudioDialogFooter>
+      </StudioDialogPanel>
     </Dialog>
   )
 }

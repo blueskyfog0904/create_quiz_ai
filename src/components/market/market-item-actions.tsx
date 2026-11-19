@@ -10,14 +10,14 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Dialog } from '@/components/ui/dialog'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  StudioDialogDescription,
+  StudioDialogFooter,
+  StudioDialogHeader,
+  StudioDialogPanel,
+  StudioDialogTitle,
+} from '@/components/design-system/studio-dialog'
 import { dispatchMarketCartUpdated } from '@/components/market/market-cart-indicator'
 import { MarketCheckoutConfirmDialog } from '@/components/market/market-checkout-confirm-dialog'
 import {
@@ -1373,20 +1373,20 @@ export default function MarketItemActions({
         open={cartResult !== null && !isLoginCompletePending}
         onOpenChange={(open) => !open && setCartResult(null)}
       >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{cartResult?.kind === 'notice' ? '장바구니 담기 안내' : '장바구니 담기'}</DialogTitle>
-            <DialogDescription>{cartResult?.message}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
+        <StudioDialogPanel showCloseButton={false}>
+          <StudioDialogHeader>
+            <StudioDialogTitle>{cartResult?.kind === 'notice' ? '장바구니 담기 안내' : '장바구니 담기'}</StudioDialogTitle>
+            <StudioDialogDescription>{cartResult?.message}</StudioDialogDescription>
+          </StudioDialogHeader>
+          <StudioDialogFooter>
             <Button variant="brandOutline" onClick={() => setCartResult(null)}>
               {cartResult?.kind === 'notice' ? '확인' : '계속 둘러보기'}
             </Button>
             <Button asChild variant="brand">
               <Link href="/cart">장바구니 보기</Link>
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </StudioDialogFooter>
+        </StudioDialogPanel>
       </Dialog>
 
       <MarketPurchaseCompleteDialog

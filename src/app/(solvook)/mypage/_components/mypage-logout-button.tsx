@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { LogOut } from 'lucide-react'
+import { toast } from 'sonner'
 
 export function MypageLogoutButton() {
   const [isLoading, setIsLoading] = useState(false)
@@ -16,7 +17,7 @@ export function MypageLogoutButton() {
       }
       window.location.href = '/login?logout=success'
     } catch (error) {
-      alert(error instanceof Error ? error.message : '로그아웃에 실패했습니다.')
+      toast.error(error instanceof Error ? error.message : '로그아웃에 실패했습니다.')
       setIsLoading(false)
     }
   }

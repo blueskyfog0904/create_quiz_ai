@@ -13,8 +13,8 @@ const sonner = read('../src/components/ui/sonner.tsx')
 
 test('purchase complete dialog lives in components/market with title, description and library link', () => {
   assert.match(dialog, /export function MarketPurchaseCompleteDialog\(/)
-  assert.match(dialog, /<DialogTitle[^>]*>구매 완료<\/DialogTitle>/)
-  assert.match(dialog, /<DialogDescription/)
+  assert.match(dialog, /<StudioDialogTitle[^>]*>구매 완료<\/StudioDialogTitle>/)
+  assert.match(dialog, /<StudioDialogDescription/)
   assert.match(dialog, /건 구매가 완료되었습니다\./)
   assert.match(dialog, /이미 처리된 구매입니다\. 같은 요청이 중복으로 차감되지는 않았습니다\./)
   assert.match(dialog, /<Link href=\{libraryHref\}>자료 보관함에서 받기<\/Link>/)
@@ -28,8 +28,8 @@ test('purchase complete dialog focuses the close button first and keeps DOM orde
   const linkIndex = dialog.indexOf('자료 보관함에서 받기</Link>')
   assert.ok(closeIndex > 0 && linkIndex > closeIndex)
   assert.match(dialog, /ref=\{closeButtonRef\}/)
-  // 모바일 DialogFooter 기본 flex-col-reverse를 덮어 시각 순서도 DOM과 같게 한다.
-  assert.match(dialog, /<DialogFooter className="flex-col sm:flex-row">/)
+  // 공통 팝업 틀의 아래 버튼 줄은 flex-col이라 모바일 시각 순서도 DOM과 같다.
+  assert.match(dialog, /<StudioDialogFooter>/)
 })
 
 test('purchase complete dialog uses Studio tokens only and owns no requests', () => {

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Trash2, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { StudioAlertDialog } from '@/components/design-system/studio-dialog'
 import { StudioEmptyState } from '@/components/design-system/studio-empty-state'
 import { Database } from '@/types/supabase'
 
@@ -84,6 +84,8 @@ export function SupportView({ tickets, categories, userId }: SupportViewProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   // 등록 완료는 잠깐 뜨는 알림 대신 확인을 눌러야 닫히는 창으로 보여 준다(놓치지 않게).
   const [showSubmittedDialog, setShowSubmittedDialog] = useState(false)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editCategoryId, setEditCategoryId] = useState('')
   const [editSubject, setEditSubject] = useState('')
@@ -135,10 +137,7 @@ export function SupportView({ tickets, categories, userId }: SupportViewProps) {
   }
 
   const handleDelete = async (ticketId: string) => {
-    if (!confirm('정말 이 문의 내역을 삭제하시겠습니까?\n삭제된 내역은 복구할 수 없습니다.')) {
-      return
-    }
-
+    setIsDeleting(true)
     try {
       const response = await fetch(`/api/support?id=${ticketId}`, {
         method: 'DELETE',
@@ -150,9 +149,12 @@ export function SupportView({ tickets, categories, userId }: SupportViewProps) {
       }
 
       toast.success('문의 내역이 삭제되었습니다.')
+      setDeleteTargetId(null)
       router.refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '삭제에 실패했습니다.')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -419,7 +421,7 @@ export function SupportView({ tickets, categories, userId }: SupportViewProps) {
                           <button
                             type="button"
                             className={`${iconButtonClassName} hover:bg-red-50 hover:text-red-500`}
-                            onClick={() => handleDelete(ticket.id)}
+                            onClick={() => setDeleteTargetId(ticket.id)}
                             title="문의 내역 삭제"
                           >
                             <Trash2 aria-hidden="true" className="size-4" />
@@ -456,19 +458,25 @@ export function SupportView({ tickets, categories, userId }: SupportViewProps) {
         )}
       </section>
 
-      <Dialog open={showSubmittedDialog} onOpenChange={setShowSubmittedDialog}>
-        <DialogContent className="sm:max-w-[420px] max-md:max-w-[calc(100vw-2rem)]">
-          <DialogHeader>
-            <DialogTitle>문의가 등록되었습니다</DialogTitle>
-            <DialogDescription className="break-keep">
-              빠른 시일 내에 답변드리겠습니다. 답변은 이메일로 보내지 않으니, 화면 위쪽 알림(종 모양)과 아래 문의 내역에서 확인해 주세요.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="brand" onClick={() => setShowSubmittedDialog(false)}>확인</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <StudioAlertDialog
+        open={showSubmittedDialog}
+        onOpenChange={setShowSubmittedDialog}
+        title="문의가 등록되었습니다"
+        description="빠른 시일 내에 답변드리겠습니다. 답변은 이메일로 보내지 않으니, 화면 위쪽 알림(종 모양)과 아래 문의 내역에서 확인해 주세요."
+        onConfirm={() => setShowSubmittedDialog(false)}
+      />
+
+      <StudioAlertDialog
+        open={deleteTargetId !== null}
+        onOpenChange={(open) => !open && setDeleteTargetId(null)}
+        title="문의 내역을 삭제할까요?"
+        description="삭제한 내역은 복구할 수 없습니다."
+        cancelLabel="취소"
+        confirmLabel="삭제"
+        destructive
+        pending={isDeleting}
+        onConfirm={() => deleteTargetId && void handleDelete(deleteTargetId)}
+      />
     </div>
   )
 }

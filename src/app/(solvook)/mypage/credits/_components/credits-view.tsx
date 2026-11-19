@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, Coins, RotateCcw } from 'lucide-react'
+import { Coins, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { StudioEmptyState } from '@/components/design-system'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
@@ -11,14 +11,14 @@ import { useListQuery } from '@/hooks/use-list-query'
 import { getListPagination } from '@/lib/list-pagination'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Dialog } from '@/components/ui/dialog'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  StudioDialogDescription,
+  StudioDialogFooter,
+  StudioDialogHeader,
+  StudioDialogPanel,
+  StudioDialogTitle,
+} from '@/components/design-system/studio-dialog'
 import { getCreditSourceCategoryLabel, type CreditSourceCategory } from '@/lib/credit-source-display'
 import {
   getCreditTransactionDescription,
@@ -614,10 +614,10 @@ export function CreditsView({
           if (!open) setRefundSourceId(null)
         }}
       >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>환불 신청</DialogTitle>
-            <DialogDescription className="break-keep">
+        <StudioDialogPanel showCloseButton={false} className="sm:max-w-md">
+          <StudioDialogHeader>
+            <StudioDialogTitle>환불 신청</StudioDialogTitle>
+            <StudioDialogDescription>
               {refundSource && (
                 <>
                   <strong>
@@ -630,24 +630,16 @@ export function CreditsView({
                   ({refundSource.initial_credits.toLocaleString()} 크레딧)에 대한 환불을 신청합니다.
                 </>
               )}
-            </DialogDescription>
-          </DialogHeader>
+            </StudioDialogDescription>
+          </StudioDialogHeader>
 
-          <div className="rounded-lg bg-[var(--studio-background)] p-4">
-            <div className="flex gap-2">
-              <AlertCircle
-                aria-hidden="true"
-                className="h-5 w-5 shrink-0 text-[var(--studio-primary)]"
-              />
-              <div className="break-keep text-sm text-[var(--studio-text,var(--studio-ink))]">
-                <p className="mb-1 font-semibold text-[var(--studio-ink)]">환불 안내</p>
-                <ul className="list-inside list-disc space-y-1">
-                  <li>환불 신청 후 관리자 승인 절차가 필요합니다.</li>
-                  <li>환불 대기 중에는 해당 크레딧을 사용할 수 없습니다.</li>
-                  <li>승인 시 결제 금액이 환불됩니다.</li>
-                </ul>
-              </div>
-            </div>
+          <div className="break-keep text-sm text-[var(--studio-text)]">
+            <p className="font-semibold text-[var(--studio-ink)]">환불 안내</p>
+            <ul className="mt-1.5 space-y-1">
+              <li>· 환불 신청 후 관리자 승인 절차가 필요합니다.</li>
+              <li>· 환불 대기 중에는 해당 크레딧을 사용할 수 없습니다.</li>
+              <li>· 승인 시 결제 금액이 환불됩니다.</li>
+            </ul>
           </div>
 
           <div>
@@ -668,26 +660,20 @@ export function CreditsView({
             />
           </div>
 
-          <DialogFooter className="gap-2">
+          <StudioDialogFooter>
             <Button
               type="button"
-              variant="outline"
-              className="min-h-11"
+              variant="brandOutline"
               onClick={() => setRefundSourceId(null)}
               disabled={isSubmitting}
             >
               취소
             </Button>
-            <button
-              type="button"
-              onClick={handleRefundRequest}
-              disabled={isSubmitting}
-              className={`${refundButtonClassName} min-h-11 justify-center px-5`}
-            >
+            <Button type="button" variant="brand" onClick={handleRefundRequest} disabled={isSubmitting}>
               {isSubmitting ? '신청 중…' : '환불 신청'}
-            </button>
-          </DialogFooter>
-        </DialogContent>
+            </Button>
+          </StudioDialogFooter>
+        </StudioDialogPanel>
       </Dialog>
     </div>
   )
