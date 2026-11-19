@@ -112,11 +112,13 @@
 
 ### 비밀번호 재설정 설정 — `docs/password-reset-setup.md`를 따라 한다
 
-- [ ] **1) 메일 템플릿 교체**: Supabase 대시보드 › Authentication › Emails › "Reset Password"에 문서의 제목·본문을 붙여 넣는다(한글, 링크는 `/reset-password?token_hash=…` 방식).
-- [ ] **2) Redirect URLs 점검**: Authentication › URL Configuration의 허용 목록에 다른 도메인이나 와일드카드(`*.vercel.app` 등)가 없는지, Site URL이 `https://www.summersuninst.com`인지 확인.
-- [ ] **3) Vercel 환경변수 `NEXT_PUBLIC_SITE_URL`**이 `https://www.summersuninst.com`으로 들어 있는지 확인(값은 내가 읽을 수 없어 확인하지 못했다).
-- [ ] **4) 비밀번호 설정 확인**: 최소 길이(코드는 6자 기준), "Secure password change"·"Require current password"는 끔(켜면 재설정과 마이페이지 변경이 막힐 수 있다).
-- [ ] **5) push 승인** → 배포 뒤 문서 6절의 확인 절차: PC에서 요청 → **휴대폰(네이버 앱·카카오톡 안의 브라우저 포함)에서 메일 링크의 "계속"** → 새 비밀번호로 로그인. Gmail·네이버 메일 양쪽으로.
+(2026-11-19 확인: 재설정 코드 `f8cb1c9`는 11-17에 이미 배포돼 있었고, 그동안 템플릿은 영문 기본 상태였다.)
+- [x] **1) 메일 템플릿 교체** (2026-11-19, 사용자 요청으로 내가 대시보드에서 교체): 제목 "[써머썬 연구소] 비밀번호 재설정 안내", 본문은 문서 1-2절과 글자 수 같음(2,091자), 새로 불러와 저장값 확인(재설정 링크 2곳 `token_hash` 방식, `ConfirmationURL` 없음).
+- [x] **1-b) 회원가입 확인 메일도 같은 모양의 한글 템플릿으로 교체** (2026-11-19, 사용자 요청): 제목 "[써머썬 연구소] 회원가입 이메일 인증 안내", 링크는 기본 `{{ .ConfirmationURL }}` 유지(코드 변경 없음). 원본은 `docs/password-reset-setup.md` 부록, 저장값 글자 수 같음(1,992자). "Confirm email" 설정은 켜져 있음.
+- [x] **2) Redirect URLs 점검**: 허용 목록 4개(`https://summersuninst.com/auth/callback`, `https://www.summersuninst.com/**`, `https://summersuninst.com/**`, `http://localhost:4000/**`) — 다른 도메인·넓은 와일드카드 없음. Site URL은 `https://summersuninst.com`(www 없음)이지만 www로 경로·쿼리를 그대로 넘겨 307 이동하는 것을 확인했고, **사용자 결정으로 그대로 둠**.
+- [ ] **3) Vercel 환경변수 `NEXT_PUBLIC_SITE_URL`**: 변수는 있음(민감 값이라 내용은 확인 못 함).
+- [x] **4) 비밀번호 설정 확인**: 최소 길이 6, Secure password change 끔, Require current password 끔, Email OTP 유효 3600초, 메일 한도 시간당 30·재발송 간격 60초. SMTP는 Resend(`no-reply@summersuninst.com`, 써머썬연구소), Resend 클릭·열람 추적 꺼짐.
+- [ ] **5) 배포는 끝났으므로** 문서 6절의 확인 절차만 남음. 시험 계정 주의: blueskyfog@naver.com은 카카오 가입, blueskyfog@gmail.com은 관리자라 둘 다 대상이 아니다 → **이메일로 새로 가입한 시험 계정**이 필요: PC에서 요청 → **휴대폰(네이버 앱·카카오톡 안의 브라우저 포함)에서 메일 링크의 "계속"** → 새 비밀번호로 로그인. Gmail·네이버 메일 양쪽으로.
 - [ ] **결정: 메일 요청 남용 방지.** 지금은 Supabase의 발송 한도에만 기댄다. 누군가 한 주소로 반복 요청하면 시간당 메일 한도가 소진돼 정상 회원의 재설정 메일이 막힐 수 있다. 출시 전에 자동 요청 방지(CAPTCHA, Supabase의 Turnstile 연동)를 켤지 정한다. 켜면 코드 수정이 따른다.
 
 알아 둘 점:

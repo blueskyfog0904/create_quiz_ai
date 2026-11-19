@@ -200,3 +200,47 @@ Resend 대시보드 › Domains › `summersuninst.com` › **Click tracking** �
 확인한 Supabase 문서: [Password-based Auth](https://supabase.com/docs/guides/auth/passwords), [Email Templates](https://supabase.com/docs/guides/auth/auth-email-templates), [Rate limits](https://supabase.com/docs/guides/auth/rate-limits), [Passwordless email](https://supabase.com/docs/guides/auth/auth-email-passwordless)(Email OTP Expiration 위치), [Password security](https://supabase.com/docs/guides/auth/password-security), [CAPTCHA](https://supabase.com/docs/guides/auth/auth-captcha).
 
 대시보드 메뉴 이름은 Supabase가 가끔 바꿉니다. 위 이름과 다르면 Authentication 아래에서 "Emails / Templates", "URL Configuration", "Providers › Email", "Rate Limits", "Bot and Abuse Protection" 에 해당하는 곳을 찾으면 됩니다. 이 문서의 대시보드 값(현재 한도, 허용 목록, 비밀번호 설정)은 작성할 때 대시보드에서 직접 보지 못했으므로, 표에 "미확인"으로 적은 곳은 실제 값을 확인해 주세요.
+
+---
+
+## 부록. 회원가입 확인 메일 템플릿 (2026-11-19 적용)
+
+위치: **Authentication** › **Emails** › **Confirm sign up**. 재설정 메일과 같은 모양으로 맞췄다. 대시보드에서 직접 넣었고 이 문서가 그 원본이다.
+
+- 링크는 Supabase 기본 링크 `{{ .ConfirmationURL }}`를 **그대로 쓴다.** 가입 코드(`src/app/auth/actions.ts`의 `signUp`)는 돌아올 주소를 따로 주지 않는다. 그래서 링크를 누르면 Supabase가 이메일 인증을 끝낸 뒤 Site URL(첫 화면)로 보낸다. 인증은 Supabase 쪽에서 끝나므로 다른 기기에서 열어도 된다. 회원은 그다음 이메일과 비밀번호로 로그인한다.
+- 유효 시간 "1시간"은 3번의 Email OTP Expiration(3600초)과 같은 값이다.
+- 메일 서비스가 링크를 미리 열어 보면 그때 인증이 끝나 버릴 수 있다. 그 뒤 회원이 버튼을 누르면 첫 화면에 오류 값이 붙은 채로 열리지만, 이미 인증된 상태라 로그인은 된다.
+
+### 제목
+
+```
+[써머썬 연구소] 회원가입 이메일 인증 안내
+```
+
+### 본문
+
+```html
+<div style="margin:0;padding:24px 12px;background-color:#f5f6f8;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background-color:#ffffff;border:1px solid #e5e7eb;border-radius:12px;">
+    <tr>
+      <td style="padding:32px 28px;font-family:'Apple SD Gothic Neo','Malgun Gothic','맑은 고딕',sans-serif;color:#111827;font-size:15px;line-height:1.7;">
+        <p style="margin:0 0 20px;font-size:14px;font-weight:bold;color:#6b7280;">써머썬 연구소</p>
+        <h1 style="margin:0 0 16px;font-size:20px;line-height:1.4;color:#111827;">이메일 인증 안내</h1>
+        <p style="margin:0 0 8px;">안녕하세요. 써머썬 연구소에 가입해 주셔서 감사합니다.</p>
+        <p style="margin:0 0 24px;"><strong>{{ .Email }}</strong> 주소로 회원가입 요청을 받았습니다. 아래 버튼을 눌러 이메일 인증을 완료해 주세요.</p>
+        <p style="margin:0 0 24px;text-align:center;">
+          <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 28px;background-color:#111827;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;border-radius:8px;">이메일 인증하기</a>
+        </p>
+        <p style="margin:0 0 8px;font-size:13px;color:#4b5563;">· 이 링크는 메일을 받은 뒤 <strong>1시간 동안</strong>, <strong>한 번만</strong> 쓸 수 있습니다.</p>
+        <p style="margin:0 0 8px;font-size:13px;color:#4b5563;">· 가입한 기기가 아닌 다른 기기(예: 휴대폰)에서 열어도 됩니다.</p>
+        <p style="margin:0 0 24px;font-size:13px;color:#4b5563;">· 인증이 끝나면 써머썬 연구소 첫 화면으로 이동합니다. 가입한 이메일과 비밀번호로 로그인해 주세요.</p>
+        <p style="margin:0 0 8px;font-size:13px;color:#4b5563;">버튼이 눌리지 않으면 아래 주소를 복사해 브라우저 주소창에 붙여 넣어 주세요.</p>
+        <p style="margin:0 0 24px;font-size:12px;color:#6b7280;word-break:break-all;">{{ .ConfirmationURL }}</p>
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 16px;">
+        <p style="margin:0 0 6px;font-size:13px;color:#6b7280;">회원가입을 요청하지 않았다면 이 메일은 무시하셔도 됩니다. 인증하지 않은 계정은 로그인할 수 없습니다.</p>
+        <p style="margin:0;font-size:12px;color:#9ca3af;">이 메일은 발신 전용입니다.</p>
+      </td>
+    </tr>
+  </table>
+</div>
+```
