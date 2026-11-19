@@ -33,88 +33,88 @@ export default async function PricingPage() {
         credits = selectDisplayBalance(user.id, snapshot)
     }
 
-    return (
-        <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-12 px-4">
-            <div className="max-w-6xl mx-auto">
-                {/* 헤더 */}
-                <div className="text-center mb-12">
-                    <h1 className="text-4xl font-bold text-gray-900 mb-4">
-                        크레딧 충전 상품
-                    </h1>
-                    <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-                        영어·국어 문제마켓에서 자료를 구매할 때 사용할 크레딧을 충전하세요.
-                        <br />
-                        월 구독이나 자동결제가 아닌 1회 충전 상품입니다.
-                    </p>
+    const linkClass =
+        'inline-flex min-h-11 items-center text-[var(--studio-text)] underline underline-offset-4 hover:text-[var(--studio-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]'
 
+    return (
+        <div className="min-h-screen bg-[var(--studio-background)] px-4 py-10 sm:py-12">
+            <div className="mx-auto max-w-5xl">
+                {/* 머리말: 제목과 보유 크레딧 */}
+                <div className="mb-8 flex flex-col gap-4 border-b border-[var(--studio-border)] pb-6 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">크레딧 충전</h1>
+                        <p className="mt-2 text-sm text-[var(--studio-muted)] break-keep">
+                            영어·국어 문제마켓에서 자료를 구매할 때 쓰는 선불 크레딧입니다. 월 구독이나 자동결제가 아닌 1회 충전 상품입니다.
+                        </p>
+                    </div>
                     {user && (
-                        <div className="mt-6 inline-flex items-center gap-2 bg-amber-50 px-4 py-2 rounded-full">
-                            <span className="text-amber-700">현재 보유 크레딧:</span>
-                            <span className="text-2xl font-bold text-amber-600">
-                                {credits.toLocaleString()}
+                        <div className="flex items-center gap-3 sm:flex-col sm:items-end sm:gap-1">
+                            <span className="text-xs text-[var(--studio-muted)]">보유 크레딧</span>
+                            <span className="[font-family:var(--studio-font-price)] text-2xl font-bold tabular-nums text-[var(--studio-primary)]">
+                                {credits.toLocaleString('ko-KR')}
                             </span>
                         </div>
                     )}
                 </div>
 
-                {/* 요금제 카드 */}
+                {/* 상품 선택과 결제 요약 */}
                 <PricingClient
                     plans={plans || []}
                     isLoggedIn={!!user}
                     currentCredits={credits}
                 />
 
-                {/* 안내 사항 */}
-                <div className="mt-16 max-w-3xl mx-auto">
-                    <h2 className="text-xl font-semibold text-gray-800 mb-4 text-center">
-                        크레딧 사용 안내
+                {/* 결제 전에 확인할 것 */}
+                <section aria-labelledby="charge-notice-heading" className="mt-10 border-t border-[var(--studio-border)] pt-6">
+                    <h2 id="charge-notice-heading" className="text-sm font-semibold text-[var(--studio-ink)]">
+                        결제 전에 확인해 주세요
                     </h2>
-                    <div className="grid gap-6">
-                        <div className="bg-white p-6 rounded-xl shadow-sm border">
-                            <h3 className="font-medium text-gray-800 mb-2">🛒 문제마켓 이용</h3>
-                            <p className="text-gray-600 text-sm">
-                                영어·국어 문제마켓에서 수업자료를 구매할 때 크레딧이 사용됩니다.
-                            </p>
+                    <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
+                        <div>
+                            <dt className="font-semibold text-[var(--studio-text)]">사용 기한</dt>
+                            <dd className="mt-1 text-[var(--studio-muted)] break-keep">결제일로부터 {POINT_CHARGE_VALIDITY_YEARS}년. 문제마켓 자료 구매에 씁니다.</dd>
                         </div>
-                    </div>
+                        <div>
+                            <dt className="font-semibold text-[var(--studio-text)]">환불</dt>
+                            <dd className="mt-1 text-[var(--studio-muted)] break-keep">구매 후 {POINT_CHARGE_REFUND_DAYS}일 안에 1개도 쓰지 않았다면 환불을 요청할 수 있습니다(원 결제수단으로 환불).</dd>
+                        </div>
+                        <div>
+                            <dt className="font-semibold text-[var(--studio-text)]">충전 한도</dt>
+                            <dd className="mt-1 text-[var(--studio-muted)] break-keep">1회 최대 {POINT_CHARGE_MAX_AMOUNT_TEXT}. 자동결제되지 않습니다.</dd>
+                        </div>
+                    </dl>
 
-                    {/* 환불 정책 */}
-                    <div className="mt-8 bg-blue-50 p-6 rounded-xl border border-blue-100">
-                        <h3 className="font-medium text-blue-800 mb-2">💡 환불 정책</h3>
-                        <ul className="flex flex-col gap-1 text-blue-700 text-sm">
-                            <li>• 1회 최대 {POINT_CHARGE_MAX_AMOUNT_TEXT}까지만 충전할 수 있으며 자동결제되지 않습니다.</li>
-                            <li>• 구매한 크레딧은 결제일로부터 {POINT_CHARGE_VALIDITY_YEARS}년 동안 사용할 수 있으며, 환불은 구매 후 {POINT_CHARGE_REFUND_DAYS}일 이내에 크레딧을 1개도 사용하지 않은 경우 가능합니다.</li>
-                            <li>• 문제마켓 자료의 다운로드/열람이 완료된 사용분은 환불이 제한됩니다.</li>
-                            <li>• 충전한 크레딧은 구매 계정에서만 사용할 수 있으며, 회원 간 양도·이전은 지원하지 않습니다.</li>
-                            <li>• 결제 오류·중복 결제·서비스 장애는 확인 후 환불 또는 크레딧 복구가 가능합니다.</li>
-                            <li>• 승인된 환불은 결제 당시 사용한 원 결제수단으로 처리되며, 카드·간편결제는 결제사 기준 영업일 2~5일이 소요될 수 있습니다.</li>
+                    <details className="group mt-6 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]">
+                        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-4 text-sm font-semibold text-[var(--studio-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] [&::-webkit-details-marker]:hidden">
+                            환불 정책 자세히 보기
+                            <span aria-hidden="true" className="text-[var(--studio-muted)] transition-transform group-open:rotate-180">▾</span>
+                        </summary>
+                        <ul className="flex list-disc flex-col gap-1.5 border-t border-[var(--studio-border)] py-4 pl-9 pr-4 text-sm leading-6 text-[var(--studio-muted)] break-keep">
+                            <li>1회 최대 {POINT_CHARGE_MAX_AMOUNT_TEXT}까지만 충전할 수 있으며 자동결제되지 않습니다.</li>
+                            <li>구매한 크레딧은 결제일로부터 {POINT_CHARGE_VALIDITY_YEARS}년 동안 사용할 수 있으며, 환불은 구매 후 {POINT_CHARGE_REFUND_DAYS}일 이내에 크레딧을 1개도 사용하지 않은 경우 가능합니다.</li>
+                            <li>문제마켓 자료의 다운로드/열람이 완료된 사용분은 환불이 제한됩니다.</li>
+                            <li>충전한 크레딧은 구매 계정에서만 사용할 수 있으며, 회원 간 양도·이전은 지원하지 않습니다.</li>
+                            <li>결제 오류·중복 결제·서비스 장애는 확인 후 환불 또는 크레딧 복구가 가능합니다.</li>
+                            <li>승인된 환불은 결제 당시 사용한 원 결제수단으로 처리되며, 카드·간편결제는 결제사 기준 영업일 2~5일이 소요될 수 있습니다.</li>
                         </ul>
-                        <div className="mt-4 flex flex-wrap gap-4 text-sm font-medium">
-                            <Link
-                                href="/terms/refund"
-                                className="inline-flex min-h-11 items-center underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            >
-                                취소/환불정책 전문
-                            </Link>
-                            {user && (
-                                <>
-                                    <Link
-                                        href="/mypage/credits"
-                                        className="inline-flex min-h-11 items-center underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                    >
-                                        충전·사용 내역
-                                    </Link>
-                                    <Link
-                                        href="/mypage/payments"
-                                        className="inline-flex min-h-11 items-center underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                    >
-                                        결제 내역
-                                    </Link>
-                                </>
-                            )}
-                        </div>
+                    </details>
+
+                    <div className="mt-4 flex flex-wrap gap-x-5 text-sm">
+                        <Link href="/terms/refund" className={linkClass}>
+                            취소/환불정책 전문
+                        </Link>
+                        {user && (
+                            <>
+                                <Link href="/mypage/credits" className={linkClass}>
+                                    충전·사용 내역
+                                </Link>
+                                <Link href="/mypage/payments" className={linkClass}>
+                                    결제 내역
+                                </Link>
+                            </>
+                        )}
                     </div>
-                </div>
+                </section>
             </div>
         </div>
     )

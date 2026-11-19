@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs'
 
 import {
   PRICING_PLAN_DISPLAY_TEXT_MAX_LENGTH,
+  getChargePlanBonus,
   normalizePricingPlanDisplayText,
 } from '../src/lib/pricing-plan-display.ts'
 
@@ -64,20 +65,19 @@ test('회원 충전 상품 화면은 이름 비교·자동 계산 없이 DB 값�
   assert.doesNotMatch(pricingClient, /plan\.name ===/)
   assert.doesNotMatch(pricingClient, /우선 고객 지원/)
   assert.doesNotMatch(pricingClient, /% 할인/)
-  assert.doesNotMatch(pricingClient, /savingsPercent|lowestPricePerCredit|plans\[0\]/)
+  // 다른 상품과 비교한 할인율은 만들지 않는다. 보너스는 각 상품의 금액·크레딧만으로 계산한다(2026-11-19 결정).
+  assert.doesNotMatch(pricingClient, /savingsPercent|lowestPricePerCredit/)
   assert.doesNotMatch(pricingClient, /가장 인기|최고 가성비/)
+  assert.match(pricingClient, /getChargePlanBonus\(plan\.price, plan\.credits\)/)
 
   assert.match(pricingClient, /const highlighted = plan\.is_highlighted === true/)
-  assert.match(pricingClient, /\{plan\.badge_text && highlighted && \([\s\S]{0,320}bg-blue-500[\s\S]{0,200}<Sparkles[\s\S]{0,80}\{plan\.badge_text\}/)
-  assert.match(pricingClient, /\{plan\.badge_text && !highlighted && \([\s\S]{0,320}bg-green-500[\s\S]{0,160}\{plan\.badge_text\}/)
-  assert.match(pricingClient, /\{plan\.discount_text && \([\s\S]{0,240}bg-green-100 text-green-700[\s\S]{0,80}\{plan\.discount_text\}/)
-  assert.match(pricingClient, /\$\{highlighted\s+\? 'border-2 border-blue-500 shadow-lg scale-105'/)
-  assert.match(pricingClient, /\$\{highlighted\s+\? 'bg-blue-600 hover:bg-blue-700'/)
+  assert.match(pricingClient, /\{plan\.badge_text && \([\s\S]{0,400}\$\{highlighted[\s\S]{0,400}\{plan\.badge_text\}/)
+  assert.match(pricingClient, /\{plan\.discount_text && \([\s\S]{0,240}\{plan\.discount_text\}/)
+  // 사이트 공통 색(studio 토큰)만 쓴다. 예전 기본 파랑·초록·반짝이 아이콘은 쓰지 않는다.
+  assert.doesNotMatch(pricingClient, /bg-blue-|bg-green-|Sparkles|scale-105/)
 
-  // 그대로 두는 줄
   assert.match(pricingClient, /문제마켓 이용/)
   assert.match(pricingClient, /사용 기한 \{POINT_CHARGE_VALIDITY_YEARS\}년/)
-  assert.match(pricingClient, /크레딧당 ₩\{pricePerCredit\.toFixed\(2\)\}/)
 
   // 새 열이 아직 없는 응답(undefined)도 받을 수 있게 선택 항목이다.
   assert.match(pricingClient, /badge_text\?: string \| null/)
@@ -124,4 +124,16 @@ test('관리자 화면에서 세 항목을 입력하고 목록에서 볼 수 있
   assert.match(adminList, /plan\.badge_text \|\| '없음'/)
   assert.match(adminList, /plan\.is_highlighted \? '예' : '아니오'/)
   assert.match(adminList, /plan\.discount_text \|\| '없음'/)
+})
+
+test('보너스 크레딧은 1원 = 1크레딧 기준으로 금액보다 더 받는 만큼, 비율은 내림 정수', () => {
+  assert.deepEqual(getChargePlanBonus(9900, 10000), { credits: 100, percent: 1 })
+  assert.deepEqual(getChargePlanBonus(29900, 33000), { credits: 3100, percent: 10 })
+  assert.deepEqual(getChargePlanBonus(49900, 65000), { credits: 15100, percent: 30 })
+  // 금액보다 적거나 같으면 보너스가 없다
+  assert.equal(getChargePlanBonus(1000, 100), null)
+  assert.equal(getChargePlanBonus(10000, 10000), null)
+  // 잘못된 값
+  assert.equal(getChargePlanBonus(0, 100), null)
+  assert.equal(getChargePlanBonus(Number.NaN, 100), null)
 })

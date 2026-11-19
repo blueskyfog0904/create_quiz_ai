@@ -13,3 +13,12 @@ export function normalizePricingPlanDisplayText(value: unknown, label: string): 
     }
     return trimmed
 }
+
+// 충전 상품의 보너스 크레딧. 기준은 결제 금액 1원 = 1크레딧(사용자 결정 2026-11-19)이고,
+// 금액·크레딧은 상품(DB) 값이다. 받는 크레딧이 결제 금액보다 많을 때만 보너스로 보고, 비율은 내림한 정수 %다.
+export function getChargePlanBonus(price: number, credits: number): { credits: number; percent: number } | null {
+    if (!Number.isFinite(price) || !Number.isFinite(credits) || price <= 0) return null
+    const bonus = credits - price
+    if (bonus <= 0) return null
+    return { credits: bonus, percent: Math.floor((bonus / price) * 100) }
+}
