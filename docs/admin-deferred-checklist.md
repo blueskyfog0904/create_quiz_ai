@@ -126,7 +126,7 @@
 
 ## 1. 대표님이 직접 하실 설정
 
-- [ ] **슬랙 웹훅 등록**: Supabase 대시보드 › Vault에 `admin_alert_slack_webhook_url` 이름으로 등록. 등록 전까지 대시보드에 "슬랙 알림 미설정"으로 나오고, 관리자 알림은 화면(종·토스트)으로만 온다.
+- [x] **슬랙 웹훅 등록** (2026-11-19 대표 등록, 슬랙 비공개 채널 `관리자알림`, 앱 `summersuninst-admin-alarm`): Vault `admin_alert_slack_webhook_url`. 등록 직후 전송 작업이 최근 24시간 알림 2건(마켓 환불 요청·새 문의)을 한 메시지로 보내 슬랙이 200 `ok`로 응답.
 - [x] **옛 슬랙 직접 호출 제거(2026-11-19)**: 문의 등록 route의 `sendSlackNotification`과 `src/lib/slack.ts`를 지움. 운영 Vercel에 `SLACK_WEBHOOK_URL`이 없어 원래 아무것도 보내지 않았고, 새 문의는 DB 트리거가 관리자 이벤트(`support_ticket_created`, 슬랙 대상)로 남기므로 줄어든 알림 없음. 계획 문서(readiness 88·392행, improvement 70·267행)의 옛 슬랙 서술은 작성 당시 기록이라 고치지 않음.
 - [x] **Resend 메일 수신 확인** (2026-11-17 복구 메일이 받은편지함에 도착, 보낸 사람 `no-reply@summersuninst.com`. 본문은 영문 기본 문구 → 0번 구역의 템플릿 교체)
 - [ ] **외부 가동 감시(W0-9)**: 사이트가 죽었을 때 알려 주는 외부 감시 서비스 연결(하트비트 주소는 Vault `admin_alert_heartbeat_url`).
