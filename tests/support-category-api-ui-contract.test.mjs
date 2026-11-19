@@ -53,11 +53,10 @@ test('support pages pass categories and render category-first UX with admin filt
 })
 
 
-test('user support inquiry form uses the redesigned guided card layout', () => {
-  assert.match(userSupportClient, /getGuideCardMeta/)
+test('user support inquiry form shows the category guide as a plain list (no icon cards)', () => {
+  // 카테고리 안내는 DB 값(help_text·guide 항목)을 "·" 목록으로만 보인다. 코드에 박힌 아이콘·설명 카드는 없앴다(2026-11-19).
+  assert.doesNotMatch(userSupportClient, /getGuideCardMeta|bg-slate-950|구매한 자료명|환불 요청 사유/)
   assert.match(userSupportClient, /selectedCategoryHelpId/)
-  assert.match(userSupportClient, /rounded-2xl[^"]*bg-slate-950/)
-  assert.match(userSupportClient, /grid-cols-1 md:grid-cols-2/)
   assert.match(userSupportClient, /aria-describedby/)
-  assert.match(userSupportClient, /구매한 자료명|환불 요청 사유/)
+  assert.match(userSupportClient, /selectedGuideItems\.map\(\(item\) => \(/)
 })

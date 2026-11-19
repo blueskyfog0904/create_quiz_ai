@@ -422,7 +422,7 @@ function SignupContent() {
   if (isSuccess && successData) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-12 px-4 sm:px-6 lg:px-8">
-        <Card className="w-full max-w-md shadow-2xl border-0 ring-1 ring-gray-200/50 bg-white/50 backdrop-blur-sm">
+        <Card className="w-full max-w-md border-0 bg-transparent shadow-none ring-0">
           <CardHeader>
             <CardTitle className="text-2xl font-bold text-center text-green-600">
               회원가입 완료
@@ -459,6 +459,7 @@ function SignupContent() {
           </CardContent>
           <CardFooter>
             <Button
+              variant="brand"
               type="button"
               className="w-full h-11 text-md"
               onClick={() => window.location.assign(homeHref)}
@@ -474,7 +475,7 @@ function SignupContent() {
   if (kakaoSignupMode) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-12 px-4 sm:px-6 lg:px-8">
-        <Card className="w-full max-w-md shadow-2xl border-0 ring-1 ring-gray-200/50 bg-white/50 backdrop-blur-sm">
+        <Card className="w-full max-w-md border-0 bg-transparent shadow-none ring-0">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center tracking-tight">카카오 간편가입</CardTitle>
             <CardDescription className="text-center text-gray-500">
@@ -499,7 +500,7 @@ function SignupContent() {
                     </p>
                   )}
                 </div>
-                <Button className="w-full h-11 text-md font-medium" type="submit" disabled={isLoading}>
+                <Button variant="brand" className="w-full h-11 text-md font-medium" type="submit" disabled={isLoading}>
                   {isLoading ? '처리 중...' : '카카오 간편가입 완료'}
                 </Button>
               </form>
@@ -513,12 +514,9 @@ function SignupContent() {
   if (!isEmailSignupMode) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-12 px-4 sm:px-6 lg:px-8">
-        <Card className="w-full max-w-md shadow-2xl border-0 ring-1 ring-gray-200/50 bg-white/50 backdrop-blur-sm">
+        <Card className="w-full max-w-md border-0 bg-transparent shadow-none ring-0">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center tracking-tight">회원가입</CardTitle>
-            <CardDescription className="text-center text-gray-500">
-              원하는 방법으로 회원가입을 진행해주세요
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <Button
@@ -534,6 +532,7 @@ function SignupContent() {
               카카오 간편가입
             </Button>
             <Button
+              variant="brand"
               type="button"
               onClick={() => setIsEmailSignupMode(true)}
               disabled={isLoading}
@@ -554,7 +553,7 @@ function SignupContent() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md shadow-2xl border-0 ring-1 ring-gray-200/50 bg-white/50 backdrop-blur-sm">
+      <Card className="w-full max-w-md border-0 bg-transparent shadow-none ring-0">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center tracking-tight">회원가입</CardTitle>
           <CardDescription className="text-center text-gray-500">
@@ -612,7 +611,7 @@ function SignupContent() {
               />
             </div>
 
-            <Button className="w-full mt-6 h-11 text-md font-medium" type="submit" disabled={isLoading || (password !== confirmPassword)}>
+            <Button variant="brand" className="w-full mt-6 h-11 text-md font-medium" type="submit" disabled={isLoading || (password !== confirmPassword)}>
               {isLoading ? '가입 처리 중...' : '가입하기'}
             </Button>
           </form>

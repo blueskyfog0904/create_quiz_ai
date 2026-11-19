@@ -6,17 +6,12 @@ import { SectionHeading } from './section-heading'
 interface PopularDownloadsSliderProps {
   subject: WorkspaceSubject
   items: MarketHomePopularItem[]
-  rankingWindowDays: number
 }
 
-export function PopularDownloadsSlider({ subject, items, rankingWindowDays }: PopularDownloadsSliderProps) {
+export function PopularDownloadsSlider({ subject, items }: PopularDownloadsSliderProps) {
   return (
     <section id="popular-downloads">
-      <SectionHeading
-        eyebrow="TEACHER'S PICK"
-        title="인기 다운로드 자료"
-        description={`최근 ${rankingWindowDays}일 다운로드 URL 발급 사용자 기준`}
-      />
+      <SectionHeading title="인기 다운로드 자료" />
       {items.length === 0 ? (
         <div className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] px-5 py-12 text-center text-sm text-[var(--studio-muted)]">
           아직 다운로드 집계가 없습니다.

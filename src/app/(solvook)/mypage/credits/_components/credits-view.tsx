@@ -3,9 +3,9 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, ChevronLeft, Clock, Coins, RotateCcw } from 'lucide-react'
+import { AlertCircle, Coins, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
-import { StudioContainer, StudioEmptyState } from '@/components/design-system'
+import { StudioEmptyState } from '@/components/design-system'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { useListQuery } from '@/hooks/use-list-query'
 import { getListPagination } from '@/lib/list-pagination'
@@ -78,7 +78,7 @@ const refundButtonClassName =
   'inline-flex min-h-9 items-center rounded-[var(--studio-radius-control)] border border-red-500 bg-[var(--studio-surface)] px-3 text-sm font-semibold text-red-600 transition-colors hover:bg-red-500 hover:text-white disabled:opacity-50 disabled:hover:bg-[var(--studio-surface)] disabled:hover:text-red-600 outline-none focus-visible:ring-2 focus-visible:ring-red-300'
 
 const cardClassName =
-  'rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] sm:p-7'
+  'rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 sm:p-7'
 
 const badgeBaseClassName =
   'inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold'
@@ -359,18 +359,8 @@ export function CreditsView({
   ]
 
   return (
-    <StudioContainer className="py-8 sm:py-10">
-      <Link
-        href="/mypage"
-        className="inline-flex min-h-9 items-center gap-1 rounded-md text-sm font-medium text-[var(--studio-muted)] outline-none hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-      >
-        <ChevronLeft aria-hidden="true" className="h-4 w-4" />
-        마이페이지
-      </Link>
-      <h1 className="mt-2 text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">크레딧 관리</h1>
-      <p className="mt-2 break-keep text-sm text-[var(--studio-muted)]">
-        크레딧 잔액과 구매·거래 내역을 확인하고 환불을 신청할 수 있습니다.
-      </p>
+    <div>
+      <h1 className="text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">크레딧 관리</h1>
 
       {/* 잔액 카드 */}
       <section aria-label="크레딧 잔액" className={`mt-6 ${cardClassName}`}>
@@ -404,24 +394,12 @@ export function CreditsView({
         </div>
       </section>
 
-      {/* 충전·사용 경로 (컴플라이언스) */}
-      <section aria-label="크레딧 충전·사용 경로" className={`mt-4 ${cardClassName}`}>
-        <h2 className="text-base font-bold text-[var(--studio-ink)]">크레딧 충전·사용 경로</h2>
-        <p className="mt-1 break-keep text-sm text-[var(--studio-muted)]">
-          충전한 크레딧은 문제마켓 자료 구매에 사용됩니다.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button asChild variant="outline" className="min-h-11">
-            <Link href="/pricing">크레딧 충전</Link>
-          </Button>
-          <Button asChild variant="outline" className="min-h-11">
-            <Link href="/mypage/payments">결제 내역</Link>
-          </Button>
-          <Button asChild variant="outline" className="min-h-11">
-            <Link href="/terms/refund">취소/환불정책</Link>
-          </Button>
-        </div>
-      </section>
+      {/* 충전·사용 경로(컴플라이언스): 카드 대신 작은 안내 한 줄과 링크 */}
+      <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 break-keep px-1 text-[13px] text-[var(--studio-muted)]">
+        <span>충전한 크레딧은 문제마켓 자료 구매에 사용됩니다.</span>
+        <Link href="/mypage/payments" className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-[var(--studio-ink)]">결제 내역</Link>
+        <Link href="/terms/refund" className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-[var(--studio-ink)]">취소/환불정책</Link>
+      </p>
 
       {/* 구매/거래 내역 탭 */}
       <Tabs value={sourceQuery.params.get('tab') === 'transactions' ? 'transactions' : 'sources'} onValueChange={(tab) => sourceQuery.update({ tab })} className="mt-8 gap-0">
@@ -444,7 +422,6 @@ export function CreditsView({
           </p>
           {sources.length === 0 ? (
             <StudioEmptyState
-              icon={<Coins className="size-6" aria-hidden />}
               title="아직 구매 내역이 없습니다"
               description="크레딧을 충전하면 구매건별 잔여 크레딧과 환불 가능 여부를 확인할 수 있습니다."
               action={
@@ -481,7 +458,7 @@ export function CreditsView({
                   선택한 조건에 해당하는 구매 내역이 없습니다.
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] shadow-[var(--studio-shadow-card)]">
+                <div className="overflow-x-auto rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]">
                   <table className="w-full min-w-[760px] text-left text-sm">
                     <thead>
                       <tr className="border-b border-[var(--studio-border)] text-xs text-[var(--studio-muted)]">
@@ -556,7 +533,6 @@ export function CreditsView({
           </p>
           {transactions.length === 0 ? (
             <StudioEmptyState
-              icon={<Clock className="size-6" aria-hidden />}
               title="아직 거래 내역이 없습니다"
               description="크레딧을 충전하거나 사용하면 이곳에서 내역을 확인할 수 있습니다."
             />
@@ -585,7 +561,7 @@ export function CreditsView({
                   선택한 조건에 해당하는 거래 내역이 없습니다.
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] shadow-[var(--studio-shadow-card)]">
+                <div className="overflow-x-auto rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]">
                   <table className="w-full min-w-[640px] text-left text-sm">
                     <thead>
                       <tr className="border-b border-[var(--studio-border)] text-xs text-[var(--studio-muted)]">
@@ -713,6 +689,6 @@ export function CreditsView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </StudioContainer>
+    </div>
   )
 }

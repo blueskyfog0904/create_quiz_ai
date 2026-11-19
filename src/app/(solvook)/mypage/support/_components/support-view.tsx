@@ -1,26 +1,11 @@
 'use client'
 
-import { useState, type ElementType } from 'react'
-import Link from 'next/link'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  Loader2,
-  MessageCircle,
-  Trash2,
-  Pencil,
-  Info,
-  FileText,
-  CalendarDays,
-  Download,
-  MessageSquare,
-  CreditCard,
-  UserCircle,
-  Lightbulb,
-} from 'lucide-react'
+import { Loader2, Trash2, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { StudioContainer } from '@/components/design-system/studio-container'
 import { StudioEmptyState } from '@/components/design-system/studio-empty-state'
 import { Database } from '@/types/supabase'
 
@@ -40,7 +25,7 @@ const controlClassName =
   'min-h-11 w-full rounded-[var(--studio-radius-control)] border border-[var(--studio-control-border)] bg-[var(--studio-surface)] px-3 text-sm text-[var(--studio-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]'
 
 const cardClassName =
-  'rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] sm:p-6'
+  'rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 sm:p-6'
 
 const iconButtonClassName =
   'inline-flex min-h-9 min-w-9 items-center justify-center rounded-[var(--studio-radius-control)] text-[var(--studio-muted)] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]'
@@ -89,55 +74,6 @@ function getTicketCategoryName(ticket: SupportTicket) {
   }
 
   return ticket.support_ticket_categories?.name || '미분류'
-}
-
-type GuideCardMeta = {
-  icon: ElementType
-  title: string
-  description: string
-}
-
-function getGuideCardMeta(item: string, index: number): GuideCardMeta {
-  const exactGuideCards: Record<string, GuideCardMeta> = {
-    '구매한 자료명': { icon: FileText, title: item, description: '어떤 자료인지 정확한 확인이 필요합니다.' },
-    '환불 요청 사유': { icon: MessageSquare, title: item, description: '환불을 요청하시는 사유를 자세히 알려주세요.' },
-  }
-  const exactGuideCard = exactGuideCards[item]
-
-  if (exactGuideCard) return exactGuideCard
-
-  const normalized = item.replaceAll(' ', '')
-
-  if (normalized.includes('자료명') || normalized.includes('상품명')) {
-    return { icon: FileText, title: item, description: '어떤 자료인지 정확한 확인이 필요합니다.' }
-  }
-
-  if (normalized.includes('구매일') || normalized.includes('결제일') || normalized.includes('시간')) {
-    return { icon: CalendarDays, title: item, description: '정확한 날짜를 알려주시면 확인이 빠릅니다.' }
-  }
-
-  if (normalized.includes('다운로드')) {
-    return { icon: Download, title: item, description: '자료를 다운로드하셨는지 알려주세요.' }
-  }
-
-  if (normalized.includes('환불') || normalized.includes('사유')) {
-    return { icon: MessageSquare, title: item, description: '요청하시는 사유를 자세히 알려주세요.' }
-  }
-
-  if (normalized.includes('결제') || normalized.includes('크레딧')) {
-    return { icon: CreditCard, title: item, description: '결제 또는 크레딧 내역 확인에 필요합니다.' }
-  }
-
-  if (normalized.includes('계정') || normalized.includes('이메일')) {
-    return { icon: UserCircle, title: item, description: '계정 확인을 위해 정확히 입력해주세요.' }
-  }
-
-  const fallbackIcons = [FileText, CalendarDays, Download, MessageSquare, Lightbulb]
-  return {
-    icon: fallbackIcons[index % fallbackIcons.length],
-    title: item,
-    description: '문의 확인에 필요한 정보를 입력해주세요.',
-  }
 }
 
 export function SupportView({ tickets, categories, userId }: SupportViewProps) {
@@ -271,31 +207,14 @@ export function SupportView({ tickets, categories, userId }: SupportViewProps) {
   }
 
   return (
-    <StudioContainer className="py-8 sm:py-10" data-user-id={userId}>
-      <Link
-        href="/mypage"
-        className="inline-flex min-h-9 items-center rounded-[var(--studio-radius-control)] text-sm font-medium text-[var(--studio-muted)] outline-none transition-colors hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-      >
-        ← 마이페이지
-      </Link>
-      <h1 className="mt-2 text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">고객지원</h1>
-      <p className="mt-2 text-sm text-[var(--studio-muted)] break-keep">
-        문의 카테고리를 먼저 선택하면 필요한 정보와 작성 가이드를 확인할 수 있습니다.
-      </p>
+    <div data-user-id={userId}>
+      <h1 className="text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">고객지원</h1>
 
       <section className={`mt-6 ${cardClassName}`}>
-        <div className="flex items-center gap-3">
-          <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white">
-            <MessageCircle aria-hidden="true" className="size-6" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-[var(--studio-ink)]">1:1 문의하기</h2>
-            <p className="text-sm text-[var(--studio-muted)] break-keep">
-              궁금한 점을 남겨주시면 빠른 시일 내에 답변드립니다.
-              답변은 이메일로 보내지 않으니, 화면 위쪽 알림(종 모양)과 아래 문의 내역에서 확인해 주세요.
-            </p>
-          </div>
-        </div>
+        <h2 className="text-lg font-bold text-[var(--studio-ink)]">1:1 문의하기</h2>
+        <p className="mt-1 text-sm text-[var(--studio-muted)] break-keep">
+          답변은 이메일로 보내지 않으니, 화면 위쪽 알림(종 모양)과 아래 문의 내역에서 확인해 주세요.
+        </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-5">
           <div className="space-y-2">
@@ -320,39 +239,21 @@ export function SupportView({ tickets, categories, userId }: SupportViewProps) {
           {selectedCategory && (
             <div
               id="support-category-help"
-              className="rounded-[var(--studio-radius-card)] bg-[var(--studio-background)] p-5"
+              className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3"
             >
-              <div className="flex gap-3">
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--studio-primary-soft)] text-[var(--studio-primary)]">
-                  <Info aria-hidden="true" className="size-4" />
-                </div>
-                <p className="pt-1 text-sm font-semibold leading-6 text-[var(--studio-ink)] break-keep">
-                  {selectedCategory.help_text || selectedCategory.description || '선택한 문의 유형에 맞춰 내용을 작성해주세요.'}
-                </p>
-              </div>
-
+              {/* 카테고리 안내: 아이콘 칸 없이 문장과 "·" 목록 */}
+              <p className="text-sm font-semibold leading-6 text-[var(--studio-ink)] break-keep">
+                {selectedCategory.help_text || selectedCategory.description || '선택한 문의 유형에 맞춰 내용을 작성해주세요.'}
+              </p>
               {selectedGuideItems.length > 0 && (
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {selectedGuideItems.map((item, index) => {
-                    const guide = getGuideCardMeta(item, index)
-                    const GuideIcon = guide.icon
-
-                    return (
-                      <div
-                        key={item}
-                        className="flex items-start gap-3 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-4"
-                      >
-                        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--studio-primary-soft)] text-[var(--studio-primary)]">
-                          <GuideIcon aria-hidden="true" className="size-5" />
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-sm font-bold text-[var(--studio-ink)] break-keep">{guide.title}</p>
-                          <p className="text-xs leading-5 text-[var(--studio-muted)] break-keep">{guide.description}</p>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                <ul className="mt-2 flex flex-col gap-1 text-[13px] leading-5 text-[var(--studio-muted)] break-keep">
+                  {selectedGuideItems.map((item) => (
+                    <li key={item} className="flex gap-1.5">
+                      <span aria-hidden="true">·</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           )}
@@ -408,13 +309,12 @@ export function SupportView({ tickets, categories, userId }: SupportViewProps) {
         {tickets.length === 0 ? (
           <div className="mt-4">
             <StudioEmptyState
-              icon={<MessageCircle aria-hidden="true" className="size-6" />}
               title="아직 문의하신 내역이 없습니다"
               description="궁금한 점이 있으시면 언제든지 문의해주세요."
             />
           </div>
         ) : (
-          <ul className="mt-4 divide-y divide-[var(--studio-border)] rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] shadow-[var(--studio-shadow-card)]">
+          <ul className="mt-4 divide-y divide-[var(--studio-border)] rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]">
             {tickets.map((ticket) => {
               const badge = STATUS_BADGES[ticket.status ?? 'pending'] ?? STATUS_BADGES.pending
 
@@ -565,10 +465,10 @@ export function SupportView({ tickets, categories, userId }: SupportViewProps) {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button type="button" onClick={() => setShowSubmittedDialog(false)}>확인</Button>
+            <Button type="button" variant="brand" onClick={() => setShowSubmittedDialog(false)}>확인</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </StudioContainer>
+    </div>
   )
 }

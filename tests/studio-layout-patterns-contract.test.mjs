@@ -133,11 +133,12 @@ test('StudioPageHeader exposes only the approved display slots and wraps actions
   assertExportedFunction(source, 'StudioPageHeader')
   assert.deepEqual(
     extractInterfaceKeys(source, 'StudioPageHeaderProps').sort(),
-    ['breadcrumbs', 'eyebrow', 'title', 'description', 'meta', 'actions'].sort()
+    // 영문 소제목(eyebrow) 칸은 없앴다(2026-11-19, AI 티 정리)
+    ['breadcrumbs', 'title', 'description', 'meta', 'actions'].sort()
   )
+  assert.doesNotMatch(source, /eyebrow/)
   for (const slot of [
     'breadcrumbs',
-    'eyebrow',
     'title',
     'description',
     'meta',
@@ -168,17 +169,19 @@ test('StudioPageHeader exposes only the approved display slots and wraps actions
   assertDomainIndependent(source, 'StudioPageHeader')
 })
 
-test('StudioEmptyState exposes icon, copy, and action slots without owning domain state', () => {
+test('StudioEmptyState exposes copy and action slots (no icon circle) without owning domain state', () => {
   const source = readComponent('StudioEmptyState')
 
   assertExportedFunction(source, 'StudioEmptyState')
   assert.deepEqual(
     extractInterfaceKeys(source, 'StudioEmptyStateProps').sort(),
-    ['icon', 'title', 'description', 'action'].sort()
+    // 아이콘 동그라미·그림자는 없앴다(2026-11-19, AI 티 정리)
+    ['title', 'description', 'action'].sort()
   )
+  assert.doesNotMatch(source, /icon|shadow-/)
   assert.match(source, /title:\s*string/)
   assert.match(source, /description:\s*string/)
-  for (const slot of ['icon', 'title', 'description', 'action']) {
+  for (const slot of ['title', 'description', 'action']) {
     assert.match(source, new RegExp(`\\{${slot}\\}`), `${slot} must render`)
   }
   assert.match(source, /var\(--studio-surface\)/)

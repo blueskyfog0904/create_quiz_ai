@@ -84,7 +84,9 @@ test('board results keep one semantic list and one shared market sample preview 
     /`\$\{item\.startingPriceCredits\.toLocaleString\('ko-KR'\)\} 크레딧`/
   )
   assert.doesNotMatch(rows, /크레딧부터/)
-  assert.match(rows, /item\.ratingAverage === null[\s\S]*\? '0\.0'/)
+  // 후기가 없으면 별점을 숨긴다(빈 0.0 표시 없음, 2026-11-19)
+  assert.match(rows, /item\.ratingCount > 0 && item\.ratingAverage !== null \?/)
+  assert.doesNotMatch(rows, /'0\.0'/)
   assert.doesNotMatch(rows, /평점 없음/)
   assert.match(rows, /Star/)
   assert.match(

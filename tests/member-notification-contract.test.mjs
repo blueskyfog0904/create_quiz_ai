@@ -212,7 +212,8 @@ test('the admin support screen warns when the reply was saved without a member n
 
 test('the mypage notifications page lists only my rows, paginated, and never writes', () => {
   const page = read('../src/app/(solvook)/mypage/notifications/page.tsx')
-  const home = read('../src/app/(solvook)/mypage/page.tsx')
+  // 마이페이지 메뉴는 공통 왼쪽 메뉴(모든 마이페이지 화면)에 있다(2026-11-19)
+  const home = read('../src/app/(solvook)/mypage/_components/mypage-side-nav.tsx')
 
   assert.doesNotMatch(page, /'use client'/)
   assert.match(page, /const userId = await getRequestAuthUserId\(\)\s+if \(!userId\) \{\s+redirect\(/)
@@ -231,6 +232,7 @@ test('the mypage notifications page lists only my rows, paginated, and never wri
   assert.doesNotMatch(page, /\.update\(|\.insert\(|\.delete\(|\.upsert\(|\.rpc\(|fetch\(|is_read/)
 
   assert.match(home, /href: '\/mypage\/notifications'/)
+  assert.match(read('../src/app/(solvook)/mypage/layout.tsx'), /<MypageSideNav \/>/)
 })
 
 test('the list page size used by the notifications page is 20', () => {

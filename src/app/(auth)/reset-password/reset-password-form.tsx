@@ -73,7 +73,7 @@ export function ResetPasswordForm() {
         <p className="text-xs text-gray-500 break-keep">
           비밀번호를 바꾸면 모든 기기에서 로그아웃됩니다. 새 비밀번호로 다시 로그인해 주세요.
         </p>
-        <Button className="w-full h-11 mt-2 text-md font-medium" type="submit" disabled={isLoading || password !== confirmPassword}>
+        <Button variant="brand" className="w-full h-11 mt-2 text-md font-medium" type="submit" disabled={isLoading || password !== confirmPassword}>
           {isLoading ? '변경 중...' : '비밀번호 변경'}
         </Button>
       </div>

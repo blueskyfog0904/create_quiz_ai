@@ -29,7 +29,7 @@ type SearchParams = { token_hash?: string | string[]; type?: string | string[]; 
 function ResetCard({ description, children, footer }: { description: string; children: React.ReactNode; footer?: React.ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md shadow-2xl border-0 ring-1 ring-gray-200/50 bg-white/50 backdrop-blur-sm">
+      <Card className="w-full max-w-md border-0 bg-transparent shadow-none ring-0">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center tracking-tight">새 비밀번호 설정</CardTitle>
           <CardDescription className="text-center text-gray-500 break-keep">{description}</CardDescription>
@@ -68,7 +68,7 @@ export default async function ResetPasswordPage({ searchParams }: { searchParams
         <form method="post" action={PASSWORD_RESET_CONFIRM_PATH}>
           <input type="hidden" name="token_hash" value={tokenHash} />
           <input type="hidden" name="type" value="recovery" />
-          <Button className="w-full h-11 text-md font-medium" type="submit">계속</Button>
+          <Button variant="brand" className="w-full h-11 text-md font-medium" type="submit">계속</Button>
         </form>
       </ResetCard>
     )

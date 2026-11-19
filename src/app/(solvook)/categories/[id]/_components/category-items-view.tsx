@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition, type CSSProperties, type MouseEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronDown, FolderOpen } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { StudioContainer } from '@/components/design-system/studio-container'
 import { StudioEmptyState } from '@/components/design-system/studio-empty-state'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
@@ -250,7 +250,6 @@ export function CategoryItemsView({ category, selected, rows, tree, pagination, 
           {rows.length === 0 && !filters.q ? (
             <div className="mt-8">
               <StudioEmptyState
-                icon={<FolderOpen className="size-6" aria-hidden />}
                 title="아직 등록된 자료가 없습니다"
                 description="이 카테고리에 자료가 등록되면 이곳에서 확인할 수 있습니다."
               />
@@ -330,7 +329,6 @@ export function CategoryItemsView({ category, selected, rows, tree, pagination, 
               {filteredRows.length === 0 ? (
                 <div className="mt-6">
                   <StudioEmptyState
-                    icon={<FolderOpen className="size-6" aria-hidden />}
                     title="조건에 맞는 자료가 없습니다"
                     description="검색어를 변경해 보세요."
                   />

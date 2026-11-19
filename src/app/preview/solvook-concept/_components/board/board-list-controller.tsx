@@ -14,7 +14,6 @@ import {
 import {
   Eye,
   FileQuestion,
-  FileSearch,
   RotateCcw,
   Search,
   X,
@@ -488,7 +487,6 @@ export function BoardListController({
                 <span aria-current="page">국어 자료</span>
               </>
             }
-            eyebrow="KOREAN LITERATURE BOARD"
             title={board.title}
             description={board.description}
             actions={
@@ -681,7 +679,6 @@ export function BoardListController({
               </div>
             ) : (
               <StudioEmptyState
-                icon={<FileSearch aria-hidden="true" className="h-7 w-7" />}
                 title="조건에 맞는 자료가 없습니다"
                 description="검색어를 줄이거나 선택한 필터를 초기화해 보세요."
                 action={
@@ -772,7 +769,6 @@ export function BoardListController({
               </div>
             ) : (
               <StudioEmptyState
-                icon={<FileSearch aria-hidden="true" className="h-7 w-7" />}
                 title="조건에 맞는 자료가 없습니다"
                 description="검색어를 줄이거나 선택한 필터를 초기화해 보세요."
                 action={

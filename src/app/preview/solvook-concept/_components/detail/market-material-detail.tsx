@@ -178,7 +178,7 @@ export function MarketMaterialDetail({
               <img
                 src={item.thumbnailUrl}
                 alt={`${item.title} 표지`}
-                className="aspect-[3/4] w-full rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] object-cover shadow-[var(--studio-shadow-card)]"
+                className="aspect-[3/4] w-full rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] object-cover"
               />
             ) : (
               <div className="flex aspect-[3/4] w-full flex-col items-center justify-center rounded-[var(--studio-radius-card)] border border-dashed border-[var(--studio-border)] bg-[var(--studio-background)] px-4 text-center text-[var(--studio-muted)]">
@@ -235,26 +235,20 @@ export function MarketMaterialDetail({
               </div>
             </dl>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3">
-                <span className="block text-xs text-[var(--studio-muted)]">포함 문항</span>
-                <strong className="mt-1 block text-lg font-extrabold text-[var(--studio-ink)]">
-                  {item.question_count === null ? '정보 없음' : `${item.question_count}개`}
-                </strong>
-              </div>
-              <div className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3">
-                <span className="block text-xs text-[var(--studio-muted)]">샘플 페이지</span>
-                <strong className="mt-1 block text-lg font-extrabold text-[var(--studio-ink)]">
-                  {hasSamplePages ? `${samplePageCount}장` : '제공 없음'}
-                </strong>
-              </div>
-              <div className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3">
-                <span className="block text-xs text-[var(--studio-muted)]">이용가</span>
-                <strong className="mt-1 block text-lg font-extrabold text-[var(--studio-ink)]">
-                  {startingPrice === null ? '가격 정보 없음' : `${startingPrice.toLocaleString('ko-KR')} 크레딧`}
-                </strong>
-              </div>
-            </div>
+            {/* 자료 정보는 칸 상자 대신 한 줄씩(라벨·값), 가격은 크게 */}
+            <dl className="mt-5 grid grid-cols-[5.5rem_minmax(0,1fr)] gap-y-2.5 text-sm">
+              <dt className="text-[var(--studio-muted)]">포함 문항</dt>
+              <dd className="font-medium text-[var(--studio-text)]">
+                {item.question_count === null ? '정보 없음' : `${item.question_count}개`}
+              </dd>
+              <dt className="text-[var(--studio-muted)]">샘플 페이지</dt>
+              <dd className="font-medium text-[var(--studio-text)]">
+                {hasSamplePages ? `${samplePageCount}장` : '제공 없음'}
+              </dd>
+            </dl>
+            <p className="mt-5 [font-family:var(--studio-font-price)] text-2xl font-bold tabular-nums text-[var(--studio-ink)]">
+              {startingPrice === null ? '가격 정보 없음' : `${startingPrice.toLocaleString('ko-KR')} 크레딧`}
+            </p>
 
             <Button asChild variant="brand" className="mt-5 lg:hidden">
               <a href="#purchase-options">구매 옵션 확인</a>
@@ -270,11 +264,11 @@ export function MarketMaterialDetail({
           >
             <h2
               id="market-material-information-heading"
-              className="text-2xl font-extrabold text-[var(--studio-ink)]"
+              className="text-xl font-bold text-[var(--studio-ink)]"
             >
               자료 상세 정보
             </h2>
-            <dl className="mt-6 grid gap-x-10 gap-y-5 rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-5 py-5 text-sm sm:grid-cols-2">
+            <dl className="mt-5 grid gap-x-10 gap-y-4 border-t border-[var(--studio-border)] pt-5 text-sm sm:grid-cols-2">
               {materialInfoRows.map((row) => (
                 <div key={row.label} className="flex gap-6">
                   <dt className="min-w-[72px] text-[var(--studio-muted)]">{row.label}</dt>
@@ -283,7 +277,7 @@ export function MarketMaterialDetail({
               ))}
             </dl>
             {description ? (
-              <div className="mt-4 whitespace-pre-line break-keep rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-5 py-5 text-sm leading-8 text-[var(--studio-muted)]">
+              <div className="mt-5 whitespace-pre-line break-keep border-t border-[var(--studio-border)] pt-5 text-sm leading-7 text-[var(--studio-text)]">
                 {description}
               </div>
             ) : null}
@@ -294,16 +288,13 @@ export function MarketMaterialDetail({
             aria-labelledby="market-purchase-options-heading"
             className="scroll-mt-36 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 sm:p-7"
           >
-            {/* 시안 A 머리말: 작은 회색 "구매 옵션" + 제목(아이콘·영문 eyebrow·설명 문장 없음) */}
-            <div className="mb-6">
-              <span className="text-xs font-bold text-[var(--studio-muted)]">구매 옵션</span>
-              <h2
-                id="market-purchase-options-heading"
-                className="mt-1 text-2xl font-extrabold text-[var(--studio-ink)]"
-              >
-                필요한 자료를 선택하세요
-              </h2>
-            </div>
+            {/* 머리말은 한글 제목 하나(작은 소제목·안내 문장 없음) */}
+            <h2
+              id="market-purchase-options-heading"
+              className="mb-5 text-xl font-bold text-[var(--studio-ink)]"
+            >
+              자료 선택
+            </h2>
             <MarketItemActions
               bundleOption={bundleOption}
               downloadFiles={downloadFiles}

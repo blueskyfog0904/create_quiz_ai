@@ -1,9 +1,6 @@
 'use client'
 
 import { useMemo } from 'react'
-import Link from 'next/link'
-import { CreditCard } from 'lucide-react'
-import { StudioContainer } from '@/components/design-system/studio-container'
 import { StudioEmptyState } from '@/components/design-system/studio-empty-state'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { useListQuery } from '@/hooks/use-list-query'
@@ -65,17 +62,8 @@ export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryR
   const pagedPayments = filteredPayments.slice(pagination.offset, pagination.offset + pagination.pageSize)
 
   return (
-    <StudioContainer className="py-8 sm:py-10">
-      <Link
-        href="/mypage"
-        className="inline-flex min-h-9 items-center rounded-[var(--studio-radius-control)] text-sm font-medium text-[var(--studio-muted)] outline-none transition-colors hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-      >
-        ← 마이페이지
-      </Link>
-      <h1 className="mt-2 text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">결제 내역</h1>
-      <p className="mt-2 text-sm text-[var(--studio-muted)] break-keep">
-        충전 상품을 실제로 결제한 구매 및 환불 기록을 확인하실 수 있습니다.
-      </p>
+    <div>
+      <h1 className="text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">결제 내역</h1>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
         {QUICK_RANGES.map((range) => (
@@ -118,7 +106,6 @@ export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryR
       {payments.length === 0 ? (
         <div className="mt-6">
           <StudioEmptyState
-            icon={<CreditCard aria-hidden="true" className="size-6" />}
             title="결제 내역이 없습니다"
             description="아직 충전 상품을 실제로 결제하신 내역이 없습니다."
           />
@@ -126,13 +113,12 @@ export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryR
       ) : filteredPayments.length === 0 ? (
         <div className="mt-6">
           <StudioEmptyState
-            icon={<CreditCard aria-hidden="true" className="size-6" />}
             title="조회 결과가 없습니다"
             description="선택한 기간에 해당하는 결제 내역이 없습니다."
           />
         </div>
       ) : (
-        <ul className="mt-6 divide-y divide-[var(--studio-border)] rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] shadow-[var(--studio-shadow-card)]">
+        <ul className="mt-6 divide-y divide-[var(--studio-border)] rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]">
           {pagedPayments.map((payment) => {
             const badge = STATUS_BADGES[payment.status] ?? {
               label: payment.status,
@@ -183,6 +169,6 @@ export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryR
         </ul>
       )}
       <StudioListPagination {...pagination} onPageChange={listQuery.setPage} onPageSizeChange={listQuery.setPageSize} />
-    </StudioContainer>
+    </div>
   )
 }

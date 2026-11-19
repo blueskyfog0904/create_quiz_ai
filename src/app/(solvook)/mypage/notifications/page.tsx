@@ -2,11 +2,9 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
-import { Bell } from 'lucide-react'
 import { getRequestAuthUserId } from '@/lib/request-auth'
 import { createClient } from '@/lib/supabase/server'
 import { getListPagination } from '@/lib/list-pagination'
-import { StudioContainer } from '@/components/design-system/studio-container'
 import { StudioEmptyState } from '@/components/design-system/studio-empty-state'
 
 export const metadata: Metadata = {
@@ -67,28 +65,18 @@ export default async function MypageNotificationsPage({
   }
 
   return (
-    <StudioContainer className="py-8 sm:py-10">
-      <Link
-        href="/mypage"
-        className="inline-flex min-h-9 items-center rounded-[var(--studio-radius-control)] text-sm font-medium text-[var(--studio-muted)] outline-none transition-colors hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-      >
-        ← 마이페이지
-      </Link>
-      <h1 className="mt-2 text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">알림</h1>
-      <p className="mt-2 text-sm text-[var(--studio-muted)]">
-        받은 알림 전체입니다.
-      </p>
+    <div>
+      <h1 className="text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">알림</h1>
 
       {pagination.totalCount === 0 ? (
         <div className="mt-6">
           <StudioEmptyState
-            icon={<Bell aria-hidden="true" className="size-6" />}
             title="알림이 없습니다"
             description="아직 받은 알림이 없습니다."
           />
         </div>
       ) : (
-        <ul className="mt-6 divide-y divide-[var(--studio-border)] rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] shadow-[var(--studio-shadow-card)]">
+        <ul className="mt-6 divide-y divide-[var(--studio-border)] rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]">
           {(notifications ?? []).map((notification) => (
             <li key={notification.id} className="px-4 py-4 sm:px-5">
               <p className="text-base font-semibold text-[var(--studio-ink)] break-keep">{notification.title}</p>
@@ -126,6 +114,6 @@ export default async function MypageNotificationsPage({
           ) : <span />}
         </nav>
       ) : null}
-    </StudioContainer>
+    </div>
   )
 }

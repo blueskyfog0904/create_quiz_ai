@@ -4,7 +4,6 @@ import { StudioLandingPageFrame } from '@/components/page-templates'
 import { getCachedMainAdItems, getCachedMarketHomeData } from '@/lib/preview-home-cache'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import {
-  HomeFinalCta,
   RecentMaterials,
 } from './_components/home/home-material-sections'
 import { MainAdCarousel } from './_components/home/main-ad-carousel'
@@ -37,12 +36,11 @@ export default async function SolvookConceptPreviewPage({
       hero={<MainAdCarousel subject={subject} items={mainAdItems} />}
     >
       {homeData.config.popular.isActive && (
-        <PopularDownloadsSlider subject={subject} items={homeData.popular} rankingWindowDays={homeData.config.popular.rankingWindowDays} />
+        <PopularDownloadsSlider subject={subject} items={homeData.popular} />
       )}
       {homeData.config.recent.isActive && (
         <RecentMaterials subject={subject} items={homeData.recent} />
       )}
-      <HomeFinalCta subject={subject} itemCount={homeData.publicItemCount} />
     </StudioLandingPageFrame>
   )
 }

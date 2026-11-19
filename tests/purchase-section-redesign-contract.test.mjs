@@ -99,13 +99,14 @@ const detail = readFileSync(
   'utf8'
 )
 
-test('U3: 상세 구매 섹션 머리말은 한글 "구매 옵션"이고 이동 앵커는 유지된다', () => {
+test('U3: 상세 구매 섹션 머리말은 한글 제목 하나("자료 선택")이고 이동 앵커는 유지된다', () => {
   assert.doesNotMatch(detail, /PURCHASE & DOWNLOAD|PURCHASE OPTIONS|구매 및 다운로드|PackageCheck/)
-  assert.equal((detail.match(/text-xs font-bold text-\[var\(--studio-muted\)\]">구매 옵션<\/span>/g) ?? []).length, 1)
+  // 작은 소제목("구매 옵션")과 안내 문장 머리말은 없앴다(2026-11-19, AI 티 정리)
+  assert.doesNotMatch(detail, /">구매 옵션<\/span>|필요한 자료를 선택하세요/)
   assert.match(detail, /id="purchase-options"/)
   assert.match(detail, /aria-labelledby="market-purchase-options-heading"/)
   assert.match(detail, /scroll-mt-36/)
-  assert.match(detail, /id="market-purchase-options-heading"[\s\S]{0,120}필요한 자료를 선택하세요/)
+  assert.match(detail, /id="market-purchase-options-heading"[\s\S]{0,120}자료 선택/)
 })
 
 const reviewsSection = readFileSync(
@@ -118,8 +119,8 @@ test('15절: 상세 aside 요약 카드와 영문 eyebrow(MATERIAL INFORMATION·
   assert.doesNotMatch(detail, /구매·다운로드 확인|크레딧부터 이용할 수 있습니다/)
   assert.doesNotMatch(detail, /MATERIAL INFORMATION/)
   assert.doesNotMatch(reviewsSection, /REVIEWS/)
-  assert.match(detail, /id="market-material-information-heading"\n\s+className="text-2xl font-extrabold[^"]*"\n\s+>\n\s+자료 상세 정보/)
-  assert.match(reviewsSection, /<h2 id="market-reviews-heading" className="text-2xl font-extrabold[^"]*">\n\s+평점 및 후기/)
+  assert.match(detail, /id="market-material-information-heading"\n\s+className="text-xl font-bold[^"]*"\n\s+>\n\s+자료 상세 정보/)
+  assert.match(reviewsSection, /<h2 id="market-reviews-heading" className="text-xl font-bold[^"]*">\n\s+평점 및 후기/)
   assert.match(detail, /<Button asChild variant="brand" className="mt-5 lg:hidden">\n\s+<a href="#purchase-options">구매 옵션 확인<\/a>/)
 })
 

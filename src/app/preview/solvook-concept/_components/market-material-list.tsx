@@ -82,13 +82,16 @@ export function MarketMaterialList({
                       ? '가격 정보 없음'
                       : `${item.startingPriceCredits.toLocaleString('ko-KR')} 크레딧`}
                   </p>
-                  <span aria-hidden="true" className="text-[var(--studio-border)]">·</span>
-                  <p className="flex items-center gap-1 text-xs text-[var(--studio-muted)]">
-                    <Star aria-hidden="true" className="size-4 fill-current text-amber-400" />
-                    {item.ratingAverage === null
-                      ? '0.0'
-                      : `${item.ratingAverage.toFixed(1)} (${item.ratingCount.toLocaleString('ko-KR')})`}
-                  </p>
+                  {/* 후기가 없으면 별점을 보이지 않는다(빈 0.0 표시 없음) */}
+                  {item.ratingCount > 0 && item.ratingAverage !== null ? (
+                    <>
+                      <span aria-hidden="true" className="text-[var(--studio-border)]">·</span>
+                      <p className="flex items-center gap-1 text-xs text-[var(--studio-muted)]">
+                        <Star aria-hidden="true" className="size-4 fill-current text-amber-400" />
+                        {`${item.ratingAverage.toFixed(1)} (${item.ratingCount.toLocaleString('ko-KR')})`}
+                      </p>
+                    </>
+                  ) : null}
                 </div>
               </div>
 

@@ -4,7 +4,6 @@ import { StudioContainer } from './studio-container'
 
 interface StudioPageHeaderProps {
   breadcrumbs?: React.ReactNode
-  eyebrow?: React.ReactNode
   title: React.ReactNode
   description?: React.ReactNode
   meta?: React.ReactNode
@@ -14,7 +13,6 @@ interface StudioPageHeaderProps {
 
 export function StudioPageHeader({
   breadcrumbs,
-  eyebrow,
   title,
   description,
   meta,
@@ -30,12 +28,6 @@ export function StudioPageHeader({
           >
             {breadcrumbs}
           </nav>
-        ) : null}
-
-        {eyebrow ? (
-          <div className="text-xs font-extrabold tracking-[0.13em] text-[var(--studio-primary)]">
-            {eyebrow}
-          </div>
         ) : null}
 
         <div className="mt-2 flex flex-col justify-between gap-5 md:flex-row md:items-end">

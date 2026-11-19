@@ -2,15 +2,6 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
-import {
-  Bell,
-  Coins,
-  CreditCard,
-  FileText,
-  HelpCircle,
-  User,
-  UserX,
-} from 'lucide-react'
 import { getRequestAuthUserId } from '@/lib/request-auth'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
 import { createClient } from '@/lib/supabase/server'
@@ -20,22 +11,12 @@ import {
   selectDisplayBalance,
 } from '@/lib/credit-balance'
 import { countMarketLibraryItemsForUser } from '@/lib/market-items-server'
-import { StudioContainer } from '@/components/design-system/studio-container'
 import { MypageLogoutButton } from './_components/mypage-logout-button'
 
 export const metadata: Metadata = {
   title: '마이페이지 | 써머썬 연구소',
   description: '내 정보와 크레딧, 결제 내역, 활동 기록을 한눈에 관리합니다.',
 }
-
-const MENU_ITEMS = [
-  { href: '/mypage/payments', label: '결제 내역', description: '충전 상품 결제·환불 기록', icon: CreditCard },
-  { href: '/mypage/credits', label: '크레딧 관리', description: '잔액·구매·거래 내역', icon: Coins },
-  { href: '/mypage/profile', label: '내정보 관리', description: '휴대폰 번호·비밀번호 변경', icon: User },
-  { href: '/mypage/support', label: '고객지원', description: '1:1 문의 접수·확인', icon: HelpCircle },
-  { href: '/mypage/notifications', label: '알림', description: '지난 알림 전체 보기', icon: Bell },
-  { href: '/mypage/withdraw', label: '회원 탈퇴', description: '계정 및 데이터 삭제', icon: UserX },
-] as const
 
 function formatKoreanDate(value: string | null | undefined) {
   if (!value) return '-'
@@ -44,7 +25,7 @@ function formatKoreanDate(value: string | null | undefined) {
 }
 
 const cardClassName =
-  'rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] sm:p-6'
+  'rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 sm:p-6'
 
 export default async function MypageHomePage() {
   await connection()
@@ -75,11 +56,8 @@ export default async function MypageHomePage() {
       : '/library'
 
   return (
-    <StudioContainer className="py-8 sm:py-10">
+    <div>
       <h1 className="text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">마이페이지</h1>
-      <p className="mt-2 text-sm text-[var(--studio-muted)]">
-        내 정보와 크레딧, 활동 기록을 한눈에 확인합니다.
-      </p>
 
       <div className="mt-6 grid gap-5 lg:grid-cols-2">
         <section className={cardClassName} aria-label="내 정보">
@@ -137,44 +115,17 @@ export default async function MypageHomePage() {
         </section>
       </div>
 
-      <section className={`${cardClassName} mt-5`} aria-label="활동 요약">
-        <h2 className="text-sm font-bold text-[var(--studio-ink)]">활동 요약</h2>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Link
-            href={libraryHref}
-            className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-4 py-3 outline-none transition-colors hover:bg-[var(--studio-primary-soft)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-          >
-            <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--studio-muted)]">
-              <FileText aria-hidden="true" className="h-3.5 w-3.5" />구매한 자료
-            </p>
-            <p className="mt-1 text-xl font-bold text-[var(--studio-ink)]">{purchasedCounts.total.toLocaleString()}</p>
-            <p className="text-xs text-[var(--studio-muted)]">문제마켓 구매 · 자료 보관함에서 확인</p>
-          </Link>
-        </div>
-      </section>
-
-      <section className="mt-5" aria-label="바로가기">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {MENU_ITEMS.map((item) => {
-            const Icon = item.icon
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex min-h-11 items-center gap-3 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-4 outline-none transition-colors hover:border-[var(--studio-primary-border)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-              >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--studio-primary-soft)]">
-                  <Icon aria-hidden="true" className="h-5 w-5 text-[var(--studio-primary)]" />
-                </span>
-                <span>
-                  <span className="block text-sm font-semibold text-[var(--studio-ink)] break-keep">{item.label}</span>
-                  <span className="mt-0.5 block text-xs text-[var(--studio-muted)] break-keep">{item.description}</span>
-                </span>
-              </Link>
-            )
-          })}
-        </div>
-      </section>
-    </StudioContainer>
+      {/* 구매한 자료 수(메뉴는 왼쪽 마이페이지 메뉴로 대신한다) */}
+      <Link
+        href={libraryHref}
+        className={`${cardClassName} mt-5 flex min-h-11 items-center justify-between gap-3 outline-none transition-colors hover:border-[var(--studio-primary-border)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]`}
+      >
+        <span className="text-sm font-bold text-[var(--studio-ink)]">구매한 자료</span>
+        <span className="text-sm text-[var(--studio-muted)]">
+          <strong className="mr-1 text-lg font-bold text-[var(--studio-ink)]">{purchasedCounts.total.toLocaleString()}</strong>
+          개 · 자료 보관함 보기 →
+        </span>
+      </Link>
+    </div>
   )
 }

@@ -43,14 +43,15 @@ export function MarketItemListRow({ row, subject, onSamplePrefetch, onSampleOpen
         {row.categoryPath.length > 0 && (
           <p className="mt-1 text-sm text-[var(--studio-muted)]">{row.categoryPath.map((node) => node.title).join(' > ')}</p>
         )}
-        {(row.minPriceCredits !== null || typeof row.ratingCount === 'number') && (
+        {(row.minPriceCredits !== null || (row.ratingCount ?? 0) > 0) && (
           <p className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1">
             {row.minPriceCredits !== null && (
               <span className="[font-family:var(--studio-font-price)] text-base font-bold text-[var(--studio-text)]">
                 {row.minPriceCredits.toLocaleString()} 크레딧
               </span>
             )}
-            {typeof row.ratingCount === 'number' && (
+            {/* 후기가 없으면 별점을 보이지 않는다(빈 0.0 표시 없음) */}
+            {typeof row.ratingCount === 'number' && row.ratingCount > 0 && (
               <span className="inline-flex items-center gap-1 text-sm text-[var(--studio-muted)]">
                 <Star aria-hidden="true" className="h-4 w-4 fill-amber-400 text-amber-400" />
                 <span className="font-semibold text-[var(--studio-text)]">

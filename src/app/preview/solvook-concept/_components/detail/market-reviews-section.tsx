@@ -149,7 +149,7 @@ export function MarketReviewsSection({ itemId, isLoggedIn, reviews, sort }: Mark
     >
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 id="market-reviews-heading" className="text-2xl font-extrabold text-[var(--studio-ink)]">
+          <h2 id="market-reviews-heading" className="text-xl font-bold text-[var(--studio-ink)]">
             평점 및 후기 <span className="text-[var(--studio-primary)]">{summary.count}</span>
           </h2>
         </div>

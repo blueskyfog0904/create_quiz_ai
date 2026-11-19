@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ShoppingCart, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { toast } from 'sonner'
 import { StudioContainer, StudioEmptyState } from '@/components/design-system'
 import { dispatchMarketCartUpdated } from '@/components/market/market-cart-indicator'
@@ -404,7 +404,6 @@ export function CartView({ initialView }: CartViewProps) {
       {view.items.length === 0 ? (
         <div className="mt-8">
           <StudioEmptyState
-            icon={<ShoppingCart aria-hidden="true" className="h-5 w-5" />}
             title="장바구니가 비어 있습니다"
             description="문제마켓 상세 화면에서 필요한 자료를 장바구니에 담아 보세요."
             action={(
@@ -457,7 +456,7 @@ export function CartView({ initialView }: CartViewProps) {
           </div>
 
           <aside aria-label="선택 자료 요약" className="hidden lg:block">
-            <div className="sticky top-32 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)]">
+            <div className="sticky top-32 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5">
               <dl className="space-y-3 text-sm">
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-[var(--studio-muted)]">선택 자료</dt>

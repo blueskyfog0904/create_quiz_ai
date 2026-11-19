@@ -3,7 +3,6 @@
 import { useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
-  HomeFinalCta,
   RecentMaterials,
 } from '@/app/preview/solvook-concept/_components/home/home-material-sections'
 import { MainAdCarousel } from '@/app/preview/solvook-concept/_components/home/main-ad-carousel'
@@ -46,12 +45,11 @@ export function SolvookHomeView({
       hero={<MainAdCarousel subject={subject} items={adItems} />}
     >
       {homeData.config.popular.isActive && (
-        <PopularDownloadsSlider subject={subject} items={homeData.popular} rankingWindowDays={homeData.config.popular.rankingWindowDays} />
+        <PopularDownloadsSlider subject={subject} items={homeData.popular} />
       )}
       {homeData.config.recent.isActive && (
         <RecentMaterials subject={subject} items={homeData.recent} />
       )}
-      <HomeFinalCta subject={subject} itemCount={homeData.publicItemCount} />
     </StudioLandingPageFrame>
   )
 }

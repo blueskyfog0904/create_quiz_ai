@@ -1,10 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { StudioContainer } from '@/components/design-system'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { createClient } from '@/lib/supabase/client'
@@ -21,7 +19,7 @@ const controlClassName =
   'w-full min-h-11 rounded-[var(--studio-radius-control)] border border-[var(--studio-control-border)] bg-[var(--studio-surface)] px-3 text-sm text-[var(--studio-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]'
 
 const cardClassName =
-  'rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] sm:p-7'
+  'rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 sm:p-7'
 
 const readOnlyBandClassName =
   'flex min-h-11 items-center rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-3'
@@ -190,19 +188,10 @@ export function ProfileView({ email, displayName, phone: initialPhone, createdAt
   }
 
   return (
-    <StudioContainer className="py-8 sm:py-10">
-      <Link
-        href="/mypage"
-        className="inline-flex min-h-9 items-center rounded-[var(--studio-radius-control)] text-sm font-medium text-[var(--studio-muted)] outline-none transition-colors hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-      >
-        ← 마이페이지
-      </Link>
-      <h1 className="mt-2 break-keep text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">
+    <div>
+      <h1 className="break-keep text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">
         내정보 관리
       </h1>
-      <p className="mt-2 break-keep text-sm text-[var(--studio-muted)]">
-        계정 기본 정보를 확인하고 휴대폰 번호와 비밀번호를 관리할 수 있어요.
-      </p>
 
       <div className="mt-6 space-y-6">
         {/* 내정보 */}
@@ -416,6 +405,6 @@ export function ProfileView({ email, displayName, phone: initialPhone, createdAt
           </div>
         </section>
       </div>
-    </StudioContainer>
+    </div>
   )
 }

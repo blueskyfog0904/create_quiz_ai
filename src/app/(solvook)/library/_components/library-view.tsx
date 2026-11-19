@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, FileImage, FolderOpen, Loader2, RotateCcw, X } from 'lucide-react'
+import { ChevronDown, FileImage, Loader2, RotateCcw, X } from 'lucide-react'
 import { StudioContainer, StudioEmptyState } from '@/components/design-system'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { useListQuery } from '@/hooks/use-list-query'
@@ -407,9 +407,6 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
           )}
         </div>
       </div>
-      <p className="mt-2 text-sm text-[var(--studio-muted)]">
-        구매한 자료를 확인하고 파일을 다운로드할 수 있습니다.
-      </p>
 
       <div
         aria-busy={isSubjectSwitching}
@@ -535,14 +532,13 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
         ) : (
           <div className="mt-6">
             <StudioEmptyState
-              icon={<FolderOpen className="size-6" aria-hidden />}
               title="조건에 맞는 자료가 없습니다"
               description="검색어나 자료유형 필터를 변경해 보세요."
             />
           </div>
         )
       ) : (
-        <ul className="mt-6 divide-y divide-[var(--studio-border)] rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] shadow-[var(--studio-shadow-card)]">
+        <ul className="mt-6 divide-y divide-[var(--studio-border)] rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]">
           {pagedRows.map((row) => {
             const hasPendingRefund = row.refundTargets.some((target) => target.status === 'pending')
             const availableRefundTargets = row.refundTargets.filter((target) => target.status === 'available')

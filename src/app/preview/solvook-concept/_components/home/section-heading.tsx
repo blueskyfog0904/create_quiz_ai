@@ -2,35 +2,22 @@ import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 
 interface SectionHeadingProps {
-  eyebrow: string
   title: string
-  description?: string
   href?: string
   linkLabel?: string
 }
 
+// 섹션 제목은 한글 제목 하나만 둔다(영문 소제목·설명 줄 없음).
 export function SectionHeading({
-  eyebrow,
   title,
-  description,
   href,
   linkLabel = '전체 보기',
 }: SectionHeadingProps) {
   return (
-    <div className="mb-6 flex items-end justify-between gap-4">
-      <div>
-        <p className="text-xs font-extrabold tracking-[0.14em] text-[var(--studio-primary)]">
-          {eyebrow}
-        </p>
-        <h2 className="mt-2 text-2xl font-extrabold tracking-[-0.035em] text-[var(--studio-ink)] sm:text-[28px]">
-          {title}
-        </h2>
-        {description ? (
-          <p className="mt-2 max-w-2xl break-keep text-sm leading-6 text-[var(--studio-muted)]">
-            {description}
-          </p>
-        ) : null}
-      </div>
+    <div className="mb-4 flex items-end justify-between gap-4">
+      <h2 className="text-xl font-bold tracking-[-0.02em] text-[var(--studio-ink)] sm:text-2xl">
+        {title}
+      </h2>
 
       {href ? (
         <Link

@@ -126,7 +126,6 @@ export default function StudioDesignSystemPage() {
             <span className="text-[var(--studio-text)]">Design System</span>
           </>
         }
-        eyebrow="LIVING REFERENCE"
         title="Studio Design System"
         description="새 페이지를 만들 때 같은 색상, 타이포그래피, 버튼, 카드와 게시판 구성을 재사용하기 위한 실행 가능한 기준입니다."
         actions={<Button variant="brand">새 페이지 시작</Button>}
@@ -359,7 +358,6 @@ export default function StudioDesignSystemPage() {
             />
             <div className="grid min-w-0 gap-4 lg:grid-cols-2">
               <StudioEmptyState
-                icon={<FileText aria-hidden="true" className="size-6" />}
                 title="아직 자료가 없습니다"
                 description="첫 자료를 추가하면 이 영역에서 바로 확인할 수 있습니다."
                 action={<Button variant="brand">자료 추가</Button>}

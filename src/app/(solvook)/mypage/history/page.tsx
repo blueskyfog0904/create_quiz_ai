@@ -1,12 +1,10 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
 import { FileText, Sparkles } from 'lucide-react'
 import { getRequestAuthUserId } from '@/lib/request-auth'
 import { createClient } from '@/lib/supabase/server'
 import { getMypageActivityStats, getMypageRecentActivity } from '@/lib/mypage-activity-server'
-import { StudioContainer } from '@/components/design-system/studio-container'
 
 export const metadata: Metadata = {
   title: '생성/구매 히스토리 | 써머썬 연구소',
@@ -19,7 +17,7 @@ function formatKoreanDate(value: string) {
 }
 
 const cardClassName =
-  'rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] sm:p-6'
+  'rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 sm:p-6'
 
 export default async function MypageHistoryPage() {
   await connection()
@@ -42,17 +40,8 @@ export default async function MypageHistoryPage() {
   ]
 
   return (
-    <StudioContainer className="py-8 sm:py-10">
-      <Link
-        href="/mypage"
-        className="inline-flex min-h-9 items-center rounded-[var(--studio-radius-control)] text-sm font-medium text-[var(--studio-muted)] outline-none transition-colors hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-      >
-        ← 마이페이지
-      </Link>
-      <h1 className="mt-2 text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">생성/구매 히스토리</h1>
-      <p className="mt-2 text-sm text-[var(--studio-muted)]">
-        문제와 문제지 생성·구매 활동 기록입니다.
-      </p>
+    <div>
+      <h1 className="text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">생성/구매 히스토리</h1>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((card) => (
@@ -109,6 +98,6 @@ export default async function MypageHistoryPage() {
           )}
         </section>
       </div>
-    </StudioContainer>
+    </div>
   )
 }

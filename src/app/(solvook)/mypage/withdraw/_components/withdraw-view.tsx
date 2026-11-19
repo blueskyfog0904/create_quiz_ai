@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { StudioContainer } from '@/components/design-system/studio-container'
 import { createClient } from '@/lib/supabase/client'
 
 const controlClassName =
@@ -75,14 +74,8 @@ export function WithdrawView({ email, blockedReason = null }: WithdrawViewProps)
   }
 
   return (
-    <StudioContainer className="py-8 sm:py-10">
-      <Link
-        href="/mypage"
-        className="inline-flex min-h-9 items-center rounded-[var(--studio-radius-control)] text-sm font-medium text-[var(--studio-muted)] outline-none transition-colors hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-      >
-        ← 마이페이지
-      </Link>
-      <h1 className="mt-2 text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">회원 탈퇴</h1>
+    <div>
+      <h1 className="text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">회원 탈퇴</h1>
       {blockedReason ? null : (
         <p className="mt-2 text-sm text-[var(--studio-muted)] break-keep">
           회원 탈퇴 전 아래 내용을 반드시 확인해주세요.
@@ -91,7 +84,7 @@ export function WithdrawView({ email, blockedReason = null }: WithdrawViewProps)
 
       <div className="mt-6 max-w-2xl space-y-6">
         {blockedReason ? (
-        <section className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] sm:p-7">
+        <section className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 sm:p-7">
           <div className="rounded-[var(--studio-radius-control)] bg-red-50 p-4">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-red-800 break-keep">
               <AlertTriangle aria-hidden="true" className="size-4 shrink-0" />
@@ -113,7 +106,7 @@ export function WithdrawView({ email, blockedReason = null }: WithdrawViewProps)
           )}
         </section>
         ) : (
-        <section className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] sm:p-7">
+        <section className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 sm:p-7">
           <div className="rounded-[var(--studio-radius-control)] bg-red-50 p-4">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-red-800 break-keep">
               <AlertTriangle aria-hidden="true" className="size-4 shrink-0" />
@@ -183,7 +176,7 @@ export function WithdrawView({ email, blockedReason = null }: WithdrawViewProps)
         </section>
         )}
 
-        <section className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 shadow-[var(--studio-shadow-card)] sm:p-7">
+        <section className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-5 sm:p-7">
           <h2 className="text-lg font-bold text-[var(--studio-ink)] break-keep">
             탈퇴 대신 고려해보세요
           </h2>
@@ -201,6 +194,6 @@ export function WithdrawView({ email, blockedReason = null }: WithdrawViewProps)
           </div>
         </section>
       </div>
-    </StudioContainer>
+    </div>
   )
 }

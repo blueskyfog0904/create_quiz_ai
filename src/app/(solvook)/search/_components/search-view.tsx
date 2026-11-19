@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition, type MouseEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, Loader2, RotateCcw, SearchX, X } from 'lucide-react'
+import { ChevronDown, Loader2, RotateCcw, X } from 'lucide-react'
 import MarketSamplePreviewDialog from '@/components/market/market-sample-preview-dialog'
 import { StudioContainer, StudioEmptyState } from '@/components/design-system'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
@@ -140,12 +140,9 @@ export function SearchView({ subject, q, result, selections, sort }: SearchViewP
     }))
   )
 
-  const subjectLabel = subject === 'korean' ? '국어' : '영어'
-
   return (
     <StudioContainer className="py-8 sm:py-10">
-      <p className="text-sm font-semibold text-[var(--studio-primary)]">{subjectLabel} 자료 검색</p>
-      <h1 className="mt-1 text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">
+      <h1 className="text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">
         {q ? (
           <>
             &lsquo;{q}&rsquo; 검색 결과{' '}
@@ -264,7 +261,6 @@ export function SearchView({ subject, q, result, selections, sort }: SearchViewP
         {result.rows.length === 0 ? (
           <div className="mt-6">
             <StudioEmptyState
-              icon={<SearchX className="size-6" aria-hidden />}
               title="조건에 맞는 자료가 없습니다"
               description="검색어를 바꾸거나 상세 필터를 조정해 보세요."
             />
