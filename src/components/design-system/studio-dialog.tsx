@@ -14,7 +14,8 @@ import {
 import { cn } from '@/lib/utils'
 import { StudioDialogContent } from './studio-portal-surface'
 
-// 회원 화면 팝업 공통 모양(솔북 기준): 흰 판·둥근 모서리, 아이콘 없이 왼쪽 정렬 제목·본문, 아래 버튼은 같은 너비.
+// 회원 화면 팝업 공통 모양(솔북 기준): 흰 판·둥근 모서리, 아이콘 없이 가운데 정렬 제목·본문, 아래 버튼은 같은 너비.
+// 목록·표 같은 본문 내용은 각 팝업에서 왼쪽 정렬로 둔다.
 function StudioDialogPanel({
   className,
   showCloseButton = true,
@@ -25,7 +26,8 @@ function StudioDialogPanel({
       showCloseButton={showCloseButton}
       className={cn(
         'max-w-[calc(100%-2rem)] gap-6 rounded-2xl border-0 p-6 shadow-none sm:max-w-[400px]',
-        !showCloseButton && '[&_[data-slot=dialog-header]]:pr-0',
+        // 가운데 정렬 제목이 닫기(X) 버튼 쪽으로 치우치지 않게 양옆 여백을 같게 둔다.
+        showCloseButton ? '[&_[data-slot=dialog-header]]:px-16' : '[&_[data-slot=dialog-header]]:pr-0',
         className
       )}
       {...props}
@@ -34,7 +36,7 @@ function StudioDialogPanel({
 }
 
 function StudioDialogHeader({ className, ...props }: React.ComponentProps<typeof DialogHeader>) {
-  return <DialogHeader className={cn('gap-2 text-left sm:text-left', className)} {...props} />
+  return <DialogHeader className={cn('gap-2 text-center sm:text-center', className)} {...props} />
 }
 
 function StudioDialogTitle({ className, ...props }: React.ComponentProps<typeof DialogTitle>) {

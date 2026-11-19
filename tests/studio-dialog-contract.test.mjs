@@ -23,7 +23,7 @@ test('studio dialog defines one shared panel, header, footer and alert dialog', 
     assert.match(studioDialog, new RegExp(`function ${name}\\(`))
   }
   assert.match(studioDialog, /rounded-2xl/)
-  assert.match(studioDialog, /text-left/)
+  assert.match(studioDialog, /text-center sm:text-center/)
   assert.doesNotMatch(studioDialog, /#[0-9a-fA-F]{3,8}\b/)
 })
 
