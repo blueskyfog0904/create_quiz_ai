@@ -1,5 +1,7 @@
 // 충전 상품 카드에 보이는 짧은 문구(배지·할인 문구)의 저장 규칙. DB의 CHECK(앞뒤 공백 없는 1~20자 또는 NULL)와 같다.
 export const PRICING_PLAN_DISPLAY_TEXT_MAX_LENGTH = 20
+// 상품 설명: 충전 화면 상품 줄의 작은 글씨("상품명 · 설명")로 보인다.
+export const PRICING_PLAN_DESCRIPTION_MAX_LENGTH = 60
 
 // 앞뒤 공백을 떼고, 비어 있으면 null로 바꾼다. 20자를 넘으면 한국어 오류를 던진다.
 export function normalizePricingPlanDisplayText(value: unknown, label: string): string | null {

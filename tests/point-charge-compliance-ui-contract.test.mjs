@@ -9,6 +9,8 @@ const read = (path) => {
 
 const pricingPage = read('../src/app/pricing/page.tsx')
 const pricingClient = read('../src/app/pricing/pricing-client.tsx')
+// 충전 화면 안내 문구의 처음 값(관리자 요금제 화면에서 고침)
+const pricingContentSeed = read('../supabase/migrations/20261119100000_pricing_page_content.sql')
 const checkout = read('../src/app/checkout/checkout-client.tsx')
 const creditsPage = read(
   '../src/app/(solvook)/mypage/credits/_components/credits-view.tsx'
@@ -30,14 +32,17 @@ const termsPage = read('../src/app/terms/[documentSlug]/page.tsx')
 
 test('pricing explains the one-time charge limit and real usage paths', () => {
   assert.match(pricingPage, /크레딧 충전 상품/)
-  assert.match(pricingPage, /1회 최대 \{POINT_CHARGE_MAX_AMOUNT_TEXT\}/)
-  assert.match(pricingPage, /문제마켓/)
-  assert.doesNotMatch(pricingPage, /AI 문제 생성/)
-  assert.doesNotMatch(pricingPage, /문제은행/)
+  assert.match(pricingContentSeed, /1회 최대 \{충전한도\}/)
+  assert.match(pricingPage, /'\{충전한도\}': POINT_CHARGE_MAX_AMOUNT_TEXT/)
+  assert.match(pricingContentSeed, /문제마켓/)
+  for (const source of [pricingPage, pricingContentSeed]) {
+    assert.doesNotMatch(source, /AI 문제 생성/)
+    assert.doesNotMatch(source, /문제은행/)
+  }
   assert.match(pricingPage, /\/terms\/refund/)
   assert.match(pricingPage, /min-h-11/)
   assert.match(pricingClient, /충전하기/)
-  assert.match(pricingClient, /문제마켓 이용/)
+  assert.match(pricingContentSeed, /문제마켓 이용/)
   assert.doesNotMatch(pricingClient, /AI 문제 생성 이용/)
   assert.doesNotMatch(pricingClient, /문제은행 이용/)
   assert.match(pricingClient, /min-h-11/)

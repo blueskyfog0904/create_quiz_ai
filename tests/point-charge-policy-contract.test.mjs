@@ -54,18 +54,23 @@ test('회원 화면 문구는 숫자를 직접 적지 않고 정책 모듈의 �
   const checkout = read('../src/app/checkout/checkout-client.tsx')
   const pricingPage = read('../src/app/pricing/page.tsx')
   const pricingClient = read('../src/app/pricing/pricing-client.tsx')
+  // 충전 화면 안내 문구는 설정 행(처음 값은 이 마이그레이션)이고, 숫자는 자리표시로 두고 화면이 정책 값으로 채운다.
+  const pricingContentSeed = read('../supabase/migrations/20261119100000_pricing_page_content.sql')
   const termsPage = read('../src/app/terms/[documentSlug]/page.tsx')
 
   assert.match(checkout, /1회 최대 \{POINT_CHARGE_MAX_AMOUNT_TEXT\}입니다\./)
   assert.match(checkout, /결제일로부터 \{POINT_CHARGE_VALIDITY_YEARS\}년이며/)
   assert.match(checkout, /구매 후 \{POINT_CHARGE_REFUND_DAYS\}일 이내/)
-  assert.match(pricingPage, /1회 최대 \{POINT_CHARGE_MAX_AMOUNT_TEXT\}까지만/)
-  assert.match(pricingPage, /결제일로부터 \{POINT_CHARGE_VALIDITY_YEARS\}년 동안/)
-  assert.match(pricingPage, /구매 후 \{POINT_CHARGE_REFUND_DAYS\}일 이내에/)
-  assert.match(pricingClient, /사용 기한 \{POINT_CHARGE_VALIDITY_YEARS\}년/)
+  assert.match(pricingContentSeed, /1회 최대 \{충전한도\}까지만/)
+  assert.match(pricingContentSeed, /결제일로부터 \{사용기한\}년 동안/)
+  assert.match(pricingContentSeed, /구매 후 \{환불기간\}일 이내에/)
+  assert.match(pricingContentSeed, /사용 기한 \{사용기한\}년/)
+  assert.match(pricingPage, /'\{사용기한\}': String\(POINT_CHARGE_VALIDITY_YEARS\)/)
+  assert.match(pricingPage, /'\{환불기간\}': String\(POINT_CHARGE_REFUND_DAYS\)/)
+  assert.match(pricingPage, /'\{충전한도\}': POINT_CHARGE_MAX_AMOUNT_TEXT/)
   assert.match(termsPage, /1회 충전금액은 \{POINT_CHARGE_MAX_AMOUNT_TEXT\} 이하로/)
   assert.match(termsPage, /구매 후 \{POINT_CHARGE_REFUND_DAYS\}일 이내이고/)
-  for (const source of [checkout, pricingPage, pricingClient]) {
+  for (const source of [checkout, pricingPage, pricingClient, pricingContentSeed]) {
     assert.doesNotMatch(source, /100,000원|\d+년|\d+일 이내/)
   }
   // 약관 화면의 필수 문장은 약관 본문(DB·footer-content)과 글자 그대로 대조하는 값이라 글자로 둔다. 연수만 정책과 대조한다.

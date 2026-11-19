@@ -15,6 +15,7 @@ export const ADMIN_AUDIT_ACTIONS = {
   pricing_plan_update: '요금제 수정',
   pricing_plan_delete: '요금제 삭제',
   pricing_plan_status_change: '요금제 판매 상태 변경',
+  pricing_page_content_update: '충전 화면 문구 수정',
   site_footer_save: '약관·바닥글 저장',
   market_review_delete: '후기 삭제',
   payment_sales_stop: '충전 판매 중지',

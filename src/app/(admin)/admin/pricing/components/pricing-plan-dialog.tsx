@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch'
 import { upsertPricingPlan, PricingPlan, PricingPlanInsert } from '../actions'
 import { Loader2 } from 'lucide-react'
 import { MAX_POINT_CHARGE_AMOUNT, MIN_POINT_CHARGE_AMOUNT } from '@/lib/payment-constants'
-import { PRICING_PLAN_DISPLAY_TEXT_MAX_LENGTH } from '@/lib/pricing-plan-display'
+import { PRICING_PLAN_DESCRIPTION_MAX_LENGTH, PRICING_PLAN_DISPLAY_TEXT_MAX_LENGTH } from '@/lib/pricing-plan-display'
 // If sonner not installed, I might need to check. But standard shadcn often uses sonner or useToast.
 // Let's implement a simple error message in the UI.
 
@@ -166,8 +166,12 @@ export function PricingPlanDialog({
                             id="description"
                             value={formData.description || ''}
                             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            placeholder="요금제에 대한 간단한 설명을 입력하세요."
+                            placeholder="예: 수업 자료 10개 정도"
+                            maxLength={PRICING_PLAN_DESCRIPTION_MAX_LENGTH}
                         />
+                        <p className="text-xs text-muted-foreground">
+                            회원 충전 화면에서 금액 위 작은 글씨로 &lsquo;상품명 · 설명&rsquo;처럼 보입니다. 비우면 상품명만 보입니다.
+                        </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -200,7 +204,7 @@ export function PricingPlanDialog({
                             maxLength={PRICING_PLAN_DISPLAY_TEXT_MAX_LENGTH}
                         />
                         <p className="text-xs text-muted-foreground">
-                            회원 충전 상품 화면의 카드 맨 위에 배지로 보입니다. 비우면 배지가 없습니다. (20자 이내)
+                            회원 충전 화면에서 금액·보너스 옆에 배지로 보입니다(강조 상품은 불꽃, 그 외는 보석 이모지). 비우면 배지가 없습니다. (20자 이내)
                         </p>
                     </div>
 
@@ -214,7 +218,7 @@ export function PricingPlanDialog({
                             />
                         </div>
                         <p className="text-xs text-muted-foreground">
-                            켜면 회원 충전 상품 화면에서 이 카드가 파란 테두리로 크게 보이고, 충전 버튼과 배지도 파란색이 됩니다.
+                            켜면 회원 충전 화면을 열었을 때 이 상품이 먼저 선택되어 있고, 배지가 연한 주황색과 불꽃 이모지로 보입니다. 하나만 켜는 것을 권합니다.
                         </p>
                     </div>
 
@@ -228,7 +232,7 @@ export function PricingPlanDialog({
                             maxLength={PRICING_PLAN_DISPLAY_TEXT_MAX_LENGTH}
                         />
                         <p className="text-xs text-muted-foreground">
-                            회원 충전 상품 화면의 카드에서 가격·크레딧 아래에 초록 배지로 보입니다. 비우면 없습니다. (20자 이내)
+                            회원 충전 화면에서 배지 옆에 주황 글씨로 보입니다. 보너스 크레딧과 %는 가격·제공 크레딧으로 자동 표시되므로 여기에 다시 적지 않는 것을 권합니다. 비우면 없습니다. (20자 이내)
                         </p>
                     </div>
 

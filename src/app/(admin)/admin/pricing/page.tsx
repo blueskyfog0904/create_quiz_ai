@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import { PricingPlansClient } from './pricing-plans-client'
+import { PricingPageContentForm } from './pricing-page-content-form'
+import { readPricingPageContentForAdmin } from '@/lib/pricing-page-content-server'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 import { buildAdminMenuMetadata } from '@/lib/admin-sidebar-server'
 import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
@@ -23,6 +25,7 @@ export default async function AdminPricingPage() {
             </div>
 
             <PricingPlansClient />
+            <PricingPageContentForm initial={await readPricingPageContentForAdmin()} />
         </div>
     )
 }

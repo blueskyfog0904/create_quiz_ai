@@ -6,7 +6,9 @@ import { recordAdminAudit } from '@/lib/admin-audit-log-server'
 import { revalidatePath } from 'next/cache'
 import { Database } from '@/types/supabase'
 import { MAX_POINT_CHARGE_AMOUNT, MIN_POINT_CHARGE_AMOUNT } from '@/lib/payment-constants'
-import { normalizePricingPlanDisplayText } from '@/lib/pricing-plan-display'
+import { normalizePricingPlanDisplayText, PRICING_PLAN_DESCRIPTION_MAX_LENGTH } from '@/lib/pricing-plan-display'
+import { savePricingPageContent } from '@/lib/pricing-page-content-server'
+import type { PricingPageContent } from '@/lib/pricing-page-content'
 
 export type PricingPlan = Database['public']['Tables']['pricing_plans']['Row']
 export type PricingPlanInsert = Database['public']['Tables']['pricing_plans']['Insert']
@@ -44,6 +46,11 @@ export async function upsertPricingPlan(data: PricingPlanInsert) {
     // 배지·할인 문구: 앞뒤 공백을 떼고, 비어 있으면 null, 20자를 넘으면 오류.
     const badgeText = normalizePricingPlanDisplayText(data.badge_text, '배지 문구')
     const discountText = normalizePricingPlanDisplayText(data.discount_text, '할인·혜택 문구')
+    // 설명: 충전 화면 상품 줄의 작은 글씨. 앞뒤 공백을 떼고 60자 이하, 비면 null.
+    const description = (typeof data.description === 'string' ? data.description.trim() : '') || null
+    if (description && description.length > PRICING_PLAN_DESCRIPTION_MAX_LENGTH) {
+        throw new Error(`설명은 ${PRICING_PLAN_DESCRIPTION_MAX_LENGTH}자 이하여야 합니다.`)
+    }
 
     // 작업 기록용: id를 들고 와도 그 요금제가 없으면 새로 만들어진다. 저장 전 값을 읽어 추가·수정을 가른다(읽지 못하면 id 유무로).
     const PLAN_AUDIT_COLUMNS = 'id, name, price, credits, is_active, badge_text, discount_text'
@@ -55,7 +62,7 @@ export async function upsertPricingPlan(data: PricingPlanInsert) {
 
     const { data: saved, error } = await supabase
         .from('pricing_plans')
-        .upsert({ ...data, badge_text: badgeText, discount_text: discountText })
+        .upsert({ ...data, description, badge_text: badgeText, discount_text: discountText })
         .select(PLAN_AUDIT_COLUMNS)
 
     if (error) throw new Error(error.message)
@@ -127,4 +134,29 @@ export async function togglePlanStatus(id: string, isActive: boolean) {
 
     revalidatePath('/admin/pricing')
     return { success: true }
+}
+
+// 충전 화면(/pricing) 문구. 요금제와 같은 권한(pricing.manage)으로 고친다.
+// 운영 빌드에서는 서버 액션이 던진 오류 문구가 화면에 전달되지 않으므로, 검사 오류는 결과 값으로 돌려준다.
+export async function savePricingPageContentAction(
+    input: PricingPageContent
+): Promise<{ success: true; data: PricingPageContent } | { success: false; error: string }> {
+    const access = await assertAdminActionPermission('pricing.manage')
+    let saved: PricingPageContent
+    try {
+        saved = await savePricingPageContent(input)
+    } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : '충전 화면 문구를 저장하지 못했습니다.' }
+    }
+
+    // 저장된 뒤 작업 기록을 남긴다(실패해도 결과는 그대로). 문구 전문은 길어 기록에 담지 않는다.
+    await recordAdminAudit({
+        actorId: access.userId,
+        action: 'pricing_page_content_update',
+        targetType: 'pricing_page_content',
+    })
+
+    revalidatePath('/pricing')
+    revalidatePath('/admin/pricing')
+    return { success: true, data: saved }
 }

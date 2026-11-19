@@ -80,8 +80,8 @@ test('회원 충전 상품 화면은 이름 비교·자동 계산 없이 DB 값�
   // 사이트 공통 색(studio 토큰)만 쓴다. 예전 기본 파랑·초록·반짝이 아이콘은 쓰지 않는다.
   assert.doesNotMatch(pricingClient, /bg-blue-|bg-green-|Sparkles|scale-105/)
 
-  assert.match(pricingClient, /문제마켓 이용/)
-  assert.match(pricingClient, /사용 기한 \{POINT_CHARGE_VALIDITY_YEARS\}년/)
+  // 상품 줄의 작은 글씨는 요금제 이름·설명(DB)
+  assert.match(pricingClient, /\[plan\.name, plan\.description\?\.trim\(\)\]\.filter\(Boolean\)\.join\(' · '\)/)
 
   // 새 열이 아직 없는 응답(undefined)도 받을 수 있게 선택 항목이다.
   assert.match(pricingClient, /badge_text\?: string \| null/)
@@ -112,7 +112,7 @@ test('서버 액션은 접근 검사·가격 검증 뒤에 문구를 정리해�
   const adminCheck = actions.indexOf("await assertAdminActionPermission('pricing.manage')", upsertAction)
   const priceCheck = actions.indexOf('data.price < MIN_POINT_CHARGE_AMOUNT')
   const normalize = actions.indexOf("normalizePricingPlanDisplayText(data.badge_text, '배지 문구')")
-  const upsert = actions.indexOf('.upsert({ ...data, badge_text: badgeText, discount_text: discountText })')
+  const upsert = actions.indexOf('.upsert({ ...data, description, badge_text: badgeText, discount_text: discountText })')
   assert.ok(adminCheck > 0 && adminCheck < priceCheck && priceCheck < normalize && normalize < upsert)
   assert.match(actions, /normalizePricingPlanDisplayText\(data\.discount_text, '할인·혜택 문구'\)/)
 })
@@ -122,7 +122,7 @@ test('관리자 화면에서 세 항목을 입력하고 목록에서 볼 수 있
     assert.match(dialog, new RegExp(`id="${id}"`))
   }
   assert.equal(dialog.split('maxLength={PRICING_PLAN_DISPLAY_TEXT_MAX_LENGTH}').length - 1, 2)
-  assert.equal(dialog.split('회원 충전 상품 화면').length - 1, 3)
+  assert.equal(dialog.split('회원 충전 화면').length - 1, 4)
   assert.match(dialog, /badge_text: formData\.badge_text,\s+is_highlighted: formData\.is_highlighted \?\? false,\s+discount_text: formData\.discount_text,/)
   assert.match(adminList, /화면 표시/)
   assert.match(adminList, /plan\.badge_text \|\| '없음'/)

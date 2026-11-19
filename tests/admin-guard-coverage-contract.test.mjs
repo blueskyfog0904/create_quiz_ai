@@ -447,6 +447,7 @@ const ACTION_REQUIREMENTS = {
     upsertPricingPlan: 'pricing.manage',
     deletePricingPlan: 'pricing.manage',
     togglePlanStatus: 'pricing.manage',
+    savePricingPageContentAction: 'pricing.manage',
   },
   'src/app/(admin)/admin/menu-management/actions.ts': {
     // 사이드바의 메뉴 이름 바꾸기는 운영 기능이다(기능 묶음 검사 없음).
