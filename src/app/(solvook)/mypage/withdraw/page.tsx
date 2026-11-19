@@ -9,7 +9,7 @@ import { getRequestAuthUserId } from '@/lib/request-auth'
 import { WithdrawView, type WithdrawBlockedReason } from './_components/withdraw-view'
 
 export const metadata: Metadata = {
-  title: '회원 탈퇴 | 써머썬 연구소',
+  title: '회원 탈퇴',
   description: '계정과 모든 데이터를 영구 삭제합니다.',
 }
 

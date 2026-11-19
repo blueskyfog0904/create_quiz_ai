@@ -28,7 +28,7 @@ export function SolvookFooter({
   cs,
   rows = [],
   policyLinks = [],
-  brandName = '써머썬 연구소',
+  brandName = '',
   notices = [],
 }: SolvookFooterProps) {
   const currentYear = new Date().getFullYear()
@@ -54,7 +54,7 @@ export function SolvookFooter({
                 <p key={`footer-notice-${index}`}>{notice}</p>
               ))}
               <p className="pt-2">
-                © {currentYear} {brandName}. All rights reserved.
+                © {currentYear}{brandName ? ` ${brandName}` : ''}. All rights reserved.
               </p>
             </div>
           </div>

@@ -8,7 +8,7 @@ import { getListPagination } from '@/lib/list-pagination'
 import { StudioEmptyState } from '@/components/design-system/studio-empty-state'
 
 export const metadata: Metadata = {
-  title: '알림 | 써머썬 연구소',
+  title: '알림',
   description: '받은 알림 전체를 확인합니다.',
 }
 

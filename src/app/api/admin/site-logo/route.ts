@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { NextResponse } from 'next/server'
 import { adminApiGuardMessage, requireAdminApiPermission } from '@/lib/admin-permissions-server'
+import { recordAdminAudit } from '@/lib/admin-audit-log-server'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { MAIN_AD_IMAGES_BUCKET } from '@/lib/main-ad-carousel'
 import { SITE_LOGO_MAX_BYTES, SITE_LOGO_SETTING_KEY, SITE_LOGO_SIZE } from '@/lib/site-logo'
@@ -57,6 +58,13 @@ export async function POST(request: Request) {
 
     revalidateTag(SITE_LOGO_SETTING_KEY, { expire: 0 })
     revalidatePath('/', 'layout')
+    // 저장된 뒤 작업 기록을 남긴다(실패해도 결과는 그대로)
+    await recordAdminAudit({
+      actorId: guard.access.userId,
+      action: 'site_logo_update',
+      targetType: 'site_logo',
+      details: { path },
+    })
     const url = admin.storage.from(MAIN_AD_IMAGES_BUCKET).getPublicUrl(path).data.publicUrl
     return NextResponse.json({ url, width: SITE_LOGO_SIZE, height: SITE_LOGO_SIZE })
   } catch (error) {
@@ -67,4 +75,29 @@ export async function POST(request: Request) {
     console.error('사이트 로고 저장에 실패했습니다.', error)
     return NextResponse.json({ error: '로고를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 500 })
   }
+}
+
+// 기본 로고로 되돌리기: 로고 설정 행을 지우면 헤더·하단이 기본 이미지(/brand-mark.svg)를 쓴다.
+// 올렸던 파일은 지우지 않는다(로고를 바꿀 때와 같음).
+export async function DELETE() {
+  const guard = await requireAdminApiPermission('site.manage')
+  if ('error' in guard) {
+    return NextResponse.json({ error: adminApiGuardMessage(guard) }, { status: guard.status })
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin.from('system_settings').delete().eq('key', SITE_LOGO_SETTING_KEY)
+  if (error) {
+    console.error('사이트 로고 되돌리기에 실패했습니다.', error)
+    return NextResponse.json({ error: '기본 로고로 되돌리지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 500 })
+  }
+
+  revalidateTag(SITE_LOGO_SETTING_KEY, { expire: 0 })
+  revalidatePath('/', 'layout')
+  await recordAdminAudit({
+    actorId: guard.access.userId,
+    action: 'site_logo_reset',
+    targetType: 'site_logo',
+  })
+  return NextResponse.json({ success: true })
 }

@@ -8,7 +8,7 @@ import { formatMemberDisplayName } from '@/lib/member-display-name'
 import { ProfileView } from './_components/profile-view'
 
 export const metadata: Metadata = {
-  title: '내정보 관리 | 써머썬 연구소',
+  title: '내정보 관리',
   description: '이메일·휴대폰 번호 확인과 비밀번호 변경',
 }
 

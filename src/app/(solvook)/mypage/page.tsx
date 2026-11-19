@@ -14,7 +14,7 @@ import { countMarketLibraryItemsForUser } from '@/lib/market-items-server'
 import { MypageLogoutButton } from './_components/mypage-logout-button'
 
 export const metadata: Metadata = {
-  title: '마이페이지 | 써머썬 연구소',
+  title: '마이페이지',
   description: '내 정보와 크레딧, 결제 내역, 활동 기록을 한눈에 관리합니다.',
 }
 

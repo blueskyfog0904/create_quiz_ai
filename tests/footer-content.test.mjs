@@ -3,10 +3,10 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
 import {
-  DEFAULT_FOOTER_BRAND_NAME,
   FOOTER_POLICY_DOCUMENT_KEYS,
   getFooterPolicyDocumentBySlug,
   getFooterBrandName,
+  isFooterLegalFieldKey,
   getVisibleFooterPolicyLinks,
   getVisibleFooterRows,
   normalizeFooterContent,
@@ -147,24 +147,44 @@ test('getVisibleFooterRows only includes enabled non-empty fields', () => {
     fixedFields: {
       companyName: { label: '상호명', value: '예시', enabled: true },
       representativeName: { label: '대표자명', value: '', enabled: true },
-      businessAddress: { label: '사업장주소', value: '서울시 강남구', enabled: false },
+      privacyOfficer: { label: '개인정보책임자', value: '홍길동', enabled: false },
       customerCenter: { label: '고객센터', value: '02-0000-0000', enabled: true },
     },
   }))
 
+  // 빈 값(대표자명)과 꺼 둔 법정 외 항목(개인정보책임자)은 빠진다
   assert.equal(rows[0].length, 1)
   assert.equal(rows[0][0].key, 'companyName')
   assert.equal(rows[1][0].key, 'customerCenter')
 })
 
-test('getFooterBrandName falls back when company name is inactive', () => {
-  const brandName = getFooterBrandName(normalizeFooterContent({
+test('법정 표시 항목은 저장값이 꺼짐이어도 늘 켜짐이고, 호스팅 제공자 칸이 있다(2026-11-20)', () => {
+  const normalized = normalizeFooterContent({
     fixedFields: {
-      companyName: { label: '상호명', value: '주식회사 예시', enabled: false },
+      businessAddress: { label: '사업장주소', value: '서울시 강남구', enabled: false },
+      orderEmail: { label: '상담/주문 이메일', value: '', enabled: false },
+      csHours: { label: 'CS 운영시간', value: '09:00', enabled: false },
     },
-  }))
+  })
+  assert.equal(normalized.fixedFields.businessAddress.enabled, true)
+  assert.equal(normalized.fixedFields.orderEmail.enabled, true)
+  assert.equal(normalized.fixedFields.csHours.enabled, false)
+  assert.equal(normalized.fixedFields.hostingProvider.label, '호스팅 제공자')
+  assert.equal(normalized.fixedFields.hostingProvider.enabled, true)
+  for (const key of ['companyName', 'representativeName', 'businessAddress', 'businessRegistrationNumber', 'mailOrderRegistrationNumber', 'customerCenter', 'orderEmail', 'hostingProvider']) {
+    assert.equal(isFooterLegalFieldKey(key), true, key)
+  }
+  assert.equal(isFooterLegalFieldKey('privacyOfficer'), false)
+  assert.equal(isFooterLegalFieldKey('csHours'), false)
+})
 
-  assert.equal(brandName, DEFAULT_FOOTER_BRAND_NAME)
+test('getFooterBrandName uses company name, then the site name (no hardcoded brand)', () => {
+  const withCompany = normalizeFooterContent({ fixedFields: { companyName: { label: '상호명', value: '주식회사 예시', enabled: false } } })
+  // 상호명은 법정 항목이라 꺼짐으로 저장돼도 켜짐으로 읽힌다
+  assert.equal(getFooterBrandName(withCompany, '사이트 이름'), '주식회사 예시')
+  const empty = normalizeFooterContent({ fixedFields: { companyName: { label: '상호명', value: '  ', enabled: true } } })
+  assert.equal(getFooterBrandName(empty, '사이트 이름'), '사이트 이름')
+  assert.equal(getFooterBrandName(empty), '')
 })
 
 test('footer component reads site footer content from server util', () => {

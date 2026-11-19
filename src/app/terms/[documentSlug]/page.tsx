@@ -20,12 +20,12 @@ export async function generateMetadata({ params }: TermsDocumentPageProps): Prom
 
   if (!document) {
     return {
-      title: '약관 및 정책 | 써머썬 연구소',
+      title: '약관 및 정책',
     }
   }
 
   return {
-    title: `${document.title} | 써머썬 연구소`,
+    title: document.title,
     description: document.label,
   }
 }

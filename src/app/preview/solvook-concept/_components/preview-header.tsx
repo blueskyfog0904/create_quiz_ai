@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { SiteLogo } from '@/components/layout/site-logo'
+import { useSiteBrandName } from '@/components/layout/site-brand'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { ChevronDown, Coins, Grid2X2, Library, Search, WalletCards } from 'lucide-react'
@@ -31,6 +32,9 @@ export function PreviewHeader({
 }: PreviewHeaderProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  // 사이트 이름은 관리자 "사이트 기본 정보"(DB) 값을 쓴다
+  const siteName = useSiteBrandName()
+  const homeLabel = siteName ? `${siteName} 홈` : '홈'
   const paramSubject = searchParams.get('subject')
   const subject: WorkspaceSubject =
     paramSubject === 'korean' || paramSubject === 'english'
@@ -208,13 +212,15 @@ export function PreviewHeader({
         <StudioContainer className="flex h-16 items-center justify-between gap-3">
           <Link
             href={homeHref}
-            aria-label="써머썬 연구소 홈"
+            aria-label={homeLabel}
             className="flex min-h-11 min-w-11 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] focus-visible:ring-offset-2"
           >
             <SiteLogo size={34} />
-            <span className="truncate text-base font-extrabold tracking-[-0.02em] text-[var(--studio-ink)]">
-              써머썬 연구소
-            </span>
+            {siteName ? (
+              <span className="truncate text-base font-extrabold tracking-[-0.02em] text-[var(--studio-ink)]">
+                {siteName}
+              </span>
+            ) : null}
           </Link>
           <div className="flex shrink-0 items-center">
             {isLoggedIn && (
@@ -287,13 +293,15 @@ export function PreviewHeader({
           <StudioContainer className="flex h-[72px] items-center gap-5">
             <Link
               href={homeHref}
-              aria-label="써머썬 연구소 홈"
+              aria-label={homeLabel}
               className="flex min-h-11 min-w-11 shrink-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] focus-visible:ring-offset-2"
             >
               <SiteLogo size={38} />
-              <span className="whitespace-nowrap text-lg font-black tracking-[-0.035em] text-[var(--studio-ink)]">
-                써머썬 연구소
-              </span>
+              {siteName ? (
+                <span className="whitespace-nowrap text-lg font-black tracking-[-0.035em] text-[var(--studio-ink)]">
+                  {siteName}
+                </span>
+              ) : null}
             </Link>
 
             <form

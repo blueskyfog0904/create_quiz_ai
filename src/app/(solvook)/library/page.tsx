@@ -11,7 +11,7 @@ import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspac
 import { LibraryView } from './_components/library-view'
 
 export const metadata: Metadata = {
-  title: '자료 보관함 | 써머썬 연구소',
+  title: '자료 보관함',
   description: '구매한 수업 자료를 확인하고 다운로드하는 자료 보관함',
 }
 

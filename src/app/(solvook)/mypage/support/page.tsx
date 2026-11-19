@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { SupportView } from './_components/support-view'
 
 export const metadata: Metadata = {
-  title: '고객지원 | 써머썬 연구소',
+  title: '고객지원',
   description: '1:1 문의를 남기고 답변을 확인합니다.',
 }
 

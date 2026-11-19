@@ -18,6 +18,8 @@ export function SiteLogoSettings() {
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null)
+  // 기본 로고로 되돌린 직후에는 저장된 로고 대신 기본 이미지를 보여 준다(새로고침 전)
+  const [isReset, setIsReset] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [inputKey, setInputKey] = useState(0)
@@ -37,6 +39,7 @@ export function SiteLogoSettings() {
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || '로고를 저장하지 못했습니다.')
       setUploadedUrl(result.url)
+      setIsReset(false)
       setFile(null)
       setPreview(null)
       setInputKey((key) => key + 1)
@@ -49,6 +52,27 @@ export function SiteLogoSettings() {
     }
   }
 
+  async function resetLogo() {
+    if (isSaving) return
+    setIsSaving(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/admin/site-logo', { method: 'DELETE' })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || '기본 로고로 되돌리지 못했습니다.')
+      setUploadedUrl(null)
+      setIsReset(true)
+      toast.success('기본 로고로 되돌렸습니다.')
+      router.refresh()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : '기본 로고로 되돌리지 못했습니다.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const currentLogoUrl = uploadedUrl || (isReset ? null : savedUrl)
+
   return (
     <Card>
       <CardHeader>
@@ -59,7 +83,7 @@ export function SiteLogoSettings() {
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex h-24 w-24 items-center justify-center rounded-md border bg-background p-2">
             <Image
-              src={preview || uploadedUrl || savedUrl || '/brand-mark.svg'}
+              src={preview || currentLogoUrl || '/brand-mark.svg'}
               alt={file ? '선택한 로고 미리보기' : '현재 사이트 로고'}
               width={SITE_LOGO_SIZE}
               height={SITE_LOGO_SIZE}
@@ -106,7 +130,12 @@ export function SiteLogoSettings() {
             {isSaving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
             {isSaving ? '변환 및 저장 중…' : '로고 저장 및 적용'}
           </Button>
-          <p className="text-sm text-muted-foreground">파일 선택 후 저장하면 적용됩니다. 메뉴 설정 저장과 별도로 동작합니다.</p>
+          {currentLogoUrl ? (
+            <Button type="button" variant="outline" className="min-h-11" disabled={isSaving} onClick={resetLogo}>
+              기본 로고로 되돌리기
+            </Button>
+          ) : null}
+          <p className="text-sm text-muted-foreground">파일 선택 후 저장하면 바로 적용됩니다. 아래 사업자 정보 저장과 별도로 동작합니다.</p>
         </div>
       </CardContent>
     </Card>

@@ -1,6 +1,12 @@
 import { requireAdminPanelUser } from '@/lib/auth'
 import { AdminSidebar } from '@/components/layout/admin-sidebar'
 import { AdminAlertProvider } from '@/components/admin/admin-alert-context'
+import type { Metadata } from 'next'
+
+// 관리자 화면 제목은 각 화면이 "메뉴 | 관리자 패널"로 정한다. 루트의 " | 사이트 이름" 템플릿을 여기서 끊는다.
+export const metadata: Metadata = {
+  title: { default: '관리자 패널', template: '%s' },
+}
 
 export default async function AdminLayout({
   children,

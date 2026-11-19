@@ -1,7 +1,6 @@
 import type { Json } from '@/types/supabase'
 
 export const SITE_FOOTER_CONTENT_SETTING_KEY = 'site_footer_content'
-export const DEFAULT_FOOTER_BRAND_NAME = 'AI영어문제팩토리'
 
 export const FOOTER_FIXED_FIELD_KEYS = [
   'companyName',
@@ -13,7 +12,25 @@ export const FOOTER_FIXED_FIELD_KEYS = [
   'customerCenter',
   'orderEmail',
   'csHours',
+  'hostingProvider',
 ] as const
+
+// 전자상거래 사이버몰 표시 항목: 하단에서 끌 수 없다(화면·저장 모두 켜짐으로 고정, 2026-11-20 대표 결정).
+// 값이 비어 있으면 하단에 보이지 않으니 출시 전에 채워야 한다.
+export const FOOTER_LEGAL_FIELD_KEYS = [
+  'companyName',
+  'representativeName',
+  'businessAddress',
+  'businessRegistrationNumber',
+  'mailOrderRegistrationNumber',
+  'customerCenter',
+  'orderEmail',
+  'hostingProvider',
+] as const satisfies readonly (typeof FOOTER_FIXED_FIELD_KEYS)[number][]
+
+export function isFooterLegalFieldKey(key: string) {
+  return (FOOTER_LEGAL_FIELD_KEYS as readonly string[]).includes(key)
+}
 
 export const FOOTER_FIXED_FIELD_ORDER = FOOTER_FIXED_FIELD_KEYS
 
@@ -70,6 +87,7 @@ const FOOTER_FIXED_FIELD_LABELS: Record<FooterFixedFieldKey, string> = {
   customerCenter: '고객센터',
   orderEmail: '상담/주문 이메일',
   csHours: 'CS 운영시간',
+  hostingProvider: '호스팅 제공자',
 }
 
 const DEFAULT_SERVICE_TERMS_CONTENT = `# 서비스 이용약관
@@ -274,7 +292,7 @@ const FOOTER_POLICY_DOCUMENT_DEFAULTS: Record<FooterPolicyDocumentKey, FooterPol
 export const FOOTER_FIXED_FIELD_ROWS: FooterFixedFieldKey[][] = [
   ['companyName', 'representativeName', 'businessAddress'],
   ['businessRegistrationNumber', 'mailOrderRegistrationNumber', 'privacyOfficer'],
-  ['customerCenter', 'orderEmail', 'csHours'],
+  ['customerCenter', 'orderEmail', 'csHours', 'hostingProvider'],
 ]
 
 function createDefaultFixedField(key: FooterFixedFieldKey): FooterFixedField {
@@ -317,7 +335,10 @@ export function normalizeFooterContent(
       return [key, {
         label: value?.label?.trim() || defaults.fixedFields[key].label,
         value: typeof value?.value === 'string' ? value.value : defaults.fixedFields[key].value,
-        enabled: typeof value?.enabled === 'boolean' ? value.enabled : defaults.fixedFields[key].enabled,
+        // 법정 표시 항목은 저장값과 상관없이 늘 켜짐이다
+        enabled: isFooterLegalFieldKey(key)
+          ? true
+          : typeof value?.enabled === 'boolean' ? value.enabled : defaults.fixedFields[key].enabled,
       }]
     })
   ) as Record<FooterFixedFieldKey, FooterFixedField>
@@ -381,14 +402,15 @@ export function getVisibleFooterRows(config: FooterContentConfig): FooterDisplay
     .filter((row) => row.length > 0)
 }
 
-export function getFooterBrandName(config: FooterContentConfig) {
+// 하단 로고 옆 이름: 상호명, 비어 있으면 사이트 이름(관리자 "사이트 기본 정보")
+export function getFooterBrandName(config: FooterContentConfig, fallbackName = '') {
   const companyName = config.fixedFields.companyName
 
   if (companyName.enabled && companyName.value.trim()) {
     return companyName.value.trim()
   }
 
-  return DEFAULT_FOOTER_BRAND_NAME
+  return fallbackName.trim()
 }
 
 export function getVisibleFooterPolicyLinks(config: FooterContentConfig): FooterPolicyDisplayLink[] {

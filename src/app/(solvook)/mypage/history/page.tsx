@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getMypageActivityStats, getMypageRecentActivity } from '@/lib/mypage-activity-server'
 
 export const metadata: Metadata = {
-  title: '생성/구매 히스토리 | 써머썬 연구소',
+  title: '생성/구매 히스토리',
   description: '문제와 문제지 생성·구매 활동 기록을 확인합니다.',
 }
 

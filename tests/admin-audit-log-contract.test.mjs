@@ -425,8 +425,15 @@ test('나머지 기록 호출도 본 동작이 성공한 분기 뒤에 있다', 
   }
   assert.match(pricing, /if \(deleted && deleted\.length > 0\) \{\n\s+await recordAdminAudit\(/)
   // 약관·바닥글: 저장 뒤
-  const footer = after('src/app/(admin)/admin/footer/actions.ts', 'const saved = await saveSiteFooterContent(input)')
-  assert.ok(footer.calls[0] > footer.markerAt)
+  const footer = after('src/app/(admin)/admin/footer/actions.ts', 'const saved = await saveSiteFooterContent(input)', 2)
+  // 파일 순서: 사이트 이름 저장(saveSiteBrandAction) → 약관·바닥글 저장. 각 기록은 자기 저장 뒤에 있다.
+  const brandSavedAt = footer.source.indexOf('const saved = await saveSiteBrand(candidate)')
+  assert.ok(brandSavedAt > 0 && footer.calls[0] > brandSavedAt && footer.calls[0] < footer.markerAt)
+  assert.ok(footer.calls[1] > footer.markerAt)
+  // 사이트 로고: 저장·되돌리기가 끝난 뒤
+  const logo = after('src/app/api/admin/site-logo/route.ts', 'if (saveError) throw saveError', 2)
+  assert.ok(logo.calls[0] > logo.markerAt)
+  assert.ok(logo.calls[1] > logo.source.indexOf("return NextResponse.json({ error: '기본 로고로 되돌리지 못했습니다."))
   // 후기 삭제: 실패 분기 뒤
   const review = after('src/app/api/admin/reviews/[reviewId]/route.ts', "return NextResponse.json({ error: result.message }, { status: 400 })")
   assert.ok(review.calls[0] > review.markerAt)

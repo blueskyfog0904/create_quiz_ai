@@ -2,21 +2,22 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getVisibleFooterPolicyLinks } from '@/lib/footer-content'
 import { getSiteFooterContent } from '@/lib/footer-content-server'
+import { getSiteBrand } from '@/lib/site-brand-server'
 
 export const metadata: Metadata = {
-  title: '약관 및 정책 | 써머썬 연구소',
+  title: '약관 및 정책',
   description: '서비스 이용약관, 개인정보처리방침, 취소/환불정책',
 }
 
 export default async function TermsPage() {
-  const footerContent = await getSiteFooterContent()
+  const [footerContent, siteBrand] = await Promise.all([getSiteFooterContent(), getSiteBrand()])
   const policyLinks = getVisibleFooterPolicyLinks(footerContent)
 
   return (
     <main className="container mx-auto max-w-4xl px-4 py-12">
       <div className="flex flex-col gap-4">
         <div>
-          <p className="text-sm font-medium text-gray-500">써머썬 연구소</p>
+          {siteBrand.name ? <p className="text-sm font-medium text-gray-500">{siteBrand.name}</p> : null}
           <h1 className="mt-2 text-3xl font-bold text-gray-900">약관 및 정책</h1>
           <p className="mt-3 text-gray-600">서비스 이용에 필요한 약관과 정책을 확인할 수 있습니다.</p>
         </div>

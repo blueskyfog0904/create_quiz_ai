@@ -7,8 +7,8 @@ import { getRequestAuthUserId } from '@/lib/request-auth'
 import { AdminLoginView } from './_components/admin-login-view'
 
 export const metadata: Metadata = {
-  title: '관리자 로그인 | 써머썬 연구소',
-  description: '써머썬 연구소 관리자 패널 로그인',
+  title: '관리자 로그인',
+  description: '관리자 패널 로그인',
 }
 
 export default async function AdminLoginPage() {

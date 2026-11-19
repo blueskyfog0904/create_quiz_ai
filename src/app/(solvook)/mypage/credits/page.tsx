@@ -27,7 +27,7 @@ function firstOrNull<T>(value: T | T[] | null | undefined): T | null {
 }
 
 export const metadata: Metadata = {
-  title: '크레딧 관리 | 써머썬 연구소',
+  title: '크레딧 관리',
   description: '크레딧 잔액과 구매·거래 내역을 확인하고 환불을 신청할 수 있습니다.',
 }
 

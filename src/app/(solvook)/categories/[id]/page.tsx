@@ -11,7 +11,7 @@ import { CategoryItemsView } from './_components/category-items-view'
 import { normalizeListPage, normalizeListPageSize } from '@/lib/list-pagination'
 
 export const metadata: Metadata = {
-  title: '카테고리 | 써머썬 연구소',
+  title: '카테고리',
   description: '카테고리에 등록된 수업 자료를 확인합니다.',
 }
 

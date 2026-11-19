@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Loader2, Plus, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -12,20 +12,29 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   FOOTER_FIXED_FIELD_KEYS,
   getFooterBrandName,
+  isFooterLegalFieldKey,
   getVisibleFooterRows,
   normalizeFooterContent,
   type FooterContentConfig,
   type FooterFixedFieldKey,
   type FooterPolicyDocumentKey,
 } from '@/lib/footer-content'
-import { saveFooterContentAction, type FooterSettingsPageData } from './actions'
+import { saveFooterContentAction } from './actions'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
-export default function FooterSettingsClient({ footerContent: initialFooterContent }: FooterSettingsPageData) {
+interface FooterSettingsClientProps {
+  footerContent: FooterContentConfig
+  // 하단 미리보기의 이름(상호명이 비었을 때 쓰는 사이트 이름)
+  siteBrandName: string
+  // 머리말 아래에 놓는 사이트 이름·로고 영역(각자 따로 저장)
+  topSections?: ReactNode
+}
+
+export default function FooterSettingsClient({ footerContent: initialFooterContent, siteBrandName, topSections }: FooterSettingsClientProps) {
   const [footerContent, setFooterContent] = useState<FooterContentConfig>(() => clone(initialFooterContent))
   const [savedFooterContent, setSavedFooterContent] = useState<FooterContentConfig>(() => clone(initialFooterContent))
   const [isSaving, setIsSaving] = useState(false)
@@ -110,9 +119,9 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
       const response = await saveFooterContentAction(normalizeFooterContent(footerContent))
       setFooterContent(response.data)
       setSavedFooterContent(response.data)
-      toast.success('Footer 설정을 저장했습니다.')
+      toast.success('하단 정보를 저장했습니다.')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Footer 설정 저장에 실패했습니다.')
+      toast.error(error instanceof Error ? error.message : '하단 정보 저장에 실패했습니다.')
     } finally {
       setIsSaving(false)
     }
@@ -122,8 +131,8 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900"><AdminMenuName href="/admin/footer" fallback="Footer 설정" /></h1>
-          <p className="mt-1 text-gray-500">사이트 하단에 노출되는 사업자 정보와 추가 안내 문구를 관리합니다.</p>
+          <h1 className="text-3xl font-bold text-gray-900"><AdminMenuName href="/admin/footer" fallback="사이트 기본 정보" /></h1>
+          <p className="mt-1 text-gray-500">사이트 이름·로고와 하단 사업자 정보·안내 문구·약관을 관리합니다.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={handleReset} disabled={isSaving || !hasUnsavedChanges}>
@@ -131,10 +140,12 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
           </Button>
           <Button onClick={handleSave} disabled={isSaving || !hasUnsavedChanges}>
             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            저장
+            하단 정보 저장
           </Button>
         </div>
       </div>
+
+      {topSections}
 
       <Card>
         <CardHeader>
@@ -162,13 +173,24 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
                   />
                 )}
               </div>
-              <div className="flex items-center justify-end gap-2 md:min-w-[120px]">
-                <Switch
-                  checked={field.enabled}
-                  onCheckedChange={(checked) => updateFixedField(field.key, { enabled: checked })}
-                />
-                <span className="text-sm text-gray-500">{field.enabled ? '활성' : '비활성'}</span>
-              </div>
+              {isFooterLegalFieldKey(field.key) ? (
+                // 법정 표시 항목은 끌 수 없다(저장할 때도 켜짐으로 고정된다)
+                <div className="flex flex-col items-end justify-center gap-1 md:min-w-[120px]">
+                  <span className="text-sm text-gray-500">법정 표시 항목</span>
+                  <span className="text-xs text-gray-400">끌 수 없음</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-end gap-2 md:min-w-[120px]">
+                  <Switch
+                    checked={field.enabled}
+                    onCheckedChange={(checked) => updateFixedField(field.key, { enabled: checked })}
+                  />
+                  <span className="text-sm text-gray-500">{field.enabled ? '활성' : '비활성'}</span>
+                </div>
+              )}
+              {isFooterLegalFieldKey(field.key) && !field.value.trim() ? (
+                <p className="text-xs text-amber-700 md:col-span-2">비어 있으면 하단에 보이지 않습니다. 출시 전에 채워 주세요.</p>
+              ) : null}
             </div>
           ))}
         </CardContent>
@@ -289,7 +311,7 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
               .map((document) => document.label.trim())
               .join(' | ')}
           </p>
-          <p className="pt-2">© {new Date().getFullYear()} {getFooterBrandName(footerContent)}. All rights reserved.</p>
+          <p className="pt-2">© {new Date().getFullYear()} {getFooterBrandName(footerContent, siteBrandName)}. All rights reserved.</p>
         </CardContent>
       </Card>
     </div>

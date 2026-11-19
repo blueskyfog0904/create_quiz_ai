@@ -6,7 +6,7 @@ import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { SolvookHomeView } from './_components/solvook-home-view'
 
 export const metadata: Metadata = {
-  title: '써머썬 연구소 | 문제마켓',
+  title: '문제마켓',
 }
 
 function resolveSubject(value?: string): WorkspaceSubject | null {

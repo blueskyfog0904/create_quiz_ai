@@ -7,6 +7,7 @@ import {
   getVisibleFooterRows,
 } from '@/lib/footer-content'
 import { getSiteFooterContent } from '@/lib/footer-content-server'
+import { getSiteBrand } from '@/lib/site-brand-server'
 
 export interface SolvookFooterData {
   cs: { phone: string; hours: string; email: string }
@@ -24,7 +25,7 @@ const getCachedFooterContent = unstable_cache(
 )
 
 export async function getSolvookFooterData(): Promise<SolvookFooterData> {
-  const footerContent = await getCachedFooterContent()
+  const [footerContent, siteBrand] = await Promise.all([getCachedFooterContent(), getSiteBrand()])
   const fields = footerContent.fixedFields
 
   return {
@@ -41,7 +42,7 @@ export async function getSolvookFooterData(): Promise<SolvookFooterData> {
       label: link.label,
       href: link.href,
     })),
-    brandName: getFooterBrandName(footerContent),
+    brandName: getFooterBrandName(footerContent, siteBrand.name),
     notices: footerContent.extraNotices,
   }
 }

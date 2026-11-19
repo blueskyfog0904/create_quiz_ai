@@ -16,7 +16,6 @@ import {
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { SiteLogoSettings } from './site-logo-settings'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -900,8 +899,6 @@ export default function MenuManagementClient({
           <p className="mt-3 text-sm text-gray-500">순서는 국어·영어가 함께 씁니다. 대메뉴는 묶음째 이동하고, 하위 메뉴는 묶음 안에서만 순서를 조정합니다. 과목별 대메뉴는 사이드바에서 국어·영어 묶음으로 나뉘어 같은 순서로 보입니다.</p>
         </CardContent>
       </Card>
-
-      <SiteLogoSettings />
 
       <Card>
         <CardHeader>

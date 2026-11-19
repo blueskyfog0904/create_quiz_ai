@@ -7,7 +7,7 @@ import { getRequestAuthUserId } from '@/lib/request-auth'
 import { CartView } from './_components/cart-view'
 
 export const metadata: Metadata = {
-  title: '장바구니 | 써머썬 연구소',
+  title: '장바구니',
   description: '담아 둔 문제마켓 자료를 확인하고 크레딧으로 한 번에 구매하는 장바구니',
 }
 

@@ -241,7 +241,7 @@ const ROUTE_REQUIREMENTS = {
   'review-tags/route.ts': all('reviews.manage', 'GET', 'POST'),
   'review-tags/[tagId]/route.ts': all('reviews.manage', 'PATCH'),
   // 사이트
-  'site-logo/route.ts': all('site.manage', 'POST'),
+  'site-logo/route.ts': all('site.manage', 'POST', 'DELETE'),
   // 꺼 둔 기능(4-2절): 미들웨어가 먼저 404로 막고, 다시 켜더라도 대표 전용
   'ai-connections/route.ts': all(OWNER, 'GET'),
   'ai-connections/[provider]/route.ts': all(OWNER, 'PATCH'),
@@ -441,6 +441,7 @@ const ACTION_REQUIREMENTS = {
     getFooterSettingsData: 'site.manage',
     saveSiteFooterContentAction: 'site.manage',
     saveFooterContentAction: { alias: 'saveSiteFooterContentAction' },
+    saveSiteBrandAction: 'site.manage',
   },
   'src/app/(admin)/admin/pricing/actions.ts': {
     getPricingPlans: 'pricing.manage',
