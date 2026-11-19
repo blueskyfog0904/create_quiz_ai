@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { StudioContainer } from '@/components/design-system/studio-container'
 import { StudioEmptyState } from '@/components/design-system/studio-empty-state'
 import { Database } from '@/types/supabase'
@@ -145,6 +146,8 @@ export function SupportView({ tickets, categories, userId }: SupportViewProps) {
   const [subject, setSubject] = useState('')
   const [message, setMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // 등록 완료는 잠깐 뜨는 알림 대신 확인을 눌러야 닫히는 창으로 보여 준다(놓치지 않게).
+  const [showSubmittedDialog, setShowSubmittedDialog] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editCategoryId, setEditCategoryId] = useState('')
   const [editSubject, setEditSubject] = useState('')
@@ -183,7 +186,7 @@ export function SupportView({ tickets, categories, userId }: SupportViewProps) {
         throw new Error(data.error || '문의 등록에 실패했습니다.')
       }
 
-      toast.success('문의가 등록되었습니다. 빠른 시일 내에 답변드리겠습니다.')
+      setShowSubmittedDialog(true)
       setSelectedCategoryId(categories[0]?.id || '')
       setSubject('')
       setMessage('')
@@ -289,6 +292,7 @@ export function SupportView({ tickets, categories, userId }: SupportViewProps) {
             <h2 className="text-lg font-bold text-[var(--studio-ink)]">1:1 문의하기</h2>
             <p className="text-sm text-[var(--studio-muted)] break-keep">
               궁금한 점을 남겨주시면 빠른 시일 내에 답변드립니다.
+              답변은 이메일로 보내지 않으니, 화면 위쪽 알림(종 모양)과 아래 문의 내역에서 확인해 주세요.
             </p>
           </div>
         </div>
@@ -551,6 +555,20 @@ export function SupportView({ tickets, categories, userId }: SupportViewProps) {
           </ul>
         )}
       </section>
+
+      <Dialog open={showSubmittedDialog} onOpenChange={setShowSubmittedDialog}>
+        <DialogContent className="sm:max-w-[420px] max-md:max-w-[calc(100vw-2rem)]">
+          <DialogHeader>
+            <DialogTitle>문의가 등록되었습니다</DialogTitle>
+            <DialogDescription className="break-keep">
+              빠른 시일 내에 답변드리겠습니다. 답변은 이메일로 보내지 않으니, 화면 위쪽 알림(종 모양)과 아래 문의 내역에서 확인해 주세요.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" onClick={() => setShowSubmittedDialog(false)}>확인</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </StudioContainer>
   )
 }
