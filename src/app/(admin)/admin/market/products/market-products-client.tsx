@@ -3456,7 +3456,8 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
               </div>
               <div className="space-y-2">
                 <Label>slug</Label>
-                <Input value={categorySettingsForm.slug} onChange={(event) => setCategorySettingsForm((current) => ({ ...current, slug: event.target.value }))} placeholder="예: workbook" />
+                <Input value={categorySettingsForm.slug} onChange={(event) => setCategorySettingsForm((current) => ({ ...current, slug: event.target.value }))} placeholder="예: workbook" disabled={Boolean(editingCategoryId)} />
+                {editingCategoryId ? <p className="text-xs text-gray-500">slug는 만든 뒤에 바꿀 수 없습니다.</p> : null}
               </div>
               <div className="space-y-2">
                 <Label>설명</Label>
@@ -3525,7 +3526,8 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
               </div>
               <div className="space-y-2">
                 <Label>코드</Label>
-                <Input value={fileTypeSettingsForm.code} onChange={(event) => setFileTypeSettingsForm((current) => ({ ...current, code: event.target.value }))} placeholder="예: pdf" />
+                <Input value={fileTypeSettingsForm.code} onChange={(event) => setFileTypeSettingsForm((current) => ({ ...current, code: event.target.value }))} placeholder="예: pdf" disabled={Boolean(editingFileTypeId)} />
+                {editingFileTypeId ? <p className="text-xs text-gray-500">코드는 만든 뒤에 바꿀 수 없습니다.</p> : null}
               </div>
               <div className="space-y-2">
                 <Label>표시명</Label>

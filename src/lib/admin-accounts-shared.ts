@@ -5,6 +5,9 @@ export const ADMIN_ACCOUNT_EMAIL_DOMAIN = 'admin.summersun.local'
 
 export const ADMIN_LOGIN_ID_PATTERN = /^[a-z0-9_-]{3,30}$/
 
+// 관리자 ID 비밀번호 최소 길이(새로 만들거나 바꿀 때만 검사한다. 이미 쓰는 비밀번호는 그대로 로그인된다)
+export const ADMIN_PASSWORD_MIN_LENGTH = 12
+
 export function normalizeAdminLoginId(value: string) {
   return value.trim().toLowerCase()
 }

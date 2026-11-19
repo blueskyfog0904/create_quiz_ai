@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { ADMIN_PASSWORD_MIN_LENGTH } from '@/lib/admin-accounts-shared'
 import {
   AdminAccountError,
   deleteAdminAccount,
@@ -30,7 +31,7 @@ function toErrorResponse(error: unknown, fallbackMessage: string) {
 }
 
 const PatchSchema = z.object({
-  password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다.'),
+  password: z.string().min(ADMIN_PASSWORD_MIN_LENGTH, `비밀번호는 ${ADMIN_PASSWORD_MIN_LENGTH}자 이상이어야 합니다.`),
 })
 
 export async function PATCH(

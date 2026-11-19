@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ADMIN_PASSWORD_MIN_LENGTH } from '@/lib/admin-accounts-shared'
 import { AdminPermissionsDialog, type AdminPermissionPreset } from './admin-permissions-dialog'
 
 interface AdminAccountRow {
@@ -152,8 +153,8 @@ export default function AdminAccountsClient() {
 
   const resetPassword = (account: AdminAccountRow) => {
     const draft = passwordDrafts[account.userId] ?? ''
-    if (draft.length < 8) {
-      alert('비밀번호는 8자 이상이어야 합니다.')
+    if (draft.length < ADMIN_PASSWORD_MIN_LENGTH) {
+      alert(`비밀번호는 ${ADMIN_PASSWORD_MIN_LENGTH}자 이상이어야 합니다.`)
       return
     }
     void patchAccount(account.userId, { password: draft })
@@ -175,7 +176,7 @@ export default function AdminAccountsClient() {
             type="password"
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
-            placeholder="비밀번호 (8자 이상)"
+            placeholder={`비밀번호 (${ADMIN_PASSWORD_MIN_LENGTH}자 이상)`}
             className="w-56 max-w-full"
             autoComplete="new-password"
           />
@@ -254,7 +255,7 @@ export default function AdminAccountsClient() {
                           type="button"
                           size="sm"
                           variant="outline"
-                          disabled={savingId === account.userId || (passwordDrafts[account.userId] ?? '').length < 8}
+                          disabled={savingId === account.userId || (passwordDrafts[account.userId] ?? '').length < ADMIN_PASSWORD_MIN_LENGTH}
                           onClick={() => resetPassword(account)}
                         >
                           비밀번호 재설정

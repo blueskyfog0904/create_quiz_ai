@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ADMIN_PASSWORD_MIN_LENGTH } from '@/lib/admin-accounts-shared'
 
 export function MyPasswordClient() {
   const [currentPassword, setCurrentPassword] = useState('')
@@ -12,8 +13,8 @@ export function MyPasswordClient() {
   const [message, setMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null)
 
   const submit = async () => {
-    if (newPassword.length < 8) {
-      setMessage({ tone: 'error', text: '새 비밀번호는 8자 이상이어야 합니다.' })
+    if (newPassword.length < ADMIN_PASSWORD_MIN_LENGTH) {
+      setMessage({ tone: 'error', text: `새 비밀번호는 ${ADMIN_PASSWORD_MIN_LENGTH}자 이상이어야 합니다.` })
       return
     }
     if (newPassword !== confirmPassword) {
@@ -61,7 +62,7 @@ export function MyPasswordClient() {
         <Input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} autoComplete="current-password" required />
       </label>
       <label className="block space-y-1 text-sm">
-        <span className="font-medium">새 비밀번호 (8자 이상, 72바이트 이하)</span>
+        <span className="font-medium">새 비밀번호 ({ADMIN_PASSWORD_MIN_LENGTH}자 이상, 72바이트 이하)</span>
         <Input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} autoComplete="new-password" required />
       </label>
       <label className="block space-y-1 text-sm">

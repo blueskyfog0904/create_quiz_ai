@@ -1,6 +1,7 @@
 import 'server-only'
 import {
   ADMIN_LOGIN_ID_PATTERN,
+  ADMIN_PASSWORD_MIN_LENGTH,
   extractAdminLoginId,
   isAdminAccountEmail,
   normalizeAdminLoginId,
@@ -97,8 +98,8 @@ export async function createAdminAccount({
   if (!ADMIN_LOGIN_ID_PATTERN.test(normalizedLoginId)) {
     throw new AdminAccountError(400, '아이디는 영문 소문자·숫자·-·_ 3~30자여야 합니다.')
   }
-  if (password.length < 8) {
-    throw new AdminAccountError(400, '비밀번호는 8자 이상이어야 합니다.')
+  if (password.length < ADMIN_PASSWORD_MIN_LENGTH) {
+    throw new AdminAccountError(400, `비밀번호는 ${ADMIN_PASSWORD_MIN_LENGTH}자 이상이어야 합니다.`)
   }
 
   const admin = createAdminClient()
@@ -169,8 +170,8 @@ export async function updateAdminAccount({
   userId: string
   password: string
 }) {
-  if (password.length < 8) {
-    throw new AdminAccountError(400, '비밀번호는 8자 이상이어야 합니다.')
+  if (password.length < ADMIN_PASSWORD_MIN_LENGTH) {
+    throw new AdminAccountError(400, `비밀번호는 ${ADMIN_PASSWORD_MIN_LENGTH}자 이상이어야 합니다.`)
   }
 
   const admin = createAdminClient()
@@ -369,8 +370,8 @@ export async function changeOwnAdminPassword({
   currentPassword: string
   newPassword: string
 }) {
-  if (newPassword.length < 8) {
-    throw new AdminAccountError(400, '비밀번호는 8자 이상이어야 합니다.')
+  if (newPassword.length < ADMIN_PASSWORD_MIN_LENGTH) {
+    throw new AdminAccountError(400, `비밀번호는 ${ADMIN_PASSWORD_MIN_LENGTH}자 이상이어야 합니다.`)
   }
   if (newPassword === currentPassword) {
     throw new AdminAccountError(400, '새 비밀번호가 현재 비밀번호와 같습니다.')

@@ -469,9 +469,13 @@ export async function updateMarketSubproductCategory(
     throw new Error('수정할 서브상품 카테고리를 찾을 수 없습니다.')
   }
 
+  // slug는 화면 로직(question_hwp·question_pdf 등)이 기대는 식별값이라 만든 뒤에는 바꿀 수 없다.
+  if (input.slug !== undefined && normalizeText(input.slug) !== existing.slug) {
+    throw new Error('서브상품 카테고리의 slug는 만든 뒤에 바꿀 수 없습니다. 이름만 바꿔 주세요.')
+  }
+
   const payload: MarketSubproductCategoryUpdate = {}
   if (input.name !== undefined) payload.name = normalizeText(input.name)
-  if (input.slug !== undefined) payload.slug = normalizeText(input.slug)
   if (input.description !== undefined) payload.description = normalizeNullableText(input.description)
   if (input.sortOrder !== undefined) payload.sort_order = input.sortOrder
   if (input.isActive !== undefined) payload.is_active = input.isActive
@@ -627,6 +631,10 @@ export async function updateMarketFileType(
   }
 
   const nextCode = input.code === undefined ? existing.code : normalizeText(input.code).toLowerCase()
+  // code는 화면 로직(pdf·hwp·zip)이 기대는 식별값이라 사용 여부와 상관없이 만든 뒤에는 바꿀 수 없다.
+  if (nextCode !== existing.code) {
+    throw new Error('파일 유형의 코드는 만든 뒤에 바꿀 수 없습니다. 표시명만 바꿔 주세요.')
+  }
   const nextExtension = input.extension === undefined ? existing.extension : normalizeText(input.extension).toLowerCase()
   const nextMimeAllowlist = input.mimeAllowlist === undefined ? existing.mime_allowlist : input.mimeAllowlist
   const identityChanged = nextCode !== existing.code ||
@@ -652,7 +660,6 @@ export async function updateMarketFileType(
   }
 
   const payload: MarketFileTypeUpdate = {}
-  if (input.code !== undefined) payload.code = nextCode
   if (input.label !== undefined) payload.label = normalizeText(input.label)
   if (input.extension !== undefined) payload.extension = nextExtension
   if (input.mimeAllowlist !== undefined) payload.mime_allowlist = nextMimeAllowlist

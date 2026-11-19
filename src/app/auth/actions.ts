@@ -14,7 +14,8 @@ export async function login(formData: FormData) {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
 
-  console.log(`[Login Action] Attempting login for: ${email}`)
+  // 이메일 등 개인정보는 로그에 남기지 않는다
+  console.log('[Login Action] Attempting login')
 
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
@@ -58,7 +59,8 @@ export async function signup(formData: FormData) {
   // Extract profile fields
   const phone = formData.get('phone') as string
 
-  console.log(`[Signup Action] Data received - Email: ${email}, Phone: ${phone}`)
+  // 이메일·휴대폰 등 개인정보는 로그에 남기지 않는다
+  console.log('[Signup Action] Data received')
 
   if (!email || !password || !phone) {
     return { success: false, error: '이메일, 비밀번호, 휴대폰 번호를 모두 입력해주세요.' }

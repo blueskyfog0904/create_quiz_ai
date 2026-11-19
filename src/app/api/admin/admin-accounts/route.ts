@@ -6,7 +6,7 @@ import {
   listAdminAccounts,
   readAdminPermissionPresets,
 } from '@/lib/admin-accounts-server'
-import { ADMIN_LOGIN_ID_PATTERN, normalizeAdminLoginId } from '@/lib/admin-accounts-shared'
+import { ADMIN_LOGIN_ID_PATTERN, ADMIN_PASSWORD_MIN_LENGTH, normalizeAdminLoginId } from '@/lib/admin-accounts-shared'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { recordAdminAudit } from '@/lib/admin-audit-log-server'
 
@@ -47,7 +47,7 @@ const CreateSchema = z.object({
   login_id: z.string()
     .transform((value) => normalizeAdminLoginId(value))
     .refine((value) => ADMIN_LOGIN_ID_PATTERN.test(value), '아이디는 영문 소문자·숫자·-·_ 3~30자여야 합니다.'),
-  password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다.'),
+  password: z.string().min(ADMIN_PASSWORD_MIN_LENGTH, `비밀번호는 ${ADMIN_PASSWORD_MIN_LENGTH}자 이상이어야 합니다.`),
 })
 
 export async function POST(request: NextRequest) {

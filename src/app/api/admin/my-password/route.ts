@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { ADMIN_PASSWORD_MIN_LENGTH } from '@/lib/admin-accounts-shared'
 import { AdminAccountError, changeOwnAdminPassword } from '@/lib/admin-accounts-server'
 import { recordAdminAudit } from '@/lib/admin-audit-log-server'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic'
 const PostSchema = z.object({
   currentPassword: z.string().min(1, '현재 비밀번호를 입력해 주세요.'),
   newPassword: z.string()
-    .min(8, '비밀번호는 8자 이상이어야 합니다.')
+    .min(ADMIN_PASSWORD_MIN_LENGTH, `비밀번호는 ${ADMIN_PASSWORD_MIN_LENGTH}자 이상이어야 합니다.`)
     // 인증 서버가 비밀번호를 72바이트까지만 쓴다(한글은 한 글자가 3바이트).
     .refine((value) => new TextEncoder().encode(value).length <= 72, '비밀번호는 72바이트(영문 72자, 한글 24자) 이하여야 합니다.'),
 })

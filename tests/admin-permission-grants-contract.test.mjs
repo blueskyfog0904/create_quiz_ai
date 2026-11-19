@@ -382,6 +382,7 @@ function loadMyPasswordRoute(world, session, audits = [], signOuts = [], signOut
     'next/server': { NextResponse },
     ...adminGuardMocks(session),
     '@/lib/admin-accounts-server': world.server,
+    '@/lib/admin-accounts-shared': load('src/lib/admin-accounts-shared.ts', {}),
     '@/lib/admin-audit-log-server': { recordAdminAudit: async (entry) => { audits.push(entry); return true } },
     // 지금 쿠키 세션 클라이언트: 다른 기기 로그아웃만 본다.
     '@/lib/supabase/server': { createClient: async () => ({ auth: { signOut: async (options) => { signOuts.push(options); return { error: signOutError } } } }) },
@@ -393,25 +394,32 @@ test('내 비밀번호 변경: 관리자 본인만, 현재 비밀번호 확인 �
   const audits = []
   const signOuts = []
   const route = loadMyPasswordRoute(world, { userId: STAFF_ID, role: 'staff' }, audits, signOuts)
-  const ok = await route.POST({ json: async () => ({ currentPassword: 'old-pass-1', newPassword: 'new-pass-12' }) })
+  const ok = await route.POST({ json: async () => ({ currentPassword: 'old-pass-1', newPassword: 'new-pass-1234' }) })
   assert.equal(ok.status, 200)
   assert.equal((await ok.json()).otherSessionsSignedOut, true)
   // 바꾼 뒤 지금 세션만 남기고 다른 기기·브라우저의 로그인을 끊는다.
   assert.deepEqual(signOuts, [{ scope: 'others' }])
   assert.deepEqual(world.signIns, [{ email: 'cs01@admin.summersun.local', password: 'old-pass-1' }])
-  assert.deepEqual(world.updates, [{ id: STAFF_ID, attributes: { password: 'new-pass-12' } }])
+  assert.deepEqual(world.updates, [{ id: STAFF_ID, attributes: { password: 'new-pass-1234' } }])
   assert.deepEqual(audits.map((entry) => [entry.action, entry.actorId, entry.targetId]), [['admin_own_password_change', STAFF_ID, STAFF_ID]])
   assert.doesNotMatch(JSON.stringify(audits), /pass-1/, '비밀번호는 기록에 남지 않는다')
 
   // 다른 세션 로그아웃이 실패해도 변경은 성공이고, 화면이 사실대로 안내하도록 알려 준다.
   const partial = createWorld()
   const partialResponse = await loadMyPasswordRoute(partial, { userId: STAFF_ID, role: 'staff' }, [], [], { code: 'unexpected_failure', message: 'x' })
-    .POST({ json: async () => ({ currentPassword: 'old-pass-1', newPassword: 'new-pass-12' }) })
+    .POST({ json: async () => ({ currentPassword: 'old-pass-1', newPassword: 'new-pass-1234' }) })
   assert.equal(partialResponse.status, 200)
   assert.equal((await partialResponse.json()).otherSessionsSignedOut, false)
   assert.equal(partial.updates.length, 1)
   const client = read('src/app/(admin)/admin/my-password/my-password-client.tsx')
   assert.match(client, /result\.otherSessionsSignedOut\s+\?/)
+
+  // 관리자 비밀번호는 12자 이상이어야 한다(11자는 거부, 2026-11-20).
+  const elevenChars = createWorld()
+  const elevenResponse = await loadMyPasswordRoute(elevenChars, { userId: STAFF_ID, role: 'staff' }).POST({ json: async () => ({ currentPassword: 'old-pass-1', newPassword: 'new-pass-12' }) })
+  assert.equal(elevenResponse.status, 400)
+  assert.match((await elevenResponse.json()).error, /12자 이상/)
+  assert.equal(elevenChars.updates.length + elevenChars.signIns.length, 0)
 
   // 72바이트를 넘는 새 비밀번호(한글 25자 = 75바이트)는 받지 않는다.
   const long = createWorld()
@@ -425,7 +433,7 @@ test('내 비밀번호 변경: 관리자 본인만, 현재 비밀번호 확인 �
   const wrongAudits = []
   const wrongSignOuts = []
   const denied = await loadMyPasswordRoute(wrong, { userId: STAFF_ID, role: 'staff' }, wrongAudits, wrongSignOuts)
-    .POST({ json: async () => ({ currentPassword: 'bad', newPassword: 'new-pass-12' }) })
+    .POST({ json: async () => ({ currentPassword: 'bad', newPassword: 'new-pass-1234' }) })
   assert.equal(denied.status, 400)
   assert.match((await denied.json()).error, /현재 비밀번호가 맞지 않습니다/)
   assert.equal(wrong.updates.length, 0)
