@@ -14,12 +14,16 @@ const PERMISSION_MIGRATION = read('supabase/migrations/20261117120000_admin_perm
 const LIMITS_MIGRATION = read('supabase/migrations/20261118120000_admin_credit_grant_limits.sql')
 const REVOKE_MIGRATION = read('supabase/migrations/20261118150000_admin_credit_revoke.sql')
 // DB 함수가 같은 트랜잭션으로 적는 종류
+// 4번 묶음(가입 동의): 항목 저장·개정 기록은 DB 함수가 같은 트랜잭션에서 남긴다.
+const CONSENT_MIGRATION = read('supabase/migrations/20261120120000_signup_consents.sql')
 const DB_FUNCTION_ACTIONS = [
   [PERMISSION_MIGRATION, 'admin_permissions_replace'],
   [PERMISSION_MIGRATION, 'admin_account_revoke'],
   [LIMITS_MIGRATION, 'credit_grant'],
   [LIMITS_MIGRATION, 'credit_grant_limits_update'],
   [REVOKE_MIGRATION, 'credit_revoke'],
+  [CONSENT_MIGRATION, 'signup_consent_item_save'],
+  [CONSENT_MIGRATION, 'signup_consent_item_revise'],
 ]
 const { ADMIN_AUDIT_ACTIONS } = load('src/lib/admin-audit-log.ts')
 

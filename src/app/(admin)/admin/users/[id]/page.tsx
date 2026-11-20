@@ -45,6 +45,13 @@ const KIND_TONE_CLASS = {
 
 const LINK_CLASS = 'text-blue-700 underline-offset-2 hover:underline'
 
+const CONSENT_SOURCE_LABELS: Record<string, string> = {
+  email_signup: '이메일 가입',
+  kakao_signup: '카카오 가입',
+  consent_gate: '동의 화면',
+  mypage: '선택 동의 관리',
+}
+
 const formatDateTime = (value: string | null | undefined) =>
   value ? new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-'
 const formatSigned = (amount: number) => `${amount > 0 ? '+' : ''}${amount.toLocaleString()}`
@@ -403,6 +410,26 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
             </ul>
             <RecentNote shown={tickets.length} total={totalCount} />
           </>
+        )}
+      </Section>
+
+      <Section title="약관 동의" section={detail.consents}>
+        {(history) => history.length === 0 ? <Empty>동의 기록이 없습니다.</Empty> : (
+          <ul className="divide-y text-sm">
+            {history.map((entry, index) => (
+              <li key={`${entry.createdAt}-${index}`} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <div className="min-w-0">
+                  <p className="font-medium">
+                    [{entry.required ? '필수' : '선택'}] {entry.itemLabel} <span className="text-xs font-normal text-gray-500">버전 {entry.itemVersion}</span>
+                  </p>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    {formatDateTime(entry.createdAt)} · {CONSENT_SOURCE_LABELS[entry.source] ?? entry.source}
+                  </p>
+                </div>
+                <Badge variant="outline" className={entry.agreed ? '' : 'border-red-300 text-red-700'}>{entry.agreed ? '동의' : '동의하지 않음'}</Badge>
+              </li>
+            ))}
+          </ul>
         )}
       </Section>
     </div>

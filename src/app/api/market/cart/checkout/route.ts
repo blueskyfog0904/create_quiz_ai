@@ -4,6 +4,7 @@ import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot, selectDispl
 import { guardMarketCartRequest, marketCartErrorResponse } from '@/lib/market-cart-server'
 import { runMarketCheckout } from '@/lib/market-checkout-server'
 import { isMarketV2PurchaseEnabled } from '@/lib/market-purchase'
+import { checkMemberConsentForApi, consentBlockResponse } from '@/lib/consent-guard-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +21,12 @@ export async function POST(request: NextRequest) {
   const guard = await guardMarketCartRequest()
   if ('response' in guard) {
     return guard.response
+  }
+
+  // 필수 약관 동의 확인(돈 API 의 실제 강제 — 인증 직후, 첫 쓰기·외부 호출 전)
+  const consentBlock = await checkMemberConsentForApi()
+  if (consentBlock) {
+    return consentBlockResponse(consentBlock, 'structured')
   }
 
   const parsed = CheckoutBodySchema.safeParse(await request.json().catch(() => null))

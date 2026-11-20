@@ -456,3 +456,23 @@ export function getSiteFooterDisplayRows(content?: Partial<FooterContentConfig> 
     brandName: getFooterBrandName(normalized),
   }
 }
+
+// ── 가입 동의(4번 묶음)가 쓰는 약관 문서 기본값 조회. 원본 판정은 src/lib/footer-policy-raw.ts ─────────────────
+export const FOOTER_PRIVACY_POLICY_SLUG = FOOTER_POLICY_DOCUMENT_DEFAULTS.privacyPolicy.slug
+
+export function getFooterPolicyDocumentKeyBySlug(slug: string): FooterPolicyDocumentKey | null {
+  const normalizedSlug = slug.trim()
+  return FOOTER_POLICY_DOCUMENT_KEYS.find((key) => FOOTER_POLICY_DOCUMENT_DEFAULTS[key].slug === normalizedSlug) ?? null
+}
+
+export function listFooterPolicyDocumentSlugs() {
+  return FOOTER_POLICY_DOCUMENT_KEYS.map((key) => ({
+    key,
+    slug: FOOTER_POLICY_DOCUMENT_DEFAULTS[key].slug,
+    label: FOOTER_POLICY_DOCUMENT_DEFAULTS[key].label,
+  }))
+}
+
+export function getFooterPolicyDocumentDefault(key: FooterPolicyDocumentKey) {
+  return { ...FOOTER_POLICY_DOCUMENT_DEFAULTS[key] }
+}

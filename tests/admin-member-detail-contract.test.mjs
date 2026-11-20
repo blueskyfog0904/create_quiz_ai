@@ -33,6 +33,12 @@ function loadDetail({ profileRow = profile, profileError = null, tableErrors = [
   const server = load('src/lib/admin-member-detail-server.ts', {
     '@/lib/supabase/bypass': { createAdminClient: () => admin },
     '@/lib/payment-orders-server': { createPaymentAdminClient: () => paymentAdmin },
+    '@/lib/signup-consent-server': {
+      readMemberConsentHistory: async (userId) => {
+        calls.push(['consents', userId])
+        return []
+      },
+    },
     '@/lib/credit-balance': {
       getCreditBalanceSnapshot: async (userId) => {
         calls.push(['balance', userId])
@@ -106,7 +112,8 @@ test('대표: 모든 구역을 그 회원 조건으로 읽고, 결제 표는 결
     assert.equal(client, table === 'refund_requests' ? 'payment' : 'admin', table)
     assert.ok(op(ops, 'limit'), table)
   }
-  assert.deepEqual(calls.sort(), [['balance', MEMBER], ['market', { userId: MEMBER }], ['payments', { userId: MEMBER }]])
+  // 약관 동의 기록(4번 묶음)은 members.view 로 읽는 구역이다.
+  assert.deepEqual(calls.sort(), [['balance', MEMBER], ['consents', MEMBER], ['market', { userId: MEMBER }], ['payments', { userId: MEMBER }]])
   assert.deepEqual(op(queries.find((query) => query.table === 'credit_transactions').ops, 'limit'), ['limit', 50])
 
   assert.equal(detail.profile.email, 'member@example.com')
@@ -130,12 +137,12 @@ test('대표: 모든 구역을 그 회원 조건으로 읽고, 결제 표는 결
 
 test('권한이 없는 구역은 조회 자체를 하지 않는다', async () => {
   const cases = [
-    { access: staff('members.view'), tables: ['profiles'], calls: [], sections: [] },
-    { access: staff('members.view', 'orders.view'), tables: ['market_refund_requests', 'profiles', 'refund_requests'], calls: ['market', 'payments'], sections: ['paymentOrders', 'marketOrders', 'paymentRefunds', 'marketRefunds'] },
-    { access: staff('members.view', 'credits.view'), tables: ['credit_sources', 'credit_transactions', 'profiles'], calls: ['balance'], sections: ['credits', 'creditTransactions'] },
-    { access: staff('members.view', 'support.manage'), tables: ['profiles', 'support_tickets'], calls: [], sections: ['supportTickets'] },
+    { access: staff('members.view'), tables: ['profiles'], calls: ['consents'], sections: ['consents'] },
+    { access: staff('members.view', 'orders.view'), tables: ['market_refund_requests', 'profiles', 'refund_requests'], calls: ['consents', 'market', 'payments'], sections: ['paymentOrders', 'marketOrders', 'paymentRefunds', 'marketRefunds', 'consents'] },
+    { access: staff('members.view', 'credits.view'), tables: ['credit_sources', 'credit_transactions', 'profiles'], calls: ['balance', 'consents'], sections: ['credits', 'creditTransactions', 'consents'] },
+    { access: staff('members.view', 'support.manage'), tables: ['profiles', 'support_tickets'], calls: ['consents'], sections: ['supportTickets', 'consents'] },
     // 환불 처리 권한만 있고 함께 필요한 orders.view가 없으면 환불 구역도 읽지 않는다.
-    { access: staff('members.view', 'refunds.market'), tables: ['profiles'], calls: [], sections: [] },
+    { access: staff('members.view', 'refunds.market'), tables: ['profiles'], calls: ['consents'], sections: ['consents'] },
   ]
   for (const expected of cases) {
     const { server, queries, calls } = loadDetail()
@@ -143,13 +150,13 @@ test('권한이 없는 구역은 조회 자체를 하지 않는다', async () =>
     const label = Object.keys(expected.access.grants).join(',')
     assert.deepEqual(tables(queries), expected.tables, label)
     assert.deepEqual(calls.map(([name]) => name).sort(), expected.calls, label)
-    for (const key of ['credits', 'creditTransactions', 'paymentOrders', 'marketOrders', 'paymentRefunds', 'marketRefunds', 'supportTickets']) {
+    for (const key of ['credits', 'creditTransactions', 'paymentOrders', 'marketOrders', 'paymentRefunds', 'marketRefunds', 'supportTickets', 'consents']) {
       assert.equal(detail[key] !== null, expected.sections.includes(key), `${label} ${key}`)
     }
   }
   // 화면은 읽지 않은 구역(null)을 그리지 않는다.
   assert.match(page, /if \(!section\) return null/)
-  assert.equal(page.match(/<Section\s/g).length, 7)
+  assert.equal(page.match(/<Section\s/g).length, 8)
 })
 
 test('구역 실패 격리: 실패한 구역만 failed이고 나머지는 정상이며, "없음"과 구분된다', async () => {

@@ -18,6 +18,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { buildAuthRedirectPath } from '@/lib/auth-paths'
 import type { MarketCartItem, MarketCartView } from '@/lib/market-cart-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import { redirectToConsentIfRequired } from '@/lib/consent-client'
 
 interface CartViewProps {
   initialView: MarketCartView
@@ -227,6 +228,12 @@ export function CartView({ initialView }: CartViewProps) {
         alreadyCompleted: payload.alreadyCompleted === true,
       })
       await reload()
+      return
+    }
+
+    // 필수 약관 동의가 필요하면 동의 화면으로 보낸다(동의 뒤 이 화면으로 돌아온다).
+    if (redirectToConsentIfRequired(response.status, payload)) {
+      setCheckout(null)
       return
     }
 

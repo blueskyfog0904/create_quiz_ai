@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot } from '@/lib/credit-balance'
 import { isMarketV2PurchaseEnabled } from '@/lib/market-purchase'
 import { runMarketCheckout } from '@/lib/market-checkout-server'
+import { checkMemberConsentForApi, consentBlockResponse } from '@/lib/consent-guard-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +33,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   if (!user) {
     return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
+  }
+
+  // 필수 약관 동의 확인(돈 API 의 실제 강제 — 인증 직후, 첫 쓰기·외부 호출 전)
+  const consentBlock = await checkMemberConsentForApi(supabase, user)
+  if (consentBlock) {
+    return consentBlockResponse(consentBlock, 'structured')
   }
 
   const body = await request.json().catch(() => null)

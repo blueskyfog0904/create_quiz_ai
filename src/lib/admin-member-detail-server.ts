@@ -5,6 +5,7 @@ import { listMarketOrdersForAdmin, listPaymentOrdersForAdmin } from '@/lib/admin
 import { UUID_PATTERN } from '@/lib/admin-orders'
 import { refundRequiresRecovery } from '@/lib/payment-review-actions'
 import { hasAdminPermission, type AdminAccess, type AdminPermissionKey } from '@/lib/admin-permissions'
+import { readMemberConsentHistory } from '@/lib/signup-consent-server'
 
 // 관리자 '회원 상세'(/admin/users/[id]). 조회만 한다.
 // 구역마다 권한이 있을 때만 읽는다(권한이 없으면 조회 자체를 하지 않는다). 한 구역이 실패해도 다른 구역은 그대로 보여 준다.
@@ -158,7 +159,7 @@ export async function getAdminMemberDetail(access: AdminAccess, userId: string) 
   if (error) throw new Error(error.message)
   if (!profile) return null
 
-  const [credits, creditTransactions, paymentOrders, marketOrders, paymentRefunds, marketRefunds, supportTickets] = await Promise.all([
+  const [credits, creditTransactions, paymentOrders, marketOrders, paymentRefunds, marketRefunds, supportTickets, consents] = await Promise.all([
     readSection(access, 'credits.view', '크레딧', () => readCredits(userId)),
     readSection(access, 'credits.view', '크레딧 거래', () => readCreditTransactions(userId)),
     readSection(access, 'orders.view', '충전 결제', () => readPaymentOrders(userId)),
@@ -166,9 +167,14 @@ export async function getAdminMemberDetail(access: AdminAccess, userId: string) 
     readSection(access, 'orders.view', '충전 환불', () => readPaymentRefunds(userId)),
     readSection(access, 'orders.view', '마켓 환불', () => readMarketRefunds(userId)),
     readSection(access, 'support.manage', '문의', () => readSupportTickets(userId)),
+    readSection(access, 'members.view', '약관 동의', async () => {
+      const history = await readMemberConsentHistory(userId)
+      if (!history) throw new Error('약관 동의 기록을 읽지 못했습니다.')
+      return history
+    }),
   ])
 
-  return { profile, credits, creditTransactions, paymentOrders, marketOrders, paymentRefunds, marketRefunds, supportTickets }
+  return { profile, credits, creditTransactions, paymentOrders, marketOrders, paymentRefunds, marketRefunds, supportTickets, consents }
 }
 
 async function countRows(query: PromiseLike<{ count: number | null; error: { message: string } | null }>) {

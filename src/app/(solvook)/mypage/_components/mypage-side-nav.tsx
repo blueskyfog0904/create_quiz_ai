@@ -12,6 +12,7 @@ const MENU = [
   { href: '/mypage/support', label: '고객지원' },
   { href: '/mypage/notifications', label: '알림' },
   { href: '/mypage/profile', label: '내정보 관리' },
+  { href: '/mypage/consents', label: '선택 동의 관리' },
   { href: '/mypage/withdraw', label: '회원 탈퇴' },
 ] as const
 

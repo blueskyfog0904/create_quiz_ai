@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 import { toSessionCookieOptions } from './session-cookies'
 import {
@@ -13,6 +14,9 @@ import { isPublicBrowseableSubjectPath } from '@/lib/workspace-public-browse'
 import { isAdminPathDisabled, resolveAdminFeature } from '@/lib/admin-features'
 import { getDisabledAdminFeatures, getDisabledSiteFeatures, isSiteFeatureDisabled } from '@/lib/admin-features-server'
 import { resolveSiteFeatureRoute } from '@/lib/site-features'
+import { normalizeAuthNextPath } from '@/lib/auth-paths'
+import { isAdminAccountEmail } from '@/lib/admin-accounts-shared'
+import { buildConsentGateNext, isConsentGateExcludedPath, isConsentGateRequest } from '@/lib/consent-gate'
 
 const WORKSPACE_SUBJECT_HEADER = 'x-workspace-subject'
 const WORKSPACE_HEADER_MODE_HEADER = 'x-workspace-header-mode'
@@ -49,35 +53,48 @@ const parseSessionStartedMarker = (value?: string): { sessionId: string; started
   return { sessionId: value.slice(0, separatorIndex), startedAt }
 }
 
-const getWorkspaceHomePath = (path: string) => {
-  const subject = parseWorkspaceSubjectFromPath(path)
-  return subject ? withWorkspacePrefix(subject, '/') : '/'
-}
+// 필수 약관 동의 판정(화면 이동용 — 최선 노력). 동의가 부족하면 /consent 로 보내는 응답, 아니면 null.
+// 실패(시간 초과·오류)하면 통과시키고 던지지 않는다(바깥 catch 가 로그인 쿠키를 지우지 않게). 실제 강제는 돈 API 가 한다.
+const CONSENT_GATE_TIMEOUT_MS = 1500
 
-const normalizeInternalPath = (path: string | null) => {
-  if (!path) {
-    return '/'
-  }
-
-  const trimmed = path.trim()
-  if (!trimmed.startsWith('/') || trimmed.startsWith('//')) {
-    return '/'
-  }
-
+async function checkConsentGate(
+  supabase: SupabaseClient,
+  request: NextRequest,
+  user: Pick<User, 'email'>,
+  response: NextResponse
+) {
   try {
-    const url = new URL(trimmed, 'http://localhost')
-    const pathname = url.pathname
-    const scopedPath = stripWorkspacePrefix(pathname).scopedPath
+    if (!isConsentGateRequest(request.method, request.headers)) return null
+    if (isConsentGateExcludedPath(request.nextUrl.pathname)) return null
+    // 관리자 ID 계정은 회원이 아니다(권한이 해제돼도 화면은 통과 — 돈 API 에서 막힌다).
+    if (isAdminAccountEmail(user.email ?? '')) return null
 
-    if (pathname === '/login' || pathname === '/signup' || scopedPath === '/login' || scopedPath === '/signup') {
-      return getWorkspaceHomePath(pathname)
+    const { data, error } = await supabase
+      .rpc('get_my_missing_required_consents')
+      .abortSignal(AbortSignal.timeout(CONSENT_GATE_TIMEOUT_MS))
+    if (error || !Array.isArray(data) || data.length === 0) {
+      if (error) {
+        console.warn('[ConsentGate] check skipped', { code: error.code })
+      }
+      return null
     }
 
-    return `${pathname}${url.search}${url.hash}`
+    // 상대 주소로 redirect 하면 미들웨어에서 예외가 나므로 절대 주소로 만든다.
+    const redirectUrl = request.nextUrl.clone()
+    const next = buildConsentGateNext(request.nextUrl.pathname, request.nextUrl.search)
+    redirectUrl.pathname = '/consent'
+    redirectUrl.search = ''
+    redirectUrl.hash = ''
+    redirectUrl.searchParams.set('next', next)
+    const redirect = NextResponse.redirect(redirectUrl)
+    copyResponseCookies(response, redirect)
+    return redirect
   } catch {
-    return '/'
+    return null
   }
 }
+
+const isTermsPath = (pathname: string) => pathname === '/terms' || pathname.startsWith('/terms/')
 
 const isKakaoCandidateUser = (user: { app_metadata?: Record<string, unknown> }) => {
   const appMetadata = user.app_metadata ?? {}
@@ -454,7 +471,7 @@ export async function updateSession(request: NextRequest) {
 
       if (!profileError && profile?.provider === 'kakao') {
         if (profile.signup_completed && isKakaoSignupPage) {
-          const nextPath = normalizeInternalPath(request.nextUrl.searchParams.get('next'))
+          const nextPath = normalizeAuthNextPath(request.nextUrl.searchParams.get('next'))
           const redirectUrl = request.nextUrl.clone()
           const nextUrl = new URL(nextPath, redirectUrl.origin)
 
@@ -462,10 +479,18 @@ export async function updateSession(request: NextRequest) {
           redirectUrl.search = nextUrl.search
           redirectUrl.hash = nextUrl.hash
 
-          return NextResponse.redirect(redirectUrl)
+          const redirect = NextResponse.redirect(redirectUrl)
+          copyResponseCookies(response, redirect)
+          return redirect
         }
 
         if (profile.signup_completed) {
+          if (verifiedUserId) {
+            const consentRedirect = await checkConsentGate(supabase as unknown as SupabaseClient, request, user, response)
+            if (consentRedirect) {
+              return consentRedirect
+            }
+          }
           const routingResponse = buildRoutingResponse(request, routingContext, verifiedUserId)
           if (routingResponse) {
             copyResponseCookies(response, routingResponse)
@@ -474,7 +499,8 @@ export async function updateSession(request: NextRequest) {
           return response
         }
 
-        if (isKakaoSignupPage) {
+        // 약관 전문은 보고 동의할 수 있어야 한다.
+        if (isKakaoSignupPage || isTermsPath(pathname)) {
           const routingResponse = buildRoutingResponse(request, routingContext, verifiedUserId)
           if (routingResponse) {
             copyResponseCookies(response, routingResponse)
@@ -489,10 +515,19 @@ export async function updateSession(request: NextRequest) {
         redirectUrl.searchParams.set('signup', '1')
         redirectUrl.searchParams.set(
           'next',
-          `${request.nextUrl.pathname}${request.nextUrl.search}`
+          buildConsentGateNext(request.nextUrl.pathname, request.nextUrl.search)
         )
 
-        return NextResponse.redirect(redirectUrl)
+        const redirect = NextResponse.redirect(redirectUrl)
+        copyResponseCookies(response, redirect)
+        return redirect
+      }
+    }
+
+    if (!isBypassPath && user && verifiedUserId) {
+      const consentRedirect = await checkConsentGate(supabase as unknown as SupabaseClient, request, user, response)
+      if (consentRedirect) {
+        return consentRedirect
       }
     }
   } catch {

@@ -14,7 +14,6 @@ import {
   getFooterBrandName,
   isFooterLegalFieldKey,
   getVisibleFooterRows,
-  normalizeFooterContent,
   type FooterContentConfig,
   type FooterFixedFieldKey,
   type FooterPolicyDocumentKey,
@@ -116,7 +115,12 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      const response = await saveFooterContentAction(normalizeFooterContent(footerContent))
+      // 화면 상태 원본을 그대로 보낸다: 서버가 원본으로 '가입 동의에 쓰이는 약관 끄기·비우기'를 검사한 뒤 정규화한다.
+      const response = await saveFooterContentAction(footerContent)
+      if (!response.success) {
+        toast.error(response.error)
+        return
+      }
       setFooterContent(response.data)
       setSavedFooterContent(response.data)
       toast.success('하단 정보를 저장했습니다.')
@@ -281,6 +285,16 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
                     onChange={(event) => updatePolicyDocument(document.key, { content: event.target.value })}
                   />
                   <p className="text-xs text-gray-500"># 제목, ## 소제목, - 목록 형식의 간단한 마크다운을 사용할 수 있습니다.</p>
+                  {document.key === 'serviceTerms' ? (
+                    <p className="rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                      이용약관은 가입 동의에 연결된 문서라 끄거나 비울 수 없습니다. 중요한 변경은 새 전문·시행일을 먼저 알린 뒤, 본문 수정은 시행일 당일에 하고 수정한 뒤 바로 가입 동의 항목에서 &lsquo;다시 동의 받기&rsquo;를 누르세요.
+                    </p>
+                  ) : null}
+                  {document.key === 'privacyPolicy' ? (
+                    <p className="rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                      개인정보처리방침은 공개 의무가 있어 끄거나 비울 수 없습니다. 수집 항목·보유 기간을 바꿨다면 가입 동의의 &lsquo;개인정보 수집·이용 동의&rsquo; 항목 내용도 같이 고치세요.
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </div>

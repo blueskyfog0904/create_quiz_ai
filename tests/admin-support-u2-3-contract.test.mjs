@@ -155,6 +155,7 @@ function loadSummary({ tableErrors = [], counts = {} } = {}) {
     '@/lib/payment-orders-server': { createPaymentAdminClient: () => paymentAdmin },
     '@/lib/credit-balance': {},
     '@/lib/admin-orders-server': {},
+    '@/lib/signup-consent-server': {},
     '@/lib/admin-orders': orders,
     '@/lib/admin-permissions': permissions,
     '@/lib/payment-review-actions': {},

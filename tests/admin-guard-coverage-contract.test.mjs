@@ -441,6 +441,13 @@ const ACTION_REQUIREMENTS = {
   'src/app/(admin)/admin/storefront-menu/actions.ts': {
     saveStorefrontHeaderLinksAction: 'site.manage',
   },
+  // 가입 동의 항목·안내 문구는 대표 전용(전 회원 재동의를 일으킬 수 있다).
+  'src/app/(admin)/admin/footer/consent-actions.ts': {
+    getSignupConsentAdminData: 'owner',
+    saveSignupConsentItemAction: 'owner',
+    reviseSignupConsentItemAction: 'owner',
+    saveSignupConsentTextsAction: 'owner',
+  },
   'src/app/(admin)/admin/footer/actions.ts': {
     getFooterSettingsData: 'site.manage',
     saveSiteFooterContentAction: 'site.manage',

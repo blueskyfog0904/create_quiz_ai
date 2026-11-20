@@ -185,6 +185,9 @@ function loadMiddleware(state, siteState = { ok: true, features: [] }) {
     './session-cookies': { toSessionCookieOptions: (options) => options },
     '@/lib/workspace-subject': workspaceSubject,
     '@/lib/workspace-public-browse': {},
+    '@/lib/auth-paths': load('src/lib/auth-paths.ts', { '@/lib/workspace-subject': workspaceSubject }),
+    '@/lib/admin-accounts-shared': load('src/lib/admin-accounts-shared.ts'),
+    '@/lib/consent-gate': load('src/lib/consent-gate.ts', { '@/lib/workspace-subject': workspaceSubject }),
     '@/lib/admin-features': features,
     '@/lib/site-features': siteFeatures,
     '@/lib/admin-features-server': {

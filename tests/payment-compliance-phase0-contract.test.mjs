@@ -14,7 +14,8 @@ const creditsService = read('../src/lib/credits.ts')
 const pointChargeRefunds = read('../src/lib/point-charge-refunds-server.ts')
 const profileClient = read('../src/app/(solvook)/mypage/profile/_components/profile-view.tsx')
 const legacyProfileClient = read('../src/app/legacy/mypage/profile/profile-client.tsx')
-const signupPage = read('../src/app/(auth)/signup/page.tsx')
+// 가입 화면의 클라이언트 코드(4번 묶음에서 서버 page 가 동의 항목을 읽어 넘기도록 나뉨)
+const signupPage = read('../src/app/(auth)/signup/signup-client.tsx')
 const hardeningMigration = read(
   '../supabase/migrations/20260805090000_harden_credit_mutation_boundaries.sql'
 )

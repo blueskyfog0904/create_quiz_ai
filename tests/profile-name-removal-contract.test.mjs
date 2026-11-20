@@ -28,12 +28,12 @@ test('표시 이름은 이메일 앞 4글자 + # + DB에 저장된 고정 태그
 })
 
 test('카카오 로그인·가입은 이름 동의를 요청하지 않고, 가입 화면·API에 이름이 없다', () => {
-  for (const path of ['src/app/(auth)/login/page.tsx', 'src/app/(auth)/signup/page.tsx']) {
+  for (const path of ['src/app/(auth)/login/page.tsx', 'src/app/(auth)/signup/signup-client.tsx']) {
     const source = read(path)
     assert.match(source, /scope: 'account_email,phone_number'/, path)
     assert.doesNotMatch(source, /phone_number,name/, path)
   }
-  const signup = read('src/app/(auth)/signup/page.tsx')
+  const signup = read('src/app/(auth)/signup/signup-client.tsx')
   assert.doesNotMatch(signup, /kakaoName|htmlFor="name"|이름 \*/)
   const action = read('src/app/auth/actions.ts')
   assert.doesNotMatch(action, /full_name|formData\.get\('name'\)/)

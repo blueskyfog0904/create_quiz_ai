@@ -14,6 +14,7 @@ import {
 } from '@/components/design-system'
 import { Button } from '@/components/ui/button'
 import { POINT_CHARGE_MAX_AMOUNT_TEXT, POINT_CHARGE_REFUND_DAYS, POINT_CHARGE_VALIDITY_YEARS } from '@/lib/point-charge-policy'
+import { redirectToConsentIfRequired } from '@/lib/consent-client'
 
 type CheckoutPhase =
   | 'idle'
@@ -340,6 +341,11 @@ export function CheckoutClient({
       if (response.status === 202 || body.status === 'preparing') {
         setPhase('pendingVerification')
         setMessage('결제 준비 결과를 확인하고 있습니다. 잠시 후 같은 버튼으로 다시 시도해 주세요.')
+        return
+      }
+
+      // 필수 약관 동의가 필요하면 동의 화면으로 보낸다(동의 뒤 이 화면으로 돌아온다).
+      if (redirectToConsentIfRequired(response.status, body)) {
         return
       }
 

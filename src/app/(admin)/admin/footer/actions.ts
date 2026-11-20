@@ -6,6 +6,8 @@ import { assertAdminActionPermission } from '@/lib/admin-permissions-server'
 import { recordAdminAudit } from '@/lib/admin-audit-log-server'
 import { getSiteFooterContent, saveSiteFooterContent } from '@/lib/footer-content-server'
 import type { FooterContentConfig } from '@/lib/footer-content'
+import { findProtectedFooterPolicyViolation } from '@/lib/footer-policy-raw'
+import { readProtectedPolicySlugs } from '@/lib/signup-consent-server'
 import { validateSiteBrand, type SiteBrand } from '@/lib/site-brand'
 import { readSiteBrandForAdmin, saveSiteBrand } from '@/lib/site-brand-server'
 
@@ -58,22 +60,40 @@ export async function saveSiteBrandAction(input: SiteBrand): Promise<{ success: 
   }
 }
 
-export async function saveSiteFooterContentAction(input: FooterContentConfig) {
+export async function saveSiteFooterContentAction(
+  input: FooterContentConfig
+): Promise<{ success: true; data: FooterContentConfig } | { success: false; error: string }> {
   await requireAdmin()
   const access = await assertAdminActionPermission('site.manage')
-  const saved = await saveSiteFooterContent(input)
-  revalidateFooterPaths()
 
-  // 저장된 뒤 작업 기록을 남긴다(실패해도 결과는 그대로). 약관 본문은 길어 기록에 담지 않는다.
-  await recordAdminAudit({
-    actorId: access.userId,
-    action: 'site_footer_save',
-    targetType: 'site_footer',
-  })
+  // 가입 동의에 쓰이는 약관(활성 필수 항목이 연결한 문서 + 개인정보처리방침)은 끄거나 비울 수 없다 — 정규화 전 원본으로 본다
+  // (정규화는 빈 본문을 코드 기본 약관으로 바꿔 이 검사를 지나치게 한다).
+  const protectedSlugs = await readProtectedPolicySlugs()
+  if (!protectedSlugs) {
+    return { success: false, error: '가입 동의 항목을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.' }
+  }
+  const violation = findProtectedFooterPolicyViolation(input, protectedSlugs)
+  if (violation) {
+    return { success: false, error: violation }
+  }
 
-  return {
-    success: true,
-    data: saved,
+  try {
+    const saved = await saveSiteFooterContent(input)
+    revalidateFooterPaths()
+
+    // 저장된 뒤 작업 기록을 남긴다(실패해도 결과는 그대로). 약관 본문은 길어 기록에 담지 않는다.
+    await recordAdminAudit({
+      actorId: access.userId,
+      action: 'site_footer_save',
+      targetType: 'site_footer',
+    })
+
+    return {
+      success: true,
+      data: saved,
+    }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : '하단 정보 저장에 실패했습니다.' }
   }
 }
 

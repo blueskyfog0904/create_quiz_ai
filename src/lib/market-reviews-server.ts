@@ -108,7 +108,7 @@ export async function listMarketItemReviewsForItem(
       // 민감정보 제외 — 명시적 select만 허용 (phone 등 금지). email은 표시 이름(앞 4글자)을 만드는 데만 쓰고 내보내지 않는다.
       ? supabase
         .from('profiles')
-        .select('id, email, role, avatar_url, display_tag')
+        .select('id, email, role, display_tag')
         .in('id', userIds)
       : Promise.resolve({ data: [], error: null } as const),
     viewerId ? isItemPurchaser(viewerId, itemId, workspaceSubject) : Promise.resolve(false),
@@ -145,7 +145,8 @@ export async function listMarketItemReviewsForItem(
       author: {
         name: formatMemberDisplayName(profile?.email, profile?.display_tag),
         role: profile?.role ?? null,
-        avatarUrl: profile?.avatar_url ?? null,
+        // 프로필 이미지는 수집·공개하지 않는다(가입 동의 고지). 회원이 가입 메타데이터로 넣은 값도 보여 주지 않고 늘 기본 아이콘.
+        avatarUrl: null,
       },
     }
   })

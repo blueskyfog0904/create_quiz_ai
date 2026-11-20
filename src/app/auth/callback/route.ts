@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { parseWorkspaceSubjectFromPath, stripWorkspacePrefix, withWorkspacePrefix } from '@/lib/workspace-subject'
+import { normalizeAuthNextPath } from '@/lib/auth-paths'
 import { NextResponse } from 'next/server'
 
 const getRequestOrigin = (request: Request) => {
@@ -23,39 +23,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const origin = getRequestOrigin(request)
 
-  const getWorkspaceHomePath = (path: string) => {
-    const subject = parseWorkspaceSubjectFromPath(path)
-    return subject ? withWorkspacePrefix(subject, '/') : '/'
-  }
-
-  const normalizeNext = (path: string | null) => {
-    if (!path) {
-      return '/'
-    }
-
-    const trimmed = path.trim()
-    if (!trimmed.startsWith('/')) {
-      return '/'
-    }
-
-    if (trimmed.startsWith('//')) {
-      return '/'
-    }
-
-    try {
-      const url = new URL(trimmed, 'http://localhost')
-      const pathname = url.pathname
-      const scopedPath = stripWorkspacePrefix(pathname).scopedPath
-
-      if (pathname === '/login' || pathname === '/signup' || scopedPath === '/login' || scopedPath === '/signup') {
-        return getWorkspaceHomePath(pathname)
-      }
-
-      return `${pathname}${url.search}${url.hash}`
-    } catch {
-      return '/'
-    }
-  }
+  // 다음 이동 주소는 공용 검사(로그인 화면·미들웨어·카카오 단계와 같은 규칙)를 쓴다.
+  const normalizeNext = normalizeAuthNextPath
 
   const code = searchParams.get('code')
   const next = normalizeNext(searchParams.get('next') ?? '/')

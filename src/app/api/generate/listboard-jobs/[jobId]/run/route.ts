@@ -13,6 +13,7 @@ import {
 } from '@/lib/ai/question-generation-workflow'
 import { getProblemTypeDefaultPrompts } from '@/lib/ai/problem-type-default-prompts'
 import { AiQuestionGenerationRunLogError, logAiQuestionGenerationRun } from '@/lib/ai/question-generation-run-logs'
+import { checkMemberConsentForApi, consentBlockResponse } from '@/lib/consent-guard-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,6 +55,12 @@ export async function POST(request: Request, { params }: RouteContext) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
+  }
+
+  // 필수 약관 동의 확인(돈 API 의 실제 강제 — 인증 직후, 첫 쓰기·외부 호출 전)
+  const consentBlock = await checkMemberConsentForApi(supabase, user)
+  if (consentBlock) {
+    return consentBlockResponse(consentBlock, 'structured')
   }
 
   const getSnapshot = async () => {

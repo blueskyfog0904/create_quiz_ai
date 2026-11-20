@@ -32,6 +32,7 @@ import { getMarketDownloadButtonLabels } from '@/lib/market-download-label'
 import type { MarketBundlePublicSummary, MarketSubproductDownloadFile, MarketSubproductPublicSummary } from '@/lib/market-items-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import MarketSamplePreviewDialog from './market-sample-preview-dialog'
+import { redirectToConsentIfRequired } from '@/lib/consent-client'
 
 interface MarketItemActionsProps {
   itemId: string
@@ -778,6 +779,12 @@ export default function MarketItemActions({
       })
       clearSelection()
       router.refresh()
+      return
+    }
+
+    // 필수 약관 동의가 필요하면 동의 화면으로 보낸다(동의 뒤 이 화면으로 돌아온다).
+    if (redirectToConsentIfRequired(response.status, payload)) {
+      setCheckout(null)
       return
     }
 

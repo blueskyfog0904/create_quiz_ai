@@ -1,0 +1,833 @@
+'use client'
+
+import { useEffect, useState, Suspense } from 'react'
+import { signup } from '../../auth/actions'
+import { ConsentChecklist, ConsentTextLine } from '@/components/auth/consent-checklist'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { toast } from 'sonner'
+import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { parseWorkspaceSubjectFromPath, withWorkspacePrefix } from '@/lib/workspace-subject'
+import { normalizeAuthNextPath } from '@/lib/auth-paths'
+import {
+  buildConsentSubmission,
+  clearKakaoConsentDraft,
+  findMissingRequiredItems,
+  formatOptionalReceipt,
+  formatOptionalResult,
+  getConsentErrorMessage,
+  KAKAO_CONSENT_STORAGE_KEY,
+  parseKakaoConsentDraft,
+  serializeKakaoConsentDraft,
+  type ConsentItem,
+  type ConsentRecordResult,
+  type SignupConsentTexts,
+} from '@/lib/signup-consent'
+
+export type SignupConsentForm =
+  | { ok: true; items: ConsentItem[]; texts: SignupConsentTexts; privacyPolicyHref: string; senderName: string }
+  | { ok: false; code: string }
+
+const readKakaoConsentDraft = () => {
+  try {
+    return window.sessionStorage.getItem(KAKAO_CONSENT_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+const writeKakaoConsentDraft = (value: string) => {
+  try {
+    window.sessionStorage.setItem(KAKAO_CONSENT_STORAGE_KEY, value)
+  } catch {
+    // 저장하지 못하면 카카오 확인 단계에서 빈 체크로 다시 받는다.
+  }
+}
+
+type JsonObject = Record<string, unknown>
+
+const isJsonObject = (value: unknown): value is JsonObject => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+const getFirstText = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (trimmed) {
+        return trimmed
+      }
+      continue
+    }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value)
+    }
+  }
+
+  return ''
+}
+
+const getFirstObject = (...values: unknown[]) => {
+  for (const value of values) {
+    if (isJsonObject(value)) {
+      return value
+    }
+  }
+
+  return null
+}
+
+const normalizeKakaoPhoneNumber = (value: string) => {
+  if (!value) {
+    return ''
+  }
+
+  const trimmed = value.replace(/\u00a0/g, ' ').trim()
+  if (!trimmed.startsWith('+82')) {
+    return trimmed
+  }
+
+  return trimmed.replace(/^\+82[\s-]?/, '0')
+}
+
+function SignupContent({ consentForm }: { consentForm: SignupConsentForm }) {
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(false)
+  const [isKakaoProfileLoading, setIsKakaoProfileLoading] = useState(false)
+  const [isEmailSignupMode, setIsEmailSignupMode] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
+  const [successData, setSuccessData] = useState<{ email: string, phone: string } | null>(null)
+
+  // Controlled inputs
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [phone, setPhone] = useState('')
+  const searchParams = useSearchParams()
+  const next = normalizeAuthNextPath(searchParams.get('next') ?? '/signup')
+  const homeHref = (() => {
+    const subject = parseWorkspaceSubjectFromPath(next)
+    return subject ? withWorkspacePrefix(subject, '/') : '/'
+  })()
+  const kakaoSignupMode = searchParams.get('provider') === 'kakao' && searchParams.get('signup') === '1'
+  const nextQuery = next === '/' ? '' : `?${new URLSearchParams({ next }).toString()}`
+  const callbackPath = new URLSearchParams({
+    next,
+    provider: 'kakao',
+    signup: '1',
+  }).toString()
+
+  const [kakaoEmail, setKakaoEmail] = useState('')
+  const [kakaoPhone, setKakaoPhone] = useState('')
+
+  // 약관 동의(가입 선택 화면에서 받고 일반 가입은 같은 상태를 그대로 쓴다. 카카오는 OAuth 전에 받아 확인 단계에서 다시 확인).
+  const consentItems = consentForm.ok ? consentForm.items : []
+  const [consentChecked, setConsentChecked] = useState<Record<string, boolean>>({})
+  const [highlightMissing, setHighlightMissing] = useState(false)
+  const [emailReceipts, setEmailReceipts] = useState<string[]>([])
+  const [kakaoResults, setKakaoResults] = useState<string[] | null>(null)
+  const [kakaoCancelled, setKakaoCancelled] = useState(false)
+
+  useEffect(() => {
+    if (!kakaoSignupMode || !consentForm.ok) {
+      return
+    }
+    const restored = parseKakaoConsentDraft(readKakaoConsentDraft(), consentForm.items)
+    if (restored) {
+      setConsentChecked(restored)
+    } else {
+      clearKakaoConsentDraft()
+    }
+  }, [kakaoSignupMode, consentForm])
+
+  const resetConsentsAfterChange = () => {
+    clearKakaoConsentDraft()
+    setConsentChecked({})
+    setHighlightMissing(false)
+    router.refresh()
+  }
+
+  const ensureRequiredConsents = () => {
+    if (!consentForm.ok) {
+      toast.error(getConsentErrorMessage(consentForm.code))
+      return false
+    }
+    if (findMissingRequiredItems(consentItems, consentChecked).length > 0) {
+      setHighlightMissing(true)
+      toast.error(getConsentErrorMessage('CONSENT_REQUIRED_MISSING'))
+      return false
+    }
+    return true
+  }
+
+  const consentSection = consentForm.ok ? (
+    <ConsentChecklist
+      items={consentItems}
+      checked={consentChecked}
+      onChange={setConsentChecked}
+      highlightMissing={highlightMissing}
+      privacyPolicyHref={consentForm.privacyPolicyHref}
+      optionalHint={consentForm.texts.optionalNotRequiredHint}
+    />
+  ) : (
+    <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{getConsentErrorMessage(consentForm.code)}</p>
+  )
+
+  useEffect(() => {
+    if (!kakaoSignupMode) {
+      return
+    }
+
+    const loadKakaoProfile = async () => {
+      setIsKakaoProfileLoading(true)
+      try {
+        const supabase = createClient()
+        const [{ data: userData, error: userError }, { data: sessionData }] = await Promise.all([
+          supabase.auth.getUser(),
+          supabase.auth.getSession(),
+        ])
+
+        if (userError || !userData.user) {
+          console.error('Failed to get kakao user:', userError)
+          return
+        }
+
+        const user = userData.user
+        const metadata = getFirstObject(user.user_metadata) || {}
+        const appMetadata = getFirstObject(user.app_metadata) || {}
+        const identities = user.identities || []
+        const kakaoIdentity = identities.find(
+          (identity: { provider?: string }) => identity.provider === 'kakao'
+        ) as ({ id?: string, identity_id?: string, identity_data?: unknown } | undefined)
+        const identityData = getFirstObject(kakaoIdentity?.identity_data) || {}
+        const kakaoAccount = getFirstObject(identityData.kakao_account, metadata.kakao_account) || {}
+
+        const providerToken = sessionData.session?.provider_token || ''
+        let kakaoApiPayload: JsonObject | null = null
+        if (providerToken) {
+          try {
+            const response = await fetch('https://kapi.kakao.com/v2/user/me', {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${providerToken}`,
+              },
+              cache: 'no-store',
+            })
+
+            if (response.ok) {
+              const payload = await response.json()
+              if (isJsonObject(payload)) {
+                kakaoApiPayload = payload
+              }
+            } else {
+              console.warn('[Kakao Signup] Failed to fetch /v2/user/me:', response.status)
+            }
+          } catch (error) {
+            console.warn('[Kakao Signup] Failed to fetch Kakao user info:', error)
+          }
+        }
+
+        const apiKakaoAccount = getFirstObject(kakaoApiPayload?.kakao_account) || {}
+
+        const resolvedEmail = getFirstText(
+          user.email,
+          metadata.email,
+          identityData.email,
+          kakaoAccount.email,
+          apiKakaoAccount.email,
+        )
+
+        const resolvedProvider = getFirstText(
+          appMetadata.provider,
+          metadata.provider,
+          'kakao',
+        )
+
+        const resolvedUserId = getFirstText(
+          metadata.kakao_id,
+          metadata.provider_id,
+          metadata.sub,
+          metadata.id,
+          identityData.provider_id,
+          identityData.sub,
+          identityData.id,
+          kakaoApiPayload?.id,
+          kakaoApiPayload?.sub,
+          kakaoIdentity?.identity_id,
+          kakaoIdentity?.id,
+          appMetadata.provider_id,
+          appMetadata.provider_uid,
+          appMetadata.sub,
+        )
+
+        const resolvedPhone = normalizeKakaoPhoneNumber(
+          getFirstText(
+            metadata.phone,
+            metadata.phone_number,
+            identityData.phone,
+            identityData.phone_number,
+            kakaoAccount.phone,
+            kakaoAccount.phone_number,
+            apiKakaoAccount.phone,
+            apiKakaoAccount.phone_number,
+          )
+        )
+
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('email, phone, kakao_email, kakao_id, provider, signup_completed')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (profileError) {
+          console.warn('[Kakao Signup] Failed to read profiles row:', profileError.message)
+        }
+
+        const mergedEmail = getFirstText(profileData?.email, resolvedEmail)
+        const mergedPhone = getFirstText(profileData?.phone, resolvedPhone)
+        const mergedKakaoEmail = getFirstText(profileData?.kakao_email, resolvedEmail)
+        const mergedKakaoId = getFirstText(profileData?.kakao_id, resolvedUserId)
+        const mergedProvider = getFirstText(profileData?.provider, resolvedProvider, 'kakao')
+
+        const syncedProfile = profileData
+          ? {
+              ...profileData,
+              email: mergedEmail || null,
+              phone: mergedPhone || null,
+              kakao_email: mergedKakaoEmail || null,
+              kakao_id: mergedKakaoId || null,
+              provider: mergedProvider || null,
+            }
+          : profileData
+
+        const profileEmail = getFirstText(
+          syncedProfile?.email,
+          syncedProfile?.kakao_email,
+          mergedEmail,
+        )
+        const profilePhone = getFirstText(syncedProfile?.phone, mergedPhone)
+        const profileKakaoId = getFirstText(syncedProfile?.kakao_id, mergedKakaoId)
+
+        setKakaoEmail(profileEmail)
+        setKakaoPhone(profilePhone)
+
+        if (syncedProfile?.signup_completed) {
+          clearKakaoConsentDraft()
+          window.location.replace(next)
+          return
+        }
+
+        if (process.env.NODE_ENV !== 'production') {
+          console.groupCollapsed('[Kakao Signup Debug] resolved profile')
+          console.log('resolved', {
+            resolvedEmail,
+            resolvedProvider,
+            resolvedUserId,
+            resolvedPhone,
+            profileEmail,
+            profilePhone,
+            profileKakaoId,
+            providerTokenAvailable: Boolean(providerToken),
+          })
+          console.log('profile_row', syncedProfile)
+          console.log('user_metadata', metadata)
+          console.log('app_metadata', appMetadata)
+          console.log('identity_data', identityData)
+          console.log('kakao_api_payload', kakaoApiPayload)
+          console.groupEnd()
+        }
+
+        if (!resolvedPhone) {
+          console.info(
+            '[Kakao Signup] phone_number is empty. Kakao may not provide it when unavailable in the Kakao Account.'
+          )
+        }
+      } finally {
+        setIsKakaoProfileLoading(false)
+      }
+    }
+
+    loadKakaoProfile()
+  }, [kakaoSignupMode, next])
+
+  const formatPhoneNumber = (value: string) => {
+    const cleaned = value.replace(/\D/g, '')
+
+    if (cleaned.length <= 3) {
+      return cleaned
+    } else if (cleaned.length <= 7) {
+      return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`
+    } else {
+      return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7, 11)}`
+    }
+  }
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatPhoneNumber(e.target.value)
+    setPhone(formatted)
+  }
+
+  async function handleSignup(formData: FormData) {
+    const formPassword = formData.get('password') as string
+    const formConfirmPassword = formData.get('confirmPassword') as string
+
+    if (formPassword !== formConfirmPassword) {
+      toast.error("비밀번호가 일치하지 않습니다.")
+      return
+    }
+
+    if (!ensureRequiredConsents() || !consentForm.ok) {
+      return
+    }
+    const submission = buildConsentSubmission(consentItems, consentChecked)
+    formData.set('consents', JSON.stringify(submission))
+
+    setIsLoading(true)
+    try {
+      const result = await signup(formData)
+
+      if (!result.success) {
+        if (result.consentCode === 'CONSENT_ITEM_CHANGED' || result.consentCode === 'CONSENT_REQUIRED_MISSING') {
+          // 항목이 바뀌었다: 체크를 비우고 동의 목록이 보이는 첫 화면으로 돌아가 최신 항목을 다시 보여 준다
+          // (회원이 보지 못한 새 버전에 이전 체크가 붙어 기록되지 않게).
+          resetConsentsAfterChange()
+          setIsEmailSignupMode(false)
+        }
+        toast.error(`회원가입 실패: ${result.error}`)
+      } else if (result.data) {
+        // 선택 항목 접수 안내: 새 계정·이미 있는 이메일 모두 똑같이 참인 문구(처리 결과는 로그인 뒤 선택 동의 관리에서).
+        setEmailReceipts(
+          consentItems
+            .filter((item) => !item.required)
+            .map((item) => formatOptionalReceipt(consentForm.texts.optionalReceiptTemplate, {
+              itemLabel: item.label,
+              agreed: consentChecked[item.id] === true,
+            }))
+        )
+        setSuccessData({
+          email: result.data.email || '',
+          phone: result.data.phone
+        })
+        setIsSuccess(true)
+        toast.success("회원가입이 완료되었습니다.")
+      }
+    } catch (e) {
+      console.error(e)
+      toast.error("알 수 없는 오류가 발생했습니다.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function handleKakaoSignup() {
+    if (isLoading) return
+    if (!ensureRequiredConsents()) return
+
+    // 동의는 카카오로 넘어가기 전에 받는다. 확인 단계가 이 값으로 체크를 채워 다시 확인한다.
+    writeKakaoConsentDraft(serializeKakaoConsentDraft(buildConsentSubmission(consentItems, consentChecked)))
+
+    setIsLoading(true)
+    const supabase = createClient()
+    try {
+      await supabase.auth.signOut({ scope: 'global' })
+    } catch (error) {
+      console.warn('Failed to clear prior session before Kakao signup:', error)
+    }
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'kakao',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?${callbackPath}`,
+        queryParams: {
+          prompt: 'select_account',
+          scope: 'account_email,phone_number',
+        },
+      },
+    })
+
+    if (error) {
+      setIsLoading(false)
+      toast.error(error.message)
+    }
+  }
+
+  async function handleKakaoProfileSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!ensureRequiredConsents() || !consentForm.ok) {
+      return
+    }
+
+    setIsLoading(true)
+    const supabase = createClient()
+    const { data: userData } = await supabase.auth.getUser()
+
+    if (!userData.user) {
+      setIsLoading(false)
+      toast.error('로그인 세션을 찾을 수 없습니다.')
+      return
+    }
+
+    const sanitizedEmail = kakaoEmail.trim()
+    const sanitizedPhone = kakaoPhone.trim()
+
+    const response = await fetch('/api/profile', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'complete_kakao_signup',
+        phone: sanitizedPhone,
+        consents: buildConsentSubmission(consentItems, consentChecked),
+      }),
+    })
+    const result = await response.json()
+
+    if (!response.ok) {
+      setIsLoading(false)
+      if (result.code === 'CONSENT_ITEM_CHANGED' || result.code === 'CONSENT_REQUIRED_MISSING') {
+        resetConsentsAfterChange()
+      }
+      toast.error(result.error || '회원정보 저장에 실패했습니다.')
+      return
+    }
+
+    const confirmedProfile = result.profile
+
+    if (!confirmedProfile?.signup_completed) {
+      setIsLoading(false)
+      toast.error('가입 완료 상태가 아직 반영되지 않았습니다. 잠시 후 다시 시도해주세요.')
+      router.refresh()
+      return
+    }
+
+    const updatedEmail = getFirstText(confirmedProfile.email, sanitizedEmail)
+    const updatedPhone = getFirstText(confirmedProfile.phone, sanitizedPhone)
+
+    setKakaoEmail(updatedEmail)
+    setKakaoPhone(updatedPhone)
+    clearKakaoConsentDraft()
+
+    // 선택 항목 처리 결과 안내(DB 에 남은 실제 기록으로 만든다 — 이미 완료였던 경우도 그 기록 그대로).
+    const results: ConsentRecordResult[] = Array.isArray(result.consentResults) ? result.consentResults : []
+    const optionalItems = consentItems.filter((item) => !item.required)
+    setKakaoResults(
+      results
+        .map((record) => {
+          const item = optionalItems.find((candidate) => candidate.id === record.item_id)
+          return item
+            ? formatOptionalResult(consentForm.texts.optionalResultTemplate, {
+                sender: consentForm.senderName,
+                itemLabel: item.label,
+                agreed: record.agreed,
+                processedAt: record.created_at,
+              })
+            : null
+        })
+        .filter((line): line is string => Boolean(line))
+    )
+    setIsLoading(false)
+  }
+
+  async function handleKakaoCancel() {
+    if (isLoading) return
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/auth/cancel-signup', { method: 'POST' })
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        toast.error(body.error || '가입을 취소하지 못했습니다.')
+        setIsLoading(false)
+        return
+      }
+      clearKakaoConsentDraft()
+      setKakaoCancelled(true)
+      setIsLoading(false)
+    } catch {
+      toast.error('가입을 취소하지 못했습니다.')
+      setIsLoading(false)
+    }
+  }
+
+
+  if (isSuccess && successData) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-12 px-4 sm:px-6 lg:px-8">
+        <Card className="w-full max-w-md border-0 bg-transparent shadow-none ring-0">
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold text-center text-green-600">
+              회원가입 완료
+            </CardTitle>
+            <CardDescription className="text-center">
+              회원가입이 성공적으로 완료되었습니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-gray-50 p-4 rounded-lg space-y-2 border border-gray-100">
+              <div className="flex justify-between border-b border-gray-200 pb-2">
+                <span className="text-gray-500">아이디(이메일)</span>
+                <span className="font-medium">{successData.email}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">핸드폰</span>
+                <span className="font-medium">{successData.phone}</span>
+              </div>
+            </div>
+            {emailReceipts.length > 0 ? (
+              <div className="rounded-lg border border-gray-100 bg-white p-4 text-sm leading-6 text-gray-700">
+                {emailReceipts.map((line) => <p key={line}>{line}</p>)}
+              </div>
+            ) : null}
+            <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg space-y-2">
+              <p className="text-sm font-semibold text-yellow-800 flex items-center gap-2">
+                <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                이메일 인증이 필요합니다
+              </p>
+              <p className="text-sm text-yellow-700">
+                <strong>{successData.email}</strong> 주소로 발송된 인증 메일을 확인해주세요.
+              </p>
+              <p className="text-xs text-yellow-600">
+                이메일 인증을 완료해야 로그인할 수 있습니다. 메일이 오지 않았다면 스팸함을 확인해주세요.
+              </p>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button
+              variant="brand"
+              type="button"
+              className="w-full h-11 text-md"
+              onClick={() => window.location.assign(homeHref)}
+            >
+              메인 페이지로 이동하기
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    )
+  }
+
+  if (kakaoSignupMode && kakaoCancelled) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-12 px-4 sm:px-6 lg:px-8">
+        <Card className="w-full max-w-md border-0 bg-transparent shadow-none ring-0">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center tracking-tight">가입을 취소했습니다</CardTitle>
+            {consentForm.ok ? (
+              <CardDescription className="text-center text-gray-600">{consentForm.texts.kakaoCancelDoneNotice}</CardDescription>
+            ) : null}
+          </CardHeader>
+          <CardFooter>
+            <Button variant="brand" type="button" className="w-full h-11 text-md" onClick={() => window.location.replace('/')}>
+              홈으로
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    )
+  }
+
+  if (kakaoSignupMode && kakaoResults) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-12 px-4 sm:px-6 lg:px-8">
+        <Card className="w-full max-w-md border-0 bg-transparent shadow-none ring-0">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center tracking-tight">카카오 간편가입 완료</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {kakaoResults.length > 0 ? (
+              <div className="rounded-lg border border-gray-100 bg-white p-4 text-sm leading-6 text-gray-700">
+                {kakaoResults.map((line) => <p key={line}>{line}</p>)}
+              </div>
+            ) : null}
+          </CardContent>
+          <CardFooter>
+            <Button variant="brand" type="button" className="w-full h-11 text-md" onClick={() => window.location.replace(next)}>
+              확인
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    )
+  }
+
+  if (kakaoSignupMode) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-12 px-4 sm:px-6 lg:px-8">
+        <Card className="w-full max-w-md border-0 bg-transparent shadow-none ring-0">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center tracking-tight">카카오 간편가입</CardTitle>
+            <CardDescription className="text-center text-gray-500">
+              카카오에서 전달받은 정보(이메일, 휴대폰 번호)를 확인합니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isKakaoProfileLoading ? (
+              <div className="text-center py-8 text-sm text-gray-500">정보를 가져오는 중입니다...</div>
+            ) : (
+              <form onSubmit={handleKakaoProfileSubmit} className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="kakaoEmail">카카오 이메일</Label>
+                  <Input id="kakaoEmail" value={kakaoEmail} readOnly disabled className="h-10 bg-gray-100 text-gray-700" />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="kakaoPhone">휴대폰 번호</Label>
+                  <Input id="kakaoPhone" value={kakaoPhone} readOnly disabled className="h-10 bg-gray-100 text-gray-700" />
+                  {!kakaoPhone && (
+                    <p className="text-xs text-amber-600">
+                      카카오 계정에 전화번호가 없거나 제공 불가 상태면 빈 값으로 전달될 수 있습니다.
+                    </p>
+                  )}
+                </div>
+                {consentForm.ok ? (
+                  <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-600">
+                    <ConsentTextLine line={consentForm.texts.kakaoConfirmNotice} />
+                  </p>
+                ) : null}
+                {consentSection}
+                <Button variant="brand" className="w-full h-11 text-md font-medium" type="submit" disabled={isLoading || !consentForm.ok}>
+                  {isLoading ? '처리 중...' : '카카오 간편가입 완료'}
+                </Button>
+                <Button variant="ghost" type="button" className="w-full h-10 text-sm text-gray-500" onClick={handleKakaoCancel} disabled={isLoading}>
+                  가입 취소
+                </Button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!isEmailSignupMode) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-12 px-4 sm:px-6 lg:px-8">
+        <Card className="w-full max-w-md border-0 bg-transparent shadow-none ring-0">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center tracking-tight">회원가입</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {consentSection}
+            <Button
+              variant="outline"
+              type="button"
+              onClick={handleKakaoSignup}
+              disabled={isLoading}
+              className="w-full bg-[#FEE500] text-[#191919] hover:bg-[#FEE500]/90 border-none h-11 shadow-sm font-medium"
+            >
+              <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 3C5.373 3 0 6.657 0 11.172c0 2.985 2.328 5.642 5.938 7.07l-1.38 5.105c-.13.48.465.84.866.566l6.06-4.14C11.83 19.83 12.165 19.84 12.5 19.84 19.127 19.84 24.5 16.184 24.5 11.67 24.5 7.156 19.127 3 12 3z"/>
+              </svg>
+              카카오 간편가입
+            </Button>
+            <Button
+              variant="brand"
+              type="button"
+              onClick={() => {
+                if (ensureRequiredConsents()) {
+                  setIsEmailSignupMode(true)
+                }
+              }}
+              disabled={isLoading}
+              className="w-full h-11 text-md font-medium"
+            >
+              일반가입
+            </Button>
+          </CardContent>
+          <CardFooter className="flex justify-center pb-8">
+            <div className="text-sm text-gray-500">
+              이미 계정이 있으신가요? <Link href={`/login${nextQuery}`} className="underline underline-offset-4 hover:text-primary font-medium ml-1">로그인</Link>
+            </div>
+          </CardFooter>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-12 px-4 sm:px-6 lg:px-8">
+      <Card className="w-full max-w-md border-0 bg-transparent shadow-none ring-0">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold text-center tracking-tight">회원가입</CardTitle>
+          <CardDescription className="text-center text-gray-500">
+            서비스 이용을 위해 정보를 입력해주세요
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={handleSignup} className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="email">이메일 (아이디) *</Label>
+              <Input id="email" name="email" type="email" placeholder="name@example.com" required className="h-10" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="password">비밀번호 *</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="h-10"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="confirmPassword">비밀번호 확인 *</Label>
+              <Input
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="h-10"
+              />
+              {confirmPassword.length > 0 && (
+                <p className={`text-xs mt-1 ${password === confirmPassword ? 'text-green-600' : 'text-red-500'}`}>
+                  {password === confirmPassword
+                    ? '비밀번호가 일치합니다.'
+                    : '비밀번호가 일치하지 않습니다.'}
+                </p>
+              )}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="phone">휴대폰 번호 *</Label>
+              <Input
+                id="phone"
+                name="phone"
+                placeholder="010-1234-5678"
+                value={phone}
+                onChange={handlePhoneChange}
+                maxLength={13}
+                required
+                className="h-10"
+              />
+            </div>
+
+            <Button variant="brand" className="w-full mt-6 h-11 text-md font-medium" type="submit" disabled={isLoading || (password !== confirmPassword)}>
+              {isLoading ? '가입 처리 중...' : '가입하기'}
+            </Button>
+          </form>
+        </CardContent>
+        <CardFooter className="flex justify-center pb-8">
+          <div className="text-sm text-gray-500">
+            이미 계정이 있으신가요? <Link href={`/login${nextQuery}`} className="underline underline-offset-4 hover:text-primary font-medium ml-1">로그인</Link>
+          </div>
+        </CardFooter>
+      </Card>
+    </div>
+  )
+}
+
+export default function SignupClient({ consentForm }: { consentForm: SignupConsentForm }) {
+  return (
+    <Suspense>
+      <SignupContent consentForm={consentForm} />
+    </Suspense>
+  )
+}

@@ -4,6 +4,13 @@ import { revalidatePath } from 'next/cache'
 
 import { createClient } from '@/lib/supabase/server'
 import { isAdminAccountEmail } from '@/lib/admin-accounts-shared'
+import {
+  describeSignupError,
+  getConsentErrorMessage,
+  isSignupResendIntervalError,
+  parseConsentSubmission,
+} from '@/lib/signup-consent'
+import { recordUserConsents, validateConsentSubmission } from '@/lib/signup-consent-server'
 
 export async function login(formData: FormData) {
   console.log('--------------------------------------------------')
@@ -51,8 +58,6 @@ export async function signup(formData: FormData) {
   console.log('--------------------------------------------------')
   console.log('[Signup Action] Started')
 
-  const supabase = await createClient()
-
   const email = formData.get('email') as string
   const password = formData.get('password') as string
 
@@ -63,14 +68,25 @@ export async function signup(formData: FormData) {
   console.log('[Signup Action] Data received')
 
   if (!email || !password || !phone) {
-    return { success: false, error: '이메일, 비밀번호, 휴대폰 번호를 모두 입력해주세요.' }
+    return { success: false as const, error: '이메일, 비밀번호, 휴대폰 번호를 모두 입력해주세요.' }
   }
 
   // 관리자 ID용 내부 도메인은 일반 회원가입에서 선점할 수 없다
   if (isAdminAccountEmail(email)) {
-    return { success: false, error: '사용할 수 없는 이메일 주소입니다.' }
+    return { success: false as const, error: '사용할 수 없는 이메일 주소입니다.' }
   }
 
+  // 약관 동의: 계정을 만들기 전에 DB 와 같은 규칙으로 검사한다(필수 누락·바뀐 항목이면 계정을 만들지 않는다).
+  const consents = parseConsentSubmission(formData.get('consents'))
+  if (!consents) {
+    return { success: false as const, error: getConsentErrorMessage('CONSENT_INPUT_INVALID'), consentCode: 'CONSENT_INPUT_INVALID' }
+  }
+  const consentError = await validateConsentSubmission(consents)
+  if (consentError) {
+    return { success: false as const, error: getConsentErrorMessage(consentError), consentCode: consentError }
+  }
+
+  const supabase = await createClient()
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -82,30 +98,31 @@ export async function signup(formData: FormData) {
     }
   })
 
-  if (error) {
-    console.error('[Signup Action] Supabase Error:', error.message)
-    return { success: false, error: error.message }
+  // 새 계정·이미 있는 이메일·미인증 기존 계정 세 경우의 응답 모양을 같게 둔다(계정이 있는지 드러내지 않는다).
+  const successResult = {
+    success: true as const,
+    data: { email, phone },
   }
 
-  if (data.user) {
-    console.log('[Signup Action] Success - User ID:', data.user.id)
-    // Return success data instead of redirecting immediately, so UI can show confirmation
-    return {
-      success: true,
-      data: {
-        email: data.user.email,
-        phone: phone
-      }
+  if (error) {
+    if (isSignupResendIntervalError(error.message)) {
+      console.warn('[Signup Action] resend interval limit (treated as success)')
+      return successResult
     }
-  } else {
-    console.warn('[Signup Action] No user returned (Check email confirmation settings)')
-    // Even if session is null (email confirmation required), user is created.
-    return {
-      success: true,
-      data: {
-        email: email,
-        phone: phone
-      }
+    console.error('[Signup Action] Supabase Error:', error.message)
+    return { success: false as const, error: describeSignupError(error.message) }
+  }
+
+  // 이미 인증된 이메일이면 identities 가 빈 가짜 사용자가 온다 — 기록하지 않는다.
+  // 기록 조건(미인증 이메일 계정, 재가입이면 선택 철회만)은 DB 함수가 다시 판정한다. 기록 실패는 로그만(첫 로그인 동의 화면이 받는다).
+  const hasEmailIdentity = (data.user?.identities ?? []).some((identity) => identity.provider === 'email')
+  if (data.user && hasEmailIdentity) {
+    const recorded = await recordUserConsents(data.user.id, consents, 'email_signup')
+    if (!recorded.ok) {
+      console.warn('[Signup Action] consent record skipped', { code: recorded.code })
     }
   }
+
+  console.log('[Signup Action] Completed')
+  return successResult
 }

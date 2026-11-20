@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
+import '../src/components/features/passages/node-test-register.mjs'
 
 import {
   FOOTER_POLICY_DOCUMENT_KEYS,

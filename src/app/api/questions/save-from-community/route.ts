@@ -5,6 +5,7 @@ import { DEFAULT_WORKSPACE_SUBJECT } from '@/lib/workspace-subject'
 import { z } from 'zod'
 import { CreditService } from '@/lib/credits'
 import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot, type CreditBalanceSnapshot } from '@/lib/credit-balance'
+import { checkMemberConsentForApi, consentBlockResponse } from '@/lib/consent-guard-server'
 
 const COST_PER_IMPORT = 100
 const CREDIT_BALANCE_HEADER = 'x-credit-balance'
@@ -137,6 +138,12 @@ export async function POST(request: Request) {
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // 필수 약관 동의 확인(돈 API 의 실제 강제 — 인증 직후, 첫 쓰기·외부 호출 전)
+  const consentBlock = await checkMemberConsentForApi(supabase, user)
+  if (consentBlock) {
+    return consentBlockResponse(consentBlock, 'plain')
   }
 
   const getCurrentSnapshot = async () => {
@@ -321,6 +328,12 @@ export async function PUT(request: Request) {
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // 필수 약관 동의 확인(돈 API 의 실제 강제 — 인증 직후, 첫 쓰기·외부 호출 전)
+  const consentBlock = await checkMemberConsentForApi(supabase, user)
+  if (consentBlock) {
+    return consentBlockResponse(consentBlock, 'plain')
   }
 
   const getCurrentSnapshot = async () => {

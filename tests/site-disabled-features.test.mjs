@@ -126,6 +126,9 @@ function loadMiddleware(siteState) {
     './session-cookies': { toSessionCookieOptions: (options) => options },
     '@/lib/workspace-subject': workspaceSubject,
     '@/lib/workspace-public-browse': {},
+    '@/lib/auth-paths': load('src/lib/auth-paths.ts', { '@/lib/workspace-subject': workspaceSubject }),
+    '@/lib/admin-accounts-shared': load('src/lib/admin-accounts-shared.ts'),
+    '@/lib/consent-gate': load('src/lib/consent-gate.ts', { '@/lib/workspace-subject': workspaceSubject }),
     '@/lib/admin-features': adminFeatures,
     '@/lib/site-features': site,
     '@/lib/admin-features-server': {
@@ -291,6 +294,9 @@ test('정적 파일 모양의 주소는 세션 작업 없이 통과시키되, �
     './session-cookies': { toSessionCookieOptions: (options) => options },
     '@/lib/workspace-subject': workspaceSubject,
     '@/lib/workspace-public-browse': {},
+    '@/lib/auth-paths': load('src/lib/auth-paths.ts', { '@/lib/workspace-subject': workspaceSubject }),
+    '@/lib/admin-accounts-shared': load('src/lib/admin-accounts-shared.ts'),
+    '@/lib/consent-gate': load('src/lib/consent-gate.ts', { '@/lib/workspace-subject': workspaceSubject }),
     '@/lib/admin-features': adminFeatures,
     '@/lib/site-features': site,
     '@/lib/admin-features-server': {
