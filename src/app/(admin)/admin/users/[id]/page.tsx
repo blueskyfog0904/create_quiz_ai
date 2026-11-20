@@ -99,6 +99,8 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
   const orderHref = (tab: 'payments' | 'market', query: string) => `/admin/orders?tab=${tab}&q=${encodeURIComponent(query)}`
   // 회수: 회수 권한이 있고 본인 계정이 아닐 때, 관리자 지급분 중 쓸 수 있는(활성·만료 전) 건에만 버튼을 둔다. 판정은 회수 함수(DB)가 다시 한다.
   const canRevoke = hasAdminPermission(access, 'credits.revoke') && profile.id !== access.userId
+  // 약관 이력 화면은 site.manage 가 필요하다(없으면 지문만 글자로).
+  const canViewPolicyHistory = hasAdminPermission(access, 'site.manage')
 
   return (
     <div className="space-y-6">
@@ -424,6 +426,16 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
                   </p>
                   <p className="mt-0.5 text-xs text-gray-500">
                     {formatDateTime(entry.createdAt)} · {CONSENT_SOURCE_LABELS[entry.source] ?? entry.source}
+                    {entry.policySha256 ? (
+                      canViewPolicyHistory ? (
+                        <>
+                          {' · '}
+                          <Link href={`/admin/footer/policy-history?hash=${entry.policySha256}`} className={LINK_CLASS}>
+                            약관 사본 {entry.policySha256.slice(0, 8)}
+                          </Link>
+                        </>
+                      ) : ` · 약관 사본 ${entry.policySha256.slice(0, 8)}`
+                    ) : entry.hasPolicy ? ' · 약관 사본 없음' : null}
                   </p>
                 </div>
                 <Badge variant="outline" className={entry.agreed ? '' : 'border-red-300 text-red-700'}>{entry.agreed ? '동의' : '동의하지 않음'}</Badge>

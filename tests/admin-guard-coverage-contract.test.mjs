@@ -73,6 +73,8 @@ const PAGE_REQUIREMENTS = {
   // 요금제 · 사이트
   'pricing/page.tsx': 'pricing.manage',
   'footer/page.tsx': 'site.manage',
+  // 약관 본문 이력(읽기 전용, 6번 묶음)
+  'footer/policy-history/page.tsx': 'site.manage',
   'storefront-menu/page.tsx': 'site.manage',
   // 닫을 예정(4-2절 2차)이라 그 전까지 대표 전용
   'menu-management/page.tsx': OWNER,

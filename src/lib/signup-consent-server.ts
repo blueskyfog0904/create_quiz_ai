@@ -235,19 +235,23 @@ type ConsentLogRow = {
   source: string
   created_at: string
   seq: number
+  policy_sha256?: string | null
 }
 
-async function readConsentLog(userId: string) {
+// 회원 화면(선택 동의 관리)은 약관 지문 열을 읽지 않는다 — 배포 순서와 상관없이 동작하게(지문은 관리자 회원 상세에서만).
+async function readConsentLog(userId: string, options: { withPolicyHash?: boolean } = {}) {
   const { data, error } = await consentDb()
     .from('user_consents')
-    .select('item_id, item_version, agreed, source, created_at, seq')
+    .select(options.withPolicyHash
+      ? 'item_id, item_version, agreed, source, created_at, seq, policy_sha256'
+      : 'item_id, item_version, agreed, source, created_at, seq')
     .eq('user_id', userId)
     .order('seq', { ascending: false })
     .limit(500)
   if (error) {
     return null
   }
-  return (data ?? []) as ConsentLogRow[]
+  return (data ?? []) as unknown as ConsentLogRow[]
 }
 
 export type OptionalConsentEntry = {
@@ -294,11 +298,14 @@ export type MemberConsentHistoryEntry = {
   agreed: boolean
   source: string
   createdAt: string
+  // 연결 약관이 있는 항목: 동의 당시 저장 본문의 sha256(6번 묶음 이전 기록·연결 약관 없음이면 null)
+  policySha256: string | null
+  hasPolicy: boolean
 }
 
 // 회원 상세(관리자): 동의 기록 전체(최신순).
 export async function readMemberConsentHistory(userId: string): Promise<MemberConsentHistoryEntry[] | null> {
-  const [rows, log] = await Promise.all([readItems({ activeOnly: false }), readConsentLog(userId)])
+  const [rows, log] = await Promise.all([readItems({ activeOnly: false }), readConsentLog(userId, { withPolicyHash: true })])
   if (!rows || !log) {
     return null
   }
@@ -310,6 +317,8 @@ export async function readMemberConsentHistory(userId: string): Promise<MemberCo
     agreed: row.agreed,
     source: row.source,
     createdAt: row.created_at,
+    policySha256: row.policy_sha256 ?? null,
+    hasPolicy: Boolean(itemById.get(row.item_id)?.policy_slug),
   }))
 }
 
@@ -458,4 +467,43 @@ export async function readItemIdsWithCurrentRecord(userId: string, items: Pick<C
       .filter((row) => versions.get(row.item_id) === row.item_version)
       .map((row) => row.item_id)
   )
+}
+
+export type PolicyDocumentSnapshot = {
+  id: string
+  seq: number
+  docKey: string
+  slug: string | null
+  title: string | null
+  content: string
+  contentSha256: string
+  createdAt: string
+}
+
+// 약관 본문 이력(6번 묶음): 문서별 사본을 최신순으로. hash 를 주면 그 본문만.
+export async function readPolicyDocumentSnapshots(options: { hash?: string | null; limit?: number } = {}): Promise<PolicyDocumentSnapshot[] | null> {
+  let query = consentDb()
+    .from('policy_document_snapshots')
+    .select('id, seq, doc_key, slug, title, content, content_sha256, created_at')
+    .order('seq', { ascending: false })
+    .limit(options.limit ?? 200)
+  if (options.hash) {
+    query = query.eq('content_sha256', options.hash)
+  }
+  const { data, error } = await query
+  if (error) {
+    return null
+  }
+  return ((data ?? []) as {
+    id: string; seq: number; doc_key: string; slug: string | null; title: string | null; content: string; content_sha256: string; created_at: string
+  }[]).map((row) => ({
+    id: row.id,
+    seq: row.seq,
+    docKey: row.doc_key,
+    slug: row.slug,
+    title: row.title,
+    content: row.content,
+    contentSha256: row.content_sha256,
+    createdAt: row.created_at,
+  }))
 }
