@@ -166,10 +166,10 @@ export default function AiQuestionGenerationRunsClient({
                     </td>
                     <td className="p-3">
                       <div className="flex justify-end gap-2">
-                        <Button asChild size="sm" variant="outline">
+                        <Button asChild size="sm" variant="adminAction">
                           <Link href={`/admin/ai-question-generation-runs/${run.id}?subject=${workspaceSubject}`}>상세</Link>
                         </Button>
-                        <Button asChild size="sm" variant="outline">
+                        <Button asChild size="sm" variant="adminAction">
                           <a href={`/api/admin/ai-question-generation-runs/${run.id}/download`}><Download className="mr-1 h-3 w-3" />JSON 다운로드</a>
                         </Button>
                       </div>

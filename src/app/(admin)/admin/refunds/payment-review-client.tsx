@@ -214,7 +214,7 @@ export function PaymentReviewClient({
                                     <div className="mt-2 flex justify-end">
                                         <Button
                                             size="sm"
-                                            variant="outline"
+                                            variant="adminAction"
                                             aria-label={`${alert.code} 경보 해소`}
                                             onClick={() => {
                                                 setSelectedAlert(alert)
@@ -274,7 +274,7 @@ export function PaymentReviewClient({
                                     </TableCell>
                                     <TableCell className="text-right">
                                         {order.allowedActions.length > 0 ? (
-                                            <Button size="sm" variant="outline" onClick={() => openDialog(order)}>
+                                            <Button size="sm" variant="adminAction" onClick={() => openDialog(order)}>
                                                 확인 처리
                                             </Button>
                                         ) : (

@@ -297,7 +297,7 @@ export default function ProblemTypesClient({
             {bulkDeleting ? '삭제 중...' : `선택 삭제${selectedTypeCount > 0 ? ` (${selectedTypeCount})` : ''}`}
           </Button>
           <Button
-            variant="outline"
+            variant="adminAction"
             onClick={handleOpenBulkDialog}
             disabled={aiTypeCount === 0}
           >
@@ -503,8 +503,8 @@ export default function ProblemTypesClient({
             <CardContent>
               <p className="text-sm text-gray-500 line-clamp-2 mb-4">{type.description}</p>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => handleTest(type.id)}>테스트</Button>
-                <Button variant="outline" size="sm" onClick={() => handleEdit(type.id)}>수정</Button>
+                <Button variant="adminAction" size="sm" onClick={() => handleTest(type.id)}>테스트</Button>
+                <Button variant="adminAction" size="sm" onClick={() => handleEdit(type.id)}>수정</Button>
                 <Button
                   variant="destructive"
                   size="sm"

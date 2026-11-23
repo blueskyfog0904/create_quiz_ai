@@ -254,7 +254,7 @@ export default function AdminAccountsClient() {
                         <Button
                           type="button"
                           size="sm"
-                          variant="outline"
+                          variant="adminAction"
                           disabled={savingId === account.userId || (passwordDrafts[account.userId] ?? '').length < ADMIN_PASSWORD_MIN_LENGTH}
                           onClick={() => resetPassword(account)}
                         >
@@ -265,7 +265,7 @@ export default function AdminAccountsClient() {
                             <Button
                               type="button"
                               size="sm"
-                              variant="outline"
+                              variant="adminAction"
                               disabled={savingId === account.userId}
                               onClick={() => setEditingAccount(account)}
                             >

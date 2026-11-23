@@ -115,7 +115,7 @@ export default function ReviewsAdminClient({ workspaceSubject }: { workspaceSubj
             placeholder="자료명·본문 검색"
             className="w-64"
           />
-          <Button type="submit" variant="outline">검색</Button>
+          <Button type="submit" variant="adminAction">검색</Button>
         </form>
         {data && <span className="text-sm text-muted-foreground">총 {data.totalCount.toLocaleString()}건</span>}
       </div>

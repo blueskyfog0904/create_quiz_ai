@@ -150,7 +150,7 @@ export function PricingPageContentForm({ initial }: { initial: InitialState }) {
                     ))}
                     <Button
                         type="button"
-                        variant="outline"
+                        variant="adminAction"
                         size="sm"
                         className="w-fit"
                         onClick={() => setContent((prev) => ({ ...prev, notice_items: [...prev.notice_items, { title: '', body: '' }] }))}
@@ -182,7 +182,7 @@ export function PricingPageContentForm({ initial }: { initial: InitialState }) {
                     ))}
                     <Button
                         type="button"
-                        variant="outline"
+                        variant="adminAction"
                         size="sm"
                         className="w-fit"
                         onClick={() => setContent((prev) => ({ ...prev, refund_items: [...prev.refund_items, ''] }))}

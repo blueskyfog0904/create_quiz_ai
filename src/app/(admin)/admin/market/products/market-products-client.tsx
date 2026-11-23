@@ -2264,14 +2264,14 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
         {mode === 'create' ? (
           <Button
             type="button"
-            variant="outline"
+            variant="adminAction"
             onClick={() => resetForm()}
           >
             <Plus className="mr-2 h-4 w-4" />
             새 상품 작성
           </Button>
         ) : (
-          <Button asChild variant="outline">
+          <Button asChild variant="adminAction">
             <Link href={withAdminWorkspaceSubject('/admin/market/products/new', workspaceSubject)}>
               <Plus className="mr-2 h-4 w-4" />
               새 상품 등록
@@ -2321,7 +2321,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <Label>카테고리 <span className="text-red-500">*</span></Label>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setIsCategoryManagerOpen(true)}>
+                  <Button type="button" variant="adminAction" size="sm" onClick={() => setIsCategoryManagerOpen(true)}>
                     카테고리 관리
                   </Button>
                 </div>
@@ -2485,7 +2485,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                                 <p className="mt-1 text-sm font-medium text-gray-900">{formatCreditInputValue(subproduct.price_credits)} 크레딧 · 파일 {filesForSubproduct.length}개</p>
                               </div>
                               <div className="flex gap-2">
-                                <Button type="button" variant="outline" size="sm" disabled={isSubproductSaving} onClick={() => handleEditSubproduct(subproduct)}>
+                                <Button type="button" variant="adminAction" size="sm" disabled={isSubproductSaving} onClick={() => handleEditSubproduct(subproduct)}>
                                   수정
                                 </Button>
                                 <Button type="button" variant="outline" size="sm" disabled={isSubproductSaving} onClick={() => void handleDeleteSubproduct(subproduct.id)}>
@@ -2525,7 +2525,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                             )}
 
                             <div className="flex justify-end">
-                              <Button type="button" variant="outline" size="sm" disabled={activeFileTypes.length === 0} onClick={() => handleAddSubproductFileDraft(subproduct.id)}>
+                              <Button type="button" variant="adminAction" size="sm" disabled={activeFileTypes.length === 0} onClick={() => handleAddSubproductFileDraft(subproduct.id)}>
                                 <Plus className="mr-2 h-4 w-4" />
                                 파일 추가+
                               </Button>
@@ -2709,7 +2709,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                     </div>
                   </div>
                 ) : (
-                  <Button type="button" variant="outline" className="w-full border-dashed" disabled={isSubproductSaving} onClick={() => setIsSubproductFormOpen(true)}>
+                  <Button type="button" variant="adminAction" className="w-full border-dashed" disabled={isSubproductSaving} onClick={() => setIsSubproductFormOpen(true)}>
                     <Plus className="mr-2 h-4 w-4" />
                     서브상품 추가
                   </Button>
@@ -2839,7 +2839,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                     </Button>
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="adminAction"
                       disabled={isSampleSourceUploading || !selectedSampleSourceFile || isUploadBlockedByCategory}
                       onClick={() => void handleGenerateSampleImages()}
                     >
@@ -2848,7 +2848,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                     </Button>
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="adminAction"
                       disabled={!canOpenSamplePreview}
                       aria-label={`${form.title || '문제마켓 상품'} 샘플 JPG 확인`}
                       onClick={() => {
@@ -3047,7 +3047,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
               </p>
               <div className="flex gap-2">
                 {isPublishedItem ? null : (
-                  <Button type="button" variant="outline" className="h-11" disabled={isSaving} onClick={() => void handleSave('draft')}>
+                  <Button type="button" variant="adminAction" className="h-11" disabled={isSaving} onClick={() => void handleSave('draft')}>
                     임시저장
                   </Button>
                 )}
@@ -3182,7 +3182,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                 </Button>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="adminAction"
                   size="sm"
                   disabled={isBulkActionRunning}
                   onClick={() => setIsBulkImagePickerOpen(true)}
@@ -3316,7 +3316,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1">
-                              <Button type="button" variant="outline" size="sm" onClick={() => void loadItemDetail(item.id)}>
+                              <Button type="button" variant="adminAction" size="sm" onClick={() => void loadItemDetail(item.id)}>
                                 <Pencil className="mr-1.5 h-3.5 w-3.5" />
                                 수정
                               </Button>

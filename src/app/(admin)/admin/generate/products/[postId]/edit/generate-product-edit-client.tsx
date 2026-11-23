@@ -355,7 +355,7 @@ export default function GenerateProductEditClient({
             <CardTitle>문항 행 관리</CardTitle>
             <CardDescription>question_number / passage_text 기준으로 문항을 수정하거나 추가할 수 있습니다.</CardDescription>
           </div>
-          <Button type="button" variant="outline" onClick={handleAddPostItemRow}>
+          <Button type="button" variant="adminAction" onClick={handleAddPostItemRow}>
             <Plus className="mr-2 h-4 w-4" />문항 추가
           </Button>
         </CardHeader>

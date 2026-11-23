@@ -274,7 +274,7 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                     <p className="text-gray-500">사용자의 환불 요청을 검토하고 처리합니다.</p>
                 </div>
                 <Button
-                    variant="outline"
+                    variant="adminAction"
                     onClick={() => {
                         router.refresh()
                         alerts?.refresh()
@@ -440,7 +440,7 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                                                 <div className="flex gap-2 justify-end">
                                                     <Button
                                                         size="sm"
-                                                        variant="outline"
+                                                        variant="adminAction"
                                                         className="text-green-600 hover:bg-green-50"
                                                         onClick={() => openProcessDialog(request, 'approve')}
                                                     >
@@ -459,7 +459,7 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                                                 <div className="flex gap-2 justify-end">
                                                     <Button
                                                         size="sm"
-                                                        variant="outline"
+                                                        variant="adminAction"
                                                         onClick={() => openProcessDialog(request, 'complete_manual')}
                                                     >
                                                         수동 완료

@@ -143,7 +143,7 @@ function StringListEditor({
         </div>
         <Button
           type="button"
-          variant="outline"
+          variant="adminAction"
           size="sm"
           disabled={values.length >= maxItems}
           onClick={() => onChange([...values, ''])}
@@ -637,7 +637,7 @@ export default function LandingPagesClient({
             <div className="flex justify-end">
               <Button
                 type="button"
-                variant="outline"
+                variant="adminAction"
                 size="sm"
                 disabled={activeWorkspaceConfig.features.length >= 4}
                 onClick={() => setWorkspaceConfigs((current) => ({
@@ -742,7 +742,7 @@ export default function LandingPagesClient({
             <div className="flex justify-end">
               <Button
                 type="button"
-                variant="outline"
+                variant="adminAction"
                 size="sm"
                 disabled={activeWorkspaceConfig.steps.length >= 4}
                 onClick={() => setWorkspaceConfigs((current) => ({

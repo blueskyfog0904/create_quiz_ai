@@ -581,7 +581,7 @@ export default function GenerateProductsClient({
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 md:flex-row md:justify-end">
-                  <Button type="button" variant="outline" asChild>
+                  <Button type="button" variant="adminAction" asChild>
                     <a href="/samples/generate-listboard-posts-sample.csv" download>
                       <Download className="mr-2 h-4 w-4" />
                       CSV/엑셀 샘플파일
@@ -589,7 +589,7 @@ export default function GenerateProductsClient({
                   </Button>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="adminAction"
                     disabled={isApplyingCsv}
                     onClick={() => {
                       if (!csvInputRef.current) return

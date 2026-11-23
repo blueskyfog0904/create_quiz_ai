@@ -1003,7 +1003,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
               </p>
             </div>
             <Button 
-              variant="outline" 
+              variant="adminAction" 
               onClick={handleDownloadTemplate}
               disabled={isDownloadingTemplate}
               className="bg-white"
@@ -1090,7 +1090,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
             </div>
             <div className="flex gap-2">
               <Button
-                variant="outline"
+                variant="adminAction"
                 onClick={handleDownloadFilledTemplate}
                 disabled={isDownloadingFilledTemplate || parsedQuestions.length === 0}
               >
@@ -1168,7 +1168,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
                   </div>
                 )}
                 {question.conversionStatus === 'needs_review' && (
-                  <Button type="button" variant="outline" onClick={() => handleMarkHwpxQuestionReviewed(question.id)}>
+                  <Button type="button" variant="adminAction" onClick={() => handleMarkHwpxQuestionReviewed(question.id)}>
                     검수 완료
                   </Button>
                 )}
@@ -1420,7 +1420,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
             </p>
             <div className="flex gap-2">
               <Button
-                variant="outline"
+                variant="adminAction"
                 onClick={handleDownloadFilledTemplate}
                 disabled={isDownloadingFilledTemplate || parsedQuestions.length === 0}
               >
@@ -1465,7 +1465,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
                 <Label htmlFor="problem_type_id">문제 유형 *</Label>
                 <Button 
                   type="button" 
-                  variant="outline" 
+                  variant="adminAction" 
                   size="sm"
                   onClick={() => setIsDialogOpen(true)}
                   className="text-primary"
@@ -1586,7 +1586,7 @@ export default function AdminUploadClient({ problemTypes, gradeLevels, difficult
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <Label>선택지 (선택)</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addChoice}>
+                <Button type="button" variant="adminAction" size="sm" onClick={addChoice}>
                   <Plus className="h-4 w-4 mr-1" />
                   선택지 추가
                 </Button>

@@ -101,7 +101,7 @@ export default function SettingsEditor({ initialSettings }: SettingsEditorProps)
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold">난이도 프롬프트 값 설정</h3>
-            <Button variant="outline" size="sm" onClick={handleAddDifficulty}>
+            <Button variant="adminAction" size="sm" onClick={handleAddDifficulty}>
               <Plus className="w-4 h-4 mr-2" /> 난이도 추가
             </Button>
           </div>
@@ -173,7 +173,7 @@ export default function SettingsEditor({ initialSettings }: SettingsEditorProps)
               placeholder="숫자 입력"
               className="w-24"
             />
-            <Button variant="outline" size="sm" onClick={handleAddCount}>
+            <Button variant="adminAction" size="sm" onClick={handleAddCount}>
               <Plus className="w-4 h-4 mr-1" /> 추가
             </Button>
           </div>

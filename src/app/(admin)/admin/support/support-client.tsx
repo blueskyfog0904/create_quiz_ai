@@ -595,7 +595,7 @@ export function SupportClient({ tickets, ticketCounts, pagination, searchTruncat
                       {category.help_text && <p className="text-xs text-gray-400">안내: {category.help_text}</p>}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => openEditCategory(category)}>
+                      <Button variant="adminAction" size="sm" onClick={() => openEditCategory(category)}>
                         <Pencil className="mr-1 h-4 w-4" />
                         수정
                       </Button>

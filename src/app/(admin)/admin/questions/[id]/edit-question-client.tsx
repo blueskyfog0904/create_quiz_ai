@@ -415,7 +415,7 @@ export function EditQuestionClient({ questionId, workspaceSubject }: EditQuestio
           <Card className="border-0 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg">선택지</CardTitle>
-              <Button variant="outline" size="sm" onClick={addChoice}>
+              <Button variant="adminAction" size="sm" onClick={addChoice}>
                 <Plus className="h-4 w-4 mr-1" />
                 추가
               </Button>

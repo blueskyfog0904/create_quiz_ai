@@ -218,7 +218,7 @@ export default function ProblemTypeTestClient({ problemType, workspaceSubject }:
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => setSelectorOpen(true)}>
+            <Button type="button" variant="adminAction" onClick={() => setSelectorOpen(true)}>
               기존 등록 지문 불러오기
             </Button>
             <span className="text-sm text-muted-foreground self-center">또는 아래에 직접 입력</span>
@@ -278,14 +278,14 @@ export default function ProblemTypeTestClient({ problemType, workspaceSubject }:
                 )}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {result.logLocation && (
-                    <Button asChild variant="outline" size="sm">
+                    <Button asChild variant="adminAction" size="sm">
                       <a href={result.logLocation} target="_blank" rel="noreferrer">
                         상세 JSON 보기
                       </a>
                     </Button>
                   )}
                   {result.logDownloadUrl && (
-                    <Button asChild variant="outline" size="sm">
+                    <Button asChild variant="adminAction" size="sm">
                       <a href={result.logDownloadUrl} download>
                         <Download className="mr-2 h-4 w-4" />
                         JSON 다운로드
@@ -376,10 +376,10 @@ export default function ProblemTypeTestClient({ problemType, workspaceSubject }:
                     )}
                   </div>
                   <div className="flex gap-2">
-                    <Button asChild variant="outline" size="sm" onClick={(event) => event.stopPropagation()}>
+                    <Button asChild variant="adminAction" size="sm" onClick={(event) => event.stopPropagation()}>
                       <a href={run.logLocation} target="_blank" rel="noreferrer">상세 JSON 보기</a>
                     </Button>
-                    <Button asChild variant="outline" size="sm" onClick={(event) => event.stopPropagation()}>
+                    <Button asChild variant="adminAction" size="sm" onClick={(event) => event.stopPropagation()}>
                       <a href={run.downloadUrl} download>
                         <Download className="mr-2 h-4 w-4" />
                         JSON 다운로드

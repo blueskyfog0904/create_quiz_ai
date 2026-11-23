@@ -159,7 +159,7 @@ export function AuditLogClient() {
                     <TableCell className="text-right text-sm">{row.amount == null ? '-' : row.amount.toLocaleString()}</TableCell>
                     <TableCell className="max-w-[16rem] truncate text-sm" title={row.reason ?? undefined}>{row.reason ?? '-'}</TableCell>
                     <TableCell className="text-right">
-                      <Button type="button" size="sm" variant="outline" onClick={() => setSelected(row)}>상세</Button>
+                      <Button type="button" size="sm" variant="adminAction" onClick={() => setSelected(row)}>상세</Button>
                     </TableCell>
                   </TableRow>
                 ))

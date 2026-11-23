@@ -203,7 +203,7 @@ export default function QuestionBankProblemTypesClient({ workspaceSubject }: Que
                     {problemType.description && <div className="text-sm text-muted-foreground">{problemType.description}</div>}
                   </div>
                   <div className="flex gap-2">
-                    <Button type="button" size="sm" variant="outline" onClick={() => startEdit(problemType)}>수정</Button>
+                    <Button type="button" size="sm" variant="adminAction" onClick={() => startEdit(problemType)}>수정</Button>
                     <Button type="button" size="sm" variant="destructive" onClick={() => deactivateProblemType(problemType.id)}>비활성화</Button>
                   </div>
                 </div>

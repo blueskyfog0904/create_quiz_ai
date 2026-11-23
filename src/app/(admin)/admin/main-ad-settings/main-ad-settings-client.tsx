@@ -406,7 +406,7 @@ export default function MainAdSettingsClient({
       </div>
 
       <div className="flex justify-end">
-        <Button type="button" variant="outline" onClick={addItem}>
+        <Button type="button" variant="adminAction" onClick={addItem}>
           <Plus className="h-4 w-4" aria-hidden="true" />
           광고 추가
         </Button>

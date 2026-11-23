@@ -438,7 +438,7 @@ export default function ProblemTypeFormClient({ workspaceSubject, defaultPrompts
             <div className="flex justify-end gap-2 pt-4">
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button type="button" variant="outline">
+                  <Button type="button" variant="adminAction">
                     <FileJson className="h-4 w-4 mr-2" />
                     응답 구조 예시
                   </Button>

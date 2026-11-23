@@ -19,6 +19,9 @@ const buttonVariants = cva(
         ghost:
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
+        // 관리자 화면의 보조 동작 버튼(추가·보기·수정·이동 등): 관리자 강조색(주황)으로 눈에 띄게. 취소·되돌리기·삭제는 outline 그대로.
+        adminAction:
+          "border border-orange-200 bg-orange-50 text-orange-700 shadow-xs hover:border-orange-300 hover:bg-orange-100 hover:text-orange-800 focus-visible:ring-orange-300/50",
         brand:
           "min-h-11 min-w-11 bg-[var(--studio-primary)] text-white hover:bg-[var(--studio-primary-hover)] focus-visible:ring-[var(--studio-focus-ring)]",
         brandOutline:

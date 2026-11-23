@@ -115,7 +115,7 @@ export function DashboardClient({ salesPanel }: { salesPanel: ReactNode }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-gray-500">기준: 한국 시간</p>
         <Button
-          variant="outline"
+          variant="adminAction"
           size="sm"
           onClick={refreshAll}
           disabled={loading}

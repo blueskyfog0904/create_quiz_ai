@@ -119,7 +119,7 @@ export function PaymentOrdersClient() {
           }}
         >
           <Input key={search} name="q" defaultValue={search} placeholder="이메일, 주문번호, 결제사 거래번호" aria-label="주문 검색" />
-          <Button type="submit" variant="outline">검색</Button>
+          <Button type="submit" variant="adminAction">검색</Button>
         </form>
         <select value={status} onChange={(event) => setFilter('status', event.target.value)} aria-label="주문 상태" className={FILTER_SELECT_CLASS}>
           <option value="">전체 상태</option>
@@ -207,7 +207,7 @@ export function PaymentOrdersClient() {
                       </TableCell>
                       <TableCell className="font-mono text-xs">{order.orderId}</TableCell>
                       <TableCell className="text-right">
-                        <Button type="button" size="sm" variant="outline" onClick={() => setSelectedOrder(order)}>상세</Button>
+                        <Button type="button" size="sm" variant="adminAction" onClick={() => setSelectedOrder(order)}>상세</Button>
                       </TableCell>
                     </TableRow>
                   )

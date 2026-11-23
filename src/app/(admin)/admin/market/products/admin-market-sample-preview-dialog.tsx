@@ -215,7 +215,7 @@ export default function AdminMarketSamplePreviewDialog({
         <DialogFooter className="shrink-0 border-t border-[var(--studio-border)] px-6 py-4">
           <Button
             type="button"
-            variant="outline"
+            variant="adminAction"
             className="min-h-11"
             onClick={() => void loadSamplePages()}
             disabled={isLoading || !itemId}

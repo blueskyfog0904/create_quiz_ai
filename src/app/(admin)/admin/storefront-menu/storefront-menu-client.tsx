@@ -92,7 +92,7 @@ export function StorefrontMenuClient({ initialLinks }: { initialLinks: Storefron
             </CardDescription>
           </div>
           <Button
-            variant="outline"
+            variant="adminAction"
             onClick={() => setLinks((current) => [...current, { label: '', href: '', isActive: true, emphasis: false }])}
             disabled={loadFailed || isSaving || links.length >= STOREFRONT_HEADER_LINK_MAX_COUNT}
           >

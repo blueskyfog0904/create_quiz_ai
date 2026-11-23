@@ -112,7 +112,7 @@ export function DefaultPromptSettingsDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">기본 프롬프트 관리</Button>
+        <Button variant="adminAction">기본 프롬프트 관리</Button>
       </DialogTrigger>
       <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
         <DialogHeader>

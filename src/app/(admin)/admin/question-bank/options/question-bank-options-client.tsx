@@ -303,7 +303,7 @@ export default function QuestionBankOptionsClient({ workspaceSubject }: Question
                       <div className="text-sm text-muted-foreground">정렬 {year.sort_order} · {year.is_active ? '활성' : '비활성'}</div>
                     </div>
                     <div className="flex gap-2">
-                      <Button type="button" size="sm" variant="outline" onClick={() => startYearEdit(year)}>수정</Button>
+                      <Button type="button" size="sm" variant="adminAction" onClick={() => startYearEdit(year)}>수정</Button>
                       <Button type="button" size="sm" variant="destructive" onClick={() => deactivateYear(year.id)}>비활성화</Button>
                     </div>
                   </div>
@@ -374,7 +374,7 @@ export default function QuestionBankOptionsClient({ workspaceSubject }: Question
                       {book.description && <div className="text-sm text-muted-foreground">{book.description}</div>}
                     </div>
                     <div className="flex gap-2">
-                      <Button type="button" size="sm" variant="outline" onClick={() => startBookEdit(book)}>수정</Button>
+                      <Button type="button" size="sm" variant="adminAction" onClick={() => startBookEdit(book)}>수정</Button>
                       <Button type="button" size="sm" variant="destructive" onClick={() => deactivateBook(book.id)}>비활성화</Button>
                     </div>
                   </div>

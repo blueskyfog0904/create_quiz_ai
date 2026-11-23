@@ -82,7 +82,7 @@ export function UsersClient({ users, totalCount, page, pageSize, query, canGrant
               aria-label="사용자 검색"
             />
           </div>
-          <Button type="submit" variant="outline">검색</Button>
+          <Button type="submit" variant="adminAction">검색</Button>
         </form>
         <Badge variant="secondary" className="text-sm">
           {query ? `검색 결과 ${totalCount.toLocaleString()}명` : `총 ${totalCount.toLocaleString()}명`}
@@ -166,7 +166,7 @@ export function UsersClient({ users, totalCount, page, pageSize, query, canGrant
                       {canGrantCredits ? (
                         <Button
                           size="sm"
-                          variant="outline"
+                          variant="adminAction"
                           className="h-8 gap-1"
                           onClick={() => openGrantDialog(user)}
                         >

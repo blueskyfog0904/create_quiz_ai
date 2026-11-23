@@ -100,7 +100,7 @@ export function PricingPlansClient() {
         return (
             <div className="text-center py-12 text-red-500">
                 <p>{error}</p>
-                <Button onClick={fetchPlans} variant="outline" className="mt-4">다시 시도</Button>
+                <Button onClick={fetchPlans} variant="adminAction" className="mt-4">다시 시도</Button>
             </div>
         )
     }

@@ -207,7 +207,7 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
             <CardTitle>추가 안내 문구</CardTitle>
             <CardDescription>제목 없이 문장 리스트 형태로 footer 하단에 표시됩니다.</CardDescription>
           </div>
-          <Button variant="outline" onClick={handleAddNotice}>
+          <Button variant="adminAction" onClick={handleAddNotice}>
             <Plus className="mr-2 h-4 w-4" />
             안내 문구 추가
           </Button>
@@ -246,7 +246,7 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
               Footer에 노출할 약관 링크와 각 페이지의 본문을 관리합니다. 저장할 때마다 바뀐 본문의 사본이 남습니다.
             </CardDescription>
           </div>
-          <Button asChild variant="outline">
+          <Button asChild variant="adminAction">
             <Link href="/admin/footer/policy-history">
               <History className="mr-2 h-4 w-4" />
               약관 이력 보기

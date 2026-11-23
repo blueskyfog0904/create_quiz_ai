@@ -200,7 +200,7 @@ export default function AIModelSettings({
                 <CardTitle>Manage Available Models</CardTitle>
                 <CardDescription>Add, edit, or remove models from the selection list.</CardDescription>
             </div>
-            <Button size="sm" onClick={handleAddNew} variant="outline">
+            <Button size="sm" onClick={handleAddNew} variant="adminAction">
                 <Plus className="w-4 h-4 mr-2" />
                 Add New Model
             </Button>

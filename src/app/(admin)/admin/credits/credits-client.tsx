@@ -149,7 +149,7 @@ export function CreditsClient({ transactions, totalCount, page, pageSize, query,
                 aria-label="크레딧 거래 검색"
               />
             </div>
-            <Button type="submit" variant="outline">검색</Button>
+            <Button type="submit" variant="adminAction">검색</Button>
           </form>
           <Select value={type} onValueChange={(value) => router.push(buildHref({ type: value === 'all' ? null : value, page: 1 }))}>
             <SelectTrigger className="w-[150px] max-sm:w-full" aria-label="거래 유형">

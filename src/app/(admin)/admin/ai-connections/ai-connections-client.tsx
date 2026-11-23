@@ -466,7 +466,7 @@ export default function AIConnectionsClient() {
                             <Button
                               type="button"
                               size="sm"
-                              variant="outline"
+                              variant="adminAction"
                               onClick={() => setEditingModel(model)}
                             >
                               수정

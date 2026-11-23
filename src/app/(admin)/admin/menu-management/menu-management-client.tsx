@@ -791,7 +791,7 @@ export default function MenuManagementClient({
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">/generate children은 아래 별도 섹션에서만 관리됩니다</Badge>
             {backfillStatus.missingLegacyChildren.length > 0 ? (
-              <Button variant="outline" onClick={handleBackfillGenerateChildren} disabled={isBackfilling}>
+              <Button variant="adminAction" onClick={handleBackfillGenerateChildren} disabled={isBackfilling}>
                 {isBackfilling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 기존 문제생성 메뉴 가져오기
               </Button>
@@ -810,7 +810,7 @@ export default function MenuManagementClient({
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">/market children은 아래 별도 섹션에서만 관리됩니다</Badge>
             {marketBackfillStatus.missingLegacyChildren.length > 0 ? (
-              <Button variant="outline" onClick={handleBackfillMarketChildren} disabled={isBackfillingMarket}>
+              <Button variant="adminAction" onClick={handleBackfillMarketChildren} disabled={isBackfillingMarket}>
                 {isBackfillingMarket ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 기존 문제마켓 메뉴 가져오기
               </Button>

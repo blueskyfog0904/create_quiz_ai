@@ -437,9 +437,9 @@ export function SignupConsentAdmin({ data }: { data: SignupConsentAdminData }) {
                   <td className="py-2 pr-2 text-right tabular-nums">{item.agreedMembers ?? '-'}</td>
                   <td className="py-2 text-right">
                     <div className="flex justify-end gap-1">
-                      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setDraft(draftFromItem(item))}>수정</Button>
+                      <Button type="button" size="sm" variant="adminAction" disabled={busy} onClick={() => setDraft(draftFromItem(item))}>수정</Button>
                       {item.required && item.is_active && item.policy_slug ? (
-                        <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setReviseTarget({ item, note: '' })}>
+                        <Button type="button" size="sm" variant="adminAction" disabled={busy} onClick={() => setReviseTarget({ item, note: '' })}>
                           다시 동의 받기
                         </Button>
                       ) : null}
@@ -483,7 +483,7 @@ export function SignupConsentAdmin({ data }: { data: SignupConsentAdminData }) {
           <div>
             <Button
               type="button"
-              variant="outline"
+              variant="adminAction"
               disabled={busy}
               onClick={() => setDraft(newDraft(Math.max(0, ...data.items.map((item) => item.sort_order)) + 10))}
             >

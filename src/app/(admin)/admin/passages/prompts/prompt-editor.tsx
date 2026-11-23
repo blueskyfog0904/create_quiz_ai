@@ -72,7 +72,7 @@ export default function PromptEditor({ initialPrompts }: PromptEditorProps) {
               </div>
               
               {editingKey !== prompt.key ? (
-                <Button variant="outline" size="sm" onClick={() => startEditing(prompt)}>
+                <Button variant="adminAction" size="sm" onClick={() => startEditing(prompt)}>
                   수정하기
                 </Button>
               ) : (

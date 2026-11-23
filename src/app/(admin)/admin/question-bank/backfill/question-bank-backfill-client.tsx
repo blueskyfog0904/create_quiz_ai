@@ -312,7 +312,7 @@ export default function QuestionBankBackfillClient({ workspaceSubject }: Questio
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" onClick={loadBackfillState} disabled={isLoading}>후보 새로고침</Button>
+            <Button type="button" variant="adminAction" onClick={loadBackfillState} disabled={isLoading}>후보 새로고침</Button>
             <Button type="button" variant="outline" onClick={currentPageSelected ? clearCurrentPage : selectCurrentPage} disabled={candidates.length === 0}>
               {currentPageSelected ? '현재 페이지 선택 해제' : '현재 페이지 전체 선택'}
             </Button>
@@ -321,7 +321,7 @@ export default function QuestionBankBackfillClient({ workspaceSubject }: Questio
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" onClick={() => runBackfill(true)} disabled={!canSubmit}>드라이런</Button>
+            <Button type="button" variant="adminAction" onClick={() => runBackfill(true)} disabled={!canSubmit}>드라이런</Button>
             <Button type="button" onClick={() => runBackfill(false)} disabled={!canSubmit}>적용</Button>
           </div>
 

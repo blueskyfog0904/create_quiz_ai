@@ -181,7 +181,7 @@ export default function ReviewTagsClient({ workspaceSubject }: { workspaceSubjec
                         <Button
                           type="button"
                           size="sm"
-                          variant="outline"
+                          variant="adminAction"
                           disabled={savingId === tag.id || !isDirty}
                           onClick={() => saveDraft(tag)}
                         >

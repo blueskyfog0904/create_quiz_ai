@@ -92,7 +92,7 @@ export function CreditGrantLimitsCard({ limits, canEdit }: CreditGrantLimitsCard
               <span className="text-red-600">기본 한도 설정이 없습니다. 직원 계정의 지급이 거부됩니다.</span>
             )}
             {canEdit && (
-              <Button type="button" size="sm" variant="outline" onClick={startEdit}>변경</Button>
+              <Button type="button" size="sm" variant="adminAction" onClick={startEdit}>변경</Button>
             )}
           </div>
         )}
