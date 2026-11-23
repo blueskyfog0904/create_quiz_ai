@@ -51,11 +51,16 @@ test('이탈 경고 훅: 창 닫기·새로고침과 같은 사이트 안 링크
   assert.match(hook, /activeGuardCount -= 1/)
 })
 
-test('후기 태그: 한 행을 저장해도 다른 행의 고친 입력은 남고, 사용 여부만 바꾸면 그 행도 남는다', () => {
+test('후기 태그: 한 행을 저장해도 다른 행의 고친 입력은 남고, 모두 저장으로 한 번에 저장하며, 떠날 때 확인한다', () => {
   const client = read('src/app/(admin)/admin/review-tags/review-tags-client.tsx')
-  assert.match(client, /const loadTags = useCallback\(async \(resetId\?: string\) =>/)
-  assert.match(client, /tag\.id !== resetId && isEdited \? draft :/)
-  assert.match(client, /await loadTags\(payload\.label !== undefined \|\| payload\.sort_order !== undefined \? tagId : undefined\)/)
+  assert.match(client, /const loadTags = useCallback\(async \(resetIds: string\[\] = \[\]\) =>/)
+  assert.match(client, /!resetIds\.includes\(tag\.id\) && isEdited \? draft :/)
+  assert.match(client, /await loadTags\(payload\.label !== undefined \|\| payload\.sort_order !== undefined \? \[tagId\] : \[\]\)/)
+  // 모두 저장: 고친 행을 차례로 저장하고, 실패해도 저장된 행만 서버 값으로 맞춘다. 떠날 때 확인.
+  assert.match(client, /for \(const tag of dirtyTags\)/)
+  assert.match(client, /finally \{\s+await loadTags\(savedIds\)/)
+  assert.match(client, /useUnsavedChangesGuard\(dirtyTags\.length > 0\)/)
+  assert.match(client, /'모두 저장'/)
   assert.doesNotMatch(client, /setDrafts\(Object\.fromEntries\(rows\.map/)
 })
 
@@ -67,4 +72,11 @@ test('관리자 ID: 비밀번호 재설정·새 계정은 확인 칸이 일치�
   assert.match(client, /\|\| resetPasswordValue !== resetPasswordConfirm\n/)
   assert.match(client, /if \(newPassword !== newPasswordConfirm\) \{\s+alert\('비밀번호 확인이 일치하지 않습니다\.'\)\s+return/)
   assert.match(client, /<DialogTitle>비밀번호 재설정<\/DialogTitle>/)
+})
+
+test('모달은 바깥을 눌러도 닫히지 않고 X·취소·실행 버튼으로만 닫힌다(사이트·관리자 공용 부품)', () => {
+  const dialog = read('src/components/ui/dialog.tsx')
+  assert.match(dialog, /onInteractOutside=\{\(event\) => \{\s+onInteractOutside\?\.\(event\)\s+event\.preventDefault\(\)/)
+  // 넘겨받은 onInteractOutside 가 props 펼침으로 덮어쓰지 못하게 펼침 뒤에 둔다.
+  assert.match(dialog, /\{\.\.\.props\}\n\s+onInteractOutside=/)
 })

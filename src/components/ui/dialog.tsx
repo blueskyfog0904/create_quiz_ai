@@ -46,10 +46,12 @@ function DialogOverlay({
   )
 }
 
+// 모달은 바깥(어두운 배경)을 눌러도 닫히지 않는다. X·취소·실행 버튼으로만 닫는다(대표 결정 2026-11-23).
 function DialogContent({
   className,
   children,
   showCloseButton = true,
+  onInteractOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
@@ -64,6 +66,10 @@ function DialogContent({
           className
         )}
         {...props}
+        onInteractOutside={(event) => {
+          onInteractOutside?.(event)
+          event.preventDefault()
+        }}
       >
         {children}
         {showCloseButton && (
