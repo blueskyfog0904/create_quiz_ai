@@ -14,7 +14,12 @@ function loadModule(path, modules) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText
   const loaded = { exports: {} }
-  const stubRequire = (name) => (name in modules ? modules[name] : require(name))
+  const stubRequire = (name) => {
+    if (name in modules) return modules[name]
+    // 8번: 순수 규칙 모듈(알림 문구·마감)은 실제 파일을 쓴다.
+    if (name === '@/lib/market-refund-rules') return loadModule('../src/lib/market-refund-rules.ts', {})
+    return require(name)
+  }
   new Function('exports', 'require', code)(loaded.exports, stubRequire)
   return loaded.exports
 }
@@ -63,6 +68,12 @@ function loadMarketRefundRoute({ approve, reject, insert }) {
         order.push('reject')
         return reject()
       },
+      // 8번: 거부 사유 코드·대표 정산·새 오류 종류
+      MARKET_REFUND_REJECT_CODES: ['TARGET_CHANGED', 'PROVIDED_CONFIRMED', 'OTHER'],
+      MarketRefundNeedsOwnerError: class extends Error {},
+      MarketRefundRuleError: class extends Error {},
+      settleMarketRefundByOwner: async () => ({}),
+      getMarketRefundOwnerContext: async () => null,
     },
   })
   const patch = (body) => route.PATCH({ json: async () => body }, { params: Promise.resolve({ id: 'request-1' }) })
@@ -99,18 +110,23 @@ test('market refund approval notifies the member with the restored amount after 
   assert.doesNotMatch(order[1].row.message, /500/)
 })
 
-test('market refund rejection notifies the member without the admin note', async () => {
+// 8번: 거부 사유는 필수이고 회원에게 그대로 안내한다(분쟁 대비 — 회원이 이유를 알아야 한다).
+test('market refund rejection notifies the member with the required reject reason', async () => {
   const { order, patch } = loadMarketRefundRoute({
-    reject: () => ({ id: 'request-1', user_id: 'member-1', approved_refund_credits: null, admin_note: '내부 메모' }),
+    reject: () => ({ id: 'request-1', user_id: 'member-1', approved_refund_credits: null, admin_note: '받은 자료로 확인됨' }),
   })
 
-  const response = await patch({ action: 'reject', adminNote: '내부 메모' })
+  const missing = await patch({ action: 'reject' })
+  assert.equal(missing.status, 400)
+  assert.deepEqual(order, [], '사유 없이 거부하지 않는다')
+
+  const response = await patch({ action: 'reject', rejectCode: 'PROVIDED_CONFIRMED', adminNote: '받은 자료로 확인됨' })
   assert.equal(response.status, 200)
   assert.equal(order[0], 'reject')
   assert.equal(order[1].row.user_id, 'member-1')
   assert.match(order[1].row.title, /거절/)
   assert.equal(order[1].row.link, '/mypage/support')
-  assert.doesNotMatch(JSON.stringify(order[1].row), /내부 메모/)
+  assert.match(order[1].row.message, /사유: 받은 자료로 확인됨/)
 })
 
 test('a failed or throwing notification never changes the refund response and logs only an error code', async () => {
@@ -145,7 +161,7 @@ test('shortfall, conflict and other errors send no notification', async () => {
         throw error
       }
       const { order, patch } = loadMarketRefundRoute({ approve: fail, reject: fail })
-      const response = await patch({ action })
+      const response = await patch(action === 'reject' ? { action, rejectCode: 'OTHER', adminNote: '요건 미달' } : { action })
       assert.equal(response.status, status)
       assert.deepEqual(order, [action])
     }

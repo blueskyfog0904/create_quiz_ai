@@ -94,7 +94,7 @@ async function readRefundTotals(todayStart: string, monthStart: string) {
 async function readMarketTotals(todayStart: string, monthStart: string) {
   const rows = await readAllQueryRows((from, to) => createAdminClient()
     .from('market_purchase_orders')
-    .select('status, charged_credits, created_at')
+    .select('status, charged_credits, refunded_credits, created_at')
     .in('status', ['completed', 'refunded', 'revoked'])
     .gte('created_at', monthStart)
     .order('id')
@@ -103,7 +103,8 @@ async function readMarketTotals(todayStart: string, monthStart: string) {
     const completed = list.filter((row) => row.status === 'completed')
     return {
       count: completed.length,
-      credits: completed.reduce((sum, row) => sum + row.charged_credits, 0),
+      // 8번: 일부 환불된 주문은 completed 로 남으므로 환불된 크레딧을 뺀다.
+      credits: completed.reduce((sum, row) => sum + row.charged_credits - (row.refunded_credits ?? 0), 0),
       refundedCount: list.length - completed.length,
     }
   })

@@ -9,6 +9,7 @@ import {
 import { getRequestAuthUserId } from '@/lib/request-auth'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
 import { LibraryView } from './_components/library-view'
+import { getMarketPurchasePolicyView } from '@/lib/market-purchase-policy-server'
 
 export const metadata: Metadata = {
   title: '자료 보관함',
@@ -42,11 +43,20 @@ export default async function LibraryPage({
     (await getMostRecentLibrarySubjectForUser(userId)) ??
     DEFAULT_WORKSPACE_SUBJECT
 
-  const rows = await listMarketLibraryRowsForUser(userId, subject)
+  const [rows, purchasePolicy] = await Promise.all([
+    listMarketLibraryRowsForUser(userId, subject),
+    // 받지 않은 자료 환불 확인창 문구(DB). 못 읽으면 부분 환불 신청 버튼을 막는다.
+    getMarketPurchasePolicyView(),
+  ])
 
   return (
     <Suspense fallback={null}>
-      <LibraryView key={subject} rows={rows} subject={subject} />
+      <LibraryView
+        key={subject}
+        rows={rows}
+        subject={subject}
+        partialRefundNotice={purchasePolicy?.partialRefundConfirmNotice ?? null}
+      />
     </Suspense>
   )
 }

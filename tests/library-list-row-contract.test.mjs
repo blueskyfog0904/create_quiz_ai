@@ -74,7 +74,7 @@ test('library rows carry thumbnailUrl from the already-loaded item without sampl
   assert.doesNotMatch(fn, /market_item_sample_pages|createSignedUrl/)
   assert.doesNotMatch(server, REMOVED_COVER)
   assert.doesNotMatch(page, REMOVED_COVER)
-  assert.match(page, /const rows = await listMarketLibraryRowsForUser\(userId, subject\)/)
+  assert.match(page, /const \[rows, purchasePolicy\] = await Promise\.all\(\[\s*listMarketLibraryRowsForUser\(userId, subject\),/)
 })
 
 test('환불 심사 중에도 다른 주문의 권한으로 받을 수 있는 파일은 열어 둔다(다운로드 route와 같은 규칙)', () => {
@@ -83,8 +83,9 @@ test('환불 심사 중에도 다른 주문의 권한으로 받을 수 있는 �
   // 다운로드 route가 권한을 고르는 규칙
   assert.match(purchase, /entitlement\.source_order_id && !pendingRefundOrderIds\.includes\(entitlement\.source_order_id\)/)
   // 보관함: 심사 중인 주문 목록은 pending 환불 요청에서, 파일마다 같은 규칙으로 판정한다
-  assert.match(server, /const pendingRefundV2OrderIds = \(v2RefundRequestsResult\.data \?\? \[\]\)\s*\.filter\(\(request\) => request\.status === 'pending' && request\.order_id\)/)
-  assert.match(server, /Boolean\(entitlement\.source_order_id\) &&\s*!pendingRefundV2OrderIds\.includes\(entitlement\.source_order_id as string\)/)
+  // 8번: 심사 중 요청의 범위(부분 환불이면 대상 자료·같은 분류만)를 route 와 같은 함수로 판정한다.
+  assert.match(server, /const pendingV2Scopes = buildPendingMarketRefundScopes\(\s*\(v2RefundRequestsResult\.data \?\? \[\]\)\.filter\(\(request\) => request\.status === 'pending'\)/)
+  assert.match(server, /Boolean\(entitlement\.source_order_id\) &&\s*!isPendingRefundBlockingFile\(pendingV2Scopes\.get\(entitlement\.source_order_id as string\)/)
   assert.match(server, /pendingRefundBlocked: !downloadable,/)
   // 화면: 상품 단위가 아니라 파일 단위로 막는다
   assert.match(view, /visibleV2Files\.map\(\(file\) =>\s*file\.pendingRefundBlocked \? \(/)
@@ -121,10 +122,10 @@ test('상품 상세도 환불 심사로 받을 수 없는 파일은 누를 수 �
   const start = itemsServer.indexOf('export async function listMarketSubproductDownloadFilesForUser(')
   const body = itemsServer.slice(start, itemsServer.indexOf('\nexport async function ', start + 10))
   // 심사 중인 주문은 이 회원 권한들의 주문에 걸린 pending v2 환불 요청에서 읽는다
-  assert.match(body, /\.from\('market_refund_requests'\)\s*\.select\('order_id'\)\s*\.eq\('target_kind', 'v2_order'\)\s*\.eq\('status', 'pending'\)\s*\.in\('order_id', sourceOrderIds\)/)
+  assert.match(body, /\.from\('market_refund_requests'\)\s*\.select\('order_id, refund_kind, refund_subproduct_ids'\)\s*\.eq\('target_kind', 'v2_order'\)\s*\.eq\('status', 'pending'\)\s*\.in\('order_id', sourceOrderIds\)/)
   assert.match(body, /if \(pendingRefundResult\.error\) \{\s*throw new Error/)
   // 다운로드 route와 같은 판정
-  assert.match(body, /coversFile\(entitlement, file\) &&\s*Boolean\(entitlement\.source_order_id\) &&\s*!pendingRefundOrderIds\.includes\(entitlement\.source_order_id as string\)/)
+  assert.match(body, /coversFile\(entitlement, file\) &&\s*Boolean\(entitlement\.source_order_id\) &&\s*!isPendingRefundBlockingFile\(pendingScopes\.get\(entitlement\.source_order_id as string\)/)
   assert.match(body, /pendingRefundBlocked: !downloadable,/)
   // 화면: 막힌 파일은 링크가 아니고, 표시가 붙고, 중복 PDF는 받을 수 있는 쪽을 남긴다
   assert.match(actions, /if \(file\.pendingRefundBlocked\) \{\s*return \(\s*<span key=\{file\.id\}/)

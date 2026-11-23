@@ -4,8 +4,10 @@ import {
   buildRefundTargetSnapshotFromPurchase,
   getMarketRefundEligibility,
   getMarketRefundPolicyCached,
+  previewMarketPartialRefund,
   type MarketRefundRequestStatus,
 } from '@/lib/market-refunds'
+import { buildPendingMarketRefundScopes, isPendingRefundBlockingFile } from '@/lib/market-refund-rules'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
 import {
   MARKET_IMAGES_BUCKET,
@@ -85,6 +87,16 @@ export interface MarketLibraryRefundTarget {
   downloadCount: number
   status: 'available' | 'blocked' | 'unavailable' | 'pending' | 'approved' | 'rejected' | 'canceled' | 'failed'
   reason: string | null
+  // 8번: 패키지의 받지 않은 자료 환불(부분) 미리보기 — DB 판정과 같은 값. 신청할 수 없으면 null.
+  partialRefund: {
+    amount: number
+    targetTitles: string[]
+    deadline: string | null
+    // 앞 신청이 '판정 근거 바뀜'으로 거부됐으면 그 id(재신청이 처음 신청 시각을 이어받음)
+    priorRequestId: string | null
+  } | null
+  // 차액 구매(HWP)의 기준 PDF 주문이라 막혔으면 그 차액 구매 주문 id — 그 주문을 신청할 때 함께 신청한다.
+  upgradeOrderIds: string[]
 }
 
 export interface MarketLibraryRow {
@@ -780,6 +792,20 @@ export async function getMarketItemSubproductById(
   return withWorkspaceSubject(data)
 }
 
+// 8번: 한 상품에 같은 분류의 활성 서브상품은 하나(uq_market_item_subproducts_active_category — 패키지 구성·환불 판정 기준)
+export class MarketSubproductCategoryConflictError extends Error {
+  constructor() {
+    super('같은 분류의 자료가 이미 있습니다. 기존 자료를 숨긴 뒤 추가해 주세요.')
+    this.name = 'MarketSubproductCategoryConflictError'
+  }
+}
+
+function throwIfSubproductCategoryConflict(error: { code?: string; message?: string; details?: string | null }) {
+  if (error.code === '23505' && `${error.message ?? ''} ${error.details ?? ''}`.includes('uq_market_item_subproducts_active_category')) {
+    throw new MarketSubproductCategoryConflictError()
+  }
+}
+
 export async function createMarketItemSubproduct(input: {
   itemId: string
   workspaceSubject?: WorkspaceSubject
@@ -825,6 +851,7 @@ export async function createMarketItemSubproduct(input: {
     .single()
 
   if (error) {
+    throwIfSubproductCategoryConflict(error)
     throw new Error(error.message)
   }
 
@@ -881,6 +908,7 @@ export async function updateMarketItemSubproduct(
     .single()
 
   if (error) {
+    throwIfSubproductCategoryConflict(error)
     throw new Error(error.message)
   }
 
@@ -1308,7 +1336,7 @@ export async function listMarketSubproductPublicSummaries(
       ? applyWorkspaceSubjectFilter(
         supabase
           .from('market_entitlements')
-          .select('scope, subproduct_id, created_at')
+          .select('scope, subproduct_id, created_at, source_order:market_purchase_orders!market_entitlements_order_workspace_fkey(purchase_type)')
           .eq('item_id', itemId)
           .eq('user_id', userId)
           .eq('status', 'active')
@@ -1376,8 +1404,13 @@ export async function listMarketSubproductPublicSummaries(
   const hwpSubproducts = subproducts.filter((subproduct) => categoryMap.get(subproduct.category_id)?.slug === 'question_hwp')
   const pdfSubproducts = subproducts.filter((subproduct) => categoryMap.get(subproduct.category_id)?.slug === 'question_pdf')
   const uniqueHwpSubproduct = hwpSubproducts.length === 1 ? hwpSubproducts[0] : null
+  // 8번: 패키지 일부 환불로 갈라진 PDF 이용권(출처 주문이 패키지)은 차액 기준이 아니다(DB evaluate_market_targets R5 와 같은 규칙).
+  const upgradeBaseSubproductIds = new Set(entitlementRows
+    .filter((entitlement) => entitlement.scope === 'subproduct' && entitlement.subproduct_id
+      && (entitlement as { source_order?: { purchase_type: string } | null }).source_order?.purchase_type !== 'bundle')
+    .map((entitlement) => entitlement.subproduct_id!))
   const ownedPdfPrices = pdfSubproducts
-    .filter((subproduct) => subproductEntitlementMap.has(subproduct.id))
+    .filter((subproduct) => upgradeBaseSubproductIds.has(subproduct.id))
     .map((subproduct) => subproduct.price_credits)
   const ownedPdfMaxPrice = ownedPdfPrices.length > 0 ? Math.max(...ownedPdfPrices) : null
   const upgradeCandidate = (
@@ -1654,7 +1687,7 @@ export async function listMarketSubproductDownloadFilesForUser(
       .eq('workspace_subject', item.workspace_subject),
     supabase
       .from('market_refund_requests')
-      .select('order_id')
+      .select('order_id, refund_kind, refund_subproduct_ids')
       .eq('target_kind', 'v2_order')
       .eq('status', 'pending')
       .in('order_id', sourceOrderIds),
@@ -1699,7 +1732,11 @@ export async function listMarketSubproductDownloadFilesForUser(
     throw new Error(pendingRefundResult.error.message)
   }
   // 환불 심사 중(pending)인 주문. 그 주문의 권한으로만 받을 수 있는 파일은 화면에서 막아 보여 준다.
-  const pendingRefundOrderIds = (pendingRefundResult.data ?? []).map((request) => request.order_id)
+  // 8번: 부분 환불 심사 중이면 대상 자료(같은 분류의 교체본 포함)만 막는다(다운로드 route 와 같은 규칙).
+  const pendingScopes = buildPendingMarketRefundScopes(pendingRefundResult.data ?? [], (subproductId) => {
+    const categoryId = subproductCategoryIdMap.get(subproductId)
+    return categoryId ? categorySlugMap.get(categoryId) ?? null : null
+  })
   const coversFile = (entitlement: (typeof entitlements)[number], file: (typeof files)[number]) => (
     entitlement.scope === 'item' ||
     (entitlement.scope === 'subproduct' && entitlement.subproduct_id === file.subproduct_id) ||
@@ -1713,10 +1750,14 @@ export async function listMarketSubproductDownloadFilesForUser(
       const categoryId = subproductCategoryIdMap.get(file.subproduct_id)
       // 다운로드 route(findMarketSubproductFileV2Entitlement)와 같은 규칙: 파일을 덮는 권한 중
       // 주문 정보가 있고 그 주문이 환불 심사 중이 아닌 것이 하나라도 있으면 받을 수 있다.
+      const fileSlug = (categoryId ? categorySlugMap.get(categoryId) : null) ?? null
       const downloadable = entitlements.some((entitlement) => (
         coversFile(entitlement, file) &&
         Boolean(entitlement.source_order_id) &&
-        !pendingRefundOrderIds.includes(entitlement.source_order_id as string)
+        !isPendingRefundBlockingFile(pendingScopes.get(entitlement.source_order_id as string), {
+          subproductId: file.subproduct_id,
+          categorySlug: fileSlug,
+        })
       ))
       return {
         id: file.id,
@@ -2496,7 +2537,7 @@ export async function listMarketLibraryRowsForUser(
       .order('created_at', { ascending: false }),
     supabase
       .from('market_refund_requests')
-      .select('order_id, status, created_at')
+      .select('id, order_id, status, created_at, refund_kind, refund_subproduct_ids, requested_refund_credits, approved_refund_credits, reject_code')
       .eq('target_kind', 'v2_order')
       .in('order_id', v2OrderIds)
       .order('created_at', { ascending: false }),
@@ -2518,9 +2559,13 @@ export async function listMarketLibraryRowsForUser(
   const categorySlugByCategoryId = new Map((categoriesResult.data ?? []).map((category) => [category.id, category.slug]))
   const categoryIdBySubproductId = new Map((subproductsResult.data ?? []).map((subproduct) => [subproduct.id, subproduct.category_id]))
   const v2DownloadFileMap = new Map<string, MarketSubproductDownloadFile[]>()
-  const pendingRefundV2OrderIds = (v2RefundRequestsResult.data ?? [])
-    .filter((request) => request.status === 'pending' && request.order_id)
-    .map((request) => request.order_id as string)
+  const pendingV2Scopes = buildPendingMarketRefundScopes(
+    (v2RefundRequestsResult.data ?? []).filter((request) => request.status === 'pending'),
+    (subproductId) => {
+      const categoryId = categoryIdBySubproductId.get(subproductId)
+      return categoryId ? categorySlugByCategoryId.get(categoryId) ?? null : null
+    }
+  )
   for (const file of withWorkspaceSubjects(subproductFilesResult.data)) {
     if (!file.is_active) continue
     const itemEntitlements = groupedEntitlements.get(file.item_id) ?? []
@@ -2532,16 +2577,20 @@ export async function listMarketLibraryRowsForUser(
     if (!covered) continue
     // 다운로드 route(findMarketSubproductFileV2Entitlement)와 같은 규칙: 파일을 덮는 권한 중
     // 주문 정보가 있고 그 주문이 환불 심사 중이 아닌 것이 하나라도 있으면 받을 수 있다.
+    const fileCategoryId = categoryIdBySubproductId.get(file.subproduct_id)
+    const fileSlug = (fileCategoryId ? categorySlugByCategoryId.get(fileCategoryId) : null) ?? null
     const downloadable = itemEntitlements.some((entitlement) => (
       (entitlement.scope === 'item' ||
         (entitlement.scope === 'subproduct' && entitlement.subproduct_id === file.subproduct_id) ||
         (entitlement.scope === 'file' && entitlement.file_id === file.id)) &&
       Boolean(entitlement.source_order_id) &&
-      !pendingRefundV2OrderIds.includes(entitlement.source_order_id as string)
+      !isPendingRefundBlockingFile(pendingV2Scopes.get(entitlement.source_order_id as string), {
+        subproductId: file.subproduct_id,
+        categorySlug: fileSlug,
+      })
     ))
     const fileType = fileTypeMap.get(file.file_type_id)
     const current = v2DownloadFileMap.get(file.item_id) ?? []
-    const fileCategoryId = categoryIdBySubproductId.get(file.subproduct_id)
     current.push({
       id: file.id,
       itemId: file.item_id,
@@ -2579,6 +2628,12 @@ export async function listMarketLibraryRowsForUser(
   for (const request of legacyRefundRequestsResult.data ?? []) {
     if (request.legacy_purchase_id && !latestLegacyRefundStatus.has(request.legacy_purchase_id)) {
       latestLegacyRefundStatus.set(request.legacy_purchase_id, request.status as MarketRefundRequestStatus)
+    }
+  }
+  const latestV2Request = new Map<string, { id: string; status: string; refund_kind: string; reject_code: string | null; requested_refund_credits: number; approved_refund_credits: number | null }>()
+  for (const request of v2RefundRequestsResult.data ?? []) {
+    if (request.order_id && !latestV2Request.has(request.order_id)) {
+      latestV2Request.set(request.order_id, request)
     }
   }
   const latestV2RefundStatus = new Map<string, MarketRefundRequestStatus>()
@@ -2628,6 +2683,8 @@ export async function listMarketLibraryRowsForUser(
           downloadCount: eligibility.downloadCount,
           status: eligibility.status,
           reason: eligibility.reason,
+          partialRefund: null,
+          upgradeOrderIds: [],
         }
       }),
       ...itemOrders.map(async (order) => {
@@ -2637,12 +2694,38 @@ export async function listMarketLibraryRowsForUser(
           targetId: order.id,
         }, {
           refundPolicy,
+          // 업그레이드(HWP) 주문이 대기·승인 중이면 기준 PDF 주문도 신청할 수 있다(신청 API 와 같은 판정).
+          allowPendingUpgradeRefund: true,
           preloaded: {
             target: buildRefundTargetSnapshotFromOrder(order),
             downloadCount: downloadCountByOrderId.get(order.id) ?? 0,
             latestRequestStatus: latestV2RefundStatus.get(order.id) ?? null,
           },
         })
+
+        // 8번: 패키지의 받지 않은 자료 환불 미리보기(DB 판정). 대기 요청이 있거나 패키지가 아니면 없음.
+        const latestRequest = latestV2Request.get(order.id)
+        let partialRefund: MarketLibraryRefundTarget['partialRefund'] = null
+        if (order.purchase_type === 'bundle' && order.status === 'completed' && latestRequest?.status !== 'pending') {
+          try {
+            const preview = await previewMarketPartialRefund(userId, order.id)
+            if (preview.code === 'OK' && typeof preview.amount === 'number') {
+              partialRefund = {
+                amount: preview.amount,
+                targetTitles: preview.targets.map((id) => subproductTitleMap.get(id) ?? '자료'),
+                deadline: preview.deadline,
+                // DB 미리보기가 신청 함수와 같은 규칙으로 고른 앞 신청(있으면 그 신청 시각으로 판정됨)
+                priorRequestId: preview.priorRequestId,
+              }
+            }
+          } catch {
+            // 미리보기를 못 읽어도 목록·다운로드는 그대로(신청 버튼만 안 보임)
+            partialRefund = null
+          }
+        }
+        const shownCredits = latestRequest && (latestRequest.status === 'pending' || latestRequest.status === 'approved')
+          ? latestRequest.approved_refund_credits ?? latestRequest.requested_refund_credits
+          : eligibility.requestedRefundCredits
 
         // 개별 구매 건은 어떤 서브상품인지 라벨로 식별 (같은 아이템 다건 구매 시 구분)
         const lineTitles = (v2OrderLinesResult.data ?? [])
@@ -2655,12 +2738,14 @@ export async function listMarketLibraryRowsForUser(
           label: order.purchase_type === 'bundle'
             ? '전체구매'
             : lineTitles.length > 0 ? lineTitles.join(' · ') : '서브상품',
-          requestedRefundCredits: eligibility.requestedRefundCredits,
+          requestedRefundCredits: shownCredits,
           purchasedAt: eligibility.purchasedAt,
           refundableUntil: eligibility.refundDeadline,
           downloadCount: eligibility.downloadCount,
           status: eligibility.status,
           reason: eligibility.reason,
+          partialRefund,
+          upgradeOrderIds: eligibility.upgradeOrderIds,
         }
       }),
     ])

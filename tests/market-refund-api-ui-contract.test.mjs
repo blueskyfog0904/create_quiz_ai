@@ -21,14 +21,15 @@ test('admin market refund API lists and processes approvals and rejections', () 
   assert.match(adminRefundRoute, /listMarketRefundRequestsForAdmin/)
   assert.match(adminRefundItemRoute, /approveMarketRefund/)
   assert.match(adminRefundItemRoute, /rejectMarketRefund/)
-  assert.match(adminRefundItemRoute, /action: z\.enum\(\['approve', 'reject'\]\)/)
+  // 8번: 대표 정산(owner_settle)이 더해졌다.
+  assert.match(adminRefundItemRoute, /action: z\.enum\(\['approve', 'reject', 'owner_settle'\]\)/)
 })
 
 test('market refund service performs eligibility checks, stale approval recheck, and credit refund', () => {
   assert.match(marketRefunds, /export async function getMarketRefundEligibility/)
   // 7번 묶음: 환불 기간은 DB 값(refundPolicy.refundDays), 판정 기준 시각은 judgeAt(관리자 승인은 신청 시각), 거절 문구도 DB 값
-  assert.match(marketRefunds, /addDays\(new Date\(target\.purchasedAt\), refundPolicy\.refundDays\)/)
-  assert.match(marketRefunds, /\(options\.judgeAt \?\? new Date\(\)\) > refundDeadline/)
+  // 8번: 마감 = 구매일(KST) 다음 날부터 N일째 24:00 — DB market_refund_deadline 과 같은 공용 규칙(market-refund-rules)
+  assert.match(marketRefunds, /isWithinMarketRefundPeriod\(target\.purchasedAt, refundPolicy\.refundDays, options\.judgeAt \?\? new Date\(\)\)/)
   assert.match(marketRefunds, /fillMarketRefundDays\(refundPolicy\.refundExpiredReason, refundPolicy\.refundDays\)/)
   assert.doesNotMatch(marketRefunds, /7일|addDays\([^)]*, 7\)/)
   assert.match(marketRefunds, /rpc\('approve_market_refund'/)

@@ -16,6 +16,7 @@ const REVOKE_MIGRATION = read('supabase/migrations/20261118150000_admin_credit_r
 // DB 함수가 같은 트랜잭션으로 적는 종류
 // 4번 묶음(가입 동의): 항목 저장·개정 기록은 DB 함수가 같은 트랜잭션에서 남긴다.
 const CONSENT_MIGRATION = read('supabase/migrations/20261120120000_signup_consents.sql')
+const MATERIAL_REFUND_MIGRATION = read('supabase/migrations/20261124100000_market_material_refund.sql')
 const DB_FUNCTION_ACTIONS = [
   [PERMISSION_MIGRATION, 'admin_permissions_replace'],
   [PERMISSION_MIGRATION, 'admin_account_revoke'],
@@ -24,6 +25,8 @@ const DB_FUNCTION_ACTIONS = [
   [REVOKE_MIGRATION, 'credit_revoke'],
   [CONSENT_MIGRATION, 'signup_consent_item_save'],
   [CONSENT_MIGRATION, 'signup_consent_item_revise'],
+  [MATERIAL_REFUND_MIGRATION, 'market_refund_exception'],
+  [MATERIAL_REFUND_MIGRATION, 'market_refund_owner_settle'],
 ]
 const { ADMIN_AUDIT_ACTIONS } = load('src/lib/admin-audit-log.ts')
 
@@ -243,6 +246,12 @@ function loadMarketRefundRoute({ audit = auditMock(), approve, requester = MEMBE
       MarketRefundShortfallError: class extends Error { constructor() { super('부족'); this.requested = 10; this.restorable = 5 } },
       approveMarketRefund: approve ?? (async () => { processed.push('approve'); return { user_id: MEMBER_ID, status: 'approved', requested_refund_credits: 300, approved_refund_credits: 300 } }),
       rejectMarketRefund: async () => { processed.push('reject'); return { user_id: MEMBER_ID, status: 'rejected', requested_refund_credits: 300, approved_refund_credits: null } },
+      // 8번: 거부 사유 코드·대표 정산·새 오류 종류
+      MARKET_REFUND_REJECT_CODES: ['TARGET_CHANGED', 'PROVIDED_CONFIRMED', 'OTHER'],
+      MarketRefundNeedsOwnerError: class extends Error {},
+      MarketRefundRuleError: class extends Error {},
+      settleMarketRefundByOwner: async () => ({}),
+      getMarketRefundOwnerContext: async () => null,
     },
   })
   return (body) => route.PATCH({ json: async () => body }, { params: Promise.resolve({ id: REQUEST_ID }) })
@@ -274,7 +283,7 @@ test('마켓 환불: 처리 뒤 기록(승인은 복구 크레딧을 amount에),
   assert.equal(audit.alerts.length, 0)
 
   const rejectAudit = auditMock()
-  await loadMarketRefundRoute({ audit: rejectAudit })({ action: 'reject' })
+  await loadMarketRefundRoute({ audit: rejectAudit })({ action: 'reject', rejectCode: 'OTHER', adminNote: '요건 미달' })
   assert.equal(rejectAudit.audits[0].action, 'market_refund_reject')
   assert.equal(rejectAudit.audits[0].amount, null)
 

@@ -201,7 +201,8 @@ const ROUTE_REQUIREMENTS = {
   'users/credits/revoke/route.ts': all('credits.revoke', 'POST'),
   // 환불
   'market/refunds/route.ts': all('refunds.market', 'GET'),
-  'market/refunds/[id]/route.ts': all('refunds.market', 'PATCH'),
+  'market/refunds/[id]/route.ts': all('refunds.market', 'GET', 'PATCH'),
+  'market/orders/[id]/exception-refund/route.ts': all('refunds.market', 'GET', 'POST'),
   'refunds/route.ts': all('refunds.payment', 'GET', 'PATCH'),
   'payments/alerts/route.ts': all('refunds.payment', 'PATCH'),
   'payments/review/route.ts': all('refunds.payment', 'PATCH'),
@@ -731,6 +732,12 @@ function loadMarketRefundRoute(session, { requested = 5000, lookupError = null, 
       MarketRefundShortfallError: class extends Error {},
       approveMarketRefund: async (input) => { calls.approve.push(input); return { user_id: MEMBER_ID, restored_refund_credits: requested } },
       rejectMarketRefund: async (input) => { calls.reject.push(input); return { user_id: MEMBER_ID } },
+      // 8번: 거부 사유 코드·대표 정산·새 오류 종류
+      MARKET_REFUND_REJECT_CODES: ['TARGET_CHANGED', 'PROVIDED_CONFIRMED', 'OTHER'],
+      MarketRefundNeedsOwnerError: class extends Error {},
+      MarketRefundRuleError: class extends Error {},
+      settleMarketRefundByOwner: async () => ({}),
+      getMarketRefundOwnerContext: async () => null,
     },
   })
   const patch = (body) => route.PATCH({ json: async () => body }, { params: Promise.resolve({ id: 'request-1' }) })
@@ -757,7 +764,7 @@ test('⑤ 마켓 환불: 대표는 한도 없이, staff는 1건 승인 한도 �
   assert.equal((await over.patch({ action: 'approve', confirmedRefundCredits: 1 })).status, 403)
   assert.equal((await within.patch({ action: 'approve', confirmedRefundCredits: 5001 })).status, 403)
   // 거부는 한도가 없다.
-  assert.equal((await over.patch({ action: 'reject' })).status, 200)
+  assert.equal((await over.patch({ action: 'reject', rejectCode: 'OTHER', adminNote: '요건 미달' })).status, 200)
   assert.equal(over.calls.reject.length, 1)
 
   // 요청을 읽지 못하면 승인하지 않는다.

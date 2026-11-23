@@ -60,6 +60,7 @@ const STATUS_BY_CODE: Record<string, number> = {
   CART_LIMIT: 422,
   INSUFFICIENT_CREDITS: 402,
   RETRY_EXHAUSTED: 503,
+  BUNDLE_COMPONENTS_EMPTY: 409,
 }
 
 const MESSAGE_BY_CODE: Record<string, string> = {
@@ -74,6 +75,7 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   CART_LIMIT: '장바구니에는 최대 50개까지 담을 수 있습니다.',
   INSUFFICIENT_CREDITS: '크레딧이 부족합니다.',
   RETRY_EXHAUSTED: '요청이 몰려 구매를 처리하지 못했습니다. 잠시 후 다시 시도해주세요.',
+  BUNDLE_COMPONENTS_EMPTY: '판매 구성이 바뀌어 전체 패키지를 구매할 수 없습니다. 화면을 새로고침해 주세요.',
   INTERNAL_SERVER_ERROR: '문제마켓 구매 처리에 실패했습니다.',
 }
 
@@ -137,6 +139,11 @@ export async function runMarketCheckout(input: {
 
     if (error.code === 'P0402') {
       return toMarketCheckoutFailure('INSUFFICIENT_CREDITS')
+    }
+
+    // 8번: 패키지 라인의 구성 기록 트리거가 활성 서브상품을 찾지 못함(결제 전체 롤백)
+    if (error.code === 'P0409') {
+      return toMarketCheckoutFailure('BUNDLE_COMPONENTS_EMPTY')
     }
 
     console.error('[MarketCheckout] checkout_market_selection failed', { code: error.code })

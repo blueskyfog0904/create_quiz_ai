@@ -5,6 +5,11 @@ import ts from 'typescript'
 const require = createRequire(import.meta.url)
 
 // TS 소스를 CommonJS로 변환해 mocks로 의존성을 바꿔 불러온다(tests/site-logo.test.mjs와 같은 방식).
+// 의존성이 없는 순수 규칙 모듈은 가짜 없이 실제 파일을 쓴다(8번 market-refund-rules: 마감·차단 범위).
+const PURE_MODULES = {
+  '@/lib/market-refund-rules': () => load('src/lib/market-refund-rules.ts'),
+}
+
 export function load(path, mocks = {}, errors = []) {
   const source = readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8')
   const { outputText } = ts.transpileModule(source, {
@@ -12,7 +17,7 @@ export function load(path, mocks = {}, errors = []) {
   })
   const loaded = { exports: {} }
   new Function('require', 'module', 'exports', 'console', outputText)(
-    (name) => mocks[name] ?? require(name), loaded, loaded.exports, { error: (...args) => errors.push(args) }
+    (name) => mocks[name] ?? PURE_MODULES[name]?.() ?? require(name), loaded, loaded.exports, { error: (...args) => errors.push(args) }
   )
   return loaded.exports
 }

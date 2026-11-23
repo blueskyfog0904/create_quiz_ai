@@ -31,6 +31,7 @@ const TEXT_HINTS: Record<keyof MarketPurchasePolicyTexts, string> = {
   detailRefundNotice: '상품 상세 "구매 전 확인"의 환불 줄입니다.',
   refundExpiredReason: '환불 기간이 지난 구매 건에 보이는 안내입니다(자료 보관함·관리자 승인).',
   purchaseCompleteNotice: '상품 상세 자료 선택 아래에 보이는 안내입니다.',
+  partialRefundConfirmNotice: '자료 보관함에서 패키지의 받지 않은 자료 환불을 신청할 때 확인창에 보이는 안내입니다.',
 }
 
 function pickTexts(policy: MarketPurchasePolicy): MarketPurchasePolicyTexts {
@@ -109,7 +110,7 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicy 
                   <Textarea
                     id={id}
                     value={value}
-                    rows={key === 'confirmNotice' || key === 'detailRefundNotice' ? 4 : 2}
+                    rows={key === 'confirmNotice' || key === 'detailRefundNotice' || key === 'partialRefundConfirmNotice' ? 4 : 2}
                     maxLength={MARKET_PURCHASE_POLICY_TEXT_LIMITS[key]}
                     disabled={isSaving}
                     onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}

@@ -15,6 +15,7 @@ import {
 } from '@/lib/admin-orders'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { diagnoseMarketFileDownload, type MarketDownloadBlockReason, type MarketDownloadDiagnosis } from '@/lib/market-download-diagnosis'
+import { buildPendingMarketRefundScopes, isPendingRefundBlockingFile } from '@/lib/market-refund-rules'
 
 // 관리자 '주문 조회 › 충전 결제'. 조회만 한다. 결제 표는 service role 전용이라 결제용 클라이언트로 읽는다.
 
@@ -490,13 +491,34 @@ export async function listMarketOrdersForAdmin(input: {
   const pendingRefundsResult = entitlementOrderIds.length > 0
     ? await supabase
         .from('market_refund_requests')
-        .select('order_id')
+        .select('order_id, refund_kind, refund_subproduct_ids')
         .eq('target_kind', 'v2_order')
         .eq('status', 'pending')
         .in('order_id', entitlementOrderIds)
     : { data: [], error: null }
   if (pendingRefundsResult.error) throw new Error(pendingRefundsResult.error.message)
-  const pendingRefundOrderIds = (pendingRefundsResult.data ?? []).flatMap((refund) => refund.order_id ?? [])
+  const pendingRequests = pendingRefundsResult.data ?? []
+  // 8번: 부분 환불 심사 중이면 대상 자료(같은 분류의 교체본 포함)만 막는다 — 다운로드 route 와 같은 규칙으로 파일마다 가른다.
+  const slugBySubproductId = new Map<string, string>()
+  const partialTargetIds = pendingRequests.flatMap((request) => (
+    request.refund_kind === 'partial' || request.refund_kind === 'exception' ? request.refund_subproduct_ids ?? [] : []
+  ))
+  const slugLookupIds = partialTargetIds.length > 0 ? Array.from(new Set([...partialTargetIds, ...fileRows.map((file) => file.subproduct_id)])) : []
+  if (slugLookupIds.length > 0) {
+    const { data: slugRows, error: slugError } = await supabase
+      .from('market_item_subproducts')
+      .select('id, market_subproduct_categories(slug)')
+      .in('id', slugLookupIds)
+    if (slugError) throw new Error(slugError.message)
+    for (const slugRow of (slugRows ?? []) as Array<{ id: string; market_subproduct_categories: { slug: string } | null }>) {
+      if (slugRow.market_subproduct_categories?.slug) slugBySubproductId.set(slugRow.id, slugRow.market_subproduct_categories.slug)
+    }
+  }
+  const pendingScopes = buildPendingMarketRefundScopes(pendingRequests, (id) => slugBySubproductId.get(id))
+  const pendingRefundOrderIds = Array.from(pendingScopes.keys())
+  const pendingRefundOrderIdsForFile = (file: { subproduct_id: string }) => pendingRefundOrderIds.filter((orderId) => isPendingRefundBlockingFile(
+    pendingScopes.get(orderId), { subproductId: file.subproduct_id, categorySlug: slugBySubproductId.get(file.subproduct_id) ?? null }
+  ))
 
   return {
     orders: rows.map((row) => {
@@ -531,7 +553,13 @@ export async function listMarketOrdersForAdmin(input: {
           fileTypeLabel: file.file_type?.label ?? null,
           subproductTitle: file.subproduct?.title ?? null,
           removed: !file.is_active || file.deleted_at !== null,
-          diagnosis: diagnoseMarketFileDownload({ ...diagnosisBase, file, subproduct: file.subproduct, fileTypeExists: Boolean(file.file_type) }),
+          diagnosis: diagnoseMarketFileDownload({
+            ...diagnosisBase,
+            pendingRefundOrderIds: pendingRefundOrderIdsForFile(file),
+            file,
+            subproduct: file.subproduct,
+            fileTypeExists: Boolean(file.file_type),
+          }),
         }))
       const currentFiles = files.filter((file) => !file.removed)
       const blockedFile = currentFiles.find((file) => !file.diagnosis.downloadable)

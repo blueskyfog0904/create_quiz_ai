@@ -52,7 +52,8 @@ async function readMarketPurchasePolicyFromDb(): Promise<MarketPurchasePolicy> {
 // 캐시 함수 안에서는 실패를 throw 해서 null 이 캐시되지 않게 한다.
 const readCachedMarketPurchasePolicy = unstable_cache(
   readMarketPurchasePolicyFromDb,
-  [MARKET_PURCHASE_POLICY_SETTING_KEY],
+  // 8번: 키가 늘어(partialRefundConfirmNotice) 옛 캐시를 쓰지 않게 버전을 붙인다.
+  [`${MARKET_PURCHASE_POLICY_SETTING_KEY}:v2`],
   { revalidate: 60, tags: [MARKET_PURCHASE_POLICY_SETTING_KEY] }
 )
 
@@ -184,16 +185,24 @@ export async function enforcePurchaseNoticeAck(input: {
 // 관리자 저장: 문구만 바꾸고 refundDays·version 은 DB 값 그대로(기간 변경은 8번 묶음).
 // 검사는 부르는 쪽(validateMarketPurchasePolicyTexts)에서 먼저 한다.
 export async function saveMarketPurchasePolicyTexts(texts: MarketPurchasePolicyTexts): Promise<MarketPurchasePolicy> {
-  const current = await readMarketPurchasePolicyUncached()
-  if (!current) throw new Error('구매 고지 설정을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.')
-  const next: MarketPurchasePolicy = { ...current, ...texts, version: current.version, refundDays: current.refundDays }
   const supabase = createAdminClient()
+  // 8번: 읽은 원본 jsonb 위에 문구 키만 덮는다(모르는 키 보존). 그사이 기간 값이 바뀌었으면 저장하지 않는다.
+  const { data: row, error: readError } = await supabase.from('system_settings')
+    .select('value').eq('key', MARKET_PURCHASE_POLICY_SETTING_KEY).maybeSingle()
+  if (readError) throw new Error('구매 고지 설정을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.')
+  const raw = row?.value
+  const current = parseMarketPurchasePolicy(raw ?? null)
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !current) {
+    throw new Error('구매 고지 설정을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.')
+  }
+  const nextValue = { ...(raw as Record<string, Json>), ...texts }
   const { data, error } = await supabase.from('system_settings')
-    .update({ value: next as unknown as Json, updated_at: new Date().toISOString() })
+    .update({ value: nextValue as unknown as Json, updated_at: new Date().toISOString() })
     .eq('key', MARKET_PURCHASE_POLICY_SETTING_KEY)
+    .eq('value->>refundDays', String(current.refundDays))
     .select('key')
   if (error) throw new Error('구매 고지 저장에 실패했습니다.')
-  if (!data || data.length !== 1) throw new Error('구매 고지 설정이 없습니다. 관리자에게 문의해 주세요.')
+  if (!data || data.length !== 1) throw new Error('그사이 구매 고지 설정이 바뀌었습니다. 새로고침한 뒤 다시 저장해 주세요.')
   revalidateTag(MARKET_PURCHASE_POLICY_SETTING_KEY, { expire: 0 })
-  return next
+  return { ...current, ...texts }
 }

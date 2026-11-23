@@ -5,19 +5,37 @@ import { checkAdminLimit } from '@/lib/admin-permissions'
 import { alertAdminAuditFailure, recordAdminAudit } from '@/lib/admin-audit-log-server'
 import {
   approveMarketRefund,
+  getMarketRefundOwnerContext,
+  MARKET_REFUND_REJECT_CODES,
   MarketRefundConflictError,
+  MarketRefundNeedsOwnerError,
+  MarketRefundRuleError,
   MarketRefundShortfallError,
   rejectMarketRefund,
+  settleMarketRefundByOwner,
 } from '@/lib/market-refunds'
+import { buildMarketRefundApprovedMessage } from '@/lib/market-refund-rules'
 import { createAdminClient } from '@/lib/supabase/bypass'
 
 export const dynamic = 'force-dynamic'
 
 const BodySchema = z.object({
-  action: z.enum(['approve', 'reject']),
+  action: z.enum(['approve', 'reject', 'owner_settle']),
   adminNote: z.string().trim().max(1000).optional(),
-  // 부족분 안내를 확인한 뒤 다시 보내는 복구량
+  // 부족분 안내를 확인한 뒤 다시 보내는 금액(복구 + 다시 지급)
   confirmedRefundCredits: z.number().int().min(0).optional(),
+  // 8번: 거부 사유 종류(필수 — 요건을 갖춘 신청은 TARGET_CHANGED·PROVIDED_CONFIRMED 만)
+  rejectCode: z.enum(MARKET_REFUND_REJECT_CODES as [string, ...string[]]).optional(),
+  // PROVIDED_CONFIRMED 의 근거(연결 문의, 또는 제공 경로·시각)
+  evidence: z.string().trim().max(500).optional(),
+  // 8번: 대표 정산 — 문제 원천(현금 환불 이력 등)의 몫만
+  ownerItems: z.array(z.object({
+    sourceId: z.string().uuid(),
+    restored: z.number().int().min(0),
+    reissued: z.number().int().min(0),
+    unrecovered: z.number().int().min(0),
+    reason: z.string().trim().min(1).max(500),
+  }).strict()).max(20).optional(),
 })
 
 interface RouteContext {
@@ -34,7 +52,13 @@ async function requireAdmin() {
 // 처리 결과를 요청한 회원에게 알린다. 알림이 실패해도 환불 처리 결과는 바꾸지 않는다.
 async function notifyMarketRefundProcessed(
   action: 'approve' | 'reject',
-  request: { user_id: string; approved_refund_credits: number | null }
+  request: {
+    user_id: string
+    approved_refund_credits: number | null
+    requested_refund_credits?: number | null
+    admin_note?: string | null
+    allocated_items?: unknown
+  }
 ) {
   try {
     const approved = action === 'approve'
@@ -43,10 +67,8 @@ async function notifyMarketRefundProcessed(
       type: approved ? 'success' : 'info',
       title: approved ? '문제마켓 환불이 승인되었습니다' : '문제마켓 환불 요청이 거절되었습니다',
       message: approved
-        ? typeof request.approved_refund_credits === 'number'
-          ? `${request.approved_refund_credits.toLocaleString()} 크레딧이 복구되었습니다.`
-          : '크레딧 복구 내역은 크레딧 관리에서 확인해 주세요.'
-        : '환불 요청이 승인되지 않았습니다. 자세한 내용은 고객지원으로 문의해 주세요.',
+        ? buildMarketRefundApprovedMessage(request)
+        : `환불 요청이 승인되지 않았습니다. 사유: ${(request.admin_note ?? '').trim() || '고객지원으로 문의해 주세요.'}`,
       link: approved ? '/mypage/credits' : '/mypage/support',
       is_read: false,
     })
@@ -60,6 +82,25 @@ async function notifyMarketRefundProcessed(
     console.error('[MarketRefund] Processed notification failed', {
       errorCode: 'exception',
     })
+  }
+}
+
+// 대표 정산 대화상자용 원천 정보(대표만). 표시용이며 확정은 DB 함수가 다시 판정한다.
+export async function GET(_request: NextRequest, { params }: RouteContext) {
+  const adminCheck = await requireAdmin()
+  if ('error' in adminCheck) {
+    return NextResponse.json({ success: false, error: adminCheck.error }, { status: adminCheck.status })
+  }
+  if (adminCheck.access.role !== 'owner') {
+    return NextResponse.json({ success: false, error: '대표 계정만 볼 수 있습니다.', code: 'OWNER_ONLY' }, { status: 403 })
+  }
+  const { id } = await params
+  try {
+    const context = await getMarketRefundOwnerContext(id)
+    if (!context) return NextResponse.json({ success: false, error: '환불 요청을 찾을 수 없습니다.' }, { status: 404 })
+    return NextResponse.json({ success: true, data: context })
+  } catch {
+    return NextResponse.json({ success: false, error: '원천 정보를 불러오지 못했습니다.' }, { status: 500 })
   }
 }
 
@@ -97,6 +138,18 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }, { status: 403 })
   }
 
+  if (parsed.data.action === 'owner_settle') {
+    if (adminCheck.access.role !== 'owner') {
+      return NextResponse.json({ success: false, error: '대표 계정만 정산할 수 있습니다.', code: 'OWNER_ONLY' }, { status: 403 })
+    }
+    if (!parsed.data.ownerItems || !parsed.data.adminNote) {
+      return NextResponse.json({ success: false, error: '원천별 정산 값과 정산 메모를 입력해 주세요.' }, { status: 400 })
+    }
+  }
+  if (parsed.data.action === 'reject' && !parsed.data.rejectCode) {
+    return NextResponse.json({ success: false, error: '거부 사유 종류를 골라 주세요.', code: 'REJECT_CODE_INVALID' }, { status: 400 })
+  }
+
   // 승인은 계정의 1건 승인 한도 안에서만 한다(거부는 한도 없음, 대표는 한도 없음).
   // 기준은 그 요청의 환불 요청 크레딧(확인한 복구량이 더 크면 그 값)이다. 하루 누적 한도는 이 권한에 없다.
   if (parsed.data.action === 'approve' && adminCheck.access.role !== 'owner' && refundRequest) {
@@ -112,6 +165,22 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   }
 
   try {
+    if (parsed.data.action === 'owner_settle') {
+      // 작업 기록은 DB 함수가 같은 트랜잭션에서 남긴다(market_refund_owner_settle).
+      await settleMarketRefundByOwner({
+        requestId: id,
+        ownerId: adminCheck.user.id,
+        items: parsed.data.ownerItems ?? [],
+        note: parsed.data.adminNote ?? '',
+        confirmedRefundCredits: parsed.data.confirmedRefundCredits,
+      })
+      const { data: settled } = await createAdminClient().from('market_refund_requests').select('*').eq('id', id).maybeSingle()
+      if (settled) {
+        await notifyMarketRefundProcessed('approve', settled)
+      }
+      return NextResponse.json({ success: true, data: settled, message: '대표 정산으로 환불을 처리했습니다.' })
+    }
+
     const data = parsed.data.action === 'approve'
       ? await approveMarketRefund({
         requestId: id,
@@ -119,13 +188,20 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         adminNote: parsed.data.adminNote ?? null,
         confirmedRefundCredits: parsed.data.confirmedRefundCredits,
       })
-      : await rejectMarketRefund({ requestId: id, adminId: adminCheck.user.id, adminNote: parsed.data.adminNote ?? null })
+      : await rejectMarketRefund({
+        requestId: id,
+        adminId: adminCheck.user.id,
+        adminNote: parsed.data.adminNote ?? null,
+        rejectCode: parsed.data.rejectCode as (typeof MARKET_REFUND_REJECT_CODES)[number],
+        evidence: parsed.data.evidence,
+      })
 
-    await notifyMarketRefundProcessed(parsed.data.action, data)
+    await notifyMarketRefundProcessed(parsed.data.action === 'approve' ? 'approve' : 'reject', data)
 
     // 처리가 끝난 뒤 작업 기록을 남긴다. 환불 처리 함수는 고치지 않으므로 같은 트랜잭션이 아니다(계획 U3-5).
     // 기록이 빠지면 응답에 경고를 싣고 대표에게 알린다. 처리 결과는 바꾸지 않는다.
     const auditAction = parsed.data.action === 'approve' ? 'market_refund_approve' : 'market_refund_reject'
+    const rejectCode = parsed.data.action === 'reject' ? parsed.data.rejectCode ?? null : null
     const audited = await recordAdminAudit({
       actorId: adminCheck.user.id,
       action: auditAction,
@@ -139,6 +215,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         requested_refund_credits: data.requested_refund_credits ?? null,
         approved_refund_credits: data.approved_refund_credits ?? null,
         confirmed_refund_credits: parsed.data.confirmedRefundCredits ?? null,
+        refund_kind: data.refund_kind ?? null,
+        reject_code: rejectCode,
       },
     })
     if (!audited) {
@@ -152,6 +230,19 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       ...(audited ? {} : { auditWarning: '처리는 완료됐지만 작업 기록을 남기지 못했습니다. 대표 관리자에게 알렸습니다.' }),
     })
   } catch (error) {
+    if (error instanceof MarketRefundNeedsOwnerError) {
+      return NextResponse.json({ success: false, error: error.message, code: 'NEEDS_OWNER' }, { status: 409 })
+    }
+    if (error instanceof MarketRefundRuleError) {
+      // 받지 않은 자료 환불의 승인·대표 정산이 판정 변경으로 막히면 DB 가 요청을 거부(TARGET_CHANGED)해 두었다 — 회원에게 알린다.
+      if (error.code === 'TARGET_CHANGED' && (parsed.data.action === 'approve' || parsed.data.action === 'owner_settle')) {
+        const { data: rejected } = await createAdminClient().from('market_refund_requests').select('*').eq('id', id).maybeSingle()
+        if (rejected?.status === 'rejected') {
+          await notifyMarketRefundProcessed('reject', rejected)
+        }
+      }
+      return NextResponse.json({ success: false, error: error.message, code: error.code, details: error.details }, { status: 409 })
+    }
     // 환불 기간 설정을 읽지 못해 승인을 멈춤(아무것도 바뀌지 않음). 잠시 후 다시.
     if (error instanceof Error && error.name === 'REFUND_POLICY_UNAVAILABLE') {
       return NextResponse.json({

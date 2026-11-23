@@ -63,7 +63,7 @@ function loadDownloadRoute({ item, entitled, fileActive = true }) {
     mocks: {
       '@/lib/market-items-server': itemsServer,
       '@/lib/market-purchase': purchase,
-      '@/lib/market-refunds': { hasPendingMarketRefundRequestForTarget: async () => false },
+      '@/lib/market-refunds': { hasPendingMarketRefundRequestForTarget: async () => false, listPendingMarketRefundScopes: async () => new Map() },
     },
   })
 

@@ -7,6 +7,8 @@ export const ADMIN_AUDIT_ACTIONS = {
   credit_revoke: '크레딧 수동 회수',
   market_refund_approve: '마켓 환불 승인',
   market_refund_reject: '마켓 환불 거부',
+  market_refund_exception: '마켓 예외 환불(하자·고객센터 접수)',
+  market_refund_owner_settle: '마켓 환불 대표 정산',
   support_ticket_reply: '문의 답변',
   market_item_status_change: '상품 상태 변경',
   market_item_price_change: '상품 가격 변경',

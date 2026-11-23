@@ -139,7 +139,7 @@ export default async function AdminRefundsPage() {
             </RefundsClient>
             )}
             {canMarket && <h2 className="sr-only">문제마켓 환불</h2>}
-            {canMarket && <MarketRefundsClient requests={(marketRefundRequests || []) as MarketRefundRequestRow[]} />}
+            {canMarket && <MarketRefundsClient requests={(marketRefundRequests || []) as MarketRefundRequestRow[]} isOwner={access.role === 'owner'} />}
         </div>
     )
 }

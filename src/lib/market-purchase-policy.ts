@@ -14,6 +14,7 @@ export const MARKET_PURCHASE_POLICY_TEXT_KEYS = [
   'detailRefundNotice',
   'refundExpiredReason',
   'purchaseCompleteNotice',
+  'partialRefundConfirmNotice',
 ] as const
 
 export type MarketPurchasePolicyTextKey = (typeof MARKET_PURCHASE_POLICY_TEXT_KEYS)[number]
@@ -46,6 +47,7 @@ export const MARKET_PURCHASE_POLICY_TEXT_LIMITS: Record<MarketPurchasePolicyText
   detailRefundNotice: 1000,
   refundExpiredReason: 200,
   purchaseCompleteNotice: 300,
+  partialRefundConfirmNotice: 800,
 }
 
 // 환불 기간을 문장에 넣어야 하는 문구(기간을 숫자로 적지 못하게 한다).
@@ -63,6 +65,7 @@ export const MARKET_PURCHASE_POLICY_TEXT_LABELS: Record<MarketPurchasePolicyText
   detailRefundNotice: '상품 상세 환불 안내',
   refundExpiredReason: '환불 기간 지남 안내',
   purchaseCompleteNotice: '구매 뒤 다운로드 안내',
+  partialRefundConfirmNotice: '받지 않은 자료 환불 확인',
 }
 
 export function isPositiveRefundDays(value: unknown): value is number {

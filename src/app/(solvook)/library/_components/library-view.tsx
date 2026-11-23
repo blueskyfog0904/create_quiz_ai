@@ -7,6 +7,7 @@ import { ChevronDown, FileImage, Loader2, RotateCcw, X } from 'lucide-react'
 import { StudioContainer, StudioEmptyState } from '@/components/design-system'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { useListQuery } from '@/hooks/use-list-query'
+import { formatMarketRefundLastDay } from '@/lib/market-refund-rules'
 import { toast } from 'sonner'
 import { Dialog } from '@/components/ui/dialog'
 import {
@@ -24,6 +25,8 @@ import type { WorkspaceSubject } from '@/lib/workspace-subject'
 interface LibraryViewProps {
   rows: MarketLibraryRow[]
   subject: WorkspaceSubject
+  // 받지 않은 자료 환불 확인창 문구(DB market_purchase_policy.partialRefundConfirmNotice). null 이면 부분 환불 신청을 막는다.
+  partialRefundNotice: string | null
 }
 
 type SortOption = 'latest' | 'name'
@@ -148,7 +151,7 @@ function LibraryCover({ src }: { src?: string | null }) {
   )
 }
 
-export function LibraryView({ rows, subject }: LibraryViewProps) {
+export function LibraryView({ rows, subject, partialRefundNotice }: LibraryViewProps) {
   const router = useRouter()
   const listQuery = useListQuery()
   const searchParams = listQuery.params
@@ -163,6 +166,9 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
   const [refundSubmitting, setRefundSubmitting] = useState<string | null>(null)
   const [refundDialogItemId, setRefundDialogItemId] = useState<string | null>(null)
   const [refundConfirmTarget, setRefundConfirmTarget] = useState<RefundTarget | null>(null)
+  const [partialConfirmTarget, setPartialConfirmTarget] = useState<RefundTarget | null>(null)
+  // 차액 구매(HWP) 주문을 신청할 때 기준 PDF 주문도 함께 신청할지(기본: 함께)
+  const [includeUpgradeBase, setIncludeUpgradeBase] = useState(true)
   const [subjectMenuOpen, setSubjectMenuOpen] = useState(false)
   const [isSubjectSwitching, startSubjectSwitch] = useTransition()
   const subjectMenuRef = useRef<HTMLDivElement | null>(null)
@@ -310,9 +316,14 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
 
   const subjectLabel = SUBJECT_TABS.find((tab) => tab.value === subject)?.label ?? '영어'
 
-  const handleRefundRequest = async (target: RefundTarget): Promise<boolean> => {
-    if (target.status !== 'available') {
+  // companion: 차액 구매 기준 PDF 주문을 업그레이드 주문과 함께 신청(화면 판정은 아직 blocked — 서버가 다시 판정)
+  const handleRefundRequest = async (target: RefundTarget, partial = false, companion = false): Promise<boolean> => {
+    if (!partial && !companion && target.status !== 'available') {
       toast.error(target.reason ?? '현재 환불 신청할 수 없습니다.')
+      return false
+    }
+    if (partial && !target.partialRefund) {
+      toast.error('받지 않은 자료 환불을 신청할 수 없습니다.')
       return false
     }
 
@@ -321,18 +332,28 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
       const response = await fetch('/api/market/refunds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          targetKind: target.targetKind,
-          targetId: target.targetId,
-        }),
+        body: JSON.stringify(partial && target.partialRefund
+          ? {
+            targetKind: target.targetKind,
+            targetId: target.targetId,
+            kind: 'partial',
+            expectedCredits: target.partialRefund.amount,
+            ...(target.partialRefund.priorRequestId ? { priorRequestId: target.partialRefund.priorRequestId } : {}),
+          }
+          : {
+            targetKind: target.targetKind,
+            targetId: target.targetId,
+          }),
       })
       const result = await response.json().catch(() => null)
 
       if (!response.ok || !result?.success) {
+        // 금액·대상이 바뀌었으면 최신 값으로 다시 보여 준다.
+        if (result?.error?.code === 'AMOUNT_CHANGED') router.refresh()
         throw new Error(result?.error?.message ?? '환불 신청 처리에 실패했습니다.')
       }
 
-      toast.success('환불 신청이 접수되었습니다.')
+      toast.success(companion ? `${target.label} 환불 신청도 접수되었습니다.` : '환불 신청이 접수되었습니다.')
       router.refresh()
       return true
     } catch (error) {
@@ -540,7 +561,9 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
         <ul className="mt-6 divide-y divide-[var(--studio-border)] rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]">
           {pagedRows.map((row) => {
             const hasPendingRefund = row.refundTargets.some((target) => target.status === 'pending')
-            const availableRefundTargets = row.refundTargets.filter((target) => target.status === 'available')
+            const availableRefundTargets = row.refundTargets.filter((target) => (
+              target.status === 'available' || (target.partialRefund !== null && partialRefundNotice !== null)
+            ))
             const detailHref = row.detailAvailable
               ? `/items/${row.itemId}?subject=${subject}`
               : null
@@ -634,6 +657,12 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
       </div>
 
       {(() => {
+        // 지금 신청하는 주문이 차액 구매(HWP) 주문이면, 그 주문 때문에 막힌 기준 PDF 주문(함께 신청)
+        const upgradeBaseTargets = refundConfirmTarget?.targetKind === 'v2_order'
+          ? (refundDialogRow?.refundTargets ?? []).filter((target) => (
+            target.upgradeOrderIds.includes(refundConfirmTarget.targetId)
+          ))
+          : []
         return (
           <Dialog
             open={refundDialogRow !== null}
@@ -664,17 +693,49 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
                         </p>
                         <p className="mt-0.5 text-xs text-[var(--studio-muted)]">
                           구매일 {formatDate(target.purchasedAt)} · 환불 예정{' '}
-                          {target.requestedRefundCredits.toLocaleString()} 크레딧
+                          {(target.status !== 'available' && target.partialRefund
+                            ? target.partialRefund.amount
+                            : target.requestedRefundCredits).toLocaleString()} 크레딧
                         </p>
+                        {target.status !== 'available' && target.partialRefund ? (
+                          <p className="mt-0.5 break-keep text-xs text-[var(--studio-muted)]">
+                            받지 않은 자료: {target.partialRefund.targetTitles.join(' · ')}
+                          </p>
+                        ) : null}
+                        {target.status === 'available' && target.refundableUntil ? (
+                          <p className="mt-0.5 text-xs text-[var(--studio-muted)]">
+                            환불 신청 {formatMarketRefundLastDay(target.refundableUntil)}
+                          </p>
+                        ) : target.status !== 'available' && target.partialRefund?.priorRequestId ? (
+                          <p className="mt-0.5 break-keep text-xs text-[var(--studio-muted)]">
+                            앞서 낸 신청 시각으로 기간을 판단합니다.
+                          </p>
+                        ) : target.status !== 'available' && target.partialRefund?.deadline ? (
+                          <p className="mt-0.5 text-xs text-[var(--studio-muted)]">
+                            받지 않은 자료 환불 신청 {formatMarketRefundLastDay(target.partialRefund.deadline)}
+                          </p>
+                        ) : null}
                       </div>
                       {target.status === 'available' ? (
                         <button
                           type="button"
                           disabled={refundSubmitting === target.targetId}
-                          onClick={() => setRefundConfirmTarget(target)}
+                          onClick={() => {
+                            setIncludeUpgradeBase(true)
+                            setRefundConfirmTarget(target)
+                          }}
                           className={refundButtonClassName}
                         >
                           {refundSubmitting === target.targetId ? '신청 중…' : '이 건 환불 신청'}
+                        </button>
+                      ) : target.partialRefund && partialRefundNotice ? (
+                        <button
+                          type="button"
+                          disabled={refundSubmitting === target.targetId}
+                          onClick={() => setPartialConfirmTarget(target)}
+                          className={refundButtonClassName}
+                        >
+                          {refundSubmitting === target.targetId ? '신청 중…' : '받지 않은 자료 환불'}
                         </button>
                       ) : target.status === 'pending' ? (
                         <span className="inline-flex items-center rounded-full bg-[var(--studio-background)] px-2.5 py-1 text-xs font-semibold text-[var(--studio-muted)]">
@@ -694,14 +755,58 @@ export function LibraryView({ rows, subject }: LibraryViewProps) {
                 open={refundConfirmTarget !== null}
                 onOpenChange={(open) => !open && setRefundConfirmTarget(null)}
                 title="환불을 신청할까요?"
-                description={refundConfirmTarget?.label}
+                description={upgradeBaseTargets.length > 0 ? (
+                  <span className="block space-y-2 text-left">
+                    <span className="block">{refundConfirmTarget?.label}</span>
+                    <label className="flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={includeUpgradeBase}
+                        onChange={(event) => setIncludeUpgradeBase(event.target.checked)}
+                      />
+                      <span className="break-keep">
+                        이 차액 구매(HWP)의 기준이 된 PDF 주문({upgradeBaseTargets.map((target) => target.label).join(' · ')})도 함께 환불 신청합니다.
+                      </span>
+                    </label>
+                  </span>
+                ) : refundConfirmTarget?.label}
                 cancelLabel="취소"
                 confirmLabel="환불 신청"
                 pending={refundSubmitting !== null}
                 onConfirm={async () => {
                   if (!refundConfirmTarget) return
                   const succeeded = await handleRefundRequest(refundConfirmTarget)
+                  // 업그레이드 주문이 대기 중이 된 바로 뒤 기준 PDF 주문을 신청한다(같은 때 신청 — 서버가 다시 판정).
+                  if (succeeded && includeUpgradeBase) {
+                    for (const baseTarget of upgradeBaseTargets) {
+                      await handleRefundRequest(baseTarget, false, true)
+                    }
+                  }
                   setRefundConfirmTarget(null)
+                  if (succeeded) setRefundDialogItemId(null)
+                }}
+              />
+
+              <StudioAlertDialog
+                open={partialConfirmTarget !== null}
+                onOpenChange={(open) => !open && setPartialConfirmTarget(null)}
+                title="받지 않은 자료를 환불할까요?"
+                description={partialConfirmTarget?.partialRefund ? (
+                  <span className="block space-y-2 text-left">
+                    <span className="block font-semibold text-[var(--studio-ink)]">
+                      {partialConfirmTarget.partialRefund.targetTitles.join(' · ')} · {partialConfirmTarget.partialRefund.amount.toLocaleString()} 크레딧
+                    </span>
+                    <span className="block break-keep">{partialRefundNotice}</span>
+                  </span>
+                ) : undefined}
+                cancelLabel="취소"
+                confirmLabel="받지 않은 자료 환불 신청"
+                pending={refundSubmitting !== null}
+                onConfirm={async () => {
+                  if (!partialConfirmTarget) return
+                  const succeeded = await handleRefundRequest(partialConfirmTarget, true)
+                  setPartialConfirmTarget(null)
                   if (succeeded) setRefundDialogItemId(null)
                 }}
               />

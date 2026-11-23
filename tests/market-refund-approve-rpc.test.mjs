@@ -15,6 +15,8 @@ function loadModule(path, modules) {
   const stubRequire = (name) => {
     if (name === 'server-only') return {}
     if (name in modules) return modules[name]
+    // 8번: 순수 규칙 모듈(마감·차단 범위)은 실제 파일을 쓴다.
+    if (name === '@/lib/market-refund-rules') return loadModule('../src/lib/market-refund-rules.ts', {})
     return require(name)
   }
   new Function('exports', 'require', code)(loaded.exports, stubRequire)
@@ -167,7 +169,8 @@ test('MARKET_REFUND_SHORTFALL becomes a MarketRefundShortfallError carrying both
     assert.ok(error instanceof world.marketRefunds.MarketRefundShortfallError)
     assert.equal(error.requested, 100)
     assert.equal(error.restorable, 60)
-    assert.match(error.message, /100크레딧 중 60크레딧만 되돌릴 수 있습니다/)
+    // 8번: 기간이 지난 몫은 다시 지급하므로 '돌려줄 수 있음'으로 안내한다.
+    assert.match(error.message, /100크레딧 중 60크레딧만 돌려줄 수 있습니다/)
     return true
   })
 })
@@ -214,6 +217,11 @@ test('the admin route answers a shortfall with 409 and the numbers, and forwards
       MarketRefundConflictError,
       MarketRefundShortfallError,
       rejectMarketRefund: async () => ({}),
+      MARKET_REFUND_REJECT_CODES: ['TARGET_CHANGED', 'PROVIDED_CONFIRMED', 'OTHER'],
+      MarketRefundNeedsOwnerError: class extends Error {},
+      MarketRefundRuleError: class extends Error {},
+      settleMarketRefundByOwner: async () => ({}),
+      getMarketRefundOwnerContext: async () => null,
       approveMarketRefund: async (input) => {
         approveCalls.push(input)
         if (input.confirmedRefundCredits === undefined) throw new MarketRefundShortfallError(100, 60)
@@ -244,7 +252,7 @@ test('the admin screen confirms a shortfall and resends with confirmedRefundCred
   const client = readFileSync(new URL('../src/app/(admin)/admin/refunds/market-refunds-client.tsx', import.meta.url), 'utf8')
   assert.match(client, /result\?\.code === 'MARKET_REFUND_SHORTFALL'/)
   assert.match(client, /window\.confirm\(/)
-  assert.match(client, /JSON\.stringify\(\{ action, confirmedRefundCredits, adminNote: adminNote\.trim\(\) \|\| undefined \}\)/)
+  assert.match(client, /JSON\.stringify\(\{\s*action,\s*confirmedRefundCredits,\s*adminNote: adminNote\.trim\(\) \|\| undefined,/)
   assert.match(client, /send\(shortfall\.restorable\)/)
 })
 

@@ -55,7 +55,7 @@ export function PaymentSalesPanel({ status, canStopSales }: { status: PaymentSal
     )
   }
 
-  const changedAt = new Date(status.changedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
+  const changedAt = formatKstDateTime(status.changedAt)
 
   if (!status.acceptsNewOrders) {
     return (
@@ -131,4 +131,13 @@ export function PaymentSalesPanel({ status, canStopSales }: { status: PaymentSal
       </Dialog>
     </div>
   )
+}
+
+// 서버(Node)와 브라우저의 ko-KR 표기(PM/오후)가 달라 hydration 오류가 나므로 로케일 데이터 없이 같은 모양으로 만든다.
+function formatKstDateTime(value: string) {
+  const kst = new Date(new Date(value).getTime() + 9 * 60 * 60 * 1000)
+  const hours = kst.getUTCHours()
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${kst.getUTCFullYear()}. ${kst.getUTCMonth() + 1}. ${kst.getUTCDate()}. ${hours < 12 ? '오전' : '오후'} ${hour12}:${pad(kst.getUTCMinutes())}:${pad(kst.getUTCSeconds())}`
 }

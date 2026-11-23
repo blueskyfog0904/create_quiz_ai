@@ -217,7 +217,7 @@ test('다운로드 route와 그 판정 함수는 이 진단이 옮겨 적은 조
     assert.ok(route.includes(shared) && diagnosisSource.includes(shared), shared)
   }
   const v2 = route.slice(route.indexOf('async function handleMarketV2Download'), route.indexOf('async function handleLegacyMarketDownload'))
-  const order = ['getActiveMarketSubproductFileForDownload(', 'listMarketSubproductFileV2Entitlements(', 'hasPendingMarketRefundRequestForTarget(', 'findMarketSubproductFileV2Entitlement(', 'createSignedUrl(', 'recordMarketV2DownloadEvent(']
+  const order = ['getActiveMarketSubproductFileForDownload(', 'listMarketSubproductFileV2Entitlements(', 'listPendingMarketRefundScopes(', 'isPendingRefundBlockingFile(', 'findMarketSubproductFileV2Entitlement(', 'createSignedUrl(', 'recordMarketV2DownloadEvent(']
     .map((marker) => v2.indexOf(marker))
   assert.ok(order.every((index, position) => index > 0 && (position === 0 || index > order[position - 1])), JSON.stringify(order))
 
@@ -230,7 +230,10 @@ test('다운로드 route와 그 판정 함수는 이 진단이 옮겨 적은 조
   const entitlementRule = itemsServer.slice(itemsServer.indexOf('export async function listMarketV2EntitlementsForItem'), itemsServer.indexOf('export async function getActiveMarketSubproductFileForDownload'))
   assert.match(entitlementRule, /\.eq\('user_id', userId\)\s*\.eq\('item_id', itemId\)\s*\.eq\('status', 'active'\)/)
   const refunds = read('src/lib/market-refunds.ts')
-  const pendingRule = refunds.slice(refunds.indexOf('export async function hasPendingMarketRefundRequestForTarget'), refunds.indexOf('export async function requestMarketRefund'))
-  assert.match(pendingRule, /\.eq\('target_kind', 'v2_order'\)\s*\.eq\('order_id', input\.orderId \?\? ''\)/)
-  assert.match(pendingRule, /\.eq\('status', 'pending'\)/)
+  // 8번: 심사 중 범위는 route 와 관리자 진단이 같은 함수(listPendingMarketRefundScopes + isPendingRefundBlockingFile)로 판단한다.
+  const pendingRule = refunds.slice(refunds.indexOf('export async function listPendingMarketRefundScopes'))
+  assert.match(pendingRule, /\.eq\('target_kind', 'v2_order'\)\s*\.eq\('status', 'pending'\)\s*\.in\('order_id', ids\)/)
+  const adminOrders = read('src/lib/admin-orders-server.ts')
+  assert.match(adminOrders, /const pendingScopes = buildPendingMarketRefundScopes\(pendingRequests, /)
+  assert.match(adminOrders, /pendingRefundOrderIds: pendingRefundOrderIdsForFile\(file\)/)
 })

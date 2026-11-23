@@ -1350,6 +1350,44 @@ export type Database = {
         }
         Relationships: []
       }
+      market_bundle_line_components: {
+        Row: {
+          backfilled: boolean
+          category_slug: string
+          created_at: string
+          line_id: string
+          list_price_credits: number
+          order_id: string
+          subproduct_id: string
+        }
+        Insert: {
+          backfilled?: boolean
+          category_slug: string
+          created_at?: string
+          line_id: string
+          list_price_credits: number
+          order_id: string
+          subproduct_id: string
+        }
+        Update: {
+          backfilled?: boolean
+          category_slug?: string
+          created_at?: string
+          line_id?: string
+          list_price_credits?: number
+          order_id?: string
+          subproduct_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_bundle_line_components_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "market_purchase_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       market_cart_items: {
         Row: {
           bundle_option_id: string | null
@@ -2565,6 +2603,8 @@ export type Database = {
           legacy_purchase_id: string | null
           original_price_credits: number
           purchase_type: string
+          refund_committed_credits: number
+          refunded_credits: number
           status: string
           updated_at: string
           user_id: string
@@ -2581,6 +2621,8 @@ export type Database = {
           legacy_purchase_id?: string | null
           original_price_credits?: number
           purchase_type: string
+          refund_committed_credits?: number
+          refunded_credits?: number
           status?: string
           updated_at?: string
           user_id: string
@@ -2597,6 +2639,8 @@ export type Database = {
           legacy_purchase_id?: string | null
           original_price_credits?: number
           purchase_type?: string
+          refund_committed_credits?: number
+          refunded_credits?: number
           status?: string
           updated_at?: string
           user_id?: string
@@ -2699,21 +2743,67 @@ export type Database = {
           },
         ]
       }
+      market_refund_reissued_sources: {
+        Row: {
+          created_at: string
+          original_source_id: string | null
+          request_id: string
+          source_id: string
+        }
+        Insert: {
+          created_at?: string
+          original_source_id?: string | null
+          request_id: string
+          source_id: string
+        }
+        Update: {
+          created_at?: string
+          original_source_id?: string | null
+          request_id?: string
+          source_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_refund_reissued_sources_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "market_refund_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_refund_reissued_sources_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: true
+            referencedRelation: "credit_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       market_refund_requests: {
         Row: {
           admin_note: string | null
+          allocated_items: Json | null
           approved_refund_credits: number | null
+          claim_channel: string | null
+          claim_received_at: string | null
+          claim_type: string | null
           created_at: string
           eligibility_snapshot: Json
           id: string
           item_id: string
           legacy_purchase_id: string | null
           order_id: string | null
+          prior_request_id: string | null
           processed_at: string | null
           processed_by: string | null
           reason: string | null
+          refund_kind: string
+          refund_subproduct_ids: string[] | null
+          reject_code: string | null
+          requested_by: string | null
           requested_refund_credits: number
           status: string
+          support_ticket_id: string | null
           target_kind: string
           updated_at: string
           user_id: string
@@ -2721,18 +2811,28 @@ export type Database = {
         }
         Insert: {
           admin_note?: string | null
+          allocated_items?: Json | null
           approved_refund_credits?: number | null
+          claim_channel?: string | null
+          claim_received_at?: string | null
+          claim_type?: string | null
           created_at?: string
           eligibility_snapshot?: Json
           id?: string
           item_id: string
           legacy_purchase_id?: string | null
           order_id?: string | null
+          prior_request_id?: string | null
           processed_at?: string | null
           processed_by?: string | null
           reason?: string | null
+          refund_kind?: string
+          refund_subproduct_ids?: string[] | null
+          reject_code?: string | null
+          requested_by?: string | null
           requested_refund_credits: number
           status?: string
+          support_ticket_id?: string | null
           target_kind: string
           updated_at?: string
           user_id: string
@@ -2740,18 +2840,28 @@ export type Database = {
         }
         Update: {
           admin_note?: string | null
+          allocated_items?: Json | null
           approved_refund_credits?: number | null
+          claim_channel?: string | null
+          claim_received_at?: string | null
+          claim_type?: string | null
           created_at?: string
           eligibility_snapshot?: Json
           id?: string
           item_id?: string
           legacy_purchase_id?: string | null
           order_id?: string | null
+          prior_request_id?: string | null
           processed_at?: string | null
           processed_by?: string | null
           reason?: string | null
+          refund_kind?: string
+          refund_subproduct_ids?: string[] | null
+          reject_code?: string | null
+          requested_by?: string | null
           requested_refund_credits?: number
           status?: string
+          support_ticket_id?: string | null
           target_kind?: string
           updated_at?: string
           user_id?: string
@@ -2782,6 +2892,13 @@ export type Database = {
           {
             foreignKeyName: "market_refund_requests_processed_by_fkey"
             columns: ["processed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_refund_requests_requested_by_fkey"
+            columns: ["requested_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -4799,6 +4916,44 @@ export type Database = {
           },
         ]
       }
+      support_ticket_revisions: {
+        Row: {
+          category_id: string | null
+          created_at: string
+          id: string
+          message: string | null
+          subject: string | null
+          ticket_id: string
+          written_at: string
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string
+          id?: string
+          message?: string | null
+          subject?: string | null
+          ticket_id: string
+          written_at: string
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string
+          id?: string
+          message?: string | null
+          subject?: string | null
+          ticket_id?: string
+          written_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_ticket_revisions_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_tickets: {
         Row: {
           admin_response: string | null
@@ -4807,6 +4962,7 @@ export type Database = {
           created_at: string
           id: string
           is_deleted_by_user: boolean | null
+          member_updated_at: string | null
           message: string
           responded_at: string | null
           status: string
@@ -4821,6 +4977,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_deleted_by_user?: boolean | null
+          member_updated_at?: string | null
           message: string
           responded_at?: string | null
           status?: string
@@ -4835,6 +4992,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_deleted_by_user?: boolean | null
+          member_updated_at?: string | null
           message?: string
           responded_at?: string | null
           status?: string
@@ -5070,6 +5228,23 @@ export type Database = {
           unassigned_admin_original_count: number
         }[]
       }
+      admin_exception_market_refund: {
+        Args: {
+          p_admin_id: string
+          p_claim_channel: string
+          p_claim_received_at: string
+          p_claim_type: string
+          p_confirmed_refund_credits?: number
+          p_expected_committed: number
+          p_expected_credits: number
+          p_order_id: string
+          p_reason: string
+          p_subproduct_ids: string[]
+          p_support_ticket_id: string
+          p_ticket_revision_id: string
+        }
+        Returns: Json
+      }
       admin_list_bank_questions: {
         Args: {
           p_book_id?: string
@@ -5148,6 +5323,15 @@ export type Database = {
           p_pay_type: number
           p_price: number
           p_userid: string
+        }
+        Returns: Json
+      }
+      approve_market_partial_refund: {
+        Args: {
+          p_admin_id: string
+          p_admin_note: string
+          p_confirmed_refund_credits?: number
+          p_request_id: string
         }
         Returns: Json
       }
@@ -5342,6 +5526,7 @@ export type Database = {
           created_at: string
           id: string
           is_deleted_by_user: boolean | null
+          member_updated_at: string | null
           message: string
           responded_at: string | null
           status: string
@@ -5541,6 +5726,44 @@ export type Database = {
         }
         Returns: undefined
       }
+      market_bundle_refund_amount: {
+        Args: { p_order_id: string; p_targets: string[] }
+        Returns: number
+      }
+      market_bundle_refund_state: {
+        Args: { p_order_id: string }
+        Returns: Json
+      }
+      market_order_upgrade_blocker: {
+        Args: { p_order_id: string }
+        Returns: string
+      }
+      market_partial_refund_calc: {
+        Args: { p_base_time: string; p_order_id: string }
+        Returns: Json
+      }
+      market_purchase_refund_days: { Args: never; Returns: number }
+      market_rebuild_order_entitlements: {
+        Args: { p_item_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      market_refund_allocate: {
+        Args: { p_amount: number; p_exclude?: string[]; p_order_id: string }
+        Returns: Json
+      }
+      market_refund_deadline: {
+        Args: { p_created_at: string; p_days: number }
+        Returns: string
+      }
+      market_refund_settle: {
+        Args: {
+          p_admin_id: string
+          p_allocation: Json
+          p_note: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
       payapp_fulfill_order_internal: {
         Args: { p_approved_at: string; p_payment_order_id: string }
         Returns: Json
@@ -5620,6 +5843,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      preview_market_partial_refund: {
+        Args: { p_order_id: string; p_user_id: string }
+        Returns: Json
       }
       process_payapp_cancellation: {
         Args: { p_payment_order_id: string }
@@ -5768,6 +5995,16 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      request_market_partial_refund: {
+        Args: {
+          p_expected_credits: number
+          p_order_id: string
+          p_prior_request_id?: string
+          p_reason: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       request_point_charge_refund: {
         Args: { p_reason: string; p_source_id: string; p_user_id: string }
         Returns: Json
@@ -5849,6 +6086,16 @@ export type Database = {
         Args: { p_ids: string[]; p_selected: boolean; p_user_id: string }
         Returns: Json
       }
+      settle_market_refund_by_owner: {
+        Args: {
+          p_confirmed_refund_credits?: number
+          p_items: Json
+          p_note: string
+          p_owner_id: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
       signup_consent_item_stats: {
         Args: never
         Returns: {
@@ -5866,6 +6113,7 @@ export type Database = {
           created_at: string
           id: string
           is_deleted_by_user: boolean | null
+          member_updated_at: string | null
           message: string
           responded_at: string | null
           status: string
@@ -5937,6 +6185,7 @@ export type Database = {
           created_at: string
           id: string
           is_deleted_by_user: boolean | null
+          member_updated_at: string | null
           message: string
           responded_at: string | null
           status: string

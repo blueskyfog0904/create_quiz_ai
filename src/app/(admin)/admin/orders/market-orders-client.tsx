@@ -24,6 +24,7 @@ import {
 } from '@/lib/admin-orders'
 import type { AdminMarketOrder, AdminMarketOrderListResult } from '@/lib/admin-orders-server'
 import { DetailList, DetailSection, FILTER_SELECT_CLASS, formatDateTime } from './orders-client'
+import { MarketExceptionRefundDialog } from './market-exception-refund-dialog'
 
 const OK_BADGE_CLASS = 'bg-green-100 text-green-700 hover:bg-green-100'
 const BLOCKED_BADGE_CLASS = 'bg-red-100 text-red-700 hover:bg-red-100'
@@ -79,6 +80,9 @@ export function MarketOrdersClient() {
   // 마지막으로 응답을 받은 요청. 주소의 조건과 다르면 아직 불러오는 중이다.
   const [loaded, setLoaded] = useState<{ key: string; data: AdminMarketOrderListResult | null; error: string | null } | null>(null)
   const [selectedOrder, setSelectedOrder] = useState<AdminMarketOrder | null>(null)
+  const [exceptionOrderId, setExceptionOrderId] = useState<string | null>(null)
+  // 예외 환불 뒤 목록을 다시 읽는 신호
+  const [reloadToken, setReloadToken] = useState(0)
 
   const requestParams = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
   for (const [key, value] of Object.entries({ q: search, status, subject, from, to })) {
@@ -104,7 +108,7 @@ export function MarketOrdersClient() {
     return () => {
       ignore = true
     }
-  }, [requestKey])
+  }, [requestKey, reloadToken])
 
   const hasFilter = Boolean(search || status || subject || from || to)
 
@@ -357,12 +361,30 @@ export function MarketOrdersClient() {
                       ))}
                     </ul>
                   )}
+                  {selectedOrder.status === 'completed' ? (
+                    <div className="mt-3 flex justify-end">
+                      <Button type="button" size="sm" variant="adminAction" onClick={() => setExceptionOrderId(selectedOrder.id)}>
+                        예외 환불
+                      </Button>
+                    </div>
+                  ) : null}
                 </DetailSection>
               </div>
             </>
           )}
         </DialogContent>
       </Dialog>
+
+      <MarketExceptionRefundDialog
+        orderId={exceptionOrderId}
+        onClose={() => setExceptionOrderId(null)}
+        onDone={() => {
+          setExceptionOrderId(null)
+          setSelectedOrder(null)
+          setLoaded(null)
+          setReloadToken((token) => token + 1)
+        }}
+      />
     </div>
   )
 }

@@ -21,13 +21,28 @@ const policyServer = load('src/lib/market-purchase-policy-server.ts', {
   '@/lib/market-purchase-policy': policyLib,
 })
 const migration = read('supabase/migrations/20261123100000_market_purchase_notice.sql')
-const initialPolicy = JSON.parse(migration.split('$json$')[1])
+const bundle7Policy = JSON.parse(migration.split('$json$')[1])
+// 8번 묶음(20261124100000)이 같은 설정 위에 덮는 값(refundDays 30, 문구 4개 교체, partialRefundConfirmNotice 추가)
+const bundle8Migration = read('supabase/migrations/20261124100000_market_material_refund.sql')
+const bundle8Patch = Object.fromEntries(Array.from(
+  between(bundle8Migration.slice(bundle8Migration.indexOf("AND value ? 'partialRefundConfirmNotice';")), 'SET value = value || jsonb_build_object(', "updated_at = now()")
+    .matchAll(/'([A-Za-z]+)', (?:'((?:[^']|'')*)'|(\d+))/g),
+  (match) => [match[1], match[3] !== undefined ? Number(match[3]) : match[2].replaceAll("''", "'")]
+))
+const initialPolicy = { ...bundle7Policy, ...bundle8Patch }
 
 test('지문: TS 계산 = DB 함수(리허설에서 SQL 이 낸 값), 자리표시는 모두 바뀐다', () => {
-  const view = policyServer.toMarketPurchasePolicyView(policyLib.parseMarketPurchasePolicy(initialPolicy))
+  // 7번 문구: 지문은 체크 문구·고지 본문만으로 정해진다(8번에서 더한 키는 지문에 들어가지 않는다).
+  const view7 = policyServer.toMarketPurchasePolicyView(policyLib.parseMarketPurchasePolicy({ ...bundle7Policy, partialRefundConfirmNotice: '확인' }))
   // 2026-11-23 운영 DB 리허설(BEGIN…ROLLBACK)에서 record_purchase_notice_ack 가 돌려준 noticeSha256 과 같은 값
-  assert.equal(view.noticeSha256, '3f5c7fd6cf184d13bd631a0ad9b246bbef7d63ab85f72fd01c70a854115e93c4')
-  assert.match(view.checkboxLabel, /구매 후 7일 안에/)
+  assert.equal(view7.noticeSha256, '3f5c7fd6cf184d13bd631a0ad9b246bbef7d63ab85f72fd01c70a854115e93c4')
+  assert.match(view7.checkboxLabel, /구매 후 7일 안에/)
+  // 8번 문구: 키 10개, 30일이 채워진다
+  assert.deepEqual(Object.keys(bundle8Patch).sort(), ['checkboxLabel', 'confirmNotice', 'detailRefundNotice', 'partialRefundConfirmNotice', 'refundDays', 'refundExpiredReason'])
+  const view = policyServer.toMarketPurchasePolicyView(policyLib.parseMarketPurchasePolicy(initialPolicy))
+  assert.equal(view.refundDays, 30)
+  assert.match(view.checkboxLabel, /구매일 다음 날부터 30일째 되는 날까지/)
+  assert.equal(policyLib.MARKET_PURCHASE_POLICY_TEXT_KEYS.length, 8)
   assert.equal(policyLib.fillMarketRefundDays('{자료환불기간}일·{자료환불기간}일', 7), '7일·7일')
   for (const key of policyLib.MARKET_PURCHASE_POLICY_TEXT_KEYS) {
     assert.doesNotMatch(view[key], /[{}]/, key)
@@ -151,7 +166,8 @@ test('환불 판정: 기간은 인자로 받은 DB 값, 보관함은 요청당 �
 
   const items = read('src/lib/market-items-server.ts')
   assert.match(items, /const refundPolicy = await getMarketRefundPolicyCached\(\)\n\s+const refundTargetEntries = await Promise\.all/)
-  assert.equal((items.match(/\n\s+refundPolicy,\n\s+preloaded: \{/g) ?? []).length, 2)
+  // 8번: v2 주문 판정은 업그레이드 주문 대기 중 허용(allowPendingUpgradeRefund) 줄이 사이에 낀다
+  assert.equal((items.match(/\n\s+refundPolicy,\n(?:\s+\/\/[^\n]*\n\s+allowPendingUpgradeRefund: true,\n)?\s+preloaded: \{/g) ?? []).length, 2)
 
   const memberRoute = read('src/app/api/market/refunds/route.ts')
   assert.match(memberRoute, /error\.name === 'REFUND_POLICY_UNAVAILABLE'[\s\S]+status: 503/)
@@ -187,9 +203,11 @@ test('관리자: 구매 고지 저장은 site.manage·작업 기록·캐시 즉�
   assert.match(action, /validateMarketPurchasePolicyTexts\(texts\)/)
   assert.doesNotMatch(action, /refundDays: input|input\.refundDays/)
   const server = read('src/lib/market-purchase-policy-server.ts')
-  assert.match(server, /\{ \.\.\.current, \.\.\.texts, version: current\.version, refundDays: current\.refundDays \}/)
+  // 8번: 읽은 원본 jsonb 위에 문구만 덮고(모르는 키·version·refundDays 보존), 그사이 기간이 바뀌었으면 저장하지 않는다.
+  assert.match(server, /const nextValue = \{ \.\.\.\(raw as Record<string, Json>\), \.\.\.texts \}/)
+  assert.match(server, /\.update\(\{ value: nextValue as unknown as Json/)
+  assert.match(server, /\.eq\('value->>refundDays', String\(current\.refundDays\)\)/)
   assert.match(server, /revalidateTag\(MARKET_PURCHASE_POLICY_SETTING_KEY, \{ expire: 0 \}\)/)
-  assert.match(server, /\.update\(\{ value: next as unknown as Json/)
   const form = read('src/app/(admin)/admin/footer/purchase-policy-form.tsx')
   assert.match(form, /useUnsavedChangesGuard\(hasChanges\)/)
   assert.match(read('src/app/(admin)/admin/footer/page.tsx'), /<PurchasePolicyForm initial=\{purchasePolicy\} \/>/)
@@ -215,6 +233,8 @@ test('마이그레이션: 첫 값 6행 필요 프로그램, 결제·환불 RPC �
   assert.match(migration, /md5\(pg_get_functiondef\('public\.approve_market_refund\(uuid,uuid,text,integer\)'::regprocedure\)\)/)
   assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.record_purchase_notice_ack\(uuid, uuid, text\) TO service_role;/)
   assert.doesNotMatch(migration, /GRANT EXECUTE ON FUNCTION public\.record_purchase_notice_ack\(uuid, uuid, text\) TO (anon|authenticated)/)
-  assert.equal(initialPolicy.refundDays, 7)
-  assert.equal(Object.keys(initialPolicy).length, 9)
+  assert.equal(bundle7Policy.refundDays, 7)
+  assert.equal(Object.keys(bundle7Policy).length, 9)
+  // 8번 뒤: 키 10개(문구 8 + refundDays + version)
+  assert.equal(Object.keys(initialPolicy).length, 10)
 })

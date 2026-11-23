@@ -5,6 +5,7 @@ import {
   deleteMarketItemSubproduct,
   getMarketItemById,
   updateMarketItemSubproduct,
+  MarketSubproductCategoryConflictError,
 } from '@/lib/market-items-server'
 import { adminApiGuardMessage, requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import type { AdminPermissionRequirement } from '@/lib/admin-permissions'
@@ -71,6 +72,9 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
     return NextResponse.json({ success: true, data: subproduct })
   } catch (error) {
+    if (error instanceof MarketSubproductCategoryConflictError) {
+      return NextResponse.json({ success: false, error: { code: 'CATEGORY_CONFLICT', message: error.message } }, { status: 409 })
+    }
     return NextResponse.json({
       success: false,
       error: {

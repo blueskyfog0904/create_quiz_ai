@@ -71,7 +71,7 @@ test('개인정보: 회원은 email·display_tag만, 다운로드 기록은 시�
   assert.match(lib, /\.from\('market_download_events'\)\s*\.select\('id, order_id, subproduct_file_id, created_at'\)/)
   // 진단용 추가 조회도 회원 정보는 더 읽지 않는다(권한은 id들, 환불 대기는 주문 id만).
   assert.match(lib, /\.from\('market_entitlements'\)\s*\.select\('id, user_id, item_id, scope, status, subproduct_id, file_id, source_order_id'\)/)
-  assert.match(lib, /\.from\('market_refund_requests'\)\s*\.select\('order_id'\)\s*\.eq\('target_kind', 'v2_order'\)\s*\.eq\('status', 'pending'\)/)
+  assert.match(lib, /\.from\('market_refund_requests'\)\s*\.select\('order_id, refund_kind, refund_subproduct_ids'\)\s*\.eq\('target_kind', 'v2_order'\)\s*\.eq\('status', 'pending'\)/)
   assert.doesNotMatch(lib, /phone|ip_address|user_agent|select\('\*'|\*,|eligibility_snapshot|credit_consumptions|idempotency_key|checksum/)
   assert.match(client, /formatMemberDisplayName\(order\.user\?\.email, order\.user\?\.display_tag\)/)
 })

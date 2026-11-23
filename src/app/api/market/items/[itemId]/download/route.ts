@@ -17,7 +17,9 @@ import {
   isMarketAssetCoveredByPurchaseKind,
   type MarketPaidAssetKind,
 } from '@/lib/market-purchase'
-import { hasPendingMarketRefundRequestForTarget } from '@/lib/market-refunds'
+import { hasPendingMarketRefundRequestForTarget, listPendingMarketRefundScopes } from '@/lib/market-refunds'
+import { isPendingRefundBlockingFile } from '@/lib/market-refund-rules'
+import { createAdminClient as createScopeClient } from '@/lib/supabase/bypass'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,16 +70,26 @@ async function handleMarketV2Download(
     // 환불 심사 중이 아닌 주문의 권한을 찾으면 그 권한으로 내려받는다. 다른 주문이 심사 중이어도 막지 않는다.
     const target = { itemId, subproductId: file.subproduct_id, fileId: file.id }
     const coveringEntitlements = listMarketSubproductFileV2Entitlements(target, entitlements)
-    const pendingRefundOrderIds: string[] = []
-    for (const candidate of coveringEntitlements) {
-      if (!candidate.source_order_id) continue
-      const hasPendingRefund = await hasPendingMarketRefundRequestForTarget({
-        targetKind: 'v2_order',
-        orderId: candidate.source_order_id,
-      })
-      if (!hasPendingRefund) break
-      pendingRefundOrderIds.push(candidate.source_order_id)
+    // 8번: 심사 중인 요청이 부분 환불이면 그 대상 자료(같은 분류의 교체본 포함)만 막는다. 전체·예외 요청은 그 주문 권한 전부.
+    const pendingScopes = await listPendingMarketRefundScopes(
+      coveringEntitlements.map((candidate) => candidate.source_order_id).filter((id): id is string => Boolean(id))
+    )
+    let fileCategorySlug: string | null = null
+    if (pendingScopes.size > 0) {
+      const { data: fileSubproduct, error: fileSubproductError } = await createScopeClient()
+        .from('market_item_subproducts')
+        .select('market_subproduct_categories(slug)')
+        .eq('id', file.subproduct_id)
+        .maybeSingle()
+      // 분류를 못 읽으면 교체본 차단을 판단할 수 없으므로 내려주지 않는다(fail closed).
+      if (fileSubproductError) throw new Error(fileSubproductError.message)
+      fileCategorySlug = (fileSubproduct as { market_subproduct_categories: { slug: string } | null } | null)?.market_subproduct_categories?.slug ?? null
     }
+    const pendingRefundOrderIds = coveringEntitlements
+      .map((candidate) => candidate.source_order_id)
+      .filter((orderId): orderId is string => Boolean(orderId) && isPendingRefundBlockingFile(
+        pendingScopes.get(orderId as string), { subproductId: file.subproduct_id, categorySlug: fileCategorySlug }
+      ))
     const entitlement = findMarketSubproductFileV2Entitlement(target, coveringEntitlements, pendingRefundOrderIds)
 
     if (!entitlement) {
