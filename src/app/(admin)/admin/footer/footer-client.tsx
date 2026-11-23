@@ -1,9 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-
 import { useMemo, useState, type ReactNode } from 'react'
-import { Loader2, Plus, Save, Trash2 } from 'lucide-react'
+import { History, Loader2, Plus, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -240,12 +239,19 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>약관 및 정책</CardTitle>
-          <CardDescription>
-            Footer에 노출할 약관 링크와 각 페이지의 본문을 관리합니다. 저장할 때마다 바뀐 본문의 사본이 남습니다 ·{' '}
-            <Link href="/admin/footer/policy-history" className="underline underline-offset-2">약관 이력 보기</Link>
-          </CardDescription>
+        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1.5">
+            <CardTitle>약관 및 정책</CardTitle>
+            <CardDescription>
+              Footer에 노출할 약관 링크와 각 페이지의 본문을 관리합니다. 저장할 때마다 바뀐 본문의 사본이 남습니다.
+            </CardDescription>
+          </div>
+          <Button asChild variant="outline">
+            <Link href="/admin/footer/policy-history">
+              <History className="mr-2 h-4 w-4" />
+              약관 이력 보기
+            </Link>
+          </Button>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {policyDocumentEntries.map((document) => (
