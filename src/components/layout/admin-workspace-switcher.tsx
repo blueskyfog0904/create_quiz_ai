@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ADMIN_SUBJECT_QUERY_KEY, resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import { confirmLeaveIfUnsaved } from '@/hooks/use-unsaved-changes-guard'
 
 const SUBJECTS: Array<{ value: WorkspaceSubject; label: string }> = [
   { value: 'korean', label: '국어' },
@@ -19,6 +20,10 @@ export function AdminWorkspaceSwitcher({ className }: { className?: string }) {
 
   const handleSelect = (nextSubject: WorkspaceSubject) => {
     if (nextSubject === workspaceSubject) {
+      return
+    }
+    // 과목이 바뀌면 화면이 새로 그려져 저장 안 한 변경이 사라지므로 먼저 확인한다.
+    if (!confirmLeaveIfUnsaved()) {
       return
     }
 

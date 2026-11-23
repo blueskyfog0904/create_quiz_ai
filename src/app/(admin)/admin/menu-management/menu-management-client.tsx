@@ -1,6 +1,7 @@
 'use client'
 
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard'
 import { useRouter } from 'next/navigation'
 import {
   AlertTriangle,
@@ -269,21 +270,35 @@ export default function MenuManagementClient({
   )
   const hasUnsavedAdminSidebarChanges = JSON.stringify(adminSidebarConfig) !== JSON.stringify(savedAdminSidebarConfig)
 
+  // 한쪽을 저장하거나 즉시 반영한 뒤 router.refresh() 로 props 가 새로 와도, 다른 영역의 저장 안 한 변경은 남긴다.
+  // (과목이 바뀌면 page.tsx 의 key 로 화면이 새로 그려지므로 여기서는 같은 과목 안의 새로고침만 다룬다.)
+  const hasUnsavedChangesRef = useRef(hasUnsavedChanges)
+  const hasUnsavedAdminSidebarChangesRef = useRef(hasUnsavedAdminSidebarChanges)
   useEffect(() => {
-    setConfig(cloneConfig(initialConfig))
+    hasUnsavedChangesRef.current = hasUnsavedChanges
+    hasUnsavedAdminSidebarChangesRef.current = hasUnsavedAdminSidebarChanges
+  }, [hasUnsavedChanges, hasUnsavedAdminSidebarChanges])
+
+  useEffect(() => {
     setSavedConfig(cloneConfig(initialConfig))
-    setAdminSidebarConfig(initialAdminSidebarConfig)
+    if (!hasUnsavedChangesRef.current) {
+      setConfig(cloneConfig(initialConfig))
+      setLogoText(initialConfig.logoText)
+    }
+  }, [initialConfig])
+
+  useEffect(() => {
     setSavedAdminSidebarConfig(initialAdminSidebarConfig)
-    setLogoText(initialConfig.logoText)
+    if (!hasUnsavedAdminSidebarChangesRef.current) {
+      setAdminSidebarConfig(initialAdminSidebarConfig)
+    }
+  }, [initialAdminSidebarConfig])
+
+  useEffect(() => {
     setGenerateMenuEntries(initialGenerateMenuEntries)
-    setDialogState(null)
-    setFormState(buildEmptyMenuForm())
-    setIsDialogOpen(false)
-    setIsGenerateEntryDialogOpen(false)
-    setGenerateEntryForm(buildEmptyGenerateEntryForm())
-    setDeleteTarget(null)
-    setArchiveTarget(null)
-  }, [initialConfig, initialAdminSidebarConfig, initialGenerateMenuEntries, workspaceSubject])
+  }, [initialGenerateMenuEntries])
+
+  useUnsavedChangesGuard(hasUnsavedChanges || hasUnsavedAdminSidebarChanges)
 
   const closeDialog = () => {
     setIsDialogOpen(false)
@@ -416,7 +431,7 @@ export default function MenuManagementClient({
           ...item,
           isActive: false,
         } : item))
-        toast.success('시스템 메뉴를 숨김 처리했습니다.')
+        toast.success('목록에서 숨김으로 바꿨습니다. 위의 저장을 눌러야 적용됩니다.')
         setDeleteTarget(null)
         return
       }
@@ -434,7 +449,7 @@ export default function MenuManagementClient({
     })
 
     setDeleteTarget(null)
-    toast.success('메뉴를 삭제했습니다.')
+    toast.success('목록에서 뺐습니다. 위의 저장을 눌러야 적용됩니다.')
   }
 
   const handleSubmitMenu = () => {
@@ -536,7 +551,7 @@ export default function MenuManagementClient({
     }
 
     closeDialog()
-    toast.success(dialogState.mode.startsWith('create') ? '메뉴를 추가했습니다.' : '메뉴를 수정했습니다.')
+    toast.success(dialogState.mode.startsWith('create') ? '목록에 추가했습니다. 위의 저장을 눌러야 적용됩니다.' : '목록에 반영했습니다. 위의 저장을 눌러야 적용됩니다.')
   }
 
   const handleSaveAll = async () => {

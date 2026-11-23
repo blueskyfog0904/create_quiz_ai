@@ -103,7 +103,8 @@ export function MarketCategoryTreeEditor({
   }, [loadTree])
 
   // 실패하면 서버 안내 문구를 그대로 보여 주고 트리를 다시 읽지 않는다(변화 없음).
-  const runMutation = async (savingKey: string, request: () => Promise<Response>, fallbackMessage: string) => {
+  // resetId: 다시 읽을 때 서버 값으로 맞출 칸(기본은 저장한 칸). 이미지·사용 여부만 바꾼 경우는 그 칸의 고친 이름·순서도 남긴다.
+  const runMutation = async (savingKey: string, request: () => Promise<Response>, fallbackMessage: string, resetId: string | null = savingKey) => {
     setSavingId(savingKey)
     try {
       const response = await request()
@@ -111,7 +112,7 @@ export function MarketCategoryTreeEditor({
       if (!response.ok || !result?.success) {
         throw new Error(getErrorMessage(result, fallbackMessage))
       }
-      await loadTree(savingKey)
+      await loadTree(resetId ?? undefined)
       return true
     } catch (error) {
       alert(error instanceof Error ? error.message : fallbackMessage)
@@ -157,7 +158,7 @@ export function MarketCategoryTreeEditor({
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-    }), '칸 저장에 실패했습니다.')
+    }), '칸 저장에 실패했습니다.', payload.title !== undefined || payload.sort_order !== undefined ? nodeId : null)
   )
 
   const deleteNode = (node: AdminCategoryTreeNode) => {

@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
+import { confirmLeaveIfUnsaved } from '@/hooks/use-unsaved-changes-guard'
 import {
   ADMIN_ALERT_POLL_MS,
   ADMIN_ALERT_SAFETY_POLL_MS,
@@ -68,7 +69,8 @@ export function AdminAlertProvider({
 
   const openLink = useCallback((link: string) => {
     // 사이트 안 경로만 연다.
-    if (link.startsWith('/') && !link.startsWith('//') && !link.includes('\\')) {
+    // 저장 안 한 변경이 있는 화면이면 옮기기 전에 확인한다(버튼 이동이라 링크 검사가 잡지 못함).
+    if (link.startsWith('/') && !link.startsWith('//') && !link.includes('\\') && confirmLeaveIfUnsaved()) {
       router.push(link)
     }
   }, [router])

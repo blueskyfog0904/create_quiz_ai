@@ -521,6 +521,24 @@ function buildEmptyBundleForm(): BundleFormState {
   }
 }
 
+function buildBundleFormFromOption(option: MarketItemBundleOption | null): BundleFormState {
+  return option
+    ? {
+      enabled: option.is_active,
+      label: option.label || '전체 한번에 구매하기',
+      description: option.description || '',
+      priceCredits: formatCreditInputValue(option.price_credits),
+    }
+    : buildEmptyBundleForm()
+}
+
+function isSameBundleForm(left: BundleFormState, right: BundleFormState) {
+  return left.enabled === right.enabled
+    && left.label === right.label
+    && left.description === right.description
+    && left.priceCredits === right.priceCredits
+}
+
 function buildEmptyCategorySettingsForm(): CategorySettingsFormState {
   return {
     name: '',
@@ -600,6 +618,8 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
   const [subproducts, setSubproducts] = useState<MarketItemSubproduct[]>([])
   const [subproductFiles, setSubproductFiles] = useState<MarketSubproductFile[]>([])
   const [bundleOption, setBundleOption] = useState<MarketItemBundleOption | null>(null)
+  // 즉시 저장(서브상품·파일) 뒤 서버 값을 다시 읽을 때, 저장 전인 전체구매 입력을 지키려고 마지막 서버 값을 따로 둔다.
+  const bundleOptionRef = useRef<MarketItemBundleOption | null>(null)
   const [subproductDraft, setSubproductDraft] = useState<SubproductDraftState>(buildEmptySubproductDraft())
   // 서브상품이 하나라도 있으면 추가 폼은 [서브상품 추가]를 눌렀을 때만 연다.
   const [isSubproductFormOpen, setIsSubproductFormOpen] = useState(false)
@@ -840,6 +860,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
     setSubproducts([])
     setSubproductFiles([])
     setBundleOption(null)
+    bundleOptionRef.current = null
     setBundleForm(buildEmptyBundleForm())
     setSubproductDraft(buildEmptySubproductDraft(activeSubproductCategories[0]?.id || subproductCategories[0]?.id || ''))
     setIsSubproductFormOpen(false)
@@ -982,18 +1003,18 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
     return payload.data as MarketItemDetailPayload
   }
 
-  const applyItemDetail = (detail: MarketItemDetailPayload) => {
+  // keepBundleDraft: 전체구매는 아래 저장 바로만 저장되므로, 다른 즉시 저장 뒤 다시 읽을 때 고친 입력은 남긴다.
+  const applyItemDetail = (detail: MarketItemDetailPayload, options: { keepBundleDraft?: boolean } = {}) => {
+    const previousServerForm = buildBundleFormFromOption(bundleOptionRef.current)
+    const nextOption = detail.bundleOption || null
+    const nextServerForm = buildBundleFormFromOption(nextOption)
+    bundleOptionRef.current = nextOption
     setSubproducts(detail.subproducts || [])
     setSubproductFiles(detail.subproductFiles || [])
-    setBundleOption(detail.bundleOption || null)
-    setBundleForm(detail.bundleOption
-      ? {
-        enabled: detail.bundleOption.is_active,
-        label: detail.bundleOption.label || '전체 한번에 구매하기',
-        description: detail.bundleOption.description || '',
-        priceCredits: formatCreditInputValue(detail.bundleOption.price_credits),
-      }
-      : buildEmptyBundleForm())
+    setBundleOption(nextOption)
+    setBundleForm((current) => (
+      options.keepBundleDraft && !isSameBundleForm(current, previousServerForm) ? current : nextServerForm
+    ))
   }
 
   const fetchItemSamplePages = async (id: string) => {
@@ -1070,7 +1091,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
 
   const refreshEditingFiles = async (id: string) => {
     const detail = await fetchItemDetail(id)
-    applyItemDetail(detail)
+    applyItemDetail(detail, { keepBundleDraft: true })
   }
 
   const buildRequestBody = (
@@ -1149,7 +1170,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
       setCategoryItemId(getItemCategoryItemId(detail.item))
       setSavedCategoryItemId(getItemCategoryItemId(detail.item))
       setHiddenOverride(detail.item.id, detail.item.status === 'hidden')
-      applyItemDetail(detail)
+      applyItemDetail(detail, { keepBundleDraft: options.draftSource === 'auto_upload' })
       if (sampleDraftToken && options.draftSource !== 'auto_upload') {
         const commitResponse = await fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${detail.item.id}/samples/commit`, workspaceSubject), {
           method: 'POST',
@@ -2721,8 +2742,11 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                   <div>
                     <p className="font-medium text-gray-900">전체 한번에 구매하기</p>
                     <p className="text-sm text-gray-500">옵션을 켜고 금액을 입력하면 등록된 서브상품의 모든 파일을 한 번에 구매할 수 있습니다.</p>
+                    <p className="text-xs text-gray-500">서브상품·파일은 누르는 즉시 저장되고, 전체구매 설정은 아래 저장 버튼을 눌러야 저장됩니다.</p>
                   </div>
-                  {bundleOption ? <Badge variant="outline">저장됨</Badge> : <Badge variant="secondary">미설정</Badge>}
+                  {!isSameBundleForm(bundleForm, buildBundleFormFromOption(bundleOption))
+                    ? <Badge className="border-amber-300 bg-amber-50 text-amber-800" variant="outline">저장 안 됨</Badge>
+                    : bundleOption ? <Badge variant="outline">저장됨</Badge> : <Badge variant="secondary">미설정</Badge>}
                 </div>
                 <div className="flex items-center justify-between rounded-md border px-3 py-2">
                   <div>

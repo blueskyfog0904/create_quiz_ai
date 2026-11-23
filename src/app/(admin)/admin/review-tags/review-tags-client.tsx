@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
@@ -20,8 +20,11 @@ export default function ReviewTagsClient({ workspaceSubject }: { workspaceSubjec
   const [newSortOrder, setNewSortOrder] = useState('')
   const [savingId, setSavingId] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, { label: string; sortOrder: string }>>({})
+  // 다시 읽을 때 다른 행의 저장 안 한 입력을 지키려고 마지막 서버 값을 둔다.
+  const serverTagsRef = useRef<Record<string, ReviewTagRow>>({})
 
-  const loadTags = useCallback(async () => {
+  // resetId: 방금 저장한 행. 그 행과 고치지 않은 행만 서버 값으로 바꾸고, 다른 행의 고친 입력은 남긴다.
+  const loadTags = useCallback(async (resetId?: string) => {
     setIsLoading(true)
     try {
       const response = await fetch(withAdminWorkspaceSubject('/api/admin/review-tags', workspaceSubject))
@@ -30,8 +33,15 @@ export default function ReviewTagsClient({ workspaceSubject }: { workspaceSubjec
         throw new Error(result?.error ?? '태그를 불러오지 못했습니다.')
       }
       const rows: ReviewTagRow[] = result.data
+      const previousServerTags = serverTagsRef.current
+      serverTagsRef.current = Object.fromEntries(rows.map((tag) => [tag.id, tag]))
       setTags(rows)
-      setDrafts(Object.fromEntries(rows.map((tag) => [tag.id, { label: tag.label, sortOrder: String(tag.sortOrder) }])))
+      setDrafts((current) => Object.fromEntries(rows.map((tag) => {
+        const draft = current[tag.id]
+        const previous = previousServerTags[tag.id]
+        const isEdited = draft && previous && (draft.label !== previous.label || draft.sortOrder !== String(previous.sortOrder))
+        return [tag.id, tag.id !== resetId && isEdited ? draft : { label: tag.label, sortOrder: String(tag.sortOrder) }]
+      })))
     } catch (error) {
       alert(error instanceof Error ? error.message : '태그를 불러오지 못했습니다.')
     } finally {
@@ -86,7 +96,8 @@ export default function ReviewTagsClient({ workspaceSubject }: { workspaceSubjec
       if (!response.ok || !result?.success) {
         throw new Error(result?.error ?? '저장에 실패했습니다.')
       }
-      await loadTags()
+      // 사용 여부만 바꾼 경우(문구·순서를 보내지 않음)는 그 행의 고친 입력도 남긴다.
+      await loadTags(payload.label !== undefined || payload.sort_order !== undefined ? tagId : undefined)
     } catch (error) {
       alert(error instanceof Error ? error.message : '저장에 실패했습니다.')
     } finally {

@@ -225,7 +225,10 @@ test('review fixes: group update has no image column, drafts merge, preview foll
   assert.doesNotMatch(categoriesServer, /updateCategoryGroup|market_category_groups/)
 
   assert.match(categoriesClient, /const loadTree = useCallback\(async \(resetId\?: string\) =>/)
-  assert.match(categoriesClient, /await loadTree\(savingKey\)/)
+  // 저장한 칸을 다시 맞추되(기본값 savingKey), 이미지·사용 여부만 바꾼 경우(null)는 그 칸의 고친 이름·순서도 남긴다.
+  assert.match(categoriesClient, /resetId: string \| null = savingKey\) =>/)
+  assert.match(categoriesClient, /await loadTree\(resetId \?\? undefined\)/)
+  assert.match(categoriesClient, /payload\.title !== undefined \|\| payload\.sort_order !== undefined \? nodeId : null/)
   assert.match(categoriesClient, /isDirty && row\.id !== resetId \? draft : \{ title: row\.title, sortOrder: String\(row\.sortOrder\) \}/)
 
   assert.match(productsClient, /initialItems: MarketItemForAdmin\[\]/)

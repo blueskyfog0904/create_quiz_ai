@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ADMIN_PASSWORD_MIN_LENGTH } from '@/lib/admin-accounts-shared'
 import { AdminPermissionsDialog, type AdminPermissionPreset } from './admin-permissions-dialog'
@@ -32,8 +33,12 @@ export default function AdminAccountsClient() {
   const [isLoading, setIsLoading] = useState(true)
   const [newLoginId, setNewLoginId] = useState('')
   const [newPassword, setNewPassword] = useState('')
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('')
   const [savingId, setSavingId] = useState<string | null>(null)
-  const [passwordDrafts, setPasswordDrafts] = useState<Record<string, string>>({})
+  // 비밀번호 재설정은 작은 창에서 새 비밀번호를 두 번 입력해 오타로 계정이 잠기지 않게 한다.
+  const [passwordTarget, setPasswordTarget] = useState<AdminAccountRow | null>(null)
+  const [resetPasswordValue, setResetPasswordValue] = useState('')
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState('')
   const [presets, setPresets] = useState<AdminPermissionPreset[]>([])
   const [editingAccount, setEditingAccount] = useState<AdminAccountRow | null>(null)
 
@@ -49,7 +54,6 @@ export default function AdminAccountsClient() {
       setAccounts(rows)
       setSelfUserId(result.selfUserId ?? null)
       setPresets(Array.isArray(result.presets) ? result.presets : [])
-      setPasswordDrafts({})
     } catch (error) {
       alert(error instanceof Error ? error.message : '관리자 목록을 불러오지 못했습니다.')
     } finally {
@@ -67,6 +71,10 @@ export default function AdminAccountsClient() {
       alert('아이디와 비밀번호를 모두 입력하세요.')
       return
     }
+    if (newPassword !== newPasswordConfirm) {
+      alert('비밀번호 확인이 일치하지 않습니다.')
+      return
+    }
     setSavingId('new')
     try {
       const response = await fetch('/api/admin/admin-accounts', {
@@ -80,6 +88,7 @@ export default function AdminAccountsClient() {
       }
       setNewLoginId('')
       setNewPassword('')
+      setNewPasswordConfirm('')
       await loadAccounts()
     } catch (error) {
       alert(error instanceof Error ? error.message : '관리자 ID 생성에 실패했습니다.')
@@ -100,7 +109,7 @@ export default function AdminAccountsClient() {
       if (!response.ok || !result?.success) {
         throw new Error(result?.error ?? '저장에 실패했습니다.')
       }
-      setPasswordDrafts((current) => ({ ...current, [userId]: '' }))
+      closePasswordDialog()
       alert('비밀번호를 변경했습니다.')
       await loadAccounts()
     } catch (error) {
@@ -151,13 +160,29 @@ export default function AdminAccountsClient() {
     }
   }
 
-  const resetPassword = (account: AdminAccountRow) => {
-    const draft = passwordDrafts[account.userId] ?? ''
-    if (draft.length < ADMIN_PASSWORD_MIN_LENGTH) {
+  const openPasswordDialog = (account: AdminAccountRow) => {
+    setPasswordTarget(account)
+    setResetPasswordValue('')
+    setResetPasswordConfirm('')
+  }
+
+  function closePasswordDialog() {
+    setPasswordTarget(null)
+    setResetPasswordValue('')
+    setResetPasswordConfirm('')
+  }
+
+  const resetPassword = () => {
+    if (!passwordTarget) return
+    if (resetPasswordValue.length < ADMIN_PASSWORD_MIN_LENGTH) {
       alert(`비밀번호는 ${ADMIN_PASSWORD_MIN_LENGTH}자 이상이어야 합니다.`)
       return
     }
-    void patchAccount(account.userId, { password: draft })
+    if (resetPasswordValue !== resetPasswordConfirm) {
+      alert('비밀번호 확인이 일치하지 않습니다.')
+      return
+    }
+    void patchAccount(passwordTarget.userId, { password: resetPasswordValue })
   }
 
   return (
@@ -179,6 +204,15 @@ export default function AdminAccountsClient() {
             placeholder={`비밀번호 (${ADMIN_PASSWORD_MIN_LENGTH}자 이상)`}
             className="w-56 max-w-full"
             autoComplete="new-password"
+          />
+          <Input
+            type="password"
+            value={newPasswordConfirm}
+            onChange={(event) => setNewPasswordConfirm(event.target.value)}
+            placeholder="비밀번호 확인"
+            className="w-56 max-w-full"
+            autoComplete="new-password"
+            aria-invalid={newPasswordConfirm.length > 0 && newPasswordConfirm !== newPassword}
           />
           <Button type="button" disabled={savingId === 'new'} onClick={() => void createAccount()}>
             {savingId === 'new' ? '추가 중…' : '관리자 ID 추가'}
@@ -240,23 +274,12 @@ export default function AdminAccountsClient() {
                     <td className="px-4 py-2 text-muted-foreground">{formatDate(account.lastSignInAt)}</td>
                     <td className="px-4 py-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Input
-                          type="password"
-                          value={passwordDrafts[account.userId] ?? ''}
-                          onChange={(event) => setPasswordDrafts((current) => ({
-                            ...current,
-                            [account.userId]: event.target.value,
-                          }))}
-                          placeholder="새 비밀번호"
-                          className="w-36"
-                          autoComplete="new-password"
-                        />
                         <Button
                           type="button"
                           size="sm"
                           variant="adminAction"
-                          disabled={savingId === account.userId || (passwordDrafts[account.userId] ?? '').length < ADMIN_PASSWORD_MIN_LENGTH}
-                          onClick={() => resetPassword(account)}
+                          disabled={savingId === account.userId}
+                          onClick={() => openPasswordDialog(account)}
                         >
                           비밀번호 재설정
                         </Button>
@@ -312,6 +335,53 @@ export default function AdminAccountsClient() {
           }}
         />
       )}
+
+      <Dialog open={passwordTarget !== null} onOpenChange={(open) => { if (!open && savingId !== passwordTarget?.userId) closePasswordDialog() }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>비밀번호 재설정</DialogTitle>
+            <DialogDescription>
+              &apos;{passwordTarget?.loginId}&apos; 계정의 비밀번호를 바꿉니다. 바꾸면 그 계정은 새 비밀번호로만 로그인할 수 있습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              type="password"
+              value={resetPasswordValue}
+              onChange={(event) => setResetPasswordValue(event.target.value)}
+              placeholder={`새 비밀번호 (${ADMIN_PASSWORD_MIN_LENGTH}자 이상)`}
+              autoComplete="new-password"
+            />
+            <Input
+              type="password"
+              value={resetPasswordConfirm}
+              onChange={(event) => setResetPasswordConfirm(event.target.value)}
+              placeholder="새 비밀번호 확인"
+              autoComplete="new-password"
+              aria-invalid={resetPasswordConfirm.length > 0 && resetPasswordConfirm !== resetPasswordValue}
+            />
+            {resetPasswordConfirm.length > 0 && resetPasswordConfirm !== resetPasswordValue ? (
+              <p className="text-sm text-destructive">비밀번호 확인이 일치하지 않습니다.</p>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={savingId === passwordTarget?.userId} onClick={closePasswordDialog}>
+              취소
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                savingId === passwordTarget?.userId
+                || resetPasswordValue.length < ADMIN_PASSWORD_MIN_LENGTH
+                || resetPasswordValue !== resetPasswordConfirm
+              }
+              onClick={resetPassword}
+            >
+              {savingId === passwordTarget?.userId ? '변경 중…' : '비밀번호 재설정'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
