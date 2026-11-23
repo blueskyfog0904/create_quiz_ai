@@ -24,18 +24,12 @@ const failRoute = read(
 const statusRoute = read('../src/app/api/payments/kakaopay/status/route.ts')
 const resultPage = read('../src/app/checkout/kakaopay/result/page.tsx')
 
-test('Kakao ready route is authenticated, server-priced and attempt-idempotent', () => {
-  assert.match(orderRoute, /auth\.getUser\(\)/)
-  assert.match(orderRoute, /checkoutAttemptId/)
-  assert.match(orderRoute, /\.from\('pricing_plans'\)/)
-  assert.match(orderRoute, /prepare_payment_order/)
-  assert.match(orderRoute, /p_provider:\s*'kakaopay'/)
-  assert.match(orderRoute, /begin_kakaopay_ready/)
-  assert.match(orderRoute, /store_kakaopay_ready/)
-  assert.match(orderRoute, /readyKakaoPayPayment/)
-  assert.match(orderRoute, /payment_method_type|MONEY/)
-  assert.match(orderRoute, /PAYMENT_ATTEMPT_PAYLOAD_CONFLICT/)
-  assert.doesNotMatch(orderRoute, /amount:\s*(?:body|parsed\.data)\./)
+test('Kakao ready route is retired: it answers 503 and never prepares an order', () => {
+  // 9번 묶음: 카카오페이 결제 종료. 이미 만든 주문의 콜백·상태 조회는 아래 시험대로 남는다.
+  assert.match(orderRoute, /code: 'PAYMENT_PROVIDER_RETIRED'/)
+  assert.match(orderRoute, /\{ status: 503 \}/)
+  assert.doesNotMatch(orderRoute, /prepare_payment_order|begin_kakaopay_ready|store_kakaopay_ready|readyKakaoPayPayment/)
+  assert.doesNotMatch(orderRoute, /request\.json\(\)/)
 })
 
 test('database owns one ready claim and stores only callback/result hashes', () => {

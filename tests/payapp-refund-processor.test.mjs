@@ -20,6 +20,12 @@ function loadModule(path, modules) {
   return loaded.exports
 }
 
+// 9번: 환불 서버 모듈이 충전 정책 모듈(문구 채움·경보)을 불러온다. 여기서는 오류 코드·문구만 본다.
+const refundsServerPolicyStubs = {
+  '@/lib/point-charge-policy': { fillPointChargeRefundDays: (text, days) => text.split('{충전환불기간}').join(String(days)) },
+  '@/lib/point-charge-policy-server': { recordPointChargePolicyUnavailableAlert: async () => {} },
+}
+
 class PayAppError extends Error {
   constructor(code, outcome, providerMessage = null) {
     super('페이앱 요청을 처리하지 못했습니다.')
@@ -264,6 +270,7 @@ test('a definite KakaoPay cancel failure re-reads the order and quarantines a pa
 test('refund RPC errors keep their database code alongside the friendly message', async () => {
   const responses = []
   const refunds = loadModule('../src/lib/point-charge-refunds-server.ts', {
+    ...refundsServerPolicyStubs,
     '@/lib/payment-orders-server': {
       createPaymentAdminClient: () => ({ rpc: async () => responses.shift() }),
     },
@@ -363,6 +370,7 @@ test('KakaoPay quarantine helpers never mask the original refund error', async (
 test('refund RPC errors that are not business errors are retryable', async () => {
   const responses = []
   const refunds = loadModule('../src/lib/point-charge-refunds-server.ts', {
+    ...refundsServerPolicyStubs,
     '@/lib/payment-orders-server': {
       createPaymentAdminClient: () => ({ rpc: async () => responses.shift() }),
     },

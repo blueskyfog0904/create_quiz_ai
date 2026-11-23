@@ -115,8 +115,10 @@ test('충전 화면은 설정 문구를 정책 값으로 채워 그리고, 환�
   assert.match(page, /const content = await getPricingPageContent\(\)/)
   assert.match(page, /'\{최대보너스\}': String\(maxBonusPercent\)/)
   assert.match(page, /maxBonusPercent > 0 \? content\.banner_title : content\.banner_title_no_bonus/)
-  assert.match(page, /content\.refund_items\.map/)
-  assert.match(page, /content\.notice_items\.map/)
+  // 9번: {환불기간} 이 든 줄은 충전 정책 설정을 못 읽으면 걸러 낸 뒤 그린다.
+  assert.match(page, /const refundItems = content \? content\.refund_items\.filter\(shows\) : \[\]/)
+  assert.match(page, /refundItems\.map/)
+  assert.match(page, /noticeItems\.map/)
   assert.doesNotMatch(page, /<details|<summary/)
   assert.doesNotMatch(page + client, /자세히 보기/)
   // 문구는 코드에 두지 않는다
@@ -126,7 +128,7 @@ test('충전 화면은 설정 문구를 정책 값으로 채워 그리고, 환�
   assert.match(client, /\{copy && \(/)
   // 문구 목록은 문구가 있을 때만, 약관·내역 링크는 문구가 없어도 보인다(문구 블록 뒤)
   assert.match(page, /\{content && \(\s+<>/)
-  assert.ok(page.indexOf('content.refund_items.map') < page.indexOf('href="/terms/refund"'))
+  assert.ok(page.indexOf('refundItems.map') < page.indexOf('href="/terms/refund"'))
   assert.ok(page.indexOf('href="/terms/refund"') < page.indexOf('</section>'))
 })
 

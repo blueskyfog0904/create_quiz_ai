@@ -1,6 +1,8 @@
 import 'server-only'
 
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
+import { fillPointChargeRefundDays, type PointChargePolicy } from '@/lib/point-charge-policy'
+import { recordPointChargePolicyUnavailableAlert } from '@/lib/point-charge-policy-server'
 import type { Database, Json } from '@/types/supabase'
 
 type RefundRpcName =
@@ -54,12 +56,21 @@ interface RefundEligibilityResult {
   allowed: boolean
   reason_code: string | null
   refundable_until: string | null
+  // 9번: 설정을 못 읽어 법정 기간으로 대체 판정했는지, 판정에 쓴 일수(결제·지급 뒤 판정에서만 온다).
+  policy_fallback?: boolean
+  refund_days?: number
 }
 
 export interface PointChargeRefundEligibility {
   allowed: boolean
+  reasonCode: string | null
+  // 코드에 둔 일반 문구(기간 숫자 없음). 화면은 DB 문구(resolvePointChargeRefundBlockReason)를 먼저 쓴다.
   reason: string | null
+  // 마감은 DB 판정 값 그대로(코드에서 계산하지 않는다).
   refundableUntil: string | null
+  policyFallback: boolean
+  // 판정에 쓴 일수(설정·동의 일수 중 긴 것, 대체 판정이면 법정 값). 불가 사유 문구는 이 값으로 채운다.
+  refundDays: number | null
 }
 
 export interface ClaimedPointChargeRefund {
@@ -118,7 +129,9 @@ const knownRefundRpcMessages: Record<string, string> = {
     REFUND_SOURCE_NOT_ACTIVE: '이미 환불 처리 중이거나 완료된 구매건입니다.',
     REFUND_CREDITS_ALREADY_USED: '이미 사용한 크레딧이 있어 환불할 수 없습니다.',
     REFUND_SOURCE_EXPIRED: '사용기한이 만료된 크레딧은 환불할 수 없습니다.',
-    REFUND_REQUEST_PERIOD_EXPIRED: '구매 후 7일이 지나 환불을 요청할 수 없습니다.',
+    REFUND_REQUEST_PERIOD_EXPIRED: '환불 신청 기간이 지나 환불을 신청할 수 없습니다.',
+    REFUND_REISSUED_SOURCE: '자료 환불로 다시 받은 크레딧은 단순 변심 결제 취소 대상이 아닙니다(미성년자 결제 취소·서비스 종료는 취소·환불정책 7·8절).',
+    REFUND_POLICY_UNAVAILABLE: '지금은 환불 가능 여부를 확인할 수 없습니다. 잠시 후 다시 시도하거나 고객센터로 알려 주세요.',
     REFUND_REQUEST_NOT_CLAIMABLE: '다른 관리자가 처리 중이거나 완료된 요청입니다.',
     REFUND_REQUEST_REVALIDATION_FAILED: '환불 조건이 변경되어 다시 확인해야 합니다.',
     REFUND_REQUEST_NOT_REJECTABLE: '현재 거절할 수 없는 환불 요청입니다.',
@@ -129,7 +142,7 @@ const knownRefundRpcMessages: Record<string, string> = {
     MANUAL_REFUND_INPUT_INVALID: '처리 메모, 외부 처리 방식, 실제 환불 금액을 확인해 주세요.',
     MANUAL_REFUND_NOT_ALLOWED: '수동 확인 중인 환불 요청만 수동 완료할 수 있습니다.',
     MANUAL_REFUND_REVALIDATION_FAILED: '환불 상태가 바뀌었거나 환불액이 결제 금액을 넘습니다. 새로고침 후 다시 확인해 주세요.',
-    MANUAL_REFUND_RECOVERY_INVALID: '부분취소 건은 회수할 크레딧(0 이상 남은 크레딧 이하)이 필요하고, 그 밖의 건은 남은 크레딧을 모두 회수합니다.',
+    MANUAL_REFUND_RECOVERY_INVALID: '회수할 크레딧이 지금 상태와 맞지 않습니다. 새로고침한 뒤 다시 확인해 주세요(부분취소 건은 0 이상 쓸 수 있는 크레딧 이하, 그 밖의 건은 쓸 수 있는 크레딧 전부).',
 }
 
 function getKnownRefundRpcCode(error: RefundRpcErrorInput) {
@@ -154,7 +167,47 @@ const refundBlockReasons: Record<string, string> = {
   REFUND_SOURCE_NOT_ACTIVE: '환불 처리 중이거나 완료된 구매건입니다.',
   REFUND_CREDITS_ALREADY_USED: '이미 사용한 크레딧이 있습니다.',
   REFUND_SOURCE_EXPIRED: '사용기한이 만료되었습니다.',
-  REFUND_REQUEST_PERIOD_EXPIRED: '구매 후 7일이 지났습니다.',
+  REFUND_REQUEST_PERIOD_EXPIRED: '환불 신청 기간이 지났습니다.',
+  REFUND_REISSUED_SOURCE: '자료 환불로 다시 받은 크레딧은 단순 변심 결제 취소 대상이 아닙니다(미성년자 결제 취소·서비스 종료는 취소·환불정책 7·8절).',
+  REFUND_POLICY_UNAVAILABLE: '지금은 환불 가능 여부를 확인할 수 없습니다.',
+}
+
+// 회원에게 보일 환불 불가 사유: DB 문구(refundBlockReasons, {충전환불기간} 채움)를 먼저, 없으면 코드의 일반 문구.
+export function resolvePointChargeRefundBlockReason(
+  code: string | null,
+  policy: PointChargePolicy | null,
+  refundDays?: number | null
+): string | null {
+  if (!code) return null
+  const dbText = policy?.refundBlockReasons[code]
+  if (dbText) return fillPointChargeRefundDays(dbText, refundDays ?? policy.refundDays)
+  return refundBlockReasons[code] ?? knownRefundRpcMessages[code] ?? '환불 조건을 확인할 수 없습니다.'
+}
+
+// 판정이 법정 기간으로 대체됐을 때(policy_fallback) 경보(최선 노력). 주문별로 쌓이게 payment_order_id 를 넣는다.
+export async function reportPointChargePolicyFallback(input: {
+  userId: string
+  sourceId: string
+  paymentOrderId?: string | null
+  screen: string
+}): Promise<void> {
+  let paymentOrderId = input.paymentOrderId ?? null
+  if (!paymentOrderId) {
+    try {
+      const { data } = await createPaymentAdminClient().from('credit_sources')
+        .select('payment_order_id').eq('id', input.sourceId).eq('user_id', input.userId).maybeSingle()
+      paymentOrderId = data?.payment_order_id ?? null
+    } catch {
+      // 주문을 못 찾아도 경보는 남긴다.
+    }
+  }
+  await recordPointChargePolicyUnavailableAlert({
+    payment_order_id: paymentOrderId,
+    user_id: input.userId,
+    source_id: input.sourceId,
+    screen: input.screen,
+    ...(paymentOrderId ? {} : { dedupe_key: `point_charge_policy:source:${input.sourceId}` }),
+  })
 }
 
 export async function getPointChargeRefundEligibility(input: {
@@ -171,11 +224,11 @@ export async function getPointChargeRefundEligibility(input: {
 
   return {
     allowed: result.allowed,
-    reason: result.reason_code
-      ? refundBlockReasons[result.reason_code] ??
-        '환불 조건을 확인할 수 없습니다.'
-      : null,
+    reasonCode: result.reason_code,
+    reason: resolvePointChargeRefundBlockReason(result.reason_code, null),
     refundableUntil: result.refundable_until,
+    policyFallback: result.policy_fallback === true,
+    refundDays: typeof result.refund_days === 'number' ? result.refund_days : null,
   }
 }
 

@@ -19,7 +19,12 @@ const pricingContentSeed = readFileSync(
 )
 
 test('pricing page refund summary highlights current credit refund rules', () => {
-  assert.match(pricingPageSource, /'\{환불기간\}': String\(POINT_CHARGE_REFUND_DAYS\)/)
+  // {환불기간} 은 DB 충전 정책(point_charge_policy.refundDays) 값이고, 읽지 못하면 그 자리표시가 든 줄을 그리지 않는다.
+  assert.match(pricingPageSource, /const pointChargePolicy = await getPointChargePolicyCached\(\)/)
+  assert.match(pricingPageSource, /'\{환불기간\}': refundDaysText \?\? '\{환불기간\}'/)
+  assert.match(pricingPageSource, /const shows = \(text: string\) => refundDaysText !== null \|\| !text\.includes\('\{환불기간\}'\)/)
+  assert.match(pricingPageSource, /content\.refund_items\.filter\(shows\)/)
+  assert.doesNotMatch(pricingPageSource, /POINT_CHARGE_REFUND_DAYS/)
   assert.match(pricingPageSource, /'\{사용기한\}': String\(POINT_CHARGE_VALIDITY_YEARS\)/)
   assert.match(pricingContentSeed, /\{환불기간\}일/)
   assert.match(pricingContentSeed, /\{사용기한\}년/)

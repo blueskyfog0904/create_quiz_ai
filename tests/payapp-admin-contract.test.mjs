@@ -15,7 +15,8 @@ test('manual refund completion requires a note, an external method and the actua
   assert.match(refundsRoute, /action: z\.enum\(\['approve', 'reject', 'complete_manual'\]\)/)
   assert.match(refundsRoute, /externalMethod: z\.enum\(\['payapp_cancel_request', 'bank_transfer', 'provider_admin_cancel'\]\)/)
   assert.match(refundsRoute, /refundAmount: z\.number\(\)\.int\(\)\.min\(1\)\.max\(100_000\)/)
-  assert.match(refundsRoute, /if \(!input\.adminNote \|\| !input\.externalMethod \|\| !input\.refundAmount\)/)
+  // 9번: 회수 크레딧도 필수(빠지면 DB 가 전량 회수하므로 받지 않는다).
+  assert.match(refundsRoute, /if \(!input\.adminNote \|\| !input\.externalMethod \|\| !input\.refundAmount \|\| input\.recoveredCredits === undefined\)/)
   assert.match(refundsRoute, /completeManualPointChargeRefund\(/)
   // 이미 완료된 요청을 다시 완료해도 알림을 또 보내지 않는다.
   assert.match(refundsRoute, /if \(result\?\.user_id && !result\.already_completed\)/)
@@ -36,8 +37,11 @@ test('the admin refund list offers manual completion and confirmed rejection for
   // 수동 확인 환불 거절은 미취소 확인과 메모가 모두 있어야 버튼이 켜진다.
   assert.match(refundsClient, /\(providerNotCancelledConfirmed && adminNote\.trim\(\)\.length > 0\)/)
   assert.match(refundsClient, /페이앱 관리자에서 취소 요청\(정산금 반환\) 또는 고객 계좌 송금을 마친 뒤 완료 처리하세요/)
-  // 부분취소 건은 회수량이 필수이고 환불액을 미리 채우지 않는다. 그 밖의 건은 회수량을 보내지 않는다.
-  assert.match(refundsClient, /\.\.\.\(selectedRequiresRecovery\s*\? \{ recoveredCredits: Number\(recoveredCredits\) \}\s*: \{\}\)/)
+  // 9번: 부분취소 건은 회수량이 필수이고 환불액을 미리 채우지 않는다. 전액 건도 미리보기의 쓸 수 있는 몫 합을 회수량으로 보낸다
+  // (API 는 다시 계산하지 않고 넘기고, 그사이 바뀌면 DB 가 MANUAL_REFUND_RECOVERY_INVALID 로 거절).
+  assert.match(refundsClient, /recoveredCredits: selectedRequiresRecovery \? Number\(recoveredCredits\) : remainingCredits,/)
+  assert.match(refundsClient, /const remainingCredits = manualPreview \? manualPreview\.usable_total :/)
+  assert.match(refundsClient, /manualPreview\.mode === 'partial'/)
   assert.match(refundsClient, /!requiresRecovery\(request\) && request\.refund_amount/)
   assert.match(refundsClient, /isWholeNumberBetween\(refundAmount, 1, maxRefundAmount\)/)
   assert.match(refundsPage, /partial_cancel_feedback_recorded_at/)

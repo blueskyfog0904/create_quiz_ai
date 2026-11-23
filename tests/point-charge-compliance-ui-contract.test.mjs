@@ -12,6 +12,8 @@ const pricingClient = read('../src/app/pricing/pricing-client.tsx')
 // 충전 화면 안내 문구의 처음 값(관리자 요금제 화면에서 고침)
 const pricingContentSeed = read('../supabase/migrations/20261119100000_pricing_page_content.sql')
 const checkout = read('../src/app/checkout/checkout-client.tsx')
+// 9번: 결제 전 확인 문구는 DB 설정(point_charge_policy)이고, 처음 값은 이 마이그레이션이 넣는다.
+const pointChargePolicySeed = read('../supabase/migrations/20261125100000_point_charge_policy.sql')
 const creditsPage = read(
   '../src/app/(solvook)/mypage/credits/_components/credits-view.tsx'
 )
@@ -49,9 +51,13 @@ test('pricing explains the one-time charge limit and real usage paths', () => {
 })
 
 test('checkout shows the restrictions before payment', () => {
-  assert.match(checkout, /자동결제 없음/)
-  assert.match(checkout, /결제일로부터 \{POINT_CHARGE_VALIDITY_YEARS\}년/)
-  assert.match(checkout, /양도/)
+  // 제한 사항은 DB 결제 전 확인 문구로 보여 주고(코드에 적지 않음), 처음 값에 한 번 결제·1년·양도 불가가 있다.
+  assert.match(checkout, /POINT_CHARGE_CHECKOUT_ITEM_KEYS\.map/)
+  assert.match(checkout, /notice\.checkoutItems\[key\]/)
+  assert.doesNotMatch(checkout, /자동결제 없음|POINT_CHARGE_VALIDITY_YEARS/)
+  assert.match(pointChargePolicySeed, /자동결제 없이 한 번만 결제되는 충전 상품/)
+  assert.match(pointChargePolicySeed, /결제한 때부터 1년 동안 쓸 수 있고/)
+  assert.match(pointChargePolicySeed, /다른 회원에게 넘길 수 없습니다/)
   assert.match(checkout, /method\.description/)
   assert.match(checkout, /문제마켓/)
   assert.doesNotMatch(checkout, /AI 문제 생성·문제은행/)
@@ -59,19 +65,18 @@ test('checkout shows the restrictions before payment', () => {
 })
 
 test('terms include the requested sentence and operational paths', () => {
-  assert.match(
-    footerContent,
-    /충전된 포인트의 이용기간과 환불가능기간은 결제시점으로부터 1년 이내로 제한됩니다\./
-  )
+  // 9번: '1년 이내로 제한' 문장은 실제 규칙(결제한 때부터 1년 이용·결제일 다음 날부터 환불 기간)으로 바뀌었다.
+  assert.doesNotMatch(footerContent, /환불가능기간은 결제시점으로부터 1년 이내로 제한됩니다/)
+  assert.match(footerContent, /충전한 크레딧은 결제한 때부터 1년 동안 쓸 수 있고/)
   assert.match(footerContent, /1회[^\n]*100,000원/)
   assert.match(footerContent, /충전 경로/)
   assert.match(footerContent, /사용 경로/)
   assert.match(footerContent, /문제마켓/)
   assert.match(policyMigration, /site_footer_content/)
   assert.match(policyMigration, /jsonb_set/)
-  assert.match(termsPage, /REQUIRED_POINT_CHARGE_POLICY_SENTENCE/)
-  assert.match(termsPage, /document\.content\.includes/)
-  assert.match(termsPage, /포인트 충전 핵심 안내/)
+  // 9번: 약관 화면은 DB 약관 본문만 보여 준다(코드에 박은 대체 섹션 없음).
+  assert.doesNotMatch(termsPage, /REQUIRED_POINT_CHARGE_POLICY_SENTENCE|포인트 충전 핵심 안내|point-charge-policy/)
+  assert.match(termsPage, /<PolicyDocumentContent content=\{document\.content\}/)
 })
 
 test('mypage exposes server refund cutoff and navigable paths', () => {

@@ -22,6 +22,12 @@ import {
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/types/supabase'
 import { checkMemberConsentForApi, consentBlockResponse } from '@/lib/consent-guard-server'
+import type { PointChargeCheckoutNotice } from '@/lib/point-charge-policy'
+import {
+  readPointChargePolicyUncached,
+  recordPointChargeCheckoutAck,
+  toPointChargeCheckoutNotice,
+} from '@/lib/point-charge-policy-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +42,11 @@ const preparePayAppOrderSchema = z.object({
   paymentMethodCode: z.string().regex(/^[a-z_]{1,40}$/),
   phone: z.string().trim().max(20),
   savePhone: z.boolean().optional(),
+  // 9번: 결제 전 확인 동의(화면이 본 문구의 지문)와 화면이 본 금액·크레딧.
+  acknowledgeCheckoutNotice: z.literal(true),
+  noticeSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  expectedAmount: z.number().int(),
+  expectedCredits: z.number().int(),
 }).strict()
 
 function createPublicOrderId() {
@@ -65,6 +76,31 @@ function attemptExpiredResponse() {
       code: 'PAYMENT_ATTEMPT_EXPIRED',
     },
     { status: 409 }
+  )
+}
+
+// 결제 전 확인 문구나 상품 금액이 화면과 달라 동의를 다시 받아야 한다. 새 문구(캐시 없이 다시 읽은 값)와 지금 상품 값을 싣는다.
+async function checkoutChangedResponse(
+  code: 'CHECKOUT_NOTICE_CHANGED' | 'CHECKOUT_PLAN_CHANGED',
+  error: string,
+  notice: PointChargeCheckoutNotice | null,
+  plan: { price: number; credits: number }
+) {
+  let freshNotice = notice
+  if (!freshNotice) {
+    const policy = await readPointChargePolicyUncached()
+    freshNotice = policy ? toPointChargeCheckoutNotice(policy) : null
+  }
+  return NextResponse.json({ error, code, notice: freshNotice, plan }, { status: 409 })
+}
+
+function checkoutNoticeUnavailableResponse() {
+  return NextResponse.json(
+    {
+      error: '결제 전 확인 내용을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+      code: 'CHECKOUT_NOTICE_UNAVAILABLE',
+    },
+    { status: 503 }
   )
 }
 
@@ -131,9 +167,23 @@ export async function POST(request: Request) {
     return consentBlockResponse(consentBlock, 'plain')
   }
 
-  const parsed = preparePayAppOrderSchema.safeParse(
-    await request.json().catch(() => null)
-  )
+  const requestBody: unknown = await request.json().catch(() => null)
+  // 결제 전 확인 동의가 없는 요청(옛 결제 화면)은 본문 검사보다 먼저 막는다.
+  if (
+    !requestBody ||
+    typeof requestBody !== 'object' ||
+    (requestBody as Record<string, unknown>).acknowledgeCheckoutNotice !== true
+  ) {
+    return NextResponse.json(
+      {
+        error: '결제 화면이 바뀌었습니다. 새로고침한 뒤 결제 전 확인을 다시 읽고 동의해 주세요.',
+        code: 'CHECKOUT_NOTICE_REQUIRED',
+      },
+      { status: 400 }
+    )
+  }
+
+  const parsed = preparePayAppOrderSchema.safeParse(requestBody)
   if (!parsed.success) {
     return NextResponse.json(
       { error: '유효한 충전 상품과 결제수단을 선택해 주세요.' },
@@ -217,6 +267,54 @@ export async function POST(request: Request) {
         },
         { status: 503 }
       )
+    }
+
+    // 결제 전 확인 동의 기록. 이 결제 시도에 이미 주문이 있으면(같은 시도 재요청) 기록하지 않고 기존 주문 응답으로 간다.
+    const { data: attemptRow, error: attemptError } = await admin
+      .from('checkout_attempts')
+      .select('payment_order_id')
+      .eq('user_id', user.id)
+      .eq('checkout_attempt_id', parsed.data.checkoutAttemptId)
+      .maybeSingle()
+    if (attemptError) {
+      console.error('[PayAppOrder] Failed to read checkout attempt', { errorCode: attemptError.code })
+      return checkoutNoticeUnavailableResponse()
+    }
+
+    if (!attemptRow?.payment_order_id) {
+      const ack = await recordPointChargeCheckoutAck({
+        userId: user.id,
+        checkoutAttemptId: parsed.data.checkoutAttemptId,
+        planId: plan.id,
+        expectedAmount: parsed.data.expectedAmount,
+        expectedCredits: parsed.data.expectedCredits,
+        noticeSha256: parsed.data.noticeSha256,
+      })
+      switch (ack.status) {
+        case 'ok':
+          break
+        case 'notice_changed':
+          return checkoutChangedResponse(
+            'CHECKOUT_NOTICE_CHANGED',
+            '결제 전 확인 내용이 바뀌었습니다. 바뀐 내용을 확인한 뒤 다시 동의해 주세요.',
+            ack.notice,
+            { price: plan.price, credits: plan.credits }
+          )
+        case 'plan_changed':
+          return checkoutChangedResponse(
+            'CHECKOUT_PLAN_CHANGED',
+            '충전 상품의 금액 또는 크레딧이 바뀌었습니다. 바뀐 내용을 확인한 뒤 다시 동의해 주세요.',
+            ack.notice,
+            ack.plan ?? { price: plan.price, credits: plan.credits }
+          )
+        case 'plan_unavailable':
+          return NextResponse.json(
+            { error: '판매 중인 충전 상품을 찾을 수 없습니다.' },
+            { status: 404 }
+          )
+        default:
+          return checkoutNoticeUnavailableResponse()
+      }
     }
 
     const taxFreeAmount = 0
@@ -317,6 +415,27 @@ export async function POST(request: Request) {
 
     // 이번 요청이 만든 주문이 아니면 같은 결제 시도의 기존 주문이다.
     if (preparedOrder.order_id !== orderId || preparedOrder.status !== 'preparing') {
+      // 결제창을 다시 쓰려는데 이 시도의 결제 전 확인 동의 기록이 없으면(9번 이전 화면이 만든 주문) 새 시도로 동의를 받는다.
+      if (classifyExistingPayAppOrder(preparedOrder.status, preparedOrder.ready_expires_at, Date.now()) === 'reuse_payurl') {
+        const { data: ackRow, error: ackError } = await admin
+          .from('point_charge_checkout_acks')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('checkout_attempt_id', parsed.data.checkoutAttemptId)
+          .maybeSingle()
+        if (ackError) {
+          console.error('[PayAppOrder] Failed to read checkout notice ack', { errorCode: ackError.code })
+          return checkoutNoticeUnavailableResponse()
+        }
+        if (!ackRow) {
+          return checkoutChangedResponse(
+            'CHECKOUT_NOTICE_CHANGED',
+            '결제 화면이 바뀌었습니다. 이전에 연 결제창은 닫아 주세요. 결제 전 확인을 다시 읽고 동의한 뒤 결제해 주세요.',
+            null,
+            { price: plan.price, credits: plan.credits }
+          )
+        }
+      }
       return existingOrderResponse(admin, preparedOrder)
     }
 

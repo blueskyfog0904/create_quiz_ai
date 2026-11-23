@@ -8,6 +8,7 @@ import {
 } from '@/lib/point-charge-refund-processor'
 import {
   completeManualPointChargeRefund,
+  RefundRpcError,
   rejectPointChargeRefund,
 } from '@/lib/point-charge-refunds-server'
 
@@ -131,9 +132,10 @@ export async function PATCH(request: Request) {
   const input = parsed.data
   // 결제사 관리자 취소·계좌 송금으로 이미 환불한 건을 완료 처리한다. 메모와 처리 방식이 필수다.
   if (input.action === 'complete_manual') {
-    if (!input.adminNote || !input.externalMethod || !input.refundAmount) {
+    // 9번: 회수량은 화면이 미리보기에서 받은 값(전액 모드는 쓸 수 있는 몫 합)을 늘 보낸다. 빠지면 DB 가 전량 회수하므로 받지 않는다.
+    if (!input.adminNote || !input.externalMethod || !input.refundAmount || input.recoveredCredits === undefined) {
       return NextResponse.json(
-        { error: '처리 메모, 외부 처리 방식, 실제 환불 금액을 입력해 주세요.' },
+        { error: '처리 메모, 외부 처리 방식, 실제 환불 금액, 회수 크레딧을 입력해 주세요.' },
         { status: 400 }
       )
     }
@@ -145,7 +147,7 @@ export async function PATCH(request: Request) {
         note: input.adminNote,
         externalMethod: input.externalMethod,
         refundAmount: input.refundAmount,
-        recoveredCredits: input.recoveredCredits ?? null,
+        recoveredCredits: input.recoveredCredits,
       }) as { already_completed?: boolean; user_id?: string; double_refund_suspected?: boolean } | null
 
       // 다른 방식으로 이미 완료된 요청에 계좌 송금 완료가 들어왔다. DB가 이중 환불 의심 경보를 남겼다.
@@ -166,6 +168,13 @@ export async function PATCH(request: Request) {
           : '수동 환불 완료와 크레딧 회수를 기록했습니다.',
       })
     } catch (error) {
+      // 회수량은 화면이 미리보기에서 받은 값을 그대로 보낸다(API 는 다시 계산하지 않음). 그사이 원천이 바뀌면 DB 가 거절한다.
+      if (error instanceof RefundRpcError && error.code === 'MANUAL_REFUND_RECOVERY_INVALID') {
+        return NextResponse.json(
+          { error: '그사이 회수할 크레딧이 바뀌었습니다. 새로고침한 뒤 원천별 값을 다시 확인해 주세요.', code: error.code },
+          { status: 409 }
+        )
+      }
       return NextResponse.json(
         {
           error:

@@ -46,7 +46,7 @@ export const ADMIN_PERMISSIONS = {
   'products.delete': { label: '이력 없는 상품 완전 삭제', requires: ['products.edit'], limits: {} },
   'storefront.edit': { label: '홈 화면 광고·진열', requires: [], limits: {} },
   'reviews.manage': { label: '후기 삭제·태그', requires: [], limits: {} },
-  'pricing.manage': { label: '충전 상품(요금제)', requires: [], limits: {} },
+  'pricing.manage': { label: '충전 상품(요금제)·결제 고지 문구 포함', requires: [], limits: {} },
   'site.manage': { label: '약관·푸터·로고·메뉴 이름', requires: [], limits: {} },
   'reports.view': { label: '매출 집계·CSV 내보내기', requires: ['orders.view'], limits: {} },
 } as const satisfies Record<string, AdminPermissionDefinition>

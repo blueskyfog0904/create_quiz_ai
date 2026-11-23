@@ -7,7 +7,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getCreditBalanceSnapshot, selectDisplayBalance } from '@/lib/credit-balance'
 import { MAX_POINT_CHARGE_AMOUNT, MIN_POINT_CHARGE_AMOUNT } from '@/lib/payment-constants'
-import { POINT_CHARGE_MAX_AMOUNT_TEXT, POINT_CHARGE_REFUND_DAYS, POINT_CHARGE_VALIDITY_YEARS } from '@/lib/point-charge-policy'
+import { POINT_CHARGE_MAX_AMOUNT_TEXT, POINT_CHARGE_VALIDITY_YEARS } from '@/lib/point-charge-policy'
+import { getPointChargePolicyCached } from '@/lib/point-charge-policy-server'
 import { getChargePlanBonus } from '@/lib/pricing-plan-display'
 import { fillPricingPagePlaceholders } from '@/lib/pricing-page-content'
 import { getPricingPageContent } from '@/lib/pricing-page-content-server'
@@ -38,6 +39,10 @@ export default async function PricingPage() {
 
     // 충전 화면 문구(관리자 요금제 화면에서 고침). 자리표시는 정책 값과 판매 중인 상품으로 채운다.
     const content = await getPricingPageContent()
+    // {환불기간} 은 충전 정책 설정(point_charge_policy.refundDays) 값. 읽지 못하면 그 자리표시가 든 줄은 그리지 않는다.
+    const pointChargePolicy = await getPointChargePolicyCached()
+    const refundDaysText = pointChargePolicy ? String(pointChargePolicy.refundDays) : null
+    const shows = (text: string) => refundDaysText !== null || !text.includes('{환불기간}')
     const maxBonusPercent = (plans || []).reduce(
         (max, plan) => Math.max(max, getChargePlanBonus(plan.price, plan.credits)?.percent ?? 0),
         0
@@ -45,7 +50,7 @@ export default async function PricingPage() {
     const fill = (text: string) =>
         fillPricingPagePlaceholders(text, {
             '{사용기한}': String(POINT_CHARGE_VALIDITY_YEARS),
-            '{환불기간}': String(POINT_CHARGE_REFUND_DAYS),
+            '{환불기간}': refundDaysText ?? '{환불기간}',
             '{충전한도}': POINT_CHARGE_MAX_AMOUNT_TEXT,
             '{최대보너스}': String(maxBonusPercent),
         })
@@ -54,9 +59,12 @@ export default async function PricingPage() {
             bannerEyebrow: fill(content.banner_eyebrow),
             bannerTitle: fill(maxBonusPercent > 0 ? content.banner_title : content.banner_title_no_bonus),
             guestBalanceText: fill(content.guest_balance_text),
-            summaryNote: fill(content.summary_note),
+            summaryNote: shows(content.summary_note) ? fill(content.summary_note) : '',
         }
         : null
+
+    const noticeItems = content ? content.notice_items.filter((item) => shows(item.title) && shows(item.body)) : []
+    const refundItems = content ? content.refund_items.filter(shows) : []
 
     const linkClass =
         'inline-flex min-h-11 items-center text-[var(--studio-muted)] underline underline-offset-4 hover:text-[var(--studio-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]'
@@ -80,9 +88,9 @@ export default async function PricingPage() {
                     {content && (
                         <>
                             <h2 className="text-sm font-bold text-[var(--studio-ink)]">{fill(content.notice_title)}</h2>
-                            {content.notice_items.length > 0 && (
+                            {noticeItems.length > 0 && (
                                 <ul className="mt-3 flex flex-col gap-1.5 text-[13px] leading-5 text-[var(--studio-muted)] break-keep">
-                                    {content.notice_items.map((item, index) => (
+                                    {noticeItems.map((item, index) => (
                                         <li key={index} className="flex gap-1.5">
                                             <span aria-hidden="true">·</span>
                                             <span>
@@ -97,7 +105,7 @@ export default async function PricingPage() {
                             {/* 환불 정책은 접지 않고 항상 보인다. */}
                             <h2 className="mt-6 text-sm font-bold text-[var(--studio-ink)]">{fill(content.refund_title)}</h2>
                             <ul className="mt-3 flex flex-col gap-1.5 text-[13px] leading-5 text-[var(--studio-muted)] break-keep">
-                                {content.refund_items.map((item, index) => (
+                                {refundItems.map((item, index) => (
                                     <li key={index} className="flex gap-1.5">
                                         <span aria-hidden="true">·</span>
                                         <span>{fill(item)}</span>

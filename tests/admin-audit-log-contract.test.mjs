@@ -28,6 +28,12 @@ const DB_FUNCTION_ACTIONS = [
   [MATERIAL_REFUND_MIGRATION, 'market_refund_exception'],
   [MATERIAL_REFUND_MIGRATION, 'market_refund_owner_settle'],
 ]
+// 9번 묶음: 대표 승인 SQL 템플릿·정책 문구 스크립트(supabase/scripts)가 record_admin_audit 로 적는 종류.
+const SCRIPT_ACTIONS = readdirSync(join(ROOT, 'supabase/scripts'))
+  .filter((name) => name.endsWith('.sql'))
+  .sort()
+  .flatMap((name) => [...read(`supabase/scripts/${name}`).matchAll(/record_admin_audit\(\s*[^,()]+,\s*'([a-z_]+)'/g)]
+    .map((match) => [name, match[1]]))
 const { ADMIN_AUDIT_ACTIONS } = load('src/lib/admin-audit-log.ts')
 
 const ADMIN_ID = '00000000-0000-4000-8000-000000000001'
@@ -139,8 +145,39 @@ test('기록하는 종류는 모두 ADMIN_AUDIT_ACTIONS(한 곳)에 있고, DB �
       }
     }
   }
-  // 코드에서 남기는 종류 + DB 함수가 남기는 종류 = 목록 전체(쓰지 않는 항목이 없다).
-  assert.deepEqual([...new Set([...used, ...DB_FUNCTION_ACTIONS.map(([, action]) => action)])].sort(), [...keys].sort())
+  for (const [file, action] of SCRIPT_ACTIONS) assert.ok(keys.includes(action), `supabase/scripts/${file}: 목록에 없는 종류 ${action}`)
+  // 코드에서 남기는 종류 + DB 함수가 남기는 종류 + 스크립트가 남기는 종류 = 목록 전체(쓰지 않는 항목이 없다).
+  assert.deepEqual(
+    [...new Set([...used, ...DB_FUNCTION_ACTIONS.map(([, action]) => action), ...SCRIPT_ACTIONS.map(([, action]) => action)])].sort(),
+    [...keys].sort()
+  )
+})
+
+test('9번 보류·해제 템플릿: 한 트랜잭션, 확인 SELECT 먼저, 작업 기록 종류가 정해져 있다', () => {
+  const hold = read('supabase/scripts/bundle9_point_charge_hold.sql')
+  const release = read('supabase/scripts/bundle9_point_charge_release.sql')
+  assert.deepEqual(SCRIPT_ACTIONS.filter(([file]) => file.startsWith('bundle9_point_charge_')), [
+    ['bundle9_point_charge_hold.sql', 'point_charge_source_hold'],
+    ['bundle9_point_charge_release.sql', 'point_charge_source_release'],
+  ])
+  for (const sql of [hold, release]) {
+    assert.ok(sql.indexOf('-- [확인]') < sql.indexOf('BEGIN;'), '확인 SELECT 가 실행보다 앞')
+    assert.equal(sql.split('\nBEGIN;\n').length - 1, 1)
+    assert.match(sql, /\nCOMMIT;\n$/)
+    assert.match(sql, /SET LOCAL lock_timeout = '3s';/)
+  }
+  // 보류: 이미 격리·처리 중이면 멈추고, 요청은 관리자 거절이 막히는 origin 으로
+  assert.match(hold, /HOLD_ALREADY_QUARANTINED/)
+  assert.match(hold, /HOLD_REQUEST_PROCESSING/)
+  assert.match(hold, /origin = 'external_cancel'/)
+  assert.match(hold, /'MANUAL_TEMPLATE_HOLD'/)
+  assert.match(hold, /public\.point_charge_hold_reissued\(v_source\.id, v_request\.id\)/)
+  // 해제: 템플릿 요청만, 취소 통보·회원 신청이면 멈춤, 보류한 것만 active 로
+  assert.match(release, /RELEASE_NOT_TEMPLATE_HOLD/)
+  assert.match(release, /RELEASE_CANCEL_MARKER_CHANGED/)
+  assert.match(release, /RELEASE_PARTIAL_CANCEL_MARKER_CHANGED/)
+  assert.match(release, /RELEASE_MEMBER_REQUEST/)
+  assert.match(release, /c\.id = ANY \(v_request\.held_reissued_source_ids\) AND c\.status = 'pending_refund'/)
 })
 
 test('결제 쪽 조치(충전 환불 실행·수동 확인·경보 해소)는 payment_admin_actions에 이미 남으므로 다시 적지 않는다', () => {

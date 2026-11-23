@@ -8,6 +8,7 @@ import { filterRealPaidPlanPurchases, type PaymentHistoryRecord } from '@/lib/pa
 import type { Database } from '@/types/supabase'
 import { PaymentsView } from './_components/payments-view'
 import { readAllQueryRows } from '@/lib/read-all-query-rows'
+import { loadPaymentChargeDetails } from '@/lib/mypage-payment-details-server'
 
 export const metadata: Metadata = {
   title: '결제 내역',
@@ -35,10 +36,12 @@ export default async function MypagePaymentsPage() {
     })
   ) as PaymentHistoryRecord[]
   const formattedPayments = filterRealPaidPlanPurchases(paymentRecords)
+  // 결제 전 확인 동의 문구·환불 마감(본인 것만, 서버 키). 실패하면 상세 칸만 빠진다.
+  const details = await loadPaymentChargeDetails(userId, formattedPayments.map((payment) => payment.id))
 
   return (
     <Suspense fallback={null}>
-      <PaymentsView payments={formattedPayments} />
+      <PaymentsView payments={formattedPayments} details={details} />
     </Suspense>
   )
 }

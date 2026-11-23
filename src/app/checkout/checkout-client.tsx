@@ -13,7 +13,11 @@ import {
   StudioPageHeader,
 } from '@/components/design-system'
 import { Button } from '@/components/ui/button'
-import { POINT_CHARGE_MAX_AMOUNT_TEXT, POINT_CHARGE_REFUND_DAYS, POINT_CHARGE_VALIDITY_YEARS } from '@/lib/point-charge-policy'
+import {
+  parsePointChargeCheckoutNotice,
+  POINT_CHARGE_CHECKOUT_ITEM_KEYS,
+  type PointChargeCheckoutNotice,
+} from '@/lib/point-charge-policy'
 import { redirectToConsentIfRequired } from '@/lib/consent-client'
 
 type CheckoutPhase =
@@ -27,7 +31,7 @@ export interface CheckoutPaymentMethod {
   code: string
   label: string
   description: string | null
-  provider: 'payapp' | 'kakaopay'
+  provider: 'payapp'
 }
 
 interface PricingPlan {
@@ -51,19 +55,29 @@ interface CheckoutClientProps {
   paymentMethods: CheckoutPaymentMethod[]
   // 결제 문의 연락처(관리자 Footer 설정 값). 비어 있으면 그 줄을 그리지 않는다.
   supportContact: string
+  // 결제 전 확인 문구(DB, 서버가 채우고 지문을 붙임). 읽지 못했으면 null — 결제 버튼을 막는다.
+  checkoutNotice: PointChargeCheckoutNotice | null
 }
 
 interface PaymentResponse {
   status?: string
   orderId?: string
   amount?: number
+  credits?: number
   payUrl?: string
   resultUrl?: string
-  nextRedirectPcUrl?: string
-  nextRedirectMobileUrl?: string
   error?: string
   code?: string
+  // 409 CHECKOUT_NOTICE_CHANGED·CHECKOUT_PLAN_CHANGED: 새 결제 전 확인 문구와 지금 상품 값.
+  notice?: unknown
+  plan?: { price?: unknown; credits?: unknown }
 }
+
+// 결제 전 확인 문구나 상품 값이 바뀌어 동의를 다시 받아야 하는 응답.
+const CHECKOUT_CHANGED_CODES = ['CHECKOUT_NOTICE_CHANGED', 'CHECKOUT_PLAN_CHANGED']
+
+// 동의 문구 안의 정책 이름은 정책 전문 링크로 감싼다.
+const REFUND_POLICY_NAME = '취소·환불정책'
 
 // 같은 결제 시도로 다시 요청하면 서버가 기존 결과를 돌려준다. 이 코드들은 새 시도로 다시 해야 한다.
 const NEW_ATTEMPT_CODES = [
@@ -78,15 +92,17 @@ function getCheckoutAttemptStorageKey(userId: string, planId: string) {
   return `point-checkout-attempt:${userId}:${planId}`
 }
 
-// 결제수단·휴대폰 번호·상품 금액·크레딧이 바뀌면 새 결제 시도를 만든다. 같으면 같은 시도를 이어서 쓴다.
+// 결제수단·휴대폰 번호·상품 금액·크레딧·결제 전 확인 문구(지문)가 바뀌면 새 결제 시도를 만든다. 같으면 같은 시도를 이어서 쓴다.
 // 서버도 같은 시도인지 이 값들로 판단하므로(요청 지문), 관리자가 가격을 바꾸면 여기서도 새 시도로 시작한다.
+// 결제 전 확인 동의는 시도마다 기록되므로 문구가 바뀌면 새 시도로 다시 동의받는다.
 function getCheckoutAttemptId(
   userId: string,
   planId: string,
   methodCode: string,
   phone: string,
   amount: number,
-  credits: number
+  credits: number,
+  noticeSha256: string
 ) {
   const storageKey = getCheckoutAttemptStorageKey(userId, planId)
   try {
@@ -96,11 +112,13 @@ function getCheckoutAttemptId(
       phone?: string
       amount?: number
       credits?: number
+      noticeSha256?: string
     } | null
     if (
       stored?.id &&
       stored.method === methodCode && stored.phone === phone &&
-      stored.amount === amount && stored.credits === credits
+      stored.amount === amount && stored.credits === credits &&
+      stored.noticeSha256 === noticeSha256
     ) {
       return stored.id
     }
@@ -112,7 +130,7 @@ function getCheckoutAttemptId(
   try {
     window.sessionStorage.setItem(
       storageKey,
-      JSON.stringify({ id: checkoutAttemptId, method: methodCode, phone, amount, credits })
+      JSON.stringify({ id: checkoutAttemptId, method: methodCode, phone, amount, credits, noticeSha256 })
     )
   } catch {
     // 저장하지 못해도 이번 요청은 진행한다.
@@ -130,10 +148,6 @@ function clearCheckoutAttempt(userId: string, planId: string) {
 
 function getLastMethodStorageKey(userId: string) {
   return `point-checkout-method:${userId}`
-}
-
-function isMobileBrowser() {
-  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 }
 
 function toPhoneDigits(value: string | null) {
@@ -171,6 +185,55 @@ function PaymentMethodMark({ code }: { code: string }) {
           onError={() => setMissing(true)}
         />
       )}
+    </span>
+  )
+}
+
+// 결제 전 확인(제목·항목·미성년자 안내). 동의 체크 바로 위에 둔다.
+function CheckoutNoticeSection({ notice }: { notice: PointChargeCheckoutNotice | null }) {
+  return (
+    <section aria-labelledby="checkout-notice-title" className="mt-6 min-w-0 border-t border-[var(--ck-line)] pt-5 text-sm leading-6">
+      {notice ? (
+        <>
+          <h3 id="checkout-notice-title" className="font-bold text-[var(--ck-ink)]">{notice.checkoutTitle}</h3>
+          <ol className="mt-2 list-decimal space-y-1.5 break-keep pl-5 text-[var(--ck-muted)]">
+            {POINT_CHARGE_CHECKOUT_ITEM_KEYS.map((key) => (
+              <li key={key}>{notice.checkoutItems[key]}</li>
+            ))}
+          </ol>
+          <p className="mt-3 break-keep text-[var(--ck-muted)]">{notice.minorNotice}</p>
+        </>
+      ) : (
+        <p id="checkout-notice-title" role="alert" className="break-keep text-destructive">
+          결제 전 확인 내용을 불러오지 못해 지금은 결제할 수 없습니다. 잠시 후 다시 시도해 주세요.
+        </p>
+      )}
+      <Link
+        href="/terms/refund"
+        className="mt-1 inline-flex min-h-11 items-center font-bold text-[var(--ck-ink)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ck-ink)]"
+      >
+        취소·환불정책 전문 보기
+      </Link>
+    </section>
+  )
+}
+
+// 동의 문구(DB)의 필수 표기는 코드가 여기서 한 번만 붙이고, 정책 이름은 전문 링크로 감싼다.
+function AgreeLabel({ label }: { label: string }) {
+  const parts = label.split(REFUND_POLICY_NAME)
+  return (
+    <span>
+      {parts.map((part, index) => (
+        <span key={index}>
+          {index > 0 ? (
+            <Link href="/terms/refund" className="font-bold text-[var(--ck-ink)] underline underline-offset-4">
+              {REFUND_POLICY_NAME}
+            </Link>
+          ) : null}
+          {part}
+        </span>
+      ))}
+      {' '}(필수)
     </span>
   )
 }
@@ -225,11 +288,15 @@ function OrderSummary({
 }
 
 export function CheckoutClient({
-  plan,
+  plan: initialPlan,
   user,
   paymentMethods,
   supportContact,
+  checkoutNotice,
 }: CheckoutClientProps) {
+  // 결제 요청이 409(문구·상품 변경)를 받으면 응답의 새 값으로 바꾸고 다시 동의받는다.
+  const [plan, setPlan] = useState(initialPlan)
+  const [notice, setNotice] = useState(checkoutNotice)
   const profilePhone = toPhoneDigits(user.phone)
   const [selectedCode, setSelectedCode] = useState<string | null>(null)
   const [phone, setPhone] = useState(profilePhone)
@@ -293,7 +360,7 @@ export function CheckoutClient({
   }
 
   const beginPayment = async () => {
-    if (!selectedMethod || !agreed || inFlightRef.current) return
+    if (!selectedMethod || !agreed || !notice || inFlightRef.current) return
     if (needsPhone && !phoneValid) {
       failWith('결제 안내를 받을 휴대폰 번호를 확인해 주세요.')
       return
@@ -317,25 +384,24 @@ export function CheckoutClient({
         selectedMethod.code,
         needsPhone ? phone : '',
         plan.price,
-        plan.credits
+        plan.credits,
+        notice.noticeSha256
       )
-      const response = selectedMethod.provider === 'kakaopay'
-        ? await fetch('/api/payments/kakaopay/orders', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ planId: plan.id, checkoutAttemptId }),
-          })
-        : await fetch('/api/payments/payapp/orders', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              planId: plan.id,
-              checkoutAttemptId,
-              paymentMethodCode: selectedMethod.code,
-              phone,
-              savePhone: !profilePhone && savePhone,
-            }),
-          })
+      const response = await fetch('/api/payments/payapp/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planId: plan.id,
+          checkoutAttemptId,
+          paymentMethodCode: selectedMethod.code,
+          phone,
+          savePhone: !profilePhone && savePhone,
+          acknowledgeCheckoutNotice: agreed,
+          noticeSha256: notice.noticeSha256,
+          expectedAmount: plan.price,
+          expectedCredits: plan.credits,
+        }),
+      })
       const body = await response.json() as PaymentResponse
 
       if (response.status === 202 || body.status === 'preparing') {
@@ -346,6 +412,21 @@ export function CheckoutClient({
 
       // 필수 약관 동의가 필요하면 동의 화면으로 보낸다(동의 뒤 이 화면으로 돌아온다).
       if (redirectToConsentIfRequired(response.status, body)) {
+        return
+      }
+
+      // 결제 전 확인 문구나 상품 값이 바뀌었다. 새 값으로 바꾸고 체크를 풀어 다시 동의받는다(새 결제 시도).
+      if (response.status === 409 && body.code && CHECKOUT_CHANGED_CODES.includes(body.code)) {
+        clearCheckoutAttempt(user.id, plan.id)
+        const nextNotice = parsePointChargeCheckoutNotice(body.notice)
+        setNotice(nextNotice)
+        if (typeof body.plan?.price === 'number' && typeof body.plan.credits === 'number') {
+          const nextPrice = body.plan.price
+          const nextCredits = body.plan.credits
+          setPlan((current) => ({ ...current, price: nextPrice, credits: nextCredits }))
+        }
+        setAgreed(false)
+        failWith(body.error || '결제 전 확인 내용이 바뀌었습니다. 다시 확인한 뒤 동의해 주세요.', body.code)
         return
       }
 
@@ -369,14 +450,12 @@ export function CheckoutClient({
         return
       }
 
-      if (body.amount !== plan.price) {
-        failWith('상품 금액이 변경되었습니다. 충전 상품을 다시 확인해 주세요.')
+      if (body.amount !== plan.price || body.credits !== plan.credits) {
+        failWith('상품 금액 또는 크레딧이 변경되었습니다. 충전 상품을 다시 확인해 주세요.')
         return
       }
 
-      const redirectUrl = selectedMethod.provider === 'kakaopay'
-        ? isMobileBrowser() ? body.nextRedirectMobileUrl : body.nextRedirectPcUrl
-        : body.payUrl
+      const redirectUrl = body.payUrl
       if (body.status !== 'ready' || !redirectUrl) {
         setPhase('pendingVerification')
         setMessage('결제 준비 결과를 확인하고 있습니다. 잠시 후 다시 시도해 주세요.')
@@ -545,20 +624,6 @@ export function CheckoutClient({
               ) : null}
             </section>
 
-            <section className="order-last min-w-0 border-t border-[var(--ck-line)] pt-6 text-sm leading-6 lg:order-none lg:col-start-1 lg:row-start-2">
-              <h2 className="font-bold text-[var(--ck-ink)]">결제 전 확인</h2>
-              <ul className="mt-2 space-y-1 text-[var(--ck-muted)]">
-                <li>자동결제 없음 · 1회 최대 {POINT_CHARGE_MAX_AMOUNT_TEXT}입니다.</li>
-                <li>사용기한은 결제일로부터 {POINT_CHARGE_VALIDITY_YEARS}년이며 회원 간 양도할 수 없습니다.</li>
-                <li>구매 후 {POINT_CHARGE_REFUND_DAYS}일 이내 완전 미사용 시 원 결제수단으로 환불합니다.</li>
-              </ul>
-              <Link
-                href="/terms/refund"
-                className="mt-2 inline-flex min-h-11 items-center font-bold text-[var(--ck-ink)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ck-ink)]"
-              >
-                취소·환불정책 전문 보기
-              </Link>
-            </section>
 
             <aside
               aria-labelledby="order-summary-title"
@@ -566,25 +631,21 @@ export function CheckoutClient({
             >
               <OrderSummary plan={plan} user={user} amount={amount} />
 
-              <label className="mt-6 flex min-h-11 items-start gap-2 text-sm leading-6 text-[var(--ck-text)]">
-                <input
-                  type="checkbox"
-                  checked={agreed}
-                  disabled={isBusy}
-                  onChange={(event) => setAgreed(event.target.checked)}
-                  className="mt-1 size-4 shrink-0 accent-[var(--ck-ink)]"
-                />
-                <span>
-                  주문 내용과{' '}
-                  <Link
-                    href="/terms/refund"
-                    className="font-bold text-[var(--ck-ink)] underline underline-offset-4"
-                  >
-                    취소·환불정책
-                  </Link>
-                  을 확인했으며 결제에 동의합니다 (필수)
-                </span>
-              </label>
+              {/* 결제 전 확인은 모든 폭에서 동의 체크 바로 위에 둔다. */}
+              <CheckoutNoticeSection notice={notice} />
+
+              {notice ? (
+                <label className="mt-4 flex min-h-11 items-start gap-2 text-sm leading-6 text-[var(--ck-text)]">
+                  <input
+                    type="checkbox"
+                    checked={agreed}
+                    disabled={isBusy}
+                    onChange={(event) => setAgreed(event.target.checked)}
+                    className="mt-1 size-4 shrink-0 accent-[var(--ck-ink)]"
+                  />
+                  <AgreeLabel label={notice.agreeLabel} />
+                </label>
+              ) : null}
 
               {/* 안내 영역은 항상 두고 내용만 바꾼다. 오류는 따로 알린다. */}
               <p
@@ -604,7 +665,7 @@ export function CheckoutClient({
               <Button
                 type="button"
                 className="mt-4 h-auto min-h-12 w-full whitespace-normal break-keep rounded-lg bg-[var(--ck-ink)] py-3 text-base font-bold text-white shadow-none hover:bg-[var(--ck-ink)]/90 disabled:bg-[var(--ck-line)] disabled:text-[var(--ck-muted)] disabled:opacity-100"
-                disabled={isBusy || !selectedMethod || !agreed || (needsPhone && !phoneValid)}
+                disabled={isBusy || !selectedMethod || !notice || !agreed || (needsPhone && !phoneValid)}
                 onClick={beginPayment}
               >
                 {isBusy ? (

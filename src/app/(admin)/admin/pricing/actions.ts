@@ -9,6 +9,16 @@ import { MAX_POINT_CHARGE_AMOUNT, MIN_POINT_CHARGE_AMOUNT } from '@/lib/payment-
 import { normalizePricingPlanDisplayText, PRICING_PLAN_DESCRIPTION_MAX_LENGTH } from '@/lib/pricing-plan-display'
 import { savePricingPageContent } from '@/lib/pricing-page-content-server'
 import type { PricingPageContent } from '@/lib/pricing-page-content'
+import {
+    normalizePointChargePolicyText,
+    POINT_CHARGE_CHECKOUT_ITEM_KEYS,
+    POINT_CHARGE_POLICY_SETTING_KEY,
+    validatePointChargePolicyTexts,
+    type PointChargeCheckoutItems,
+    type PointChargePolicy,
+    type PointChargePolicyTexts,
+} from '@/lib/point-charge-policy'
+import { computePointChargeNoticeSha256, savePointChargePolicyTexts } from '@/lib/point-charge-policy-server'
 
 export type PricingPlan = Database['public']['Tables']['pricing_plans']['Row']
 export type PricingPlanInsert = Database['public']['Tables']['pricing_plans']['Insert']
@@ -159,4 +169,69 @@ export async function savePricingPageContentAction(
     revalidatePath('/pricing')
     revalidatePath('/admin/pricing')
     return { success: true, data: saved }
+}
+
+// 결제 전 확인·크레딧 화면 문구(system_settings 'point_charge_policy'). 요금제와 같은 권한(pricing.manage)으로 고친다.
+// 환불 기간(refundDays)은 이 화면에서 바꾸지 않는다(약관 문장과 함께 스크립트로). 폼을 연 때의 version 으로 낙관적 잠금.
+type PointChargePolicySaveInput = { texts: PointChargePolicyTexts; expectedVersion: number }
+
+export async function savePointChargePolicyTextsAction(
+    input: PointChargePolicySaveInput
+): Promise<{ success: true; data: PointChargePolicy } | { success: false; error: string }> {
+    const access = await assertAdminActionPermission('pricing.manage')
+    if (!Number.isInteger(input?.expectedVersion) || !input.texts || typeof input.texts !== 'object') {
+        return { success: false, error: '저장할 문구가 올바르지 않습니다. 새로고침한 뒤 다시 시도해 주세요.' }
+    }
+    const raw = input.texts
+    const text = (value: unknown) => normalizePointChargePolicyText(typeof value === 'string' ? value : '')
+    const checkoutItems = {} as PointChargeCheckoutItems
+    for (const key of POINT_CHARGE_CHECKOUT_ITEM_KEYS) checkoutItems[key] = text(raw.checkoutItems?.[key])
+    const refundBlockReasons: Record<string, string> = {}
+    for (const [code, value] of Object.entries(raw.refundBlockReasons ?? {})) {
+        if (/^[A-Z][A-Z0-9_]+$/.test(code)) refundBlockReasons[code] = text(value)
+    }
+    const texts: PointChargePolicyTexts = {
+        checkoutTitle: text(raw.checkoutTitle),
+        checkoutItems,
+        minorNotice: text(raw.minorNotice),
+        agreeLabel: text(raw.agreeLabel),
+        creditsGuide: text(raw.creditsGuide),
+        refundRequestConfirm: (Array.isArray(raw.refundRequestConfirm) ? raw.refundRequestConfirm : [])
+            .map(text).filter((line) => line !== ''),
+        refundRequestAccepted: text(raw.refundRequestAccepted),
+        refundBlockReasons,
+    }
+    const invalid = validatePointChargePolicyTexts(texts)
+    if (invalid) return { success: false, error: invalid }
+
+    let saved: { before: PointChargePolicy; after: PointChargePolicy }
+    try {
+        saved = await savePointChargePolicyTexts(texts, input.expectedVersion)
+    } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : '충전 정책 문구를 저장하지 못했습니다.' }
+    }
+
+    // 저장된 뒤 작업 기록을 남긴다(실패해도 결과는 그대로). 문구 전문 대신 바뀐 키와 새 지문을 남긴다.
+    const textKeys = ['checkoutTitle', 'checkoutItems', 'minorNotice', 'agreeLabel', 'creditsGuide',
+        'refundRequestConfirm', 'refundRequestAccepted', 'refundBlockReasons'] as const
+    const changedKeys = textKeys.filter((key) => JSON.stringify(saved.before[key]) !== JSON.stringify(saved.after[key]))
+    await recordAdminAudit({
+        actorId: access.userId,
+        action: 'point_charge_policy_update',
+        targetType: 'system_settings',
+        targetId: POINT_CHARGE_POLICY_SETTING_KEY,
+        details: {
+            changed_keys: changedKeys,
+            version_before: saved.before.version,
+            version_after: saved.after.version,
+            refund_days: saved.after.refundDays,
+            notice_sha256_before: computePointChargeNoticeSha256(saved.before),
+            notice_sha256_after: computePointChargeNoticeSha256(saved.after),
+        },
+    })
+
+    revalidatePath('/checkout')
+    revalidatePath('/mypage/credits')
+    revalidatePath('/admin/pricing')
+    return { success: true, data: saved.after }
 }

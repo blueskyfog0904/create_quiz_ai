@@ -52,7 +52,8 @@ test('order preparation is authenticated, server priced and fail-closed', () => 
 
 test('checkout uses only the prepared server order', () => {
   assert.match(checkoutClient, /fetch\('\/api\/payments\/payapp\/orders'/)
-  assert.match(checkoutClient, /fetch\('\/api\/payments\/kakaopay\/orders'/)
+  // 9번: 카카오페이 주문은 서버가 503 으로 막고 결제 화면은 부르지 않는다.
+  assert.doesNotMatch(checkoutClient, /fetch\('\/api\/payments\/kakaopay\/orders'/)
   assert.match(checkoutClient, /body\.amount !== plan\.price/)
   assert.match(checkoutClient, /window\.location\.assign\(redirectUrl\)/)
   assert.doesNotMatch(checkoutClient, /generateOrderId/)

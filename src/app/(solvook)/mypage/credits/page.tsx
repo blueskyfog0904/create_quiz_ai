@@ -8,7 +8,13 @@ import {
   logCreditBalanceMismatch,
   selectDisplayBalance,
 } from '@/lib/credit-balance'
-import { getPointChargeRefundEligibility } from '@/lib/point-charge-refunds-server'
+import {
+  getPointChargeRefundEligibility,
+  reportPointChargePolicyFallback,
+  resolvePointChargeRefundBlockReason,
+} from '@/lib/point-charge-refunds-server'
+import { fillPointChargeRefundDays } from '@/lib/point-charge-policy'
+import { getPointChargePolicyCached } from '@/lib/point-charge-policy-server'
 import { getRequestAuthUserId } from '@/lib/request-auth'
 import { readAllQueryRows } from '@/lib/read-all-query-rows'
 import type { CreditSourceCategory } from '@/lib/credit-source-display'
@@ -46,12 +52,14 @@ export default async function CreditsPage() {
     logCreditBalanceMismatch('mypage credits', userId, snapshot)
   }
 
+  // 화면 문구(DB). 못 읽어도 화면은 그리고 키별 일반 문구로 대체한다(판정은 DB 함수).
+  const policyPromise = getPointChargePolicyCached()
   const [sources, transactions] = await Promise.all([
     // 구매건 목록 (plan 정보 포함)
     readAllQueryRows((from, to) => supabase
       .from('credit_sources')
       .select(
-        'id, initial_credits, remaining_credits, status, purchased_at, expires_at, source_category, plan:pricing_plans(name, price)'
+        'id, initial_credits, remaining_credits, status, purchased_at, expires_at, source_category, payment_order_id, plan:pricing_plans(name, price)'
       )
       .eq('user_id', userId)
       .order('purchased_at', { ascending: false }).order('id').range(from, to)),
@@ -66,12 +74,25 @@ export default async function CreditsPage() {
       .order('id').range(from, to)),
   ])
 
+  const policy = await policyPromise
   const sourceItems: CreditSourceItem[] = await Promise.all(
     (sources ?? []).map(async (source) => {
+      // 원천마다 판정 실패를 잡는다(잔액·내역은 그대로, 이 원천의 환불 칸만 '확인하지 못했습니다').
       const eligibility = await getPointChargeRefundEligibility({
         userId,
         sourceId: source.id,
+      }).catch((error) => {
+        console.error('[mypage credits] 환불 판정 조회 실패', { sourceId: source.id, error })
+        return null
       })
+      if (eligibility?.policyFallback) {
+        await reportPointChargePolicyFallback({
+          userId,
+          sourceId: source.id,
+          paymentOrderId: source.payment_order_id,
+          screen: 'mypage_credits',
+        })
+      }
 
       return {
         id: source.id,
@@ -82,9 +103,12 @@ export default async function CreditsPage() {
         expires_at: source.expires_at,
         source_category: source.source_category as CreditSourceCategory,
         plan: firstOrNull(source.plan) as CreditSourceItem['plan'],
-        canRefund: eligibility.allowed,
-        refundBlockedReason: eligibility.reason,
-        refundableUntil: eligibility.refundableUntil,
+        canRefund: eligibility?.allowed ?? false,
+        refundCheckFailed: eligibility === null,
+        refundBlockedReason: eligibility
+          ? resolvePointChargeRefundBlockReason(eligibility.reasonCode, policy, eligibility.refundDays)
+          : null,
+        refundableUntil: eligibility?.refundableUntil ?? null,
       }
     })
   )
@@ -115,6 +139,8 @@ export default async function CreditsPage() {
         databaseNow={snapshot.databaseNow}
         sources={sourceItems}
         transactions={transactionItems}
+        creditsGuide={policy?.creditsGuide ? fillPointChargeRefundDays(policy.creditsGuide, policy.refundDays) : null}
+        refundRequestConfirm={policy ? policy.refundRequestConfirm.map((line) => fillPointChargeRefundDays(line, policy.refundDays)) : []}
       />
     </Suspense>
   )

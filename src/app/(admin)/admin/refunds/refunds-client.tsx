@@ -4,7 +4,7 @@
  * 관리자 환불 관리 클라이언트 컴포넌트
  */
 
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAdminAlerts } from '@/components/admin/admin-alert-context'
@@ -50,6 +50,7 @@ import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
 import { extractAdminLoginId } from '@/lib/admin-accounts-shared'
 import { refundRequiresRecovery } from '@/lib/payment-review-actions'
+import type { ManualRefundRecoveryPreview } from '@/lib/manual-refund-recovery-preview'
 
 export interface RefundRequest {
     id: string
@@ -145,6 +146,21 @@ const formatWon = (amount: number | null) => (amount === null ? '-' : `₩${amou
 type ProcessAction = 'approve' | 'reject' | 'complete_manual'
 type ExternalMethod = 'payapp_cancel_request' | 'bank_transfer' | 'provider_admin_cancel'
 
+const sourceStatusLabels: Record<string, string> = {
+    active: '사용 가능',
+    pending_refund: '사용 보류',
+    refunded: '환불됨',
+}
+
+const formatKstDateTime = (value: string | null) => {
+    if (!value) return '없음'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return new Intl.DateTimeFormat('ko-KR', {
+        timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+    }).format(date)
+}
+
 const externalMethodLabels: Record<ExternalMethod, string> = {
     payapp_cancel_request: '페이앱 취소 요청(정산금 반환)',
     bank_transfer: '고객 계좌 송금',
@@ -163,6 +179,10 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
     const [refundAmount, setRefundAmount] = useState('')
     const [recoveredCredits, setRecoveredCredits] = useState('')
     const [providerNotCancelledConfirmed, setProviderNotCancelledConfirmed] = useState(false)
+    // 수동 완료 원자료(get_manual_refund_recovery_preview). 화면은 값을 보여 주기만 하고 계산하지 않는다.
+    const [preview, setPreview] = useState<ManualRefundRecoveryPreview | null>(null)
+    const [previewError, setPreviewError] = useState<string | null>(null)
+    const [previewLoading, setPreviewLoading] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
 
     // 필터링된 요청
@@ -205,14 +225,46 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
         setRefundAmount(!requiresRecovery(request) && request.refund_amount ? String(request.refund_amount) : '')
         setRecoveredCredits('')
         setProviderNotCancelledConfirmed(false)
+        setPreview(null)
+        setPreviewError(null)
         setIsProcessDialogOpen(true)
+        if (action === 'complete_manual') void loadPreview(request.id)
     }
 
-    const selectedRequiresRecovery = selectedRequest ? requiresRecovery(selectedRequest) : false
-    const maxRefundAmount = selectedRequest?.order?.expected_amount ?? selectedRequest?.source?.plan?.price ?? 0
-    const remainingCredits = selectedRequest?.source?.remaining_credits ?? 0
+    const previewRequestIdRef = useRef<string | null>(null)
+    const loadPreview = async (requestId: string) => {
+        // 늦게 온 다른 요청의 응답(오류·로딩 끝 포함)이 지금 연 요청 화면을 덮지 않게 한다.
+        previewRequestIdRef.current = requestId
+        setPreviewLoading(true)
+        try {
+            const response = await fetch(`/api/admin/refunds/recovery-preview?requestId=${encodeURIComponent(requestId)}`, { cache: 'no-store' })
+            const data = await response.json().catch(() => null)
+            if (previewRequestIdRef.current !== requestId) return
+            if (!response.ok || !data?.preview) {
+                setPreviewError(data?.error || '회수 원자료를 불러오지 못했습니다. 새로고침해 주세요.')
+                return
+            }
+            setPreview(data.preview as ManualRefundRecoveryPreview)
+        } catch {
+            if (previewRequestIdRef.current === requestId) setPreviewError('회수 원자료를 불러오지 못했습니다. 새로고침해 주세요.')
+        } finally {
+            if (previewRequestIdRef.current === requestId) setPreviewLoading(false)
+        }
+    }
+
+    // 수동 완료는 미리보기의 처리 모드·남은 환불 가능 금액·쓸 수 있는 몫 합(원래 + 다시 지급한 크레딧)을 기준으로 한다.
+    // 다른 요청의 늦은 응답이 섞이지 않게 요청 id 가 같을 때만 쓴다.
+    const manualPreview = processAction === 'complete_manual' && preview?.request_id === selectedRequest?.id ? preview : null
+    const selectedRequiresRecovery = manualPreview
+        ? manualPreview.mode === 'partial'
+        : selectedRequest ? requiresRecovery(selectedRequest) : false
+    const maxRefundAmount = manualPreview
+        ? manualPreview.remaining_refundable_amount
+        : selectedRequest?.order?.expected_amount ?? selectedRequest?.source?.plan?.price ?? 0
+    const remainingCredits = manualPreview ? manualPreview.usable_total : selectedRequest?.source?.remaining_credits ?? 0
     const manualCompletionReady = processAction !== 'complete_manual' ||
-        (adminNote.trim().length > 0 &&
+        (manualPreview !== null &&
+            adminNote.trim().length > 0 &&
             isWholeNumberBetween(refundAmount, 1, maxRefundAmount) &&
             (!selectedRequiresRecovery || isWholeNumberBetween(recoveredCredits, 0, remainingCredits)))
     // 수동 확인 환불을 거절하려면 결제사 미취소 확인과 처리 메모가 모두 필요하다.
@@ -241,9 +293,8 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                         ? {
                             externalMethod,
                             refundAmount: Number(refundAmount),
-                            ...(selectedRequiresRecovery
-                                ? { recoveredCredits: Number(recoveredCredits) }
-                                : {}),
+                            // 전액 모드도 미리보기에서 받은 쓸 수 있는 몫 합을 보낸다(그사이 바뀌면 DB 가 거절 → 새로고침 안내).
+                            recoveredCredits: selectedRequiresRecovery ? Number(recoveredCredits) : remainingCredits,
                         }
                         : {}),
                 })
@@ -539,6 +590,80 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
 
                         {processAction === 'complete_manual' && (
                             <div className="space-y-4">
+                                {previewLoading && (
+                                    <p className="flex items-center text-sm text-gray-600"><Loader2 className="mr-2 h-4 w-4 animate-spin" />회수 원자료를 불러오는 중입니다.</p>
+                                )}
+                                {previewError && <p className="text-sm text-red-600">{previewError}</p>}
+                                {manualPreview && (
+                                    <div className="space-y-3 rounded-lg border p-3 text-sm">
+                                        {manualPreview.has_reissued && (
+                                            <p className="rounded-md border border-red-200 bg-red-50 p-2 font-medium text-red-800">
+                                                이 결제에서 비롯해 자료 환불로 다시 지급한 크레딧이 있습니다. 아래 원천별 값으로 이미 쓴 몫을 확인하고,
+                                                완료 뒤 정산 경보(REISSUED_CREDIT_SETTLE_REVIEW)를 대표가 확인합니다.
+                                            </p>
+                                        )}
+                                        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-gray-700">
+                                            <dt>처리 모드</dt>
+                                            <dd>{manualPreview.mode === 'partial' ? '부분(회수량 입력)' : '전액(쓸 수 있는 몫 모두 회수)'}</dd>
+                                            <dt>결제 금액</dt>
+                                            <dd>{formatWon(manualPreview.expected_amount)}</dd>
+                                            <dt>부분취소 금액</dt>
+                                            <dd>{formatWon(manualPreview.partial_cancel_amount)}</dd>
+                                            <dt>앞서 환불 완료한 금액</dt>
+                                            <dd>{formatWon(manualPreview.refunded_before)}</dd>
+                                            <dt>남은 환불 가능 금액</dt>
+                                            <dd>{formatWon(manualPreview.remaining_refundable_amount)}</dd>
+                                            <dt>쓸 수 있는 몫 합(회수 상한)</dt>
+                                            <dd>{manualPreview.usable_total.toLocaleString()} 크레딧</dd>
+                                        </dl>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full min-w-[44rem] text-xs">
+                                                <thead className="text-left text-gray-500">
+                                                    <tr>
+                                                        <th className="py-1 pr-2 font-medium">원천</th>
+                                                        <th className="py-1 pr-2 font-medium">상태</th>
+                                                        <th className="py-1 pr-2 text-right font-medium">지급</th>
+                                                        <th className="py-1 pr-2 text-right font-medium">남음</th>
+                                                        <th className="py-1 pr-2 text-right font-medium">쓸 수 있는 몫</th>
+                                                        <th className="py-1 pr-2 text-right font-medium">소비 총량</th>
+                                                        <th className="py-1 pr-2 text-right font-medium">자료 환불 복구</th>
+                                                        <th className="py-1 pr-2 text-right font-medium">재지급으로 나감</th>
+                                                        <th className="py-1 pr-2 text-right font-medium">지급−남음</th>
+                                                        <th className="py-1 font-medium">만료(한국 시간)</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {manualPreview.sources.map((source) => (
+                                                        <tr key={source.source_id} className="border-t">
+                                                            <td className="py-1 pr-2">{source.root ? '원래 충전' : '다시 지급'}</td>
+                                                            <td className="py-1 pr-2">{sourceStatusLabels[source.status] ?? source.status}</td>
+                                                            <td className="py-1 pr-2 text-right">{source.initial.toLocaleString()}</td>
+                                                            <td className="py-1 pr-2 text-right">{source.remaining.toLocaleString()}</td>
+                                                            <td className="py-1 pr-2 text-right">{source.usable.toLocaleString()}</td>
+                                                            <td className="py-1 pr-2 text-right">{source.consumed_total.toLocaleString()}</td>
+                                                            <td className="py-1 pr-2 text-right">{source.restored_by_material_refund.toLocaleString()}</td>
+                                                            <td className="py-1 pr-2 text-right">{source.reissued_out.toLocaleString()}</td>
+                                                            <td className="py-1 pr-2 text-right">{source.net_used.toLocaleString()}</td>
+                                                            <td className="py-1">{formatKstDateTime(source.expires_at)}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        {manualPreview.previous_completions.length > 0 && (
+                                            <div>
+                                                <p className="font-medium text-gray-700">이 결제의 앞선 수동 완료</p>
+                                                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-gray-600">
+                                                    {manualPreview.previous_completions.map((completion, index) => (
+                                                        <li key={`${completion.refund_request_id ?? 'none'}-${index}`}>
+                                                            {formatKstDateTime(completion.created_at)} · 환불 {formatWon(completion.refund_amount)} · 회수 {(completion.recovered ?? 0).toLocaleString()} 크레딧 · 남긴 크레딧 {(completion.unrecovered ?? 0).toLocaleString()}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
                                     <p className="text-sm text-amber-800">
                                         {selectedRequest?.provider === 'payapp'
@@ -567,7 +692,7 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                                 </div>
                                 <div>
                                     <label htmlFor="manual-refund-amount" className="text-sm font-medium text-gray-700 mb-2 block">
-                                        고객에게 실제로 환불한 총액 (원, 결제 금액 {maxRefundAmount.toLocaleString()}원 이하)
+                                        고객에게 실제로 환불한 총액 (원, 남은 환불 가능 금액 {maxRefundAmount.toLocaleString()}원 이하)
                                     </label>
                                     <Input
                                         id="manual-refund-amount"
@@ -594,12 +719,12 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                                             onChange={(e) => setRecoveredCredits(e.target.value)}
                                         />
                                         <p className="mt-1 text-xs text-gray-500">
-                                            남은 크레딧 {remainingCredits.toLocaleString()} / 구매 {selectedRequest?.source?.initial_credits?.toLocaleString() ?? 0}
+                                            쓸 수 있는 몫 합 {remainingCredits.toLocaleString()} 크레딧(원래 충전 + 다시 지급한 크레딧, 유효기간이 먼저 끝나는 것부터 회수)
                                         </p>
                                     </div>
                                 ) : (
                                     <p className="text-sm text-gray-600">
-                                        남은 크레딧 {remainingCredits.toLocaleString()}을 모두 회수합니다.
+                                        쓸 수 있는 몫 {remainingCredits.toLocaleString()} 크레딧을 모두 회수합니다(원래 충전 + 다시 지급한 크레딧).
                                     </p>
                                 )}
                             </div>

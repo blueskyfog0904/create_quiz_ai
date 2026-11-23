@@ -204,6 +204,8 @@ const ROUTE_REQUIREMENTS = {
   'market/refunds/[id]/route.ts': all('refunds.market', 'GET', 'PATCH'),
   'market/orders/[id]/exception-refund/route.ts': all('refunds.market', 'GET', 'POST'),
   'refunds/route.ts': all('refunds.payment', 'GET', 'PATCH'),
+  // 9번: 수동 완료 화면의 원천별 원자료(get_manual_refund_recovery_preview)
+  'refunds/recovery-preview/route.ts': all('refunds.payment', 'GET'),
   'payments/alerts/route.ts': all('refunds.payment', 'PATCH'),
   'payments/review/route.ts': all('refunds.payment', 'PATCH'),
   // 충전 판매 전체 중지는 대표만(재개는 SQL로만 된다).
@@ -467,6 +469,7 @@ const ACTION_REQUIREMENTS = {
     deletePricingPlan: 'pricing.manage',
     togglePlanStatus: 'pricing.manage',
     savePricingPageContentAction: 'pricing.manage',
+    savePointChargePolicyTextsAction: 'pricing.manage',
   },
   'src/app/(admin)/admin/menu-management/actions.ts': {
     // 사이드바의 메뉴 이름 바꾸기는 운영 기능이다(기능 묶음 검사 없음).

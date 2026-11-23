@@ -3941,6 +3941,59 @@ export type Database = {
         }
         Relationships: []
       }
+      point_charge_checkout_acks: {
+        Row: {
+          amount: number
+          checkout_attempt_id: string
+          created_at: string
+          credits: number
+          id: string
+          notice_sha256: string
+          notice_text: string
+          plan_id: string
+          plan_name: string
+          refund_days: number
+          refund_policy_sha256: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          checkout_attempt_id: string
+          created_at?: string
+          credits: number
+          id?: string
+          notice_sha256: string
+          notice_text: string
+          plan_id: string
+          plan_name: string
+          refund_days: number
+          refund_policy_sha256?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          checkout_attempt_id?: string
+          created_at?: string
+          credits?: number
+          id?: string
+          notice_sha256?: string
+          notice_text?: string
+          plan_id?: string
+          plan_name?: string
+          refund_days?: number
+          refund_policy_sha256?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "point_charge_checkout_acks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       policy_document_snapshots: {
         Row: {
           content: string
@@ -4613,6 +4666,7 @@ export type Database = {
           attempt_count: number
           cancel_idempotency_key: string | null
           created_at: string
+          held_reissued_source_ids: string[]
           id: string
           last_error_code: string | null
           last_error_message: string | null
@@ -4636,6 +4690,7 @@ export type Database = {
           attempt_count?: number
           cancel_idempotency_key?: string | null
           created_at?: string
+          held_reissued_source_ids?: string[]
           id?: string
           last_error_code?: string | null
           last_error_message?: string | null
@@ -4659,6 +4714,7 @@ export type Database = {
           attempt_count?: number
           cancel_idempotency_key?: string | null
           created_at?: string
+          held_reissued_source_ids?: string[]
           id?: string
           last_error_code?: string | null
           last_error_message?: string | null
@@ -5541,6 +5597,20 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      credit_source_paid_root: {
+        Args: { p_source_id: string }
+        Returns: {
+          payment_order_id: string
+          root_cash_flag: boolean
+          root_in_progress: boolean
+          root_source_id: string
+          root_status: string
+        }[]
+      }
+      credit_source_reissued_descendants: {
+        Args: { p_root_source_id: string }
+        Returns: string[]
+      }
       delete_market_image: { Args: { p_image_id: string }; Returns: Json }
       dispatch_admin_events: { Args: never; Returns: undefined }
       effective_default_image: {
@@ -5623,6 +5693,10 @@ export type Database = {
       generate_member_display_tag: { Args: never; Returns: string }
       get_credit_balance_snapshot: {
         Args: { p_user_id: string }
+        Returns: Json
+      }
+      get_manual_refund_recovery_preview: {
+        Args: { p_request_id: string }
         Returns: Json
       }
       get_market_home_popular_items: {
@@ -5770,6 +5844,26 @@ export type Database = {
       }
       payapp_sales_resume_blockers: { Args: never; Returns: Json }
       payment_reconciliation_backlog_count: { Args: never; Returns: number }
+      point_charge_hold_reissued: {
+        Args: { p_request_id: string; p_root_source_id: string }
+        Returns: string[]
+      }
+      point_charge_refund_days: { Args: never; Returns: number }
+      point_charge_refund_deadline: {
+        Args: { p_base: string; p_days: number }
+        Returns: string
+      }
+      point_charge_reissued_alert: {
+        Args: {
+          p_code: string
+          p_extra?: Json
+          p_force?: boolean
+          p_order_id: string
+          p_request_id: string
+          p_root_source_id: string
+        }
+        Returns: undefined
+      }
       prepare_payment_order: {
         Args: {
           p_cancel_idempotency_key: string
@@ -5924,6 +6018,17 @@ export type Database = {
           p_run_id: string
         }
         Returns: boolean
+      }
+      record_point_charge_checkout_ack: {
+        Args: {
+          p_checkout_attempt_id: string
+          p_expected_amount: number
+          p_expected_credits: number
+          p_notice_sha256: string
+          p_plan_id: string
+          p_user_id: string
+        }
+        Returns: Json
       }
       record_purchase_notice_ack: {
         Args: {

@@ -20,6 +20,8 @@ import {
   StudioDialogTitle,
 } from '@/components/design-system/studio-dialog'
 import { getCreditSourceCategoryLabel, type CreditSourceCategory } from '@/lib/credit-source-display'
+import { formatKstDate, formatKstDateTime } from '@/lib/kst-date-format'
+import { formatMarketRefundLastDay } from '@/lib/market-refund-rules'
 import {
   getCreditTransactionDescription,
   getCreditTransactionTypeLabel,
@@ -41,6 +43,8 @@ export interface CreditSourceItem {
   expires_at: string | null
   source_category: CreditSourceCategory
   canRefund: boolean
+  // 이 원천의 환불 판정을 읽지 못함(잔액·내역은 그대로, 환불 칸만 안내)
+  refundCheckFailed: boolean
   refundBlockedReason: string | null
   refundableUntil: string | null
   plan: {
@@ -69,7 +73,12 @@ interface CreditsViewProps {
   databaseNow: string
   sources: CreditSourceItem[]
   transactions: CreditTransactionItem[]
+  // DB 문구(채운 문장). 비면 일반 문구로 대체한다.
+  creditsGuide: string | null
+  refundRequestConfirm: string[]
 }
+
+const REFUND_CHECK_FAILED_TEXT = '확인하지 못했습니다'
 
 const controlClassName =
   'min-h-11 rounded-[var(--studio-radius-control)] border border-[var(--studio-control-border)] bg-[var(--studio-surface)] px-3 text-sm text-[var(--studio-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]'
@@ -91,20 +100,11 @@ const QUICK_RANGES = [
 
 function formatDate(value?: string | null) {
   if (!value) return '-'
-  const date = new Date(value)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-
-  return `${year}.${month}.${day}`
+  return formatKstDate(value)
 }
 
 function formatDateTime(value: string) {
-  const date = new Date(value)
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-
-  return `${formatDate(value)} ${hours}:${minutes}`
+  return formatKstDateTime(value)
 }
 
 interface HistoryFilterValues {
@@ -219,6 +219,8 @@ export function CreditsView({
   databaseNow,
   sources,
   transactions,
+  creditsGuide,
+  refundRequestConfirm,
 }: CreditsViewProps) {
   const router = useRouter()
   const [refundSourceId, setRefundSourceId] = useState<string | null>(null)
@@ -376,7 +378,7 @@ export function CreditsView({
             </p>
             {nextExpirationAt && (
               <p className="mt-2 text-xs text-[var(--studio-muted)]">
-                다음 사용기한 {formatDate(nextExpirationAt)}
+                다음 사용기한 {formatDateTime(nextExpirationAt)}까지
               </p>
             )}
             {expiredBalance > 0 && (
@@ -417,8 +419,7 @@ export function CreditsView({
         {/* 구매건 목록 */}
         <TabsContent value="sources" className="pt-6">
           <p className="mb-5 break-keep text-sm text-[var(--studio-muted)]">
-            각 구매건의 잔여 크레딧과 환불 가능 여부를 확인할 수 있습니다. 크레딧은 가장 오래된
-            구매건부터 차감됩니다.
+            {creditsGuide || '구매건마다 남은 크레딧과 환불 가능 여부를 볼 수 있습니다.'}
           </p>
           {sources.length === 0 ? (
             <StudioEmptyState
@@ -477,10 +478,12 @@ export function CreditsView({
                         <tr key={source.id} className="text-[var(--studio-ink)]">
                           <td className="px-4 py-3">{formatDate(source.purchased_at)}</td>
                           <td className="px-4 py-3">
-                            {source.expires_at ? formatDate(source.expires_at) : '별도 기한 없음'}
+                            {source.expires_at ? `${formatDateTime(source.expires_at)}까지` : '별도 기한 없음'}
                           </td>
                           <td className="px-4 py-3">
-                            {source.refundableUntil ? formatDate(source.refundableUntil) : '-'}
+                            {source.refundCheckFailed
+                              ? REFUND_CHECK_FAILED_TEXT
+                              : source.refundableUntil ? formatMarketRefundLastDay(source.refundableUntil) : '-'}
                           </td>
                           <td className="break-keep px-4 py-3">
                             {getCreditSourceCategoryLabel({
@@ -507,11 +510,13 @@ export function CreditsView({
                               <button
                                 type="button"
                                 disabled={!source.canRefund}
-                                title={source.refundBlockedReason || undefined}
+                                title={(source.refundCheckFailed ? REFUND_CHECK_FAILED_TEXT : source.refundBlockedReason) || undefined}
                                 onClick={() => setRefundSourceId(source.id)}
                                 className={`${refundButtonClassName} break-keep`}
                               >
-                                {source.canRefund ? '환불 신청' : source.refundBlockedReason}
+                                {source.canRefund
+                                  ? '환불 신청'
+                                  : source.refundCheckFailed ? `환불 가능 여부를 ${REFUND_CHECK_FAILED_TEXT}` : source.refundBlockedReason}
                               </button>
                             )}
                           </td>
@@ -636,9 +641,15 @@ export function CreditsView({
           <div className="break-keep text-sm text-[var(--studio-text)]">
             <p className="font-semibold text-[var(--studio-ink)]">환불 안내</p>
             <ul className="mt-1.5 space-y-1">
-              <li>· 환불 신청 후 관리자 승인 절차가 필요합니다.</li>
-              <li>· 환불 대기 중에는 해당 크레딧을 사용할 수 없습니다.</li>
-              <li>· 승인 시 결제 금액이 환불됩니다.</li>
+              {refundRequestConfirm.length > 0 ? (
+                refundRequestConfirm.map((line, index) => <li key={index}>· {line}</li>)
+              ) : (
+                <>
+                  <li>· 환불 신청 후 담당자 확인 절차가 필요합니다.</li>
+                  <li>· 확인하는 동안 해당 크레딧은 쓸 수 없습니다.</li>
+                  <li>· 자세한 기준은 취소·환불정책을 따릅니다.</li>
+                </>
+              )}
             </ul>
           </div>
 

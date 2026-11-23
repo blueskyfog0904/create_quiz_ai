@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import Link from 'next/link'
 import { StudioEmptyState } from '@/components/design-system/studio-empty-state'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { useListQuery } from '@/hooks/use-list-query'
@@ -16,6 +17,9 @@ import {
   filterPaymentsByHistoryFilter,
   type PaymentHistoryFilter,
 } from '@/lib/mypage-history-filters'
+import { formatKstDateTime } from '@/lib/kst-date-format'
+import { formatMarketRefundLastDay } from '@/lib/market-refund-rules'
+import type { PaymentChargeDetail } from '@/lib/mypage-payment-details-server'
 
 const controlClassName =
   'min-h-10 rounded-[var(--studio-radius-control)] border border-[var(--studio-control-border)] bg-[var(--studio-surface)] px-3 text-sm text-[var(--studio-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]'
@@ -42,12 +46,69 @@ const STATUS_BADGES: Record<string, { label: string; className: string }> = {
 }
 
 function formatKoreanDateTime(value: string) {
-  const date = new Date(value)
-  const day = `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`
-  return `${day} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  return formatKstDateTime(value)
 }
 
-export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryRecord[] }) {
+const refundPolicyLinkClassName =
+  'underline underline-offset-4 hover:text-[var(--studio-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]'
+
+// 결제 상세: 결제·지급 일시(한국 시간), 환불 신청 마감(DB 판정 값), 이 결제에 동의한 결제 전 확인 문구.
+function PaymentDetail({ detail }: { detail: PaymentChargeDetail }) {
+  const approvedText = detail.approvedAt ? formatKoreanDateTime(detail.approvedAt) : null
+  const creditedText = detail.creditedAt ? formatKoreanDateTime(detail.creditedAt) : null
+  return (
+    <details className="mt-2 text-xs text-[var(--studio-text)]">
+      <summary className="inline-flex min-h-9 cursor-pointer items-center font-medium text-[var(--studio-muted)] hover:text-[var(--studio-ink)]">
+        결제 상세·결제 전 확인
+      </summary>
+      <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 break-keep">
+        {approvedText ? (
+          <>
+            <dt className="text-[var(--studio-muted)]">결제 일시</dt>
+            <dd>{approvedText}(한국 시간)</dd>
+          </>
+        ) : null}
+        {creditedText && creditedText !== approvedText ? (
+          <>
+            <dt className="text-[var(--studio-muted)]">크레딧 지급 일시</dt>
+            <dd>{creditedText}(한국 시간)</dd>
+          </>
+        ) : null}
+        <dt className="text-[var(--studio-muted)]">환불 신청 마감</dt>
+        <dd>
+          {detail.refundDeadline.status === 'ok' ? (
+            formatMarketRefundLastDay(detail.refundDeadline.refundableUntil)
+          ) : detail.refundDeadline.status === 'unknown' ? (
+            '확인할 수 없음'
+          ) : (
+            <Link href="/terms/refund" className={refundPolicyLinkClassName}>취소·환불정책 참고</Link>
+          )}
+        </dd>
+      </dl>
+      <div className="mt-2 rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] p-3">
+        {detail.noticeText ? (
+          <>
+            <p className="font-semibold text-[var(--studio-ink)]">이 결제에 동의한 결제 전 확인</p>
+            <p className="mt-1 whitespace-pre-line break-keep">{detail.noticeText}</p>
+          </>
+        ) : (
+          <p className="break-keep">
+            이 결제는 결제 전 확인 기록 이전 결제입니다 — 기준은{' '}
+            <Link href="/terms/refund" className={refundPolicyLinkClassName}>취소·환불정책</Link>
+          </p>
+        )}
+      </div>
+    </details>
+  )
+}
+
+export function PaymentsView({
+  payments,
+  details,
+}: {
+  payments: NormalizedPaymentHistoryRecord[]
+  details: Record<string, PaymentChargeDetail>
+}) {
   const listQuery = useListQuery()
   const filters = useMemo(() => ({ fromDate: listQuery.params.get('fromDate') ?? '', toDate: listQuery.params.get('toDate') ?? '' }), [listQuery.params])
   const setFilters = (value: PaymentHistoryFilter) => listQuery.update({ ...value, page: 1 })
@@ -141,6 +202,7 @@ export function PaymentsView({ payments }: { payments: NormalizedPaymentHistoryR
                     {payment.order_id ? <span>주문번호 {payment.order_id}</span> : null}
                     <span>결제사 상태 {getProviderStatusLabel(payment.provider_status)}</span>
                   </p>
+                  {details[payment.id] ? <PaymentDetail detail={details[payment.id]} /> : null}
                 </div>
                 <div className="shrink-0 text-right">
                   <span

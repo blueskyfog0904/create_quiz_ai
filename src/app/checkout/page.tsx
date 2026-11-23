@@ -8,9 +8,9 @@
 
 import { redirect } from 'next/navigation'
 import { buildAuthRedirectPath } from '@/lib/auth-paths'
-import { assertKakaoPayReady } from '@/lib/kakaopay-server'
 import { assertPayAppReady } from '@/lib/payapp-server'
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
+import { getPointChargeCheckoutNotice } from '@/lib/point-charge-policy-server'
 import { createClient } from '@/lib/supabase/server'
 import { getSolvookFooterData } from '@/lib/solvook-footer-data'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
@@ -55,16 +55,13 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
     redirect('/pricing')
   }
 
-  // 운영 스위치와 키 설정을 모두 통과한 결제사의 결제수단만 보여 준다.
+  // 운영 스위치와 키 설정을 모두 통과한 결제사의 결제수단만 보여 준다(카카오페이는 종료 — 주문 라우트가 503).
   const availableProviders = new Set<string>()
   const admin = createPaymentAdminClient()
   const { data: runtimeRows } = await admin
     .from('payment_runtime_config')
     .select(`
-      accepted_provider_environment,
       master_accepts_new_orders,
-      kakaopay_accepts_new_orders,
-      kakaopay_merchant_id,
       payapp_accepts_new_orders,
       payapp_merchant_id
     `)
@@ -84,19 +81,6 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
     } catch {
       // Fail closed when PayApp configuration is incomplete.
     }
-
-    try {
-      const kakao = assertKakaoPayReady()
-      if (
-        runtime.kakaopay_accepts_new_orders &&
-        runtime.accepted_provider_environment === kakao.environment &&
-        runtime.kakaopay_merchant_id === kakao.cid
-      ) {
-        availableProviders.add('kakaopay')
-      }
-    } catch {
-      // Fail closed when KakaoPay configuration is incomplete.
-    }
   }
 
   // 결제수단 목록·순서·안내 문구는 DB(payment_methods)에서 읽는다.
@@ -115,12 +99,15 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
       code: method.code,
       label: method.label,
       description: method.description,
-      provider: method.provider === 'kakaopay' ? 'kakaopay' : 'payapp',
+      provider: 'payapp' as const,
     }))
 
   // 결제 문의 연락처는 관리자 'Footer 설정'의 상담/주문 이메일·고객센터 값을 쓴다(코드에 적지 않는다).
   const { cs } = await getSolvookFooterData()
   const supportContact = [cs.email, cs.phone].filter(Boolean).join(' · ')
+
+  // 결제 전 확인 문구(DB point_charge_policy, 캐시 없음). 읽지 못하면 null — 결제 버튼을 막는다(경보는 함수가 남긴다).
+  const checkoutNotice = await getPointChargeCheckoutNotice(user.id)
 
   return (
     <CheckoutClient
@@ -134,6 +121,7 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
         phone: profile?.phone ?? null,
       }}
       paymentMethods={paymentMethods}
+      checkoutNotice={checkoutNotice}
     />
   )
 }
