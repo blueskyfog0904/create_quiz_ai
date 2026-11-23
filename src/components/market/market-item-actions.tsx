@@ -33,6 +33,12 @@ import type { MarketBundlePublicSummary, MarketSubproductDownloadFile, MarketSub
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import MarketSamplePreviewDialog from './market-sample-preview-dialog'
 import { redirectToConsentIfRequired } from '@/lib/consent-client'
+import {
+  parseMarketPurchaseNotice,
+  type MarketPurchaseNotice,
+  type MarketPurchasePolicyView,
+} from '@/lib/market-purchase-policy'
+import type { MarketPurchaseInfo } from '@/lib/market-purchase-info'
 
 interface MarketItemActionsProps {
   itemId: string
@@ -50,6 +56,9 @@ interface MarketItemActionsProps {
   subproducts?: MarketSubproductPublicSummary[]
   bundleOption?: MarketBundlePublicSummary | null
   downloadFiles?: MarketSubproductDownloadFile[]
+  // 구매 고지(DB 문구·서버 지문). 읽지 못했으면 null — 구매 확인창의 구매 버튼이 막힌다.
+  purchasePolicy: MarketPurchasePolicyView | null
+  purchaseInfo: MarketPurchaseInfo
 }
 
 type OptionState = 'instant' | 'owned' | 'included' | 'available' | 'unavailable' | 'checking' | 'processing'
@@ -90,6 +99,9 @@ interface CheckoutState {
   lines: CheckoutLine[]
   balance: number
   acknowledged: boolean
+  // 확인창을 열 때 복사한 구매 고지. 409 PURCHASE_NOTICE_CHANGED 때만 바뀐다(새로고침으로 몰래 바뀌지 않게).
+  purchaseNotice: MarketPurchaseNotice | null
+  noticeAcknowledged: boolean
   submitting: boolean
   retryable: boolean
   notice: string | null
@@ -376,6 +388,8 @@ export default function MarketItemActions({
   subproducts = [],
   bundleOption = null,
   downloadFiles = [],
+  purchasePolicy,
+  purchaseInfo,
 }: MarketItemActionsProps) {
   const router = useRouter()
   const { redirectToLogin } = useLoginRedirect()
@@ -718,6 +732,15 @@ export default function MarketItemActions({
         })),
         balance,
         acknowledged: false,
+        purchaseNotice: purchasePolicy
+          ? {
+            checkboxLabel: purchasePolicy.checkboxLabel,
+            confirmNotice: purchasePolicy.confirmNotice,
+            noticeSha256: purchasePolicy.noticeSha256,
+            refundDays: purchasePolicy.refundDays,
+          }
+          : null,
+        noticeAcknowledged: false,
         submitting: false,
         retryable: false,
         notice: null,
@@ -731,11 +754,12 @@ export default function MarketItemActions({
   }
 
   const submitCheckout = async () => {
-    if (!checkout || checkout.submitting) {
+    if (!checkout || checkout.submitting || !checkout.purchaseNotice || !checkout.noticeAcknowledged) {
       return
     }
 
     const request = checkout
+    const purchaseNotice = checkout.purchaseNotice
     setCheckout({ ...request, submitting: true })
 
     let response: Response
@@ -752,6 +776,8 @@ export default function MarketItemActions({
             acknowledgeNoDiscount: line.partiallyOwned && request.acknowledged,
           })),
           idempotencyKey: request.idempotencyKey,
+          acknowledgePurchaseNotice: request.noticeAcknowledged,
+          noticeSha256: purchaseNotice.noticeSha256,
         }),
       })
     } catch {
@@ -857,6 +883,27 @@ export default function MarketItemActions({
         notice: removedCount > 0
           ? `판매 상태가 바뀐 자료 ${removedCount}건을 제외하고 변경된 금액으로 다시 표시했습니다. 확인 후 구매해주세요.`
           : '가격이 변경되었습니다. 변경된 금액을 확인한 뒤 다시 구매해주세요.',
+      })
+      return
+    }
+
+    // 구매 안내 문구가 바뀜: 새 문구로 바꾸고 다시 체크하게 한다(새 키). 기보유분 확인(acknowledged)은 그대로 둔다.
+    if (code === 'PURCHASE_NOTICE_CHANGED') {
+      const nextNotice = parseMarketPurchaseNotice(payload.details)
+      if (!nextNotice) {
+        setCheckout(null)
+        toast.error(message)
+        router.refresh()
+        return
+      }
+      setCheckout({
+        ...request,
+        idempotencyKey: crypto.randomUUID(),
+        purchaseNotice: nextNotice,
+        noticeAcknowledged: false,
+        submitting: false,
+        retryable: false,
+        notice: message,
       })
       return
     }
@@ -1346,9 +1393,11 @@ export default function MarketItemActions({
         </>
       )}
 
-      <p className="break-keep text-xs leading-5 text-[var(--studio-muted)]">
-        구매 후 바로 다운로드할 수 있으며, 구매한 파일은 <span className="font-semibold text-[var(--studio-text)]">자료 보관함</span>에서도 확인할 수 있습니다.
-      </p>
+      {purchasePolicy ? (
+        <p className="break-keep text-xs leading-5 text-[var(--studio-muted)]">
+          {purchasePolicy.purchaseCompleteNotice}
+        </p>
+      ) : null}
 
       <MarketCheckoutConfirmDialog
         open={checkout !== null}
@@ -1366,6 +1415,11 @@ export default function MarketItemActions({
         needsAcknowledgement={needsAcknowledgement}
         acknowledged={checkout?.acknowledged ?? false}
         onAcknowledgedChange={(acknowledged) => checkout && setCheckout({ ...checkout, acknowledged })}
+        purchaseNotice={checkout?.purchaseNotice ?? null}
+        noticeAcknowledged={checkout?.noticeAcknowledged ?? false}
+        onNoticeAcknowledgedChange={(noticeAcknowledged) => checkout && setCheckout({ ...checkout, noticeAcknowledged })}
+        termsLink={purchaseInfo.termsLink}
+        refundPolicyLink={purchaseInfo.refundPolicyLink}
         notice={checkout?.notice ?? null}
         shortfall={checkout?.shortfall ?? null}
         chargeHref="/pricing"

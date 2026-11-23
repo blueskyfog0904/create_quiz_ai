@@ -160,7 +160,13 @@ async function runDownloadRoute(state) {
   const bypass = { createAdminClient: () => client }
   const workspaceSubject = load('src/lib/workspace-subject.ts')
   const categoryTree = load('src/lib/market-category-tree.ts', { '@/lib/workspace-subject': workspaceSubject })
-  const refunds = load('src/lib/market-refunds.ts', { '@/lib/credits': {}, '@/lib/supabase/bypass': bypass, '@/lib/workspace-subject': workspaceSubject })
+  const refunds = load('src/lib/market-refunds.ts', {
+    '@/lib/credits': {},
+    '@/lib/supabase/bypass': bypass,
+    '@/lib/workspace-subject': workspaceSubject,
+    '@/lib/market-purchase-policy': load('src/lib/market-purchase-policy.ts'),
+    '@/lib/market-purchase-policy-server': {},
+  })
   const itemsServer = load('src/lib/market-items-server.ts', {
     '@/lib/supabase/bypass': bypass,
     '@/lib/market-refunds': refunds,

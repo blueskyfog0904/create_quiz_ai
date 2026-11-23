@@ -5,6 +5,7 @@ import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot } from '@/li
 import { isMarketV2PurchaseEnabled } from '@/lib/market-purchase'
 import { runMarketCheckout } from '@/lib/market-checkout-server'
 import { checkMemberConsentForApi, consentBlockResponse } from '@/lib/consent-guard-server'
+import { checkPurchaseNoticeAcknowledged, enforcePurchaseNoticeAck } from '@/lib/market-purchase-policy-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +21,8 @@ const DirectBodySchema = z.object({
     acknowledgeNoDiscount: z.boolean().optional(),
   }).strict()).min(1).max(50),
   idempotencyKey: z.string().uuid(),
+  acknowledgePurchaseNotice: z.boolean({ error: '구매 화면이 바뀌었습니다. 화면을 새로고침한 뒤 다시 구매해 주세요.' }),
+  noticeSha256: z.string({ error: '구매 화면이 바뀌었습니다. 화면을 새로고침한 뒤 다시 구매해 주세요.' }).regex(/^[0-9a-f]{64}$/, '구매 안내 확인 값이 올바르지 않습니다. 화면을 새로고침한 뒤 다시 구매해 주세요.'),
 }).strict()
 
 interface RouteContext {
@@ -59,6 +62,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     }, { status: 400 })
   }
 
+  const noticeAckMissing = checkPurchaseNoticeAcknowledged(parsed.data.acknowledgePurchaseNotice)
+  if (noticeAckMissing) {
+    return NextResponse.json({
+      success: false,
+      error: { code: noticeAckMissing.code, message: noticeAckMissing.message },
+    }, { status: noticeAckMissing.status })
+  }
+
   if (!isMarketV2PurchaseEnabled()) {
     return NextResponse.json({
       success: false,
@@ -71,6 +82,20 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       success: false,
       error: { code: 'NOT_FOUND', message: '구매 가능한 문제마켓 상품을 찾을 수 없습니다.' },
     }, { status: 404 })
+  }
+
+  // 구매 고지 동의 기록(판매 중지·itemId 검사 뒤, 결제 바로 앞). 기록하지 못하면 결제하지 않는다.
+  const noticeFailure = await enforcePurchaseNoticeAck({
+    userId: user.id,
+    idempotencyKey: parsed.data.idempotencyKey,
+    noticeSha256: parsed.data.noticeSha256,
+  })
+  if (noticeFailure) {
+    return NextResponse.json({
+      success: false,
+      error: { code: noticeFailure.code, message: noticeFailure.message },
+      details: noticeFailure.details,
+    }, { status: noticeFailure.status })
   }
 
   const outcome = await runMarketCheckout({

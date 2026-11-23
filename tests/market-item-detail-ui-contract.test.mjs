@@ -20,7 +20,9 @@ test('market item detail separates sample preview from purchase options', () => 
   assert.doesNotMatch(itemActions, /HWP & PDF 구매하기/)
   // 보관함 안내는 지금 메뉴 이름 "자료 보관함"(D5)
   assert.doesNotMatch(itemActions, /libraryPurchaseLabel|라이브러리 > 구매자료/)
-  assert.match(itemActions, /구매한 파일은 <span[^>]*>자료 보관함<\/span>에서도 확인할 수 있습니다\./)
+  // 7번 묶음: 구매 뒤 다운로드 안내는 DB 문구(market_purchase_policy.purchaseCompleteNotice)
+  assert.match(itemActions, /\{purchasePolicy\.purchaseCompleteNotice\}/)
+  assert.doesNotMatch(itemActions, /구매한 파일은 <span[^>]*>자료 보관함<\/span>에서도 확인할 수 있습니다\./)
   assert.doesNotMatch(itemActions, /title="샘플 미리보기"[\s\S]*priceLabel="무료"/)
 })
 

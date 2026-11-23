@@ -13,6 +13,9 @@ const cart = load('src/lib/market-cart-server.ts', {
   '@/lib/market-checkout-server': {},
   '@/lib/supabase/server': {},
   '@/lib/supabase/bypass': {},
+  '@/lib/market-purchase-info': {},
+  '@/lib/market-purchase-policy-server': {},
+  '@/lib/footer-content-server': {},
 })
 
 // 게시판이 숨김(is_visible=false)이어도 상세 링크는 상품 상태만으로 정한다.
@@ -71,6 +74,9 @@ test('빈 목록은 조회 없이 빈 결과, 조회 실패는 링크 없이 돌
     '@/lib/market-checkout-server': {},
     '@/lib/supabase/server': {},
     '@/lib/supabase/bypass': {},
+    '@/lib/market-purchase-info': {},
+    '@/lib/market-purchase-policy-server': {},
+    '@/lib/footer-content-server': {},
   }, errors)
   assert.equal((await withErrors.getMarketCartDetailHrefs(failing.client, [ITEM_KO])).size, 0)
   assert.equal(errors.length, 1)

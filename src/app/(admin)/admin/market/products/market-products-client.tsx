@@ -482,6 +482,8 @@ interface FileTypeSettingsFormState {
   code: string
   label: string
   extension: string
+  // 상품 상세 "구매 전 확인"에 보이는 필요 프로그램(DB market_file_types.required_program)
+  requiredProgram: string
   mimeAllowlist: string
   sortOrder: string
   isActive: boolean
@@ -564,6 +566,7 @@ function buildEmptyFileTypeSettingsForm(): FileTypeSettingsFormState {
     code: '',
     label: '',
     extension: '',
+    requiredProgram: '',
     mimeAllowlist: '',
     sortOrder: '0',
     isActive: true,
@@ -575,6 +578,7 @@ function buildFileTypeSettingsForm(fileType: MarketFileType): FileTypeSettingsFo
     code: fileType.code,
     label: fileType.label,
     extension: fileType.extension,
+    requiredProgram: fileType.required_program ?? '',
     mimeAllowlist: (fileType.mime_allowlist || []).join('\n'),
     sortOrder: String(fileType.sort_order ?? 0),
     isActive: fileType.is_active,
@@ -1864,6 +1868,11 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
       toast.error('파일 유형 코드, 표시명, 확장자를 입력해주세요.')
       return
     }
+    // 새 유형은 필요 프로그램 필수(수정은 비워 둔 채 다른 칸만 바꿀 수 있음 — 서버 PATCH 와 같은 규칙)
+    if (!editingFileTypeId && !fileTypeSettingsForm.requiredProgram.trim()) {
+      toast.error('필요 프로그램을 입력해주세요. 상품 상세 "구매 전 확인"에 보입니다.')
+      return
+    }
 
     setIsFileTypeSettingsSaving(true)
     try {
@@ -1880,6 +1889,7 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
           code: fileTypeSettingsForm.code,
           label: fileTypeSettingsForm.label,
           extension: fileTypeSettingsForm.extension.replace(/^\./, ''),
+          ...(fileTypeSettingsForm.requiredProgram.trim() ? { requiredProgram: fileTypeSettingsForm.requiredProgram } : {}),
           mimeAllowlist: fileTypeSettingsForm.mimeAllowlist
             .split(/\n|,/)
             .map((mime) => mime.trim())
@@ -3560,6 +3570,11 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
               <div className="space-y-2">
                 <Label>확장자</Label>
                 <Input value={fileTypeSettingsForm.extension} onChange={(event) => setFileTypeSettingsForm((current) => ({ ...current, extension: event.target.value }))} placeholder="예: pdf" />
+              </div>
+              <div className="space-y-2">
+                <Label>필요 프로그램</Label>
+                <Input value={fileTypeSettingsForm.requiredProgram} maxLength={200} onChange={(event) => setFileTypeSettingsForm((current) => ({ ...current, requiredProgram: event.target.value }))} placeholder="예: PDF 뷰어(Adobe Acrobat Reader 등)" />
+                <p className="text-xs text-gray-500">상품 상세 &quot;구매 전 확인&quot;의 파일 형식 줄에 보입니다.</p>
               </div>
               <div className="space-y-2">
                 <Label>MIME 허용 목록</Label>

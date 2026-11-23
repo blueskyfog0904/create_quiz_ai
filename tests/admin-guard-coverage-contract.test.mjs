@@ -456,6 +456,10 @@ const ACTION_REQUIREMENTS = {
     saveFooterContentAction: { alias: 'saveSiteFooterContentAction' },
     saveSiteBrandAction: 'site.manage',
   },
+  'src/app/(admin)/admin/footer/purchase-policy-actions.ts': {
+    getMarketPurchasePolicyAdminData: 'site.manage',
+    saveMarketPurchasePolicyAction: 'site.manage',
+  },
   'src/app/(admin)/admin/pricing/actions.ts': {
     getPricingPlans: 'pricing.manage',
     upsertPricingPlan: 'pricing.manage',

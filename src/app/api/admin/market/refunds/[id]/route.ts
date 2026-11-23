@@ -152,6 +152,14 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       ...(audited ? {} : { auditWarning: '처리는 완료됐지만 작업 기록을 남기지 못했습니다. 대표 관리자에게 알렸습니다.' }),
     })
   } catch (error) {
+    // 환불 기간 설정을 읽지 못해 승인을 멈춤(아무것도 바뀌지 않음). 잠시 후 다시.
+    if (error instanceof Error && error.name === 'REFUND_POLICY_UNAVAILABLE') {
+      return NextResponse.json({
+        success: false,
+        error: error.message,
+        code: 'REFUND_POLICY_UNAVAILABLE',
+      }, { status: 503 })
+    }
     if (error instanceof MarketRefundShortfallError) {
       return NextResponse.json({
         success: false,

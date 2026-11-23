@@ -12,6 +12,8 @@ import {
   StudioDialogPanel,
   StudioDialogTitle,
 } from '@/components/design-system/studio-dialog'
+import type { MarketPurchaseNotice } from '@/lib/market-purchase-policy'
+import type { MarketPurchaseLink } from '@/lib/market-purchase-info'
 
 export interface MarketCheckoutConfirmLine {
   key: string
@@ -32,6 +34,12 @@ interface MarketCheckoutConfirmDialogProps {
   needsAcknowledgement: boolean
   acknowledged: boolean
   onAcknowledgedChange: (acknowledged: boolean) => void
+  // 구매 고지(DB 문구·서버 지문). 확인창을 열 때 복사해 둔 값이고, 409 PURCHASE_NOTICE_CHANGED 때만 바뀐다. null 이면 구매 버튼을 막는다.
+  purchaseNotice: MarketPurchaseNotice | null
+  noticeAcknowledged: boolean
+  onNoticeAcknowledgedChange: (acknowledged: boolean) => void
+  termsLink: MarketPurchaseLink | null
+  refundPolicyLink: MarketPurchaseLink | null
   notice: string | null
   shortfall: number | null
   chargeHref: string
@@ -57,6 +65,11 @@ export function MarketCheckoutConfirmDialog({
   needsAcknowledgement,
   acknowledged,
   onAcknowledgedChange,
+  purchaseNotice,
+  noticeAcknowledged,
+  onNoticeAcknowledgedChange,
+  termsLink,
+  refundPolicyLink,
   notice,
   shortfall,
   chargeHref,
@@ -67,6 +80,7 @@ export function MarketCheckoutConfirmDialog({
   onConfirm,
 }: MarketCheckoutConfirmDialogProps) {
   const canConfirm = !submitting && shortfall === null && (!needsAcknowledgement || acknowledged)
+    && purchaseNotice !== null && noticeAcknowledged
 
   return (
     <Dialog
@@ -77,14 +91,16 @@ export function MarketCheckoutConfirmDialog({
         }
       }}
     >
-      <StudioDialogPanel showCloseButton={false} className="sm:max-w-md">
+      {/* 패널은 화면 높이 안에 두고(제목·본문·버튼 3줄 grid), 가운데 본문만 스크롤한다. 공용 Dialog 는 바꾸지 않는다. */}
+      <StudioDialogPanel showCloseButton={false} className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-md">
         <StudioDialogHeader>
           <StudioDialogTitle>{title}</StudioDialogTitle>
           <StudioDialogDescription>{description}</StudioDialogDescription>
         </StudioDialogHeader>
 
         {open ? (
-          <div className="min-w-0 space-y-4">
+          // 본문만 스크롤하고 버튼 줄은 늘 보이게 한다(작은 화면에서 고지·알림이 함께 떠도 구매·취소 버튼이 가려지지 않음).
+          <div className="-mx-1 min-h-0 min-w-0 space-y-4 overflow-y-auto px-1">
             <ul className="max-h-60 divide-y divide-[var(--studio-border)] overflow-y-auto rounded-[var(--studio-radius-control)] border border-[var(--studio-border)]">
               {lines.map((line) => (
                 <li key={line.key} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
@@ -137,6 +153,42 @@ export function MarketCheckoutConfirmDialog({
                 </span>
               </label>
             ) : null}
+
+            {purchaseNotice ? (
+              <div className="space-y-2 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] p-3 text-sm text-[var(--studio-text)]">
+                <p className="whitespace-pre-line break-keep leading-6">{purchaseNotice.confirmNotice}</p>
+                {termsLink || refundPolicyLink ? (
+                  <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                    {termsLink ? (
+                      <Link href={termsLink.href} target="_blank" rel="noopener noreferrer" className="font-semibold text-[var(--studio-ink)] underline underline-offset-2">
+                        {termsLink.label}
+                      </Link>
+                    ) : null}
+                    {refundPolicyLink ? (
+                      <Link href={refundPolicyLink.href} target="_blank" rel="noopener noreferrer" className="font-semibold text-[var(--studio-ink)] underline underline-offset-2">
+                        {refundPolicyLink.label}
+                      </Link>
+                    ) : null}
+                  </p>
+                ) : null}
+                <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--studio-text)]">
+                  <span className="grid size-11 shrink-0 place-items-center">
+                    <Checkbox
+                      checked={noticeAcknowledged}
+                      // 재시도는 같은 키·같은 지문이어야 하므로 retryable 동안 바꾸지 못하게 한다.
+                      disabled={submitting || retryable}
+                      onCheckedChange={(checked) => onNoticeAcknowledgedChange(checked === true)}
+                      aria-labelledby="market-purchase-notice-checkbox-label"
+                    />
+                  </span>
+                  <span id="market-purchase-notice-checkbox-label" className="break-keep py-3 font-semibold">[필수] {purchaseNotice.checkboxLabel}</span>
+                </label>
+              </div>
+            ) : (
+              <p role="alert" className="rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] p-3 text-sm text-[var(--studio-text)]">
+                구매 안내를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
+              </p>
+            )}
 
             {notice ? (
               <div role="alert" className="rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] p-3 text-sm text-[var(--studio-text)]">

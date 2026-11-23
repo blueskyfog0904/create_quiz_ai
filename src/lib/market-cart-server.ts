@@ -11,6 +11,10 @@ import {
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import type { MarketPurchaseNotice } from '@/lib/market-purchase-policy'
+import { buildMarketPurchaseInfo, type MarketPurchaseLink } from '@/lib/market-purchase-info'
+import { getMarketPurchasePolicyView, toMarketPurchaseNotice } from '@/lib/market-purchase-policy-server'
+import { getSiteFooterContent } from '@/lib/footer-content-server'
 
 export type MarketCartTargetKind = 'subproduct' | 'bundle'
 
@@ -38,6 +42,10 @@ export interface MarketCartView {
   items: MarketCartItem[]
   count: number
   balance: number
+  // 구매 확인창 고지(DB 문구·서버 지문). 읽지 못하면 null — 구매 버튼이 막힌다.
+  purchaseNotice: MarketPurchaseNotice | null
+  termsLink: MarketPurchaseLink | null
+  refundPolicyLink: MarketPurchaseLink | null
 }
 
 type MarketCartFailure = Extract<MarketCheckoutOutcome, { ok: false }>
@@ -198,7 +206,12 @@ export async function getMarketCartView(userId: string): Promise<MarketCartView>
     db,
     [...new Set(evaluated.flatMap((target) => (target.itemId ? [target.itemId] : [])))]
   )
-  const snapshot = await getCreditBalanceSnapshot(userId)
+  const [snapshot, purchasePolicy, footerContent] = await Promise.all([
+    getCreditBalanceSnapshot(userId),
+    getMarketPurchasePolicyView(),
+    getSiteFooterContent(),
+  ])
+  const purchaseInfo = buildMarketPurchaseInfo(footerContent)
 
   return {
     items: rows.map((row, index) => {
@@ -224,6 +237,9 @@ export async function getMarketCartView(userId: string): Promise<MarketCartView>
     }),
     count: rows.length,
     balance: selectDisplayBalance(userId, snapshot),
+    purchaseNotice: purchasePolicy ? toMarketPurchaseNotice(purchasePolicy) : null,
+    termsLink: purchaseInfo.termsLink,
+    refundPolicyLink: purchaseInfo.refundPolicyLink,
   }
 }
 

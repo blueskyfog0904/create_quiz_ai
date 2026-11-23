@@ -29,6 +29,7 @@ const REQUEST = {
   legacy_purchase_id: null,
   user_id: 'user-1',
   requested_refund_credits: 100,
+  created_at: new Date().toISOString(),
 }
 
 const ORDER = {
@@ -43,11 +44,11 @@ const ORDER = {
 }
 
 // 사전 검사 조회(요청·주문·다운로드·이용권)와 RPC만 흉내 낸다. 테이블 쓰기는 기록만 한다.
-function createWorld({ rpc, request = REQUEST } = {}) {
+function createWorld({ rpc, request = REQUEST, order = ORDER, refundPolicy = { refundDays: 7, refundExpiredReason: '구매 후 {자료환불기간}일이 지난 자료는 환불할 수 없습니다.' } } = {}) {
   const calls = { rpc: [], writes: [], balanceChecks: [] }
   const rows = {
     market_refund_requests: request,
-    market_purchase_orders: ORDER,
+    market_purchase_orders: order,
   }
 
   const query = (table) => {
@@ -89,6 +90,12 @@ function createWorld({ rpc, request = REQUEST } = {}) {
       },
     },
     '@/lib/workspace-subject': { DEFAULT_WORKSPACE_SUBJECT: 'english' },
+    '@/lib/market-purchase-policy': loadModule('../src/lib/market-purchase-policy.ts', {}),
+    // 환불 기간 설정(DB system_settings) — 승인 사전 검사가 캐시 없이 읽는다.
+    '@/lib/market-purchase-policy-server': {
+      readMarketRefundPolicyUncached: async () => refundPolicy,
+      getMarketRefundPolicyCached: async () => refundPolicy,
+    },
   })
 
   return {
@@ -239,4 +246,42 @@ test('the admin screen confirms a shortfall and resends with confirmedRefundCred
   assert.match(client, /window\.confirm\(/)
   assert.match(client, /JSON\.stringify\(\{ action, confirmedRefundCredits, adminNote: adminNote\.trim\(\) \|\| undefined \}\)/)
   assert.match(client, /send\(shortfall\.restorable\)/)
+})
+
+// 7번 묶음: 환불 기간은 DB 값, 관리자 승인은 신청 시각 기준, 설정을 못 읽으면 승인하지 않는다.
+const DAY = 24 * 60 * 60 * 1000
+const approvedRpc = () => ({ data: { ...REQUEST, status: 'approved' }, error: null })
+
+test('환불 기간 설정을 읽지 못하면 RPC 를 부르지 않고 REFUND_POLICY_UNAVAILABLE 로 멈춘다', async () => {
+  const world = createWorld({ rpc: approvedRpc, refundPolicy: null })
+  await assert.rejects(world.approve(), (error) => error.name === 'REFUND_POLICY_UNAVAILABLE')
+  assert.equal(world.calls.rpc.length, 0)
+})
+
+test('기간 안에 낸 신청은 기간이 지난 뒤 승인해도 통과한다(신청 시각 기준)', async () => {
+  const purchasedAt = new Date(Date.now() - 10 * DAY).toISOString()
+  const world = createWorld({
+    rpc: approvedRpc,
+    order: { ...ORDER, created_at: purchasedAt },
+    request: { ...REQUEST, created_at: new Date(Date.now() - 7 * DAY).toISOString() },
+  })
+  const result = await world.approve()
+  assert.equal(result.status, 'approved')
+  assert.equal(world.calls.rpc.length, 1)
+})
+
+test('기간이 지난 뒤 낸 신청은 DB 문구(채운 기간)로 거절하고 RPC 를 부르지 않는다', async () => {
+  const world = createWorld({
+    rpc: approvedRpc,
+    order: { ...ORDER, created_at: new Date(Date.now() - 10 * DAY).toISOString() },
+    request: { ...REQUEST, created_at: new Date(Date.now() - 1 * DAY).toISOString() },
+  })
+  await assert.rejects(world.approve(), /구매 후 7일이 지난 자료는 환불할 수 없습니다\./)
+  assert.equal(world.calls.rpc.length, 0)
+})
+
+test('신청 시각을 읽을 수 없으면 승인하지 않는다', async () => {
+  const world = createWorld({ rpc: approvedRpc, request: { ...REQUEST, created_at: null } })
+  await assert.rejects(world.approve(), /신청 시각을 확인할 수 없어/)
+  assert.equal(world.calls.rpc.length, 0)
 })

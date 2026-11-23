@@ -7,6 +7,7 @@ import {
   deleteMarketFileType,
   updateMarketFileType,
 } from '@/lib/market-items-server'
+import { recordAdminAudit } from '@/lib/admin-audit-log-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +19,7 @@ const FileTypePatchSchema = z.object({
   code: z.string().trim().min(1).optional(),
   label: z.string().trim().min(1).optional(),
   extension: z.string().trim().min(1).optional(),
+  requiredProgram: z.string().trim().min(1, '필요 프로그램을 입력해 주세요.').max(200, '필요 프로그램은 200자 이하로 입력해 주세요.').optional(),
   mimeAllowlist: z.array(z.string().trim().min(1)).optional(),
   sortOrder: z.number().int().min(0).optional(),
   isActive: z.boolean().optional(),
@@ -34,7 +36,7 @@ async function requireAdminUser(permission: AdminPermissionRequirement = 'produc
 }
 
 export async function PATCH(request: Request, { params }: RouteContext) {
-  const { denied } = await requireAdminUser()
+  const { user, denied } = await requireAdminUser()
 
   if (denied) {
     return denied
@@ -56,10 +58,22 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       code: parsed.data.code,
       label: parsed.data.label,
       extension: parsed.data.extension,
+      requiredProgram: parsed.data.requiredProgram,
       mimeAllowlist: parsed.data.mimeAllowlist,
       sortOrder: parsed.data.sortOrder,
       isActive: parsed.data.isActive,
     })
+
+    // 필요 프로그램은 회원에게 보이는 표시 사항이라 수정 기록을 남긴다(실패해도 결과는 그대로).
+    if (user) {
+      await recordAdminAudit({
+        actorId: user.id,
+        action: 'market_file_type_update',
+        targetType: 'market_file_type',
+        targetId: id,
+        details: { code: fileType.code, label: fileType.label, required_program: fileType.required_program ?? null },
+      })
+    }
 
     return NextResponse.json({ success: true, data: fileType })
   } catch (error) {

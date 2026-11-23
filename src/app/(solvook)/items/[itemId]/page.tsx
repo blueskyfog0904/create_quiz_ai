@@ -12,6 +12,9 @@ import {
 import { countActiveMarketItemSamplePages } from '@/lib/market-sample-pages-server'
 import { getCachedCategoryTree } from '@/lib/market-category-tree-cache'
 import { isWorkspaceSubject } from '@/lib/workspace-subject'
+import { getMarketPurchasePolicyView } from '@/lib/market-purchase-policy-server'
+import { buildMarketPurchaseInfo } from '@/lib/market-purchase-info'
+import { getSiteFooterContent } from '@/lib/footer-content-server'
 import { MarketMaterialDetail } from '@/app/preview/solvook-concept/_components/detail/market-material-detail'
 
 interface MarketItemDetailPageProps {
@@ -67,6 +70,8 @@ export default async function MarketItemDetailPage({
     purchases,
     reviews,
     categoryTree,
+    purchasePolicy,
+    footerContent,
   ] = await Promise.all([
     getPublishedMarketItemById(itemId, subject),
     listMarketItemFiles(itemId, false, subject),
@@ -81,6 +86,9 @@ export default async function MarketItemDetailPage({
       : Promise.resolve([]),
     listMarketItemReviewsForItem(itemId, subject, { viewerId: userId, sort: reviewSort }),
     getCachedCategoryTree(),
+    // 구매 고지 문구·환불 기간(읽지 못하면 null — 상세 고지 줄은 숨기고 구매 확인창의 구매 버튼은 막힘)
+    getMarketPurchasePolicyView(),
+    getSiteFooterContent(),
   ])
 
   if (!item) {
@@ -100,6 +108,8 @@ export default async function MarketItemDetailPage({
       samplePageCount={samplePageCount}
       subproducts={subproducts}
       categoryTree={categoryTree[subject]}
+      purchasePolicy={purchasePolicy}
+      purchaseInfo={buildMarketPurchaseInfo(footerContent)}
     />
   )
 }

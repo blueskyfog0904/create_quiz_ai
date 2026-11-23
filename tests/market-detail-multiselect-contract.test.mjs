@@ -144,7 +144,7 @@ test('cart and detail share the checkout confirm dialog', () => {
     assert.match(source, /import \{ MarketCheckoutConfirmDialog \} from '@\/components\/market\/market-checkout-confirm-dialog'/)
     assert.match(source, /<MarketCheckoutConfirmDialog/)
   }
-  assert.match(confirmDialog, /const canConfirm = !submitting && shortfall === null && \(!needsAcknowledgement \|\| acknowledged\)/)
+  assert.match(confirmDialog, /const canConfirm = !submitting && shortfall === null && \(!needsAcknowledgement \|\| acknowledged\)\n    && purchaseNotice !== null && noticeAcknowledged/)
   assert.match(confirmDialog, /if \(!nextOpen && !submitting\) \{\s+onCancel\(\)/)
   assert.match(confirmDialog, /disabled=\{submitting \|\| retryable\}/)
   assert.doesNotMatch(confirmDialog, /fetch\(/)

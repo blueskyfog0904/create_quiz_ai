@@ -26,9 +26,11 @@ test('admin market refund API lists and processes approvals and rejections', () 
 
 test('market refund service performs eligibility checks, stale approval recheck, and credit refund', () => {
   assert.match(marketRefunds, /export async function getMarketRefundEligibility/)
-  assert.match(marketRefunds, /const isWithinRefundPeriod = new Date\(\) <= refundDeadline/)
-  assert.match(marketRefunds, /downloadCount > 0 \|\| !isWithinRefundPeriod/)
-  assert.match(marketRefunds, /구매 후 7일/)
+  // 7번 묶음: 환불 기간은 DB 값(refundPolicy.refundDays), 판정 기준 시각은 judgeAt(관리자 승인은 신청 시각), 거절 문구도 DB 값
+  assert.match(marketRefunds, /addDays\(new Date\(target\.purchasedAt\), refundPolicy\.refundDays\)/)
+  assert.match(marketRefunds, /\(options\.judgeAt \?\? new Date\(\)\) > refundDeadline/)
+  assert.match(marketRefunds, /fillMarketRefundDays\(refundPolicy\.refundExpiredReason, refundPolicy\.refundDays\)/)
+  assert.doesNotMatch(marketRefunds, /7일|addDays\([^)]*, 7\)/)
   assert.match(marketRefunds, /rpc\('approve_market_refund'/)
   assert.doesNotMatch(marketRefunds, /CreditService\.refundCredits/)
   assert.match(marketRefunds, /승인 전 환불 조건/)

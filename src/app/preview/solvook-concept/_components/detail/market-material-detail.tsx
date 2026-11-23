@@ -22,6 +22,12 @@ import { MarketMaterialSampleButton } from './market-material-sample-button'
 import { MarketReviewsSection } from './market-reviews-section'
 import { MarketCategorySidebar } from '@/components/market/MarketCategorySidebar'
 import { findCategoryPath, type MarketCategoryNode } from '@/lib/market-category-tree'
+import type { MarketPurchasePolicyView } from '@/lib/market-purchase-policy'
+import type { MarketPurchaseInfo } from '@/lib/market-purchase-info'
+import {
+  MarketPurchaseInfoSection,
+  type MarketPurchaseInfoFileType,
+} from '@/components/market/market-purchase-info-section'
 
 interface MarketMaterialDetailProps {
   bundleOption: MarketBundlePublicSummary | null
@@ -35,6 +41,21 @@ interface MarketMaterialDetailProps {
   samplePageCount: number
   subproducts: MarketSubproductPublicSummary[]
   categoryTree: MarketCategoryNode[]
+  purchasePolicy: MarketPurchasePolicyView | null
+  purchaseInfo: MarketPurchaseInfo
+}
+
+// 이 상품의 서브상품에 들어 있는 파일 형식(코드별 하나, 서브상품 순서대로)
+function collectPurchaseInfoFileTypes(subproducts: MarketSubproductPublicSummary[]): MarketPurchaseInfoFileType[] {
+  const byCode = new Map<string, MarketPurchaseInfoFileType>()
+  for (const subproduct of subproducts) {
+    for (const fileType of subproduct.fileTypes) {
+      if (!byCode.has(fileType.code)) {
+        byCode.set(fileType.code, { code: fileType.code, label: fileType.label, requiredProgram: fileType.requiredProgram })
+      }
+    }
+  }
+  return [...byCode.values()]
 }
 
 function formatRegisteredAt(value: string) {
@@ -78,6 +99,8 @@ export function MarketMaterialDetail({
   samplePageCount,
   subproducts,
   categoryTree,
+  purchasePolicy,
+  purchaseInfo,
 }: MarketMaterialDetailProps) {
   // 상품이 연결된 칸까지의 경로(depth1 → 연결 칸). 카테고리가 없거나 공개 트리에 없으면 빈 경로.
   const categoryPath = item.category_item_id ? findCategoryPath(categoryTree, item.category_item_id) ?? [] : []
@@ -283,6 +306,12 @@ export function MarketMaterialDetail({
             ) : null}
           </section>
 
+          <MarketPurchaseInfoSection
+            policy={purchasePolicy}
+            info={purchaseInfo}
+            fileTypes={collectPurchaseInfoFileTypes(subproducts)}
+          />
+
           <section
             id="purchase-options"
             aria-labelledby="market-purchase-options-heading"
@@ -311,6 +340,8 @@ export function MarketMaterialDetail({
               subproducts={subproducts}
               workspaceSubject={item.workspace_subject}
               zipPrice={item.zip_price}
+              purchasePolicy={purchasePolicy}
+              purchaseInfo={purchaseInfo}
             />
           </section>
 

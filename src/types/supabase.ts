@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.18"
   }
   public: {
     Tables: {
@@ -1719,6 +1719,7 @@ export type Database = {
           is_active: boolean
           label: string
           mime_allowlist: string[]
+          required_program: string | null
           sort_order: number
           updated_at: string
           workspace_subject: string
@@ -1732,6 +1733,7 @@ export type Database = {
           is_active?: boolean
           label: string
           mime_allowlist?: string[]
+          required_program?: string | null
           sort_order?: number
           updated_at?: string
           workspace_subject: string
@@ -1745,6 +1747,7 @@ export type Database = {
           is_active?: boolean
           label?: string
           mime_allowlist?: string[]
+          required_program?: string | null
           sort_order?: number
           updated_at?: string
           workspace_subject?: string
@@ -2512,6 +2515,44 @@ export type Database = {
           },
         ]
       }
+      market_purchase_notice_acks: {
+        Row: {
+          created_at: string
+          id: string
+          idempotency_key: string
+          notice_sha256: string
+          notice_text: string
+          refund_days: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          notice_sha256: string
+          notice_text: string
+          refund_days: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          notice_sha256?: string
+          notice_text?: string
+          refund_days?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_purchase_notice_acks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       market_purchase_orders: {
         Row: {
           charged_credits: number
@@ -2784,45 +2825,6 @@ export type Database = {
         }
         Relationships: []
       }
-      market_subproduct_categories: {
-        Row: {
-          created_at: string
-          deleted_at: string | null
-          description: string | null
-          id: string
-          is_active: boolean
-          name: string
-          slug: string
-          sort_order: number
-          updated_at: string
-          workspace_subject: string
-        }
-        Insert: {
-          created_at?: string
-          deleted_at?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean
-          name: string
-          slug: string
-          sort_order?: number
-          updated_at?: string
-          workspace_subject: string
-        }
-        Update: {
-          created_at?: string
-          deleted_at?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean
-          name?: string
-          slug?: string
-          sort_order?: number
-          updated_at?: string
-          workspace_subject?: string
-        }
-        Relationships: []
-      }
       market_storage_cleanup_queue: {
         Row: {
           attempt_count: number
@@ -2859,6 +2861,45 @@ export type Database = {
           source_item_title?: string | null
           storage_bucket?: string
           storage_path?: string
+        }
+        Relationships: []
+      }
+      market_subproduct_categories: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          slug: string
+          sort_order: number
+          updated_at: string
+          workspace_subject: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+          workspace_subject: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+          workspace_subject?: string
         }
         Relationships: []
       }
@@ -3783,6 +3824,39 @@ export type Database = {
         }
         Relationships: []
       }
+      policy_document_snapshots: {
+        Row: {
+          content: string
+          content_sha256: string
+          created_at: string
+          doc_key: string
+          id: string
+          seq: number
+          slug: string | null
+          title: string | null
+        }
+        Insert: {
+          content: string
+          content_sha256: string
+          created_at?: string
+          doc_key: string
+          id?: string
+          seq?: never
+          slug?: string | null
+          title?: string | null
+        }
+        Update: {
+          content?: string
+          content_sha256?: string
+          created_at?: string
+          doc_key?: string
+          id?: string
+          seq?: never
+          slug?: string | null
+          title?: string | null
+        }
+        Relationships: []
+      }
       pricing_plans: {
         Row: {
           badge_text: string | null
@@ -4517,6 +4591,100 @@ export type Database = {
           },
         ]
       }
+      signup_consent_item_versions: {
+        Row: {
+          content: string
+          created_at: string
+          item_id: string
+          label: string
+          note: string | null
+          policy_slug: string | null
+          required: boolean
+          version: number
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          item_id: string
+          label: string
+          note?: string | null
+          policy_slug?: string | null
+          required: boolean
+          version: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          item_id?: string
+          label?: string
+          note?: string | null
+          policy_slug?: string | null
+          required?: boolean
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signup_consent_item_versions_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "signup_consent_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      signup_consent_items: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          policy_slug: string | null
+          required: boolean
+          required_lock: boolean | null
+          sort_order: number
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          label: string
+          policy_slug?: string | null
+          required: boolean
+          required_lock?: boolean | null
+          sort_order?: number
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          policy_slug?: string | null
+          required?: boolean
+          required_lock?: boolean | null
+          sort_order?: number
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signup_consent_items_current_version_fkey"
+            columns: ["id", "version"]
+            isOneToOne: true
+            referencedRelation: "signup_consent_item_versions"
+            referencedColumns: ["item_id", "version"]
+          },
+        ]
+      }
       source_configs: {
         Row: {
           created_at: string | null
@@ -4735,6 +4903,57 @@ export type Database = {
           value?: Json
         }
         Relationships: []
+      }
+      user_consents: {
+        Row: {
+          agreed: boolean
+          created_at: string
+          id: string
+          item_id: string
+          item_version: number
+          policy_sha256: string | null
+          seq: number
+          source: string
+          user_id: string
+        }
+        Insert: {
+          agreed: boolean
+          created_at?: string
+          id?: string
+          item_id: string
+          item_version: number
+          policy_sha256?: string | null
+          seq?: never
+          source: string
+          user_id: string
+        }
+        Update: {
+          agreed?: boolean
+          created_at?: string
+          id?: string
+          item_id?: string
+          item_version?: number
+          policy_sha256?: string | null
+          seq?: never
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_consents_item_version_fkey"
+            columns: ["item_id", "item_version"]
+            isOneToOne: false
+            referencedRelation: "signup_consent_item_versions"
+            referencedColumns: ["item_id", "version"]
+          },
+          {
+            foreignKeyName: "user_consents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -4966,6 +5185,10 @@ export type Database = {
         Args: { p_payment_order_id: string }
         Returns: Json
       }
+      cancel_incomplete_kakao_signup: {
+        Args: { p_user_id: string }
+        Returns: boolean
+      }
       checkout_market_selection: {
         Args: {
           p_idempotency_key: string
@@ -4995,6 +5218,17 @@ export type Database = {
         Args: { p_admin_id: string; p_admin_note: string; p_request_id: string }
         Returns: Json
       }
+      complete_kakao_signup_with_consents: {
+        Args: {
+          p_email: string
+          p_items: Json
+          p_kakao_email: string
+          p_kakao_id: string
+          p_phone: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       complete_manual_point_charge_refund: {
         Args: {
           p_admin_id: string
@@ -5010,6 +5244,25 @@ export type Database = {
         Args: never
         Returns: number
       }
+      consent_eligible_member_count: { Args: never; Returns: number }
+      consent_items_error: {
+        Args: { p_items: Json; p_source: string }
+        Returns: string
+      }
+      consent_latest_results: {
+        Args: { p_item_ids: string[]; p_user_id: string }
+        Returns: Json
+      }
+      consent_missing_required: {
+        Args: { p_submitted?: Json; p_user_id: string }
+        Returns: string[]
+      }
+      consent_normalize_text: { Args: { p_value: string }; Returns: string }
+      consent_record_internal: {
+        Args: { p_items: Json; p_source: string; p_user_id: string }
+        Returns: Json
+      }
+      consent_validate_submission: { Args: { p_items: Json }; Returns: string }
       consume_credits: {
         Args: {
           p_amount: number
@@ -5104,6 +5357,7 @@ export type Database = {
         }
       }
       delete_market_image: { Args: { p_image_id: string }; Returns: Json }
+      dispatch_admin_events: { Args: never; Returns: undefined }
       effective_default_image: {
         Args: {
           "": Database["public"]["Tables"]["market_category_items"]["Row"]
@@ -5181,6 +5435,7 @@ export type Database = {
         }
         Returns: Json
       }
+      generate_member_display_tag: { Args: never; Returns: string }
       get_credit_balance_snapshot: {
         Args: { p_user_id: string }
         Returns: Json
@@ -5192,6 +5447,7 @@ export type Database = {
           item_id: string
         }[]
       }
+      get_my_missing_required_consents: { Args: never; Returns: string[] }
       get_my_payment_history: {
         Args: never
         Returns: {
@@ -5252,11 +5508,9 @@ export type Database = {
         }
         Returns: Json
       }
-      has_admin_permission: {
-        Args: { p_permission: string }
-        Returns: boolean
-      }
+      has_admin_permission: { Args: { p_permission: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
+      is_internal_admin_account: { Args: { p_email: string }; Returns: boolean }
       is_owner: { Args: never; Returns: boolean }
       mark_kakaopay_callback_failure: {
         Args: {
@@ -5291,6 +5545,7 @@ export type Database = {
         Args: { p_approved_at: string; p_payment_order_id: string }
         Returns: Json
       }
+      payapp_sales_resume_blockers: { Args: never; Returns: Json }
       payment_reconciliation_backlog_count: { Args: never; Returns: number }
       prepare_payment_order: {
         Args: {
@@ -5443,6 +5698,18 @@ export type Database = {
         }
         Returns: boolean
       }
+      record_purchase_notice_ack: {
+        Args: {
+          p_idempotency_key: string
+          p_notice_sha256: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      record_user_consents: {
+        Args: { p_items: Json; p_source: string; p_user_id: string }
+        Returns: Json
+      }
       refund_credits: {
         Args: {
           p_amount: number
@@ -5464,6 +5731,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      remind_unanswered_admin_work: { Args: never; Returns: undefined }
       remove_market_cart_items: {
         Args: { p_ids: string[]; p_user_id: string }
         Returns: Json
@@ -5524,17 +5792,70 @@ export type Database = {
         }
         Returns: Json
       }
+      resume_payment_sales: {
+        Args: { p_changed_by: string; p_reason: string; p_scope: string }
+        Returns: Json
+      }
       retry_payapp_fulfillment: {
         Args: { p_payment_order_id: string }
+        Returns: Json
+      }
+      revise_signup_consent_item: {
+        Args: {
+          p_actor_id: string
+          p_dry_run?: boolean
+          p_expected_version: number
+          p_id: string
+          p_note: string
+        }
         Returns: Json
       }
       revoke_admin_account: {
         Args: { p_actor_id: string; p_user_id: string }
         Returns: Json
       }
+      revoke_admin_credits: {
+        Args: {
+          p_actor_id: string
+          p_amount: number
+          p_operation_key: string
+          p_reason: string
+          p_source_id: string
+        }
+        Returns: Json
+      }
+      save_signup_consent_item: {
+        Args: {
+          p_actor_id: string
+          p_content: string
+          p_dry_run?: boolean
+          p_expected_updated_at: string
+          p_expected_version: number
+          p_id: string
+          p_is_active: boolean
+          p_label: string
+          p_note: string
+          p_policy_slug: string
+          p_required: boolean
+          p_sort_order: number
+        }
+        Returns: Json
+      }
+      set_admin_credit_grant_limits: {
+        Args: { p_actor_id: string; p_per_day: number; p_per_grant: number }
+        Returns: Json
+      }
       set_market_cart_selection: {
         Args: { p_ids: string[]; p_selected: boolean; p_user_id: string }
         Returns: Json
+      }
+      signup_consent_item_stats: {
+        Args: never
+        Returns: {
+          agreed_members: number
+          item_id: string
+          version: number
+        }[]
       }
       soft_delete_own_support_ticket: {
         Args: { p_ticket_id: string }

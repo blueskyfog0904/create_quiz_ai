@@ -45,7 +45,14 @@ export async function POST(request: NextRequest) {
       message: '환불 신청이 접수되었습니다.',
     })
   } catch (error) {
-    const isDownloadBlocked = error instanceof Error && (error.name === 'DOWNLOAD_EXISTS' || error.message.includes('다운로드'))
+    // 판정은 error.name 으로만 한다(거절 문구는 DB 값이라 글자로 판정하지 않는다).
+    if (error instanceof Error && error.name === 'REFUND_POLICY_UNAVAILABLE') {
+      return NextResponse.json({
+        success: false,
+        error: { code: 'REFUND_POLICY_UNAVAILABLE', message: error.message },
+      }, { status: 503 })
+    }
+    const isDownloadBlocked = error instanceof Error && error.name === 'DOWNLOAD_EXISTS'
     return NextResponse.json({
       success: false,
       error: {

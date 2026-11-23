@@ -18,6 +18,8 @@ export const ADMIN_AUDIT_ACTIONS = {
   pricing_page_content_update: '충전 화면 문구 수정',
   site_footer_save: '약관·바닥글 저장',
   site_brand_update: '사이트 이름·소개 문구 수정',
+  market_purchase_policy_update: '자료 구매 고지 문구 수정',
+  market_file_type_update: '파일 유형 수정',
   site_logo_update: '사이트 로고 변경',
   site_logo_reset: '사이트 로고 기본값으로 되돌리기',
   storefront_header_links_update: '회원 헤더 상단 메뉴 수정',

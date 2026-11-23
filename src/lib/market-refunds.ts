@@ -1,4 +1,10 @@
 import { reportCreditBalanceAfterMutation } from '@/lib/credits'
+import { fillMarketRefundDays } from '@/lib/market-purchase-policy'
+import {
+  getMarketRefundPolicyCached,
+  readMarketRefundPolicyUncached,
+  type MarketRefundPolicy,
+} from '@/lib/market-purchase-policy-server'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
 import type { Database, Json, Tables, TablesInsert } from '@/types/supabase'
@@ -19,10 +25,12 @@ export interface MarketRefundEligibility {
   itemId: string
   workspaceSubject: WorkspaceSubject
   purchasedAt: string
-  refundDeadline: string
+  // 환불 기간 설정을 읽지 못했으면 null
+  refundDeadline: string | null
   requestedRefundCredits: number
   downloadCount: number
-  status: 'available' | 'blocked' | MarketRefundRequestStatus
+  // unavailable: 기간 판정이 필요한데 환불 기간 설정을 읽지 못함(신청 불가, 잠시 후 다시)
+  status: 'available' | 'blocked' | 'unavailable' | MarketRefundRequestStatus
   refundable: boolean
   reason: string | null
   creditConsumptions: CreditConsumptionSnapshot[]
@@ -60,6 +68,10 @@ export interface MarketRefundTargetSnapshot {
 }
 
 interface MarketRefundEligibilityOptions {
+  // 환불 기간·기간 지남 안내(DB system_settings 'market_purchase_policy'). 부르는 쪽이 요청당 한 번 읽어 넘긴다. 못 읽었으면 null.
+  refundPolicy: MarketRefundPolicy | null
+  // 기간 판정 기준 시각(관리자 승인은 신청 시각). 없으면 지금.
+  judgeAt?: Date
   ignoreRequestStatus?: boolean
   // 배치 조회한 값으로 개별 왕복(loadRefundTarget/countDownloads/getLatestRequestStatus)을 생략한다.
   // latestRequestStatus는 null이 "요청 없음 확인됨"을 의미한다 (키 부재 시 개별 조회).
@@ -334,7 +346,7 @@ export function buildRefundTargetSnapshotFromOrder(
 
 export async function getMarketRefundEligibility(
   input: MarketRefundRequestInput,
-  options: MarketRefundEligibilityOptions = {}
+  options: MarketRefundEligibilityOptions
 ): Promise<MarketRefundEligibility> {
   const target = options.preloaded?.target ?? await loadRefundTarget(input)
   const downloadCount = options.preloaded?.downloadCount
@@ -344,9 +356,8 @@ export async function getMarketRefundEligibility(
     : options.preloaded && 'latestRequestStatus' in options.preloaded
       ? options.preloaded.latestRequestStatus ?? undefined
       : await getLatestRequestStatus(input.targetKind, input.targetId)
-  const purchasedAt = new Date(target.purchasedAt)
-  const refundDeadline = addDays(purchasedAt, 7)
-  const isWithinRefundPeriod = new Date() <= refundDeadline
+  const refundPolicy = options.refundPolicy
+  const refundDeadline = refundPolicy ? addDays(new Date(target.purchasedAt), refundPolicy.refundDays) : null
   let status: MarketRefundEligibility['status'] = 'available'
   let reason: string | null = null
 
@@ -356,11 +367,15 @@ export async function getMarketRefundEligibility(
   } else if (target.status !== 'completed') {
     status = 'blocked'
     reason = '완료된 구매 내역만 환불 요청할 수 있습니다.'
-  } else if (downloadCount > 0 || !isWithinRefundPeriod) {
+  } else if (downloadCount > 0) {
     status = 'blocked'
-    reason = downloadCount > 0
-      ? '다운로드 이력이 있는 상품은 환불할 수 없습니다.'
-      : '구매 후 7일이 지난 상품은 환불할 수 없습니다.'
+    reason = '다운로드 이력이 있는 상품은 환불할 수 없습니다.'
+  } else if (!refundPolicy || !refundDeadline) {
+    status = 'unavailable'
+    reason = '지금은 환불 가능 여부를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.'
+  } else if ((options.judgeAt ?? new Date()) > refundDeadline) {
+    status = 'blocked'
+    reason = fillMarketRefundDays(refundPolicy.refundExpiredReason, refundPolicy.refundDays)
   } else if (await isUpgradeBaseOrder(input.targetKind, input.targetId, target.userId, target.itemId)) {
     status = 'blocked'
     reason = '이 구매를 기준으로 문제(HWP) 차액 업그레이드가 진행되어 환불할 수 없습니다.'
@@ -376,7 +391,7 @@ export async function getMarketRefundEligibility(
     itemId: target.itemId,
     workspaceSubject: target.workspaceSubject,
     purchasedAt: target.purchasedAt,
-    refundDeadline: refundDeadline.toISOString(),
+    refundDeadline: refundDeadline ? refundDeadline.toISOString() : null,
     requestedRefundCredits: target.refundCredits,
     downloadCount,
     status,
@@ -416,9 +431,25 @@ export async function hasPendingMarketRefundRequestForTarget(input: {
   return Boolean(data)
 }
 
+// 자료 보관함 목록용 환불 기간 설정(캐시, 읽지 못하면 null). 환불 기간 읽기는 이 모듈을 거친다.
+export { getMarketRefundPolicyCached }
+
+// 환불 기간 설정을 읽지 못해 신청·승인을 멈춤(돈이 움직이는 경로라 fail closed). 라우트는 503 REFUND_POLICY_UNAVAILABLE.
+export class MarketRefundPolicyUnavailableError extends Error {
+  constructor() {
+    super('지금은 환불 가능 여부를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.')
+    this.name = 'REFUND_POLICY_UNAVAILABLE'
+  }
+}
+
 export async function requestMarketRefund(input: MarketRefundRequestInput): Promise<MarketRefundRequest> {
   const supabase = createAdminClient()
-  const eligibility = await getMarketRefundEligibility(input)
+  // 캐시 없이 매번 읽는다.
+  const refundPolicy = await readMarketRefundPolicyUncached()
+  if (!refundPolicy) {
+    throw new MarketRefundPolicyUnavailableError()
+  }
+  const eligibility = await getMarketRefundEligibility(input, { refundPolicy })
 
   if (!eligibility.refundable) {
     const error = new Error(eligibility.reason ?? '환불 요청할 수 없는 구매 내역입니다.')
@@ -539,11 +570,22 @@ export async function approveMarketRefund(input: MarketRefundApproveInput): Prom
   }
 
   // 빠른 안내용 사전 검사다. 다운로드·대상 상태·소비 내역은 RPC가 잠금 아래에서 다시 본다.
+  // 환불 기간은 RPC 가 보지 않으므로 여기서 본다: 기준은 신청 시각(기간 안에 낸 신청은 늦게 승인해도 통과). 설정은 캐시 없이 읽는다.
+  const refundPolicy = await readMarketRefundPolicyUncached()
+  if (!refundPolicy) {
+    throw new MarketRefundPolicyUnavailableError()
+  }
+  const requestedAt = typeof request.created_at === 'string' ? new Date(request.created_at) : null
+  if (!requestedAt || Number.isNaN(requestedAt.getTime())) {
+    throw new Error('환불 신청 시각을 확인할 수 없어 승인하지 않았습니다.')
+  }
   const eligibility = await getMarketRefundEligibility({
     userId: request.user_id,
     targetKind: request.target_kind as MarketRefundTargetKind,
     targetId,
   }, {
+    refundPolicy,
+    judgeAt: requestedAt,
     ignoreRequestStatus: true,
   })
   if (!eligibility.refundable) {

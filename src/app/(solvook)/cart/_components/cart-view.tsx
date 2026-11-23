@@ -19,6 +19,7 @@ import { buildAuthRedirectPath } from '@/lib/auth-paths'
 import type { MarketCartItem, MarketCartView } from '@/lib/market-cart-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { redirectToConsentIfRequired } from '@/lib/consent-client'
+import { parseMarketPurchaseNotice, type MarketPurchaseNotice } from '@/lib/market-purchase-policy'
 
 interface CartViewProps {
   initialView: MarketCartView
@@ -40,6 +41,9 @@ interface CheckoutState {
   lines: CheckoutLine[]
   balance: number
   acknowledged: boolean
+  // 확인창을 열 때 복사한 구매 고지. 409 PURCHASE_NOTICE_CHANGED 때만 바뀐다(reload 로 몰래 바뀌지 않게).
+  purchaseNotice: MarketPurchaseNotice | null
+  noticeAcknowledged: boolean
   submitting: boolean
   retryable: boolean
   notice: string | null
@@ -175,6 +179,8 @@ export function CartView({ initialView }: CartViewProps) {
       })),
       balance: view.balance,
       acknowledged: false,
+      purchaseNotice: view.purchaseNotice,
+      noticeAcknowledged: false,
       submitting: false,
       retryable: false,
       notice: null,
@@ -183,11 +189,12 @@ export function CartView({ initialView }: CartViewProps) {
   }
 
   const submitCheckout = async () => {
-    if (!checkout || checkout.submitting) {
+    if (!checkout || checkout.submitting || !checkout.purchaseNotice || !checkout.noticeAcknowledged) {
       return
     }
 
     const request = checkout
+    const purchaseNotice = checkout.purchaseNotice
     setCheckout({ ...request, submitting: true })
 
     let response: Response
@@ -202,6 +209,8 @@ export function CartView({ initialView }: CartViewProps) {
             acknowledgeNoDiscount: line.partiallyOwned && request.acknowledged,
           })),
           idempotencyKey: request.idempotencyKey,
+          acknowledgePurchaseNotice: request.noticeAcknowledged,
+          noticeSha256: purchaseNotice.noticeSha256,
         }),
       })
     } catch {
@@ -305,6 +314,27 @@ export function CartView({ initialView }: CartViewProps) {
         notice: removedCount > 0
           ? `판매 상태가 바뀐 자료 ${removedCount}건을 제외하고 변경된 금액으로 다시 표시했습니다. 확인 후 구매해주세요.`
           : '가격이 변경되었습니다. 변경된 금액을 확인한 뒤 다시 구매해주세요.',
+      })
+      return
+    }
+
+    // 구매 안내 문구가 바뀜: 새 문구로 바꾸고 다시 체크하게 한다(새 키). 기보유분 확인(acknowledged)은 그대로 둔다.
+    if (code === 'PURCHASE_NOTICE_CHANGED') {
+      const nextNotice = parseMarketPurchaseNotice(payload.details)
+      if (!nextNotice) {
+        setCheckout(null)
+        toast.error(message)
+        await reload()
+        return
+      }
+      setCheckout({
+        ...request,
+        idempotencyKey: crypto.randomUUID(),
+        purchaseNotice: nextNotice,
+        noticeAcknowledged: false,
+        submitting: false,
+        retryable: false,
+        notice: message,
       })
       return
     }
@@ -528,6 +558,11 @@ export function CartView({ initialView }: CartViewProps) {
         needsAcknowledgement={needsAcknowledgement}
         acknowledged={checkout?.acknowledged ?? false}
         onAcknowledgedChange={(acknowledged) => checkout && setCheckout({ ...checkout, acknowledged })}
+        purchaseNotice={checkout?.purchaseNotice ?? null}
+        noticeAcknowledged={checkout?.noticeAcknowledged ?? false}
+        onNoticeAcknowledgedChange={(noticeAcknowledged) => checkout && setCheckout({ ...checkout, noticeAcknowledged })}
+        termsLink={view.termsLink}
+        refundPolicyLink={view.refundPolicyLink}
         notice={checkout?.notice ?? null}
         shortfall={checkout?.shortfall ?? null}
         chargeHref="/pricing"

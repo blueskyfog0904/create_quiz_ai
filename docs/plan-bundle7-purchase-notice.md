@@ -102,6 +102,16 @@
 - **7번만 배포된 상태로 판매를 켜지 않음**(하자 환불·패키지 부분 환불은 8번에서 생김) — 대표 할 일에 기록.
 - 작업 순서: 지금 커밋 안 된 관리자 입력 보존 변경(market-products-client.tsx 등)을 먼저 정리한 뒤 7번 구현.
 
+### 3-6. 구현 메모(2026-11-23, DB 검증 3명 PASS 뒤 nit 반영)
+- refundDays 범위는 **1~3650 정수**(SQL 함수·TS 해석 `parseMarketPurchasePolicy` 같은 범위). 범위 밖·문자열·소수면 정책 없음(구매 막힘, NOTICE_POLICY_UNAVAILABLE).
+- DB 함수 결과 `NOTICE_INPUT_INVALID` 는 API 가 400 INVALID_INPUT(스키마가 소문자 hex 64자로 먼저 거름).
+- 관리자 저장은 문구만 바꾸고 refundDays·version 은 DB 값 그대로(병합 저장, 행이 없으면 실패 — 새로 만들지 않음).
+- 환불 기간 읽기는 market-refunds 를 거친다(보관함 목록용 캐시 `getMarketRefundPolicyCached` 도 market-refunds 에서 내보냄). 관리자 승인은 신청 시각을 읽지 못하면 승인하지 않음.
+- 하단 정보 정리 함수(공급자 줄·약관 링크)는 `src/lib/market-purchase-info.ts` — 화면(브라우저) 모듈은 타입만 가져와 기본 약관 본문이 번들에 들어가지 않게 함.
+- 리허설 시험 8묶음(권한·대표 세션 차단·멱등·지문 TS=SQL·추가 전용·정책 경계값·설정 행 없음·service_role·탈퇴 연쇄 삭제) + 되돌리기 흔적 없음. 동시 같은 키는 두 세션이 필요해 읽기 근거로 둠(READ COMMITTED 에서 ON CONFLICT 가 상대 커밋을 기다리고 다시 읽기로 replay — 실패해도 409·새 키라 이중 결제 없음).
+- 배포 뒤 점검 쿼리(읽기 전용, `<배포시각>` 바꿔 실행) — 0 이어야 함:
+  `SELECT count(*) FROM public.market_checkout_batches b WHERE b.created_at >= '<배포시각>' AND NOT EXISTS (SELECT 1 FROM public.market_purchase_notice_acks a WHERE a.user_id = b.user_id AND a.idempotency_key = b.idempotency_key);`
+
 ## 4. 검증
 - 계약 테스트(새 파일 + 기존 수정):
   - 구매 API 2개: 스키마, 400 INVALID_INPUT/PURCHASE_NOTICE_ACK_REQUIRED 구분, 409 details, 503, 고지 기록이 판매 중지·itemId 검사 뒤·runMarketCheckout 앞.

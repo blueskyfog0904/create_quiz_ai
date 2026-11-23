@@ -3,6 +3,7 @@ import {
   buildRefundTargetSnapshotFromOrder,
   buildRefundTargetSnapshotFromPurchase,
   getMarketRefundEligibility,
+  getMarketRefundPolicyCached,
   type MarketRefundRequestStatus,
 } from '@/lib/market-refunds'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
@@ -79,9 +80,10 @@ export interface MarketLibraryRefundTarget {
   label: string
   requestedRefundCredits: number
   purchasedAt: string
-  refundableUntil: string
+  // 환불 기간 설정을 읽지 못했으면 null
+  refundableUntil: string | null
   downloadCount: number
-  status: 'available' | 'blocked' | 'pending' | 'approved' | 'rejected' | 'canceled' | 'failed'
+  status: 'available' | 'blocked' | 'unavailable' | 'pending' | 'approved' | 'rejected' | 'canceled' | 'failed'
   reason: string | null
 }
 
@@ -127,6 +129,8 @@ export interface MarketSubproductPublicFileType {
   code: string
   label: string
   extension: string
+  // 이 형식을 여는 데 필요한 프로그램(상품 상세 "구매 전 확인"). 비어 있으면 표시하지 않음.
+  requiredProgram: string | null
 }
 
 export interface MarketSubproductPublicSummary {
@@ -556,6 +560,7 @@ export async function createMarketFileType(input: {
   code: string
   label: string
   extension: string
+  requiredProgram: string
   mimeAllowlist?: string[]
   sortOrder?: number
   isActive?: boolean
@@ -564,9 +569,13 @@ export async function createMarketFileType(input: {
   const code = normalizeText(input.code).toLowerCase()
   const label = normalizeText(input.label)
   const extension = normalizeText(input.extension).toLowerCase()
+  const requiredProgram = normalizeText(input.requiredProgram)
 
   if (!code || !label || !extension) {
     throw new Error('파일 유형 코드, 라벨, 확장자를 입력해주세요.')
+  }
+  if (!requiredProgram) {
+    throw new Error('필요 프로그램을 입력해주세요.')
   }
 
   const payload: MarketFileTypeInsert = {
@@ -574,6 +583,7 @@ export async function createMarketFileType(input: {
     code,
     label,
     extension,
+    required_program: requiredProgram,
     mime_allowlist: input.mimeAllowlist ?? [],
     sort_order: input.sortOrder ?? 0,
     is_active: input.isActive ?? true,
@@ -619,6 +629,7 @@ export async function updateMarketFileType(
     code?: string | null
     label?: string | null
     extension?: string | null
+    requiredProgram?: string | null
     mimeAllowlist?: string[]
     sortOrder?: number
     isActive?: boolean
@@ -662,6 +673,7 @@ export async function updateMarketFileType(
   const payload: MarketFileTypeUpdate = {}
   if (input.label !== undefined) payload.label = normalizeText(input.label)
   if (input.extension !== undefined) payload.extension = nextExtension
+  if (input.requiredProgram !== undefined) payload.required_program = normalizeText(input.requiredProgram) || null
   if (input.mimeAllowlist !== undefined) payload.mime_allowlist = nextMimeAllowlist
   if (input.sortOrder !== undefined) payload.sort_order = input.sortOrder
   if (input.isActive !== undefined) payload.is_active = input.isActive
@@ -1307,7 +1319,7 @@ export async function listMarketSubproductPublicSummaries(
     applyWorkspaceSubjectFilter(
       supabase
         .from('market_file_types')
-        .select('id, code, label, extension'),
+        .select('id, code, label, extension, required_program'),
       workspaceSubject
     ),
   ])
@@ -1413,6 +1425,7 @@ export async function listMarketSubproductPublicSummaries(
         code: fileType.code,
         label: fileType.label,
         extension: fileType.extension,
+        requiredProgram: fileType.required_program?.trim() || null,
       })),
       owned: purchasedAt !== null,
       ownedScope,
@@ -2585,6 +2598,8 @@ export async function listMarketLibraryRowsForUser(
     }
   }
 
+  // 환불 기간 설정은 요청당 한 번 읽는다. 못 읽어도 목록·다운로드는 그대로, 기간 판정이 필요한 칸만 "확인할 수 없음".
+  const refundPolicy = await getMarketRefundPolicyCached()
   const refundTargetEntries = await Promise.all(itemIds.map(async (itemId) => {
     const itemPurchases = groupedPurchases.get(itemId) ?? []
     const itemOrders = groupedOrders.get(itemId) ?? []
@@ -2595,6 +2610,7 @@ export async function listMarketLibraryRowsForUser(
           targetKind: 'legacy_purchase',
           targetId: purchase.id,
         }, {
+          refundPolicy,
           preloaded: {
             target: buildRefundTargetSnapshotFromPurchase(purchase),
             downloadCount: downloadCountByPurchaseId.get(purchase.id) ?? 0,
@@ -2620,6 +2636,7 @@ export async function listMarketLibraryRowsForUser(
           targetKind: 'v2_order',
           targetId: order.id,
         }, {
+          refundPolicy,
           preloaded: {
             target: buildRefundTargetSnapshotFromOrder(order),
             downloadCount: downloadCountByOrderId.get(order.id) ?? 0,
