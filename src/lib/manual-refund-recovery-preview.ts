@@ -14,6 +14,8 @@ export interface ManualRefundRecoverySource {
   restored_by_material_refund: number
   reissued_out: number
   net_used: number
+  // 10번: 회원 탈퇴로 소멸한 크레딧(withdrawal_forfeit 거래의 합, 사용 아님). 서버(route)가 원장에서 더한다.
+  withdrawal_forfeited?: number
 }
 
 export interface ManualRefundPreviousCompletion {
@@ -40,10 +42,27 @@ export interface ManualRefundRecoveryPreview {
   held_reissued_source_ids: string[]
   sources: ManualRefundRecoverySource[]
   previous_completions: ManualRefundPreviousCompletion[]
+  // 10번: 탈퇴로 소멸한 크레딧 합(가족 전체)과, 소멸이 있을 때 가족 단위 실제 사용량 = 원래 충전 지급 − Σ남음 − Σ소멸(계획 14절 8번).
+  withdrawal_forfeited_total?: number
+  family_used_excluding_forfeit?: number | null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+// 원천별 탈퇴 소멸 합(source_id → 크레딧)을 미리보기에 붙인다. 소멸은 '지급−남음'에 섞여 있으므로 따로 보여 준다(계획 6-7).
+export function attachWithdrawalForfeits(
+  preview: ManualRefundRecoveryPreview,
+  forfeitedBySource: ReadonlyMap<string, number>
+): ManualRefundRecoveryPreview {
+  const sources = preview.sources.map((source) => ({ ...source, withdrawal_forfeited: forfeitedBySource.get(source.source_id) ?? 0 }))
+  const total = sources.reduce((sum, source) => sum + source.withdrawal_forfeited, 0)
+  const root = sources.find((source) => source.root)
+  const familyUsed = total > 0 && root
+    ? root.initial - sources.reduce((sum, source) => sum + source.remaining + source.withdrawal_forfeited, 0)
+    : null
+  return { ...preview, sources, withdrawal_forfeited_total: total, family_used_excluding_forfeit: familyUsed }
 }
 
 // 모양이 어긋나면 null(화면은 수동 완료를 막고 새로고침을 안내).

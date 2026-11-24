@@ -20,5 +20,7 @@ export function getAdminCreditTransactionKind(transaction: { type: string; amoun
     }
     return { label: '환불 회수', tone: 'red' as const }
   }
+  // 회원 탈퇴 때 남은 크레딧 소멸(10번 묶음). 사용이 아니다.
+  if (transaction.type === 'withdrawal_forfeit') return { label: '탈퇴 소멸', tone: 'gray' as const }
   return { label: transaction.type, tone: 'gray' as const }
 }

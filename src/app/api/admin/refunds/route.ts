@@ -11,6 +11,7 @@ import {
   RefundRpcError,
   rejectPointChargeRefund,
 } from '@/lib/point-charge-refunds-server'
+import { markWithdrawnRows } from '@/lib/withdrawn-member-redaction-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,9 +68,20 @@ export async function GET(request: Request) {
     )
   }
 
+  // 10번: 탈퇴 회원의 환불 사유·메모는 내보내지 않는다(가리지 못하면 목록을 내보내지 않음).
+  let visibleRequests: Awaited<ReturnType<typeof markWithdrawnRows<NonNullable<typeof requests>[number]>>>
+  try {
+    visibleRequests = await markWithdrawnRows(requests ?? [], (row) => row.user_id, (row) => ({ ...row, reason: null, admin_note: null }))
+  } catch {
+    return NextResponse.json(
+      { error: '환불 요청을 불러오지 못했습니다.' },
+      { status: 500 }
+    )
+  }
+
   const { data: stats } = await supabase.from('refund_requests').select('status')
   return NextResponse.json({
-    requests: requests ?? [],
+    requests: visibleRequests,
     stats: {
       pendingCount:
         stats?.filter((item) => item.status === 'pending_review').length ?? 0,

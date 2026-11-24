@@ -5,6 +5,10 @@ import { UUID_PATTERN, escapeIlike } from '@/lib/admin-orders'
 import { buildSupportTicketSearchFilter } from '@/lib/admin-support'
 import { getListPagination } from '@/lib/list-pagination'
 import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
+import { withdrawalText } from '@/lib/member-withdrawal'
+import { readMemberWithdrawalPolicy } from '@/lib/member-withdrawal-server'
+import { isWithdrawnMemberTicket, readWithdrawnSupportTickets } from '@/lib/withdrawn-member-redaction-server'
+import { WithdrawnTicketsPanel } from './withdrawn-tickets-panel'
 
 interface AdminSupportPageProps {
   searchParams?: Promise<{
@@ -28,7 +32,7 @@ const TICKET_COLUMNS = `
 const SEARCH_MATCH_LIMIT = 50
 
 export default async function AdminSupportPage({ searchParams }: AdminSupportPageProps) {
-  await requireAdminPagePermission('support.manage')
+  const access = await requireAdminPagePermission('support.manage')
   const supabase = await createClient()
   const resolvedSearchParams = searchParams ? await searchParams : {}
   const statusFilter = resolvedSearchParams.status || 'all'
@@ -124,6 +128,13 @@ export default async function AdminSupportPage({ searchParams }: AdminSupportPag
   const { data: linkedTicket } = ticketId
     ? await supabase.from('support_tickets').select(TICKET_COLUMNS).eq('id', ticketId).maybeSingle()
     : { data: null }
+  // 10번: 탈퇴 회원 문의는 RLS 로 위 목록·링크에서 빠진다. 서버 키로 건수(대표에게는 id·접수일)만 읽어 따로 보여 준다.
+  const isOwner = access.role === 'owner'
+  const [withdrawnTickets, linkedTicketWithdrawn, withdrawalPolicy] = await Promise.all([
+    readWithdrawnSupportTickets({ withRows: isOwner }),
+    ticketId && !linkedTicket ? isWithdrawnMemberTicket(ticketId) : Promise.resolve(false),
+    isOwner ? readMemberWithdrawalPolicy() : Promise.resolve(null),
+  ])
 
   return (
     <div>
@@ -134,9 +145,18 @@ export default async function AdminSupportPage({ searchParams }: AdminSupportPag
 
       {resolvedSearchParams.ticket && !linkedTicket && (
         <div role="alert" className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          링크의 문의를 찾지 못했습니다. 아래 목록에서 찾아 주세요.
+          {linkedTicketWithdrawn
+            ? '탈퇴 회원의 문의(법정 보존)입니다. 아래 \'탈퇴 회원\' 줄에서 대표가 사유를 적고 열람할 수 있습니다.'
+            : '링크의 문의를 찾지 못했습니다. 아래 목록에서 찾아 주세요.'}
         </div>
       )}
+
+      <WithdrawnTicketsPanel
+        summary={withdrawnTickets}
+        isOwner={isOwner}
+        highlightTicketId={linkedTicketWithdrawn ? ticketId : null}
+        reasonGuide={withdrawalText(withdrawalPolicy, 'reasonGuide')}
+      />
 
       <SupportClient
         // 주소(필터·쪽·바로 여는 문의)가 바뀌면 화면 상태를 새로 시작한다. 열려 있던 상세 창이 남지 않고, 새 ?ticket= 이 열린다.

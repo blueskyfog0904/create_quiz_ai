@@ -9,8 +9,10 @@ import {
   MarketRefundRuleError,
   MarketRefundShortfallError,
 } from '@/lib/market-refunds'
-import { buildMarketRefundApprovedMessage } from '@/lib/market-refund-rules'
+import { buildMarketRefundApprovedMessage, isMarketRefundMemberWithdrawnError, MARKET_REFUND_MEMBER_WITHDRAWN_MESSAGE } from '@/lib/market-refund-rules'
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { withdrawalText } from '@/lib/member-withdrawal'
+import { readMemberWithdrawalPolicy } from '@/lib/member-withdrawal-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,7 +51,9 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     if (context.order.userId === guard.access.userId) {
       return NextResponse.json({ success: false, error: '본인 계정의 주문은 처리할 수 없습니다.', code: 'SELF_TARGET' }, { status: 403 })
     }
-    return NextResponse.json({ success: true, data: { ...context, isOwner: guard.access.role === 'owner' } })
+    // 10번: 탈퇴 회원 주문은 화면이 현금 정산 기록으로 바뀐다. 메모 안내는 DB 문구(texts.reasonGuide).
+    const reasonGuide = context.memberWithdrawn ? withdrawalText(await readMemberWithdrawalPolicy(), 'reasonGuide') : null
+    return NextResponse.json({ success: true, data: { ...context, isOwner: guard.access.role === 'owner', reasonGuide } })
   } catch {
     return NextResponse.json({ success: false, error: '주문 정보를 불러오지 못했습니다.' }, { status: 500 })
   }
@@ -99,6 +103,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     }
     return NextResponse.json({ success: true, data: result, message: '예외 환불을 처리했습니다.' })
   } catch (error) {
+    if (isMarketRefundMemberWithdrawnError(error)) {
+      return NextResponse.json({ success: false, error: MARKET_REFUND_MEMBER_WITHDRAWN_MESSAGE, code: 'MEMBER_WITHDRAWN' }, { status: 409 })
+    }
     if (error instanceof MarketRefundRuleError) {
       // 미리보기는 AMOUNT_CHANGED 의 details 로 지금 금액·대상을 돌려받는다.
       if (body.preview && error.code === 'AMOUNT_CHANGED') {

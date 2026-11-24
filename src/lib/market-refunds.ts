@@ -1026,6 +1026,8 @@ export interface MarketOrderRefundContext {
   composition: Array<{ subproductId: string; title: string; slug: string; listPriceCredits: number; downloaded: boolean; refunded: boolean }>
   downloadCount: number
   hasPendingRequest: boolean
+  // 10번: 탈퇴 회원 주문이면 문의(제목·본문)를 읽지 않고 tickets 는 비운다. 화면은 예외 환불 대신 현금 정산 기록으로 바뀐다.
+  memberWithdrawn: boolean
   tickets: Array<{
     id: string
     subject: string
@@ -1035,6 +1037,16 @@ export interface MarketOrderRefundContext {
     memberUpdatedAt: string | null
     revisions: Array<{ id: string; subject: string | null; message: string | null; writtenAt: string }>
   }>
+}
+
+// 회원이 탈퇴(익명화)했는가. 10번 마이그레이션 전(withdrawn_at 칸 없음, 42703)에는 탈퇴 회원이 있을 수 없다.
+async function isMemberWithdrawn(supabase: ReturnType<typeof createAdminClient>, userId: string): Promise<boolean> {
+  const { data, error } = await supabase.from('profiles').select('withdrawn_at').eq('id', userId).maybeSingle()
+  if (error) {
+    if (error.code === '42703') return false
+    throw new Error(error.message)
+  }
+  return Boolean(data?.withdrawn_at)
 }
 
 // 관리자 예외 환불 대화상자용(표시만 — 대상·금액 확정은 DB 함수가 다시 판정).
@@ -1047,14 +1059,17 @@ export async function getMarketOrderRefundContext(orderId: string): Promise<Mark
     .maybeSingle()
   if (orderError) throw new Error(orderError.message)
   if (!order) return null
+  const memberWithdrawn = await isMemberWithdrawn(supabase, order.user_id)
 
   const [itemResult, componentResult, downloadResult, requestResult, ticketResult] = await Promise.all([
     supabase.from('market_items').select('title').eq('id', order.item_id).maybeSingle(),
     supabase.from('market_bundle_line_components').select('subproduct_id, category_slug, list_price_credits').eq('order_id', orderId),
     supabase.from('market_download_events').select('subproduct_file_id').eq('order_id', orderId),
     supabase.from('market_refund_requests').select('status, refund_kind, refund_subproduct_ids').eq('order_id', orderId),
-    supabase.from('support_tickets').select('id, subject, message, created_at, member_updated_at').eq('user_id', order.user_id)
-      .gte('created_at', order.created_at).order('created_at', { ascending: false }).limit(20),
+    memberWithdrawn
+      ? Promise.resolve({ data: [] as Array<{ id: string; subject: string; message: string | null; created_at: string; member_updated_at: string | null }>, error: null })
+      : supabase.from('support_tickets').select('id, subject, message, created_at, member_updated_at').eq('user_id', order.user_id)
+        .gte('created_at', order.created_at).order('created_at', { ascending: false }).limit(20),
   ])
   for (const result of [itemResult, componentResult, downloadResult, requestResult, ticketResult]) {
     if (result.error) throw new Error(result.error.message)
@@ -1110,6 +1125,7 @@ export async function getMarketOrderRefundContext(orderId: string): Promise<Mark
     })),
     downloadCount: (downloadResult.data ?? []).length,
     hasPendingRequest: (requestResult.data ?? []).some((row) => row.status === 'pending'),
+    memberWithdrawn,
     tickets: tickets.map((ticket) => ({
       id: ticket.id,
       subject: ticket.subject,

@@ -9,6 +9,7 @@ import { getAdminMemberDetail, type MemberDetailSection } from '@/lib/admin-memb
 import { ADMIN_GRANT_SOURCE_CATEGORIES, getAdminCreditTransactionKind } from '@/lib/admin-credit-transaction-kind'
 import { hasAdminPermission } from '@/lib/admin-permissions'
 import { RevokeCreditButton } from './revoke-credit-button'
+import { MemberWithdrawalPanel } from './member-withdrawal-panel'
 import { getCreditSourceCategoryLabel, type CreditSourceDisplayInput } from '@/lib/credit-source-display'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
 import {
@@ -50,6 +51,7 @@ const CONSENT_SOURCE_LABELS: Record<string, string> = {
   kakao_signup: '카카오 가입',
   consent_gate: '동의 화면',
   mypage: '선택 동의 관리',
+  withdrawal: '탈퇴(광고 수신 철회)',
 }
 
 const formatDateTime = (value: string | null | undefined) =>
@@ -115,6 +117,9 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
           <CardTitle className="flex flex-wrap items-center gap-2 text-lg">
             <span className="break-all">{formatMemberDisplayName(profile.email, profile.display_tag)}</span>
             {profile.is_admin && <Badge className="bg-orange-100 text-orange-700">관리자</Badge>}
+            {detail.withdrawal && !detail.withdrawal.failed && detail.withdrawal.data.preview.withdrawnAt && (
+              <Badge variant="outline" className="border-red-300 text-red-700">탈퇴 {formatDateTime(detail.withdrawal.data.preview.withdrawnAt)}</Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -392,13 +397,16 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
       </Section>
 
       <Section title="문의" section={detail.supportTickets} link={{ href: '/admin/support', label: '문의 관리' }}>
-        {({ tickets, totalCount }) => tickets.length === 0 ? <Empty>문의가 없습니다.</Empty> : (
+        {({ tickets, totalCount, withdrawn }) => tickets.length === 0 ? <Empty>문의가 없습니다.</Empty> : (
           <>
             <ul className="divide-y text-sm">
               {tickets.map((ticket) => (
                 <li key={ticket.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                   <div className="min-w-0">
-                    <Link href={`/admin/support?ticket=${ticket.id}`} className={`break-all font-medium ${LINK_CLASS}`}>{ticket.subject}</Link>
+                    {/* 탈퇴 회원 문의는 문의 관리 화면에서 대표가 사유를 적고 연다(이 링크로는 열리지 않음). */}
+                    {withdrawn
+                      ? <span className="break-all font-medium text-gray-700">{ticket.subject}</span>
+                      : <Link href={`/admin/support?ticket=${ticket.id}`} className={`break-all font-medium ${LINK_CLASS}`}>{ticket.subject}</Link>}
                     <p className="mt-0.5 text-xs text-gray-500">
                       접수 {formatDateTime(ticket.created_at)}{ticket.responded_at && ` · 답변 ${formatDateTime(ticket.responded_at)}`}
                     </p>
@@ -413,6 +421,10 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
             <RecentNote shown={tickets.length} total={totalCount} />
           </>
         )}
+      </Section>
+
+      <Section title="회원 탈퇴 (대표 전용)" section={detail.withdrawal}>
+        {(withdrawal) => <MemberWithdrawalPanel userId={profile.id} email={profile.email} data={withdrawal} />}
       </Section>
 
       <Section title="약관 동의" section={detail.consents}>

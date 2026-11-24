@@ -90,6 +90,7 @@ export type RecordCheckoutAckResult =
   | { status: 'plan_changed'; notice: PointChargeCheckoutNotice | null; plan: { price: number; credits: number } | null }
   | { status: 'plan_unavailable' }
   | { status: 'invalid' }
+  | { status: 'member_withdrawn' }
   | { status: 'unavailable' }
 
 // 결제 직전 동의 기록(주문 준비 RPC 앞). 실패면 결제하지 않는다(fail closed).
@@ -133,6 +134,9 @@ export async function recordPointChargeCheckoutAck(input: {
       return { status: 'plan_unavailable' }
     case 'NOTICE_INPUT_INVALID':
       return { status: 'invalid' }
+    // 10번: 탈퇴 회원(남은 JWT)은 오류 대신 code 로 거절된다.
+    case 'MEMBER_WITHDRAWN':
+      return { status: 'member_withdrawn' }
     default:
       return { status: 'unavailable' }
   }

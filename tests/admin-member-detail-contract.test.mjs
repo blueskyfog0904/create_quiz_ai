@@ -59,6 +59,17 @@ function loadDetail({ profileRow = profile, profileError = null, tableErrors = [
     '@/lib/admin-orders': orders,
     '@/lib/admin-permissions': permissions,
     '@/lib/payment-review-actions': load('src/lib/payment-review-actions.ts'),
+    // 10번: 대표 전용 '회원 탈퇴' 구역(미리보기 RPC)과 탈퇴 회원 가림. 여기서는 탈퇴하지 않은 회원이다.
+    '@/lib/member-withdrawal-server': {
+      readMemberWithdrawalPolicy: async () => ({ texts: {} }),
+      readMemberWithdrawalPreview: async (userId) => ({ ok: true, data: { userId, withdrawnAt: null } }),
+      readWithdrawnMemberAccountStatus: async () => null,
+    },
+    '@/lib/member-withdrawal': { withdrawalText: () => null },
+    '@/lib/withdrawn-member-redaction-server': {
+      readWithdrawnUserIdsForRedaction: async () => new Set(),
+      readWithdrawnTicketTitle: async () => '탈퇴 회원 문의',
+    },
   }, errors)
   return { server, queries, calls, errors }
 }
@@ -117,7 +128,7 @@ test('대표: 모든 구역을 그 회원 조건으로 읽고, 결제 표는 결
   assert.deepEqual(op(queries.find((query) => query.table === 'credit_transactions').ops, 'limit'), ['limit', 50])
 
   assert.equal(detail.profile.email, 'member@example.com')
-  for (const key of ['credits', 'creditTransactions', 'paymentOrders', 'marketOrders', 'paymentRefunds', 'marketRefunds', 'supportTickets']) {
+  for (const key of ['credits', 'creditTransactions', 'paymentOrders', 'marketOrders', 'paymentRefunds', 'marketRefunds', 'supportTickets', 'withdrawal']) {
     assert.equal(detail[key].failed, false, key)
   }
   // 쓸 수 있는 잔액은 get_credit_balance_snapshot의 값 그대로다.
@@ -150,13 +161,13 @@ test('권한이 없는 구역은 조회 자체를 하지 않는다', async () =>
     const label = Object.keys(expected.access.grants).join(',')
     assert.deepEqual(tables(queries), expected.tables, label)
     assert.deepEqual(calls.map(([name]) => name).sort(), expected.calls, label)
-    for (const key of ['credits', 'creditTransactions', 'paymentOrders', 'marketOrders', 'paymentRefunds', 'marketRefunds', 'supportTickets', 'consents']) {
+    for (const key of ['credits', 'creditTransactions', 'paymentOrders', 'marketOrders', 'paymentRefunds', 'marketRefunds', 'supportTickets', 'consents', 'withdrawal']) {
       assert.equal(detail[key] !== null, expected.sections.includes(key), `${label} ${key}`)
     }
   }
-  // 화면은 읽지 않은 구역(null)을 그리지 않는다.
+  // 화면은 읽지 않은 구역(null)을 그리지 않는다. 10번 '회원 탈퇴' 구역은 대표만(staff 는 null).
   assert.match(page, /if \(!section\) return null/)
-  assert.equal(page.match(/<Section\s/g).length, 8)
+  assert.equal(page.match(/<Section\s/g).length, 9)
 })
 
 test('구역 실패 격리: 실패한 구역만 failed이고 나머지는 정상이며, "없음"과 구분된다', async () => {
@@ -164,7 +175,7 @@ test('구역 실패 격리: 실패한 구역만 failed이고 나머지는 정상
   const detail = await refundsDown.server.getAdminMemberDetail(owner, MEMBER)
   assert.deepEqual(detail.marketRefunds, { failed: true })
   assert.deepEqual(detail.paymentRefunds, { failed: false, data: { requests: [], totalCount: 0 } })
-  assert.deepEqual(detail.supportTickets, { failed: false, data: { tickets: [], totalCount: 0 } })
+  assert.deepEqual(detail.supportTickets, { failed: false, data: { tickets: [], withdrawn: false, totalCount: 0 } })
   assert.equal(detail.credits.failed, false)
   assert.equal(refundsDown.errors.length, 1)
 
@@ -256,6 +267,8 @@ test('주문 조회 함수의 회원 조건: userId를 주면 건수·목록 모
       '@/lib/admin-orders': orders,
       '@/lib/supabase/bypass': { createAdminClient: () => admin },
       '@/lib/market-download-diagnosis': {},
+      // 10번: 탈퇴 회원 표시(이 시험의 회원은 탈퇴하지 않음)
+      '@/lib/withdrawn-member-redaction-server': { readWithdrawnUserIdsForRedaction: async () => new Set() },
     })
     const payments = await server.listPaymentOrdersForAdmin(input)
     await server.listMarketOrdersForAdmin(input)

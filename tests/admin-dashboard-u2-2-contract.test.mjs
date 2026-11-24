@@ -51,6 +51,8 @@ function loadDashboard({ rowsByTable = {}, failTables = [] } = {}) {
     '@/lib/payment-orders-server': { createPaymentAdminClient: () => paymentAdmin },
     '@/lib/read-all-query-rows': readAllQueryRows,
     '@/lib/admin-permissions': permissions,
+    // 10번: 탈퇴 회원 문의 가림(이 시험의 회원은 탈퇴하지 않음)
+    '@/lib/withdrawn-member-redaction-server': { markWithdrawnRows: async (rows) => rows.map((row) => ({ ...row, memberWithdrawn: false })) },
   }, errors)
   return { server, queries, errors }
 }

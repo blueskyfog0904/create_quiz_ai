@@ -39,6 +39,17 @@ export const ADMIN_AUDIT_ACTIONS = {
   admin_own_password_change: '내 비밀번호 변경',
   admin_permissions_replace: '관리자 권한 부여·회수',
   admin_account_revoke: '관리자 권한 해제',
+  // 10번 묶음(회원 탈퇴·익명화): 모두 DB 함수가 같은 트랜잭션에서 남긴다.
+  member_withdraw: '회원 탈퇴 처리(익명화, 대표)',
+  member_withdraw_request: '회원 탈퇴 요청 기록(이메일·전화)',
+  member_withdraw_request_reply: '탈퇴 요청 고지 발송·회신 기록',
+  member_text_redact: '문의·환불 기록 가림',
+  member_text_reviewed: '문의·환불 기록 가림 확인(가릴 것 없음)',
+  withdrawn_held_order_close: '탈퇴 회원 보류 주문 닫기',
+  withdrawn_member_event: '탈퇴 회원 보관함 추가 기록',
+  withdrawn_record_view: '탈퇴 회원 보관 기록 열람',
+  // 대표의 탈퇴 요청 취소는 route 가 남긴다(DB 함수가 행위자를 받지 않음).
+  member_withdraw_request_cancel: '회원 탈퇴 요청 취소(대표)',
 } as const
 
 export type AdminAuditAction = keyof typeof ADMIN_AUDIT_ACTIONS

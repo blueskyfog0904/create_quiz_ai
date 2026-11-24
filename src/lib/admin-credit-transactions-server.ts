@@ -2,10 +2,10 @@ import { createAdminClient } from '@/lib/supabase/bypass'
 import { getKstPeriodStarts } from '@/lib/kst-period'
 import { getListPagination } from '@/lib/list-pagination'
 
-// 관리자 '크레딧 관리'. 거래 유형은 credit_transactions.type(purchase / consume / refund)이 기준이고,
+// 관리자 '크레딧 관리'. 거래 유형은 credit_transactions.type(purchase / consume / refund / withdrawal_forfeit)이 기준이고,
 // 충전과 관리자 지급은 같은 purchase라서 원천(credit_sources.source_category)으로 구분한다.
 
-export const ADMIN_CREDIT_TRANSACTION_TYPES = ['purchase', 'consume', 'refund'] as const
+export const ADMIN_CREDIT_TRANSACTION_TYPES = ['purchase', 'consume', 'refund', 'withdrawal_forfeit'] as const
 export type AdminCreditTransactionType = (typeof ADMIN_CREDIT_TRANSACTION_TYPES)[number]
 
 export interface AdminCreditTransaction {
@@ -29,6 +29,8 @@ export interface AdminCreditMonthlyStats {
   consumed: number
   restored: number
   recovered: number
+  // 회원 탈퇴로 소멸한 크레딧(−, withdrawal_forfeit — 사용 아님)
+  forfeited: number
 }
 
 export interface AdminCreditTransactionListResult {
@@ -56,12 +58,13 @@ export function normalizeAdminCreditTransactionType(value: unknown): AdminCredit
 }
 
 export function summarizeCreditTransactions(rows: Array<{ type: string; amount: number }>) {
-  const summary = { added: 0, consumed: 0, restored: 0, recovered: 0 }
+  const summary = { added: 0, consumed: 0, restored: 0, recovered: 0, forfeited: 0 }
   for (const row of rows) {
     if (row.type === 'purchase') summary.added += row.amount
     else if (row.type === 'consume') summary.consumed += row.amount
     else if (row.type === 'refund' && row.amount >= 0) summary.restored += row.amount
     else if (row.type === 'refund') summary.recovered += row.amount
+    else if (row.type === 'withdrawal_forfeit') summary.forfeited += row.amount
   }
   return summary
 }

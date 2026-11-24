@@ -116,6 +116,11 @@ export function UsersClient({ users, totalCount, page, pageSize, query, canGrant
                               관리자
                             </Badge>
                           )}
+                          {user.withdrawn_at && (
+                            <Badge variant="outline" className="border-red-300 text-red-700">
+                              탈퇴 {new Date(user.withdrawn_at).toLocaleDateString('ko-KR')}
+                            </Badge>
+                          )}
                           {user.provider && (
                             <Badge variant="outline" className="text-xs">
                               {user.provider}
@@ -163,7 +168,8 @@ export function UsersClient({ users, totalCount, page, pageSize, query, canGrant
                                     user.role}
                         </Badge>
                       )}
-                      {canGrantCredits ? (
+                      {/* 탈퇴 회원에게는 크레딧을 지급할 수 없다(DB가 MEMBER_WITHDRAWN 으로 거절). */}
+                      {canGrantCredits && !user.withdrawn_at ? (
                         <Button
                           size="sm"
                           variant="adminAction"

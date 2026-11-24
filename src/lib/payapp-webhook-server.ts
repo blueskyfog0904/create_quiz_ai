@@ -52,6 +52,7 @@ const RETRY: PayAppWebhookReply = { body: 'FAIL', status: 503 }
 
 // 지급·취소 처리 결과 중 이벤트를 완료로 닫고 SUCCESS를 응답하는 것들.
 // recorded_pending은 결제완료 기록은 남았고 지급만 실패한 것이다. 대사가 다시 지급한다(5.5.2).
+// withdrawn_member_hold는 탈퇴 회원의 늦은 결제라 지급하지 않고 보류한 것이다(10번). 경보·보관함 기록은 DB가 남기고, 회원 알림은 없다.
 const COMPLETED_FEEDBACK_RESULTS = new Set([
   'fulfilled',
   'recorded_pending',
@@ -61,6 +62,7 @@ const COMPLETED_FEEDBACK_RESULTS = new Set([
   'expired',
   'unchanged',
   'recorded',
+  'withdrawn_member_hold',
 ])
 
 function eventDetails(feedback: PayAppFeedback, result?: PayAppRpcResult) {

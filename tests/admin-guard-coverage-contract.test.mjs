@@ -199,6 +199,8 @@ const ROUTE_REQUIREMENTS = {
   'users/credits/route.ts': all('credits.grant', 'POST'),
   'users/credits/limits/route.ts': all('credits.limits.manage', 'PUT'),
   'users/credits/revoke/route.ts': all('credits.revoke', 'POST'),
+  // 10번: 회원 탈퇴(요청 기록·익명화·가림·보류 주문 닫기·보관함 열람)는 대표만
+  'users/[id]/withdrawal/route.ts': all(OWNER, 'POST'),
   // 환불
   'market/refunds/route.ts': all('refunds.market', 'GET'),
   'market/refunds/[id]/route.ts': all('refunds.market', 'GET', 'PATCH'),

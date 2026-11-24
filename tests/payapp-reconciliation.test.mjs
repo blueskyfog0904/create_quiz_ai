@@ -203,6 +203,14 @@ test('a paid but unfulfilled order is retried and escalated after the limit', as
     rpc: { retry_payapp_fulfillment: () => ok({ result: 'already_fulfilled' }) },
   })
   assert.equal(await already.reconcile(), 'already_completed')
+
+  // 10번: 탈퇴 회원의 늦은 결제는 DB가 보류(manual_review)했다. 회원 알림·추가 경보 없이 수동 확인으로 둔다.
+  const held = createWorld({
+    order: payappOrder({ status: 'fulfillment_pending' }),
+    rpc: { retry_payapp_fulfillment: () => ok({ result: 'withdrawn_member_hold', closed: false }) },
+  })
+  assert.equal(await held.reconcile(), 'manual_review')
+  assert.equal(held.calls.followUps.length, 0)
 })
 
 test('unsent and unknown requests expire only after their deadline', async () => {

@@ -92,7 +92,7 @@ export function CreditsClient({ transactions, totalCount, page, pageSize, query,
       />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">충전·지급</CardTitle>
@@ -133,6 +133,16 @@ export function CreditsClient({ transactions, totalCount, page, pageSize, query,
             <p className="text-xs text-muted-foreground">{statsPeriod} · 결제 환불·관리자 회수로 빠진 크레딧</p>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">탈퇴 소멸</CardTitle>
+            <ArrowDownLeft className="h-4 w-4 text-gray-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-700">{statValue(monthlyStats?.forfeited)}</div>
+            <p className="text-xs text-muted-foreground">{statsPeriod} · 회원 탈퇴로 사라진 크레딧(사용 아님)</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters & Actions */}
@@ -163,6 +173,7 @@ export function CreditsClient({ transactions, totalCount, page, pageSize, query,
               <SelectItem value="purchase">충전·지급</SelectItem>
               <SelectItem value="consume">사용</SelectItem>
               <SelectItem value="refund">환불·회수</SelectItem>
+              <SelectItem value="withdrawal_forfeit">탈퇴 소멸</SelectItem>
             </SelectContent>
           </Select>
         </div>

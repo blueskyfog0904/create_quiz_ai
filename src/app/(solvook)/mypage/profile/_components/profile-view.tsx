@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -13,6 +14,8 @@ interface ProfileViewProps {
   displayName: string
   phone: string | null
   createdAt: string | null
+  /** 관리자 계정이면 관리자 비밀번호 변경 화면 주소. 이 화면의 비밀번호 변경 대신 그곳으로 보낸다. */
+  adminPasswordHref?: string | null
 }
 
 const controlClassName =
@@ -48,7 +51,7 @@ function formatPhoneNumber(value: string) {
   }
 }
 
-export function ProfileView({ email, displayName, phone: initialPhone, createdAt }: ProfileViewProps) {
+export function ProfileView({ email, displayName, phone: initialPhone, createdAt, adminPasswordHref = null }: ProfileViewProps) {
   const router = useRouter()
 
   // 휴대폰 번호 수정
@@ -296,7 +299,14 @@ export function ProfileView({ email, displayName, phone: initialPhone, createdAt
           </p>
 
           <div className="mt-5">
-            {!isChangingPassword ? (
+            {adminPasswordHref ? (
+              <div className="space-y-2">
+                <p className="break-keep text-sm text-[var(--studio-muted)]">관리자 계정의 비밀번호는 관리자 화면에서 바꿉니다.</p>
+                <Button asChild variant="brand" className="min-h-11">
+                  <Link href={adminPasswordHref}>관리자 비밀번호 변경으로 이동</Link>
+                </Button>
+              </div>
+            ) : !isChangingPassword ? (
               <Button
                 type="button"
                 variant="brand"

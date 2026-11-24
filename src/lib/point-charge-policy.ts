@@ -5,7 +5,7 @@ import type { Json } from '@/types/supabase'
 // 'point_charge_policy')에만 둔다. 환불 판정·마감은 DB 함수(get_point_charge_refund_eligibility)가 하고, 코드는 그 값을 보여 주기만 한다.
 // 지문(noticeSha256)은 서버만 계산한다(point-charge-policy-server.ts) — DB 함수 record_point_charge_checkout_ack 와 같은 규칙.
 // - 사용기한 연수: 충전 지급 함수의 `p_approved_at + interval '1 year'`
-//   (supabase/migrations/20261019090000_payapp_migration_a.sql)
+//   (supabase/migrations/20261126100000_member_withdrawal.sql)
 // - 1회 한도: MAX_POINT_CHARGE_AMOUNT와 DB CHECK
 //   (supabase/migrations/20260805100000_create_payment_orders_and_atomic_fulfillment.sql)
 export const POINT_CHARGE_VALIDITY_YEARS = 1

@@ -25,7 +25,7 @@ export default async function ProfilePage() {
     supabase.auth.getUser(),
     supabase
       .from('profiles')
-      .select('phone, created_at, display_tag')
+      .select('phone, created_at, display_tag, is_admin')
       .eq('id', userId)
       .single(),
   ])
@@ -37,6 +37,8 @@ export default async function ProfilePage() {
         displayName={formatMemberDisplayName(authData.user?.email, profile?.display_tag)}
         phone={profile?.phone ?? null}
         createdAt={profile?.created_at ?? null}
+        // 관리자 계정의 비밀번호는 관리자 비밀번호 변경 화면에서 바꾼다(10번 묶음 6-10).
+        adminPasswordHref={profile?.is_admin ? '/admin/my-password' : null}
       />
     </Suspense>
   )

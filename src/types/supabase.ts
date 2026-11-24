@@ -2797,6 +2797,7 @@ export type Database = {
           processed_at: string | null
           processed_by: string | null
           reason: string | null
+          redaction_reviewed_at: string | null
           refund_kind: string
           refund_subproduct_ids: string[] | null
           reject_code: string | null
@@ -2826,6 +2827,7 @@ export type Database = {
           processed_at?: string | null
           processed_by?: string | null
           reason?: string | null
+          redaction_reviewed_at?: string | null
           refund_kind?: string
           refund_subproduct_ids?: string[] | null
           reject_code?: string | null
@@ -2855,6 +2857,7 @@ export type Database = {
           processed_at?: string | null
           processed_by?: string | null
           reason?: string | null
+          redaction_reviewed_at?: string | null
           refund_kind?: string
           refund_subproduct_ids?: string[] | null
           reject_code?: string | null
@@ -3109,6 +3112,77 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "market_file_types"
             referencedColumns: ["id", "workspace_subject"]
+          },
+        ]
+      }
+      member_withdrawal_requests: {
+        Row: {
+          channel: string
+          consent_reply_received_at: string | null
+          created_at: string
+          expected_balance: number
+          expected_forfeit_free: number
+          expected_forfeit_paid: number
+          id: string
+          identity_note: string | null
+          marketing_withdrawn_at: string | null
+          notice_sent_at: string | null
+          notice_sha256: string
+          notice_text: string
+          received_at: string
+          recorded_by: string
+          requester_kind: string
+          status: string
+          ticket_retention_agreed: boolean | null
+          user_id: string
+        }
+        Insert: {
+          channel: string
+          consent_reply_received_at?: string | null
+          created_at?: string
+          expected_balance: number
+          expected_forfeit_free: number
+          expected_forfeit_paid: number
+          id?: string
+          identity_note?: string | null
+          marketing_withdrawn_at?: string | null
+          notice_sent_at?: string | null
+          notice_sha256: string
+          notice_text: string
+          received_at?: string
+          recorded_by: string
+          requester_kind?: string
+          status?: string
+          ticket_retention_agreed?: boolean | null
+          user_id: string
+        }
+        Update: {
+          channel?: string
+          consent_reply_received_at?: string | null
+          created_at?: string
+          expected_balance?: number
+          expected_forfeit_free?: number
+          expected_forfeit_paid?: number
+          id?: string
+          identity_note?: string | null
+          marketing_withdrawn_at?: string | null
+          notice_sent_at?: string | null
+          notice_sha256?: string
+          notice_text?: string
+          received_at?: string
+          recorded_by?: string
+          requester_kind?: string
+          status?: string
+          ticket_retention_agreed?: boolean | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_withdrawal_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -4275,6 +4349,7 @@ export type Database = {
           role: string | null
           signup_completed: boolean
           updated_at: string
+          withdrawn_at: string | null
         }
         Insert: {
           address?: string | null
@@ -4296,6 +4371,7 @@ export type Database = {
           role?: string | null
           signup_completed?: boolean
           updated_at?: string
+          withdrawn_at?: string | null
         }
         Update: {
           address?: string | null
@@ -4317,6 +4393,7 @@ export type Database = {
           role?: string | null
           signup_completed?: boolean
           updated_at?: string
+          withdrawn_at?: string | null
         }
         Relationships: []
       }
@@ -4679,6 +4756,7 @@ export type Database = {
           provider_cancel_transaction_key: string | null
           provider_cancelled_at: string | null
           reason: string | null
+          redaction_reviewed_at: string | null
           refund_amount: number | null
           source_id: string
           status: string
@@ -4703,6 +4781,7 @@ export type Database = {
           provider_cancel_transaction_key?: string | null
           provider_cancelled_at?: string | null
           reason?: string | null
+          redaction_reviewed_at?: string | null
           refund_amount?: number | null
           source_id: string
           status?: string
@@ -4727,6 +4806,7 @@ export type Database = {
           provider_cancel_transaction_key?: string | null
           provider_cancelled_at?: string | null
           reason?: string | null
+          redaction_reviewed_at?: string | null
           refund_amount?: number | null
           source_id?: string
           status?: string
@@ -4978,6 +5058,7 @@ export type Database = {
           created_at: string
           id: string
           message: string | null
+          redaction_reviewed_at: string | null
           subject: string | null
           ticket_id: string
           written_at: string
@@ -4987,6 +5068,7 @@ export type Database = {
           created_at?: string
           id?: string
           message?: string | null
+          redaction_reviewed_at?: string | null
           subject?: string | null
           ticket_id: string
           written_at: string
@@ -4996,6 +5078,7 @@ export type Database = {
           created_at?: string
           id?: string
           message?: string | null
+          redaction_reviewed_at?: string | null
           subject?: string | null
           ticket_id?: string
           written_at?: string
@@ -5020,6 +5103,7 @@ export type Database = {
           is_deleted_by_user: boolean | null
           member_updated_at: string | null
           message: string
+          redaction_reviewed_at: string | null
           responded_at: string | null
           status: string
           subject: string
@@ -5035,6 +5119,7 @@ export type Database = {
           is_deleted_by_user?: boolean | null
           member_updated_at?: string | null
           message: string
+          redaction_reviewed_at?: string | null
           responded_at?: string | null
           status?: string
           subject: string
@@ -5050,6 +5135,7 @@ export type Database = {
           is_deleted_by_user?: boolean | null
           member_updated_at?: string | null
           message?: string
+          redaction_reviewed_at?: string | null
           responded_at?: string | null
           status?: string
           subject?: string
@@ -5199,6 +5285,152 @@ export type Database = {
         }
         Relationships: []
       }
+      withdrawn_member_record_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          details: Json
+          id: string
+          kind: string
+          ref_id: string | null
+          user_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          kind: string
+          ref_id?: string | null
+          user_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          kind?: string
+          ref_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "withdrawn_member_record_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "withdrawn_member_records"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      withdrawn_member_records: {
+        Row: {
+          actor_id: string
+          auth_scrubbed_at: string | null
+          consent_notice_sha256: string | null
+          consent_notice_text: string | null
+          created_at: string
+          email: string | null
+          forfeit_breakdown: Json
+          forfeited_credits: number
+          forfeited_paid_credits: number
+          had_payment: boolean
+          kakao_email: string | null
+          kakao_id_pending_unlink: string | null
+          last_market_event_at: string | null
+          last_payment_event_at: string | null
+          last_ticket_event_at: string | null
+          marketing_withdrawn_at: string | null
+          method: string
+          operation_key: string
+          phone: string | null
+          policy_snapshot: Json
+          provider_unverified_confirmed: boolean
+          reason: string | null
+          refund_ticket_ids: string[]
+          request_id: string | null
+          result: Json
+          ticket_retention_agreed: boolean | null
+          user_id: string
+          withdrawn_at: string
+        }
+        Insert: {
+          actor_id: string
+          auth_scrubbed_at?: string | null
+          consent_notice_sha256?: string | null
+          consent_notice_text?: string | null
+          created_at?: string
+          email?: string | null
+          forfeit_breakdown?: Json
+          forfeited_credits?: number
+          forfeited_paid_credits?: number
+          had_payment: boolean
+          kakao_email?: string | null
+          kakao_id_pending_unlink?: string | null
+          last_market_event_at?: string | null
+          last_payment_event_at?: string | null
+          last_ticket_event_at?: string | null
+          marketing_withdrawn_at?: string | null
+          method: string
+          operation_key: string
+          phone?: string | null
+          policy_snapshot: Json
+          provider_unverified_confirmed?: boolean
+          reason?: string | null
+          refund_ticket_ids?: string[]
+          request_id?: string | null
+          result: Json
+          ticket_retention_agreed?: boolean | null
+          user_id: string
+          withdrawn_at: string
+        }
+        Update: {
+          actor_id?: string
+          auth_scrubbed_at?: string | null
+          consent_notice_sha256?: string | null
+          consent_notice_text?: string | null
+          created_at?: string
+          email?: string | null
+          forfeit_breakdown?: Json
+          forfeited_credits?: number
+          forfeited_paid_credits?: number
+          had_payment?: boolean
+          kakao_email?: string | null
+          kakao_id_pending_unlink?: string | null
+          last_market_event_at?: string | null
+          last_payment_event_at?: string | null
+          last_ticket_event_at?: string | null
+          marketing_withdrawn_at?: string | null
+          method?: string
+          operation_key?: string
+          phone?: string | null
+          policy_snapshot?: Json
+          provider_unverified_confirmed?: boolean
+          reason?: string | null
+          refund_ticket_ids?: string[]
+          request_id?: string | null
+          result?: Json
+          ticket_retention_agreed?: boolean | null
+          user_id?: string
+          withdrawn_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "withdrawn_member_records_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "member_withdrawal_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "withdrawn_member_records_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_settings: {
         Row: {
           created_at: string
@@ -5270,6 +5502,16 @@ export type Database = {
     Functions: {
       add_market_cart_item: {
         Args: { p_target_id: string; p_target_kind: string; p_user_id: string }
+        Returns: Json
+      }
+      add_withdrawn_member_event: {
+        Args: {
+          p_actor_id: string
+          p_details: Json
+          p_kind: string
+          p_ref_id: string
+          p_user_id: string
+        }
         Returns: Json
       }
       admin_audit_question_bank_metadata: {
@@ -5367,6 +5609,22 @@ export type Database = {
           total_count: number
         }[]
       }
+      anonymize_member: {
+        Args: {
+          p_actor_id: string
+          p_expected_balance: number
+          p_method: string
+          p_notice_text: string
+          p_operation_key: string
+          p_pending_tickets_confirmed?: boolean
+          p_provider_unverified_confirmed: boolean
+          p_reason: string
+          p_request_id: string
+          p_ticket_retention_agreed?: boolean
+          p_user_id: string
+        }
+        Returns: Json
+      }
       apply_payapp_feedback: {
         Args: {
           p_canceldate: string
@@ -5429,6 +5687,13 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: boolean
       }
+      cancel_member_withdrawal_request: {
+        Args: {
+          p_request_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       checkout_market_selection: {
         Args: {
           p_idempotency_key: string
@@ -5456,6 +5721,23 @@ export type Database = {
       }
       claim_point_charge_refund: {
         Args: { p_admin_id: string; p_admin_note: string; p_request_id: string }
+        Returns: Json
+      }
+      clear_withdrawn_member_kakao_unlink: {
+        Args: {
+          p_outcome: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      close_withdrawn_member_held_order: {
+        Args: {
+          p_actor_id: string
+          p_method: string
+          p_note: string
+          p_operation_key: string
+          p_order_id: string
+        }
         Returns: Json
       }
       complete_kakao_signup_with_consents: {
@@ -5558,6 +5840,25 @@ export type Database = {
           required_credits: number
           status: string
         }[]
+      }
+      create_member_withdrawal_request: {
+        Args: {
+          p_channel: string
+          p_consent_reply_received_at?: string
+          p_expected_balance: number
+          p_expected_forfeit_free: number
+          p_expected_forfeit_paid: number
+          p_identity_note: string
+          p_notice_sent_at?: string
+          p_notice_sha256: string
+          p_notice_text: string
+          p_received_at?: string
+          p_recorded_by: string
+          p_requester_kind?: string
+          p_ticket_retention_agreed?: boolean
+          p_user_id: string
+        }
+        Returns: Json
       }
       create_random_bank_exam_paper: {
         Args: {
@@ -5706,6 +6007,21 @@ export type Database = {
           item_id: string
         }[]
       }
+      get_member_withdrawal_notice: {
+        Args: {
+          p_kind: string
+          p_ticket_retention_agreed?: boolean
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      get_member_withdrawal_preview: {
+        Args: {
+          p_ticket_retention_agreed?: boolean
+          p_user_id: string
+        }
+        Returns: Json
+      }
       get_my_missing_required_consents: { Args: never; Returns: string[] }
       get_my_payment_history: {
         Args: never
@@ -5780,6 +6096,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_member_text_reviewed: {
+        Args: {
+          p_actor_id: string
+          p_target_id: string
+          p_target_kind: string
+        }
+        Returns: Json
+      }
       mark_payapp_order_terminal: {
         Args: {
           p_expected_status: string
@@ -5799,6 +6123,12 @@ export type Database = {
           p_status: string
         }
         Returns: undefined
+      }
+      mark_withdrawn_member_auth_scrubbed: {
+        Args: {
+          p_user_id: string
+        }
+        Returns: Json
       }
       market_bundle_refund_amount: {
         Args: { p_order_id: string; p_targets: string[] }
@@ -5838,12 +6168,66 @@ export type Database = {
         }
         Returns: Json
       }
+      member_admin_event_owner: {
+        Args: {
+          p_ref_id: string
+          p_ref_table: string
+        }
+        Returns: string
+      }
+      member_text_has_long_number: {
+        Args: {
+          p_text: string
+        }
+        Returns: boolean
+      }
+      member_withdrawal_facts: {
+        Args: {
+          p_ticket_retention_agreed?: boolean
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      member_withdrawal_notice_text: {
+        Args: {
+          p_facts: Json
+          p_kind: string
+          p_ticket_retention_agreed: boolean
+        }
+        Returns: string
+      }
+      member_withdrawal_policy: { Args: never; Returns: Json }
+      member_withdrawal_policy_days: {
+        Args: {
+          p_key: string
+        }
+        Returns: number
+      }
+      member_withdrawal_require_owner: {
+        Args: {
+          p_actor_id: string
+        }
+        Returns: undefined
+      }
+      member_withdrawal_scrub_admin_events: {
+        Args: {
+          p_user_id: string
+        }
+        Returns: number
+      }
       payapp_fulfill_order_internal: {
         Args: { p_approved_at: string; p_payment_order_id: string }
         Returns: Json
       }
       payapp_sales_resume_blockers: { Args: never; Returns: Json }
       payment_reconciliation_backlog_count: { Args: never; Returns: number }
+      point_charge_cash_value: {
+        Args: {
+          p_credits: number
+          p_source_id: string
+        }
+        Returns: number
+      }
       point_charge_hold_reissued: {
         Args: { p_request_id: string; p_root_source_id: string }
         Returns: string[]
@@ -5971,6 +6355,24 @@ export type Database = {
         Args: { p_payment_order_id: string }
         Returns: Json
       }
+      read_withdrawn_member_record: {
+        Args: {
+          p_actor_id: string
+          p_reason: string
+          p_request_meta?: Json
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      read_withdrawn_member_ticket: {
+        Args: {
+          p_actor_id: string
+          p_reason: string
+          p_request_meta?: Json
+          p_ticket_id: string
+        }
+        Returns: Json
+      }
       record_admin_audit: {
         Args: {
           p_action: string
@@ -5998,6 +6400,16 @@ export type Database = {
       }
       record_kakaopay_partial_cancel_marker: {
         Args: { p_payment_order_id: string; p_provider_status: string }
+        Returns: Json
+      }
+      record_member_withdrawal_request_reply: {
+        Args: {
+          p_actor_id: string
+          p_consent_reply_received_at: string
+          p_notice_sent_at: string
+          p_request_id: string
+          p_ticket_retention_agreed: boolean
+        }
         Returns: Json
       }
       record_payment_alert: {
@@ -6040,6 +6452,17 @@ export type Database = {
       }
       record_user_consents: {
         Args: { p_items: Json; p_source: string; p_user_id: string }
+        Returns: Json
+      }
+      redact_member_text: {
+        Args: {
+          p_actor_id: string
+          p_field: string
+          p_operation_key: string
+          p_target_id: string
+          p_target_kind: string
+          p_target_text: string
+        }
         Returns: Json
       }
       refund_credits: {
@@ -6118,6 +6541,12 @@ export type Database = {
         Args: { p_request_id: string }
         Returns: Json
       }
+      resolve_member_full_delete_auth_alert: {
+        Args: {
+          p_user_id: string
+        }
+        Returns: Json
+      }
       resolve_payment_alert: {
         Args: { p_actor_id: string; p_alert_id: string; p_note: string }
         Returns: Json
@@ -6180,6 +6609,12 @@ export type Database = {
           p_policy_slug: string
           p_required: boolean
           p_sort_order: number
+        }
+        Returns: Json
+      }
+      scrub_member_admin_events: {
+        Args: {
+          p_user_id: string
         }
         Returns: Json
       }
@@ -6304,6 +6739,24 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      withdrawn_member_account_status: {
+        Args: {
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      withdrawn_member_held_order_ids: {
+        Args: {
+          p_order_ids: string[]
+        }
+        Returns: string[]
+      }
+      withdrawn_member_kakao_unlink_target: {
+        Args: {
+          p_user_id: string
+        }
+        Returns: Json
       }
     }
     Enums: {

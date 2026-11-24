@@ -17,7 +17,20 @@ const healthSource = readdirSync(new URL('../supabase/migrations/', import.meta.
   .filter((sql) => /CREATE OR REPLACE FUNCTION public\.enforce_payment_reconciliation_health\(\)/.test(sql))
   .at(-1)
 
-const squash = (sql) => sql.replace(/\s+/g, ' ')
+// 재개 조건 함수의 가장 최근 정의(10번 묶음이 다시 정의한다)
+const blockersSource = (() => {
+  const sql = readdirSync(new URL('../supabase/migrations/', import.meta.url))
+    .sort()
+    .map((name) => read(`supabase/migrations/${name}`))
+    .filter((text) => /CREATE (OR REPLACE )?FUNCTION public\.payapp_sales_resume_blockers\(\)/.test(text))
+    .at(-1)
+  const start = sql.search(/CREATE (OR REPLACE )?FUNCTION public\.payapp_sales_resume_blockers\(\)/)
+  const bodyStart = sql.indexOf('AS $function$', start) + 'AS $function$'.length
+  return sql.slice(start, sql.indexOf('$function$', bodyStart))
+})()
+
+// 줄 주석('-- [10번] 시작' 같은 표시·원래 줄 보존)은 비교에서 뺀다.
+const squash = (sql) => sql.replace(/--[^\n]*/g, '').replace(/\s+/g, ' ')
 const functionBody = (name) => {
   const start = migration.indexOf(`CREATE FUNCTION public.${name}(`)
   assert.ok(start >= 0, `${name} 정의가 있어야 한다`)
@@ -25,11 +38,11 @@ const functionBody = (name) => {
 }
 
 test('재개 조건은 자동 점검이 페이앱 판매를 끄는 조건과 글자까지 같다', () => {
-  const blockers = squash(functionBody('payapp_sales_resume_blockers'))
+  const blockers = squash(blockersSource)
   const health = squash(healthSource)
   const conditions = [
-    // 결제완료 뒤 10분 넘게 미지급
-    `WHERE po.provider = 'payapp' AND ppt.paid_feedback_recorded_at <= now() - interval '10 minutes' AND po.source_id IS NULL AND ppt.cancel_feedback_recorded_at IS NULL AND ppt.partial_cancel_feedback_recorded_at IS NULL;`,
+    // 결제완료 뒤 10분 넘게 미지급(10번: 탈퇴 회원 보류 주문을 닫은 것은 뺀다)
+    `WHERE po.provider = 'payapp' AND ppt.paid_feedback_recorded_at <= now() - interval '10 minutes' AND po.source_id IS NULL AND ppt.cancel_feedback_recorded_at IS NULL AND ppt.partial_cancel_feedback_recorded_at IS NULL AND NOT EXISTS ( SELECT 1 FROM public.withdrawn_member_record_events wre WHERE wre.kind = 'held_order_closed' AND wre.ref_id = po.id );`,
     // 돈이 걸린 수동 확인
     `WHERE po.provider = 'payapp' AND po.status = 'manual_review' AND po.failure_code IN ( 'PAYAPP_FEEDBACK_MISMATCH', 'PAYAPP_MUL_NO_CONFLICT', 'PAYAPP_PARTIAL_CANCEL', 'PAYAPP_READY_CANCEL_FAILED', 'PAYAPP_FULFILLMENT_RETRY_EXHAUSTED', 'PAYAPP_CANCEL_HANDLING_FAILED' );`,
     // 취소 표식 미처리(크레딧 사용 가능)

@@ -48,6 +48,8 @@ export interface MarketRefundRequestRow {
   approved_refund_credits?: number | null
   user: { email: string | null; display_tag: string | null } | null
   item: { title: string | null } | null
+  // 10번: 탈퇴 회원 행(서버가 사유·메모를 가려 보냄)
+  memberWithdrawn?: boolean
 }
 
 interface MarketRefundsClientProps {
@@ -256,8 +258,8 @@ export function MarketRefundsClient({ requests, isOwner }: MarketRefundsClientPr
                   <TableCell>{new Date(request.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <Link href={`/admin/users/${request.user_id}`} className="text-sm font-medium hover:underline">{memberName(request)}</Link>
-                      <span className="text-xs text-gray-400">{request.user?.email ?? '-'}</span>
+                      <Link href={`/admin/users/${request.user_id}`} className="text-sm font-medium hover:underline">{request.memberWithdrawn ? '탈퇴 회원' : memberName(request)}</Link>
+                      <span className="text-xs text-gray-400">{request.memberWithdrawn ? '법정 보존' : request.user?.email ?? '-'}</span>
                     </div>
                   </TableCell>
                   <TableCell className="max-w-[220px] truncate" title={request.item?.title ?? ''}>
@@ -272,7 +274,7 @@ export function MarketRefundsClient({ requests, isOwner }: MarketRefundsClientPr
                     </div>
                   </TableCell>
                   <TableCell className="max-w-[220px] truncate" title={request.reason ?? ''}>
-                    {request.reason ?? '-'}
+                    {request.memberWithdrawn ? '가림' : request.reason ?? '-'}
                   </TableCell>
                   <TableCell>
                     <Badge variant={request.status === 'pending' ? 'outline' : 'secondary'}>
@@ -280,7 +282,7 @@ export function MarketRefundsClient({ requests, isOwner }: MarketRefundsClientPr
                     </Badge>
                   </TableCell>
                   <TableCell className="max-w-[200px] truncate text-xs text-gray-500" title={request.admin_note ?? ''}>
-                    {request.admin_note ?? '-'}
+                    {request.memberWithdrawn ? '가림' : request.admin_note ?? '-'}
                   </TableCell>
                   <TableCell className="text-right">
                     {request.status === 'pending' ? (

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { listMarketRefundRequestsForAdmin } from '@/lib/market-refunds'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
+import { markWithdrawnRows } from '@/lib/withdrawn-member-redaction-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,9 +26,11 @@ export async function GET(request: NextRequest) {
   const status = request.nextUrl.searchParams.get('status') || 'pending'
   const workspaceSubject = normalizeWorkspaceSubject(request.nextUrl.searchParams.get('subject'))
   const requests = await listMarketRefundRequestsForAdmin({ workspaceSubject, status })
+  // 10번: 서버 키로 읽으므로 탈퇴 회원의 환불 사유·메모는 코드가 가린다.
+  const visible = await markWithdrawnRows(requests, (row) => row.user_id, (row) => ({ ...row, reason: null, admin_note: null }))
 
   return NextResponse.json({
     success: true,
-    data: requests,
+    data: visible,
   })
 }

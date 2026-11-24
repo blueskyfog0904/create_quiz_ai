@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
+import { MEMBER_WITHDRAWAL_ERRORS } from '@/lib/member-withdrawal'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +25,8 @@ const reviewErrorMessages: Record<string, string> = {
   PAYAPP_MUL_NO_CONFLICT: '다른 주문에 이미 쓰인 결제요청번호입니다.',
   PAYAPP_ORDER_NOT_FULFILLABLE: '지급할 수 없는 주문 상태입니다. 새로고침 후 다시 확인해 주세요.',
   PAYMENT_ORDER_USER_NOT_FOUND: '주문한 회원을 찾을 수 없습니다.',
+  // 10번: 탈퇴 회원의 보류 주문은 세 처리 모두 거절된다(회원 상세의 보류 주문 닫기로 처리).
+  PAYMENT_REVIEW_MEMBER_WITHDRAWN: MEMBER_WITHDRAWAL_ERRORS.PAYMENT_REVIEW_MEMBER_WITHDRAWN.message,
 }
 
 const TRANSIENT_DATABASE_ERRORS = ['40P01', '40001', '55P03', '57014']

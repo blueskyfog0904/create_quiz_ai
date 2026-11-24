@@ -14,10 +14,21 @@ import {
   normalizeOrderFilter,
 } from '@/lib/admin-orders'
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { readWithdrawnUserIdsForRedaction } from '@/lib/withdrawn-member-redaction-server'
 import { diagnoseMarketFileDownload, type MarketDownloadBlockReason, type MarketDownloadDiagnosis } from '@/lib/market-download-diagnosis'
 import { buildPendingMarketRefundScopes, isPendingRefundBlockingFile } from '@/lib/market-refund-rules'
 
 // 관리자 '주문 조회 › 충전 결제'. 조회만 한다. 결제 표는 service role 전용이라 결제용 클라이언트로 읽는다.
+
+// 10번: 탈퇴 회원 표시·가림용. 읽지 못하면 null — 목록은 보여 주되(탈퇴 회원은 이메일이 이미 비어 있다) 환불 사유·메모는 모두 가린다.
+async function readWithdrawnMembers(userIds: string[]): Promise<Set<string> | null> {
+  try {
+    return await readWithdrawnUserIdsForRedaction(userIds)
+  } catch (error) {
+    console.error('[admin-orders] 탈퇴 회원을 읽지 못했습니다.', { message: error instanceof Error ? error.message : String(error) })
+    return null
+  }
+}
 
 export interface AdminPaymentOrderAction {
   id: string
@@ -48,6 +59,8 @@ export interface AdminPaymentOrder {
   fulfilledAt: string | null
   canceledAt: string | null
   user: { email: string | null; display_tag: string } | null
+  // 10번: 탈퇴(익명화)한 회원(이메일 대신 '탈퇴 회원'으로 보여 준다)
+  memberWithdrawn: boolean
   methodLabel: string | null
   transaction: {
     provider_transaction_id: string | null
@@ -208,6 +221,7 @@ export async function listPaymentOrdersForAdmin(input: {
     .range(pagination.offset, pagination.offset + pagination.pageSize - 1)
   if (error) throw new Error(error.message)
   const rows = data ?? []
+  const withdrawnMembers = await readWithdrawnMembers(rows.map((row) => row.user_id))
 
   // 관리자 조치 기록은 FK가 없는 추가 전용 표라 주문 id로 따로 읽는다.
   const orderIds = rows.map((row) => row.id)
@@ -246,6 +260,7 @@ export async function listPaymentOrdersForAdmin(input: {
       fulfilledAt: row.fulfilled_at,
       canceledAt: row.canceled_at,
       user: row.user,
+      memberWithdrawn: withdrawnMembers?.has(row.user_id) ?? false,
       methodLabel: row.method?.label ?? null,
       transaction: row.transaction,
       source: row.source,
@@ -291,6 +306,8 @@ export interface AdminMarketOrder {
   chargedCredits: number
   createdAt: string
   user: { email: string | null; display_tag: string } | null
+  // 10번: 탈퇴(익명화)한 회원
+  memberWithdrawn: boolean
   item: { title: string; status: string; is_active: boolean; deleted_at: string | null } | null
   lines: Array<{ id: string; lineType: string; priceCredits: number; status: string; title: string | null }>
   entitlements: Array<{ id: string; scope: string; status: string; target: string | null }>
@@ -454,6 +471,7 @@ export async function listMarketOrdersForAdmin(input: {
     .range(pagination.offset, pagination.offset + pagination.pageSize - 1)
   if (error) throw new Error(error.message)
   const rows = data ?? []
+  const withdrawnMembers = await readWithdrawnMembers(rows.map((row) => row.user_id))
 
   // 진단에 쓰는 파일은 상품 단위로 읽는다(권한 범위가 상품 전체·구성·파일로 갈려서). 비활성·삭제된 파일도 읽어 사유를 보여 준다.
   // 권한은 다운로드 route와 같은 재료로 읽는다: 주문과 무관하게 그 회원이 그 상품에 가진 사용 가능 권한 전부.
@@ -576,6 +594,7 @@ export async function listMarketOrdersForAdmin(input: {
         chargedCredits: row.charged_credits,
         createdAt: row.created_at,
         user: row.user,
+        memberWithdrawn: withdrawnMembers?.has(row.user_id) ?? false,
         item: row.item,
         lines: row.lines.map((line) => ({
           id: line.id,
@@ -621,8 +640,9 @@ export async function listMarketOrdersForAdmin(input: {
           status: refund.status,
           requested_refund_credits: refund.requested_refund_credits,
           approved_refund_credits: refund.approved_refund_credits,
-          reason: refund.reason,
-          admin_note: refund.admin_note,
+          // 10번: 탈퇴 회원의 환불 사유·메모는 내보내지 않는다(서버 키로 읽으므로 코드가 가림).
+          reason: withdrawnMembers?.has(row.user_id) === false ? refund.reason : null,
+          admin_note: withdrawnMembers?.has(row.user_id) === false ? refund.admin_note : null,
           created_at: refund.created_at,
           processed_at: refund.processed_at,
         })),

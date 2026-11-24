@@ -263,7 +263,7 @@ export function DashboardClient({ salesPanel }: { salesPanel: ReactNode }) {
                         <Badge variant="outline" className="shrink-0">{labelOf(SUPPORT_TICKET_STATUS_LABELS, ticket.status)}</Badge>
                       </div>
                       <p className="mt-1 break-all text-xs text-gray-500">
-                        <Link href={`/admin/users/${ticket.user_id}`} className="hover:underline">{ticket.user?.email ?? '회원'}</Link>
+                        <Link href={`/admin/users/${ticket.user_id}`} className="hover:underline">{ticket.memberWithdrawn ? '탈퇴 회원' : ticket.user?.email ?? '회원'}</Link>
                         {' · '}{formatDateTime(ticket.created_at)}
                       </p>
                     </li>

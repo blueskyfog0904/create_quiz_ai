@@ -191,8 +191,8 @@ export function MarketOrdersClient() {
                       <TableCell className="text-xs text-gray-500">{formatDateTime(order.createdAt)}</TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <Link href={`/admin/users/${order.userId}`} className="text-sm font-medium hover:underline">{formatMemberDisplayName(order.user?.email, order.user?.display_tag)}</Link>
-                          <span className="text-xs text-gray-400">{order.user?.email || '-'}</span>
+                          <Link href={`/admin/users/${order.userId}`} className="text-sm font-medium hover:underline">{order.memberWithdrawn ? '탈퇴 회원' : formatMemberDisplayName(order.user?.email, order.user?.display_tag)}</Link>
+                          <span className="text-xs text-gray-400">{order.memberWithdrawn ? '법정 보존' : order.user?.email || '-'}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -245,7 +245,7 @@ export function MarketOrdersClient() {
                   <DetailList rows={[
                     ['주문 ID', <span key="v" className="font-mono text-xs">{selectedOrder.id}</span>],
                     ['주문 시각', formatDateTime(selectedOrder.createdAt)],
-                    ['회원', `${formatMemberDisplayName(selectedOrder.user?.email, selectedOrder.user?.display_tag)} (${selectedOrder.user?.email || '-'})`],
+                    ['회원', selectedOrder.memberWithdrawn ? '탈퇴 회원' : `${formatMemberDisplayName(selectedOrder.user?.email, selectedOrder.user?.display_tag)} (${selectedOrder.user?.email || '-'})`],
                     ['상품', [selectedOrder.item?.title ?? '-', itemStateNote(selectedOrder.item)].filter(Boolean).join(' · ')],
                     ['과목', labelOf(WORKSPACE_SUBJECT_LABELS, selectedOrder.workspaceSubject)],
                     ['주문 상태', labelOf(MARKET_ORDER_STATUS_LABELS, selectedOrder.status)],

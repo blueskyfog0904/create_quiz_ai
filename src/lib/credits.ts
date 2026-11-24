@@ -32,7 +32,7 @@ export interface CreditSource {
 export interface CreditTransaction {
   id: string
   user_id: string
-  type: 'purchase' | 'consume' | 'refund' | 'admin_grant' | 'bonus'
+  type: 'purchase' | 'consume' | 'refund' | 'admin_grant' | 'bonus' | 'withdrawal_forfeit'
   amount: number
   balance_after: number
   description: string

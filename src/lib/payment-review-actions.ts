@@ -13,6 +13,8 @@ export interface ReviewOrderFacts {
   adminPaidConfirmed: boolean
   cancelMarker: boolean
   partialCancelMarker: boolean
+  // 탈퇴 회원 보류 주문(늦은 결제 기록 있음, DB withdrawn_member_held_order_ids)
+  withdrawnHeldOrder: boolean
 }
 
 // 격리·취소 처리 실패 건은 결제 확인으로 지급할 수 없다.
@@ -23,6 +25,9 @@ const PAID_CONFIRM_BLOCKING_CODES = [
 ]
 
 export function allowedReviewActions(order: ReviewOrderFacts): ReviewAction[] {
+  // 탈퇴 회원 보류 주문(10번)은 실패 코드(부분취소·취소 처리 실패 포함)와 상관없이 결제 검토 동작으로 처리하지 않는다.
+  // 대표가 회원 상세의 [보류 주문 닫기]로 정리한다(DB resolve_payment_order_review 도 거절).
+  if (order.withdrawnHeldOrder) return []
   const actions: ReviewAction[] = []
   const noCancel = !order.cancelMarker && !order.partialCancelMarker
 

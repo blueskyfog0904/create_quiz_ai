@@ -381,6 +381,10 @@ test('관리자 계정 관리는 대표만: 페이지·route 가드, 새 계정�
 
   const withdraw = read('src/app/api/auth/withdraw/route.ts')
   const adminCheck = withdraw.indexOf("if (profile?.is_admin) {")
-  assert.ok(adminCheck > 0 && adminCheck < withdraw.indexOf('createAdminClient()'), '관리자 확인이 삭제보다 앞이다')
+  // 10번: 삭제·익명화·요청은 서버 모듈(member-withdrawal-server)이 하고, 관리자 확인은 그보다 앞에 있다(DB 판정도 관리자를 거절).
+  for (const call of ['fullDeleteMember(', 'anonymizeMember(', 'createMemberWithdrawalRequest(']) {
+    assert.ok(adminCheck > 0 && adminCheck < withdraw.indexOf(call), `관리자 확인이 ${call} 보다 앞이다`)
+  }
+  assert.doesNotMatch(withdraw, /createAdminClient\(\)/)
   assert.match(withdraw, /if \(profileLookupError\) \{\s*throw new Error/)
 })

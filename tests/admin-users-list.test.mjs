@@ -47,7 +47,7 @@ test('목록은 화면에 쓰는 컬럼만 읽고, 서버에서 페이지를 나
   assert.equal(result.users.length, 20)
   assert.equal(result.users[0].email, 'user20@example.com')
   const select = op(queries.find((query) => query.table === 'profiles').ops, 'select')
-  assert.equal(select[1], 'id, email, display_tag, phone, organization, role, is_admin, provider, created_at')
+  assert.equal(select[1], 'id, email, display_tag, phone, organization, role, is_admin, provider, created_at, withdrawn_at')
   assert.deepEqual(op(queries.find((query) => query.table === 'profiles').ops, 'range'), ['range', 20, 39])
 })
 

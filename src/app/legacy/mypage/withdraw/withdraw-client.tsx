@@ -84,12 +84,15 @@ export function WithdrawClient({ email }: WithdrawClientProps) {
             <ul className="list-disc list-inside text-sm text-red-700 space-y-1">
               <li>생성한 모든 문제 및 문제지</li>
               <li>저장한 문제 은행 데이터</li>
-              <li>결제 및 크레딧 내역</li>
+              <li>남은 크레딧과 크레딧 사용 내역</li>
               <li>모든 활동 기록 및 통계</li>
               <li>계정 정보 및 프로필</li>
             </ul>
             <p className="text-sm font-medium text-red-800">
               ⚠️ 삭제된 데이터는 복구할 수 없습니다.
+            </p>
+            <p className="text-sm text-red-700">
+              결제·결제 시도·1:1 문의 기록이 있는 계정은 이 화면에서 탈퇴할 수 없습니다. 회원 탈퇴 화면(/mypage/withdraw)에서 보관·삭제 안내를 확인한 뒤 진행해 주세요.
             </p>
           </div>
 
@@ -130,7 +133,7 @@ export function WithdrawClient({ email }: WithdrawClientProps) {
                 }
               />
               <Label htmlFor="finalConfirm" className="text-sm leading-relaxed cursor-pointer">
-                회원 탈퇴를 최종적으로 확인하며, 모든 약관에 동의합니다.
+                회원 탈퇴를 최종적으로 확인합니다.
               </Label>
             </div>
           </div>

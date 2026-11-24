@@ -76,6 +76,8 @@ export interface RefundRequest {
     last_error_message: string | null
     created_at: string
     updated_at: string
+    // 10번: 탈퇴 회원 행(서버가 사유·메모를 가려 보냄)
+    memberWithdrawn?: boolean
     user: {
         id: string
         email: string | null
@@ -430,8 +432,8 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex flex-col">
-                                                <Link href={`/admin/users/${request.user_id}`} className="font-medium hover:underline">{request.user ? formatMemberDisplayName(request.user.email, request.user.display_tag) : '알 수 없음'}</Link>
-                                                <span className="text-xs text-gray-400">{request.user?.email}</span>
+                                                <Link href={`/admin/users/${request.user_id}`} className="font-medium hover:underline">{request.memberWithdrawn ? '탈퇴 회원' : request.user ? formatMemberDisplayName(request.user.email, request.user.display_tag) : '알 수 없음'}</Link>
+                                                <span className="text-xs text-gray-400">{request.memberWithdrawn ? '법정 보존' : request.user?.email}</span>
                                             </div>
                                         </TableCell>
                                         <TableCell>{request.source?.plan?.name || '-'}</TableCell>
@@ -449,7 +451,7 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                                             )}
                                         </TableCell>
                                         <TableCell className="max-w-[200px] truncate" title={request.reason || ''}>
-                                            {request.reason || '-'}
+                                            {request.memberWithdrawn ? '가림' : request.reason || '-'}
                                         </TableCell>
                                         <TableCell>
                                             {getStatusBadge(request.status)}
@@ -615,9 +617,17 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                                             <dd>{formatWon(manualPreview.remaining_refundable_amount)}</dd>
                                             <dt>쓸 수 있는 몫 합(회수 상한)</dt>
                                             <dd>{manualPreview.usable_total.toLocaleString()} 크레딧</dd>
+                                            {(manualPreview.withdrawal_forfeited_total ?? 0) > 0 && (
+                                                <>
+                                                    <dt>탈퇴로 소멸(사용 아님)</dt>
+                                                    <dd>{(manualPreview.withdrawal_forfeited_total ?? 0).toLocaleString()} 크레딧</dd>
+                                                    <dt>실제 사용(지급−남음−소멸, 원래 충전과 다시 지급 합)</dt>
+                                                    <dd>{(manualPreview.family_used_excluding_forfeit ?? 0).toLocaleString()} 크레딧</dd>
+                                                </>
+                                            )}
                                         </dl>
                                         <div className="overflow-x-auto">
-                                            <table className="w-full min-w-[44rem] text-xs">
+                                            <table className="w-full min-w-[48rem] text-xs">
                                                 <thead className="text-left text-gray-500">
                                                     <tr>
                                                         <th className="py-1 pr-2 font-medium">원천</th>
@@ -629,6 +639,7 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                                                         <th className="py-1 pr-2 text-right font-medium">자료 환불 복구</th>
                                                         <th className="py-1 pr-2 text-right font-medium">재지급으로 나감</th>
                                                         <th className="py-1 pr-2 text-right font-medium">지급−남음</th>
+                                                        <th className="py-1 pr-2 text-right font-medium">탈퇴로 소멸(사용 아님)</th>
                                                         <th className="py-1 font-medium">만료(한국 시간)</th>
                                                     </tr>
                                                 </thead>
@@ -644,6 +655,7 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                                                             <td className="py-1 pr-2 text-right">{source.restored_by_material_refund.toLocaleString()}</td>
                                                             <td className="py-1 pr-2 text-right">{source.reissued_out.toLocaleString()}</td>
                                                             <td className="py-1 pr-2 text-right">{source.net_used.toLocaleString()}</td>
+                                                            <td className="py-1 pr-2 text-right">{(source.withdrawal_forfeited ?? 0).toLocaleString()}</td>
                                                             <td className="py-1">{formatKstDateTime(source.expires_at)}</td>
                                                         </tr>
                                                     ))}

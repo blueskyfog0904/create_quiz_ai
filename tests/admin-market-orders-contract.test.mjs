@@ -162,6 +162,8 @@ function loadMarketOrders({
     '@/lib/admin-orders': orders,
     '@/lib/supabase/bypass': { createAdminClient: () => admin },
     '@/lib/market-download-diagnosis': diagnosis,
+    // 10번: 탈퇴 회원 표시(이 시험의 회원은 탈퇴하지 않음)
+    '@/lib/withdrawn-member-redaction-server': { readWithdrawnUserIdsForRedaction: async () => new Set() },
   })
   return { server, queries }
 }

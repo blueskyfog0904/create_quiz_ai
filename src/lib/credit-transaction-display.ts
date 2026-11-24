@@ -73,6 +73,11 @@ export function getCreditTransactionTypeLabel(transaction: CreditTransactionDisp
     return '환불'
   }
 
+  // 회원 탈퇴 때 남은 크레딧 소멸(10번 묶음). 사용이 아니다.
+  if (transaction.type === 'withdrawal_forfeit') {
+    return '탈퇴로 소멸'
+  }
+
   return transaction.type
 }
 

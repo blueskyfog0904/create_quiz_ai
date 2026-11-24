@@ -3,6 +3,7 @@ import { UUID_PATTERN } from '@/lib/admin-orders'
 import { getAdminMemberSummary } from '@/lib/admin-member-detail-server'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { readWithdrawnUserIdsForRedaction } from '@/lib/withdrawn-member-redaction-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,10 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       .maybeSingle()
     if (error) throw new Error(error.message)
     if (!ticket) {
+      return NextResponse.json({ error: '문의를 찾을 수 없습니다.' }, { status: 404 })
+    }
+    // 10번: 탈퇴 회원 문의는 화면 세션(RLS)에서 열리지 않는다. 서버 키 경로도 같은 결과로 둔다(열람은 대표 열람 기록 경로로만).
+    if ((await readWithdrawnUserIdsForRedaction([ticket.user_id])).has(ticket.user_id)) {
       return NextResponse.json({ error: '문의를 찾을 수 없습니다.' }, { status: 404 })
     }
 

@@ -159,6 +159,10 @@ function loadSummary({ tableErrors = [], counts = {} } = {}) {
     '@/lib/admin-orders': orders,
     '@/lib/admin-permissions': permissions,
     '@/lib/payment-review-actions': {},
+    // 10번: 회원 상세의 탈퇴 구역·가림 모듈(회원 요약은 쓰지 않음)
+    '@/lib/member-withdrawal-server': {},
+    '@/lib/member-withdrawal': {},
+    '@/lib/withdrawn-member-redaction-server': {},
   }, errors)
   return { server, queries, errors }
 }

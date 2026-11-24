@@ -594,6 +594,10 @@ async function retryPayAppFulfillment(order: PaymentOrderRow) {
       return 'payment_fulfilled' as const
     case 'already_fulfilled':
       return 'already_completed' as const
+    // 10번: 탈퇴 회원의 늦은 결제. DB가 주문을 manual_review(PAYMENT_FOR_WITHDRAWN_MEMBER)로 두고 경보·보관함 기록을 남겼다.
+    // 회원 알림은 없다. 대표가 회원 상세에서 보류 주문을 닫는다.
+    case 'withdrawn_member_hold':
+      return 'manual_review' as const
     case 'retry_exhausted':
       await runFollowUps(createPaymentAdminClient(), {
         alerts: [{

@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { markWithdrawnRows } from '@/lib/withdrawn-member-redaction-server'
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
 import { readAllQueryRows } from '@/lib/read-all-query-rows'
 import { hasAdminPermission, type AdminAccess, type AdminPermissionKey } from '@/lib/admin-permissions'
@@ -141,7 +142,8 @@ async function readRecentSupportTickets() {
     .order('id', { ascending: false })
     .limit(RECENT_LIMIT)
   if (error) throw new Error(error.message)
-  return data
+  // 10번: 탈퇴 회원 문의는 제목을 '탈퇴 회원 문의'(DB 문구)로 바꿔 보낸다(본문은 원래 읽지 않음).
+  return markWithdrawnRows(data, (ticket) => ticket.user_id, (ticket, title) => ({ ...ticket, subject: title, user: { email: null } }))
 }
 
 // 관리자 확인을 마친 요청에서만 부른다(service role로 읽는다). period는 getKstPeriodStarts()의 값이다.

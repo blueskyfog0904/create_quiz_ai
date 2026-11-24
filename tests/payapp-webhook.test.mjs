@@ -245,6 +245,8 @@ test('every non-exception feedback result closes the event and answers SUCCESS',
     'expired',
     'unchanged',
     'recorded',
+    // 10번: 탈퇴 회원 늦은 결제 보류(알림 없음)
+    'withdrawn_member_hold',
   ]) {
     const admin = createFakeAdmin({
       rpc: { apply_payapp_feedback: () => ok({ result, payment_order_id: ORDER_UUID, user_id: USER_UUID }) },

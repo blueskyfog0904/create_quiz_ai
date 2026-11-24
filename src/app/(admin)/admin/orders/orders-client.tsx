@@ -189,8 +189,8 @@ export function PaymentOrdersClient() {
                       <TableCell className="text-xs text-gray-500">{formatDateTime(order.createdAt)}</TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <Link href={`/admin/users/${order.userId}`} className="text-sm font-medium hover:underline">{formatMemberDisplayName(order.user?.email, order.user?.display_tag)}</Link>
-                          <span className="text-xs text-gray-400">{order.user?.email || '-'}</span>
+                          <Link href={`/admin/users/${order.userId}`} className="text-sm font-medium hover:underline">{order.memberWithdrawn ? '탈퇴 회원' : formatMemberDisplayName(order.user?.email, order.user?.display_tag)}</Link>
+                          <span className="text-xs text-gray-400">{order.memberWithdrawn ? '법정 보존' : order.user?.email || '-'}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -235,7 +235,7 @@ export function PaymentOrdersClient() {
                   <DetailList rows={[
                     ['주문번호', <span key="v" className="font-mono text-xs">{selectedOrder.orderId}</span>],
                     ['결제사 거래번호', <span key="v" className="font-mono text-xs">{selectedOrder.transaction?.provider_transaction_id ?? '-'}</span>],
-                    ['회원', `${formatMemberDisplayName(selectedOrder.user?.email, selectedOrder.user?.display_tag)} (${selectedOrder.user?.email || '-'})`],
+                    ['회원', selectedOrder.memberWithdrawn ? '탈퇴 회원' : `${formatMemberDisplayName(selectedOrder.user?.email, selectedOrder.user?.display_tag)} (${selectedOrder.user?.email || '-'})`],
                     ['요금제', selectedOrder.planName],
                     ['주문 금액', formatWon(selectedOrder.amount)],
                     ['결제수단', methodLabel(selectedOrder)],

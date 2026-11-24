@@ -48,6 +48,7 @@ export const PAYMENT_ADMIN_ACTION_LABELS = {
   manual_refund_completed: '환불 수동 완료',
   manual_review_refund_rejected: '수동 확인 환불 거부',
   alert_resolved: '결제 경보 해소',
+  withdrawn_held_order_closed: '탈퇴 회원 보류 주문 닫기',
 } as const
 
 export const PAYMENT_EXTERNAL_METHOD_LABELS = {

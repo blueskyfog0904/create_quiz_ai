@@ -17,6 +17,8 @@ const REVOKE_MIGRATION = read('supabase/migrations/20261118150000_admin_credit_r
 // 4번 묶음(가입 동의): 항목 저장·개정 기록은 DB 함수가 같은 트랜잭션에서 남긴다.
 const CONSENT_MIGRATION = read('supabase/migrations/20261120120000_signup_consents.sql')
 const MATERIAL_REFUND_MIGRATION = read('supabase/migrations/20261124100000_market_material_refund.sql')
+// 10번 묶음(회원 탈퇴·익명화): 요청·익명화·가림·보류 주문 닫기·추가 기록·열람은 DB 함수가 남긴다.
+const WITHDRAWAL_MIGRATION = read('supabase/migrations/20261126100000_member_withdrawal.sql')
 const DB_FUNCTION_ACTIONS = [
   [PERMISSION_MIGRATION, 'admin_permissions_replace'],
   [PERMISSION_MIGRATION, 'admin_account_revoke'],
@@ -27,6 +29,14 @@ const DB_FUNCTION_ACTIONS = [
   [CONSENT_MIGRATION, 'signup_consent_item_revise'],
   [MATERIAL_REFUND_MIGRATION, 'market_refund_exception'],
   [MATERIAL_REFUND_MIGRATION, 'market_refund_owner_settle'],
+  [WITHDRAWAL_MIGRATION, 'member_withdraw'],
+  [WITHDRAWAL_MIGRATION, 'member_withdraw_request'],
+  [WITHDRAWAL_MIGRATION, 'member_withdraw_request_reply'],
+  [WITHDRAWAL_MIGRATION, 'member_text_redact'],
+  [WITHDRAWAL_MIGRATION, 'member_text_reviewed'],
+  [WITHDRAWAL_MIGRATION, 'withdrawn_held_order_close'],
+  [WITHDRAWAL_MIGRATION, 'withdrawn_member_event'],
+  [WITHDRAWAL_MIGRATION, 'withdrawn_record_view'],
 ]
 // 9번 묶음: 대표 승인 SQL 템플릿·정책 문구 스크립트(supabase/scripts)가 record_admin_audit 로 적는 종류.
 const SCRIPT_ACTIONS = readdirSync(join(ROOT, 'supabase/scripts'))

@@ -23,6 +23,7 @@ const facts = (overrides = {}) => ({
   adminPaidConfirmed: false,
   cancelMarker: false,
   partialCancelMarker: false,
+  withdrawnHeldOrder: false,
   ...overrides,
 })
 
@@ -81,4 +82,14 @@ test('a recorded full cancel forces full recovery even for partial cancel reques
   assert.equal(actions.refundRequiresRecovery({ origin: 'external_cancel', cancelMarker: true, partialCancelMarker: true, lastErrorCode: null }), false)
   assert.equal(actions.refundRequiresRecovery({ origin: 'user', cancelMarker: true, partialCancelMarker: false, lastErrorCode: 'KAKAOPAY_PARTIAL_CANCELLATION_REQUIRES_REVIEW' }), false)
   assert.equal(actions.refundRequiresRecovery({ origin: 'partial_cancel', cancelMarker: false, partialCancelMarker: true, lastErrorCode: null }), true)
+})
+
+test('a withdrawn member held order offers no review action whatever its failure code (the owner closes it from the member detail)', () => {
+  for (const failureCode of ['PAYMENT_FOR_WITHDRAWN_MEMBER', 'PAYAPP_PARTIAL_CANCEL', 'PAYAPP_CANCEL_HANDLING_FAILED']) {
+    assert.deepEqual(actions.allowedReviewActions(facts({ failureCode, withdrawnHeldOrder: true })), [], failureCode)
+    assert.deepEqual(actions.allowedReviewActions(facts({ failureCode, withdrawnHeldOrder: true, partialCancelMarker: true, paidRecorded: true })), [], failureCode)
+  }
+  // 보류 주문이 아니면 같은 실패 코드라도 기존 규칙대로
+  assert.deepEqual(actions.allowedReviewActions(facts({ failureCode: 'PAYAPP_PARTIAL_CANCEL', partialCancelMarker: true })), ['cancel_handled'])
+  assert.equal(actions.isWithdrawnMemberHeldOrder, undefined)
 })

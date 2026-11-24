@@ -51,6 +51,8 @@ export interface PaymentReviewOrder {
     email: string | null
     providerTransactionId: string | null
     allowedActions: ReviewAction[]
+    // 탈퇴 회원 보류 주문이면 동작 대신 보여 줄 안내(DB 정책 문구)
+    heldOrderNotice: string | null
 }
 
 export interface PaymentAlert {
@@ -277,6 +279,8 @@ export function PaymentReviewClient({
                                             <Button size="sm" variant="adminAction" onClick={() => openDialog(order)}>
                                                 확인 처리
                                             </Button>
+                                        ) : order.heldOrderNotice ? (
+                                            <span className="text-xs text-gray-500 break-keep">{order.heldOrderNotice}</span>
                                         ) : (
                                             <span className="text-xs text-gray-500">아래 환불 요청에서 처리</span>
                                         )}

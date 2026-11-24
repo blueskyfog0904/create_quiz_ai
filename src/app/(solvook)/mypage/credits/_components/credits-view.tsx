@@ -358,6 +358,7 @@ export function CreditsView({
     { value: 'consume', label: '사용' },
     { value: 'refund', label: '환불/회수' },
     { value: 'admin_grant', label: '지급' },
+    { value: 'withdrawal_forfeit', label: '탈퇴로 소멸' },
   ]
 
   return (

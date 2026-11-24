@@ -89,3 +89,11 @@ export function buildMarketRefundApprovedMessage(request: {
     missing > 0 ? `나머지 ${missing.toLocaleString()} 크레딧은 결제에 쓴 크레딧의 사정(충전 환불 이력 등)으로 돌려드리지 못했습니다. 자세한 내용은 고객센터로 문의해 주세요.` : '',
   ].filter(Boolean).join(' ')
 }
+
+// 10번: 탈퇴(익명화)한 회원에게는 크레딧으로 환불할 수 없다(DB 트리거가 MEMBER_WITHDRAWN 으로 거절). 대표가 현금으로 정산하고 기록을 남긴다.
+export const MARKET_REFUND_MEMBER_WITHDRAWN_MESSAGE =
+  '탈퇴한 회원이라 크레딧으로 환불할 수 없습니다. 대표가 원래 결제수단이나 계좌로 정산한 뒤 주문 상세의 \'탈퇴 회원 — 현금 정산 기록\'을 남겨 주세요.'
+
+export function isMarketRefundMemberWithdrawnError(error: unknown): boolean {
+  return error instanceof Error && error.message.trim() === 'MEMBER_WITHDRAWN'
+}

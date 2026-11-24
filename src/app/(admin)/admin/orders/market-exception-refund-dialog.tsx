@@ -24,7 +24,7 @@ function toLocalInputValue(date: Date) {
 
 // 관리자 예외 환불(8번). 판정·금액·한도·대표 전용 경로는 DB 함수가 잠금 아래에서 다시 한다 — 화면은 보여 주고 미리보기만.
 export function MarketExceptionRefundDialog({ orderId, onClose, onDone }: MarketExceptionRefundDialogProps) {
-  const [context, setContext] = useState<(MarketOrderRefundContext & { isOwner: boolean }) | null>(null)
+  const [context, setContext] = useState<(MarketOrderRefundContext & { isOwner: boolean; reasonGuide?: string | null }) | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [claimType, setClaimType] = useState<ClaimType>('defect')
   const [claimChannel, setClaimChannel] = useState<ClaimChannel>('ticket')
@@ -157,7 +157,10 @@ export function MarketExceptionRefundDialog({ orderId, onClose, onDone }: Market
 
         {loadError ? <p role="alert" className="text-sm text-red-700">{loadError}</p> : null}
         {!context && !loadError ? <p className="text-sm text-gray-500">불러오는 중…</p> : null}
-        {context ? (
+        {context?.memberWithdrawn && orderId ? (
+          <WithdrawnCashRefundForm context={context} orderId={orderId} onClose={onClose} onDone={onDone} />
+        ) : null}
+        {context && !context.memberWithdrawn ? (
           <div className="space-y-4 text-sm">
             <p>
               <strong>{context.order.itemTitle}</strong> · 낸 크레딧 {context.order.chargedCredits.toLocaleString()} · 환불된 누계 {context.order.committedCredits.toLocaleString()}
@@ -267,6 +270,7 @@ export function MarketExceptionRefundDialog({ orderId, onClose, onDone }: Market
           </div>
         ) : null}
 
+        {context?.memberWithdrawn ? null : (
         <DialogFooter className="justify-center gap-2">
           <Button variant="outline" onClick={onClose} disabled={submitting}>취소</Button>
           <Button variant="outline" onClick={() => void loadPreview()} disabled={submitting || !context || !ticketReady}>금액 확인</Button>
@@ -275,7 +279,94 @@ export function MarketExceptionRefundDialog({ orderId, onClose, onDone }: Market
             {submitting ? '처리 중...' : '예외 환불 처리'}
           </Button>
         </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+type CashRefundMethod = 'original_method' | 'bank_transfer'
+
+// 10번(계획 6-4): 탈퇴(익명화)한 회원에게는 크레딧으로 환불할 수 없다(DB 가 MEMBER_WITHDRAWN 으로 거절).
+// 법정 환불(하자 등)은 대표가 원래 결제수단이나 계좌로 정산하고, 보관함 추가 기록(market_cash_refund)으로 남긴다. 주문 상태는 바꾸지 않는다.
+function WithdrawnCashRefundForm({ context, orderId, onClose, onDone }: {
+  context: MarketOrderRefundContext & { isOwner: boolean; reasonGuide?: string | null }
+  orderId: string
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [amount, setAmount] = useState('')
+  const [method, setMethod] = useState<CashRefundMethod>('original_method')
+  const [note, setNote] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  // 정산 식별값: 이 창에서 남기는 정산 한 건. 같은 정산을 두 번 눌러도 한 건만 남고, 같은 주문의 다른 정산은 새 창에서 새 값으로 남는다.
+  const [settlementKey] = useState(() => crypto.randomUUID())
+  const amountValue = Number(amount)
+  const ready = Number.isInteger(amountValue) && amountValue > 0 && note.trim().length > 0
+
+  const submit = async () => {
+    if (!ready) return
+    setSubmitting(true)
+    try {
+      const response = await fetch(`/api/admin/users/${context.order.userId}/withdrawal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add_event',
+          kind: 'market_cash_refund',
+          refId: orderId,
+          details: { settlementKey, amount_won: amountValue, method, note: note.trim(), item_title: context.order.itemTitle },
+        }),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) throw new Error(result?.error ?? '현금 정산 기록에 실패했습니다.')
+      toast.success(result.recorded ? '현금 정산을 기록했습니다.' : '이 정산은 이미 기록되어 있습니다.')
+      onDone()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '현금 정산 기록에 실패했습니다.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="space-y-4 text-sm">
+        <p>
+          <strong>{context.order.itemTitle}</strong> · 낸 크레딧 {context.order.chargedCredits.toLocaleString()} · 환불된 누계 {context.order.committedCredits.toLocaleString()}
+        </p>
+        <p role="note" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
+          탈퇴 회원 주문입니다. 크레딧으로 환불할 수 없습니다. 하자 등 법에 따른 환불은 대표가 원래 결제수단이나 계좌로 정산한 뒤 여기에 기록합니다(주문 상태는 바뀌지 않습니다).
+        </p>
+        {context.isOwner ? (
+          <>
+            <label className="block">
+              <span className="font-medium">정산 금액(원)</span>
+              <Input type="number" min={1} step={1} value={amount} onChange={(event) => setAmount(event.target.value)} />
+            </label>
+            <fieldset className="space-y-1">
+              <legend className="font-medium">정산 방법</legend>
+              <label className="mr-4"><input type="radio" checked={method === 'original_method'} onChange={() => setMethod('original_method')} /> 원래 결제수단 취소</label>
+              <label><input type="radio" checked={method === 'bank_transfer'} onChange={() => setMethod('bank_transfer')} /> 계좌 송금</label>
+            </fieldset>
+            <label className="block">
+              <span className="font-medium">메모(필수 — 보관함 추가 기록에 남음)</span>
+              <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} maxLength={1000} />
+              {context.reasonGuide ? <span className="mt-1 block text-xs text-gray-500">{context.reasonGuide}</span> : null}
+            </label>
+          </>
+        ) : (
+          <p className="text-gray-600">현금 정산 기록은 대표 계정만 남길 수 있습니다.</p>
+        )}
+      </div>
+      <DialogFooter className="justify-center gap-2">
+        <Button variant="outline" onClick={onClose} disabled={submitting}>닫기</Button>
+        {context.isOwner ? (
+          <Button onClick={() => void submit()} disabled={submitting || !ready}>
+            {submitting ? '기록 중...' : '탈퇴 회원 — 현금 정산 기록'}
+          </Button>
+        ) : null}
+      </DialogFooter>
+    </>
   )
 }

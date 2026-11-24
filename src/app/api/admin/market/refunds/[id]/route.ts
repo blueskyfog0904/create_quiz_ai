@@ -14,7 +14,7 @@ import {
   rejectMarketRefund,
   settleMarketRefundByOwner,
 } from '@/lib/market-refunds'
-import { buildMarketRefundApprovedMessage } from '@/lib/market-refund-rules'
+import { buildMarketRefundApprovedMessage, isMarketRefundMemberWithdrawnError, MARKET_REFUND_MEMBER_WITHDRAWN_MESSAGE } from '@/lib/market-refund-rules'
 import { createAdminClient } from '@/lib/supabase/bypass'
 
 export const dynamic = 'force-dynamic'
@@ -230,6 +230,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       ...(audited ? {} : { auditWarning: '처리는 완료됐지만 작업 기록을 남기지 못했습니다. 대표 관리자에게 알렸습니다.' }),
     })
   } catch (error) {
+    if (isMarketRefundMemberWithdrawnError(error)) {
+      return NextResponse.json({ success: false, error: MARKET_REFUND_MEMBER_WITHDRAWN_MESSAGE, code: 'MEMBER_WITHDRAWN' }, { status: 409 })
+    }
     if (error instanceof MarketRefundNeedsOwnerError) {
       return NextResponse.json({ success: false, error: error.message, code: 'NEEDS_OWNER' }, { status: 409 })
     }

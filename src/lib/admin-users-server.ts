@@ -13,6 +13,8 @@ export interface AdminUserListItem {
   is_admin: boolean | null
   provider: string | null
   created_at: string
+  // 탈퇴(익명화)한 회원이면 그 시각(10번 묶음). 개인정보 칸은 비어 있다.
+  withdrawn_at: string | null
   // 지금 쓸 수 있는 크레딧. 잔액을 읽지 못했으면 null(화면에 0이 아니라 '확인 불가'로 보여 준다).
   credit_balance: number | null
 }
@@ -26,7 +28,7 @@ export interface AdminUserListResult {
   query: string
 }
 
-const USER_COLUMNS = 'id, email, display_tag, phone, organization, role, is_admin, provider, created_at'
+const USER_COLUMNS = 'id, email, display_tag, phone, organization, role, is_admin, provider, created_at, withdrawn_at'
 const SEARCH_COLUMNS = ['email', 'phone', 'organization'] as const
 const RANGE_NOT_SATISFIABLE_ERROR_CODE = 'PGRST103'
 

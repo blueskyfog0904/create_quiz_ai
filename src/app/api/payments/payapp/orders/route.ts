@@ -23,6 +23,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/types/supabase'
 import { checkMemberConsentForApi, consentBlockResponse } from '@/lib/consent-guard-server'
 import type { PointChargeCheckoutNotice } from '@/lib/point-charge-policy'
+import { MEMBER_WITHDRAWAL_ERRORS, memberWithdrawalErrorCode } from '@/lib/member-withdrawal'
 import {
   readPointChargePolicyUncached,
   recordPointChargeCheckoutAck,
@@ -101,6 +102,14 @@ function checkoutNoticeUnavailableResponse() {
       code: 'CHECKOUT_NOTICE_UNAVAILABLE',
     },
     { status: 503 }
+  )
+}
+
+// 10번: 탈퇴 회원(익명화 뒤 남은 JWT)의 결제는 DB 가 MEMBER_WITHDRAWN 으로 거절한다.
+function memberWithdrawnResponse() {
+  return NextResponse.json(
+    { error: MEMBER_WITHDRAWAL_ERRORS.MEMBER_WITHDRAWN.message, code: 'MEMBER_WITHDRAWN' },
+    { status: MEMBER_WITHDRAWAL_ERRORS.MEMBER_WITHDRAWN.status }
   )
 }
 
@@ -312,6 +321,8 @@ export async function POST(request: Request) {
             { error: '판매 중인 충전 상품을 찾을 수 없습니다.' },
             { status: 404 }
           )
+        case 'member_withdrawn':
+          return memberWithdrawnResponse()
         default:
           return checkoutNoticeUnavailableResponse()
       }
@@ -365,6 +376,9 @@ export async function POST(request: Request) {
     )
 
     if (prepareError) {
+      if (memberWithdrawalErrorCode(prepareError.message) === 'MEMBER_WITHDRAWN') {
+        return memberWithdrawnResponse()
+      }
       if (prepareError.message.includes('PAYMENT_ATTEMPT_PAYLOAD_CONFLICT')) {
         return NextResponse.json(
           {
@@ -408,6 +422,8 @@ export async function POST(request: Request) {
         .update({ phone: formatProfilePhone(phone) })
         .eq('id', user.id)
         .is('phone', null)
+        // 탈퇴(익명화)한 회원의 프로필에는 다시 개인정보를 쓰지 않는다(10번).
+        .is('withdrawn_at', null)
       if (phoneError) {
         console.error('[PayAppOrder] Failed to save phone', { errorCode: phoneError.code })
       }
@@ -453,6 +469,9 @@ export async function POST(request: Request) {
       }
       if (claimError.message.includes('PAYAPP_REQUEST_NOT_CLAIMABLE')) {
         return attemptExpiredResponse()
+      }
+      if (memberWithdrawalErrorCode(claimError.message) === 'MEMBER_WITHDRAWN') {
+        return memberWithdrawnResponse()
       }
 
       console.error('[PayAppOrder] Failed to claim payment request', {
