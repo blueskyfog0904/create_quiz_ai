@@ -50,6 +50,8 @@ export const ADMIN_AUDIT_ACTIONS = {
   withdrawn_record_view: '탈퇴 회원 보관 기록 열람',
   // 대표의 탈퇴 요청 취소는 route 가 남긴다(DB 함수가 행위자를 받지 않음).
   member_withdraw_request_cancel: '회원 탈퇴 요청 취소(대표)',
+  // 10번 약관 문구 스크립트가 탈퇴 안내 문구(정책 texts)를 바꿀 때 남긴다.
+  member_withdrawal_policy_update: '회원 탈퇴 안내 문구 변경',
 } as const
 
 export type AdminAuditAction = keyof typeof ADMIN_AUDIT_ACTIONS
