@@ -286,6 +286,8 @@
      - `after.body` 에 게시 행 `effectiveDateLabel`('2027년 1월 11일')이 들어 있음
      - `after.startsAt` 이 없거나 그 기록의 `saved_at` 이하. 다만 아래 S 기록에서는 미래 시작도 받는다.
   4. **마지막 기록부터 거꾸로** 보면서 좋은 기록이 이어지는 가장 앞 기록 S 를 찾는다. 마지막 기록이 좋은 기록이 아니면 멈춘다.
+     - (구현 반영) 미래 시작 기록을 S 로 받는 것은 그 기록이 마지막 기록이거나, 시작이 바로 뒤 좋은 기록의 저장 시각 이하일 때만이다. 아니면 앞서 잡은 S 를 그대로 둔다(실수로 미래 시작을 저장한 뒤 바로 고친 경우의 거짓 멈춤 방지). 한 기록 판정은 내부 함수 `policy_upcoming_notice_record_good` 으로 나눴다.
+     - (구현 반영) 시행 스크립트는 판정 함수를 부르기 직전에 `site_notice_popup` 행을 FOR UPDATE 로 잠근다(판정 뒤 COMMIT 전 팝업 저장 방지).
   5. `GREATEST(S.saved_at, S.after.startsAt)`(한국 날짜) ≤ `c_notice_deadline` 이어야 한다.
   6. 지금 팝업 행의 `revision` = 마지막 기록의 `revision_after` 이어야 한다(기록 밖에서 바뀌지 않았음).
   - 이렇게 하면 켬→끔→다시 켬, 시작을 미래로 둔 저장, 끝을 시행일 앞으로 당겼다가 다시 늘린 저장, 링크를 다른 곳으로 바꾼 저장, 본문에서 시행일을 뺀 저장이 모두 '끊김'으로 걸린다.
@@ -621,7 +623,7 @@ SELECT id, created_at, action,
   - `revertedAfterApply`: 이 변경은 시행 뒤 되돌려졌습니다. 지금 시행 중인 약관은 아래 링크에서 보실 수 있습니다.
   - `withdrawn`: 예정했던 이 변경은 시행하지 않기로 했습니다. 지금 약관이 그대로 적용됩니다.
   - `historyLinkLabel`: 이전 판과 바뀐 부분 보기 (4판)
-- `labels` (4판): `currentLinkUpcoming` "지금 시행 중인 {제목} 보기(변경 전 전문)", `currentLinkApplied` "지금 시행 중인 {제목}", `afterFull` "바뀐 뒤 전문", `beforeFull` "이전 판 전문", `consentSection` "다시 동의를 받을 항목", `before` "변경 전", `after` "변경 후", `checking` "이 문서는 확인 중입니다. 잠시 뒤 다시 열어 주세요."
+- `labels` (4판): `currentLinkUpcoming` "지금 시행 중인 {제목} 보기(변경 전 전문)", `currentLinkApplied` "지금 시행 중인 {제목}", `afterFull` "바뀐 뒤 전문", `beforeFull` "이전 판 전문", `consentSection` "다시 동의를 받을 항목", `before` "변경 전", `after` "변경 후", `checking` "이 문서는 확인 중입니다. 잠시 뒤 다시 열어 주세요.", (구현 반영) `effectiveDate` "시행일", `publishedAt` "게시일", `toc` "목차", `backToList` "약관 및 정책 목록"
 - 동의 항목 terms 새 본문·변경 안내: 4-3 '동의 항목 글을 12조②에 맞춘다'
 
 ## 10. 배포 순서
@@ -647,7 +649,8 @@ SELECT id, created_at, action,
 5. **게시(새벽이 아니어도 됨, 짧음)**: 고친 10번 스크립트를 `c_mode = 'publish_upcoming'` 으로 실행한다. 게시 행만 넣고, 약관 행에는 잠깐 행 잠금만 잡는다.
    - 확인 조회로 상태 `upcoming`·지문 5개·변경 건수를 본다.
    - 지문이 리허설 R4 (나)에서 뽑아 이 칸에 적어 둔 값과 같은지 본다. 다르면 멈추고 원인을 찾는다. 12-10 안에 다시 리허설할 창이 없으면, 원인만 확인하고 시행일을 미룰지 대표가 정한다(13절 6번). (4판)
-     - 리허설 값: 이용약관 ____ / 환불 ____ / 처리방침 ____ / 동의 terms ____ / 동의 privacy ____ (앞 12자리, 리허설 때 적음) (3판)
+     - 리허설 값: 이용약관 5ba7309a8b75 / 환불 c4e3f4839b08 / 처리방침 36e3928ea522 / 동의 terms 54591e30ca19 / 동의 privacy 570238196917, changes b574c8d35d22 / 6f64e4a6678b / 0726974f0975, 변경 건수 2/1/7 (light, 2026-11-25) (앞 12자리, 리허설 때 적음) (3판)
+       - 새벽 c_preview(실제 트리거) 리허설 뒤 같은 값인지 확인하고, 그 값으로 덮어쓴다.
    - 운영 주소에서 `/terms/upcoming`, 약관 화면 한 줄, 하단 링크를 본다.
 6. **문구 켜기(운영 관리자 카드, 대표 계정)**
    1. 9절 초안(또는 대표가 고친 문구)으로 켜기 저장 → 8-5 조회로 `before`·`after` 원문, `exposure_starts_at` 을 본다. (2판)

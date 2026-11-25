@@ -1,0 +1,174 @@
+{
+  "_comment": "15번 계획 4-2·11-1: 공지 팝업 입력 검사 예시 묶음. TS validateNoticePopupInput(관리자 화면 검사)과 SQL save_site_notice_popup(리허설 R2)이 같은 파일을 쓴다. input = base 에 patch 를 덮은 값. now 는 판정 기준 시각. ok=false 면 둘 다 거절해야 한다. repeatTitle·repeatBody 는 제목·본문을 \"가\" 를 그 수만큼 이은 글로 바꾼다.",
+  "now": "2026-12-08T10:00:00+09:00",
+  "base": {
+    "enabled": true,
+    "title": "정식 오픈 전 안내와 약관 변경 안내",
+    "body": "첫 줄\n둘째 줄 2027년 1월 11일",
+    "linkUrl": "/terms/upcoming",
+    "linkLabel": "바뀌는 부분 보기",
+    "startsAt": null,
+    "endsAt": "2027-01-12T00:00:00+09:00"
+  },
+  "cases": [
+    {
+      "name": "기본",
+      "patch": {},
+      "ok": true
+    },
+    {
+      "name": "제목 줄바꿈",
+      "patch": {
+        "title": "첫 줄\n둘째 줄"
+      },
+      "ok": false
+    },
+    {
+      "name": "제목 60자",
+      "patch": {},
+      "ok": true,
+      "repeatTitle": 60
+    },
+    {
+      "name": "제목 61자",
+      "patch": {},
+      "ok": false,
+      "repeatTitle": 61
+    },
+    {
+      "name": "제목 빈칸",
+      "patch": {
+        "title": "   "
+      },
+      "ok": false
+    },
+    {
+      "name": "본문 1200자",
+      "repeatBody": 1200,
+      "patch": {},
+      "ok": true
+    },
+    {
+      "name": "본문 1201자",
+      "repeatBody": 1201,
+      "patch": {},
+      "ok": false
+    },
+    {
+      "name": "본문 빈칸",
+      "patch": {
+        "body": "  \n "
+      },
+      "ok": false
+    },
+    {
+      "name": "링크 //evil.com",
+      "patch": {
+        "linkUrl": "//evil.com"
+      },
+      "ok": false
+    },
+    {
+      "name": "링크 https",
+      "patch": {
+        "linkUrl": "https://example.com/terms"
+      },
+      "ok": false
+    },
+    {
+      "name": "링크 javascript",
+      "patch": {
+        "linkUrl": "javascript:alert(1)"
+      },
+      "ok": false
+    },
+    {
+      "name": "링크 /\\x",
+      "patch": {
+        "linkUrl": "/\\x"
+      },
+      "ok": false
+    },
+    {
+      "name": "링크 공백 포함",
+      "patch": {
+        "linkUrl": "/terms/up coming"
+      },
+      "ok": false
+    },
+    {
+      "name": "링크 /terms/upcoming",
+      "patch": {
+        "linkUrl": "/terms/upcoming"
+      },
+      "ok": true
+    },
+    {
+      "name": "링크 있는데 이름 없음",
+      "patch": {
+        "linkLabel": ""
+      },
+      "ok": false
+    },
+    {
+      "name": "링크 이름 21자",
+      "patch": {
+        "linkLabel": "가가가가가가가가가가가가가가가가가가가가가"
+      },
+      "ok": false
+    },
+    {
+      "name": "링크 없음·이름 없음",
+      "patch": {
+        "linkUrl": "",
+        "linkLabel": ""
+      },
+      "ok": true
+    },
+    {
+      "name": "켤 때 끝 없음",
+      "patch": {
+        "endsAt": null
+      },
+      "ok": false
+    },
+    {
+      "name": "꺼짐이면 끝 없어도 됨",
+      "patch": {
+        "enabled": false,
+        "endsAt": null
+      },
+      "ok": true
+    },
+    {
+      "name": "켤 때 끝이 지금 이전",
+      "patch": {
+        "endsAt": "2026-12-08T09:59:59+09:00"
+      },
+      "ok": false
+    },
+    {
+      "name": "끝 = 시작",
+      "patch": {
+        "startsAt": "2026-12-20T00:00:00+09:00",
+        "endsAt": "2026-12-20T00:00:00+09:00"
+      },
+      "ok": false
+    },
+    {
+      "name": "끝 < 시작",
+      "patch": {
+        "startsAt": "2026-12-21T00:00:00+09:00",
+        "endsAt": "2026-12-20T00:00:00+09:00"
+      },
+      "ok": false
+    },
+    {
+      "name": "시작 미래·끝 뒤",
+      "patch": {
+        "startsAt": "2026-12-20T00:00:00+09:00"
+      },
+      "ok": true
+    }
+  ]
+}

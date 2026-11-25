@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { UpcomingPolicyNotice } from '@/components/legal/upcoming-policy-notice'
 import { getVisibleFooterPolicyLinks } from '@/lib/footer-content'
 import { getSiteFooterContent } from '@/lib/footer-content-server'
 import { getSiteBrand } from '@/lib/site-brand-server'
@@ -23,6 +24,8 @@ export default async function TermsPage() {
         </div>
 
         <section className="grid gap-3">
+          {/* 변경 예정 약관 카드(고지 기간), 시행 뒤에는 '이전 판과 바뀐 부분 보기'(15번 6-2) */}
+          <UpcomingPolicyNotice variant="card" showAppliedHistory />
           {policyLinks.map((link) => (
             <Link
               key={link.key}

@@ -8,6 +8,8 @@ import {
 } from '@/lib/footer-content'
 import { getSiteFooterContent } from '@/lib/footer-content-server'
 import { getSiteBrand } from '@/lib/site-brand-server'
+import { POLICY_UPCOMING_PATH } from '@/lib/site-notice-popup'
+import { getUpcomingPolicySummary } from '@/lib/site-notice-popup-server'
 
 export interface SolvookFooterData {
   cs: { phone: string; hours: string; email: string }
@@ -25,8 +27,18 @@ const getCachedFooterContent = unstable_cache(
 )
 
 export async function getSolvookFooterData(): Promise<SolvookFooterData> {
-  const [footerContent, siteBrand] = await Promise.all([getCachedFooterContent(), getSiteBrand()])
+  // 변경 예정 글 가벼운 읽기는 실패하면 null 을 돌려준다(하단 링크만 빠지고 화면은 그대로).
+  const [footerContent, siteBrand, upcoming] = await Promise.all([getCachedFooterContent(), getSiteBrand(), getUpcomingPolicySummary()])
   const fields = footerContent.fixedFields
+  const policyLinks: SolvookFooterData['policyLinks'] = getVisibleFooterPolicyLinks(footerContent).map((link) => ({
+    key: link.key,
+    label: link.label,
+    href: link.href,
+  }))
+  // 고지 기간(upcoming)에만 정책 링크 끝에 '변경 예정 약관' 링크(글은 DB 값). 시행·되돌리기 뒤에는 저절로 사라진다.
+  if (upcoming?.status === 'upcoming' && upcoming.footerLinkLabel) {
+    policyLinks.push({ key: 'policyUpcoming', label: upcoming.footerLinkLabel, href: POLICY_UPCOMING_PATH })
+  }
 
   return {
     cs: {
@@ -37,11 +49,7 @@ export async function getSolvookFooterData(): Promise<SolvookFooterData> {
     rows: getVisibleFooterRows(footerContent).map((row) =>
       row.map((field) => ({ label: field.label, value: field.value.trim() }))
     ),
-    policyLinks: getVisibleFooterPolicyLinks(footerContent).map((link) => ({
-      key: link.key,
-      label: link.label,
-      href: link.href,
-    })),
+    policyLinks,
     brandName: getFooterBrandName(footerContent, siteBrand.name),
     notices: footerContent.extraNotices,
   }

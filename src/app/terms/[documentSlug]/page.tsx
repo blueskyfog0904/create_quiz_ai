@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { PolicyDocumentContent } from '@/components/legal/policy-document-content'
+import { UpcomingPolicyNotice } from '@/components/legal/upcoming-policy-notice'
 import { getFooterPolicyDocumentBySlug } from '@/lib/footer-content'
 import { getSiteFooterContent } from '@/lib/footer-content-server'
 
@@ -45,6 +46,8 @@ export default async function TermsDocumentPage({ params }: TermsDocumentPagePro
           >
             약관 및 정책 목록
           </Link>
+          {/* 이 문서가 바뀔 예정이면 제목 위에 한 줄 안내, 시행 뒤에는 '이전 판과 바뀐 부분 보기'(15번 6-2) */}
+          <UpcomingPolicyNotice documentSlug={document.slug} showAppliedHistory className="mt-3" />
           <h1 className="mt-3 text-3xl font-bold text-gray-900">{document.title}</h1>
         </div>
 

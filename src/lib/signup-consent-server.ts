@@ -14,6 +14,7 @@ import {
   type ConsentSubmissionItem,
   type SignupConsentTexts,
 } from '@/lib/signup-consent'
+import { POLICY_UPCOMING_LOCKED_CODE, isPolicyUpcomingLockedMessage } from '@/lib/site-notice-popup'
 
 // 새 표·함수는 생성된 DB 타입에 아직 없으므로 타입 없는 서버 키 클라이언트로 부른다(선례 market-cart-server).
 function consentDb() {
@@ -414,6 +415,13 @@ export type ConsentItemSaveResult = {
   updated_at?: string
 }
 
+// 고지 기간에는 이용약관·개인정보 동의 항목 저장이 DB 트리거(POLICY_UPCOMING_LOCKED)로 막힌다(15번 7-3).
+// extractConsentErrorCode 는 CONSENT_* 만 잡으므로 먼저 본다.
+function consentSaveErrorCode(message: string) {
+  if (isPolicyUpcomingLockedMessage(message)) return POLICY_UPCOMING_LOCKED_CODE
+  return extractConsentErrorCode(message) ?? 'CONSENT_SAVE_FAILED'
+}
+
 export async function callSaveConsentItem(actorId: string, input: SaveConsentItemInput, dryRun: boolean) {
   const { data, error } = await consentDb().rpc('save_signup_consent_item', {
     p_actor_id: actorId,
@@ -431,7 +439,7 @@ export async function callSaveConsentItem(actorId: string, input: SaveConsentIte
     p_dry_run: dryRun,
   })
   if (error) {
-    return { ok: false as const, code: extractConsentErrorCode(error.message) ?? 'CONSENT_SAVE_FAILED' }
+    return { ok: false as const, code: consentSaveErrorCode(error.message) }
   }
   return { ok: true as const, result: data as ConsentItemSaveResult }
 }
@@ -445,7 +453,7 @@ export async function callReviseConsentItem(actorId: string, id: string, expecte
     p_dry_run: dryRun,
   })
   if (error) {
-    return { ok: false as const, code: extractConsentErrorCode(error.message) ?? 'CONSENT_SAVE_FAILED' }
+    return { ok: false as const, code: consentSaveErrorCode(error.message) }
   }
   return { ok: true as const, result: data as ConsentItemSaveResult }
 }

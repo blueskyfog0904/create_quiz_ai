@@ -299,7 +299,7 @@ function TextsEditor({ initial }: { initial: SignupConsentTexts | null }) {
   )
 }
 
-export function SignupConsentAdmin({ data }: { data: SignupConsentAdminData }) {
+export function SignupConsentAdmin({ data, lockNotice = null }: { data: SignupConsentAdminData; lockNotice?: string | null }) {
   const router = useRouter()
   const [draft, setDraft] = useState<Draft | null>(null)
   const [pending, setPending] = useState<PendingConfirm | null>(null)
@@ -407,6 +407,8 @@ export function SignupConsentAdmin({ data }: { data: SignupConsentAdminData }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
+        {/* 고지 기간(변경 예정 글 upcoming)에는 이용약관·개인정보 동의 항목 저장이 DB 트리거로 막힌다(15번 7-3). */}
+        {lockNotice ? <p role="note" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">{lockNotice}</p> : null}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] text-sm">
             <thead className="border-b text-left text-xs text-gray-500">

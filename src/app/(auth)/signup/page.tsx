@@ -1,3 +1,4 @@
+import { UpcomingPolicyNotice } from '@/components/legal/upcoming-policy-notice'
 import SignupClient, { type SignupConsentForm } from './signup-client'
 import { getConsentSenderName, loadConsentFormData } from '@/lib/signup-consent-server'
 
@@ -9,5 +10,5 @@ export default async function SignupPage() {
   const consentForm: SignupConsentForm = form.ok
     ? { ok: true, items: form.items, texts: form.texts, privacyPolicyHref: form.privacyPolicyHref, senderName }
     : { ok: false, code: form.code }
-  return <SignupClient consentForm={consentForm} />
+  return <SignupClient consentForm={consentForm} upcomingNotice={<UpcomingPolicyNotice />} />
 }

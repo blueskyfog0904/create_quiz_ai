@@ -48,3 +48,6 @@ next-env.d.ts
 # oh-my-codex runtime state
 /.omx/
 .omx/
+
+# 리허설 결과·미리보기 파일(15번 계획 8-4) — 커밋하지 않는다
+/output/

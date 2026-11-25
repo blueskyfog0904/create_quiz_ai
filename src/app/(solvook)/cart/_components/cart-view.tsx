@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
@@ -23,6 +23,8 @@ import { parseMarketPurchaseNotice, type MarketPurchaseNotice } from '@/lib/mark
 
 interface CartViewProps {
   initialView: MarketCartView
+  // 변경 예정 약관 한 줄 안내(서버 부품, 15번 6-2). 구매 고지 문구는 바꾸지 않는다.
+  upcomingNotice?: ReactNode
 }
 
 interface CheckoutLine {
@@ -86,7 +88,7 @@ function sumCredits(lines: { expectedCredits: number }[]) {
   return lines.reduce((total, line) => total + line.expectedCredits, 0)
 }
 
-export function CartView({ initialView }: CartViewProps) {
+export function CartView({ initialView, upcomingNotice }: CartViewProps) {
   const router = useRouter()
   const [view, setView] = useState(initialView)
   const [isMutating, setIsMutating] = useState(false)
@@ -437,6 +439,7 @@ export function CartView({ initialView }: CartViewProps) {
         <h1 className="text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">장바구니</h1>
         <p className="pb-1 text-sm text-[var(--studio-muted)]">{view.count}/50</p>
       </div>
+      {upcomingNotice ? <div className="mt-4">{upcomingNotice}</div> : null}
 
       {view.items.length === 0 ? (
         <div className="mt-8">

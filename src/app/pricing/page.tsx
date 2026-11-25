@@ -4,6 +4,7 @@
  */
 
 import Link from 'next/link'
+import { UpcomingPolicyNotice } from '@/components/legal/upcoming-policy-notice'
 import { createClient } from '@/lib/supabase/server'
 import { getCreditBalanceSnapshot, selectDisplayBalance } from '@/lib/credit-balance'
 import { MAX_POINT_CHARGE_AMOUNT, MIN_POINT_CHARGE_AMOUNT } from '@/lib/payment-constants'
@@ -73,6 +74,9 @@ export default async function PricingPage() {
         <div className="min-h-screen bg-[var(--studio-background-sunken)] px-4 py-8 sm:py-12">
             <div className="mx-auto max-w-5xl">
                 <h1 className="sr-only">크레딧 충전</h1>
+
+                {/* 변경 예정 약관 한 줄 안내(15번 6-2). 이 화면에는 공지 팝업 대신 이 줄이 나온다. */}
+                <UpcomingPolicyNotice className="mb-6" />
 
                 {/* 안내 배너, 보유 크레딧, 상품 선택과 결제 요약 */}
                 <PricingClient

@@ -23,6 +23,7 @@ import {
   type ConsentItemSaveResult,
   type SaveConsentItemInput,
 } from '@/lib/signup-consent-server'
+import { POLICY_UPCOMING_LOCKED_CODE, POLICY_UPCOMING_LOCKED_MESSAGE } from '@/lib/site-notice-popup'
 
 // 가입 동의 항목 관리(대표 전용 — 메뉴 이름만 고치는 site.manage 권한자가 전 회원 재동의를 일으키지 않게).
 // 저장·개정의 작업 기록은 DB 함수가 같은 트랜잭션에서 남긴다(signup_consent_item_save·signup_consent_item_revise).
@@ -43,6 +44,8 @@ const ADMIN_CONSENT_ERRORS: Record<string, string> = {
   CONSENT_NO_REQUIRED_ITEM: '보이는 필수 항목이 하나 이상 있어야 합니다.',
   CONSENT_REVISE_NOT_ALLOWED: '다시 동의 받기는 연결 약관이 있는 보이는 필수 항목에만 쓸 수 있습니다.',
   CONSENT_INPUT_INVALID: '입력값을 확인해 주세요(필수 항목은 내용이 있어야 하고, 이름 앞에 [필수]/[선택]을 붙이지 않습니다).',
+  // 고지 기간 이용약관·개인정보 동의 항목 저장은 DB 트리거가 막는다(15번 7-3).
+  [POLICY_UPCOMING_LOCKED_CODE]: POLICY_UPCOMING_LOCKED_MESSAGE,
 }
 
 function adminConsentError(code: string) {

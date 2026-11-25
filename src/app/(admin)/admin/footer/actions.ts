@@ -8,6 +8,7 @@ import { getSiteFooterContent, saveSiteFooterContent } from '@/lib/footer-conten
 import type { FooterContentConfig } from '@/lib/footer-content'
 import { findProtectedFooterPolicyViolation } from '@/lib/footer-policy-raw'
 import { readProtectedPolicySlugs } from '@/lib/signup-consent-server'
+import { POLICY_UPCOMING_LOCKED_MESSAGE, isPolicyUpcomingLockedMessage } from '@/lib/site-notice-popup'
 import { validateSiteBrand, type SiteBrand } from '@/lib/site-brand'
 import { readSiteBrandForAdmin, saveSiteBrand } from '@/lib/site-brand-server'
 
@@ -93,6 +94,10 @@ export async function saveSiteFooterContentAction(
       data: saved,
     }
   } catch (error) {
+    // 고지 기간에는 약관 문서(본문·이름·주소·켜기) 저장이 DB 트리거로 막힌다(15번 7-3).
+    if (error instanceof Error && isPolicyUpcomingLockedMessage(error.message)) {
+      return { success: false, error: POLICY_UPCOMING_LOCKED_MESSAGE }
+    }
     return { success: false, error: error instanceof Error ? error.message : '하단 정보 저장에 실패했습니다.' }
   }
 }

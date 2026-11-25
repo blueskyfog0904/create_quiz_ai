@@ -14,6 +14,7 @@ import { getPointChargeCheckoutNotice } from '@/lib/point-charge-policy-server'
 import { createClient } from '@/lib/supabase/server'
 import { getSolvookFooterData } from '@/lib/solvook-footer-data'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
+import { UpcomingPolicyNotice } from '@/components/legal/upcoming-policy-notice'
 import { CheckoutClient, type CheckoutPaymentMethod } from './checkout-client'
 
 interface CheckoutPageProps {
@@ -122,6 +123,7 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
       }}
       paymentMethods={paymentMethods}
       checkoutNotice={checkoutNotice}
+      upcomingNotice={<UpcomingPolicyNotice />}
     />
   )
 }

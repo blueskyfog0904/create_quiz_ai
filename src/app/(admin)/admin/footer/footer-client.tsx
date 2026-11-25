@@ -32,9 +32,11 @@ interface FooterSettingsClientProps {
   siteBrandName: string
   // 머리말 아래에 놓는 사이트 이름·로고 영역(각자 따로 저장)
   topSections?: ReactNode
+  // 고지 기간(변경 예정 글 upcoming)이면 약관 칸 위에 미리 보이는 안내(15번 7-3)
+  policyLockNotice?: string | null
 }
 
-export default function FooterSettingsClient({ footerContent: initialFooterContent, siteBrandName, topSections }: FooterSettingsClientProps) {
+export default function FooterSettingsClient({ footerContent: initialFooterContent, siteBrandName, topSections, policyLockNotice = null }: FooterSettingsClientProps) {
   const [footerContent, setFooterContent] = useState<FooterContentConfig>(() => clone(initialFooterContent))
   const [savedFooterContent, setSavedFooterContent] = useState<FooterContentConfig>(() => clone(initialFooterContent))
   const [isSaving, setIsSaving] = useState(false)
@@ -254,6 +256,7 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
           </Button>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          {policyLockNotice ? <p role="note" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">{policyLockNotice}</p> : null}
           {policyDocumentEntries.map((document) => (
             <div key={document.key} className="rounded-lg border p-4">
               <div className="flex flex-col gap-4">

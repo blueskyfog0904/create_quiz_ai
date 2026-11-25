@@ -461,6 +461,11 @@ const ACTION_REQUIREMENTS = {
     saveFooterContentAction: { alias: 'saveSiteFooterContentAction' },
     saveSiteBrandAction: 'site.manage',
   },
+  // 공지 팝업(15번)은 대표 전용(DB 함수도 대표인지 다시 본다).
+  'src/app/(admin)/admin/footer/notice-popup-actions.ts': {
+    getNoticePopupAdminData: 'owner',
+    saveNoticePopupAction: 'owner',
+  },
   'src/app/(admin)/admin/footer/purchase-policy-actions.ts': {
     getMarketPurchasePolicyAdminData: 'site.manage',
     saveMarketPurchasePolicyAction: 'site.manage',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, Suspense, type ReactNode } from 'react'
 import { signup } from '../../auth/actions'
 import { ConsentChecklist, ConsentTextLine } from '@/components/auth/consent-checklist'
 import { Button } from '@/components/ui/button'
@@ -95,7 +95,7 @@ const normalizeKakaoPhoneNumber = (value: string) => {
   return trimmed.replace(/^\+82[\s-]?/, '0')
 }
 
-function SignupContent({ consentForm }: { consentForm: SignupConsentForm }) {
+function SignupContent({ consentForm, upcomingNotice }: { consentForm: SignupConsentForm; upcomingNotice?: ReactNode }) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [isKakaoProfileLoading, setIsKakaoProfileLoading] = useState(false)
@@ -164,15 +164,19 @@ function SignupContent({ consentForm }: { consentForm: SignupConsentForm }) {
     return true
   }
 
+  // 동의 목록 위: 변경 예정 약관 한 줄 안내(서버 부품을 page 가 넘김, 15번 6-2)
   const consentSection = consentForm.ok ? (
-    <ConsentChecklist
-      items={consentItems}
-      checked={consentChecked}
-      onChange={setConsentChecked}
-      highlightMissing={highlightMissing}
-      privacyPolicyHref={consentForm.privacyPolicyHref}
-      optionalHint={consentForm.texts.optionalNotRequiredHint}
-    />
+    <>
+      {upcomingNotice}
+      <ConsentChecklist
+        items={consentItems}
+        checked={consentChecked}
+        onChange={setConsentChecked}
+        highlightMissing={highlightMissing}
+        privacyPolicyHref={consentForm.privacyPolicyHref}
+        optionalHint={consentForm.texts.optionalNotRequiredHint}
+      />
+    </>
   ) : (
     <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{getConsentErrorMessage(consentForm.code)}</p>
   )
@@ -824,10 +828,10 @@ function SignupContent({ consentForm }: { consentForm: SignupConsentForm }) {
   )
 }
 
-export default function SignupClient({ consentForm }: { consentForm: SignupConsentForm }) {
+export default function SignupClient({ consentForm, upcomingNotice }: { consentForm: SignupConsentForm; upcomingNotice?: ReactNode }) {
   return (
     <Suspense>
-      <SignupContent consentForm={consentForm} />
+      <SignupContent consentForm={consentForm} upcomingNotice={upcomingNotice} />
     </Suspense>
   )
 }

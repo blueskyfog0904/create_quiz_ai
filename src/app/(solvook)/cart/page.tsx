@@ -4,6 +4,7 @@ import { connection } from 'next/server'
 import { buildAuthRedirectPath } from '@/lib/auth-paths'
 import { getMarketCartView } from '@/lib/market-cart-server'
 import { getRequestAuthUserId } from '@/lib/request-auth'
+import { UpcomingPolicyNotice } from '@/components/legal/upcoming-policy-notice'
 import { CartView } from './_components/cart-view'
 
 export const metadata: Metadata = {
@@ -21,5 +22,5 @@ export default async function CartPage() {
 
   const view = await getMarketCartView(userId)
 
-  return <CartView initialView={view} />
+  return <CartView initialView={view} upcomingNotice={<UpcomingPolicyNotice />} />
 }

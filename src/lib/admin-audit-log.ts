@@ -52,6 +52,11 @@ export const ADMIN_AUDIT_ACTIONS = {
   member_withdraw_request_cancel: '회원 탈퇴 요청 취소(대표)',
   // 10번 약관 문구 스크립트가 탈퇴 안내 문구(정책 texts)를 바꿀 때 남긴다.
   member_withdrawal_policy_update: '회원 탈퇴 안내 문구 변경',
+  // 15번 묶음(공지 팝업·30일 전 고지): 팝업 저장은 DB 함수(save_site_notice_popup)가, 게시·시행·그만두기는 10번 약관 스크립트가 남긴다.
+  site_notice_popup_save: '공지 팝업 저장',
+  policy_upcoming_publish: '변경 예정 약관 게시',
+  policy_upcoming_apply: '변경 예정 약관 시행',
+  policy_upcoming_withdraw: '변경 예정 약관 고지 그만둠',
 } as const
 
 export type AdminAuditAction = keyof typeof ADMIN_AUDIT_ACTIONS

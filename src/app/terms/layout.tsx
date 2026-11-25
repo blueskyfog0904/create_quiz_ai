@@ -4,6 +4,8 @@ import { PreviewHeader } from '@/app/preview/solvook-concept/_components/preview
 import { getMarketCartBadgeCount } from '@/lib/market-cart-server'
 import { getRequestAuthUserId } from '@/lib/request-auth'
 import { getSolvookFooterData } from '@/lib/solvook-footer-data'
+import { getActiveSiteNoticePopup } from '@/lib/site-notice-popup-server'
+import { SiteNoticePopup } from '@/components/notice/site-notice-popup'
 import { SolvookFooter } from '@/app/(solvook)/_components/solvook-footer'
 
 // 약관/정책 페이지도 솔북 컨셉 헤더·푸터를 사용한다 (전역 레거시 크롬은 path-aware에서 제외됨).
@@ -12,9 +14,12 @@ export default async function TermsLayout({
 }: {
   children: ReactNode
 }) {
-  const [userId, footer] = await Promise.all([
+  // eslint-disable-next-line react-hooks/purity -- 서버 컴포넌트다. 공지 팝업 노출 기간을 요청 시각으로 판정한다.
+  const renderedAt = Date.now()
+  const [userId, footer, noticePopup] = await Promise.all([
     getRequestAuthUserId(),
     getSolvookFooterData(),
+    getActiveSiteNoticePopup(renderedAt),
   ])
   const cartCount = await getMarketCartBadgeCount(userId)
 
@@ -40,6 +45,7 @@ export default async function TermsLayout({
           brandName={footer.brandName}
           notices={footer.notices}
         />
+        <SiteNoticePopup popup={noticePopup} />
       </StudioThemeShell>
     </>
   )

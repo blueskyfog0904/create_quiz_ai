@@ -16,6 +16,8 @@ const memberDialogSources = {
   library: read('../src/app/(solvook)/library/_components/library-view.tsx'),
   credits: read('../src/app/(solvook)/mypage/credits/_components/credits-view.tsx'),
   logout: read('../src/app/(solvook)/mypage/_components/mypage-logout-button.tsx'),
+  // 15번 공지 팝업
+  noticePopup: read('../src/components/notice/site-notice-popup.tsx'),
 }
 
 test('studio dialog defines one shared panel, header, footer and alert dialog', () => {
@@ -32,7 +34,7 @@ test('member popups use the shared studio dialog instead of raw DialogContent or
     assert.doesNotMatch(source, /<DialogContent\b/, `${name} should not render raw DialogContent`)
     assert.doesNotMatch(source, /(^|[^.\w])(alert|confirm)\(/m, `${name} should not call browser alert/confirm`)
   }
-  for (const name of ['loginComplete', 'purchaseComplete', 'checkoutConfirm', 'itemActions', 'support', 'withdraw', 'library', 'credits']) {
+  for (const name of ['loginComplete', 'purchaseComplete', 'checkoutConfirm', 'itemActions', 'support', 'withdraw', 'library', 'credits', 'noticePopup']) {
     assert.match(memberDialogSources[name], /@\/components\/design-system\/studio-dialog/, `${name} should import studio-dialog`)
   }
 })

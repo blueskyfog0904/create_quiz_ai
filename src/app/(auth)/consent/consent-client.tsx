@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -109,6 +109,7 @@ export function ConsentClient({
   next,
   revised,
   customerCenter,
+  upcomingNotice,
 }: {
   items: ConsentItem[]
   texts: SignupConsentTexts
@@ -117,6 +118,7 @@ export function ConsentClient({
   next: string
   revised: boolean
   customerCenter: string
+  upcomingNotice?: ReactNode
 }) {
   const router = useRouter()
   const [checked, setChecked] = useState<Record<string, boolean>>({})
@@ -231,6 +233,8 @@ export function ConsentClient({
         </>
       )}
     >
+      {/* 동의 목록 위: 변경 예정 약관 한 줄 안내(15번 6-2) */}
+      {upcomingNotice}
       <ConsentChecklist
         items={items}
         checked={checked}

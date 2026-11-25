@@ -13,6 +13,7 @@ import {
   readProfileConsentState,
 } from '@/lib/signup-consent-server'
 import { getSolvookFooterData } from '@/lib/solvook-footer-data'
+import { UpcomingPolicyNotice } from '@/components/legal/upcoming-policy-notice'
 import { ConsentClient, ConsentUnavailable } from './consent-client'
 
 export const dynamic = 'force-dynamic'
@@ -93,6 +94,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: Sear
       next={next}
       revised={revised}
       customerCenter={[footer.cs.phone, footer.cs.email].filter(Boolean).join(' · ')}
+      upcomingNotice={<UpcomingPolicyNotice />}
     />
   )
 }

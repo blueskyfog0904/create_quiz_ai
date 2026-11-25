@@ -1,0 +1,29 @@
+{
+  "_comment": "15번 계획 4-2·4-3·7-2·11-1: '좋은 기록' 판정 예시 묶음. TS isNoticeRecordGood(after, upcoming, savedAt) 계약 시험과 SQL policy_upcoming_notice_continuity 리허설이 같은 파일을 쓴다. after = base 에 patch 를 덮은 값.",
+  "upcoming": { "effectiveDate": "2027-01-11", "effectiveDateLabel": "2027년 1월 11일" },
+  "savedAt": "2026-12-08T10:00:00+09:00",
+  "base": {
+    "enabled": true,
+    "title": "정식 오픈 전 안내와 약관 변경 안내",
+    "body": "2027년 1월 11일(월)부터 이용약관이 바뀝니다.",
+    "linkUrl": "/terms/upcoming",
+    "linkLabel": "바뀌는 부분 보기",
+    "startsAt": null,
+    "endsAt": "2027-01-12T00:00:00+09:00"
+  },
+  "cases": [
+    { "name": "기본 초안", "patch": {}, "good": true },
+    { "name": "링크 #a", "patch": { "linkUrl": "/terms/upcoming#a" }, "good": false },
+    { "name": "링크 쿼리", "patch": { "linkUrl": "/terms/upcoming?x=1" }, "good": false },
+    { "name": "링크 끝 /", "patch": { "linkUrl": "/terms/upcoming/" }, "good": false },
+    { "name": "링크 없음", "patch": { "linkUrl": null, "linkLabel": null }, "good": false },
+    { "name": "본문 날짜 표기 다름", "patch": { "body": "2027. 1. 11.부터 이용약관이 바뀝니다." }, "good": false },
+    { "name": "끝 = 시행일 00:00 KST", "patch": { "endsAt": "2027-01-11T00:00:00+09:00" }, "good": true },
+    { "name": "끝 = 시행일 00:00 KST 1초 앞", "patch": { "endsAt": "2027-01-10T23:59:59+09:00" }, "good": false },
+    { "name": "끝 없음", "patch": { "endsAt": null }, "good": false },
+    { "name": "꺼짐", "patch": { "enabled": false }, "good": false },
+    { "name": "시작 = 저장 시각", "patch": { "startsAt": "2026-12-08T10:00:00+09:00" }, "good": true },
+    { "name": "시작 과거", "patch": { "startsAt": "2026-12-01T00:00:00+09:00" }, "good": true },
+    { "name": "시작 미래", "patch": { "startsAt": "2026-12-08T10:00:01+09:00" }, "good": false }
+  ]
+}

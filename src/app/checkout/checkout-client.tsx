@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import {
@@ -57,6 +57,8 @@ interface CheckoutClientProps {
   supportContact: string
   // 결제 전 확인 문구(DB, 서버가 채우고 지문을 붙임). 읽지 못했으면 null — 결제 버튼을 막는다.
   checkoutNotice: PointChargeCheckoutNotice | null
+  // 변경 예정 약관 한 줄 안내(서버 부품, 15번 6-2). 동의 문구는 바꾸지 않는다.
+  upcomingNotice?: ReactNode
 }
 
 interface PaymentResponse {
@@ -293,6 +295,7 @@ export function CheckoutClient({
   paymentMethods,
   supportContact,
   checkoutNotice,
+  upcomingNotice,
 }: CheckoutClientProps) {
   // 결제 요청이 409(문구·상품 변경)를 받으면 응답의 새 값으로 바꾸고 다시 동의받는다.
   const [plan, setPlan] = useState(initialPlan)
@@ -494,6 +497,7 @@ export function CheckoutClient({
       />
 
       <StudioContainer className="py-8 sm:py-10">
+        {upcomingNotice ? <div className="mb-6">{upcomingNotice}</div> : null}
         {paymentMethods.length === 0 ? (
           <div className="rounded-lg border border-[var(--ck-line)] bg-white p-6 text-center sm:p-8">
             <h2 className="text-xl font-bold text-[var(--ck-ink)]">
