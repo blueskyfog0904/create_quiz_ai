@@ -3,19 +3,24 @@ import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { MarketMaterialList } from '../market-material-list'
 import { SectionHeading } from './section-heading'
 
+// 제목·빈 화면 문구는 DB(홈 진열 설정) 값이다(22번). 빈 문구가 없으면 섹션째 숨기므로 여기 오지 않는다.
 export function RecentMaterials({
   subject,
+  title,
+  emptyText,
   items,
 }: {
   subject: WorkspaceSubject
+  title: string
+  emptyText: string | null
   items: MarketHomeItem[]
 }) {
   return (
     <section id="recent-materials">
-      <SectionHeading title="최근 등록된 수업 자료" />
+      <SectionHeading title={title} />
       <div className="overflow-hidden rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]">
         {items.length === 0 ? (
-          <div className="grid min-h-[112px] place-items-center px-5 text-sm text-[var(--studio-muted)]">최근 등록된 자료가 없습니다.</div>
+          <div className="grid min-h-[112px] place-items-center px-5 text-sm text-[var(--studio-muted)]">{emptyText}</div>
         ) : (
           <MarketMaterialList
             subject={subject}

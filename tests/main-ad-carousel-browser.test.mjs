@@ -57,15 +57,22 @@ function createFixtureItem(subject, index) {
     href: `/${subject}/market/entexam`,
     durationSeconds: 1,
     isActive: true,
+    // 22번 예약 칸(UTC ISO 또는 null)
+    startsAt: null,
+    endsAt: null,
   }
 }
 
-function fixtureConfig(englishCount, koreanCount) {
+// futureSecond: 두 번째 배너를 내일부터 보이게 둔다(22번 3-5: page 가 요청마다 기간으로 걸러 한 개만 보인다)
+function fixtureConfig(englishCount, koreanCount, futureSecond = false) {
+  const schedule = (item, index) => (futureSecond && index === 1
+    ? { ...item, startsAt: new Date(Date.now() + 86_400_000).toISOString() }
+    : item)
   return {
     version: 2,
     items: {
-      english: fixtureItems.slice(0, englishCount).map((_, index) => createFixtureItem('english', index)),
-      korean: fixtureItems.slice(2, 2 + koreanCount).map((_, index) => createFixtureItem('korean', index)),
+      english: fixtureItems.slice(0, englishCount).map((_, index) => schedule(createFixtureItem('english', index), index)),
+      korean: fixtureItems.slice(2, 2 + koreanCount).map((_, index) => schedule(createFixtureItem('korean', index), index)),
     },
   }
 }
@@ -114,6 +121,13 @@ async function inspectCarousel(browser, baseUrl, subject, width, javaScriptEnabl
       { waitUntil: javaScriptEnabled ? 'networkidle' : 'domcontentloaded' }
     )
     const slot = page.locator('[data-slot="main-ad-carousel"]')
+    // 22번(Q6): 보일 배너가 0개면 배너 영역을 그리지 않는다(빈 틀 없음).
+    if (expectedState === 'empty') {
+      await page.locator('main, body').first().waitFor({ state: 'visible' })
+      assert.equal(await slot.count(), 0)
+      assert.deepEqual(hydrationErrors, [])
+      return null
+    }
     await slot.waitFor({ state: 'visible' })
     assert.equal(await slot.getAttribute('data-state'), expectedState)
     assert.equal(await slot.count(), 1)
@@ -129,12 +143,7 @@ async function inspectCarousel(browser, baseUrl, subject, width, javaScriptEnabl
       `${subject} ${expectedState} overflows horizontally at ${width}px`
     )
 
-    if (expectedState === 'empty') {
-      assert.equal(await slot.locator('[aria-label="이전 광고"], [aria-label="다음 광고"]').count(), 0)
-      assert.equal(await slot.locator('[aria-current="true"]').count(), 0)
-      assert.equal(await slot.locator('[data-slot="main-ad-progress"]').count(), 0)
-      assert.equal(await slot.locator('a[aria-label$="바로가기"]').count(), 0)
-    } else if (expectedState === 'single') {
+    if (expectedState === 'single') {
       assert.equal(await slot.locator('[aria-label="이전 광고"], [aria-label="다음 광고"]').count(), 0)
       assert.equal(await slot.locator('[data-slot="main-ad-progress"]').count(), 0)
       assert.equal(await slot.locator('a[aria-label$="바로가기"]').count(), 1)
@@ -159,7 +168,7 @@ async function inspectCarousel(browser, baseUrl, subject, width, javaScriptEnabl
   }
 }
 
-test('local fixtures keep empty, single and multiple subject ad shells structurally equal', {
+test('local fixtures keep single and multiple subject ad shells structurally equal and hide an empty banner area', {
   skip: fixtureMode !== 'local',
 }, async () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -212,12 +221,14 @@ test('local fixtures keep empty, single and multiple subject ad shells structura
       { englishCount: 1, koreanCount: 1, englishState: 'single', koreanState: 'single' },
       { englishCount: 2, koreanCount: 2, englishState: 'multiple', koreanState: 'multiple' },
       { englishCount: 2, koreanCount: 0, englishState: 'multiple', koreanState: 'empty' },
+      // 22번: 두 번째 배너가 예약(내일 시작)이면 지금은 한 개만 보인다
+      { englishCount: 2, koreanCount: 2, englishState: 'single', koreanState: 'single', futureSecond: true },
     ]
 
     for (const combination of combinations) {
       const { error } = await supabase.from('system_settings').upsert({
         key: settingKey,
-        value: fixtureConfig(combination.englishCount, combination.koreanCount),
+        value: fixtureConfig(combination.englishCount, combination.koreanCount, combination.futureSecond),
         description: 'Local main ad carousel browser fixture',
         updated_at: new Date().toISOString(),
       }, { onConflict: 'key' })
@@ -233,6 +244,7 @@ test('local fixtures keep empty, single and multiple subject ad shells structura
           rects[`${subject}Hydrated`] = await inspectCarousel(
             browser, baseUrl, subject, width, true, expectedState
           )
+          if (expectedState === 'empty') continue
           assertRectNear(
             rects[`${subject}Hydrated`],
             rects[`${subject}Ssr`],
@@ -240,7 +252,9 @@ test('local fixtures keep empty, single and multiple subject ad shells structura
           )
         }
 
-        if (combination.englishState === combination.koreanState) {
+        if (combination.englishState === 'empty' || combination.koreanState === 'empty') {
+          // 빈 쪽은 영역이 없으므로 비교하지 않는다(과목 탭을 바꾸면 영역이 생겼다 사라진다 — 의도, Q6)
+        } else if (combination.englishState === combination.koreanState) {
           assertRectNear(
             rects.englishHydrated,
             rects.koreanHydrated,
@@ -250,7 +264,7 @@ test('local fixtures keep empty, single and multiple subject ad shells structura
           assertRectNear(
             rects.englishHydrated,
             rects.koreanHydrated,
-            `multiple/empty shell parity at ${width}px`,
+            `${combination.englishState}/${combination.koreanState} shell parity at ${width}px`,
             ['width', 'height']
           )
         }

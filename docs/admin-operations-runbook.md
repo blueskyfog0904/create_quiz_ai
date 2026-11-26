@@ -1449,6 +1449,10 @@ SELECT name, price, credits, is_active, sort_order
 
 ---
 
+### 11-6. 홈 진열(22번) 시드 ~ 배포 사이
+
+- 22번 시드(`supabase/scripts/20261224_bundle22_home_sections_seed.sql`)를 실행한 때부터 22번 코드를 배포할 때까지 관리자 '홈 진열'(`/admin/market-main-settings`)에서 **저장하지 않습니다**(옛 화면이 판 1 로 덮음). push 직전에 `SELECT workspace_subject, value->>'version', value->>'revision' FROM public.workspace_settings WHERE setting_key = 'market_home';` 로 두 행이 모두 `2`·`1` 인지 보고, 아니면 배포를 미룹니다(계획 `docs/plan-bundle22-home-merch.md` 10절).
+
 ## 12. 고객 안내 문구 모음
 
 ○○ 부분만 바꿔 씁니다. 사이트 이름은 화면에 쓰는 이름("써머썬 연구소")을 기준으로 적었습니다.

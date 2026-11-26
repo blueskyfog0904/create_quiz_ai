@@ -70,8 +70,10 @@ test('preview section switches preserve the single carousel shell without dead f
   assert.equal((page.match(/<MainAdCarousel\b/g) ?? []).length, 1)
   assert.match(page, /subject=\{subject\}/)
   assert.doesNotMatch(page, /CampaignHero/)
-  assert.match(page, /homeData\.config\.popular\.isActive\s*&&\s*\([\s\S]*<PopularDownloadsSlider/)
-  assert.doesNotMatch(page, /sourceExplorer|TextbookExplorer/)
-  assert.match(page, /homeData\.config\.recent\.isActive\s*&&\s*\([\s\S]*<RecentMaterials/)
+  // 22번(계획 3-3, 의도적 변경): 고정 순서 대신 저장한 섹션 배열 순서대로 종류별 부품을 그린다(회원 홈과 같은 부품).
+  const sections = await read('src/app/preview/solvook-concept/_components/home/market-home-sections.tsx')
+  assert.match(page, /<MarketHomeSections subject=\{subject\} homeData=\{homeData\} visibleBannerCount=\{mainAdItems\.length\} \/>/)
+  assert.match(sections, /sections\.map\(\(section\) => \{[\s\S]*'popular'[\s\S]*<PopularDownloadsSlider[\s\S]*'recent'[\s\S]*<RecentMaterials[\s\S]*<FeaturedMaterials/)
+  assert.doesNotMatch(page, /sourceExplorer|TextbookExplorer|homeData\.config/)
   assert.doesNotMatch(page, /QuickAccessGrid/)
 })

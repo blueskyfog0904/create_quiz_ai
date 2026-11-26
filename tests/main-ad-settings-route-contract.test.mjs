@@ -155,9 +155,28 @@ test('main ad admin previews match public crop ratios and explain the title and 
   assert.match(client, /object-cover|가장자리가 잘릴 수/)
 })
 
-test('main ad admin empty state describes the shared carousel shell', () => {
-  assert.match(client, /프리뷰에는 같은 광고 영역의 빈 상태가 표시됩니다/)
-  assert.doesNotMatch(client, /기존 프리뷰 히어로가 그대로 표시됩니다/)
+// 22번(계획 Q6, 의도적 변경): 보일 배너가 0개면 회원 홈의 배너 영역이 숨으므로 안내도 그렇게 바꾼다.
+test('main ad admin empty state says the member home hides the banner area', () => {
+  assert.match(client, /보일 배너가 없으면 회원 홈에는 배너 영역이 보이지 않습니다/)
+  assert.doesNotMatch(client, /프리뷰에는 같은 광고 영역의 빈 상태가 표시됩니다|기존 프리뷰 히어로가 그대로 표시됩니다/)
+})
+
+// 22번 3-5·6절·7절: 예약 칸(한국 시간 입력 → UTC), 요약 표·상태 tone, 0개가 되는 저장 확인, 저장 뒤 작업 기록
+test('main ad admin edits the schedule in KST, shows status tones and confirms a save that hides every banner', () => {
+  assert.match(client, /type="datetime-local"/)
+  assert.match(client, /utcIsoToKstLocal\(item\.startsAt\)/)
+  assert.match(client, /kstLocalToUtcIso\(event\.target\.value\)/)
+  assert.match(client, /startsAt: item\.startsAt,\s*endsAt: item\.endsAt/)
+  assert.match(client, /adminStatusTone\('banner', status\)/)
+  assert.match(client, /AdminDataTable/)
+  assert.match(client, /visibleAfter === 0 && visibleBefore > 0[\s\S]*await ask\(/)
+  assert.match(client, /저장하면 지금 보일 배너가 0개가 되어 회원 홈에 배너 영역이 사라집니다/)
+  // 작업 기록은 저장 성공(settingSaved) 뒤, 원문 없이 바뀐 칸만
+  const saved = route.indexOf('settingSaved = true')
+  const audit = route.indexOf("action: 'main_ad_carousel_save'")
+  assert.ok(saved > 0 && audit > saved, 'audit after the RPC save')
+  assert.match(route, /changes: diffMainAdItems\(beforeConfig\.items\[workspaceSubject\], afterConfig\.items\[workspaceSubject\]\)/)
+  assert.match(route, /request: adminRequestMeta\(request\)/)
 })
 
 test('new main ads use the shared five-second default contract', () => {

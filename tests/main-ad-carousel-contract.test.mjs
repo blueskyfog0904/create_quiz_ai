@@ -45,6 +45,9 @@ function createValidItem() {
   }
 }
 
+// 22번 예약 칸: 예약 칸이 없는 옛 항목은 startsAt·endsAt 이 null 로 읽힌다(판은 그대로).
+const withSchedule = (item) => ({ ...item, startsAt: null, endsAt: null })
+
 test('main ad defaults keep the carousel disabled until a valid active item is saved', () => {
   assert.equal(MAIN_AD_IMAGES_BUCKET, 'main-ad-images')
   assert.equal(MAIN_AD_DEFAULT_DURATION_SECONDS, 5)
@@ -57,7 +60,7 @@ test('main ad defaults keep the carousel disabled until a valid active item is s
 test('legacy shared ads migrate to english and subject slices remain isolated', () => {
   const legacy = { version: 1, items: [createValidItem()] }
   const normalized = normalizeMainAdCarouselConfig(legacy)
-  assert.deepEqual(normalized.items.english, legacy.items)
+  assert.deepEqual(normalized.items.english, legacy.items.map(withSchedule))
   assert.deepEqual(normalized.items.korean, [])
 
   const koreanItem = {
@@ -69,8 +72,8 @@ test('legacy shared ads migrate to english and subject slices remain isolated', 
     version: 1,
     items: [koreanItem],
   })
-  assert.deepEqual(getMainAdCarouselSubjectConfig(replaced, 'english').items, legacy.items)
-  assert.deepEqual(getActiveMainAdCarouselItems(replaced, 'korean'), [koreanItem])
+  assert.deepEqual(getMainAdCarouselSubjectConfig(replaced, 'english').items, legacy.items.map(withSchedule))
+  assert.deepEqual(getActiveMainAdCarouselItems(replaced, 'korean'), [withSchedule(koreanItem)])
 })
 
 test('main ad href accepts only safe internal paths and external https URLs', () => {
@@ -99,7 +102,10 @@ test('main ad config validates UUIDs, duplicate ids, duration and storage paths'
     items: { english: [createValidItem()], korean: [] },
   }
 
-  assert.deepEqual(validateMainAdCarouselConfig(validConfig), validConfig)
+  assert.deepEqual(validateMainAdCarouselConfig(validConfig), {
+    ...validConfig,
+    items: { english: validConfig.items.english.map(withSchedule), korean: [] },
+  })
 
   assert.throws(() => validateMainAdCarouselConfig({
     ...validConfig,
@@ -188,19 +194,19 @@ test('strict update resolution distinguishes a missing row from an invalid store
   }
 })
 
-test('preview page always renders one subject-aware carousel shell and all lower sections', () => {
+// 22번(계획 Q6·3-3·3-5, 의도적 변경): 이 시험은 22번 전부터 실패하던 옛 단언(getPublicMainAdCarouselItems 직접 호출·빈 틀 항상 그림·
+// page 안 고정 섹션)을 22번 구조로 바꿨다. 배너는 캐시(getCachedMainAdItems)에서 받아 캐시 밖에서 요청마다 기간으로 거르고,
+// 보일 배너가 0개면 영역을 그리지 않으며, 아래 섹션은 저장한 순서대로 MarketHomeSections 가 그린다(배너 수를 넘겨 빈 홈 링크 판정).
+test('preview page filters banners outside the cache, hides an empty banner area and renders the saved home sections', () => {
   const page = readFileSync(previewPagePath, 'utf8')
 
-  assert.match(page, /getPublicMainAdCarouselItems/)
+  assert.match(page, /getCachedMainAdItems\(subject\)/)
+  assert.doesNotMatch(page, /getPublicMainAdCarouselItems/)
+  assert.match(page, /const mainAdItems = filterVisibleMainAdItems\(cachedAdItems, new Date\(\)\)/)
   assert.equal((page.match(/<MainAdCarousel\b/g) ?? []).length, 1)
-  assert.match(page, /<MainAdCarousel[\s\S]*subject=\{subject\}[\s\S]*items=\{mainAdItems\}/)
-  assert.doesNotMatch(page, /CampaignHero/)
-  assert.doesNotMatch(page, /mainAdItems\.length\s*>\s*0/)
-  assert.doesNotMatch(page, /QuickAccessGrid/)
-  assert.match(page, /PopularDownloadsSlider/)
-  assert.doesNotMatch(page, /TextbookExplorer/)
-  assert.match(page, /RecentMaterials/)
-  assert.match(page, /HomeFinalCta/)
+  assert.match(page, /hero=\{mainAdItems\.length > 0 \? <MainAdCarousel subject=\{subject\} items=\{mainAdItems\} \/> : null\}/)
+  assert.match(page, /<MarketHomeSections subject=\{subject\} homeData=\{homeData\} visibleBannerCount=\{mainAdItems\.length\} \/>/)
+  assert.doesNotMatch(page, /CampaignHero|QuickAccessGrid|TextbookExplorer/)
 })
 
 test('main ad carousel follows the verified responsive and timer interaction contract', () => {
@@ -291,16 +297,14 @@ test('main ad carousel follows the verified responsive and timer interaction con
   assert.match(carousel, /prefersReducedMotion/)
   assert.match(carousel, /activeItems\.length\s*>\s*1/)
   assert.match(carousel, /activeItems\.length\s*<=\s*1/)
-  assert.doesNotMatch(carousel, /if\s*\(!activeItem\)\s*\{\s*return null\s*\}/)
+  // 22번(계획 Q6·3-5, 의도적 변경): 보일 배너가 0개면 page 가 부품을 그리지 않고, 부품도 빈 틀 없이 아무것도 그리지 않는다.
+  // 훅을 모두 부른 뒤에만 null 을 돌려준다(return 문 바로 앞).
+  assert.match(carousel, /if \(!activeItem\) return null\n\n  return \(/)
   assert.match(carousel, /data-slot="main-ad-carousel"/)
   assert.match(carousel, /data-state=\{carouselState\}/)
-  assert.match(
-    carousel,
-    /const carouselState = activeItems\.length === 0[\s\S]*'empty'[\s\S]*activeItems\.length === 1[\s\S]*'single'[\s\S]*'multiple'/
-  )
+  assert.match(carousel, /const carouselState = activeItems\.length === 1 \? 'single' : 'multiple'/)
   assert.match(carousel, /subject:\s*WorkspaceSubject/)
-  assert.match(carousel, /등록된 \{subjectLabel\} 광고가 없습니다/)
-  assert.match(carousel, /role="status"/)
+  assert.doesNotMatch(carousel, /광고가 없습니다|문제마켓 보기|'empty'/)
   assert.match(carousel, /hasMultipleItems\s*\?\s*\([\s\S]*progressLayerRefs/)
   assert.match(carousel, /hasMultipleItems\s*\?\s*\([\s\S]*aria-label="이전 광고"[\s\S]*aria-label="다음 광고"/)
   assert.doesNotMatch(carousel, /empty[\s\S]{0,240}aria-current/)

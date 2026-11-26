@@ -239,3 +239,45 @@ Q8. 권한
 | 화면 minor | 다시 배포 때 빈 홈 시간 | 10절 되돌리기, 4절 H6 |
 | 화면 minor | 섹션·배너 모두 0개면 빈 여백 | 3-1·3-3 `emptyHomeLink` |
 
+
+## 15. 구현 메모 (2026-11-27)
+0절 질문은 모두 기본안으로 구현했다. DB 스키마 변경이 없어(4절) 마이그레이션(예약해 둔 20261224100000)·down 파일은 만들지 않았다. 운영 DB 에는 아무것도 적용하지 않았다(시드 미실행).
+
+**만든 것·고친 것**
+- 규칙: `src/lib/market-home.ts`(판 2 타입·검사, `readMarketHomeConfig` 의 ok·missing·invalid, 섹션 이동·추가, 추천 거르기, 작업 기록 차이, 판 1 타입은 `MarketHomeConfigV1`), `src/lib/market-home-server.ts`(섹션별 읽기·일시 오류 throw, 추천 거르기, 관리자 읽기 24개 미리 읽기, 상품 검색, 3-4 조건부 저장).
+- 배너: `src/lib/main-ad-carousel.ts`(`startsAt`·`endsAt` 검사·보존, `isMainAdVisibleAt`·`filterVisibleMainAdItems`, `kstLocalToUtcIso`·`utcIsoToKstLocal`, 상태 `live`·`scheduled`·`ended`·`off`, 배너 차이), `main-ad-carousel-server.ts`(공개 항목에 기간 싣기). `admin-status-tone.ts` 의 배너 키는 바꾸지 않고 `satisfies Record<MainAdScheduleStatus, AdminTone>` 로 묶었다.
+- 회원: `(solvook)/page.tsx`·`preview/solvook-concept/page.tsx`(기간 거르기는 캐시 밖, 첫 채움 실패면 배너만), 새 `market-home-sections.tsx`(섹션 배열·빈 홈 링크)·`featured-materials.tsx`, 인기·최근 부품은 제목·빈 문구를 받음, `main-ad-carousel.tsx` 빈 틀 제거.
+- route: `api/admin/market-main-settings`(판 2·개인정보 검사·409·작업 기록·`revalidateTag(MARKET_HOME_CACHE_TAG)`), 새 `item-search`(GET)·`preview-items`(POST), `api/admin/main-ad-settings`(작업 기록). 작업 기록 종류 3개는 `admin-audit-log.ts`.
+- 관리 화면: '홈 진열'은 20번 부품(제목줄·표·옆 창·저장 바·확인 창·빨간 띠)으로 새로 그렸다. '홈 배너'는 요약 표·기간 칸·상태 배지·0개 확인 창을 더했다.
+- DB 스크립트: `supabase/scripts/20261224_bundle22_home_sections_seed.sql`, `..._seed_revert.sql`, 리허설 `supabase/scripts/bundle22_rehearsal/`(generate.mjs → a_light.sql).
+
+**계획과 달리 정했거나 덧붙인 것(확인 필요)**
+1. 리허설은 light(`a_light.sql`) 하나뿐이다. 마이그레이션·이력 표가 없어 full 과 차이가 없기 때문이다. 경우 H1·H2·H4·H5·H6 와 되돌림 멈춤(R)이 있고, H3 는 순수 시험이 옛 파일 사본(`tests/fixtures/bundle22-market-home-v1.ts`, 648e68c 그대로)으로 본다.
+2. 시드의 '이미 판 2' 처리: 두 과목 모두 판 2 면 멈춘다(H2). 한 과목만 판 2 면 그 행은 건드리지 않고 다른 과목만 넣는다(H6 '판 2 행은 건드리지 않음'). 10절 되돌리기의 '한쪽만 판 1 로 덮인 경우'도 다시 실행으로 고칠 수 있게 하려는 것이다.
+3. 시드가 판 1 행을 바꿀 때, 판 1 이 옛 코드 검사를 통과하면 인기·최근의 켜기·개수·기간을 이어받는다. 통과하지 못하면 옛 코드처럼 기본값을 쓴다. 지금 모습을 지키려는 것이며 운영은 지금 0행이다.
+4. 시드·되돌림 행위자: 실제 실행은 마지막으로 로그인한 대표다(11번 스크립트 A 와 같음). 리허설은 거래 안 설정 `bundle22.rehearsal_actor` 로 @test.com 시험 계정을 쓴다. 되돌림도 작업 기록을 1행 남긴다(같은 종류, `mode: 'revert'`).
+5. 회원 홈 캐시 키를 `preview-market-home-v2` 로 바꿨다. 배포 직후 옛 모양 캐시 값을 읽어 화면이 깨지지 않게 하려는 것이다. 홈 진열 저장 때는 새 태그 `MARKET_HOME_CACHE_TAG` 로 바로 비운다. 배너 캐시 키는 그대로 두었다. 옛 값에는 기간 칸이 없어 늘 보이는 것으로 읽는다.
+6. 첫 채움부터 읽기에 실패하면 회원 홈 데이터 상태를 `error`(`marketHomeReadFailed`)로 두고 배너만 그린다.
+7. 빈 화면 문구·빈 홈 링크는 null 또는 1자 이상이다. 화면에서 비우면 null 이 되고, 섹션은 숨는다·링크는 보이지 않는다.
+8. 알려진 한계: 판 2 인데 revision 이 정수가 아닌 행은 수동 SQL 로만 생긴다. 이런 행은 관리자 읽기가 revision 0 을 주므로 저장이 계속 409 가 되고, 시드도 판 2 라 건너뛴다. 생기면 SQL 로 revision 을 고친다.
+9. 배너 '편집 창'은 따로 띄우지 않았다. 기존 광고 카드 안에 시작·끝 칸(한국 시간, 비우면 '바로'·'계속')과 '지금 기준' 상태를 넣고, 위에 요약 표(C-10)를 두었다. 0개 확인 창은 '지금 보이는 배너가 있었는데 저장하면 0개'일 때만 띄운다.
+10. 20번 6-1 4단계(홈): 두 화면의 주황 `adminAction` 버튼을 `brandOutline` 으로 바꾸고, 래칫 목록에서 main-ad-settings 를 뺐다.
+11. 관리 화면 미리보기는 빈 홈 링크 판정에 지금 보이는 배너 수를 쓴다(page 가 배너 설정을 읽어 넘김). Q3 '저장 때 경고'는 저장 바 위 경고 띠로 넣었다(저장을 막지 않음).
+12. 화면 제목은 DB 메뉴 이름(`AdminMenuName`)을 그대로 쓰고, 기본 글 '(임시) 문제마켓 메인 관리'도 그대로 두었다. '홈 진열'로 바꾸려면 메뉴 관리에서 DB 를 고친다.
+13. 쓰이지 않는 `…/home/campaign-hero.tsx` 는 지우지 않았다(죽은 코드, 대표에게 알림).
+
+**시험**
+- 새 파일 3개: `tests/bundle22-home-sections.test.mjs`(순수·가짜 DB: H3·H5, 시드 값으로 그린 국어·영어 홈, 3-4 경로), `tests/bundle22-main-ad-schedule.test.mjs`, `tests/bundle22-home-merch-contract.test.mjs`(문구 없음·캐시 밖 거르기·route 403/409/400·작업 기록 순서·회원 정보 없음·리허설 사본). 자료는 `tests/fixtures/bundle22-seed-values.json`(리허설 H1 출력) 이다.
+- 일부러 바꾼 시험(각 파일 주석에 이유): market-home-empty-state·ui·contract·config-normalize·admin-route, main-ad-carousel-contract·settings-route·browser, market-public-gate-hidden-board(판 2 행 + 숨김 게시판 상품이 추천 섹션에 들어감), remove-home-source-section, admin-guard-coverage(새 route 2개), admin-phase1a(U2: 빈 홈 링크가 검색으로), market-images-display(캐시 태그), admin-kit(래칫 목록).
+- `node --test tests/*.test.mjs`: 2406개 중 실패 43개이며, 모두 22번 전부터 실패하던 것과 이름이 같다(새 실패 0). 22번 전부터 실패하던 main-ad-carousel-contract 'preview page …' 시험은 구현 검증 지적에 따라 22번 구조(캐시 밖 거르기·0개 숨김·MarketHomeSections)로 고쳐 통과한다. market-home-ui 'preview renders database category board…'는 22번과 관계없어 그대로 둔다.
+- 구현 검증 minor 반영: 저장 뒤 `router.refresh()` 로 미리보기 재료를 다시 받아 '저장 뒤 반영' 안내가 남지 않게 했다. 상품 검색어의 `*`(PostgREST 가 `%` 로 바꿈)는 뺐다. `npx tsc --noEmit -p .`(.next 밖 0)과 바꾼 파일 eslint 도 0 이다.
+
+**리허설 결과(운영, 2026-11-27, BEGIN…ROLLBACK)**: 시작 때 market_home 행 0개·시드 작업 기록 0개였다. H1·H2·H4·H6·R 과 '남은 것 없음'(Z)이 모두 통과했다. H5 출력은 위 시험 자료다.
+
+**남은 단계(10절 순서, 구현 검증 뒤 갱신)**
+1. 22번 코드는 main 이 아니라 로컬 브랜치 `bundle22-home-merch` 에 둔다. 다른 묶음 push 에 섞이지 않게 하기 위해서다. 새 코드는 market_home 행이 없으면 회원 홈 섹션이 0개다. 그래서 이 묶음만 **시드 → main 합치기·push** 순서다(작업 순서표 진행 표 22번 행).
+2. (대표 승인) 시드 실행 → 운영 회원 홈이 그대로인지 확인(옛 코드는 판 2 행을 기본값으로 읽음, H3).
+3. 시드 ~ 배포 사이에는 '홈 진열' 저장을 하지 않는다(런북 11-6).
+4. localhost 확인(나 → 대표, 읽기만): 회원 홈과 관리 화면 미리보기·편집 창·확인 창 [취소]까지 본다. 로컬 dev 도 운영 DB 를 쓴다. **시드 전에 브라우저로 보면 회원 홈은 섹션 0개(배너만), 관리 화면은 '설정 없음' 빨간 띠가 정상이다.** 이때 저장 버튼은 누르지 않는다. '시드 뒤 홈 모습이 같은지'는 시드 뒤에 본다.
+5. push 직전 두 행이 `version 2`·`revision 1` 인지 SELECT 한다. 아니면 시드를 다시 돌리거나 배포를 미룬다. 그다음 main 합치기·push·배포.
+6. 대표 할 일: 영어 시험 광고 끄기, 추천 섹션 상품 고르고 켜기, 문구 확정.

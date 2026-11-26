@@ -1,0 +1,67 @@
+{
+  "_source": "supabase/scripts/bundle22_rehearsal/a_light.sql H1 payload(운영 리허설 2026-11-27, ROLLBACK) — 시드가 넣는 두 value 그대로",
+  "korean": {
+    "emptyHomeLink": "국어 문제마켓 보기",
+    "revision": 1,
+    "sections": [
+      {
+        "emptyText": "아직 다운로드 집계가 없습니다.",
+        "id": "05cc4d8c-0ec8-40d7-810f-43373d76c7cc",
+        "isActive": true,
+        "kind": "popular",
+        "limit": 12,
+        "rankingWindowDays": 30,
+        "title": "인기 다운로드 자료"
+      },
+      {
+        "emptyText": "최근 등록된 자료가 없습니다.",
+        "id": "9fa62204-613d-4b25-9cad-2b41b07470b4",
+        "isActive": true,
+        "kind": "recent",
+        "limit": 8,
+        "title": "최근 등록된 수업 자료"
+      },
+      {
+        "emptyText": null,
+        "id": "9eb14d44-63ed-4468-917a-513ecd9f94fb",
+        "isActive": false,
+        "itemIds": [],
+        "kind": "featured",
+        "title": "추천 자료"
+      }
+    ],
+    "version": 2
+  },
+  "english": {
+    "emptyHomeLink": "영어 문제마켓 보기",
+    "revision": 1,
+    "sections": [
+      {
+        "emptyText": "아직 다운로드 집계가 없습니다.",
+        "id": "ee77ab6a-36c3-4887-9248-850880030da9",
+        "isActive": true,
+        "kind": "popular",
+        "limit": 12,
+        "rankingWindowDays": 30,
+        "title": "인기 다운로드 자료"
+      },
+      {
+        "emptyText": "최근 등록된 자료가 없습니다.",
+        "id": "a158150a-44f9-4c2a-886b-00616060de62",
+        "isActive": true,
+        "kind": "recent",
+        "limit": 8,
+        "title": "최근 등록된 수업 자료"
+      },
+      {
+        "emptyText": null,
+        "id": "a478a22b-0727-429f-a61e-f9e62dbe3130",
+        "isActive": false,
+        "itemIds": [],
+        "kind": "featured",
+        "title": "추천 자료"
+      }
+    ],
+    "version": 2
+  }
+}

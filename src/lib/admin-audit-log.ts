@@ -106,6 +106,11 @@ export const ADMIN_AUDIT_ACTIONS = {
   // 결제 처리가 아니라 조회라 paymentLinkedActions 에 넣지 않는다(13번 보관 정책 2년 쪽, 계획 8절).
   sales_report_export: '매출·정산 CSV 내려받기',
   sales_report_content_update: '매출 CSV 안내 문구 수정',
+  // 22번 묶음(홈 진열): 홈 진열·배너 저장은 route 가 저장 성공 뒤 남긴다(제목·문구 원문 없이 종류·켜기·제목 글자 수·상품 id·기간·링크 차이와 details.request).
+  // 첫 값 넣기는 SQL 스크립트가 남긴다. 결제 연결 아님(13번 보관 정책 2년 쪽).
+  market_home_sections_save: '홈 진열 저장',
+  market_home_sections_seed: '홈 진열 첫 값 넣기(SQL 스크립트)',
+  main_ad_carousel_save: '홈 배너 저장',
 } as const
 
 export type AdminAuditAction = keyof typeof ADMIN_AUDIT_ACTIONS

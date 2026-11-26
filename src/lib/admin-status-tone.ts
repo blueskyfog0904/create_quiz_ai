@@ -7,6 +7,7 @@ import type {
   PAYMENT_ORDER_STATUS_LABELS,
   REFUND_REQUEST_STATUS_LABELS,
 } from '@/lib/admin-orders'
+import type { MainAdScheduleStatus } from '@/lib/main-ad-carousel'
 import type { MemberSuspensionScope } from '@/lib/member-suspension'
 
 // 관리자 상태 → 색(tone) 대응(20번 5-1 표). 같은 상태는 어느 화면에서나 같은 색이다. 대응은 이 파일에만 둔다.
@@ -99,13 +100,13 @@ const member = {
   login_blocked: 'danger',
 } as const satisfies Record<'active' | 'withdrawn' | 'suspension_lifted' | MemberSuspensionScope, AdminTone>
 
-// 홈 배너(22번): 노출 중·예약·종료·꺼짐
+// 홈 배너(22번): 노출 중·예약·종료·꺼짐. 키는 main-ad-carousel.ts 의 MainAdScheduleStatus(getMainAdScheduleStatus 결과) 그대로.
 const banner = {
   live: 'success',
   scheduled: 'info',
   ended: 'neutral',
   off: 'neutral',
-} as const
+} as const satisfies Record<MainAdScheduleStatus, AdminTone>
 
 export const ADMIN_STATUS_TONES = {
   paymentOrder,

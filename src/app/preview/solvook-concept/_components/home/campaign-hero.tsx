@@ -2,14 +2,15 @@ import Link from 'next/link'
 import { ArrowRight, Check, FileStack, Search, Sparkles } from 'lucide-react'
 import { StudioContainer } from '@/components/design-system'
 import { Button } from '@/components/ui/button'
-import type { MarketHomeConfig, MarketHomeItem, MarketHomeMenuEntry } from '@/lib/market-home'
+import type { MarketHomeConfigV1, MarketHomeItem, MarketHomeMenuEntry } from '@/lib/market-home'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 interface CampaignHeroProps {
   subject: WorkspaceSubject
   categories: MarketHomeMenuEntry[]
   featuredItem: MarketHomeItem | null
-  config: MarketHomeConfig
+  // 쓰이지 않는 옛 부품(22번 전 판 1 타입). 지우지 않고 남겨 둔다.
+  config: MarketHomeConfigV1
 }
 
 export function CampaignHero({ subject, categories, featuredItem, config }: CampaignHeroProps) {

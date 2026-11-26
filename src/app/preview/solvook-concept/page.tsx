@@ -1,13 +1,12 @@
 import type { Metadata } from 'next'
 import { connection } from 'next/server'
 import { StudioLandingPageFrame } from '@/components/page-templates'
+import { filterVisibleMainAdItems } from '@/lib/main-ad-carousel'
+import { marketHomeReadFailed } from '@/lib/market-home'
 import { getCachedMainAdItems, getCachedMarketHomeData } from '@/lib/preview-home-cache'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
-import {
-  RecentMaterials,
-} from './_components/home/home-material-sections'
 import { MainAdCarousel } from './_components/home/main-ad-carousel'
-import { PopularDownloadsSlider } from './_components/home/popular-downloads-slider'
+import { MarketHomeSections } from './_components/home/market-home-sections'
 
 export const metadata: Metadata = {
   title: '문제마켓 프리뷰',
@@ -26,21 +25,18 @@ export default async function SolvookConceptPreviewPage({
   await connection()
   const params = await searchParams
   const subject = resolveSubject(params.subject)
-  const [homeData, mainAdItems] = await Promise.all([
-    getCachedMarketHomeData(subject),
+  const [homeData, cachedAdItems] = await Promise.all([
+    getCachedMarketHomeData(subject).catch(() => marketHomeReadFailed(subject)),
     getCachedMainAdItems(subject),
   ])
+  // 회원 홈(루트)과 같은 섹션 배열·배너 거르기(22번 3-3·3-5). 기간 거르기는 캐시 밖에서 요청마다.
+  const mainAdItems = filterVisibleMainAdItems(cachedAdItems, new Date())
 
   return (
     <StudioLandingPageFrame
-      hero={<MainAdCarousel subject={subject} items={mainAdItems} />}
+      hero={mainAdItems.length > 0 ? <MainAdCarousel subject={subject} items={mainAdItems} /> : null}
     >
-      {homeData.config.popular.isActive && (
-        <PopularDownloadsSlider subject={subject} items={homeData.popular} />
-      )}
-      {homeData.config.recent.isActive && (
-        <RecentMaterials subject={subject} items={homeData.recent} />
-      )}
+      <MarketHomeSections subject={subject} homeData={homeData} visibleBannerCount={mainAdItems.length} />
     </StudioLandingPageFrame>
   )
 }

@@ -2,11 +2,8 @@
 
 import { useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import {
-  RecentMaterials,
-} from '@/app/preview/solvook-concept/_components/home/home-material-sections'
 import { MainAdCarousel } from '@/app/preview/solvook-concept/_components/home/main-ad-carousel'
-import { PopularDownloadsSlider } from '@/app/preview/solvook-concept/_components/home/popular-downloads-slider'
+import { MarketHomeSections } from '@/app/preview/solvook-concept/_components/home/market-home-sections'
 import { StudioLandingPageFrame } from '@/components/page-templates'
 import type { PublicMainAdCarouselItem } from '@/lib/main-ad-carousel'
 import type { MarketHomeData } from '@/lib/market-home'
@@ -14,6 +11,7 @@ import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 interface SubjectHomeData {
   homeData: MarketHomeData
+  // page 가 요청마다 기간으로 거른 배너(22번 3-5)
   adItems: PublicMainAdCarouselItem[]
 }
 
@@ -40,16 +38,12 @@ export function SolvookHomeView({
     document.cookie = `preferred_workspace=${subject}; path=/; max-age=31536000`
   }, [subject])
 
+  // 보일 배너가 0개면 배너 영역을 그리지 않는다(Q6). 과목 탭을 바꿀 때 영역이 생겼다 사라질 수 있다(의도).
   return (
     <StudioLandingPageFrame
-      hero={<MainAdCarousel subject={subject} items={adItems} />}
+      hero={adItems.length > 0 ? <MainAdCarousel subject={subject} items={adItems} /> : null}
     >
-      {homeData.config.popular.isActive && (
-        <PopularDownloadsSlider subject={subject} items={homeData.popular} />
-      )}
-      {homeData.config.recent.isActive && (
-        <RecentMaterials subject={subject} items={homeData.recent} />
-      )}
+      <MarketHomeSections subject={subject} homeData={homeData} visibleBannerCount={adItems.length} />
     </StudioLandingPageFrame>
   )
 }

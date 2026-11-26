@@ -11,13 +11,16 @@ const serverSource = fs.readFileSync(
   'utf8'
 )
 
-test('market home config has strict defaults and bounded validation', () => {
-  assert.match(contractSource, /DEFAULT_MARKET_HOME_CONFIG/)
+// 22번: 판 2(섹션 배열). 기본값으로 돌아가는 normalize 대신 '설정 없음' 상태가 있다(3-3). 새 섹션 숫자 시작값만 코드에 있다.
+test('market home config has bounded strict validation and no default fallback', () => {
+  assert.doesNotMatch(contractSource, /DEFAULT_MARKET_HOME_CONFIG|normalizeMarketHomeConfig/)
   assert.match(contractSource, /rankingWindowDays:\s*30/)
   assert.match(contractSource, /validateMarketHomeConfig/)
   assert.match(contractSource, /assertExactKeys/)
-  assert.match(contractSource, /popular\.limit/)
-  assert.match(contractSource, /recent\.limit/)
+  assert.match(contractSource, /MARKET_HOME_LIMITS\.popular/)
+  assert.match(contractSource, /MARKET_HOME_LIMITS\.recent/)
+  assert.match(contractSource, /sections: \{ min: 1, max: 8 \}/)
+  assert.match(contractSource, /featuredItems: \{ min: 0, max: 24 \}/)
 })
 
 test('public home queries are subject and publication scoped', () => {
@@ -35,10 +38,14 @@ test('recent sorting is deterministic', () => {
   assert.match(serverSource, /\.order\('id',\s*\{\s*ascending:\s*true\s*\}\)/)
 })
 
-test('section failures resolve to typed empty fallbacks', () => {
-  assert.match(serverSource, /Promise\.allSettled/)
-  assert.match(serverSource, /fulfilledOr/)
-  assert.match(serverSource, /popular:\s*\[\]/)
-  assert.match(serverSource, /recent:\s*\[\]/)
+// 22번(계획 3-3, 의도적 변경): 일시 읽기 오류는 섹션을 비우지 않고 던진다 → unstable_cache 가 이전 정상 값을 유지한다.
+// 첫 채움부터 실패하면 page 가 받아 '배너만'(marketHomeReadFailed)으로 그린다.
+test('home read errors throw inside the cached function and pages fall back to banner-only', () => {
+  assert.doesNotMatch(serverSource, /Promise\.allSettled|fulfilledOr/)
+  assert.match(serverSource, /if \(error\) throw new Error\(error\.message\)/)
+  const memberPage = fs.readFileSync(new URL('../src/app/(solvook)/page.tsx', import.meta.url), 'utf8')
+  const previewPage = fs.readFileSync(new URL('../src/app/preview/solvook-concept/page.tsx', import.meta.url), 'utf8')
+  assert.match(memberPage, /getCachedMarketHomeData\(subject\)\.catch\([\s\S]*marketHomeReadFailed\(subject\)/)
+  assert.match(previewPage, /getCachedMarketHomeData\(subject\)\.catch\(\(\) => marketHomeReadFailed\(subject\)\)/)
 })
 

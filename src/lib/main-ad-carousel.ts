@@ -18,6 +18,9 @@ export interface MainAdCarouselItem {
   href: string
   durationSeconds: number
   isActive: boolean
+  // 22번 예약 노출(UTC ISO, 각각 null 가능). 화면은 한국 시간으로 받고 서버가 UTC 로 바꾼다. 판은 올리지 않는다.
+  startsAt: string | null
+  endsAt: string | null
 }
 
 export interface MainAdCarouselSubjectConfig {
@@ -38,6 +41,9 @@ export interface PublicMainAdCarouselItem {
   alt: string
   href: string
   durationSeconds: number
+  // 기간 거르기는 캐시 밖(요청마다)에서 하므로 캐시 값에 기간을 싣는다(22번 3-5).
+  startsAt: string | null
+  endsAt: string | null
 }
 
 export interface MainAdCleanupWarning {
@@ -238,6 +244,52 @@ export function validateMainAdStoragePath(
   return value
 }
 
+// 예약 시각 읽기: null·빈 값 → null, 'YYYY-MM-DDTHH:mm'(시간대 없음)은 한국 시간, 시간대가 있는 ISO 는 그대로. 결과는 UTC ISO.
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000
+const KST_LOCAL_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/
+const ZONED_ISO_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/
+
+// 한국 시간 'YYYY-MM-DDTHH:mm' → UTC ISO. 형식이 틀리거나 없는 날짜면 null(브라우저 시간대와 무관).
+export function kstLocalToUtcIso(value: string): string | null {
+  const match = KST_LOCAL_PATTERN.exec(value)
+  if (!match) return null
+  const [year, month, day, hour, minute] = match.slice(1).map(Number)
+  const utc = new Date(Date.UTC(year, month - 1, day, hour, minute))
+  if (utc.getUTCFullYear() !== year || utc.getUTCMonth() !== month - 1 || utc.getUTCDate() !== day
+    || utc.getUTCHours() !== hour || utc.getUTCMinutes() !== minute) return null
+  return new Date(utc.getTime() - KST_OFFSET_MS).toISOString()
+}
+
+// UTC ISO → 한국 시간 'YYYY-MM-DDTHH:mm'(datetime-local 입력 칸 값)
+export function utcIsoToKstLocal(value: string | null): string {
+  if (!value) return ''
+  const time = Date.parse(value)
+  if (!Number.isFinite(time)) return ''
+  return new Date(time + KST_OFFSET_MS).toISOString().slice(0, 16)
+}
+
+function validateScheduleValue(value: unknown, fieldName: string): string | null {
+  if (value === null || value === undefined || value === '') return null
+  if (typeof value === 'string') {
+    if (KST_LOCAL_PATTERN.test(value)) {
+      const converted = kstLocalToUtcIso(value)
+      if (converted) return converted
+    } else if (ZONED_ISO_PATTERN.test(value) && Number.isFinite(Date.parse(value))) {
+      return new Date(Date.parse(value)).toISOString()
+    }
+  }
+  throw new MainAdCarouselValidationError(`${fieldName} 형식이 올바르지 않습니다.`)
+}
+
+function validateSchedule(value: Record<string, unknown>) {
+  const startsAt = validateScheduleValue(value.startsAt, '노출 시작 시각')
+  const endsAt = validateScheduleValue(value.endsAt, '노출 끝 시각')
+  if (startsAt && endsAt && Date.parse(endsAt) <= Date.parse(startsAt)) {
+    throw new MainAdCarouselValidationError('노출 끝 시각은 시작 시각보다 뒤여야 합니다.')
+  }
+  return { startsAt, endsAt }
+}
+
 function validateItem(
   value: unknown,
   allowMissingPcImage: boolean
@@ -277,6 +329,7 @@ function validateItem(
     href,
     durationSeconds,
     isActive: value.isActive,
+    ...validateSchedule(value),
   }
 }
 
@@ -393,6 +446,74 @@ export function resolveMainAdCarouselConfigForUpdate(
 
 export function getActiveMainAdCarouselItems(config: MainAdCarouselConfig, subject: MainAdSubject) {
   return config.items[subject].filter((item) => item.isActive)
+}
+
+type MainAdSchedule = Pick<MainAdCarouselItem, 'startsAt' | 'endsAt'>
+
+// 지금 기간 안인가(22번 3-5): 시작 정각부터 보이고 끝 정각부터 안 보인다. null 은 '바로'·'계속'.
+export function isMainAdVisibleAt(item: MainAdSchedule, now: Date) {
+  const time = now.getTime()
+  if (item.startsAt && time < Date.parse(item.startsAt)) return false
+  if (item.endsAt && time >= Date.parse(item.endsAt)) return false
+  return true
+}
+
+// 캐시 밖(요청마다)에서 부른다: (solvook)/page.tsx·preview/solvook-concept/page.tsx
+export function filterVisibleMainAdItems<T extends MainAdSchedule>(items: T[], now: Date): T[] {
+  return items.filter((item) => isMainAdVisibleAt(item, now))
+}
+
+// 관리 화면 상태(20번 tone 키와 같은 값): 노출 중·예약·종료·꺼짐
+export const MAIN_AD_SCHEDULE_STATUSES = ['live', 'scheduled', 'ended', 'off'] as const
+export type MainAdScheduleStatus = (typeof MAIN_AD_SCHEDULE_STATUSES)[number]
+export const MAIN_AD_SCHEDULE_STATUS_LABELS: Record<MainAdScheduleStatus, string> = {
+  live: '노출 중',
+  scheduled: '예약',
+  ended: '종료',
+  off: '꺼짐',
+}
+
+export function getMainAdScheduleStatus(item: MainAdSchedule & Pick<MainAdCarouselItem, 'isActive'>, now: Date): MainAdScheduleStatus {
+  if (!item.isActive) return 'off'
+  if (item.startsAt && now.getTime() < Date.parse(item.startsAt)) return 'scheduled'
+  if (item.endsAt && now.getTime() >= Date.parse(item.endsAt)) return 'ended'
+  return 'live'
+}
+
+// 작업 기록용 배너별 바뀐 칸(22번 7절: 켜기·기간·링크·순서). 제목·대체 글 원문은 넣지 않는다.
+type MainAdAuditValue = string | number | boolean | null | string[]
+
+export function diffMainAdItems(before: MainAdCarouselItem[], after: MainAdCarouselItem[]) {
+  const beforeById = new Map(before.map((item, index) => [item.id, { item, index }]))
+  const afterIds = new Set(after.map((item) => item.id))
+  const changes: Array<Record<string, MainAdAuditValue>> = []
+  after.forEach((item, index) => {
+    const previous = beforeById.get(item.id)
+    if (!previous) {
+      changes.push({ id: item.id, change: 'added', position: index, isActive: item.isActive, startsAt: item.startsAt, endsAt: item.endsAt, href: item.href })
+      return
+    }
+    const fields: string[] = []
+    if (previous.index !== index) fields.push('position')
+    if (previous.item.isActive !== item.isActive) fields.push('isActive')
+    if (previous.item.startsAt !== item.startsAt || previous.item.endsAt !== item.endsAt) fields.push('schedule')
+    if (previous.item.href !== item.href) fields.push('href')
+    if (previous.item.title !== item.title || previous.item.alt !== item.alt) fields.push('text')
+    if (previous.item.pcImagePath !== item.pcImagePath || previous.item.mobileImagePath !== item.mobileImagePath) fields.push('image')
+    if (previous.item.durationSeconds !== item.durationSeconds) fields.push('durationSeconds')
+    if (fields.length === 0) return
+    const change: Record<string, MainAdAuditValue> = { id: item.id, change: 'updated', fields, position: index, isActive: item.isActive }
+    if (fields.includes('schedule')) {
+      change.startsAt = item.startsAt
+      change.endsAt = item.endsAt
+    }
+    if (fields.includes('href')) change.href = item.href
+    changes.push(change)
+  })
+  for (const item of before) {
+    if (!afterIds.has(item.id)) changes.push({ id: item.id, change: 'removed' })
+  }
+  return changes
 }
 
 export function getReferencedMainAdImagePaths(config: MainAdCarouselConfig) {

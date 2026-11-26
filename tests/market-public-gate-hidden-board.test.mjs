@@ -103,17 +103,33 @@ test('검색: 키워드는 게시판 제목이 아니라 카테고리 경로 제
   assert.deepEqual(await ids('숨김 게시판'), [])
 })
 
+// 22번: 홈 설정은 판 2 행이다(행이 없으면 섹션 0개). 시드와 같은 인기·최근 + 추천(숨김 게시판 상품 h2 를 고름).
+const homeConfig = {
+  version: 2,
+  revision: 1,
+  sections: [
+    { id: '05cc4d8c-0ec8-40d7-810f-43373d76c7cc', kind: 'popular', isActive: true, title: '인기', emptyText: '집계 없음', limit: 12, rankingWindowDays: 30 },
+    { id: '9fa62204-613d-4b25-9cad-2b41b07470b4', kind: 'recent', isActive: true, title: '최근', emptyText: '없음', limit: 8 },
+    { id: '9eb14d44-63ed-4468-917a-513ecd9f94fb', kind: 'featured', isActive: true, title: '추천', emptyText: null, itemIds: ['00000000-0000-4000-8000-0000000000a2'] },
+  ],
+  emptyHomeLink: null,
+}
+
 function loadHome() {
+  const featuredId = homeConfig.sections[2].itemIds[0]
   const homeItems = [
     { ...item('h1', DEPTH3, 0), source_type: null, source_1: null, source_2: null, source_3: null, source_4: null, pdf_price: 0, hwp_price: 0, zip_price: 0 },
     { ...item('h2', null, 0), source_type: null, source_1: null, source_2: null, source_3: null, source_4: null, pdf_price: 0, hwp_price: 0, zip_price: 0 },
   ]
+  // 추천 거르기는 상태 칸을 읽는다(공개·활성·삭제 안 됨·같은 과목). 숨김 게시판(menu_entry_id) 은 보지 않는다.
+  const featuredRow = { ...homeItems[1], id: featuredId, workspace_subject: 'korean', status: 'published', is_active: true, deleted_at: null }
   const admin = createFakeAdmin(({ table, ops }) => {
-    if (table === 'workspace_settings') return { data: null, error: null }
+    if (table === 'workspace_settings') return { data: { value: homeConfig }, error: null }
     if (table === 'market_menu_entries') return { data: boardRows(ops), error: null }
     if (table === 'market_items') {
       if (op(ops, 'select')?.[2]?.head) return { data: null, count: homeItems.length, error: null }
       const ids = ops.find(([name, column]) => name === 'in' && column === 'id')?.[2]
+      if (ids?.includes(featuredId)) return { data: [featuredRow], error: null }
       return { data: ids ? homeItems.filter((row) => ids.includes(row.id)) : homeItems, error: null }
     }
     return { data: [], error: null }
@@ -130,10 +146,10 @@ function loadHome() {
     '@/lib/market-home': load('src/lib/market-home.ts'),
     '@/lib/market-images': marketImages,
   })
-  return { admin, server }
+  return { admin, server, featuredId }
 }
 
-test('홈: 숨김 게시판 상품도 최근·인기·공개 개수에 들어가고 게시판을 조회하지 않는다', async (t) => {
+test('홈: 숨김 게시판 상품도 최근·인기·추천 섹션에 들어가고 게시판을 조회하지 않는다', async (t) => {
   const saved = { url: process.env.NEXT_PUBLIC_SUPABASE_URL, key: process.env.SUPABASE_SERVICE_ROLE_KEY }
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://project.supabase.co'
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
@@ -144,11 +160,14 @@ test('홈: 숨김 게시판 상품도 최근·인기·공개 개수에 들어가
     }
   })
 
-  const { admin, server } = loadHome()
+  const { admin, server, featuredId } = loadHome()
   const data = await server.getMarketHomeData('korean')
-  assert.deepEqual(data.recent.map((entry) => entry.id), ['h1', 'h2'])
-  assert.deepEqual(data.popular.map((entry) => [entry.id, entry.downloadUserCount]), [['h1', 3]])
-  assert.equal(data.publicItemCount, 2)
+  const byKind = Object.fromEntries(data.sections.map((section) => [section.kind, section]))
+  assert.equal(data.state, 'ok')
+  assert.deepEqual(data.sections.map((section) => section.kind), ['popular', 'recent', 'featured'])
+  assert.deepEqual(byKind.recent.items.map((entry) => entry.id), ['h1', 'h2'])
+  assert.deepEqual(byKind.popular.items.map((entry) => [entry.id, entry.downloadUserCount]), [['h1', 3]])
+  assert.deepEqual(byKind.featured.items.map((entry) => entry.id), [featuredId])
   assert.equal(admin.calls.some((call) => call.table === 'market_menu_entries'), false)
   for (const call of admin.calls.filter((entry) => entry.table === 'market_items')) {
     assert.equal(call.ops.some(([name, column]) => name === 'in' && column === 'menu_entry_id'), false)

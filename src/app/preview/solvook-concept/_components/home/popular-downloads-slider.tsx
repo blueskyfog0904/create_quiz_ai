@@ -5,16 +5,19 @@ import { SectionHeading } from './section-heading'
 
 interface PopularDownloadsSliderProps {
   subject: WorkspaceSubject
+  // 제목·빈 화면 문구는 DB(홈 진열 설정) 값이다(22번). 빈 문구가 없으면 섹션째 숨기므로 여기 오지 않는다.
+  title: string
+  emptyText: string | null
   items: MarketHomePopularItem[]
 }
 
-export function PopularDownloadsSlider({ subject, items }: PopularDownloadsSliderProps) {
+export function PopularDownloadsSlider({ subject, title, emptyText, items }: PopularDownloadsSliderProps) {
   return (
     <section id="popular-downloads">
-      <SectionHeading title="인기 다운로드 자료" />
+      <SectionHeading title={title} />
       {items.length === 0 ? (
         <div className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] px-5 py-12 text-center text-sm text-[var(--studio-muted)]">
-          아직 다운로드 집계가 없습니다.
+          {emptyText}
         </div>
       ) : (
         <div className="overflow-hidden rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]">

@@ -275,6 +275,9 @@ const ROUTE_REQUIREMENTS = {
   // 홈 화면
   'main-ad-settings/route.ts': all('storefront.edit', 'POST'),
   'market-main-settings/route.ts': all('storefront.edit', 'POST'),
+  // 22번 홈 진열: 추천 상품 고르기·미리보기(계획 3-2, 화면·저장과 같은 storefront.edit)
+  'market-main-settings/item-search/route.ts': all('storefront.edit', 'GET'),
+  'market-main-settings/preview-items/route.ts': all('storefront.edit', 'POST'),
   // 후기
   'reviews/route.ts': all('reviews.manage', 'GET'),
   'reviews/[reviewId]/route.ts': all('reviews.manage', 'DELETE'),

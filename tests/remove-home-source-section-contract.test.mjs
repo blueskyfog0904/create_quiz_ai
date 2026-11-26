@@ -3,7 +3,7 @@ import test from 'node:test'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { DEFAULT_MARKET_HOME_CONFIG, validateMarketHomeConfig } from '../src/lib/market-home.ts'
+import { validateMarketHomeConfig } from '../src/lib/market-home.ts'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const read = (path) => readFileSync(join(root, path), 'utf8')
@@ -33,17 +33,18 @@ test('src 어디에도 홈 "교재와 출처" 섹션의 문구·컴포넌트·�
   assert.deepEqual(offenders, [])
 })
 
-test('홈 설정 검증은 옛 sourceExplorer 키를 거절하고 기본값에도 그 키가 없다', () => {
-  assert.equal('sourceExplorer' in DEFAULT_MARKET_HOME_CONFIG, false)
+// 22번: 홈 설정은 판 2(섹션 배열)다. 기본값 상수는 없다(설정은 DB 시드). 옛 sourceExplorer 키는 판 2 에서도 거절한다.
+test('홈 설정 검증은 옛 sourceExplorer 키를 거절한다', () => {
   const valid = {
-    version: 1,
-    popular: { isActive: true, limit: 12, rankingWindowDays: 30 },
-    recent: { isActive: true, limit: 8 },
+    version: 2,
+    revision: 1,
+    sections: [{ id: '05cc4d8c-0ec8-40d7-810f-43373d76c7cc', kind: 'recent', isActive: true, title: '최근', emptyText: null, limit: 8 }],
+    emptyHomeLink: null,
   }
   assert.deepEqual(validateMarketHomeConfig(valid), valid)
   assert.throws(
     () => validateMarketHomeConfig({ ...valid, sourceExplorer: { isActive: true, sourceTypes: [] } }),
-    /config\.sourceExplorer is not supported/,
+    /config\.sourceExplorer 칸은 쓰지 않습니다/,
   )
 })
 
