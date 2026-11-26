@@ -13,6 +13,7 @@ import {
   escapeIlike,
   normalizeOrderFilter,
 } from '@/lib/admin-orders'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { readWithdrawnUserIdsForRedaction } from '@/lib/withdrawn-member-redaction-server'
 import { diagnoseMarketFileDownload, type MarketDownloadBlockReason, type MarketDownloadDiagnosis } from '@/lib/market-download-diagnosis'
@@ -533,6 +534,16 @@ export async function listMarketOrdersForAdmin(input: {
     }
   }
   const pendingScopes = buildPendingMarketRefundScopes(pendingRequests, (id) => slugBySubproductId.get(id))
+  // 12번: 회원의 활성 정지(다운로드 route 와 같은 판정 — 활성이고 blocks_download). 읽지 못하면 진단에서 빼고 경고만 남긴다(관리자 표시용).
+  const suspensionsResult = await (supabase as unknown as SupabaseClient)
+    .from('member_suspensions')
+    .select('user_id, blocks_download')
+    .in('user_id', Array.from(new Set(rows.map((row) => row.user_id))))
+    .is('lifted_at', null)
+    .or(`ends_at.is.null,ends_at.gt.${new Date().toISOString()}`)
+  if (suspensionsResult.error) console.error('[admin-orders] 회원 정지 상태를 읽지 못했습니다.', { message: suspensionsResult.error.message })
+  const suspensionByUser = new Map(((suspensionsResult.data ?? []) as Array<{ user_id: string; blocks_download: boolean }>)
+    .map((suspension) => [suspension.user_id, { blocksDownload: suspension.blocks_download }]))
   const pendingRefundOrderIds = Array.from(pendingScopes.keys())
   const pendingRefundOrderIdsForFile = (file: { subproduct_id: string }) => pendingRefundOrderIds.filter((orderId) => isPendingRefundBlockingFile(
     pendingScopes.get(orderId), { subproductId: file.subproduct_id, categorySlug: slugBySubproductId.get(file.subproduct_id) ?? null }
@@ -549,6 +560,7 @@ export async function listMarketOrdersForAdmin(input: {
           ...row.entitlements.filter((entitlement) => entitlement.status !== 'active'),
         ],
         pendingRefundOrderIds,
+        memberSuspension: suspensionByUser.get(row.user_id) ?? null,
       }
       const ownEntitlementReason: MarketDownloadBlockReason | null = row.entitlements.some((entitlement) => entitlement.status === 'active')
         ? null

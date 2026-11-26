@@ -790,11 +790,17 @@ function MemberSummary({ ticket, summary }: {
     { label: '마켓 구매', section: summary.data.marketOrders, href: emailQuery && `/admin/orders?tab=market&q=${emailQuery}` },
     { label: '다른 문의', section: summary.data.otherTickets, href: emailQuery && `/admin/support?q=${emailQuery}&includeDeleted=true` },
   ].filter((item) => item.section)
-  if (items.length === 0) return null
+  // 12번: 정지 중 배지(members.view 가 있을 때만 서버가 센다)
+  const suspension = summary.data.activeSuspensions
+  if (items.length === 0 && !suspension) return null
 
   return (
     <div className="rounded-lg border p-3 text-sm">
-      <p className="mb-1 font-medium text-gray-700">회원 요약</p>
+      <p className="mb-1 flex flex-wrap items-center gap-2 font-medium text-gray-700">
+        회원 요약
+        {suspension && !suspension.failed && suspension.data > 0 && <Badge className="bg-red-100 text-red-800">정지 중</Badge>}
+        {suspension?.failed && <span className="text-xs font-normal text-red-700">정지 여부 확인 불가</span>}
+      </p>
       <ul className="flex flex-wrap gap-x-4 gap-y-1">
         {items.map(({ label, section, href }) => (
           <li key={label}>

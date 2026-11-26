@@ -97,7 +97,8 @@ function loadMiddleware({ missing = ['item'], rpcError = null, email = 'member@e
     },
     rpc: (name) => {
       rpcCalls.push(name)
-      return { abortSignal: async () => ({ data: rpcError ? null : missing, error: rpcError }) }
+      // 12번: 미들웨어는 get_my_member_gate 하나로 동의 부족·정지를 함께 읽는다.
+      return { abortSignal: async () => ({ data: rpcError ? null : { missingRequired: missing, restriction: null }, error: rpcError }) }
     },
     from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: profile, error: null }) }) }) }),
   }
@@ -115,6 +116,7 @@ function loadMiddleware({ missing = ['item'], rpcError = null, email = 'member@e
     '@/lib/auth-paths': authPaths,
     '@/lib/admin-accounts-shared': adminShared,
     '@/lib/consent-gate': gate,
+    '@/lib/member-suspension': load('src/lib/member-suspension.ts', { '@/lib/workspace-subject': workspaceSubject }),
     '@/lib/admin-features': { isAdminPathDisabled: () => false, resolveAdminFeature: () => null },
     '@/lib/site-features': { resolveSiteFeatureRoute: () => null },
     '@/lib/admin-features-server': {
@@ -170,8 +172,8 @@ test('미들웨어: 가입을 마친 카카오 회원도 판정하고, 마치지
   assert.notEqual(terms.status, 307)
 
   const source = read('src/lib/supabase/middleware.ts')
-  assert.equal(source.match(/await checkConsentGate\(/g).length, 2)
-  assert.match(source, /abortSignal\(AbortSignal\.timeout\(CONSENT_GATE_TIMEOUT_MS\)\)/)
+  assert.equal(source.match(/await applyMemberGate\(/g).length, 2)
+  assert.match(source, /abortSignal\(AbortSignal\.timeout\(MEMBER_GATE_TIMEOUT_MS\)\)/)
 })
 
 test('돈 API: 크레딧 차감·자료 구매·충전 주문을 부르는 회원 핸들러는 모두 인증 직후 동의를 확인한다(7개 — 카카오페이 주문은 9번에서 503, 상세 바로 구매는 11번에서 410 으로 막음)', () => {

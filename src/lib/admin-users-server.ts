@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { getListPagination } from '@/lib/list-pagination'
 
@@ -17,6 +18,8 @@ export interface AdminUserListItem {
   withdrawn_at: string | null
   // 지금 쓸 수 있는 크레딧. 잔액을 읽지 못했으면 null(화면에 0이 아니라 '확인 불가'로 보여 준다).
   credit_balance: number | null
+  // 12번: 지금 정지 중(이용 제한·로그인 차단)인지. 읽지 못했으면 null(배지 없이 '확인 불가').
+  suspended: boolean | null
 }
 
 export interface AdminUserListResult {
@@ -26,6 +29,8 @@ export interface AdminUserListResult {
   pageSize: number
   totalPages: number
   query: string
+  // 12번: '정지 중만 보기'
+  suspendedOnly: boolean
 }
 
 const USER_COLUMNS = 'id, email, display_tag, phone, organization, role, is_admin, provider, created_at, withdrawn_at'
@@ -49,14 +54,33 @@ export function sumSpendableCredits(
   return balances
 }
 
-export async function listAdminUsers(input: { q?: string | null; page?: unknown; pageSize?: unknown }): Promise<AdminUserListResult> {
+// 12번: 활성 정지(해제 안 됨이고 끝나는 날이 없거나 지나지 않음)인 회원 id. userIds 를 주면 그 회원들만 본다.
+async function readActiveSuspendedUserIds(userIds?: string[]) {
+  let builder = (createAdminClient() as unknown as SupabaseClient).from('member_suspensions')
+    .select('user_id')
+    .is('lifted_at', null)
+    .or(`ends_at.is.null,ends_at.gt.${new Date().toISOString()}`)
+  if (userIds) builder = builder.in('user_id', userIds)
+  const { data, error } = await builder
+  if (error) throw new Error(error.message)
+  return new Set((data ?? []).map((row: { user_id: string }) => row.user_id))
+}
+
+export async function listAdminUsers(input: { q?: string | null; page?: unknown; pageSize?: unknown; suspended?: unknown }): Promise<AdminUserListResult> {
   const supabase = createAdminClient()
   const query = (input.q ?? '').trim()
+  const suspendedOnly = input.suspended === '1'
+  // '정지 중만 보기': 정지 행을 먼저 읽어 그 회원만 고른다(읽지 못하면 목록 전체가 오류 — 잘못된 목록을 보이지 않게).
+  const suspendedIds = suspendedOnly ? [...await readActiveSuspendedUserIds()] : null
 
   function userQuery(head = false) {
     let builder = supabase.from('profiles').select(USER_COLUMNS, { count: 'exact', head })
     if (query) {
       builder = builder.or(buildAdminUserSearchFilter(query))
+    }
+    if (suspendedIds) {
+      // 정지 중인 회원이 없으면 어떤 id 와도 맞지 않는 값으로 빈 목록을 만든다.
+      builder = builder.in('id', suspendedIds.length > 0 ? suspendedIds : ['00000000-0000-0000-0000-000000000000'])
     }
     return builder
   }
@@ -108,15 +132,28 @@ export async function listAdminUsers(input: { q?: string | null; page?: unknown;
     }
   }
 
+  let suspended: Set<string> | null = new Set()
+  if (userIds.length > 0) {
+    try {
+      suspended = await readActiveSuspendedUserIds(userIds)
+    } catch (error) {
+      // 정지 여부를 못 읽어도 회원 목록은 보여 준다(배지 칸만 '확인 불가').
+      console.error('[admin-users] 정지 여부를 읽지 못했습니다.', { message: error instanceof Error ? error.message : String(error) })
+      suspended = null
+    }
+  }
+
   return {
     users: profiles.map((profile) => ({
       ...profile,
       credit_balance: balances ? balances.get(profile.id) ?? 0 : null,
+      suspended: suspended ? suspended.has(profile.id) : null,
     })),
     totalCount: pagination.totalCount,
     page: pagination.page,
     pageSize: pagination.pageSize,
     totalPages: pagination.totalPages,
     query,
+    suspendedOnly,
   }
 }

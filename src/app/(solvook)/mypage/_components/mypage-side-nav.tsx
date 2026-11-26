@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { MEMBER_RESTRICTION_PAGE_PATH } from '@/lib/member-suspension'
 
 // 마이페이지 메뉴: PC는 왼쪽 세로 목록, 모바일은 위쪽 가로 스크롤 목록.
 const MENU = [
@@ -20,14 +21,18 @@ function isActive(pathname: string, href: string) {
   return href === '/mypage' ? pathname === '/mypage' : pathname === href || pathname.startsWith(`${href}/`)
 }
 
-export function MypageSideNav() {
+// 12번: 이용 제한 안내 화면 메뉴는 정지 중일 때만(탈퇴 앞에 둔다). 이름은 정책 문구(안내 화면 제목)로 받는다.
+export function MypageSideNav({ restrictionLabel = null }: { restrictionLabel?: string | null }) {
   const pathname = usePathname()
+  const menu = restrictionLabel
+    ? [...MENU.slice(0, -1), { href: MEMBER_RESTRICTION_PAGE_PATH, label: restrictionLabel }, ...MENU.slice(-1)]
+    : MENU
 
   return (
     <nav aria-label="마이페이지 메뉴" className="mb-6 lg:mb-0">
       <p className="hidden pb-3 text-lg font-bold text-[var(--studio-ink)] lg:block">마이페이지</p>
       <ul className="-mx-4 flex gap-1 overflow-x-auto border-b border-[var(--studio-border)] px-4 lg:mx-0 lg:flex-col lg:gap-0.5 lg:overflow-visible lg:border-b-0 lg:border-t lg:px-0 lg:pt-3">
-        {MENU.map((item) => {
+        {menu.map((item) => {
           const active = isActive(pathname, item.href)
           return (
             <li key={item.href} className="shrink-0">

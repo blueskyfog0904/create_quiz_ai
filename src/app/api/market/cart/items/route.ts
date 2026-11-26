@@ -7,6 +7,7 @@ import {
   removeMarketCartItems,
   setMarketCartSelection,
 } from '@/lib/market-cart-server'
+import { checkMemberSuspensionForApi, memberSuspensionBlockResponse } from '@/lib/member-suspension-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +35,11 @@ export async function POST(request: NextRequest) {
   const guard = await guardMarketCartRequest()
   if ('response' in guard) {
     return guard.response
+  }
+  // 12번 5-1: 이용 제한 회원은 담기를 막는다(지우기·조회는 열어 둔다).
+  const suspension = await checkMemberSuspensionForApi(guard.userId, 'write')
+  if (suspension) {
+    return memberSuspensionBlockResponse(suspension)
   }
 
   const parsed = AddBodySchema.safeParse(await request.json().catch(() => null))
@@ -76,6 +82,10 @@ export async function PATCH(request: NextRequest) {
   const guard = await guardMarketCartRequest()
   if ('response' in guard) {
     return guard.response
+  }
+  const suspension = await checkMemberSuspensionForApi(guard.userId, 'write')
+  if (suspension) {
+    return memberSuspensionBlockResponse(suspension)
   }
 
   const parsed = PatchBodySchema.safeParse(await request.json().catch(() => null))

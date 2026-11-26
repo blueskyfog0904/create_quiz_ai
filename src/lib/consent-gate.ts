@@ -4,7 +4,7 @@ import { normalizePathname, stripWorkspacePrefix } from '@/lib/workspace-subject
 // 화면 이동은 최선 노력이다(실패하면 통과). 실제 강제는 돈 API(src/lib/consent-guard-server.ts)가 한다.
 
 // 판정하지 않는 경로: 동의·로그인·가입 화면 자신, 약관 전문, API·인증, 관리자, 결제 결과,
-// 그리고 동의하지 않은 회원도 쓸 수 있어야 하는 화면(탈퇴·결제 내역·크레딧 환불·문의·자료 보관함·선택 동의 관리).
+// 그리고 동의하지 않은 회원도 쓸 수 있어야 하는 화면(탈퇴·결제 내역·크레딧 환불·문의·자료 보관함·선택 동의 관리·이용 제한 안내).
 const EXCLUDED_PATH_PREFIXES = [
   '/consent',
   '/login',
@@ -22,6 +22,8 @@ const EXCLUDED_PATH_PREFIXES = [
   '/mypage/credits',
   '/mypage/support',
   '/mypage/consents',
+  // 12번: 이용 제한 안내 화면(동의하지 않은 회원도 막힌 이유를 볼 수 있어야 한다)
+  '/mypage/restriction',
   '/library',
   '/_next',
   '/.well-known',

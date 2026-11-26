@@ -11,6 +11,14 @@ import {
   parseConsentSubmission,
 } from '@/lib/signup-consent'
 import { recordUserConsents, validateConsentSubmission } from '@/lib/signup-consent-server'
+import { ACCOUNT_BLOCKED_LOGIN_ERROR, AUTH_USER_BANNED_CODE, MEMBER_SUSPENSION_FALLBACK_TEXTS } from '@/lib/member-suspension'
+import { getMemberSuspensionPolicyCached } from '@/lib/member-suspension-policy-server'
+
+// 12번 5-3: 로그인 차단 안내 문구(정책 texts.loginBlocked, 읽지 못하면 코드 대체 문구). 로그인 화면이 카카오 콜백(?error=account_blocked) 때도 부른다.
+export async function getAccountBlockedNotice() {
+  const policy = await getMemberSuspensionPolicyCached()
+  return policy?.texts.loginBlocked ?? MEMBER_SUSPENSION_FALLBACK_TEXTS.loginBlocked
+}
 
 export async function login(formData: FormData) {
   console.log('--------------------------------------------------')
@@ -31,6 +39,11 @@ export async function login(formData: FormData) {
 
   if (error) {
     console.error('[Login Action] Supabase Error:', error.message)
+
+    // 12번: 로그인 차단(인증 서버 오류 코드 user_banned). 영어 원문을 비교하거나 보이지 않는다.
+    if (error.code === AUTH_USER_BANNED_CODE) {
+      return { success: false, code: ACCOUNT_BLOCKED_LOGIN_ERROR, error: await getAccountBlockedNotice() }
+    }
 
     // Check if the error is due to unconfirmed email
     if (error.message === 'Email not confirmed') {

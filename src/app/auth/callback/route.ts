@@ -1,6 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { normalizeAuthNextPath } from '@/lib/auth-paths'
 import { NextResponse } from 'next/server'
+import { ACCOUNT_BLOCKED_LOGIN_ERROR, AUTH_USER_BANNED_CODE } from '@/lib/member-suspension'
+
+const redirectAccountBlocked = (origin: string, next: string) => {
+  const params = new URLSearchParams({ next, error: ACCOUNT_BLOCKED_LOGIN_ERROR })
+  return NextResponse.redirect(`${origin}/login?${params.toString()}`)
+}
 
 const getRequestOrigin = (request: Request) => {
   const requestUrl = new URL(request.url)
@@ -33,6 +39,11 @@ export async function GET(request: Request) {
   const errorDescription = searchParams.get('error_description')
   const provider = searchParams.get('provider')
   const signupMode = searchParams.get('signup') === '1' || searchParams.get('signup_mode') === '1'
+
+  // 12번: 로그인 차단 회원(인증 서버 error_code=user_banned)은 설명 글과 상관없이 account_blocked 로 보낸다(로그인 화면이 정책 문구를 보임).
+  if (errorCode === AUTH_USER_BANNED_CODE) {
+    return redirectAccountBlocked(origin, next)
+  }
 
   if (error || !code) {
     const failParams = new URLSearchParams()
@@ -67,6 +78,9 @@ export async function GET(request: Request) {
         nextUrl.searchParams.set('login', 'success')
       }
       return NextResponse.redirect(nextUrl.toString())
+    }
+    if (error.code === AUTH_USER_BANNED_CODE) {
+      return redirectAccountBlocked(origin, next)
     }
 
     const failParams = new URLSearchParams()

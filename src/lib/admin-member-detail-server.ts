@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
 import { getCreditBalanceSnapshot } from '@/lib/credit-balance'
@@ -13,6 +14,7 @@ import {
 } from '@/lib/member-withdrawal-server'
 import { withdrawalText } from '@/lib/member-withdrawal'
 import { readWithdrawnTicketTitle, readWithdrawnUserIdsForRedaction } from '@/lib/withdrawn-member-redaction-server'
+import { readMemberNotesSection, readMemberSuspensionSection } from '@/lib/admin-member-suspension-server'
 
 // 관리자 '회원 상세'(/admin/users/[id]). 조회만 한다.
 // 구역마다 권한이 있을 때만 읽는다(권한이 없으면 조회 자체를 하지 않는다). 한 구역이 실패해도 다른 구역은 그대로 보여 준다.
@@ -242,13 +244,13 @@ export async function getAdminMemberDetail(access: AdminAccess, userId: string) 
 
   const { data: profile, error } = await createAdminClient()
     .from('profiles')
-    .select('id, email, display_tag, phone, created_at, provider, is_admin')
+    .select('id, email, display_tag, phone, created_at, provider, is_admin, withdrawn_at')
     .eq('id', userId)
     .maybeSingle()
   if (error) throw new Error(error.message)
   if (!profile) return null
 
-  const [credits, creditTransactions, paymentOrders, marketOrders, paymentRefunds, marketRefunds, supportTickets, consents, withdrawal] = await Promise.all([
+  const [credits, creditTransactions, paymentOrders, marketOrders, paymentRefunds, marketRefunds, supportTickets, consents, withdrawal, suspension, notes] = await Promise.all([
     readSection(access, 'credits.view', '크레딧', () => readCredits(userId)),
     readSection(access, 'credits.view', '크레딧 거래', () => readCreditTransactions(userId)),
     readSection(access, 'orders.view', '충전 결제', () => readPaymentOrders(userId)),
@@ -262,9 +264,12 @@ export async function getAdminMemberDetail(access: AdminAccess, userId: string) 
       return history
     }),
     readSection(access, 'owner', '회원 탈퇴', () => readWithdrawal(userId)),
+    // 12번: '이용 정지'·'관리자 메모' 구역(보기는 members.view, 그 안의 기한·잔액·대기 건수는 각 권한이 있을 때만 읽음)
+    readSection(access, 'members.view', '이용 정지', () => readMemberSuspensionSection(access, userId, profile.withdrawn_at)),
+    readSection(access, 'members.view', '관리자 메모', () => readMemberNotesSection(userId, profile.withdrawn_at)),
   ])
 
-  return { profile, credits, creditTransactions, paymentOrders, marketOrders, paymentRefunds, marketRefunds, supportTickets, consents, withdrawal }
+  return { profile, credits, creditTransactions, paymentOrders, marketOrders, paymentRefunds, marketRefunds, supportTickets, consents, withdrawal, suspension, notes }
 }
 
 async function countRows(query: PromiseLike<{ count: number | null; error: { message: string } | null }>) {
@@ -276,7 +281,7 @@ async function countRows(query: PromiseLike<{ count: number | null; error: { mes
 // 문의 상세 창의 회원 요약: 건수만 센다. 회원 상세와 같이 권한이 없는 항목은 세지 않는다(null).
 export async function getAdminMemberSummary(access: AdminAccess, userId: string, currentTicketId: string) {
   const head = { count: 'exact', head: true } as const
-  const [paymentOrders, marketOrders, otherTickets] = await Promise.all([
+  const [paymentOrders, marketOrders, otherTickets, activeSuspensions] = await Promise.all([
     readSection(access, 'orders.view', '충전 결제 건수', () => countRows(
       createPaymentAdminClient().from('payment_orders').select('id', head).eq('user_id', userId)
     )),
@@ -287,8 +292,13 @@ export async function getAdminMemberSummary(access: AdminAccess, userId: string,
     readSection(access, 'support.manage', '다른 문의 건수', () => countRows(
       createAdminClient().from('support_tickets').select('id', head).eq('user_id', userId).neq('id', currentTicketId)
     )),
+    // 12번: '정지 중' 배지(members.view). 활성 = 해제 안 됨이고 끝나는 날이 없거나 지나지 않음.
+    readSection(access, 'members.view', '정지 중', () => countRows(
+      (createAdminClient() as unknown as SupabaseClient).from('member_suspensions').select('id', head).eq('user_id', userId)
+        .is('lifted_at', null).or(`ends_at.is.null,ends_at.gt.${new Date().toISOString()}`)
+    )),
   ])
-  return { paymentOrders, marketOrders, otherTickets }
+  return { paymentOrders, marketOrders, otherTickets, activeSuspensions }
 }
 
 export type AdminMemberSummary = Awaited<ReturnType<typeof getAdminMemberSummary>>

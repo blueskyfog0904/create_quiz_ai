@@ -20,6 +20,7 @@ import {
 import { hasPendingMarketRefundRequestForTarget, listPendingMarketRefundScopes } from '@/lib/market-refunds'
 import { isPendingRefundBlockingFile } from '@/lib/market-refund-rules'
 import { createAdminClient as createScopeClient } from '@/lib/supabase/bypass'
+import { checkMemberSuspensionForApi, memberSuspensionDownloadRedirect } from '@/lib/member-suspension-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +44,11 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
   if (!user) {
     return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' } }, { status: 401 })
+  }
+  // 12번 5-1: '다운로드도 막기'를 고른 정지면 안내 화면으로 303 이동(확인 실패도 ?check=failed 로 이동 — 날 JSON 없음).
+  const suspension = await checkMemberSuspensionForApi(user.id, 'download')
+  if (suspension) {
+    return memberSuspensionDownloadRedirect(request, suspension)
   }
 
   const fileId = request.nextUrl.searchParams.get('fileId')

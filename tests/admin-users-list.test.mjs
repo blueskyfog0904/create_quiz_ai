@@ -109,7 +109,8 @@ test('화면: 없는 표·전체 컬럼 조회·화면 안 검색·고정 페이
   const page = read('src/app/(admin)/admin/users/page.tsx')
   assert.doesNotMatch(page, /user_credits|select\('\*'|\.limit\(20\)/)
   assert.match(page, /await requireAdminPagePermission\('members\.view'\)/)
-  assert.match(page, /listAdminUsers\(\{ q: params\?\.q, page: params\?\.page, pageSize: params\?\.pageSize \}\)/)
+  // 12번: '정지 중만 보기'(suspended=1)도 서버가 고른다.
+  assert.match(page, /listAdminUsers\(\{ q: params\?\.q, page: params\?\.page, pageSize: params\?\.pageSize, suspended: params\?\.suspended \}\)/)
 
   const client = read('src/app/(admin)/admin/users/users-client.tsx')
   assert.doesNotMatch(client, /useState\(initialUsers\)|users\.filter\(|1 \/ 1/)
@@ -117,5 +118,5 @@ test('화면: 없는 표·전체 컬럼 조회·화면 안 검색·고정 페이
   assert.match(client, /router\.push\(buildHref\(\{ q: search\.trim\(\) \|\| null, page: 1 \}\)\)/)
   assert.match(client, /user\.credit_balance === null \? '잔액 확인 불가'/)
   assert.match(client, /onSuccess=\{\(\) => router\.refresh\(\)\}/)
-  assert.match(client, /query \? '검색 결과가 없습니다\.' : '가입한 사용자가 없습니다\.'/)
+  assert.match(client, /query \|\| suspendedOnly \? '검색 결과가 없습니다\.' : '가입한 사용자가 없습니다\.'/)
 })

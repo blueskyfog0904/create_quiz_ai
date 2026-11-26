@@ -29,12 +29,14 @@ interface UsersClientProps {
   page: number
   pageSize: number
   query: string
+  // 12번: '정지 중만 보기'
+  suspendedOnly: boolean
   // 크레딧 지급(credits.grant). 없으면 지급 버튼을 그리지 않는다.
   canGrantCredits: boolean
 }
 
 // 목록·검색·페이지는 서버가 정한다(주소의 q·page·pageSize). 이 화면은 받은 값을 그대로 그린다.
-export function UsersClient({ users, totalCount, page, pageSize, query, canGrantCredits }: UsersClientProps) {
+export function UsersClient({ users, totalCount, page, pageSize, query, suspendedOnly, canGrantCredits }: UsersClientProps) {
   const router = useRouter()
   const [search, setSearch] = useState(query)
   // 지급 창에는 대상 회원의 식별 정보만 넘긴다(창은 이 값이 바뀔 때 입력을 초기화하므로 같은 객체를 유지한다).
@@ -44,6 +46,7 @@ export function UsersClient({ users, totalCount, page, pageSize, query, canGrant
   const buildHref = (changes: Record<string, string | number | null>) => {
     const next = updateListQuery(new URLSearchParams({
       ...(query ? { q: query } : {}),
+      ...(suspendedOnly ? { suspended: '1' } : {}),
       page: String(page),
       pageSize: String(pageSize),
     }).toString(), changes)
@@ -84,8 +87,16 @@ export function UsersClient({ users, totalCount, page, pageSize, query, canGrant
           </div>
           <Button type="submit" variant="adminAction">검색</Button>
         </form>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={suspendedOnly}
+            onChange={(event) => router.push(buildHref({ suspended: event.target.checked ? '1' : null, page: 1 }))}
+          />
+          정지 중만 보기
+        </label>
         <Badge variant="secondary" className="text-sm">
-          {query ? `검색 결과 ${totalCount.toLocaleString()}명` : `총 ${totalCount.toLocaleString()}명`}
+          {query || suspendedOnly ? `검색 결과 ${totalCount.toLocaleString()}명` : `총 ${totalCount.toLocaleString()}명`}
         </Badge>
       </div>
 
@@ -94,7 +105,7 @@ export function UsersClient({ users, totalCount, page, pageSize, query, canGrant
         <CardContent className="p-0">
           {users.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
-              {query ? '검색 결과가 없습니다.' : '가입한 사용자가 없습니다.'}
+              {query || suspendedOnly ? '검색 결과가 없습니다.' : '가입한 사용자가 없습니다.'}
             </div>
           ) : (
             <div className="divide-y">
@@ -115,6 +126,12 @@ export function UsersClient({ users, totalCount, page, pageSize, query, canGrant
                               <Shield className="h-3 w-3 mr-1" />
                               관리자
                             </Badge>
+                          )}
+                          {user.suspended && (
+                            <Badge className="bg-red-100 text-red-800">정지</Badge>
+                          )}
+                          {user.suspended === null && (
+                            <Badge variant="outline" className="text-xs text-gray-500">정지 여부 확인 불가</Badge>
                           )}
                           {user.withdrawn_at && (
                             <Badge variant="outline" className="border-red-300 text-red-700">

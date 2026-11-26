@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, Suspense } from 'react'
-import { login } from '../../auth/actions'
+import { useEffect, useState, Suspense } from 'react'
+import { getAccountBlockedNotice, login } from '../../auth/actions'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { normalizeAuthNextPath } from '@/lib/auth-paths'
+import { ACCOUNT_BLOCKED_LOGIN_ERROR, MEMBER_SUSPENSION_FALLBACK_TEXTS } from '@/lib/member-suspension'
 
 const errorMessages: Record<string, string> = {
   access_denied: '카카오 로그인 동의가 취소되었습니다. 다시 시도해주세요.',
@@ -45,7 +46,19 @@ function LoginContent() {
   const next = normalizeAuthNextPath(searchParams.get('next'))
   const errorCode = searchParams.get('error')
   const errorDescription = searchParams.get('error_description')
-  const errorMessage = getKakaoErrorMessage(errorCode, errorDescription)
+  // 12번: 로그인 차단(카카오 콜백·미들웨어가 ?error=account_blocked 로 보냄, 이메일 로그인은 액션 결과 code)은 정책 문구를 보인다.
+  const [blockedNotice, setBlockedNotice] = useState<string | null>(null)
+  const isAccountBlocked = errorCode === ACCOUNT_BLOCKED_LOGIN_ERROR
+  const errorMessage = isAccountBlocked || blockedNotice ? blockedNotice : getKakaoErrorMessage(errorCode, errorDescription)
+
+  useEffect(() => {
+    if (!isAccountBlocked) return
+    let active = true
+    getAccountBlockedNotice()
+      .then((text) => { if (active) setBlockedNotice(text) })
+      .catch(() => { if (active) setBlockedNotice(MEMBER_SUSPENSION_FALLBACK_TEXTS.loginBlocked) })
+    return () => { active = false }
+  }, [isAccountBlocked])
   const isPasswordResetDone = searchParams.get('reset') === 'done'
   const nextQuery = next === '/' ? '' : `?${new URLSearchParams({ next }).toString()}`
   const callbackPath = new URLSearchParams({ next }).toString()
@@ -55,7 +68,10 @@ function LoginContent() {
     try {
       const result = await login(formData)
       
-      if (result?.error) {
+      if (result && 'code' in result && result.code === ACCOUNT_BLOCKED_LOGIN_ERROR) {
+        setBlockedNotice(result.error)
+        setIsLoading(false)
+      } else if (result?.error) {
         toast.error(result.error)
         setIsLoading(false)
       } else if (result?.success) {
@@ -116,7 +132,7 @@ function LoginContent() {
             </div>
           )}
           {errorMessage && (
-            <div className="rounded-md bg-red-50 text-sm text-red-600 px-3 py-2 border border-red-200">
+            <div role="alert" className="rounded-md bg-red-50 text-sm text-red-600 px-3 py-2 border border-red-200 whitespace-pre-line">
               {errorMessage}
             </div>
           )}

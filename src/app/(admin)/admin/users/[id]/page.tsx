@@ -10,6 +10,8 @@ import { ADMIN_GRANT_SOURCE_CATEGORIES, getAdminCreditTransactionKind } from '@/
 import { hasAdminPermission } from '@/lib/admin-permissions'
 import { RevokeCreditButton } from './revoke-credit-button'
 import { MemberWithdrawalPanel } from './member-withdrawal-panel'
+import { MemberSuspensionPanel } from './member-suspension-panel'
+import { MemberNotesPanel } from './member-notes-panel'
 import { getCreditSourceCategoryLabel, type CreditSourceDisplayInput } from '@/lib/credit-source-display'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
 import {
@@ -103,6 +105,15 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
   const canRevoke = hasAdminPermission(access, 'credits.revoke') && profile.id !== access.userId
   // 약관 이력 화면은 site.manage 가 필요하다(없으면 지문만 글자로).
   const canViewPolicyHistory = hasAdminPermission(access, 'site.manage')
+  // 12번: 정지·메모 버튼은 화면·route·DB 가 같은 권한일 때만 보인다(로그인 차단·가림은 대표). 관리자 계정은 정지·메모 대상이 아니다.
+  const isMemberTarget = !profile.is_admin && profile.id !== access.userId
+  const isOwner = hasAdminPermission(access, 'owner')
+  const suspensionCapabilities = { canSuspend: isMemberTarget && hasAdminPermission(access, 'members.suspend'), isOwner }
+  const noteCapabilities = { actorId: access.userId, canMemo: !profile.is_admin && hasAdminPermission(access, 'members.memo'), isOwner }
+  const activeSuspension = detail.suspension && !detail.suspension.failed ? detail.suspension.data.active : null
+  // 익명화하면 지워지는 건수(앱에서 센다 — 10번 함수는 고치지 않음)
+  const erasedSuspensionCount = detail.suspension && !detail.suspension.failed ? detail.suspension.data.history.length : 0
+  const erasedNoteCount = detail.notes && !detail.notes.failed ? detail.notes.data.notes.length : 0
 
   return (
     <div className="space-y-6">
@@ -117,6 +128,7 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
           <CardTitle className="flex flex-wrap items-center gap-2 text-lg">
             <span className="break-all">{formatMemberDisplayName(profile.email, profile.display_tag)}</span>
             {profile.is_admin && <Badge className="bg-orange-100 text-orange-700">관리자</Badge>}
+            {activeSuspension && <Badge className="bg-red-100 text-red-800">정지 중</Badge>}
             {detail.withdrawal && !detail.withdrawal.failed && detail.withdrawal.data.preview.withdrawnAt && (
               <Badge variant="outline" className="border-red-300 text-red-700">탈퇴 {formatDateTime(detail.withdrawal.data.preview.withdrawnAt)}</Badge>
             )}
@@ -138,6 +150,14 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
           </dl>
         </CardContent>
       </Card>
+
+      <Section title="이용 정지" section={detail.suspension}>
+        {(suspension) => <MemberSuspensionPanel userId={profile.id} data={suspension} capabilities={suspensionCapabilities} />}
+      </Section>
+
+      <Section title="관리자 메모" section={detail.notes}>
+        {(notes) => <MemberNotesPanel userId={profile.id} data={notes} capabilities={noteCapabilities} />}
+      </Section>
 
       <Section title="크레딧" section={detail.credits}>
         {(credits) => (
@@ -424,7 +444,16 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
       </Section>
 
       <Section title="회원 탈퇴 (대표 전용)" section={detail.withdrawal}>
-        {(withdrawal) => <MemberWithdrawalPanel userId={profile.id} email={profile.email} data={withdrawal} />}
+        {(withdrawal) => (
+          <>
+            {(activeSuspension || erasedNoteCount > 0) && (
+              <p role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                익명화하면 정지 기록 {erasedSuspensionCount}건·메모 {erasedNoteCount}건이 지워집니다. 개인정보처리방침 3절에 따라 따로 보관하지 않습니다.
+              </p>
+            )}
+            <MemberWithdrawalPanel userId={profile.id} email={profile.email} data={withdrawal} />
+          </>
+        )}
       </Section>
 
       <Section title="약관 동의" section={detail.consents}>

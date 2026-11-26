@@ -18,6 +18,9 @@ export const ADMIN_PERMISSIONS = {
   'content.manage': { label: '공지사항·FAQ 게시', requires: [], limits: {} },
   'orders.view': { label: '충전 결제·마켓 구매 조회', requires: [], limits: {} },
   'members.view': { label: '회원 목록·상세 조회', requires: [], limits: {} },
+  // 12번 묶음: 메모 보기는 members.view. 로그인 차단과 그 해제·알림 기록은 대표만(DB 함수가 다시 본다).
+  'members.memo': { label: '회원 관리자 메모 쓰기·지우기', requires: ['members.view'], limits: {} },
+  'members.suspend': { label: '회원 이용 제한·해제', requires: ['members.view'], limits: {} },
   'credits.view': { label: '크레딧 거래 조회', requires: [], limits: {} },
   'credits.grant': {
     label: '크레딧 수동 지급',

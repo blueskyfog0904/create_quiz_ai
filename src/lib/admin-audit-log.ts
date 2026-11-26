@@ -61,6 +61,14 @@ export const ADMIN_AUDIT_ACTIONS = {
   // 관리자 화면 저장은 지금처럼 market_purchase_policy_update·point_charge_policy_update 로 남긴다.
   checkout_consent_keys_seed: '결제 동의 새 방식 문구 넣기(SQL 스크립트)',
   checkout_consent_format_change: '결제 동의 방식 바꾸기(SQL 스크립트)',
+  // 12번 묶음(회원 이용 정지·관리자 메모): 모두 DB 함수가 같은 거래에서 남긴다(자유 글 없이 범위·분류·기간·글자 수만).
+  member_suspend: '회원 이용 정지',
+  member_suspension_lift: '회원 이용 정지 해제',
+  member_suspension_notice_record: '정지 알림 발송 기록',
+  member_note_add: '회원 관리자 메모 추가',
+  member_note_delete: '회원 관리자 메모 삭제',
+  member_note_redact: '회원 관리자 메모 가림(대표)',
+  member_suspension_policy_update: '이용 정지 안내 문구 수정',
 } as const
 
 export type AdminAuditAction = keyof typeof ADMIN_AUDIT_ACTIONS

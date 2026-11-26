@@ -17,6 +17,13 @@ import { resolveSiteFeatureRoute } from '@/lib/site-features'
 import { normalizeAuthNextPath } from '@/lib/auth-paths'
 import { isAdminAccountEmail } from '@/lib/admin-accounts-shared'
 import { buildConsentGateNext, isConsentGateExcludedPath, isConsentGateRequest } from '@/lib/consent-gate'
+import {
+  ACCOUNT_BLOCKED_LOGIN_ERROR,
+  MEMBER_RESTRICTION_HEADER,
+  MEMBER_RESTRICTION_HEADER_VALUE,
+  isMemberGateExcludedPath,
+  parseMemberGate,
+} from '@/lib/member-suspension'
 
 const WORKSPACE_SUBJECT_HEADER = 'x-workspace-subject'
 const WORKSPACE_HEADER_MODE_HEADER = 'x-workspace-header-mode'
@@ -53,44 +60,73 @@ const parseSessionStartedMarker = (value?: string): { sessionId: string; started
   return { sessionId: value.slice(0, separatorIndex), startedAt }
 }
 
-// 필수 약관 동의 판정(화면 이동용 — 최선 노력). 동의가 부족하면 /consent 로 보내는 응답, 아니면 null.
-// 실패(시간 초과·오류)하면 통과시키고 던지지 않는다(바깥 catch 가 로그인 쿠키를 지우지 않게). 실제 강제는 돈 API 가 한다.
-const CONSENT_GATE_TIMEOUT_MS = 1500
+// 회원 관문(화면 이동용 — 최선 노력): 화면 GET 에서 get_my_member_gate 를 한 번 부르고 그 결과를 두 판정에 쓴다.
+//   정지 판정(12번 5-2): 최소 제외(isMemberGateExcludedPath)만 빼고 모든 화면에서 한다.
+//     login_blocked → 로그인 쿠키를 지우고 /login?error=account_blocked(세션 삭제 뒤 남은 토큰에 대한 두 번째 방어)
+//     restricted   → restricted: true(요청 헤더 x-member-restriction 을 붙여 회원 틀이 한 줄 안내를 그린다)
+//   동의 이동: 같은 결과의 missingRequired 로, 지금처럼 동의 제외 경로에서는 이동시키지 않는다.
+// 실패(시간 초과·오류)하면 통과시키고 던지지 않는다(바깥 catch 가 로그인 쿠키를 지우지 않게). 실제 강제는 서버 가드·DB 가 한다.
+const MEMBER_GATE_TIMEOUT_MS = 1500
 
-async function checkConsentGate(
+async function checkMemberGate(
   supabase: SupabaseClient,
   request: NextRequest,
   user: Pick<User, 'email'>,
   response: NextResponse
-) {
+): Promise<{ redirect: NextResponse | null; restricted: boolean }> {
+  const pass = { redirect: null, restricted: false }
   try {
-    if (!isConsentGateRequest(request.method, request.headers)) return null
-    if (isConsentGateExcludedPath(request.nextUrl.pathname)) return null
-    // 관리자 ID 계정은 회원이 아니다(권한이 해제돼도 화면은 통과 — 돈 API 에서 막힌다).
-    if (isAdminAccountEmail(user.email ?? '')) return null
+    if (!isConsentGateRequest(request.method, request.headers)) return pass
+    // 관리자 ID 계정은 회원이 아니다(판정하지 않음 — 권한이 해제돼도 화면은 통과, 돈 API 에서 막힌다).
+    if (isAdminAccountEmail(user.email ?? '')) return pass
+    const memberGateApplies = !isMemberGateExcludedPath(request.nextUrl.pathname)
+    const consentApplies = !isConsentGateExcludedPath(request.nextUrl.pathname)
+    if (!memberGateApplies && !consentApplies) return pass
 
     const { data, error } = await supabase
-      .rpc('get_my_missing_required_consents')
-      .abortSignal(AbortSignal.timeout(CONSENT_GATE_TIMEOUT_MS))
-    if (error || !Array.isArray(data) || data.length === 0) {
+      .rpc('get_my_member_gate')
+      .abortSignal(AbortSignal.timeout(MEMBER_GATE_TIMEOUT_MS))
+    const gate = error ? null : parseMemberGate(data)
+    if (!gate) {
       if (error) {
-        console.warn('[ConsentGate] check skipped', { code: error.code })
+        console.warn('[MemberGate] check skipped', { code: error.code })
       }
-      return null
+      return pass
     }
 
-    // 상대 주소로 redirect 하면 미들웨어에서 예외가 나므로 절대 주소로 만든다.
-    const redirectUrl = request.nextUrl.clone()
-    const next = buildConsentGateNext(request.nextUrl.pathname, request.nextUrl.search)
-    redirectUrl.pathname = '/consent'
-    redirectUrl.search = ''
-    redirectUrl.hash = ''
-    redirectUrl.searchParams.set('next', next)
-    const redirect = NextResponse.redirect(redirectUrl)
-    copyResponseCookies(response, redirect)
-    return redirect
+    if (memberGateApplies && gate.restriction?.scope === 'login_blocked') {
+      // 로그인 차단: 남은 토큰으로 들어온 경우다. 로그인 쿠키·세션 시작 쿠키를 지우고 로그인 화면에서 안내 문구를 보인다.
+      const redirectUrl = request.nextUrl.clone()
+      redirectUrl.pathname = '/login'
+      redirectUrl.search = ''
+      redirectUrl.hash = ''
+      redirectUrl.searchParams.set('error', ACCOUNT_BLOCKED_LOGIN_ERROR)
+      const redirect = NextResponse.redirect(redirectUrl)
+      request.cookies.getAll().forEach(({ name }) => {
+        if (name.startsWith('sb-')) {
+          redirect.cookies.set(name, '', { path: '/', maxAge: 0 })
+        }
+      })
+      redirect.cookies.set(AUTH_SESSION_STARTED_COOKIE, '', { path: '/', maxAge: 0 })
+      return { redirect, restricted: false }
+    }
+
+    if (consentApplies && gate.missingRequired.length > 0) {
+      // 상대 주소로 redirect 하면 미들웨어에서 예외가 나므로 절대 주소로 만든다.
+      const redirectUrl = request.nextUrl.clone()
+      const next = buildConsentGateNext(request.nextUrl.pathname, request.nextUrl.search)
+      redirectUrl.pathname = '/consent'
+      redirectUrl.search = ''
+      redirectUrl.hash = ''
+      redirectUrl.searchParams.set('next', next)
+      const redirect = NextResponse.redirect(redirectUrl)
+      copyResponseCookies(response, redirect)
+      return { redirect, restricted: false }
+    }
+
+    return { redirect: null, restricted: memberGateApplies && gate.restriction?.scope === 'restricted' }
   } catch {
-    return null
+    return pass
   }
 }
 
@@ -113,7 +149,8 @@ function buildRequestHeaders(
   workspaceSubject?: string | null,
   headerMode: 'root-neutral' | 'subject' = 'subject',
   scopedPath = '/',
-  authUserId: string | null = null
+  authUserId: string | null = null,
+  memberRestriction: string | null = null
 ) {
   const requestHeaders = new Headers(request.headers)
 
@@ -133,6 +170,12 @@ function buildRequestHeaders(
     requestHeaders.set(AUTH_USER_ID_HEADER, authUserId)
   }
 
+  // 12번: 이용 제한 표시 헤더도 밖에서 온 값은 늘 지우고, 회원 관문이 판정한 경우에만 붙인다.
+  requestHeaders.delete(MEMBER_RESTRICTION_HEADER)
+  if (memberRestriction) {
+    requestHeaders.set(MEMBER_RESTRICTION_HEADER, memberRestriction)
+  }
+
   return requestHeaders
 }
 
@@ -141,11 +184,12 @@ function buildNextResponse(
   workspaceSubject?: string | null,
   headerMode: 'root-neutral' | 'subject' = 'subject',
   scopedPath = '/',
-  authUserId: string | null = null
+  authUserId: string | null = null,
+  memberRestriction: string | null = null
 ) {
   return NextResponse.next({
     request: {
-      headers: buildRequestHeaders(request, workspaceSubject, headerMode, scopedPath, authUserId),
+      headers: buildRequestHeaders(request, workspaceSubject, headerMode, scopedPath, authUserId, memberRestriction),
     },
   })
 }
@@ -184,7 +228,8 @@ const LEGACY_LIBRARY_PATTERN = /^\/library\/(purchased|exam-papers|market|mypass
 const buildRoutingResponse = (
   request: NextRequest,
   routingContext = resolveWorkspaceRoutingContext(request),
-  authUserId: string | null = null
+  authUserId: string | null = null,
+  memberRestriction: string | null = null
 ) => {
   const url = request.nextUrl.clone()
   const {
@@ -208,7 +253,7 @@ const buildRoutingResponse = (
   if (pathSubject && stripped.scopedPath === '/') {
     const response = NextResponse.next({
       request: {
-        headers: buildRequestHeaders(request, pathSubject, 'subject', '/', authUserId),
+        headers: buildRequestHeaders(request, pathSubject, 'subject', '/', authUserId, memberRestriction),
       },
     })
     response.cookies.set('preferred_workspace', pathSubject)
@@ -218,7 +263,7 @@ const buildRoutingResponse = (
   if (pathSubject && isSubjectFacingPath(stripped.scopedPath)) {
     const response = NextResponse.next({
       request: {
-        headers: buildRequestHeaders(request, pathSubject, 'subject', stripped.scopedPath, authUserId),
+        headers: buildRequestHeaders(request, pathSubject, 'subject', stripped.scopedPath, authUserId, memberRestriction),
       },
     })
     response.cookies.set('preferred_workspace', pathSubject)
@@ -368,12 +413,15 @@ export async function updateSession(request: NextRequest) {
   if (STATIC_ASSET_PATH_PATTERN.test(request.nextUrl.pathname)) {
     const requestHeaders = new Headers(request.headers)
     requestHeaders.delete(AUTH_USER_ID_HEADER)
+    requestHeaders.delete(MEMBER_RESTRICTION_HEADER)
     return NextResponse.next({ request: { headers: requestHeaders } })
   }
 
   const routingContext = resolveWorkspaceRoutingContext(request)
   let verifiedUserId: string | null = null
-  let response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath)
+  // 12번: 회원 관문이 이용 제한으로 판정하면 'restricted'. 모든 응답 재생성이 이 값을 넘긴다.
+  let memberRestriction: string | null = null
+  let response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath, null, memberRestriction)
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -388,7 +436,7 @@ export async function updateSession(request: NextRequest) {
             request.cookies.set(name, value)
           )
 
-          response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath, verifiedUserId)
+          response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath, verifiedUserId, memberRestriction)
 
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, toSessionCookieOptions(options))
@@ -397,6 +445,21 @@ export async function updateSession(request: NextRequest) {
       },
     }
   )
+
+  // 회원 관문을 적용한다: 이동할 응답이면 그것을, 아니면 null. 이용 제한이면 헤더를 붙인 응답으로 바꿔 둔다(쿠키는 옮김).
+  const applyMemberGate = async (user: Pick<User, 'email'>) => {
+    const gate = await checkMemberGate(supabase as unknown as SupabaseClient, request, user, response)
+    if (gate.redirect) {
+      return gate.redirect
+    }
+    if (gate.restricted) {
+      memberRestriction = MEMBER_RESTRICTION_HEADER_VALUE
+      const restrictedResponse = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath, verifiedUserId, memberRestriction)
+      copyResponseCookies(response, restrictedResponse)
+      response = restrictedResponse
+    }
+    return null
+  }
 
   try {
     const {
@@ -414,7 +477,7 @@ export async function updateSession(request: NextRequest) {
 
       if (marker && marker.sessionId === sessionId && now - marker.startedAt > AUTH_ABSOLUTE_MAX_AGE_MS) {
         user = null
-        response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath)
+        response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath, null, memberRestriction)
         request.cookies.getAll().forEach(({ name }) => {
           if (name.startsWith('sb-')) {
             response.cookies.set(name, '', { path: '/', maxAge: 0 })
@@ -423,7 +486,7 @@ export async function updateSession(request: NextRequest) {
         response.cookies.set(AUTH_SESSION_STARTED_COOKIE, '', { path: '/', maxAge: 0 })
       } else {
         verifiedUserId = user.id
-        const authedResponse = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath, verifiedUserId)
+        const authedResponse = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath, verifiedUserId, memberRestriction)
         copyResponseCookies(response, authedResponse)
         response = authedResponse
 
@@ -486,12 +549,12 @@ export async function updateSession(request: NextRequest) {
 
         if (profile.signup_completed) {
           if (verifiedUserId) {
-            const consentRedirect = await checkConsentGate(supabase as unknown as SupabaseClient, request, user, response)
-            if (consentRedirect) {
-              return consentRedirect
+            const gateRedirect = await applyMemberGate(user)
+            if (gateRedirect) {
+              return gateRedirect
             }
           }
-          const routingResponse = buildRoutingResponse(request, routingContext, verifiedUserId)
+          const routingResponse = buildRoutingResponse(request, routingContext, verifiedUserId, memberRestriction)
           if (routingResponse) {
             copyResponseCookies(response, routingResponse)
             return routingResponse
@@ -501,7 +564,7 @@ export async function updateSession(request: NextRequest) {
 
         // 약관 전문은 보고 동의할 수 있어야 한다.
         if (isKakaoSignupPage || isTermsPath(pathname)) {
-          const routingResponse = buildRoutingResponse(request, routingContext, verifiedUserId)
+          const routingResponse = buildRoutingResponse(request, routingContext, verifiedUserId, memberRestriction)
           if (routingResponse) {
             copyResponseCookies(response, routingResponse)
             return routingResponse
@@ -525,15 +588,16 @@ export async function updateSession(request: NextRequest) {
     }
 
     if (!isBypassPath && user && verifiedUserId) {
-      const consentRedirect = await checkConsentGate(supabase as unknown as SupabaseClient, request, user, response)
-      if (consentRedirect) {
-        return consentRedirect
+      const gateRedirect = await applyMemberGate(user)
+      if (gateRedirect) {
+        return gateRedirect
       }
     }
   } catch {
     // 세션을 깨진 것으로 간주하는 경로이므로 인증 헤더도 함께 비운다.
     verifiedUserId = null
-    response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath)
+    memberRestriction = null
+    response = buildNextResponse(request, routingContext.explicitSubject, routingContext.headerMode, routingContext.scopedPath, null, memberRestriction)
 
     const supabaseCookies = request.cookies
       .getAll()
@@ -545,7 +609,7 @@ export async function updateSession(request: NextRequest) {
     })
   }
 
-  const routingResponse = buildRoutingResponse(request, routingContext, verifiedUserId)
+  const routingResponse = buildRoutingResponse(request, routingContext, verifiedUserId, memberRestriction)
   if (routingResponse) {
     copyResponseCookies(response, routingResponse)
     return routingResponse

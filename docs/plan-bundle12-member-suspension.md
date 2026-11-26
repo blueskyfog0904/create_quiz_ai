@@ -525,3 +525,116 @@
 | 관점 | 지적 | 고친 곳 |
 |---|---|---|
 | 법률·DB·코드 minor 6개 | 충전 환불을 접수 시각 기준으로, (나)·underage 만료 전 재확인·재정지, 활성 정지 구역의 계속 기한 경고, `operation_key` 확인을 잠금 뒤로 + 다른 대상 거절, `blocksDownloadDefault` 저장 검사·편집 칸·S10, 되돌리기 머리 확인 5개·md5(prosrc) | 3절 충전 환불 4단계, 8-1 RB-12 두 줄, 6-2 '활성 정지의 계속 경고', 4-3 `suspend_member` 순서, 4-3 저장 함수·6-3·S10, 4-6·11-1 |
+
+## 18. 구현 메모(2026-11-26, 커밋 전)
+3판 계획과 0절 결정(Q9 (가), 가림 함수 `redact_member_admin_note`, 처리방침 의존)대로 구현했다. 기록이 없는 0절 질문은 모두 기본안으로 했다. 구현 독립 검증은 아직 하지 않았다.
+
+### 18-1. 파일
+- **DB**
+  - 마이그레이션 `supabase/migrations/20261214100000_member_suspension.sql`
+  - 되돌리기 `supabase/rollback/20261214100000_member_suspension_down.sql`
+  - 리허설 생성기 `supabase/scripts/bundle12_rehearsal/generate.mjs`
+    - 만드는 파일: `a_light.sql`(낮에 돌려도 됨), `b_full.sql`(새벽만)
+- **공용**
+  - `src/lib/member-suspension.ts`(순수 규칙·문구 키·판정·오류 문구)
+  - `src/lib/member-suspension-policy-server.ts`(정책 읽기, 캐시 태그 = 설정 키)
+- **회원 쪽**
+  - 가드·응답: `src/lib/member-suspension-server.ts`(가드·303 이동·안내 화면 읽기·미리보기), `src/lib/member-suspension-client.ts`
+  - 동의 가드·미들웨어: `src/lib/consent-guard-server.ts`(동의 통과 뒤 정지 'write'), `src/lib/consent-gate.ts`(동의 제외에 `/mypage/restriction`), `src/lib/supabase/middleware.ts`
+  - route 4개: `market/cart/items` POST·PATCH, `items/[itemId]/reviews` POST, `reviews/[reviewId]/vote` POST, `items/[itemId]/download` GET(303)
+  - 화면: `(solvook)/layout.tsx` + `_components/member-restriction-banner.tsx`, `mypage/restriction/page.tsx`, 마이페이지 메뉴(`mypage/layout.tsx`·`mypage-side-nav.tsx`)
+  - 로그인: `auth/actions.ts`·`auth/callback/route.ts`·`(auth)/login/page.tsx`(`user_banned` → `account_blocked`)
+  - 막힘 안내: 결제 화면·장바구니·상품 담기·후기
+  - 다운로드 진단: `market-download-diagnosis.ts`·`admin-orders.ts`(이름표)·`admin-orders-server.ts`(관리자 진단에 정지 연결)
+- **관리자 쪽**
+  - 권한·작업 기록: `admin-permissions.ts`(두 키, requires `members.view`), `admin-audit-log.ts`(7종)
+  - 회원 상세: `admin-member-detail-server.ts`(`withdrawn_at`·정지·메모·문의 요약 배지), `admin-member-suspension-server.ts`·`admin-member-suspension.ts`, 화면 `users/[id]/member-suspension-panel.tsx`·`member-notes-panel.tsx`
+  - 문구 편집: `users/suspension-policy-card.tsx`·`suspension-policy-actions.ts`(대표 전용, `revalidateTag`)
+  - route: `api/admin/users/[id]/suspension`(members.suspend), `notes`(members.memo), `notes/redact`(owner)
+  - 회원 목록·문의 화면: `admin-users-server.ts`·`users-client.tsx`(정지 배지·'정지 중만 보기'), `support-client.tsx`('정지 중' 배지)
+- **시험**
+  - 새로 만듦: `tests/bundle12-member-suspension-contract.test.mjs`(22개. 1절 표 전수, DB 계약, 리허설 생성 최신 여부)
+  - 고침: 11-1 이 정한 기존 시험 6개, 그리고 가짜 모듈·정규식을 맞춘 시험 9개
+- **문서**
+  - 런북: 13절 'RB-12 회원 이용 정지·해제', 12-11~12-13 고객 안내 문구, 바로가기 한 줄, 10-11 열람 요청 4번(L5)
+  - 운영 개선 계획: 154줄
+  - 작업 순서표: 12번 행, 진행 기록, '관리자 비밀번호' 후속 줄(0절 끝 내용)
+
+### 18-2. 계획과 다르게 한 것(이유)
+1. **마이그레이션 버전은 계획대로 `20261214100000` 으로 두었다.**
+   - 운영 이력에는 이미 더 늦은 `20261216100000`(11번)이 있다.
+   - 그래도 이 저장소는 `db push` 를 쓰지 않는다(금지). 파일 단위로 적용하고, 이력은 같은 거래에서 `schema_migrations` INSERT 로 넣는다. 그래서 버전 순서가 적용을 막지 않는다.
+   - 13번 파일(`20261215…`)과의 '12번 먼저' 순서도 그대로 맞는다. 13번 계획 16절은 고칠 것이 없다.
+2. **문구 키를 18개에서 21개로 늘렸다**: `deadlineChargeRefund`·`deadlineMaterialRefund`·`deadlineCreditExpiry`.
+   - 쓰는 곳은 안내 화면의 기한 줄 이름과 대표 이메일 틀 `ownerMailDeadlines` 의 `{기한 종류}` 다.
+   - 둘 다 회원이 읽는 글이라 하드코딩 금지 규칙대로 DB 에 두었다. 저장 함수 키 목록·VERIFY(21)·TS 키·편집 카드를 함께 고쳤다.
+   - 관리자 화면 안의 기한 이름표는 코드 이름표로 남겼다.
+3. **사유 분류에 데이터 칸 두 개를 더했다**: `hidden`(숨김), `underageGuide`(정지 창에 `adminUnderageGuide` 를 보일지).
+   - 코드가 분류 코드 `underage` 로 분기하지 않게 하려는 것이다.
+   - 시험이 src 에 초안 분류 코드 글자가 없음을 확인한다.
+4. **`member_refund_deadlines` 는 기존 함수 값을 쓴다.**
+   - 유료 잔액·가장 빠른 유료 만료: `member_withdrawal_facts`
+   - 충전 환불 기한: 허용(`allowed`)인 충전 원천의 `get_point_charge_refund_eligibility.refundable_until`
+   - 자료 환불 기한: `market_refund_deadline(구매 시각, market_purchase_refund_days())`
+     - 대상 주문: 완료 주문 중 단품은 환불 확정 0·다운로드 없음·심사 중/승인 요청 없음, **묶음(bundle)은 그 조건 없이** 넣는다(1차 검증 major 반영 — 일부를 받았거나 일부 환불돼도 받지 않은 구성의 부분 환불이 같은 마감까지 된다. 남은 구성 판정 대신 더 이른 쪽으로 근사).
+     - TS 판정에만 있는 조건(차액 구매 막힘·차감 스냅숏 없음)은 보지 않는다. 그래서 실제보다 이른 기한이 나올 수 있다(경고가 더 일찍 뜨는 쪽).
+     - 옛 `market_purchases` 는 세지 않는다.
+     - **근사의 영향(재검증 minor, 코드 변경 없음)**: 묶음 주문은 남은 구성을 판정하지 않으므로, 구성을 모두 받았거나 모두 환불돼 더는 부분 환불할 것이 없는 묶음도 마감 전이면 회원 안내 화면의 '자료 환불 기한' 줄과 관리자 기한 경고에 보일 수 있다. 실제 환불 가능 여부는 환불 신청 화면·`request_market_partial_refund` 가 판정한다(표시는 더 이른 쪽으로만 틀림).
+5. **1절 표의 '상품 구매 POST'(`items/[itemId]/purchase`)는 '이미 닫힘' 줄로 옮겼다.** 11번에서 410 으로 닫혀 가드를 넣지 않았다. 전수 시험 표도 같다.
+6. 가림 route 를 `notes/redact` 로 따로 뺐다. 가드 전수 시험이 메서드마다 요구 권한을 하나만 받기 때문이다.
+7. 정해지지 않았던 입력 규칙을 정했다.
+   - 알림 기록의 보낸 시각: 지금 + 5분 이하, 정지 시작 − 1일 이상
+   - 정지 결과: `{suspensionId, scope, replay}`
+   - 같은 `operation_key`: 그 사이 해제됐어도 첫 행을 돌려준다.
+8. 탈퇴 패널 위 '정지 기록 N건·메모 N건'의 N 은 화면이 읽은 행 수다(이력 최근 20건, 메모 최근 50건까지). 그보다 많으면 실제보다 적게 나온다.
+9. 5-2 의 조건부 항목('세션 삭제 뒤 `getUser()` 가 통과하면 `/api` 도 401')은 넣지 않았다. 10절 6단계 운영 시험 결과를 보고 정한다.
+10. 정책을 읽지 못하면 한 줄 안내는 대체 문구 `apiBlocked` 를 쓴다(`bannerRestricted` 는 대체 문구가 없음). 마이페이지 메뉴 이름은 `texts.noticeTitle` 이고, 정책을 못 읽으면 메뉴를 숨긴다.
+11. **리허설**
+    - 계정: 지시대로 `@test.com` 시험 계정만 쓴다. 가짜 `auth.users` 행은 만들지 않는다.
+      - 대표·직원 역할은 시험 계정을 거래 안에서만 관리자로 바꿔 쓴다.
+      - 결제·시도·구매·탈퇴 요청이 없는 계정 2개가 S8 익명화용이다.
+      - 모자라면 `RH FAIL [setup]` 으로 멈춘다(지금 운영: 5개 중 결제 없는 계정 2개).
+    - light 사본은 profiles FK 를 뺐다. FK 를 만들면 profiles 에 SHARE ROW EXCLUSIVE 가 걸리기 때문이다. profiles 트리거·RESTRICTIVE 정책과 그 VERIFY 블록도 뺐다.
+    - 그래서 S8 실제 익명화(self·owner), S12 CASCADE, S10 RESTRICTIVE 는 b_full 에서만 본다.
+    - light 의 S8 은 '탈퇴 회원이면 해제·알림 기록 거절, 100년 차단 그대로'만 본다.
+    - b_full 의 S8 self 경로는 거래 안에서 `selfAnonymizeEnabled` 를 켠다. 15번 고지 잠금이 걸려 있으면 그 거래에서만 잠금 트리거를 끄고 켠다.
+
+### 18-3. 리허설 명령과 결과
+- 생성: `node supabase/scripts/bundle12_rehearsal/generate.mjs`. 최신 여부 확인은 `--check`(계약 시험도 확인한다).
+- **light(운영, 2026-11-26 낮, BEGIN…ROLLBACK, COMMIT 없음, 기존 표 잠금 DDL 없음)**
+  - 명령: `supabase db query --remote --yes -o json --file supabase/scripts/bundle12_rehearsal/a_light.sql`
+  - 4번 돌렸다(문구 키 추가·기한 확인 추가·1차 검증 반영 뒤 다시). **마지막 결과는 125줄 모두 통과**다.
+    - 경우별 줄 수: setup 1, S0 2, S1 16, S2 6, S3 6, S4 15, S5 11, S6 4, S7 21, S8 4, S9 6, S10 13, S11 6, S13 14
+  - 끝난 뒤 읽기 전용으로 확인했다. 표·함수·설정 행 없음, `replace_admin_permission_grants` md5 `dcb2155f…` 그대로, `banned_until` 0, 관리자 5, 12번 작업 기록 0.
+- 적용 뒤 함수 지문(md5(pg_get_functiondef), light S0 — 함수 본문은 light·full 이 같음). 13번 사전 점검 상수로 쓴다.
+  - `suspend_member` 5d000d4e523193149581c9beda159425 / `lift_member_suspension` 25429972fba8edd5eadf7d7dcb18617c / `record_member_suspension_notice` 71c1643da1438154a39da4f6d44f7369
+  - `mark_member_suspension_seen` 3e17ee8c84b32541dcbd59e81bdba5fd / `add_member_admin_note` b89372d9d47d41d0cf01deb987867f2e / `delete_member_admin_note` 30ecdcf1a58bbb5cfabc80c46f934458
+  - `redact_member_admin_note` 534fbfd359b245eb4af2076fcc91611d / `member_active_suspension` 6bde586e0c73985d825ac5aa1b7b27e6 / `member_refund_deadlines` ffa91d2e37f149d09e943000d238622b
+  - `get_my_member_gate` b0de864c4481cf61360a033683fc796d / `save_member_suspension_policy` 14ceccf5abac8b1b8e78a5921374f871 / `member_suspension_actor_allowed` 80cad4a004087e13cf283e7e252c7704
+  - `guard_member_suspensions_mutation` 78f080f9b09173bd9adf17b8ca1c92c2 / `guard_member_admin_notes_mutation` 28a50427a6f5b428e692eac6c9d28f0d / `member_suspension_withdrawal_cleanup` 10fd205be9911cd3788df8907e720e8f
+  - `replace_admin_permission_grants`: functiondef 2aec7f5608ff1245649fce57f2087a17, 본문 md5(prosrc) d6cd294fb5cb60c7e17356c895bf259b(VERIFY·되돌리기 머리 상수)
+- **b_full 은 아직 돌리지 않았다. DB 적용 전에 반드시 새벽에 돌린다(적용 승인 조건).** light 가 보지 못한 S8(실제 `anonymize_member` self·owner — 탈퇴 트리거가 예외 없이 메모·정지 행을 지우고 banned_until 100년), S12(프로필 삭제 CASCADE 가 쓰기 막기를 통과), S10(RESTRICTIVE 정책)을 여기서 확인한다. 하나라도 실패하면 적용하지 않는다.
+  - 잠금: profiles 는 처음부터 SHARE ROW EXCLUSIVE(쓰기 막음), 마지막 경우 S13 의 되돌리기(DROP TRIGGER·FK 표 DROP)부터 ROLLBACK 까지 ACCESS EXCLUSIVE(읽기도 막음). system_settings 는 정책 생성부터 ACCESS EXCLUSIVE.
+
+### 18-4. 시험
+- 전체 `node --test tests/*.test.mjs`: 2149개 중 실패 46개다. 실패 이름이 시작 전 기준선 46개와 같아 새 실패는 없다.
+- `npx tsc --noEmit -p .`: `.next/` 밖 오류 0
+- 바뀐 파일 60개 eslint: 오류 0, 경고 0
+
+### 18-5. 1차 구현 검증 반영(2026-11-26)
+| 관점·등급 | 지적 | 고친 곳 |
+|---|---|---|
+| 회원 경로 major | 안내 화면의 끝나는 날이 하루 늦음(ends_at = 고른 날 다음 날 00:00 KST) | 공용 `formatMemberLastDay`(1ms 앞의 한국 날짜)로 표시, 계약 시험 |
+| 법률·돈 major | `member_refund_deadlines` 가 다운로드 있는 묶음 주문을 빼 부분 환불 기한을 놓침 | 묶음은 조건 없이 후보(18-2 4번), light S1 에 묶음·단품 경우 추가, 함수 지문 갱신 |
+| 법률·돈 major | 대표 이메일 초안의 환불 기한 날짜가 하루 늦음 | 같은 공용 함수로 날짜를 만듦(안내 화면과 같은 셈법), 시험으로 고정 |
+| 법률·돈 minor | 기한 경고가 '같은 날'에 안 뜸 | `suspensionExceedsDeadline` 을 `>=` 로, 같은 날 시험 |
+| 관리자 minor | 확인된 기한이 없으면 메일 초안에 자리 표시가 남음 / 기한 읽기 실패가 확인 단계에 안 보임 / 새 분류 코드 칸이 저장된 코드와 같아지면 잠김 | 초안을 숨기고 안내 / 확인 단계 경고 / 저장된 행 표시(persisted)로만 잠금 |
+| 배포 minor | b_full 잠금 설명, 작업 순서표 줄 수, down ⑤가 13번 파일 시각 변경에 약함, S5 가 늘 참 | 설명 정정(18-3·생성기), 줄 수 갱신, down ⑤ 에 '12번 뒤 이름에 bundle13' 규칙 추가, S5 가 세션·refresh_tokens·one_time_tokens 행을 먼저 만들고 지워지는지 확인, 상수 비교 시험은 13번 계획의 파일 시각과 비교 |
+| DB minor | S8·S12·S10 이 실행으로 확인되지 않음 | 18-3: 적용 전 b_full 필수로 적음 |
+
+### 18-6. 남은 일·대표 확인
+- 구현 독립 검증(4관점) → b_full 새벽 리허설 → (대표 승인) DB 적용(12-10 고지 시작 뒤, **마감 2027-01-10**) → 로컬 미리보기 확인(`MEMBER_RESTRICTION_PREVIEW=1`) → push·배포 → 운영 시험(시험 계정)
+- 대표가 볼 것
+  - 18-2 의 2번: 새 문구 키 3개 초안('충전 환불 신청 기한'·'자료 환불 신청 기한'·'유료 크레딧 소멸일')
+  - 18-2 의 4번: 자료 환불 기한 근사(묶음 포함, 이른 쪽)
+  - 13절 L1~L6 은 그대로 변호사 확인 대기다.

@@ -1,7 +1,8 @@
 // 문제마켓 파일 다운로드가 되는지/왜 안 되는지를 DB에서 읽은 값만으로 판정한다(DB 조회 없음).
 // 관리자 '주문 조회 › 마켓 구매'의 진단용이다. 사유의 한글 이름은 admin-orders.ts(MARKET_DOWNLOAD_BLOCK_REASON_LABELS)에 있다.
 //
-// 회원 다운로드 route(src/app/api/market/items/[itemId]/download/route.ts의 handleMarketV2Download)의 판정 순서 그대로다:
+// 회원 다운로드 route(src/app/api/market/items/[itemId]/download/route.ts의 GET → handleMarketV2Download)의 판정 순서 그대로다:
+// [0] 정지   — 12번: 그 회원이 '다운로드도 막기'를 고른 정지 중이면 안내 화면으로 303(MEMBER_SUSPENDED). 정지 정보를 넘길 때만 본다.
 // [1] 상품   — market-items-server.ts getActiveMarketSubproductFileForDownload: 없음·삭제·비활성·(공개/숨김 아님) → 404
 // [2] 파일   — 같은 함수의 market_subproduct_files 조회(is_active = true, deleted_at is null) → 404
 // [3] 구성   — 같은 함수: 구성 없음·비활성·삭제, 파일 유형 없음 → 404
@@ -48,12 +49,17 @@ export interface MarketDownloadDiagnosisInput {
   }>
   // 심사 중(pending)인 환불 요청이 있는 주문 id
   pendingRefundOrderIds: string[]
+  // 12번: 그 회원의 활성 정지(member_active_suspension). 넘기지 않으면(또는 null) 정지 없음으로 본다.
+  memberSuspension?: { blocksDownload: boolean } | null
 }
 
 const blocked = (reason: MarketDownloadBlockReason): MarketDownloadDiagnosis => ({ downloadable: false, reason, entitlementOrderId: null })
 
 export function diagnoseMarketFileDownload(input: MarketDownloadDiagnosisInput): MarketDownloadDiagnosis {
   const { item, file, subproduct } = input
+
+  // [0] 회원 단위 정지는 파일 판정보다 먼저다(route 가 인증 직후 본다).
+  if (input.memberSuspension?.blocksDownload) return blocked('member_suspended')
 
   // [1] 숨김(hidden)은 새 노출·구매만 막는다. 이미 산 사람은 계속 내려받는다.
   if (!item) return blocked('item_missing')

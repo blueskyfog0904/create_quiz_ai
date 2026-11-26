@@ -87,13 +87,14 @@ const permissionList = (body) => {
 test('권한 교체 함수는 모르는 권한 이름을 거부하고, 그 목록(가장 최근 정의)은 코드의 권한 목록과 같다', () => {
   const body = functionBody('replace_admin_permission_grants')
   const latest = latestReplaceDefinition()
-  assert.equal(latest.name, '20261118120000_admin_credit_grant_limits.sql')
+  // 12번(20261214100000)이 members.memo·members.suspend 를 더해 다시 정의했다.
+  assert.equal(latest.name, '20261214100000_member_suspension.sql')
   const sqlKeys = permissionList(latest.body)
   assert.deepEqual([...sqlKeys].sort(), [...permissions.ADMIN_PERMISSION_KEYS].sort())
-  // 최근 정의는 처음 정의에서 credits.limits.manage 한 이름만 더했다(나머지 본문은 같다).
-  assert.deepEqual([...permissionList(body), 'credits.limits.manage'].sort(), [...sqlKeys].sort())
+  // 최근 정의는 처음 정의에서 credits.limits.manage(20261118120000)·members.memo·members.suspend(12번) 이름만 더했다(나머지 본문은 같다).
+  assert.deepEqual([...permissionList(body), 'credits.limits.manage', 'members.memo', 'members.suspend'].sort(), [...sqlKeys].sort())
   assert.equal(
-    latest.body.replace("'reports.view', 'credits.limits.manage'", "'reports.view'"),
+    latest.body.replace("'reports.view', 'credits.limits.manage',\n       'members.memo', 'members.suspend'", "'reports.view'"),
     body.replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION')
   )
   assert.match(body, /RAISE EXCEPTION 'ADMIN_PERMISSION_UNKNOWN'/)

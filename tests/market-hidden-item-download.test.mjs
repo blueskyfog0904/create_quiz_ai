@@ -64,6 +64,8 @@ function loadDownloadRoute({ item, entitled, fileActive = true }) {
       '@/lib/market-items-server': itemsServer,
       '@/lib/market-purchase': purchase,
       '@/lib/market-refunds': { hasPendingMarketRefundRequestForTarget: async () => false, listPendingMarketRefundScopes: async () => new Map() },
+      // 12번 정지 가드: 정지 없음
+      '@/lib/member-suspension-server': { checkMemberSuspensionForApi: async () => null },
     },
   })
 

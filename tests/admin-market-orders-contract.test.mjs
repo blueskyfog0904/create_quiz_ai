@@ -132,7 +132,7 @@ const orderRow = (index, extra = {}) => ({
 function loadMarketOrders({
   rows = [], matchedUsers = [], matchedItems = [], files = [], filesError = null, events = [], eventsError = null, countError = null,
   memberEntitlements = rows.flatMap((row) => row.entitlements.filter((entitlement) => entitlement.status === 'active').map((entitlement) => ({ ...entitlement, user_id: row.user_id }))),
-  entitlementsError = null, pendingRefundOrderIds = [], pendingRefundsError = null,
+  entitlementsError = null, pendingRefundOrderIds = [], pendingRefundsError = null, suspensions = [],
 } = {}) {
   const queries = []
   const { client: admin } = createFakeAdmin(({ table, ops }) => {
@@ -152,6 +152,8 @@ function loadMarketOrders({
         : { data: pendingRefundOrderIds.filter((orderId) => op(ops, 'in')[2].includes(orderId)).map((order_id) => ({ order_id })), error: null }
     }
     if (table === 'market_download_events') return eventsError ? { data: null, error: { message: eventsError } } : { data: events, error: null }
+    // 12번: 회원의 활성 정지(다운로드 route 와 같은 판정)
+    if (table === 'member_suspensions') return { data: suspensions, error: null }
     throw new Error(`unexpected table ${table}`)
   })
   const server = load('src/lib/admin-orders-server.ts', {
@@ -381,4 +383,13 @@ test('파일이 하나도 없는 주문은 사유를 알리고, 다운로드 기
   const events = Array.from({ length: 501 }, (_, index) => ({ id: `d${index}`, order_id: 'o1', subproduct_file_id: 'f1', created_at: '2026-11-12T00:00:00Z' }))
   const many = await loadMarketOrders({ rows: [orderRow(1)], files: [fileRow('f1')], events }).server.listMarketOrdersForAdmin({})
   assert.deepEqual([many.downloadsTruncated, many.orders[0].downloads.count, many.orders[0].downloads.recent.length], [true, 500, 20])
+})
+
+test('12번: 다운로드도 막은 활성 정지 회원의 파일은 member_suspended 로 진단한다(다운로드를 막지 않은 정지는 그대로)', async () => {
+  const blocked = await loadMarketOrders({ rows: [orderRow(1)], files: [fileRow('f1')], suspensions: [{ user_id: 'u1', blocks_download: true }] })
+    .server.listMarketOrdersForAdmin({})
+  assert.deepEqual(blocked.orders[0].files.map((file) => [file.id, file.diagnosis.reason]), [['f1', 'member_suspended']])
+  const open = await loadMarketOrders({ rows: [orderRow(1)], files: [fileRow('f1')], suspensions: [{ user_id: 'u1', blocks_download: false }] })
+    .server.listMarketOrdersForAdmin({})
+  assert.deepEqual(open.orders[0].files.map((file) => [file.id, file.diagnosis.downloadable]), [['f1', true]])
 })

@@ -201,6 +201,10 @@ const ROUTE_REQUIREMENTS = {
   'users/credits/revoke/route.ts': all('credits.revoke', 'POST'),
   // 10번: 회원 탈퇴(요청 기록·익명화·가림·보류 주문 닫기·보관함 열람)는 대표만
   'users/[id]/withdrawal/route.ts': all(OWNER, 'POST'),
+  // 12번: 이용 제한·해제·알림 기록(로그인 차단과 그 해제·알림 기록은 DB 함수가 대표만 받는다), 메모 추가·지우기, 메모 가림(대표)
+  'users/[id]/suspension/route.ts': all('members.suspend', 'POST'),
+  'users/[id]/notes/route.ts': all('members.memo', 'POST'),
+  'users/[id]/notes/redact/route.ts': all(OWNER, 'POST'),
   // 환불
   'market/refunds/route.ts': all('refunds.market', 'GET'),
   'market/refunds/[id]/route.ts': all('refunds.market', 'GET', 'PATCH'),
@@ -465,6 +469,11 @@ const ACTION_REQUIREMENTS = {
   'src/app/(admin)/admin/footer/notice-popup-actions.ts': {
     getNoticePopupAdminData: 'owner',
     saveNoticePopupAction: 'owner',
+  },
+  // 12번 6-3: 이용 정지 안내 문구·사유 분류는 대표 전용(DB 저장 함수도 대표인지 다시 본다).
+  'src/app/(admin)/admin/users/suspension-policy-actions.ts': {
+    getMemberSuspensionPolicyAdminData: 'owner',
+    saveMemberSuspensionPolicyAction: 'owner',
   },
   'src/app/(admin)/admin/footer/purchase-policy-actions.ts': {
     getMarketPurchasePolicyAdminData: 'site.manage',

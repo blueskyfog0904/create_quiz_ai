@@ -59,6 +59,8 @@ function loadCartItemsRoute({ add, select }) {
       setMarketCartSelection: async (...args) => { calls.push(['select', ...args]); return select },
       removeMarketCartItems: async () => ({ ok: true, data: {} }),
     },
+    // 12번 정지 가드: 정지 없음
+    '@/lib/member-suspension-server': { checkMemberSuspensionForApi: async () => null },
   })
   return { route, calls }
 }

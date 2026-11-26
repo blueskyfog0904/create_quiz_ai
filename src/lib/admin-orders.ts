@@ -147,6 +147,7 @@ export const MARKET_DOWNLOAD_BLOCK_REASON_LABELS = {
   entitlement_revoked: '권한이 회수됨',
   entitlement_order_missing: '권한에 주문 정보가 없음',
   pending_refund: '환불 요청 심사 중',
+  member_suspended: '회원 이용 정지(MEMBER_SUSPENDED, 다운로드도 막음)',
 } as const
 
 export const WORKSPACE_SUBJECT_LABELS = {

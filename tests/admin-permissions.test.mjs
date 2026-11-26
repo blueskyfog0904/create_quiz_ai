@@ -15,15 +15,18 @@ const grant = (permission, limits = {}) => ({ permission, limits })
 const staff = (...rows) => buildAdminAccess(USER_ID, { is_admin: true, admin_role: 'staff' }, rows)
 const owner = buildAdminAccess(USER_ID, { is_admin: true, admin_role: 'owner' }, [])
 
-test('권한 항목은 계획 표의 16개 + 지급 기본 한도 변경(2026-11-18)이고, 의존과 한도 키가 표와 같다', () => {
+test('권한 항목은 계획 표의 16개 + 지급 기본 한도 변경(2026-11-18) + 회원 메모·정지(12번)이고, 의존과 한도 키가 표와 같다', () => {
   assert.deepEqual(ADMIN_PERMISSION_KEYS, [
-    'support.manage', 'content.manage', 'orders.view', 'members.view', 'credits.view', 'credits.grant', 'credits.limits.manage', 'credits.revoke',
+    'support.manage', 'content.manage', 'orders.view', 'members.view', 'members.memo', 'members.suspend', 'credits.view', 'credits.grant', 'credits.limits.manage', 'credits.revoke',
     'refunds.market', 'refunds.payment', 'products.edit', 'products.delete', 'storefront.edit', 'reviews.manage',
     'pricing.manage', 'site.manage', 'reports.view',
   ])
   const shape = (key) => [ADMIN_PERMISSIONS[key].requires, Object.keys(ADMIN_PERMISSIONS[key].limits)]
   assert.deepEqual(shape('credits.grant'), [['members.view', 'credits.view'], ['per_grant', 'per_day']])
   assert.deepEqual(shape('credits.limits.manage'), [['credits.view'], []])
+  // 12번: 메모·정지는 members.view 가 함께 있어야 한다(DB member_suspension_actor_allowed 와 같은 규칙).
+  assert.deepEqual(shape('members.memo'), [['members.view'], []])
+  assert.deepEqual(shape('members.suspend'), [['members.view'], []])
   // 크레딧 지급 한도만 비워 둘 수 있다(비우면 DB 기본 한도). 다른 한도는 필수.
   assert.deepEqual(ADMIN_PERMISSION_KEYS.filter((key) => isAdminPermissionLimitOptional(key)), ['credits.grant'])
   assert.deepEqual(shape('credits.revoke'), [['members.view', 'credits.view'], ['per_grant']])

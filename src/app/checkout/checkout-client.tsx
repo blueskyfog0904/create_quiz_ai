@@ -19,6 +19,7 @@ import {
   type PointChargeCheckoutNotice,
 } from '@/lib/point-charge-policy'
 import { redirectToConsentIfRequired } from '@/lib/consent-client'
+import { MEMBER_RESTRICTION_PAGE_PATH } from '@/lib/member-suspension'
 import { parseCheckoutConsentBundle, type CheckoutConsentBundle } from '@/lib/checkout-consent'
 import type { MarketPurchaseLink } from '@/lib/market-purchase-info'
 import {
@@ -750,6 +751,16 @@ export function CheckoutClient({
                 >
                   새 결제 시도 시작하기
                 </button>
+              ) : null}
+
+              {/* 12번: 이용 제한 회원은 충전이 막힌다(문구는 서버가 보낸 정책 값) — 안내 화면으로 가는 링크 */}
+              {errorCode === 'MEMBER_SUSPENDED' ? (
+                <Link
+                  href={MEMBER_RESTRICTION_PAGE_PATH}
+                  className="mt-2 flex min-h-11 w-full items-center justify-center text-sm font-bold text-[var(--ck-ink)] underline underline-offset-4"
+                >
+                  자세히 보기
+                </Link>
               ) : null}
 
               <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-[var(--ck-muted)]">

@@ -8,6 +8,7 @@ import { getActiveSiteNoticePopup } from '@/lib/site-notice-popup-server'
 import { SiteNoticePopup } from '@/components/notice/site-notice-popup'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { SolvookFooter } from './_components/solvook-footer'
+import { MemberRestrictionBanner } from './_components/member-restriction-banner'
 
 export default async function SolvookHomeLayout({
   children,
@@ -33,6 +34,8 @@ export default async function SolvookHomeLayout({
         precedence="default"
       />
       <StudioThemeShell>
+        {/* 12번 5-3: 이용 제한 회원 한 줄 안내(미들웨어 헤더). /checkout 은 이 틀을 다시 내보내므로 한 번만 그려진다. */}
+        {userId && <MemberRestrictionBanner />}
         <Suspense fallback={null}>
           <PreviewHeader
             isLoggedIn={Boolean(userId)}

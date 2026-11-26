@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { getMarketItemById } from '@/lib/market-items-server'
 import { upsertMarketItemReview } from '@/lib/market-reviews-server'
 import { createClient } from '@/lib/supabase/server'
+import { checkMemberSuspensionForApi, memberSuspensionBlockResponse } from '@/lib/member-suspension-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +24,11 @@ export async function POST(
       success: false,
       error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' },
     }, { status: 401 })
+  }
+  // 12번 5-1: 이용 제한 회원은 후기 쓰기를 막는다(내 후기 지우기는 열어 둔다).
+  const suspension = await checkMemberSuspensionForApi(user.id, 'write')
+  if (suspension) {
+    return memberSuspensionBlockResponse(suspension)
   }
 
   const { itemId } = await params

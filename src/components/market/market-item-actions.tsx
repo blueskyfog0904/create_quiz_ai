@@ -7,6 +7,7 @@ import { useSearchParams } from 'next/navigation'
 import { Check, Eye, FileArchive, FileCheck2, FileStack, FileText, ShoppingCart } from 'lucide-react'
 import { FileTypeDocIcon } from '@/components/market/file-type-doc-icon'
 import { toast } from 'sonner'
+import { memberSuspensionToastOptions, readMemberSuspensionNotice } from '@/lib/member-suspension-client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -497,6 +498,12 @@ export default function MarketItemActions({
 
         if (response.status === 401) {
           onUnauthorized()
+          return false
+        }
+        // 12번: 이용 제한 회원은 담기가 막힌다(나머지 대상도 같으므로 멈춘다). 문구 + 안내 화면 링크.
+        const suspension = readMemberSuspensionNotice(response.status, payload)
+        if (suspension) {
+          toast.error(suspension.message, memberSuspensionToastOptions(suspension))
           return false
         }
 

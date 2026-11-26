@@ -13,7 +13,7 @@ const permissions = load('src/lib/admin-permissions.ts')
 const MEMBER = '11111111-1111-4111-8111-111111111111'
 const owner = { userId: 'admin-1', role: 'owner', grants: {} }
 const staff = (...keys) => ({ userId: 'admin-2', role: 'staff', grants: Object.fromEntries(keys.map((key) => [key, {}])) })
-const profile = { id: MEMBER, email: 'member@example.com', display_tag: 'AB12', phone: null, created_at: '2026-11-01T00:00:00Z', provider: 'email', is_admin: false, admin_role: null }
+const profile = { id: MEMBER, email: 'member@example.com', display_tag: 'AB12', phone: null, created_at: '2026-11-01T00:00:00Z', provider: 'email', is_admin: false, admin_role: null, withdrawn_at: null }
 const snapshot = { spendableBalance: 120, expiredBalance: 30, nextExpirationAt: '2027-01-01T00:00:00Z', databaseNow: '2026-11-16T00:00:00Z' }
 
 // lib을 가짜 DB·가짜 목록 함수로 돌린다. tableErrors에 표 이름을 넣으면 그 표 조회가 실패한다.
@@ -70,6 +70,17 @@ function loadDetail({ profileRow = profile, profileError = null, tableErrors = [
       readWithdrawnUserIdsForRedaction: async () => new Set(),
       readWithdrawnTicketTitle: async () => '탈퇴 회원 문의',
     },
+    // 12번: '이용 정지'·'관리자 메모' 구역(members.view). 읽는 함수에 접근 정보·탈퇴 시각을 넘긴다.
+    '@/lib/admin-member-suspension-server': {
+      readMemberSuspensionSection: async (access, userId, withdrawnAt) => {
+        calls.push(['suspension', userId, withdrawnAt])
+        return { withdrawn: withdrawnAt !== null, history: [], active: null }
+      },
+      readMemberNotesSection: async (userId, withdrawnAt) => {
+        calls.push(['notes', userId, withdrawnAt])
+        return { withdrawn: withdrawnAt !== null, notes: [] }
+      },
+    },
   }, errors)
   return { server, queries, calls, errors }
 }
@@ -96,7 +107,8 @@ test('개인정보: 프로필은 정해 둔 열만 읽고, 생년월일·주소�
   await server.getAdminMemberDetail(owner, MEMBER)
   const profileQuery = queries.find((query) => query.table === 'profiles')
   assert.equal(profileQuery.client, 'admin')
-  assert.deepEqual(op(profileQuery.ops, 'select'), ['select', 'id, email, display_tag, phone, created_at, provider, is_admin'])
+  // 12번: withdrawn_at 은 정지·메모 구역(탈퇴 회원이면 지워짐 표시)과 버튼 숨김 판정에 쓴다.
+  assert.deepEqual(op(profileQuery.ops, 'select'), ['select', 'id, email, display_tag, phone, created_at, provider, is_admin, withdrawn_at'])
   assert.deepEqual(op(profileQuery.ops, 'eq'), ['eq', 'id', MEMBER])
   assert.equal(queries.filter((query) => query.table === 'profiles').length, 1)
 
@@ -124,11 +136,11 @@ test('대표: 모든 구역을 그 회원 조건으로 읽고, 결제 표는 결
     assert.ok(op(ops, 'limit'), table)
   }
   // 약관 동의 기록(4번 묶음)은 members.view 로 읽는 구역이다.
-  assert.deepEqual(calls.sort(), [['balance', MEMBER], ['consents', MEMBER], ['market', { userId: MEMBER }], ['payments', { userId: MEMBER }]])
+  assert.deepEqual(calls.sort(), [['balance', MEMBER], ['consents', MEMBER], ['market', { userId: MEMBER }], ['notes', MEMBER, null], ['payments', { userId: MEMBER }], ['suspension', MEMBER, null]])
   assert.deepEqual(op(queries.find((query) => query.table === 'credit_transactions').ops, 'limit'), ['limit', 50])
 
   assert.equal(detail.profile.email, 'member@example.com')
-  for (const key of ['credits', 'creditTransactions', 'paymentOrders', 'marketOrders', 'paymentRefunds', 'marketRefunds', 'supportTickets', 'withdrawal']) {
+  for (const key of ['credits', 'creditTransactions', 'paymentOrders', 'marketOrders', 'paymentRefunds', 'marketRefunds', 'supportTickets', 'withdrawal', 'suspension', 'notes']) {
     assert.equal(detail[key].failed, false, key)
   }
   // 쓸 수 있는 잔액은 get_credit_balance_snapshot의 값 그대로다.
@@ -148,12 +160,13 @@ test('대표: 모든 구역을 그 회원 조건으로 읽고, 결제 표는 결
 
 test('권한이 없는 구역은 조회 자체를 하지 않는다', async () => {
   const cases = [
-    { access: staff('members.view'), tables: ['profiles'], calls: ['consents'], sections: ['consents'] },
-    { access: staff('members.view', 'orders.view'), tables: ['market_refund_requests', 'profiles', 'refund_requests'], calls: ['consents', 'market', 'payments'], sections: ['paymentOrders', 'marketOrders', 'paymentRefunds', 'marketRefunds', 'consents'] },
-    { access: staff('members.view', 'credits.view'), tables: ['credit_sources', 'credit_transactions', 'profiles'], calls: ['balance', 'consents'], sections: ['credits', 'creditTransactions', 'consents'] },
-    { access: staff('members.view', 'support.manage'), tables: ['profiles', 'support_tickets'], calls: ['consents'], sections: ['supportTickets', 'consents'] },
+    // 12번: '이용 정지'·'관리자 메모' 구역은 members.view 로 읽는다(그 안의 기한·잔액·대기 건수는 읽는 함수가 권한을 다시 본다).
+    { access: staff('members.view'), tables: ['profiles'], calls: ['consents', 'notes', 'suspension'], sections: ['consents', 'suspension', 'notes'] },
+    { access: staff('members.view', 'orders.view'), tables: ['market_refund_requests', 'profiles', 'refund_requests'], calls: ['consents', 'market', 'notes', 'payments', 'suspension'], sections: ['paymentOrders', 'marketOrders', 'paymentRefunds', 'marketRefunds', 'consents', 'suspension', 'notes'] },
+    { access: staff('members.view', 'credits.view'), tables: ['credit_sources', 'credit_transactions', 'profiles'], calls: ['balance', 'consents', 'notes', 'suspension'], sections: ['credits', 'creditTransactions', 'consents', 'suspension', 'notes'] },
+    { access: staff('members.view', 'support.manage'), tables: ['profiles', 'support_tickets'], calls: ['consents', 'notes', 'suspension'], sections: ['supportTickets', 'consents', 'suspension', 'notes'] },
     // 환불 처리 권한만 있고 함께 필요한 orders.view가 없으면 환불 구역도 읽지 않는다.
-    { access: staff('members.view', 'refunds.market'), tables: ['profiles'], calls: ['consents'], sections: ['consents'] },
+    { access: staff('members.view', 'refunds.market'), tables: ['profiles'], calls: ['consents', 'notes', 'suspension'], sections: ['consents', 'suspension', 'notes'] },
   ]
   for (const expected of cases) {
     const { server, queries, calls } = loadDetail()
@@ -161,13 +174,13 @@ test('권한이 없는 구역은 조회 자체를 하지 않는다', async () =>
     const label = Object.keys(expected.access.grants).join(',')
     assert.deepEqual(tables(queries), expected.tables, label)
     assert.deepEqual(calls.map(([name]) => name).sort(), expected.calls, label)
-    for (const key of ['credits', 'creditTransactions', 'paymentOrders', 'marketOrders', 'paymentRefunds', 'marketRefunds', 'supportTickets', 'consents', 'withdrawal']) {
+    for (const key of ['credits', 'creditTransactions', 'paymentOrders', 'marketOrders', 'paymentRefunds', 'marketRefunds', 'supportTickets', 'consents', 'withdrawal', 'suspension', 'notes']) {
       assert.equal(detail[key] !== null, expected.sections.includes(key), `${label} ${key}`)
     }
   }
   // 화면은 읽지 않은 구역(null)을 그리지 않는다. 10번 '회원 탈퇴' 구역은 대표만(staff 는 null).
   assert.match(page, /if \(!section\) return null/)
-  assert.equal(page.match(/<Section\s/g).length, 9)
+  assert.equal(page.match(/<Section\s/g).length, 11)
 })
 
 test('구역 실패 격리: 실패한 구역만 failed이고 나머지는 정상이며, "없음"과 구분된다', async () => {
@@ -310,4 +323,31 @@ test('진입 링크: 회원을 보여 주는 관리자 화면에서 회원 상�
   assert.match(page, /`\/admin\/orders\?tab=payments&q=\$\{emailQuery\}`/)
   assert.match(page, /`\/admin\/orders\?tab=market&q=\$\{emailQuery\}`/)
   assert.match(page, /`\/admin\/credits\?q=\$\{emailQuery\}`/)
+})
+
+test('12번: 정지·메모 버튼은 화면·route·DB 가 같은 권한일 때만 보이고, 분류별 기본값·회원 문구를 코드에 두지 않는다', () => {
+  // 화면: 이용 제한·해제·알림 기록 members.suspend(관리자·본인 계정 제외), 로그인 차단·가림은 대표, 메모 추가 members.memo
+  assert.match(page, /canSuspend: isMemberTarget && hasAdminPermission\(access, 'members\.suspend'\)/)
+  assert.match(page, /const isOwner = hasAdminPermission\(access, 'owner'\)/)
+  assert.match(page, /canMemo: !profile\.is_admin && hasAdminPermission\(access, 'members\.memo'\)/)
+  assert.match(page, /익명화하면 정지 기록 \{erasedSuspensionCount\}건·메모 \{erasedNoteCount\}건이 지워집니다\. 개인정보처리방침 3절에 따라 따로 보관하지 않습니다\./)
+  const panel = read('src/app/(admin)/admin/users/[id]/member-suspension-panel.tsx')
+  const notes = read('src/app/(admin)/admin/users/[id]/member-notes-panel.tsx')
+  // 로그인 차단 범위는 대표에게만 보이고, 활성 로그인 차단의 해제·알림 기록도 대표만
+  assert.match(panel, /\.filter\(\(value\) => value === 'restricted' \|\| isOwner\)/)
+  assert.match(panel, /capabilities\.canSuspend && \(active\.scope === 'restricted' \|\| capabilities\.isOwner\)/)
+  // 다운로드도 막기의 미리 체크는 분류 데이터(blocksDownloadDefault), 만 14세 미만 안내도 분류 데이터(underageGuide)
+  assert.match(panel, /\?\.blocksDownloadDefault \?\? false/)
+  assert.match(panel, /category\?\.underageGuide && <Warning>\{texts\.adminUnderageGuide\}<\/Warning>/)
+  for (const code of ['account_misuse', 'material_sharing', 'scraping', 'payment_abuse', 'operation_interference', 'underage\'', 'other\'']) {
+    assert.ok(!panel.includes(code) && !notes.includes(code), code)
+  }
+  // 회원 화면 문구·관리자 안내 문구는 정책 texts 로 읽는다.
+  for (const key of ['adminSuspendConfirm', 'adminDeadlineWarning', 'ownerMailDeadlines', 'noticeBlockedList', 'noticeAvailableList']) {
+    assert.ok(panel.includes(`texts.${key}`), key)
+  }
+  assert.match(notes, /canDelete = !note\.deleted_at && \(capabilities\.isOwner \|\| \(capabilities\.canMemo && note\.created_by === capabilities\.actorId\)\)/)
+  assert.match(notes, /canRedact = capabilities\.isOwner && !note\.redacted_at/)
+  // 정지 창은 열 때마다 새 operation_key 를 만든다(응답 유실 뒤 다시 눌러도 한 번만).
+  assert.match(panel, /setOperationKey\(crypto\.randomUUID\(\)\)/)
 })

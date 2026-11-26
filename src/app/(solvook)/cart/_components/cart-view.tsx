@@ -13,6 +13,7 @@ import { canRenderCheckoutConsent, type CheckoutConsentLinks } from '@/component
 import { buildAuthRedirectPath } from '@/lib/auth-paths'
 import type { MarketCartItem, MarketCartView } from '@/lib/market-cart-server'
 import { redirectToConsentIfRequired } from '@/lib/consent-client'
+import { memberSuspensionToastOptions, readMemberSuspensionNotice } from '@/lib/member-suspension-client'
 import {
   checkoutPanelMaxInnerHeight,
   CHECKOUT_PANEL_STICKY_TOP,
@@ -267,7 +268,13 @@ export function CartView({ initialView, upcomingNotice }: CartViewProps) {
       })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok || !payload.success) {
-        toast.error(payload.error?.message || '선택 상태를 저장하지 못했습니다.')
+        // 12번: 이용 제한 회원은 선택 저장이 막힌다(문구 + 안내 화면 링크).
+        const suspension = readMemberSuspensionNotice(response.status, payload)
+        if (suspension) {
+          toast.error(suspension.message, memberSuspensionToastOptions(suspension))
+        } else {
+          toast.error(payload.error?.message || '선택 상태를 저장하지 못했습니다.')
+        }
         await reload('list')
       } else if (payload.data.missingIds.length > 0) {
         await reload('list')
@@ -327,6 +334,14 @@ export function CartView({ initialView, upcomingNotice }: CartViewProps) {
     // 필수 약관 동의가 필요하면 동의 화면으로 보낸다(동의 뒤 이 화면으로 돌아온다).
     if (response && redirectToConsentIfRequired(response.status, payload)) {
       setSnapshot(null)
+      return
+    }
+    // 12번: 이용 제한 회원은 결제가 막힌다. 문구를 알리고 안내 화면 링크를 붙인다(확인 실패 503 은 아래 '다시 시도' 경로).
+    const suspension = response ? readMemberSuspensionNotice(response.status, payload) : null
+    if (suspension?.code === 'MEMBER_SUSPENDED') {
+      setSnapshot(null)
+      announce(suspension.message, 'alert', 'panel')
+      toast.error(suspension.message, memberSuspensionToastOptions(suspension))
       return
     }
 

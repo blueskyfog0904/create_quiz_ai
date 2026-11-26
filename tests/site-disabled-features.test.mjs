@@ -129,6 +129,7 @@ function loadMiddleware(siteState) {
     '@/lib/auth-paths': load('src/lib/auth-paths.ts', { '@/lib/workspace-subject': workspaceSubject }),
     '@/lib/admin-accounts-shared': load('src/lib/admin-accounts-shared.ts'),
     '@/lib/consent-gate': load('src/lib/consent-gate.ts', { '@/lib/workspace-subject': workspaceSubject }),
+    '@/lib/member-suspension': load('src/lib/member-suspension.ts', { '@/lib/workspace-subject': workspaceSubject }),
     '@/lib/admin-features': adminFeatures,
     '@/lib/site-features': site,
     '@/lib/admin-features-server': {
@@ -297,6 +298,7 @@ test('정적 파일 모양의 주소는 세션 작업 없이 통과시키되, �
     '@/lib/auth-paths': load('src/lib/auth-paths.ts', { '@/lib/workspace-subject': workspaceSubject }),
     '@/lib/admin-accounts-shared': load('src/lib/admin-accounts-shared.ts'),
     '@/lib/consent-gate': load('src/lib/consent-gate.ts', { '@/lib/workspace-subject': workspaceSubject }),
+    '@/lib/member-suspension': load('src/lib/member-suspension.ts', { '@/lib/workspace-subject': workspaceSubject }),
     '@/lib/admin-features': adminFeatures,
     '@/lib/site-features': site,
     '@/lib/admin-features-server': {
@@ -329,5 +331,5 @@ test('정적 파일 모양의 주소는 세션 작업 없이 통과시키되, �
 
 test('사용자 ID 헤더를 믿는 전제(미들웨어가 모든 페이지 요청을 거친다)가 코드에 적혀 있다', () => {
   assert.match(read('src/lib/request-auth.ts'), /확장자로 끝나는 경로도 거치게 되어 있다/)
-  assert.match(read('src/lib/supabase/middleware.ts'), /requestHeaders\.delete\(AUTH_USER_ID_HEADER\)\n    return NextResponse\.next\(\{ request: \{ headers: requestHeaders \} \}\)/)
+  assert.match(read('src/lib/supabase/middleware.ts'), /requestHeaders\.delete\(AUTH_USER_ID_HEADER\)\n    requestHeaders\.delete\(MEMBER_RESTRICTION_HEADER\)\n    return NextResponse\.next\(\{ request: \{ headers: requestHeaders \} \}\)/)
 })

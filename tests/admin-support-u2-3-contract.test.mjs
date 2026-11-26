@@ -163,18 +163,25 @@ function loadSummary({ tableErrors = [], counts = {} } = {}) {
     '@/lib/member-withdrawal-server': {},
     '@/lib/member-withdrawal': {},
     '@/lib/withdrawn-member-redaction-server': {},
+    // 12번: 회원 상세의 정지·메모 구역 모듈(회원 요약은 쓰지 않음)
+    '@/lib/admin-member-suspension-server': {},
   }, errors)
   return { server, queries, errors }
 }
 
 test('회원 요약: 건수만 세고, 권한이 없는 항목은 조회하지 않는다', async () => {
-  const counts = { payment_orders: 3, market_purchase_orders: 5, support_tickets: 2 }
+  const counts = { payment_orders: 3, market_purchase_orders: 5, support_tickets: 2, member_suspensions: 1 }
   const all = loadSummary({ counts })
   assert.deepEqual(await all.server.getAdminMemberSummary(owner, MEMBER, TICKET), {
     paymentOrders: { failed: false, data: 3 },
     marketOrders: { failed: false, data: 5 },
     otherTickets: { failed: false, data: 2 },
+    // 12번: '정지 중' 배지(members.view) — 활성 정지 건수
+    activeSuspensions: { failed: false, data: 1 },
   })
+  const suspensionOps = all.queries.find((query) => query.table === 'member_suspensions').ops
+  assert.deepEqual(suspensionOps.find(([name]) => name === 'is'), ['is', 'lifted_at', null])
+  assert.match(suspensionOps.find(([name]) => name === 'or')[1], /^ends_at\.is\.null,ends_at\.gt\./)
   for (const query of all.queries) {
     assert.deepEqual(query.ops[0], ['select', 'id', { count: 'exact', head: true }], query.table)
     assert.ok(query.ops.some(([name, column, value]) => name === 'eq' && column === 'user_id' && value === MEMBER), query.table)
@@ -185,7 +192,7 @@ test('회원 요약: 건수만 세고, 권한이 없는 항목은 조회하지 �
 
   const supportOnly = loadSummary({ counts })
   assert.deepEqual(await supportOnly.server.getAdminMemberSummary(staff('support.manage'), MEMBER, TICKET), {
-    paymentOrders: null, marketOrders: null, otherTickets: { failed: false, data: 2 },
+    paymentOrders: null, marketOrders: null, otherTickets: { failed: false, data: 2 }, activeSuspensions: null,
   })
   assert.deepEqual(supportOnly.queries.map((query) => query.table), ['support_tickets'])
 
@@ -219,7 +226,7 @@ test('상세 창의 회원 요약: 창을 열 때 한 번 읽고, 서버가 세�
     'fetch(`/api/admin/support/categories/${category.id}`',
   ])
   assert.match(client, /\}, \[selectedTicketId\]\)/)
-  assert.match(client, /\]\.filter\(\(item\) => item\.section\)\s+if \(items\.length === 0\) return null/)
+  assert.match(client, /\]\.filter\(\(item\) => item\.section\)\s+\/\/ 12번[^\n]*\n\s+const suspension = summary\.data\.activeSuspensions\s+if \(items\.length === 0 && !suspension\) return null/)
   assert.match(client, /summary=\{memberSummary\?\.ticketId === selectedTicket\.id \? memberSummary : null\}/)
   for (const href of ['`/admin/orders?tab=payments&q=${emailQuery}`', '`/admin/orders?tab=market&q=${emailQuery}`', '`/admin/support?q=${emailQuery}&includeDeleted=true`']) {
     assert.ok(client.includes(href), href)

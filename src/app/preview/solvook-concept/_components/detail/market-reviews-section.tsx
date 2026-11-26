@@ -3,7 +3,9 @@
 import { useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Loader2, Star, ThumbsUp, UserRound } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { memberSuspensionToastOptions, readMemberSuspensionNotice } from '@/lib/member-suspension-client'
 import type { MarketItemReviewsResult, MarketReviewSort } from '@/lib/market-reviews-server'
 
 interface MarketReviewsSectionProps {
@@ -92,6 +94,12 @@ export function MarketReviewsSection({ itemId, isLoggedIn, reviews, sort }: Mark
         }),
       })
       const result = await response.json().catch(() => null)
+      // 12번: 이용 제한 회원은 후기 쓰기가 막힌다(문구 + 안내 화면 링크).
+      const suspension = readMemberSuspensionNotice(response.status, result)
+      if (suspension) {
+        toast.error(suspension.message, memberSuspensionToastOptions(suspension))
+        return
+      }
       if (!response.ok || !result?.success) {
         throw new Error(result?.error?.message ?? '후기 등록에 실패했습니다.')
       }
@@ -130,6 +138,12 @@ export function MarketReviewsSection({ itemId, isLoggedIn, reviews, sort }: Mark
     try {
       const response = await fetch(`/api/market/reviews/${reviewId}/vote`, { method: 'POST' })
       const result = await response.json().catch(() => null)
+      // 12번: 이용 제한 회원은 추천이 막힌다.
+      const suspension = readMemberSuspensionNotice(response.status, result)
+      if (suspension) {
+        toast.error(suspension.message, memberSuspensionToastOptions(suspension))
+        return
+      }
       if (!response.ok || !result?.success) {
         throw new Error(result?.error?.message ?? '처리에 실패했습니다.')
       }

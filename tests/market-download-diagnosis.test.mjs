@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
-import { load, createFakeAdmin, marketImages, loadRoute } from './helpers/market-images-harness.mjs'
+import { load, createFakeAdmin, marketImages, loadRoute, NextResponse } from './helpers/market-images-harness.mjs'
 
 // 진단은 route와 같은 권한 선택 함수(market-purchase.ts)를 쓴다.
 const { diagnoseMarketFileDownload } = load('src/lib/market-download-diagnosis.ts', {
@@ -83,6 +83,9 @@ const CASES = [
     entitlements: [entitlementB, entitlement, { ...entitlement, id: 'ent-f', scope: 'file', subproduct_id: null, file_id: FILE_ID, source_order_id: ORDER_F }],
   }, null, ORDER_F],
   ['같은 범위 권한 2개 → 권한 id가 앞선 것', { ...normal, entitlements: [entitlementB, { ...entitlementB, id: 'ent-a2', source_order_id: ORDER_F }] }, null, ORDER_F],
+  // 12번: 회원 단위 정지('다운로드도 막기')는 파일 판정보다 먼저 막고, 다운로드를 막지 않은 정지는 그대로 받는다.
+  ['이용 정지(다운로드도 막음)', { ...normal, memberSuspension: { blocksDownload: true } }, 'member_suspended'],
+  ['이용 정지(다운로드는 열어 둠)', { ...normal, memberSuspension: { blocksDownload: false } }, null],
 ]
 
 // 관리자 조회(admin-orders-server.ts의 listMarketOrdersForAdmin)가 주문 A를 볼 때 만드는 입력과 같은 재료:
@@ -101,6 +104,7 @@ const diagnose = (state) => {
     pendingRefundOrderIds: state.refunds
       .filter((row) => row.target_kind === 'v2_order' && row.status === 'pending' && orderIds.includes(row.order_id))
       .map((row) => row.order_id),
+    memberSuspension: state.memberSuspension ?? null,
   })
 }
 
@@ -118,6 +122,7 @@ test('진단: 현재 규칙이 구분하는 경우마다 사유가 맞다', () =
 // 회원에게 보이는 route 응답(상태 코드·오류 코드)과 진단 사유의 대응
 const ROUTE_RESPONSE = (reason) => {
   if (reason === null) return [302, null]
+  if (reason === 'member_suspended') return [303, null]
   if (reason === 'pending_refund') return [403, 'PENDING_REFUND']
   if (reason === 'entitlement_order_missing') return [500, 'INVALID_ENTITLEMENT']
   if (reason === 'no_entitlement' || reason === 'entitlement_refunded' || reason === 'entitlement_revoked') return [403, 'FORBIDDEN']
@@ -175,15 +180,31 @@ async function runDownloadRoute(state) {
     '@/lib/market-category-tree': categoryTree,
   })
   const purchase = load('src/lib/market-purchase.ts', { '@/lib/market-items-server': itemsServer })
+  // 12번 정지 가드: 실제 모듈의 판정 규칙(다운로드는 blocksDownload 일 때만 막고 303 이동)을 돌린다 — 정지 행은 rpc 가짜가 돌려준다.
+  const suspensionServer = load('src/lib/member-suspension-server.ts', {
+    'server-only': {},
+    'next/server': { NextResponse },
+    '@/lib/supabase/bypass': { createAdminClient: () => ({ rpc: async () => ({ data: state.memberSuspension ?? null, error: null }) }) },
+    '@/lib/member-suspension-policy-server': { getMemberSuspensionPolicyCached: async () => null },
+    '@/lib/member-suspension': load('src/lib/member-suspension.ts', { '@/lib/workspace-subject': workspaceSubject }),
+  })
   const { route } = loadRoute('src/app/api/market/items/[itemId]/download/route.ts', {
     userId: USER_ID,
     admin: { client },
-    mocks: { '@/lib/market-items-server': itemsServer, '@/lib/market-purchase': purchase, '@/lib/market-refunds': refunds },
+    mocks: {
+      '@/lib/market-items-server': itemsServer,
+      '@/lib/market-purchase': purchase,
+      '@/lib/market-refunds': refunds,
+      '@/lib/member-suspension-server': suspensionServer,
+    },
   })
   const request = new Request(`http://localhost/api/market/items/${ITEM_ID}/download?fileId=${FILE_ID}`)
   request.nextUrl = new URL(request.url)
   const response = await route.GET(request, { params: Promise.resolve({ itemId: ITEM_ID }) })
-  return { status: response.status, code: response.status === 302 ? null : (await response.json()).error.code, events, recorded }
+  if (response.status === 303) {
+    assert.equal(new URL(response.headers.get('location')).pathname, '/mypage/restriction')
+  }
+  return { status: response.status, code: response.status === 302 || response.status === 303 ? null : (await response.json()).error.code, events, recorded }
 }
 
 test('진단은 회원 다운로드 route의 응답과 경우마다 일치하고, route는 권한 반환 순서와 무관하게 같은 결과를 낸다', async () => {

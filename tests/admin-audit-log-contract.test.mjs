@@ -21,6 +21,8 @@ const MATERIAL_REFUND_MIGRATION = read('supabase/migrations/20261124100000_marke
 const WITHDRAWAL_MIGRATION = read('supabase/migrations/20261126100000_member_withdrawal.sql')
 // 15번 묶음(공지 팝업): 팝업 저장 기록은 저장 함수가 같은 트랜잭션에서 남긴다.
 const NOTICE_POPUP_MIGRATION = read('supabase/migrations/20261205100000_site_notice_popup.sql')
+// 12번 묶음(회원 이용 정지·관리자 메모): 정지·해제·알림 기록·메모·가림·문구 저장은 DB 함수가 남긴다.
+const SUSPENSION_MIGRATION = read('supabase/migrations/20261214100000_member_suspension.sql')
 const DB_FUNCTION_ACTIONS = [
   [PERMISSION_MIGRATION, 'admin_permissions_replace'],
   [PERMISSION_MIGRATION, 'admin_account_revoke'],
@@ -40,6 +42,13 @@ const DB_FUNCTION_ACTIONS = [
   [WITHDRAWAL_MIGRATION, 'withdrawn_member_event'],
   [WITHDRAWAL_MIGRATION, 'withdrawn_record_view'],
   [NOTICE_POPUP_MIGRATION, 'site_notice_popup_save'],
+  [SUSPENSION_MIGRATION, 'member_suspend'],
+  [SUSPENSION_MIGRATION, 'member_suspension_lift'],
+  [SUSPENSION_MIGRATION, 'member_suspension_notice_record'],
+  [SUSPENSION_MIGRATION, 'member_note_add'],
+  [SUSPENSION_MIGRATION, 'member_note_delete'],
+  [SUSPENSION_MIGRATION, 'member_note_redact'],
+  [SUSPENSION_MIGRATION, 'member_suspension_policy_update'],
 ]
 // 9번 묶음: 대표 승인 SQL 템플릿·정책 문구 스크립트(supabase/scripts)가 record_admin_audit 로 적는 종류.
 const SCRIPT_ACTIONS = readdirSync(join(ROOT, 'supabase/scripts'))

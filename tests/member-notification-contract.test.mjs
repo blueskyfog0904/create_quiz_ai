@@ -248,7 +248,8 @@ test('the mypage notifications page lists only my rows, paginated, and never wri
   assert.doesNotMatch(page, /\.update\(|\.insert\(|\.delete\(|\.upsert\(|\.rpc\(|fetch\(|is_read/)
 
   assert.match(home, /href: '\/mypage\/notifications'/)
-  assert.match(read('../src/app/(solvook)/mypage/layout.tsx'), /<MypageSideNav \/>/)
+  // 12번: 이용 제한 중일 때만 안내 화면 메뉴 이름을 넘긴다.
+  assert.match(read('../src/app/(solvook)/mypage/layout.tsx'), /<MypageSideNav restrictionLabel=\{restrictionLabel\} \/>/)
 })
 
 test('the list page size used by the notifications page is 20', () => {
