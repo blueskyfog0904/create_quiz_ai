@@ -632,7 +632,15 @@
 | 배포 minor | b_full 잠금 설명, 작업 순서표 줄 수, down ⑤가 13번 파일 시각 변경에 약함, S5 가 늘 참 | 설명 정정(18-3·생성기), 줄 수 갱신, down ⑤ 에 '12번 뒤 이름에 bundle13' 규칙 추가, S5 가 세션·refresh_tokens·one_time_tokens 행을 먼저 만들고 지워지는지 확인, 상수 비교 시험은 13번 계획의 파일 시각과 비교 |
 | DB minor | S8·S12·S10 이 실행으로 확인되지 않음 | 18-3: 적용 전 b_full 필수로 적음 |
 
-### 18-6. 남은 일·대표 확인
+### 18-6. b_full 1차 실행 실패와 고친 것(2026-11-26 16:33)
+- 실패: `RH FAIL [S8] 실제 anonymize_member(self) — ERR MEMBER_WITHDRAW_INPUT_INVALID`. **원인은 리허설 입력**이다. 운영 `anonymize_member`(md5 `1346d870…`)는 self 경로에서 `p_ticket_retention_agreed IS NULL` 이면 0단계 입력 검사에서 거절한다. 생성기가 NULL 을 넘겼다. 12번 트리거가 돌기 전에 난 오류라 12번 마이그레이션과는 무관하다.
+- 고친 것:
+  - self 경로에 `false`(문의 보존 안 함)를 고지 원문(`get_member_withdrawal_notice(…, 'self', false)`)과 익명화 둘 다에 같은 값으로 넘긴다.
+  - S8 을 light·full 공통으로 바꿔, **실제 익명화(self·owner)를 light 에서도 먼저 실행해 입력·사전 상태를 검증**한다. light 는 트리거가 없어 정지·메모가 남는 것을 확인하고, full 은 0행을 확인한다.
+  - light 가 다음 원인도 잡았다: 시험 계정 B 에 꺼진 기능의 멈춘 생성 작업(queued) 1건이 있어 `MEMBER_WITHDRAW_IN_PROGRESS`. 12번과 무관한 옛 상태라 S8 거래 안에서만 '취소됨'으로 바꾼다.
+- 결과: light(운영, ROLLBACK) **138줄 모두 통과**(S8 17줄, self·owner 익명화 성공). b_full 다시 실행은 담당이 한다.
+
+### 18-7. 남은 일·대표 확인
 - 구현 독립 검증(4관점) → b_full 새벽 리허설 → (대표 승인) DB 적용(12-10 고지 시작 뒤, **마감 2027-01-10**) → 로컬 미리보기 확인(`MEMBER_RESTRICTION_PREVIEW=1`) → push·배포 → 운영 시험(시험 계정)
 - 대표가 볼 것
   - 18-2 의 2번: 새 문구 키 3개 초안('충전 환불 신청 기한'·'자료 환불 신청 기한'·'유료 크레딧 소멸일')

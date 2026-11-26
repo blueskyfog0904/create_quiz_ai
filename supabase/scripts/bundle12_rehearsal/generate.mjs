@@ -504,44 +504,52 @@ function caseS7() {
       'ERR MEMBER_SUSPENSION_DIRECT_WRITE', 'S7', '정지 행 직접 DELETE 거절');`)
 }
 
-// light 만: 탈퇴 트리거가 없어 행이 남는 상태에서 '해제는 탈퇴 회원이면 거절 · banned_until 그대로'를 본다(full 은 S8 실제 익명화).
-function caseS8Light() {
-  return isolatedCase('rh_s8_light', 'S8', `
-    v_r := pg_temp.suspend(v_owner, v_e, 'login_blocked', true, 'account_misuse', NULL);
-    v_id := (pg_temp.res(v_r) ->> 'suspensionId')::uuid;
-    UPDATE public.profiles SET withdrawn_at = now() WHERE id = v_e;
-    UPDATE auth.users SET banned_until = now() + interval '100 years' WHERE id = v_e;
-    v_log := v_log || pg_temp.expect(pg_temp.lift(v_owner, v_id), 'ERR MEMBER_SUSPEND_TARGET_INVALID', 'S8', 'light: 탈퇴 회원 해제 거절');
-    v_log := v_log || pg_temp.ensure((SELECT banned_until FROM auth.users WHERE id = v_e) >= now() + interval '99 years', 'S8', 'light: 탈퇴 100년 차단 그대로');
-    v_log := v_log || pg_temp.expect(pg_temp.notice(v_owner, v_id, 'email'), 'ERR MEMBER_SUSPEND_TARGET_INVALID', 'S8', 'light: 탈퇴 회원 알림 기록 거절');
-    v_log := v_log || 'light: 실제 익명화(self·owner)와 탈퇴 트리거 삭제는 b_full 에서 본다'::text;`)
-}
-
-// full 만: 실제 anonymize_member 를 self·owner 각 1회(정지·메모가 있는 결제 없는 시험 계정 A·B)
-function caseS8Full() {
-  return isolatedCase('rh_s8_full', 'S8', `
-    -- self 경로: 스위치를 켠다(고지 기간 잠금이면 이 거래에서만 잠금 트리거를 끄고 켠다)
-    v_r := pg_temp.try_sql($s$UPDATE public.system_settings SET value = jsonb_set(value, '{selfAnonymizeEnabled}', 'true') WHERE key = 'member_withdrawal_policy'$s$);
-    IF v_r LIKE 'ERR POLICY_UPCOMING_LOCKED%' THEN
+// 실제 anonymize_member 를 self·owner 각 1회(정지·메모가 있는 결제 없는 시험 계정 A·B). light·full 이 같은 입력으로 부른다
+// (light 에서 익명화 입력·사전 상태를 먼저 검증 — 2026-11-26 b_full 이 self 입력 문제로 멈춘 뒤).
+//   self 경로는 p_ticket_retention_agreed 가 NULL 이면 0단계 입력 검사(MEMBER_WITHDRAW_INPUT_INVALID)에서 거절된다 → false(문의 보존 안 함)를
+//   고지 원문과 익명화 둘 다에 같은 값으로 넘긴다. owner 경로(이메일 요청)는 비결제 회원이면 요청의 값(없으면 false)을 쓰므로 NULL 그대로.
+//   full: 탈퇴 트리거가 정지·메모를 지운다(0행, 해제는 NOT_FOUND). light: 트리거가 없어 행이 남고, 해제·알림 기록은 탈퇴 회원이라 거절.
+function caseS8(mode) {
+  const full = mode === 'full'
+  const enableSwitch = full ? `
       ALTER TABLE public.system_settings DISABLE TRIGGER lock_withdrawal_texts_during_notice;
       UPDATE public.system_settings SET value = jsonb_set(value, '{selfAnonymizeEnabled}', 'true') WHERE key = 'member_withdrawal_policy';
       ALTER TABLE public.system_settings ENABLE TRIGGER lock_withdrawal_texts_during_notice;
       v_log := v_log || '고지 기간 잠금 — 이 거래에서만 잠금 트리거를 끄고 스위치를 켬'::text;
+      v_self_ok := true;` : `
+      v_log := v_log || 'light: 고지 기간 잠금이라 self 경로는 건너뜀(DDL 없이) — b_full 이 잠금 트리거를 끄고 본다'::text;
+      v_self_ok := false;`
+  const rowsAfter = (who, user) => full
+    ? `v_log := v_log || pg_temp.ensure((SELECT count(*) FROM public.member_suspensions WHERE user_id = ${user}) = 0
+      AND (SELECT count(*) FROM public.member_admin_notes WHERE user_id = ${user}) = 0, 'S8', '${who}: 정지·메모 0행(탈퇴 트리거)');`
+    : `v_log := v_log || pg_temp.ensure((SELECT count(*) FROM public.member_suspensions WHERE user_id = ${user}) = 1
+      AND (SELECT count(*) FROM public.member_admin_notes WHERE user_id = ${user}) = 1, 'S8', 'light ${who}: 트리거가 없어 정지·메모가 남음(full 에서 0행)');`
+  return isolatedCase(`rh_s8_${mode}`, 'S8', `
+    -- 시험 계정 사전 상태: 꺼진 기능(문제 생성)의 멈춘 작업(queued·running)이 있으면 익명화가 MEMBER_WITHDRAW_IN_PROGRESS 로 거절한다
+    --   (2026-11-26 운영 B 계정 1건). 12번과 무관한 옛 상태라 이 거래 안에서만 '취소됨'으로 바꾼다(되돌려짐).
+    UPDATE public.generate_listboard_generation_jobs SET status = 'cancelled' WHERE user_id IN (v_a, v_b) AND status IN ('queued', 'running');
+    GET DIAGNOSTICS v_n = ROW_COUNT;
+    v_log := v_log || ('시험 계정의 멈춘 생성 작업 ' || v_n || '건을 거래 안에서만 취소됨으로 바꿈')::text;
+    -- self 경로: 스위치를 켠다(고지 기간 잠금이면 full 은 이 거래에서만 잠금 트리거를 끄고 켜고, light 는 건너뜀)
+    v_r := pg_temp.try_sql($s$UPDATE public.system_settings SET value = jsonb_set(value, '{selfAnonymizeEnabled}', 'true') WHERE key = 'member_withdrawal_policy'$s$);
+    IF v_r LIKE 'ERR POLICY_UPCOMING_LOCKED%' THEN${enableSwitch}
     ELSE
       v_log := v_log || pg_temp.expect(v_r, 'OK', 'S8', 'selfAnonymizeEnabled 켬(거래 안)');
+      v_self_ok := true;
     END IF;
-    v_log := v_log || pg_temp.expect(pg_temp.suspend(v_owner, v_b, 'restricted', true, 'other', now() + interval '5 days'), 'OK', 'S8', 'B 이용 제한');
-    v_log := v_log || pg_temp.expect(pg_temp.note_add(v_owner, v_b, 'B 메모'), 'OK', 'S8', 'B 메모');
-    DECLARE
-      v_notice jsonb := public.get_member_withdrawal_notice(v_b, 'self', NULL);
-    BEGIN
-      v_r := pg_temp.try_json(format('SELECT public.anonymize_member(%L, %L, %L, NULL, %s, %L, false, NULL, %L, NULL, false)',
-        v_b, v_b, 'self', (v_notice ->> 'expectedBalance')::integer, v_notice ->> 'text', 'rh12-s8-self-' || v_b));
-    END;
-    v_log := v_log || pg_temp.expect(v_r, 'OK', 'S8', '실제 anonymize_member(self) 성공');
-    v_log := v_log || pg_temp.ensure((SELECT count(*) FROM public.member_suspensions WHERE user_id = v_b) = 0
-      AND (SELECT count(*) FROM public.member_admin_notes WHERE user_id = v_b) = 0, 'S8', 'self: 정지·메모 0행');
-    v_log := v_log || pg_temp.ensure((SELECT banned_until FROM auth.users WHERE id = v_b) >= now() + interval '99 years', 'S8', 'self: banned_until 100년');
+    IF v_self_ok THEN
+      v_log := v_log || pg_temp.expect(pg_temp.suspend(v_owner, v_b, 'restricted', true, 'other', now() + interval '5 days'), 'OK', 'S8', 'B 이용 제한');
+      v_log := v_log || pg_temp.expect(pg_temp.note_add(v_owner, v_b, 'B 메모'), 'OK', 'S8', 'B 메모');
+      DECLARE
+        v_notice jsonb := public.get_member_withdrawal_notice(v_b, 'self', false);
+      BEGIN
+        v_r := pg_temp.try_json(format('SELECT public.anonymize_member(%L, %L, %L, NULL, %s, %L, false, NULL, %L, false, false)',
+          v_b, v_b, 'self', (v_notice ->> 'expectedBalance')::integer, v_notice ->> 'text', 'rh12-s8-self-' || v_b));
+      END;
+      v_log := v_log || pg_temp.expect(v_r, 'OK', 'S8', '실제 anonymize_member(self, 문의 보존 false) 성공');
+      ${rowsAfter('self', 'v_b')}
+      v_log := v_log || pg_temp.ensure((SELECT banned_until FROM auth.users WHERE id = v_b) >= now() + interval '99 years', 'S8', 'self: banned_until 100년');
+    END IF;
     -- owner 경로: 로그인 차단 + 메모가 있는 A, 대표가 이메일 요청을 기록한 뒤 익명화
     v_r := pg_temp.suspend(v_owner, v_a, 'login_blocked', true, 'account_misuse', NULL);
     v_log := v_log || pg_temp.expect(v_r, 'OK', 'S8', 'A 로그인 차단');
@@ -558,14 +566,14 @@ function caseS8Full() {
         v_owner, v_a, 'owner', (v_req ->> 'requestId')::uuid, '시험 처리', 'rh12-s8-owner-' || v_a));
     END;
     v_log := v_log || pg_temp.expect(v_r, 'OK', 'S8', '실제 anonymize_member(owner) 성공');
-    v_log := v_log || pg_temp.ensure((SELECT count(*) FROM public.member_suspensions WHERE user_id = v_a) = 0
-      AND (SELECT count(*) FROM public.member_admin_notes WHERE user_id = v_a) = 0, 'S8', 'owner: 정지·메모 0행');
+    ${rowsAfter('owner', 'v_a')}
     v_log := v_log || pg_temp.ensure((SELECT banned_until FROM auth.users WHERE id = v_a) >= now() + interval '99 years', 'S8', 'owner: banned_until 100년(로그인 차단 해제 값이 아님)');
     v_log := v_log || pg_temp.expect(pg_temp.note_add(v_owner, v_a), 'ERR MEMBER_NOTE_TARGET_INVALID', 'S8', '익명화 뒤 메모 추가 거절');
-    v_log := v_log || pg_temp.expect(pg_temp.lift(v_owner, v_id), 'ERR MEMBER_SUSPENSION_NOT_FOUND', 'S8', '익명화 뒤 로그인 차단 해제 불가(행 없음 — 탈퇴 차단을 풀지 않음)');
+    v_log := v_log || pg_temp.expect(pg_temp.lift(v_owner, v_id), ${full ? "'ERR MEMBER_SUSPENSION_NOT_FOUND', 'S8', '익명화 뒤 로그인 차단 해제 불가(행 없음 — 탈퇴 차단을 풀지 않음)'" : "'ERR MEMBER_SUSPEND_TARGET_INVALID', 'S8', 'light: 익명화 뒤 로그인 차단 해제 거절(탈퇴 차단을 풀지 않음)'"});
+    v_log := v_log || pg_temp.ensure((SELECT banned_until FROM auth.users WHERE id = v_a) >= now() + interval '99 years', 'S8', '해제 시도 뒤에도 100년 차단 그대로');
     v_log := v_log || pg_temp.expect(pg_temp.suspend(v_owner, v_a, 'login_blocked', true, 'account_misuse', NULL), 'ERR MEMBER_SUSPEND_TARGET_INVALID', 'S8', '익명화 뒤 정지 거절');
     v_log := v_log || pg_temp.ensure(pg_temp.audit_count('member_suspend', v_a) = 1,
-      'S8', '작업 기록 뼈대는 남음');`)
+      'S8', '작업 기록 뼈대는 남음');`, '  v_self_ok boolean;\n')
 }
 
 function caseS9() {
@@ -779,7 +787,7 @@ export function buildRehearsalFiles() {
     + BEFORE_APPLY
     + `\n-- ===== 12번 마이그레이션 사본(light) =====\n${migrationCopy('light')}\n`
     + AFTER_APPLY
-    + caseS1() + caseS2() + caseS3() + caseS4() + caseS5() + caseS6() + caseS7() + caseS8Light() + caseS9() + caseS10('light') + caseS11() + caseS13()
+    + caseS1() + caseS2() + caseS3() + caseS4() + caseS5() + caseS6() + caseS7() + caseS8('light') + caseS9() + caseS10('light') + caseS11() + caseS13()
     + FOOT
 
   files['b_full.sql'] = prelude({
@@ -790,7 +798,7 @@ export function buildRehearsalFiles() {
     + BEFORE_APPLY
     + `\n-- ===== 12번 마이그레이션(원본 그대로) =====\n${migrationCopy('full')}\n`
     + AFTER_APPLY
-    + caseS1() + caseS2() + caseS3() + caseS4() + caseS5() + caseS6() + caseS7() + caseS8Full() + caseS9() + caseS10('full') + caseS11() + caseS12() + caseS13()
+    + caseS1() + caseS2() + caseS3() + caseS4() + caseS5() + caseS6() + caseS7() + caseS8('full') + caseS9() + caseS10('full') + caseS11() + caseS12() + caseS13()
     + FOOT
   for (const [name, content] of Object.entries(files)) {
     if (/^\s*COMMIT\s*;/m.test(content) || /\bCOMMIT\s*;/.test(content)) throw new Error(`${name} contains a COMMIT statement`)
