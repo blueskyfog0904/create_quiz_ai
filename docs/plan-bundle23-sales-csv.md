@@ -267,3 +267,39 @@ Q8. 월 마감 고정 표
 | 보안 major | 만료 소멸 식이 service_role 도 못 읽는 탈퇴 보관함을 읽음 | 4-1 보관함 읽기·GRANT 금지(읽는 표 목록 고정), 3-2 탈퇴 정리분은 작업 기록 `member_withdraw` 합계를 탈퇴 시각 줄로, 1절 사실, R4·R5·9절 |
 | 보안 minor | 6절 안내가 9-4 요약을 넣으라 함 | 6절을 4-2 수준 한 줄로 |
 
+
+## 17. 구현 메모 (2026-11-27)
+**만든 것**
+- 마이그레이션 `supabase/migrations/20261222100000_bundle23_sales_report.sql`(19번 뒤 버전), 되돌리기 `supabase/rollback/20261222100000_bundle23_sales_report_down.sql`.
+- 리허설 `supabase/scripts/bundle23_rehearsal/`(generate.mjs → a_light.sql·b_full.sql, `--check` 로 최신 여부 확인).
+- 코드: `src/lib/sales-report.ts`(순수), `src/lib/sales-report-server.ts`, `src/app/api/admin/reports/export/route.ts`, `src/app/(admin)/admin/reports/`(page·client·actions), 사이드바 '주문·결제' 묶음 `/admin/reports`(`reports.view`), 작업 기록 종류 2개.
+- 시험: `tests/bundle23-sales-report.test.mjs`(순수·계약 11건), 가드 표·사이드바·기능 묶음 시험에 새 화면·route·액션 줄.
+
+**리허설 결과** — light 를 운영에서 실행(BEGIN…ROLLBACK, 2026-11-27): R1~R6·Z 모두 통과.
+- R2: 11월 = RB-10 9-1·9-2·9-3 다시 계산 = 3-4 표(결제 5건 60,600원·부가세 5,509·공급가액 55,091, 네이버페이 3건 49,700(4,518)·카드 2건 10,900(991), 환불 1건 1,000원·부가세 91, 순액 59,600·순 부가세 5,418, 수동 처리·수동 확인 0, 지급 요금제 63,100 C(5)·관리자 10,200 C(4), 원장 사용 48,000·주문 표 43,000·차이 5,000, 옛 방식 자료 환불 2건 5,000, 충전 환불 회수 100, 관리자 회수 3건 200). 12월 1일 뒤 다시 돌리면 실데이터가 바뀌어 3-4 고정값 줄이 실패할 수 있다(그때 RB-10 줄은 그대로 맞아야 한다).
+- R5: 네 함수 모두 `SET LOCAL ROLE service_role` 로 성공(가짜 `member_withdraw` 기록이 든 기간 포함), service_role 은 회원 보관 표를 여전히 못 읽음, anon·authenticated 는 EXECUTE 거절.
+- R6: 366일 네 함수 30ms, 367일·거꾸로 된 기간은 `SALES_REPORT_PERIOD_INVALID`.
+- full(b_full.sql)은 돌리지 않았다(정책 만들기가 표 잠금 — DB 적용 직전 새벽에).
+
+**계획에서 정한 것(구현 판단)**
+- `report_charge_daily` 는 표 대신 jsonb `{days[], warnings{}}` 를 돌려준다(3-1 경고 — 수동 확인·취소 처리 중 주문, 완료 전 부분취소, 전액 환불 부가세 불일치, 환불 요청 없는 수동 처리 기록 — 를 같은 함수에서 내려고). 날짜별 결제수단·요금제·환불 경위·환불 결제수단 나눔도 그 안에 있다. `report_credit_flow`·`report_credit_usage_value` 도 jsonb, `report_payment_lines` 만 RETURNS TABLE(VERIFY 가 열 목록을 본다).
+- 건별 환불 줄의 금액은 양수(구분 칸 '환불'), 결제 시각 칸에는 원 주문 승인 시각을 넣어 다른 달 결제의 환불을 알아보게 했다. 결제요청번호 = `payment_provider_transactions.provider_transaction_id`(RB-10 9-4 와 같음). 경위·처리 방식 이름은 코드 이름표(`admin-orders.ts`), 결제수단 이름은 DB `payment_methods.label`.
+- 만료 소멸은 `expires_at` 이 [시작, min(끝, 지금)) 인 출처만 센다(아직 만료되지 않은 잔량을 소멸로 세지 않게).
+- 참고 금액 환불 차감은 `allocated_items` 의 restored + reissued(실제로 돌려준 양)만 뺀다 — unrecovered 는 사용으로 남긴다. 옛 행은 주문 `credit_consumptions` 비율로 내림 나눔, 나머지는 첫 출처에. 분류별 원은 버림, 합계 원 = 분류별 합, 끝수 = 정확한 합 − 그 합.
+- 관리자 회수 대조는 원장 `type='refund' AND resource_type IS NULL AND amount<0` 행 수와 비교한다(관리자 회수 함수가 넣는 모양).
+- 호출 제한 20초는 서버 키 호출의 `abortSignal(AbortSignal.timeout(20s))` 로 했다(함수 안 statement_timeout 은 이미 시작한 문장에 걸리지 않는다).
+- CSV 는 summary·payments 를 만들 때마다 요약 = 건별 합을 맞춰 보고, 어긋나면 409(파일 없음). 완료 환불 금액이 비면 409·화면은 결제 기준 '확인 불가'(크레딧·참고 금액은 그대로 보임).
+- 회원 칸 판(5-3)은 Q3 기본안대로 만들지 않았다(13번 열람 기록에 기대는 길 없음 — 13번 운영 미적용과 무관하게 배포 가능).
+
+**남은 것**
+- 구현 검증(10절 4관점) → full 리허설(새벽) → DB 적용(승인) → 로컬 확인(나 → 대표, 내려받으면 작업 기록 1행) → push.
+- 13번 계획 701행 문장 고치기(11절 1, 조정자 승인 뒤), 런북 RB-10 'CSV 로 대조'·파일 파기 줄(11절 5, 배포·11월 대조 뒤).
+- 메뉴 이름 '매출·정산'과 설정 행 문구는 초안(대표가 관리자 화면에서 고침).
+
+**구현 검증 반영(3관점 PASS, minor 5건, 2026-11-27)**
+- 참고 금액 'paid'(원 단가)는 실결제 주문만(`provider_environment='live'` + `completed`·`refunded`). 그 밖의 주문에 이어진 요금제 구매 출처는 `paid_test`(시험·미완료 결제, 0원) + 경고 `test_payment`.
+- 결제 경고 `fulfillmentPendingOrders`(지급 대기 — 승인 시각이 지급 때 채워져 지난 기간에 소급해 들어감) + 화면·CSV 경고 줄 + 런북 RB-10 9-1 한 줄.
+- 수식 주입: 앞쪽 공백·줄바꿈(전각 공백 포함)을 건너뛴 첫 글자와 전각 ＝＋－＠ 도 막는다.
+- 기간 고르기 입력칸은 주소 기간이 바뀌면 다시 맞춘다(key).
+- down 에 정책 남음 검사(DDL 구역 안이라 light 사본은 함께 뺌).
+- light 리허설 운영 재실행: R1~R6·Z 통과(R2 11월 값 그대로, R3 지급 대기 경고, R4 시험 결제 출처 0원·경고 추가).

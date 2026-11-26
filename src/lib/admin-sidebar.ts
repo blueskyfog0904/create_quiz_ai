@@ -81,7 +81,7 @@ export const ADMIN_MARKET_MENU_HREFS = [
 ] as const
 
 // 과목과 상관없는 공통 메뉴 묶음
-export const ADMIN_PAYMENT_MENU_HREFS = ['/admin/orders', '/admin/refunds', '/admin/credits', '/admin/pricing'] as const
+export const ADMIN_PAYMENT_MENU_HREFS = ['/admin/orders', '/admin/refunds', '/admin/credits', '/admin/pricing', '/admin/reports'] as const
 export const ADMIN_MEMBER_MENU_HREFS = ['/admin/users', '/admin/support', '/admin/notices', '/admin/faq', '/admin/notifications'] as const
 export const ADMIN_SITE_MENU_HREFS = [
   '/admin/market/images',
@@ -169,6 +169,7 @@ export const DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG: AdminSidebarNavigationConf
     '/admin/credits',
     '/admin/refunds',
     '/admin/orders',
+    '/admin/reports',
     '/admin/reviews',
     '/admin/review-tags',
     '/admin/admin-accounts',
@@ -214,6 +215,8 @@ export const ADMIN_SIDEBAR_MENU_REQUIREMENTS: Readonly<Record<string, AdminGuard
   '/admin/credits': 'credits.view',
   '/admin/refunds': ['refunds.payment', 'refunds.market'],
   '/admin/orders': 'orders.view',
+  // 23번: 매출·정산 CSV(reports.view — orders.view 함께 필요)
+  '/admin/reports': 'reports.view',
   '/admin/reviews': 'reviews.manage',
   '/admin/review-tags': 'reviews.manage',
   '/admin/admin-accounts': 'owner',
@@ -274,6 +277,7 @@ function getDefaultAdminSidebarMenuItems(workspaceSubject: WorkspaceSubject): Ad
     { name: '크레딧 관리', href: '/admin/credits', icon: 'coins' },
     { name: '환불 관리', href: '/admin/refunds', icon: 'refreshCcw' },
     { name: '주문 조회', href: '/admin/orders', icon: 'fileText' },
+    { name: '매출·정산', href: '/admin/reports', icon: 'fileText' },
     { name: '후기 관리', href: '/admin/reviews', icon: 'messageSquare' },
     { name: '후기 태그 관리', href: '/admin/review-tags', icon: 'settings' },
     { name: '관리자 ID 관리', href: '/admin/admin-accounts', icon: 'userCog' },

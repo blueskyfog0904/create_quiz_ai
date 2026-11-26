@@ -102,6 +102,10 @@ export const ADMIN_AUDIT_ACTIONS = {
   // 19번 묶음(상품 표시 설정): 순서는 DB 함수가, 표시명 일괄 변경은 SQL 스크립트(실행·되돌림)가 남긴다(결제 연결 아님).
   market_subproduct_reorder: '서브상품 순서 변경',
   market_bundle_label_bulk_update: '전체구매 표시명 일괄 변경(SQL 스크립트)',
+  // 23번 묶음(매출·정산 CSV): 내려받기는 route 가 파일을 주기 전에(지문 sha256·기간·정의 판·줄 수·합계 몇 개), 문구 수정은 서버 액션이 남긴다.
+  // 결제 처리가 아니라 조회라 paymentLinkedActions 에 넣지 않는다(13번 보관 정책 2년 쪽, 계획 8절).
+  sales_report_export: '매출·정산 CSV 내려받기',
+  sales_report_content_update: '매출 CSV 안내 문구 수정',
 } as const
 
 export type AdminAuditAction = keyof typeof ADMIN_AUDIT_ACTIONS

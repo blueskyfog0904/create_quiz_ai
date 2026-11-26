@@ -243,7 +243,7 @@ test('사이드바는 꺼진 묶음의 메뉴를 그리지 않고, 묶음에 남
     '/admin/landing-pages',
     '/admin/main-ad-settings', '/admin/market-main-settings', '/admin/market/products/new', '/admin/market/products', '/admin/market-categories', '/admin/market/product-settings', '/admin/reviews', '/admin/review-tags',
     '/admin/users', '/admin/support', '/admin/notices', '/admin/faq', '/admin/notifications',
-    '/admin/pricing', '/admin/credits', '/admin/refunds', '/admin/orders',
+    '/admin/pricing', '/admin/credits', '/admin/refunds', '/admin/orders', '/admin/reports',
   ])
   assert.deepEqual(nodes.filter((node) => node.type === 'group').map((node) => node.id), ['site', 'market', 'members', 'payments'])
   // 숨길 것이 없으면 지금과 같다
@@ -348,6 +348,8 @@ test('관리자 페이지와 API 경로는 "운영 화면" 또는 "기능 묶음
     '/admin/notices', '/admin/faq',
     // 16번: 회원 알림 문구·공지 알림(운영 화면, 대표만)
     '/admin/notifications',
+    // 23번: 매출·정산 요약·CSV(운영 화면)
+    '/admin/reports', '/api/admin/reports',
   ]
   const isOperational = (route) => route === '/admin' || OPERATIONAL_PREFIXES.some((prefix) => route === prefix || route.startsWith(`${prefix}/`))
 

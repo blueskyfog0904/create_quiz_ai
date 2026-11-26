@@ -61,6 +61,8 @@ const PAGE_REQUIREMENTS = {
   // 16번: 회원 알림 문구·공지 알림 보내기(대표만 — Q1)
   'notifications/page.tsx': OWNER,
   'orders/page.tsx': 'orders.view',
+  // 23번: 매출·정산 요약·CSV(reports.view — orders.view 함께 필요)
+  'reports/page.tsx': 'reports.view',
   'users/page.tsx': 'members.view',
   'users/[id]/page.tsx': 'members.view',
   'credits/page.tsx': 'credits.view',
@@ -198,6 +200,8 @@ const ROUTE_REQUIREMENTS = {
   'audit-log/access/route.ts': all(OWNER, 'GET'),
   // 문의
   'support/stats/route.ts': all('support.manage', 'GET'),
+  // 23번: 매출·정산 기본 CSV(회원 칸 없음)
+  'reports/export/route.ts': all('reports.view', 'GET'),
   'support/categories/route.ts': all('support.manage', 'GET', 'POST'),
   'support/categories/[id]/route.ts': all('support.manage', 'PATCH', 'DELETE'),
   // 13번 7절: 숨긴 카테고리 다시 사용 / 5절: 이전 답변(열람 기록 support.ticket)
@@ -518,6 +522,10 @@ const ACTION_REQUIREMENTS = {
     previewMemberBroadcastAction: 'owner',
     sendMemberBroadcastAction: 'owner',
     retractMemberBroadcastAction: 'owner',
+  },
+  // 23번: 매출 CSV 안내 문구는 대표 전용(4-2 — 설정 행 직접 쓰기는 RESTRICTIVE 정책이 막고, 저장은 서버 키 액션만)
+  'src/app/(admin)/admin/reports/actions.ts': {
+    saveSalesReportContentAction: 'owner',
   },
   'src/app/(admin)/admin/footer/purchase-policy-actions.ts': {
     getMarketPurchasePolicyAdminData: 'site.manage',
