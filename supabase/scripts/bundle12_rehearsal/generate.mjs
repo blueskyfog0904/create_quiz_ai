@@ -755,9 +755,9 @@ function caseS13() {
     v_log := v_log || pg_temp.expect(pg_temp.try_sql(pg_temp.ctx('src_down')), 'ERR DOWN PRECHECK: members.memo', 'S13', '새 권한 행 있으면 멈춤');
     v_log := v_log || pg_temp.expect(pg_temp.grants(v_owner, v_staff, ARRAY['members.view']), 'OK', 'S13', '권한 회수');
     v_log := v_log || pg_temp.expect(pg_temp.try_sql(pg_temp.ctx('src_down')), 'ERR DOWN PRECHECK: suspension history exists', 'S13', '이력 있으면 내보내기 확인 전 멈춤');
-    INSERT INTO supabase_migrations.schema_migrations (version, name, statements) VALUES ('20261215100000', 'rh12_bundle13_marker', ARRAY[]::text[]);
+    INSERT INTO supabase_migrations.schema_migrations (version, name, statements) VALUES ('20261217100000', 'rh12_bundle13_marker', ARRAY[]::text[]);
     v_log := v_log || pg_temp.expect(pg_temp.try_sql(pg_temp.ctx('src_down')), 'ERR DOWN PRECHECK: bundle 13 is applied', 'S13', '13번 version 있으면 멈춤');
-    DELETE FROM supabase_migrations.schema_migrations WHERE version = '20261215100000' AND name = 'rh12_bundle13_marker';
+    DELETE FROM supabase_migrations.schema_migrations WHERE version = '20261217100000' AND name = 'rh12_bundle13_marker';
     -- 내보내기 확인 상수만 바꾼 사본으로 되돌리기 → 남은 것 0 → 다시 적용
     v_r := pg_temp.try_sql(pg_temp.subst_once(pg_temp.subst_once(pg_temp.ctx('src_down'),
       ${sqlString(DOWN_EXPORT_LINES[0][0])}, ${sqlString(DOWN_EXPORT_LINES[0][1])}),

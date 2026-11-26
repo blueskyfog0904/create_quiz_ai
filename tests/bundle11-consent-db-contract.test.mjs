@@ -25,7 +25,9 @@ const NEW_MD5 = {
 
 test('파일 이름은 운영 최신 판(20261205100000) 뒤, 거래 문장 없음, 잠금 설정·순서·NOTIFY', () => {
   const versions = readdirSync(new URL('../supabase/migrations/', import.meta.url)).map((name) => name.split('_')[0]).filter((v) => /^\d{14}$/.test(v)).sort()
-  assert.equal(versions.at(-1), '20261216100000')
+  // 11번이 적용 당시 운영 최신 판이다. 그 뒤 파일은 뒤 묶음(13번 20261217…)만 온다.
+  assert.equal(versions.filter((v) => v <= '20261216100000').at(-1), '20261216100000')
+  assert.ok(versions.filter((v) => v > '20261216100000').every((v) => v >= '20261217100000'))
   for (const [name, sql] of [['migration', migration], ['down', down]]) {
     assert.doesNotMatch(sql, /^\s*(BEGIN|COMMIT|ROLLBACK)\s*;/m, name)
     assert.match(sql, /^SET LOCAL lock_timeout = '3s';\nSET LOCAL statement_timeout = '120s';$/m, name)

@@ -186,17 +186,24 @@ const ROUTE_REQUIREMENTS = {
   'admin-accounts/[userId]/permissions/route.ts': all(OWNER, 'PUT'),
   'admin-accounts/[userId]/revoke/route.ts': all(OWNER, 'POST'),
   'audit-log/route.ts': all(OWNER, 'GET'),
+  // 13번 8-3: 개인정보 열람 기록 조회(대표 전용)
+  'audit-log/access/route.ts': all(OWNER, 'GET'),
   // 문의
   'support/stats/route.ts': all('support.manage', 'GET'),
   'support/categories/route.ts': all('support.manage', 'GET', 'POST'),
   'support/categories/[id]/route.ts': all('support.manage', 'PATCH', 'DELETE'),
+  // 13번 7절: 숨긴 카테고리 다시 사용 / 5절: 이전 답변(열람 기록 support.ticket)
+  'support/categories/[id]/restore/route.ts': all('support.manage', 'POST'),
   'support/tickets/[id]/route.ts': all('support.manage', 'PATCH'),
+  'support/tickets/[id]/answer-revisions/route.ts': all('support.manage', 'GET'),
   'support/tickets/[id]/member-summary/route.ts': all('support.manage', 'GET'),
   // 주문 조회
   'orders/market/route.ts': all('orders.view', 'GET'),
   'orders/payments/route.ts': all('orders.view', 'GET'),
   // 크레딧
   'users/credits/route.ts': all('credits.grant', 'POST'),
+  // 13번 8-2: 지급 창 회원 찾기(서버 키, 열람 기록 member_search)
+  'users/search/route.ts': all('credits.grant', 'GET'),
   'users/credits/limits/route.ts': all('credits.limits.manage', 'PUT'),
   'users/credits/revoke/route.ts': all('credits.revoke', 'POST'),
   // 10번: 회원 탈퇴(요청 기록·익명화·가림·보류 주문 닫기·보관함 열람)는 대표만
@@ -474,6 +481,13 @@ const ACTION_REQUIREMENTS = {
   'src/app/(admin)/admin/users/suspension-policy-actions.ts': {
     getMemberSuspensionPolicyAdminData: 'owner',
     saveMemberSuspensionPolicyAction: 'owner',
+  },
+  // 13번: 답변 템플릿은 support.manage(Q8 가), 고객지원 안내 문구는 대표 전용(Q9 가 — 응답 시간 같은 약속이 들어 있음).
+  'src/app/(admin)/admin/support/actions.ts': {
+    saveSupportReplyTemplateAction: 'support.manage',
+    hideSupportReplyTemplateAction: 'support.manage',
+    getSupportPageContentAdminData: 'owner',
+    saveSupportPageContentAction: 'owner',
   },
   'src/app/(admin)/admin/footer/purchase-policy-actions.ts': {
     getMarketPurchasePolicyAdminData: 'site.manage',
@@ -866,11 +880,15 @@ function loadStatsRoute(session, { lookupFails = false } = {}) {
       const client = createFakeSessionClient(session)
       return { auth: client.auth, from: (table) => ({ ...client.from(table), select: (_columns, options) => (options?.head ? { gte: async () => ({ count: 3, error: null }) } : client.from(table)) }) }
     } },
-    '@/lib/admin-dashboard-server': { getAdminDashboard: async () => { calls.dashboard += 1; return { metrics: { ok: true }, recentOrders: [], recentTickets: [] } } },
+    '@/lib/admin-dashboard-server': { getAdminDashboard: async () => { calls.dashboard += 1; return { metrics: { ok: true }, recentOrders: { failed: false, data: [] }, recentTickets: null } } },
     '@/lib/admin-work-summary-server': { getAdminWorkSummary: async (access) => { calls.workAccess.push(access); return { supportPending: 1 } } },
     '@/lib/kst-period': { getKstPeriodStarts: () => ({ todayStart: 't', monthStart: 'm', year: 2026, month: 11 }) },
+    // 13번 M3: 가입 수는 서버 키로 센다(세션은 다른 회원의 profiles 를 읽지 못함). 최근 주문·문의 이메일은 열람 기록 뒤에 싣는다.
+    '@/lib/supabase/bypass': { createAdminClient: () => ({ from: () => ({ select: (_columns, options) => (options?.head ? { gte: async () => ({ count: 3, error: null }) } : null) }) }) },
+    '@/lib/admin-member-access-log-server': { recordMemberAccess: async (input) => { calls.access = (calls.access ?? []).concat([input]); return true } },
+    '@/lib/admin-request-meta': load('src/lib/admin-request-meta.ts'),
   })
-  return { get: () => route.GET(), calls }
+  return { get: () => route.GET(new Request('http://localhost/api/admin/stats')), calls }
 }
 
 test('⑤ 통계: 가입 수는 회원 조회 권한, 처리 대기는 항목별 권한으로 거르고, 권한 조회가 실패하면 "확인 불가"로 보낸다', async () => {

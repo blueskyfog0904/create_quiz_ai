@@ -30,7 +30,7 @@ const uuid = z.string().uuid()
 const datetime = z.string().datetime({ offset: true })
 const operationKey = z.string().trim().min(8).max(200)
 const reason = z.string().trim().min(1, '사유를 적어 주세요.').max(500)
-const targetKind = z.enum(['support_ticket', 'support_ticket_revision', 'refund_request', 'market_refund_request'])
+const targetKind = z.enum(['support_ticket', 'support_ticket_revision', 'support_ticket_answer_revision', 'refund_request', 'market_refund_request'])
 
 const BodySchema = z.discriminatedUnion('action', [
   // 이메일·전화 요청에 보낼 고지 원문(서버가 지금 값으로 만든다)
@@ -69,7 +69,7 @@ const BodySchema = z.discriminatedUnion('action', [
     action: z.literal('redact'),
     targetKind,
     targetId: uuid,
-    field: z.enum(['subject', 'message', 'admin_response', 'reason', 'admin_note']),
+    field: z.enum(['subject', 'message', 'admin_response', 'previous_response', 'reason', 'admin_note']),
     targetText: z.string().min(1, '가릴 문구를 입력해 주세요.').max(2000),
     operationKey,
   }).strict(),

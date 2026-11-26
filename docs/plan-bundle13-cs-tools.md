@@ -220,7 +220,7 @@
 - 새 트리거는 `CREATE TRIGGER` 만 쓴다(`DROP TRIGGER IF EXISTS` 없이, 15번 4-4 와 같은 이유).
 - 파일 시각은 **12번(`20261214100000_member_suspension.sql`) 뒤로 둔다.** 적용 순서와 파일 시각이 같은 순서가 되게 한다. 실제 날짜는 일정이 정해질 때 같은 순서를 지켜 다시 정한다. (2판)
 
-### 4-1. M0 `20261215100000_bundle13_member_access_log.sql` (열람 기록, 따로 뗀 파일) (2판)
+### 4-1. M0 `20261217100000_bundle13_member_access_log.sql` (열람 기록, 따로 뗀 파일) (2판)
 - **표 `admin_member_access_log`**(추가 전용)
   - `id uuid PK`
   - `created_at timestamptz NOT NULL DEFAULT now()`
@@ -245,7 +245,7 @@
   - 머리 주석에 '적용 직후 행이 0건일 때만' 쓰는 짧은 DROP 문을 적어 둔다.
   - 그래서 M1·M2·M3 를 되돌리고 다시 적용해도 이 표에 걸리지 않는다(경우 F).
 
-### 4-2. M1 `20261215110000_bundle13_cs_tools.sql` (추가, 10번 함수 재정의)
+### 4-2. M1 `20261217110000_bundle13_cs_tools.sql` (추가, 10번 함수 재정의)
 **사전 점검**: 1-3 의 함수 지문 5개(재정의할 4개와 `anonymize_member`)가 같은지, 새 표와 새 키가 아직 없는지 본다.
 
 1. **`support_tickets.response_edited_at timestamptz NULL`**
@@ -292,8 +292,8 @@
 
 1. **인자 검사**: 답변 1~10000자, 상태는 `in_progress|resolved|closed` 이거나 NULL, 키 1~200자, `p_request_meta` 는 객체
 2. **행위자 확인**: `profiles` 를 직접 읽어, owner 이거나 `admin_permission_grants('support.manage')` 가 있는지 본다(서버 키로 부르므로 `auth.uid()` 가 없다).
-3. **문의 잠그기**: 문의를 `FOR UPDATE` 로 잠근다. 문의가 없거나 회원이 삭제했으면 거부한다. 탈퇴 회원이면 기존 트리거가 `MEMBER_WITHDRAWN` 으로 막는다.
-4. **재요청**: 잠근 뒤 `admin_audit_log` 에서 같은 기록(`action IN ('support_ticket_reply','support_ticket_reply_edit')`, `target_id = 문의 id`, `request_id = 키`)을 찾는다. 있으면 그 기록의 details(이력 id·상태)로 결과를 다시 만들어 돌려준다. 문의 한 건으로 범위를 좁혔으니 인덱스가 없어도 비용이 작다. (2판)
+3. **문의 잠그기**: 문의를 `FOR UPDATE` 로 잠근다. 문의가 없으면 `SUPPORT_TICKET_NOT_FOUND`, 회원이 삭제했으면 `SUPPORT_TICKET_DELETED_BY_MEMBER`, 탈퇴 회원이면 함수가 직접 `MEMBER_WITHDRAWN` 으로 거부한다(트리거는 두 번째 방어). 이 검사는 재요청보다 먼저다. (구현)
+4. **재요청**: 3번 검사 뒤 `admin_audit_log` 에서 같은 기록(`action IN ('support_ticket_reply','support_ticket_reply_edit')`, `target_id = 문의 id`, `request_id = 키`, `actor_id = 행위자`)을 찾는다. 있으면 그 기록의 details(이력 id)와 action(수정인지)으로 결과를 다시 만들어 돌려준다. 그래서 탈퇴·삭제된 문의는 재요청이어도 본문을 돌려주지 않고, 다른 처리자의 키는 재요청이 아니다. 문의 한 건으로 범위를 좁혔으니 인덱스가 없어도 비용이 작다. (2판, 구현)
 5. **충돌 확인**: 지금 답변(없으면 빈 문자열)의 sha256 이 `p_expected_sha256` 과 다르면 `SUPPORT_ANSWER_CONFLICT` 를 낸다.
 6. **첫 답변**(지금 답변이 NULL)
    - 거래 로컬 설정 `app.support_answer_write = 문의 id` 를 켠다.
@@ -321,7 +321,7 @@
   - 고지 원문(`member_withdrawal_notice_text`)과 미리보기 건수: 고지 글자·지문이 그대로라 15번 잠금과 무관하다.
   - `anonymize_member`: 문의를 보존하지 않으면 연쇄 삭제로 이력도 지워지고, 보존하면 함께 남는다.
 
-### 4-5. M2 `20261215120000_bundle13_support_answer_guard.sql` (잠금, 새 코드 배포 뒤)
+### 4-5. M2 `20261217120000_bundle13_support_answer_guard.sql` (잠금, 새 코드 배포 뒤)
 - `REVOKE UPDATE (status, admin_response, responded_at, updated_at) ON support_tickets FROM authenticated` 를 한다. 정책 `support_tickets_admin_update` 를 DROP 한다.
   - 세션으로 `support_tickets` 를 UPDATE 하는 코드는 답변 route 하나뿐이고, 5절에서 함수 호출로 바꾼다.
   - 상태만 바꾸는 화면은 4단계(U4-1)에서 함수로 만든다. (2판)
@@ -331,7 +331,7 @@
     - `app.member_withdrawal_bypass` = 그 회원 id
   - 아니면 `SUPPORT_ANSWER_RPC_ONLY` 를 낸다. service_role 이 직접 UPDATE 해도 막힌다.
 
-### 4-6. M3 `20261215130000_bundle13_admin_select_narrow.sql` (Q14 가, 코드 배포 뒤) (2판·3판)
+### 4-6. M3 `20261217130000_bundle13_admin_select_narrow.sql` (Q14 가, 코드 배포 뒤) (2판·3판)
 **사전 점검**
 - 탈퇴 가림 정책 4개의 지금 식(`pg_get_expr(polqual, polrelid)`, support_tickets 는 `polwithcheck` 도)이 10번 마이그레이션 453~477행에서 만든 식과 같은지 대조한다. 다르면 멈춘다.
 - 좁힐 정책(`Admins can view all profiles`, `Admins can view all tickets`, (가-3)이면 `Admins can view all market download events`)의 지금 식이 `is_admin()` 인지 본다.
@@ -375,6 +375,12 @@
   - 템플릿·문구가 첫 값과 다르면 확인 상수 `c_export_confirmed` 가 있어야 진행한다(12번과 같은 틀).
 - **M0**: 되돌리기 없음(4-1).
 - **순서**(3판): **M3 down → M2 down → 코드 되돌림 → (필요하면) M1 down**. M1 이 만든 표·칸은 옛 코드가 쓰지 않으므로, 코드를 먼저 되돌려도 문제없다. 10번을 되돌려야 하면 13번을 먼저 되돌린다. 런북 10-10 에 같은 순서로 적는다.
+- **되돌리기 조건(구현 검증 반영, 2026-11-26)**: 위 순서의 '코드를 먼저 되돌려도 문제없다'는 답변 수정 이력이 0건일 때만 맞다.
+  - 답변 수정 이력이 1건이라도 있으면 M1 down 이 멈추므로 M1(재정의된 `member_withdrawal_facts`)이 남는다. 그러면 facts 가 새 가림 종류 `support_ticket_answer_revision` 을 내놓는데, 옛 코드의 탈퇴 route 는 이 종류를 zod enum 에서 거부해 가림·확인을 못 하고, `anonymize_member` 는 `MEMBER_WITHDRAW_REDACTION_REQUIRED` 로 막힌다. 그래서 **코드를 되돌릴 때 5-1 변경(탈퇴 route enum·`WithdrawalRedactionItem.kind`·`readWithdrawalTargetUserId`·가림 패널 라벨·`withdrawn-tickets-panel` 의 answerRevisions)은 남긴다.** 남길 수 없으면 되돌리지 않고 고쳐서 앞으로 간다.
+  - 2027-01-11 처리방침 시행 뒤에는 8절 열람 기록 코드(`admin-member-access-log*`·`admin-request-meta`, 각 화면의 `recordMemberAccess`/`attachMemberContacts`, `api/admin/users/search`, 대표 열람 탭)도 남긴다(처리방침 2·10절의 약속). 남길 수 없으면 되돌리지 않는다.
+  - 그래서 '코드 되돌림'은 문의 CS 도구 부분(답변 route·답변 수정 창·템플릿·안내 문구 탭·카테고리 복구)만 골라 되돌리는 것이다. 답변 route 를 옛 세션 UPDATE 로 되돌리려면 M2 down 이 먼저다. M1 down 까지 하려면 회원 고객지원 화면(`support-view`·`page.tsx`)도 옛 코드로 먼저 되돌린다(새 화면은 `support_page_content` 행이 없으면 오류 화면).
+  - **두 단계로 한다**(재검증 반영): ① M3 down → M2 down → 문의 CS 도구 코드만 되돌려 배포(이때부터 새 이력이 생기지 않음) → ② `SELECT count(*) FROM public.support_ticket_answer_revisions;` 를 **다시** 보고, 0 일 때만 5-1 코드와 회원 고객지원 화면을 되돌린 뒤 M1 down 을 한다. 0 이 아니면 5-1 과 M1 을 남기고 끝낸다. ①보다 먼저 센 값으로 ②를 정하지 않는다(그 사이 수정이 생길 수 있음). 리허설 경우 F 가 'M2 down 뒤 이력이 남으면 facts 가 새 종류를 내놓는다'를 고정한다.
+  - **2027-01-11 처리방침 시행 뒤에는 M1 down 을 하지 않는다**: M1 down 은 `support_page_content` 행(열람 기록 보관 연수 `admin.accessLogRetentionYears` = 2, 처리방침 3절의 근거 값)을 지운다. 시행 뒤 M1 을 되돌려야 하면 그 행을 남기는 별도 스크립트를 먼저 만든다.
 
 ## 5. 답변 저장·수정(코드)
 - **`PATCH /api/admin/support/tickets/[id]`**
@@ -694,7 +700,7 @@ M1 뒤 새 코드가 들어가야 이력 행이 생긴다. 그래서 이 수정�
 
 ## 14. 범위 밖(후속)
 - 회원 단위 관리자 메모(12번). 문의 단위 내부 메모, 미답변 경과 시간, 이어지는 대화(U4-1·U4-3 의 나머지, 출시 뒤)
-- 기간이 지난 열람 기록을 지우는 함수(가장 이른 만료 전에 만든다). 예외 목록(확정, 2026-11-26): 처음 만들 때 DB 정책 값(`system_settings` 새 키 `admin_record_retention_policy` 의 `paymentLinkedActions`, 코드에 상수로 두지 않음)으로 넣는다. 첫 값 = `credit_grant`·`credit_revoke`·`market_refund_approve`·`market_refund_reject`·`market_refund_exception`·`market_refund_owner_settle`·`point_charge_source_hold`·`point_charge_source_release`·`member_withdraw`·`member_withdraw_request`·`member_withdraw_request_reply`·`member_withdraw_request_cancel`·`member_text_redact`·`member_text_reviewed`·`withdrawn_held_order_close`·`withdrawn_member_event`, 그리고 `payment_admin_actions` 전부. 이 행들은 관련 결제 기록·탈퇴 처리 기록의 보관 기간이 끝날 때까지 남기고, 관련 기록이 없으면 2년으로 본다. `withdrawn_record_view`(보관 기록 열람)는 열람 기록과 같은 성격이라 2년 쪽이다. 결제 이력이 없는 회원의 결제 시도 기록은 '관련 기록'이 아니다(그 회원의 관리자 처리 내역은 2년 쪽). 새 작업 종류를 더할 때 어느 쪽인지 그 묶음 계획에서 정한다. 01-11 시행 처리방침 3절이 관리자 작업 기록(회원에 관한 것)도 2년으로 적었으므로 `admin_audit_log`·`payment_admin_actions` 정리도 함께 만든다. **마감 2028-11-11 전**(가장 이른 행: `payment_admin_actions` 2026-11-11, `admin_audit_log` 2026-11-19). 추가 전용 가드와 함께 설계하고, **예외**로 결제·환불·탈퇴 처리에 관한 관리자 처리 내역(`payment_admin_actions` 전부, `market_refund_approve`·`withdrawn_held_order_close`·`member_withdraw` 등)은 결제 기록·탈퇴 처리 기록의 기간(5년)까지 남긴다(01-11 시행 처리방침 3절). 작업 순서표 13번 비고에도 적음. 10번 후속의 '보존 기간 지난 문의 자동 파기'에 답변 이력도 넣는다.
+- 기간이 지난 열람 기록을 지우는 함수(가장 이른 만료 전에 만든다). 예외 목록(확정, 2026-11-26): 처음 만들 때 DB 정책 값(`system_settings` 새 키 `admin_record_retention_policy` 의 `paymentLinkedActions`, 코드에 상수로 두지 않음)으로 넣는다. 첫 값 = `credit_grant`·`credit_revoke`·`market_refund_approve`·`market_refund_reject`·`market_refund_exception`·`market_refund_owner_settle`·`point_charge_source_hold`·`point_charge_source_release`·`member_withdraw`·`member_withdraw_request`·`member_withdraw_request_reply`·`member_withdraw_request_cancel`·`member_text_redact`·`member_text_reviewed`·`withdrawn_held_order_close`·`withdrawn_member_event`, 그리고 `payment_admin_actions` 전부. 이 행들은 관련 결제 기록·탈퇴 처리 기록의 보관 기간이 끝날 때까지 남기고, 관련 기록이 없으면 2년으로 본다. `withdrawn_record_view`(보관 기록 열람)는 열람 기록과 같은 성격이라 2년 쪽이다. 결제 이력이 없는 회원의 결제 시도 기록은 '관련 기록'이 아니다(그 회원의 관리자 처리 내역은 2년 쪽). 새 작업 종류를 더할 때 어느 쪽인지 그 묶음 계획에서 정한다. 01-11 시행 처리방침 3절이 관리자 작업 기록(회원에 관한 것)도 2년으로 적었으므로 `admin_audit_log`·`payment_admin_actions` 정리도 함께 만든다. **마감 2028-11-11 전**(가장 이른 행: `payment_admin_actions` 2026-11-11, `admin_audit_log` 2026-11-19). 추가 전용 가드와 함께 설계하고, **예외**로 결제·환불·탈퇴 처리에 관한 관리자 처리 내역(`payment_admin_actions` 전부, `market_refund_approve`·`withdrawn_held_order_close`·`member_withdraw` 등)은 결제 기록·탈퇴 처리 기록의 기간(5년)까지 남긴다(01-11 시행 처리방침 3절). 작업 순서표 13번 비고에도 적음. 10번 후속의 '보존 기간 지난 문의 자동 파기'에 답변 이력도 넣는다. 열람 기록(`admin_member_access_log`)은 추가 전용 가드가 지우기를 막으므로, 이 함수가 생기기 전 만료분은 런북 10-9 6번 임시 절차(한 거래에서 트리거를 끄고 2년 지난 행만 지움)로 처리한다(구현 검증 반영).
 - 기존 쓰기 작업 기록(지급·환불·상품 등)에 IP·기기 남기기(변호사 ① 답을 보고)
 - 주문·충전 환불·자료 환불의 관리자 조회를 권한 키 기준으로 좁히기. 먼저 세션으로 읽는 경로(`refunds/page.tsx`, `admin-work-summary-server.ts` 의 자료 환불 건수 등)를 조사해야 한다. 문의는 Q14 (가-2)로 이번에 좁힌다. (3판)
 - 옛 마이페이지(`site_legacy_mypage`)를 다시 켜면 옛 문의 화면에 수정 표시가 없다. 다시 켤 때 고친다. (3판)
@@ -778,3 +784,67 @@ M1 뒤 새 코드가 들어가야 이력 행이 생긴다. 그래서 이 수정�
 | 관점 | 반영 |
 |---|---|
 | 법률·DB·보안 | 판정 함수를 `private` 스키마로(USAGE·EXECUTE 는 authenticated·service_role, 정책 식에 스키마 이름), 경우 G 를 세션 권한 있는 두 표/없는 두 표로 나눔·일반 회원 RPC 확인, 하위 조회 검사에 `support_tickets` 포함, 정책은 `ALTER POLICY` 로 식만 바꾸고 역할·명령 대조, (가-3) 넣음(세션 경로 0건 확인), M3 되돌릴 때 직원 권한 처리, 열람 기록 위·변조 한계와 월 점검 줄, 환불 화면 사실 정정(세션은 자료 환불뿐, 셋 모두 기록)·허용 목록을 쿼리 단위로, `attachMemberContacts` 가 `display_tag` 까지 화면 모양대로 채우고 연결 문의에도 적용. 판정 함수 본문에서 부른 사람을 제한하는 안은 `private` 스키마로 RPC 길이 없어져 넣지 않음 |
+
+## 18. 구현 메모 (2026-11-26, 커밋 전·DB 미적용)
+0절 미결 질문은 모두 권장안으로 구현했다(Q1 가, Q2 예, Q3 가, Q4 가, Q5 2년, Q6 가, Q7 예·예·예, Q8 가, Q9 가 대표만, Q11 넣음, Q13 그대로, Q14 가·가-2·가-3, Q15 옮김). 대표 답이 오면 0절로 옮긴다.
+
+### 18-1. 파일
+- **DB**(적용하지 않음)
+  - M0 `supabase/migrations/20261217100000_bundle13_member_access_log.sql`(되돌리기 파일 없음 — 머리 주석에 '행 0건일 때만' DROP 문)
+  - M1 `supabase/migrations/20261217110000_bundle13_cs_tools.sql` / down `supabase/rollback/20261217110000_bundle13_cs_tools_down.sql`(10번 원문 4개를 품음)
+  - M2 `supabase/migrations/20261217120000_bundle13_support_answer_guard.sql` / down `supabase/rollback/20261217120000_bundle13_support_answer_guard_down.sql`
+  - M3 `supabase/migrations/20261217130000_bundle13_admin_select_narrow.sql`(`c_code_deployed` false) / down `supabase/rollback/20261217130000_bundle13_admin_select_narrow_down.sql`
+  - 리허설 `supabase/scripts/bundle13_rehearsal/generate.mjs` → `a_light.sql`·`b_full.sql`
+- **공용 lib**: `src/lib/admin-member-access-log.ts`(화면 키·항목·200명씩 나누기·`maskPhone`), `src/lib/admin-member-access-log-server.ts`(`recordMemberAccess`·`attachMemberContacts`·`readMemberContacts`, 실패 시 `admin_events` `member_access_log_failed` 1시간 1번), `src/lib/admin-member-access-log-view-server.ts`(대표 열람 탭), `src/lib/admin-request-meta.ts`(`adminRequestMeta`), `src/lib/admin-audit-log.ts`(11절 종류 8개)
+- **문의(5·6·7·9절, 5-1, 8-2 문의)**: `src/lib/support-page-content.ts`·`support-page-content-server.ts`·`support-reply-template.ts`·`admin-support-server.ts`, `src/app/(admin)/admin/support/`(`page.tsx`·`support-client.tsx`·`withdrawn-tickets-panel.tsx`·새 `actions.ts`·`reply-template-tools.tsx`·`reply-templates-panel.tsx`·`support-page-content-panel.tsx`·`ticket-answer-edit.tsx`), route `api/admin/support/tickets/[id]`(저장 함수)·`…/[id]/answer-revisions`(새)·`…/[id]/member-summary`·`categories`·`categories/[id]`·`categories/[id]/restore`(새), 회원 화면 `src/app/(solvook)/mypage/support/page.tsx`·`_components/support-view.tsx`, 5-1 `api/admin/users/[id]/withdrawal/route.ts`·`src/lib/member-withdrawal.ts`·`member-withdrawal-server.ts`·`users/[id]/member-withdrawal-panel.tsx`
+- **열람 기록(8절, 문의 밖)**: `/admin/users`·`/admin/users/[id]`(대표에게만 [이 회원 열람 기록])·`/admin/credits`·`/admin/refunds`·`/admin/audit-log`(+ 새 `member-access-log-client.tsx`, route `api/admin/audit-log/access`), route `orders/market`·`orders/payments`·`refunds`·`reviews`·`stats`·`audit-log`, 새 `api/admin/users/search`(지급 창), `grant-credit-dialog.tsx`, `src/lib/market-reviews-server.ts`
+- **시험**: 새 `tests/bundle13-cs-tools-contract.test.mjs`(열람 기록·profiles 쿼리 단위 전수)·`tests/bundle13-cs-tools-support-contract.test.mjs`(문의)·`tests/bundle13-cs-tools-db-contract.test.mjs`(DB), 고친 시험 `admin-audit-log-contract`·`admin-guard-coverage-contract`·`admin-rls-by-permission-contract`·`admin-member-detail-contract`·`admin-support-u2-3-contract`·`member-notification-contract`·`support-category-api-ui-contract`·`support-tickets-privilege-contract`
+- **문서**: 런북 `docs/admin-operations-runbook.md`(RB-8 템플릿·빈칸·답변 수정·안내 문구, RB-9 열람 기록·관리자 계정 위험, 10-9 개인정보 열람 기록 월 점검, 10-10 13번 먼저, 12절 머리), `docs/launch-owner-todo.md` 6절 '(13번 CS 도구)' 변호사 질문 5개
+
+### 18-2. 계획과 다르게 한 것(이유)
+1. 12-1 의 새 시험을 두 파일로 나눴다: `bundle13-cs-tools-contract`(열람 기록) + `bundle13-cs-tools-support-contract`(문의). 두 갈래로 나눠 구현했기 때문이고, 검사 항목은 12-1 그대로다.
+2. `withdrawalRequestMeta`(10번)는 옮기지 않고 그대로 두고, 같은 규칙의 `adminRequestMeta` 를 새로 두어 새 코드만 쓴다(10번 시험의 모듈 주입을 깨지 않으려고).
+3. 템플릿 `category_id` 가 한 칸이라, 10-2 에서 market_refund·credit_refund 두 곳에 연결하라던 글(환불 접수·환불 거절)과 공용 글(크레딧 회수 2개·영수증)은 비웠다(모든 문의에서 보임, 9개만 연결). 내용상 충전 쪽인 계좌 송금·결제 취소·계좌 송금 완료는 credit_refund, 자료 문제 환불은 market_refund. 런북의 한 글자 빈칸 `○`(○일·○월 ○일)은 빈칸 검사가 잡도록 `○○` 로 바꿨다.
+4. 사전 점검을 조금 더 했다: M0 는 12번 적용 확인, M1 은 M0 적용·`record_admin_audit`·`guard_withdrawn_member_write` 지문·카테고리 트리거 없음, M2 는 지울 정책·회수할 칸 권한이 지금 모양인지, M3 는 M0·M1 적용. M3 의 '지금 식 대조'는 10번 파일 줄 대신 운영 `pg_get_expr` 를 공백 하나로 줄인 글과 비교한다(같은 식).
+5. 저장 함수는 탈퇴 회원을 트리거에 맡기지 않고 직접 `MEMBER_WITHDRAWN` 으로 거부한다(같은 코드, 이력 INSERT 전에 멈춤). `previous_shown_at` 은 `COALESCE(response_edited_at, responded_at, updated_at, created_at)`(옛 행에 responded_at 이 비어 있을 때 대비).
+6. M1 재정의 4개의 VERIFY·M1 down 사전 점검은 `md5(prosrc)`(로컬 계산 가능)로 대조하고, 10번 원문 복귀는 `md5(pg_get_functiondef)`(1-3 값)로 확인한다(12번과 같은 틀).
+7. (문의 갈래) 이전 답변이 0건이면 열람 기록을 남기지 않고, 기록이 실패하면 이전 답변을 보이지 않고 503. 안내 문구 저장은 바뀐 것이 없어도 revision 을 올리고 기록한다(`changedKeys` 빈 배열). 첫 답변 칸은 지금처럼 '대기 중' 문의에만 보인다.
+8. (열람 갈래) 기록은 lib 안이 아니라 부르는 쪽(페이지·route)에서 남긴다(기존 lib 시험의 모듈 주입 유지). 열람 탭을 연 일을 적을 항목 키 `access_log` 를 더했다. 탈퇴 보관함 열람(`withdrawn_record_view`)은 열람 탭에 합치지 않고 작업 기록 탭 필터로 잇는 링크만 두었다(두 표를 섞으면 서버 쪽 쪽 나눔이 복잡해짐). `/admin/refunds` 는 충전·자료 기록을 따로 남긴다(`context.list`). 회원 목록·회원 찾기는 관리자 계정·탈퇴 회원을 뺀다. `admin-member-detail-contract` 의 `userId` 금지 검사를 `userId:`·`get('userId')` 금지로 좁혔다(응답 행의 `order.userId` 를 기록에 씀).
+9. 리허설 light 는 기존 표를 잠그는 DDL(칸 추가·FK 2개·slug 트리거와 그 VERIFY 블록)을 뺀 M1 사본이라, 저장 함수·facts·익명화(경우 B·C 대부분)·D·G·F 는 b_full 에서만 본다. light 의 경우 C 는 이력 가드·가림 함수·탈퇴 열람만 본다.
+10. 경우 G 의 '일반 회원 claims 로 `/rpc/is_withdrawn_member` 를 부르면 못 찾음'은 SQL 로 확인할 수 없다(DB API 노출 스키마는 Supabase 설정). b_full 은 anon 의 스키마·함수 권한 없음만 보고, 노출 스키마 확인은 12-3 운영 확인에 넣는다.
+
+### 18-3. 리허설
+- 실행: `node supabase/scripts/bundle13_rehearsal/generate.mjs` → `supabase db query --remote --yes -o json --file supabase/scripts/bundle13_rehearsal/a_light.sql`
+- **a_light: 2026-11-26 17:21(한국 시간) 운영에서 1회, 44줄 전부 통과**(18-6 고친 뒤 새 버전 이름·새 저장 함수로 다시 돌려 44줄 전부 통과, 운영 잔여 0 확인)(setup·A 지문·E 열람 기록 19줄·T 템플릿·문구 10줄·C 이력 가드·가림·탈퇴 열람 11줄·Z 남은 행 0). 끝은 ROLLBACK 이고, 뒤 확인 조회로 `admin_member_access_log`·`support_reply_templates`·`support_page_content` 행이 없고 `member_withdrawal_facts` 지문이 10번 값 그대로임을 봤다.
+- **b_full: 돌리지 않았다.** 새벽 03~04시, M0·M1 적용 전에 반드시 돌린다(support_tickets·support_ticket_categories 는 M1 부터, profiles 등 6개 표는 M3 부터 ROLLBACK 까지 ACCESS EXCLUSIVE). 경우 F0·A·E·T·B·C(실제 익명화 owner·self, 12번 교훈 반영)·D·G(적용 전후 세션 건수 비교)·F(M3→M2→M1 down·다시 적용)를 본다.
+
+### 18-4. 함수 지문(light 리허설 측정, md5(pg_get_functiondef))
+| 함수 | 지문 |
+|---|---|
+| `record_admin_member_access(uuid,text,uuid[],text[],jsonb,text,jsonb)` | `806fbe14e0f9d4c752705575ce83d4d5` |
+| `guard_admin_member_access_log_mutation()` | `ed16aee57cc8c1085a2091862ca484b5` |
+| `save_support_ticket_answer(uuid,uuid,text,text,text,text,text,jsonb)` | `33c84860408b21345fb729e0e874018b`(18-6 재요청 순서 고친 뒤 다시 잼, 앞 값 `6457942d…`) |
+| `guard_support_ticket_answer_revisions_mutation()` | `b85776cffb8afbccb32b5b26f8615b34` |
+| `guard_support_category_slug()` | `0ecf15b4dc9e6fd50fdfc2ccc8ee4201` |
+| `member_withdrawal_facts(uuid,boolean)` | `05923c4df814d40b6ec81d1d53d410aa`(본문 md5(prosrc) `15147d898bdd615963fd7173e154d9f5`) |
+| `redact_member_text(uuid,text,uuid,text,text,text)` | `47173300ae0fa1a96cb1d45faa6da353`(본문 `7ddf1b9245c429205af6b36fa01bfb21`) |
+| `mark_member_text_reviewed(uuid,text,uuid)` | `747dfa76a9a47f1a517bec07b400ab5a`(본문 `1284e5d70af808bb2b949432d92e255b`) |
+| `read_withdrawn_member_ticket(uuid,uuid,text,jsonb)` | `f41545f480e18e0b9ee274a0314dc30e`(본문 `ba416c661c7e9fb4c036c8516cd85d2c`) |
+| `anonymize_member(…)` | `1346d870d3623abae580a011b0484339`(그대로) |
+- M2 `guard_support_ticket_answer_write()`, M3 `private.is_withdrawn_member(uuid)`·`private.is_withdrawn_ticket_member(uuid)` 는 b_full 이 잰다.
+
+### 18-5. 시험·남은 일
+- `node --test tests/*.test.mjs`: 2195개 중 실패 46개 — HEAD(2d8b650) 깨끗한 worktree 의 실패 46개와 이름이 모두 같다(새 실패 0). `npx tsc --noEmit -p .`: `.next/` 밖 0. 바뀐 파일 eslint: `grant-credit-dialog.tsx` 의 `catch (error: any)` 1건(원래 있던 것).
+- 남은 일(15절 순서): 13절 4관점 독립 검증 → b_full(새벽, 승인) → M0·M1 적용(**마감 2027-01-10**, 10번 01-11 처리방침 apply 가 M0·`accessLogRetentionYears = 2` 를 본다) → 12-3 화면 확인(Claude in Chrome 먼저, 열람 기록은 localhost 에서도 실제로 쌓이고 지울 수 없음을 대표에게 미리 알림) → push·배포 → M2 → M3(`c_code_deployed` true) → 시험 staff 계정 12-3 운영 확인 → CS 계정 발급(0절 6번: 계획한 묶음을 모두 구현한 뒤).
+
+### 18-6. 구현 독립 검증(5관점) 반영 — db·열람·문의·권한 PASS, 배포 FAIL(major 2) → 고침
+| 관점·등급 | 지적 | 반영 |
+|---|---|---|
+| 배포·DB major | 파일 시각 20261215… 이 운영 최신 11번 `20261216100000` 보다 앞(적용 순서 ≠ 파일 순서, 다시 적용하면 11번 사전 점검이 깨짐) | M0~M3·down 을 `20261217100000`~`20261217130000` 으로 바꿈(순서 유지). generate.mjs SOURCES·사전 점검 메시지·계약 시험 5개·12번 down 의 13번 version 목록(이름 패턴 `bundle13` 검사는 원래 있음)·12번 리허설 표지 version·런북·이 계획·14번 계획 한 줄을 고치고 12·13번 리허설을 다시 만듦. 11번 시험(`bundle11-consent-db-contract`)의 '최신 파일 = 11번' 검사는 '11번까지 중 최신 = 11번, 그 뒤는 20261217… 만'으로 좁힘. M0 머리 주석에 '적용 직전 schema_migrations 최신 버전을 보고 그보다 뒤가 아니면 같은 순서로 다시 정한다' |
+| 배포 major | 되돌리기 근거('코드를 먼저 되돌려도 문제없다')가 이력이 있으면 틀림 — M1 down 이 멈춰 재정의 facts 가 남고, 옛 탈퇴 route 가 새 가림 종류를 거부해 탈퇴가 막힘. 01-11 시행 뒤 열람 기록 코드를 되돌리면 처리방침 약속이 깨짐 | 4-7 '되돌리기 조건', M1 down 머리 주석, 런북 10-10: 코드는 문의 CS 도구만 골라 되돌리고, 이력이 있으면 5-1 코드와 M1 을 남기며, 01-11 뒤에는 8절 열람 기록 코드를 남김(판단 조회 한 줄). 리허설 경우 F 에 'M2 down 뒤 이력이 남으면 facts 가 새 종류를 내놓음' 확인을 더함 |
+| DB·문의·권한 minor | 저장 함수 재요청 분기가 회원 삭제·탈퇴 검사 앞이고 처리자를 보지 않아 탈퇴 회원 문의 본문을 돌려줄 수 있음 | 재요청을 삭제·탈퇴 검사 뒤로 옮기고 `a.actor_id = p_actor_id` 조건. 리허설 경우 B(다른 처리자 같은 키 → 충돌)·C(탈퇴 뒤 같은 키 → `MEMBER_WITHDRAWN`), 계약 시험 순서 검사. 지문 다시 잼(18-4) |
+| 열람 minor | 후기 route 열람 기록 context.page 가 다듬지 않은 주소 값 | `normalizeListPage` 값을 목록 조회와 기록에 같이 씀 |
+| 열람 minor | 2년 파기 약속을 지킬 절차가 없음 | 런북 10-9 6번 임시 파기 절차(한 거래에서 트리거 끄고 2년 지난 행만, 기록 남김), RB-9 연결, 14절 후속 함수에 같은 줄 |
+| 문의 minor | 이전 답변 목록을 펼친 채 저장하면 '불러오는 중'에서 멈춤 | 펼침 상태를 두고 저장 뒤 펼쳐져 있으면 다시 불러옴 |
+| 문의 minor | 첫 답변 충돌 때 쓰던 글이 사라짐 | 쓰던 글을 노란 상자로 보여 주고 [답변 수정]의 처음 값으로 넘김 |
+

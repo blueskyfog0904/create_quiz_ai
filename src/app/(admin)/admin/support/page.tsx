@@ -1,7 +1,13 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
-import { SupportClient } from './support-client'
+import { SupportClient, type Ticket } from './support-client'
+import type { SupportReplyTemplateRow } from './reply-template-tools'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
-import { UUID_PATTERN, escapeIlike } from '@/lib/admin-orders'
+import { UUID_PATTERN } from '@/lib/admin-orders'
+import { attachMemberContacts } from '@/lib/admin-member-access-log-server'
+import { findSupportMemberIdsByEmail, readLockedSupportCategoryIds } from '@/lib/admin-support-server'
+import { readSupportPageContentForAdmin } from '@/lib/support-page-content-server'
+import { getSiteBrand } from '@/lib/site-brand-server'
 import { buildSupportTicketSearchFilter } from '@/lib/admin-support'
 import { getListPagination } from '@/lib/list-pagination'
 import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
@@ -22,9 +28,9 @@ interface AdminSupportPageProps {
   }>
 }
 
+// 13번 8-2: 행은 세션으로 읽는다(탈퇴 회원 행은 RLS 가 뺀다). 회원 이메일은 끼워 읽지 않고 attachMemberContacts 가 서버 키로 붙이며 열람 기록을 남긴다.
 const TICKET_COLUMNS = `
       *,
-      profiles!support_tickets_user_id_profiles_fkey (email, phone),
       support_ticket_categories!support_tickets_category_id_fkey (id, slug, name, is_active, deleted_at)
     ` as const
 
@@ -65,16 +71,10 @@ export default async function AdminSupportPage({ searchParams }: AdminSupportPag
   let searchTruncated = false
   const keyword = queryText.trim()
   if (keyword) {
-    // PostgREST는 ilike 값의 *를 와일드카드로 바꾼다. 이메일에는 쓰지 않는 글자라 빼고 찾는다.
-    const emailKeyword = keyword.replaceAll('*', '')
-    // 상한보다 하나 더 읽어 넘쳤는지 알아낸다. 쪽을 넘겨도 같은 회원들이 잡히게 id 순으로 읽는다.
-    const usersResult = emailKeyword
-      ? await supabase.from('profiles').select('id').ilike('email', `%${escapeIlike(emailKeyword)}%`).order('id').limit(SEARCH_MATCH_LIMIT + 1)
-      : { data: [], error: null }
-    if (usersResult.error) throw new Error(usersResult.error.message)
-    const matchedUsers = usersResult.data ?? []
-    searchTruncated = matchedUsers.length > SEARCH_MATCH_LIMIT
-    searchFilter = buildSupportTicketSearchFilter(keyword, matchedUsers.slice(0, SEARCH_MATCH_LIMIT).map((user) => user.id))
+    // 회원 이메일 검색은 서버 키 함수가 맞는 회원 id 만 돌려준다(탈퇴 회원 제외, 상한+1로 넘침 확인). 검색어는 기록에 넣지 않는다.
+    const matched = await findSupportMemberIdsByEmail(keyword, SEARCH_MATCH_LIMIT)
+    searchTruncated = matched.truncated
+    searchFilter = buildSupportTicketSearchFilter(keyword, matched.ids)
   }
 
   // 페이지가 총 페이지를 넘으면 range가 실패하므로, 건수를 먼저 세고 페이지를 맞춘다.
@@ -115,7 +115,7 @@ export default async function AdminSupportPage({ searchParams }: AdminSupportPag
   if (countError) throw new Error(countError.message)
   const pagination = getListPagination(count ?? 0, resolvedSearchParams.page, resolvedSearchParams.pageSize)
 
-  const { data: tickets, error: ticketsError } = pagination.totalCount === 0
+  const { data: ticketRows, error: ticketsError } = pagination.totalCount === 0
     ? { data: [], error: null }
     : await ticketsQuery
         .order('created_at', { ascending: false })
@@ -125,16 +125,39 @@ export default async function AdminSupportPage({ searchParams }: AdminSupportPag
 
   // ?ticket=<id>: 그 문의 한 건을 따로 읽어 상세 창을 연다(현재 쪽·필터에 없어도, 회원이 삭제한 문의여도).
   const ticketId = resolvedSearchParams.ticket && UUID_PATTERN.test(resolvedSearchParams.ticket) ? resolvedSearchParams.ticket : null
-  const { data: linkedTicket } = ticketId
+  const { data: linkedTicketRow } = ticketId
     ? await supabase.from('support_tickets').select(TICKET_COLUMNS).eq('id', ticketId).maybeSingle()
     : { data: null }
+  // 목록과 바로 여는 문의에 회원 이메일을 붙인다(목록에는 전화번호를 싣지 않는다 — 상세 창이 회원 요약에서 받음).
+  const listRows = [...(ticketRows ?? []), ...(linkedTicketRow ? [linkedTicketRow] : [])]
+  const { rows: ticketsWithContacts } = await attachMemberContacts({
+    access,
+    screen: 'support.list',
+    rows: listRows,
+    userIdOf: (row) => row.user_id,
+    fields: ['email'],
+    context: { page: pagination.page, searched: Boolean(keyword), resultCount: listRows.length, ...(ticketId ? { linkedTicketId: ticketId } : {}) },
+    shape: (row, contact): Ticket => ({ ...row, profiles: contact ? { email: contact.email, phone: null } : null }),
+  })
+  const tickets = ticketsWithContacts.slice(0, (ticketRows ?? []).length)
+  const linkedTicket = linkedTicketRow ? ticketsWithContacts[ticketsWithContacts.length - 1] : null
   // 10번: 탈퇴 회원 문의는 RLS 로 위 목록·링크에서 빠진다. 서버 키로 건수(대표에게는 id·접수일)만 읽어 따로 보여 준다.
   const isOwner = access.role === 'owner'
-  const [withdrawnTickets, linkedTicketWithdrawn, withdrawalPolicy] = await Promise.all([
+  const [withdrawnTickets, linkedTicketWithdrawn, withdrawalPolicy, pageContent, templatesResult, siteBrand, lockedCategoryIds] = await Promise.all([
     readWithdrawnSupportTickets({ withRows: isOwner }),
     ticketId && !linkedTicket ? isWithdrawnMemberTicket(ticketId) : Promise.resolve(false),
     isOwner ? readMemberWithdrawalPolicy() : Promise.resolve(null),
+    // 13번: 빈칸 표시·수정 사유 안내(답변 창)와 '안내 문구' 탭(대표)
+    readSupportPageContentForAdmin(),
+    // 13번 6절: 답변 템플릿(RLS 가 support.manage 로 거른다). 숨긴 것은 빼고 순서대로.
+    (supabase as unknown as SupabaseClient).from('support_reply_templates').select('*').is('deleted_at', null)
+      .order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
+    getSiteBrand(),
+    readLockedSupportCategoryIds(categories ?? []),
   ])
+  if (templatesResult.error) {
+    console.error('[admin-support] 답변 템플릿을 읽지 못했습니다.', { code: templatesResult.error.code })
+  }
 
   return (
     <div>
@@ -161,12 +184,18 @@ export default async function AdminSupportPage({ searchParams }: AdminSupportPag
       <SupportClient
         // 주소(필터·쪽·바로 여는 문의)가 바뀌면 화면 상태를 새로 시작한다. 열려 있던 상세 창이 남지 않고, 새 ?ticket= 이 열린다.
         key={JSON.stringify(resolvedSearchParams)}
-        tickets={tickets || []}
+        tickets={tickets}
         ticketCounts={ticketCounts}
         pagination={{ page: pagination.page, pageSize: pagination.pageSize, totalCount: pagination.totalCount }}
         searchTruncated={searchTruncated}
         linkedTicket={linkedTicket}
         initialCategories={categories || []}
+        lockedCategoryIds={lockedCategoryIds}
+        initialTemplates={templatesResult.error ? null : (templatesResult.data ?? []) as SupportReplyTemplateRow[]}
+        pageContent={pageContent.status === 'ok' ? pageContent.content : null}
+        pageContentStatus={pageContent.status}
+        siteName={siteBrand.name}
+        isOwner={isOwner}
         initialFilters={{
           status: statusFilter,
           categoryId: categoryFilter,

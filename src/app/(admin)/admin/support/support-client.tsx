@@ -29,15 +29,24 @@ import {
   Pencil,
   Trash2,
   FolderCog,
+  RotateCcw,
 } from 'lucide-react'
 import { Database } from '@/types/supabase'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { DEFAULT_LIST_PAGE_SIZE, updateListQuery } from '@/lib/list-pagination'
 import type { AdminMemberSummary } from '@/lib/admin-member-detail-server'
+import type { SupportPageContent } from '@/lib/support-page-content'
+import { findTemplateBlanks, sha256Hex } from '@/lib/support-reply-template'
+import { ReplyTemplatePicker, TemplateBlankPreview, type SupportReplyTemplateRow } from './reply-template-tools'
+import { TicketAnswerEdit, type AnswerTicketState } from './ticket-answer-edit'
+import { ReplyTemplatesPanel } from './reply-templates-panel'
+import { SupportPageContentPanel } from './support-page-content-panel'
 
 type SupportCategory = Database['public']['Tables']['support_ticket_categories']['Row']
 type TicketBase = Database['public']['Tables']['support_tickets']['Row']
-type Ticket = TicketBase & {
+// 13번: profiles 는 서버가 열람 기록을 남기며 붙인 이메일(목록에는 전화 없음 — phone 은 늘 null). response_edited_at 은 13번 새 칸.
+export type Ticket = TicketBase & {
+  response_edited_at?: string | null
   profiles: {
     email: string | null
     phone: string | null
@@ -75,7 +84,18 @@ interface SupportClientProps {
   linkedTicket: Ticket | null
   initialCategories: SupportCategory[]
   initialFilters: FilterState
+  // 13번 7절: slug 를 바꿀 수 없는 카테고리(문의가 달림·탈퇴 가림 정책 slug)
+  lockedCategoryIds: string[]
+  // 13번 6절: 답변 템플릿(읽지 못하면 null)
+  initialTemplates: SupportReplyTemplateRow[] | null
+  // 13번 9절: 고객지원 문구(빈칸 표시·수정 사유 안내·'안내 문구' 탭). 읽지 못하면 null
+  pageContent: SupportPageContent | null
+  pageContentStatus: 'ok' | 'missing' | 'invalid' | 'error'
+  siteName: string
+  isOwner: boolean
 }
+
+type MemberContact = { email: string | null; phone: string | null }
 
 const emptyCategoryForm: CategoryForm = {
   slug: '',
@@ -149,14 +169,25 @@ function buildCategoryPayload(form: CategoryForm) {
 
 const formatCount = (count: number | null) => (count === null ? '-' : count.toLocaleString())
 
-export function SupportClient({ tickets, ticketCounts, pagination, searchTruncated, linkedTicket, initialCategories, initialFilters }: SupportClientProps) {
+export function SupportClient({
+  tickets, ticketCounts, pagination, searchTruncated, linkedTicket, initialCategories, initialFilters,
+  lockedCategoryIds, initialTemplates, pageContent, pageContentStatus, siteName, isOwner,
+}: SupportClientProps) {
   const router = useRouter()
-  const [activeSection, setActiveSection] = useState<'tickets' | 'categories'>('tickets')
+  const [activeSection, setActiveSection] = useState<'tickets' | 'categories' | 'templates' | 'content'>('tickets')
+  const [templates, setTemplates] = useState<SupportReplyTemplateRow[] | null>(initialTemplates)
+  // 첫 답변 저장 요청 키(창을 열 때 만든다 — 같은 요청을 다시 보내도 한 번만 저장된다)
+  const [answerOperationKey, setAnswerOperationKey] = useState(() => crypto.randomUUID())
+  const blankMarker = pageContent?.admin.templateBlankMarker ?? null
   const [categories, setCategories] = useState<SupportCategory[]>(initialCategories)
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(linkedTicket)
   const [response, setResponse] = useState(linkedTicket?.admin_response || '')
+  // 첫 답변이 충돌(다른 관리자가 먼저 답함)하면 쓰던 글을 버리지 않고 보여 주고, [답변 수정]의 처음 값으로 넘긴다.
+  const [conflictDraft, setConflictDraft] = useState<string | null>(null)
   // 상세 창을 연 문의의 회원 요약. 마지막으로 응답을 받은 문의 id와 함께 둔다(다르면 아직 불러오는 중).
-  const [memberSummary, setMemberSummary] = useState<{ ticketId: string; data: AdminMemberSummary | null; failed: boolean } | null>(null)
+  const [memberSummary, setMemberSummary] = useState<{
+    ticketId: string; data: AdminMemberSummary | null; failed: boolean; contact: MemberContact | null; contactMasked: boolean
+  } | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [statusFilter, setStatusFilter] = useState(initialFilters.status)
   const [categoryFilter, setCategoryFilter] = useState(initialFilters.categoryId)
@@ -180,11 +211,12 @@ export function SupportClient({ tickets, ticketCounts, pagination, searchTruncat
       .then(async (res) => {
         const result = await res.json().catch(() => null)
         // 문의 권한이 없는 계정에는 요약을 보여 주지 않는다(오류가 아니다).
-        if (res.status === 403) return { data: null, failed: false }
+        if (res.status === 403) return { data: null, failed: false, contact: null, contactMasked: false }
         if (!res.ok || !result?.success) throw new Error('member summary failed')
-        return { data: result.data as AdminMemberSummary, failed: false }
+        // 13번: 전화번호는 목록에 없고 여기서만 받는다(서버가 열람 기록을 남긴 뒤, 기록 실패면 가림)
+        return { data: result.data as AdminMemberSummary, failed: false, contact: (result.contact ?? null) as MemberContact | null, contactMasked: Boolean(result.contactMasked) }
       })
-      .catch(() => ({ data: null, failed: true }))
+      .catch(() => ({ data: null, failed: true, contact: null, contactMasked: false }))
       .then((loaded) => {
         if (!ignore) setMemberSummary({ ticketId: selectedTicketId, ...loaded })
       })
@@ -202,6 +234,14 @@ export function SupportClient({ tickets, ticketCounts, pagination, searchTruncat
   const openTicket = (ticket: Ticket) => {
     setSelectedTicket(ticket)
     setResponse(ticket.admin_response || '')
+    setConflictDraft(null)
+    setAnswerOperationKey(crypto.randomUUID())
+  }
+
+  // 13번 5절: 답변 수정·충돌 뒤 상세 창의 문의를 최신 값으로 바꾼다.
+  const mergeSelectedTicket = (patch: Partial<AnswerTicketState> | null) => {
+    if (!patch) return
+    setSelectedTicket((current) => (current && (!patch.id || patch.id === current.id) ? { ...current, ...patch } as Ticket : current))
   }
 
   const applyFilters = () => {
@@ -238,11 +278,19 @@ export function SupportClient({ tickets, ticketCounts, pagination, searchTruncat
         body: JSON.stringify({
           adminResponse: response,
           status: 'resolved',
+          // 13번: 지금 보이는 답변(첫 답변이면 빈 글)의 sha256 — 그사이 다른 사람이 답했으면 서버가 충돌로 막는다.
+          expectedSha256: await sha256Hex(selectedTicket.admin_response ?? ''),
+          operationKey: answerOperationKey,
         }),
       })
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
+        if (res.status === 409 && data.code === 'SUPPORT_ANSWER_CONFLICT') {
+          setConflictDraft(response)
+          mergeSelectedTicket(data.latest ?? null)
+          setAnswerOperationKey(crypto.randomUUID())
+        }
         throw new Error(data.error || '답변 등록에 실패했습니다.')
       }
 
@@ -342,6 +390,37 @@ export function SupportClient({ tickets, ticketCounts, pagination, searchTruncat
     }
   }
 
+  // 13번 7절: 숨긴 카테고리 되살리기(순서는 그대로).
+  const restoreCategory = async (category: SupportCategory) => {
+    if (!confirm(`'${category.name}' 카테고리를 다시 사용할까요? 회원 문의 화면에 다시 보입니다.`)) {
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/admin/support/categories/${category.id}/restore`, {
+        method: 'POST',
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || '카테고리를 다시 사용하지 못했습니다.')
+      }
+
+      const data = await res.json()
+      setCategories(categories.map((item) => item.id === data.category.id ? data.category : item))
+      toast.success('카테고리를 다시 사용합니다.')
+      router.refresh()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '카테고리를 다시 사용하지 못했습니다.')
+    }
+  }
+
+  const activeCategories = categories.filter((category) => !category.deleted_at)
+  const hiddenCategories = categories.filter((category) => category.deleted_at)
+  const editingLocked = editingCategory ? lockedCategoryIds.includes(editingCategory.id) : false
+  const editingHidden = Boolean(editingCategory?.deleted_at)
+  const responseBlanksLeft = blankMarker ? findTemplateBlanks(response, blankMarker).length > 0 : false
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -414,6 +493,20 @@ export function SupportClient({ tickets, ticketCounts, pagination, searchTruncat
             >
               카테고리 관리
             </Button>
+            <Button
+              variant={activeSection === 'templates' ? 'default' : 'outline'}
+              onClick={() => setActiveSection('templates')}
+            >
+              답변 템플릿
+            </Button>
+            {isOwner && (
+              <Button
+                variant={activeSection === 'content' ? 'default' : 'outline'}
+                onClick={() => setActiveSection('content')}
+              >
+                안내 문구
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -581,7 +674,8 @@ export function SupportClient({ tickets, ticketCounts, pagination, searchTruncat
               <div className="p-8 text-center text-gray-500">등록된 카테고리가 없습니다.</div>
             ) : (
               <div className="divide-y">
-                {categories.map((category) => (
+                <p className="bg-gray-50 px-4 py-2 text-xs font-medium text-gray-500">사용 중 {activeCategories.length}개</p>
+                {activeCategories.map((category) => (
                   <div key={category.id} className="flex items-start justify-between gap-4 p-4 max-md:flex-col max-md:gap-3">
                     <div className="min-w-0 space-y-2 break-words">
                       <div className="flex flex-wrap items-center gap-2">
@@ -608,10 +702,50 @@ export function SupportClient({ tickets, ticketCounts, pagination, searchTruncat
                     </div>
                   </div>
                 ))}
+                {hiddenCategories.length > 0 && (
+                  <>
+                    <p className="bg-gray-50 px-4 py-2 text-xs font-medium text-gray-500">숨김 {hiddenCategories.length}개 · 회원 화면에 보이지 않습니다</p>
+                    {hiddenCategories.map((category) => (
+                      <div key={category.id} className="flex items-start justify-between gap-4 p-4 opacity-80 max-md:flex-col max-md:gap-3">
+                        <div className="min-w-0 space-y-2 break-words">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold text-gray-700">{category.name}</span>
+                            <Badge variant="outline">{category.slug}</Badge>
+                            <Badge variant="secondary">숨김</Badge>
+                          </div>
+                          <p className="text-sm text-gray-500">{category.description || '설명 없음'}</p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Button variant="adminAction" size="sm" onClick={() => openEditCategory(category)}>
+                            <Pencil className="mr-1 h-4 w-4" />
+                            수정
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => restoreCategory(category)}>
+                            <RotateCcw className="mr-1 h-4 w-4" />
+                            다시 사용
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             )}
           </CardContent>
         </Card>
+      )}
+
+      {activeSection === 'templates' && (
+        <ReplyTemplatesPanel
+          templates={templates}
+          onTemplatesChange={setTemplates}
+          categories={categories}
+          blankMarker={blankMarker}
+        />
+      )}
+
+      {activeSection === 'content' && isOwner && (
+        <SupportPageContentPanel initialContent={pageContent} initialStatus={pageContentStatus} />
       )}
 
       <Dialog open={!!selectedTicket} onOpenChange={(open) => !open && setSelectedTicket(null)}>
@@ -619,8 +753,7 @@ export function SupportClient({ tickets, ticketCounts, pagination, searchTruncat
           <DialogHeader>
             <DialogTitle>{selectedTicket?.subject}</DialogTitle>
             <DialogDescription>
-              {selectedTicket?.profiles?.phone || '전화번호 없음'} •{' '}
-              {selectedTicket?.profiles?.email || '이메일 없음'} •{' '}
+              {selectedContactText(selectedTicket, memberSummary)} •{' '}
               {selectedTicket && <Link href={`/admin/users/${selectedTicket.user_id}`} className="text-blue-700 hover:underline">회원 상세</Link>} •{' '}
               {selectedTicket && new Date(selectedTicket.created_at).toLocaleString('ko-KR')}
             </DialogDescription>
@@ -646,20 +779,60 @@ export function SupportClient({ tickets, ticketCounts, pagination, searchTruncat
 
             {selectedTicket?.admin_response && (
               <div className="p-4 bg-green-50 rounded-lg">
-                <p className="text-sm font-medium text-green-700 mb-2">관리자 답변</p>
+                <p className="text-sm font-medium text-green-700 mb-2">
+                  관리자 답변
+                  {selectedTicket.response_edited_at && (
+                    <span className="ml-2 text-xs font-normal text-gray-500">수정됨 · {new Date(selectedTicket.response_edited_at).toLocaleString('ko-KR')}</span>
+                  )}
+                </p>
                 <p className="text-gray-600 whitespace-pre-wrap">{selectedTicket.admin_response}</p>
               </div>
             )}
 
+            {conflictDraft && selectedTicket?.admin_response && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <p className="mb-2 text-sm font-medium text-amber-800">저장되지 않은 쓰던 글(다른 관리자가 먼저 답했습니다) — [답변 수정]을 누르면 이 글로 시작합니다.</p>
+                <p className="whitespace-pre-wrap text-sm text-gray-700">{conflictDraft}</p>
+              </div>
+            )}
+
+            {selectedTicket && (
+              <TicketAnswerEdit
+                key={selectedTicket.id}
+                ticket={selectedTicket}
+                draft={conflictDraft}
+                reasonGuide={pageContent?.admin.answerEditReasonGuide || null}
+                blankMarker={blankMarker}
+                templates={templates}
+                siteName={siteName}
+                onConflict={mergeSelectedTicket}
+                onSaved={(saved, notificationFailed) => {
+                  setConflictDraft(null)
+                  mergeSelectedTicket(saved)
+                  if (notificationFailed) {
+                    toast.warning('답변은 고쳤지만 회원 알림을 만들지 못했습니다.')
+                  } else {
+                    toast.success('답변을 고쳤습니다.')
+                  }
+                  router.refresh()
+                }}
+              />
+            )}
+
             {selectedTicket?.status === 'pending' && !selectedTicket.is_deleted_by_user && (
-              <div>
-                <p className="text-sm font-medium text-gray-700 mb-2">답변 작성</p>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-gray-700">답변 작성</p>
+                  <ReplyTemplatePicker templates={templates} ticket={selectedTicket} siteName={siteName} currentText={response} onInsert={setResponse} disabled={submitting} />
+                </div>
                 <Textarea
                   placeholder="답변을 입력하세요..."
                   rows={4}
                   value={response}
                   onChange={(e) => setResponse(e.target.value)}
                 />
+                <TemplateBlankPreview text={response} marker={blankMarker} />
+                {!blankMarker && <p role="alert" className="text-sm text-red-700">답변 검사 설정을 읽지 못해 지금은 답변을 저장할 수 없습니다.</p>}
               </div>
             )}
           </div>
@@ -669,7 +842,7 @@ export function SupportClient({ tickets, ticketCounts, pagination, searchTruncat
               닫기
             </Button>
             {selectedTicket?.status === 'pending' && !selectedTicket.is_deleted_by_user && (
-              <Button onClick={handleRespond} disabled={submitting || !response.trim()}>
+              <Button onClick={handleRespond} disabled={submitting || !response.trim() || !blankMarker || responseBlanksLeft}>
                 <Send className="h-4 w-4 mr-2" />
                 {submitting ? '전송 중...' : '답변 등록'}
               </Button>
@@ -694,7 +867,11 @@ export function SupportClient({ tickets, ticketCounts, pagination, searchTruncat
                 value={categoryForm.slug}
                 onChange={(e) => setCategoryForm({ ...categoryForm, slug: e.target.value })}
                 placeholder="market_refund"
+                disabled={editingLocked}
               />
+              {editingLocked && (
+                <p className="text-xs text-gray-500">문의가 달렸거나 탈퇴 회원 기록 가림에 쓰이는 카테고리라 코드를 바꿀 수 없습니다.</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>카테고리명</Label>
@@ -757,8 +934,10 @@ export function SupportClient({ tickets, ticketCounts, pagination, searchTruncat
                 type="checkbox"
                 checked={categoryForm.isActive}
                 onChange={(e) => setCategoryForm({ ...categoryForm, isActive: e.target.checked })}
+                disabled={editingHidden && !editingCategory?.is_active}
               />
               사용자 화면에 노출
+              {editingHidden && <span className="text-xs text-gray-500">(숨긴 카테고리는 목록의 [다시 사용]으로 되살려 주세요)</span>}
             </label>
           </div>
 
@@ -772,6 +951,19 @@ export function SupportClient({ tickets, ticketCounts, pagination, searchTruncat
       </Dialog>
     </div>
   )
+}
+
+// 13번 8-2: 상세 창의 연락처. 이메일은 목록에서 붙여 온 값, 전화번호는 회원 요약(열람 기록을 남긴 뒤)에서 받은 값이다.
+function selectedContactText(
+  ticket: Ticket | null,
+  summary: { ticketId: string; contact: MemberContact | null; contactMasked: boolean } | null
+) {
+  if (!ticket) return ''
+  const loaded = summary?.ticketId === ticket.id ? summary : null
+  if (loaded?.contactMasked) return '연락처 가림(열람 기록 실패)'
+  const phone = loaded ? loaded.contact?.phone || '전화번호 없음' : '전화번호 불러오는 중'
+  const email = loaded?.contact?.email || ticket.profiles?.email || '이메일 없음'
+  return `${phone} • ${email}`
 }
 
 // 상세 창의 회원 요약. 권한이 없어 서버가 세지 않은 항목(null)은 그리지 않는다.

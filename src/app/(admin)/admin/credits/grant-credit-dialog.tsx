@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Search, Loader2, User, Check } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
 
@@ -43,8 +42,6 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
   // 응답 유실 뒤 대상을 다시 골라 눌러도 한 번만 지급되도록 창을 열 때 만든 키를 창이 닫힐 때까지 재사용한다.
   const [idempotencyKey, setIdempotencyKey] = useState('')
 
-  const supabase = createClient()
-
   useEffect(() => {
     if (open) {
       setIdempotencyKey(crypto.randomUUID())
@@ -66,14 +63,11 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
     if (!searchQuery.trim()) return
     setIsSearching(true)
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, email, display_tag')
-        .ilike('email', `%${searchQuery}%`)
-        .limit(5)
-      
-      if (error) throw error
-      setSearchResults(data || [])
+      // 13번 8-2: 회원 찾기는 서버 route 가 한다(탈퇴 회원 제외, 열람 기록을 남긴 뒤 돌려줌).
+      const response = await fetch(`/api/admin/users/search?q=${encodeURIComponent(searchQuery.trim())}`)
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) throw new Error(result?.error ?? 'search failed')
+      setSearchResults(result.users ?? [])
     } catch (error) {
       console.error(error)
       toast.error('사용자 검색 중 오류가 발생했습니다.')

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
+import { recordAdminAudit } from '@/lib/admin-audit-log-server'
+import { adminRequestMeta } from '@/lib/admin-request-meta'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +32,9 @@ async function requireAdmin() {
   return { supabase: await createClient(), user: { id: guard.access.userId } }
 }
 
+// 13번 7절: DB 트리거 guard_support_category_slug 가 문의 달린 카테고리·탈퇴 가림 정책 slug 의 코드 변경을 막는다.
+const SLUG_LOCKED_MESSAGE = '문의가 달렸거나 탈퇴 회원 기록 가림에 쓰이는 카테고리라 코드를 바꿀 수 없습니다.'
+
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const admin = await requireAdmin()
   if ('error' in admin) return admin.error
@@ -40,6 +45,22 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message || '카테고리 입력값이 올바르지 않습니다.' }, { status: 400 })
+  }
+
+  // 숨긴 카테고리를 '사용' 체크로 켜지 않는다(deleted_at 이 남아 회원 화면에 안 보이는 헷갈리는 상태를 만들지 않게) — [다시 사용]으로.
+  const { data: current, error: currentError } = await admin.supabase
+    .from('support_ticket_categories')
+    .select('id, slug, is_active, deleted_at')
+    .eq('id', id)
+    .maybeSingle()
+  if (currentError) {
+    return NextResponse.json({ error: currentError.message }, { status: 500 })
+  }
+  if (!current) {
+    return NextResponse.json({ error: '카테고리를 찾을 수 없습니다.' }, { status: 404 })
+  }
+  if (current.deleted_at && !current.is_active && parsed.data.isActive === true) {
+    return NextResponse.json({ error: "숨긴 카테고리는 목록의 [다시 사용]으로 되살려 주세요.", code: 'SUPPORT_CATEGORY_HIDDEN' }, { status: 409 })
   }
 
   const patch = {
@@ -64,13 +85,29 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     .single()
 
   if (error) {
+    if (error.message?.includes('SUPPORT_CATEGORY_SLUG_LOCKED')) {
+      return NextResponse.json({ error: SLUG_LOCKED_MESSAGE, code: 'SUPPORT_CATEGORY_SLUG_LOCKED' }, { status: 409 })
+    }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  await recordAdminAudit({
+    actorId: admin.user.id,
+    action: 'support_category_update',
+    targetType: 'support_ticket_category',
+    targetId: id,
+    details: {
+      slug: category.slug,
+      slugChanged: category.slug !== current.slug,
+      fields: Object.keys(patch).filter((key) => key !== 'updated_by' && key !== 'updated_at'),
+      request: adminRequestMeta(request),
+    },
+  })
 
   return NextResponse.json({ success: true, category })
 }
 
-export async function DELETE(_request: NextRequest, { params }: RouteContext) {
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
   const admin = await requireAdmin()
   if ('error' in admin) return admin.error
 
@@ -90,6 +127,14 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  await recordAdminAudit({
+    actorId: admin.user.id,
+    action: 'support_category_hide',
+    targetType: 'support_ticket_category',
+    targetId: id,
+    details: { slug: category.slug, request: adminRequestMeta(request) },
+  })
 
   return NextResponse.json({ success: true, category })
 }

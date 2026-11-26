@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { listAdminAuditTimeline } from '@/lib/admin-audit-log-server'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
+import { recordMemberAccess } from '@/lib/admin-member-access-log-server'
+import { adminRequestMeta } from '@/lib/admin-request-meta'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +24,21 @@ export async function GET(request: NextRequest) {
       page: searchParams.get('page'),
       pageSize: searchParams.get('pageSize'),
     })
-    return NextResponse.json({ success: true, data: result })
+    // 13번 8절: 대상 회원 이메일을 싣기 전에 열람 기록을 남긴다(관리자 계정 대상은 빼고). 남기지 못하면 이메일을 가린다(Q4 가).
+    const adminIds = new Set(result.actors.map((actor) => actor.id))
+    const logged = await recordMemberAccess({
+      access: guard.access,
+      screen: 'audit_log',
+      memberIds: result.rows.filter((row) => row.targetUserId && row.targetUserEmail && !adminIds.has(row.targetUserId)).map((row) => row.targetUserId),
+      fields: ['email'],
+      context: { tab: 'actions', page: result.page, count: result.rows.length },
+      requestMeta: adminRequestMeta(request),
+    })
+    const data = logged ? result : {
+      ...result,
+      rows: result.rows.map((row) => (row.targetUserId && !adminIds.has(row.targetUserId) ? { ...row, targetUserEmail: null } : row)),
+    }
+    return NextResponse.json({ success: true, data })
   } catch (error) {
     // 표가 아직 없을 때(마이그레이션 적용 전)도 여기로 온다.
     console.error('[admin-audit] 작업 기록을 읽지 못했습니다.', { message: error instanceof Error ? error.message : String(error) })

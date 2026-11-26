@@ -20,6 +20,7 @@ import { getPaymentSalesStatus } from '@/lib/payment-sales-status-server'
 import { markWithdrawnRows, readWithdrawnMarketRefundRequests } from '@/lib/withdrawn-member-redaction-server'
 import { readMemberWithdrawalPolicy, readWithdrawnHeldOrderIds } from '@/lib/member-withdrawal-server'
 import { MEMBER_WITHDRAWAL_ERRORS, withdrawalText } from '@/lib/member-withdrawal'
+import { attachMemberContacts, recordMemberAccess } from '@/lib/admin-member-access-log-server'
 
 // 판정 실패는 화면 오류 안내라 코드에 둔다(정책 문구 자리는 판정 성공 때의 안내다).
 const HELD_ORDER_CHECK_FAILED_NOTICE = '탈퇴 회원 보류 주문인지 확인하지 못해 지금은 처리할 수 없습니다. 새로고침해 주세요.'
@@ -84,7 +85,7 @@ export default async function AdminRefundsPage() {
     const { data: reviewOrderRows, error: reviewOrdersError } = !canPayment ? notLoaded : await paymentAdmin
         .from('payment_orders')
         .select(`
-      id, order_id, provider, plan_name_snapshot, expected_amount, failure_code, failure_message, created_at,
+      id, order_id, user_id, provider, plan_name_snapshot, expected_amount, failure_code, failure_message, created_at,
       source_id,
       user:profiles!payment_orders_user_id_fkey(email),
       source:credit_sources!payment_orders_source_id_fkey(status),
@@ -142,9 +143,10 @@ export default async function AdminRefundsPage() {
         .order('created_at', { ascending: false })
     if (paymentAlertsError) loadErrors.push('미해소 결제 경보')
 
+    // 13번 8-2: 행은 세션으로 읽어 탈퇴 회원 가림(RLS)을 그대로 두고, profiles 끼워 읽기만 빼서 연락처는 서버 키로 붙인다.
     const { data: marketRefundRequests, error: marketRefundsError } = !canMarket ? notLoaded : await supabase
         .from('market_refund_requests')
-        .select('*, user:profiles!market_refund_requests_user_id_fkey(email, display_tag), item:market_items!market_refund_requests_item_id_fkey(title)')
+        .select('*, item:market_items!market_refund_requests_item_id_fkey(title)')
         .order('created_at', { ascending: false })
     if (marketRefundsError) loadErrors.push('문제마켓 환불 요청')
     // 10번: 화면 세션 목록에서는 RLS 로 탈퇴 회원 행이 빠진다. 서버 키로 읽어 사유·메모를 가린 채 '탈퇴 회원'으로 붙인다.
@@ -157,7 +159,39 @@ export default async function AdminRefundsPage() {
             loadErrors.push('탈퇴 회원 문제마켓 환불 요청')
         }
     }
-    const marketRefundRows = [...(marketRefundRequests || []), ...withdrawnMarketRefunds]
+
+    // 13번 8절: 세 목록(충전 환불·수동 확인 주문·자료 환불)에 실린 회원 이메일의 열람을 refunds.list 로 기록한다(쪽 나눔이 없어 200명씩 나눠 남김).
+    // 탈퇴 회원은 연락처가 없어 빼고, 남기지 못한 목록은 이메일을 가린다(Q4 가).
+    const paymentLogged = await recordMemberAccess({
+        access,
+        screen: 'refunds.list',
+        memberIds: [
+            ...paymentRefundRows.filter((row) => !row.memberWithdrawn && row.user?.email).map((row) => row.user_id),
+            ...(reviewOrderRows ?? []).filter((order) => order.user?.email).map((order) => order.user_id),
+        ],
+        fields: ['email'],
+        context: { list: 'payment', count: paymentRefundRows.length + reviewOrders.length },
+    })
+    const visiblePaymentRefundRows = paymentLogged ? paymentRefundRows : paymentRefundRows.map((row) => ({ ...row, user: row.user ? { ...row.user, email: null } : null }))
+    const visibleReviewOrders = paymentLogged ? reviewOrders : reviewOrders.map((order) => ({ ...order, email: null }))
+    // 자료 환불: 세션 행에 연락처(이메일·표시 태그)를 서버 키로 붙이며 기록한다(탈퇴 회원은 붙이지 않음). 읽지 못하면 회원 칸만 비운다.
+    let sessionMarketRefunds: Array<NonNullable<typeof marketRefundRequests>[number] & { user: { email: string | null; display_tag: string | null } | null }> = []
+    try {
+        sessionMarketRefunds = (await attachMemberContacts({
+            access,
+            screen: 'refunds.list',
+            rows: marketRefundRequests ?? [],
+            userIdOf: (row) => row.user_id,
+            fields: ['email'],
+            context: { list: 'market', count: marketRefundRequests?.length ?? 0 },
+            shape: (row, contact) => ({ ...row, user: contact ? { email: contact.email, display_tag: contact.display_tag } : null }),
+        })).rows
+    } catch (error) {
+        console.error('[admin-refunds] 자료 환불 회원 정보 조회 실패', { message: error instanceof Error ? error.message : String(error) })
+        loadErrors.push('문제마켓 환불 회원 정보')
+        sessionMarketRefunds = (marketRefundRequests ?? []).map((row) => ({ ...row, user: null }))
+    }
+    const marketRefundRows = [...sessionMarketRefunds, ...withdrawnMarketRefunds]
         .sort((a, b) => b.created_at.localeCompare(a.created_at))
 
     const salesStatus = canPayment ? await getPaymentSalesStatus() : null
@@ -174,11 +208,11 @@ export default async function AdminRefundsPage() {
             {/* 결제 경보와 수동 확인 주문을 환불 요청보다 위에 둔다(가장 먼저 봐야 하는 것). */}
             {canPayment && (
             <RefundsClient
-                requests={paymentRefundRows as RefundRequest[]}
+                requests={visiblePaymentRefundRows as RefundRequest[]}
                 stats={{ pendingCount, completedCount, rejectedCount, attentionCount }}
             >
                 <PaymentReviewClient
-                    orders={reviewOrders}
+                    orders={visibleReviewOrders}
                     alerts={(paymentAlerts || []) as PaymentAlert[]}
                 />
             </RefundsClient>

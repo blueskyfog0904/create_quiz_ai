@@ -4,11 +4,16 @@ import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
 import { getRequestAuthUserId } from '@/lib/request-auth'
 import { createClient } from '@/lib/supabase/server'
+import { getSupportPageContent } from '@/lib/support-page-content-server'
 import { SupportView } from './_components/support-view'
 
-export const metadata: Metadata = {
-  title: '고객지원',
-  description: '1:1 문의를 남기고 답변을 확인합니다.',
+// 13번 9절: 탭 제목·설명도 DB 문구(pageTitle·pageDescription)다. 읽지 못하면 오류 화면(코드에 기본 문구 없음).
+export async function generateMetadata(): Promise<Metadata> {
+  const content = await getSupportPageContent()
+  return {
+    title: content.member.pageTitle,
+    ...(content.member.pageDescription ? { description: content.member.pageDescription } : {}),
+  }
 }
 
 export default async function MypageSupportPage() {
@@ -20,7 +25,7 @@ export default async function MypageSupportPage() {
 
   const supabase = await createClient()
 
-  const [categoriesResult, ticketsResult] = await Promise.all([
+  const [categoriesResult, ticketsResult, content] = await Promise.all([
     supabase
       .from('support_ticket_categories')
       .select('*')
@@ -43,6 +48,8 @@ export default async function MypageSupportPage() {
       .eq('user_id', userId)
       .eq('is_deleted_by_user', false)
       .order('created_at', { ascending: false }),
+    // 읽기 실패·필수 문구 없음은 예외 → 오류 화면(카테고리·문의를 읽지 못했을 때와 같다)
+    getSupportPageContent(),
   ])
 
   if (categoriesResult.error) {
@@ -58,6 +65,7 @@ export default async function MypageSupportPage() {
         tickets={ticketsResult.data || []}
         categories={categoriesResult.data || []}
         userId={userId}
+        texts={content.member}
       />
     </Suspense>
   )

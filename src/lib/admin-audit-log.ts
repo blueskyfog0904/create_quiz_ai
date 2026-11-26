@@ -69,6 +69,16 @@ export const ADMIN_AUDIT_ACTIONS = {
   member_note_delete: '회원 관리자 메모 삭제',
   member_note_redact: '회원 관리자 메모 가림(대표)',
   member_suspension_policy_update: '이용 정지 안내 문구 수정',
+  // 13번 묶음(CS 도구): 답변 수정은 DB 함수(save_support_ticket_answer)가 같은 거래에서 남긴다(사유 원문 없이 글자 수만).
+  // 나머지는 route·서버 액션이 남기고, 모두 details.request(IP·기기)를 넣는다. 열람은 작업 기록이 아니라 admin_member_access_log 에 남긴다.
+  support_ticket_reply_edit: '문의 답변 수정',
+  support_category_create: '문의 카테고리 추가',
+  support_category_update: '문의 카테고리 수정',
+  support_category_hide: '문의 카테고리 숨김',
+  support_category_restore: '문의 카테고리 다시 사용',
+  support_reply_template_save: '답변 템플릿 저장',
+  support_reply_template_hide: '답변 템플릿 숨김',
+  support_page_content_update: '고객지원 안내 문구 수정',
 } as const
 
 export type AdminAuditAction = keyof typeof ADMIN_AUDIT_ACTIONS

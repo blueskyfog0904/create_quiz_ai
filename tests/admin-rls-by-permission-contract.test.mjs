@@ -263,3 +263,19 @@ test('DB-P2: 정합 제약·마지막 대표 보호·profiles 표 권한 정리�
   assert.match(roleDown, /DROP FUNCTION public\.keep_admin_owner\(\);/)
   assert.match(roleDown, /DROP CONSTRAINT profiles_admin_role_matches_is_admin;/)
 })
+
+// 13번 묶음(docs/plan-bundle13-cs-tools.md 12-1): 템플릿 SELECT 정책은 문의 화면 가드와 같은 support.manage,
+// M3 는 ALTER POLICY 로 식만 좁힌다 — profiles·다운로드 기록은 대표만(직원 화면은 서버 키로 읽고 열람 기록을 남김), 문의는 support.manage.
+test('13번: 템플릿 조회 정책과 M3 의 profiles·문의·다운로드 기록 조회 정책이 권한 대응과 같다', () => {
+  const m1 = stripComments(read('supabase/migrations/20261217110000_bundle13_cs_tools.sql'))
+  const m3 = stripComments(read('supabase/migrations/20261217130000_bundle13_admin_select_narrow.sql'))
+  const created = parseCreates(m1)
+  assert.deepEqual(created.map(key), ['support_reply_templates:support_reply_templates_admin_select'])
+  assert.match(created[0].body, /^FOR SELECT TO authenticated\s+USING \(\(SELECT public\.has_admin_permission\('support\.manage'\)\)\)$/)
+  assert.ok(ADMIN_PERMISSION_KEYS.includes('support.manage'))
+  assert.match(read('src/app/(admin)/admin/support/page.tsx'), /requireAdminPagePermission\('support\.manage'\)/)
+  assert.doesNotMatch(m3, /CREATE POLICY|DROP POLICY/)
+  assert.match(m3, /ALTER POLICY "Admins can view all profiles" ON public\.profiles\s+USING \(public\.is_owner\(\)\);/)
+  assert.match(m3, /ALTER POLICY "Admins can view all tickets" ON public\.support_tickets\s+USING \(public\.has_admin_permission\('support\.manage'\)\);/)
+  assert.match(m3, /ALTER POLICY "Admins can view all market download events" ON public\.market_download_events\s+USING \(public\.is_owner\(\)\);/)
+})

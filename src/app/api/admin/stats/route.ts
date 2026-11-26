@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/bypass'
+import { recordMemberAccess } from '@/lib/admin-member-access-log-server'
+import { adminRequestMeta } from '@/lib/admin-request-meta'
 import { getAdminDashboard } from '@/lib/admin-dashboard-server'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { hasAdminPermission } from '@/lib/admin-permissions'
 import { getAdminWorkSummary } from '@/lib/admin-work-summary-server'
 import { getKstPeriodStarts } from '@/lib/kst-period'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = await createClient()
 
@@ -37,8 +40,9 @@ export async function GET() {
 
     // 오늘·이번 달은 한국 시간 기준이다(서버 시간대와 무관).
     const period = getKstPeriodStarts()
+    // 13번 M3: 세션은 다른 회원의 profiles 를 읽지 못하므로 가입 수는 서버 키로 센다(가드 뒤, 건수만 — 개인정보 없음).
     const countSignups = async (since: string) => {
-      const { count, error } = await supabase
+      const { count, error } = await createAdminClient()
         .from('profiles')
         .select('id', { count: 'exact', head: true })
         .gte('created_at', since)
@@ -55,6 +59,23 @@ export async function GET() {
       getAdminWorkSummary(access),
       access ? getAdminDashboard(access, period) : null,
     ])
+
+    // 13번 8절: 최근 주문·문의에 회원 이메일을 싣기 전에 열람 기록을 남긴다. 남기지 못하면 이메일을 가린다(Q4 가).
+    if (access && dashboard) {
+      const orders = dashboard.recentOrders && !dashboard.recentOrders.failed ? dashboard.recentOrders.data : []
+      const tickets = dashboard.recentTickets && !dashboard.recentTickets.failed ? dashboard.recentTickets.data : []
+      const memberIds = [
+        ...orders.filter((order) => order.user?.email).map((order) => order.user_id),
+        ...tickets.filter((ticket) => ticket.user?.email).map((ticket) => ticket.user_id),
+      ]
+      const logged = await recordMemberAccess({
+        access, screen: 'dashboard', memberIds, fields: ['email'], requestMeta: adminRequestMeta(request),
+      })
+      if (!logged) {
+        for (const order of orders) if (order.user) order.user = { ...order.user, email: null }
+        for (const ticket of tickets) if (ticket.user) ticket.user = { ...ticket.user, email: null }
+      }
+    }
 
     return NextResponse.json({
       // null = 권한 없음(그리지 않음). 권한을 읽지 못했으면 값만 null인 객체("확인 불가").

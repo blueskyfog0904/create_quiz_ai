@@ -301,9 +301,9 @@ test('주문 조회 함수의 회원 조건: userId를 주면 건수·목록 모
 
   const source = read('src/lib/admin-orders-server.ts')
   assert.equal(source.match(/countQuery = countQuery\.eq\('user_id', input\.userId\)\s*dataQuery = dataQuery\.eq\('user_id', input\.userId\)/g).length, 2)
-  // 조회 API는 주소의 값으로 이 조건을 받지 않는다(회원 상세만 쓴다).
+  // 조회 API는 주소의 값으로 이 조건을 받지 않는다(회원 상세만 쓴다). 13번: 응답 행의 order.userId 는 열람 기록에만 쓴다.
   for (const route of ['src/app/api/admin/orders/payments/route.ts', 'src/app/api/admin/orders/market/route.ts']) {
-    assert.doesNotMatch(read(route), /userId/, route)
+    assert.doesNotMatch(read(route), /userId:|get\('userId'\)/, route)
   }
 })
 

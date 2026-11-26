@@ -1,5 +1,6 @@
 import 'server-only'
 
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import {
   isWithdrawalRetryable,
@@ -426,6 +427,15 @@ export async function readWithdrawalTargetUserId(kind: WithdrawalTargetKind, tar
       if (!data) return { ok: true, data: null }
       table = 'support_tickets'
       id = data.ticket_id
+      break
+    }
+    // 13번: 답변 수정 이력 → 그 문의 → 회원(표는 타입에 아직 없어 이름만 맞춰 읽는다)
+    case 'support_ticket_answer_revision': {
+      const { data, error } = await (admin as unknown as SupabaseClient).from('support_ticket_answer_revisions').select('ticket_id').eq('id', targetId).maybeSingle()
+      if (error) return failure(error)
+      if (!data) return { ok: true, data: null }
+      table = 'support_tickets'
+      id = (data as { ticket_id: string }).ticket_id
       break
     }
     case 'support_ticket':

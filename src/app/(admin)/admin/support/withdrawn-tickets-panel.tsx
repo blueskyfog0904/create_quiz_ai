@@ -20,7 +20,10 @@ interface OpenedTicket {
   admin_response?: string | null
   created_at?: string | null
   responded_at?: string | null
+  response_edited_at?: string | null
   revisions?: Array<{ id: string; subject?: string | null; message?: string | null; written_at?: string | null }>
+  // 13번: 답변 수정 이력(그때 회원이 보던 답변·수정 사유)
+  answerRevisions?: Array<{ id: string; previous_response?: string | null; previous_shown_at?: string | null; reason?: string | null; created_at?: string | null }>
 }
 
 const formatDateTime = (value: string | null | undefined) =>
@@ -102,8 +105,22 @@ export function WithdrawnTicketsPanel({ summary, isOwner, highlightTicketId, rea
               <p className="whitespace-pre-wrap break-all text-gray-700">{opened.message ?? ''}</p>
               {opened.admin_response && (
                 <div className="rounded border bg-gray-50 p-2">
-                  <p className="text-xs text-gray-500">답변 {formatDateTime(opened.responded_at)}</p>
+                  <p className="text-xs text-gray-500">답변 {formatDateTime(opened.responded_at)}{opened.response_edited_at ? ` · 수정 ${formatDateTime(opened.response_edited_at)}` : ''}</p>
                   <p className="whitespace-pre-wrap break-all">{opened.admin_response}</p>
+                </div>
+              )}
+              {(opened.answerRevisions ?? []).length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500">답변 수정 이력</p>
+                  <ul className="mt-1 space-y-2">
+                    {(opened.answerRevisions ?? []).map((revision) => (
+                      <li key={revision.id} className="rounded border p-2 text-xs">
+                        <p className="text-gray-500">보인 때 {formatDateTime(revision.previous_shown_at)} · 고친 때 {formatDateTime(revision.created_at)}</p>
+                        <p className="whitespace-pre-wrap break-all">{revision.previous_response ?? ''}</p>
+                        {revision.reason && <p className="mt-1 text-gray-500 break-all">수정 사유: {revision.reason}</p>}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
               {(opened.revisions ?? []).length > 0 && (

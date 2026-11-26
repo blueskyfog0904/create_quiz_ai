@@ -87,7 +87,8 @@ export interface WithdrawalBreakdownItem {
 }
 
 export interface WithdrawalRedactionItem {
-  kind: 'support_ticket' | 'support_ticket_revision' | 'refund_request' | 'market_refund_request'
+  // 13번: support_ticket_answer_revision(답변 수정 이력 — 이전 답변·수정 사유)
+  kind: 'support_ticket' | 'support_ticket_revision' | 'support_ticket_answer_revision' | 'refund_request' | 'market_refund_request'
   id: string
   preview: string | null
   reasons: string[]

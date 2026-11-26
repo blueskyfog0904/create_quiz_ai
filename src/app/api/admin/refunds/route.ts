@@ -12,6 +12,8 @@ import {
   rejectPointChargeRefund,
 } from '@/lib/point-charge-refunds-server'
 import { markWithdrawnRows } from '@/lib/withdrawn-member-redaction-server'
+import { recordMemberAccess } from '@/lib/admin-member-access-log-server'
+import { adminRequestMeta } from '@/lib/admin-request-meta'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +31,7 @@ const processRefundSchema = z.object({
 async function requireAdmin() {
   const guard = await requireAdminApiPermission('refunds.payment')
   if ('error' in guard) return { error: guard.error, status: guard.status } as const
-  return { user: { id: guard.access.userId } } as const
+  return { user: { id: guard.access.userId }, access: guard.access } as const
 }
 
 export async function GET(request: Request) {
@@ -79,9 +81,19 @@ export async function GET(request: Request) {
     )
   }
 
+  // 13번 8절: 실린 회원 이메일의 열람을 먼저 기록한다(탈퇴 회원 빼고, 200명씩 나눠 남김). 남기지 못하면 이메일을 가린다(Q4 가).
+  const logged = await recordMemberAccess({
+    access: adminCheck.access,
+    screen: 'refunds.list',
+    memberIds: visibleRequests.filter((row) => !row.memberWithdrawn && row.user?.email).map((row) => row.user_id),
+    fields: ['email'],
+    context: { list: 'payment', status, count: visibleRequests.length },
+    requestMeta: adminRequestMeta(request),
+  })
+
   const { data: stats } = await supabase.from('refund_requests').select('status')
   return NextResponse.json({
-    requests: visibleRequests,
+    requests: logged ? visibleRequests : visibleRequests.map((row) => ({ ...row, user: row.user ? { ...row.user, email: null } : null })),
     stats: {
       pendingCount:
         stats?.filter((item) => item.status === 'pending_review').length ?? 0,

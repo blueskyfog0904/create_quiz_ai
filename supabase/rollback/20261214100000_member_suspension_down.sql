@@ -3,7 +3,7 @@
 -- 머리 확인(하나라도 어기면 멈춤):
 --   ① 활성 정지 0건 ② scope = 'login_blocked' 이면서 banned_until 이 남은 탈퇴 안 한 회원 0건 ③ members.memo·members.suspend 권한 행 0건
 --   ④ replace_admin_permission_grants 의 지금 md5(prosrc)가 12번 적용 뒤 값(d6cd294f…)과 같음 — 다르면 뒤 묶음이 다시 정의한 것이므로 멈춘다
---   ⑤ 13번 마이그레이션 version(20261215100000·110000·120000·130000, 시각이 바뀌어도 12번 뒤 이름에 bundle13 이 든 것)과 13번 표 admin_member_access_log 가 없음
+--   ⑤ 13번 마이그레이션 version(20261217100000·110000·120000·130000, 시각이 바뀌어도 12번 뒤 이름에 bundle13 이 든 것)과 13번 표 admin_member_access_log 가 없음
 -- 지난 정지 이력·메모가 있으면 대표가 내보내기를 확인한 뒤에만 지운다(아래 두 상수를 true 로 바꿔 실행). 뼈대는 작업 기록에 남는다(4-3).
 --   내보내기 파일 규칙(4-6): 탈퇴 회원 행은 내보내지 않는다(이미 지워짐). 표를 다시 만들 때 되돌려 넣은 뒤 바로 파기하고, 다시 만들지 않기로
 --   하면 그때 파기한다. 보관 중에 그 회원이 탈퇴하면 그 회원 행을 파일에서 지운다. 파일은 대표만 갖고 런북 RB-12 에 파기 날짜를 적는다.
@@ -22,7 +22,7 @@ BEGIN
     RAISE EXCEPTION 'DOWN PRECHECK: bundle 12 tables missing (not the bundle 12 state)';
   END IF;
   IF EXISTS (SELECT 1 FROM supabase_migrations.schema_migrations m
-              WHERE m.version IN ('20261215100000', '20261215110000', '20261215120000', '20261215130000')
+              WHERE m.version IN ('20261217100000', '20261217110000', '20261217120000', '20261217130000')
                  OR (m.version > '20261214100000' AND m.name LIKE '%bundle13%'))
      OR to_regclass('public.admin_member_access_log') IS NOT NULL THEN
     RAISE EXCEPTION 'DOWN PRECHECK: bundle 13 is applied — roll back bundle 13 first';

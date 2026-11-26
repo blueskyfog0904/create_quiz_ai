@@ -70,12 +70,14 @@ const IN_PROGRESS_LABELS: Record<string, string> = {
 const TARGET_KIND_LABELS: Record<WithdrawalRedactionItem['kind'], string> = {
   support_ticket: '문의',
   support_ticket_revision: '문의 수정 이력',
+  support_ticket_answer_revision: '답변 수정 이력',
   refund_request: '충전 환불',
   market_refund_request: '자료 환불',
 }
 const TARGET_FIELDS: Record<WithdrawalRedactionItem['kind'], [string, string][]> = {
   support_ticket: [['subject', '제목'], ['message', '본문'], ['admin_response', '답변']],
   support_ticket_revision: [['subject', '제목'], ['message', '본문']],
+  support_ticket_answer_revision: [['previous_response', '이전 답변'], ['reason', '수정 사유']],
   refund_request: [['reason', '사유'], ['admin_note', '메모']],
   market_refund_request: [['reason', '사유'], ['admin_note', '메모']],
 }
@@ -151,25 +153,30 @@ function useAction(userId: string) {
 
 function RedactionRow({ userId, item }: { userId: string; item: WithdrawalRedactionItem }) {
   const { pending, run } = useAction(userId)
-  const fields = TARGET_FIELDS[item.kind]
-  const [field, setField] = useState(fields[0][0])
+  // 모르는 종류(DB 가 먼저 바뀐 경우)도 죽지 않게: 칸 목록이 없으면 [확인함]만 보인다(13번 5-1).
+  const fields: [string, string][] = TARGET_FIELDS[item.kind] ?? []
+  const [field, setField] = useState(fields[0]?.[0] ?? '')
   const [text, setText] = useState('')
   return (
     <li className="space-y-2 py-2">
       <p>
-        <span className="font-medium">{TARGET_KIND_LABELS[item.kind]}</span>
+        <span className="font-medium">{TARGET_KIND_LABELS[item.kind] ?? item.kind}</span>
         {item.preview && <span className="ml-2 text-gray-600">{item.preview}</span>}
         <span className="ml-2 text-xs text-gray-500">{item.reasons.map((reason) => REDACTION_REASON_LABELS[reason] ?? reason).join(' · ')}</span>
       </p>
       <div className="flex flex-wrap items-center gap-2">
-        <select value={field} onChange={(event) => setField(event.target.value)} className="h-9 rounded-md border px-2 text-sm" aria-label="가릴 칸">
-          {fields.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
-        <Input value={text} onChange={(event) => setText(event.target.value)} placeholder="가릴 문구(원문 그대로)" className="h-9 max-w-xs" />
-        <Button size="sm" variant="outline" disabled={pending || !text.trim()}
-          onClick={() => void run({ action: 'redact', targetKind: item.kind, targetId: item.id, field, targetText: text, operationKey: crypto.randomUUID() }, '가렸습니다.')}>
-          가림
-        </Button>
+        {fields.length > 0 && (
+          <>
+            <select value={field} onChange={(event) => setField(event.target.value)} className="h-9 rounded-md border px-2 text-sm" aria-label="가릴 칸">
+              {fields.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+            <Input value={text} onChange={(event) => setText(event.target.value)} placeholder="가릴 문구(원문 그대로)" className="h-9 max-w-xs" />
+            <Button size="sm" variant="outline" disabled={pending || !text.trim()}
+              onClick={() => void run({ action: 'redact', targetKind: item.kind, targetId: item.id, field, targetText: text, operationKey: crypto.randomUUID() }, '가렸습니다.')}>
+              가림
+            </Button>
+          </>
+        )}
         <Button size="sm" variant="outline" disabled={pending}
           onClick={() => void run({ action: 'mark_reviewed', targetKind: item.kind, targetId: item.id }, '가릴 것이 없다고 기록했습니다.')}>
           확인함

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
+import { recordAdminAudit } from '@/lib/admin-audit-log-server'
+import { adminRequestMeta } from '@/lib/admin-request-meta'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,6 +77,15 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // 13번 11절: 카테고리 추가 기록(요청 IP·기기 포함). 저장 뒤 남기며 실패해도 응답은 그대로다.
+  await recordAdminAudit({
+    actorId: admin.user.id,
+    action: 'support_category_create',
+    targetType: 'support_ticket_category',
+    targetId: category.id,
+    details: { slug: category.slug, name: category.name, isActive: category.is_active, request: adminRequestMeta(request) },
+  })
 
   return NextResponse.json({ success: true, category })
 }

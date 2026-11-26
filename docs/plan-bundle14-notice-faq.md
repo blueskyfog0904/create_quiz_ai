@@ -38,7 +38,7 @@
 - **작업 기록**: `src/lib/admin-audit-log.ts`, DB `record_admin_audit(…)` 9인자(운영 지문 `md5(pg_get_functiondef)` = `a42b474d9d95753ffba5041acb0c1c77`, 12번 사전 점검과 같은 값). 시험 `tests/admin-audit-log-contract.test.mjs` 는 DB 함수 안 기록 종류를 `DB_FUNCTION_ACTIONS` 에 등록해야 하고, 함수 안 글자가 `'종류',` 꼴이어야 한다. (2판)
 - **관리자 메뉴·가드 시험**: `src/lib/admin-sidebar.ts`, `tests/admin-guard-coverage-contract.test.mjs`(액션 파일 목록 + `PAGE_REQUIREMENTS`).
 - **4번 후속 문구**: `src/app/(admin)/admin/footer/signup-consent-admin.tsx:106-107` 과 403행 근처의 경우별 안내(관리자 안내, 코드 글자). (2판: 행 번호 고침)
-- **마이그레이션**: 운영 마지막 적용 `20261216100000`. 12번 `20261214100000`, 13번 `20261215100000~130000`.
+- **마이그레이션**: 운영 마지막 적용 `20261216100000`. 12번 `20261214100000`, 13번 `20261217100000~130000`.
 
 ## 2. 목표
 1. 회원(비로그인 포함)이 `/notices` 에서 목록을, `/notices/{id}` 에서 본문을 본다. 정렬은 5-4 '정렬 규칙'대로다.
@@ -62,7 +62,7 @@
 - **코드에는 규칙만**: 종류 이름, 글자 수 상한, 링크·개인정보 판정, 정렬 규칙. 문구·분류·고정 상한은 DB.
 - **운영 DB 한 개**: localhost 에서 저장·삭제·순서 저장·가림을 누르지 않는다.
 
-## 5. DB 변경(마이그레이션 `20261217100000_bundle14_site_board.sql`, 가안)
+## 5. DB 변경(마이그레이션 `20261217140000_bundle14_site_board.sql`, 가안)
 버전은 가안이고 12·13번 실제 적용 순서에 맞춰 바뀔 수 있다(16번은 그 뒤). 새 표·행·함수만 만들고 기존 표의 정책·트리거를 건드리지 않는다. `system_settings` 에는 행 INSERT 만 한다. 실회원이 적은 시간에 `lock_timeout = '3s'` 로 적용한다. (2판)
 
 ### 5-1. 사전 점검(다르면 멈춤)
@@ -124,7 +124,7 @@
 
 ### 5-7. VERIFY·되돌리기
 - VERIFY: 표 2개·CHECK·인덱스·RLS·정책 0개, **표 권한 = service_role SELECT 만**(anon·authenticated·PUBLIC 0), 가드 트리거, 함수 7개의 SECURITY DEFINER·search_path·EXECUTE(service_role 만), 행위자 칸에 FK 없음, 설정 행 필수 키. (2판)
-- 되돌리기 `supabase/rollback/20261217100000_bundle14_site_board_down.sql`(코드 먼저 되돌린 뒤): 함수 → 표 2개 → 설정 행. **글이 1건이라도 있으면 멈춘다**(상수 `c_allow_drop_posts`, 대표 확인). **16번 함수가 있거나, `site_board_posts` 를 가리키는 FK 제약(`pg_constraint.confrelid`) 가운데 14번 판 이력 표(`conrelid = site_board_post_revisions`)가 아닌 것이 있으면 멈춘다.** 16번 함수는 plpgsql 본문이라 의존성으로 잡히지 않으므로 **이름으로** 검사한다: `member_facing_text_pii_hits` 를 부르는 `send_member_broadcast`·`save_member_notification_texts`·`retract_member_broadcast`·`member_broadcast_preview`, 5인자 `reject_point_charge_refund`(16번 5-8). 개인정보 판정 함수를 지워 환불 거절이 실행 중에 깨지는 일을 막는다. (3판 PASS 뒤) 16번 down 은 함수와 `post_id` FK 를 지우고 기록 표는 증빙으로 남기므로, **기록 표가 있는 것만으로는 멈추지 않는다.** `c_allow_drop_posts` 로 지울 때 기록 표에 `post_id` 가 있는 행이 있으면, 그 값은 지워진 글을 가리키게 된다(기록 표는 가드로 고칠 수 없음). 그래서 16번을 다시 적용할 때 FK 를 `NOT VALID` 로 붙인다(16번 5-1). (3판)
+- 되돌리기 `supabase/rollback/20261217140000_bundle14_site_board_down.sql`(코드 먼저 되돌린 뒤): 함수 → 표 2개 → 설정 행. **글이 1건이라도 있으면 멈춘다**(상수 `c_allow_drop_posts`, 대표 확인). **16번 함수가 있거나, `site_board_posts` 를 가리키는 FK 제약(`pg_constraint.confrelid`) 가운데 14번 판 이력 표(`conrelid = site_board_post_revisions`)가 아닌 것이 있으면 멈춘다.** 16번 함수는 plpgsql 본문이라 의존성으로 잡히지 않으므로 **이름으로** 검사한다: `member_facing_text_pii_hits` 를 부르는 `send_member_broadcast`·`save_member_notification_texts`·`retract_member_broadcast`·`member_broadcast_preview`, 5인자 `reject_point_charge_refund`(16번 5-8). 개인정보 판정 함수를 지워 환불 거절이 실행 중에 깨지는 일을 막는다. (3판 PASS 뒤) 16번 down 은 함수와 `post_id` FK 를 지우고 기록 표는 증빙으로 남기므로, **기록 표가 있는 것만으로는 멈추지 않는다.** `c_allow_drop_posts` 로 지울 때 기록 표에 `post_id` 가 있는 행이 있으면, 그 값은 지워진 글을 가리키게 된다(기록 표는 가드로 고칠 수 없음). 그래서 16번을 다시 적용할 때 FK 를 `NOT VALID` 로 붙인다(16번 5-1). (3판)
 
 ### 5-8. 리허설(운영 DB, `BEGIN … ROLLBACK`, 반복 가능)
 15번 11-2 원칙(경우 격리·표지 예외, 임시 표 + 마지막 SELECT, 마지막 줄 ROLLBACK, 생성기 사본, 결과는 `output/`)을 따른다.
@@ -272,7 +272,7 @@
 | 법률·보안 minor | 게시 뒤 수정해도 처음 날짜만 | `content_updated_at`·상세 '수정 날짜' |
 | 법률·보안 minor | 허용 연락처 칸 이름·숫자 비교, 링크·설정 문구 검사 빠짐 | 5-6 칸 명시·숫자 비교, 검사 대상 확대 |
 | 법률·보안 minor | 글 캐시에 시간 상한 없음 | 6절 60초 상한 + 태그 |
-| DB minor | 시험 갱신 지점·지문 사전 점검·버전 | 7-1 시험 지점, 5-1 지문, 5절 버전 가안 `20261217100000` |
+| DB minor | 시험 갱신 지점·지문 사전 점검·버전 | 7-1 시험 지점, 5-1 지문, 5절 버전 가안 `20261217140000`(13번이 `20261217100000~130000` 을 써서 그 뒤로) |
 | UX minor | 글 없을 때 빈 링크, 하단 nav 이름이 '약관 및 정책' | 게시 글 있을 때만 링크(Q4), 별도 nav(6절) |
 
 ## 18. 2판 검증 반영 (3판)

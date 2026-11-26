@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 import { getAdminMemberDetail, type MemberDetailSection } from '@/lib/admin-member-detail-server'
+import { recordMemberAccess } from '@/lib/admin-member-access-log-server'
+import type { AdminMemberAccessField } from '@/lib/admin-member-access-log'
 import { ADMIN_GRANT_SOURCE_CATEGORIES, getAdminCreditTransactionKind } from '@/lib/admin-credit-transaction-kind'
 import { hasAdminPermission } from '@/lib/admin-permissions'
 import { RevokeCreditButton } from './revoke-credit-button'
@@ -97,7 +99,18 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
   const detail = await getAdminMemberDetail(access, id)
   if (!detail) notFound()
 
-  const { profile } = detail
+  // 13번 8절: 회원 연락처(+12번 메모가 보이면 메모)를 보이기 전에 열람 기록을 남긴다(관리자 계정·탈퇴 회원은 대상 아님).
+  // 남기지 못하면 이메일·전화를 가린다(Q4 가 — 그 이메일로 여는 검색 링크도 함께 빠진다).
+  const shownFields: AdminMemberAccessField[] = ['email', 'phone']
+  if (detail.notes && !detail.notes.failed && detail.notes.data.notes.length > 0) shownFields.push('memo')
+  const logged = await recordMemberAccess({
+    access,
+    screen: 'users.detail',
+    memberIds: detail.profile.is_admin || detail.profile.withdrawn_at ? [] : [detail.profile.id],
+    fields: shownFields,
+  })
+  const profile = logged ? detail.profile : { ...detail.profile, email: null, phone: null }
+  const notesSection: typeof detail.notes = logged || !shownFields.includes('memo') ? detail.notes : { failed: true }
   // 각 관리 화면을 이 회원의 이메일로 검색한 상태로 연다(부분 일치라 비슷한 이메일의 다른 회원이 섞일 수 있다. 이메일이 없으면 링크를 두지 않는다).
   const emailQuery = profile.email ? encodeURIComponent(profile.email) : null
   const orderHref = (tab: 'payments' | 'market', query: string) => `/admin/orders?tab=${tab}&q=${encodeURIComponent(query)}`
@@ -121,6 +134,10 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
         <Link href="/admin/users" className={`text-sm ${LINK_CLASS}`}>← 사용자 관리</Link>
         <h1 className="mt-2 text-3xl font-bold text-gray-900 max-md:text-2xl">회원 상세</h1>
         <p className="mt-1 text-gray-500">고객 문의에 답할 때 회원의 결제·크레딧·구매 이력을 보는 화면입니다. 잘못 지급한 크레딧의 회수도 여기서 합니다.</p>
+        {/* 13번 8-3: 이 회원의 개인정보 열람 기록(대표 전용 탭)으로 잇는다. */}
+        {isOwner && (
+          <Link href={`/admin/audit-log?tab=access&member=${profile.id}`} className={`mt-1 inline-block text-sm ${LINK_CLASS}`}>이 회원 열람 기록</Link>
+        )}
       </div>
 
       <Card className="border-0 shadow-sm">
@@ -155,7 +172,7 @@ export default async function AdminMemberDetailPage({ params }: { params: Promis
         {(suspension) => <MemberSuspensionPanel userId={profile.id} data={suspension} capabilities={suspensionCapabilities} />}
       </Section>
 
-      <Section title="관리자 메모" section={detail.notes}>
+      <Section title="관리자 메모" section={notesSection}>
         {(notes) => <MemberNotesPanel userId={profile.id} data={notes} capabilities={noteCapabilities} />}
       </Section>
 

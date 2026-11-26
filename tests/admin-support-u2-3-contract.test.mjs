@@ -70,9 +70,14 @@ test('검색 조건: 제목·내용·회원 id를 묶고, 검색어의 구문 �
   assert.equal(support.buildSupportTicketSearchFilter('50%_"x"\\', []).split(',')[0], 'subject.ilike."%50\\\\%\\\\_\\"x\\"\\\\\\\\%"')
 
   // 페이지: 이메일이 맞는 회원 id를 먼저 찾고(상한+1로 넘침 확인), 검색어를 .or()에 직접 넣지 않는다.
-  assert.match(page, /\.from\('profiles'\)\.select\('id'\)\.ilike\('email', `%\$\{escapeIlike\(emailKeyword\)\}%`\)\.order\('id'\)\.limit\(SEARCH_MATCH_LIMIT \+ 1\)/)
-  assert.match(page, /searchTruncated = matchedUsers\.length > SEARCH_MATCH_LIMIT/)
-  assert.match(page, /buildSupportTicketSearchFilter\(keyword, matchedUsers\.slice\(0, SEARCH_MATCH_LIMIT\)\.map\(\(user\) => user\.id\)\)/)
+  // 13번 8-2: 회원 찾기는 세션으로 profiles 를 읽지 않고 서버 키 함수가 한다(탈퇴 회원 제외).
+  const supportServer = read('src/lib/admin-support-server.ts')
+  assert.doesNotMatch(page, /\.from\('profiles'\)/)
+  assert.match(page, /const matched = await findSupportMemberIdsByEmail\(keyword, SEARCH_MATCH_LIMIT\)/)
+  assert.match(page, /searchTruncated = matched\.truncated/)
+  assert.match(page, /buildSupportTicketSearchFilter\(keyword, matched\.ids\)/)
+  assert.match(supportServer, /\.from\('profiles'\)\s+\.select\('id'\)\s+\.ilike\('email', `%\$\{escapeIlike\(emailKeyword\)\}%`\)\s+\.is\('withdrawn_at', null\)\s+\.order\('id'\)\s+\.limit\(limit \+ 1\)/)
+  assert.match(supportServer, /truncated: ids\.length > limit/)
   assert.doesNotMatch(page, /\.or\(`/)
   assert.match(client, /searchTruncated && \(/)
   assert.match(client, /placeholder="제목\/내용\/회원 이메일 검색"/)
@@ -100,44 +105,80 @@ test('회원이 삭제한 문의: 화면은 열람만, 답변 입력·저장 버
   assert.match(client, /회원이 삭제한 문의입니다\. 내용만 볼 수 있고 답변은 등록할 수 없습니다\./)
 })
 
-function loadTicketRoute(ticketRow) {
+// 13번 5절: 답변 저장은 서버 키 DB 함수(save_support_ticket_answer)가 한다(세션 UPDATE 없음). 회원 삭제·없는 문의는 함수가 거부한다.
+const PAGE_CONTENT = {
+  revision: 1,
+  member: { answerCreatedNotificationTitle: '답변 등록', answerCreatedNotificationMessage: '제목: {문의제목}', answerEditedNotificationTitle: '답변 수정', answerEditedNotificationMessage: '수정: {문의제목}' },
+  admin: { templateBlankMarker: '○○', answerEditReasonGuide: '', notifyOnAnswerEdit: true, accessLogRetentionYears: 2 },
+}
+
+function loadTicketRoute(rpcResult) {
   const queries = []
+  const rpcCalls = []
   const { client: session } = createFakeAdmin(({ table, ops }) => {
     queries.push({ table, ops })
-    if (table === 'profiles') return { data: { is_admin: true }, error: null }
-    if (table === 'notifications') return { error: null }
-    return { data: ticketRow, error: null }
+    return { data: null, error: null }
   })
-  session.auth = { getUser: async () => ({ data: { user: { id: 'admin-1' } } }) }
   const route = load('src/app/api/admin/support/tickets/[id]/route.ts', {
     'next/server': { NextResponse },
     '@/lib/supabase/server': { createClient: async () => session },
-    // 회원 알림은 서버 키로 넣는다(세션 쪽 queries에는 알림이 남지 않는다).
+    // DB 함수와 회원 알림은 서버 키로 부른다(세션 쪽 queries에는 아무것도 남지 않는다).
     '@/lib/supabase/bypass': {
       createAdminClient: () => ({
-        from: (table) => ({ insert: async (row) => (queries.push({ table, ops: [['insert', row]], viaServiceRole: true }), { error: null }) }),
+        rpc: async (name, args) => (rpcCalls.push({ name, args }), rpcResult),
+        from: (table) => ({
+          insert: async (row) => (queries.push({ table, ops: [['insert', row]], viaServiceRole: true }), { error: null }),
+          select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: TICKET, admin_response: '최신' }, error: null }) }) }),
+        }),
       }),
     },
+    '@/lib/admin-request-meta': load('src/lib/admin-request-meta.ts'),
+    '@/lib/support-page-content-server': { getSupportPageContent: async () => PAGE_CONTENT },
+    '@/lib/support-page-content': load('src/lib/support-page-content.ts'),
+    '@/lib/support-reply-template': load('src/lib/support-reply-template.ts'),
     ...adminGuardMocks({ userId: 'admin-1' }),
   })
-  const patch = () => route.PATCH({ json: async () => ({ adminResponse: '답변' }) }, { params: Promise.resolve({ id: TICKET }) })
-  return { patch, queries }
+  const body = { adminResponse: '답변', expectedSha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', operationKey: '33333333-3333-4333-8333-333333333333' }
+  const patch = (extra = {}) => route.PATCH({ json: async () => ({ ...body, ...extra }), headers: new Headers() }, { params: Promise.resolve({ id: TICKET }) })
+  return { patch, queries, rpcCalls }
 }
 
-test('답변 route는 삭제되지 않은 문의만 고치고, 삭제된 문의는 404로 거부하며 알림도 만들지 않는다', async () => {
-  const ok = loadTicketRoute({ id: TICKET, user_id: MEMBER, subject: '문의' })
+test('답변 route는 DB 함수로만 저장하고, 회원이 삭제한 문의는 거부하며 알림도 만들지 않는다', async () => {
+  const ticket = { id: TICKET, user_id: MEMBER, subject: '문의' }
+  const ok = loadTicketRoute({ data: { ticket, isEdit: false, historyId: null, replayed: false }, error: null })
   assert.equal((await ok.patch()).status, 200)
-  const update = ok.queries.find((query) => query.table === 'support_tickets')
-  assert.deepEqual(update.ops.filter(([name]) => name === 'eq'), [['eq', 'id', TICKET], ['eq', 'is_deleted_by_user', false]])
-  assert.ok(ok.queries.some((query) => query.table === 'notifications' && query.viaServiceRole))
-  assert.equal(ok.queries.some((query) => query.table === 'notifications' && !query.viaServiceRole), false)
+  assert.deepEqual(ok.rpcCalls.map(({ name }) => name), ['save_support_ticket_answer'])
+  assert.equal(ok.rpcCalls[0].args.p_ticket_id, TICKET)
+  assert.equal(ok.rpcCalls[0].args.p_actor_id, 'admin-1')
+  assert.equal(ok.queries.some((query) => query.table === 'support_tickets'), false)
+  const notification = ok.queries.find((query) => query.table === 'notifications')
+  assert.ok(notification?.viaServiceRole)
+  assert.equal(notification.ops[0][1].message, '제목: 문의')
 
-  // 조건에 맞는 행이 없다(없는 문의 또는 회원이 삭제한 문의)
-  const rejected = loadTicketRoute(null)
+  // 회원이 삭제한 문의는 DB 함수가 거부한다
+  const rejected = loadTicketRoute({ data: null, error: { message: 'SUPPORT_TICKET_DELETED_BY_MEMBER' } })
   const response = await rejected.patch()
-  assert.equal(response.status, 404)
+  assert.equal(response.status, 409)
   assert.match((await response.json()).error, /회원이 삭제한 문의/)
   assert.equal(rejected.queries.some((query) => query.table === 'notifications'), false)
+
+  // 빈칸 표시가 남은 답변은 DB 함수를 부르지 않는다
+  const blank = loadTicketRoute({ data: { ticket, isEdit: false, historyId: null, replayed: false }, error: null })
+  assert.equal((await blank.patch({ adminResponse: '환불 금액은 ○○원입니다' })).status, 400)
+  assert.equal(blank.rpcCalls.length, 0)
+
+  // 재요청(replayed)이면 알림을 다시 보내지 않는다
+  const replayed = loadTicketRoute({ data: { ticket, isEdit: false, historyId: null, replayed: true }, error: null })
+  assert.equal((await replayed.patch()).status, 200)
+  assert.equal(replayed.queries.some((query) => query.table === 'notifications'), false)
+
+  // 충돌이면 409 와 최신 답변
+  const conflict = loadTicketRoute({ data: null, error: { message: 'SUPPORT_ANSWER_CONFLICT' } })
+  const conflicted = await conflict.patch()
+  assert.equal(conflicted.status, 409)
+  const conflictBody = await conflicted.json()
+  assert.equal(conflictBody.code, 'SUPPORT_ANSWER_CONFLICT')
+  assert.equal(conflictBody.latest.admin_response, '최신')
 })
 
 function loadSummary({ tableErrors = [], counts = {} } = {}) {
@@ -224,6 +265,8 @@ test('상세 창의 회원 요약: 창을 열 때 한 번 읽고, 서버가 세�
     'fetch(`/api/admin/support/tickets/${selectedTicketId}/member-summary`',
     'fetch(`/api/admin/support/tickets/${selectedTicket.id}`',
     'fetch(`/api/admin/support/categories/${category.id}`',
+    // 13번 7절: 숨긴 카테고리 다시 사용
+    'fetch(`/api/admin/support/categories/${category.id}/restore`',
   ])
   assert.match(client, /\}, \[selectedTicketId\]\)/)
   assert.match(client, /\]\.filter\(\(item\) => item\.section\)\s+\/\/ 12번[^\n]*\n\s+const suspension = summary\.data\.activeSuspensions\s+if \(items\.length === 0 && !suspension\) return null/)

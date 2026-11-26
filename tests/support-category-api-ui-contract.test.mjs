@@ -40,10 +40,12 @@ test('admin support APIs manage categories by soft delete and replies through an
 test('support pages pass categories and render category-first UX with admin filters', () => {
   assert.match(userSupportPage, /support_ticket_categories/)
   assert.match(userSupportPage, /category_id/)
-  assert.match(userSupportClient, /문의 카테고리|문의 유형/)
+  assert.match(userSupportClient, /texts\.categoryLabel/)
   assert.match(userSupportClient, /selectedCategoryId/)
   assert.match(userSupportClient, /category_snapshot/)
-  assert.match(userSupportClient, /미분류/)
+  // 13번 9절: '미분류' 같은 화면 문구는 DB(support_page_content.member.uncategorizedLabel)에서 온다.
+  assert.match(userSupportClient, /texts\.uncategorizedLabel/)
+  assert.doesNotMatch(userSupportClient, /미분류/)
   assert.match(adminSupportPage, /support_ticket_categories/)
   assert.match(adminSupportPage, /searchParams/)
   assert.match(adminSupportClient, /카테고리 관리/)
@@ -59,4 +61,26 @@ test('user support inquiry form shows the category guide as a plain list (no ico
   assert.match(userSupportClient, /selectedCategoryHelpId/)
   assert.match(userSupportClient, /aria-describedby/)
   assert.match(userSupportClient, /selectedGuideItems\.map\(\(item\) => \(/)
+})
+
+test('13번 7절: 숨긴 카테고리는 [다시 사용] route 로 되살리고, 카테고리 쓰기는 작업 기록에 남는다', () => {
+  const restoreRoute = readFileSync(new URL('../src/app/api/admin/support/categories/[id]/restore/route.ts', import.meta.url), 'utf8')
+  assert.match(restoreRoute, /requireAdminApiPermission\('support\.manage'\)/)
+  assert.match(restoreRoute, /deleted_at: null,\s+is_active: true,/)
+  assert.match(restoreRoute, /\.not\('deleted_at', 'is', null\)/)
+  assert.doesNotMatch(restoreRoute, /sort_order:/)
+  assert.match(restoreRoute, /action: 'support_category_restore'/)
+  assert.match(adminCategoriesRoute, /action: 'support_category_create'/)
+  assert.match(adminCategoryRoute, /action: 'support_category_update'/)
+  assert.match(adminCategoryRoute, /action: 'support_category_hide'/)
+  for (const source of [restoreRoute, adminCategoriesRoute, adminCategoryRoute]) {
+    assert.match(source, /request: adminRequestMeta\(request\)/)
+  }
+  // 숨긴 카테고리를 '사용' 체크로 켜려 하면 거부, slug 잠금 오류는 안내 문장으로
+  assert.match(adminCategoryRoute, /current\.deleted_at && !current\.is_active && parsed\.data\.isActive === true/)
+  assert.match(adminCategoryRoute, /SUPPORT_CATEGORY_SLUG_LOCKED/)
+  // 화면: 사용 중/숨김 나눔, [다시 사용], 잠긴 카테고리는 코드 칸을 막음
+  assert.match(adminSupportClient, /hiddenCategories\.map\(/)
+  assert.match(adminSupportClient, /다시 사용/)
+  assert.match(adminSupportClient, /disabled=\{editingLocked\}/)
 })

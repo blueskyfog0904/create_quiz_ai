@@ -339,6 +339,8 @@ export async function listMarketReviewsForAdmin(options: {
   search?: string
   page?: number
   pageSize?: number
+  // 13번 8절: 작성자 이메일을 싣기 전에 부르는 열람 기록(route 가 넘긴다). false 면 이메일을 빼고 표시 이름만 싣는다(Q4 가).
+  recordAuthorAccess?: (userIds: string[]) => Promise<boolean>
 } = {}): Promise<{ rows: AdminMarketReviewRow[]; totalCount: number; page: number; totalPages: number }> {
   const supabase = createAdminClient()
   const pageSize = options.pageSize && options.pageSize > 0 ? options.pageSize : 20
@@ -420,6 +422,9 @@ export async function listMarketReviewsForAdmin(options: {
     voteCounts.set(vote.review_id, (voteCounts.get(vote.review_id) ?? 0) + 1)
   }
   const tagLabelById = new Map((tagsResult.data ?? []).map((tag) => [tag.id, tag.label]))
+  const emailShown = options.recordAuthorAccess
+    ? await options.recordAuthorAccess(userIds.filter((userId) => Boolean(emailById.get(userId))))
+    : true
 
   return {
     rows: rows.map((row) => ({
@@ -432,7 +437,9 @@ export async function listMarketReviewsForAdmin(options: {
       tagLabels: row.tag_ids.map((tagId) => tagLabelById.get(tagId)).filter((label): label is string => Boolean(label)),
       helpfulCount: voteCounts.get(row.id) ?? 0,
       // 관리자 화면: 공개 표시 이름과 이메일을 함께 보여 준다
-      authorName: `${formatMemberDisplayName(emailById.get(row.user_id), displayTagById.get(row.user_id))} (${emailById.get(row.user_id) ?? '이메일 없음'})`,
+      authorName: emailShown
+        ? `${formatMemberDisplayName(emailById.get(row.user_id), displayTagById.get(row.user_id))} (${emailById.get(row.user_id) ?? '이메일 없음'})`
+        : formatMemberDisplayName(emailById.get(row.user_id), displayTagById.get(row.user_id)),
       createdAt: row.created_at,
     })),
     totalCount,

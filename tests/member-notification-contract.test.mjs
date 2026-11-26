@@ -174,34 +174,37 @@ test('the admin credit grant notification links to the credits page', () => {
   assert.ok(existsSync(new URL('../src/app/(solvook)/mypage/credits/page.tsx', import.meta.url)))
 })
 
+// 13번 5절: 답변 저장은 서버 키 DB 함수가 하고, 알림 문구는 DB(support_page_content.member)에서 읽는다.
 function loadTicketRoute(notificationError) {
   const route = loadModule('../src/app/api/admin/support/tickets/[id]/route.ts', {
     'next/server': json,
     ...adminGuardMocks({ userId: 'admin-1' }),
-    // 회원 알림은 서버 키(bypass)로 넣는다. 세션으로 알림을 넣으면 이 테스트가 실패한다.
+    // DB 함수와 회원 알림은 서버 키(bypass)로 부른다. 세션으로 알림을 넣으면 이 테스트가 실패한다.
     '@/lib/supabase/bypass': {
       createAdminClient: () => ({
+        rpc: async (name) => {
+          assert.equal(name, 'save_support_ticket_answer')
+          return { data: { ticket: { id: 'ticket-1', user_id: 'member-1', subject: '문의' }, isEdit: false, historyId: null, replayed: false }, error: null }
+        },
         from: (table) => {
           assert.equal(table, 'notifications')
           return { insert: async () => ({ error: notificationError }) }
         },
       }),
     },
-    '@/lib/supabase/server': adminSession((table) => {
-      if (table === 'profiles') return adminProfile
-      if (table === 'notifications') throw new Error('session must not insert notifications')
-      return {
-        update: () => ({
-          eq: () => ({
-            eq: () => ({
-              select: () => ({ maybeSingle: async () => ({ data: { id: 'ticket-1', user_id: 'member-1', subject: '문의' }, error: null }) }),
-            }),
-          }),
-        }),
-      }
-    }),
+    '@/lib/admin-request-meta': loadModule('../src/lib/admin-request-meta.ts', {}),
+    '@/lib/support-page-content-server': {
+      getSupportPageContent: async () => ({
+        revision: 1,
+        member: { answerCreatedNotificationTitle: '답변 알림', answerCreatedNotificationMessage: '제목: {문의제목}', answerEditedNotificationTitle: '수정 알림', answerEditedNotificationMessage: '수정: {문의제목}' },
+        admin: { templateBlankMarker: '○○', answerEditReasonGuide: '', notifyOnAnswerEdit: true, accessLogRetentionYears: 2 },
+      }),
+    },
+    '@/lib/support-page-content': loadModule('../src/lib/support-page-content.ts', {}),
+    '@/lib/support-reply-template': loadModule('../src/lib/support-reply-template.ts', {}),
   })
-  return () => route.PATCH({ json: async () => ({ adminResponse: '답변' }) }, { params: Promise.resolve({ id: 'ticket-1' }) })
+  const body = { adminResponse: '답변', expectedSha256: '0'.repeat(64), operationKey: '55555555-5555-4555-8555-555555555555' }
+  return () => route.PATCH({ json: async () => body, headers: new Headers() }, { params: Promise.resolve({ id: 'ticket-1' }) })
 }
 
 test('the ticket reply route reports notificationFailed only when the notification insert fails', async () => {

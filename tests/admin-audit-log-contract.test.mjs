@@ -23,6 +23,8 @@ const WITHDRAWAL_MIGRATION = read('supabase/migrations/20261126100000_member_wit
 const NOTICE_POPUP_MIGRATION = read('supabase/migrations/20261205100000_site_notice_popup.sql')
 // 12번 묶음(회원 이용 정지·관리자 메모): 정지·해제·알림 기록·메모·가림·문구 저장은 DB 함수가 남긴다.
 const SUSPENSION_MIGRATION = read('supabase/migrations/20261214100000_member_suspension.sql')
+// 13번 묶음(CS 도구): 첫 답변·답변 수정 기록은 저장 함수(save_support_ticket_answer)가 같은 거래에서 남긴다.
+const CS_TOOLS_MIGRATION = read('supabase/migrations/20261217110000_bundle13_cs_tools.sql')
 const DB_FUNCTION_ACTIONS = [
   [PERMISSION_MIGRATION, 'admin_permissions_replace'],
   [PERMISSION_MIGRATION, 'admin_account_revoke'],
@@ -49,6 +51,8 @@ const DB_FUNCTION_ACTIONS = [
   [SUSPENSION_MIGRATION, 'member_note_delete'],
   [SUSPENSION_MIGRATION, 'member_note_redact'],
   [SUSPENSION_MIGRATION, 'member_suspension_policy_update'],
+  [CS_TOOLS_MIGRATION, 'support_ticket_reply'],
+  [CS_TOOLS_MIGRATION, 'support_ticket_reply_edit'],
 ]
 // 9번 묶음: 대표 승인 SQL 템플릿·정책 문구 스크립트(supabase/scripts)가 record_admin_audit 로 적는 종류.
 const SCRIPT_ACTIONS = readdirSync(join(ROOT, 'supabase/scripts'))
@@ -433,23 +437,45 @@ test('크레딧 수동 지급: 본인 계정에는 대표도 지급하지 못한
   }
 })
 
-function loadTicketRoute(ticketRow, audit = auditMock()) {
-  const { client: session } = createFakeAdmin(({ table }) => (table === 'notifications' ? { error: null } : { data: ticketRow, error: null }))
+// 13번 5절: 문의 답변·수정의 작업 기록은 DB 함수(save_support_ticket_answer)가 같은 거래에서 남긴다. route 는 기록하지 않는다.
+function loadTicketRoute(rpcResult, audit = auditMock()) {
+  const rpcCalls = []
   const route = load('src/app/api/admin/support/tickets/[id]/route.ts', {
     'next/server': { NextResponse },
-    '@/lib/supabase/server': { createClient: async () => session },
-    '@/lib/supabase/bypass': { createAdminClient: () => ({ from: () => ({ insert: async () => ({ error: null }) }) }) },
+    '@/lib/supabase/bypass': {
+      createAdminClient: () => ({
+        rpc: async (name, args) => (rpcCalls.push({ name, args }), rpcResult),
+        from: () => ({ insert: async () => ({ error: null }) }),
+      }),
+    },
+    '@/lib/admin-request-meta': load('src/lib/admin-request-meta.ts'),
+    '@/lib/support-page-content-server': {
+      getSupportPageContent: async () => ({
+        revision: 1,
+        member: { answerCreatedNotificationTitle: 't', answerCreatedNotificationMessage: 'm', answerEditedNotificationTitle: 't', answerEditedNotificationMessage: 'm' },
+        admin: { templateBlankMarker: '○○', answerEditReasonGuide: '', notifyOnAnswerEdit: true, accessLogRetentionYears: 2 },
+      }),
+    },
+    '@/lib/support-page-content': load('src/lib/support-page-content.ts'),
+    '@/lib/support-reply-template': load('src/lib/support-reply-template.ts'),
     ...adminGuardMocks({ userId: ADMIN_ID }),
     '@/lib/admin-audit-log-server': audit.module,
   })
-  return { patch: () => route.PATCH({ json: async () => ({ adminResponse: '답변' }) }, { params: Promise.resolve({ id: REQUEST_ID }) }), audit }
+  const request = {
+    json: async () => ({ adminResponse: '답변', expectedSha256: '0'.repeat(64), operationKey: '44444444-4444-4444-8444-444444444444' }),
+    headers: new Headers({ 'x-forwarded-for': '203.0.113.9', 'user-agent': 'UA' }),
+  }
+  return { patch: () => route.PATCH(request, { params: Promise.resolve({ id: REQUEST_ID }) }), audit, rpcCalls }
 }
 
-test('문의 답변: 저장된 답변만 기록하고, 없는·삭제된 문의(404)는 기록하지 않는다', async () => {
-  const ok = loadTicketRoute({ id: REQUEST_ID, user_id: MEMBER_ID, subject: '문의', status: 'resolved' })
+test('문의 답변: 기록은 DB 함수가 남기고(행위자·요청 IP·기기를 넘김), route 는 따로 기록하지 않는다', async () => {
+  const ok = loadTicketRoute({ data: { ticket: { id: REQUEST_ID, user_id: MEMBER_ID, subject: '문의' }, isEdit: false, historyId: null, replayed: false }, error: null })
   assert.equal((await ok.patch()).status, 200)
-  assert.deepEqual(ok.audit.audits.map(({ action, targetId, targetUserId }) => ({ action, targetId, targetUserId })), [{ action: 'support_ticket_reply', targetId: REQUEST_ID, targetUserId: MEMBER_ID }])
-  const missing = loadTicketRoute(null)
+  assert.equal(ok.audit.audits.length, 0)
+  assert.deepEqual(ok.rpcCalls.map(({ name }) => name), ['save_support_ticket_answer'])
+  assert.equal(ok.rpcCalls[0].args.p_actor_id, ADMIN_ID)
+  assert.deepEqual(ok.rpcCalls[0].args.p_request_meta, { ip: '203.0.113.9', user_agent: 'UA' })
+  const missing = loadTicketRoute({ data: null, error: { message: 'SUPPORT_TICKET_NOT_FOUND' } })
   assert.equal((await missing.patch()).status, 404)
   assert.equal(missing.audit.audits.length, 0)
 })
@@ -563,16 +589,36 @@ test('조회: 합쳐 보기 보기(admin_audit_timeline)를 필터·서버 페�
 })
 
 test('조회 route: 대표만, 읽지 못하면(표가 아직 없을 때 포함) "불러오지 못했습니다" 500', async () => {
+  // 13번 8절: 대상 회원 이메일을 싣기 전에 audit_log 로 열람 기록을 남기고(관리자 계정 대상은 뺌), 실패하면 이메일을 가린다.
+  const accessCalls = []
+  let accessLogged = true
   const loadRoute = (list, session = { userId: ADMIN_ID }) => load('src/app/api/admin/audit-log/route.ts', {
     'next/server': json,
     ...adminGuardMocks(session),
     '@/lib/admin-audit-log-server': { listAdminAuditTimeline: list },
+    '@/lib/admin-member-access-log-server': { recordMemberAccess: async (input) => { accessCalls.push(input); return accessLogged } },
+    '@/lib/admin-request-meta': load('src/lib/admin-request-meta.ts'),
   }, [])
-  const request = { url: 'http://localhost/api/admin/audit-log?page=2' }
-  const route = loadRoute(async (input) => ({ rows: [], page: input.page }))
+  const request = new Request('http://localhost/api/admin/audit-log?page=2')
+  const route = loadRoute(async (input) => ({ rows: [], page: input.page, actors: [] }))
   const result = await route.GET(request)
   assert.equal(result.status, 200)
   assert.equal(result.body.data.page, '2')
+
+  const rows = [
+    { targetUserId: MEMBER_ID, targetUserEmail: 'member@example.com' },
+    { targetUserId: ADMIN_ID, targetUserEmail: 'admin@example.com' },
+    { targetUserId: null, targetUserEmail: null },
+  ]
+  const withRows = loadRoute(async () => ({ rows, page: 1, actors: [{ id: ADMIN_ID, loginId: 'admin' }] }))
+  const shown = await withRows.GET(request)
+  assert.deepEqual(accessCalls.at(-1).memberIds, [MEMBER_ID])
+  assert.equal(accessCalls.at(-1).screen, 'audit_log')
+  assert.deepEqual(accessCalls.at(-1).fields, ['email'])
+  assert.equal(shown.body.data.rows[0].targetUserEmail, 'member@example.com')
+  accessLogged = false
+  const masked = await withRows.GET(request)
+  assert.deepEqual(masked.body.data.rows.map((row) => row.targetUserEmail), [null, 'admin@example.com', null])
 
   const broken = await loadRoute(async () => { throw new Error('relation "public.admin_audit_timeline" does not exist') }).GET(request)
   assert.equal(broken.status, 500)

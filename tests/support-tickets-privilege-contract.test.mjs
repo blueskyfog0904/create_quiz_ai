@@ -15,11 +15,11 @@ test('회원이 본인 문의의 관리자 답변·상태를 직접 고칠 수 �
   assert.doesNotMatch(migration, /GRANT UPDATE \([^)]*(message|subject|user_id)[^)]*\) ON public\.support_tickets/)
 })
 
-test('관리자 답변 route가 고치는 컬럼은 권한을 준 컬럼 안에 있다', () => {
+test('관리자 답변 route는 세션으로 문의를 고치지 않고 DB 함수(save_support_ticket_answer)로만 저장한다(13번 5절)', () => {
   const route = read('src/app/api/admin/support/tickets/[id]/route.ts')
-  const update = route.slice(route.indexOf(".from('support_tickets')"), route.indexOf('.eq(', route.indexOf(".from('support_tickets')")))
-  const columns = [...update.matchAll(/^\s+([a-z_]+):/gm)].map((match) => match[1])
-  assert.deepEqual(columns.sort(), ['admin_response', 'responded_at', 'status', 'updated_at'])
+  assert.doesNotMatch(route, /\.update\(/)
+  assert.doesNotMatch(route, /@\/lib\/supabase\/server/)
+  assert.match(route, /\.rpc\('save_support_ticket_answer', \{/)
 })
 
 test('알림은 본인 행의 is_read만, 카테고리는 관리자 등록·수정만 남긴다', () => {

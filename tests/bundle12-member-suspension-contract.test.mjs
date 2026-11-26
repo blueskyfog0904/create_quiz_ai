@@ -40,7 +40,7 @@ const NEW_FUNCTIONS = [
   'guard_member_suspensions_mutation', 'guard_member_admin_notes_mutation', 'member_suspension_withdrawal_cleanup',
 ]
 
-test('파일: 버전은 13번(20261215…)보다 앞, 거래 문장 없음, 잠금 설정·[12번] 표시·NOTIFY', () => {
+test('파일: 버전은 13번(20261217…)보다 앞, 거래 문장 없음, 잠금 설정·[12번] 표시·NOTIFY', () => {
   const versions = readdirSync(new URL('../supabase/migrations/', import.meta.url)).map((name) => name.split('_')[0]).filter((v) => /^\d{14}$/.test(v))
   assert.ok(versions.includes('20261214100000'))
   // 13번 계획에 적힌 파일 시각이 모두 12번 뒤(12번 먼저 적용)
@@ -259,7 +259,7 @@ test('되돌리기(4-6): 머리 확인 5개, 내보내기 확인 상수 2개, �
   assert.match(head, /s\.scope = 'login_blocked' AND p\.withdrawn_at IS NULL\s+AND u\.banned_until IS NOT NULL/)
   assert.match(head, /g\.permission IN \('members\.memo', 'members\.suspend'\)/)
   assert.match(head, /md5\(p\.prosrc\)/)
-  assert.match(head, /'20261215100000', '20261215110000', '20261215120000', '20261215130000'/)
+  assert.match(head, /'20261217100000', '20261217110000', '20261217120000', '20261217130000'/)
   assert.match(head, /m\.version > '20261214100000' AND m\.name LIKE '%bundle13%'/)
   assert.match(head, /c_suspensions_export_confirmed constant boolean := false;/)
   assert.match(head, /c_notes_export_confirmed constant boolean := false;/)
