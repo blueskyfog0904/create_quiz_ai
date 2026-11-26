@@ -46,10 +46,23 @@ test('saved intent is taken exactly once and removed from storage', () => {
   assert.equal(takeMarketCartIntent(expected, { storage, now: NOW + 2000 }), null)
 })
 
-test('purchase intent keeps its action for selection restore', () => {
+// 11번(docs/plan-bundle11-checkout-simplify.md 7절): 상세 바로 구매가 없어져 저장은 담기 의도만, 옛 'purchase' 의도는 담기로 이어간다.
+test('new intents are always saved as cart, even if a caller passes purchase', () => {
   const storage = memoryStorage()
   saveMarketCartIntent(intent({ action: 'purchase' }), { storage, now: NOW })
-  assert.equal(takeMarketCartIntent(expected, { storage, now: NOW })?.action, 'purchase')
+  assert.equal(JSON.parse(storage.map.get(MARKET_CART_INTENT_KEY)).action, 'cart')
+  assert.equal(takeMarketCartIntent(expected, { storage, now: NOW })?.action, 'cart')
+})
+
+test('a pre-deploy purchase intent (within 30 minutes) is taken as a cart intent and never as a purchase', () => {
+  const storage = memoryStorage()
+  storage.setItem(MARKET_CART_INTENT_KEY, JSON.stringify({ ...intent({ action: 'purchase' }), createdAt: NOW }))
+  const taken = takeMarketCartIntent(expected, { storage, now: NOW + 29 * 60 * 1000 })
+  assert.deepEqual(taken, { ...intent(), action: 'cart', createdAt: NOW })
+  assert.equal(storage.map.has(MARKET_CART_INTENT_KEY), false)
+
+  storage.setItem(MARKET_CART_INTENT_KEY, JSON.stringify({ ...intent({ action: 'purchase' }), createdAt: NOW }))
+  assert.equal(takeMarketCartIntent(expected, { storage, now: NOW + 31 * 60 * 1000 }), null)
 })
 
 test('intent older than 30 minutes or from the future is discarded', () => {

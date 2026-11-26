@@ -15,6 +15,9 @@ import { createClient } from '@/lib/supabase/server'
 import { getSolvookFooterData } from '@/lib/solvook-footer-data'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
 import { UpcomingPolicyNotice } from '@/components/legal/upcoming-policy-notice'
+import { CheckoutConsentPreviewBand } from '@/components/checkout/checkout-consent-preview-band'
+import { getSiteFooterContent } from '@/lib/footer-content-server'
+import { buildMarketPurchaseInfo } from '@/lib/market-purchase-info'
 import { CheckoutClient, type CheckoutPaymentMethod } from './checkout-client'
 
 interface CheckoutPageProps {
@@ -107,10 +110,15 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
   const { cs } = await getSolvookFooterData()
   const supportContact = [cs.email, cs.phone].filter(Boolean).join(' · ')
 
-  // 결제 전 확인 문구(DB point_charge_policy, 캐시 없음). 읽지 못하면 null — 결제 버튼을 막는다(경보는 함수가 남긴다).
-  const checkoutNotice = await getPointChargeCheckoutNotice(user.id)
+  // 결제 전 확인 문구(DB point_charge_policy, 캐시 없음). 1판 고지와 2판 묶음 중 하나만 값이 있다(11번 5-2).
+  // 둘 다 null 이면 결제 버튼을 막는다(1판 정책 읽기 실패 경보는 함수가 남긴다).
+  const { checkoutNotice, checkoutConsent, preview } = await getPointChargeCheckoutNotice(user.id)
+  // 약관·환불정책 링크는 하단 정보(DB)에서 읽고 판과 관계없이 늘 내려 준다(1판으로 연 화면이 409 로 2판을 받아도 그 자리에서 그림).
+  const { termsLink, refundPolicyLink } = buildMarketPurchaseInfo(await getSiteFooterContent())
 
   return (
+    <>
+    <CheckoutConsentPreviewBand preview={preview} />
     <CheckoutClient
       plan={plan}
       supportContact={supportContact}
@@ -123,7 +131,11 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
       }}
       paymentMethods={paymentMethods}
       checkoutNotice={checkoutNotice}
+      checkoutConsent={checkoutConsent}
+      termsLink={termsLink}
+      refundPolicyLink={refundPolicyLink}
       upcomingNotice={<UpcomingPolicyNotice />}
     />
+    </>
   )
 }

@@ -23,8 +23,9 @@ const checkoutFunctionMigrations = [
 ]
 
 test('legacy market purchase rows keep credit consumption snapshots while new legacy purchases are closed', () => {
-  assert.match(purchaseRoute, /LEGACY_PURCHASE_CLOSED/)
-  assert.doesNotMatch(purchaseRoute, /deductCredits/)
+  // 11번: 상세 바로 구매 route 는 410 만 남고(옛 assetKind 구매 포함) 차감 경로가 없다.
+  assert.match(purchaseRoute, /MARKET_DIRECT_PURCHASE_CLOSED/)
+  assert.doesNotMatch(purchaseRoute, /deductCredits|runMarketCheckout/)
   assert.match(marketItemsServer, /MarketPurchaseInsert/)
   // 기존 legacy 구매 행의 소비 스냅샷은 환불 경로가 계속 읽는다
   assert.match(marketRefunds, /parseCreditConsumptions\(purchase\.credit_consumptions\)/)

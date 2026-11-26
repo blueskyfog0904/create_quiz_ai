@@ -19,6 +19,17 @@ const policyServer = load('src/lib/market-purchase-policy-server.ts', {
   'next/cache': { revalidateTag: () => {}, unstable_cache: (fn) => fn },
   '@/lib/supabase/bypass': { createAdminClient: () => { throw new Error('not used') } },
   '@/lib/market-purchase-policy': policyLib,
+  // 11번: 2판(접는 동의) 읽기·개발 스위치. 이 시험은 1판 지문·기록 대응만 본다(2판은 bundle11-* 시험).
+  '@/lib/checkout-consent': load('src/lib/checkout-consent.ts', {
+    '@/lib/point-charge-policy': load('src/lib/point-charge-policy.ts', { '@/lib/payment-constants': { MAX_POINT_CHARGE_AMOUNT: 100000 } }),
+  }),
+  '@/lib/checkout-consent-server': {
+    buildCheckoutConsentBundle: () => null,
+    buildMarketCartTexts: () => null,
+    readRawSiteFooterValue: async () => null,
+    recordCheckoutConsentUnavailableAlert: async () => {},
+  },
+  '@/lib/checkout-consent-preview': { isCheckoutConsentPreview: () => false },
 })
 const migration = read('supabase/migrations/20261123100000_market_purchase_notice.sql')
 const bundle7Policy = JSON.parse(migration.split('$json$')[1])
@@ -73,26 +84,28 @@ test('관리자 저장 검사: 자리표시 외 중괄호 거부, 세 문구는 
   assert.equal(policyLib.normalizeMarketPurchasePolicyText('  가\r\n나  '), '가\n나')
 })
 
-test('구매 API 2개: 고지 체크·지문 필수, 체크 거부는 400, 기록은 판매 중지·itemId 검사 뒤 결제 바로 앞', () => {
+test('구매 API: 장바구니만 고지 체크·지문 필수, 기록은 판매 중지 검사 뒤 결제 바로 앞, 상세 바로 구매는 410(11번)', () => {
   const direct = read('src/app/api/market/items/[itemId]/purchase/route.ts')
-  const cart = read('src/app/api/market/cart/checkout/route.ts')
-  for (const route of [direct, cart]) {
-    assert.match(route, /acknowledgePurchaseNotice: z\.boolean\(/)
-    assert.match(route, /noticeSha256: z\.string\(\{ error: [^}]+\}\)\.regex\(\/\^\[0-9a-f\]\{64\}\$\//)
-    // 배포 전에 열어 둔 탭(새 필드 없음)은 새로고침 안내로 400
-    assert.match(route, /화면을 새로고침한 뒤 다시 구매해 주세요/)
-    const ackAt = route.indexOf('checkPurchaseNoticeAcknowledged(parsed.data.acknowledgePurchaseNotice)')
-    const killAt = route.indexOf('isMarketV2PurchaseEnabled()')
-    const recordAt = route.indexOf('await enforcePurchaseNoticeAck({')
-    const checkoutAt = route.indexOf('await runMarketCheckout({')
-    assert.ok(route.indexOf('.safeParse(') < ackAt && ackAt < killAt && killAt < recordAt && recordAt < checkoutAt)
-  }
-  assert.ok(direct.indexOf("z.string().uuid().safeParse(itemId)") < direct.indexOf('await enforcePurchaseNoticeAck({'))
+  const route = read('src/app/api/market/cart/checkout/route.ts')
+  assert.match(route, /acknowledgePurchaseNotice: z\.boolean\(/)
+  assert.match(route, /noticeSha256: z\.string\(\{ error: [^}]+\}\)\.regex\(\/\^\[0-9a-f\]\{64\}\$\//)
+  // 배포 전에 열어 둔 탭(새 필드 없음)은 새로고침 안내로 400
+  assert.match(route, /화면을 새로고침한 뒤 다시 구매해 주세요/)
+  const ackAt = route.indexOf('checkPurchaseNoticeAcknowledged(parsed.data.acknowledgePurchaseNotice)')
+  const killAt = route.indexOf('isMarketV2PurchaseEnabled()')
+  const recordAt = route.indexOf('await enforcePurchaseNoticeAck({')
+  const checkoutAt = route.indexOf('await runMarketCheckout({')
+  assert.ok(route.indexOf('.safeParse(') < ackAt && ackAt < killAt && killAt < recordAt && recordAt < checkoutAt)
+  // 11번 7절: 상세 바로 구매 route 는 410 만 남고 동의 기록·결제 RPC 를 부르지 않는다
+  assert.match(direct, /status: 410/)
+  assert.match(direct, /MARKET_DIRECT_PURCHASE_CLOSED/)
+  assert.doesNotMatch(direct, /enforcePurchaseNoticeAck|runMarketCheckout|rpc\(/)
 })
 
 test('기록 결과 대응: CHANGED·KEY_CONFLICT → 409(details 는 DB 함수 값), 입력 오류 → 400, 그 밖 → 503(결제 안 함)', async () => {
   const server = read('src/lib/market-purchase-policy-server.ts')
-  assert.match(server, /case 'NOTICE_CHANGED':\n\s+case 'NOTICE_KEY_CONFLICT':\n\s+return \{ status: 'changed', notice: parseMarketPurchaseNotice\(result\.details\) \}/)
+  // 11번: 1판 고지·2판 묶음·장바구니 문구를 새 해석기로 나눠 읽는다(그 밖의 모양은 null)
+  assert.match(server, /case 'NOTICE_CHANGED':\n\s+case 'NOTICE_KEY_CONFLICT':\n\s+return \{\n\s+status: 'changed',\n\s+notice: parseMarketPurchaseNotice\(result\.details\),\n\s+consent: parseCheckoutConsentBundle\(result\.details\),\n\s+cartTexts: parseMarketCartTexts\(result\.cartTexts\),/)
   assert.match(server, /case 'NOTICE_INPUT_INVALID':\n\s+return \{ status: 'invalid' \}/)
   const block = between(server, 'export async function enforcePurchaseNoticeAck', '// 관리자 저장')
   assert.match(block, /status: 409,\n\s+code: 'PURCHASE_NOTICE_CHANGED'/)
@@ -104,41 +117,19 @@ test('기록 결과 대응: CHANGED·KEY_CONFLICT → 409(details 는 DB 함수 
   assert.equal(policyLib.parseMarketPurchaseNotice({ checkboxLabel: 'a', confirmNotice: 'b', noticeSha256: 'XYZ', refundDays: 7 }), null)
 })
 
-test('두 화면: 열 때 고지를 복사하고, 두 필드를 보내고, 문구가 바뀌면 새 키·다시 체크(기보유분 확인은 유지)', () => {
+// 11번: 상세 구매하기와 구매 확인창(market-checkout-confirm-dialog)은 없앴다. 장바구니 결제 칸의 동의 수명·응답 처리는 bundle11-cart-* 시험.
+test('화면: 상세는 구매하지 않고, 장바구니 결제 칸은 받은 지문 사본을 그대로 보낸다', () => {
   const detail = read('src/components/market/market-item-actions.tsx')
-  const cart = read('src/app/(solvook)/cart/_components/cart-view.tsx')
-  for (const [name, source] of [['detail', detail], ['cart', cart]]) {
-    assert.match(source, /acknowledgePurchaseNotice: request\.noticeAcknowledged,\n\s+noticeSha256: purchaseNotice\.noticeSha256,/, name)
-    assert.match(source, /if \(!checkout \|\| checkout\.submitting \|\| !checkout\.purchaseNotice \|\| !checkout\.noticeAcknowledged\)/, name)
-    const changed = between(source, "if (code === 'PURCHASE_NOTICE_CHANGED') {", "if (code === 'ACK_REQUIRED')")
-    assert.match(changed, /parseMarketPurchaseNotice\(payload\.details\)/, name)
-    assert.match(changed, /idempotencyKey: crypto\.randomUUID\(\)/, name)
-    assert.match(changed, /purchaseNotice: nextNotice,\n\s+noticeAcknowledged: false,/, name)
-    assert.match(changed, /retryable: false,/, name)
-    assert.doesNotMatch(changed, /acknowledged: false/, name)
-    // 고지는 확인창을 열 때만 넣고(409 말고는 바꾸지 않음), 열 때 체크는 해제
-    assert.equal((source.match(/purchaseNotice: /g) ?? []).length, 3, name)
-    assert.match(source, /noticeAcknowledged: false,\n\s+submitting: false,/, name)
-  }
-  assert.match(cart, /purchaseNotice: view\.purchaseNotice,/)
-  assert.match(detail, /purchaseNotice: purchasePolicy\n\s+\? \{/)
-})
-
-test('확인창: 고지 없으면 구매 막음, 체크는 재시도 동안 잠금, 본문만 스크롤하고 버튼 줄은 밖에 있다', () => {
-  const dialog = read('src/components/market/market-checkout-confirm-dialog.tsx')
-  assert.match(dialog, /&& purchaseNotice !== null && noticeAcknowledged/)
-  assert.match(dialog, /checked=\{noticeAcknowledged\}\n\s+\/\/ [^\n]+\n\s+disabled=\{submitting \|\| retryable\}/)
-  assert.match(dialog, /\{purchaseNotice\.confirmNotice\}/)
-  assert.match(dialog, /\{purchaseNotice\.checkboxLabel\}/)
-  assert.match(dialog, /className="max-h-\[calc\(100dvh-2rem\)\] grid-rows-\[auto_minmax\(0,1fr\)_auto\]/)
-  const body = between(dialog, 'min-h-0 min-w-0 space-y-4 overflow-y-auto', '<StudioDialogFooter>')
-  assert.match(body, /aria-labelledby="market-purchase-notice-checkbox-label"/)
-  assert.doesNotMatch(body, /<Button variant="brand" disabled=\{!canConfirm\}/)
+  assert.doesNotMatch(detail, /noticeSha256|acknowledgePurchaseNotice|items\/\$\{itemId\}\/purchase/)
+  const panel = read('src/lib/cart-checkout-panel.ts')
+  // 화면은 지문을 계산하지 않는다(사본 값을 그대로 보냄)
+  assert.doesNotMatch(panel, /createHash|crypto\.subtle|sha256\(/)
+  assert.match(panel, /cartTextsSha256/)
+  assert.match(panel, /noticeSha256/)
 })
 
 test('고지 문구는 코드에 없다(확인창·상세 블록·구매 영역·환불 판정)', () => {
   const sources = [
-    'src/components/market/market-checkout-confirm-dialog.tsx',
     'src/components/market/market-purchase-info-section.tsx',
     'src/components/market/market-item-actions.tsx',
     'src/app/(solvook)/cart/_components/cart-view.tsx',
@@ -190,22 +181,25 @@ test('상품 상세: 구매 전 확인 블록은 DB 문구·하단 정보·파�
   assert.match(info, /\.filter\(\(field\) => field\.value\.trim\(\)\)/)
   const items = read('src/lib/market-items-server.ts')
   assert.match(items, /\.select\('id, code, label, extension, required_program'\)/)
-  // 부가 모듈(하단 정보 기본 약관 본문)이 브라우저 번들로 가지 않게 확인창·구매 영역은 타입만 가져온다
-  for (const path of ['src/components/market/market-checkout-confirm-dialog.tsx', 'src/components/market/market-item-actions.tsx']) {
-    assert.match(read(path), /import type \{ MarketPurchaseInfo|import type \{ MarketPurchaseLink/, path)
-  }
+  // 부가 모듈(하단 정보 기본 약관 본문)이 브라우저 번들로 가지 않게 결제 칸 1판 동의 부품은 타입만 가져온다
+  assert.match(read('src/components/checkout/market-legacy-consent.tsx'), /import type \{ MarketPurchaseLink/)
+  assert.doesNotMatch(read('src/components/market/market-item-actions.tsx'), /from '@\/lib\/market-purchase-info'/)
 })
 
 test('관리자: 구매 고지 저장은 site.manage·작업 기록·캐시 즉시 무효화, 환불 기간·version 은 DB 값 유지', () => {
   const action = read('src/app/(admin)/admin/footer/purchase-policy-actions.ts')
   assert.match(action, /assertAdminActionPermission\('site\.manage'\)/)
   assert.match(action, /action: 'market_purchase_policy_update'/)
-  assert.match(action, /validateMarketPurchasePolicyTexts\(texts\)/)
+  assert.match(action, /validateMarketPurchasePolicyTexts\(/)
   assert.doesNotMatch(action, /refundDays: input|input\.refundDays/)
   const server = read('src/lib/market-purchase-policy-server.ts')
-  // 8번: 읽은 원본 jsonb 위에 문구만 덮고(모르는 키·version·refundDays 보존), 그사이 기간이 바뀌었으면 저장하지 않는다.
-  assert.match(server, /const nextValue = \{ \.\.\.\(raw as Record<string, Json>\), \.\.\.texts \}/)
-  assert.match(server, /\.update\(\{ value: nextValue as unknown as Json/)
+  // 8번: 읽은 원본 jsonb 위에 문구만 덮고(모르는 키·refundDays 보존), 그사이 기간이 바뀌었으면 저장하지 않는다.
+  // 11번 9절: 자료도 낙관적 잠금(version 대조 + 1), 판(consentFormat)은 입력으로 받지 않고 원본 값 그대로.
+  assert.match(server, /const after: Record<string, Json> = \{\n\s+\.\.\.before,\n\s+\.\.\.input\.texts,/)
+  assert.match(server, /version: nextVersion,/)
+  assert.match(server, /if \(current\.version !== input\.expectedVersion\)/)
+  assert.match(server, /if \(Object\.hasOwn\(before, 'consentFormat'\)\) after\.consentFormat = before\.consentFormat/)
+  assert.match(server, /\.update\(\{ value: after as unknown as Json/)
   assert.match(server, /\.eq\('value->>refundDays', String\(current\.refundDays\)\)/)
   assert.match(server, /revalidateTag\(MARKET_PURCHASE_POLICY_SETTING_KEY, \{ expire: 0 \}\)/)
   const form = read('src/app/(admin)/admin/footer/purchase-policy-form.tsx')

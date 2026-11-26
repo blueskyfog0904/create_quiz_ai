@@ -80,5 +80,8 @@ test('구매 영역은 PDF 포함 판정을 새 lib 하나에서 가져온다(�
   assert.match(actions, /import \{ getBundleSavings, isPdfInclusiveHwp \} from '@\/lib\/market-bundle-savings'/)
   assert.doesNotMatch(actions, /function isPdfInclusiveHwp/)
   assert.doesNotMatch(actions, /categorySlug === 'question_hwp'\s*\n?\s*&& [^\n]*fileType\.code\.toLowerCase\(\) === 'pdf'/)
-  assert.equal((actions.match(/isPdfInclusiveHwp\(/g) ?? []).length, 2, 'existing two call sites keep using it')
+  // 11번 6-3: 함께 살 수 없는 선택 판정은 공용 함수(market-selection-conflict)로 옮기고, 보유 PDF 숨김 한 곳만 남는다.
+  assert.equal((actions.match(/isPdfInclusiveHwp\(/g) ?? []).length, 1, 'owned PDF-inclusive HWP hides the question PDF row')
+  assert.match(actions, /isPdfInclusiveHwp\(sibling\) && sibling\.ownedScope === 'subproduct'/)
+  assert.match(actions, /findConflictingSelection\(/)
 })

@@ -86,7 +86,35 @@ function PaymentDetail({ detail }: { detail: PaymentChargeDetail }) {
         </dd>
       </dl>
       <div className="mt-2 rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] p-3">
-        {detail.noticeText ? (
+        {detail.consent ? (
+          // 11번: 2판(접는 동의) 기록 — 제목·요약 줄·항목 이름·본문. 링크 항목은 지금 문서 링크(원문의 링크 키 줄은 보이지 않음).
+          <>
+            <p className="font-semibold text-[var(--studio-ink)]">이 결제에 동의한 결제 전 확인</p>
+            <p className="mt-1 break-keep font-semibold">{detail.consent.title}</p>
+            <ul className="mt-1 list-disc space-y-0.5 break-keep pl-4">
+              {detail.consent.summary.map((line, index) => <li key={index}>{line}</li>)}
+            </ul>
+            {detail.consent.items.map((item, index) => (
+              <div key={index} className="mt-2">
+                {item.view === 'text' ? (
+                  <>
+                    <p className="font-semibold text-[var(--studio-ink)]">{item.label}</p>
+                    {item.texts.map((text, textIndex) => (
+                      <p key={textIndex} className="mt-0.5 whitespace-pre-line break-keep">{text}</p>
+                    ))}
+                  </>
+                ) : (
+                  <p className="break-keep">
+                    {item.href ? (
+                      <Link href={item.href} className={refundPolicyLinkClassName}>{item.label}</Link>
+                    ) : item.label}
+                    <span className="ml-1 text-[var(--studio-muted)]">(결제 당시 판과 다를 수 있어요)</span>
+                  </p>
+                )}
+              </div>
+            ))}
+          </>
+        ) : detail.noticeText ? (
           <>
             <p className="font-semibold text-[var(--studio-ink)]">이 결제에 동의한 결제 전 확인</p>
             <p className="mt-1 whitespace-pre-line break-keep">{detail.noticeText}</p>

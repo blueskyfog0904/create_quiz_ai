@@ -33,24 +33,21 @@ test('14절: 패키지는 제목 왼쪽 체크박스(제목 label로 선택), �
   assert.doesNotMatch(label, /bundleSubtitle|priceCredits/)
   // 잉크 위 체크박스: 미체크도 흰 바탕+흰 테두리, 체크 시 흰 바탕+잉크 체크, 흰 포커스 링 + 잉크 offset
   assert.match(itemActions, /const INK_BLOCK_CHECKBOX_CLASS = 'border-\[var\(--studio-surface\)\] bg-\[var\(--studio-surface\)\] text-\[var\(--studio-ink\)\] data-\[state=checked\]:border-\[var\(--studio-surface\)\] data-\[state=checked\]:bg-\[var\(--studio-surface\)\] data-\[state=checked\]:text-\[var\(--studio-ink\)\] focus-visible:border-\[var\(--studio-surface\)\] focus-visible:ring-2 focus-visible:ring-\[var\(--studio-surface\)\] focus-visible:ring-offset-2 focus-visible:ring-offset-\[var\(--studio-ink\)\]'/)
-  // 사유는 제목 아래, 상태 live 영역은 사유 아래. 선택 시 블록 코랄 링 유지
+  // 사유는 제목 아래. 선택 시 블록 코랄 링 유지(11번: '잔액 확인 중'·'구매 처리 중' 상태 줄은 상세 바로 구매와 함께 없앴다)
   const reason = v2.indexOf('<p id={getOptionReasonId(bundleKey)}')
-  const status = v2.indexOf('<p aria-live="polite"', reason)
-  assert.ok(v2.indexOf('</h3>') < reason && reason < status, 'title → reason → status')
+  assert.ok(v2.indexOf('</h3>') < reason, 'title → reason')
   assert.match(v2, /\$\{isBundleSelected \? 'ring-2 ring-\[var\(--studio-highlight\)\]' : ''\}/)
   // 보유 시 체크박스 없음(보유 중 태그 + 다운로드)
   assert.match(v2, /\{bundleKey && bundleSelectOption \? \(\n\s+<label/)
-  const control = itemActions.slice(itemActions.indexOf('const renderOptionSelectControl'), itemActions.indexOf('const renderOptionStatus'))
+  const control = itemActions.slice(itemActions.indexOf('const renderOptionSelectControl'), itemActions.indexOf('const summaryHintId'))
   assert.match(control, /aria-label=\{ariaLabel \?\? `\$\{option\.title\} 선택`\}/)
   assert.match(control, /aria-describedby=\{reason \? getOptionReasonId\(option\.key\) : undefined\}/)
   assert.match(v2, /<span id=\{getOptionReasonId\(key\)\}/)
   // 그룹 이름은 감싸는 div가 갖고 ul은 목록 역할을 유지한다
   assert.match(v2, /<div role="group" aria-labelledby=\{subproductListTitleId\}>\n\s+<ul className=/)
   assert.doesNotMatch(v2, /<ul role=/)
-  // 상태 문구 live 영역은 항상 렌더하고 글자만 바꾼다(패키지·행)
-  assert.match(v2, /<p aria-live="polite" className=\{`[^`]*`\}>\{bundleStatus \?\? ''\}<\/p>/)
-  assert.match(v2, /<span aria-live="polite">\{status \? ` · \$\{status\}` : ''\}<\/span>/)
-  assert.doesNotMatch(v2, /\{(bundleStatus|status) \? \(?\s*<[a-z]+ aria-live/)
+  // 11번: 구매 상태(잔액 확인·구매 처리) live 영역은 없다
+  assert.doesNotMatch(v2, /bundleStatus|renderOptionStatus|잔액 확인 중|구매 처리 중/)
   // 체크박스 테두리는 컨트롤 테두리 토큰으로 보강(비텍스트 대비 3:1)
   assert.match(itemActions, /const renderOptionSelectControl = \(key: string, checkboxClassName = 'border-\[var\(--studio-control-border\)\]', ariaLabel\?: string\) => \{/)
   assert.match(itemActions, /className=\{checkboxClassName\}/)
@@ -77,19 +74,25 @@ test('U2: 패키지 제목은 고정 문구 "전체 패키지"이고 관리자 �
   assert.doesNotMatch(v2, /\{bundleOption\.label/)
 })
 
-test('U2: 하단 바는 "선택 N개 · N 크레딧"과 장바구니(brandOutline)·구매하기(brand, D3)', () => {
+// 11번(계획 7절): '구매하기'를 없애고 '장바구니 담기' 하나(전체 폭, brand).
+test('U2: 하단 바는 "선택 N개 · N 크레딧"과 장바구니 담기 버튼 하나(brand, 전체 폭)', () => {
   assert.match(v2, /선택 <strong[^>]*>\{selectedOptions\.length\}<\/strong>개/)
   assert.match(v2, /<strong[^>]*>\{formatCredits\(selectedTotal\)\}<\/strong> 크레딧/)
-  assert.match(v2, /variant="brandOutline"/)
-  assert.match(v2, /variant="brand"\n/)
+  assert.doesNotMatch(v2, /variant="brandOutline"/)
+  assert.equal((v2.match(/variant="brand"\n/g) ?? []).length, 1)
+  assert.match(v2, /variant="brand"\n\s+className="mt-3 h-auto min-h-11 w-full whitespace-normal"/)
+  assert.match(v2, /'장바구니 담기'/)
+  assert.doesNotMatch(v2, /구매하기|grid-cols-2/)
 })
 
 test('U2: 상태 계산·충돌·담기·구매 함수는 그대로 쓰인다(디자인만 변경)', () => {
-  for (const name of ['getBlockedReason', 'addSelectedToCart', 'openCheckout', 'dedupeQuestionPdfFiles', 'renderDownloadButtons', 'renderOptionSelectControl']) {
+  for (const name of ['getBlockedReason', 'addSelectedToCart', 'dedupeQuestionPdfFiles', 'renderDownloadButtons', 'renderOptionSelectControl']) {
     assert.match(v2, new RegExp(`\\b${name}\\(`), name)
   }
+  // 11번: 상세 바로 구매(openCheckout)는 없다
+  assert.doesNotMatch(itemActions, /openCheckout/)
   // 선택 토글은 개별·패키지 모두 같은 체크박스 컨트롤에서 한다
-  const control = itemActions.slice(itemActions.indexOf('const renderOptionSelectControl'), itemActions.indexOf('const renderOptionStatus'))
+  const control = itemActions.slice(itemActions.indexOf('const renderOptionSelectControl'), itemActions.indexOf('const summaryHintId'))
   assert.match(control, /toggleOption\(option\.key, checked === true\)/)
   assert.match(v2, /subproduct\.categorySlug === 'question_pdf' && hasOwnedPdfInclusiveHwp/)
 })

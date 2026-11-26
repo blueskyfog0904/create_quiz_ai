@@ -7,7 +7,7 @@ export async function POST() {
     success: false,
     error: {
       code: 'BATCH_PURCHASE_DEPRECATED',
-      message: '문제마켓 리스트 직접 결제는 종료되었습니다. 상세페이지에서 구매해주세요.',
+      message: '문제마켓 리스트 직접 결제는 종료되었습니다. 장바구니에서 구매해 주세요.',
     },
   }, { status: 410 })
 }

@@ -6,6 +6,10 @@ const purchaseRoute = readFileSync(
   new URL('../src/app/api/market/items/[itemId]/purchase/route.ts', import.meta.url),
   'utf8'
 )
+const cartCheckoutRoute = readFileSync(
+  new URL('../src/app/api/market/cart/checkout/route.ts', import.meta.url),
+  'utf8'
+)
 const marketPurchase = readFileSync(
   new URL('../src/lib/market-purchase.ts', import.meta.url),
   'utf8'
@@ -28,25 +32,24 @@ const checkoutFunctionMigrations = [
   ['20260930080434_market_checkout_direct_multi', directMultiMigration],
 ]
 
-test('direct purchase route accepts a strict lines body and closes legacy assetKind bodies', () => {
-  assert.match(purchaseRoute, /z\.discriminatedUnion\('targetKind'/)
-  assert.match(purchaseRoute, /subproductId: z\.string\(\)\.uuid\(\)/)
-  assert.match(purchaseRoute, /bundleOptionId: z\.string\(\)\.uuid\(\)/)
-  assert.match(purchaseRoute, /lines: z\.array\(z\.object\(\{\n    target: DirectTargetSchema,/)
-  assert.match(purchaseRoute, /expectedCredits: z\.number\(\)\.int\(\)/)
-  // 7번 묶음: 구매 고지 체크·지문이 본문 끝에 필수로 붙는다(strict 그대로)
-  assert.match(purchaseRoute, /\}\)\.strict\(\)\)\.min\(1\)\.max\(50\),\n  idempotencyKey: z\.string\(\)\.uuid\(\),\n  acknowledgePurchaseNotice: z\.boolean\([^)]*\),\n  noticeSha256: z\.string\([^\n]*\.regex\(\/\^\[0-9a-f\]\{64\}\$\/[^\n]*\),\n\}\)\.strict\(\)/)
-  assert.doesNotMatch(purchaseRoute, /^  target: DirectTargetSchema,/m)
-  assert.match(purchaseRoute, /'assetKind' in body[\s\S]+LEGACY_PURCHASE_CLOSED[\s\S]+status: 410/)
-  assert.match(purchaseRoute, /runMarketCheckout\(\{[\s\S]+mode: 'direct'/)
+// 11번(계획 docs/plan-bundle11-checkout-simplify.md 7절): 상세 바로 구매는 410 만 남는다(옛 assetKind 본문 포함 모든 본문).
+// 본문 검사·결제 RPC 는 장바구니 결제 route(cart 모드)에만 있다.
+test('direct purchase route is closed with 410 and the cart checkout route keeps the strict body and cart-mode RPC', () => {
+  assert.match(purchaseRoute, /code: 'MARKET_DIRECT_PURCHASE_CLOSED'/)
+  assert.match(purchaseRoute, /status: 410/)
+  assert.doesNotMatch(purchaseRoute, /runMarketCheckout|mode: 'direct'|z\.object|request\.json/)
   assert.doesNotMatch(purchaseRoute, /handleLegacyMarketPurchase|handleMarketV2Purchase/)
+  assert.match(cartCheckoutRoute, /cartItemId: z\.string\(\)\.uuid\(\)/)
+  assert.match(cartCheckoutRoute, /expectedCredits: z\.number\(\)\.int\(\)/)
+  assert.match(cartCheckoutRoute, /\}\)\.strict\(\)\)\.min\(1\)\.max\(50\)/)
+  assert.match(cartCheckoutRoute, /runMarketCheckout\(\{[\s\S]+mode: 'cart'/)
 })
 
 test('v2 purchase can be disabled without disabling existing downloads', () => {
   assert.match(marketPurchase, /export function isMarketV2PurchaseEnabled/)
   assert.match(marketPurchase, /MARKET_V2_PURCHASE_ENABLED/)
-  assert.match(purchaseRoute, /V2_PURCHASE_DISABLED/)
-  assert.match(purchaseRoute, /isMarketV2PurchaseEnabled\(\)/)
+  assert.match(cartCheckoutRoute, /V2_PURCHASE_DISABLED/)
+  assert.match(cartCheckoutRoute, /isMarketV2PurchaseEnabled\(\)/)
 })
 
 test('v2 purchase writes order line and entitlement records inside the atomic checkout RPC (no compensation path)', () => {
@@ -67,7 +70,7 @@ test('v2 purchase duplicate policy blocks only the same purchase unit and charge
   assert.match(checkoutMigration, /e\.scope = 'subproduct' and e\.subproduct_id = v_target_id and e\.status = 'active'/)
   assert.match(checkoutMigration, /when v_owned then 'ALREADY_OWNED'/)
   assert.match(checkoutMigration, /'code', 'ACK_REQUIRED'/)
-  assert.match(purchaseRoute, /acknowledgeNoDiscount/)
+  assert.match(cartCheckoutRoute, /acknowledgeNoDiscount/)
 })
 
 test('v2 purchase availability is evaluated by the shared evaluate_market_targets SQL', () => {

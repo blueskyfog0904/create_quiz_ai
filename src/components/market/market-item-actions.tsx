@@ -3,7 +3,7 @@
 import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { Check, Eye, FileArchive, FileCheck2, FileStack, FileText, ShoppingCart } from 'lucide-react'
 import { FileTypeDocIcon } from '@/components/market/file-type-doc-icon'
 import { toast } from 'sonner'
@@ -19,12 +19,6 @@ import {
   StudioDialogTitle,
 } from '@/components/design-system/studio-dialog'
 import { dispatchMarketCartUpdated } from '@/components/market/market-cart-indicator'
-import { MarketCheckoutConfirmDialog } from '@/components/market/market-checkout-confirm-dialog'
-import {
-  MarketPurchaseCompleteDialog,
-  resolveMarketLibraryHref,
-  type MarketPurchaseCompleteResult,
-} from '@/components/market/market-purchase-complete-dialog'
 import { useLoginRedirect } from '@/hooks/use-login-redirect'
 import { saveMarketCartIntent, takeMarketCartIntent } from '@/lib/market-cart-intent'
 import { getBundleSavings, isPdfInclusiveHwp } from '@/lib/market-bundle-savings'
@@ -32,13 +26,8 @@ import { getMarketDownloadButtonLabels } from '@/lib/market-download-label'
 import type { MarketBundlePublicSummary, MarketSubproductDownloadFile, MarketSubproductPublicSummary } from '@/lib/market-items-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import MarketSamplePreviewDialog from './market-sample-preview-dialog'
-import { redirectToConsentIfRequired } from '@/lib/consent-client'
-import {
-  parseMarketPurchaseNotice,
-  type MarketPurchaseNotice,
-  type MarketPurchasePolicyView,
-} from '@/lib/market-purchase-policy'
-import type { MarketPurchaseInfo } from '@/lib/market-purchase-info'
+import type { MarketPurchasePolicyView } from '@/lib/market-purchase-policy'
+import { findConflictingSelection, type MarketSelectionLine } from '@/lib/market-selection-conflict'
 
 interface MarketItemActionsProps {
   itemId: string
@@ -56,12 +45,12 @@ interface MarketItemActionsProps {
   subproducts?: MarketSubproductPublicSummary[]
   bundleOption?: MarketBundlePublicSummary | null
   downloadFiles?: MarketSubproductDownloadFile[]
-  // 구매 고지(DB 문구·서버 지문). 읽지 못했으면 null — 구매 확인창의 구매 버튼이 막힌다.
+  // 구매 고지(DB 문구). 상세 아래 안내 줄(purchaseCompleteNotice)만 쓴다. 읽지 못했으면 null — 그 줄을 숨긴다.
+  // 11번: 자료 구매는 장바구니로만 한다(상세 바로 구매·확인창 없음).
   purchasePolicy: MarketPurchasePolicyView | null
-  purchaseInfo: MarketPurchaseInfo
 }
 
-type OptionState = 'instant' | 'owned' | 'included' | 'available' | 'unavailable' | 'checking' | 'processing'
+type OptionState = 'instant' | 'owned' | 'included' | 'available' | 'unavailable'
 type MarketOptionIconKind = 'sample' | 'bundle' | 'pdf' | 'hwp' | 'zip' | 'default'
 
 interface PurchaseNotice {
@@ -77,35 +66,10 @@ interface PurchaseOption {
   title: string
   priceCredits: number
   categorySlug: string | null
+  // 'PDF 파일이 하나라도 있음'(장바구니 뷰의 evaluate_market_targets 값과 같은 뜻). 공용 충돌 판정이 categorySlug 와 함께 본다.
   includesPdf: boolean
   partiallyOwned: boolean
   unavailableReason: string | null
-}
-
-interface CheckoutLine {
-  key: string
-  targetKind: 'subproduct' | 'bundle'
-  targetId: string
-  title: string
-  expectedCredits: number
-  // 409 PRICE_CHANGED로 바뀐 경우 직전에 확인했던 금액
-  previousCredits: number | null
-  partiallyOwned: boolean
-}
-
-interface CheckoutState {
-  // Dialog를 열 때 1개 생성. 확정·재시도는 같은 키, 409 재확인은 새 키.
-  idempotencyKey: string
-  lines: CheckoutLine[]
-  balance: number
-  acknowledged: boolean
-  // 확인창을 열 때 복사한 구매 고지. 409 PURCHASE_NOTICE_CHANGED 때만 바뀐다(새로고침으로 몰래 바뀌지 않게).
-  purchaseNotice: MarketPurchaseNotice | null
-  noticeAcknowledged: boolean
-  submitting: boolean
-  retryable: boolean
-  notice: string | null
-  shortfall: number | null
 }
 
 interface CartAddHandlers {
@@ -114,13 +78,6 @@ interface CartAddHandlers {
   onFailure: (message: string) => void
   // 로그인 복귀 담기에서 담을 수 없어 제외한 대상 수. 성공 문구 끝에 알린다.
   excludedCount?: number
-}
-
-interface PriceChangedItem {
-  targetKind: string
-  targetId: string
-  purchasable: boolean
-  chargedCredits: number | null
 }
 
 const MARKET_ACTION_BUTTON_CLASS = 'h-11 w-full justify-center gap-2 rounded-xl px-5 font-semibold focus-visible:ring-indigo-300 sm:w-44'
@@ -170,10 +127,6 @@ function getSubproductIconKind(subproduct: MarketSubproductPublicSummary): Marke
   if (tokens.includes('hwp')) return 'hwp'
   if (tokens.includes('pdf')) return 'pdf'
   return 'default'
-}
-
-function sumCredits(lines: { expectedCredits: number }[]) {
-  return lines.reduce((total, line) => total + line.expectedCredits, 0)
 }
 
 function hasHwpAndPdf(subproduct: MarketSubproductPublicSummary) {
@@ -247,14 +200,6 @@ function OptionStateBadge({ state }: { state: OptionState }) {
 
   if (state === 'included') {
     return <Badge variant="secondary" className={MARKET_BADGE_INCLUDED_CLASS}>패키지 포함</Badge>
-  }
-
-  if (state === 'checking') {
-    return <Badge variant="outline">잔액 확인 중</Badge>
-  }
-
-  if (state === 'processing') {
-    return <Badge variant="outline">구매 처리 중</Badge>
   }
 
   if (state === 'unavailable') {
@@ -389,9 +334,7 @@ export default function MarketItemActions({
   bundleOption = null,
   downloadFiles = [],
   purchasePolicy,
-  purchaseInfo,
 }: MarketItemActionsProps) {
-  const router = useRouter()
   const { redirectToLogin } = useLoginRedirect()
   const searchParams = useSearchParams()
   // 방금 완료된 로그인의 증거. LoginCompleteDialog가 닫히면서 이 쿼리를 지운다.
@@ -400,13 +343,10 @@ export default function MarketItemActions({
   const selectionIdPrefix = useId()
   // 선택 순서를 유지한다(장바구니 담기 순서). 새로고침으로 사라지거나 선택 불가가 된 옵션은 purchaseOptions 대조로 걸러진다.
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
-  const [isCheckingBalance, setIsCheckingBalance] = useState(false)
   const [isAddingToCart, setIsAddingToCart] = useState(false)
-  const [checkout, setCheckout] = useState<CheckoutState | null>(null)
-  const [purchaseComplete, setPurchaseComplete] = useState<MarketPurchaseCompleteResult | null>(null)
   // 담기 결과 Dialog. 'notice'는 로그인 복귀 담기의 실패·제외 안내다(로그인 완료 모달 뒤라 toast는 묻힌다).
   const [cartResult, setCartResult] = useState<{ kind: 'added' | 'notice'; message: string } | null>(null)
-  // 비로그인 0건에서 [로그인 후 담기]·[로그인 후 구매]를 누른 경우의 인라인 안내
+  // 비로그인 0건에서 [로그인 후 담기]를 누른 경우의 인라인 안내
   const [emptyNotice, setEmptyNotice] = useState(false)
   const [isSamplePreviewOpen, setIsSamplePreviewOpen] = useState(false)
   const [samplePreviewPrefetchKey, setSamplePreviewPrefetchKey] = useState(0)
@@ -429,30 +369,12 @@ export default function MarketItemActions({
     }).catch(() => undefined)
   }, [itemId, viewSessionKey])
 
-  const fetchBalance = async () => {
-    const res = await fetch('/api/credits/balance', {
-      cache: 'no-store',
-      next: { revalidate: 0 },
-    })
-
-    if (!res.ok) {
-      throw new Error('잔액 정보를 불러오지 못했습니다.')
-    }
-
-    const data = await res.json()
-    if (typeof data.balance === 'number') {
-      window.dispatchEvent(new CustomEvent('credit-balance-updated', { detail: { balance: data.balance } }))
-      return data.balance as number
-    }
-    throw new Error('잔액 정보 형식이 올바르지 않습니다.')
-  }
-
   // 문제(HWP) 서브상품(PDF 포함)을 단건 소유한 경우, 이미 포함된 문제(PDF) 카드는 숨긴다.
   // ownedScope 는 번들 소유 시 'item' 이므로 번들 소유자는 숨김 대상이 아니다.
   const hasOwnedPdfInclusiveHwp = subproducts.some((sibling) => (
     isPdfInclusiveHwp(sibling) && sibling.ownedScope === 'subproduct'
   ))
-  // R6: 개별 자료를 이미 보유한 채 전체 패키지를 사면 정가 구매다. 확인 Dialog에서 확인 여부를 함께 보낸다.
+  // R6: 개별 자료를 이미 보유한 채 전체 패키지를 사면 정가 구매다(장바구니 결제 칸이 확인을 받는다).
   const isPartiallyOwnedBundle = subproducts.some((subproduct) => subproduct.ownedScope === 'subproduct')
 
   // 표시·expectedCredits 비교용 가격. 차감액은 RPC가 다시 계산하고, 다르면 409로 알린다.
@@ -485,7 +407,7 @@ export default function MarketItemActions({
         title: subproduct.title,
         priceCredits,
         categorySlug: subproduct.categorySlug,
-        includesPdf: isPdfInclusiveHwp(subproduct),
+        includesPdf: subproduct.fileTypes.some((fileType) => fileType.code.toLowerCase() === 'pdf'),
         partiallyOwned: false,
         unavailableReason: priceCredits <= 0
           ? UNPRICED_REASON
@@ -510,23 +432,27 @@ export default function MarketItemActions({
   const selectedKeySet = new Set(selectedOptions.map((option) => option.key))
   const selectedTotal = selectedOptions.reduce((total, option) => total + option.priceCredits, 0)
   const hasSelectableOption = purchaseOptions.some((option) => option.unavailableReason === null)
-  const isBusy = isCheckingBalance || isAddingToCart || Boolean(checkout?.submitting)
+  const isBusy = isAddingToCart
 
-  // 서버 R-규칙과 같은 충돌 규칙. 자동 교체 없이 상대 옵션을 막고, 선택을 해제하면 바로 풀린다.
-  const hasSelectedBundle = selectedOptions.some((option) => option.targetKind === 'bundle')
-  const hasSelectedSubproduct = selectedOptions.some((option) => option.targetKind === 'subproduct')
-  const hasSelectedQuestionPdf = selectedOptions.some((option) => option.categorySlug === 'question_pdf')
-  const hasSelectedPdfInclusiveHwp = selectedOptions.some((option) => option.includesPdf)
+  // 함께 살 수 없는 선택: DB 결제 6단계와 같은 공용 판정(장바구니와 같은 함수). 자동 교체 없이 상대 옵션을 막고, 선택을 해제하면 바로 풀린다.
+  const toSelectionLine = (option: PurchaseOption): MarketSelectionLine => ({
+    id: option.key,
+    itemId,
+    targetKind: option.targetKind,
+    categorySlug: option.categorySlug,
+    includesPdf: option.includesPdf,
+  })
 
   const getBlockedReason = (option: PurchaseOption) => {
     if (option.unavailableReason) return option.unavailableReason
     if (selectedKeySet.has(option.key)) return null
-    if (option.targetKind === 'subproduct' && hasSelectedBundle) return BUNDLE_SELECTED_REASON
-    if (option.targetKind === 'bundle' && hasSelectedSubproduct) return SUBPRODUCT_SELECTED_REASON
-    if ((option.categorySlug === 'question_pdf' && hasSelectedPdfInclusiveHwp) || (option.includesPdf && hasSelectedQuestionPdf)) {
-      return PDF_HWP_CONFLICT_REASON
-    }
-    return null
+    const conflicting = selectedOptions.find((selected) => (
+      findConflictingSelection([toSelectionLine(selected), toSelectionLine(option)]).lineIds.size > 0
+    ))
+    if (!conflicting) return null
+    if (option.targetKind === 'subproduct' && conflicting.targetKind === 'bundle') return BUNDLE_SELECTED_REASON
+    if (option.targetKind === 'bundle' && conflicting.targetKind === 'subproduct') return SUBPRODUCT_SELECTED_REASON
+    return PDF_HWP_CONFLICT_REASON
   }
 
   const toggleOption = (key: string, checked: boolean) => {
@@ -546,6 +472,8 @@ export default function MarketItemActions({
   ) => {
     let createdCount = 0
     let existingCount = 0
+    // 이미 있던 줄 가운데 선택으로 바꾸지 못한 줄(담기 route 가 같은 요청 안에서 선택으로 바꾼다, 0-9)
+    let reselectFailedCount = 0
     let limitCount = 0
     let failedCount = 0
     let latestCount: number | null = null
@@ -576,6 +504,8 @@ export default function MarketItemActions({
           latestCount = payload.data.count
           if (payload.data.created) {
             createdCount += 1
+          } else if (payload.data.reselected === false) {
+            reselectFailedCount += 1
           } else {
             existingCount += 1
           }
@@ -593,9 +523,14 @@ export default function MarketItemActions({
       dispatchMarketCartUpdated(latestCount)
     }
 
-    const limitMessage = `장바구니가 가득 차(최대 50개) ${limitCount}건을 담지 못했습니다. 장바구니를 정리한 뒤 다시 담아 주세요.`
-    if (createdCount + existingCount === 0) {
-      onFailure(limitCount > 0 ? limitMessage : '장바구니에 담지 못했습니다. 잠시 후 다시 시도해주세요.')
+    const limitMessage = `장바구니가 가득 차(최대 50개) ${limitCount}건을 담지 못했습니다. 장바구니에서 빼고 다시 담아 주세요.`
+    if (createdCount + existingCount + reselectFailedCount === 0) {
+      // 모두 가득 차 못 담은 경우도 결과 창으로 알린다(장바구니 보기로 정리하게, 7절).
+      if (limitCount > 0) {
+        setCartResult({ kind: 'notice', message: limitMessage })
+        return false
+      }
+      onFailure('장바구니에 담지 못했습니다. 잠시 후 다시 시도해주세요.')
       return false
     }
 
@@ -603,7 +538,8 @@ export default function MarketItemActions({
       kind: 'added',
       message: [
         createdCount > 0 ? `${createdCount}건을 담았습니다.` : null,
-        existingCount > 0 ? `${existingCount}건은 이미 장바구니에 있습니다.` : null,
+        existingCount > 0 ? `${existingCount}건은 이미 장바구니에 있어 결제할 자료로 선택해 두었습니다.` : null,
+        reselectFailedCount > 0 ? `${reselectFailedCount}건은 이미 장바구니에 있지만 선택하지 못했습니다. 장바구니에서 선택해 주세요.` : null,
         limitCount > 0 ? limitMessage : null,
         failedCount > 0 ? `${failedCount}건은 오류로 담지 못했습니다.` : null,
         excludedCount > 0 ? `나머지 ${excludedCount}건은 이미 보유했거나 판매 중지·준비 중이라 제외했습니다.` : null,
@@ -612,11 +548,10 @@ export default function MarketItemActions({
     return true
   }
 
-  // 비로그인은 선택을 저장한 뒤 로그인으로 보낸다. 로그인 후 이 상세로 돌아오면 담기는 자동으로 이어지고(12절 D16·D17),
-  // 구매는 선택만 복원한다(D19, 차감은 사용자가 다시 눌러야 한다).
-  const saveIntentBeforeLogin = (action: 'cart' | 'purchase') => {
+  // 비로그인은 선택을 저장한 뒤 로그인으로 보낸다. 로그인 후 이 상세로 돌아오면 담기가 자동으로 이어진다(12절 D16·D17).
+  const saveIntentBeforeLogin = () => {
     saveMarketCartIntent({
-      action,
+      action: 'cart',
       itemId,
       workspaceSubject,
       targets: selectedOptions.map((option) => ({ targetKind: option.targetKind, targetId: option.targetId })),
@@ -630,7 +565,7 @@ export default function MarketItemActions({
         setEmptyNotice(true)
         return
       }
-      saveIntentBeforeLogin('cart')
+      saveIntentBeforeLogin()
       redirectToLogin()
       return
     }
@@ -670,11 +605,7 @@ export default function MarketItemActions({
       }
     }
 
-    if (intent.action === 'purchase') {
-      setSelectedKeys(options.map((option) => option.key))
-      return
-    }
-
+    // 배포 전에 저장된 'purchase' 의도도 takeMarketCartIntent 가 담기로 바꿔 준다(결제하지 않음, 11번 7절).
     // 로그인 완료 모달이 떠 있어 toast는 묻히므로, 실패·제외도 그 모달이 닫힌 뒤 Dialog로 알린다(13절 D22).
     const showNotice = (message: string) => setCartResult({ kind: 'notice', message })
     if (options.length === 0) {
@@ -701,238 +632,6 @@ export default function MarketItemActions({
     consumeCartIntent()
   }, [isLoggedIn])
 
-  const openCheckout = async () => {
-    if (!isLoggedIn) {
-      // 구매하기도 담기와 같은 규칙이다(13절 D21).
-      if (selectedOptions.length === 0) {
-        setEmptyNotice(true)
-        return
-      }
-      saveIntentBeforeLogin('purchase')
-      redirectToLogin()
-      return
-    }
-    if (selectedOptions.length === 0) {
-      return
-    }
-
-    setIsCheckingBalance(true)
-    try {
-      const balance = await fetchBalance()
-      setCheckout({
-        idempotencyKey: crypto.randomUUID(),
-        lines: selectedOptions.map((option) => ({
-          key: option.key,
-          targetKind: option.targetKind,
-          targetId: option.targetId,
-          title: option.title,
-          expectedCredits: option.priceCredits,
-          previousCredits: null,
-          partiallyOwned: option.partiallyOwned,
-        })),
-        balance,
-        acknowledged: false,
-        purchaseNotice: purchasePolicy
-          ? {
-            checkboxLabel: purchasePolicy.checkboxLabel,
-            confirmNotice: purchasePolicy.confirmNotice,
-            noticeSha256: purchasePolicy.noticeSha256,
-            refundDays: purchasePolicy.refundDays,
-          }
-          : null,
-        noticeAcknowledged: false,
-        submitting: false,
-        retryable: false,
-        notice: null,
-        shortfall: null,
-      })
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '크레딧 확인에 실패했습니다.')
-    } finally {
-      setIsCheckingBalance(false)
-    }
-  }
-
-  const submitCheckout = async () => {
-    if (!checkout || checkout.submitting || !checkout.purchaseNotice || !checkout.noticeAcknowledged) {
-      return
-    }
-
-    const request = checkout
-    const purchaseNotice = checkout.purchaseNotice
-    setCheckout({ ...request, submitting: true })
-
-    let response: Response
-    try {
-      response = await fetch(`/api/market/items/${itemId}/purchase`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lines: request.lines.map((line) => ({
-            target: line.targetKind === 'bundle'
-              ? { targetKind: 'bundle', bundleOptionId: line.targetId }
-              : { targetKind: 'subproduct', subproductId: line.targetId },
-            expectedCredits: line.expectedCredits,
-            acknowledgeNoDiscount: line.partiallyOwned && request.acknowledged,
-          })),
-          idempotencyKey: request.idempotencyKey,
-          acknowledgePurchaseNotice: request.noticeAcknowledged,
-          noticeSha256: purchaseNotice.noticeSha256,
-        }),
-      })
-    } catch {
-      setCheckout({
-        ...request,
-        submitting: false,
-        retryable: true,
-        notice: '네트워크 오류로 구매 결과를 확인하지 못했습니다. 다시 시도하면 같은 요청으로 처리되어 중복으로 차감되지 않습니다.',
-      })
-      return
-    }
-
-    const payload = await response.json().catch(() => ({}))
-
-    if (response.ok && payload.success) {
-      setCheckout(null)
-      if (typeof payload.balance === 'number') {
-        window.dispatchEvent(new CustomEvent('credit-balance-updated', { detail: { balance: payload.balance } }))
-      }
-      setPurchaseComplete({
-        orders: payload.data?.orders ?? [],
-        totalCredits: payload.data?.totalCredits ?? sumCredits(request.lines),
-        balance: typeof payload.balance === 'number' ? payload.balance : null,
-        alreadyCompleted: payload.alreadyCompleted === true,
-      })
-      clearSelection()
-      router.refresh()
-      return
-    }
-
-    // 필수 약관 동의가 필요하면 동의 화면으로 보낸다(동의 뒤 이 화면으로 돌아온다).
-    if (redirectToConsentIfRequired(response.status, payload)) {
-      setCheckout(null)
-      return
-    }
-
-    const code: string | undefined = payload.error?.code
-    const message: string = payload.error?.message || '구매 처리에 실패했습니다.'
-
-    if (response.status === 401) {
-      setCheckout(null)
-      redirectToLogin()
-      return
-    }
-
-    // 네트워크 유실·5xx(재시도 소진, 일시 중지 포함)는 같은 키로 다시 시도한다.
-    if (response.status >= 500) {
-      setCheckout({ ...request, submitting: false, retryable: true, notice: `${message} 다시 시도하면 같은 요청으로 처리됩니다.` })
-      return
-    }
-
-    // 402: 사전 확인은 부족액을 주고, 차감 단계(P0402)는 주지 않으므로 잔액을 다시 읽어 계산한다.
-    if (response.status === 402) {
-      let balance = typeof payload.details?.balance === 'number' ? payload.details.balance : request.balance
-      let shortfall: number
-      if (typeof payload.details?.shortfall === 'number') {
-        shortfall = payload.details.shortfall
-      } else {
-        balance = await fetchBalance().catch(() => balance)
-        shortfall = sumCredits(request.lines) - balance
-      }
-      setCheckout({
-        ...request,
-        submitting: false,
-        retryable: false,
-        balance,
-        shortfall: shortfall > 0 ? shortfall : null,
-        notice: shortfall > 0
-          ? '보유 크레딧이 부족해 구매하지 못했습니다. 크레딧을 충전한 뒤 다시 구매해주세요.'
-          : '보유 크레딧이 변경되었습니다. 금액을 확인한 뒤 다시 구매해주세요.',
-      })
-      return
-    }
-
-    if (code === 'PRICE_CHANGED') {
-      const latest = new Map<string, PriceChangedItem>(
-        ((payload.details?.items ?? []) as PriceChangedItem[]).map((item) => [`${item.targetKind}:${item.targetId}`, item])
-      )
-      const lines = request.lines.flatMap((line) => {
-        const item = latest.get(line.key)
-        if (!item || !item.purchasable || item.chargedCredits === null) {
-          return []
-        }
-        return [item.chargedCredits === line.expectedCredits
-          ? line
-          : { ...line, expectedCredits: item.chargedCredits, previousCredits: line.expectedCredits }]
-      })
-      const removedCount = request.lines.length - lines.length
-
-      if (lines.length === 0) {
-        setCheckout(null)
-        toast.error('선택한 자료를 모두 구매할 수 없게 되었습니다. 최신 정보를 확인해주세요.')
-        clearSelection()
-        router.refresh()
-        return
-      }
-      setCheckout({
-        ...request,
-        idempotencyKey: crypto.randomUUID(),
-        lines,
-        submitting: false,
-        retryable: false,
-        notice: removedCount > 0
-          ? `판매 상태가 바뀐 자료 ${removedCount}건을 제외하고 변경된 금액으로 다시 표시했습니다. 확인 후 구매해주세요.`
-          : '가격이 변경되었습니다. 변경된 금액을 확인한 뒤 다시 구매해주세요.',
-      })
-      return
-    }
-
-    // 구매 안내 문구가 바뀜: 새 문구로 바꾸고 다시 체크하게 한다(새 키). 기보유분 확인(acknowledged)은 그대로 둔다.
-    if (code === 'PURCHASE_NOTICE_CHANGED') {
-      const nextNotice = parseMarketPurchaseNotice(payload.details)
-      if (!nextNotice) {
-        setCheckout(null)
-        toast.error(message)
-        router.refresh()
-        return
-      }
-      setCheckout({
-        ...request,
-        idempotencyKey: crypto.randomUUID(),
-        purchaseNotice: nextNotice,
-        noticeAcknowledged: false,
-        submitting: false,
-        retryable: false,
-        notice: message,
-      })
-      return
-    }
-
-    if (code === 'ACK_REQUIRED') {
-      const ackKeys = new Set(((payload.details?.lines ?? []) as { targetKind: string; targetId: string }[])
-        .map((line) => `${line.targetKind}:${line.targetId}`))
-      setCheckout({
-        ...request,
-        idempotencyKey: crypto.randomUUID(),
-        lines: request.lines.map((line) => (ackKeys.has(line.key) ? { ...line, partiallyOwned: true } : line)),
-        acknowledged: false,
-        submitting: false,
-        retryable: false,
-        notice: message,
-      })
-      return
-    }
-
-    // ALREADY_OWNED·CONFLICTING_SELECTION·NOT_FOUND·IDEMPOTENCY_CONFLICT·422: 최신 상태를 보고 다시 고른다.
-    setCheckout(null)
-    toast.error(message)
-    clearSelection()
-    router.refresh()
-  }
-
-  const checkoutTotal = checkout ? sumCredits(checkout.lines) : 0
-  const needsAcknowledgement = checkout?.lines.some((line) => line.partiallyOwned) ?? false
-
   const openSamplePreview = () => {
     setIsSamplePreviewOpen(true)
   }
@@ -943,13 +642,6 @@ export default function MarketItemActions({
     }
 
     setSamplePreviewPrefetchKey((value) => value + 1)
-  }
-
-  const getOptionState = (key: string, owned: boolean): OptionState => {
-    if (owned) return 'owned'
-    if (selectedKeySet.has(key) && checkout?.submitting) return 'processing'
-    if (selectedKeySet.has(key) && isCheckingBalance) return 'checking'
-    return 'available'
   }
 
   const getOptionReasonId = (key: string) => `${selectionIdPrefix}-${key}`
@@ -977,10 +669,6 @@ export default function MarketItemActions({
       </span>
     )
   }
-
-  const renderOptionStatus = (state: OptionState) => (state === 'checking'
-    ? '잔액 확인 중'
-    : state === 'processing' ? '구매 처리 중' : null)
 
   // 비로그인은 선택 건수와 무관하게 버튼을 눌러 로그인으로 이동한다(로그인 후 이 상세로 복귀).
   const summaryHintId = !isLoggedIn
@@ -1057,7 +745,6 @@ export default function MarketItemActions({
     const bundleSelectOption = bundleKey ? optionByKey.get(bundleKey) : undefined
     const bundleReason = bundleSelectOption ? getBlockedReason(bundleSelectOption) : null
     const isBundleSelected = bundleKey ? selectedKeySet.has(bundleKey) : false
-    const bundleStatus = bundleKey && bundleOption ? renderOptionStatus(getOptionState(bundleKey, bundleOption.owned)) : null
     // 원가 취소선·절약·추천은 같은 내용의 개별 최저가보다 쌀 때만 보인다(D1-a, U1 규칙).
     const bundleSavings = bundleOption ? getBundleSavings(bundleOption, subproducts) : null
     const bundleSubtitle = bundleOption?.description
@@ -1105,7 +792,6 @@ export default function MarketItemActions({
                     {bundleReason ? (
                       <p id={getOptionReasonId(bundleKey)} className={`mt-2 break-keep text-xs leading-5 ${INK_BLOCK_SUBTLE_TEXT_CLASS}`}>{bundleReason}</p>
                     ) : null}
-                    <p aria-live="polite" className={`text-xs ${INK_BLOCK_SUBTLE_TEXT_CLASS} ${bundleStatus ? 'mt-2' : ''}`}>{bundleStatus ?? ''}</p>
                   </>
                 ) : null}
               </div>
@@ -1200,7 +886,6 @@ export default function MarketItemActions({
                   const selectOption = optionByKey.get(key)
                   const reason = !isDownloadable && selectOption ? getBlockedReason(selectOption) : null
                   const isSelected = selectedKeySet.has(key)
-                  const status = renderOptionStatus(getOptionState(key, subproduct.owned))
                   const icon = iconKind === 'pdf' || iconKind === 'hwp' || iconKind === 'zip'
                     ? <FileTypeDocIcon code={iconKind} className="h-8 w-7" />
                     : <FileText aria-hidden="true" className="h-8 w-7 shrink-0 text-[var(--studio-muted)]" />
@@ -1218,7 +903,6 @@ export default function MarketItemActions({
                         <span className={`block break-keep text-sm font-bold ${reason ? 'text-[var(--studio-muted)]' : 'text-[var(--studio-ink)]'}`}>{subproduct.title}</span>
                         <span className="block break-keep text-xs text-[var(--studio-muted)]">
                           {subtitle || '파일'}
-                          <span aria-live="polite">{status ? ` · ${status}` : ''}</span>
                         </span>
                         {notice ? (
                           <span className="mt-0.5 block break-keep text-xs leading-5 text-[var(--studio-muted)]">{notice.text}</span>
@@ -1278,33 +962,23 @@ export default function MarketItemActions({
               {' · '}
               <strong className="[font-family:var(--studio-font-price)] text-lg font-extrabold text-[var(--studio-ink)]">{formatCredits(selectedTotal)}</strong> 크레딧
             </p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <Button
-                variant="brandOutline"
-                className="h-auto min-h-11 w-full whitespace-normal"
-                disabled={(isLoggedIn && selectedOptions.length === 0) || isBusy}
-                aria-describedby={summaryHintId}
-                onClick={() => void addSelectedToCart()}
-              >
-                <ShoppingCart aria-hidden="true" className="h-4 w-4" />
-                {!isLoggedIn ? '로그인 후 담기' : isAddingToCart ? '담는 중' : '장바구니'}
-              </Button>
-              <Button
-                variant="brand"
-                className="h-auto min-h-11 w-full whitespace-normal"
-                disabled={(isLoggedIn && selectedOptions.length === 0) || isBusy}
-                aria-describedby={summaryHintId}
-                onClick={() => void openCheckout()}
-              >
-                {isLoggedIn ? '구매하기' : '로그인 후 구매'}
-              </Button>
-            </div>
+            {/* 11번: 자료 구매는 장바구니로만 한다. 담기 버튼 하나(전체 폭). */}
+            <Button
+              variant="brand"
+              className="mt-3 h-auto min-h-11 w-full whitespace-normal"
+              disabled={(isLoggedIn && selectedOptions.length === 0) || isBusy}
+              aria-describedby={summaryHintId}
+              onClick={() => void addSelectedToCart()}
+            >
+              <ShoppingCart aria-hidden="true" className="h-4 w-4" />
+              {!isLoggedIn ? '로그인 후 담기' : isAddingToCart ? '담는 중' : '장바구니 담기'}
+            </Button>
             {!isLoggedIn ? (
               <p id={`${selectionIdPrefix}-login`} aria-live="polite" className={emptyNotice ? 'mt-2 text-xs font-semibold text-[var(--studio-ink)]' : 'mt-2 text-xs text-[var(--studio-muted)]'}>
-                {emptyNotice ? '담을 자료를 먼저 선택하세요.' : '자료를 선택한 뒤 담기·구매하면 로그인 후 이 페이지로 돌아옵니다.'}
+                {emptyNotice ? '담을 자료를 먼저 선택하세요.' : '자료를 선택한 뒤 담기를 누르면 로그인 후 이 페이지로 돌아옵니다.'}
               </p>
             ) : selectedOptions.length === 0 ? (
-              <p id={`${selectionIdPrefix}-empty`} className="mt-2 text-xs text-[var(--studio-muted)]">구매하거나 담을 옵션을 선택하세요.</p>
+              <p id={`${selectionIdPrefix}-empty`} className="mt-2 text-xs text-[var(--studio-muted)]">담을 옵션을 선택하세요.</p>
             ) : null}
           </section>
         ) : null}
@@ -1399,36 +1073,6 @@ export default function MarketItemActions({
         </p>
       ) : null}
 
-      <MarketCheckoutConfirmDialog
-        open={checkout !== null}
-        title="문제마켓 구매 확인"
-        description="크레딧으로 선택한 자료를 한 번에 구매합니다. 하나라도 구매할 수 없으면 전체 구매가 취소됩니다."
-        lines={(checkout?.lines ?? []).map((line) => ({
-          key: line.key,
-          title: line.title,
-          optionTitle: null,
-          expectedCredits: line.expectedCredits,
-          previousCredits: line.previousCredits,
-        }))}
-        total={checkoutTotal}
-        balance={checkout?.balance ?? 0}
-        needsAcknowledgement={needsAcknowledgement}
-        acknowledged={checkout?.acknowledged ?? false}
-        onAcknowledgedChange={(acknowledged) => checkout && setCheckout({ ...checkout, acknowledged })}
-        purchaseNotice={checkout?.purchaseNotice ?? null}
-        noticeAcknowledged={checkout?.noticeAcknowledged ?? false}
-        onNoticeAcknowledgedChange={(noticeAcknowledged) => checkout && setCheckout({ ...checkout, noticeAcknowledged })}
-        termsLink={purchaseInfo.termsLink}
-        refundPolicyLink={purchaseInfo.refundPolicyLink}
-        notice={checkout?.notice ?? null}
-        shortfall={checkout?.shortfall ?? null}
-        chargeHref="/pricing"
-        submitting={checkout?.submitting ?? false}
-        retryable={checkout?.retryable ?? false}
-        onCancel={() => setCheckout(null)}
-        onConfirm={() => void submitCheckout()}
-      />
-
       {/* 로그인 완료 Dialog가 닫힌(login 쿼리가 지워진) 뒤에 연다. 두 모달이 겹치지 않게 한다. */}
       <Dialog
         open={cartResult !== null && !isLoginCompletePending}
@@ -1449,12 +1093,6 @@ export default function MarketItemActions({
           </StudioDialogFooter>
         </StudioDialogPanel>
       </Dialog>
-
-      <MarketPurchaseCompleteDialog
-        result={purchaseComplete}
-        libraryHref={resolveMarketLibraryHref(purchaseComplete?.orders.map((order) => order.workspaceSubject) ?? [])}
-        onClose={() => setPurchaseComplete(null)}
-      />
 
       <MarketSamplePreviewDialog
         itemId={itemId}

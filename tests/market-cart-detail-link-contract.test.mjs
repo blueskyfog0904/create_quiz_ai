@@ -6,7 +6,8 @@ import { readFileSync } from 'node:fs'
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
 
 const cartServer = read('../src/lib/market-cart-server.ts')
-const cartView = read('../src/app/(solvook)/cart/_components/cart-view.tsx')
+// 11번: 장바구니 줄 목록은 표시 부품(cart-line-list-view.tsx)이 그린다.
+const cartView = read('../src/app/(solvook)/cart/_components/cart-line-list-view.tsx')
 
 test('cart items expose a server-built detail href', () => {
   assert.match(cartServer, /detailHref: string \| null/)

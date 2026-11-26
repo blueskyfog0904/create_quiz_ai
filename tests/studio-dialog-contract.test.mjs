@@ -9,7 +9,8 @@ const studioDialog = read('../src/components/design-system/studio-dialog.tsx')
 const memberDialogSources = {
   loginComplete: read('../src/components/auth/login-complete-dialog.tsx'),
   purchaseComplete: read('../src/components/market/market-purchase-complete-dialog.tsx'),
-  checkoutConfirm: read('../src/components/market/market-checkout-confirm-dialog.tsx'),
+  // 11번: 구매 확인창(market-checkout-confirm-dialog)은 없애고 결제 칸의 공통 동의 부품이 세부 항목 창을 연다.
+  checkoutConsent: read('../src/components/checkout/checkout-consent.tsx'),
   itemActions: read('../src/components/market/market-item-actions.tsx'),
   support: read('../src/app/(solvook)/mypage/support/_components/support-view.tsx'),
   withdraw: read('../src/app/(solvook)/mypage/withdraw/_components/withdraw-view.tsx'),
@@ -34,7 +35,7 @@ test('member popups use the shared studio dialog instead of raw DialogContent or
     assert.doesNotMatch(source, /<DialogContent\b/, `${name} should not render raw DialogContent`)
     assert.doesNotMatch(source, /(^|[^.\w])(alert|confirm)\(/m, `${name} should not call browser alert/confirm`)
   }
-  for (const name of ['loginComplete', 'purchaseComplete', 'checkoutConfirm', 'itemActions', 'support', 'withdraw', 'library', 'credits', 'noticePopup']) {
+  for (const name of ['loginComplete', 'purchaseComplete', 'itemActions', 'support', 'withdraw', 'library', 'credits', 'noticePopup']) {
     assert.match(memberDialogSources[name], /@\/components\/design-system\/studio-dialog/, `${name} should import studio-dialog`)
   }
 })

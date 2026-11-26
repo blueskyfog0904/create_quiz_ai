@@ -57,6 +57,10 @@ export const ADMIN_AUDIT_ACTIONS = {
   policy_upcoming_publish: '변경 예정 약관 게시',
   policy_upcoming_apply: '변경 예정 약관 시행',
   policy_upcoming_withdraw: '변경 예정 약관 고지 그만둠',
+  // 11번 묶음(결제 화면 단순화): 접는 동의 문구 넣기(스크립트 A)·동의 방식 바꾸기(스크립트 B·되돌림)는 SQL 스크립트가 남긴다.
+  // 관리자 화면 저장은 지금처럼 market_purchase_policy_update·point_charge_policy_update 로 남긴다.
+  checkout_consent_keys_seed: '결제 동의 새 방식 문구 넣기(SQL 스크립트)',
+  checkout_consent_format_change: '결제 동의 방식 바꾸기(SQL 스크립트)',
 } as const
 
 export type AdminAuditAction = keyof typeof ADMIN_AUDIT_ACTIONS

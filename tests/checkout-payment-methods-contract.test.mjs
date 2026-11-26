@@ -34,7 +34,9 @@ test('checkout starts a new attempt when the price changes or payapp rejected th
   assert.match(checkoutClient, /stored\.amount === amount && stored\.credits === credits &&\s*stored\.noticeSha256 === noticeSha256/)
   assert.match(checkoutClient, /JSON\.stringify\(\{ id: checkoutAttemptId, method: methodCode, phone, amount, credits, noticeSha256 \}\)/)
   // 9번: 결제 전 확인 문구(지문)가 바뀌면 새 시도로 다시 동의받는다.
-  assert.match(checkoutClient, /needsPhone \? phone : '',\s*plan\.price,\s*plan\.credits,\s*notice\.noticeSha256\s*\)/)
+  // 11번: 보인 고지(2판 묶음 또는 1판 고지)의 지문으로 시도가 갈린다.
+  assert.match(checkoutClient, /needsPhone \? phone : '',\s*plan\.price,\s*plan\.credits,\s*noticeSha256\s*\)/)
+  assert.match(checkoutClient, /const noticeSha256 = visibleConsent\?\.noticeSha256 \?\? notice\?\.noticeSha256 \?\? null/)
   // 페이앱이 확실히 거절한 주문은 결제될 수 없으므로 시도를 지우고 나서 오류를 보여 준다.
   const notOk = checkoutClient.slice(checkoutClient.indexOf('if (!response.ok) {'))
   assert.match(
@@ -65,12 +67,13 @@ test('checkout asks for a phone only for PayApp methods and requires agreement',
   assert.match(checkoutClient, /maskPhone\(phone\)/)
   assert.match(checkoutClient, /다음에도 이 번호 사용/)
   // 동의 문구는 DB(agreeLabel). 정책 이름은 코드가 전문 링크로 감싸고 '(필수)'는 코드 한 곳에서만 붙인다.
-  assert.match(checkoutClient, /<AgreeLabel label=\{notice\.agreeLabel\} \/>/)
+  assert.match(checkoutClient, /<AgreeLabel label=\{notice\.agreeLabel\} refundPolicyLink=\{refundPolicyLink\} \/>/)
   assert.match(checkoutClient, /const REFUND_POLICY_NAME = '취소·환불정책'/)
   assert.equal(checkoutClient.split('(필수)').length - 1, 1)
   assert.doesNotMatch(checkoutClient, /을 확인했으며 결제에 동의합니다/)
-  // 문구를 읽지 못하면(notice 없음) 결제 버튼을 막는다.
-  assert.match(checkoutClient, /disabled=\{isBusy \|\| !selectedMethod \|\| !notice \|\| !agreed \|\| \(needsPhone && !phoneValid\)\}/)
+  // 문구를 읽지 못하면(보인 고지 없음 → 지문 없음) 결제 버튼을 막는다. 동의는 1판 체크 또는 2판 하위 전부.
+  assert.match(checkoutClient, /disabled=\{isBusy \|\| !selectedMethod \|\| !noticeSha256 \|\| !consentAgreed \|\| \(needsPhone && !phoneValid\)\}/)
+  assert.match(checkoutClient, /const consentAgreed = visibleConsent \? isCheckoutConsentComplete\(visibleConsent, consentKeys\) : notice \? agreed : false/)
   // 마지막에 쓴 수단은 브라우저 저장소에서 읽고, 실패하면 무시한다.
   assert.match(checkoutClient, /window\.localStorage\.getItem\(getLastMethodStorageKey\(user\.id\)\)/)
 })
@@ -94,17 +97,20 @@ test('checkout shows the DB notice right above the agreement and re-asks after a
   // 서버가 캐시 없이 읽은 결제 전 확인(채운 문구·지문)을 내려 준다.
   assert.match(checkoutPage, /getPointChargeCheckoutNotice\(user\.id\)/)
   assert.match(checkoutPage, /checkoutNotice=\{checkoutNotice\}/)
+  assert.match(checkoutPage, /checkoutConsent=\{checkoutConsent\}/)
   // 모든 폭에서 동의 체크 바로 위(주문 요약 상자 안)에 두고, 예전 하드코딩 목록·order-last 배치는 없다.
-  assert.match(checkoutClient, /<CheckoutNoticeSection notice=\{notice\} \/>\s*\{notice \? \(\s*<label/)
+  // 11번: 2판이면 접는 동의, 1판이면 펼친 고지 + 체크, 둘 다 없으면 고지 없음.
+  assert.match(checkoutClient, /\{visibleConsent \? \([\s\S]*?<CheckoutConsent[\s\S]*?\) : notice \? \(\s*<>\s*<CheckoutNoticeSection notice=\{notice\} refundPolicyLink=\{refundPolicyLink\} \/>\s*<label[\s\S]*?\) : \(\s*<CheckoutNoticeUnavailable \/>/)
   assert.match(checkoutClient, /POINT_CHARGE_CHECKOUT_ITEM_KEYS\.map/)
   assert.match(checkoutClient, /notice\.minorNotice/)
   assert.doesNotMatch(checkoutClient, /order-last|자동결제 없음|\d+일 이내/)
   // 요청에 동의·지문·화면이 본 금액과 크레딧을 싣는다.
-  assert.match(checkoutClient, /acknowledgeCheckoutNotice: agreed,\s*noticeSha256: notice\.noticeSha256,\s*expectedAmount: plan\.price,\s*expectedCredits: plan\.credits/)
+  assert.match(checkoutClient, /acknowledgeCheckoutNotice: consentAgreed,\s*noticeSha256,\s*expectedAmount: plan\.price,\s*expectedCredits: plan\.credits/)
   // 409 CHECKOUT_NOTICE_CHANGED·CHECKOUT_PLAN_CHANGED: 시도를 지우고 새 문구·값으로 바꾼 뒤 체크를 푼다.
   assert.match(checkoutClient, /const CHECKOUT_CHANGED_CODES = \['CHECKOUT_NOTICE_CHANGED', 'CHECKOUT_PLAN_CHANGED'\]/)
   const changed = checkoutClient.slice(checkoutClient.indexOf('CHECKOUT_CHANGED_CODES.includes(body.code)'))
-  assert.match(changed, /^CHECKOUT_CHANGED_CODES\.includes\(body\.code\)\) \{\s*clearCheckoutAttempt\(user\.id, plan\.id\)[\s\S]*?setNotice\(nextNotice\)[\s\S]*?setPlan\([\s\S]*?setAgreed\(false\)/)
+  // 11번: 409 의 고지는 2판 묶음이면 접는 동의로, 1판이면 펼친 고지로 바꾸고 동의(하위까지)를 비운다.
+  assert.match(changed, /^CHECKOUT_CHANGED_CODES\.includes\(body\.code\)\) \{\s*clearCheckoutAttempt\(user\.id, plan\.id\)[\s\S]*?const nextConsent = parseCheckoutConsentBundle\(body\.notice\)\s*setConsent\(nextConsent\)\s*setNotice\(nextConsent \? null : parsePointChargeCheckoutNotice\(body\.notice\)\)\s*setConsentKeys\(\[\]\)[\s\S]*?setPlan\([\s\S]*?setAgreed\(false\)/)
   assert.match(checkoutClient, /body\.amount !== plan\.price \|\| body\.credits !== plan\.credits/)
 })
 

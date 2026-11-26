@@ -22,12 +22,11 @@ import {
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/types/supabase'
 import { checkMemberConsentForApi, consentBlockResponse } from '@/lib/consent-guard-server'
-import type { PointChargeCheckoutNotice } from '@/lib/point-charge-policy'
 import { MEMBER_WITHDRAWAL_ERRORS, memberWithdrawalErrorCode } from '@/lib/member-withdrawal'
 import {
-  readPointChargePolicyUncached,
+  readPointChargeChangedNotice,
   recordPointChargeCheckoutAck,
-  toPointChargeCheckoutNotice,
+  type PointChargeChangedNotice,
 } from '@/lib/point-charge-policy-server'
 
 export const dynamic = 'force-dynamic'
@@ -81,17 +80,14 @@ function attemptExpiredResponse() {
 }
 
 // 결제 전 확인 문구나 상품 금액이 화면과 달라 동의를 다시 받아야 한다. 새 문구(캐시 없이 다시 읽은 값)와 지금 상품 값을 싣는다.
+// 11번: notice 는 새 해석기를 지난 값(1판 고지 또는 2판 묶음)만 — 대체 경로도 같은 읽기 함수로 지금 판을 만든다.
 async function checkoutChangedResponse(
   code: 'CHECKOUT_NOTICE_CHANGED' | 'CHECKOUT_PLAN_CHANGED',
   error: string,
-  notice: PointChargeCheckoutNotice | null,
+  notice: PointChargeChangedNotice | null,
   plan: { price: number; credits: number }
 ) {
-  let freshNotice = notice
-  if (!freshNotice) {
-    const policy = await readPointChargePolicyUncached()
-    freshNotice = policy ? toPointChargeCheckoutNotice(policy) : null
-  }
+  const freshNotice = notice ?? await readPointChargeChangedNotice()
   return NextResponse.json({ error, code, notice: freshNotice, plan }, { status: 409 })
 }
 

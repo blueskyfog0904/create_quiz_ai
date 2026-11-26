@@ -1,0 +1,1121 @@
+{
+  "bases": {
+    "point_charge": {
+      "consentFormat": 2,
+      "consentTitle": "주문 내용·충전 조건 확인 및 결제 동의",
+      "consentSummary": {
+        "refundPeriod": "{충전환불기간}일째 되는 날까지 신청할 수 있어요.",
+        "restriction": "하나라도 쓰면 취소할 수 없어요.",
+        "validity": "{충전유효기간}년 동안 쓸 수 있어요.",
+        "minor": "미성년자는 취소할 수 있어요."
+      },
+      "checkoutItems": {
+        "product": "상품 A",
+        "validity": "기간 B",
+        "refund": "환불 {충전환불기간}일\n둘째 줄",
+        "restriction": "제한 C",
+        "otherCases": "기타 D"
+      },
+      "minorNotice": "미성년 E",
+      "consentItems": [
+        {
+          "key": "product",
+          "label": "충전 상품 안내",
+          "view": "text",
+          "textKeys": [
+            "checkoutItems.product",
+            "checkoutItems.validity"
+          ]
+        },
+        {
+          "key": "refund",
+          "label": "취소·환불 안내",
+          "view": "text",
+          "textKeys": [
+            "checkoutItems.refund",
+            "checkoutItems.restriction",
+            "checkoutItems.otherCases"
+          ]
+        },
+        {
+          "key": "minor",
+          "label": "미성년자 결제 취소 안내",
+          "view": "text",
+          "textKeys": [
+            "minorNotice"
+          ]
+        },
+        {
+          "key": "refundPolicy",
+          "label": "취소·환불정책",
+          "view": "link",
+          "link": "refundPolicy"
+        },
+        {
+          "key": "terms",
+          "label": "서비스 이용약관",
+          "view": "link",
+          "link": "serviceTerms"
+        }
+      ]
+    },
+    "market": {
+      "consentFormat": 2,
+      "consentTitle": "주문 내용·구매 조건 확인 및 동의",
+      "consentSummary": {
+        "refundPeriod": "  {자료환불기간}일째 되는 날까지 신청할 수 있어요. ",
+        "restriction": "받은 자료는 환불되지 않아요.",
+        "note": "하자가 있으면 환불돼요."
+      },
+      "confirmNotice": "환불 안내 본문 {자료환불기간}일\n",
+      "usageScopeNotice": "이용 범위 본문",
+      "downloadPeriodNotice": "다운로드 본문",
+      "consentItems": [
+        {
+          "key": "purchaseNotice",
+          "label": "자료 환불 안내",
+          "view": "text",
+          "textKeys": [
+            "confirmNotice",
+            "downloadPeriodNotice"
+          ]
+        },
+        {
+          "key": "usageScope",
+          "label": "자료 이용 범위",
+          "view": "text",
+          "textKeys": [
+            "usageScopeNotice"
+          ]
+        },
+        {
+          "key": "refundPolicy",
+          "label": "취소·환불정책",
+          "view": "link",
+          "link": "refundPolicy"
+        },
+        {
+          "key": "terms",
+          "label": "서비스 이용약관",
+          "view": "link",
+          "link": "serviceTerms"
+        }
+      ]
+    }
+  },
+  "refundDays": {
+    "point_charge": 7,
+    "market": 30
+  },
+  "cases": [
+    {
+      "name": "충전 벡터(5-1)",
+      "kind": "point_charge",
+      "patch": {},
+      "remove": [],
+      "ok": true,
+      "noticeSha256": "2e53f470c92dfba92ee637f86c592f5b5545b46ef37b883eb856f30c7bc56cd7"
+    },
+    {
+      "name": "자료 벡터(note·앞뒤 공백·LF 끝 본문·본문 둘)",
+      "kind": "market",
+      "patch": {},
+      "remove": [],
+      "ok": true,
+      "noticeSha256": "41a2a90de70e2c7de58ed9a308043efdb7e5d7b04656718212c8e83be13b34fe"
+    },
+    {
+      "name": "자료 note 없음",
+      "kind": "market",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "{자료환불기간}일째 되는 날까지 신청할 수 있어요.",
+          "restriction": "받은 자료는 환불되지 않아요."
+        }
+      },
+      "remove": [],
+      "ok": true,
+      "noticeSha256": "4eaaf6b530dff7fe47820b5a8107bfc65897ed1dc06bda9ca8174464d2af0939"
+    },
+    {
+      "name": "충전 note 더함",
+      "kind": "point_charge",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "{충전환불기간}일째 되는 날까지 신청할 수 있어요.",
+          "restriction": "하나라도 쓰면 취소할 수 없어요.",
+          "validity": "{충전유효기간}년 동안 쓸 수 있어요.",
+          "minor": "미성년자는 취소할 수 있어요.",
+          "note": "덧붙임 줄이에요."
+        }
+      },
+      "remove": [],
+      "ok": true,
+      "noticeSha256": "b402d1600edc52b4f344a7374fb5bd30988a1e3588ff5a2dc5114fbe2bbe8e41"
+    },
+    {
+      "name": "충전 필수 본문 빠짐(minorNotice 항목 없음)",
+      "kind": "point_charge",
+      "patch": {
+        "consentItems": [
+          {
+            "key": "product",
+            "label": "충전 상품 안내",
+            "view": "text",
+            "textKeys": [
+              "checkoutItems.product",
+              "checkoutItems.validity"
+            ]
+          },
+          {
+            "key": "refund",
+            "label": "취소·환불 안내",
+            "view": "text",
+            "textKeys": [
+              "checkoutItems.refund",
+              "checkoutItems.restriction",
+              "checkoutItems.otherCases"
+            ]
+          },
+          {
+            "key": "refundPolicy",
+            "label": "취소·환불정책",
+            "view": "link",
+            "link": "refundPolicy"
+          },
+          {
+            "key": "terms",
+            "label": "서비스 이용약관",
+            "view": "link",
+            "link": "serviceTerms"
+          }
+        ]
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "충전 본문 키 없음",
+      "kind": "point_charge",
+      "patch": {},
+      "remove": [
+        "minorNotice"
+      ],
+      "ok": false
+    },
+    {
+      "name": "자료 필수 본문 빠짐(confirmNotice)",
+      "kind": "market",
+      "patch": {
+        "consentItems": [
+          {
+            "key": "purchaseNotice",
+            "label": "자료 환불 안내",
+            "view": "text",
+            "textKeys": [
+              "downloadPeriodNotice"
+            ]
+          },
+          {
+            "key": "usageScope",
+            "label": "자료 이용 범위",
+            "view": "text",
+            "textKeys": [
+              "usageScopeNotice"
+            ]
+          },
+          {
+            "key": "refundPolicy",
+            "label": "취소·환불정책",
+            "view": "link",
+            "link": "refundPolicy"
+          },
+          {
+            "key": "terms",
+            "label": "서비스 이용약관",
+            "view": "link",
+            "link": "serviceTerms"
+          }
+        ]
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "충전 요약 줄 빠짐(minor)",
+      "kind": "point_charge",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "{충전환불기간}일째 되는 날까지 신청할 수 있어요.",
+          "restriction": "하나라도 쓰면 취소할 수 없어요.",
+          "validity": "{충전유효기간}년 동안 쓸 수 있어요."
+        }
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "요약 줄 모르는 역할",
+      "kind": "market",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "  {자료환불기간}일째 되는 날까지 신청할 수 있어요. ",
+          "restriction": "받은 자료는 환불되지 않아요.",
+          "note": "하자가 있으면 환불돼요.",
+          "extra": "모르는 줄"
+        }
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "허용 밖 textKeys(agreeLabel)",
+      "kind": "point_charge",
+      "patch": {
+        "consentItems": [
+          {
+            "key": "product",
+            "label": "충전 상품 안내",
+            "view": "text",
+            "textKeys": [
+              "checkoutItems.product",
+              "checkoutItems.validity",
+              "agreeLabel"
+            ]
+          },
+          {
+            "key": "refund",
+            "label": "취소·환불 안내",
+            "view": "text",
+            "textKeys": [
+              "checkoutItems.refund",
+              "checkoutItems.restriction",
+              "checkoutItems.otherCases"
+            ]
+          },
+          {
+            "key": "minor",
+            "label": "미성년자 결제 취소 안내",
+            "view": "text",
+            "textKeys": [
+              "minorNotice"
+            ]
+          },
+          {
+            "key": "refundPolicy",
+            "label": "취소·환불정책",
+            "view": "link",
+            "link": "refundPolicy"
+          },
+          {
+            "key": "terms",
+            "label": "서비스 이용약관",
+            "view": "link",
+            "link": "serviceTerms"
+          }
+        ]
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "객체 textKeys",
+      "kind": "market",
+      "patch": {
+        "consentItems": [
+          {
+            "key": "purchaseNotice",
+            "label": "자료 환불 안내",
+            "view": "text",
+            "textKeys": {
+              "a": "confirmNotice"
+            }
+          },
+          {
+            "key": "usageScope",
+            "label": "자료 이용 범위",
+            "view": "text",
+            "textKeys": [
+              "usageScopeNotice"
+            ]
+          },
+          {
+            "key": "refundPolicy",
+            "label": "취소·환불정책",
+            "view": "link",
+            "link": "refundPolicy"
+          },
+          {
+            "key": "terms",
+            "label": "서비스 이용약관",
+            "view": "link",
+            "link": "serviceTerms"
+          }
+        ]
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "textKeys 중복(다른 항목)",
+      "kind": "market",
+      "patch": {
+        "consentItems": [
+          {
+            "key": "purchaseNotice",
+            "label": "자료 환불 안내",
+            "view": "text",
+            "textKeys": [
+              "confirmNotice",
+              "downloadPeriodNotice"
+            ]
+          },
+          {
+            "key": "usageScope",
+            "label": "자료 이용 범위",
+            "view": "text",
+            "textKeys": [
+              "confirmNotice"
+            ]
+          },
+          {
+            "key": "refundPolicy",
+            "label": "취소·환불정책",
+            "view": "link",
+            "link": "refundPolicy"
+          },
+          {
+            "key": "terms",
+            "label": "서비스 이용약관",
+            "view": "link",
+            "link": "serviceTerms"
+          }
+        ]
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "요약 줄 121자",
+      "kind": "market",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "  {자료환불기간}일째 되는 날까지 신청할 수 있어요. ",
+          "restriction": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+          "note": "하자가 있으면 환불돼요."
+        }
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "요약 줄 120자",
+      "kind": "point_charge",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "{충전환불기간}일째 되는 날까지 신청할 수 있어요.",
+          "restriction": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+          "validity": "{충전유효기간}년 동안 쓸 수 있어요.",
+          "minor": "미성년자는 취소할 수 있어요."
+        }
+      },
+      "remove": [],
+      "ok": true,
+      "noticeSha256": "44b9858373ffdad227fd25b0c34578e62aab46ab22769da5756f1e6c97c464d5"
+    },
+    {
+      "name": "자료 요약 합계 221자",
+      "kind": "market",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "{자료환불기간}가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+          "restriction": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+          "note": "가가가가가가가가가가가가가"
+        }
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "자료 요약 합계 220자",
+      "kind": "market",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "{자료환불기간}가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+          "restriction": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+          "note": "가가가가가가가가가가가가"
+        }
+      },
+      "remove": [],
+      "ok": true,
+      "noticeSha256": "16c3600b7863e1c6e03e7e9f2a9f994be202de441308a0c18a50d6add9a9d1e7"
+    },
+    {
+      "name": "제목 26자",
+      "kind": "market",
+      "patch": {
+        "consentTitle": "가가가가가가가가가가가가가가가가가가가가가가가가가가"
+      },
+      "remove": [],
+      "ok": true,
+      "noticeSha256": "c7135047d2fe98e797094459b3499212f498836dc0fd76f6089ea351050d0346"
+    },
+    {
+      "name": "제목 27자",
+      "kind": "market",
+      "patch": {
+        "consentTitle": "가가가가가가가가가가가가가가가가가가가가가가가가가가가"
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "제목에 [필수]",
+      "kind": "market",
+      "patch": {
+        "consentTitle": "[필수] 동의"
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "숫자 기간 30일",
+      "kind": "market",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "  {자료환불기간}일째 되는 날까지 신청할 수 있어요. ",
+          "restriction": "30일 안에 신청해요.",
+          "note": "하자가 있으면 환불돼요."
+        }
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "숫자 기간 전각 １년",
+      "kind": "point_charge",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "{충전환불기간}일째 되는 날까지 신청할 수 있어요.",
+          "restriction": "하나라도 쓰면 취소할 수 없어요.",
+          "validity": "{충전유효기간}년 동안, 최대 １년",
+          "minor": "미성년자는 취소할 수 있어요."
+        }
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "숫자 기간 12개월(제목)",
+      "kind": "point_charge",
+      "patch": {
+        "consentTitle": "12개월 동의"
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "숫자 기간 일 년",
+      "kind": "point_charge",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "{충전환불기간}일째 되는 날까지 신청할 수 있어요.",
+          "restriction": "일 년 동안 쓸 수 있어요.",
+          "validity": "{충전유효기간}년 동안 쓸 수 있어요.",
+          "minor": "미성년자는 취소할 수 있어요."
+        }
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "숫자 기간 한 달(항목 이름)",
+      "kind": "market",
+      "patch": {
+        "consentItems": [
+          {
+            "key": "purchaseNotice",
+            "label": "한 달 안내",
+            "view": "text",
+            "textKeys": [
+              "confirmNotice",
+              "downloadPeriodNotice"
+            ]
+          },
+          {
+            "key": "usageScope",
+            "label": "자료 이용 범위",
+            "view": "text",
+            "textKeys": [
+              "usageScopeNotice"
+            ]
+          },
+          {
+            "key": "refundPolicy",
+            "label": "취소·환불정책",
+            "view": "link",
+            "link": "refundPolicy"
+          },
+          {
+            "key": "terms",
+            "label": "서비스 이용약관",
+            "view": "link",
+            "link": "serviceTerms"
+          }
+        ]
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "숫자 기간 이틀",
+      "kind": "market",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "  {자료환불기간}일째 되는 날까지 신청할 수 있어요. ",
+          "restriction": "받은 자료는 환불되지 않아요.",
+          "note": "이틀 걸려요."
+        }
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "중괄호",
+      "kind": "market",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "  {자료환불기간}일째 되는 날까지 신청할 수 있어요. ",
+          "restriction": "받은 자료는 환불되지 않아요.",
+          "note": "{모름} 안내"
+        }
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "자료 요약에 충전 자리표시",
+      "kind": "market",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "  {자료환불기간}일째 되는 날까지 신청할 수 있어요. ",
+          "restriction": "받은 자료는 환불되지 않아요.",
+          "note": "{충전환불기간} 안내"
+        }
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "본문 중괄호",
+      "kind": "market",
+      "patch": {
+        "usageScopeNotice": "범위 {x}"
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "본문 빈 글자",
+      "kind": "market",
+      "patch": {
+        "usageScopeNotice": " \n\t"
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "한 줄 칸 LF(제목)",
+      "kind": "market",
+      "patch": {
+        "consentTitle": "주문\n동의"
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "한 줄 칸 LF(요약)",
+      "kind": "point_charge",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "{충전환불기간}일째 되는 날까지 신청할 수 있어요.",
+          "restriction": "줄\n바꿈",
+          "validity": "{충전유효기간}년 동안 쓸 수 있어요.",
+          "minor": "미성년자는 취소할 수 있어요."
+        }
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "note: null",
+      "kind": "market",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "  {자료환불기간}일째 되는 날까지 신청할 수 있어요. ",
+          "restriction": "받은 자료는 환불되지 않아요.",
+          "note": null
+        }
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "refundPeriod 자리표시 없음",
+      "kind": "market",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "받지 않은 자료는 신청할 수 있어요.",
+          "restriction": "받은 자료는 환불되지 않아요.",
+          "note": "하자가 있으면 환불돼요."
+        }
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "충전 validity 자리표시 없음",
+      "kind": "point_charge",
+      "patch": {
+        "consentSummary": {
+          "refundPeriod": "{충전환불기간}일째 되는 날까지 신청할 수 있어요.",
+          "restriction": "하나라도 쓰면 취소할 수 없어요.",
+          "validity": "오래 쓸 수 있어요.",
+          "minor": "미성년자는 취소할 수 있어요."
+        }
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "링크 하나 빠짐",
+      "kind": "market",
+      "patch": {
+        "consentItems": [
+          {
+            "key": "purchaseNotice",
+            "label": "자료 환불 안내",
+            "view": "text",
+            "textKeys": [
+              "confirmNotice",
+              "downloadPeriodNotice"
+            ]
+          },
+          {
+            "key": "usageScope",
+            "label": "자료 이용 범위",
+            "view": "text",
+            "textKeys": [
+              "usageScopeNotice"
+            ]
+          },
+          {
+            "key": "refundPolicy",
+            "label": "취소·환불정책",
+            "view": "link",
+            "link": "refundPolicy"
+          }
+        ]
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "링크 두 번",
+      "kind": "market",
+      "patch": {
+        "consentItems": [
+          {
+            "key": "purchaseNotice",
+            "label": "자료 환불 안내",
+            "view": "text",
+            "textKeys": [
+              "confirmNotice",
+              "downloadPeriodNotice"
+            ]
+          },
+          {
+            "key": "usageScope",
+            "label": "자료 이용 범위",
+            "view": "text",
+            "textKeys": [
+              "usageScopeNotice"
+            ]
+          },
+          {
+            "key": "refundPolicy",
+            "label": "취소·환불정책",
+            "view": "link",
+            "link": "refundPolicy"
+          },
+          {
+            "key": "terms",
+            "label": "서비스 이용약관",
+            "view": "link",
+            "link": "refundPolicy"
+          }
+        ]
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "항목 키 규칙 위반",
+      "kind": "market",
+      "patch": {
+        "consentItems": [
+          {
+            "key": "Purchase",
+            "label": "자료 환불 안내",
+            "view": "text",
+            "textKeys": [
+              "confirmNotice",
+              "downloadPeriodNotice"
+            ]
+          },
+          {
+            "key": "usageScope",
+            "label": "자료 이용 범위",
+            "view": "text",
+            "textKeys": [
+              "usageScopeNotice"
+            ]
+          },
+          {
+            "key": "refundPolicy",
+            "label": "취소·환불정책",
+            "view": "link",
+            "link": "refundPolicy"
+          },
+          {
+            "key": "terms",
+            "label": "서비스 이용약관",
+            "view": "link",
+            "link": "serviceTerms"
+          }
+        ]
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "항목 키 중복",
+      "kind": "market",
+      "patch": {
+        "consentItems": [
+          {
+            "key": "purchaseNotice",
+            "label": "자료 환불 안내",
+            "view": "text",
+            "textKeys": [
+              "confirmNotice",
+              "downloadPeriodNotice"
+            ]
+          },
+          {
+            "key": "purchaseNotice",
+            "label": "자료 이용 범위",
+            "view": "text",
+            "textKeys": [
+              "usageScopeNotice"
+            ]
+          },
+          {
+            "key": "refundPolicy",
+            "label": "취소·환불정책",
+            "view": "link",
+            "link": "refundPolicy"
+          },
+          {
+            "key": "terms",
+            "label": "서비스 이용약관",
+            "view": "link",
+            "link": "serviceTerms"
+          }
+        ]
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "항목 남는 키",
+      "kind": "market",
+      "patch": {
+        "consentItems": [
+          {
+            "key": "purchaseNotice",
+            "label": "자료 환불 안내",
+            "view": "text",
+            "textKeys": [
+              "confirmNotice",
+              "downloadPeriodNotice"
+            ],
+            "extra": 1
+          },
+          {
+            "key": "usageScope",
+            "label": "자료 이용 범위",
+            "view": "text",
+            "textKeys": [
+              "usageScopeNotice"
+            ]
+          },
+          {
+            "key": "refundPolicy",
+            "label": "취소·환불정책",
+            "view": "link",
+            "link": "refundPolicy"
+          },
+          {
+            "key": "terms",
+            "label": "서비스 이용약관",
+            "view": "link",
+            "link": "serviceTerms"
+          }
+        ]
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "항목 7개",
+      "kind": "point_charge",
+      "patch": {
+        "consentItems": [
+          {
+            "key": "product",
+            "label": "충전 상품 안내",
+            "view": "text",
+            "textKeys": [
+              "checkoutItems.product",
+              "checkoutItems.validity"
+            ]
+          },
+          {
+            "key": "refund",
+            "label": "취소·환불 안내",
+            "view": "text",
+            "textKeys": [
+              "checkoutItems.refund",
+              "checkoutItems.restriction",
+              "checkoutItems.otherCases"
+            ]
+          },
+          {
+            "key": "minor",
+            "label": "미성년자 결제 취소 안내",
+            "view": "text",
+            "textKeys": [
+              "minorNotice"
+            ]
+          },
+          {
+            "key": "refundPolicy",
+            "label": "취소·환불정책",
+            "view": "link",
+            "link": "refundPolicy"
+          },
+          {
+            "key": "terms",
+            "label": "서비스 이용약관",
+            "view": "link",
+            "link": "serviceTerms"
+          },
+          {
+            "key": "x1",
+            "label": "더",
+            "view": "text",
+            "textKeys": [
+              "checkoutItems.product"
+            ]
+          },
+          {
+            "key": "x2",
+            "label": "더",
+            "view": "link",
+            "link": "serviceTerms"
+          }
+        ]
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "항목 이름 31자",
+      "kind": "market",
+      "patch": {
+        "consentItems": [
+          {
+            "key": "purchaseNotice",
+            "label": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+            "view": "text",
+            "textKeys": [
+              "confirmNotice",
+              "downloadPeriodNotice"
+            ]
+          },
+          {
+            "key": "usageScope",
+            "label": "자료 이용 범위",
+            "view": "text",
+            "textKeys": [
+              "usageScopeNotice"
+            ]
+          },
+          {
+            "key": "refundPolicy",
+            "label": "취소·환불정책",
+            "view": "link",
+            "link": "refundPolicy"
+          },
+          {
+            "key": "terms",
+            "label": "서비스 이용약관",
+            "view": "link",
+            "link": "serviceTerms"
+          }
+        ]
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "제목 글자 아님",
+      "kind": "market",
+      "patch": {
+        "consentTitle": 1
+      },
+      "remove": [],
+      "ok": false
+    },
+    {
+      "name": "요약 배열",
+      "kind": "market",
+      "patch": {
+        "consentSummary": [
+          "a"
+        ]
+      },
+      "remove": [],
+      "ok": false
+    }
+  ],
+  "cartCases": [
+    {
+      "name": "앞뒤 공백 그대로",
+      "value": {
+        "cartCheckoutNotice": " 앞 공백 안내",
+        "partialOwnedConfirmLabel": "뒤 공백 확인 "
+      },
+      "ok": true,
+      "cartTextsSha256": "16d06ad48fd95b1eaf1b49e5ceb490efe3f562b4abb014710424d299cdd18742"
+    },
+    {
+      "name": "초안",
+      "value": {
+        "cartCheckoutNotice": "크레딧으로 선택한 자료를 한 번에 구매합니다. 하나라도 구매할 수 없으면 전체 구매가 취소됩니다.",
+        "partialOwnedConfirmLabel": "이미 구매한 개별 자료가 포함된 전체 패키지는 기보유분 차감 없이 정가로 구매됨을 확인했습니다."
+      },
+      "ok": true,
+      "cartTextsSha256": "59922cb5009280ae0bcb6520bbbe1a853ec5acb2b1ac2906bf5a41f75e195e8d"
+    },
+    {
+      "name": "300자",
+      "value": {
+        "cartCheckoutNotice": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+        "partialOwnedConfirmLabel": "x"
+      },
+      "ok": true,
+      "cartTextsSha256": "9c60e1b36233a341eb239220f7b760526d867c1e8d61514df6524f201f07d1f1"
+    },
+    {
+      "name": "301자",
+      "value": {
+        "cartCheckoutNotice": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+        "partialOwnedConfirmLabel": "x"
+      },
+      "ok": false
+    },
+    {
+      "name": "LF",
+      "value": {
+        "cartCheckoutNotice": "줄\n바꿈",
+        "partialOwnedConfirmLabel": "x"
+      },
+      "ok": false
+    },
+    {
+      "name": "중괄호",
+      "value": {
+        "cartCheckoutNotice": "{x}",
+        "partialOwnedConfirmLabel": "x"
+      },
+      "ok": false
+    },
+    {
+      "name": "빈 글자",
+      "value": {
+        "cartCheckoutNotice": " \t",
+        "partialOwnedConfirmLabel": "x"
+      },
+      "ok": false
+    },
+    {
+      "name": "키 없음",
+      "value": {
+        "cartCheckoutNotice": "안내"
+      },
+      "ok": false
+    },
+    {
+      "name": "숫자 아님",
+      "value": {
+        "cartCheckoutNotice": "안내",
+        "partialOwnedConfirmLabel": 3
+      },
+      "ok": false
+    }
+  ],
+  "formatCases": [
+    {
+      "name": "키 없음",
+      "raw": "{}",
+      "format": 1
+    },
+    {
+      "name": "숫자 1",
+      "raw": "{\"consentFormat\": 1}",
+      "format": 1
+    },
+    {
+      "name": "숫자 1.0",
+      "raw": "{\"consentFormat\": 1.0}",
+      "format": 1
+    },
+    {
+      "name": "숫자 2",
+      "raw": "{\"consentFormat\": 2}",
+      "format": 2
+    },
+    {
+      "name": "글자 \"2\"",
+      "raw": "{\"consentFormat\": \"2\"}",
+      "format": null
+    },
+    {
+      "name": "2.5",
+      "raw": "{\"consentFormat\": 2.5}",
+      "format": null
+    },
+    {
+      "name": "3",
+      "raw": "{\"consentFormat\": 3}",
+      "format": null
+    },
+    {
+      "name": "null",
+      "raw": "{\"consentFormat\": null}",
+      "format": null
+    }
+  ]
+}

@@ -2555,30 +2555,42 @@ export type Database = {
       }
       market_purchase_notice_acks: {
         Row: {
+          consent_details: Json | null
+          consent_format: number
           created_at: string
           id: string
           idempotency_key: string
           notice_sha256: string
           notice_text: string
           refund_days: number
+          refund_policy_sha256: string | null
+          terms_policy_sha256: string | null
           user_id: string
         }
         Insert: {
+          consent_details?: Json | null
+          consent_format?: number
           created_at?: string
           id?: string
           idempotency_key: string
           notice_sha256: string
           notice_text: string
           refund_days: number
+          refund_policy_sha256?: string | null
+          terms_policy_sha256?: string | null
           user_id: string
         }
         Update: {
+          consent_details?: Json | null
+          consent_format?: number
           created_at?: string
           id?: string
           idempotency_key?: string
           notice_sha256?: string
           notice_text?: string
           refund_days?: number
+          refund_policy_sha256?: string | null
+          terms_policy_sha256?: string | null
           user_id?: string
         }
         Relationships: [
@@ -4019,6 +4031,8 @@ export type Database = {
         Row: {
           amount: number
           checkout_attempt_id: string
+          consent_details: Json | null
+          consent_format: number
           created_at: string
           credits: number
           id: string
@@ -4028,11 +4042,14 @@ export type Database = {
           plan_name: string
           refund_days: number
           refund_policy_sha256: string | null
+          terms_policy_sha256: string | null
           user_id: string
         }
         Insert: {
           amount: number
           checkout_attempt_id: string
+          consent_details?: Json | null
+          consent_format?: number
           created_at?: string
           credits: number
           id?: string
@@ -4042,11 +4059,14 @@ export type Database = {
           plan_name: string
           refund_days: number
           refund_policy_sha256?: string | null
+          terms_policy_sha256?: string | null
           user_id: string
         }
         Update: {
           amount?: number
           checkout_attempt_id?: string
+          consent_details?: Json | null
+          consent_format?: number
           created_at?: string
           credits?: number
           id?: string
@@ -4056,6 +4076,7 @@ export type Database = {
           plan_name?: string
           refund_days?: number
           refund_policy_sha256?: string | null
+          terms_policy_sha256?: string | null
           user_id?: string
         }
         Relationships: [
@@ -6444,6 +6465,7 @@ export type Database = {
       }
       record_purchase_notice_ack: {
         Args: {
+          p_cart_texts_sha256?: string
           p_idempotency_key: string
           p_notice_sha256: string
           p_user_id: string

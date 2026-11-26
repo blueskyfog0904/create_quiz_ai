@@ -1,6 +1,9 @@
 import 'server-only'
 
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
+import { parseCheckoutConsentBundle, type CheckoutConsentLinkKey } from '@/lib/checkout-consent'
+import { getSiteFooterContent } from '@/lib/footer-content-server'
+import { buildMarketPurchaseInfo } from '@/lib/market-purchase-info'
 import {
   getPointChargeRefundEligibility,
   reportPointChargePolicyFallback,
@@ -15,9 +18,22 @@ export type PaymentRefundDeadline =
   | { status: 'policy' } // 원천이 아직 없거나 마감이 없음 → 취소·환불정책 링크
   | { status: 'unknown' } // 판정 조회 실패 → '확인할 수 없음'
 
+// 11번 8절: 2판(접는 동의) 기록은 원문 대신 consent_details.consent 로 제목·요약 줄·항목 이름·본문을 그린다.
+// link 항목은 지금 문서 링크로 그린다(결제 당시 판과 다를 수 있음). '링크:' 줄은 보이지 않는다.
+export interface PaymentChargeConsentRecord {
+  title: string
+  summary: string[]
+  items: Array<
+    | { label: string; view: 'text'; texts: string[] }
+    | { label: string; view: 'link'; href: string | null }
+  >
+}
+
 export interface PaymentChargeDetail {
   // null 이면 결제 전 확인 기록 이전 결제(지금 설정 문구를 동의 문구로 보이지 않는다)
   noticeText: string | null
+  // 2판 기록이면 값이 있다(그때는 noticeText 대신 이것을 그린다)
+  consent: PaymentChargeConsentRecord | null
   refundDeadline: PaymentRefundDeadline
   approvedAt: string | null
   // 크레딧 지급 일시(화면은 결제 일시와 분 단위로 다를 때만 보여 준다)
@@ -61,12 +77,31 @@ export async function loadPaymentChargeDetails(
     const screenAttemptIds = [...new Set(screenAttemptIdByPk.values())]
     const { data: acks, error: ackError } = screenAttemptIds.length > 0
       ? await admin.from('point_charge_checkout_acks')
-        .select('checkout_attempt_id, notice_text')
+        .select('checkout_attempt_id, notice_text, consent_format, consent_details')
         .eq('user_id', userId)
         .in('checkout_attempt_id', screenAttemptIds)
       : { data: [], error: null }
     if (ackError) throw ackError
     const noticeByScreenAttemptId = new Map((acks ?? []).map((ack) => [ack.checkout_attempt_id, ack.notice_text]))
+    const hasConsentRecord = (acks ?? []).some((ack) => ack.consent_format === 2)
+    const links = hasConsentRecord ? buildMarketPurchaseInfo(await getSiteFooterContent()) : null
+    const hrefOf = (link: CheckoutConsentLinkKey) => (link === 'refundPolicy' ? links?.refundPolicyLink?.href : links?.termsLink?.href) ?? null
+    const consentByScreenAttemptId = new Map((acks ?? []).flatMap((ack): Array<[string, PaymentChargeConsentRecord]> => {
+      if (ack.consent_format !== 2) return []
+      const details = ack.consent_details && typeof ack.consent_details === 'object' && !Array.isArray(ack.consent_details)
+        ? (ack.consent_details as Record<string, unknown>).consent : null
+      // 기록 칸에는 지문(noticeSha256)을 빼고 남기므로 모양 검사만을 위해 자리 값을 붙여 해석한다.
+      const bundle = details && typeof details === 'object' && !Array.isArray(details)
+        ? parseCheckoutConsentBundle({ ...(details as Record<string, unknown>), noticeSha256: '0'.repeat(64) }) : null
+      if (!bundle) return []
+      return [[ack.checkout_attempt_id, {
+        title: bundle.consentTitle,
+        summary: bundle.consentSummary,
+        items: bundle.consentItems.map((item) => (item.view === 'text'
+          ? { label: item.label, view: 'text' as const, texts: item.texts }
+          : { label: item.label, view: 'link' as const, href: hrefOf(item.link) })),
+      }]]
+    }))
 
     const sourceIds = [...new Set((histories ?? [])
       .map((row) => orderById.get(row.payment_order_id ?? '')?.source_id ?? row.source_id)
@@ -110,6 +145,7 @@ export async function loadPaymentChargeDetails(
 
       return [row.id, {
         noticeText: screenAttemptId ? noticeByScreenAttemptId.get(screenAttemptId) ?? null : null,
+        consent: screenAttemptId ? consentByScreenAttemptId.get(screenAttemptId) ?? null : null,
         refundDeadline,
         approvedAt,
         creditedAt,

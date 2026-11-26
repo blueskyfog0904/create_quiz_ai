@@ -341,7 +341,6 @@ export function MarketMaterialDetail({
               workspaceSubject={item.workspace_subject}
               zipPrice={item.zip_price}
               purchasePolicy={purchasePolicy}
-              purchaseInfo={purchaseInfo}
             />
           </section>
 

@@ -54,3 +54,14 @@ test('method descriptions are data: migration fills only empty payapp rows and r
     assert.ok(!checkoutClient.includes(text), `${text} is not hardcoded in the client`)
   }
 })
+
+test('11번: 2판 동의 부품도 잉크 한 색으로 — 색은 --consent-* 변수만 쓰고, 충전 화면이 --ck-* 값을 준다', () => {
+  const consent = readFileSync('src/components/checkout/checkout-consent.tsx', 'utf8')
+  // 부품은 브랜드 보라·studio 색을 직접 쓰지 않고, 부르는 쪽이 준 변수만 쓴다(장바구니는 studio 값, 충전은 잉크 값).
+  assert.doesNotMatch(consent, /var\(--studio-|var\(--ck-|#[0-9A-Fa-f]{6}/)
+  for (const name of ['--consent-ink', '--consent-muted', '--consent-line', '--consent-ring']) assert.match(consent, new RegExp(`var\\(${name}\\)`))
+  // 빨강·경고 아이콘 없음
+  assert.doesNotMatch(consent, /text-destructive|text-red-|AlertTriangle|TriangleAlert/)
+  assert.match(checkoutClient, /\[--consent-ink:var\(--ck-ink\)\]/)
+  assert.doesNotMatch(checkoutClient, /ring-\[var\(--consent-ring\)\]\/\d/)
+})

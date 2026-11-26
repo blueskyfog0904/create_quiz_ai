@@ -18,7 +18,25 @@ import {
     type PointChargePolicy,
     type PointChargePolicyTexts,
 } from '@/lib/point-charge-policy'
-import { computePointChargeNoticeSha256, savePointChargePolicyTexts } from '@/lib/point-charge-policy-server'
+import {
+    computePointChargeNoticeSha256,
+    readPointChargePolicyAdminUncached,
+    savePointChargePolicyTexts,
+    type PointChargePolicyAdminData,
+} from '@/lib/point-charge-policy-server'
+import { checkCheckoutConsentKeys, hasCheckoutConsentKeys, readCheckoutConsentFormat } from '@/lib/checkout-consent'
+import {
+    CHECKOUT_CONSENT_KEY_NAMES,
+    checkoutConsentFingerprintFields,
+    checkPointChargeValidityYears,
+    diffPolicyTextKeys,
+    normalizeCheckoutConsentKeysInput,
+    summarizeCheckoutConsentProblems,
+} from '@/lib/checkout-consent-admin'
+import { buildCheckoutConsentBundleIgnoringLinks } from '@/lib/checkout-consent-server'
+import { getSiteFooterContent } from '@/lib/footer-content-server'
+import { buildMarketPurchaseInfo, type MarketPurchaseLink } from '@/lib/market-purchase-info'
+import type { Json } from '@/types/supabase'
 
 export type PricingPlan = Database['public']['Tables']['pricing_plans']['Row']
 export type PricingPlanInsert = Database['public']['Tables']['pricing_plans']['Insert']
@@ -171,13 +189,36 @@ export async function savePricingPageContentAction(
     return { success: true, data: saved }
 }
 
+export interface PointChargePolicyAdminView {
+    data: PointChargePolicyAdminData | null
+    termsLink: MarketPurchaseLink | null
+    refundPolicyLink: MarketPurchaseLink | null
+}
+
+// 관리자 요금제 > 결제 전 확인 문구(11번 9절). 읽기 실패면 data 가 null(화면은 저장을 막는다).
+export async function getPointChargePolicyAdminData(): Promise<PointChargePolicyAdminView> {
+    await assertAdminActionPermission('pricing.manage')
+    const [data, footer] = await Promise.all([readPointChargePolicyAdminUncached(), getSiteFooterContent()])
+    const { termsLink, refundPolicyLink } = buildMarketPurchaseInfo(footer)
+    return { data, termsLink, refundPolicyLink }
+}
+
+// 그때 판 규칙의 지문(작업 기록). 2판이 링크 문서 검사로 막히면 null.
+function pointChargeFingerprintOf(raw: Record<string, Json>, policy: PointChargePolicy, linksVisible: boolean): string | null {
+    const format = readCheckoutConsentFormat(raw)
+    if (format === 1) return computePointChargeNoticeSha256(policy)
+    if (format === 2 && linksVisible) return buildCheckoutConsentBundleIgnoringLinks('point_charge', raw, policy.refundDays)?.noticeSha256 ?? null
+    return null
+}
+
 // 결제 전 확인·크레딧 화면 문구(system_settings 'point_charge_policy'). 요금제와 같은 권한(pricing.manage)으로 고친다.
 // 환불 기간(refundDays)은 이 화면에서 바꾸지 않는다(약관 문장과 함께 스크립트로). 폼을 연 때의 version 으로 낙관적 잠금.
-type PointChargePolicySaveInput = { texts: PointChargePolicyTexts; expectedVersion: number }
+// 11번: 2판 키(consentKeys, 없으면 null)도 함께 저장한다. 판(consentFormat)은 받지 않는다(판 바꾸기는 스크립트로만).
+type PointChargePolicySaveInput = { texts: PointChargePolicyTexts; expectedVersion: number; consentKeys?: unknown }
 
 export async function savePointChargePolicyTextsAction(
     input: PointChargePolicySaveInput
-): Promise<{ success: true; data: PointChargePolicy } | { success: false; error: string }> {
+): Promise<{ success: true; data: PointChargePolicyAdminData } | { success: false; error: string }> {
     const access = await assertAdminActionPermission('pricing.manage')
     if (!Number.isInteger(input?.expectedVersion) || !input.texts || typeof input.texts !== 'object') {
         return { success: false, error: '저장할 문구가 올바르지 않습니다. 새로고침한 뒤 다시 시도해 주세요.' }
@@ -201,20 +242,37 @@ export async function savePointChargePolicyTextsAction(
         refundRequestAccepted: text(raw.refundRequestAccepted),
         refundBlockReasons,
     }
-    const invalid = validatePointChargePolicyTexts(texts)
+    const invalid = validatePointChargePolicyTexts(texts) ?? checkPointChargeValidityYears(texts.checkoutItems.validity)
     if (invalid) return { success: false, error: invalid }
 
-    let saved: { before: PointChargePolicy; after: PointChargePolicy }
+    const current = await readPointChargePolicyAdminUncached()
+    if (!current) return { success: false, error: '충전 정책 설정을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.' }
+    const consentKeys = input.consentKeys == null ? null : normalizeCheckoutConsentKeysInput('point_charge', input.consentKeys)
+    // 4-3 (S)~(f): 2판 키가 있으면 판과 관계없이 늘 검사한다(링크 문서 검사 (g) 는 넣지 않음).
+    const merged: Record<string, unknown> = { ...current.raw, ...texts, ...(consentKeys ?? {}) }
+    if (hasCheckoutConsentKeys(merged)) {
+        const problem = summarizeCheckoutConsentProblems(checkCheckoutConsentKeys('point_charge', merged))
+        if (problem) return { success: false, error: problem }
+    }
+
+    let saved: Awaited<ReturnType<typeof savePointChargePolicyTexts>>
     try {
-        saved = await savePointChargePolicyTexts(texts, input.expectedVersion)
+        saved = await savePointChargePolicyTexts(texts, input.expectedVersion, consentKeys)
     } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : '충전 정책 문구를 저장하지 못했습니다.' }
     }
 
-    // 저장된 뒤 작업 기록을 남긴다(실패해도 결과는 그대로). 문구 전문 대신 바뀐 키와 새 지문을 남긴다.
+    // 저장된 뒤 작업 기록을 남긴다(실패해도 결과는 그대로). 전후 지문(그때 판 규칙)과 판, 지문에 들지 않는 바뀐 키는 전후 전문.
     const textKeys = ['checkoutTitle', 'checkoutItems', 'minorNotice', 'agreeLabel', 'creditsGuide',
-        'refundRequestConfirm', 'refundRequestAccepted', 'refundBlockReasons'] as const
-    const changedKeys = textKeys.filter((key) => JSON.stringify(saved.before[key]) !== JSON.stringify(saved.after[key]))
+        'refundRequestConfirm', 'refundRequestAccepted', 'refundBlockReasons', ...CHECKOUT_CONSENT_KEY_NAMES] as const
+    const format = readCheckoutConsentFormat(saved.afterRaw)
+    // 저장 전·뒤 지문에 모두 드는 칸만 전문에서 뺀다(이번에 새로 항목에 넣은 본문은 이전 글이 지문에 없으므로 전후 전문을 남긴다).
+    const fingerprintBefore = checkoutConsentFingerprintFields('point_charge', readCheckoutConsentFormat(saved.beforeRaw), saved.beforeRaw)
+    const fingerprintAfter = checkoutConsentFingerprintFields('point_charge', format, saved.afterRaw)
+    const inFields = (fields: Set<string>, key: string) => [...fields].some((field) => field === key || field.startsWith(`${key}.`))
+    const { changedKeys, changes } = diffPolicyTextKeys(saved.beforeRaw, saved.afterRaw, textKeys)
+    const changedTexts = Object.fromEntries(Object.entries(changes)
+        .filter(([key]) => !(inFields(fingerprintBefore, key) && inFields(fingerprintAfter, key))))
     await recordAdminAudit({
         actorId: access.userId,
         action: 'point_charge_policy_update',
@@ -222,16 +280,21 @@ export async function savePointChargePolicyTextsAction(
         targetId: POINT_CHARGE_POLICY_SETTING_KEY,
         details: {
             changed_keys: changedKeys,
+            changed_texts: changedTexts as Json,
+            consent_format: format,
             version_before: saved.before.version,
             version_after: saved.after.version,
             refund_days: saved.after.refundDays,
-            notice_sha256_before: computePointChargeNoticeSha256(saved.before),
-            notice_sha256_after: computePointChargeNoticeSha256(saved.after),
+            notice_sha256_before: pointChargeFingerprintOf(saved.beforeRaw, saved.before, current.linksVisible),
+            notice_sha256_after: pointChargeFingerprintOf(saved.afterRaw, saved.after, current.linksVisible),
+            ...(format === 2 && !current.linksVisible ? { notice_sha256_unavailable: 'link_document' } : {}),
         },
     })
 
     revalidatePath('/checkout')
     revalidatePath('/mypage/credits')
     revalidatePath('/admin/pricing')
-    return { success: true, data: saved.after }
+    const next = await readPointChargePolicyAdminUncached()
+    if (!next) return { success: false, error: '저장했지만 새 값을 다시 읽지 못했습니다. 새로고침해 주세요.' }
+    return { success: true, data: next }
 }

@@ -1,13 +1,22 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 
 // docs/purchase-complete-dialog-plan.md 4절: 자료 구매 완료 알림을 중앙 Studio Dialog로 통일
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
 
 const dialog = read('../src/components/market/market-purchase-complete-dialog.tsx')
 const itemActions = read('../src/components/market/market-item-actions.tsx')
-const cartView = read('../src/app/(solvook)/cart/_components/cart-view.tsx')
+// 11번: 장바구니 화면은 껍데기·표시 부품으로 나뉘므로 장바구니 폴더의 파일을 합쳐 본다.
+function readTree(dir) {
+  const root = new URL(dir, import.meta.url).pathname
+  const walk = (path) => statSync(path).isDirectory()
+    ? readdirSync(path).flatMap((name) => walk(join(path, name)))
+    : /\.(ts|tsx)$/.test(path) ? [readFileSync(path, 'utf8')] : []
+  return walk(root).join('\n')
+}
+const cartView = readTree('../src/app/(solvook)/cart/')
 const rootLayout = read('../src/app/layout.tsx')
 const sonner = read('../src/components/ui/sonner.tsx')
 
@@ -50,12 +59,12 @@ test('resolveMarketLibraryHref picks the single purchased subject, otherwise /li
   assert.equal(resolve([]), '/library')
 })
 
-test('cart and detail both render the shared purchase complete dialog', () => {
-  for (const source of [cartView, itemActions]) {
-    assert.match(source, /import \{\s+MarketPurchaseCompleteDialog,\s+resolveMarketLibraryHref,\s+type MarketPurchaseCompleteResult,\s+\} from '@\/components\/market\/market-purchase-complete-dialog'/)
-    assert.match(source, /<MarketPurchaseCompleteDialog\s+result=\{purchaseComplete\}\s+libraryHref=\{resolveMarketLibraryHref\(/)
-    assert.match(source, /balance: typeof payload\.balance === 'number' \? payload\.balance : null,/)
-  }
+// 11번(계획 7절): 자료 구매는 장바구니로만 하므로 구매 완료 창은 장바구니만 그린다(상세에는 없다).
+test('the cart renders the shared purchase complete dialog and the detail no longer does', () => {
+  assert.match(cartView, /MarketPurchaseCompleteDialog/)
+  assert.match(cartView, /from '@\/components\/market\/market-purchase-complete-dialog'/)
+  assert.match(cartView, /<MarketPurchaseCompleteDialog[\s\S]{0,200}libraryHref=\{resolveMarketLibraryHref\(/)
+  assert.doesNotMatch(itemActions, /MarketPurchaseCompleteDialog|resolveMarketLibraryHref/)
   assert.doesNotMatch(cartView, /toast\.success\(/)
   assert.match(cartView, /toast\.error\(/)
   assert.equal(existsSync(new URL('../src/app/(dashboard)/market/[slug]/market-purchase-complete-dialog.tsx', import.meta.url)), false)

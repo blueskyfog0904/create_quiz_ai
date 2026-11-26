@@ -51,12 +51,23 @@ export async function POST(request: NextRequest) {
     return marketCartErrorResponse(outcome)
   }
 
+  // 11번 0-9·7절: 이미 담겨 있던 줄(선택을 풀어 두었을 수 있음)은 같은 요청 안에서 선택으로 바꾼다.
+  // 선택 저장에 실패해도 담기 자체는 성공이므로 200 으로 두고 reselected 로 구분한다(상세 결과 창이 다른 문구로 알림).
+  let reselected: boolean | null = null
+  if (!outcome.data.created) {
+    const cartItemId = outcome.data.cartItemId as string
+    const selection = await setMarketCartSelection(guard.userId, [cartItemId], true)
+    reselected = selection.ok && Array.isArray(selection.data.updatedIds) && selection.data.updatedIds.includes(cartItemId)
+  }
+
   return NextResponse.json({
     success: true,
     data: {
       cartItemId: outcome.data.cartItemId,
       created: outcome.data.created,
       count: outcome.data.count,
+      // 새로 담은 줄은 null, 이미 있던 줄은 선택으로 바꿨으면 true·못 바꿨으면 false
+      reselected,
     },
   })
 }

@@ -19,6 +19,13 @@ import {
   type PointChargeCheckoutNotice,
 } from '@/lib/point-charge-policy'
 import { redirectToConsentIfRequired } from '@/lib/consent-client'
+import { parseCheckoutConsentBundle, type CheckoutConsentBundle } from '@/lib/checkout-consent'
+import type { MarketPurchaseLink } from '@/lib/market-purchase-info'
+import {
+  canRenderCheckoutConsent,
+  CheckoutConsent,
+  isCheckoutConsentComplete,
+} from '@/components/checkout/checkout-consent'
 
 type CheckoutPhase =
   | 'idle'
@@ -55,8 +62,13 @@ interface CheckoutClientProps {
   paymentMethods: CheckoutPaymentMethod[]
   // 결제 문의 연락처(관리자 Footer 설정 값). 비어 있으면 그 줄을 그리지 않는다.
   supportContact: string
-  // 결제 전 확인 문구(DB, 서버가 채우고 지문을 붙임). 읽지 못했으면 null — 결제 버튼을 막는다.
+  // 결제 전 확인 문구(DB, 서버가 채우고 지문을 붙임). 11번: 1판 고지(펼친 고지)와 2판 묶음(접는 동의) 중 하나만 값이 있다.
+  // 둘 다 null 이면 고지 없음 — 결제 버튼을 막는다.
   checkoutNotice: PointChargeCheckoutNotice | null
+  checkoutConsent: CheckoutConsentBundle | null
+  // 약관·환불정책 전문 링크(하단 정보 DB). 판과 관계없이 늘 받는다.
+  termsLink: MarketPurchaseLink | null
+  refundPolicyLink: MarketPurchaseLink | null
   // 변경 예정 약관 한 줄 안내(서버 부품, 15번 6-2). 동의 문구는 바꾸지 않는다.
   upcomingNotice?: ReactNode
 }
@@ -80,6 +92,10 @@ const CHECKOUT_CHANGED_CODES = ['CHECKOUT_NOTICE_CHANGED', 'CHECKOUT_PLAN_CHANGE
 
 // 동의 문구 안의 정책 이름은 정책 전문 링크로 감싼다.
 const REFUND_POLICY_NAME = '취소·환불정책'
+
+// 2판 동의 부품의 색(CSS 변수)은 충전 화면 잉크 값으로 준다. 창은 포털이라 패널에도 다시 붙인다(11번 6-5).
+const CONSENT_INK_VARS = '[--consent-ink:var(--ck-ink)] [--consent-muted:var(--ck-muted)] [--consent-line:var(--ck-line)] [--consent-ring:var(--ck-ink)]'
+const CK_INK_VARS = '[--ck-bg:#FAF8F5] [--ck-ink:#1C1917] [--ck-text:#44403C] [--ck-muted:#78716C] [--ck-line:#E7E5E4] [--ck-line-strong:#D6D3D1]'
 
 // 같은 결제 시도로 다시 요청하면 서버가 기존 결과를 돌려준다. 이 코드들은 새 시도로 다시 해야 한다.
 const NEW_ATTEMPT_CODES = [
@@ -191,46 +207,62 @@ function PaymentMethodMark({ code }: { code: string }) {
   )
 }
 
-// 결제 전 확인(제목·항목·미성년자 안내). 동의 체크 바로 위에 둔다.
-function CheckoutNoticeSection({ notice }: { notice: PointChargeCheckoutNotice | null }) {
+// 1판(펼친 고지): 결제 전 확인(제목·항목·미성년자 안내). 동의 체크 바로 위에 둔다. 지문 대상이라 접지 않는다.
+// 11번: 환불정책 주소는 코드에 두지 않고 하단 정보(DB) 링크를 쓴다(없으면 링크 줄을 그리지 않음).
+function CheckoutNoticeSection({ notice, refundPolicyLink }: { notice: PointChargeCheckoutNotice; refundPolicyLink: MarketPurchaseLink | null }) {
   return (
     <section aria-labelledby="checkout-notice-title" className="mt-6 min-w-0 border-t border-[var(--ck-line)] pt-5 text-sm leading-6">
-      {notice ? (
-        <>
-          <h3 id="checkout-notice-title" className="font-bold text-[var(--ck-ink)]">{notice.checkoutTitle}</h3>
-          <ol className="mt-2 list-decimal space-y-1.5 break-keep pl-5 text-[var(--ck-muted)]">
-            {POINT_CHARGE_CHECKOUT_ITEM_KEYS.map((key) => (
-              <li key={key}>{notice.checkoutItems[key]}</li>
-            ))}
-          </ol>
-          <p className="mt-3 break-keep text-[var(--ck-muted)]">{notice.minorNotice}</p>
-        </>
-      ) : (
-        <p id="checkout-notice-title" role="alert" className="break-keep text-destructive">
-          결제 전 확인 내용을 불러오지 못해 지금은 결제할 수 없습니다. 잠시 후 다시 시도해 주세요.
-        </p>
-      )}
-      <Link
-        href="/terms/refund"
+      <h3 id="checkout-notice-title" className="font-bold text-[var(--ck-ink)]">{notice.checkoutTitle}</h3>
+      <ol className="mt-2 list-decimal space-y-1.5 break-keep pl-5 text-[var(--ck-muted)]">
+        {POINT_CHARGE_CHECKOUT_ITEM_KEYS.map((key) => (
+          <li key={key}>{notice.checkoutItems[key]}</li>
+        ))}
+      </ol>
+      <p className="mt-3 break-keep text-[var(--ck-muted)]">{notice.minorNotice}</p>
+      {refundPolicyLink ? (
+        <Link
+          href={refundPolicyLink.href}
+          className="mt-1 inline-flex min-h-11 items-center font-bold text-[var(--ck-ink)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ck-ink)]"
+        >
+          {refundPolicyLink.label} 전문 보기
+        </Link>
+      ) : null}
+    </section>
+  )
+}
+
+// 고지 없음(11번 8절·6-4): 동의 자리에 안내와 [다시 불러오기]. 빨강이 아니고 1판 부품으로 떨어뜨리지 않는다.
+// 첫 값으로 state 를 만들므로 router.refresh 로는 바뀌지 않아 문서를 다시 읽는다.
+function CheckoutNoticeUnavailable() {
+  return (
+    <section className="mt-6 min-w-0 border-t border-[var(--ck-line)] pt-5 text-sm leading-6">
+      <p role="alert" className="break-keep text-[var(--ck-ink)]">
+        결제 전 확인 내용을 불러오지 못해 지금은 결제할 수 없습니다. 잠시 후 다시 시도해 주세요.
+      </p>
+      <button
+        type="button"
+        onClick={() => window.location.reload()}
         className="mt-1 inline-flex min-h-11 items-center font-bold text-[var(--ck-ink)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ck-ink)]"
       >
-        취소·환불정책 전문 보기
-      </Link>
+        다시 불러오기
+      </button>
     </section>
   )
 }
 
 // 동의 문구(DB)의 필수 표기는 코드가 여기서 한 번만 붙이고, 정책 이름은 전문 링크로 감싼다.
-function AgreeLabel({ label }: { label: string }) {
+function AgreeLabel({ label, refundPolicyLink }: { label: string; refundPolicyLink: MarketPurchaseLink | null }) {
   const parts = label.split(REFUND_POLICY_NAME)
   return (
     <span>
       {parts.map((part, index) => (
         <span key={index}>
           {index > 0 ? (
-            <Link href="/terms/refund" className="font-bold text-[var(--ck-ink)] underline underline-offset-4">
-              {REFUND_POLICY_NAME}
-            </Link>
+            refundPolicyLink ? (
+              <Link href={refundPolicyLink.href} className="font-bold text-[var(--ck-ink)] underline underline-offset-4">
+                {REFUND_POLICY_NAME}
+              </Link>
+            ) : REFUND_POLICY_NAME
           ) : null}
           {part}
         </span>
@@ -295,11 +327,17 @@ export function CheckoutClient({
   paymentMethods,
   supportContact,
   checkoutNotice,
+  checkoutConsent,
+  termsLink,
+  refundPolicyLink,
   upcomingNotice,
 }: CheckoutClientProps) {
   // 결제 요청이 409(문구·상품 변경)를 받으면 응답의 새 값으로 바꾸고 다시 동의받는다.
+  // 11번: 409 로 받은 고지는 판이 바뀔 수 있다(1판 ↔ 2판). 둘 중 하나만 값을 둔다.
   const [plan, setPlan] = useState(initialPlan)
-  const [notice, setNotice] = useState(checkoutNotice)
+  const [notice, setNotice] = useState<PointChargeCheckoutNotice | null>(checkoutConsent ? null : checkoutNotice)
+  const [consent, setConsent] = useState<CheckoutConsentBundle | null>(checkoutConsent)
+  const [consentKeys, setConsentKeys] = useState<string[]>([])
   const profilePhone = toPhoneDigits(user.phone)
   const [selectedCode, setSelectedCode] = useState<string | null>(null)
   const [phone, setPhone] = useState(profilePhone)
@@ -340,6 +378,12 @@ export function CheckoutClient({
   const phoneValid = PHONE_PATTERN.test(phone)
   const isBusy = phase === 'preparingOrder' || phase === 'openingProvider'
   const amount = plan.price
+  const consentLinks = { refundPolicy: refundPolicyLink?.href ?? null, serviceTerms: termsLink?.href ?? null }
+  // 2판 묶음은 링크 주소가 모두 있을 때만 그린다(없으면 고지 없음).
+  const visibleConsent = consent && canRenderCheckoutConsent(consent, consentLinks) ? consent : null
+  // 보인 고지의 지문(시도 키도 이 값으로 갈린다). 고지 없음이면 null — 결제 버튼을 막는다.
+  const noticeSha256 = visibleConsent?.noticeSha256 ?? notice?.noticeSha256 ?? null
+  const consentAgreed = visibleConsent ? isCheckoutConsentComplete(visibleConsent, consentKeys) : notice ? agreed : false
 
   const changeMethod = (code: string) => {
     if (isBusy || inFlightRef.current) return
@@ -363,7 +407,7 @@ export function CheckoutClient({
   }
 
   const beginPayment = async () => {
-    if (!selectedMethod || !agreed || !notice || inFlightRef.current) return
+    if (!selectedMethod || !consentAgreed || !noticeSha256 || inFlightRef.current) return
     if (needsPhone && !phoneValid) {
       failWith('결제 안내를 받을 휴대폰 번호를 확인해 주세요.')
       return
@@ -388,7 +432,7 @@ export function CheckoutClient({
         needsPhone ? phone : '',
         plan.price,
         plan.credits,
-        notice.noticeSha256
+        noticeSha256
       )
       const response = await fetch('/api/payments/payapp/orders', {
         method: 'POST',
@@ -399,8 +443,8 @@ export function CheckoutClient({
           paymentMethodCode: selectedMethod.code,
           phone,
           savePhone: !profilePhone && savePhone,
-          acknowledgeCheckoutNotice: agreed,
-          noticeSha256: notice.noticeSha256,
+          acknowledgeCheckoutNotice: consentAgreed,
+          noticeSha256,
           expectedAmount: plan.price,
           expectedCredits: plan.credits,
         }),
@@ -421,8 +465,11 @@ export function CheckoutClient({
       // 결제 전 확인 문구나 상품 값이 바뀌었다. 새 값으로 바꾸고 체크를 풀어 다시 동의받는다(새 결제 시도).
       if (response.status === 409 && body.code && CHECKOUT_CHANGED_CODES.includes(body.code)) {
         clearCheckoutAttempt(user.id, plan.id)
-        const nextNotice = parsePointChargeCheckoutNotice(body.notice)
-        setNotice(nextNotice)
+        // 11번: 2판 묶음이면 접는 동의로, 1판 고지면 펼친 고지로 바꿔 그린다(해석 실패면 고지 없음).
+        const nextConsent = parseCheckoutConsentBundle(body.notice)
+        setConsent(nextConsent)
+        setNotice(nextConsent ? null : parsePointChargeCheckoutNotice(body.notice))
+        setConsentKeys([])
         if (typeof body.plan?.price === 'number' && typeof body.plan.credits === 'number') {
           const nextPrice = body.plan.price
           const nextCredits = body.plan.credits
@@ -484,7 +531,7 @@ export function CheckoutClient({
         : '결제수단을 선택해 주세요'
 
   return (
-    <div className="studio-theme min-h-screen overflow-x-clip bg-[var(--ck-bg)] [--ck-bg:#FAF8F5] [--ck-ink:#1C1917] [--ck-text:#44403C] [--ck-muted:#78716C] [--ck-line:#E7E5E4] [--ck-line-strong:#D6D3D1]">
+    <div className={`studio-theme min-h-screen overflow-x-clip bg-[var(--ck-bg)] ${CK_INK_VARS}`}>
       <StudioPageHeader
         breadcrumbs={(
           <Link href="/pricing" className="inline-flex min-h-11 items-center gap-2">
@@ -635,21 +682,35 @@ export function CheckoutClient({
             >
               <OrderSummary plan={plan} user={user} amount={amount} />
 
-              {/* 결제 전 확인은 모든 폭에서 동의 체크 바로 위에 둔다. */}
-              <CheckoutNoticeSection notice={notice} />
-
-              {notice ? (
-                <label className="mt-4 flex min-h-11 items-start gap-2 text-sm leading-6 text-[var(--ck-text)]">
-                  <input
-                    type="checkbox"
-                    checked={agreed}
+              {/* 2판: 주문 요약 아래·결제 버튼 바로 위에 접는 동의. 1판: 결제 전 확인을 동의 체크 바로 위에 펼쳐 둔다. */}
+              {visibleConsent ? (
+                <div className={`mt-6 border-t border-[var(--ck-line)] pt-4 ${CONSENT_INK_VARS}`}>
+                  <CheckoutConsent
+                    consent={visibleConsent}
+                    links={consentLinks}
+                    checkedKeys={consentKeys}
+                    onCheckedKeysChange={setConsentKeys}
                     disabled={isBusy}
-                    onChange={(event) => setAgreed(event.target.checked)}
-                    className="mt-1 size-4 shrink-0 accent-[var(--ck-ink)]"
+                    dialogClassName={`${CK_INK_VARS} ${CONSENT_INK_VARS}`}
                   />
-                  <AgreeLabel label={notice.agreeLabel} />
-                </label>
-              ) : null}
+                </div>
+              ) : notice ? (
+                <>
+                  <CheckoutNoticeSection notice={notice} refundPolicyLink={refundPolicyLink} />
+                  <label className="mt-4 flex min-h-11 items-start gap-2 text-sm leading-6 text-[var(--ck-text)]">
+                    <input
+                      type="checkbox"
+                      checked={agreed}
+                      disabled={isBusy}
+                      onChange={(event) => setAgreed(event.target.checked)}
+                      className="mt-1 size-4 shrink-0 accent-[var(--ck-ink)]"
+                    />
+                    <AgreeLabel label={notice.agreeLabel} refundPolicyLink={refundPolicyLink} />
+                  </label>
+                </>
+              ) : (
+                <CheckoutNoticeUnavailable />
+              )}
 
               {/* 안내 영역은 항상 두고 내용만 바꾼다. 오류는 따로 알린다. */}
               <p
@@ -669,7 +730,7 @@ export function CheckoutClient({
               <Button
                 type="button"
                 className="mt-4 h-auto min-h-12 w-full whitespace-normal break-keep rounded-lg bg-[var(--ck-ink)] py-3 text-base font-bold text-white shadow-none hover:bg-[var(--ck-ink)]/90 disabled:bg-[var(--ck-line)] disabled:text-[var(--ck-muted)] disabled:opacity-100"
-                disabled={isBusy || !selectedMethod || !notice || !agreed || (needsPhone && !phoneValid)}
+                disabled={isBusy || !selectedMethod || !noticeSha256 || !consentAgreed || (needsPhone && !phoneValid)}
                 onClick={beginPayment}
               >
                 {isBusy ? (

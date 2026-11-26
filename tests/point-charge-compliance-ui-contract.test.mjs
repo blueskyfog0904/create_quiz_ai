@@ -61,7 +61,9 @@ test('checkout shows the restrictions before payment', () => {
   assert.match(checkout, /method\.description/)
   assert.match(checkout, /문제마켓/)
   assert.doesNotMatch(checkout, /AI 문제 생성·문제은행/)
-  assert.match(checkout, /\/terms\/refund/)
+  // 11번 8절: 환불정책 전문 링크는 코드 주소(/terms/refund) 대신 하단 정보(DB)의 링크 prop 으로 그린다.
+  assert.doesNotMatch(checkout, /\/terms\/refund/)
+  assert.match(checkout, /refundPolicyLink\.href/)
 })
 
 test('terms include the requested sentence and operational paths', () => {

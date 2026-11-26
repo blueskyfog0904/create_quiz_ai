@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot, selectDisplayBalance } from '@/lib/credit-balance'
-import { guardMarketCartRequest, marketCartErrorResponse } from '@/lib/market-cart-server'
+import { getMarketCheckoutReceipt, guardMarketCartRequest, marketCartErrorResponse } from '@/lib/market-cart-server'
 import { runMarketCheckout } from '@/lib/market-checkout-server'
 import { isMarketV2PurchaseEnabled } from '@/lib/market-purchase'
 import { checkMemberConsentForApi, consentBlockResponse } from '@/lib/consent-guard-server'
@@ -18,6 +18,8 @@ const CheckoutBodySchema = z.object({
   idempotencyKey: z.string().uuid(),
   acknowledgePurchaseNotice: z.boolean({ error: '구매 화면이 바뀌었습니다. 화면을 새로고침한 뒤 다시 구매해 주세요.' }),
   noticeSha256: z.string({ error: '구매 화면이 바뀌었습니다. 화면을 새로고침한 뒤 다시 구매해 주세요.' }).regex(/^[0-9a-f]{64}$/, '구매 안내 확인 값이 올바르지 않습니다. 화면을 새로고침한 뒤 다시 구매해 주세요.'),
+  // 11번 5-4: 화면에 보인 장바구니 문구의 지문(화면은 받은 값을 그대로 보낸다). 옛 탭은 보내지 않는다.
+  cartTextsSha256: z.string().regex(/^[0-9a-f]{64}$/, '구매 안내 확인 값이 올바르지 않습니다. 화면을 새로고침한 뒤 다시 구매해 주세요.').optional(),
 }).strict()
 
 export async function POST(request: NextRequest) {
@@ -51,11 +53,42 @@ export async function POST(request: NextRequest) {
     return marketCartErrorResponse({ status: 503, code: 'V2_PURCHASE_DISABLED', message: '현재 새 구매 기능이 일시 중지되어 있습니다.' })
   }
 
+  // 11번 6-4: 장바구니 문구 지문이 없는 요청(옛 탭)은 기록 전에 막는다. 같은 키로 이미 끝난 구매면 지금 성공 응답과 같은 모양으로 돌려준다.
+  const cartTextsSha256 = parsed.data.cartTextsSha256
+  if (!cartTextsSha256) {
+    let receipt: Awaited<ReturnType<typeof getMarketCheckoutReceipt>>
+    try {
+      receipt = await getMarketCheckoutReceipt(guard.userId, parsed.data.idempotencyKey)
+    } catch {
+      return marketCartErrorResponse({
+        status: 503,
+        code: 'RECEIPT_LOOKUP_FAILED',
+        message: '구매 결과를 확인하지 못했습니다. 잠시 후 같은 요청으로 다시 시도해 주세요.',
+      })
+    }
+    if (receipt) {
+      const snapshot = await getCreditBalanceSnapshot(guard.userId)
+      return NextResponse.json({
+        success: true,
+        data: receipt,
+        alreadyCompleted: true,
+        ...buildCreditBalanceResponseFields(snapshot),
+        message: `선택한 자료 ${receipt.orders.length}건 구매가 완료되었습니다.`,
+      })
+    }
+    return marketCartErrorResponse({
+      status: 400,
+      code: 'CART_TEXTS_REQUIRED',
+      message: '구매 화면이 바뀌었습니다. 화면을 새로고침한 뒤 다시 구매해 주세요.',
+    })
+  }
+
   // 구매 고지 동의 기록(판매 중지 검사 뒤, 결제 바로 앞). 기록하지 못하면 결제하지 않는다.
   const noticeFailure = await enforcePurchaseNoticeAck({
     userId: guard.userId,
     idempotencyKey: parsed.data.idempotencyKey,
     noticeSha256: parsed.data.noticeSha256,
+    cartTextsSha256,
   })
   if (noticeFailure) {
     return marketCartErrorResponse(noticeFailure)

@@ -1,4 +1,6 @@
-// 비로그인 상세에서 [로그인 후 담기]·[로그인 후 구매]를 누른 선택을 로그인 복귀 뒤 1회 소비하기 위한 저장소.
+// 비로그인 상세에서 [로그인 후 담기]를 누른 선택을 로그인 복귀 뒤 1회 소비하기 위한 저장소.
+// 11번(계획 docs/plan-bundle11-checkout-simplify.md 7절): 상세 바로 구매가 없어져 새로 저장하는 의도는 'cart' 뿐이다.
+// 배포 전에 저장된 'purchase' 의도(30분 안)는 읽을 때 담기로 바꾼다(결제하지 않는다).
 // node 단위 테스트가 직접 import하므로 alias import·enum 같은 TS 전용 런타임 문법 없이 순수 모듈로 둔다.
 // 가격·제목은 저장하지 않는다. 복귀 시 현재 상세의 옵션과 다시 대조한다.
 
@@ -9,7 +11,9 @@ export const MARKET_CART_INTENT_TTL_MS = 30 * 60 * 1000
 const MAX_TARGETS = 50
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export type MarketCartIntentAction = 'cart' | 'purchase'
+// 저장된 값에 남아 있을 수 있는 동작(옛 'purchase' 포함). 돌려주는 의도는 늘 'cart' 다.
+type StoredMarketCartIntentAction = 'cart' | 'purchase'
+export type MarketCartIntentAction = 'cart'
 
 export interface MarketCartIntentTarget {
   targetKind: 'subproduct' | 'bundle'
@@ -56,7 +60,7 @@ function isValidTarget(value: unknown): value is MarketCartIntentTarget {
     && UUID_PATTERN.test(target.targetId)
 }
 
-function isValidIntent(value: unknown): value is MarketCartIntent {
+function isValidIntent(value: unknown): value is Omit<MarketCartIntent, 'action'> & { action: StoredMarketCartIntentAction } {
   if (!value || typeof value !== 'object') {
     return false
   }
@@ -81,7 +85,7 @@ export function saveMarketCartIntent(
     return
   }
   try {
-    const value = { ...intent, createdAt: now }
+    const value = { ...intent, action: 'cart' as const, createdAt: now }
     if (!isValidIntent(value)) {
       target.removeItem(MARKET_CART_INTENT_KEY)
       return
@@ -130,5 +134,6 @@ export function takeMarketCartIntent(
   if (parsed.itemId !== expected.itemId || parsed.workspaceSubject !== expected.workspaceSubject) {
     return null
   }
-  return parsed
+  // 옛 'purchase' 의도도 담기로 이어간다(바로 구매는 없어졌다).
+  return { ...parsed, action: 'cart' }
 }

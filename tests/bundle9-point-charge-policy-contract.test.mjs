@@ -17,6 +17,15 @@ const policyServer = load('src/lib/point-charge-policy-server.ts', {
   'next/cache': { revalidateTag: () => {}, unstable_cache: (fn) => fn },
   '@/lib/supabase/bypass': { createAdminClient: () => { throw new Error('not used') } },
   '@/lib/point-charge-policy': policyLib,
+  // 11번: 2판(접는 동의) 읽기·개발 스위치. 이 시험은 1판 지문·저장만 본다.
+  '@/lib/checkout-consent': load('src/lib/checkout-consent.ts', { '@/lib/point-charge-policy': policyLib }),
+  '@/lib/checkout-consent-server': {
+    buildCheckoutConsentBundle: () => null,
+    buildCheckoutConsentBundleIgnoringLinks: () => null,
+    readRawSiteFooterValue: async () => null,
+    recordCheckoutConsentUnavailableAlert: async () => {},
+  },
+  '@/lib/checkout-consent-preview': { isCheckoutConsentPreview: () => false },
 })
 
 const REDEFINED = [

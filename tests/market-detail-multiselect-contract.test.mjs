@@ -7,8 +7,8 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
 
 const itemActions = read('../src/components/market/market-item-actions.tsx')
 const previewDetail = read('../src/app/preview/solvook-concept/_components/detail/market-material-detail.tsx')
-const cartView = read('../src/app/(solvook)/cart/_components/cart-view.tsx')
-const confirmDialog = read('../src/components/market/market-checkout-confirm-dialog.tsx')
+// 11번(계획 docs/plan-bundle11-checkout-simplify.md 7절): 상세 바로 구매·확인창이 없어졌다. 장바구니에도 해당하던 단언
+// (결제 응답·재시도 키·부족 시 막힘·raw hex 없음)은 tests/bundle11-cart-route-invariants.test.mjs 로 옮겼다.
 const bundleSavings = read('../src/lib/market-bundle-savings.ts')
 
 const RAW_HEX = /#[0-9a-fA-F]{3,8}\b/
@@ -23,24 +23,13 @@ test('detail adds selected targets to the cart one POST per target, in order', (
   assert.match(itemActions, /dispatchMarketCartUpdated\(latestCount\)/)
 })
 
-test('detail direct purchase sends lines with one idempotency key per confirmation dialog', () => {
-  assert.match(itemActions, /setCheckout\(\{\s+idempotencyKey: crypto\.randomUUID\(\),\s+lines: selectedOptions\.map\(/)
-  assert.match(itemActions, /fetch\(`\/api\/market\/items\/\$\{itemId\}\/purchase`/)
-  assert.match(itemActions, /lines: request\.lines\.map\(\(line\) => \(\{\s+target:/)
-  assert.match(itemActions, /idempotencyKey: request\.idempotencyKey,/)
-  // 5xx·네트워크 유실은 같은 키, 409 재확인은 새 키
-  assert.match(itemActions, /response\.status >= 500\) \{\s+setCheckout\(\{ \.\.\.request, submitting: false, retryable: true/)
-  assert.match(itemActions, /code === 'PRICE_CHANGED'[\s\S]+?idempotencyKey: crypto\.randomUUID\(\)/)
-  assert.match(itemActions, /if \(code === 'ACK_REQUIRED'\) \{[\s\S]{0,300}?setCheckout\(\{\s+\.\.\.request,\s+idempotencyKey: crypto\.randomUUID\(\),/)
+test('detail has no direct purchase: no purchase API, confirmation dialog state or idempotency key', () => {
+  assert.doesNotMatch(itemActions, /\/api\/market\/items\/\$\{itemId\}\/purchase/)
+  assert.doesNotMatch(itemActions, /setCheckout|submitCheckout|openCheckout|idempotencyKey/)
 })
-
-test('detail 402 shows the shortfall and disables the confirm button', () => {
-  assert.match(itemActions, /if \(response\.status === 402\) \{[\s\S]{0,900}?shortfall: shortfall > 0 \? shortfall : null,/)
-  assert.match(itemActions, /shortfall=\{checkout\?\.shortfall \?\? null\}/)
-  assert.match(confirmDialog, /const canConfirm = !submitting && shortfall === null/)
-  assert.match(confirmDialog, /<Button variant="brand" disabled=\{!canConfirm\} onClick=\{onConfirm\}>/)
+test('detail has no 402 shortfall handling (the cart checkout panel handles insufficient credits)', () => {
+  assert.doesNotMatch(itemActions, /response\.status === 402|shortfall/)
 })
-
 test('detail drops selections that are no longer selectable when options change', () => {
   assert.match(itemActions, /if \(prunedKeySignature !== selectableKeySignature\) \{[\s\S]{0,200}?setSelectedKeys\(\(current\) => current\.filter\(\(key\) => selectableKeys\.includes\(key\)\)\)/)
 })
@@ -52,16 +41,19 @@ test('detail shows the three conflict reasons and compares file type codes in lo
   // PDF 포함 판정은 src/lib/market-bundle-savings.ts 하나로 옮겼다(구매 영역 개편 U1). 판정 기준은 그대로다.
   assert.match(itemActions, /import \{ getBundleSavings, isPdfInclusiveHwp \} from '@\/lib\/market-bundle-savings'/)
   assert.match(bundleSavings, /subproduct\.categorySlug === 'question_hwp'\s+&& subproduct\.fileTypes\.some\(\(fileType\) => fileType\.code\.toLowerCase\(\) === 'pdf'\)/)
+  // 11번 6-3: 충돌 판정은 장바구니와 같은 공용 함수(DB 결제 6단계와 같은 식). 옵션의 includesPdf 는 'PDF 파일이 있음'(소문자 비교).
+  assert.match(itemActions, /import \{ findConflictingSelection, type MarketSelectionLine \} from '@\/lib\/market-selection-conflict'/)
+  assert.match(itemActions, /includesPdf: subproduct\.fileTypes\.some\(\(fileType\) => fileType\.code\.toLowerCase\(\) === 'pdf'\)/)
+  assert.doesNotMatch(itemActions, /hasSelectedPdfInclusiveHwp|hasSelectedQuestionPdf/)
 })
 
-test('detail summary uses a two-column brand button pair', () => {
-  assert.match(itemActions, /className="mt-3 grid grid-cols-2 gap-2"/)
-  assert.match(itemActions, /variant="brandOutline"\s+className="h-auto min-h-11 w-full whitespace-normal"/)
-  assert.match(itemActions, /variant="brand"\s+className="h-auto min-h-11 w-full whitespace-normal"/)
+test('detail summary uses one full-width brand cart button', () => {
+  assert.doesNotMatch(itemActions, /grid grid-cols-2 gap-2/)
+  assert.match(itemActions, /variant="brand"\s+className="mt-3 h-auto min-h-11 w-full whitespace-normal"/)
   assert.match(itemActions, /선택 <strong[^>]*>\{selectedOptions\.length\}<\/strong>개\n\s+\{' · '\}\n\s+<strong[^>]*>\{formatCredits\(selectedTotal\)\}<\/strong> 크레딧/)
-  assert.match(itemActions, /구매하거나 담을 옵션을 선택하세요\./)
+  assert.match(itemActions, />담을 옵션을 선택하세요\.</)
+  assert.doesNotMatch(itemActions, /구매하거나 담을 옵션을 선택하세요/)
 })
-
 test('individual rows read checkbox → icon → title, and the bundle checkbox sits left of the bundle title', () => {
   const v2 = itemActions.slice(itemActions.indexOf('const renderV2PurchaseOptions'), itemActions.indexOf('const hasV2PurchaseOptions'))
   // 개별 행: 체크박스(또는 보유 표시) → 형식 아이콘 → 이름 순서
@@ -75,34 +67,33 @@ test('individual rows read checkbox → icon → title, and the bundle checkbox 
   const bundleTitle = v2.indexOf('<span id={bundleTitleId}>전체 패키지</span>', bundleSelect)
   assert.ok(bundleHeading !== -1 && bundleHeading < bundleSelect && bundleSelect < bundleTitle, 'bundle checkbox before the title text')
   assert.doesNotMatch(v2, /aria-pressed/)
-  const control = itemActions.slice(itemActions.indexOf('const renderOptionSelectControl'), itemActions.indexOf('const renderOptionStatus'))
+  const control = itemActions.slice(itemActions.indexOf('const renderOptionSelectControl'), itemActions.indexOf('const summaryHintId'))
   assert.match(control, /grid size-11 shrink-0 place-items-center/)
   // 비보유 행은 기본 Button을 만들지 않는다(v1 FileOptionRow 규칙 유지)
   assert.match(itemActions, /\{actionSlot \?\? \(!showDefaultAction \? null : href \? \(/)
 })
 
-test('guests can press cart/purchase to log in first and come back to the detail page', () => {
+test('guests can press cart to log in first and come back to the detail page', () => {
   assert.match(itemActions, /disabled=\{\(isLoggedIn && selectedOptions\.length === 0\) \|\| isBusy\}/)
   assert.match(itemActions, /'로그인 후 담기'/)
-  assert.match(itemActions, /'로그인 후 구매'/)
-  assert.match(itemActions, /자료를 선택한 뒤 담기·구매하면 로그인 후 이 페이지로 돌아옵니다\./)
-  assert.doesNotMatch(itemActions, /담기·구매는 로그인이 필요합니다/)
-  // 13절 D21: 비로그인 0건은 로그인으로 보내지 않고 저장도 하지 않으며 인라인 안내만 켠다(두 버튼 같은 규칙)
-  for (const [handler, action] of [['const addSelectedToCart = async', 'cart'], ['const openCheckout = async', 'purchase']]) {
-    const body = itemActions.slice(itemActions.indexOf(handler))
-    const guest = body.slice(body.indexOf('if (!isLoggedIn) {'), body.indexOf('redirectToLogin()') + 'redirectToLogin()'.length)
-    assert.match(guest, new RegExp(`if \\(!isLoggedIn\\) \\{[\\s\\S]{0,200}?if \\(selectedOptions\\.length === 0\\) \\{\\s+setEmptyNotice\\(true\\)\\s+return\\s+\\}\\s+saveIntentBeforeLogin\\('${action}'\\)\\s+redirectToLogin\\(\\)$`), handler)
-  }
+  assert.doesNotMatch(itemActions, /로그인 후 구매/)
+  assert.match(itemActions, /자료를 선택한 뒤 담기를 누르면 로그인 후 이 페이지로 돌아옵니다\./)
+  assert.doesNotMatch(itemActions, /담기·구매/)
+  // 13절 D21: 비로그인 0건은 로그인으로 보내지 않고 저장도 하지 않으며 인라인 안내만 켠다
+  const body = itemActions.slice(itemActions.indexOf('const addSelectedToCart = async'))
+  const guest = body.slice(body.indexOf('if (!isLoggedIn) {'), body.indexOf('redirectToLogin()') + 'redirectToLogin()'.length)
+  assert.match(guest, /if \(!isLoggedIn\) \{[\s\S]{0,200}?if \(selectedOptions\.length === 0\) \{\s+setEmptyNotice\(true\)\s+return\s+\}\s+saveIntentBeforeLogin\(\)\s+redirectToLogin\(\)$/)
   assert.match(itemActions, /const \[emptyNotice, setEmptyNotice\] = useState\(false\)/)
   assert.match(itemActions, /const toggleOption = \(key: string, checked: boolean\) => \{\s+setEmptyNotice\(false\)/)
   assert.match(itemActions, /<p id=\{`\$\{selectionIdPrefix\}-login`\} aria-live="polite"/)
-  assert.match(itemActions, /emptyNotice \? '담을 자료를 먼저 선택하세요\.' : '자료를 선택한 뒤 담기·구매하면 로그인 후 이 페이지로 돌아옵니다\.'/)
+  assert.match(itemActions, /emptyNotice \? '담을 자료를 먼저 선택하세요\.' : '자료를 선택한 뒤 담기를 누르면 로그인 후 이 페이지로 돌아옵니다\.'/)
 })
-
 test('guest selection is saved right before the login redirect and consumed once after login', () => {
   assert.match(itemActions, /import \{ saveMarketCartIntent, takeMarketCartIntent \} from '@\/lib\/market-cart-intent'/)
-  assert.match(itemActions, /saveIntentBeforeLogin\('cart'\)\s+redirectToLogin\(\)/)
-  assert.match(itemActions, /saveIntentBeforeLogin\('purchase'\)\s+redirectToLogin\(\)/)
+  // 11번: 새로 저장하는 의도는 담기뿐이다
+  assert.match(itemActions, /saveIntentBeforeLogin\(\)\s+redirectToLogin\(\)/)
+  assert.match(itemActions, /saveMarketCartIntent\(\{\s+action: 'cart',/)
+  assert.doesNotMatch(itemActions, /saveIntentBeforeLogin\('purchase'\)|action: 'purchase'/)
   assert.match(itemActions, /const isLoginCompletePending = searchParams\.get\('login'\) === 'success'/)
   assert.match(itemActions, /if \(!intent \|\| !isLoginCompletePending\) \{/)
   // 1회 보장은 ref 가드 + 즉시 삭제(take)로만 한다. cleanup 취소 플래그 금지(StrictMode에서 Dialog가 막힘)
@@ -112,9 +103,9 @@ test('guest selection is saved right before the login redirect and consumed once
   assert.doesNotMatch(effect[0], /return \(\) =>|cancelled|canceled/)
   const consume = itemActions.slice(itemActions.indexOf('const consumeCartIntent = useEffectEvent('), itemActions.indexOf('}, [isLoggedIn])'))
   assert.doesNotMatch(consume, /cancelled|canceled/)
-  // 구매 자동 실행 금지: 복귀 시 구매는 선택만 복원한다
+  // 구매 자동 실행 금지: 배포 전 'purchase' 의도도 담기로 이어간다(결제하지 않음, takeMarketCartIntent 가 바꿔 줌)
   assert.doesNotMatch(consume, /openCheckout|submitCheckout|\/purchase|idempotencyKey/)
-  assert.match(consume, /if \(intent\.action === 'purchase'\) \{\s+setSelectedKeys\(options\.map\(\(option\) => option\.key\)\)\s+return\s+\}/)
+  assert.doesNotMatch(consume, /intent\.action === 'purchase'/)
   assert.doesNotMatch(consume, /redirectToLogin/)
   // 13절 D22: 복귀 담기 실패·제외는 toast(로그인 완료 모달에 묻힘) 대신 안내 Dialog로 알린다
   assert.doesNotMatch(consume, /toast\./)
@@ -139,20 +130,10 @@ test('both detail routes render the shared MarketItemActions', () => {
   assert.match(previewDetail, /<MarketItemActions/)
 })
 
-test('cart and detail share the checkout confirm dialog', () => {
-  for (const source of [cartView, itemActions]) {
-    assert.match(source, /import \{ MarketCheckoutConfirmDialog \} from '@\/components\/market\/market-checkout-confirm-dialog'/)
-    assert.match(source, /<MarketCheckoutConfirmDialog/)
-  }
-  assert.match(confirmDialog, /const canConfirm = !submitting && shortfall === null && \(!needsAcknowledgement \|\| acknowledged\)\n    && purchaseNotice !== null && noticeAcknowledged/)
-  assert.match(confirmDialog, /if \(!nextOpen && !submitting\) \{\s+onCancel\(\)/)
-  assert.match(confirmDialog, /disabled=\{submitting \|\| retryable\}/)
-  assert.doesNotMatch(confirmDialog, /fetch\(/)
+test('detail no longer uses the checkout confirm dialog', () => {
+  assert.doesNotMatch(itemActions, /MarketCheckoutConfirmDialog|market-checkout-confirm-dialog/)
 })
-
 test('multiselect UI adds no raw hex colors', () => {
-  assert.doesNotMatch(confirmDialog, RAW_HEX)
-  assert.doesNotMatch(cartView, RAW_HEX)
   // 기존 badge·download 상수 외의 줄에는 raw hex가 없어야 한다
   const hexLines = itemActions.split('\n').filter((line) => RAW_HEX.test(line))
   for (const line of hexLines) {

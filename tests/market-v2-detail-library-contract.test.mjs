@@ -50,16 +50,17 @@ test('market detail action buttons are responsive for sample and purchase action
   assert.match(itemActions, /sm:w-44/)
   assert.doesNotMatch(itemActions, /MARKET_PRIMARY_BUTTON_CLASS/)
   assert.match(itemActions, /MARKET_OUTLINE_BUTTON_CLASS/)
-  assert.match(itemActions, /grid grid-cols-2 gap-2/)
-  assert.match(itemActions, /variant="brandOutline"\s+className="h-auto min-h-11 w-full whitespace-normal"/)
-  assert.match(itemActions, /variant="brand"\s+className="h-auto min-h-11 w-full whitespace-normal"/)
+  // 11번: 담기 버튼 하나(전체 폭). 두 칸 버튼 줄과 구매 버튼은 없다.
+  assert.doesNotMatch(itemActions, /grid grid-cols-2 gap-2/)
+  assert.match(itemActions, /variant="brand"\s+className="mt-3 h-auto min-h-11 w-full whitespace-normal"/)
 })
 
 test('market detail uses smart indigo action buttons and file option icons', () => {
   assert.doesNotMatch(itemActions, /bg-indigo-600/)
   assert.match(itemActions, /variant="brand"/)
+  // 샘플 보기 버튼은 brandOutline 그대로
   assert.match(itemActions, /variant="brandOutline"/)
-  assert.match(itemActions, /grid-cols-2/)
+  assert.doesNotMatch(itemActions, /grid-cols-2/)
   assert.match(itemActions, /border-indigo-500/)
   assert.match(itemActions, /text-indigo-600/)
   assert.match(itemActions, /focus-visible:ring-indigo-300/)

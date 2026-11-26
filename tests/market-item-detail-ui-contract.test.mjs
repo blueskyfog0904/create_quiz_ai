@@ -35,8 +35,9 @@ test('market item detail presents bundle as a package containing subproducts', (
   assert.match(itemActions, /subproducts\.map\(\(subproduct\)/)
   assert.match(itemActions, /subproduct\.title/)
   assert.doesNotMatch(itemActions, /전체 패키지 구매/)
-  assert.match(itemActions, /구매하기/)
-  assert.match(itemActions, /장바구니/)
+  // 11번: 자료 구매는 장바구니로만 한다(상세 '구매하기' 없음, '장바구니 담기' 하나).
+  assert.doesNotMatch(itemActions, /구매하기/)
+  assert.match(itemActions, /장바구니 담기/)
   assert.match(itemActions, /선택 <strong[^>]*>\{selectedOptions\.length\}<\/strong>개/)
   assert.doesNotMatch(itemActions, /총 금액/)
   assert.match(itemActions, /포함 상품 정보가 아직 표시되지 않습니다\./)
@@ -87,29 +88,27 @@ test('market item detail shows legacy paid file rows only to existing owners (le
 })
 
 
-test('market item purchase success uses a centered confirmation dialog instead of a toast', () => {
-  assert.match(itemActions, /MarketPurchaseCompleteDialog/)
-  assert.match(itemActions, /const \[purchaseComplete, setPurchaseComplete\] = useState<MarketPurchaseCompleteResult \| null>\(null\)/)
-  assert.match(itemActions, /setPurchaseComplete\(\{\s*orders: payload\.data\?\.orders/)
-  assert.match(itemActions, /alreadyCompleted: payload\.alreadyCompleted === true/)
+// 11번(계획 7절): 상세에서는 사지 않으므로 구매 완료 창·결제 응답 처리가 없다. 구매 완료 창은 장바구니가 그린다
+// (market-purchase-complete-dialog-contract), 결제 응답 처리는 장바구니 결제 칸 시험(bundle11-cart-route-invariants)이 본다.
+test('market item detail has no purchase success dialog (purchase happens in the cart)', () => {
+  assert.doesNotMatch(itemActions, /MarketPurchaseCompleteDialog/)
+  assert.doesNotMatch(itemActions, /setPurchaseComplete/)
   assert.doesNotMatch(itemActions, /toast\.success\(payload\.message/)
-  assert.match(itemActions, /result=\{purchaseComplete\}/)
-  assert.match(itemActions, /onClose=\{\(\) => setPurchaseComplete\(null\)\}/)
 })
 
 test('market item detail action states and failure messages are explicit', () => {
-  assert.match(itemActions, /OptionState = 'instant' \| 'owned' \| 'included' \| 'available' \| 'unavailable' \| 'checking' \| 'processing'/)
+  assert.match(itemActions, /OptionState = 'instant' \| 'owned' \| 'included' \| 'available' \| 'unavailable'\n/)
+  assert.doesNotMatch(itemActions, /'checking'|'processing'|잔액 확인 중|구매 처리 중|isCheckingBalance/)
+  // 담기 401 은 로그인으로 보낸다. 결제 응답(402·가격 변경·부분 보유 확인·5xx 재시도)은 상세에 없다.
   assert.match(itemActions, /status === 401/)
-  assert.match(itemActions, /status === 402/)
-  assert.match(itemActions, /code === 'PRICE_CHANGED'/)
-  assert.match(itemActions, /code === 'ACK_REQUIRED'/)
-  assert.match(itemActions, /status >= 500/)
+  assert.doesNotMatch(itemActions, /status === 402|code === 'PRICE_CHANGED'|code === 'ACK_REQUIRED'|status >= 500/)
 })
 
 test('market item downloads preserve existing paid file API URLs', () => {
   assert.match(itemActions, /\/api\/market\/items\/\$\{itemId\}\/download\?assetKind=\$\{assetKind\}/)
   assert.doesNotMatch(itemActions, /buildDownloadUrl\(itemId, 'sample'\)/)
-  assert.match(itemActions, /\/api\/market\/items\/\$\{itemId\}\/purchase/)
+  // 11번: 상세 바로 구매 API 를 부르지 않는다(route 는 410 만 남김).
+  assert.doesNotMatch(itemActions, /\/api\/market\/items\/\$\{itemId\}\/purchase/)
 })
 
 test('market item sample preview prefetch is available to visitors when samples exist', () => {

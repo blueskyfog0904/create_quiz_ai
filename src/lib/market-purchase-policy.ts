@@ -64,7 +64,7 @@ export const MARKET_PURCHASE_POLICY_TEXT_LABELS: Record<MarketPurchasePolicyText
   downloadPeriodNotice: '이용 기간·다운로드',
   detailRefundNotice: '상품 상세 환불 안내',
   refundExpiredReason: '환불 기간 지남 안내',
-  purchaseCompleteNotice: '구매 뒤 다운로드 안내',
+  purchaseCompleteNotice: '상품 상세 담기 버튼 아래 안내',
   partialRefundConfirmNotice: '받지 않은 자료 환불 확인',
 }
 

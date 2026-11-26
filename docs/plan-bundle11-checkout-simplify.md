@@ -362,3 +362,40 @@
 1. 시험 계정으로 상품 상세를 열어 담을 때 남는 조회 기록(운영 DB 쓰기)도 허용 범위에 넣어도 되는가. 안 되면 담기는 대표가 미리 해 둔 장바구니로만 보고, 상세 화면 확인은 스위치 없이 1판 그대로 보는 것으로 줄인다.
 2. 10-1 개발 전용 스위치(개발 모드·`VERCEL` 없음·환경 변수 셋 다일 때만, 화면용 값을 2판으로 그리고 기록 감싸개 두 곳이 결제를 막음)를 두는 것에 동의하는가. 두지 않으면 2판 화면은 스크립트 B 뒤 운영에서 처음 보게 되고, 문제가 있으면 되돌림 스크립트로 판 1 로 돌린다.
 3. 4-2 충전 `validity` 초안을 '사라져요'에서 '쓸 수 없어요'로 바꿨다(지금 취소·환불정책과 같은 말). 승인한 초안과 달라졌으니 확인해 달라. (12판)
+
+## 16. 구현 메모 (2026-11-26, 13판 기준 구현 — 커밋·push·DB 적용 안 함)
+### 16-1. 파일
+- **DB**: 마이그레이션 `supabase/migrations/20261216100000_checkout_consent_v2.sql`(12번 `20261214…`·13번 `20261211…` 보다 뒤라 그쪽이 먼저 적용돼도 순서가 맞음), down `supabase/rollback/20261216100000_checkout_consent_v2_down.sql`, 스크립트 A `supabase/scripts/20261216_bundle11_consent_keys.sql`, B `…_bundle11_consent_format_2.sql`, 되돌림 `…_bundle11_consent_format_1.sql`.
+  - 새 함수 md5: `record_purchase_notice_ack`(4인자) `9d2cb23a…`, `record_point_charge_checkout_ack` `4b23fdf6…`, `build_checkout_consent_v2` `3fd97051…`, `build_market_cart_texts` `604251e0…`(운영에서 BEGIN…ROLLBACK 으로 잰 값). 함수 본문을 고치면 네 값과 사전 검사·VERIFY·down·스크립트·시험의 값을 함께 고치고 리허설을 다시 돌린다.
+  - `src/types/supabase.ts` 는 적용 전이라 손으로 같은 모양(4인자·새 칸)을 넣었다. 적용 뒤 생성기로 다시 만든다.
+- **리허설**: 생성기 `supabase/scripts/bundle11_rehearsal/generate.mjs` → `a_light.sql`(지금 가능), `b_full.sql`·`c_snapshot_closed.sql`(새벽). 원본을 고치면 `node supabase/scripts/bundle11_rehearsal/generate.mjs` 로 다시 만든다(시험이 `--check`).
+- **공용(새)**: `src/lib/checkout-consent.ts`(검사·원문·묶음·해석, TS=SQL), `checkout-consent-server.ts`(지문·바닥글 원본·경보), `checkout-consent-preview.ts`(10-1 스위치, 환경 변수 이름은 여기만), `checkout-panel-layout.ts`(`decideCheckoutPanelMode`·칸 폭), `market-selection-conflict.ts`, `cart-checkout-panel.ts`(장바구니 순수 함수), `checkout-consent-admin.ts`; 부품 `src/components/checkout/{checkout-consent,cart-checkout-panel-bottom,market-legacy-consent,checkout-consent-preview-band}.tsx`, `src/components/admin/{checkout-consent-editor,checkout-consent-admin-preview}.tsx`.
+- **바꾼 곳**: 정책 서버 두 파일(읽기 함수·기록 감싸개·저장 함수·캐시 키 v3/v2), `market-cart-server.ts`(뷰 칸 나눔·`categorySlug`·`includesPdf`·409 최상위 `cartTexts`), 장바구니 `cart/_components/*`·`page.tsx`, 장바구니 결제 route(`cartTextsSha256`·영수증 먼저), 담기 route(다시 담은 줄 선택), 상세 `market-item-actions.tsx`·`market-cart-intent.ts`, 상세 구매 route(410)·batch route 문구, 충전 `checkout/page.tsx`·`checkout-client.tsx`·주문 route 409 대체 경로, 관리자 구매 정책·충전 정책 폼/액션, 결제 내역(`mypage-payment-details-server.ts`·`payments-view.tsx`), `admin-audit-log.ts`(스크립트용 `checkout_consent_keys_seed`·`checkout_consent_format_change`). `market-checkout-confirm-dialog.tsx` 는 지웠다(6-5).
+- **시험**: `tests/bundle11-*.test.mjs` 11개 + 예시 묶음 `tests/fixtures/bundle11-consent-examples.json`(TS 단위 시험과 SQL 리허설 FX 가 같은 파일), 기존 시험 22개 고침.
+
+### 16-2. 계획과 다른 점(이유)
+1. 마이그레이션 이름 날짜 `20261216`(3절 예시 `20261210` 대신) — 12·13번 이름보다 뒤에 두려고.
+2. 요약 줄 객체에 모르는 역할 키가 있으면 거절(TS·SQL 같음) — 저장 화면이 만들 수 없는 키가 조용히 빠지지 않게(닫히는 쪽).
+3. 자료 1판 기록의 `consent_details` 는 NULL 이 아니라 `{"cartTexts": null}`(인자 NULL) 또는 `{"cartTexts": {…}}` — 5-4 '읽는 법'을 한 칸으로. replay 비교는 NULL 끼리 같아 옛 행(NULL)과도 맞다.
+4. 2판 검사 실패 경보 코드는 새 `CHECKOUT_CONSENT_V2_UNAVAILABLE`(자료·충전 공용, `dedupe_key` 로 나눔). 1판 정책 읽기 실패 경보(`POINT_CHARGE_POLICY_UNAVAILABLE`)는 그대로.
+5. 리허설 light 는 기록 함수를 **같은 본문의 pg_temp 사본 + 같은 칸의 임시 표**로 돌린다(칸 추가가 표 잠금이라 낮에 못 돌림). 사본이 다른 곳은 함수 이름·표 이름뿐이고 생성기 상수와 계약 시험이 고정한다. ⑥ 경로(겹친 같은 키)는 ② 한 줄만 건너뛰는 사본으로 본다. light 는 실제 기록 표에 쓰지 않는다(옛 함수 호출은 거절 경로만 — '판 2 인 채 down 뒤 옛 함수가 1판으로 기록됨' 두 줄은 `b_full` 에서만). 기록 함수에 넘기는 회원은 `@test.com` 시험 계정만 쓰고, 없으면 `RH FAIL [setup]` 으로 멈춘다. 실제 표·칸은 `b_full.sql`(새벽)이 본다. 사본 없음 경우는 트리거를 끄는 짧은 거래라 `c_snapshot_closed.sql` 로 따로 뒀다(11-2 원칙 3).
+6. 스크립트 VERIFY 의 작업 기록 개수는 스크립트 시작 시각(`v_started`) 뒤만 센다(리허설에서 같은 문장 안에 여러 번 돌려도 맞게).
+7. 개발 띠는 공통 머리글 '위'가 아니라 장바구니·충전 page 맨 위(보통 흐름) — 머리글은 레이아웃이 그려 page 에서 그 위에 둘 수 없음.
+8. 관리자 미리보기의 1366×768 판정은 창 폭 1024px 이상에서만 재고 저장을 막는다(좁은 창은 결제 칸 모양이 달라 잘못 막을 수 있음). 미리보기 폭은 장바구니 칸 폭 상수(`CHECKOUT_PANEL_WIDTH` 400 → 안쪽 358)와 같다.
+9. 장바구니: 409 로 고지 사본을 바꿀 때는 지문이 같아 보여도 동의를 비운다(서버가 바뀌었다고 알렸으므로). 배치 다시 판정에 아래 묶음 ResizeObserver 를 더했다(6-2 원칙 3 '상태가 아닌 이유로 높이가 바뀌면').
+10. 상세 다시 담기의 선택 바꾸기는 DB 함수를 고치지 않고 담기 route 가 같은 요청 안에서 `setMarketCartSelection` 을 이어 부른다(응답 `reselected`).
+11. `b_full.sql` 은 실제 마이그레이션부터 마지막 경우까지 **한 거래**로 두어 두 기록 표 ACCESS EXCLUSIVE 를 끝까지 쥔다(11-2 원칙 3 의 '경우마다 짧은 거래'와 다름). 이유: 실제 표의 칸·CHECK 가 있는 상태는 그 거래 안에서만 생기고(적용하지 않으므로), 경우를 나누면 거래마다 마이그레이션을 다시 돌려 잠금을 여러 번 잡게 된다. 근거: 같은 경우를 담은 `a_light.sql` 이 운영에서 CLI 왕복 포함 약 3초에 끝났다(2026-11-26). 새벽에 실회원이 적을 때, lock_timeout 3초로 돌린다. 길어지면 R0~R3 만 b_full 에 남기고 나머지는 light 로 옮긴다.
+12. 경보(구현 검증 반영): 읽기 경로 외에 **기록 경로**에서 DB 가 판 2 로 닫으면(`NOTICE_POLICY_UNAVAILABLE` + `consentFormat` 2 — 예: 정책 문서 사본 없음, TS 는 사본을 보지 않음)과 **판 값 오류**(저장된 `consentFormat` 이 글자 "2"·3·null 등, 스위치가 꺼졌을 때만)에도 `CHECKOUT_CONSENT_V2_UNAVAILABLE` 경보를 남긴다.
+
+### 16-3. 리허설
+- **light — 2026-11-26 운영에서 실행, PASS**(구현 재검증 반영 뒤 다시 실행: 126줄 — R0 9·R1 6·R2 10·R3 10·R4 17·R5 6·R6 16(판 2 인 채 down 거절 경로 포함, 기록 두 줄은 b_full)·R7 20(5-5 목록 14개 + record_admin_audit, 마이그레이션 v_same 을 생성기가 그대로 옮김)·R8 3·R9 14·R10 4·FX 11, 예시 52건 TS=SQL, 판 값 8건, 약 3초). 실행 뒤 읽기 조회로 운영 함수 md5(`fa6a7edd…`·`be4403fd…`)·두 정책 값 md5(`2b637c7b…`·`ae5790d5…`)·작업 기록 0건이 그대로임을 확인.
+  ```
+  supabase db query --remote --yes -o json --file supabase/scripts/bundle11_rehearsal/a_light.sql
+  ```
+- **새벽에 돌릴 것**(표 잠금 DDL 포함, 아직 안 돌림): `b_full.sql`(실제 마이그레이션 — 두 기록 표 ACCESS EXCLUSIVE), `c_snapshot_closed.sql`(사본 트리거를 그 거래에서만 끔). 같은 명령에서 파일 이름만 바꾼다. 돌린 뒤 `prevent_policy_document_snapshot_mutation` 트리거가 켜져 있는지(`tgenabled = 'O'`) 읽기 조회로 본다.
+- 게시 행(`policy_upcoming_documents`)이 `upcoming` 이면 R4 링크 문서 경우가 `RH FAIL` 로 멈춘다(3절 예외 — 그때는 그 경우에서만 잠금 트리거를 끄는 사본이 필요).
+
+### 16-4. 남은 일
+- 11-3 화면 시험(Claude in Chrome)은 하지 않았다(이번 구현은 브라우저 없이). 10절 5단계 전에 1판(실제)·2판(`CHECKOUT_CONSENT_PREVIEW=2 npm run dev`)으로 본다.
+- 15절 끝 '대표에게 물을 것' 3개는 기본안으로 구현했다(스위치 포함, `validity` 초안 '쓸 수 없어요', 상세 조회 기록 허용 여부는 화면 확인 전에 답 필요).
+- 구현 검증(5관점, 2026-11-26) 반영: 장바구니 409 뒤 뷰도 같은 고지 사본으로 맞춤(다음 줄 선택 때 옛 고지로 되돌아가지 않음), 결제 응답 뒤 다시 읽기가 응답 이유(alert)를 '주문 내용이 바뀌었습니다'로 덮지 않음(고지가 바뀌었으면 이유 뒤에 붙임), 지난 안내는 다음 조작 때 비워 sr-only 막힌 이유가 다시 읽힘, 빈 장바구니에서 막대 여백 없음, 위 16-2 의 11·12, 관리자 작업 기록은 저장 전·뒤 지문에 모두 드는 칸만 전문에서 뺌, 항목 모양·키 문제도 편집 화면에 보임, 미리보기 겉폭을 칸 폭(400 → 안쪽 358)과 같게, down 머리말(이력 행은 지우지 않음).

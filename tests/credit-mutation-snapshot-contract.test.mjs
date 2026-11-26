@@ -12,6 +12,11 @@ const marketPurchaseRouteSource = readFileSync(
   'utf8'
 )
 
+const cartCheckoutRouteSource = readFileSync(
+  new URL('../src/app/api/market/cart/checkout/route.ts', import.meta.url),
+  'utf8'
+)
+
 const marketBatchRouteSource = readFileSync(
   new URL('../src/app/api/market/purchases/batch/route.ts', import.meta.url),
   'utf8'
@@ -50,9 +55,12 @@ test('credit balance helper exposes a reusable response-fields builder for mutat
 })
 
 test('market purchase uses snapshot-backed balance fields and deprecated batch stays closed', () => {
-  assert.match(marketPurchaseRouteSource, /getCreditBalanceSnapshot/)
-  assert.match(marketPurchaseRouteSource, /buildCreditBalanceResponseFields/)
-  assert.match(marketPurchaseRouteSource, /\.\.\.buildCreditBalanceResponseFields\(snapshot\)/)
+  // 11번: 자료 구매는 장바구니 결제 route 만 한다(상세 route 는 410, 잔액 응답 없음).
+  assert.match(cartCheckoutRouteSource, /getCreditBalanceSnapshot/)
+  assert.match(cartCheckoutRouteSource, /buildCreditBalanceResponseFields/)
+  assert.match(cartCheckoutRouteSource, /\.\.\.buildCreditBalanceResponseFields\(snapshot\)/)
+  assert.match(marketPurchaseRouteSource, /MARKET_DIRECT_PURCHASE_CLOSED/)
+  assert.doesNotMatch(marketPurchaseRouteSource, /getCreditBalanceSnapshot|runMarketCheckout/)
 
   assert.match(marketBatchRouteSource, /BATCH_PURCHASE_DEPRECATED/)
   assert.match(marketBatchRouteSource, /status:\s*410/)

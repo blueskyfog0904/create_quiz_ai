@@ -13,8 +13,9 @@ import { createAdminClient } from '@/lib/supabase/bypass'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import type { MarketPurchaseNotice } from '@/lib/market-purchase-policy'
 import { buildMarketPurchaseInfo, type MarketPurchaseLink } from '@/lib/market-purchase-info'
-import { getMarketPurchasePolicyView, toMarketPurchaseNotice } from '@/lib/market-purchase-policy-server'
+import { readMarketPurchaseConsentUncached, type MarketPurchaseConsentRead } from '@/lib/market-purchase-policy-server'
 import { getSiteFooterContent } from '@/lib/footer-content-server'
+import type { CheckoutConsentBundle, MarketCartTexts } from '@/lib/checkout-consent'
 
 export type MarketCartTargetKind = 'subproduct' | 'bundle'
 
@@ -36,14 +37,24 @@ export interface MarketCartItem {
   createdAt: string
   // 상세가 열리는 상품만 링크를 준다(게시·활성 상품 + 공개 메뉴, 같은 과목). 그 외는 null.
   detailHref: string | null
+  // 11번 6-3: 함께 살 수 없는 선택 미리 막기(evaluate_market_targets 값 그대로 — DB 결제 6단계와 같은 판정에 쓴다)
+  categorySlug: string | null
+  includesPdf: boolean
 }
 
 export interface MarketCartView {
   items: MarketCartItem[]
   count: number
   balance: number
-  // 구매 확인창 고지(DB 문구·서버 지문). 읽지 못하면 null — 구매 버튼이 막힌다.
+  // 11번 5-2: 해석기를 거치지 않는 옛 탭을 위해 판마다 칸을 나눈다. 둘 중 하나만 값이 있다(읽지 못하면 둘 다 null — 결제 막힘).
+  // 1판 고지(펼친 고지, DB 문구·서버 지문). 2판일 때는 null 이라 옛 장바구니 탭은 막힌다.
   purchaseNotice: MarketPurchaseNotice | null
+  // 2판 묶음(접는 동의). 1판일 때는 null.
+  purchaseConsent: CheckoutConsentBundle | null
+  // 장바구니 결제 칸 문구(판과 관계없음). 규칙을 어기거나 읽지 못하면 null — 결제 막힘.
+  cartTexts: MarketCartTexts | null
+  // 개발 스위치(10-1)가 켜졌을 때만 값이 있다.
+  consentPreview: { keysMissing: boolean } | null
   termsLink: MarketPurchaseLink | null
   refundPolicyLink: MarketPurchaseLink | null
 }
@@ -66,6 +77,8 @@ interface EvaluatedTarget {
   itemTitle: string | null
   optionTitle: string | null
   categoryName: string | null
+  categorySlug: string | null
+  includesPdf: boolean | null
   purchasable: boolean
   reason: MarketCartItem['reason']
   partiallyOwned: boolean
@@ -82,12 +95,26 @@ function cartDb() {
   return createAdminClient() as unknown as SupabaseClient
 }
 
-export function marketCartErrorResponse(failure: Pick<MarketCartFailure, 'status' | 'code' | 'message' | 'details'>) {
+export function marketCartErrorResponse(failure: Pick<MarketCartFailure, 'status' | 'code' | 'message' | 'details'> & {
+  cartTexts?: MarketCartTexts | null
+}) {
   return NextResponse.json({
     success: false,
     error: { code: failure.code, message: failure.message },
     details: failure.details,
+    // 11번 5-2: 구매 고지 409 에만 최상위 장바구니 문구 자리를 둔다.
+    ...(failure.cartTexts !== undefined ? { cartTexts: failure.cartTexts } : {}),
   }, { status: failure.status })
+}
+
+// 11번 4-4: 장바구니 화면용 동의 읽기(캐시 없음). 1판 정책을 읽지 못하면 고지 없음(결제 막힘).
+async function readCartConsent(): Promise<MarketPurchaseConsentRead | null> {
+  try {
+    return await readMarketPurchaseConsentUncached()
+  } catch (error) {
+    console.error('구매 고지 설정 조회에 실패했습니다.', error)
+    return null
+  }
 }
 
 // 5절 공통: 비로그인 → 401. userId는 세션에서만 얻는다.
@@ -206,9 +233,9 @@ export async function getMarketCartView(userId: string): Promise<MarketCartView>
     db,
     [...new Set(evaluated.flatMap((target) => (target.itemId ? [target.itemId] : [])))]
   )
-  const [snapshot, purchasePolicy, footerContent] = await Promise.all([
+  const [snapshot, consentRead, footerContent] = await Promise.all([
     getCreditBalanceSnapshot(userId),
-    getMarketPurchasePolicyView(),
+    readCartConsent(),
     getSiteFooterContent(),
   ])
   const purchaseInfo = buildMarketPurchaseInfo(footerContent)
@@ -233,11 +260,16 @@ export async function getMarketCartView(userId: string): Promise<MarketCartView>
         isSelected: row.is_selected,
         createdAt: row.created_at,
         detailHref: target.itemId ? detailHrefs.get(target.itemId) ?? null : null,
+        categorySlug: target.categorySlug ?? null,
+        includesPdf: target.includesPdf === true,
       }
     }),
     count: rows.length,
     balance: selectDisplayBalance(userId, snapshot),
-    purchaseNotice: purchasePolicy ? toMarketPurchaseNotice(purchasePolicy) : null,
+    purchaseNotice: consentRead?.consentFormat === 1 ? consentRead.notice : null,
+    purchaseConsent: consentRead?.consentFormat === 2 ? consentRead.consent : null,
+    cartTexts: consentRead?.cartTexts ?? null,
+    consentPreview: consentRead?.preview ?? null,
     termsLink: purchaseInfo.termsLink,
     refundPolicyLink: purchaseInfo.refundPolicyLink,
   }

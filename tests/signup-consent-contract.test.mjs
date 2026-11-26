@@ -174,7 +174,7 @@ test('미들웨어: 가입을 마친 카카오 회원도 판정하고, 마치지
   assert.match(source, /abortSignal\(AbortSignal\.timeout\(CONSENT_GATE_TIMEOUT_MS\)\)/)
 })
 
-test('돈 API: 크레딧 차감·자료 구매·충전 주문을 부르는 회원 핸들러는 모두 인증 직후 동의를 확인한다(8개 — 카카오페이 주문은 9번에서 503 으로 막음)', () => {
+test('돈 API: 크레딧 차감·자료 구매·충전 주문을 부르는 회원 핸들러는 모두 인증 직후 동의를 확인한다(7개 — 카카오페이 주문은 9번에서 503, 상세 바로 구매는 11번에서 410 으로 막음)', () => {
   const files = walk('src/app/api').filter((path) => !path.includes('/api/admin/') && /\.ts$/.test(path))
   const guarded = []
   for (const path of files) {
@@ -196,7 +196,6 @@ test('돈 API: 크레딧 차감·자료 구매·충전 주문을 부르는 회�
     'generate/listboard-jobs/[jobId]/retry/route.ts POST',
     'generate/listboard-jobs/[jobId]/run/route.ts POST',
     'market/cart/checkout/route.ts POST',
-    'market/items/[itemId]/purchase/route.ts POST',
     'payments/payapp/orders/route.ts POST',
     'questions/generate/route.ts POST',
     'questions/save-from-community/route.ts POST',
@@ -210,7 +209,8 @@ test('돈 API: 크레딧 차감·자료 구매·충전 주문을 부르는 회�
   assert.equal(client.readConsentBlockCode(403, { code: 'CONSENT_REQUIRED' }), 'CONSENT_REQUIRED')
   assert.equal(client.readConsentBlockCode(403, { error: { code: 'CONSENT_REQUIRED' } }), 'CONSENT_REQUIRED')
   assert.equal(client.readConsentBlockCode(400, { code: 'CONSENT_REQUIRED' }), null)
-  for (const path of ['src/app/checkout/checkout-client.tsx', 'src/app/(solvook)/cart/_components/cart-view.tsx', 'src/components/market/market-item-actions.tsx']) {
+  // 11번: 상품 상세는 구매하지 않으므로(담기만) 결제하는 두 화면만 본다.
+  for (const path of ['src/app/checkout/checkout-client.tsx', 'src/app/(solvook)/cart/_components/cart-view.tsx']) {
     assert.match(read(path), /redirectToConsentIfRequired\(response\.status, /, path)
   }
 })
