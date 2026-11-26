@@ -280,6 +280,43 @@ test('10번 스크립트: 시행 검사 순서(상수·날짜 → 15번 마이�
   assert.match(DO_BLOCK, /RAISE EXCEPTION 'VERIFY: latest snapshots differ from published upcoming documents'/)
 })
 
+test('10번 스크립트: 12·13번 객체 점검과 5-0 보관 기간 대조는 apply 분기 안에만 있다(게시 지문과 무관)', () => {
+  const body = code(DO_BLOCK)
+  const objects = between(body, "  IF c_mode = 'apply' THEN\n    IF EXISTS (SELECT 1 FROM public.member_withdrawal_requests", '\n  END IF;\n')
+  const retention = between(body, "  IF c_mode = 'apply' THEN\n    v_num := (SELECT value #>> '{admin,accessLogRetentionYears}'", '\n  END IF;\n')
+  assert.match(objects, /RAISE EXCEPTION 'POLICY_TEXT: bundle 12\/13 objects missing/)
+  assert.match(retention, /regexp_matches\(v_privacy_new \|\| E'\\n' \|\| v_item_privacy_content \|\| E'\\n' \|\| c_privacy_note,\s+'기록한 날부터 \(\[0-9\]\+\)년', 'g'\)/)
+  assert.match(retention, /IF v_count < 3 THEN/)
+  for (const needle of ['bundle 12/13 objects missing', "'{admin,accessLogRetentionYears}'"]) {
+    assert.equal(count(body, needle), 1, needle)
+  }
+})
+
+test('10번 스크립트: 12·13번 객체 이름 다섯 개가 12번(4-2·4-4)·13번(4-1) 계획과 같다', () => {
+  const plan12 = read('docs/plan-bundle12-member-suspension.md')
+  const plan13 = read('docs/plan-bundle13-cs-tools.md')
+  const body = code(DO_BLOCK)
+  for (const name of ['member_suspensions', 'member_admin_notes']) {
+    assert.ok(body.includes(`to_regclass('public.${name}')`), name)
+    assert.ok(plan12.includes(`**\`${name}\`**`), `12번 계획 ${name}`)
+  }
+  assert.match(body, /f\.prosrc LIKE '%member_suspensions%' AND f\.prosrc LIKE '%member_admin_notes%'/)
+  assert.ok(plan12.includes('AFTER UPDATE OF `withdrawn_at` 트리거'), '12번 계획 4-4 트리거')
+  assert.ok(body.includes("to_regclass('public.admin_member_access_log')"))
+  assert.ok(body.includes("f.proname = 'record_admin_member_access'"))
+  assert.ok(plan13.includes('**표 `admin_member_access_log`**') && plan13.includes('`record_admin_member_access('), '13번 계획 4-1')
+})
+
+test("10번 스크립트: 처리방침·동의 privacy·변경 안내의 '기록한 날부터 N년'은 정확히 5건이고 모두 2년(13번 Q5)", () => {
+  const texts = [
+    between(DO_BLOCK, '  p_pairs := ARRAY[', '\n  ];'),
+    between(DO_BLOCK, '  ip_pairs := ARRAY[', '\n  ];'),
+    between(DO_BLOCK, 'c_privacy_note constant text := $q$', '$q$;'),
+  ].map(code).join('\n')
+  const years = [...texts.matchAll(/기록한 날부터 ([0-9]+)년/g)].map((m) => m[1])
+  assert.deepEqual(years, ['2', '2', '2', '2', '2'])
+})
+
 test('10번 스크립트: 고지 그만두기(withdraw_upcoming)·되돌리기 블록은 reverted, 확인 조회는 방식별', () => {
   const withdraw = between(DO_BLOCK, "  IF c_mode = 'withdraw_upcoming' THEN", '    RETURN;\n  END IF;')
   assert.match(withdraw, /IF c_withdraw_reason IS NULL OR btrim\(c_withdraw_reason\) = '' THEN/)
@@ -380,7 +417,7 @@ test('리허설: 모두 BEGIN … 마지막 SELECT … ROLLBACK, COMMIT 없음, 
 
 test('리허설: 표 잠금 문장은 새벽 파일에만 — light·E 에는 CREATE/DROP POLICY·DROP TRIGGER·CREATE TRIGGER 가 없다', () => {
   const ddl = /^\s*(CREATE POLICY|DROP POLICY|DROP TRIGGER|CREATE TRIGGER|ALTER TABLE|LOCK TABLE)\b/m
-  for (const name of ['e_withdraw_text.sql', 'b_cases_light.sql', 'c_preview_light.sql']) {
+  for (const name of ['e_withdraw_text.sql', 'b_cases_light.sql', 'c_preview_light.sql', 'd_preview_after_apply.sql']) {
     assert.doesNotMatch(code(files[name]), ddl, name)
     assert.match(files[name], /-- 언제: 지금 돌려도 됨/, name)
   }
@@ -433,7 +470,7 @@ test('리허설: 저장 함수로 바꾸는 값은 다듬기(앞뒤 공백 제�
 test('리허설: 미리보기 추출(R4 나)은 별도 짧은 거래 파일에만, 경우 목록이 다 있음', () => {
   for (const [name, sql] of Object.entries(files)) {
     const hasPreview = sql.includes('$rh_r4b_preview$')
-    assert.equal(hasPreview, name.startsWith('c_preview'), name)
+    assert.equal(hasPreview, name.startsWith('c_preview') || name === 'd_preview_after_apply.sql', name)
   }
   assert.match(files['c_preview.sql'], /pg_temp\.log\('R4나', '미리보기 파일 payload\(output\/b15-upcoming-preview\.json\)', v_pub\);/)
   for (const name of ['b_cases.sql', 'b_cases_light.sql']) {

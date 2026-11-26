@@ -6,6 +6,8 @@
 //   모든 파일은 BEGIN … 마지막 SELECT … ROLLBACK 이다(COMMIT 없음). 결과는 ON COMMIT DROP 임시 표 _rh_log 로 받는다.
 //   지금(낮) 돌려도 되는 파일: e_withdraw_text, b_cases_light, c_preview_light (표 잠금 DDL 없음 — 행 잠금·함수 생성·advisory 잠금뿐)
 //   새벽에만 돌릴 파일: a_ddl(CREATE/DROP POLICY·DROP TRIGGER — 읽기도 막음), b_cases·c_preview(CREATE TRIGGER — 쓰기를 막음)
+//   15번 마이그레이션이 운영에 적용된 뒤(2026-11-26~)에는 a·b·c 는 사본 마이그레이션이 사전 점검에서 멈춘다. 그 뒤 지문·미리보기는
+//   d_preview_after_apply(사본 없음, 실제 함수·트리거·정책으로 게시 → 지문·payload → ROLLBACK, 표 잠금 DDL 없음)로 뽑는다.
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -445,6 +447,9 @@ ${records.map(([after, savedAt, revAfter]) => `      PERFORM pg_temp.fake_save($
 }
 
 // R4: 고친 10번 스크립트(게시·시행·그만두기). flags 는 사본 종류(정책 없음·트리거 없음).
+// 낡은 기대값(2026-11-26): 15번이 운영에 적용된 뒤에는 이 경우들(a·b·c 파일)을 돌릴 수 없다. 또 10번 스크립트 apply 가 12·13번 객체 점검에서
+//   먼저 멈추므로 R4가 '시행 OK'·R4다 시행 멈춤 기대값(NO_RECORDS·fingerprints differ 등)은 지금 맞지 않는다. 시행 경로는 12·13번 적용 뒤
+//   apply BEGIN … ROLLBACK 리허설(15번 계획 10절 8단계)로 본다.
 function casesPolicyText(flags, withTriggers) {
   const f = `ARRAY[${flags.map(sqlString).join(', ')}]::text[]`
   const fr = `ARRAY[${[...flags, 'relax_const'].map(sqlString).join(', ')}]::text[]`
@@ -869,6 +874,10 @@ export function buildRehearsalFiles() {
     '새벽 03~04시(CREATE TRIGGER). 별도 짧은 거래(원칙 2).')
     + `-- ===== 15번 마이그레이션 사본(nopolicy) =====\n${migrationCopy('nopolicy')}\n${POPUP_HELPERS}`
     + casePreview(['skip_policies']) + FOOT
+
+  files['d_preview_after_apply.sql'] = head('D — 15번 마이그레이션 적용 뒤: 실제 객체로 R4 (나) 게시 → 미리보기 파일·지문 5개(사본 없음)',
+    '지금 돌려도 됨(15번 마이그레이션이 운영에 적용된 뒤에만. DDL 없음 — 게시 행 삽입·작업 기록·행 잠금뿐, 끝에 ROLLBACK). 결과 payload 를 output/b15-upcoming-preview.json 으로 꺼낸다.')
+    + casePreview([]) + FOOT
 
   files['a_ddl.sql'] = head('A — R1 적용·R3 쓰기 막기와 잠금·R5-2 되돌리기 → 다시 적용(실제 마이그레이션)',
     '새벽 03~04시만. CREATE/DROP POLICY·DROP TRIGGER 가 system_settings·signup_consent_items 읽기까지 막는다. lock_timeout 3초.')
