@@ -1,0 +1,36 @@
+import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
+import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import { MARKET_ITEM_OPTION_KINDS } from '@/lib/market-item-options'
+import {
+  isProductInfoPreviewEnabled,
+  readMarketItemDisplayForAdmin,
+  readMarketItemOptionsWithCounts,
+} from '@/lib/market-item-options-server'
+import { ProductSettingsAdmin } from './product-settings-admin'
+
+interface ProductSettingsPageProps {
+  searchParams?: Promise<{ subject?: string }>
+}
+
+// 17번 7-1: 상품 표시 설정(과목별 메뉴). 학년·자료유형·이용 근거(내부) 목록은 주소의 과목, 검색 필터 이름은 국어·영어 공통 1행.
+// 쓰기는 관리자 route → DB 함수만(같은 거래에서 작업 기록). 읽기는 캐시 없이 서버 키로.
+export default async function ProductSettingsPage({ searchParams }: ProductSettingsPageProps) {
+  await requireAdminPagePermission('products.edit')
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const workspaceSubject = resolveAdminWorkspaceSubject(resolvedSearchParams?.subject)
+
+  const [lists, display] = await Promise.all([
+    Promise.all(MARKET_ITEM_OPTION_KINDS.map(async (kind) => [kind, await readMarketItemOptionsWithCounts(workspaceSubject, kind)] as const)),
+    readMarketItemDisplayForAdmin(),
+  ])
+
+  return (
+    <ProductSettingsAdmin
+      key={workspaceSubject}
+      workspaceSubject={workspaceSubject}
+      initialLists={Object.fromEntries(lists) as Parameters<typeof ProductSettingsAdmin>[0]['initialLists']}
+      initialDisplay={display}
+      preview={isProductInfoPreviewEnabled()}
+    />
+  )
+}

@@ -8,6 +8,7 @@ import { StudioContainer, StudioEmptyState } from '@/components/design-system'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { MarketItemCard } from '@/components/market/market-item-card'
 import type { MarketSearchResult, MarketSearchSort } from '@/lib/market-search-server'
+import { MARKET_ITEM_FACET_KEYS, type MarketItemFacetKey } from '@/lib/market-item-options'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 
 interface SearchSelections {
@@ -23,16 +24,14 @@ interface SearchViewProps {
   result: MarketSearchResult
   selections: SearchSelections
   sort: MarketSearchSort
+  // 필터 이름(DB 상품 표시 설정). null 이면 이름만 숨기고 필터 동작은 그대로다.
+  facetLabels: Record<MarketItemFacetKey, string> | null
 }
 
 type FacetKey = keyof SearchSelections
 
-const FACET_DEFS: { key: FacetKey; label: string }[] = [
-  { key: 'category', label: '카테고리' },
-  { key: 'type', label: '자료유형' },
-  { key: 'year', label: '연도' },
-  { key: 'grade', label: '학년' },
-]
+// 필터 key(주소 ?type= 등)는 코드, 이름은 DB(17번 market_item_display.facetLabels). 'type' 은 서브상품 구성을 거른다.
+const FACET_DEFS: { key: FacetKey }[] = MARKET_ITEM_FACET_KEYS.map((key) => ({ key }))
 
 const SORT_OPTIONS: { value: MarketSearchSort; label: string }[] = [
   { value: 'views', label: '인기순' },
@@ -40,7 +39,7 @@ const SORT_OPTIONS: { value: MarketSearchSort; label: string }[] = [
   { value: 'price_asc', label: '낮은 가격순' },
 ]
 
-export function SearchView({ subject, q, result, selections, sort }: SearchViewProps) {
+export function SearchView({ subject, q, result, selections, sort, facetLabels }: SearchViewProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [openFacetKey, setOpenFacetKey] = useState<FacetKey | null>(null)
@@ -156,62 +155,67 @@ export function SearchView({ subject, q, result, selections, sort }: SearchViewP
       </h1>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
-        <span className="text-sm font-bold text-[var(--studio-ink)]">상세 필터</span>
-        <div ref={facetBarRef} className="flex flex-wrap items-center gap-2">
-          {FACET_DEFS.map((facet) => {
-            const options = facetOptionsByKey[facet.key]
-            const selectedCount = selections[facet.key].length
-            const disabled = options.length === 0 && selectedCount === 0
-            const open = openFacetKey === facet.key
-            return (
-              <div key={facet.key} className="relative">
-                <button
-                  type="button"
-                  disabled={disabled}
-                  aria-haspopup="true"
-                  aria-expanded={open}
-                  onClick={() => setOpenFacetKey(open ? null : facet.key)}
-                  className={`inline-flex min-h-10 items-center gap-1 rounded-lg border bg-[var(--studio-surface)] px-3.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${
-                    selectedCount > 0
-                      ? 'border-[var(--studio-ink)] font-bold text-[var(--studio-ink)]'
-                      : disabled
-                        ? 'cursor-not-allowed border-[var(--studio-border)] font-medium text-[var(--studio-muted)] opacity-50'
-                        : 'border-[var(--studio-control-border)] font-medium text-[var(--studio-muted)] hover:border-[var(--studio-ink)] hover:text-[var(--studio-ink)]'
-                  }`}
-                >
-                  {facet.label}
-                  {selectedCount > 0 && <span>{selectedCount}</span>}
-                  <ChevronDown
-                    aria-hidden="true"
-                    className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`}
-                  />
-                </button>
-                {open && (
-                  <div className="absolute left-0 top-full z-20 mt-1 max-h-72 w-64 overflow-y-auto rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] py-2 shadow-[var(--studio-shadow-card)]">
-                    {options.map((option) => {
-                      const checked = selections[facet.key].includes(option.value)
-                      return (
-                        <label
-                          key={option.value}
-                          className="flex min-h-10 cursor-pointer items-center gap-2.5 px-4 text-sm text-[var(--studio-ink)] hover:bg-[var(--studio-background)]"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleFacetValue(facet.key, option.value)}
-                            className="size-4 accent-[var(--studio-primary)]"
-                          />
-                          <span className="min-w-0 flex-1 break-keep">{option.label}</span>
-                          <span className="text-xs text-[var(--studio-muted)]">{option.count}</span>
-                        </label>
-                      )
-                    })}
+        {/* 17번: 필터 이름(DB)을 못 읽으면 필터 막대를 숨긴다(코드에 기본 이름을 두지 않음). 정렬은 그대로. */}
+        {facetLabels ? (
+          <>
+            <span className="text-sm font-bold text-[var(--studio-ink)]">상세 필터</span>
+            <div ref={facetBarRef} className="flex flex-wrap items-center gap-2">
+              {FACET_DEFS.map((facet) => {
+                const options = facetOptionsByKey[facet.key]
+                const selectedCount = selections[facet.key].length
+                const disabled = options.length === 0 && selectedCount === 0
+                const open = openFacetKey === facet.key
+                return (
+                  <div key={facet.key} className="relative">
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      aria-haspopup="true"
+                      aria-expanded={open}
+                      onClick={() => setOpenFacetKey(open ? null : facet.key)}
+                      className={`inline-flex min-h-10 items-center gap-1 rounded-lg border bg-[var(--studio-surface)] px-3.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${
+                        selectedCount > 0
+                          ? 'border-[var(--studio-ink)] font-bold text-[var(--studio-ink)]'
+                          : disabled
+                            ? 'cursor-not-allowed border-[var(--studio-border)] font-medium text-[var(--studio-muted)] opacity-50'
+                            : 'border-[var(--studio-control-border)] font-medium text-[var(--studio-muted)] hover:border-[var(--studio-ink)] hover:text-[var(--studio-ink)]'
+                      }`}
+                    >
+                      {facetLabels[facet.key]}
+                      {selectedCount > 0 && <span>{selectedCount}</span>}
+                      <ChevronDown
+                        aria-hidden="true"
+                        className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+                    {open && (
+                      <div className="absolute left-0 top-full z-20 mt-1 max-h-72 w-64 overflow-y-auto rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] py-2 shadow-[var(--studio-shadow-card)]">
+                        {options.map((option) => {
+                          const checked = selections[facet.key].includes(option.value)
+                          return (
+                            <label
+                              key={option.value}
+                              className="flex min-h-10 cursor-pointer items-center gap-2.5 px-4 text-sm text-[var(--studio-ink)] hover:bg-[var(--studio-background)]"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleFacetValue(facet.key, option.value)}
+                                className="size-4 accent-[var(--studio-primary)]"
+                              />
+                              <span className="min-w-0 flex-1 break-keep">{option.label}</span>
+                              <span className="text-xs text-[var(--studio-muted)]">{option.count}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+                )
+              })}
+            </div>
+          </>
+        ) : null}
         <div className="ml-auto flex items-center gap-2">
           {isPending && <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin text-[var(--studio-muted)]" />}
           <select

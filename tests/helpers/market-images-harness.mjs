@@ -8,6 +8,8 @@ const require = createRequire(import.meta.url)
 // 의존성이 없는 순수 규칙 모듈은 가짜 없이 실제 파일을 쓴다(8번 market-refund-rules: 마감·차단 범위).
 const PURE_MODULES = {
   '@/lib/market-refund-rules': () => load('src/lib/market-refund-rules.ts'),
+  // 17번 상품 목록·표시 설정 규칙(종류·상한·검사 — 의존 없음)
+  '@/lib/market-item-options': () => load('src/lib/market-item-options.ts'),
 }
 
 export function load(path, mocks = {}, errors = []) {
@@ -136,6 +138,8 @@ export function loadRoute(path, { loggedIn = true, isAdmin = true, admin, userId
     '@/lib/supabase/bypass': { createAdminClient: () => admin?.client },
     '@/lib/read-all-query-rows': readAllQueryRows,
     '@/lib/market-images': marketImages,
+    // 17번: 상품 저장 route 의 학년·자료유형 목록 검사(DB 읽기)는 기본으로 통과시킨다. 검사를 보는 시험은 mocks 로 바꾼다.
+    '@/lib/market-item-options-server': { findMarketItemProductOptionProblem: async () => null },
   }
   const server = load('src/lib/market-images-server.ts', common, errors)
   const route = load(path, { ...common, '@/lib/market-images-server': server, ...mocks }, errors)

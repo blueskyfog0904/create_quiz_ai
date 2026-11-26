@@ -62,10 +62,10 @@ test('대표는 모든 메뉴, staff는 받은 권한의 메뉴와 대시보드�
     visibleMenus(staff('support.manage', 'orders.view', 'members.view', 'credits.view', 'refunds.market')),
     ['/admin', '/admin/users', '/admin/support', '/admin/credits', '/admin/refunds', '/admin/orders']
   )
-  // 상품 권한만 — 상품·이미지·카테고리 메뉴
+  // 상품 권한만 — 상품·이미지·카테고리·상품 표시 설정(17번) 메뉴
   assert.deepEqual(
     visibleMenus(staff('products.edit')),
-    ['/admin', '/admin/market/products/new', '/admin/market/products', '/admin/market/images', '/admin/market-categories']
+    ['/admin', '/admin/market/products/new', '/admin/market/products', '/admin/market/images', '/admin/market-categories', '/admin/market/product-settings']
   )
   // 함께 필요한 권한이 빠지면(마켓 환불에 주문 조회 없음) 그 메뉴도 보이지 않는다.
   assert.deepEqual(visibleMenus(staff('refunds.market')), ['/admin'])

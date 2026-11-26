@@ -21,12 +21,16 @@ import { FileTypeDocIcon } from '@/components/market/file-type-doc-icon'
 import type { MarketLibraryRow } from '@/lib/market-items-server'
 import { getMarketDownloadButtonLabels } from '@/lib/market-download-label'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import type { MarketItemFacetKey } from '@/lib/market-item-options'
 
 interface LibraryViewProps {
   rows: MarketLibraryRow[]
   subject: WorkspaceSubject
   // 받지 않은 자료 환불 확인창 문구(DB market_purchase_policy.partialRefundConfirmNotice). null 이면 부분 환불 신청을 막는다.
   partialRefundNotice: string | null
+  // 17번: 필터 이름·빈 화면 안내(DB 상품 표시 설정). null 이면 이름·안내만 숨기고 필터 동작은 그대로다.
+  facetLabels: Record<MarketItemFacetKey, string> | null
+  emptyFilterHint: string | null
 }
 
 type SortOption = 'latest' | 'name'
@@ -55,23 +59,21 @@ const SUBJECT_TABS: { value: WorkspaceSubject; label: string }[] = [
 
 // DB에 이미 있는 항목만으로 구성한 패싯 정의.
 // 이후 교재/단원 등 새 항목이 DB에 채워지면 여기 한 줄 추가로 같은 드롭다운·칩·초기화가 붙는다.
+// 필터 이름은 DB(17번 market_item_display.facetLabels)에서 받는다. key 와 거르는 동작은 코드다.
 interface LibraryFacet {
-  key: string
-  label: string
+  key: MarketItemFacetKey
   getValues: (row: MarketLibraryRow) => string[]
 }
 
 const LIBRARY_FACETS: LibraryFacet[] = [
   {
     key: 'category',
-    label: '카테고리',
     // 카테고리 경로(depth1 > … > 연결 칸). 경로가 없는 상품(미지정·비활성 칸)은 값 없음.
     // 검색 패싯과 같은 depth1~2 단위로 묶는다.
     getValues: (row) => (row.categoryPath.length > 0 ? [row.categoryPath.slice(0, 2).map((node) => node.title).join(' > ')] : []),
   },
   {
     key: 'type',
-    label: '자료유형',
     getValues: (row) => {
       const values = [...row.v2OwnedLabels]
       if (row.pdfOwned) values.push('PDF')
@@ -82,12 +84,10 @@ const LIBRARY_FACETS: LibraryFacet[] = [
   },
   {
     key: 'year',
-    label: '연도',
     getValues: (row) => (row.examYear ? [String(row.examYear)] : []),
   },
   {
     key: 'grade',
-    label: '학년',
     getValues: (row) => (row.gradeLevel ? [row.gradeLevel] : []),
   },
 ]
@@ -151,7 +151,7 @@ function LibraryCover({ src }: { src?: string | null }) {
   )
 }
 
-export function LibraryView({ rows, subject, partialRefundNotice }: LibraryViewProps) {
+export function LibraryView({ rows, subject, partialRefundNotice, facetLabels, emptyFilterHint }: LibraryViewProps) {
   const router = useRouter()
   const listQuery = useListQuery()
   const searchParams = listQuery.params
@@ -458,63 +458,66 @@ export function LibraryView({ rows, subject, partialRefundNotice }: LibraryViewP
         </select>
       </div>
 
-      <div ref={facetBarRef} className="mt-3 flex flex-wrap items-center gap-2">
-        {LIBRARY_FACETS.map((facet) => {
-          const counts = facetOptions.get(facet.key) ?? new Map<string, number>()
-          const options = Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0], 'ko'))
-          const selectedCount = facetSelections[facet.key]?.length ?? 0
-          // 선택지가 아예 없을 때만 비활성 (1개뿐이어도 열어서 확인·선택 가능)
-          const disabled = options.length === 0 && selectedCount === 0
-          const open = openFacetKey === facet.key
-          return (
-            <div key={facet.key} className="relative">
-              <button
-                type="button"
-                disabled={disabled}
-                aria-haspopup="true"
-                aria-expanded={open}
-                onClick={() => setOpenFacetKey(open ? null : facet.key)}
-                className={`inline-flex min-h-10 items-center gap-1 rounded-lg border bg-[var(--studio-surface)] px-3.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${
-                  selectedCount > 0
-                    ? 'border-[var(--studio-ink)] font-bold text-[var(--studio-ink)]'
-                    : disabled
-                      ? 'cursor-not-allowed border-[var(--studio-border)] font-medium text-[var(--studio-muted)] opacity-50'
-                      : 'border-[var(--studio-control-border)] font-medium text-[var(--studio-muted)] hover:border-[var(--studio-ink)] hover:text-[var(--studio-ink)]'
-                }`}
-              >
-                {facet.label}
-                {selectedCount > 0 && <span>{selectedCount}</span>}
-                <ChevronDown
-                  aria-hidden="true"
-                  className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`}
-                />
-              </button>
-              {open && (
-                <div className="absolute left-0 top-full z-20 mt-1 max-h-72 w-56 overflow-y-auto rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] py-2 shadow-[var(--studio-shadow-card)]">
-                  {options.map(([value, count]) => {
-                    const checked = facetSelections[facet.key]?.includes(value) ?? false
-                    return (
-                      <label
-                        key={value}
-                        className="flex min-h-10 cursor-pointer items-center gap-2.5 px-4 text-sm text-[var(--studio-ink)] hover:bg-[var(--studio-background)]"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleFacetValue(facet.key, value)}
-                          className="size-4 accent-[var(--studio-primary)]"
-                        />
-                        <span className="min-w-0 flex-1 truncate">{value}</span>
-                        <span className="text-xs text-[var(--studio-muted)]">{count}</span>
-                      </label>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+      {/* 17번: 필터 이름(DB)을 못 읽으면 필터 막대를 숨긴다(코드에 기본 이름을 두지 않음). */}
+      {facetLabels ? (
+        <div ref={facetBarRef} className="mt-3 flex flex-wrap items-center gap-2">
+          {LIBRARY_FACETS.map((facet) => {
+            const counts = facetOptions.get(facet.key) ?? new Map<string, number>()
+            const options = Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0], 'ko'))
+            const selectedCount = facetSelections[facet.key]?.length ?? 0
+            // 선택지가 아예 없을 때만 비활성 (1개뿐이어도 열어서 확인·선택 가능)
+            const disabled = options.length === 0 && selectedCount === 0
+            const open = openFacetKey === facet.key
+            return (
+              <div key={facet.key} className="relative">
+                <button
+                  type="button"
+                  disabled={disabled}
+                  aria-haspopup="true"
+                  aria-expanded={open}
+                  onClick={() => setOpenFacetKey(open ? null : facet.key)}
+                  className={`inline-flex min-h-10 items-center gap-1 rounded-lg border bg-[var(--studio-surface)] px-3.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${
+                    selectedCount > 0
+                      ? 'border-[var(--studio-ink)] font-bold text-[var(--studio-ink)]'
+                      : disabled
+                        ? 'cursor-not-allowed border-[var(--studio-border)] font-medium text-[var(--studio-muted)] opacity-50'
+                        : 'border-[var(--studio-control-border)] font-medium text-[var(--studio-muted)] hover:border-[var(--studio-ink)] hover:text-[var(--studio-ink)]'
+                  }`}
+                >
+                  {facetLabels[facet.key]}
+                  {selectedCount > 0 && <span>{selectedCount}</span>}
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {open && (
+                  <div className="absolute left-0 top-full z-20 mt-1 max-h-72 w-56 overflow-y-auto rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] py-2 shadow-[var(--studio-shadow-card)]">
+                    {options.map(([value, count]) => {
+                      const checked = facetSelections[facet.key]?.includes(value) ?? false
+                      return (
+                        <label
+                          key={value}
+                          className="flex min-h-10 cursor-pointer items-center gap-2.5 px-4 text-sm text-[var(--studio-ink)] hover:bg-[var(--studio-background)]"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleFacetValue(facet.key, value)}
+                            className="size-4 accent-[var(--studio-primary)]"
+                          />
+                          <span className="min-w-0 flex-1 truncate">{value}</span>
+                          <span className="text-xs text-[var(--studio-muted)]">{count}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
 
       {(activeChips.length > 0 || search.trim() !== '') && (
         <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg bg-black/5 px-4 py-2">
@@ -553,7 +556,7 @@ export function LibraryView({ rows, subject, partialRefundNotice }: LibraryViewP
           <div className="mt-6">
             <StudioEmptyState
               title="조건에 맞는 자료가 없습니다"
-              description="검색어나 자료유형 필터를 변경해 보세요."
+              description={emptyFilterHint ?? ''}
             />
           </div>
         )

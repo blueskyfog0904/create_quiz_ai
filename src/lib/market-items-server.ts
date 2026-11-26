@@ -291,6 +291,11 @@ function toMarketItemForAdmin(supabase: ReturnType<typeof getAdminSupabase>, row
   }
 }
 
+// 17번 DB 잠금 트리거(MARKET_IDENTIFIER_LOCKED)가 거절하면 앱 잠금과 같은 문구로 알린다.
+const MARKET_IDENTIFIER_LOCKED_ERROR = 'MARKET_IDENTIFIER_LOCKED'
+const SUBPRODUCT_CATEGORY_SLUG_LOCKED_MESSAGE = '서브상품 카테고리의 slug는 만든 뒤에 바꿀 수 없습니다. 이름만 바꿔 주세요.'
+const FILE_TYPE_CODE_LOCKED_MESSAGE = '파일 유형의 코드는 만든 뒤에 바꿀 수 없습니다. 표시명만 바꿔 주세요.'
+
 function normalizeText(value?: string | null) {
   return value?.normalize('NFC').trim() ?? ''
 }
@@ -505,6 +510,8 @@ export async function updateMarketSubproductCategory(
     .single()
 
   if (error) {
+    // 17번: DB 잠금 트리거(slug·과목 변경 거절)도 앱 잠금과 같은 문구로 알린다.
+    if (error.message.includes(MARKET_IDENTIFIER_LOCKED_ERROR)) throw new Error(SUBPRODUCT_CATEGORY_SLUG_LOCKED_MESSAGE)
     throw new Error(error.message)
   }
 
@@ -699,6 +706,8 @@ export async function updateMarketFileType(
     .single()
 
   if (error) {
+    // 17번: DB 잠금 트리거(code·과목 변경 거절)도 앱 잠금과 같은 문구로 알린다.
+    if (error.message.includes(MARKET_IDENTIFIER_LOCKED_ERROR)) throw new Error(FILE_TYPE_CODE_LOCKED_MESSAGE)
     throw new Error(error.message)
   }
 

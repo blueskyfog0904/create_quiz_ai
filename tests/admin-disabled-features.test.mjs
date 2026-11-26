@@ -241,7 +241,7 @@ test('사이드바는 꺼진 묶음의 메뉴를 그리지 않고, 묶음에 남
     '/admin',
     '/admin/menu-management', '/admin/market/images', '/admin/footer', '/admin/admin-accounts', '/admin/audit-log', '/admin/storefront-menu',
     '/admin/landing-pages',
-    '/admin/main-ad-settings', '/admin/market-main-settings', '/admin/market/products/new', '/admin/market/products', '/admin/market-categories', '/admin/reviews', '/admin/review-tags',
+    '/admin/main-ad-settings', '/admin/market-main-settings', '/admin/market/products/new', '/admin/market/products', '/admin/market-categories', '/admin/market/product-settings', '/admin/reviews', '/admin/review-tags',
     '/admin/users', '/admin/support', '/admin/notices', '/admin/faq', '/admin/notifications',
     '/admin/pricing', '/admin/credits', '/admin/refunds', '/admin/orders',
   ])

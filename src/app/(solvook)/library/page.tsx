@@ -10,6 +10,8 @@ import { getRequestAuthUserId } from '@/lib/request-auth'
 import { DEFAULT_WORKSPACE_SUBJECT, type WorkspaceSubject } from '@/lib/workspace-subject'
 import { LibraryView } from './_components/library-view'
 import { getMarketPurchasePolicyView } from '@/lib/market-purchase-policy-server'
+import { getMarketItemDisplay } from '@/lib/market-item-options-server'
+import { fillLibraryEmptyFilterHint } from '@/lib/market-item-options'
 
 export const metadata: Metadata = {
   title: '자료 보관함',
@@ -43,11 +45,17 @@ export default async function LibraryPage({
     (await getMostRecentLibrarySubjectForUser(userId)) ??
     DEFAULT_WORKSPACE_SUBJECT
 
+  // 17번: 필터 이름·빈 화면 안내(DB 상품 표시 설정). 자료와 함께 읽는다. 못 읽으면 이름·안내만 숨기고 필터 동작은 그대로 둔다.
+  const displayPromise = getMarketItemDisplay().catch((error) => {
+    console.error('[library] 필터 이름 읽기 실패', error instanceof Error ? error.message : error)
+    return null
+  })
   const [rows, purchasePolicy] = await Promise.all([
     listMarketLibraryRowsForUser(userId, subject),
     // 받지 않은 자료 환불 확인창 문구(DB). 못 읽으면 부분 환불 신청 버튼을 막는다.
     getMarketPurchasePolicyView(),
   ])
+  const display = await displayPromise
 
   return (
     <Suspense fallback={null}>
@@ -56,6 +64,8 @@ export default async function LibraryPage({
         rows={rows}
         subject={subject}
         partialRefundNotice={purchasePolicy?.partialRefundConfirmNotice ?? null}
+        facetLabels={display?.facetLabels ?? null}
+        emptyFilterHint={display ? fillLibraryEmptyFilterHint(display) : null}
       />
     </Suspense>
   )

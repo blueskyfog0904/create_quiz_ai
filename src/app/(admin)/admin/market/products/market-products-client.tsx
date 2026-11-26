@@ -70,7 +70,8 @@ import type {
   MarketSubproductCategory,
   MarketSubproductFile,
 } from '@/lib/market-items-server'
-import { LISTBOARD_GRADE_OPTIONS } from '@/lib/generate-menu'
+import { MARKET_ITEM_SOURCE_MAX, type MarketItemOption, type MarketItemProductOptionKind } from '@/lib/market-item-options'
+import { MarketItemUsageBasisCard } from './market-item-usage-basis-card'
 import AdminMarketSamplePreviewDialog from './admin-market-sample-preview-dialog'
 import { MarketImageField, type MarketImageFieldValue } from '@/components/admin/market-image-field'
 import { MarketImagePicker } from '@/components/admin/market-image-picker'
@@ -90,6 +91,8 @@ interface MarketProductsClientProps {
   workspaceSubject: WorkspaceSubject
   // 상품 완전 삭제(products.delete). 없으면 삭제 메뉴·버튼을 그리지 않는다(삭제 API도 같은 권한을 요구한다).
   canDeleteProducts: boolean
+  // 17번: 학년·자료유형 선택 목록(과목별 DB 목록, 숨김 포함 — 상품 값이 숨긴 항목이면 '(숨김)'으로 함께 보인다)
+  attributeOptions: Record<MarketItemProductOptionKind, MarketItemOption[]>
 }
 
 interface MarketItemFormState {
@@ -103,6 +106,10 @@ interface MarketItemFormState {
   examMonth: string
   gradeLevel: string
   sourceType: string
+  source1: string
+  source2: string
+  source3: string
+  source4: string
   questionCount: string
   pdfPrice: string
   hwpPrice: string
@@ -219,6 +226,9 @@ function parseCreditInputValue(value: string) {
   return digits ? Number(digits) : 0
 }
 
+// 17번: 출처 1~4 입력 칸(상세 '출처' 한 줄에 ' · '로 이어 보임)
+const SOURCE_FIELDS = ['source1', 'source2', 'source3', 'source4'] as const
+
 function buildEmptyForm(): MarketItemFormState {
   return {
     title: '',
@@ -229,6 +239,10 @@ function buildEmptyForm(): MarketItemFormState {
     examMonth: '',
     gradeLevel: '',
     sourceType: '',
+    source1: '',
+    source2: '',
+    source3: '',
+    source4: '',
     questionCount: '',
     pdfPrice: '0',
     hwpPrice: '0',
@@ -250,6 +264,10 @@ function buildEditForm(item: MarketItem): MarketItemFormState {
     examMonth: item.exam_month ? String(item.exam_month) : '',
     gradeLevel: item.grade_level || '',
     sourceType: item.source_type || '',
+    source1: item.source_1 || '',
+    source2: item.source_2 || '',
+    source3: item.source_3 || '',
+    source4: item.source_4 || '',
     questionCount: item.question_count !== null && item.question_count !== undefined ? String(item.question_count) : '',
     pdfPrice: formatCreditInputValue(item.pdf_price),
     hwpPrice: formatCreditInputValue(item.hwp_price),
@@ -585,7 +603,7 @@ function buildFileTypeSettingsForm(fileType: MarketFileType): FileTypeSettingsFo
   }
 }
 
-export default function MarketProductsClient({ mode, initialCategoryNodes, initialItems, workspaceSubject, canDeleteProducts }: MarketProductsClientProps) {
+export default function MarketProductsClient({ mode, initialCategoryNodes, initialItems, workspaceSubject, canDeleteProducts, attributeOptions }: MarketProductsClientProps) {
   const router = useRouter()
   // 상품 목록 상단 필터(가장 깊이 고른 칸, '' = 전체). 서버가 하위 칸까지 포함해 거른다.
   const [filterCategoryId, setFilterCategoryId] = useState('')
@@ -747,6 +765,17 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
   // 연도는 '선택'(빈 값)으로 시작한다. 목록을 펼치면 고른 연도(없으면 올해)를 가운데에 보여 주기만 하고, 클릭해야 값이 정해진다.
   const [isExamYearOpen, setIsExamYearOpen] = useState(false)
   const currentExamYear = getDefaultExamYear()
+  // 17번 7-2: 학년·자료유형 선택 목록. 맨 위 '선택 안 함'(빈 값), 사용 중 항목 순서대로, 그리고 상품 값이 숨긴 항목이거나
+  // 목록에 없는 옛 값이면 '(숨김) 이름'으로 함께 보여 그대로 저장되게 한다(저장 route 는 지금 값과 같으면 통과).
+  const productOptionChoices = (kind: MarketItemProductOptionKind, value: string) => {
+    const options = attributeOptions[kind]
+    const choices = [
+      { value: '', label: '선택 안 함' },
+      ...options.filter((option) => option.isActive).map((option) => ({ value: option.label, label: option.label })),
+    ]
+    if (value && !options.some((option) => option.isActive && option.label === value)) choices.push({ value, label: `(숨김) ${value}` })
+    return choices
+  }
   const scrollExamYearListToAnchor = (list: HTMLDivElement | null) => {
     const anchor = list?.querySelector<HTMLElement>(`[data-year="${form.examYear || currentExamYear}"]`)
     if (list && anchor) {
@@ -1110,6 +1139,10 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
     examMonth: form.examMonth ? Number(form.examMonth) : null,
     gradeLevel: form.gradeLevel,
     sourceType: form.sourceType,
+    source1: form.source1,
+    source2: form.source2,
+    source3: form.source3,
+    source4: form.source4,
     questionCount: form.questionCount ? Number(form.questionCount) : null,
     pdfPrice: parseCreditInputValue(form.pdfPrice),
     hwpPrice: parseCreditInputValue(form.hwpPrice),
@@ -2972,22 +3005,49 @@ export default function MarketProductsClient({ mode, initialCategoryNodes, initi
                       onChange={(event) => setForm((current) => ({ ...current, gradeLevel: event.target.value }))}
                       className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
                     >
-                      <option value="">전체</option>
-                      {LISTBOARD_GRADE_OPTIONS.map((grade) => (
-                        <option key={grade} value={grade}>{grade}</option>
+                      {productOptionChoices('grade', form.gradeLevel).map((choice) => (
+                        <option key={choice.value} value={choice.value}>{choice.label}</option>
                       ))}
                     </select>
                   </div>
                   <div className="space-y-2">
                     <Label>자료유형</Label>
-                    <Input value={form.sourceType} onChange={(event) => setForm((current) => ({ ...current, sourceType: event.target.value }))} placeholder="예: 모의고사" />
+                    <select
+                      value={form.sourceType}
+                      onChange={(event) => setForm((current) => ({ ...current, sourceType: event.target.value }))}
+                      className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
+                    >
+                      {productOptionChoices('material_type', form.sourceType).map((choice) => (
+                        <option key={choice.value} value={choice.value}>{choice.label}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <Label>문항 수</Label>
                     <Input type="number" min={0} value={form.questionCount} onChange={(event) => setForm((current) => ({ ...current, questionCount: event.target.value }))} placeholder="예: 24" />
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {SOURCE_FIELDS.map((field, index) => (
+                      <div key={field} className="space-y-1">
+                        <Label htmlFor={`market-item-${field}`}>출처 {index + 1}</Label>
+                        <Input
+                          id={`market-item-${field}`}
+                          value={form[field]}
+                          maxLength={MARKET_ITEM_SOURCE_MAX}
+                          onChange={(event) => setForm((current) => ({ ...current, [field]: event.target.value }))}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500">상세 &apos;출처&apos;에 입력한 순서대로 &apos; · &apos;로 이어 보입니다. 칸마다 {MARKET_ITEM_SOURCE_MAX}자까지 입력합니다.</p>
+                </div>
               </div>
+
+              {form.id
+                ? <MarketItemUsageBasisCard key={form.id} itemId={form.id} workspaceSubject={workspaceSubject} />
+                : <p className="rounded-lg border border-dashed p-4 text-sm text-gray-500">원저작물 이용 근거(내부)는 상품을 처음 저장한 뒤에 입력합니다.</p>}
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">

@@ -8,8 +8,13 @@ import { getMarketCategoryItemWorkspaceSubject, listMarketCategorySubtreeIdsForA
 import { createMarketItem, listMarketItemsForAdmin } from '@/lib/market-items-server'
 import { MARKET_IMAGE_NOT_FOUND_MESSAGE, isMarketImageReferenceError } from '@/lib/market-images-server'
 import { MARKET_CATEGORY_TREE_CACHE_TAG, MARKET_PUBLIC_LIST_CACHE_TAG } from '@/lib/market-images'
+import { MARKET_ITEM_SOURCE_MAX } from '@/lib/market-item-options'
+import { findMarketItemProductOptionProblem } from '@/lib/market-item-options-server'
 
 export const dynamic = 'force-dynamic'
+
+// 17번: 출처 1~4 는 각 0~100자(빈 값은 NULL). 학년·자료유형은 과목별 DB 목록에서 고른 값만(지금 값과 같으면 통과).
+const SOURCE_TOO_LONG = `출처는 칸마다 ${MARKET_ITEM_SOURCE_MAX}자 이하로 입력해 주세요.`
 
 const MarketItemSchema = z.object({
   title: z.string().trim().min(1),
@@ -21,10 +26,10 @@ const MarketItemSchema = z.object({
   examMonth: z.number().int().min(1).max(12).nullable().optional(),
   gradeLevel: z.string().trim().optional(),
   sourceType: z.string().trim().optional(),
-  source1: z.string().trim().optional(),
-  source2: z.string().trim().optional(),
-  source3: z.string().trim().optional(),
-  source4: z.string().trim().optional(),
+  source1: z.string().trim().max(MARKET_ITEM_SOURCE_MAX, SOURCE_TOO_LONG).optional(),
+  source2: z.string().trim().max(MARKET_ITEM_SOURCE_MAX, SOURCE_TOO_LONG).optional(),
+  source3: z.string().trim().max(MARKET_ITEM_SOURCE_MAX, SOURCE_TOO_LONG).optional(),
+  source4: z.string().trim().max(MARKET_ITEM_SOURCE_MAX, SOURCE_TOO_LONG).optional(),
   questionCount: z.number().int().min(0).nullable().optional(),
   // 필수. 상품 과목은 이 칸의 과목으로 정한다.
   categoryItemId: z.string({ error: '카테고리를 선택해주세요.' }).uuid('카테고리를 선택해주세요.'),
@@ -100,6 +105,15 @@ export async function POST(request: Request) {
         success: false,
         error: { code: 'INVALID_INPUT', message: '상품과 같은 과목의 카테고리를 선택해주세요.' },
       }, { status: 400 })
+    }
+
+    // 학년·자료유형은 그 과목의 사용 중 목록에 있어야 한다(캐시 없이 DB 에서 읽음).
+    const optionProblem = await findMarketItemProductOptionProblem(workspaceSubject, {
+      gradeLevel: parsed.data.gradeLevel,
+      sourceType: parsed.data.sourceType,
+    }, null)
+    if (optionProblem) {
+      return NextResponse.json({ success: false, error: { code: 'INVALID_INPUT', message: optionProblem } }, { status: 400 })
     }
 
     const item = await createMarketItem({

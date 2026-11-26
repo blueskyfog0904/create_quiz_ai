@@ -312,3 +312,33 @@
 | 상품 minor | 안내 문구(23자)가 '1~20자' 규칙에 걸림 | 5-5: 칸별 상한(필터 20자, 안내 60자), P6 '첫 값 그대로 저장 성공' |
 | 상품 minor | 목록 검사가 60초 캐시로 옛 이름을 통과시킴 | 6절: 상품 저장의 목록 검사는 캐시 없이 DB 에서 |
 | 상품 minor | 과목별 메뉴 안의 공통 설정이 헷갈림 | 7-1: '국어·영어 공통' 안내, V2 에 두 메뉴 값 같음 |
+
+## 16. 구현 메모 (2026-11-26)
+- **버전**: `20261219100000_bundle17_product_info.sql`(16번 `20261218100000` 뒤), down `supabase/rollback/20261219100000_bundle17_product_info_down.sql`, 리허설 `supabase/scripts/bundle17_rehearsal/`(`generate.mjs` → `a_light.sql`·`b_full.sql`).
+- **0절 질문**: 답이 오기 전이라 Q1~Q9 모두 기본안으로 넣었다. 5-7('전체' 정리 스크립트)은 만들지 않았다.
+- **계획과 다른 점**
+  - 운영 `market_items` 에는 PK(`id`)만 있고 `(id, workspace_subject)` UNIQUE 가 없다. 그래서 5-3 의 복합 FK 대신 `item_id → market_items(id) ON DELETE CASCADE` 하나만 건다. 근거 표의 `workspace_subject` 는 저장 함수가 상품 행(`FOR SHARE`)에서 읽어 넣는다(상품 칸·FK 를 더하지 않는다는 4절 원칙 유지).
+  - 결과: 근거 행의 과목·근거 항목 과목이 상품 과목과 같다는 것은 DB 제약이 아니라 저장 함수가 보장한다. 상품 과목을 DB 에서 직접 바꾸면 근거 행과 어긋날 수 있으므로, 나중에 상품 과목을 바꾸는 기능을 넣을 때 근거 행도 함께 고치도록 런북에 적는다.
+  - 구현 검증 minor 반영(2026-11-26): 근거 저장(PUT)도 읽기(GET)와 같게 주소의 과목과 상품 과목이 다르면 404, 이름 바꾸기 확인 창은 상품 수만 다시 읽고 다른 줄의 고치던 값·저장 전 순서를 지우지 않음, 근거 저장 뒤 서버 값(다듬은 메모·판)으로 다시 그림, 필터 이름(DB)을 못 읽으면 검색·보관함 필터 막대를 숨김(코드 기본 이름 없음, 정렬·검색은 그대로).
+  - 이용 근거 저장에 상품별 advisory lock(`'market_item_usage_basis:' || item_id`)을 더했다. 같은 상품 첫 저장 두 건이 PK 충돌로 500 이 나지 않게 한다. 순서: 권한 → advisory lock → 상품 행 FOR SHARE → 근거 항목 FOR SHARE → 근거 행 FOR UPDATE.
+  - 순서 저장은 판(`revision`)을 바꾸지 않는다(14번과 같음 — 열린 이름 편집과 충돌하지 않게). `updated_by`·`updated_at` 만 바꾼다.
+  - 표시 설정 함수는 17번 키(`revision`·`facetLabels`·`libraryEmptyFilterHint`)만 다시 만들고, 설정 행의 다른 키는 **저장된 값 그대로** 둔다(넘긴 값의 다른 키는 쓰지 않음). 본문에 `detail` 글자가 없어야 down 의 19번판 판정이 맞다(계약 시험).
+  - 목록 route 에 `GET /api/admin/market/item-options?subject=&kind=`(항목별 상품 수, 캐시 없음)를 더했다. 이름 바꾸기 확인 창이 저장 직전에 서버가 센 수를 다시 읽고, 저장 뒤 목록·판을 다시 읽는다. 표시 설정 route 는 PUT 만 있다(화면은 서버 컴포넌트가 읽음).
+  - 상세·홈은 이미 `source_1~4` 를 ' · '로 이어 보여서 고치지 않았다.
+  - 검색·보관함 페이지는 기존 `await searchCachedMarketItemsForSubject(…)`·`Promise.all([rows, purchasePolicy])` 모양을 그대로 두고(기존 시험), 필터 이름 읽기만 앞에서 따로 시작해 함께 기다린다.
+- **오류 코드**(마이그레이션 RAISE = `MARKET_ITEM_OPTION_ERROR_MESSAGES`, 계약 시험 대조): `MARKET_CATALOG_ACTOR_NOT_ALLOWED`, `MARKET_OPTION_INPUT_INVALID:칸`, `MARKET_OPTION_NOT_FOUND`, `MARKET_OPTION_REVISION_CONFLICT`, `MARKET_OPTION_DUPLICATE`, `MARKET_OPTION_REORDER_MISMATCH`, `MARKET_ITEM_NOT_FOUND`, `MARKET_USAGE_BASIS_INPUT_INVALID:칸`, `MARKET_USAGE_BASIS_REVISION_CONFLICT`, `MARKET_ITEM_DISPLAY_MISSING`, `MARKET_ITEM_DISPLAY_REVISION_CONFLICT`, `MARKET_ITEM_DISPLAY_INPUT_INVALID:칸`, `MARKET_IDENTIFIER_LOCKED`.
+- **코드 파일**
+  - 규칙 `src/lib/market-item-options.ts`(순수), 읽기·호출 `src/lib/market-item-options-server.ts`(회원 화면은 `getMarketItemDisplay` 만), 이용 근거 `src/lib/market-item-usage-basis-server.ts`(표 이름은 src 안에서 이 파일에만).
+  - route: `api/admin/market/item-options`(GET·POST·PUT), `item-display`(PUT), `items/[id]/usage-basis`(GET·PUT) — 모두 `products.edit`, 쓰기는 `adminRequestMeta` 를 넘기고 미리보기면 DB 를 부르지 않는다.
+  - 상품 POST·PATCH: `findMarketItemProductOptionProblem`(캐시 없는 DB 목록) + 출처 각 100자. 거절 문구 '목록에 없는 학년입니다. 목록이 바뀌었습니다. 새로고침한 뒤 다시 저장해 주세요.'(자료유형도 같은 꼴).
+  - 관리자 화면: `/admin/market/product-settings`(사이드바 '상품 표시 설정', 과목별 묶음), 상품 폼의 학년·자료유형 선택칸('선택 안 함' + 사용 중 목록 + '(숨김) 옛 값'), 출처 1~4, `market-item-usage-basis-card.tsx`(첫 저장 뒤).
+  - `market-items-server.ts`: 구성·파일 유형 수정이 DB 오류 `MARKET_IDENTIFIER_LOCKED` 를 받으면 지금과 같은 문구로 바꾼다(기존 앱 잠금 줄은 그대로).
+- **시험**: 새 `tests/bundle17-product-info-contract.test.mjs`(19건)·`tests/fixtures/bundle17-product-info-examples.json`(route 검사 예시 9개 — 리허설 P2 가 같은 표). 고친 시험: 작업 기록·가드 표·사이드바 권한·기능 묶음 사이드바 목록·상품 폼 자료 정보(출처 1~4 다시 입력). 시험 도우미 `tests/helpers/market-images-harness.mjs` 는 순수 규칙 모듈을 실제 파일로 쓰고, route 로더가 목록 검사(DB 읽기)를 기본으로 통과시킨다. 전체 `node --test tests/*.test.mjs` 실패 46건은 구현 전과 같은 이름(새 실패 0).
+- **리허설**
+  - light: 2026-11-26 운영 DB 실행 PASS(로그 193줄, `RH FAIL` 0, 마지막 ROLLBACK 뒤 운영 상태 그대로 — 표 없음·가입 함수 지문 `61bc7b14…`·설정 행 0 확인). 결과 `output/b17-light-result.json`.
+  - light 에서 본 것: P0(지문·이미 있음 멈춤), P1(권한 7종 + admin_role 빈 관리자는 CHECK 로 상태 자체 거절), P2(+route 예시 9개), P3(국어 '교과서' 1행만), P4, P5, P6, P7(임시 사본에서 slug·code·과목만·hard DELETE 거절, postgres·service_role), P8(카카오·이메일 시험 가입: 새 함수 avatar NULL, 나머지 칸 옛 함수와 같음), P9, P10(경우마다 기록 키·request), B1(근거 행·18·19번 함수·다른 FK 멈춤, down → 남는 것 0 → 다시 적용).
+  - b_full(실제 두 표 트리거 P7F·대표 세션 slug 변경 거절·down 원본·이력 행)은 돌리지 않았다. **새벽, DB 적용 직전에 반드시 돈다.**
+  - light 측정 적용 뒤 지문(18·19번 사전 점검용, md5(pg_get_functiondef)): `market_catalog_actor_allowed` 5b4bfe82fda3026623a2d77862f6f9a9, `save_market_item_option` 443509ac2c6148a0eafc85dba52be2ab, `reorder_market_item_options` 6718831114a84959c5214c0599b048aa, `save_market_item_usage_basis` df88f4ab5d3079815853eb81191f7e21, `save_market_item_display` 5cd1e1f548bd73aea05f5845a0212a6a, `handle_new_user` f418d1f7d1dffeb48d979a4e89a02b6b.
+- **미리보기(10-2)**: `node supabase/scripts/bundle17_rehearsal/generate.mjs --preview` → `PRODUCT_INFO_PREVIEW=1 PRODUCT_INFO_PREVIEW_FILE=output/b17-product-info-preview.json npm run dev`. 마이그레이션 첫 값에서 만들고, V1(숨긴 옛 값 표시)을 보려고 국어 '부교재'를 숨긴 상태로 둔다. 미리보기에서는 저장 route 가 409 '미리보기에서는 저장하지 않습니다.'를 돌려준다.
+- **문서**: `docs/launch-owner-todo.md` 변호사 목록에 '(17번)' 이용 근거 문구·'확인 중' 판매 질문을 더했다(14절 1).
+- **남은 일**: 구현 검증(12절 세 관점) → b_full(새벽) → DB 적용(대표 승인) → 화면 확인(10-2, 나 → 대표) → push. 13절 8(진행 기록·후속 과제 두 줄)은 배포 뒤.

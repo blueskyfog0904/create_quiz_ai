@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { connection } from 'next/server'
 import { searchCachedMarketItemsForSubject } from '@/lib/market-search-cache'
+import { getMarketItemDisplay } from '@/lib/market-item-options-server'
 import type { MarketSearchSort } from '@/lib/market-search-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { SearchView } from './_components/search-view'
@@ -44,6 +45,11 @@ export default async function MarketSearchPage({
   const sort = resolveSort(params.sort)
   const page = normalizeListPage(params.page)
 
+  // 17번: 필터 이름(DB 상품 표시 설정). 검색과 함께 읽는다. 못 읽으면 이름만 숨기고 필터 동작은 그대로 둔다.
+  const facetLabelsPromise = getMarketItemDisplay().then((display) => display.facetLabels).catch((error) => {
+    console.error('[search] 필터 이름 읽기 실패', error instanceof Error ? error.message : error)
+    return null
+  })
   const result = await searchCachedMarketItemsForSubject(subject, {
     q,
     categoryIds: selections.category,
@@ -54,6 +60,7 @@ export default async function MarketSearchPage({
     page,
     pageSize: normalizeListPageSize(params.pageSize),
   })
+  const facetLabels = await facetLabelsPromise
 
   return (
     <Suspense fallback={null}>
@@ -63,6 +70,7 @@ export default async function MarketSearchPage({
         result={result}
         selections={selections}
         sort={sort}
+        facetLabels={facetLabels}
       />
     </Suspense>
   )

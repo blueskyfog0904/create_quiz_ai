@@ -36,15 +36,18 @@ test('admin market item APIs map material information fields', () => {
 
 test('admin product form exposes material information inputs', () => {
   assert.match(adminProductsClient, /sourceType: string/)
-  // 출처 1~4는 쓰지 않아 폼에서 뺐다(DB 칼럼은 그대로, 수정 저장 시 기존 값 유지).
-  assert.doesNotMatch(adminProductsClient, /source[1-4]: (string|form\.)/)
+  // 17번: 출처 1~4 를 다시 입력한다(상세 '출처' 한 줄에 ' · '로 이어 보임, 칸마다 100자).
+  for (const n of [1, 2, 3, 4]) {
+    assert.match(adminProductsClient, new RegExp(`source${n}: string`))
+    assert.match(adminProductsClient, new RegExp(`source${n}: form\\.source${n}`))
+  }
   assert.match(adminProductsClient, /questionCount: string/)
   assert.match(adminProductsClient, /자료 정보/)
   assert.match(adminProductsClient, /상세 페이지 자료 정보 카드에 노출되는 값을 입력합니다/)
   // 과목·등록일자는 자동 값이라 입력칸을 두지 않는다.
   assert.doesNotMatch(adminProductsClient, /Label>과목<\/Label/)
   assert.match(adminProductsClient, /Label>자료유형<\/Label/)
-  assert.doesNotMatch(adminProductsClient, /Label>출처/)
+  assert.match(adminProductsClient, />출처 \{index \+ 1\}<\/Label>/)
   assert.match(adminProductsClient, /Label>문항 수<\/Label/)
   assert.doesNotMatch(adminProductsClient, /Label>등록일자<\/Label/)
   assert.match(adminProductsClient, /sourceType: form\.sourceType/)

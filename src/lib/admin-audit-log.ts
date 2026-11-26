@@ -91,6 +91,12 @@ export const ADMIN_AUDIT_ACTIONS = {
   member_notification_texts_update: '회원 알림 문구 수정',
   member_broadcast_send: '공지 알림 보내기',
   member_broadcast_retract: '공지 알림 회수',
+  // 17번 묶음(상품 정보 입력 보완): 모두 DB 함수가 같은 거래에서 남긴다. 결제 연결 아님(paymentLinkedActions 에 넣지 않음).
+  // 이용 근거 기록에는 메모·증빙 위치 전문이 있다(회사 내부 업무 기록 — 입력 칸 옆에 개인정보를 넣지 말라는 안내).
+  market_item_option_save: '상품 목록 항목(학년·자료유형·이용 근거) 저장',
+  market_item_option_reorder: '상품 목록 항목 순서 변경',
+  market_item_usage_basis_save: '상품 원저작물 이용 근거 저장',
+  market_item_display_update: '상품 표시 설정 수정',
 } as const
 
 export type AdminAuditAction = keyof typeof ADMIN_AUDIT_ACTIONS

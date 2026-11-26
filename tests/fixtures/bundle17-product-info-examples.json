@@ -1,0 +1,14 @@
+{
+  "_comment": "17번 상품 저장 route 의 학년·자료유형 검사 예시(계획 10-1). 계약 시험은 TS checkMarketItemOptionValue 로, 리허설 P2 는 같은 규칙을 운영 DB 목록(마이그레이션 첫 값)에 SQL 로 돌린다. hide = 그 과목·종류에서 숨길 항목, addOther = 다른 과목에만 더할 항목.",
+  "optionValueChecks": [
+    { "name": "목록에 있음", "subject": "korean", "kind": "grade", "value": "2학년", "current": null, "ok": true },
+    { "name": "목록에 있음(앞뒤 공백)", "subject": "english", "kind": "material_type", "value": "  모의고사 ", "current": null, "ok": true },
+    { "name": "빈 값(선택 안 함)", "subject": "korean", "kind": "grade", "value": "", "current": "전체", "ok": true },
+    { "name": "목록에 없음", "subject": "korean", "kind": "grade", "value": "4학년", "current": null, "ok": false },
+    { "name": "숨김인데 지금 값과 같음", "subject": "korean", "kind": "material_type", "value": "부교재", "current": "부교재", "hide": "부교재", "ok": true },
+    { "name": "숨김이고 지금 값과 다름", "subject": "korean", "kind": "material_type", "value": "부교재", "current": "교과서", "hide": "부교재", "ok": false },
+    { "name": "목록에 없는 옛 값과 같음", "subject": "english", "kind": "grade", "value": "고1", "current": "고1", "ok": true },
+    { "name": "다른 과목 이름", "subject": "english", "kind": "material_type", "value": "국어 전용 시험 유형", "current": null, "addOther": "국어 전용 시험 유형", "ok": false },
+    { "name": "다른 종류 이름", "subject": "korean", "kind": "grade", "value": "교과서", "current": null, "ok": false }
+  ]
+}

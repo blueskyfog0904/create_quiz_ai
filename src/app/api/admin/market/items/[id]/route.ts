@@ -9,6 +9,8 @@ import { recordAdminAudit } from '@/lib/admin-audit-log-server'
 import { deleteOrHideMarketItem } from '@/lib/market-item-cleanup'
 import { MARKET_IMAGE_NOT_FOUND_MESSAGE, isMarketImageReferenceError } from '@/lib/market-images-server'
 import { MARKET_CATEGORY_TREE_CACHE_TAG, MARKET_PUBLIC_LIST_CACHE_TAG } from '@/lib/market-images'
+import { MARKET_ITEM_SOURCE_MAX } from '@/lib/market-item-options'
+import { findMarketItemProductOptionProblem } from '@/lib/market-item-options-server'
 import {
   getMarketItemBundleOptionForAdmin,
   getMarketItemById,
@@ -21,6 +23,9 @@ import {
 
 export const dynamic = 'force-dynamic'
 
+// 17번: 출처 1~4 는 각 0~100자(빈 값은 NULL). 학년·자료유형은 과목별 DB 목록에서 고른 값만(지금 값과 같으면 통과).
+const SOURCE_TOO_LONG = `출처는 칸마다 ${MARKET_ITEM_SOURCE_MAX}자 이하로 입력해 주세요.`
+
 const MarketItemUpdateSchema = z.object({
   title: z.string().trim().min(1),
   summary: z.string().trim().optional(),
@@ -31,10 +36,10 @@ const MarketItemUpdateSchema = z.object({
   examMonth: z.number().int().min(1).max(12).nullable().optional(),
   gradeLevel: z.string().trim().optional(),
   sourceType: z.string().trim().optional(),
-  source1: z.string().trim().optional(),
-  source2: z.string().trim().optional(),
-  source3: z.string().trim().optional(),
-  source4: z.string().trim().optional(),
+  source1: z.string().trim().max(MARKET_ITEM_SOURCE_MAX, SOURCE_TOO_LONG).optional(),
+  source2: z.string().trim().max(MARKET_ITEM_SOURCE_MAX, SOURCE_TOO_LONG).optional(),
+  source3: z.string().trim().max(MARKET_ITEM_SOURCE_MAX, SOURCE_TOO_LONG).optional(),
+  source4: z.string().trim().max(MARKET_ITEM_SOURCE_MAX, SOURCE_TOO_LONG).optional(),
   questionCount: z.number().int().min(0).nullable().optional(),
   // undefined = 변경 없음. 카테고리는 필수라 해제(null)는 받지 않는다.
   categoryItemId: z.string().uuid().optional(),
@@ -128,6 +133,15 @@ export async function PATCH(request: Request, { params }: RouteContext) {
           error: { code: 'INVALID_INPUT', message: '상품과 같은 과목의 카테고리를 선택해주세요.' },
         }, { status: 400 })
       }
+    }
+
+    // 학년·자료유형은 그 과목의 사용 중 목록에 있거나 상품의 지금 값과 같아야 한다(숨긴 항목·옛 값 상품도 다른 칸을 고칠 수 있게).
+    const optionProblem = await findMarketItemProductOptionProblem(currentItem.workspace_subject, {
+      gradeLevel: parsed.data.gradeLevel,
+      sourceType: parsed.data.sourceType,
+    }, { gradeLevel: currentItem.grade_level, sourceType: currentItem.source_type })
+    if (optionProblem) {
+      return NextResponse.json({ success: false, error: { code: 'INVALID_INPUT', message: optionProblem } }, { status: 400 })
     }
 
     const item = await updateMarketItem(id, {

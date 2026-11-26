@@ -69,6 +69,8 @@ const PAGE_REQUIREMENTS = {
   'market/products/page.tsx': 'products.edit',
   'market/products/new/page.tsx': 'products.edit',
   'market/images/page.tsx': 'products.edit',
+  // 17번: 상품 표시 설정(학년·자료유형·이용 근거 목록, 검색 필터 이름)
+  'market/product-settings/page.tsx': 'products.edit',
   'market-categories/page.tsx': 'products.edit',
   // 홈 화면
   'main-ad-settings/page.tsx': 'storefront.edit',
@@ -255,6 +257,10 @@ const ROUTE_REQUIREMENTS = {
   'market/image-folders/route.ts': all('products.edit', 'GET', 'POST'),
   'market/image-folders/[id]/route.ts': all('products.edit', 'PATCH', 'DELETE'),
   'market/storage-cleanup/route.ts': all('products.edit', 'POST'),
+  // 17번: 목록 항목 읽기·저장·순서, 표시 설정 저장, 상품별 이용 근거(내부 — Q6 상품 편집 권한)
+  'market/item-options/route.ts': all('products.edit', 'GET', 'POST', 'PUT'),
+  'market/item-display/route.ts': all('products.edit', 'PUT'),
+  'market/items/[id]/usage-basis/route.ts': all('products.edit', 'GET', 'PUT'),
   'market-categories/route.ts': all('products.edit', 'GET', 'POST'),
   'market-categories/[nodeId]/route.ts': all('products.edit', 'PATCH', 'DELETE'),
   // 홈 화면
@@ -849,6 +855,7 @@ function loadItemRoute(session) {
     '@/lib/market-item-cleanup': { deleteOrHideMarketItem: async () => { calls.deleted += 1; return { result: 'deleted' } } },
     '@/lib/market-images-server': {},
     '@/lib/market-images': {},
+    '@/lib/market-item-options-server': { findMarketItemProductOptionProblem: async () => null },
     '@/lib/market-items-server': {
       getMarketItemById: async () => ({ id: 'item-1', workspace_subject: 'korean' }),
       getMarketItemByIdForAdmin: async () => ({ id: 'item-1' }),
