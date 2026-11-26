@@ -181,7 +181,7 @@ Q7. 다운로드 카드
 3. 구현 → 계약 시험 → 구현 검증 PASS
 4. 리허설 → **DB 적용**(함수만, 승인) → 문구 스크립트
 5. 로컬 확인(나 → 대표, 읽기만, 최근 목록이 열람 기록을 남김을 미리 알림) → push·배포
-6. 운영 확인: 대표·시험 staff(`orders.view` 만 / + `reports.view`) 구역 대조, 11월 순 충전 매출 59,600원 = 23번 CSV, 366일·과목 전체로 supabase-js `rpc('report_market_daily')` 받은 행 수 = 날짜 수 (PASS 뒤)
+6. 운영 확인: 카드가 '확인 불가'면 서버 로그의 `kind` 로 가른다 — `function_missing`(DB 함수 없음·미적용: PGRST202/42883)과 `query_failed`(시간 초과·권한·잘못된 기간 등 고장). 대표·시험 staff(`orders.view` 만 / + `reports.view`) 구역 대조, 11월 순 충전 매출 59,600원 = 23번 CSV, 366일·과목 전체로 supabase-js `rpc('report_market_daily')` 받은 행 수 = 날짜 수 (PASS 뒤)
 7. 진행 기록
 - 되돌리기: 코드 revert → (필요하면) 함수 down. 23번 함수는 남긴다.
 
@@ -227,3 +227,39 @@ Q7. 다운로드 카드
 | 화면 minor | 카드 큰 값과 D2 도넛 합이 어긋남 | Q6 큰 값 = 순 사용 C·보조 줄 구매 C, D2 |
 | 화면 minor | D7 의 rpc 행 수는 리허설에서 못 함 | D7 트랜잭션 안 SQL, 11절 6 으로 이동 |
 
+
+## 17. 구현 메모(2026-11-27, 커밋 전 · DB 미적용)
+0절 질문은 모두 기본안으로 구현했다(Q1 `reports.view`, Q2 원·C 를 `reports.view` 로 옮김, Q3 4-2 표, Q4 Recharts, Q5 23번 환불 시각, Q6 주문 표 기준 순 사용 C, Q7 구매 파일 다운로드). Q2 는 여전히 대표 확인이 필요하다(지금 `orders.view` 직원 1명은 충전 결제액을 더는 못 본다).
+
+**만든·바꾼 파일**
+- DB: `supabase/migrations/20261223100000_bundle21_dashboard_reports.sql`(함수 3개, 표 DDL 없음), `supabase/rollback/20261223100000_bundle21_dashboard_reports_down.sql`, 문구 스크립트 `supabase/scripts/20261223_bundle21_dashboard_content.sql`(`admin_dashboard_content`, ON CONFLICT DO NOTHING).
+- 리허설: `supabase/scripts/bundle21_rehearsal/generate.mjs` → `a_light.sql`·`b_full.sql`(D1~D7 + C 문구 본문 + F). 23번 함수가 없으면 같은 거래 안에서 23번 light 사본을 먼저 적용한다(D2 요금제별 합 대조용).
+- 코드: `src/lib/admin-dashboard-period.ts`(4-2 표·주소 키·`bucketByWeek`), `src/lib/admin-dashboard-fields.ts`(권한·`pickDashboardFields`·합계·상품 현황·문구 해석·최근 목록 탭 규칙), `src/lib/admin-dashboard-server.ts`(다시 씀), `src/app/api/admin/stats/route.ts`(다시 씀), `src/app/api/admin/stats/recent/route.ts`(새로), `src/app/(admin)/admin/page.tsx`·`dashboard-client.tsx`(다시 씀)·`dashboard-charts.tsx`(새로, `next/dynamic`).
+- 패키지: `recharts` 3.10.1 고정(`^` 없음). 3.11.x 는 나온 지 2주가 안 되어 쓰지 않았다.
+
+**계획과 다르게·더 정한 것**
+- `report_activity_daily` 는 표 대신 jsonb `{ days, totals }` 를 돌려준다. 카드 보조 줄 '다운로드한 회원 n명'은 날짜별 합이 아니라 기간 안 서로 다른 회원 수여야 해서 `totals` 를 더했다.
+- `report_market_item_ranking` 은 두 순위 모두 같은 열(건수·C·회원 수·다운로드 수)을 돌려주고, 고르지 않은 쪽은 0 이다. C 열은 `pickDashboardFields` 가 `reports.view` 가 없으면 지운다.
+- 가입 수는 route 의 profiles 세기 대신 DB 함수가 센다. 그래서 21번 DB 적용 전에는 가입 카드가 '확인 불가'가 된다(다른 카드는 그대로). 21번 함수가 없으면 자료 판매·활동·순위만 '확인 불가'가 되고, 23번 함수가 없으면 충전 카드만 '확인 불가'가 된다. 화면은 그대로 그린다.
+- 상태 바는 기존 `PaymentSalesPanel` 을 손대지 않고 감쌌다. 판매 중지(또는 상태를 못 읽음)나 결제 경보(`paymentAlertOpen` > 0)면 빨간 테두리를 그린다.
+- 상품 이동 링크는 상품 목록(`/admin/market/products?subject=`)으로 간다. 상품 하나를 바로 여는 주소가 없기 때문이다. 최근 자료 구매 링크는 주문 화면 마켓 탭의 `q=<주문 id>` 이다.
+- 주 막대 클릭은 충전·자료 판매 카드에서만 주문 화면으로 간다. 가입·다운로드 카드에는 대상 주문 화면이 없다.
+
+**확인한 것**
+- light 리허설을 운영에서 실행했다(2026-11-27, BEGIN…ROLLBACK). D1~D7·C 가 모두 통과했다. 23번이 운영에 없어서 23번 light 사본을 같은 거래 안에서 적용했다. 확인한 값: 11월 구매 16건 43,000 C(개별 15건 38,500 C·전체 1건 4,500 C), 자료 환불 2건 5,000 C, 큰 값 38,000 C, 요금제별 합 = 결제 60,600원, 가입 4, 다운로드 17회·5명, 366일 = 366행(15ms). 실행 뒤 운영에 함수·설정 행·가짜 주문이 0개인 것을 확인했다.
+- 시험: `tests/bundle21-dashboard-period.test.mjs`(11개)·`tests/bundle21-dashboard-contract.test.mjs`(18개)를 새로 만들었다. 공통 도우미는 `tests/helpers/admin-dashboard-harness.mjs` 이다. 전체 결과는 2376개 중 실패 44개이며, 모두 기존 실패와 이름이 같다(새 실패 0). `tsc` 오류 0, 바꾼 파일 eslint 0.
+- 기대값을 바꾼 기존 시험(이유는 각 파일 주석): `admin-dashboard-contract`·`admin-dashboard-u2-2-contract`(집계를 DB 함수로 옮김), `admin-guard-coverage-contract`(새 route 표·통계 route 기간 처리), `bundle13-cs-tools-contract`(대시보드의 profiles 직접 읽기 3건이 없어짐), `admin-alert-center-contract`(첫 화면 서버·새로고침 함수 이름), `market-material-refund-contract`(Q6 판매액 정의).
+
+**남은 것(11절 순서)**
+- 브라우저 확인은 하지 않았다(375px, 자리 고정, 그래프 접근성 포함). 로컬 확인 단계에서 한다.
+- 구현 검증(10절 4관점)은 아직 하지 않았다.
+- DB 적용 전 할 일: 23번 DB 적용, 13번 M0 운영 확인, b_full 리허설. 그다음 함수 적용 → 문구 스크립트 순서로 진행한다.
+- 11월 예시값(`NOVEMBER_EXAMPLE`)은 리허설 직전에 다시 뽑는다(12절 4).
+
+**구현 검증 반영(2026-11-27, ui-deps FAIL major 1 + minor)**
+- major: 추이 그래프 Y축이 늘 0 을 포함한다(`trendYDomain` = [min(0, 값), max(0, 값)], 모두 0 이면 [0, 1]). `ReferenceLine` 에는 `ifOverflow="extendDomain"` 을 주었다. 음수 날은 0 아래로 그대로 보인다.
+- 비교 범위 글은 시작·끝 연도가 다르면 연도까지 적는다(366일 비교).
+- 함수 없음과 그 밖 오류를 로그 `kind` 로 가른다(11절 6).
+- 상태 바 슬랙 글은 좁은 화면에서 줄을 바꾼다.
+- 표 보기의 주 행에 주문 화면 링크를 넣었다. 차트는 `accessibilityLayer={false}` 로 role=img 와 겹치지 않게 했다.
+- 의존성: `react-is` 19.2.0 을 직접 의존성으로 넣었다(React 19.2.0 과 같은 판). `@reduxjs/toolkit` 은 `overrides` 로 2.14.0(2026-11-03)에 고정했다. `npm install --ignore-scripts` 로 설치했고 lock 변경은 이 둘뿐이다.

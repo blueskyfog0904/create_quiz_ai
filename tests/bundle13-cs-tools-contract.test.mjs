@@ -71,7 +71,6 @@ const PROFILE_QUERIES = {
   'src/app/api/admin/refunds/route.ts | join:processor!refund_requests_processed_by_fkey | id, email': { client: 'service', use: 'admin', reason: '처리한 관리자' },
   'src/app/api/admin/session/route.ts | from:select | is_admin': { client: 'session', use: 'self', reason: '본인 관리자 여부' },
   'src/app/api/admin/stats/route.ts | from:select | is_admin': { client: 'session', use: 'self', reason: '권한 조회 실패 때 본인 관리자 여부' },
-  'src/app/api/admin/stats/route.ts | from:select | id': { client: 'service', proof: /createAdminClient\(\)\s*\.from\('profiles'\)/, use: 'no_contact', reason: '가입 수(건수만)' },
   'src/app/api/admin/users/[id]/withdrawal/route.ts | from:select | email': { client: 'service', use: 'not_shown', reason: '익명화 확인 입력과 대조만(응답에 싣지 않음, 대표 전용)' },
   'src/app/api/admin/users/search/route.ts | from:select | id, email, display_tag': { client: 'service', use: 'recorded', via: [['src/app/api/admin/users/search/route.ts', 'member_search']], reason: '지급 창 회원 찾기' },
   'src/lib/admin-accounts-server.ts | from:select | id, admin_role': { client: 'service', use: 'admin', reason: '관리자 계정 관리' },
@@ -84,8 +83,7 @@ const PROFILE_QUERIES = {
   },
   'src/lib/admin-credit-transactions-server.ts | from:select | id': { client: 'service', use: 'no_contact', reason: '이메일 검색 조건(맞는 회원 id 만)' },
   'src/lib/admin-credit-transactions-server.ts | from:select | id, email, display_tag': { client: 'service', use: 'recorded', via: [['src/app/(admin)/admin/credits/page.tsx', 'credits.list']], reason: '크레딧 거래 목록' },
-  'src/lib/admin-dashboard-server.ts | join:user!payment_orders_user_id_fkey | email': { client: 'service', use: 'recorded', via: [['src/app/api/admin/stats/route.ts', 'dashboard']], reason: '대시보드 최근 주문' },
-  'src/lib/admin-dashboard-server.ts | join:user!support_tickets_user_id_profiles_fkey | email': { client: 'service', use: 'recorded', via: [['src/app/api/admin/stats/route.ts', 'dashboard']], reason: '대시보드 최근 문의' },
+  // 21번: 대시보드는 profiles 를 직접 읽지 않는다 — 가입 수는 DB 함수 report_activity_daily(서버 키, 건수만), 최근 목록 이메일은 attachMemberContacts(screen 'dashboard').
   'src/lib/admin-member-access-log-server.ts | from:select | id, email, phone, display_tag, withdrawn_at': { client: 'service', use: 'recorder', reason: 'attachMemberContacts 가 연락처를 읽고 같은 함수에서 기록' },
   'src/lib/admin-member-access-log-view-server.ts | from:select | id, email': { client: 'service', use: 'admin', reason: '처리자 필터(관리자 계정)' },
   'src/lib/admin-member-access-log-view-server.ts | from:select | id, email, display_tag, withdrawn_at': {
@@ -218,8 +216,12 @@ test('화면별 조건: 목록 전화 가림, 기록 실패 때 연락처 가림
   for (const route of ['src/app/api/admin/orders/payments/route.ts', 'src/app/api/admin/orders/market/route.ts']) {
     assert.match(read(route), /const data = logged \? result : \{ \.\.\.result, orders: result\.orders\.map\(\(order\) => \(\{ \.\.\.order, user: order\.user \? \{ \.\.\.order\.user, email: null \} : null \}\)\) \}/, route)
   }
-  const stats = read('src/app/api/admin/stats/route.ts')
-  assert.match(stats, /const \{ count, error \} = await createAdminClient\(\)\s*\.from\('profiles'\)\s*\.select\('id', \{ count: 'exact', head: true \}\)/)
+  // 21번: 가입 수는 서버 키로 부르는 DB 함수(report_activity_daily, 건수만)가 센다. 최근 목록 이메일은 attachMemberContacts 로 붙이며 기록한다.
+  const dashboardServer = read('src/lib/admin-dashboard-server.ts')
+  assert.doesNotMatch(read('src/app/api/admin/stats/route.ts'), /from\('profiles'\)\s*\.select\('id'/)
+  assert.match(dashboardServer, /const db = \(\) => createAdminClient\(\)/)
+  assert.match(dashboardServer, /callReport<\{ days: ActivityDay\[\]; totals: ActivityTotals \}>\('report_activity_daily'/)
+  assert.match(dashboardServer, /attachMemberContacts\(\{\s*access,\s*screen: 'dashboard',[\s\S]*?fields: \['email'\],/)
   // 자료 환불은 세션 행에서 profiles 끼워 읽기를 빼고 attachMemberContacts 로 붙인다(탈퇴 가림은 RLS 그대로)
   const refunds = read('src/app/(admin)/admin/refunds/page.tsx')
   assert.match(refunds, /await supabase\s*\.from\('market_refund_requests'\)\s*\.select\('\*, item:market_items!market_refund_requests_item_id_fkey\(title\)'\)/)

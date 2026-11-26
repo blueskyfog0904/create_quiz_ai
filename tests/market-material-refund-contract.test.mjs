@@ -116,8 +116,11 @@ test('그 밖: 구성 기록 실패는 결제 409, 판매액은 환불된 크레
   assert.match(checkout, /if \(error\.code === 'P0409'\) \{\s*return toMarketCheckoutFailure\('BUNDLE_COMPONENTS_EMPTY'\)/)
   assert.match(checkout, /BUNDLE_COMPONENTS_EMPTY: 409,/)
   assert.match(migration, /RAISE EXCEPTION USING ERRCODE = 'P0409', MESSAGE = 'MARKET_BUNDLE_COMPONENTS_EMPTY'/)
-  const dashboard = read('src/lib/admin-dashboard-server.ts')
-  assert.match(dashboard, /sum \+ row\.charged_credits - \(row\.refunded_credits \?\? 0\)/)
+  // 21번(계획 Q6)에서 대시보드 판매액 정의가 바뀌었다: 일부 환불을 주문 행에서 빼던 방식 대신,
+  // 구매 시각 기준 charged_credits(뒤에 환불된 것 포함) − 처리 시각 기준 자료 환불 승인 C = 순 사용 C. 환불된 크레딧은 여전히 빠진다.
+  const dashboardMigration = read('supabase/migrations/20261223100000_bundle21_dashboard_reports.sql')
+  assert.match(dashboardMigration, /WHERE r\.status = 'approved'\s*AND r\.processed_at >= p_from AND r\.processed_at < p_to/)
+  assert.match(read('src/lib/admin-dashboard-fields.ts'), /netCredits: hasCredits \? purchaseCredits - refundCredits : null/)
   const items = read('src/lib/market-items-server.ts')
   assert.match(items, /source_order:market_purchase_orders!market_entitlements_order_workspace_fkey\(purchase_type\)/)
   assert.match(items, /source_order\?\.purchase_type !== 'bundle'/)

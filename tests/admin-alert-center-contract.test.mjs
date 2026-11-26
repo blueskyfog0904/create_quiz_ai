@@ -94,11 +94,12 @@ test('처리한 뒤에는 새로고침 없이 숫자가 맞는다: 처리 성공
     assert.equal([...source.matchAll(/router\.refresh\(\)/g)].length, [...source.matchAll(/[aA]lerts\?\.refresh\(\)/g)].length)
   }
 
-  // 대시보드의 처리 대기 카드는 종·배지와 같은 값을 쓴다(가입자 수 조회는 그대로).
-  assert.match(dashboard, /alerts\?\.loadFailed \? null : alerts\?\.summary\?\.work \?\? stats\.work/)
+  // 대시보드의 처리 대기 칩은 종·배지와 같은 값을 쓴다.
+  // 21번: 첫 화면은 서버가 그리고(초기 work), 통계 route 는 기간을 바꿀 때만 부른다. [새로고침]은 숫자와 요약을 함께 다시 읽는다.
+  assert.match(dashboard, /alerts\?\.loadFailed \? null : alerts\?\.summary\?\.work \?\? workFallback/)
   assert.match(dashboard, /const value = work \? work\[item\.key\] \?\? null : null/)
-  assert.match(dashboard, /fetch\('\/api\/admin\/stats'\)/)
-  assert.match(dashboard, /void fetchStats\(\)\s*alerts\?\.refresh\(\)/)
+  assert.match(dashboard, /fetch\(`\/api\/admin\/stats\?/)
+  assert.match(dashboard, /void loadDashboard\(period\.query, true\)\s*alerts\?\.refresh\(\)/)
 })
 
 test('요약: service role 전용 표는 세션 클라이언트로 읽지 않고, 읽지 못한 부분은 null·unknown이다', () => {

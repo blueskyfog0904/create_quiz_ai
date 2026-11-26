@@ -188,6 +188,8 @@ const all = (requirement, ...methods) => Object.fromEntries(methods.map((method)
 const ROUTE_REQUIREMENTS = {
   // 공통: 관리자면 통과
   'stats/route.ts': all('admin', 'GET'),
+  // 21번: 대시보드 최근 목록(탭마다 route 안에서 다시 거름 — 자료 구매·충전 주문 orders.view, 답변 대기 문의 support.manage)
+  'stats/recent/route.ts': all(['orders.view', 'support.manage'], 'GET'),
   'alerts/summary/route.ts': all('admin', 'GET'),
   'my-password/route.ts': all('admin', 'POST'),
   // 대표 고정
@@ -453,11 +455,12 @@ test('② 통계 route는 권한 조회가 실패했을 때만 is_admin을 직�
   assert.match(route, /if \('error' in guard && guard\.status !== 500\) \{\s*return NextResponse\.json\(\{ error: guard\.error \}, \{ status: guard\.status \}\)/)
   assert.match(route, /const access = 'error' in guard \? null : guard\.access\s*if \(!access\) \{/)
   // 직접 확인은 접근 정보가 없을 때만 하고, 비로그인 401·비관리자 403을 돌려준다.
-  const fallback = route.slice(route.indexOf('if (!access) {'), route.indexOf('const period = getKstPeriodStarts()'))
+  // 21번: 기간은 주소(period·subject·from·to)로 정한다(오늘·이번 달 고정 대신).
+  const fallback = route.slice(route.indexOf('if (!access) {'), route.indexOf('const url = new URL(request.url)'))
   assert.equal(route.match(/\.select\('is_admin'\)/g).length, 1)
   assert.match(fallback, /if \(!user\) \{\s*return NextResponse\.json\(\{ error: 'Unauthorized' \}, \{ status: 401 \}\)/)
   assert.match(fallback, /\.select\('is_admin'\)[\s\S]*if \(!profile\?\.is_admin\) \{\s*return NextResponse\.json\(\{ error: 'Forbidden' \}, \{ status: 403 \}\)/)
-  assert.match(route, /access \? getAdminDashboard\(access, period\) : null/)
+  assert.match(route, /access \? getAdminDashboard\(access, period, \{ includeProducts: url\.searchParams\.get\('products'\) === '1' \}\) : null/)
 })
 
 test('② 예외 route(session)는 본인 세션의 관리자 여부만 돌려준다', () => {
@@ -908,53 +911,47 @@ test('⑤ 상품: 수정 권한만으로는 완전 삭제를 못 하고, 오류�
   assert.deepEqual(await member.json(), { success: false, error: { code: 'FORBIDDEN', message: '관리자 권한이 필요합니다.' } })
 })
 
+// 21번: 가입 수·숫자 구역은 getAdminDashboard 가 권한별로 거른다(가입 수는 report_activity_daily — pickDashboardFields 의 members.view).
+// 이 시험은 route 가 가드 결과대로 그 함수를 부르는지와 권한 조회 실패 때의 처리를 본다(권한별 필드는 bundle21-dashboard-contract).
 function loadStatsRoute(session, { lookupFails = false } = {}) {
-  const calls = { dashboard: 0, workAccess: [] }
+  const calls = { dashboard: [], workAccess: [] }
   const guard = adminGuardMocks(session)
   const route = load('src/app/api/admin/stats/route.ts', {
     'next/server': json,
     ...guard,
     // 권한 조회 실패: 가드가 500을 돌려준다.
     ...(lookupFails ? { '@/lib/admin-permissions-server': { requireAdminApiPermission: async () => ({ error: '권한을 확인하지 못했습니다.', status: 500 }) } } : {}),
-    '@/lib/supabase/server': { createClient: async () => {
-      const client = createFakeSessionClient(session)
-      return { auth: client.auth, from: (table) => ({ ...client.from(table), select: (_columns, options) => (options?.head ? { gte: async () => ({ count: 3, error: null }) } : client.from(table)) }) }
-    } },
-    '@/lib/admin-dashboard-server': { getAdminDashboard: async () => { calls.dashboard += 1; return { metrics: { ok: true }, recentOrders: { failed: false, data: [] }, recentTickets: null } } },
+    '@/lib/supabase/server': { createClient: async () => createFakeSessionClient(session) },
+    '@/lib/admin-dashboard-server': { getAdminDashboard: async (access, period, options) => { calls.dashboard.push({ access, period, options }); return { ok: true } } },
+    '@/lib/admin-dashboard-period': load('src/lib/admin-dashboard-period.ts', { '@/lib/sales-report': load('src/lib/sales-report.ts', { '@/lib/admin-orders': load('src/lib/admin-orders.ts'), '@/lib/kst-period': load('src/lib/kst-period.ts') }), '@/lib/kst-period': load('src/lib/kst-period.ts') }),
     '@/lib/admin-work-summary-server': { getAdminWorkSummary: async (access) => { calls.workAccess.push(access); return { supportPending: 1 } } },
-    '@/lib/kst-period': { getKstPeriodStarts: () => ({ todayStart: 't', monthStart: 'm', year: 2026, month: 11 }) },
-    // 13번 M3: 가입 수는 서버 키로 센다(세션은 다른 회원의 profiles 를 읽지 못함). 최근 주문·문의 이메일은 열람 기록 뒤에 싣는다.
-    '@/lib/supabase/bypass': { createAdminClient: () => ({ from: () => ({ select: (_columns, options) => (options?.head ? { gte: async () => ({ count: 3, error: null }) } : null) }) }) },
-    '@/lib/admin-member-access-log-server': { recordMemberAccess: async (input) => { calls.access = (calls.access ?? []).concat([input]); return true } },
-    '@/lib/admin-request-meta': load('src/lib/admin-request-meta.ts'),
   })
-  return { get: () => route.GET(new Request('http://localhost/api/admin/stats')), calls }
+  return { get: (query = '') => route.GET(new Request(`http://localhost/api/admin/stats${query}`)), calls }
 }
 
-test('⑤ 통계: 가입 수는 회원 조회 권한, 처리 대기는 항목별 권한으로 거르고, 권한 조회가 실패하면 "확인 불가"로 보낸다', async () => {
-  // 권한 0개 staff: 가입 수는 빠지고(null), 처리 대기는 그 계정의 권한으로 센다.
+test('⑤ 통계: 숫자 구역은 계정 권한으로 거르고(getAdminDashboard), 처리 대기는 항목별 권한, 권한 조회가 실패하면 "확인 불가"로 보낸다', async () => {
+  // 권한 0개 staff: 그 계정의 접근 정보로 숫자 구역·처리 대기를 읽는다.
   const normal = loadStatsRoute({ role: 'staff' })
-  const ok = await normal.get()
+  const ok = await normal.get('?period=7d&subject=korean&products=1')
   assert.equal(ok.status, 200)
-  assert.equal(ok.body.signups, null)
-  assert.deepEqual(ok.body.metrics, { ok: true })
-  assert.equal(normal.calls.dashboard, 1)
+  assert.deepEqual(ok.body.dashboard, { ok: true })
+  assert.equal(normal.calls.dashboard.length, 1)
+  assert.equal(normal.calls.dashboard[0].access.role, 'staff')
+  assert.deepEqual(normal.calls.dashboard[0].period.query, { period: '7d', subject: 'korean' })
+  assert.deepEqual(normal.calls.dashboard[0].options, { includeProducts: true })
   assert.equal(normal.calls.workAccess.length, 1)
   assert.equal(normal.calls.workAccess[0].role, 'staff')
+  // 기간만 바꾸는 요청은 상품 현황을 다시 읽지 않는다.
+  await normal.get('?period=today')
+  assert.deepEqual(normal.calls.dashboard[1].options, { includeProducts: false })
 
-  // 회원 조회 권한이 있는 staff와 대표는 가입 수를 본다.
-  for (const session of [{ role: 'staff', grants: [grant('members.view')] }, {}]) {
-    assert.deepEqual((await loadStatsRoute(session).get()).body.signups, { today: 3, month: 3 }, JSON.stringify(session))
-  }
-
-  // 권한을 읽지 못하면: 가입 수는 세지 않고 "확인 불가"(null 값), 처리 대기도 권한 없이(null) 부르고, 권한 구역은 뺀다.
+  // 권한을 읽지 못하면: 숫자 구역은 부르지 않고(null), 처리 대기도 권한 없이(null) 부른다.
   const degraded = loadStatsRoute({}, { lookupFails: true })
   const partial = await degraded.get()
   assert.equal(partial.status, 200)
-  assert.deepEqual(partial.body.signups, { today: null, month: null })
+  assert.equal(partial.body.dashboard, null)
   assert.deepEqual(degraded.calls.workAccess, [null])
-  assert.equal(partial.body.metrics, null)
-  assert.equal(degraded.calls.dashboard, 0)
+  assert.equal(degraded.calls.dashboard.length, 0)
 
   // 조회가 실패한 상태에서도 관리자가 아니면 403, 비로그인은 401이다.
   assert.deepEqual(await loadStatsRoute({ isAdmin: false }, { lookupFails: true }).get(), { body: { error: 'Forbidden' }, status: 403 })

@@ -1,4 +1,3 @@
-import { Suspense } from 'react'
 import { DashboardClient } from './dashboard-client'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 import { PaymentSalesPanel } from '@/components/admin/payment-sales-panel'
@@ -6,63 +5,44 @@ import { requireAdminPanelUser } from '@/lib/auth'
 import { hasAdminPermission } from '@/lib/admin-permissions'
 import { getAdminAccess } from '@/lib/admin-permissions-server'
 import { getPaymentSalesStatus } from '@/lib/payment-sales-status-server'
+import { dashboardPermissions } from '@/lib/admin-dashboard-fields'
+import { parseDashboardQuery, resolveDashboardPeriod } from '@/lib/admin-dashboard-period'
+import { firstRecentTab, getAdminDashboard, getDashboardRecent, readDashboardContent } from '@/lib/admin-dashboard-server'
+import { getAdminWorkSummary } from '@/lib/admin-work-summary-server'
 
-export default async function AdminDashboardPage() {
+interface AdminDashboardPageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+// 21번 묶음(계획 6절): 첫 화면은 서버에서 그린다. 주소(period·subject·from·to)를 검사해 같은 함수로 읽고 넘긴다.
+// 최근 목록의 첫 탭도 여기서 읽는다(열람 기록 1행). 화면은 초기 데이터가 있으면 마운트 때 다시 부르지 않는다.
+export default async function AdminDashboardPage({ searchParams }: AdminDashboardPageProps) {
+  const params = searchParams ? await searchParams : undefined
   await requireAdminPanelUser()
   const [salesStatus, access] = await Promise.all([
     getPaymentSalesStatus(),
-    // 권한을 읽지 못하면 중지 버튼만 숨긴다(상태 표시는 그대로).
+    // 권한을 읽지 못하면 숫자 구역을 빼고 중지 버튼을 숨긴다(상태 표시는 그대로).
     getAdminAccess().catch(() => null),
+  ])
+  const now = new Date()
+  const period = resolveDashboardPeriod(parseDashboardQuery(params, now), now)
+  const permissions = dashboardPermissions(access)
+  const recentTab = firstRecentTab(permissions)
+  const [dashboard, recent, content, work] = await Promise.all([
+    access ? getAdminDashboard(access, period, { includeProducts: true }) : null,
+    access && recentTab ? getDashboardRecent(access, recentTab) : null,
+    readDashboardContent(),
+    getAdminWorkSummary(access),
   ])
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 max-md:text-2xl"><AdminMenuName href="/admin" fallback="관리자 대시보드" /></h1>
-        <p className="text-gray-500 mt-1">서비스 현황을 한눈에 확인하세요</p>
-      </div>
-      
-      <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardClient salesPanel={<PaymentSalesPanel status={salesStatus} canStopSales={hasAdminPermission(access, 'owner')} />} />
-      </Suspense>
-    </div>
+    <DashboardClient
+      title={<AdminMenuName href="/admin" fallback="관리자 대시보드" />}
+      permissions={permissions}
+      content={content}
+      initial={{ period, dashboard, work, recent }}
+      salesAttention={!salesStatus || !salesStatus.acceptsNewOrders}
+      salesPanel={<PaymentSalesPanel status={salesStatus} canStopSales={hasAdminPermission(access, 'owner')} />}
+    />
   )
 }
-
-function DashboardSkeleton() {
-  return (
-    <div className="space-y-6">
-      {/* Stats Cards Skeleton */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white rounded-xl p-6 shadow-sm border animate-pulse">
-            <div className="h-4 bg-gray-200 rounded w-24 mb-3" />
-            <div className="h-8 bg-gray-200 rounded w-16 mb-2" />
-            <div className="h-3 bg-gray-200 rounded w-32" />
-          </div>
-        ))}
-      </div>
-      
-      {/* Content Skeleton */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl p-6 shadow-sm border animate-pulse">
-          <div className="h-6 bg-gray-200 rounded w-40 mb-4" />
-          <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-12 bg-gray-200 rounded" />
-            ))}
-          </div>
-        </div>
-        <div className="bg-white rounded-xl p-6 shadow-sm border animate-pulse">
-          <div className="h-6 bg-gray-200 rounded w-40 mb-4" />
-          <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-10 bg-gray-200 rounded" />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
