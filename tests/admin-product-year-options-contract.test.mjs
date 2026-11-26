@@ -49,14 +49,9 @@ test('admin market product price fields display comma-formatted credit values an
   assert.match(marketProductsClient, /hwpPrice: formatCreditInputValue\(item\.hwp_price\)/)
   assert.match(marketProductsClient, /pdfPrice: parseCreditInputValue\(form\.pdfPrice\)/)
   assert.match(marketProductsClient, /hwpPrice: parseCreditInputValue\(form\.hwpPrice\)/)
-  assert.match(
-    marketProductsClient,
-    /<Input\s+type="text"\s+inputMode="numeric"\s+value=\{form\.pdfPrice\}[\s\S]*?placeholder="예: 1,000"[\s\S]*?formatCreditInputValue\(event\.target\.value\)/
-  )
-  assert.match(
-    marketProductsClient,
-    /<Input\s+type="text"\s+inputMode="numeric"\s+value=\{form\.hwpPrice\}[\s\S]*?placeholder="예: 1,000"[\s\S]*?formatCreditInputValue\(event\.target\.value\)/
-  )
+  // 옛 pdf·hwp 가격 입력칸은 없어졌다(판매 가격은 서브상품·전체구매 칸). 그 칸들도 쉼표 형식으로 보여 준다.
+  assert.doesNotMatch(marketProductsClient, /value=\{form\.pdfPrice\}|value=\{form\.hwpPrice\}/)
+  assert.match(marketProductsClient, /priceCredits: formatCreditInputValue\(event\.target\.value\)/)
 })
 
 test('admin generate product year options extend to 2050', () => {

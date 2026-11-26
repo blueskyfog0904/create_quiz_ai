@@ -104,7 +104,9 @@ test('admin product form adds paid file draft rows before upload instead of auto
 test('admin product form uploads paid files through subproduct file API from the selected draft file type', () => {
   assert.match(adminProductsClient, /\/subproducts\/\$\{subproductId\}\/files/)
   // 파일마다 확장자로 정한 유형(고른 유형과 맞으면 그 유형)을 보낸다
-  assert.match(adminProductsClient, /formData\.append\('fileTypeId', fileType\.id\)/)
+  // 서명 업로드라 prepare·complete JSON 본문에 유형을 담는다
+  assert.match(adminProductsClient, /step: 'prepare',\s+fileTypeId: fileType\.id,/)
+  assert.match(adminProductsClient, /step: 'complete', fileTypeId: fileType\.id/)
   assert.match(adminProductsClient, /handleSubproductFileUpload\(subproduct\.id, draft\.fileTypeId/)
   assert.match(adminProductsClient, /handleDeleteSubproductFile/)
 })
