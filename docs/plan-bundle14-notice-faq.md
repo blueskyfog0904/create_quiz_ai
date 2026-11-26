@@ -106,12 +106,13 @@
 ### 5-6. 함수(SECURITY DEFINER, `SET search_path = public, pg_temp`, `REVOKE EXECUTE … FROM PUBLIC, anon, authenticated` 뒤 service_role 만 EXECUTE)
 - **`site_board_actor_allowed(p_actor_id)`**(내부): `p_actor_id IS NOT NULL AND is_admin IS TRUE AND withdrawn_at IS NULL AND (admin_role = 'owner' OR (admin_role = 'staff' AND content.manage 권한 행))`. `admin_role` 이 빈 관리자는 거절(TS 보다 엄격, 예시 묶음에 따로 적음). (2판)
 - **`member_facing_text_pii_hits(p_text)`** → text[](STABLE): 이메일·휴대폰·일반 전화·주민번호 모양. `fixedFields.customerCenter.value`·`fixedFields.orderEmail.value` 와 같은 것은 뺀다. 전화는 **숫자만 남겨** 비교한다(하이픈 유무 무관). 16번이 같은 함수를 쓴다. TS 순수 함수 `src/lib/member-facing-text-pii.ts` 와 같은 예시 묶음을 돌린다. (2판)
+- **잠금 순서 공통**(PASS 뒤): 쓰기 함수 save·delete·reorder·save_content·redact 는 **권한 확인 직후, 글 행 `FOR UPDATE` 보다 먼저** `pg_advisory_xact_lock(hashtext('site_board_order'))` 를 잡는다. 순서가 엇갈려 생기는 교착(40P01)과, 커밋 전 삭제 글을 순서 바꾸기가 다시 매기는 일을 막는다.
 - 모든 쓰기 함수의 마지막 인자는 `p_request_meta jsonb` 다. 객체가 아니면 `SITE_BOARD_INPUT_INVALID`. details 의 `request` 에 넣는다. (2판)
 - **`save_site_board_post(p_actor_id, p_id, p_expected_revision, p_board, p_title, p_body, p_link_url, p_link_label, p_faq_category_key, p_is_pinned, p_is_published, p_request_meta)`** → jsonb
   - 권한 없으면 `SITE_BOARD_ACTOR_NOT_ALLOWED`. 새 글은 `p_id`·판 NULL. 고칠 때는 `FOR UPDATE`, 판이 다르면 `SITE_BOARD_REVISION_CONFLICT`, 삭제·가린 글이면 `SITE_BOARD_POST_DELETED`. 종류는 못 바꾼다.
   - 다듬기·검사(`SITE_BOARD_INPUT_INVALID` + 칸 이름): 링크는 `isAllowedNoticeLink` 와 같은 예시 묶음, FAQ 분류는 설정에 있어야 함.
   - 개인정보: 제목·본문·링크 주소·링크 이름 → `SITE_BOARD_PII_SUSPECTED`(종류만 돌려줌). (2판)
-  - **잠금 순서**(3판 PASS 뒤): 종류와 관계없이 입력 다듬기 뒤, 설정 행 읽기(FAQ 분류 존재·`maxPinned`)와 sort_order 계산 **전에** `pg_advisory_xact_lock(hashtext('site_board_order'))` 를 잡는다. 분류 지우기·상한 낮추기(`save_site_board_content`)와 동시에 와도 설정에 없는 분류의 글이나 상한 초과가 생기지 않는다.
+  - **잠금 순서**(3판 PASS 뒤): 위 공통 규칙대로 권한 확인 직후(글 행 `FOR UPDATE`·설정 행 읽기·sort_order 계산 전)에 잠금을 잡는다. 분류 지우기·상한 낮추기(`save_site_board_content`)와 동시에 와도 설정에 없는 분류의 글이나 상한 초과가 생기지 않는다.
   - 고정 상한: 잠금 뒤 읽은 `maxPinned` 로 5-5 정의를 센다 → `SITE_BOARD_PIN_LIMIT`. 5-5 의 sort_order 규칙을 적용한다. (3판)
   - 날짜: 처음 게시 때 `published_at`. 게시된 적이 있는 글의 제목·본문·링크가 바뀌면 `content_updated_at = clock_timestamp()`(고정·순서·게시 여부만 바뀌면 그대로). 회원 상세에 '수정 날짜'가 보인다. (2판)
   - 바뀐 것이 없으면 기록 없이 돌려준다. 바뀌면 판 이력 1행 + 작업 기록 `site_board_post_save`(details: `board`, `post_id`, `created`, `revision_before/after`, `revision_row_id`, `changed_fields`, `title_length`·`body_length`, `body_sha256_before/after`, `is_published`·`is_pinned` 앞뒤, `request`, `saved_at`. **제목·본문 원문은 넣지 않는다**). (2판)
@@ -199,7 +200,7 @@
 - 하단 링크가 정책 `nav` 밖, 게시 글 0개면 링크 없음
 - 사이드바·가드·작업 기록 시험 갱신(7-1)
 - 4번 후속: '공지 게시판이 생기기 전까지는' 글자가 사라지고 '변경 예정 약관' 단계가 먼저 나오며, '본문이 새 전문으로 바뀐 것을 확인한 뒤' 조건이 남음 (3판)
-- 두 함수(`save_site_board_post`·`save_site_board_content`)가 같은 advisory lock 을 설정 행 읽기·분류 사용 중 검사·고정 수 검사 **전에** 잡음(순서까지 단언), 14번 down 의 멈춤 조건이 '16번 함수 이름 목록 또는 판 이력 표가 아닌 FK'이고 기록 표 존재가 아님 (3판·PASS 뒤)
+- 두 함수(`save_site_board_post`·`save_site_board_content`)가 같은 advisory lock 을 설정 행 읽기·분류 사용 중 검사·고정 수 검사 **전에** 잡음(순서까지 단언 — 다섯 쓰기 함수 모두 잠금이 글 행 `FOR UPDATE` 보다 앞, delete 도 같은 잠금), 14번 down 의 멈춤 조건이 '16번 함수 이름 목록 또는 판 이력 표가 아닌 FK'이고 기록 표 존재가 아님 (3판·PASS 뒤)
 - 팝업 연결 판정이 `linkPathOf` 를 씀 (3판)
 ### 10-2. 화면 시험(Claude in Chrome, 내가 먼저 → 대표)
 - localhost 는 개발 전용 미리보기로 예시 글을 메모리에서 그린다. 11번 `src/lib/checkout-consent-preview.ts` 처럼 `NODE_ENV === 'development'` 이고 터미널 환경 변수(`SITE_BOARD_PREVIEW=1`)일 때만 켜진다. 예시 글은 `output/` 의 JSON 에서 읽는다. 관리자 화면은 열어 보기만 한다.
@@ -292,4 +293,4 @@
 |---|---|
 | down 의 FK 조건이 14번 판 이력 표의 FK 도 세어 늘 멈춤, '16번 함수'가 무엇인지 없음 | 5-7 판 이력 표 제외, pii 함수를 부르는 16번 함수 이름 목록, 10-1. 16번 5-5 문장도 맞춤 |
 | FAQ 분류 지우기와 FAQ 저장의 경합 | 5-6 두 함수의 잠금 순서(설정 읽기 전), 10-1 순서 단언 |
-
+| 쓰기 함수 사이 잠금 순서가 엇갈려 교착·삭제 경합 | 5-6 잠금 순서 공통(권한 확인 직후, 글 행 잠금 전, delete·redact 포함), 10-1 |
