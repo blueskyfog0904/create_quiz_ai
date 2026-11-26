@@ -1,17 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFileSync } from 'node:fs'
 import { getListPagination } from '../src/lib/list-pagination.ts'
+import { readProductAdminFile, readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
-const client = readFileSync(
-  new URL('../src/app/(admin)/admin/market/products/market-products-client.tsx', import.meta.url),
-  'utf8'
-)
+const client = readProductAdminSource()
+// 18번: 목록 처리 함수(toggleFilteredSelection·change*)는 껍데기에 남는다(본문 잘라 읽기는 그 파일에서).
+const shell = readProductAdminFile('market-products-client.tsx')
 
 function body(name) {
-  const start = client.indexOf(`const ${name} = `)
+  const start = shell.indexOf(`const ${name} = `)
   assert.ok(start > 0, name)
-  return client.slice(start, client.indexOf('\n  }\n', start) + 4)
+  return shell.slice(start, shell.indexOf('\n  }\n', start) + 4)
 }
 
 test('목록은 useListQuery와 getListPagination으로 자른 현재 페이지 조각만 그린다', () => {
@@ -56,7 +55,9 @@ test('카테고리 필터 변경은 핸들러에서, 저장으로 필터가 바�
   assert.match(body('changeSortKey'), /setSortKey\(nextSortKey\)\n\s+listQuery\.update\(\{ page: 1 \}, true\)/)
   assert.match(body('changeTitleQuery'), /setTitleQuery\(nextQuery\)\n\s+listQuery\.update\(\{ page: 1 \}, true\)/)
   assert.doesNotMatch(client, /listQuery\.setPage\(1\)/)
-  for (const effect of client.match(/useEffect\(\(\) => \{[\s\S]*?\n {2}\}, \[[^\]]*\]\)/g) ?? []) {
+  const effects = client.match(/useEffect\(\(\) => \{[\s\S]*?\n {2}\}, \[[^\]]*\]\)/g) ?? []
+  assert.ok(effects.length >= 1, 'effect 반복문이 빈 목록을 돌지 않는다')
+  for (const effect of effects) {
     assert.doesNotMatch(effect, /setPage|listQuery/, 'page must not be reset inside an effect')
   }
 })

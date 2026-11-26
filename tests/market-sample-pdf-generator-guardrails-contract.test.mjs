@@ -1,14 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
+import { readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
 const generator = readFileSync(new URL('../src/lib/market-pdf-sample-generator.ts', import.meta.url), 'utf8')
 const storage = readFileSync(new URL('../src/lib/market-storage.ts', import.meta.url), 'utf8')
 const sourceRoute = readFileSync(new URL('../src/app/api/admin/market/items/[id]/sample-pages/source/route.ts', import.meta.url), 'utf8')
-const adminProductsClient = readFileSync(
-  new URL('../src/app/(admin)/admin/market/products/market-products-client.tsx', import.meta.url),
-  'utf8'
-)
+const adminProductsClient = readProductAdminSource()
 
 test('sample pdf upload and rendering define size pixel byte and timeout guardrails', () => {
   assert.match(storage, /MAX_SAMPLE_SOURCE_PDF_SIZE_BYTES|MAX_SAMPLE_SOURCE_PDF_SIZE/)

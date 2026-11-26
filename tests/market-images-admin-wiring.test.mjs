@@ -2,13 +2,14 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { createFakeAdmin, load, loadRoute, marketImages, op } from './helpers/market-images-harness.mjs'
+import { readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 const itemsRoute = read('src/app/api/admin/market/items/route.ts')
 const itemRoute = read('src/app/api/admin/market/items/[id]/route.ts')
 const bulkRoute = read('src/app/api/admin/market/items/thumbnail/route.ts')
 const itemsServer = read('src/lib/market-items-server.ts')
-const productsClient = read('src/app/(admin)/admin/market/products/market-products-client.tsx')
+const productsClient = readProductAdminSource()
 const categoriesRoute = read('src/app/api/admin/market-categories/route.ts')
 const categoryNodeRoute = read('src/app/api/admin/market-categories/[nodeId]/route.ts')
 const categoriesServer = read('src/lib/market-categories-server.ts')
@@ -246,7 +247,7 @@ test('카테고리 기본 이미지는 상위 칸에서 상속된다: DB 함수 
   assert.match(migration, /create or replace function public\.effective_default_image\(public\.market_category_items\)\s+returns setof public\.market_images[\s\S]+?rows 1/)
   assert.match(migration, /join chain on parent\.id = chain\.parent_id and parent\.workspace_subject = chain\.workspace_subject/)
   assert.match(migration, /order by chain\.hops\s+limit 1/)
-  const productsClient = read('src/app/(admin)/admin/market/products/market-products-client.tsx')
+  const productsClient = readProductAdminSource()
   assert.match(productsClient, /const selectedCategoryDefaultImage = selectedCategoryPath\.findLast\(\(node\) => node\.defaultImage\)\?\.defaultImage \?\? null/)
   assert.match(categoriesClient, /const inherited = \(selectedPath \?\? \[\]\)\.slice\(0, -1\)\.findLast\(\(pathNode\) => pathNode\.defaultImage\) \?\? null/)
   assert.match(categoriesClient, /칸의 기본 이미지를 이어받아 표시됩니다/)

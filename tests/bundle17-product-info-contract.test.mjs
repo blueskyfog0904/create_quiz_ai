@@ -4,6 +4,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import '../src/components/features/passages/node-test-register.mjs'
+import { readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
 // 17번 계획(docs/plan-bundle17-product-info.md) 10-1 의 계약 시험. DB 동작은 리허설(5-8, supabase/scripts/bundle17_rehearsal)이 본다.
 // 등록 훅이 켜진 뒤에 불러야 '@/' 경로를 찾는다(정적 import 는 훅보다 먼저 풀린다).
@@ -329,7 +330,7 @@ test('관리자: 상품 표시 설정 메뉴·가드, 상품 폼은 DB 목록 �
   assert.match(settings, /회원에게 보이지 않는 내부 기록입니다/)
   assert.match(settings, /이 이름을 쓰는 상품 \{rename\?\.itemCount \?\? 0\}개도 함께 바뀝니다\./)
   assert.match(settings, /옛 이름으로 저장된 검색 링크\(\?grade=/)
-  const client = read('src/app/(admin)/admin/market/products/market-products-client.tsx')
+  const client = readProductAdminSource()
   assert.doesNotMatch(client, /LISTBOARD_GRADE_OPTIONS/)
   assert.match(client, /\{ value: '', label: '선택 안 함' \}/)
   assert.match(client, /label: `\(숨김\) \$\{value\}`/)

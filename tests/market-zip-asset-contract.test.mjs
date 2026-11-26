@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
+import { readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
 const initialMigration = readFileSync(new URL('../supabase/migrations/20260317113000_create_market_items_purchase_domain.sql', import.meta.url), 'utf8')
 const generatedTypes = readFileSync(new URL('../src/types/supabase.ts', import.meta.url), 'utf8')
 const migrationsAndTypes = `${initialMigration}\n${generatedTypes}`
-const adminClient = readFileSync(new URL('../src/app/(admin)/admin/market/products/market-products-client.tsx', import.meta.url), 'utf8')
+const adminClient = readProductAdminSource()
 const adminCreateRoute = readFileSync(new URL('../src/app/api/admin/market/items/route.ts', import.meta.url), 'utf8')
 const adminUpdateRoute = readFileSync(new URL('../src/app/api/admin/market/items/[id]/route.ts', import.meta.url), 'utf8')
 const storage = readFileSync(new URL('../src/lib/market-storage.ts', import.meta.url), 'utf8')

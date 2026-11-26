@@ -1,0 +1,312 @@
+{
+  "base": "77b7511",
+  "counts": {
+    "fetch": 31,
+    "router.refresh": 7,
+    "uploadToSignedUrl": 2
+  },
+  "calls": [
+    {
+      "fn": "fetchItemDetail",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${id}`, workspaceSubject), { cache: 'no-store' }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "fetchItemSamplePages",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${id}/sample-pages`, workspaceSubject), { cache: 'no-store' }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "handleArchive",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}`, workspaceSubject), { method: 'DELETE', }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "handleArchive",
+      "kind": "router.refresh",
+      "args": "",
+      "variables": {},
+      "order": 1
+    },
+    {
+      "fn": "handleBulkDelete",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${item.id}`, workspaceSubject), { method: 'DELETE', }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "handleBulkDelete",
+      "kind": "router.refresh",
+      "args": "",
+      "variables": {},
+      "order": 1
+    },
+    {
+      "fn": "handleBulkImageAssign",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject('/api/admin/market/items/thumbnail', workspaceSubject), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemIds: chunk, imageId: image?.id ?? null }), }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "handleBulkImageAssign",
+      "kind": "router.refresh",
+      "args": "",
+      "variables": {},
+      "order": 1
+    },
+    {
+      "fn": "handleBulkVisibility",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${item.id}`, workspaceSubject), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...buildItemPatchBody(item, 'hidden'), status: 'hidden' }), }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "handleBulkVisibility",
+      "kind": "router.refresh",
+      "args": "",
+      "variables": {},
+      "order": 1
+    },
+    {
+      "fn": "handleCreateSubproduct",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/subproducts`, workspaceSubject), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categoryId: subproductDraft.categoryId, description: subproductDraft.description, purchaseNoticeLabel: subproductDraft.purchaseNoticeLabel, purchaseNoticeText: subproductDraft.purchaseNoticeText, priceCredits: parseCreditInputValue(subproductDraft.priceCredits), isActive: true, }), }",
+      "variables": {
+        "targetItemId": "form.id ?? await ensureDraftItemForUpload()"
+      },
+      "order": 0
+    },
+    {
+      "fn": "handleDeleteAllSamplePages",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(deleteUrl, workspaceSubject), { method: 'DELETE', }",
+      "variables": {
+        "deleteUrl": "page.draftToken ? `/api/admin/market/items/${form.id}/sample-pages/${page.id}?draftToken=${encodeURIComponent(page.draftToken)}` : `/api/admin/market/items/${form.id}/sample-pages/${page.id}`"
+      },
+      "order": 0
+    },
+    {
+      "fn": "handleDeleteCategorySettings",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/subproduct-categories/${categoryId}`, workspaceSubject), { method: 'DELETE', }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "handleDeleteFileTypeSettings",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/file-types/${fileTypeId}`, workspaceSubject), { method: 'DELETE', }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "handleDeleteFromList",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${deleteTarget.id}`, workspaceSubject), { method: 'DELETE', }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "handleDeleteFromList",
+      "kind": "router.refresh",
+      "args": "",
+      "variables": {},
+      "order": 1
+    },
+    {
+      "fn": "handleDeleteSamplePage",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(deleteUrl, workspaceSubject), { method: 'DELETE', }",
+      "variables": {
+        "deleteUrl": "page.draftToken ? `/api/admin/market/items/${form.id}/sample-pages/${page.id}?draftToken=${encodeURIComponent(page.draftToken)}` : `/api/admin/market/items/${form.id}/sample-pages/${page.id}`"
+      },
+      "order": 0
+    },
+    {
+      "fn": "handleDeleteSubproduct",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}/subproducts/${subproductId}`, workspaceSubject), { method: 'DELETE', }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "handleDeleteSubproductFile",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}/subproducts/${subproductId}/files/${fileId}`, workspaceSubject), { method: 'DELETE', }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "handleGenerateSampleImages",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/sample-pages/source`, workspaceSubject), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ draftToken: sampleDraftToken || undefined, pages: renderedPages.map((page) => ({ pageNumber: page.pageNumber, originalFileName: page.originalFileName, storageFileName: page.storageFileName, mimeType: page.mimeType, fileSizeBytes: page.fileSizeBytes, widthPx: page.widthPx, heightPx: page.heightPx, })), }), }",
+      "variables": {
+        "targetItemId": "form.id ?? await ensureDraftItemForUpload()"
+      },
+      "order": 0
+    },
+    {
+      "fn": "handleGenerateSampleImages",
+      "kind": "uploadToSignedUrl",
+      "args": "uploadTarget.storagePath, uploadTarget.token, renderedPage.blob, { contentType: 'image/jpeg', }",
+      "variables": {},
+      "order": 1
+    },
+    {
+      "fn": "handleGenerateSampleImages",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/sample-pages/source/finalize`, workspaceSubject), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'finalize_upload', draftToken: payload.draftToken, sourceBatchId: payload.sourceBatchId, pages: payload.uploadTargets.map((page) => ({ pageNumber: page.pageNumber, originalFileName: page.originalFileName, storageFileName: page.storageFileName, storagePath: page.storagePath, mimeType: page.mimeType, fileSizeBytes: page.fileSizeBytes, widthPx: page.widthPx, heightPx: page.heightPx, })), }), }",
+      "variables": {
+        "targetItemId": "form.id ?? await ensureDraftItemForUpload()"
+      },
+      "order": 2
+    },
+    {
+      "fn": "handleGenerateSampleImages",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/sample-pages/source/finalize`, workspaceSubject), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cleanup_upload_batch', sourceBatchId: cleanupSourceBatchId, storagePaths: uploadedStoragePaths, }), }",
+      "variables": {
+        "targetItemId": "form.id ?? await ensureDraftItemForUpload()"
+      },
+      "order": 3
+    },
+    {
+      "fn": "handleSaveCategorySettings",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject( editingCategoryId ? `/api/admin/market/subproduct-categories/${editingCategoryId}` : '/api/admin/market/subproduct-categories', workspaceSubject ), { method: editingCategoryId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: categorySettingsForm.name, slug: categorySettingsForm.slug, description: categorySettingsForm.description, sortOrder: Number(categorySettingsForm.sortOrder || 0), isActive: categorySettingsForm.isActive, }), }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "handleSaveFileTypeSettings",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject( editingFileTypeId ? `/api/admin/market/file-types/${editingFileTypeId}` : '/api/admin/market/file-types', workspaceSubject ), { method: editingFileTypeId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: fileTypeSettingsForm.code, label: fileTypeSettingsForm.label, extension: fileTypeSettingsForm.extension.replace(/^\\./, ''), ...(fileTypeSettingsForm.requiredProgram.trim() ? { requiredProgram: fileTypeSettingsForm.requiredProgram } : {}), mimeAllowlist: fileTypeSettingsForm.mimeAllowlist .split(/\\n|,/) .map((mime) => mime.trim()) .filter(Boolean), sortOrder: Number(fileTypeSettingsForm.sortOrder || 0), isActive: fileTypeSettingsForm.isActive, }), }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "handleSaveSubproduct",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}/subproducts/${subproductId}`, workspaceSubject), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categoryId: subproductEditDraft.categoryId, description: subproductEditDraft.description, purchaseNoticeLabel: subproductEditDraft.purchaseNoticeLabel, purchaseNoticeText: subproductEditDraft.purchaseNoticeText, priceCredits: parseCreditInputValue(subproductEditDraft.priceCredits), isActive: subproductEditDraft.isActive, }), }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "handleSubproductFileUpload",
+      "kind": "fetch",
+      "args": "filesUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ step: 'prepare', fileTypeId: fileType.id, fileName: file.name, fileSize: file.size, contentType: file.type || null, }), }",
+      "variables": {
+        "filesUrl": "withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/subproducts/${subproductId}/files`, workspaceSubject)"
+      },
+      "order": 0
+    },
+    {
+      "fn": "handleSubproductFileUpload",
+      "kind": "uploadToSignedUrl",
+      "args": "storagePath, token, file",
+      "variables": {},
+      "order": 1
+    },
+    {
+      "fn": "handleSubproductFileUpload",
+      "kind": "fetch",
+      "args": "filesUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ step: 'complete', fileTypeId: fileType.id, fileName: file.name, storagePath }), }",
+      "variables": {
+        "filesUrl": "withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/subproducts/${subproductId}/files`, workspaceSubject)"
+      },
+      "order": 2
+    },
+    {
+      "fn": "handleVisibilityFromList",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${item.id}`, workspaceSubject), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildItemPatchBody(item, nextStatus)), }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "handleVisibilityFromList",
+      "kind": "router.refresh",
+      "args": "",
+      "variables": {},
+      "order": 1
+    },
+    {
+      "fn": "persistBundleOption",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/bundle-option`, workspaceSubject), { method: bundleForm.enabled ? 'PATCH' : 'DELETE', headers: bundleForm.enabled ? { 'Content-Type': 'application/json' } : undefined, body: bundleForm.enabled ? JSON.stringify({ label: bundleForm.label || '전체 한번에 구매하기', description: bundleForm.description, priceCredits: parseCreditInputValue(bundleForm.priceCredits), isActive: true, }) : undefined, }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "persistForm",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(targetId ? `/api/admin/market/items/${targetId}` : '/api/admin/market/items', workspaceSubject), { method: targetId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildRequestBody(statusOverride, options.draftSource)), }",
+      "variables": {
+        "targetId": "options.targetId ?? form.id"
+      },
+      "order": 0
+    },
+    {
+      "fn": "persistForm",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${detail.item.id}/samples/commit`, workspaceSubject), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ draftToken: sampleDraftToken }), }",
+      "variables": {
+        "detail": "await fetchItemDetail(payload.data.id)"
+      },
+      "order": 1
+    },
+    {
+      "fn": "persistForm",
+      "kind": "router.refresh",
+      "args": "",
+      "variables": {},
+      "order": 2
+    },
+    {
+      "fn": "persistSamplePageOrder",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/sample-pages`, workspaceSubject), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pageIds: samplePages.map((page) => page.id) }), }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "refreshItems",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(url, workspaceSubject), { cache: 'no-store' }",
+      "variables": {
+        "url": "categoryId ? `/api/admin/market/items?categoryId=${categoryId}` : '/api/admin/market/items'"
+      },
+      "order": 0
+    },
+    {
+      "fn": "reloadCategoryTree",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject('/api/admin/market-categories', workspaceSubject), { cache: 'no-store' }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "reloadUploadTaxonomy",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject('/api/admin/market/subproduct-categories', workspaceSubject), { cache: 'no-store' }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "reloadUploadTaxonomy",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject('/api/admin/market/file-types', workspaceSubject), { cache: 'no-store' }",
+      "variables": {},
+      "order": 1
+    }
+  ]
+}

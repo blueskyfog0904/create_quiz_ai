@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
 const migrationsDir = new URL('../supabase/migrations/', import.meta.url)
 const migrationName = readdirSync(migrationsDir).find((name) => name.includes('market_item_question_count'))
@@ -10,7 +11,7 @@ const types = readFileSync(new URL('../src/types/supabase.ts', import.meta.url),
 const marketItemsServer = readFileSync(new URL('../src/lib/market-items-server.ts', import.meta.url), 'utf8')
 const adminItemsRoute = readFileSync(new URL('../src/app/api/admin/market/items/route.ts', import.meta.url), 'utf8')
 const adminItemRoute = readFileSync(new URL('../src/app/api/admin/market/items/[id]/route.ts', import.meta.url), 'utf8')
-const adminProductsClient = readFileSync(new URL('../src/app/(admin)/admin/market/products/market-products-client.tsx', import.meta.url), 'utf8')
+const adminProductsClient = readProductAdminSource()
 const materialDetail = readFileSync(new URL('../src/app/preview/solvook-concept/_components/detail/market-material-detail.tsx', import.meta.url), 'utf8')
 
 test('market items persist an explicit question count for material information', () => {

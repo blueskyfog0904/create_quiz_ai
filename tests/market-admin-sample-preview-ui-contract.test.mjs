@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { existsSync, readFileSync } from 'node:fs'
+import { readProductAdminFile, readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
-const adminProductsClient = readFileSync(
-  new URL('../src/app/(admin)/admin/market/products/market-products-client.tsx', import.meta.url),
-  'utf8'
-)
+const adminProductsClient = readProductAdminSource()
 const adminSamplePagesRoute = readFileSync(
   new URL('../src/app/api/admin/market/items/[id]/sample-pages/route.ts', import.meta.url),
   'utf8'
@@ -61,7 +59,7 @@ test('admin product upload area exposes a generated sample preview action', () =
   assert.match(adminProductsClient, /body: JSON\.stringify\(\{ pageIds: samplePages\.map\(\(page\) => page\.id\) \}\)/)
 
   const selectSampleSourceFileHandler = extractBetween(
-    adminProductsClient,
+    readProductAdminFile('_hooks/use-sample-generation.ts'),
     'const handleSelectSampleSourceFile',
     'const handleGenerateSampleImages'
   )
@@ -70,7 +68,7 @@ test('admin product upload area exposes a generated sample preview action', () =
   assert.match(selectSampleSourceFileHandler, /setSelectedSampleSourceFile\(null\)/)
 
   const sampleDropHandler = extractBetween(
-    adminProductsClient,
+    readProductAdminFile('_editor/sample-section.tsx'),
     'onDrop={(event) => {',
     'className={`flex min-h-24'
   )
@@ -79,7 +77,7 @@ test('admin product upload area exposes a generated sample preview action', () =
   assert.match(adminProductsClient, /current\.filter\(\(currentPage\) => currentPage\.draftToken\)/)
 
   const generateSampleImagesHandler = extractBetween(
-    adminProductsClient,
+    readProductAdminFile('_hooks/use-sample-generation.ts'),
     'const handleGenerateSampleImages',
     'const handleDeleteSamplePage'
   )
@@ -88,7 +86,7 @@ test('admin product upload area exposes a generated sample preview action', () =
   assert.doesNotMatch(generateSampleImagesHandler, /body: formData/)
 
   const refreshEditingFilesHandler = extractBetween(
-    adminProductsClient,
+    readProductAdminFile('_hooks/use-product-form.ts'),
     'const refreshEditingFiles',
     'const buildRequestBody'
   )

@@ -1,11 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFileSync } from 'node:fs'
+import { readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
-const marketProductsClient = readFileSync(
-  new URL('../src/app/(admin)/admin/market/products/market-products-client.tsx', import.meta.url),
-  'utf8'
-)
+const marketProductsClient = readProductAdminSource()
 
 test('admin market products list exposes a visibility action that patches item status', () => {
   assert.match(marketProductsClient, /Eye, EyeOff/, 'list action should render hide and unhide icons')

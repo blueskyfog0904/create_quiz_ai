@@ -1,12 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
 // docs/admin-site-settings-ux-proposal.md 4-1: 즉시 저장 뒤 다시 읽을 때 저장 안 한 입력이 말없이 사라지던 문제 5건
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
 test('상품 폼: 서브상품·파일 즉시 저장 뒤 다시 읽어도 저장 전 전체구매 입력은 남고, 배지는 입력=서버 값일 때만 저장됨', () => {
-  const client = read('src/app/(admin)/admin/market/products/market-products-client.tsx')
+  const client = readProductAdminSource()
   // 다시 읽기(refreshEditingFiles)는 고친 전체구매 입력을 지킨다.
   assert.match(client, /const refreshEditingFiles = async \(id: string\) => \{\s+const detail = await fetchItemDetail\(id\)\s+applyItemDetail\(detail, \{ keepBundleDraft: true \}\)/)
   // 첫 업로드 때 자동 임시저장(persistBundleOption 을 건너뜀)도 같은 규칙.

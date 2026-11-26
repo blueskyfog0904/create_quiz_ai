@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
+import { readProductAdminFile, readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
-const adminProductsClient = readFileSync(
-  new URL('../src/app/(admin)/admin/market/products/market-products-client.tsx', import.meta.url),
-  'utf8'
-)
+const adminProductsClient = readProductAdminSource()
 const adminUploadRoute = readFileSync(
   new URL('../src/app/api/admin/market/items/[id]/files/route.ts', import.meta.url),
   'utf8'
@@ -71,7 +69,7 @@ test('market storage has dedicated sample page path builders and paid pdf hwp zi
 
 test('admin client pdf renderer paints a white background before jpg export', () => {
   const renderer = extractBetween(
-    adminProductsClient,
+    `${readProductAdminFile('_lib/sample-render.ts')}\n${readProductAdminFile('_lib/types.ts')}`,
     'async function renderSamplePdfPages',
     'interface PersistFormOptions'
   )

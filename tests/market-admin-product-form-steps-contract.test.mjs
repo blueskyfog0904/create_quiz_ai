@@ -1,20 +1,19 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFileSync } from 'node:fs'
+import { readProductAdminFile, readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
-const client = readFileSync(
-  new URL('../src/app/(admin)/admin/market/products/market-products-client.tsx', import.meta.url),
-  'utf8'
-)
+const client = readProductAdminSource()
+// 18번: 섹션 틀(<section id>)과 그 제목은 product-editor 에 있다(위치 비교는 그 파일에서).
+const editorFrame = readProductAdminFile('_editor/product-editor.tsx')
 
 test('상품 등록 폼은 기본 정보 → 판매 구성 → 샘플 → 상세 정보 → 공개 전 점검 순서다', () => {
   const ids = ['product-step-basic', 'product-step-sales', 'product-step-sample', 'product-step-detail', 'product-step-publish']
-  const positions = ids.map((id) => client.indexOf(`<section id="${id}"`))
+  const positions = ids.map((id) => editorFrame.indexOf(`<section id="${id}"`))
   positions.forEach((position, index) => assert.notEqual(position, -1, `${ids[index]} section should exist`))
   assert.deepEqual([...positions].sort((a, b) => a - b), positions)
   // 샘플은 파일을 올리는 판매 구성 뒤에, 서브상품 구성은 판매 구성 안에 있다
-  const subproductTitle = client.indexOf('>서브상품 구성</p>')
-  const sampleTitle = client.indexOf('>샘플 생성</p>')
+  const subproductTitle = editorFrame.indexOf('>서브상품 구성</p>')
+  const sampleTitle = editorFrame.indexOf('>샘플 생성</p>')
   assert.ok(subproductTitle > positions[1] && subproductTitle < positions[2])
   assert.ok(sampleTitle > positions[2] && sampleTitle < positions[3])
   assert.match(client, /productSteps\.map\(\(step, index\) =>/)

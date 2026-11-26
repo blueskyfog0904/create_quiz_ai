@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { createFakeAdmin, load, loadRoute, marketImages, op } from './helpers/market-images-harness.mjs'
+import { readProductAdminFile, readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
 // S2: 관리자 상품의 카테고리는 필수이고, 상품 과목은 카테고리 칸의 과목으로 정한다.
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
@@ -9,7 +10,7 @@ const itemsRoute = read('src/app/api/admin/market/items/route.ts')
 const itemRoute = read('src/app/api/admin/market/items/[id]/route.ts')
 const itemsServer = read('src/lib/market-items-server.ts')
 const menuServer = read('src/lib/market-menu-server.ts')
-const productsClient = read('src/app/(admin)/admin/market/products/market-products-client.tsx')
+const productsClient = readProductAdminSource()
 const productsPage = read('src/app/(admin)/admin/market/products/page.tsx')
 const categoriesPage = read('src/app/(admin)/admin/market-categories/page.tsx')
 
@@ -82,8 +83,9 @@ test('상품 폼: 게시판 select 없이 단계별 카테고리 선택(필수, 
 })
 
 test('상단 필터는 같은 단계별 선택(전체)으로 서버 ?categoryId=를 부르고 폼을 건드리지 않는다', () => {
-  const start = productsClient.indexOf('const changeFilterCategory = ')
-  const handler = productsClient.slice(start, productsClient.indexOf('\n  }\n', start))
+  const shell = readProductAdminFile('market-products-client.tsx')
+  const start = shell.indexOf('const changeFilterCategory = ')
+  const handler = shell.slice(start, shell.indexOf('\n  }\n', start))
   assert.match(handler, /void refreshItems\(nextCategoryId\)/)
   assert.doesNotMatch(handler, /setForm|setCategoryItemId|resetForm/)
   assert.match(productsClient, /<CategoryStepSelect\n\s+nodes=\{categoryNodes\}\n\s+value=\{filterCategoryId\}\n\s+onChange=\{changeFilterCategory\}\n\s+emptyLabel="전체"/)
@@ -288,7 +290,7 @@ test('POST: menuEntryId 없이 201이고 게시판을 조회하지 않으며, �
 })
 
 test('상품 등록 화면은 폼만, 상품 관리 화면은 목록 필터·목록과 수정할 때만 폼을 보인다', () => {
-  const client = readFileSync(new URL('../src/app/(admin)/admin/market/products/market-products-client.tsx', import.meta.url), 'utf8')
+  const client = readProductAdminSource()
   const manage = readFileSync(new URL('../src/app/(admin)/admin/market/products/page.tsx', import.meta.url), 'utf8')
   const create = readFileSync(new URL('../src/app/(admin)/admin/market/products/new/page.tsx', import.meta.url), 'utf8')
   assert.match(manage, /mode="manage"/)

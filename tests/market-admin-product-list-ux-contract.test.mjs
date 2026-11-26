@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
+import { readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
-const client = readFileSync(new URL('../src/app/(admin)/admin/market/products/market-products-client.tsx', import.meta.url), 'utf8')
+const client = readProductAdminSource()
 const server = readFileSync(new URL('../src/lib/market-items-server.ts', import.meta.url), 'utf8')
 
 test('목록은 옛 PDF/HWP/ZIP 가격 대신 서브상품·파일·최저가·전체구매·샘플 요약을 보여 준다', () => {

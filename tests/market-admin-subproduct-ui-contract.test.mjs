@@ -1,11 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFileSync } from 'node:fs'
+import { readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
-const adminProductsClient = readFileSync(
-  new URL('../src/app/(admin)/admin/market/products/market-products-client.tsx', import.meta.url),
-  'utf8'
-)
+const adminProductsClient = readProductAdminSource()
 
 test('admin product form uses v2 subproduct upload state and item detail payload', () => {
   assert.match(adminProductsClient, /MarketSubproductCategory/)

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { load, createFakeAdmin, op } from './helpers/market-images-harness.mjs'
+import { readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
@@ -152,7 +153,7 @@ test('삭제 route는 결과(deleted/hidden)를 돌려주고, 화면은 숨김 �
   assert.match(route, /NextResponse\.json\(\{ success: true, data: \{ result \} \}\)/)
   assert.doesNotMatch(route, /hardDeleteMarketItemWithAssets/)
 
-  const client = read('src/app/(admin)/admin/market/products/market-products-client.tsx')
+  const client = readProductAdminSource()
   assert.match(client, /구매·환불·후기 이력이 있어 삭제하지 않고 숨김 처리했습니다\./)
   assert.equal(client.match(/구매·환불·후기 이력이 있는 상품은 삭제되지 않고 숨김 처리됩니다\(구매자 다운로드는 유지\)\./g)?.length, 3)
   assert.match(client, /삭제 \$\{deletedIds\.length\}개 \/ 이력이 있어 숨김 처리 \$\{hiddenIds\.length\}개/)

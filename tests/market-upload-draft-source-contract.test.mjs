@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { readProductAdminFile, readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
 const migrationsDir = new URL('../supabase/migrations/', import.meta.url)
 const migrationName = readdirSync(migrationsDir).find((name) => name.includes('market_auto_upload_cleanup'))
@@ -9,7 +10,7 @@ const migration = migrationName ? readFileSync(join(migrationsDir.pathname, migr
 const types = readFileSync(new URL('../src/types/supabase.ts', import.meta.url), 'utf8')
 const adminItemsRoute = readFileSync(new URL('../src/app/api/admin/market/items/route.ts', import.meta.url), 'utf8')
 const adminItemRoute = readFileSync(new URL('../src/app/api/admin/market/items/[id]/route.ts', import.meta.url), 'utf8')
-const adminProductsClient = readFileSync(new URL('../src/app/(admin)/admin/market/products/market-products-client.tsx', import.meta.url), 'utf8')
+const adminProductsClient = readProductAdminSource()
 
 
 test('market items have a draft_source column for auto-upload draft cleanup', () => {
@@ -45,9 +46,10 @@ test('admin product form returns to a blank new-product form (keeping the catego
 })
 
 test('upload draft creation stops before POST until a category is chosen', () => {
-  const ensure = adminProductsClient.slice(
-    adminProductsClient.indexOf('const ensureDraftItemForUpload = async () => {'),
-    adminProductsClient.indexOf('const handleStatusAction = async'),
+  const productForm = readProductAdminFile('_hooks/use-product-form.ts')
+  const ensure = productForm.slice(
+    productForm.indexOf('const ensureDraftItemForUpload = async () => {'),
+    productForm.indexOf('const handleStatusAction = async'),
   )
   assert.match(ensure, /if \(!categoryItemId\) \{\n\s+toast\.error\('카테고리를 먼저 선택해주세요\.'\)\n\s+return null\n\s+\}[\s\S]+await persistForm\('draft'/)
   assert.match(adminProductsClient, /const isUploadBlockedByCategory = !form\.id && !categoryItemId/)

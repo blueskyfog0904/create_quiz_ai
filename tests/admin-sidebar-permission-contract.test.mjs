@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import '../src/components/features/passages/node-test-register.mjs'
 import { load } from './helpers/market-images-harness.mjs'
 
+import { readProductAdminSource } from './helpers/product-admin-sources.mjs'
 import {
   ADMIN_SIDEBAR_MENU_REQUIREMENTS,
   DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG,
@@ -112,7 +113,7 @@ test('상품 완전 삭제(폼 메뉴·목록 행 메뉴·선택 삭제)는 prod
   for (const page of ['src/app/(admin)/admin/market/products/page.tsx', 'src/app/(admin)/admin/market/products/new/page.tsx']) {
     assert.match(read(page), /canDeleteProducts=\{hasAdminPermission\(access, 'products\.delete'\)\}/, page)
   }
-  const client = read('src/app/(admin)/admin/market/products/market-products-client.tsx')
+  const client = readProductAdminSource()
   assert.match(client, /\{canDeleteProducts \? \(\s*<>\s*<DropdownMenuSeparator \/>\s*<DropdownMenuItem[^>]*onSelect=\{\(\) => void handleArchive\(\)\}/)
   assert.match(client, /\{canDeleteProducts \? \(\s*<>\s*\{status === 'published' \|\| isHidden \? <DropdownMenuSeparator \/> : null\}\s*<DropdownMenuItem[^>]*onSelect=\{\(\) => setDeleteTarget\(item\)\}/)
   assert.match(client, /\{canDeleteProducts \? \(\s*<Button[\s\S]{0,300}onClick=\{\(\) => setBulkDeleteTargetIds\(/)
