@@ -141,7 +141,16 @@ interface SampleFinalizeResponse {
   error?: { message?: string }
 }
 
+// 18번 8절: 이 창에서 등록한 상품(화면 메모리에만 — 창을 닫으면 사라짐)
+interface RegisteredItem {
+  id: string
+  title: string
+  status: MarketItemFormState['status']
+  subproductCount: number
+}
+
 export type {
+  RegisteredItem,
   PersistFormOptions,
   MarketItemDetailPayload,
   SubproductDraftState,

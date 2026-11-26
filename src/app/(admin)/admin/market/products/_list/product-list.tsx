@@ -1,5 +1,5 @@
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
-import { AlertTriangle, ExternalLink, Eye, EyeOff, Images, Loader2, MoreHorizontal, Pencil, Search, Trash2 } from 'lucide-react'
+import { AlertTriangle, Copy, ExternalLink, Eye, EyeOff, Images, Loader2, MoreHorizontal, Pencil, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -294,7 +294,7 @@ export function ProductList({ ctx }: { ctx: ProductAdminContext }) {
     filteredItems, selectedItems, listPagination, pagedItems, allFilteredSelected, someFilteredSelected,
     formatCategoryPath, toggleItemSelection, toggleFilteredSelection, changeListPage, changeListPageSize,
     changeFilterCategory, changeTitleQuery, changeStatusTab, changeSortKey, resetListFilters, loadItemDetail,
-    handleVisibilityFromList, handleBulkVisibility,
+    handleVisibilityFromList, handleBulkVisibility, duplicatingItemId, setDuplicateTarget,
   } = ctx
 
   return (
@@ -528,6 +528,11 @@ export function ProductList({ ctx }: { ctx: ProductAdminContext }) {
                                 <Pencil className="mr-1.5 h-3.5 w-3.5" />
                                 수정
                               </Button>
+                              {/* 18번: [복제] — 임시저장 사본(판매 파일·샘플·이용 근거는 복사하지 않음)을 만들고 그 편집으로 간다 */}
+                              <Button type="button" variant="outline" size="sm" aria-label={`${item.title} 복제`} disabled={duplicatingItemId === item.id} onClick={() => setDuplicateTarget(item)}>
+                                {duplicatingItemId === item.id ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Copy className="mr-1.5 h-3.5 w-3.5" />}
+                                복제
+                              </Button>
                               {/* 메뉴 항목이 하나도 없으면(삭제 권한 없음 + 공개·숨김이 아닌 상품) 더보기 버튼을 그리지 않는다 */}
                               {status === 'published' || isHidden || canDeleteProducts ? (
                                 <DropdownMenu>
@@ -594,11 +599,37 @@ export function ProductListDialogs({ ctx }: { ctx: ProductAdminContext }) {
   const {
     isArchiving, deleteTarget, setDeleteTarget, bulkDeleteTargetIds, setBulkDeleteTargetIds, isBulkActionRunning,
     isBulkImagePickerOpen, setIsBulkImagePickerOpen, bulkImageTarget, setBulkImageTarget, selectedItems,
-    bulkDeleteTargetItems, handleDeleteFromList, handleBulkImageAssign, handleBulkDelete,
+    bulkDeleteTargetItems, handleDeleteFromList, handleBulkImageAssign, handleBulkDelete, duplicateTarget, setDuplicateTarget,
+    duplicatingItemId, handleConfirmDuplicate,
   } = ctx
 
   return (
     <>
+      {/* 18번: 목록 [복제] 확인 — 임시저장 사본을 만들고 그 편집으로 간다 */}
+      <AlertDialog open={!!duplicateTarget} onOpenChange={(open) => !open && !duplicatingItemId && setDuplicateTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>[{duplicateTarget?.title}] 상품을 복제할까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              임시저장 사본을 만듭니다. 판매 파일·샘플·이용 근거는 복사하지 않습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(duplicatingItemId)}>취소</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={Boolean(duplicatingItemId)}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleConfirmDuplicate()
+              }}
+            >
+              {duplicatingItemId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              복제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isArchiving && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

@@ -19,8 +19,9 @@ export function SampleSection({ ctx, canOpenSamplePreview }: { ctx: ProductAdmin
     <>
                 <div className="space-y-3">
                   <div className="space-y-2">
-                    <Label>샘플 페이지</Label>
+                    <Label htmlFor="product-sample-pages">샘플 페이지</Label>
                     <Input
+                      id="product-sample-pages"
                       value={samplePageSelection}
                       onChange={(event) => setSamplePageSelection(event.target.value)}
                       placeholder="예: 1,5,7"

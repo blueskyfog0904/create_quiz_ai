@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFileSync } from 'node:fs'
 import { readProductAdminFile, readProductAdminSource } from './helpers/product-admin-sources.mjs'
 
 const client = readProductAdminSource()
@@ -21,8 +22,11 @@ test('상품 등록 폼은 기본 정보 → 판매 구성 → 샘플 → 상세
 })
 
 test('공개는 필수 점검 항목이 다 채워져야 가능하고, 저장은 handleSave 하나로 상태를 정한다', () => {
+  // 18번: 점검 식은 순수 함수(src/lib/admin-market-publish-checks.ts)로 옮겼다(필수 조건은 같음)
+  const publishCheckRules = readFileSync(new URL('../src/lib/admin-market-publish-checks.ts', import.meta.url), 'utf8')
+  assert.match(client, /const publishChecks = buildPublishChecks\(\{/)
   for (const key of ['category', 'title', 'subproduct', 'files', 'bundle']) {
-    assert.match(client, new RegExp(`key: '${key}'[^\\n]*required: true|key: '${key}',\\n[\\s\\S]*?required: true`))
+    assert.match(publishCheckRules, new RegExp(`key: '${key}'[^\\n]*required: true|key: '${key}',\\n[\\s\\S]*?required: true`))
   }
   assert.match(client, /const isPublishBlocked = missingRequiredChecks\.length > 0/)
   assert.match(client, /onClick=\{\(\) => void handleSave\('published'\)\}\n\s+disabled=\{isSaving \|\| isPublishBlocked\}/)

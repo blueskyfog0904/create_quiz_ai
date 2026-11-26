@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { formatCreditInputValue, formatFileSize, formatDateTime, MANAGE_SUBPRODUCT_CATEGORIES_VALUE, MANAGE_FILE_TYPES_VALUE } from '../_lib/product-form'
 import type { ProductAdminContext } from '../market-products-client'
+import { UploadQueueList } from './upload-queue-list'
 
 export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
   const {
@@ -18,6 +19,7 @@ export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
     handleAddSubproductFileDraft, handleUpdateSubproductFileDraft, handleRemoveSubproductFileDraft,
     setSubproductDragActive, handleCreateSubproduct, handleEditSubproduct, handleCancelEditSubproduct,
     handleSaveSubproduct, handleDeleteSubproduct, handleSubproductFileUpload, handleDeleteSubproductFile,
+    uploadQueues, uploadLimitText, handleRetryUploadEntry, handleRemoveUploadEntry,
   } = ctx
 
   return (
@@ -269,6 +271,13 @@ export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
                                     <p className={`mt-1 text-xs ${isUploading ? 'text-emerald-700' : 'text-red-700'}`}>허용 형식: {activeFileTypes.map(getFileTypeAcceptValue).join(', ')} · 파일 유형은 확장자로 정해집니다.</p>
                                     {isUploading ? <p className="mt-2 text-xs text-emerald-700">업로드 중입니다...</p> : null}
                                   </label>
+                                  <p className="text-xs text-gray-500">{uploadLimitText}</p>
+                                  <UploadQueueList
+                                    entries={uploadQueues[draft.id] ?? []}
+                                    busy={isUploading}
+                                    onRetry={(entryId) => void handleRetryUploadEntry(subproduct.id, draft.id, entryId)}
+                                    onRemove={(entryId) => handleRemoveUploadEntry(draft.id, entryId)}
+                                  />
                                 </div>
                               )
                             })}

@@ -85,6 +85,8 @@
 - **17번 배포 커밋에서 시험 집합을 다시 뽑는다**(`grep -l market-products-client tests/*`). 17번이 더한 시험(`bundle17-product-info-contract` 등)도 5-3 의 '도우미만'·'파일별 잘라 읽기' 가운데 하나로 나눠 표에 더한다. (3판)
 - **기준 커밋 해시와 `test()` 수·통과 수를 이 절에 적는다.** 2판 검증 때 `467da68` 기준 `test()` 122개(통과 120·실패 2)다. 고친 뒤 기대는 122/122 이고, 17번 뒤 다시 센 수로 바꾼다. (3판)
 - 이 기준선이 '나누기 전 전부 통과'의 기준이다.
+- **기록(구현, 2026-11-26)**: 기준 커밋 `77b7511`(17번 커밋, DB 미적용). `grep -l market-products-client tests/*` = **22개 파일, `test()` 141개 — 통과 139·실패 2**(1절의 두 건). 0단계 고친 뒤 **141/141**. 전체 `node --test tests/*.test.mjs` 는 2266개 중 실패 46 → 44(고친 2건만 빠짐, 나머지 44건은 이 묶음과 무관한 기존 실패).
+  - 17번이 더한 `bundle17-product-info-contract` 는 잘라 읽기가 없어 '도우미만'. `admin-sidebar-menu-rename` 은 머리글(`AdminMenuName`)이 껍데기에 남아 원본 경로를 그대로 읽는다(고치지 않음).
 
 ### 5-1. 나눈 뒤 모양(가안, 구현 때 이름은 바뀔 수 있음)
 ```
@@ -164,6 +166,7 @@ src/app/(admin)/admin/market/products/
   - 이미지: `copy` 는 `thumbnail_image_id` 를 복사한다(FK RESTRICT 라 라이브러리 이미지가 지워지지 않음). `next` 는 NULL (2판)
   - 상태 `draft`, `draft_source 'manual'`, `is_active true`, `published_at NULL`, `view_count 0`, `created_by = updated_by = 행위자`
   - 복사하는 칸은 0절 Q2·Q3 표대로다. `copy` 제목은 원본을 `120 − 접미사 길이`자로 자른 뒤 ' (사본)'을 붙인다(상품 제목 상한 120자, `validateMarketItemInput`). (2판) `'next'` 의 제목은 빈 문자열이 아니라 '새 상품'이다(NOT NULL·`validateMarketItemInput` 규칙). 화면이 제목 칸을 비우고 초점을 둔다.
+  - (구현 메모) 자르기는 DB 글자(코드포인트) 기준이고 저장 검사(`validateMarketItemInput`)는 JS 길이(UTF-16) 기준이다. 원본 제목에 4바이트 문자(이모지 등)가 있고 길이가 상한 가까이면 사본 첫 저장 때 '120자 이하' 오류가 나며, 관리자가 제목을 줄이면 저장된다(데이터 손실 없음, 2026-11-26 운영에 115자 넘는 제목 0건).
   - 옛 가격 칸 `pdf_price`·`hwp_price`·`zip_price` 는 0 이다(옛 판매 방식, 새 상품에 쓰지 않음).
 - 서브상품: 원본의 지우지 않은 행(사용 여부 그대로)을 복사한다. 파일 행(`market_subproduct_files`)은 복사하지 않는다. (2판)
   - 순서: 원본을 `(sort_order, created_at, id)` 로 읽어 `ROW_NUMBER` 로 매긴 `10 × 순번` 을 넣는다(19번 순서 규칙과 같음). 한 거래 안의 `created_at` 이 같아 겹친 값의 순서가 흔들리지 않게 한다.
@@ -197,6 +200,7 @@ src/app/(admin)/admin/market/products/
   - 올리는 부분: 같은 서명 주소로 `XMLHttpRequest` PUT 을 보내고 `upload.onprogress` 를 쓴다. 서명 주소·헤더 형식은 설치된 `@supabase/storage-js` 의 `uploadToSignedUrl` 구현과 같게 맞춘다(구현 첫 단계에서 소스로 확인하고 계약 시험에 적음).
   - 확인이 안 되면 진행률 없이 단계 표시만 한다(Q5 대체안).
   - [다시 시도]는 그 파일만 prepare 부터 다시 한다. 완료된 파일은 다시 보내지 않는다.
+  - (구현 메모) 등록(complete) 단계에서 실패한 파일은 prepare 가 준 같은 경로로 complete 만 다시 보낸다(응답만 잃은 경우 같은 파일 행이 두 번 생기거나 고아 객체가 남지 않게). 서버가 409 `ALREADY_REGISTERED` 를 주면 완료로 보고, `UPLOAD_NOT_FOUND` 면 prepare 부터 한 번 더 한다. 행을 처리하는 동안 [다시 시도]·[빼기]는 막는다.
   - 파일 크기·형식을 놓는 순간 미리 검사해 '건너뜀(50MB 초과)'으로 보인다. 서버 검사는 그대로 둔다.
 - **카테고리 검색** `src/lib/admin-category-search.ts`(순수)
   - 트리를 '전체 경로' 목록으로 펴서 띄어쓰기로 나눈 낱말이 모두 들어간 경로를 찾는다.
@@ -316,3 +320,45 @@ src/app/(admin)/admin/market/products/
 | 개수 불일치(7개 vs 표 6개) | 1절·11-1·16절: '시험 6개·잘라 읽기 8곳' |
 | 700줄 고정 조건에 큰 덩어리 위치가 없음 | 5-1: 일괄 처리·삭제 대화상자 → `_list`, 설정 대화상자 → `_settings`, 11-1: 넘으면 경고 |
 | 훅 사이 상태 소유가 정해지지 않음 | 5-1: 상태는 껍데기·`use-product-form`, 나머지 훅은 인자로 받음, 순서 form → sample·uploads |
+
+## 18. 구현 메모 (2026-11-26, 0·1·2단계 구현 — 커밋은 조정자가 단계별로)
+### 18-1. 커밋 나누기(작업본에 모두 있음, 차례대로)
+- 0단계·1단계는 다른 단계와 같은 파일을 고쳐서 **패치로 색인에 올린다**(작업본은 그대로, `output/` 은 git 밖).
+  1. 0단계: `git apply --cached output/bundle18-commits/step0.patch` → 커밋. 파일 2개: `tests/admin-product-year-options-contract.test.mjs`, `tests/market-admin-subproduct-ui-contract.test.mjs`.
+  2. 1단계: `git apply --cached output/bundle18-commits/step1.patch` → 커밋(적용 뒤 `git write-tree` = `output/bundle18-commits/step1.tree` 로 확인함). 파일 44개:
+     - 상품 화면: `src/app/(admin)/admin/market/products/market-products-client.tsx`(고침), 새 파일 `_lib/types.ts`·`_lib/product-form.ts`·`_lib/sample-render.ts`·`_hooks/use-product-form.ts`·`_hooks/use-sample-generation.ts`·`_hooks/use-subproduct-uploads.ts`·`_editor/product-editor.tsx`·`_editor/category-step.tsx`·`_editor/basic-info-section.tsx`·`_editor/subproduct-table.tsx`·`_editor/bundle-section.tsx`·`_editor/sample-section.tsx`·`_editor/material-info-section.tsx`·`_list/product-list.tsx`·`_settings/category-manager-dialog.tsx`·`_settings/subproduct-category-settings-dialog.tsx`·`_settings/file-type-settings-dialog.tsx`
+     - 시험·도구: `tests/helpers/product-admin-sources.mjs`, `tests/bundle18-product-split-contract.test.mjs`, `tests/fixtures/product-admin-call-inventory.json`, `scripts/product-admin-call-inventory.mjs`, `scripts/check-product-admin-moved.mjs`
+     - 도우미로 바꾼 시험 21개: `admin-product-year-options`·`admin-sidebar-permission`·`admin-unsaved-draft-preservation`·`bundle17-product-info`·`market-admin-item-category`·`market-admin-product-form-steps`·`market-admin-product-list-ux`·`market-admin-sample-preview-ui`·`market-admin-subproduct-ui`·`market-auto-sample-generation`·`market-images-admin-wiring`·`market-item-delete-or-hide`·`market-products-admin-hide-action`·`market-products-admin-material-info`·`market-products-admin-pagination`·`market-sample-pdf-generator-guardrails`·`market-sample-v2-arbitrary-pages`·`market-upload-cancel-ui`·`market-upload-draft-source`·`market-zip-asset`·`security-quick-fixes`(모두 `tests/…-contract.test.mjs` 또는 `.test.mjs`)
+  3. 2단계: 남은 변경을 `git add` → 커밋. 파일: 위 1단계 상품 화면 파일 가운데 `market-products-client.tsx`·`_editor/{basic-info-section,bundle-section,category-step,product-editor,sample-section,subproduct-table}.tsx`·`_hooks/{use-product-form,use-subproduct-uploads}.ts`·`_lib/types.ts`·`_list/product-list.tsx`(다시 고침), 새 `_editor/{after-save-dialog,publish-summary-panel,upload-queue-list}.tsx`·`_hooks/use-product-duplicate.ts`·`_lib/focus-field.ts`, `market-item-usage-basis-card.tsx`(17번 파일, prop 1개), `src/app/api/admin/market/items/[id]/duplicate/route.ts`, `src/lib/{admin-audit-log,admin-category-search,admin-market-publish-checks,admin-signed-upload,admin-upload-queue,market-item-duplicate,market-item-duplicate-server}.ts`, `supabase/migrations/20261220100000_bundle18_product_duplicate.sql`, `supabase/rollback/20261220100000_bundle18_product_duplicate_down.sql`, `supabase/scripts/bundle18_rehearsal/{generate.mjs,a_light.sql,b_full.sql}`, `scripts/product-admin-call-inventory.mjs`, 시험 `tests/{admin-audit-log,admin-guard-coverage,bundle17-product-info,bundle18-product-split,market-admin-product-form-steps,market-admin-subproduct-ui}-contract.test.mjs`·`tests/bundle18-product-upload-contract.test.mjs`(새)·`tests/fixtures/product-admin-call-inventory.json`·`tests/helpers/product-admin-sources.mjs`, 이 계획 문서.
+- **두 단계 이상에서 바뀐 파일**: `tests/market-admin-subproduct-ui-contract.test.mjs`(0·1·2), `tests/admin-product-year-options-contract.test.mjs`(0·1), 위 2단계의 '다시 고침' 상품 화면 파일 11개(1·2), `tests/helpers/product-admin-sources.mjs`·`tests/fixtures/product-admin-call-inventory.json`·`tests/bundle18-product-split-contract.test.mjs`·`scripts/product-admin-call-inventory.mjs`·`tests/market-admin-product-form-steps-contract.test.mjs`·`tests/bundle17-product-info-contract.test.mjs`(1·2).
+
+### 18-2. 1단계(나누기) 결과와 가안에서 바뀐 점
+- 방법: 원본(`77b7511`)을 줄 범위 그대로 옮겼다(들여쓰기도 그대로 — JSX 덩어리는 새 부품 안에서 원래 깊이). 함수 본문·effect 의존 배열·문구는 글자 그대로.
+- 근거(`node scripts/check-product-admin-moved.mjs 77b7511`, 1단계 상태에서 실행, 결과 `output/bundle18-split-check/`): 파일 18개, 껍데기 394줄(700줄 안), 옮겨지지 않은 줄 추가 507·삭제 49 — 추가는 import·export·`const { … } = ctx` 풀기·훅 반환값·부품 틀(`export function …`·`return (`·`<>`)·부품 부르기 줄(`<ProductEditor ctx={ctx} />` 등)뿐, 삭제는 옛 import·옛 컴포넌트 머리 줄·빈 줄·짧아서 색이 안 붙은 `</div>` 1줄. 화면 글자(한글 문자열·JSX 글) 차이 0. 호출 목록 = 기준(fetch 31·uploadToSignedUrl 2·router.refresh 7, 함수·순서·인자·주소 변수까지).
+- 시험: 같은 22개 + 새 `bundle18-product-split-contract`(5) = 146/146. 잘라 읽기는 5-3 표대로 6개 시험 8곳만 파일별(form-steps → `_editor/product-editor.tsx`, sample-preview → `_editor/sample-section.tsx`·`_hooks/use-sample-generation.ts`·`_hooks/use-product-form.ts`, draft-source → `_hooks/use-product-form.ts`, pagination·item-category `body()` → 껍데기, auto-sample → `_lib/sample-render.ts`+`_lib/types.ts`). pagination 에 effect '1개 이상' 단언을 더함. 그 밖에는 읽는 곳만 도우미로 바꾸고 단언 글자는 그대로(쓰지 않게 된 `readFileSync` import 5곳만 뺌).
+- 가안과 다른 점
+  - 상태는 껍데기 파일 안 `useMarketProductsState`(원래 `useState`·`useRef` 줄 + 목록 memo + 목록 처리 함수)가 갖고, 훅·부품은 값 묶음 `ctx` 하나를 받는다(타입은 `ReturnType` 으로 이어 붙인 `ProductAdminContext`). 훅 부르는 순서는 상태 → form → 샘플·업로드·목록 처리(서로 부르지 않음).
+  - 상태 4개(`subproductCategories`·`fileTypes`·`subproductDraft`·`subproductFileDrafts`)는 `use-product-form` 이 갖는다: `reloadUploadTaxonomy`(useCallback `[workspaceSubject]`)와 effect 가 이 setter 를 쓰므로, 같은 훅의 `useState` 여야 의존 배열을 고치지 않고 lint(exhaustive-deps)가 통과한다.
+  - `usage-basis-card` 는 17번 시험이 지금 경로를 읽어 옮기지 않았다(`market-item-usage-basis-card.tsx` 그대로). 샘플 미리보기 창은 껍데기에 그대로(트리 위치 같게). 카테고리 관리 창은 `_settings/category-manager-dialog.tsx` 를 더했다. 목록 일괄 처리 함수는 `_list/product-list.tsx` 의 훅 `useProductListActions`(목록 부품과 확인 창 부품이 같이 씀).
+  - 상세 설명 칸은 화면 위치(4단계)대로 `material-info-section.tsx` 에 두었다(연도·월은 같은 파일의 `ExamScheduleFields`).
+- 독립 검증(관점 1)은 아직 안 함 — 조정자가 1단계 커밋으로 `git show --color-moved=zebra --color-moved-ws=allow-indentation-change` 와 위 근거를 보고 돌린다.
+
+### 18-3. 2단계(기능) 구현
+- DB: `20261220100000_bundle18_product_duplicate.sql` 함수 `duplicate_market_item` 하나(6-2 그대로), down, 리허설 생성기 `supabase/scripts/bundle18_rehearsal/generate.mjs`(17번이 없으면 17번 사본을 먼저 넣음 — light 는 17번 light 사본, full 은 17번 원본).
+  - **light 리허설 운영 실행 PASS(2026-11-26 낮)**: 로그 43줄, `RH FAIL` 0, D0~D9·Z 통과. 결과 `output/b18-light-result.json`. ROLLBACK 뒤 운영 상태 그대로 확인(함수 0·17번 표 없음·rh18 행 0·기록 0·가입 함수 지문 `61bc7b14…`·시험 계정 관리자 0). full 은 DB 적용 직전에.
+  - D3 의 기대값을 고침: ' (사본)' 은 5자라 118자 원본은 115자 + 접미사 = 120자.
+- 코드: 복제 route(`products.edit`, `{ mode }`), 작업 기록 종류 `market_item_duplicate`(`DB_FUNCTION_ACTIONS` 등록), 가드 표 한 줄, 순수 모듈 4개(`admin-upload-queue`·`admin-category-search`·`admin-market-publish-checks`·`market-item-duplicate`), 진행률 업로드 `admin-signed-upload`(XMLHttpRequest — `@supabase/storage-js` 2.83.0 `uploadToSignedUrl` 과 같은 주소·머리·FormData, 계약 시험이 그 소스와 대조).
+- 화면: 저장 뒤 창·'이번에 등록한 상품' 표(8절 (a)(b)(c), 창은 `resetForm` 블록 밖), 목록 행 [복제](확인 창 → 사본 편집), 카테고리 한 줄 검색(경로 후보·키보드·최근 칩 3개·비활성 표시, 단계 선택칸은 '목록에서 고르기'로 접음), 업로드 행(파일마다 진행 막대·상태·[다시 시도]·[빼기]·aria-live 요약, "PDF·HWP·ZIP, 파일당 50MB까지"), 고정 요약판·빠진 항목 칩(필수 빨강·경고 노랑, 이동·초점), 단계 칩 sticky.
+- 계획과 다른 점
+  - 목록 [복제]는 더보기 메뉴가 아니라 행의 버튼으로 두었다(메뉴를 늘 그리면 '항목이 없으면 메뉴를 그리지 않는' 기존 권한 시험·숨김 시험을 고쳐야 해서).
+  - 근거 여부: 17번 근거 카드가 읽기·저장 뒤 `onBasisChange(itemId, 있음)` 를 알리고, 화면이 '근거가 있는 상품 id' 집합을 든다(새 route·공용 select 없음). 점검 항목 key 는 `origin_basis`(17번 시험이 관리자 밖 파일의 `usage_bas` 글자를 막음).
+  - 최근 칩은 브라우저 저장(과목별 키 `admin-product-recent-categories:{과목}`) — 화면이 관리자 id 를 모르므로 '관리자별'은 브라우저별이다.
+  - 오류 문구는 17번 목록(마이그레이션 RAISE 코드와 정확히 같아야 함)에 넣지 않고 `market-item-duplicate.ts` 에 따로 두었다.
+  - 호출 목록 기준(`tests/fixtures/product-admin-call-inventory.json`)을 2단계 상태로 다시 저장했다. 바뀐 것은 세 가지뿐(판매 파일 prepare·complete fetch 의 둘러싼 함수가 `runUploadEntry` 로, 그 사이 `uploadToSignedUrl` → `uploadFileToSignedUrl`, 복제 fetch 1개 — 시험 머리 주석에 적음). 1단계 커밋 시점 검증은 1단계 커밋의 기준 파일로 한다.
+  - 2단계에서 고친 기존 단언: form-steps(필수 key 는 순수 모듈에서 읽음), subproduct-ui(올리기 줄의 `fileTypeId`·차례 처리 반복문), bundle17(카드 줄 뒤에 `onBasisChange` prop).
+- 구현 검증 1차(2026-11-26, 0·1단계 커밋 `8f0e01b`·`1b9d397` 뒤): refactor PASS, db PASS(minor 1 — 제목 길이 기준, 6-2 에 한 줄), features FAIL(major 1·minor 3) → 고침:
+  - major: 관리 화면 저장 뒤 창 [빈 새 상품]이 편집만 닫던 것 → 등록 화면 `/admin/market/products/new?subject=…&categoryId=…` 로 이동(등록 page 는 그 과목 트리에 있는 칸만 받아 `initialCategoryItemId` 로 넘김). 호출 목록 기준에 `router.push` 1개가 더해졌다.
+  - minor: 행 처리 끝 직전 [다시 시도]한 파일이 사라지던 것(행은 대기·진행이 없을 때만 닫고, 처리 중에는 [다시 시도]·[빼기]를 막음), 등록 실패 다시 시도는 complete 만(7절 메모), 카테고리 검색 키 처리에 한글 조합 중 검사.
+- 남은 일: 11-3 개발 미리보기(`PRODUCT_ADMIN_PREVIEW`)와 화면 시험 S1~S6(브라우저), 구현 검증(관점 2·3), full 리허설·DB 적용(대표 승인), 운영 쓰기 시험.
+- 확인(2단계 상태): 상품 화면 시험 집합 24개 파일(기존 22 + 18번 2개) 166개 통과, 전체 2291개 중 실패 44(0단계 뒤와 같은 목록), `npx tsc --noEmit -p .` 0, 바꾼 파일 eslint 0.
+

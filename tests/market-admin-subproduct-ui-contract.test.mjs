@@ -101,9 +101,10 @@ test('admin product form adds paid file draft rows before upload instead of auto
 test('admin product form uploads paid files through subproduct file API from the selected draft file type', () => {
   assert.match(adminProductsClient, /\/subproducts\/\$\{subproductId\}\/files/)
   // 파일마다 확장자로 정한 유형(고른 유형과 맞으면 그 유형)을 보낸다
-  // 서명 업로드라 prepare·complete JSON 본문에 유형을 담는다
-  assert.match(adminProductsClient, /step: 'prepare',\s+fileTypeId: fileType\.id,/)
-  assert.match(adminProductsClient, /step: 'complete', fileTypeId: fileType\.id/)
+  // 서명 업로드라 prepare·complete JSON 본문에 유형을 담는다(18번: 파일마다 정한 유형은 올리기 줄에 들어 있다)
+  assert.match(adminProductsClient, /const fileTypeId = entry\.fileTypeId/)
+  assert.match(adminProductsClient, /step: 'prepare',\s+fileTypeId,/)
+  assert.match(adminProductsClient, /step: 'complete', fileTypeId,/)
   assert.match(adminProductsClient, /handleSubproductFileUpload\(subproduct\.id, draft\.fileTypeId/)
   assert.match(adminProductsClient, /handleDeleteSubproductFile/)
 })
@@ -111,7 +112,8 @@ test('admin product form uploads paid files through subproduct file API from the
 test('서브상품 파일은 여러 개를 한 번에(클릭·드래그) 올리고, 유형은 확장자로 정한다', () => {
   assert.match(adminProductsClient, /const handleSubproductFileUpload = async \(subproductId: string, fileTypeId: string, files: File\[\], draftId: string\) => \{/)
   assert.match(adminProductsClient, /: activeFileTypes\.find\(\(fileType\) => isAllowedSubproductFile\(file, fileType\)\)/)
-  assert.match(adminProductsClient, /for \(const \{ file, fileType \} of accepted\)/)
+  // 18번: 한 번에 1개씩 차례로(대기 줄의 다음 파일)
+  assert.match(adminProductsClient, /for \(let next = nextUploadEntry\(uploadQueuesRef\.current\[draftId\] \?\? \[\]\); next;/)
   assert.match(adminProductsClient, /\n\s+multiple\n\s+accept=\{activeFileTypes\.map\(getFileTypeAcceptValue\)\.join\(','\)\}/)
   assert.match(adminProductsClient, /void handleSubproductFileUpload\(subproduct\.id, draft\.fileTypeId, Array\.from\(event\.dataTransfer\.files \|\| \[\]\), draft\.id\)/)
   assert.doesNotMatch(adminProductsClient, /첫 번째 파일만 업로드합니다/)

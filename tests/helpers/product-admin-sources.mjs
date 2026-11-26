@@ -23,6 +23,12 @@ export const PRODUCT_ADMIN_FILES = [
   '_editor/sample-section.tsx',
   '_editor/material-info-section.tsx',
   '_settings/category-manager-dialog.tsx',
+  // 18번 2단계(기능)에서 더한 파일
+  '_editor/publish-summary-panel.tsx',
+  '_editor/upload-queue-list.tsx',
+  '_editor/after-save-dialog.tsx',
+  '_hooks/use-product-duplicate.ts',
+  '_lib/focus-field.ts',
 ]
 
 export function readProductAdminFile(relativePath) {

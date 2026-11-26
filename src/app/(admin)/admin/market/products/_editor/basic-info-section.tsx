@@ -11,8 +11,8 @@ export function BasicInfoSection({ ctx }: { ctx: ProductAdminContext }) {
   return (
     <>
               <div className="space-y-2">
-                <Label>제목 <span className="text-red-500">*</span></Label>
-                <Input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
+                <Label htmlFor="product-title-input">제목 <span className="text-red-500">*</span></Label>
+                <Input id="product-title-input" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
               </div>
 
               <div className="space-y-2">
@@ -21,6 +21,7 @@ export function BasicInfoSection({ ctx }: { ctx: ProductAdminContext }) {
                 <p className="text-xs text-gray-500">상세 페이지 제목 아래에 한두 줄로 표시됩니다.</p>
               </div>
 
+              <div id="product-image-field" tabIndex={-1}>
               <MarketImageField
                 label="상품 이미지"
                 value={thumbnailFieldValue}
@@ -32,6 +33,7 @@ export function BasicInfoSection({ ctx }: { ctx: ProductAdminContext }) {
                   ? { image: selectedCategoryDefaultImage, description: '상품 이미지가 없어 카테고리 기본 이미지가 표시됩니다.' }
                   : null}
               />
+              </div>
     </>
   )
 }

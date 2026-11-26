@@ -18,10 +18,12 @@ import { useListQuery } from '@/hooks/use-list-query'
 import { getListPagination } from '@/lib/list-pagination'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 import { categoryNodeLabel } from './_editor/category-step'
+import { AfterSaveDialog, RegisteredItemsTable } from './_editor/after-save-dialog'
 import { ProductEditor } from './_editor/product-editor'
 import { useProductForm, type ProductFormApi } from './_hooks/use-product-form'
 import { useSampleGeneration, type SampleGenerationApi } from './_hooks/use-sample-generation'
 import { useSubproductUploads, type SubproductUploadsApi } from './_hooks/use-subproduct-uploads'
+import { useProductDuplicate, type ProductDuplicateApi } from './_hooks/use-product-duplicate'
 import {
   buildEmptyForm,
   buildEmptyBundleForm,
@@ -54,10 +56,12 @@ interface MarketProductsClientProps {
   canDeleteProducts: boolean
   // 17번: 학년·자료유형 선택 목록(과목별 DB 목록, 숨김 포함 — 상품 값이 숨긴 항목이면 '(숨김)'으로 함께 보인다)
   attributeOptions: Record<MarketItemProductOptionKind, MarketItemOption[]>
+  // 18번: 등록 화면 주소의 ?categoryId=(관리 화면 저장 뒤 창 [빈 새 상품]이 카테고리를 넘김). 트리에 있는 칸만 page 가 넘긴다.
+  initialCategoryItemId?: string
 }
 
 // 18번 1단계: 화면 상태(useState·useRef)와 목록 상태·처리 함수. 편집 훅·부품은 이 값을 ctx 로 받는다.
-function useMarketProductsState({ mode, initialCategoryNodes, initialItems, workspaceSubject, canDeleteProducts, attributeOptions }: MarketProductsClientProps) {
+function useMarketProductsState({ mode, initialCategoryNodes, initialItems, workspaceSubject, canDeleteProducts, attributeOptions, initialCategoryItemId }: MarketProductsClientProps) {
   const router = useRouter()
   // 상품 목록 상단 필터(가장 깊이 고른 칸, '' = 전체). 서버가 하위 칸까지 포함해 거른다.
   const [filterCategoryId, setFilterCategoryId] = useState('')
@@ -114,7 +118,7 @@ function useMarketProductsState({ mode, initialCategoryNodes, initialItems, work
   const [subproductDragActiveKeys, setSubproductDragActiveKeys] = useState<string[]>([])
   const [categoryNodes, setCategoryNodes] = useState<AdminCategoryTreeNode[]>(initialCategoryNodes)
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false)
-  const [categoryItemId, setCategoryItemId] = useState('')
+  const [categoryItemId, setCategoryItemId] = useState(initialCategoryItemId ?? '')
   const [savedCategoryItemId, setSavedCategoryItemId] = useState('')
   // 폼의 thumbnailImageId에 해당하는 미리보기(상세 조회·이미지 선택 시 갱신)
   const [thumbnailPreview, setThumbnailPreview] = useState<MarketImageFieldValue | null>(null)
@@ -313,6 +317,7 @@ function useMarketProductsState({ mode, initialCategoryNodes, initialItems, work
 
 export type MarketProductsState = ReturnType<typeof useMarketProductsState>
 export type ProductAdminContext = MarketProductsState & ProductFormApi & SampleGenerationApi & SubproductUploadsApi & ProductListActionsApi
+  & ProductDuplicateApi
 
 export default function MarketProductsClient(props: MarketProductsClientProps) {
   const state = useMarketProductsState(props)
@@ -320,7 +325,8 @@ export default function MarketProductsClient(props: MarketProductsClientProps) {
   const sampleGeneration = useSampleGeneration({ ...state, ...productForm })
   const subproductUploads = useSubproductUploads({ ...state, ...productForm })
   const listActions = useProductListActions({ ...state, ...productForm })
-  const ctx: ProductAdminContext = { ...state, ...productForm, ...sampleGeneration, ...subproductUploads, ...listActions }
+  const productDuplicate = useProductDuplicate({ ...state, ...productForm })
+  const ctx: ProductAdminContext = { ...state, ...productForm, ...sampleGeneration, ...subproductUploads, ...listActions, ...productDuplicate }
   const {
     mode, workspaceSubject, form, isSamplePreviewOpen, setIsSamplePreviewOpen, samplePreviewItemId,
     setSamplePreviewItemId, sampleDraftToken, resetForm,
@@ -366,6 +372,10 @@ export default function MarketProductsClient(props: MarketProductsClientProps) {
 
         <ProductList ctx={ctx} />
       </div>
+
+      <RegisteredItemsTable ctx={ctx} />
+
+      <AfterSaveDialog ctx={ctx} />
 
       <AdminMarketSamplePreviewDialog
         itemId={samplePreviewItemId}

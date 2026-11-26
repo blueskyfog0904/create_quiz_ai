@@ -2,7 +2,8 @@
 // 둘러싼 함수 이름과 그 함수 안 순서, 인자 글(공백 정리)·주소 변수의 대입 글과 함께 뽑는다.
 // 나누기 전(파일 하나)과 뒤(나눈 파일들)의 결과가 같아야 한다(tests/fixtures/product-admin-call-inventory.json).
 
-const CALL_PATTERN = /\b(fetch|uploadToSignedUrl|router\.refresh|router\.push|router\.replace)\(/g
+// 18번 2단계: 진행률을 받는 서명 업로드(uploadFileToSignedUrl, XMLHttpRequest)도 센다.
+const CALL_PATTERN = /\b(fetch|uploadToSignedUrl|uploadFileToSignedUrl|router\.refresh|router\.push|router\.replace)\(/g
 
 function normalize(text) {
   return text.replace(/\s+/g, ' ').trim()

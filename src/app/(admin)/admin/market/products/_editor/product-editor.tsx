@@ -12,6 +12,8 @@ import { CategoryField } from './category-step'
 import { MaterialInfoSection, ExamScheduleFields } from './material-info-section'
 import { SampleSection } from './sample-section'
 import { SubproductTable } from './subproduct-table'
+import { PublishSummaryPanel } from './publish-summary-panel'
+import { buildPublishChecks, PUBLISH_CHECK_TARGET_IDS } from '@/lib/admin-market-publish-checks'
 
 // 상품 등록 폼의 단계 제목(① 기본 정보 … ⑤ 공개 전 점검)
 function ProductStepHeading({ number, title, optional = false, description }: { number: number; title: string; optional?: boolean; description?: string }) {
@@ -31,7 +33,7 @@ export function ProductEditor({ ctx }: { ctx: ProductAdminContext }) {
   const {
     mode, workspaceSubject, canDeleteProducts, form, isSaving, isArchiving, samplePages, isSampleSourceUploading,
     sampleGenerationStep, subproducts, bundleForm, categoryItemId, selectedCategoryDefaultImage,
-    subproductFilesBySubproductId, resetForm, handleSave, handleArchive,
+    subproductFilesBySubproductId, resetForm, handleSave, handleArchive, selectedCategoryPath, usageBasisItemIds, setUsageBasisItemIds,
   } = ctx
 
   const canOpenSamplePreview = Boolean(form.id && samplePages.length > 0 && !isSampleSourceUploading)
@@ -46,29 +48,25 @@ export function ProductEditor({ ctx }: { ctx: ProductAdminContext }) {
           : '샘플 생성 중'
   const samplePreviewStatusLabel = isSampleSourceUploading ? sampleGenerationStatusLabel : samplePages.length > 0 ? '확인 가능' : '샘플 없음'
   const isAutoUploadDraft = Boolean(form.id && form.draftSource === 'auto_upload')
-  // 공개 전 점검: required 항목이 하나라도 빠지면 공개(공개 상품은 저장)를 막는다.
-  const activeSubproducts = subproducts.filter((subproduct) => subproduct.is_active)
-  const publishChecks = [
-    { key: 'category', label: '카테고리 선택', done: Boolean(categoryItemId), required: true },
-    { key: 'title', label: '제목 입력', done: Boolean(form.title.trim()), required: true },
-    { key: 'subproduct', label: '판매할 서브상품 1개 이상', done: activeSubproducts.length > 0, required: true },
-    {
-      key: 'files',
-      label: '모든 서브상품에 파일 업로드',
-      done: activeSubproducts.length > 0 && activeSubproducts.every((subproduct) => (subproductFilesBySubproductId.get(subproduct.id) || []).length > 0),
-      required: true,
-    },
-    ...(bundleForm.enabled
-      ? [{ key: 'bundle', label: '전체구매 가격 입력', done: parseCreditInputValue(bundleForm.priceCredits) > 0, required: true }]
-      : []),
-    { key: 'price', label: '서브상품 가격 입력(0 크레딧 없음)', done: activeSubproducts.length > 0 && activeSubproducts.every((subproduct) => subproduct.price_credits > 0), required: false },
-    { key: 'image', label: '상품 이미지(없으면 카테고리 기본 이미지)', done: Boolean(form.thumbnailImageId || selectedCategoryDefaultImage), required: false },
-    { key: 'sample', label: '샘플 이미지', done: samplePages.length > 0, required: false },
-  ]
-  const missingRequiredChecks = publishChecks.filter((check) => check.required && !check.done)
-  const isPublishBlocked = missingRequiredChecks.length > 0
   // 자동 생성된 임시 상품은 DB 상태가 draft라 '공개 중'으로 보지 않는다.
   const isPublishedItem = Boolean(form.id) && !isAutoUploadDraft && form.status === 'published'
+  // 공개 전 점검(18번: 순수 함수로 옮김 — 필수 조건은 같고 비활성 카테고리·이용 근거 미입력·이동할 칸 id 를 더함).
+  // required 항목이 하나라도 빠지면 공개(공개 상품은 저장)를 막는다.
+  const publishChecks = buildPublishChecks({
+    categorySelected: Boolean(categoryItemId),
+    categoryInactive: selectedCategoryPath.some((node) => !node.isActive),
+    title: form.title,
+    subproducts: subproducts.map((subproduct) => ({ id: subproduct.id, isActive: subproduct.is_active, priceCredits: subproduct.price_credits })),
+    fileCounts: new Map([...subproductFilesBySubproductId].map(([subproductId, files]) => [subproductId, files.length])),
+    bundleEnabled: bundleForm.enabled,
+    bundlePriceCredits: parseCreditInputValue(bundleForm.priceCredits),
+    hasImage: Boolean(form.thumbnailImageId || selectedCategoryDefaultImage),
+    samplePageCount: samplePages.length,
+    isPublishedItem,
+    hasUsageBasis: Boolean(form.id && usageBasisItemIds.includes(form.id)),
+  })
+  const missingRequiredChecks = publishChecks.filter((check) => check.required && !check.done)
+  const isPublishBlocked = missingRequiredChecks.length > 0
   const productSteps = [
     { id: 'product-step-basic', label: '기본 정보', done: Boolean(categoryItemId && form.title.trim()) },
     { id: 'product-step-sales', label: '판매 구성', done: publishChecks.filter((check) => check.required && ['subproduct', 'files', 'bundle'].includes(check.key)).every((check) => check.done) },
@@ -98,7 +96,8 @@ export function ProductEditor({ ctx }: { ctx: ProductAdminContext }) {
             </div>
           </CardHeader>
           <CardContent className="space-y-8">
-            <nav aria-label="상품 등록 단계" className="flex flex-wrap gap-2">
+            {/* 18번: 단계 칩은 스크롤해도 위에 붙어 있다 */}
+            <nav aria-label="상품 등록 단계" className="sticky top-0 z-20 -mx-2 flex flex-wrap gap-2 bg-white/95 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-white/85">
               {productSteps.map((step, index) => (
                 <button
                   key={step.id}
@@ -116,6 +115,10 @@ export function ProductEditor({ ctx }: { ctx: ProductAdminContext }) {
               ))}
             </nav>
 
+            {/* 18번: 빠진 항목 요약판 — 넓은 등록 화면은 오른쪽에 고정, 그 밖에는 위쪽에 접어 둔다 */}
+            <PublishSummaryPanel ctx={ctx} checks={publishChecks} variant="collapsible" className={mode === 'create' ? 'xl:hidden' : undefined} />
+            <div className={mode === 'create' ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start xl:gap-8' : undefined}>
+            <div className="space-y-8">
             <section id="product-step-basic" className="scroll-mt-24 space-y-4">
               <ProductStepHeading number={1} title="기본 정보" />
               <CategoryField ctx={ctx} />
@@ -125,7 +128,7 @@ export function ProductEditor({ ctx }: { ctx: ProductAdminContext }) {
 
             <section id="product-step-sales" className="scroll-mt-24 space-y-4">
               <ProductStepHeading number={2} title="판매 구성" description="서브상품(판매 단위)을 만들고 파일을 올립니다. 첫 서브상품을 추가할 때 상품이 임시저장되므로 카테고리와 제목을 먼저 입력하세요." />
-              <div className="space-y-4 rounded-lg border p-4">
+              <div id="product-subproducts" tabIndex={-1} className="space-y-4 rounded-lg border p-4">
                 <div>
                   <p className="font-medium text-gray-900">서브상품 구성</p>
                   <p className="text-sm text-gray-500">서브상품마다 가격을 정하고, 파일 추가+로 PDF/HWP/ZIP 등 파일을 여러 개 한 번에 올립니다.</p>
@@ -156,9 +159,13 @@ export function ProductEditor({ ctx }: { ctx: ProductAdminContext }) {
               <ProductStepHeading number={4} title="상세 정보" optional />
               <MaterialInfoSection ctx={ctx} />
 
+              <div id={PUBLISH_CHECK_TARGET_IDS.usageBasis} tabIndex={-1}>
               {form.id
-                ? <MarketItemUsageBasisCard key={form.id} itemId={form.id} workspaceSubject={workspaceSubject} />
+                ? <MarketItemUsageBasisCard key={form.id} itemId={form.id} workspaceSubject={workspaceSubject} onBasisChange={(itemId, hasBasis) => {
+                  setUsageBasisItemIds((current) => hasBasis ? (current.includes(itemId) ? current : [...current, itemId]) : current.filter((id) => id !== itemId))
+                }} />
                 : <p className="rounded-lg border border-dashed p-4 text-sm text-gray-500">원저작물 이용 근거(내부)는 상품을 처음 저장한 뒤에 입력합니다.</p>}
+              </div>
 
               <ExamScheduleFields ctx={ctx} />
             </section>
@@ -190,6 +197,11 @@ export function ProductEditor({ ctx }: { ctx: ProductAdminContext }) {
                   </div>
                 ) : null}
             </section>
+            </div>
+            {mode === 'create' ? (
+              <PublishSummaryPanel ctx={ctx} checks={publishChecks} variant="side" className="hidden xl:sticky xl:top-16 xl:block" />
+            ) : null}
+            </div>
 
             <div className="sticky bottom-4 z-10 -mx-2 space-y-2 rounded-xl border bg-white/95 px-2 py-3 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-white/85">
               <p className="px-1 text-xs text-gray-500">

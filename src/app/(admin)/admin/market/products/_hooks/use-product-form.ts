@@ -20,6 +20,7 @@ import {
   isSameBundleForm,
 } from '../_lib/product-form'
 import type {
+  RegisteredItem,
   PersistFormOptions,
   MarketItemDetailPayload,
   SubproductDraftState,
@@ -35,7 +36,7 @@ export function useProductForm(ctx: MarketProductsState) {
     setIsSaving, setIsArchiving, requiresFinalRegistration, setRequiresFinalRegistration, setIsSamplePreviewOpen,
     setSamplePreviewItemId, samplePages, setSamplePages, setSamplePageSelection, setSelectedSampleSourceFile,
     sampleDraftToken, setSampleDraftToken, setIsSampleSourceDragActive, setSamplePageDragId, setSampleGenerationStep,
-    setSubproducts, subproductFiles, setSubproductFiles, setBundleOption, bundleOptionRef, setIsSubproductFormOpen,
+    subproducts, setSubproducts, subproductFiles, setSubproductFiles, setBundleOption, bundleOptionRef, setIsSubproductFormOpen,
     setEditingSubproductId, setSubproductEditDraft, bundleForm, setBundleForm, setSubproductUploadingKeys,
     setSubproductDragActiveKeys, categoryNodes, setCategoryNodes, categoryItemId, setCategoryItemId,
     savedCategoryItemId, setSavedCategoryItemId, thumbnailPreview, setThumbnailPreview, sampleSourceInputRef,
@@ -46,6 +47,12 @@ export function useProductForm(ctx: MarketProductsState) {
   const [fileTypes, setFileTypes] = useState<MarketFileType[]>([])
   const [subproductDraft, setSubproductDraft] = useState<SubproductDraftState>(buildEmptySubproductDraft())
   const [subproductFileDrafts, setSubproductFileDrafts] = useState<SubproductFileDraftState[]>([])
+  // 18번 8절: 이 창에서 등록한 상품 표·저장 뒤 창, [같은 구성으로 다음 상품]·[복제]로 만든 상품 id(첫 저장 뒤 창을 띄움)
+  const [registeredItems, setRegisteredItems] = useState<RegisteredItem[]>([])
+  const [afterSaveItem, setAfterSaveItem] = useState<RegisteredItem | null>(null)
+  const [sessionCopyItemIds, setSessionCopyItemIds] = useState<string[]>([])
+  // 18번 7절: 17번 이용 근거 카드가 알려 준 '근거가 있는 상품' id 집합(공개 전 점검의 경고 칩)
+  const [usageBasisItemIds, setUsageBasisItemIds] = useState<string[]>([])
 
   // 폼의 thumbnailImageId에 맞는 미리보기: 방금 고른 이미지 → 목록에 실린 상품 이미지 순으로 찾는다.
   // 숨김 토글처럼 buildEditForm만 다시 부르는 경로에서도 id와 미리보기가 어긋나지 않는다.
@@ -456,10 +463,23 @@ export function useProductForm(ctx: MarketProductsState) {
   }
 
   // 하단 버튼(공개하기·임시저장·숨김·보관)은 모두 이 저장 하나로 상태를 정해 저장한다.
+  // 18번 8절: '이번에 등록한 상품' 표에 넣고 저장 뒤 창을 연다(창은 아래 handleSave 의 resetForm 블록 밖에서 연다).
+  const recordRegisteredItem = (item: MarketItem) => {
+    const entry: RegisteredItem = { id: item.id, title: item.title, status: item.status as MarketItemFormState['status'], subproductCount: subproducts.length }
+    setRegisteredItems((current) => [entry, ...current.filter((registered) => registered.id !== item.id)])
+    setSessionCopyItemIds((current) => current.filter((itemId) => itemId !== item.id))
+    setAfterSaveItem(entry)
+  }
+
   const handleSave = async (status: MarketItemFormState['status']) => {
     if (form.id) {
+      // (b) 임시 상품 최종 등록, (c) 이 창에서 복제로 만든 상품의 첫 저장만 창을 띄운다(기존 상품 수정 저장은 띄우지 않음).
+      const isSessionCopy = sessionCopyItemIds.includes(form.id)
       const result = await persistForm(status, { draftSource: 'manual' })
       if (result) {
+        if (requiresFinalRegistration || isSessionCopy) {
+          recordRegisteredItem(result)
+        }
         if (requiresFinalRegistration) {
           resetForm(getItemCategoryItemId(result))
           return
@@ -471,6 +491,7 @@ export function useProductForm(ctx: MarketProductsState) {
 
     const createdItem = await persistForm(status, { draftSource: 'manual' })
     if (createdItem) {
+      recordRegisteredItem(createdItem)
       resetForm(getItemCategoryItemId(createdItem))
     }
   }
@@ -544,6 +565,8 @@ export function useProductForm(ctx: MarketProductsState) {
   }
 
   return {
+    registeredItems, setRegisteredItems, afterSaveItem, setAfterSaveItem, sessionCopyItemIds, setSessionCopyItemIds,
+    usageBasisItemIds, setUsageBasisItemIds, recordRegisteredItem,
     subproductCategories, setSubproductCategories, fileTypes, setFileTypes, subproductDraft, setSubproductDraft,
     subproductFileDrafts, setSubproductFileDrafts, thumbnailFieldValue, selectedCategoryPath, selectedCategory,
     selectedCategoryDefaultImage, isUploadBlockedByCategory, examYearOptions, activeSubproductCategories,

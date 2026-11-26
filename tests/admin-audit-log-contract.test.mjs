@@ -32,6 +32,8 @@ const SITE_BOARD_MIGRATION = read('supabase/migrations/20261217140000_bundle14_s
 const MEMBER_NOTIFICATIONS_MIGRATION = read('supabase/migrations/20261218100000_bundle16_member_notifications.sql')
 // 17번 묶음(상품 정보 입력 보완): 목록 저장·순서·이용 근거·표시 설정 기록은 DB 함수가 같은 거래에서 남긴다.
 const PRODUCT_INFO_MIGRATION = read('supabase/migrations/20261219100000_bundle17_product_info.sql')
+// 18번 묶음(상품 업로드 개선): 복제·같은 구성으로 다음 상품 기록은 DB 함수가 같은 거래에서 남긴다.
+const PRODUCT_DUPLICATE_MIGRATION = read('supabase/migrations/20261220100000_bundle18_product_duplicate.sql')
 const DB_FUNCTION_ACTIONS = [
   [PERMISSION_MIGRATION, 'admin_permissions_replace'],
   [PERMISSION_MIGRATION, 'admin_account_revoke'],
@@ -72,6 +74,7 @@ const DB_FUNCTION_ACTIONS = [
   [PRODUCT_INFO_MIGRATION, 'market_item_option_reorder'],
   [PRODUCT_INFO_MIGRATION, 'market_item_usage_basis_save'],
   [PRODUCT_INFO_MIGRATION, 'market_item_display_update'],
+  [PRODUCT_DUPLICATE_MIGRATION, 'market_item_duplicate'],
 ]
 // 9번 묶음: 대표 승인 SQL 템플릿·정책 문구 스크립트(supabase/scripts)가 record_admin_audit 로 적는 종류.
 const SCRIPT_ACTIONS = readdirSync(join(ROOT, 'supabase/scripts'))

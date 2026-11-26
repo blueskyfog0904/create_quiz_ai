@@ -25,10 +25,14 @@ function listSplitFiles() {
   return files
 }
 
-test('호출 목록(fetch·Storage 업로드·router)이 나누기 전 기준과 같다(둘러싼 함수·순서·인자·주소 변수까지)', () => {
+// 1단계 커밋에서는 기준(77b7511)과 같았다(fetch 31·uploadToSignedUrl 2·router.refresh 7). 2단계는 아래 세 가지만 바꾸고 기준을 다시 저장했다:
+//   판매 파일 올리기 prepare·complete fetch 가 handleSubproductFileUpload → runUploadEntry 로, 그 사이 uploadToSignedUrl → uploadFileToSignedUrl(진행률),
+//   복제 route 호출 fetch 1개(requestDuplicate), 관리 화면 저장 뒤 창 [빈 새 상품]의 router.push 1개(등록 화면으로).
+//   그 밖의 호출이 바뀌면 이 시험이 실패한다.
+test('호출 목록(fetch·Storage 업로드·router)이 저장된 기준과 같다(둘러싼 함수·순서·인자·주소 변수까지)', () => {
   const fixture = JSON.parse(readFileSync(new URL('./fixtures/product-admin-call-inventory.json', import.meta.url), 'utf8'))
   const inventory = buildCallInventory(PRODUCT_ADMIN_FILES.map((path) => ({ path, text: readProductAdminFile(path) })))
-  assert.deepEqual(fixture.counts, { fetch: 31, 'router.refresh': 7, uploadToSignedUrl: 2 })
+  assert.deepEqual(fixture.counts, { fetch: 32, 'router.refresh': 7, uploadToSignedUrl: 1, 'router.push': 1, uploadFileToSignedUrl: 1 })
   assert.deepEqual(inventory.counts, fixture.counts)
   assert.deepEqual(inventory.calls, fixture.calls)
 })

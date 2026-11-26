@@ -334,7 +334,8 @@ test('관리자: 상품 표시 설정 메뉴·가드, 상품 폼은 DB 목록 �
   assert.doesNotMatch(client, /LISTBOARD_GRADE_OPTIONS/)
   assert.match(client, /\{ value: '', label: '선택 안 함' \}/)
   assert.match(client, /label: `\(숨김\) \$\{value\}`/)
-  assert.match(client, /<MarketItemUsageBasisCard key=\{form\.id\} itemId=\{form\.id\} workspaceSubject=\{workspaceSubject\} \/>/)
+  // 18번: 카드가 근거 유무를 알려 준다(공개 전 점검의 경고 칩)
+  assert.match(client, /<MarketItemUsageBasisCard key=\{form\.id\} itemId=\{form\.id\} workspaceSubject=\{workspaceSubject\} onBasisChange=\{/)
   assert.match(read('src/app/(admin)/admin/market/products/market-item-usage-basis-card.tsx'), /회원에게 보이지 않음/)
   assert.match(read('src/lib/generate-menu.ts'), /export const LISTBOARD_GRADE_OPTIONS/)
   // slug·code DB 오류는 지금과 같은 문구로

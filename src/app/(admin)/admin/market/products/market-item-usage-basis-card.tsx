@@ -24,7 +24,12 @@ interface UsageBasisDraft {
 
 const emptyDraft: UsageBasisDraft = { basisOptionId: '', note: '', evidenceRef: '' }
 
-export function MarketItemUsageBasisCard({ itemId, workspaceSubject }: { itemId: string; workspaceSubject: WorkspaceSubject }) {
+// onBasisChange: 18번 공개 전 점검의 '이용 근거 미입력' 경고 칩 — 읽거나 저장한 뒤 근거가 있는지 알린다.
+export function MarketItemUsageBasisCard({ itemId, workspaceSubject, onBasisChange }: {
+  itemId: string
+  workspaceSubject: WorkspaceSubject
+  onBasisChange?: (itemId: string, hasBasis: boolean) => void
+}) {
   const [data, setData] = useState<MarketItemUsageBasisAdminData | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [draft, setDraft] = useState<UsageBasisDraft>(emptyDraft)
@@ -43,6 +48,7 @@ export function MarketItemUsageBasisCard({ itemId, workspaceSubject }: { itemId:
       }
       setData(payload.data)
       setLoadError(null)
+      onBasisChange?.(itemId, Boolean(payload.data.basis))
       setDraft(payload.data.basis
         ? { basisOptionId: payload.data.basis.basisOptionId, note: payload.data.basis.note ?? '', evidenceRef: payload.data.basis.evidenceRef ?? '' }
         : emptyDraft)

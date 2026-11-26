@@ -1,9 +1,12 @@
 {
-  "base": "77b7511",
+  "base": "18번 2단계(77b7511 + 1단계 나누기 + 2단계 기능)",
+  "step1Base": "77b7511",
   "counts": {
-    "fetch": 31,
+    "fetch": 32,
     "router.refresh": 7,
-    "uploadToSignedUrl": 2
+    "uploadToSignedUrl": 1,
+    "router.push": 1,
+    "uploadFileToSignedUrl": 1
   },
   "calls": [
     {
@@ -201,29 +204,13 @@
       "order": 0
     },
     {
-      "fn": "handleSubproductFileUpload",
-      "kind": "fetch",
-      "args": "filesUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ step: 'prepare', fileTypeId: fileType.id, fileName: file.name, fileSize: file.size, contentType: file.type || null, }), }",
+      "fn": "handleStartBlankAfterSave",
+      "kind": "router.push",
+      "args": "withAdminWorkspaceSubject(`/admin/market/products/new${query}`, workspaceSubject)",
       "variables": {
-        "filesUrl": "withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/subproducts/${subproductId}/files`, workspaceSubject)"
+        "query": "categoryItemId ? `?categoryId=${encodeURIComponent(categoryItemId)}` : ''"
       },
       "order": 0
-    },
-    {
-      "fn": "handleSubproductFileUpload",
-      "kind": "uploadToSignedUrl",
-      "args": "storagePath, token, file",
-      "variables": {},
-      "order": 1
-    },
-    {
-      "fn": "handleSubproductFileUpload",
-      "kind": "fetch",
-      "args": "filesUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ step: 'complete', fileTypeId: fileType.id, fileName: file.name, storagePath }), }",
-      "variables": {
-        "filesUrl": "withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/subproducts/${subproductId}/files`, workspaceSubject)"
-      },
-      "order": 2
     },
     {
       "fn": "handleVisibilityFromList",
@@ -307,6 +294,40 @@
       "args": "withAdminWorkspaceSubject('/api/admin/market/file-types', workspaceSubject), { cache: 'no-store' }",
       "variables": {},
       "order": 1
+    },
+    {
+      "fn": "requestDuplicate",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${sourceItemId}/duplicate`, workspaceSubject), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }), }",
+      "variables": {},
+      "order": 0
+    },
+    {
+      "fn": "runUploadEntry",
+      "kind": "fetch",
+      "args": "filesUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ step: 'prepare', fileTypeId, fileName: file.name, fileSize: file.size, contentType: file.type || null, }), }",
+      "variables": {
+        "filesUrl": "withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/subproducts/${subproductId}/files`, workspaceSubject)"
+      },
+      "order": 0
+    },
+    {
+      "fn": "runUploadEntry",
+      "kind": "uploadFileToSignedUrl",
+      "args": "{ bucket: target.bucket, storagePath: target.storagePath, token: target.token }, file, (loaded, total) => { applyUploadQueueEvent(draftId, entryId, { type: 'progress', loaded, total }) }",
+      "variables": {
+        "target": "preparePayload.data as { bucket: string; storagePath: string; token: string }"
+      },
+      "order": 1
+    },
+    {
+      "fn": "runUploadEntry",
+      "kind": "fetch",
+      "args": "filesUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ step: 'complete', fileTypeId, fileName: file.name, storagePath }), }",
+      "variables": {
+        "filesUrl": "withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/subproducts/${subproductId}/files`, workspaceSubject)"
+      },
+      "order": 2
     }
   ]
 }

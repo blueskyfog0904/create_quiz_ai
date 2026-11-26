@@ -236,6 +236,7 @@ const ROUTE_REQUIREMENTS = {
   'market/items/[id]/route.ts': { GET: 'products.edit', PATCH: 'products.edit', DELETE: 'products.delete' },
   'market/items/thumbnail/route.ts': all('products.edit', 'POST'),
   'market/items/[id]/bundle-option/route.ts': all('products.edit', 'GET', 'PATCH', 'DELETE'),
+  'market/items/[id]/duplicate/route.ts': all('products.edit', 'POST'),
   'market/items/[id]/files/route.ts': all('products.edit', 'POST'),
   'market/items/[id]/sample-pages/route.ts': all('products.edit', 'GET', 'PATCH'),
   'market/items/[id]/sample-pages/[pageId]/route.ts': all('products.edit', 'DELETE'),

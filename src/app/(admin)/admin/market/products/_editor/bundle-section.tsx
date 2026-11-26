@@ -36,8 +36,9 @@ export function BundleSection({ ctx }: { ctx: ProductAdminContext }) {
                     <Input disabled={!bundleForm.enabled} value={bundleForm.label} onChange={(event) => setBundleForm((current) => ({ ...current, label: event.target.value }))} />
                   </div>
                   <div className="space-y-2">
-                    <Label>전체구매 가격</Label>
+                    <Label htmlFor="product-bundle-price">전체구매 가격</Label>
                     <Input
+                      id="product-bundle-price"
                       disabled={!bundleForm.enabled}
                       type="text"
                       inputMode="numeric"
