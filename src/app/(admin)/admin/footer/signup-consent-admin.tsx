@@ -103,8 +103,12 @@ function ReconsentDialog({
               기존 회원 {pending.result.affected_members ?? 0}명이 다음 접속 때 다시 동의합니다. 되돌릴 수 없습니다.
             </span>
             <span className="block">
-              먼저 새 약관 전문·시행일을 회원에게 알리고(회원에게 불리한 변경은 더 길게 — 이용약관의 약관 변경 조항), 시행일 당일에 하단 정보 본문을 바꾼 뒤 누르세요.
-              공지 게시판이 생기기 전까지는 하단 정보의 추가 안내 문구에 시행일·변경 요약·새 전문 위치를 올리고, 필요하면 회원에게 이메일로 알리세요.
+              약관 변경은 15번 정식 고지 절차 순서로 합니다.
+              ① 변경 예정 약관을 게시합니다(/terms/upcoming, 런북 절차 — 고지 증빙·고지 기간 잠금이 여기서 생깁니다).
+              ② 회원에게 불리한 변경은 30일 전부터 공지 팝업을 켭니다(이용약관의 약관 변경 조항).
+              ③ 필요하면 공지사항에도 같은 내용을 올립니다(보조).
+              ④ 시행일 당일: 15번 시행 스크립트(런북)로 시행하면 본문 교체와 다시 동의가 함께 되므로 이 버튼을 누르지 않습니다.
+              스크립트를 쓰지 않는 변경은 하단 정보 본문이 새 전문으로 바뀐 것을 확인한 뒤 누르세요.
             </span>
             <span className="block">오탈자 수정도 다시 동의 대상입니다 · 중요한 변경일 때만 쓰세요. 유료 크레딧이 남은 회원이 거부하면 CS 처리가 필요합니다.</span>
             {changed.length > 0 ? <span className="block">바뀐 칸: {changed.join(', ')}</span> : null}
@@ -401,7 +405,7 @@ export function SignupConsentAdmin({ data, lockNotice = null }: { data: SignupCo
         <CardTitle>가입 동의 항목 <span className="ml-1 text-xs font-normal text-gray-500">대표 전용</span></CardTitle>
         <CardDescription className="space-y-1 leading-6">
           <span className="block">이럴 때 무엇을 누르나</span>
-          <span className="block">· 이용약관 개정: 새 전문·시행일을 먼저 알림 → 시행일 당일 하단 정보 본문 수정 → 그 항목의 &lsquo;다시 동의 받기&rsquo;</span>
+          <span className="block">· 이용약관 개정: 변경 예정 약관 게시(/terms/upcoming, 런북) → 불리한 변경은 30일 전부터 공지 팝업(필요하면 공지사항에도) → 시행일 당일 15번 시행 스크립트(이 화면에서 누르지 않음), 스크립트를 쓰지 않으면 하단 정보 본문이 새 전문으로 바뀐 것을 확인한 뒤 그 항목의 &lsquo;다시 동의 받기&rsquo;</span>
           <span className="block">· 수집 목적·항목·보유 기간 변경: 해당 동의 항목 내용을 고치면 자동으로 다시 동의(개인정보처리방침만 바꾸면 알리기만)</span>
           <span className="block">· 마케팅 문구 변경: 동의 기록이 있으면 새 선택 항목을 만들고 옛 항목을 숨김</span>
         </CardDescription>

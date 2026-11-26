@@ -53,6 +53,7 @@ export default async function SolvookHomeLayout({
           policyLinks={footer.policyLinks}
           brandName={footer.brandName}
           notices={footer.notices}
+          boardNav={footer.boardNav}
         />
         <SiteNoticePopup popup={noticePopup} />
       </StudioThemeShell>

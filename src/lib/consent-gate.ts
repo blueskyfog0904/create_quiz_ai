@@ -24,6 +24,9 @@ const EXCLUDED_PATH_PREFIXES = [
   '/mypage/consents',
   // 12번: 이용 제한 안내 화면(동의하지 않은 회원도 막힌 이유를 볼 수 있어야 한다)
   '/mypage/restriction',
+  // 14번: 공지사항·자주 묻는 질문(재동의 전 회원도 바뀐 내용·도움말을 볼 수 있어야 한다)
+  '/notices',
+  '/faq',
   '/library',
   '/_next',
   '/.well-known',
@@ -42,6 +45,14 @@ function isExcludedScopedPath(path: string) {
     || CHECKOUT_RESULT_PATTERN.test(path)
     || NEXT_DEV_PATTERN.test(path)
     || PUBLIC_FILE_PATTERN.test(path)
+}
+
+// 14번: 회원 공지·FAQ 화면 경로. 미들웨어의 카카오 가입 미완료 분기도 이 경로를 연다('/noticesx' 같은 비슷한 경로는 아니다).
+const SITE_BOARD_MEMBER_PREFIXES = ['/notices', '/faq'] as const
+
+export function isSiteBoardMemberPath(pathname: string) {
+  const normalized = normalizePathname(pathname)
+  return SITE_BOARD_MEMBER_PREFIXES.some((prefix) => matchesPrefix(normalized, prefix))
 }
 
 export function isConsentGateExcludedPath(pathname: string) {

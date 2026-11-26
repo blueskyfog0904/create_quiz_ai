@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Loader2, Trash2, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -24,6 +25,8 @@ interface SupportViewProps {
   userId: string
   // 13번 9절: 화면 문구는 DB(support_page_content.member) 값이다. 선택 키가 비면 그 칸을 숨긴다.
   texts: SupportPageMemberTexts
+  // 14번: FAQ 게시 글이 있을 때만 '자주 묻는 질문' 링크(이름은 DB 문구 faq.footerLinkLabel)
+  faqLink?: { href: string; label: string } | null
 }
 
 const controlClassName =
@@ -84,7 +87,7 @@ function getTicketCategoryName(ticket: SupportTicket, uncategorizedLabel: string
 // 줄바꿈은 JSON 문자열의 \n 으로 저장된다(실제 줄바꿈과 글자 '\n' 모두 줄로 바꾼다).
 const lines = (text: string) => text.replace(/\\n/g, '\n')
 
-export function SupportView({ tickets, categories, userId, texts }: SupportViewProps) {
+export function SupportView({ tickets, categories, userId, texts, faqLink = null }: SupportViewProps) {
   const router = useRouter()
   const [selectedCategoryId, setSelectedCategoryId] = useState(categories[0]?.id || '')
   const [subject, setSubject] = useState('')
@@ -219,6 +222,14 @@ export function SupportView({ tickets, categories, userId, texts }: SupportViewP
   return (
     <div data-user-id={userId}>
       <h1 className="text-2xl font-bold text-[var(--studio-ink)] sm:text-3xl">{texts.pageTitle}</h1>
+      {faqLink ? (
+        <Link
+          href={faqLink.href}
+          className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--studio-primary)] underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+        >
+          {faqLink.label}
+        </Link>
+      ) : null}
 
       <section className={`mt-6 ${cardClassName}`}>
         <h2 className="text-lg font-bold text-[var(--studio-ink)]">{texts.formTitle}</h2>

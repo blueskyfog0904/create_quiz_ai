@@ -273,8 +273,8 @@ function matchesPrefix(path: string, prefix: string) {
   return path === prefix || path.startsWith(`${prefix}/`)
 }
 
-// 링크 주소에서 쿼리·# 을 뗀 경로(정규화). '/' 면 null(홈에서 팝업이 사라지지 않게).
-function linkPathOf(linkUrl: string | null | undefined) {
+// 링크 주소에서 쿼리·# 을 뗀 경로(정규화). '/' 면 null(홈에서 팝업이 사라지지 않게). 14번 팝업 연결 판정도 쓴다.
+export function linkPathOf(linkUrl: string | null | undefined) {
   if (!linkUrl) return null
   const path = normalizePathname(linkUrl.split(/[?#]/)[0] ?? '')
   return path === '/' ? null : path

@@ -44,6 +44,7 @@ export default async function TermsLayout({
           policyLinks={footer.policyLinks}
           brandName={footer.brandName}
           notices={footer.notices}
+          boardNav={footer.boardNav}
         />
         <SiteNoticePopup popup={noticePopup} />
       </StudioThemeShell>

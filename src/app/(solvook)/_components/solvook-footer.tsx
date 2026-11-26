@@ -13,12 +13,19 @@ interface FooterPolicyLink {
   href: string
 }
 
+interface FooterBoardNav {
+  navLabel: string
+  links: FooterPolicyLink[]
+}
+
 interface SolvookFooterProps {
   cs?: { phone: string; hours: string; email: string }
   rows?: FooterInfoField[][]
   policyLinks?: FooterPolicyLink[]
   brandName?: string
   notices?: string[]
+  // 14번: 공지사항·자주 묻는 질문(정책 nav 와 다른 줄, 이름은 DB 문구)
+  boardNav?: FooterBoardNav | null
 }
 
 const footerLinkClassName =
@@ -30,6 +37,7 @@ export function SolvookFooter({
   policyLinks = [],
   brandName = '',
   notices = [],
+  boardNav = null,
 }: SolvookFooterProps) {
   const currentYear = new Date().getFullYear()
 
@@ -66,6 +74,25 @@ export function SolvookFooter({
                 className="flex flex-wrap items-center gap-2"
               >
                 {policyLinks.map((link, index) => (
+                  <span key={link.key} className="flex items-center gap-2">
+                    {index > 0 ? (
+                      <span aria-hidden="true" className="text-[var(--studio-border)]">
+                        |
+                      </span>
+                    ) : null}
+                    <Link className={footerLinkClassName} href={link.href}>
+                      {link.label}
+                    </Link>
+                  </span>
+                ))}
+              </nav>
+            ) : null}
+            {boardNav && boardNav.links.length > 0 ? (
+              <nav
+                aria-label={boardNav.navLabel}
+                className="flex flex-wrap items-center gap-2"
+              >
+                {boardNav.links.map((link, index) => (
                   <span key={link.key} className="flex items-center gap-2">
                     {index > 0 ? (
                       <span aria-hidden="true" className="text-[var(--studio-border)]">

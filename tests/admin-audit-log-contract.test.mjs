@@ -25,6 +25,8 @@ const NOTICE_POPUP_MIGRATION = read('supabase/migrations/20261205100000_site_not
 const SUSPENSION_MIGRATION = read('supabase/migrations/20261214100000_member_suspension.sql')
 // 13번 묶음(CS 도구): 첫 답변·답변 수정 기록은 저장 함수(save_support_ticket_answer)가 같은 거래에서 남긴다.
 const CS_TOOLS_MIGRATION = read('supabase/migrations/20261217110000_bundle13_cs_tools.sql')
+// 14번 묶음(공지 게시판 + FAQ): 글 저장·삭제·순서·가림·안내 문구 기록은 DB 함수가 같은 거래에서 남긴다(원문 없이 지문·글자 수).
+const SITE_BOARD_MIGRATION = read('supabase/migrations/20261217140000_bundle14_site_board.sql')
 const DB_FUNCTION_ACTIONS = [
   [PERMISSION_MIGRATION, 'admin_permissions_replace'],
   [PERMISSION_MIGRATION, 'admin_account_revoke'],
@@ -53,6 +55,11 @@ const DB_FUNCTION_ACTIONS = [
   [SUSPENSION_MIGRATION, 'member_suspension_policy_update'],
   [CS_TOOLS_MIGRATION, 'support_ticket_reply'],
   [CS_TOOLS_MIGRATION, 'support_ticket_reply_edit'],
+  [SITE_BOARD_MIGRATION, 'site_board_post_save'],
+  [SITE_BOARD_MIGRATION, 'site_board_post_delete'],
+  [SITE_BOARD_MIGRATION, 'site_board_post_reorder'],
+  [SITE_BOARD_MIGRATION, 'site_board_post_redact'],
+  [SITE_BOARD_MIGRATION, 'site_board_content_update'],
 ]
 // 9번 묶음: 대표 승인 SQL 템플릿·정책 문구 스크립트(supabase/scripts)가 record_admin_audit 로 적는 종류.
 const SCRIPT_ACTIONS = readdirSync(join(ROOT, 'supabase/scripts'))

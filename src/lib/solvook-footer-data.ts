@@ -10,6 +10,7 @@ import { getSiteFooterContent } from '@/lib/footer-content-server'
 import { getSiteBrand } from '@/lib/site-brand-server'
 import { POLICY_UPCOMING_PATH } from '@/lib/site-notice-popup'
 import { getUpcomingPolicySummary } from '@/lib/site-notice-popup-server'
+import { getSiteBoardLinks, type SiteBoardLinks } from '@/lib/site-board-server'
 
 export interface SolvookFooterData {
   cs: { phone: string; hours: string; email: string }
@@ -17,6 +18,8 @@ export interface SolvookFooterData {
   policyLinks: { key: string; label: string; href: string }[]
   brandName: string
   notices: string[]
+  // 14번: 공지사항·자주 묻는 질문 링크(정책 링크와 다른 nav). 게시 글이 있는 종류만, 읽기 실패면 null(링크만 빠짐).
+  boardNav: SiteBoardLinks | null
 }
 
 // 푸터 내용은 어드민이 드물게 수정하는 site_footer_content 설정이라 60초 공유 캐시로 읽는다.
@@ -28,7 +31,9 @@ const getCachedFooterContent = unstable_cache(
 
 export async function getSolvookFooterData(): Promise<SolvookFooterData> {
   // 변경 예정 글 가벼운 읽기는 실패하면 null 을 돌려준다(하단 링크만 빠지고 화면은 그대로).
-  const [footerContent, siteBrand, upcoming] = await Promise.all([getCachedFooterContent(), getSiteBrand(), getUpcomingPolicySummary()])
+  const [footerContent, siteBrand, upcoming, boardNav] = await Promise.all([
+    getCachedFooterContent(), getSiteBrand(), getUpcomingPolicySummary(), getSiteBoardLinks(),
+  ])
   const fields = footerContent.fixedFields
   const policyLinks: SolvookFooterData['policyLinks'] = getVisibleFooterPolicyLinks(footerContent).map((link) => ({
     key: link.key,
@@ -52,5 +57,6 @@ export async function getSolvookFooterData(): Promise<SolvookFooterData> {
     policyLinks,
     brandName: getFooterBrandName(footerContent, siteBrand.name),
     notices: footerContent.extraNotices,
+    boardNav,
   }
 }

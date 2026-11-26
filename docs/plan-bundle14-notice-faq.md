@@ -204,7 +204,7 @@
 - 팝업 연결 판정이 `linkPathOf` 를 씀 (3판)
 ### 10-2. 화면 시험(Claude in Chrome, 내가 먼저 → 대표)
 - localhost 는 개발 전용 미리보기로 예시 글을 메모리에서 그린다. 11번 `src/lib/checkout-consent-preview.ts` 처럼 `NODE_ENV === 'development'` 이고 터미널 환경 변수(`SITE_BOARD_PREVIEW=1`)일 때만 켜진다. 예시 글은 `output/` 의 JSON 에서 읽는다. 관리자 화면은 열어 보기만 한다.
-- N1 `/notices` 순서(고정 → 날짜, 고정 해제한 글이 날짜 자리)·쪽 나눔(고정 3 + 비고정 21 → 2쪽에 21번째 비고정 글 1개)·빈 화면 (3판) / N2 상세: 수정 날짜, 링크, 없는 id 의 전용 not-found / N3 `/faq`: 탭, 빈 분류 탭 숨김, 25번째 질문 `#id`, 다른 분류 질문 `#id`, 다른 분류 탭에 있을 때 같은 화면 안 `/faq#id` 링크 누르기, 키보드 (3판) / N4 375×667·1366×768 / N5 하단 링크(별도 nav 이름) / N6 관리자 목록(숨긴 고정 글이 순서 묶음에 보임)·편집 창·미리보기·개인정보 경고·팝업 연결 경고(예시 팝업 값: 쿼리가 붙은 링크, 시작 전 예약 팝업) (3판)
+- N1 `/notices` 순서(고정 → 날짜, 고정 해제한 글이 날짜 자리)·쪽 나눔(고정 3 + 비고정 21 → 2쪽에 21번째 비고정 글 1개)·빈 화면 (3판) / N2 상세: 수정 날짜, 링크, 없는 id 의 전용 not-found / N3 `/faq`: 탭, 빈 분류 탭 숨김, 25번째 질문 `#id`, 다른 분류 질문 `#id`, 다른 분류 탭에 있을 때 같은 화면 안 `/faq#id` 링크 누르기, 그 클릭 뒤 다른 화면으로 갔다가 뒤로 가기 → FAQ 가 다시 그려지고 그 질문이 펼쳐짐(구현 검증 2차), 키보드 (3판) / N4 375×667·1366×768 / N5 하단 링크(별도 nav 이름) / N6 관리자 목록(숨긴 고정 글이 순서 묶음에 보임)·편집 창·미리보기·개인정보 경고·팝업 연결 경고(예시 팝업 값: 쿼리가 붙은 링크, 시작 전 예약 팝업) (3판)
 - 운영 배포 뒤 대표가 첫 글을 올리고 N1~N3 를 운영 주소로 본다.
 
 ## 11. 문구 초안(DB `site_board_content`, 최종은 대표가 7-4 에서)
@@ -294,3 +294,63 @@
 | down 의 FK 조건이 14번 판 이력 표의 FK 도 세어 늘 멈춤, '16번 함수'가 무엇인지 없음 | 5-7 판 이력 표 제외, pii 함수를 부르는 16번 함수 이름 목록, 10-1. 16번 5-5 문장도 맞춤 |
 | FAQ 분류 지우기와 FAQ 저장의 경합 | 5-6 두 함수의 잠금 순서(설정 읽기 전), 10-1 순서 단언 |
 | 쓰기 함수 사이 잠금 순서가 엇갈려 교착·삭제 경합 | 5-6 잠금 순서 공통(권한 확인 직후, 글 행 잠금 전, delete·redact 포함), 10-1 |
+
+## 20. 구현 메모(2026-11-26, 커밋·push·DB 적용 전)
+0절 질문은 모두 기본안으로 구현했다. 마이그레이션 버전은 가안 그대로 `20261217140000`.
+
+### 20-1. 파일
+- DB: `supabase/migrations/20261217140000_bundle14_site_board.sql`(사전 점검 → 표 2·가드 트리거 → 설정 행 → 함수 7 → 권한 → VERIFY → NOTIFY), `supabase/rollback/20261217140000_bundle14_site_board_down.sql`
+- 리허설: `supabase/scripts/bundle14_rehearsal/generate.mjs`(+ `--check`, `--preview`), 생성 파일 `a_light.sql`·`b_full.sql`, 예시 묶음 `tests/fixtures/bundle14-site-board-examples.json`
+- 규칙·서버: `src/lib/site-board.ts`(순수), `src/lib/site-board-server.ts`(서버 키·캐시·DB 함수 호출·개발 미리보기), `src/lib/member-facing-text-pii.ts`
+- 회원 화면: `src/app/(solvook)/notices/page.tsx`·`notices/[id]/page.tsx`·`notices/[id]/not-found.tsx`·`notices/_components/notice-pagination.tsx`, `src/app/(solvook)/faq/page.tsx`·`faq/_components/faq-view.tsx`, 그리기 부품 `src/components/site-board/site-board-post-body.tsx`
+- 관리자: `src/app/(admin)/admin/notices/page.tsx`·`actions.ts`·`board-admin.tsx`, `src/app/(admin)/admin/faq/page.tsx`
+- 고친 파일: `src/lib/consent-gate.ts`(제외 목록 + `isSiteBoardMemberPath`), `src/lib/supabase/middleware.ts`(카카오 미완료 분기), `src/lib/solvook-footer-data.ts`·`src/app/(solvook)/_components/solvook-footer.tsx`·`src/app/(solvook)/layout.tsx`·`src/app/terms/layout.tsx`(별도 nav), `src/app/(solvook)/mypage/support/page.tsx`·`_components/support-view.tsx`(FAQ 링크), `src/lib/admin-audit-log.ts`(종류 5), `src/lib/admin-sidebar.ts`(메뉴 2), `src/lib/site-notice-popup.ts`(`linkPathOf` export 한 단어), `src/app/(admin)/admin/footer/signup-consent-admin.tsx`(4번 후속 문구)
+- 시험: 새 `tests/bundle14-site-board-contract.test.mjs`(22개), 표 갱신 `admin-guard-coverage-contract`(페이지 2·액션 파일 1), `admin-audit-log-contract`(`DB_FUNCTION_ACTIONS` 5), `admin-disabled-features`(운영 화면 2·사이드바 순서), `bundle13-cs-tools-contract`(profiles 판정표에 `site-board-server.ts` 관리자 이메일 조회 1줄)
+
+### 20-2. 계획과 다르거나 계획이 정하지 않은 것(이유)
+1. **잠금 순서**: 5-6 의 `save_site_board_content` 문장('첫머리에서 잠금 뒤 권한')과 공통 규칙('권한 확인 직후')이 달라, 다섯 함수 모두 공통 규칙(요청 정보 모양 검사 → 행위자 → advisory lock → 글 행·설정 행·개수)으로 맞췄다. 권한 없는 호출이 잠금을 잡지 않는다. 계약 시험이 순서를 단언한다.
+2. **카카오 분기 경로 판정**을 `site-board.ts` 가 아니라 `consent-gate.ts`(`isSiteBoardMemberPath`)에 뒀다. 미들웨어를 불러오는 기존 시험 5개가 import 를 흉내 내는 방식이라 새 import 를 피했다.
+3. 계획에 숫자가 없던 상한: 링크 이름 30자, 안내 문구 한 줄 300자, FAQ 분류 1~20개(key `^[a-z][a-z0-9_]{0,29}$`, 이름 30자), 순서 목록 500개. 가림 사유 코드는 `pii`·`other`.
+4. 계획에 없던 오류 코드: `SITE_BOARD_POST_NOT_FOUND`·`SITE_BOARD_CONTENT_MISSING`·`SITE_BOARD_REDACT_PUBLISHED`(+ 가드의 `SITE_BOARD_REVISIONS_APPEND_ONLY`). `site-board.ts` 표와 계약 시험으로 맞춘다.
+5. 순서 바꾸기는 글 `revision`·`updated_at` 을 바꾸지 않는다(판 이력 없음과 같은 판단 — 편집 창 충돌을 만들지 않음). 가림은 글 `revision` 을 올린다(열린 편집 창이 충돌로 다시 읽게). 다시 가림은 `changed:false`. 가렸지만 삭제 안 한 글은 삭제할 수 있고, 그 판 이력 행은 가림 표시를 이어받는다.
+6. `site_board_actor_allowed`·`member_facing_text_pii_hits` 도 5-6 머리 규칙대로 service_role EXECUTE(읽기 전용 판정). 16번이 판정 함수를 부를 수 있다.
+7. FAQ 빈 화면 설명은 키를 늘리지 않고 `faq.supportPrompt` + `supportLinkLabel` 링크로 그렸다(11절 키 목록 그대로).
+8. 관리자: 삭제한 글은 목록 아래 '삭제한 글' 카드(가림 버튼은 대표만). 숨기기는 편집 창에서 게시를 끄고 저장할 때 확인 창(팝업 연결 경고 포함). 판 이력 화면은 만들지 않았다(15절).
+9. 하단 별도 nav 는 `(solvook)`·`terms` layout 에만 넘겼다. 꺼 둔 `preview/solvook-concept` layout 은 건드리지 않았다.
+10. 고객지원 FAQ 링크(13절 7)는 이 작업 트리에 같이 들어 있다. 13번 배포 전에 커밋을 나누려면 `mypage/support/page.tsx`·`support-view.tsx` 두 파일만 따로 커밋한다.
+11. 개발 미리보기(10-2): `SITE_BOARD_PREVIEW=1 SITE_BOARD_PREVIEW_FILE=output/b14-site-board-preview.json npm run dev`. 예시 파일은 `node supabase/scripts/bundle14_rehearsal/generate.mjs --preview` 가 만든다(공지 고정 3(숨김 1)·비고정 21+숨김 1·고정 푼 글, FAQ 26 + 숨긴 1, 쿼리가 붙은 시작 전 예약 팝업). 미리보기에서는 저장 액션이 DB 함수를 부르지 않는다. 10-2 화면 시험(브라우저)은 이번 작업 범위에서 하지 않았다.
+
+### 20-3. 13번 미적용 처리
+- 이 마이그레이션·함수는 13번 표·함수를 부르지 않는다. 13번에서 가져오는 것은 코드의 `adminRequestMeta(await headers())`(커밋 0bbd2db, 순수 함수)뿐이라 DB 리허설은 13번에 기대지 않고 흉내 낼 것도 없다. 사전 점검도 13번 물건을 보지 않는다(운영 마지막 적용 `20261216100000` 상태에서 통과).
+
+### 20-4. 리허설
+- 명령: `node supabase/scripts/bundle14_rehearsal/generate.mjs` 뒤 `supabase db query --remote --yes -o json --file supabase/scripts/bundle14_rehearsal/a_light.sql`
+- light 구성: 마이그레이션 원본 그대로 + A·B1~B8(B7 기록 검사는 각 경우 안에서). B1 되돌리기·다시 적용은 14번 새 물건과 설정 행 1개만 건드려 light 에 넣었다(16번 함수 이름·5인자 `reject_point_charge_refund`·다른 FK 는 거래 안 임시 물건으로 재현). 기존 표 DDL·이력 표 쓰기·COMMIT 없음을 생성기와 계약 시험이 막는다. 시험 계정은 @test.com 4개(대표·직원·회원·행위자 예시).
+- full(`b_full.sql`, 돌리지 않음): light 전부 + 적용 전 down 멈춤(F0) + 이력 `schema_migrations` INSERT + 되돌리기 뒤 이력 행 지우기·다시 적용(F). 적용 승인 뒤 적용 직전에 돌린다.
+- 결과(2026-11-26, 운영, ROLLBACK): 1차는 생성기 도우미가 새 표를 읽는 SQL 함수라 만들 때 실패(도우미를 plpgsql 로 고침). 2차 **통과 — 로그 203줄**(setup 1·A 2·B1 11·B2 35·B3 46·B4 30·B5 24·B6 35·B8 18·Z 1). 'admin_role 빈 관리자'는 profiles CHECK 가 상태 자체를 거절함을 확인했다. 실행 뒤 운영에 `site_board_posts`·`site_board_content` 없음, 마지막 이력 `20261216100000` 그대로(읽기 전용 확인).
+- 적용 뒤 함수 지문(md5(pg_get_functiondef), 리허설 값): actor_allowed `37745bda…`, pii_hits `e3e505c2…`, save_post `f1ade34f…`, delete `81ab98c5…`, reorder `13f418ca…`, redact `efe11293…`, save_content `a0809b7a…`, guard `b370d6cf…`.
+- advisory lock 경합(상한 낮추기·분류 지우기와 저장의 동시 실행)은 한 거래로 재현할 수 없어 계약 시험이 잠금 위치를 단언한다(5-8 B5).
+
+### 20-5. 확인
+- `node --test tests/*.test.mjs`: 2218개 중 실패 46 — 시작 전 46개와 이름까지 같음(새 실패 0).
+- `npx tsc --noEmit -p .`: 오류 0. 바꾼 파일 eslint: 오류·경고 0.
+
+### 20-6. 구현 독립 검증 1차 반영(2026-11-26: DB·관리자·보안 PASS, 회원 FAIL major 1 + minor 7)
+| 지적 | 반영 |
+|---|---|
+| 회원 major: 같은 화면 `/faq#id` 링크(next/link·상단 메뉴)는 pushState 라 hashchange 가 없어 펼쳐지지 않음 | `faq-view.tsx` 가 문서 클릭을 캡처 단계에서 먼저 받아, 같은 화면 `/faq#id`(이 화면에 있는 질문)면 기본 이동을 막고 `location.hash` 로 바꿈(→ hashchange, 같은 해시면 바로 펼침). 판정은 순수 함수 `sameFaqPageHashId`(예시 묶음 `sameFaqHash`). next/link 가 `defaultPrevented` 면 자기 이동을 하지 않는 것도 계약 시험이 고정 |
+| DB minor: 가림 뒤에도 본문 지문이 남음 | **전자 채택**: 작업 기록 details 에서 `body_sha256*` 를 빼고 `body_length_before` 추가(기록에는 글자 수·바뀐 칸·판 이력 행 id 만). 판 이력 `body_sha256` 은 NULL 허용 + CHECK `(body_sha256 IS NULL) = (redacted_at IS NOT NULL)`, 가림이 지문도 NULL 로(가드는 NULL 만 받음), 가린 뒤 삭제 행도 NULL. 9절·5-6 의 '지문' 문장은 이 기준으로 읽는다 |
+| DB minor: VERIFY 개인정보 검사 범위가 저장 함수보다 좁음 | 설정 행의 모든 글 값(`jsonb_path_query '$.** ? (@.type() == "string")'`)을 검사 |
+| 관리자 minor: 판 충돌 뒤 열린 창이 옛 판으로 계속 충돌 | 충돌이면 편집·확인 창을 닫고 다시 읽음, 문구 '글을 다시 열어 확인한 뒤 저장하세요' |
+| 관리자 minor: 팝업 설정 읽기 실패가 '연결 없음'과 같음 | `popupCheckFailed` → 숨김·삭제 확인 창에 '공지 팝업 연결을 확인하지 못했습니다' 경고 |
+| 관리자 minor: 16번 경고 자리 | 확인 창에 16번 연결점 주석(동작 변경 없음), 16번 계획 3절 '넣는 것'에 한 항목 |
+| 관리자 minor: 순서 편집 상태가 저장·삭제 뒤 남음 | 글 저장·삭제·가림 성공 때 `setOrders(null)` |
+| 보안 minor: 링크 주소의 퍼센트 인코딩 개인정보 | DB·TS 같은 규칙으로 풀어(%XX → 바이트, UTF-8 아니면 원문) 원문과 푼 값 둘 다 검사. 예시 묶음 `linkPii` 를 TS 시험과 리허설 B4 가 같이 돌림. 남는 빈틈: UTF-8 이 아닌 바이트(`%FF%40…`)가 섞이면 원문만 본다 |
+- 리허설 재실행(운영, ROLLBACK): **통과 — 로그 212줄**(B4 38·B6 36 으로 늘어남). 실행 뒤 운영 14번 흔적 없음(읽기 전용). 바뀐 함수 지문: save_post `8d07e4ca…`, delete `a644629b…`, redact `5bd1ee9e…`, guard `e10bc1aa…`(나머지 그대로).
+- 시험 2222개 중 실패 46(기준선과 이름까지 같음), 14번 계약 시험 26개 통과, tsc 0, eslint 0.
+
+### 20-7. 구현 재검증 반영(2026-11-26: DB·개인정보 PASS minor 1, 회원 FAIL major 1)
+- major(뒤로 가기 회귀): `location.hash = id` 는 Next 밖 기록(state null)을 만들어, 다른 화면에 갔다가 뒤로 오면 Next 가 popstate 를 버려 화면이 안 바뀌었다. → 해시가 다르면 Next 가 감싼 `history.pushState(null, '', '#id')`(내부 상태 __NA 를 붙임) 뒤 바로 펼친다. 계약 시험이 `location.hash =` 대입이 없음을 단언하고, N3 에 '클릭 → 다른 화면 → 뒤로 → FAQ 펼침'을 더했다.
+- 리허설 재실행(운영, ROLLBACK): 통과 — 로그 216줄, 실행 뒤 운영 무변경. save_post 지문 `fe916216…`.
+- minor: 캡처 단계에서는 늘 false 인 `event.defaultPrevented` 조건을 지우고, '캡처 단계라 다른 처리기보다 먼저 돈다 — 같은 화면 FAQ 질문 링크에 자체 preventDefault 동작을 붙이면 부딪힌다'를 주석에 적었다.
+- minor(%00 디코딩 TS·SQL 불일치): 링크 규칙에서 제어문자 퍼센트 인코딩(`%00-%1F`·`%7F`)을 거절한다 — `isAllowedSiteBoardLink`(TS)와 `save_site_board_post`(SQL)만. 15번 팝업의 `isAllowedNoticeLink` 는 DB 함수와 짝이라 건드리지 않았다. 예시 묶음 `links` 에 `/x?a=%00&q=hong%40naver.com`(거절)·`%1F`·`%7f`·`%20`(통과) 추가. UTF-8 이 아닌 바이트(`%FF`)가 섞이면 원문만 보는 동작은 그대로다(관리자 실수 방지가 목적, 일부러 피하는 경우는 범위 밖).

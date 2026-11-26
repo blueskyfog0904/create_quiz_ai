@@ -118,6 +118,7 @@ const PROFILE_QUERIES = {
   'src/lib/market-reviews-server.ts | from:select | id, email, display_tag': { client: 'service', use: 'recorded', via: [['src/app/api/admin/reviews/route.ts', 'reviews.list']], reason: '관리자 후기 목록 작성자' },
   'src/lib/member-withdrawal-server.ts | from:delete | ': { client: 'service', use: 'no_contact', reason: '완전 삭제(쓰기)' },
   'src/lib/member-withdrawal-server.ts | from:select | id': { client: 'service', use: 'no_contact', reason: '탈퇴 회원 id' },
+  'src/lib/site-board-server.ts | from:select | id, email': { client: 'service', use: 'admin', reason: '14번 공지·FAQ 마지막 수정자(관리자) 아이디' },
   'src/lib/signup-consent-server.ts | from:select | provider, signup_completed': { client: 'service', use: 'no_contact', reason: '가입 상태' },
   'src/lib/supabase/middleware.ts | from:select | provider, signup_completed': { client: 'session', use: 'self', reason: '본인 가입 상태' },
   'src/lib/withdrawn-member-redaction-server.ts | from:select | id': { client: 'service', use: 'no_contact', count: 2, reason: '탈퇴 회원 id' },

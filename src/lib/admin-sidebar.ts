@@ -80,7 +80,7 @@ export const ADMIN_MARKET_MENU_HREFS = [
 
 // 과목과 상관없는 공통 메뉴 묶음
 export const ADMIN_PAYMENT_MENU_HREFS = ['/admin/orders', '/admin/refunds', '/admin/credits', '/admin/pricing'] as const
-export const ADMIN_MEMBER_MENU_HREFS = ['/admin/users', '/admin/support'] as const
+export const ADMIN_MEMBER_MENU_HREFS = ['/admin/users', '/admin/support', '/admin/notices', '/admin/faq'] as const
 export const ADMIN_SITE_MENU_HREFS = [
   '/admin/market/images',
   '/admin/footer',
@@ -156,6 +156,8 @@ export const DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG: AdminSidebarNavigationConf
     '/admin/users',
     '/admin/roles',
     '/admin/support',
+    '/admin/notices',
+    '/admin/faq',
     '/admin/labels',
     '/admin/source-configs',
     '/admin/footer',
@@ -196,6 +198,8 @@ export const ADMIN_SIDEBAR_MENU_REQUIREMENTS: Readonly<Record<string, AdminGuard
   '/admin/users': 'members.view',
   '/admin/roles': 'owner',
   '/admin/support': 'support.manage',
+  '/admin/notices': 'content.manage',
+  '/admin/faq': 'content.manage',
   '/admin/labels': 'owner',
   '/admin/source-configs': 'owner',
   '/admin/footer': 'site.manage',
@@ -252,6 +256,8 @@ function getDefaultAdminSidebarMenuItems(workspaceSubject: WorkspaceSubject): Ad
     { name: '사용자 관리', href: '/admin/users', icon: 'users' },
     { name: '회원가입 관리', href: '/admin/roles', icon: 'userCog' },
     { name: '고객지원 관리', href: '/admin/support', icon: 'messageSquare' },
+    { name: '공지사항', href: '/admin/notices', icon: 'fileText' },
+    { name: '자주 묻는 질문', href: '/admin/faq', icon: 'messageSquare' },
     { name: '표기값 관리', href: '/admin/labels', icon: 'settings' },
     { name: '출처 관리', href: '/admin/source-configs', icon: 'settings' },
     { name: 'Footer 설정', href: '/admin/footer', icon: 'fileText' },

@@ -1,0 +1,96 @@
+{
+  "_comment": "14번 계획 10-1: TS 순수 함수(tests/bundle14-site-board-contract.test.mjs)와 리허설(supabase/scripts/bundle14_rehearsal)이 같이 돌리는 예시 묶음. {customerCenter}·{customerCenterDigits}·{orderEmail}·{orderEmailUpper} 는 하단 정보 고객센터 값(TS 시험은 예시 값, 리허설은 운영 DB 값)으로 바꾼다.",
+  "piiAllowedForTs": { "customerCenter": "010-5555-6666", "orderEmail": "help@company.example" },
+  "pii": [
+    { "text": "문의는 hello@example.com 으로 보내 주세요", "hits": ["email"] },
+    { "text": "주문 메일 {orderEmail} 로 보내 주세요", "hits": [] },
+    { "text": "주문 메일 {orderEmailUpper}", "hits": [] },
+    { "text": "휴대폰 010-1234-5678", "hits": ["mobile"] },
+    { "text": "휴대폰 01012345678", "hits": ["mobile"] },
+    { "text": "휴대폰 010 1234 5678", "hits": ["mobile"] },
+    { "text": "휴대폰 010.123.4567", "hits": ["mobile"] },
+    { "text": "고객센터 {customerCenter}", "hits": [] },
+    { "text": "고객센터 {customerCenterDigits}", "hits": [] },
+    { "text": "서울 02-123-4567", "hits": ["phone"] },
+    { "text": "경기 031-1234-5678", "hits": ["phone"] },
+    { "text": "인터넷전화 070-1234-5678", "hits": ["phone"] },
+    { "text": "주민번호 900101-1234567", "hits": ["rrn"] },
+    { "text": "주민번호 9001011234567", "hits": ["rrn"] },
+    { "text": "주문번호 20261126-1234567", "hits": [] },
+    { "text": "가격 20,000원, 2026-11-26 시행", "hits": [] },
+    { "text": "대표번호 1588-1234", "hits": [] },
+    { "text": "긴 숫자 0101234567890123", "hits": [] },
+    { "text": "섞임 a.b@c.co.kr 그리고 010-9999-8888 그리고 02-555-1234", "hits": ["email", "mobile", "phone"] },
+    { "text": "", "hits": [] }
+  ],
+  "links": [
+    { "url": "/terms/upcoming", "ok": true },
+    { "url": "/notices/abc?from=popup#top", "ok": true },
+    { "url": "/", "ok": true },
+    { "url": "/a", "pad": 198, "ok": true },
+    { "url": "/a", "pad": 199, "ok": false },
+    { "url": "https://example.com", "ok": false },
+    { "url": "//example.com", "ok": false },
+    { "url": "/\\example.com", "ok": false },
+    { "url": "/a b", "ok": false },
+    { "url": "/a\tb", "ok": false },
+    { "url": "javascript:alert(1)", "ok": false },
+    { "url": "notices", "ok": false },
+    { "url": "/x?a=%00&q=hong%40naver.com", "ok": false },
+    { "url": "/x?a=%1F", "ok": false },
+    { "url": "/x?a=%7f", "ok": false },
+    { "url": "/x?a=%20b", "ok": true }
+  ],
+  "_linkPiiComment": "링크 주소 개인정보 검사: 원문과 퍼센트 인코딩을 푼 값 둘 다 본다(%XX 는 바이트, 나머지는 UTF-8, UTF-8 이 아니면 원문). hits 는 DB 오류 꼴(이름순)",
+  "linkPii": [
+    { "url": "/search?q=hong%40naver.com", "decoded": "/search?q=hong@naver.com", "hits": ["email"] },
+    { "url": "/x?p=010%2D1234%2D5678", "decoded": "/x?p=010-1234-5678", "hits": ["mobile"] },
+    { "url": "/x?p=02%2E123%2E4567", "decoded": "/x?p=02.123.4567", "hits": ["phone"] },
+    { "url": "/x?p=%EC%95%88%EB%85%95", "decoded": "/x?p=안녕", "hits": [] },
+    { "url": "/x?p=%zz%40a.com", "decoded": "/x?p=%zz@a.com", "hits": ["email"] },
+    { "url": "/x?p=%FF%40a", "decoded": "/x?p=%FF%40a", "hits": [] },
+    { "url": "/search?q=hong@naver.com", "decoded": "/search?q=hong@naver.com", "hits": ["email"] },
+    { "url": "/faq#00000000-0000-4000-8000-000000000201", "decoded": "/faq#00000000-0000-4000-8000-000000000201", "hits": [] }
+  ],
+  "sameFaqHash": [
+    { "href": "/faq#00000000-0000-4000-8000-0000000000AB", "current": "https://site.example/faq", "id": "00000000-0000-4000-8000-0000000000ab" },
+    { "href": "https://site.example/faq/#abc", "current": "https://site.example/faq#x", "id": "abc" },
+    { "href": "/faq", "current": "https://site.example/faq", "id": null },
+    { "href": "/faq#", "current": "https://site.example/faq", "id": null },
+    { "href": "/faqs#abc", "current": "https://site.example/faq", "id": null },
+    { "href": "/notices#abc", "current": "https://site.example/faq", "id": null },
+    { "href": "https://other.example/faq#abc", "current": "https://site.example/faq", "id": null }
+  ],
+  "actors": [
+    { "name": "대표", "isAdmin": true, "adminRole": "owner", "withdrawn": false, "grants": [], "allowed": true },
+    { "name": "content.manage 직원", "isAdmin": true, "adminRole": "staff", "withdrawn": false, "grants": ["content.manage"], "allowed": true },
+    { "name": "권한 0 직원", "isAdmin": true, "adminRole": "staff", "withdrawn": false, "grants": [], "allowed": false },
+    { "name": "다른 권한만 받은 직원", "isAdmin": true, "adminRole": "staff", "withdrawn": false, "grants": ["support.manage"], "allowed": false },
+    { "name": "admin_role 이 빈 관리자(DB 가 더 엄격 — TS buildAdminAccess 는 staff 로 봄, DB CHECK 가 이 상태를 막음)", "isAdmin": true, "adminRole": null, "withdrawn": false, "grants": ["content.manage"], "allowed": false, "dbBlocked": true },
+    { "name": "is_admin=false 인데 권한 행 남음", "isAdmin": false, "adminRole": null, "withdrawn": false, "grants": ["content.manage"], "allowed": false, "staleGrant": true },
+    { "name": "탈퇴 관리자(대표)", "isAdmin": true, "adminRole": "owner", "withdrawn": true, "grants": [], "allowed": false },
+    { "name": "일반 회원", "isAdmin": false, "adminRole": null, "withdrawn": false, "grants": [], "allowed": false }
+  ],
+  "noticeSort": {
+    "posts": [
+      { "id": "a1", "isPinned": true, "sortOrder": 2, "publishedAt": "2026-11-01T00:00:00Z" },
+      { "id": "a2", "isPinned": true, "sortOrder": 1, "publishedAt": "2026-10-01T00:00:00Z" },
+      { "id": "a3", "isPinned": false, "sortOrder": 0, "publishedAt": "2026-11-20T00:00:00Z" },
+      { "id": "a4", "isPinned": false, "sortOrder": 7, "publishedAt": "2026-11-25T00:00:00Z" },
+      { "id": "a5", "isPinned": false, "sortOrder": 0, "publishedAt": "2026-11-20T00:00:00Z" },
+      { "id": "a0", "isPinned": true, "sortOrder": 1, "publishedAt": "2026-09-01T00:00:00Z" }
+    ],
+    "expected": ["a0", "a2", "a1", "a4", "a3", "a5"]
+  },
+  "faqSort": {
+    "categories": [{ "key": "refund", "label": "환불" }, { "key": "credit", "label": "크레딧" }, { "key": "empty", "label": "빈 분류" }],
+    "posts": [
+      { "id": "f1", "faqCategoryKey": "credit", "sortOrder": 2 },
+      { "id": "f2", "faqCategoryKey": "refund", "sortOrder": 1 },
+      { "id": "f3", "faqCategoryKey": "credit", "sortOrder": 1 },
+      { "id": "f4", "faqCategoryKey": "gone", "sortOrder": 1 },
+      { "id": "f5", "faqCategoryKey": "refund", "sortOrder": 1 }
+    ],
+    "expected": ["f2", "f5", "f3", "f1"]
+  }
+}

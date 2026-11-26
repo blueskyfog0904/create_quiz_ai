@@ -79,6 +79,12 @@ export const ADMIN_AUDIT_ACTIONS = {
   support_reply_template_save: '답변 템플릿 저장',
   support_reply_template_hide: '답변 템플릿 숨김',
   support_page_content_update: '고객지원 안내 문구 수정',
+  // 14번 묶음(공지 게시판 + FAQ): 모두 DB 함수가 같은 거래에서 남긴다(제목·본문 원문 없이 지문·글자 수·바뀐 칸만 — 원문은 판 이력 표).
+  site_board_post_save: '공지·FAQ 글 저장',
+  site_board_post_delete: '공지·FAQ 글 삭제',
+  site_board_post_reorder: '공지 고정·FAQ 순서 변경',
+  site_board_post_redact: '공지·FAQ 글 가림',
+  site_board_content_update: '공지·FAQ 안내 문구 수정',
 } as const
 
 export type AdminAuditAction = keyof typeof ADMIN_AUDIT_ACTIONS

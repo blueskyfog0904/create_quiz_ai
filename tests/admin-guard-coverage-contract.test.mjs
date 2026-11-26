@@ -54,6 +54,9 @@ const PAGE_REQUIREMENTS = {
   'audit-log/page.tsx': OWNER,
   // 문의 · 주문 조회 · 회원 · 크레딧 · 환불
   'support/page.tsx': 'support.manage',
+  // 14번: 공지사항·자주 묻는 질문(같은 부품·같은 서버 액션)
+  'notices/page.tsx': 'content.manage',
+  'faq/page.tsx': 'content.manage',
   'orders/page.tsx': 'orders.view',
   'users/page.tsx': 'members.view',
   'users/[id]/page.tsx': 'members.view',
@@ -488,6 +491,14 @@ const ACTION_REQUIREMENTS = {
     hideSupportReplyTemplateAction: 'support.manage',
     getSupportPageContentAdminData: 'owner',
     saveSupportPageContentAction: 'owner',
+  },
+  // 14번: 공지·FAQ 글·순서·안내 문구는 content.manage, 가림은 대표만(Q6 — DB 함수도 대표인지 다시 본다).
+  'src/app/(admin)/admin/notices/actions.ts': {
+    saveSiteBoardPostAction: 'content.manage',
+    deleteSiteBoardPostAction: 'content.manage',
+    reorderSiteBoardPostsAction: 'content.manage',
+    redactSiteBoardPostAction: 'owner',
+    saveSiteBoardContentAction: 'content.manage',
   },
   'src/app/(admin)/admin/footer/purchase-policy-actions.ts': {
     getMarketPurchasePolicyAdminData: 'site.manage',

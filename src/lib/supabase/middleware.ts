@@ -16,7 +16,7 @@ import { getDisabledAdminFeatures, getDisabledSiteFeatures, isSiteFeatureDisable
 import { resolveSiteFeatureRoute } from '@/lib/site-features'
 import { normalizeAuthNextPath } from '@/lib/auth-paths'
 import { isAdminAccountEmail } from '@/lib/admin-accounts-shared'
-import { buildConsentGateNext, isConsentGateExcludedPath, isConsentGateRequest } from '@/lib/consent-gate'
+import { buildConsentGateNext, isConsentGateExcludedPath, isConsentGateRequest, isSiteBoardMemberPath } from '@/lib/consent-gate'
 import {
   ACCOUNT_BLOCKED_LOGIN_ERROR,
   MEMBER_RESTRICTION_HEADER,
@@ -562,8 +562,8 @@ export async function updateSession(request: NextRequest) {
           return response
         }
 
-        // 약관 전문은 보고 동의할 수 있어야 한다.
-        if (isKakaoSignupPage || isTermsPath(pathname)) {
+        // 약관 전문은 보고 동의할 수 있어야 한다. 공지사항·자주 묻는 질문도 연다(14번).
+        if (isKakaoSignupPage || isTermsPath(pathname) || isSiteBoardMemberPath(pathname)) {
           const routingResponse = buildRoutingResponse(request, routingContext, verifiedUserId, memberRestriction)
           if (routingResponse) {
             copyResponseCookies(response, routingResponse)

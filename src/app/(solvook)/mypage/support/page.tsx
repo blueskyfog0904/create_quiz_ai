@@ -5,6 +5,7 @@ import { connection } from 'next/server'
 import { getRequestAuthUserId } from '@/lib/request-auth'
 import { createClient } from '@/lib/supabase/server'
 import { getSupportPageContent } from '@/lib/support-page-content-server'
+import { getSiteBoardLinks } from '@/lib/site-board-server'
 import { SupportView } from './_components/support-view'
 
 // 13번 9절: 탭 제목·설명도 DB 문구(pageTitle·pageDescription)다. 읽지 못하면 오류 화면(코드에 기본 문구 없음).
@@ -25,7 +26,7 @@ export default async function MypageSupportPage() {
 
   const supabase = await createClient()
 
-  const [categoriesResult, ticketsResult, content] = await Promise.all([
+  const [categoriesResult, ticketsResult, content, boardLinks] = await Promise.all([
     supabase
       .from('support_ticket_categories')
       .select('*')
@@ -50,7 +51,10 @@ export default async function MypageSupportPage() {
       .order('created_at', { ascending: false }),
     // 읽기 실패·필수 문구 없음은 예외 → 오류 화면(카테고리·문의를 읽지 못했을 때와 같다)
     getSupportPageContent(),
+    // 14번: FAQ 게시 글이 있을 때만 '자주 묻는 질문' 링크(읽기 실패면 링크만 뺀다)
+    getSiteBoardLinks(),
   ])
+  const faqLink = boardLinks?.links.find((link) => link.key === 'faq') ?? null
 
   if (categoriesResult.error) {
     throw new Error(categoriesResult.error.message)
@@ -66,6 +70,7 @@ export default async function MypageSupportPage() {
         categories={categoriesResult.data || []}
         userId={userId}
         texts={content.member}
+        faqLink={faqLink ? { href: faqLink.href, label: faqLink.label } : null}
       />
     </Suspense>
   )
