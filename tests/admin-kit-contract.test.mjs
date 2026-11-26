@@ -289,7 +289,6 @@ test('래칫: alert( 은 지금 목록 밖 켜진 화면에 새로 생기지 않
   assertRatchet('alert(', /\balert\(/, [
     'src/app/(admin)/admin/admin-accounts/admin-accounts-client.tsx',
     'src/app/(admin)/admin/admin-accounts/admin-permissions-dialog.tsx',
-    'src/app/(admin)/admin/review-tags/review-tags-client.tsx',
     'src/app/(admin)/admin/reviews/reviews-admin-client.tsx',
     'src/components/admin/market-category-tree-editor.tsx',
     'src/components/layout/admin-sidebar-client.tsx',
@@ -325,7 +324,6 @@ test('래칫: adminAction 은 지금 목록 밖 켜진 화면에 새로 생기�
     'src/app/(admin)/admin/refunds/market-refunds-client.tsx',
     'src/app/(admin)/admin/refunds/payment-review-client.tsx',
     'src/app/(admin)/admin/refunds/refunds-client.tsx',
-    'src/app/(admin)/admin/review-tags/review-tags-client.tsx',
     'src/app/(admin)/admin/reviews/reviews-admin-client.tsx',
     'src/app/(admin)/admin/storefront-menu/storefront-menu-client.tsx',
     'src/app/(admin)/admin/support/reply-templates-panel.tsx',
@@ -397,6 +395,19 @@ test('화면 비교 스크립트(6-3): login·capture 두 모드, 쓰기 막기,
   assert.match(script, /\{ width: 1024, height: 768 \}/)
   // 로그인은 사람이 직접: 서비스 키·고정 계정 만들기를 쓰지 않는다.
   assert.doesNotMatch(script, /studio-browser-fixture|SERVICE_ROLE|service_role|createClient|dotenv|\.env/)
+  // 확인 창(유형 가) 열림(1단계): 여는 단추 하나만 누르고, 창을 찍은 뒤 Esc 로 닫는다(확정 단추는 누르지 않음).
+  assert.match(script, /else if \(key === '--confirm'\) options\.confirms\.push\(parseConfirm\(value\)\)/)
+  const confirmBody = script.slice(script.indexOf('async function captureConfirm'), script.indexOf('async function capture('))
+  assert.match(confirmBody, /page\.getByRole\('dialog'\)/)
+  assert.match(confirmBody, /mask: \[page\.locator\(PII_SELECTOR\)\]/)
+  assert.match(confirmBody, /page\.keyboard\.press\('Escape'\)/)
+  assert.equal(confirmBody.match(/\.click\(/g)?.length, 1, '여는 단추만 누른다')
+  assert.match(confirmBody, /\.filter\(\{ visible: true \}\)\.first\(\)/)
+  // 누른 뒤 창이 뜨기 전 /api/ 요청(기록을 남기는 GET 포함)은 끊고 실패로 끝낸다.
+  assert.match(confirmBody, /const abortApi = \(route\) => \{[\s\S]*?return route\.abort\('blockedbyclient'\)/)
+  assert.match(confirmBody, /await page\.route\('\*\*\/api\/\*\*', abortApi\)[\s\S]*?trigger\.click\([\s\S]*?finally \{\s+await page\.unroute\('\*\*\/api\/\*\*', abortApi\)/)
+  assert.match(confirmBody, /if \(apiBeforeDialog\.length > 0\) \{\s+throw new Error/)
+  assert.match(script, /막힌 쓰기 요청 \$\{blocked\.length\}건/)
   // login 모드에는 막기·찍기가 없다.
   const loginBody = script.slice(script.indexOf('async function login'), script.indexOf('async function capture'))
   assert.doesNotMatch(loginBody, /route\(|screenshot\(/)

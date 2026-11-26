@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
 import { ADMIN_PASSWORD_MIN_LENGTH } from '@/lib/admin-accounts-shared'
 
 export function MyPasswordClient() {
@@ -51,30 +52,28 @@ export function MyPasswordClient() {
 
   return (
     <form
-      className="space-y-3 rounded-lg border bg-white p-4"
+      className="space-y-3 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-4"
       onSubmit={(event) => {
         event.preventDefault()
         void submit()
       }}
     >
       <label className="block space-y-1 text-sm">
-        <span className="font-medium">현재 비밀번호</span>
+        <span className="font-medium text-[var(--studio-ink)]">현재 비밀번호</span>
         <Input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} autoComplete="current-password" required />
       </label>
       <label className="block space-y-1 text-sm">
-        <span className="font-medium">새 비밀번호 ({ADMIN_PASSWORD_MIN_LENGTH}자 이상, 72바이트 이하)</span>
+        <span className="font-medium text-[var(--studio-ink)]">새 비밀번호 ({ADMIN_PASSWORD_MIN_LENGTH}자 이상, 72바이트 이하)</span>
         <Input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} autoComplete="new-password" required />
       </label>
       <label className="block space-y-1 text-sm">
-        <span className="font-medium">새 비밀번호 확인</span>
+        <span className="font-medium text-[var(--studio-ink)]">새 비밀번호 확인</span>
         <Input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" required />
       </label>
       {message && (
-        <p role={message.tone === 'error' ? 'alert' : 'status'} className={message.tone === 'error' ? 'text-sm text-red-700' : 'text-sm text-emerald-700'}>
-          {message.text}
-        </p>
+        <AdminNotice kind={message.tone === 'error' ? 'error' : 'info'}>{message.text}</AdminNotice>
       )}
-      <Button type="submit" disabled={isSaving || !currentPassword || !newPassword || !confirmPassword}>
+      <Button type="submit" variant="brand" disabled={isSaving || !currentPassword || !newPassword || !confirmPassword}>
         {isSaving ? '변경 중…' : '비밀번호 변경'}
       </Button>
     </form>

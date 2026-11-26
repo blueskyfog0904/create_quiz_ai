@@ -64,6 +64,7 @@ test("5-1 표(대표 확인 대상) 그대로이고 '환불 완료'는 어느 �
     supportTicket: { neutral: ['closed'], info: ['in_progress'], success: ['resolved'], warning: ['pending'], danger: ['deleted'] },
     member: { neutral: ['withdrawn', 'suspension_lifted'], success: ['active'], danger: ['restricted', 'login_blocked'] },
     banner: { neutral: ['off', 'ended'], info: ['scheduled'], success: ['live'] },
+    reviewTag: { neutral: ['inactive'], success: ['active'] },
   }
   assert.deepEqual(sortedKeys(ADMIN_STATUS_TONES), sortedKeys(expected))
   for (const [kind, groups] of Object.entries(expected)) {

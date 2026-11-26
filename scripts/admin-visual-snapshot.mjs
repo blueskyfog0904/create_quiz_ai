@@ -8,6 +8,11 @@
 //   ② 찍기:   node scripts/admin-visual-snapshot.mjs capture --label before --paths /admin/review-tags,/admin/my-password
 //      로그인 상태를 불러온 뒤 GET·HEAD 가 아닌 요청(서버 액션 POST·토큰 갱신 포함)을 모두 막고, WebSocket 은 서버에 잇지 않고 닫은 채 찍는다.
 //      막힌 요청이 하나라도 있거나 로그인 화면으로 넘어가면 실패로 끝난다(그때는 ①부터 다시).
+//      확인 창(유형 가) 열림: --confirm '/admin/x::단추 이름' (여러 번 줄 수 있음). 그 주소를 찍은 뒤 이름이 같은 단추를 눌러
+//      창(role=dialog)이 열리면 찍고, Esc 로 닫는다(확정 단추는 누르지 않음). 유형 (나)(첫 요청이 쓰기)는 주지 않는다.
+//      막기는 비-GET 만 끊는다. 기록을 남기는 GET(예: CSV 내려받기의 감사 기록)은 지나가므로 --confirm 에는
+//      유형 (가) 확인 창을 여는 단추만 준다. 덧붙여 단추를 누른 뒤 창이 뜨기 전에 /api/ 로 가는 요청은 끊고 실패로 끝낸다.
+//      폭 바꾸기: --viewport 860x768 (여러 번, 주면 기본 세 폭 대신 그 폭만 찍음).
 //
 // localhost:4000 도 운영 DB 를 쓴다. 이 스크립트는 읽기(GET)만 하고, 브라우저 확인 창은 모두 닫는다(dismiss).
 // 회원 개인정보 칸(data-admin-pii)은 회색으로 가린다. 유형 (나) 확인 창(첫 요청이 쓰기)은 찍지 않는다.
@@ -23,7 +28,7 @@ import { fileURLToPath } from 'node:url'
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SNAPSHOT_ROOT = path.join(homedir(), 'admin-visual-snapshots')
 const STORAGE_STATE = path.join(SNAPSHOT_ROOT, '.auth', 'storage-state.json')
-const VIEWPORTS = [
+const DEFAULT_VIEWPORTS = [
   { width: 1366, height: 768 },
   { width: 1024, height: 768 },
   { width: 375, height: 667 },
@@ -33,17 +38,34 @@ const PII_SELECTOR = '[data-admin-pii]'
 
 function parseArgs(argv) {
   const [mode, ...rest] = argv
-  const options = { mode, base: 'http://localhost:4000', label: 'snapshot', paths: [] }
+  const options = { mode, base: 'http://localhost:4000', label: 'snapshot', paths: [], confirms: [], viewports: [] }
   for (let index = 0; index < rest.length; index += 1) {
     const key = rest[index]
     const value = rest[index + 1]
     if (key === '--base') options.base = value
     else if (key === '--label') options.label = value
     else if (key === '--paths') options.paths = value.split(',').map((item) => item.trim()).filter(Boolean)
+    else if (key === '--confirm') options.confirms.push(parseConfirm(value))
+    else if (key === '--viewport') options.viewports.push(parseViewport(value))
     else throw new Error(`모르는 옵션: ${key}`)
     index += 1
   }
   return options
+}
+
+// '/admin/x?tab=y::단추 이름' → { path, button }. 주소에 = 가 들어갈 수 있어 :: 로 나눈다.
+function parseConfirm(value) {
+  const index = value?.indexOf('::') ?? -1
+  const target = index > 0 ? value.slice(0, index).trim() : ''
+  const button = index > 0 ? value.slice(index + 2).trim() : ''
+  if (!target || !button) throw new Error(`--confirm 은 '주소::단추 이름' 모양이어야 합니다: ${value}`)
+  return { path: target, button }
+}
+
+function parseViewport(value) {
+  const match = /^(\d{3,4})x(\d{3,4})$/.exec(value ?? '')
+  if (!match) throw new Error(`--viewport 는 '860x768' 모양이어야 합니다: ${value}`)
+  return { width: Number(match[1]), height: Number(match[2]) }
 }
 
 // 사진·로그인 상태가 저장소 안에 생기지 않게 막는다.
@@ -88,8 +110,38 @@ async function login({ base }) {
   }
 }
 
-async function capture({ base, label, paths }) {
+// 확인 창(유형 가)을 열어 찍고 Esc 로 닫는다. 확정 단추는 누르지 않는다.
+// 유형 (가)는 확인 전에 요청을 보내지 않으므로, 누른 뒤 창이 뜨기 전에 /api/ 로 가는 요청(기록을 남기는 GET 포함)은 끊고 실패로 끝낸다.
+async function captureConfirm(page, { target, button, viewport, outputDir }) {
+  const trigger = page.getByRole('button', { name: button, exact: true }).filter({ visible: true }).first()
+  if ((await trigger.count()) === 0) throw new Error(`확인 창 여는 단추를 찾지 못했습니다(${target} · ${button} · ${viewport.width}px).`)
+  const apiBeforeDialog = []
+  const abortApi = (route) => {
+    apiBeforeDialog.push(`${route.request().method()} ${route.request().url()}`)
+    return route.abort('blockedbyclient')
+  }
+  await page.route('**/api/**', abortApi)
+  const dialog = page.getByRole('dialog')
+  try {
+    await trigger.click({ timeout: 5000 })
+    await dialog.waitFor({ state: 'visible', timeout: 5000 })
+  } finally {
+    await page.unroute('**/api/**', abortApi)
+  }
+  if (apiBeforeDialog.length > 0) {
+    throw new Error(`확인 창이 뜨기 전에 API 요청이 나갔습니다(${target} · ${button}). 유형 (가) 단추가 아닙니다.\n${apiBeforeDialog.join('\n')}`)
+  }
+  const file = path.join(outputDir, `${slugOf(target)}_confirm-${slugOf(button)}_${viewport.width}x${viewport.height}.png`)
+  await page.screenshot({ path: file, fullPage: true, mask: [page.locator(PII_SELECTOR)], maskColor: '#9ca3af' })
+  console.log(`찍음(확인 창): ${file}`)
+  await page.keyboard.press('Escape')
+  await dialog.waitFor({ state: 'hidden', timeout: 5000 })
+}
+
+async function capture({ base, label, paths, confirms, viewports }) {
   if (paths.length === 0) throw new Error('--paths 로 찍을 주소를 주세요(쉼표로 여러 개, 필터 적용은 ?q= 처럼 주소에).')
+  const unknown = confirms.filter((item) => !paths.includes(item.path))
+  if (unknown.length > 0) throw new Error(`--confirm 주소가 --paths 에 없습니다: ${unknown.map((item) => item.path).join(', ')}`)
   const outputDir = path.join(SNAPSHOT_ROOT, todayKst(), label)
   assertOutsideRepo(outputDir)
   mkdirSync(outputDir, { recursive: true })
@@ -98,7 +150,7 @@ async function capture({ base, label, paths }) {
   const closedSockets = []
   const browser = await chromium.launch()
   try {
-    for (const viewport of VIEWPORTS) {
+    for (const viewport of viewports.length > 0 ? viewports : DEFAULT_VIEWPORTS) {
       const context = await browser.newContext({ storageState: STORAGE_STATE, viewport })
       // 쓰기 막기: GET·HEAD 가 아닌 요청은 모두 끊는다(서버 액션 Next-Action POST·토큰 갱신 POST 포함).
       await context.route('**/*', async (route) => {
@@ -124,6 +176,15 @@ async function capture({ base, label, paths }) {
         const file = path.join(outputDir, `${slugOf(target)}_${viewport.width}x${viewport.height}.png`)
         await page.screenshot({ path: file, fullPage: true, mask: [page.locator(PII_SELECTOR)], maskColor: '#9ca3af' })
         console.log(`찍음: ${file}`)
+        for (const entry of confirms.filter((item) => item.path === target)) {
+          try {
+            await captureConfirm(page, { target, button: entry.button, viewport, outputDir })
+          } catch (error) {
+            // 원인을 찾기 쉽게 그때까지 막힌 쓰기 요청도 함께 보인다.
+            const message = error instanceof Error ? error.message : String(error)
+            throw new Error(blocked.length > 0 ? `${message}\n막힌 쓰기 요청 ${blocked.length}건:\n${blocked.join('\n')}` : message)
+          }
+        }
       }
       await context.close()
       if (blocked.length > 0) break
@@ -143,7 +204,7 @@ async function main() {
   const options = parseArgs(process.argv.slice(2))
   if (options.mode === 'login') return login(options)
   if (options.mode === 'capture') return capture(options)
-  throw new Error('사용법: admin-visual-snapshot.mjs login | capture --label <이름> --paths /admin/a,/admin/b [--base URL]')
+  throw new Error("사용법: admin-visual-snapshot.mjs login | capture --label <이름> --paths /admin/a,/admin/b [--confirm '/admin/a::단추 이름'] [--viewport 860x768] [--base URL]")
 }
 
 main().catch((error) => {

@@ -107,6 +107,12 @@ const banner = {
   off: 'neutral',
 } as const
 
+// 후기 태그(20번 1단계 시범): 활성·비활성(is_active)
+const reviewTag = {
+  active: 'success',
+  inactive: 'neutral',
+} as const
+
 export const ADMIN_STATUS_TONES = {
   paymentOrder,
   refundRequest,
@@ -118,6 +124,7 @@ export const ADMIN_STATUS_TONES = {
   supportTicket,
   member,
   banner,
+  reviewTag,
 } as const
 
 export type AdminStatusKind = keyof typeof ADMIN_STATUS_TONES

@@ -333,7 +333,7 @@ test('모바일 껍데기: 상단 바와 처음엔 닫힌 서랍, 데스크톱 �
   assert.match(effect, /removeEventListener\('keydown', handleKeyDown\)/)
   // 종은 모바일 상단 바와 데스크톱 사이드바 맨 위에 하나씩(한쪽만 보인다).
   assert.equal([...sidebar.matchAll(/<AdminAlertCenter /g)].length, 2)
-  // 본문은 상단 바 아래에서 시작하고, 넓은 표가 페이지 전체를 옆으로 밀지 않는다(모바일 폭에서만).
-  assert.match(layout, /max-md:min-w-0/)
+  // 본문은 상단 바 아래에서 시작하고, 넓은 표가 페이지 전체를 옆으로 밀지 않는다(20번 1단계부터 모든 폭에서 min-w-0).
+  assert.match(layout, /className="flex-1 flex flex-col min-h-screen min-w-0 md:ml-0"/)
   assert.match(layout, /className="p-6 max-md:px-4 max-md:pt-\[4\.5rem\] md:p-8"/)
 })

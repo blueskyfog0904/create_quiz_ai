@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/kit/admin-data-table'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminSaveBar } from '@/components/admin/kit/admin-save-bar'
+import { AdminStatusBadge } from '@/components/admin/kit/admin-status-badge'
+import { AdminTableState } from '@/components/admin/kit/admin-table-state'
+import { adminStatusTone } from '@/lib/admin-status-tone'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
@@ -21,8 +27,15 @@ export default function ReviewTagsClient({ workspaceSubject }: { workspaceSubjec
   const [newSortOrder, setNewSortOrder] = useState('')
   const [savingId, setSavingId] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, { label: string; sortOrder: string }>>({})
+  // 브라우저 알림 창 대신 화면 안에 보이는 오류(20번 Q3): 목록 읽기 실패, 추가·줄 저장 실패, 모두 저장 실패(저장 바).
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [saveAllError, setSaveAllError] = useState<string | null>(null)
+  const [savedAt, setSavedAt] = useState<number | null>(null)
   // 다시 읽을 때 다른 행의 저장 안 한 입력을 지키려고 마지막 서버 값을 둔다.
   const serverTagsRef = useRef<Record<string, ReviewTagRow>>({})
+  // 오류 띠는 표 위에 있어 아래 행에서 작업하면 안 보일 수 있다(전에는 알림 창). 오류가 생기면 띠로 옮겨 보인다.
+  const actionErrorRef = useRef<HTMLDivElement>(null)
 
   // resetIds: 방금 저장한 행들. 그 행과 고치지 않은 행만 서버 값으로 바꾸고, 다른 행의 고친 입력은 남긴다.
   const loadTags = useCallback(async (resetIds: string[] = []) => {
@@ -43,8 +56,9 @@ export default function ReviewTagsClient({ workspaceSubject }: { workspaceSubjec
         const isEdited = draft && previous && (draft.label !== previous.label || draft.sortOrder !== String(previous.sortOrder))
         return [tag.id, !resetIds.includes(tag.id) && isEdited ? draft : { label: tag.label, sortOrder: String(tag.sortOrder) }]
       })))
+      setLoadError(null)
     } catch (error) {
-      alert(error instanceof Error ? error.message : '태그를 불러오지 못했습니다.')
+      setLoadError(error instanceof Error ? error.message : '태그를 불러오지 못했습니다.')
     } finally {
       setIsLoading(false)
     }
@@ -54,10 +68,15 @@ export default function ReviewTagsClient({ workspaceSubject }: { workspaceSubjec
     void loadTags()
   }, [loadTags])
 
+  useEffect(() => {
+    if (actionError) actionErrorRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [actionError])
+
   const createTag = async () => {
     const label = newLabel.trim()
+    setActionError(null)
     if (!label) {
-      alert('태그 문구를 입력하세요.')
+      setActionError('태그 문구를 입력하세요.')
       return
     }
     setSavingId('new')
@@ -77,9 +96,10 @@ export default function ReviewTagsClient({ workspaceSubject }: { workspaceSubjec
       }
       setNewLabel('')
       setNewSortOrder('')
+      setSavedAt(Date.now())
       await loadTags()
     } catch (error) {
-      alert(error instanceof Error ? error.message : '태그 추가에 실패했습니다.')
+      setActionError(error instanceof Error ? error.message : '태그 추가에 실패했습니다.')
     } finally {
       setSavingId(null)
     }
@@ -87,6 +107,7 @@ export default function ReviewTagsClient({ workspaceSubject }: { workspaceSubjec
 
   const patchTag = async (tagId: string, payload: { label?: string; sort_order?: number; is_active?: boolean }) => {
     setSavingId(tagId)
+    setActionError(null)
     try {
       const response = await fetch(`/api/admin/review-tags/${tagId}`, {
         method: 'PATCH',
@@ -97,10 +118,11 @@ export default function ReviewTagsClient({ workspaceSubject }: { workspaceSubjec
       if (!response.ok || !result?.success) {
         throw new Error(result?.error ?? '저장에 실패했습니다.')
       }
+      setSavedAt(Date.now())
       // 사용 여부만 바꾼 경우(문구·순서를 보내지 않음)는 그 행의 고친 입력도 남긴다.
       await loadTags(payload.label !== undefined || payload.sort_order !== undefined ? [tagId] : [])
     } catch (error) {
-      alert(error instanceof Error ? error.message : '저장에 실패했습니다.')
+      setActionError(error instanceof Error ? error.message : '저장에 실패했습니다.')
     } finally {
       setSavingId(null)
     }
@@ -119,6 +141,8 @@ export default function ReviewTagsClient({ workspaceSubject }: { workspaceSubjec
   const saveAllDrafts = async () => {
     if (dirtyTags.length === 0) return
     setSavingId('all')
+    setActionError(null)
+    setSaveAllError(null)
     const savedIds: string[] = []
     try {
       for (const tag of dirtyTags) {
@@ -134,8 +158,9 @@ export default function ReviewTagsClient({ workspaceSubject }: { workspaceSubjec
         }
         savedIds.push(tag.id)
       }
+      setSavedAt(Date.now())
     } catch (error) {
-      alert(error instanceof Error ? error.message : '저장에 실패했습니다.')
+      setSaveAllError(error instanceof Error ? error.message : '저장에 실패했습니다.')
     } finally {
       await loadTags(savedIds)
       setSavingId(null)
@@ -151,16 +176,101 @@ export default function ReviewTagsClient({ workspaceSubject }: { workspaceSubjec
     })
   }
 
+  const draftOf = (tag: ReviewTagRow) => drafts[tag.id] ?? { label: tag.label, sortOrder: String(tag.sortOrder) }
+  const updateDraft = (tag: ReviewTagRow, patch: Partial<{ label: string; sortOrder: string }>) => setDrafts((current) => ({
+    ...current,
+    [tag.id]: { ...draftOf(tag), ...patch },
+  }))
+
+  // 저장 바의 단추는 '모두 저장'(저장 함수 하나)뿐이다. '저장됨' 시각은 마지막 저장(추가·줄 저장·모두 저장) 때.
+  // 모두 저장이 실패한 뒤 고친 행이 다 저장되면 실패 표시는 거둔다.
+  const saveBarStatus = savingId === 'all' ? 'saving' : saveAllError && dirtyTags.length > 0 ? 'error' : savedAt ? 'saved' : 'idle'
+
+  const columns: AdminDataTableColumn<ReviewTagRow>[] = [
+    {
+      key: 'label',
+      header: '태그 문구',
+      cell: (tag) => (
+        <Input
+          disabled={savingId === 'all'}
+          value={draftOf(tag).label}
+          onChange={(event) => updateDraft(tag, { label: event.target.value })}
+        />
+      ),
+    },
+    {
+      key: 'sortOrder',
+      header: '정렬 순서',
+      headerClassName: 'w-32',
+      cell: (tag) => (
+        <Input
+          disabled={savingId === 'all'}
+          value={draftOf(tag).sortOrder}
+          inputMode="numeric"
+          onChange={(event) => updateDraft(tag, { sortOrder: event.target.value })}
+        />
+      ),
+    },
+    {
+      key: 'status',
+      header: '상태',
+      headerClassName: 'w-24',
+      cell: (tag) => (
+        <AdminStatusBadge label={tag.isActive ? '활성' : '비활성'} tone={adminStatusTone('reviewTag', tag.isActive ? 'active' : 'inactive')} />
+      ),
+    },
+    {
+      key: 'actions',
+      header: '작업',
+      headerClassName: 'w-56',
+      cell: (tag) => {
+        const draft = draftOf(tag)
+        const isDirty = draft.label !== tag.label || Number(draft.sortOrder) !== tag.sortOrder
+        return (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="adminTable"
+              disabled={savingId === tag.id || savingId === 'all' || !isDirty}
+              onClick={() => saveDraft(tag)}
+            >
+              저장
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="adminTable"
+              disabled={savingId === tag.id || savingId === 'all'}
+              onClick={() => void patchTag(tag.id, { is_active: !tag.isActive })}
+            >
+              {tag.isActive ? '비활성화' : '활성화'}
+            </Button>
+          </div>
+        )
+      },
+    },
+  ]
+
+  const tableState = isLoading ? (
+    <AdminTableState kind="loading" message="불러오는 중…" />
+  ) : loadError && tags.length === 0 ? (
+    <AdminTableState kind="error" message={loadError} onRetry={() => void loadTags()} />
+  ) : tags.length === 0 ? (
+    <AdminTableState kind="empty" message="등록된 태그가 없습니다." />
+  ) : undefined
+
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border p-4">
-        <h3 className="text-sm font-semibold">새 태그 추가</h3>
+      {actionError ? <div ref={actionErrorRef}><AdminNotice kind="error">{actionError}</AdminNotice></div> : null}
+      <section className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-4">
+        <h3 className="text-sm font-semibold text-[var(--studio-ink)]">새 태그 추가</h3>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Input
             value={newLabel}
             onChange={(event) => setNewLabel(event.target.value)}
             placeholder="예: 🧠 개념 정리에 좋아요."
-            className="w-80"
+            className="w-80 max-w-full"
           />
           <Input
             value={newSortOrder}
@@ -169,100 +279,35 @@ export default function ReviewTagsClient({ workspaceSubject }: { workspaceSubjec
             className="w-40"
             inputMode="numeric"
           />
-          <Button type="button" disabled={savingId !== null} onClick={() => void createTag()}>
+          <Button type="button" variant="brand" disabled={savingId !== null} onClick={() => void createTag()}>
             {savingId === 'new' ? '추가 중…' : '태그 추가'}
           </Button>
         </div>
-      </div>
+      </section>
 
-      <div className="rounded-lg border">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
-          <p className="text-sm text-muted-foreground">
-            {dirtyTags.length > 0 ? <span className="font-medium text-amber-700">저장 안 한 변경 {dirtyTags.length}건</span> : '고친 문구·순서는 줄마다 저장하거나 모두 저장으로 한 번에 저장합니다.'}
-          </p>
-          <Button type="button" size="sm" disabled={savingId !== null || dirtyTags.length === 0} onClick={() => void saveAllDrafts()}>
-            {savingId === 'all' ? '저장 중…' : '모두 저장'}
-          </Button>
-        </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-muted/50 text-left">
-              <th className="px-4 py-3 font-medium">태그 문구</th>
-              <th className="w-32 px-4 py-3 font-medium">정렬 순서</th>
-              <th className="w-24 px-4 py-3 font-medium">상태</th>
-              <th className="w-56 px-4 py-3 font-medium">작업</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">불러오는 중…</td>
-              </tr>
-            ) : tags.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">등록된 태그가 없습니다.</td>
-              </tr>
-            ) : (
-              tags.map((tag) => {
-                const draft = drafts[tag.id] ?? { label: tag.label, sortOrder: String(tag.sortOrder) }
-                const isDirty = draft.label !== tag.label || Number(draft.sortOrder) !== tag.sortOrder
-                return (
-                  <tr key={tag.id} className={`border-b last:border-b-0 ${tag.isActive ? '' : 'opacity-60'}`}>
-                    <td className="px-4 py-2">
-                      <Input
-                        disabled={savingId === 'all'}
-                        value={draft.label}
-                        onChange={(event) => setDrafts((current) => ({
-                          ...current,
-                          [tag.id]: { ...draft, label: event.target.value },
-                        }))}
-                      />
-                    </td>
-                    <td className="px-4 py-2">
-                      <Input
-                        disabled={savingId === 'all'}
-                        value={draft.sortOrder}
-                        inputMode="numeric"
-                        onChange={(event) => setDrafts((current) => ({
-                          ...current,
-                          [tag.id]: { ...draft, sortOrder: event.target.value },
-                        }))}
-                      />
-                    </td>
-                    <td className="px-4 py-2">
-                      <span className={`rounded px-2 py-1 text-xs font-medium ${tag.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                        {tag.isActive ? '활성' : '비활성'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2">
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="adminAction"
-                          disabled={savingId === tag.id || savingId === 'all' || !isDirty}
-                          onClick={() => saveDraft(tag)}
-                        >
-                          저장
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={savingId === tag.id || savingId === 'all'}
-                          onClick={() => void patchTag(tag.id, { is_active: !tag.isActive })}
-                        >
-                          {tag.isActive ? '비활성화' : '활성화'}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      {loadError && tags.length > 0 ? (
+        <AdminNotice kind="error" onRetry={() => void loadTags()}>{loadError}</AdminNotice>
+      ) : null}
+      <AdminDataTable
+        caption="후기 태그 목록"
+        columns={columns}
+        rows={tags}
+        getRowKey={(tag) => tag.id}
+        minWidth={640}
+        state={tableState}
+      />
+
+      <AdminSaveBar
+        variant="fixed"
+        dirtyCount={dirtyTags.length}
+        status={saveBarStatus}
+        savedAt={savedAt}
+        errorMessage={saveAllError}
+        applyNote="고친 문구·순서는 줄마다 저장하거나 모두 저장으로 한 번에 저장합니다."
+        onSave={() => void saveAllDrafts()}
+        saveLabel="모두 저장"
+        saveDisabled={savingId !== null}
+      />
     </div>
   )
 }

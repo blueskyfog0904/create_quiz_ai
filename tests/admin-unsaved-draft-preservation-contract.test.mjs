@@ -61,7 +61,8 @@ test('후기 태그: 한 행을 저장해도 다른 행의 고친 입력은 남�
   assert.match(client, /for \(const tag of dirtyTags\)/)
   assert.match(client, /finally \{\s+await loadTags\(savedIds\)/)
   assert.match(client, /useUnsavedChangesGuard\(dirtyTags\.length > 0\)/)
-  assert.match(client, /'모두 저장'/)
+  // 20번 1단계: '모두 저장' 버튼은 아래 고정 저장 바(저장 함수 하나 = saveAllDrafts)가 그린다.
+  assert.match(client, /<AdminSaveBar\s+variant="fixed"[\s\S]*?onSave=\{\(\) => void saveAllDrafts\(\)\}\s+saveLabel="모두 저장"/)
   assert.doesNotMatch(client, /setDrafts\(Object\.fromEntries\(rows\.map/)
 })
 

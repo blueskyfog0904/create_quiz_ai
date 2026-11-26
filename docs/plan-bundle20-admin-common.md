@@ -324,3 +324,69 @@ Q7. 화면 비교
 - minor: `useAdminFilterParams(keys, { baseQuery })` — 화면이 정규화한 기준 쿼리를 주면 지금 주소 대신 그것으로 읽고 고친다(회원·크레딧 목록처럼 아는 키만으로 주소를 다시 만들던 화면용).
 - minor: 화면 비교 스크립트가 `context.routeWebSocket` 으로 WebSocket 을 서버에 잇지 않고 닫는다(닫은 수만 출력, 실패로 보지 않음).
 - 확인: 전체 2341건 중 실패 44(기준선과 이름 같음), 부품 시험 28건 통과, tsc(`.next/` 밖) 0, eslint 0.
+
+## 구현 메모 (1단계)
+작성일: 2026-11-27. 1단계 시범(`/admin/review-tags`, `/admin/my-password`)과 `layout.tsx` 의 `min-w-0`, 화면별 동작 대조 시험, 래칫 목록 줄이기, 화면 비교 스크립트의 확인 창 찍기만 했다. 2~7단계 화면·홈 진열/홈 배너 관리 화면(`market-main-settings`·`main-ad-settings`, 22번이 따로 고침)·DB 는 건드리지 않았다. 커밋·push 하지 않았다.
+
+**바꾼 파일**
+- `src/app/(admin)/admin/layout.tsx`: 본문 감싸기 `max-md:min-w-0` → `min-w-0`(모든 폭). 같은 뜻으로 `tests/admin-alert-center-contract.test.mjs` 단언을 바꿈(클래스 전체 일치).
+- `/admin/review-tags`
+  - `page.tsx`: 제목줄을 `AdminPageHeader`(제목 = DB 메뉴 이름 `AdminMenuName` + ' · 국어/영어', 설명 문구 그대로). 안쪽 `p-8 pt-6` 이중 여백을 없앰(레이아웃 여백만).
+  - `review-tags-client.tsx`: 표 → `AdminDataTable`(열 4개 그대로, `minWidth` 640 이라 1280px 미만·375px 에서는 표 안 가로 스크롤 + 첫 열 고정), 상태 → `AdminStatusBadge`, 불러오는 중·비어 있음·읽기 실패 → `AdminTableState`, 줄 버튼 `adminAction`·`outline` → `adminTable` 둘, [태그 추가] → `brand`, '모두 저장' 줄 → 아래 고정 `AdminSaveBar`(저장 함수 하나 = `saveAllDrafts`, 반영 안내 칸에 지금 안내 문구), `alert(` 5곳 → 같은 문구의 화면 안 오류(추가·줄 저장 = `AdminNotice`, 읽기 = 행이 없으면 표 실패 칸·있으면 오류 띠 + [다시 시도], 모두 저장 = 저장 바의 실패·[다시 시도]). 이탈 경고 훅 호출은 그대로 1개.
+- `/admin/my-password`: 제목줄 `AdminPageHeader`, 결과 안내 `AdminNotice`(오류 = 오류 띠 role=alert, 성공 = 정보 띠 role=status), 카드 테두리·둥글기 studio 토큰, [비밀번호 변경] `brand`.
+- `src/lib/admin-status-tone.ts`: 5-1 표에 **후기 태그** 줄(활성 = success, 비활성 = neutral)을 더함. 시험 `admin-kit-status-tone` 기대값에 같은 줄.
+- 시험
+  - 새 `tests/admin-kit-screen-parity.test.mjs`(4건): 6-2 대조 항목(fetch 호출 전체 — 주소·method·body, `*-server`·actions import, `.from`/`.rpc`, 가드 호출, 주소 키, `confirm`/`alert`, 이탈 경고 훅)을 옮기기 전(648e68c) 코드에서 뽑아 기대값으로 적음. 화면 폴더 + import 한 관리자 파일(kit 제외)을 따라감. 같은 열·버튼·막힘 조건, 바뀐 알림 5곳의 문구, 저장 바 하나 = 저장 함수 하나(`saveAllDrafts`, 고정 바)도 본다.
+  - `admin-kit-contract`: 래칫 목록에서 `review-tags-client.tsx` 를 `alert(`·`adminAction` 두 목록에서 뺌. 화면 비교 스크립트의 확인 창 찍기 단언을 더함.
+  - `admin-unsaved-draft-preservation-contract`: `'모두 저장'` 단언 → 같은 뜻으로 "`AdminSaveBar variant="fixed"` 가 `saveAllDrafts` 를 '모두 저장' 이름으로 부름".
+- `scripts/admin-visual-snapshot.mjs`: `--confirm '주소::단추 이름'`(여러 번). 그 주소를 찍은 뒤 이름이 같은 단추 하나만 눌러 창(role=dialog)이 열리면 찍고 Esc 로 닫는다(확정 단추는 누르지 않음, 쓰기 막기는 그대로). `--confirm` 주소가 `--paths` 에 없으면 시작 전에 실패. 이번 두 화면에는 유형 (가) 확인 창이 없어 쓸 곳은 2단계부터다. 실행하지 않았다(`node --check` 만).
+
+**구현 때 판단한 것(대표 확인 대상)**
+1. **날짜 표기**: 대표가 `YYYY-MM-DD HH:mm`(`formatKstFull`) 으로 바꾸는 것을 아직 정하지 않았으므로, 옮기는 화면은 **지금 표기를 그대로** 둔다. 이번 두 화면에는 날짜가 없다(저장 바의 'HH:mm 저장됨' 은 새로 생긴 표시). 2단계(주문)부터 해당하므로 화면 비교 때 정해 주면 그때부터 바꾼다.
+2. 후기 태그 상태 색: 활성 초록·비활성 회색(5-1 표 새 줄). 비활성 행을 흐리게(`opacity-60`) 하던 것은 표 부품에 행 클래스가 없어 없앴다(배지 글자로 구분).
+3. 과목 전환기를 제목줄 도구 칸에 넣지 않았다: 공용 `AdminWorkspaceSwitcher` 는 어두운 색이고 22번 화면과 함께 쓴다. 지금처럼 제목의 ' · 국어/영어' 와 사이드바 과목 묶음으로 전환한다.
+4. `/admin/my-password` 는 저장 바를 두지 않았다: 입력값을 남기지 않는 일회성 제출이다. 성공 안내는 초록 글자 → 정보(파랑) 띠(부품에 '성공' 띠가 없음). 다른 기기 로그아웃 실패 안내도 같은 정보 띠다.
+5. 제목 크기: 두 화면 모두 공통 제목줄(2xl)로 바뀌어 넓은 화면에서 조금 작아진다(전에는 3xl).
+6. '모두 저장' 줄이 표 위에서 아래 고정 저장 바로 옮겨졌다. '저장됨' 시각은 마지막 저장(추가·줄 저장·모두 저장) 때.
+
+**확인 결과**
+- `node --test tests/*.test.mjs`: 2384건 중 실패 44. 648e68c 를 저장소 밖에 풀어 돌린 기준선(2380건 중 44)과 실패 이름이 같음(새 실패 0). 새 대조 시험 4건 통과.
+- `npx tsc --noEmit -p .`: `.next/` 밖 오류 0. 바꾼 파일 eslint 0.
+
+**대표 화면 비교 순서(내가 실행하지 않음)**
+- 준비: '바꾸기 전'은 648e68c 다(origin/main 보다 22커밋 앞이라 운영 배포본은 '전'이 아님). 다른 폴더에 그 커밋을 꺼내 4001 포트로 띄운다.
+  1. `git worktree add ../create_quiz_ai-before 648e68c`
+  2. 그 폴더에서 `node_modules`·`.env.local` 을 원래 폴더 것으로 링크하고 `npx next dev -p 4001`
+  3. 지금 폴더(바뀐 코드)는 평소처럼 `npm run dev`(4000)
+- 로그인(사람이 직접, 1회): `node scripts/admin-visual-snapshot.mjs login` — 쿠키는 포트가 달라도 같은 localhost 라 4001 에도 쓰인다. '로그인이 풀렸습니다'로 끝나면 `login --base http://localhost:4001` 로 한 번 더.
+- 찍기(세 폭 1366·1024×768·375×667 을 스크립트가 모두 찍음):
+  - 전: `node scripts/admin-visual-snapshot.mjs capture --label before --base http://localhost:4001 --paths <아래 주소>`
+  - 후: `node scripts/admin-visual-snapshot.mjs capture --label after --paths <아래 주소>`
+  - 주소(쉼표로 이어서): `/admin/review-tags?subject=korean,/admin/review-tags?subject=english,/admin/my-password,/admin,/admin/admin-accounts,/admin/audit-log,/admin/audit-log?tab=access,/admin/credits,/admin/footer,/admin/market/products,/admin/market/images,/admin/menu-management,/admin/notices,/admin/faq,/admin/notifications,/admin/orders,/admin/orders?tab=market,/admin/pricing,/admin/refunds,/admin/reports,/admin/reviews,/admin/users`, 그리고 시험 계정 하나의 `/admin/users/<id>`.
+  - 사진은 `~/admin-visual-snapshots/<날짜>/before|after/` 에 생긴다. 옛 화면에는 `data-admin-pii` 가 없어 회원 이메일 등이 가려지지 않으니 사진을 밖에 공유하지 않는다. 13번 DB 적용 뒤라면 회원 화면을 여는 것도 열람 기록에 남는다.
+- 볼 것
+  - `/admin/review-tags`(세 폭): 제목 '후기 태그 관리 · 국어/영어'·설명 그대로, 열 4개(태그 문구·정렬 순서·상태·작업)와 줄 버튼 [저장]·[비활성화/활성화]가 모두 있음, 버튼이 보라 테두리(1024·1366 에서 32px, 375 에서 44px), 상태 배지 활성 초록·비활성 회색, 아래 고정 저장 바('변경 없음' + 안내 문구 + 막힌 [모두 저장]), 375 에서 표가 표 안에서만 옆으로 밀리고 페이지는 안 밀림·첫 열 고정, 잘린 글자 없음.
+  - **`/admin/review-tags` 오류 표시 위치**(대표가 직접 해 보기, 사진으로는 안 찍힘): 전에는 실패하면 브라우저 알림 창이 떴고, 후에는 **표 위쪽 빨간 띠**로 보인다(오류가 생기면 띠가 보이는 자리로 화면이 옮겨짐). 모두 저장 실패만 아래 저장 바에 보인다. 빈 문구로 [태그 추가]를 누르면 띠가 뜨는지 본다(요청이 나가지 않는 확인). 이 위치 변경이 괜찮은지 정한다.
+  - `/admin/my-password`(세 폭): 제목·설명, 입력칸 3개, 보라 [비밀번호 변경], 카드 둥글기. (오류·성공 띠는 쓰기 요청이 막혀 찍히지 않는다. 필요하면 대표가 직접 바꿔 보며 확인.)
+  - 나머지 표 화면 **1024×768**: 전에 페이지 전체가 옆으로 넘치던(가로 스크롤바) 화면이 후에는 표 영역 안 스크롤로 바뀌는 것만 달라야 한다. 빠진 열·버튼·숫자, 사이드바와 본문 겹침(12절 1), 잘린 글자가 없어야 한다.
+  - **`/admin/reviews` 800~900px**: 이 표만 가로 넘침 틀(`overflow-x-auto`)이 없다. 그래서 `min-w-0` 뒤에는 넓은 표가 페이지를 넓히지 않고 테두리 카드 밖으로 삐져나올 수 있다. 따로 찍는다.
+    - 전: `capture --label before-reviews --base http://localhost:4001 --paths /admin/reviews --viewport 800x768 --viewport 900x768`
+    - 후: `capture --label after-reviews --paths /admin/reviews --viewport 800x768 --viewport 900x768`
+    - 삐져나오면 `reviews-admin-client.tsx` 를 5단계(그 화면을 옮길 때)에 표 부품으로 바꿀지, 그 전에 감싸기에 `overflow-x-auto` 만 더할지 대표가 정한다. 코드는 이번에 바꾸지 않았다.
+  - 같은 화면 **375×667**: 전후가 같아야 한다(모바일은 이미 `min-w-0` 였음).
+  - 1366: 전후가 같아야 한다(시범 두 화면 제외).
+- 대표가 정할 것: 위 '판단한 것' 1~6(특히 1 날짜 표기, 2 후기 태그 색). 확인 뒤 push 는 대표가 정한다.
+- 정리: 비교가 끝나면 `git worktree remove ../create_quiz_ai-before`.
+
+**1단계 검증 반영(PASS·minor 4)**
+- `/admin/reviews` 표가 `min-w-0` 영향을 받는다: 코드는 그대로 두고 위 비교 목록에 800~900px 촬영을 더했다. 화면 비교 스크립트에 `--viewport WxH` 를 더했다(여러 번, 주면 기본 세 폭 대신 그 폭만).
+- 화면 비교 스크립트
+  - 주석을 고쳤다: 막기는 비-GET 만 끊는다. 기록을 남기는 GET(CSV 내려받기 감사 기록 등)은 지나가므로, `--confirm` 에는 유형 (가) 확인 창을 여는 단추만 준다.
+  - 단추를 누른 뒤 창이 뜨기 전까지 `/api/` 요청은 모두 끊고(page route), 하나라도 있으면 실패로 끝낸다.
+  - 여는 단추는 보이는 것만 고르고(`filter({ visible: true })`), 누르기는 5초 안에 끝나야 한다.
+  - `captureConfirm` 이 실패하면 그때까지 막힌 쓰기 요청 목록도 함께 보인다.
+- `/admin/review-tags`
+  - 모두 저장을 시작하면 앞선 줄 저장·추가 오류 띠를 지운다.
+  - 오류 띠가 생기면 그 자리로 옮겨 보인다(`scrollIntoView({ block: 'nearest' })`).
+  - 위 비교 목록에 '알림 창 → 위쪽 띠' 확인 항목을 더했다.
+- 시험: 대조 시험과 kit 계약 시험에 위 내용 단언을 더했다.

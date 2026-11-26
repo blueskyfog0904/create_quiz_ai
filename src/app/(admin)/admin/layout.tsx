@@ -27,8 +27,8 @@ export default async function AdminLayout({
         {/* Sidebar (본문도 바꾼 메뉴 이름을 쓰도록 children으로 감싼다) */}
         <AdminSidebar>
           {/* Main Content Wrapper */}
-          {/* 모바일: 고정 상단 바(56px) 아래에서 시작하고, 넓은 표가 페이지 전체를 옆으로 밀지 않게 한다 */}
-          <div className="flex-1 flex flex-col min-h-screen max-md:min-w-0 md:ml-0">
+          {/* 모바일: 고정 상단 바(56px) 아래에서 시작한다. 모든 폭에서 min-w-0: 넓은 표가 페이지 전체를 옆으로 밀지 않고 표 안에서 스크롤한다(20번 5-2) */}
+          <div className="flex-1 flex flex-col min-h-screen min-w-0 md:ml-0">
             <main className="flex-1">
               <div className="p-6 max-md:px-4 max-md:pt-[4.5rem] md:p-8">
                 {children}
