@@ -4,6 +4,7 @@ import { createRequire } from 'node:module'
 import test from 'node:test'
 import ts from 'typescript'
 import { adminGuardMocks } from './helpers/market-images-harness.mjs'
+import { memberNotificationsServer } from './helpers/member-notifications-harness.mjs'
 
 const require = createRequire(import.meta.url)
 
@@ -209,10 +210,11 @@ test('the admin route answers a shortfall with 409 and the numbers, and forwards
         from: () => ({
           // 처리 전 본인 요청 확인이 읽는 요청(다른 회원의 요청)
           select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { user_id: 'member-1', requested_refund_credits: 100 }, error: null }) }) }),
-          insert: async () => ({ error: null }),
         }),
       }),
     },
+    // 16번: 회원 알림은 공용 함수가 넣는다(문구는 DB 첫 값)
+    '@/lib/member-notifications-server': memberNotificationsServer(),
     '@/lib/market-refunds': {
       MarketRefundConflictError,
       MarketRefundShortfallError,

@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Search, Loader2, User, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
+import { MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE } from '@/lib/member-notifications'
+import { MEMBER_FACING_PII_LABELS, memberFacingTextPiiHits } from '@/lib/member-facing-text-pii'
 
 interface Profile {
   id: string
@@ -123,6 +125,8 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
       if (!response.ok) throw new Error(data.error || '지급 실패')
 
       toast.success(`${selectedUser.email}님에게 크레딧이 지급되었습니다.`)
+      // 16번 6절: 지급은 끝났고 회원 알림만 실패 — 고객지원으로 직접 알리도록 안내
+      if (data.notificationFailed) toast.warning(MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE)
       setIdempotencyKey(crypto.randomUUID())
       onSuccess?.()
       onOpenChange(false)
@@ -230,6 +234,13 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
                 placeholder="지급 사유를 구체적으로 입력해주세요 (예: 서버 장애 보상)"
                 className="h-20"
               />
+              {/* 16번 16절 2: 지급 사유는 회원 알림 '{내용}'으로 그대로 간다 — 개인정보 모양이면 경고만(막지는 않음, 회사 연락처 예외 없이 본다) */}
+              <p className="text-xs text-gray-500">이 사유는 회원 알림에 그대로 보입니다.</p>
+              {memberFacingTextPiiHits(reason, { customerCenter: '', orderEmail: '' }).length > 0 && (
+                <p role="alert" className="text-xs text-amber-700">
+                  개인정보로 보이는 글이 있습니다({memberFacingTextPiiHits(reason, { customerCenter: '', orderEmail: '' }).map((kind) => MEMBER_FACING_PII_LABELS[kind]).join(', ')}). 회원 알림에 그대로 보이니 지우는 것이 좋습니다.
+                </p>
+              )}
             </div>
           </div>
         )}

@@ -21,6 +21,7 @@ import { markWithdrawnRows, readWithdrawnMarketRefundRequests } from '@/lib/with
 import { readMemberWithdrawalPolicy, readWithdrawnHeldOrderIds } from '@/lib/member-withdrawal-server'
 import { MEMBER_WITHDRAWAL_ERRORS, withdrawalText } from '@/lib/member-withdrawal'
 import { attachMemberContacts, recordMemberAccess } from '@/lib/admin-member-access-log-server'
+import { readPiiAllowedContacts } from '@/lib/site-board-server'
 
 // 판정 실패는 화면 오류 안내라 코드에 둔다(정책 문구 자리는 판정 성공 때의 안내다).
 const HELD_ORDER_CHECK_FAILED_NOTICE = '탈퇴 회원 보류 주문인지 확인하지 못해 지금은 처리할 수 없습니다. 새로고침해 주세요.'
@@ -67,7 +68,7 @@ export default async function AdminRefundsPage() {
     // 10번: 탈퇴 회원의 충전 환불은 사유·메모를 가린다(서버 키로 읽으므로 코드가 가림). 가리지 못하면 목록을 비우고 알린다.
     let paymentRefundRows: Array<NonNullable<typeof requests>[number] & { memberWithdrawn: boolean }> = []
     try {
-        paymentRefundRows = await markWithdrawnRows(requests ?? [], (row) => row.user_id, (row) => ({ ...row, reason: null, admin_note: null }))
+        paymentRefundRows = await markWithdrawnRows(requests ?? [], (row) => row.user_id, (row) => ({ ...row, reason: null, admin_note: null, member_reject_reason: null }))
     } catch (error) {
         console.error('[admin-refunds] 탈퇴 회원 가림 실패', { message: error instanceof Error ? error.message : String(error) })
         if (!requestsError) loadErrors.push('충전 환불 요청')
@@ -210,6 +211,7 @@ export default async function AdminRefundsPage() {
             <RefundsClient
                 requests={visiblePaymentRefundRows as RefundRequest[]}
                 stats={{ pendingCount, completedCount, rejectedCount, attentionCount }}
+                piiAllowed={await readPiiAllowedContacts()}
             >
                 <PaymentReviewClient
                     orders={visibleReviewOrders}

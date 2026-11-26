@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE } from '@/lib/member-notifications'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -137,6 +138,8 @@ export function MarketExceptionRefundDialog({ orderId, onClose, onDone }: Market
         throw new Error(result?.error ?? '예외 환불 처리에 실패했습니다.')
       }
       toast.success(result.message)
+      // 16번 6절: 처리는 끝났고 회원 알림만 실패 — 고객지원으로 직접 알리도록 안내
+      if (result.notificationFailed) toast.warning(MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE)
       onDone()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '예외 환불 처리에 실패했습니다.')

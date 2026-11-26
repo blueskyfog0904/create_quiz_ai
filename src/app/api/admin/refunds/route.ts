@@ -14,6 +14,10 @@ import {
 import { markWithdrawnRows } from '@/lib/withdrawn-member-redaction-server'
 import { recordMemberAccess } from '@/lib/admin-member-access-log-server'
 import { adminRequestMeta } from '@/lib/admin-request-meta'
+import { notificationFailed, sendMemberNotification } from '@/lib/member-notifications-server'
+import { CHARGE_REFUND_REJECT_REASON_MAX, memberTextHasLongNumber } from '@/lib/member-notifications'
+import { memberFacingTextPiiHits } from '@/lib/member-facing-text-pii'
+import { readPiiAllowedContacts } from '@/lib/site-board-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +25,8 @@ const processRefundSchema = z.object({
   requestId: z.string().uuid(),
   action: z.enum(['approve', 'reject', 'complete_manual']),
   adminNote: z.string().trim().max(500).optional(),
+  // 16번 Q7: 회원에게 보낼 충전 환불 거절 사유(거절 때 필수, 처리 메모와 따로 — 회원에게 그대로 안내됨)
+  memberReason: z.string().trim().max(CHARGE_REFUND_REJECT_REASON_MAX).optional(),
   providerNotCancelledConfirmed: z.boolean().optional(),
   externalMethod: z.enum(['payapp_cancel_request', 'bank_transfer', 'provider_admin_cancel']).optional(),
   refundAmount: z.number().int().min(1).max(100_000).optional(),
@@ -70,10 +76,10 @@ export async function GET(request: Request) {
     )
   }
 
-  // 10번: 탈퇴 회원의 환불 사유·메모는 내보내지 않는다(가리지 못하면 목록을 내보내지 않음).
+  // 10번: 탈퇴 회원의 환불 사유·메모(16번: 회원에게 보낸 거절 사유 포함)는 내보내지 않는다(가리지 못하면 목록을 내보내지 않음).
   let visibleRequests: Awaited<ReturnType<typeof markWithdrawnRows<NonNullable<typeof requests>[number]>>>
   try {
-    visibleRequests = await markWithdrawnRows(requests ?? [], (row) => row.user_id, (row) => ({ ...row, reason: null, admin_note: null }))
+    visibleRequests = await markWithdrawnRows(requests ?? [], (row) => row.user_id, (row) => ({ ...row, reason: null, admin_note: null, member_reject_reason: null }))
   } catch {
     return NextResponse.json(
       { error: '환불 요청을 불러오지 못했습니다.' },
@@ -109,29 +115,27 @@ export async function GET(request: Request) {
   })
 }
 
+// 16번: 환불 완료 알림은 공용 함수로(문구는 DB). 실패 여부만 돌려준다 — 환불 결과는 그대로이고 화면에 notificationFailed 로 알린다.
 async function notifyRefundCompleted(
   userId: string,
   refundAmount: number,
   externalMethod?: 'payapp_cancel_request' | 'bank_transfer' | 'provider_admin_cancel'
-) {
-  const admin = createPaymentAdminClient()
-  const bankTransfer = externalMethod === 'bank_transfer'
-  const { error } = await admin.from('notifications').insert({
-    user_id: userId,
-    type: 'success',
-    title: bankTransfer ? '환불이 완료되었습니다' : '원 결제수단 환불이 완료되었습니다',
-    message: bankTransfer
-      ? `${refundAmount.toLocaleString()}원을 계좌로 환불했습니다.`
-      : `${refundAmount.toLocaleString()}원 결제 취소가 완료되었습니다. 환불 반영 시점은 결제수단에 따라 다를 수 있습니다.`,
-    link: '/mypage/payments',
-    is_read: false,
-  })
+): Promise<boolean> {
+  return notificationFailed(await sendMemberNotification({
+    kind: externalMethod === 'bank_transfer' ? 'chargeRefundBankTransfer' : 'chargeRefundCompleted',
+    userId,
+    values: { '{금액}': refundAmount },
+  }))
+}
 
-  if (error) {
-    console.error('[PointChargeRefund] Completion notification failed', {
-      errorCode: error.code,
-    })
-  }
+// 거절 함수(5인자) 오류 → 응답. 사유 검사는 400, 거절할 수 없는 상태는 409, 그 밖(검사 함수 오류 등)은 거절 전체가 취소된 것이라 503.
+const REJECT_ERRORS: Record<string, { status: number; error: string }> = {
+  REFUND_REJECT_MEMBER_REASON_REQUIRED: { status: 400, error: '회원에게 보낼 거절 사유를 300자 이내로 적어 주세요.' },
+  REFUND_REJECT_MEMBER_REASON_PII: { status: 400, error: '거절 사유에 개인정보로 보이는 글이 있습니다. 지우고 다시 거절해 주세요.' },
+  REFUND_REJECT_MEMBER_REASON_LONG_NUMBER: { status: 400, error: '거절 사유에 계좌번호·카드번호 같은 긴 숫자는 적지 마세요.' },
+  REFUND_REJECT_ACTOR_REQUIRED: { status: 400, error: '처리하는 관리자를 확인하지 못했습니다. 다시 로그인해 주세요.' },
+  REFUND_REQUEST_NOT_REJECTABLE: { status: 409, error: '현재 거절할 수 없는 환불 요청입니다.' },
+  REFUND_REJECT_CONFIRMATION_REQUIRED: { status: 409, error: '수동 확인 환불을 거절하려면 결제사 미취소 확인과 처리 메모가 모두 필요합니다.' },
 }
 
 export async function PATCH(request: Request) {
@@ -182,14 +186,15 @@ export async function PATCH(request: Request) {
         )
       }
 
-      if (result?.user_id && !result.already_completed) {
-        await notifyRefundCompleted(result.user_id, input.refundAmount, input.externalMethod)
-      }
+      const failed = result?.user_id && !result.already_completed
+        ? await notifyRefundCompleted(result.user_id, input.refundAmount, input.externalMethod)
+        : false
       return NextResponse.json({
         success: true,
         message: result?.already_completed
           ? '이미 완료된 환불 요청입니다.'
           : '수동 환불 완료와 크레딧 회수를 기록했습니다.',
+        notificationFailed: failed,
       })
     } catch (error) {
       // 회수량은 화면이 미리보기에서 받은 값을 그대로 보낸다(API 는 다시 계산하지 않음). 그사이 원천이 바뀌면 DB 가 거절한다.
@@ -212,28 +217,49 @@ export async function PATCH(request: Request) {
   }
 
   if (input.action === 'reject') {
+    // 16번 Q7: 회원에게 보낼 거절 사유(필수 1~300자). 개인정보 모양·긴 숫자(계좌·카드번호)는 여기서 먼저 막고 DB 함수가 다시 막는다.
+    const memberReason = input.memberReason ?? ''
+    if (!memberReason) {
+      return NextResponse.json({ error: REJECT_ERRORS.REFUND_REJECT_MEMBER_REASON_REQUIRED.error, code: 'REFUND_REJECT_MEMBER_REASON_REQUIRED' }, { status: 400 })
+    }
+    if (memberFacingTextPiiHits(memberReason, await readPiiAllowedContacts()).length > 0) {
+      return NextResponse.json({ error: REJECT_ERRORS.REFUND_REJECT_MEMBER_REASON_PII.error, code: 'REFUND_REJECT_MEMBER_REASON_PII' }, { status: 400 })
+    }
+    if (memberTextHasLongNumber(memberReason)) {
+      return NextResponse.json({ error: REJECT_ERRORS.REFUND_REJECT_MEMBER_REASON_LONG_NUMBER.error, code: 'REFUND_REJECT_MEMBER_REASON_LONG_NUMBER' }, { status: 400 })
+    }
+    let rejected: { userId: string | null; memberReason: string }
     try {
-      await rejectPointChargeRefund({
+      rejected = await rejectPointChargeRefund({
         requestId: input.requestId,
         adminId: adminCheck.user.id,
         adminNote: input.adminNote ?? null,
         providerNotCancelledConfirmed: input.providerNotCancelledConfirmed ?? false,
-      })
-      return NextResponse.json({
-        success: true,
-        message: '환불 요청을 거절하고 크레딧 동결을 해제했습니다.',
+        memberReason,
       })
     } catch (error) {
-      return NextResponse.json(
-        {
-          error:
-            error instanceof Error
-              ? error.message
-              : '환불 요청을 거절하지 못했습니다.',
-        },
-        { status: 409 }
-      )
+      const code = error instanceof RefundRpcError ? error.code : null
+      const known = code ? REJECT_ERRORS[code] : undefined
+      if (known) return NextResponse.json({ error: known.error, code }, { status: known.status })
+      // 검사 함수 오류·연결 오류: 거절 전체가 취소됐다(닫힌 쪽으로 실패)
+      return NextResponse.json({ error: '환불 요청을 거절하지 못했습니다. 잠시 후 다시 시도해 주세요.' }, { status: 503 })
     }
+    // 재요청은 REFUND_REQUEST_NOT_REJECTABLE 예외라 여기까지 오지 않는다(알림이 다시 가지 않음). 처리 메모는 알림에 넣지 않는다.
+    // 알림·실패 안내에는 DB 가 저장한(다듬은) 사유를 쓴다(회원이 받는 글 = 증빙). 회원 id 를 돌려받지 못하면 거절은 됐고 알림만 못 보낸 것.
+    const failed = rejected.userId
+      ? notificationFailed(await sendMemberNotification({
+        kind: 'chargeRefundRejected',
+        userId: rejected.userId,
+        values: { '{사유}': rejected.memberReason },
+      }))
+      : true
+    return NextResponse.json({
+      success: true,
+      message: '환불 요청을 거절하고 크레딧 동결을 해제했습니다.',
+      notificationFailed: failed,
+      // 알림이 실패하면 저장된 사유를 돌려준다 — 거절 창이 지우지 않고 보여 주어 고객지원으로 그대로 옮길 수 있게.
+      ...(failed ? { memberReason: rejected.memberReason } : {}),
+    })
   }
 
   try {
@@ -258,17 +284,15 @@ export async function PATCH(request: Request) {
       })
     }
 
-    if (result.claimed.user_id && result.claimed.refund_amount) {
-      await notifyRefundCompleted(
-        result.claimed.user_id,
-        result.claimed.refund_amount
-      )
-    }
+    const failed = result.claimed.user_id && result.claimed.refund_amount
+      ? await notifyRefundCompleted(result.claimed.user_id, result.claimed.refund_amount)
+      : false
 
     return NextResponse.json({
       success: true,
       newBalance: result.newBalance,
       message: '원 결제수단 환불과 크레딧 회수가 완료되었습니다.',
+      notificationFailed: failed,
     })
   } catch (error) {
     return NextResponse.json(

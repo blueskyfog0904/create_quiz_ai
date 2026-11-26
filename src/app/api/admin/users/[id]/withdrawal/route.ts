@@ -69,7 +69,8 @@ const BodySchema = z.discriminatedUnion('action', [
     action: z.literal('redact'),
     targetKind,
     targetId: uuid,
-    field: z.enum(['subject', 'message', 'admin_response', 'previous_response', 'reason', 'admin_note']),
+    // 16번 5-8: 충전 환불의 회원에게 보낸 거절 사유(member_reject_reason) — DB redact_member_text 의 허용 칸과 같다
+    field: z.enum(['subject', 'message', 'admin_response', 'previous_response', 'reason', 'admin_note', 'member_reject_reason']),
     targetText: z.string().min(1, '가릴 문구를 입력해 주세요.').max(2000),
     operationKey,
   }).strict(),

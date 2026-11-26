@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { ArrowDown, ArrowUp, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -52,6 +53,9 @@ interface BoardAdminProps {
   data: SiteBoardAdminData
   canRedact: boolean
   piiAllowed: { customerCenter: string; orderEmail: string }
+  // 16번: 공지 알림 보내기(대표만)와 글마다 보낸(회수하지 않은) 공지 알림 수(null = 확인 못 함). FAQ 화면은 넘기지 않는다.
+  canBroadcast?: boolean
+  linkedBroadcasts?: Record<string, number> | null
 }
 
 const BOARD_TITLES: Record<SiteBoardKind, string> = { notice: '공지사항', faq: '자주 묻는 질문' }
@@ -129,7 +133,7 @@ function orderGroups(board: SiteBoardKind, posts: SiteBoardAdminPost[], content:
   return groups.filter((group) => group.posts.length > 0)
 }
 
-export function BoardAdmin({ data, canRedact, piiAllowed }: BoardAdminProps) {
+export function BoardAdmin({ data, canRedact, piiAllowed, canBroadcast = false, linkedBroadcasts }: BoardAdminProps) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [editor, setEditor] = useState<EditorState | null>(null)
@@ -469,6 +473,12 @@ export function BoardAdmin({ data, canRedact, piiAllowed }: BoardAdminProps) {
                     </div>
                     <p>공지 팝업 링크로 쓸 수 있습니다. 약관 변경 고지 기간에는 팝업 링크를 바꾸지 마세요.</p>
                     {popupLinked(editor.post) ? <p className="font-semibold text-orange-800">지금 공지 팝업이 이 글로 연결됩니다.</p> : null}
+                    {/* 16번 7-3: 게시 중인 저장된 공지로 공지 알림 보내기(대표만) — '알림' 화면의 보내기 탭을 이 글로 채워 연다 */}
+                    {canBroadcast ? (
+                      <Button size="sm" variant="adminAction" asChild>
+                        <Link href={`/admin/notifications?tab=broadcast&postId=${editor.post.id}`}>이 공지로 알림 보내기</Link>
+                      </Button>
+                    ) : null}
                   </div>
                 ) : null}
 
@@ -516,8 +526,22 @@ export function BoardAdmin({ data, canRedact, piiAllowed }: BoardAdminProps) {
                       공지 팝업 연결을 확인하지 못했습니다. 팝업 링크가 이 글을 가리키는지 먼저 확인하세요.
                     </span>
                   ) : null}
-                  {/* 16번 연결점(7-3): 이 글로 보낸 공지 알림이 있으면 숨김·삭제 확인 창에 같은 경고를, 가림 확인 창에 "이 글로 보낸 공지 알림도
-                      '알림' 화면에서 [회수](개인정보, 가림 포함)하세요"를 더한다(같은 조회). 16번 계획 3절 '넣는 것'에 있다. 지금은 동작 없음. */}
+                  {/* 16번 연결점(7-3) — 16번 3절 '넣는 것': 이 글로 보낸 공지 알림이 있으면 숨김·삭제 확인 창에 경고, 가림 확인 창에 회수·가림 안내(같은 조회) */}
+                  {board === 'notice' && linkedBroadcasts !== undefined ? (
+                    linkedBroadcasts === null ? (
+                      <span className="block font-semibold text-amber-800">이 글로 보낸 공지 알림을 확인하지 못했습니다.</span>
+                    ) : (linkedBroadcasts[confirm.post.id] ?? 0) > 0 ? (
+                      confirm.kind === 'redact' ? (
+                        <span className="block font-semibold text-red-700">
+                          이 글로 보낸 공지 알림도 &apos;알림&apos; 화면에서 [회수](개인정보, 가림 포함)하세요.
+                        </span>
+                      ) : (
+                        <span className="block font-semibold text-red-700">
+                          이 글로 보낸 공지 알림이 {linkedBroadcasts[confirm.post.id]}건 있습니다. 숨기면 알림 링크가 없는 글 화면으로 갑니다. 필요하면 &apos;알림&apos; 화면에서 [회수]하세요.
+                        </span>
+                      )
+                    ) : null
+                  ) : null}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

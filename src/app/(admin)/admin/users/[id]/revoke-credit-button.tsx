@@ -71,10 +71,11 @@ export function RevokeCreditButton({ sourceId, remaining, sourceLabel }: RevokeC
       }
       if (result.alreadyRevoked) {
         toast.success('이미 처리된 회수입니다. 크레딧 내역을 확인해 주세요.')
-      } else if (result.notified) {
-        toast.success(`크레딧 ${parsedAmount.toLocaleString()}개를 회수했습니다. 회원에게 알림을 보냈습니다.`)
+      } else if (result.notificationFailed) {
+        // 16번 6절: 응답 칸은 notificationFailed 하나로 맞춘다(회수는 끝났고 회원 알림만 실패)
+        toast.warning(`크레딧 ${parsedAmount.toLocaleString()}개를 회수했지만 회원 알림을 보내지 못했습니다. 고객지원으로 직접 알려 주세요.`)
       } else {
-        toast.warning(`크레딧 ${parsedAmount.toLocaleString()}개를 회수했지만 회원 알림을 보내지 못했습니다. 필요하면 회원에게 따로 안내해 주세요.`)
+        toast.success(`크레딧 ${parsedAmount.toLocaleString()}개를 회수했습니다. 회원에게 알림을 보냈습니다.`)
       }
       setOpen(false)
       router.refresh()

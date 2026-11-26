@@ -85,6 +85,12 @@ export const ADMIN_AUDIT_ACTIONS = {
   site_board_post_reorder: '공지 고정·FAQ 순서 변경',
   site_board_post_redact: '공지·FAQ 글 가림',
   site_board_content_update: '공지·FAQ 안내 문구 수정',
+  // 16번 묶음(회원 알림 문구 + 공지 알림): 모두 DB 함수가 같은 거래에서 남긴다. 보내기·회수 기록에는 제목·내용 원문과 회원 id 가 없다
+  // (원문은 가릴 수 있는 기록 표). 문구 수정 기록은 회사 공개 문구라 바뀐 경로의 before·after 원문을 남긴다(계획 4절 예외).
+  // 회원에 관한 결제·환불 처리가 아니므로 paymentLinkedActions 에 넣지 않는다(13번 14절 규칙).
+  member_notification_texts_update: '회원 알림 문구 수정',
+  member_broadcast_send: '공지 알림 보내기',
+  member_broadcast_retract: '공지 알림 회수',
 } as const
 
 export type AdminAuditAction = keyof typeof ADMIN_AUDIT_ACTIONS

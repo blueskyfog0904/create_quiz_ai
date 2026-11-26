@@ -47,6 +47,8 @@ export const PAYMENT_ADMIN_ACTION_LABELS = {
   cancel_handled: '취소 처리 확인',
   manual_refund_completed: '환불 수동 완료',
   manual_review_refund_rejected: '수동 확인 환불 거부',
+  // 16번 5-8: 보통(대기 중) 충전 환불 거절도 처리 기록을 남긴다(note 는 고정 표지, 회원에게 보낸 사유는 refund_requests 에)
+  refund_rejected: '충전 환불 거절',
   alert_resolved: '결제 경보 해소',
   withdrawn_held_order_closed: '탈퇴 회원 보류 주문 닫기',
 } as const

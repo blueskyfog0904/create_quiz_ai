@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createAdminClient } from '@/lib/supabase/bypass'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { ADMIN_PERMISSION_LIMIT_MAX } from '@/lib/admin-permissions'
 import { CreditService } from '@/lib/credits'
+import { notificationFailed, sendMemberNotification } from '@/lib/member-notifications-server'
 
 // 잘못 지급한 크레딧 회수(계획 U3-7). 관리자 지급분의 지급 건 하나를 골라 그 건의 남은 수량 안에서만 회수한다.
 // 회수·한도(직원의 1회 회수 한도)·작업 기록은 회수 함수(DB)가 한 트랜잭션으로 한다(20261118150000).
@@ -72,19 +72,15 @@ export async function POST(request: Request) {
       operationKey: `admin_revoke:${idempotencyKey}`,
     })
 
-    // 회원 알림(서버 키). 같은 키의 재요청이면 다시 보내지 않는다. 알림이 실패해도 회수는 이미 끝났으므로 성공으로 답하되 화면에 알린다.
-    let notified = false
+    // 회원 알림(공용 함수, 문구는 DB — 끌 수 없는 종류). 같은 키의 재요청이면 다시 보내지 않는다.
+    // 알림이 실패해도 회수는 이미 끝났으므로 성공으로 답하되 화면에 알린다(6절 표: notificationFailed).
+    let failed = false
     if (!result.alreadyRevoked) {
-      const { error: notifyError } = await createAdminClient().from('notifications').insert({
-        user_id: result.userId,
-        type: 'info',
-        title: '크레딧이 회수되었습니다',
-        message: `잘못 지급된 크레딧 ${amount.toLocaleString()}개가 회수되었습니다. (사유: ${reason})`,
-        link: '/mypage/credits',
-        is_read: false,
-      })
-      if (notifyError) console.error('[admin-credit-revoke] 회원 알림 실패', { message: notifyError.message })
-      notified = !notifyError
+      failed = notificationFailed(await sendMemberNotification({
+        kind: 'creditRevoked',
+        userId: result.userId,
+        values: { '{수량}': amount, '{사유}': reason },
+      }))
     }
 
     return NextResponse.json({
@@ -92,7 +88,7 @@ export async function POST(request: Request) {
       newBalance: result.newBalance,
       sourceRemaining: result.sourceRemaining,
       alreadyRevoked: result.alreadyRevoked,
-      notified,
+      notificationFailed: failed,
     })
   } catch (error) {
     const rejection = error instanceof Error ? revokeRejection(error.message) : null

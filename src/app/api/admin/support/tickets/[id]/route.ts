@@ -5,7 +5,8 @@ import { createAdminClient } from '@/lib/supabase/bypass'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { adminRequestMeta } from '@/lib/admin-request-meta'
 import { getSupportPageContent } from '@/lib/support-page-content-server'
-import { fillSupportNotificationText, type SupportPageContent } from '@/lib/support-page-content'
+import type { SupportPageContent } from '@/lib/support-page-content'
+import { notificationFailed, sendMemberNotification } from '@/lib/member-notifications-server'
 import { findTemplateBlanks } from '@/lib/support-reply-template'
 
 export const dynamic = 'force-dynamic'
@@ -126,31 +127,14 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ success: true, ticket, isEdit: result.isEdit, replayed: true })
   }
 
-  // 수정 알림은 설정(notifyOnAnswerEdit)이 켜져 있을 때만 같은 type 으로 보낸다.
-  if (result.isEdit && !content.admin.notifyOnAnswerEdit) {
-    return NextResponse.json({ success: true, ticket, isEdit: true })
-  }
-
-  const title = result.isEdit ? content.member.answerEditedNotificationTitle : content.member.answerCreatedNotificationTitle
-  const message = result.isEdit ? content.member.answerEditedNotificationMessage : content.member.answerCreatedNotificationMessage
-  if (!title.trim() || !message.trim()) {
-    return NextResponse.json({ success: true, ticket, isEdit: result.isEdit, notificationFailed: true })
-  }
-
-  // 회원 알림은 서버 키로 넣는다(관리자 세션의 알림 INSERT 정책을 없앨 수 있게 — 20261117140000 3절).
-  const { error: notificationError } = await createAdminClient().from('notifications').insert({
-    user_id: ticket.user_id,
-    type: 'inquiry_reply',
-    title: fillSupportNotificationText(title, ticket.subject),
-    message: fillSupportNotificationText(message, ticket.subject),
-    link: '/mypage/support',
+  // 16번: 답변·답변 수정 알림 문구와 켜기(옛 notifyOnAnswerEdit)는 '알림' 화면(member_notification_texts)으로 옮겼다.
+  // 회원 알림은 공용 함수가 서버 키로 넣는다. 꺼 둔 종류는 실패가 아니다. 답변은 이미 저장됐다 — 알림만 실패하면 화면이 안내한다.
+  const sent = await sendMemberNotification({
+    kind: result.isEdit ? 'supportAnswerEdited' : 'supportAnswerCreated',
+    userId: ticket.user_id,
+    values: { '{문의제목}': ticket.subject },
   })
-
-  // 답변은 이미 저장됐다. 알림만 실패한 경우 화면이 안내하도록 표시한다.
-  if (notificationError) {
-    console.error('[SupportTicket] Reply notification failed', {
-      errorCode: notificationError.code,
-    })
+  if (notificationFailed(sent)) {
     return NextResponse.json({ success: true, ticket, isEdit: result.isEdit, notificationFailed: true })
   }
 

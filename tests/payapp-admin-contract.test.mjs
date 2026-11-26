@@ -19,7 +19,8 @@ test('manual refund completion requires a note, an external method and the actua
   assert.match(refundsRoute, /if \(!input\.adminNote \|\| !input\.externalMethod \|\| !input\.refundAmount \|\| input\.recoveredCredits === undefined\)/)
   assert.match(refundsRoute, /completeManualPointChargeRefund\(/)
   // 이미 완료된 요청을 다시 완료해도 알림을 또 보내지 않는다.
-  assert.match(refundsRoute, /if \(result\?\.user_id && !result\.already_completed\)/)
+  // 16번: 알림은 공용 함수로 보내고 실패 여부를 notificationFailed 로 돌려준다.
+  assert.match(refundsRoute, /const failed = result\?\.user_id && !result\.already_completed\s+\? await notifyRefundCompleted\(/)
 })
 
 test('rejecting a manual review refund passes the provider-not-cancelled confirmation', () => {

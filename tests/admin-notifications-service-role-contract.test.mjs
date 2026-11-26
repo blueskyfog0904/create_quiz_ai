@@ -23,15 +23,18 @@ function listSourceFiles(dir) {
 }
 
 test('문의 답변·크레딧 지급 알림은 서버 키(createAdminClient)로 넣는다', () => {
-  const ticket = read('src/app/api/admin/support/tickets/[id]/route.ts')
-  assert.match(ticket, /import \{ createAdminClient \} from '@\/lib\/supabase\/bypass'/)
-  assert.match(ticket, /await createAdminClient\(\)\.from\('notifications'\)\.insert\(/)
-  assert.doesNotMatch(ticket, /admin\.supabase\.from\('notifications'\)/)
+  // 16번: 회원 알림 INSERT 는 공용 함수(member-notifications-server.ts) 한 곳이 서버 키로 한다. route 는 종류만 넘긴다.
+  const shared = read('src/lib/member-notifications-server.ts')
+  assert.match(shared, /import \{ createAdminClient \} from '@\/lib\/supabase\/bypass'/)
+  assert.match(shared, /await createAdminClient\(\)\.from\('notifications'\)\.insert\(/)
+  assert.doesNotMatch(shared, /@\/lib\/supabase\/server|createClient\(\)/)
 
-  const credits = read('src/app/api/admin/users/credits/route.ts')
-  assert.match(credits, /import \{ createAdminClient \} from '@\/lib\/supabase\/bypass'/)
-  assert.match(credits, /await createAdminClient\(\)\.from\('notifications'\)\.insert\(/)
-  assert.doesNotMatch(credits, /@\/lib\/supabase\/server|createClient\(\)/)
+  for (const path of ['src/app/api/admin/support/tickets/[id]/route.ts', 'src/app/api/admin/users/credits/route.ts']) {
+    const route = read(path)
+    assert.match(route, /import \{ notificationFailed, sendMemberNotification \} from '@\/lib\/member-notifications-server'/, path)
+    assert.doesNotMatch(route, /from\('notifications'\)/, path)
+  }
+  assert.doesNotMatch(read('src/app/api/admin/users/credits/route.ts'), /@\/lib\/supabase\/server|createClient\(\)/)
 })
 
 test('세션 클라이언트로 notifications에 INSERT하는 코드가 없다', () => {
@@ -51,8 +54,9 @@ test('세션 클라이언트로 notifications에 INSERT하는 코드가 없다',
       }
     }
   }
-  // 정규식이 망가져 0건으로 조용히 통과하지 않게, 알려진 6곳(문의 답변·크레딧 지급·마켓 환불·결제 확인·충전 환불·페이앱 통보)을 다 찾았는지 본다.
-  assert.ok(found >= 6, `알림 INSERT ${found}곳`)
+  // 정규식이 망가져 0건으로 조용히 통과하지 않게, 알려진 곳을 찾았는지 본다.
+  // 16번: 12곳(문의 답변·크레딧 지급·회수·마켓 환불·예외 환불·결제 확인·충전 환불·페이앱 통보·대사)이 공용 함수 한 곳으로 모였다.
+  assert.equal(found, 1, `알림 INSERT ${found}곳`)
 })
 
 test('마이그레이션은 정책 삭제와 INSERT 권한 회수만 하고, 되돌리기는 같은 정의로 되살린다', () => {

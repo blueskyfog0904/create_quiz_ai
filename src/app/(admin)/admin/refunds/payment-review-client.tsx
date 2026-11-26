@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 import { useAdminAlerts } from '@/components/admin/admin-alert-context'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE } from '@/lib/member-notifications'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -169,6 +170,8 @@ export function PaymentReviewClient({
             }
 
             toast.success(data.message)
+            // 16번 6절: 결제 확인은 끝났고 회원 알림만 실패 — 고객지원으로 직접 알리도록 안내
+            if (data.notificationFailed) toast.warning(MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE)
             setSelectedOrder(null)
             router.refresh()
             adminAlerts?.refresh()

@@ -183,6 +183,9 @@ test('a paid but unfulfilled order is retried and escalated after the limit', as
   })
   assert.equal(await fulfilled.reconcile(), 'payment_fulfilled')
   assert.equal(fulfilled.calls.followUps[0].userNotification.userId, USER_UUID)
+  // 16번: 글 대신 종류만 넘긴다(문구는 공용 함수가 DB 에서 읽음). 주문 id 는 실패 경보용.
+  assert.equal(fulfilled.calls.followUps[0].userNotification.kind, 'chargeCompleted')
+  assert.equal('title' in fulfilled.calls.followUps[0].userNotification, false)
 
   const failed = createWorld({
     order: payappOrder({ status: 'fulfillment_pending' }),

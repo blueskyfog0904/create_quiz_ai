@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { adminGuardMocks, load } from './helpers/market-images-harness.mjs'
+import { memberNotificationsServer } from './helpers/member-notifications-harness.mjs'
 
 // 잘못 지급한 크레딧 회수(계획 U3-7, 20261118150000). 관리자 지급분의 지급 건 하나에서, 남은 수량 안에서만.
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
@@ -58,7 +59,8 @@ function loadRevokeRoute(session, revoke) {
   const route = load('src/app/api/admin/users/credits/revoke/route.ts', {
     'next/server': json,
     ...adminGuardMocks(session),
-    '@/lib/supabase/bypass': { createAdminClient: () => ({ from: () => ({ insert: async (row) => { calls.notifications.push(row); return { error: null } } }) }) },
+    // 16번: 회원 알림은 공용 함수(서버 키, 문구는 DB 첫 값)
+    '@/lib/member-notifications-server': memberNotificationsServer({ insert: async (row) => { calls.notifications.push(row); return { error: null } } }),
     '@/lib/credits': { CreditService: { revokeCreditsAsAdmin: async (args) => { calls.revokes.push(args); return revoke(args) } } },
   })
   const post = (payload) => route.POST({ json: async () => payload })
@@ -72,10 +74,10 @@ test('회수 route: credits.revoke 권한으로, 행위자·요청 키를 넘기
   const owner = loadRevokeRoute({}, ok)
   const result = await owner.post(payload())
   assert.equal(result.status, 200)
-  assert.deepEqual(result.body, { success: true, newBalance: 700, sourceRemaining: 700, alreadyRevoked: false, notified: true })
+  assert.deepEqual(result.body, { success: true, newBalance: 700, sourceRemaining: 700, alreadyRevoked: false, notificationFailed: false })
   assert.deepEqual(owner.calls.revokes, [{ actorId: '00000000-0000-4000-8000-000000000001', sourceId: SOURCE_ID, credits: 300, reason: '잘못 지급', operationKey: `admin_revoke:${KEY}` }])
   assert.equal(owner.calls.notifications.length, 1)
-  assert.equal(result.body.notified, true)
+  assert.equal(result.body.notificationFailed, false)
   assert.equal(owner.calls.notifications[0].user_id, MEMBER_ID)
   assert.match(owner.calls.notifications[0].message, /300개가 회수되었습니다\. \(사유: 잘못 지급\)/)
 
@@ -143,5 +145,7 @@ test('회원 상세: 회수 권한이 있고 본인이 아닐 때, 관리자 지
   // 실패 뒤·창을 닫을 때 다시 읽어 옛 수량으로 두 번 회수하지 않게, 버튼은 지급 건 이름으로 구분
   assert.equal(button.match(/router\.refresh\(\)/g).length, 3)
   assert.match(button, /aria-label=\{`\$\{sourceLabel\} 회수`\}/)
-  assert.match(button, /result\.notified/)
+  // 16번 6절: 응답 칸은 notificationFailed 하나(회수 버튼도 같은 칸을 읽는다)
+  assert.match(button, /result\.notificationFailed/)
+  assert.doesNotMatch(button, /result\.notified\b/)
 })

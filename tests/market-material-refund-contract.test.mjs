@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { load } from './helpers/market-images-harness.mjs'
+import { memberNotificationRules, seedMemberNotificationTexts } from './helpers/member-notifications-harness.mjs'
 
 // 8번 묶음(docs/plan-bundle8-material-refund.md): 자료 환불 30일·받지 않은 자료 환불·예외 환불·대표 정산
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
@@ -187,16 +188,19 @@ test('같은 분류 서브상품 중복 저장은 409 안내', () => {
 })
 
 test('승인 알림 문구: 돌려준 크레딧, 다시 지급한 몫, 돌려주지 못한 몫을 나눠 알린다(승인·예외 환불 공용)', () => {
-  assert.equal(rules.buildMarketRefundApprovedMessage({ requested_refund_credits: 300, approved_refund_credits: 300, allocated_items: [] }), '300 크레딧이 돌아왔습니다.')
-  const mixed = rules.buildMarketRefundApprovedMessage({
+  // 16번: 조립 규칙은 코드(buildMarketRefundMessage), 문장 4개는 DB(member_notification_texts.marketRefundMessage — 첫 값은 옛 문구 그대로)
+  const { buildMarketRefundMessage } = memberNotificationRules
+  const texts = seedMemberNotificationTexts().marketRefundMessage
+  assert.equal(buildMarketRefundMessage({ requested_refund_credits: 300, approved_refund_credits: 300, allocated_items: [] }, texts), '300 크레딧이 돌아왔습니다.')
+  const mixed = buildMarketRefundMessage({
     requested_refund_credits: 4500,
     approved_refund_credits: 4000,
     allocated_items: [{ reissued: 1500 }, { reissued: 0 }],
-  })
+  }, texts)
   assert.match(mixed, /^4,000 크레딧이 돌아왔습니다\. 그중 1,500 크레딧은 새 유효기간으로 다시 지급되었습니다/)
   assert.match(mixed, /나머지 500 크레딧은 결제에 쓴 크레딧의 사정/)
-  assert.equal(rules.buildMarketRefundApprovedMessage({ approved_refund_credits: null }), '크레딧 복구 내역은 크레딧 관리에서 확인해 주세요.')
-  for (const path of ['src/app/api/admin/market/refunds/[id]/route.ts', 'src/app/api/admin/market/orders/[id]/exception-refund/route.ts']) {
-    assert.match(read(path), /buildMarketRefundApprovedMessage\(/, path)
+  assert.equal(buildMarketRefundMessage({ approved_refund_credits: null }, texts), '크레딧 복구 내역은 크레딧 관리에서 확인해 주세요.')
+  for (const [path, kind] of [['src/app/api/admin/market/refunds/[id]/route.ts', 'marketRefundApproved'], ['src/app/api/admin/market/orders/[id]/exception-refund/route.ts', 'marketRefundException']]) {
+    assert.match(read(path), new RegExp(`sendMemberNotification\\(\\{ kind: '${kind}', userId: [a-zA-Z.]+user_id, marketRefund: `), path)
   }
 })

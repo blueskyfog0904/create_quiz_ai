@@ -139,7 +139,6 @@ export async function saveSupportPageContentAction(input: SupportPageContentInpu
   const changedKeys = [
     ...SUPPORT_PAGE_MEMBER_KEYS.filter((key) => checked.content.member[key] !== current.content.member[key]).map((key) => `member.${key}`),
     ...(checked.content.admin.answerEditReasonGuide !== current.content.admin.answerEditReasonGuide ? ['admin.answerEditReasonGuide'] : []),
-    ...(checked.content.admin.notifyOnAnswerEdit !== current.content.admin.notifyOnAnswerEdit ? ['admin.notifyOnAnswerEdit'] : []),
   ]
   await recordAdminAudit({
     actorId: access.userId,

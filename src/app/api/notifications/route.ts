@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getMemberNotificationTexts } from '@/lib/member-notifications-server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -25,7 +26,10 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error
 
-    return NextResponse.json({ notifications })
+    // 16번: 공지 알림 머리표(DB 문구)를 함께 싣는다. 읽지 못하면 null(머리표 없이 보임).
+    const memberLabel = (await getMemberNotificationTexts())?.broadcast.memberLabel ?? null
+
+    return NextResponse.json({ notifications, memberLabel })
 
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

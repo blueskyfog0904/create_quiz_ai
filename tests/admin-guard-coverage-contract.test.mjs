@@ -3,6 +3,7 @@ import test from 'node:test'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { NextResponse, adminGuardMocks, createFakeSessionClient, load } from './helpers/market-images-harness.mjs'
+import { memberNotificationsServer } from './helpers/member-notifications-harness.mjs'
 
 // 계획 U3-3: 관리자 화면·API·서버 액션이 모두 계정별 권한 가드를 부르는지 전수로 본다.
 // 새 페이지·route·액션을 만들면 아래 표에 요구 권한을 적어야 하고, 적지 않거나 가드를 부르지 않으면 실패한다.
@@ -57,6 +58,8 @@ const PAGE_REQUIREMENTS = {
   // 14번: 공지사항·자주 묻는 질문(같은 부품·같은 서버 액션)
   'notices/page.tsx': 'content.manage',
   'faq/page.tsx': 'content.manage',
+  // 16번: 회원 알림 문구·공지 알림 보내기(대표만 — Q1)
+  'notifications/page.tsx': OWNER,
   'orders/page.tsx': 'orders.view',
   'users/page.tsx': 'members.view',
   'users/[id]/page.tsx': 'members.view',
@@ -500,6 +503,13 @@ const ACTION_REQUIREMENTS = {
     redactSiteBoardPostAction: 'owner',
     saveSiteBoardContentAction: 'content.manage',
   },
+  // 16번: 알림 문구 저장·공지 알림 미리보기·보내기·회수는 대표만(DB 함수도 대표인지 다시 본다)
+  'src/app/(admin)/admin/notifications/actions.ts': {
+    saveMemberNotificationTextsAction: 'owner',
+    previewMemberBroadcastAction: 'owner',
+    sendMemberBroadcastAction: 'owner',
+    retractMemberBroadcastAction: 'owner',
+  },
   'src/app/(admin)/admin/footer/purchase-policy-actions.ts': {
     getMarketPurchasePolicyAdminData: 'site.manage',
     saveMarketPurchasePolicyAction: 'site.manage',
@@ -677,7 +687,7 @@ function loadCreditGrantRoute(session) {
   const route = load('src/app/api/admin/users/credits/route.ts', {
     'next/server': json,
     ...adminGuardMocks(session),
-    '@/lib/supabase/bypass': { createAdminClient: () => ({ from: () => ({ insert: async () => ({ error: null }) }) }) },
+    '@/lib/member-notifications-server': memberNotificationsServer(),
     '@/lib/credits': { CreditService: { grantCreditsAsAdmin: async (...args) => { grants.push(args); return { newBalance: 1, alreadyGranted: false } } } },
     '@/lib/credit-source-display': { resolveAdminGrantSourceCategory: () => 'admin_other' },
     '@/lib/credit-balance': { getCreditBalanceSnapshot: async () => ({}), buildCreditBalanceResponseFields: () => ({}) },
@@ -773,6 +783,7 @@ function loadMarketRefundRoute(session, { requested = 5000, lookupError = null, 
         }),
       }),
     },
+    '@/lib/member-notifications-server': memberNotificationsServer(),
     '@/lib/market-refunds': {
       MarketRefundConflictError: class extends Error {},
       MarketRefundShortfallError: class extends Error {},

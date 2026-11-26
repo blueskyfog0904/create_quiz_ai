@@ -136,6 +136,10 @@ const knownRefundRpcMessages: Record<string, string> = {
     REFUND_REQUEST_REVALIDATION_FAILED: '환불 조건이 변경되어 다시 확인해야 합니다.',
     REFUND_REQUEST_NOT_REJECTABLE: '현재 거절할 수 없는 환불 요청입니다.',
     REFUND_REJECT_CONFIRMATION_REQUIRED: '수동 확인 환불을 거절하려면 결제사 미취소 확인과 처리 메모가 모두 필요합니다.',
+    REFUND_REJECT_MEMBER_REASON_REQUIRED: '회원에게 보낼 거절 사유를 300자 이내로 적어 주세요.',
+    REFUND_REJECT_MEMBER_REASON_PII: '거절 사유에 개인정보로 보이는 글이 있습니다.',
+    REFUND_REJECT_MEMBER_REASON_LONG_NUMBER: '거절 사유에 계좌번호·카드번호 같은 긴 숫자는 적지 마세요.',
+    REFUND_REJECT_ACTOR_REQUIRED: '처리하는 관리자를 확인하지 못했습니다.',
     REFUND_REQUEST_NOT_FOUND: '환불 요청을 찾을 수 없습니다.',
     REFUND_REQUIRES_MANUAL_COMPLETION: '부분취소된 결제는 수동 환불 완료로만 처리할 수 있습니다.',
     MANUAL_REFUND_MARKER_PENDING: '처리되지 않은 부분취소가 있어 잠시 후 다시 완료해야 합니다.',
@@ -284,18 +288,27 @@ export async function failPointChargeRefund(input: {
   })
 }
 
+// 16번 5-8: 새 서명(5인자, DEFAULT 없음)만 부른다 — 옛 4인자와 겹치지 않는다. 회원에게 보낼 거절 사유는 같은 거래에서
+// refund_requests.member_reject_reason 에 저장되고(빈 사유·개인정보·긴 숫자는 DB 도 거절), 받는 회원 id 와 저장한(다듬은) 사유를 돌려받는다.
+// 거절은 함수가 끝나면 이미 커밋된 것이다 — 돌려받은 값이 비어도 예외로 바꾸지 않는다(route 가 '거절됨, 알림 못 보냄'으로 안내).
 export async function rejectPointChargeRefund(input: {
   requestId: string
   adminId: string
   adminNote: string | null
   providerNotCancelledConfirmed: boolean
-}) {
-  await callRefundRpc<null>('reject_point_charge_refund', {
+  memberReason: string
+}): Promise<{ userId: string | null; memberReason: string }> {
+  const result = await callRefundRpc<{ user_id?: string; member_reject_reason?: string } | null>('reject_point_charge_refund', {
     p_request_id: input.requestId,
     p_admin_id: input.adminId,
     p_admin_note: input.adminNote ?? '',
     p_provider_not_cancelled_confirmed: input.providerNotCancelledConfirmed,
+    p_member_reason: input.memberReason,
   })
+  return {
+    userId: typeof result?.user_id === 'string' ? result.user_id : null,
+    memberReason: typeof result?.member_reject_reason === 'string' ? result.member_reject_reason : input.memberReason,
+  }
 }
 
 export function quarantineExternalProviderCancellation(input: {

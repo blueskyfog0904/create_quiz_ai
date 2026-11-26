@@ -304,7 +304,8 @@ test('하단·고객지원 링크: 정책 nav 밖 별도 nav(이름은 DB), 게�
 // ── 관리자 ───────────────────────────────────────────────────────────────────────────────────────
 test('관리자: 사이드바 회원·고객 묶음에 두 화면(content.manage), 가림 액션은 대표, 팝업 연결 판정은 linkPathOf', () => {
   const sidebar = read('src/lib/admin-sidebar.ts')
-  assert.match(sidebar, /ADMIN_MEMBER_MENU_HREFS = \['\/admin\/users', '\/admin\/support', '\/admin\/notices', '\/admin\/faq'\]/)
+  // 16번이 같은 묶음 끝에 '알림'(/admin/notifications)을 더했다
+  assert.match(sidebar, /ADMIN_MEMBER_MENU_HREFS = \['\/admin\/users', '\/admin\/support', '\/admin\/notices', '\/admin\/faq', '\/admin\/notifications'\]/)
   assert.match(sidebar, /'\/admin\/notices': 'content\.manage',\n {2}'\/admin\/faq': 'content\.manage',/)
   assert.match(read('src/app/(admin)/admin/notices/actions.ts'), /export async function redactSiteBoardPostAction[^\n]*\n {2}await requireAdmin\(\)\n {2}const access = await assertAdminActionPermission\('owner'\)/)
   assert.match(read('src/lib/site-board.ts'), /const path = linkPathOf\(linkUrl\)/)

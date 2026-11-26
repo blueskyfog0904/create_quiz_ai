@@ -870,11 +870,15 @@ test('대표 API add_event market_cash_refund 는 정산 식별값(settlementKey
 })
 
 test('작은 지적: 결제 조치 이름표·보류 주문 후보·충전 환불 목록 탈퇴 표시·고아 파일·레거시 문구', () => {
-  // 결제 조치 이름표가 DB CHECK 값과 같다
+  // 결제 조치 이름표가 DB CHECK 값과 같다(10번 목록 + 16번이 넓힌 refund_rejected — 마지막 CHECK 는 16번 마이그레이션)
   const check = migration.match(/CHECK \(\(action = ANY \(ARRAY\[([^\]]+)\]\)\)\)/)[1]
   const dbActions = [...check.matchAll(/'([a-z_]+)'::text/g)].map((match) => match[1]).sort()
+  const latest = read('supabase/migrations/20261218100000_bundle16_member_notifications.sql')
+    .match(/ADD CONSTRAINT payment_admin_actions_action_check\s+CHECK \(action = ANY \(ARRAY\[([^\]]+)\]\)\)/)[1]
+  const latestActions = [...latest.matchAll(/'([a-z_]+)'::text/g)].map((match) => match[1]).sort()
+  assert.deepEqual(latestActions, [...dbActions, 'refund_rejected'].sort())
   const { PAYMENT_ADMIN_ACTION_LABELS } = load('src/lib/admin-orders.ts')
-  assert.deepEqual(Object.keys(PAYMENT_ADMIN_ACTION_LABELS).sort(), dbActions)
+  assert.deepEqual(Object.keys(PAYMENT_ADMIN_ACTION_LABELS).sort(), latestActions)
   // 보류 주문 후보: 경보가 풀려도 보류 표시·탈퇴 뒤 취소로 남고, 닫은 주문(조치 기록)은 뺀다
   assert.match(sources.adminDetail, /order\.failure_code === WITHDRAWN_HELD_FAILURE_CODE/)
   assert.match(sources.adminDetail, /new Date\(order\.canceled_at\)\.getTime\(\) >= withdrawnTime/)
@@ -1023,7 +1027,8 @@ test('대시보드·문의·환불·주문 화면의 service_role 읽기는 탈�
   assert.match(supportPage, /<WithdrawnTicketsPanel/)
   assert.match(read('src/app/(admin)/admin/support/withdrawn-tickets-panel.tsx'), /action: 'read_ticket', ticketId: target\.id, reason: reason\.trim\(\)/)
   const refundsPage = read('src/app/(admin)/admin/refunds/page.tsx')
-  assert.match(refundsPage, /markWithdrawnRows\(requests \?\? \[\], \(row\) => row\.user_id, \(row\) => \(\{ \.\.\.row, reason: null, admin_note: null \}\)\)/)
+  // 16번: 회원에게 보낸 거절 사유(member_reject_reason)도 가린다
+  assert.match(refundsPage, /markWithdrawnRows\(requests \?\? \[\], \(row\) => row\.user_id, \(row\) => \(\{ \.\.\.row, reason: null, admin_note: null, member_reject_reason: null \}\)\)/)
   assert.match(refundsPage, /readWithdrawnMarketRefundRequests\(\)/)
   for (const path of ['src/app/api/admin/refunds/route.ts', 'src/app/api/admin/market/refunds/route.ts']) {
     assert.match(read(path), /reason: null, admin_note: null/, path)

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAdminAlerts } from '@/components/admin/admin-alert-context'
 import { toast } from 'sonner'
+import { MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE } from '@/lib/member-notifications'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -159,8 +160,14 @@ export function MarketRefundsClient({ requests, isOwner }: MarketRefundsClientPr
         }
         return
       }
-      if (!response.ok || !result?.success) throw new Error(result?.error ?? '대표 정산에 실패했습니다.')
+      if (!response.ok || !result?.success) {
+      // 16번 6절: 판정이 바뀌어 요청이 자동 거절됐고 그 회원 알림이 실패했으면 함께 안내한다
+      if (result?.notificationFailed) toast.warning(MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE)
+        throw new Error(result?.error ?? '대표 정산에 실패했습니다.')
+      }
       toast.success(result.message)
+      // 16번 6절: 처리는 끝났고 회원 알림만 실패 — 고객지원으로 직접 알리도록 안내
+      if (result.notificationFailed) toast.warning(MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE)
       setOwnerTarget(null)
       router.refresh()
       alerts?.refresh()
@@ -206,11 +213,15 @@ export function MarketRefundsClient({ requests, isOwner }: MarketRefundsClientPr
         return
       }
       if (!response.ok || !result?.success) {
+      // 16번 6절: 판정이 바뀌어 요청이 자동 거절됐고 그 회원 알림이 실패했으면 함께 안내한다
+      if (result?.notificationFailed) toast.warning(MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE)
         throw new Error(result?.error ?? '문제마켓 환불 처리에 실패했습니다.')
       }
 
       toast.success(result.message)
       if (result.auditWarning) toast.warning(result.auditWarning)
+      // 16번 6절: 처리는 끝났고 회원 알림만 실패 — 고객지원으로 직접 알리도록 안내
+      if (result.notificationFailed) toast.warning(MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE)
       setPending(null)
       router.refresh()
       alerts?.refresh()

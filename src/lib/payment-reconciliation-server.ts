@@ -153,12 +153,7 @@ async function reconcileCancellation(input: {
     if (!finalized.already_completed) {
       await runFollowUps(createPaymentAdminClient(), {
         alerts: [],
-        userNotification: {
-          userId: refundRequest.user_id,
-          title: '환불 완료',
-          message: '결제 취소가 확인되어 환불이 완료되었습니다.',
-          link: '/mypage/payments',
-        },
+        userNotification: { kind: 'chargeRefundProviderFinalized', userId: refundRequest.user_id, paymentOrderId: input.order.id },
       })
     }
     return 'refund_finalized' as const
@@ -584,12 +579,7 @@ async function retryPayAppFulfillment(order: PaymentOrderRow) {
     case 'fulfilled':
       await runFollowUps(createPaymentAdminClient(), {
         alerts: [],
-        userNotification: {
-          userId: order.user_id,
-          title: '크레딧 충전 완료',
-          message: '결제가 확인되어 크레딧이 충전되었습니다.',
-          link: '/mypage/credits',
-        },
+        userNotification: { kind: 'chargeCompleted', userId: order.user_id, paymentOrderId: order.id },
       })
       return 'payment_fulfilled' as const
     case 'already_fulfilled':

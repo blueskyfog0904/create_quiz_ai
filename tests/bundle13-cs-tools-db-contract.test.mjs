@@ -118,9 +118,12 @@ test('M1: 새 표 2개의 REVOKE·RLS·가드, 템플릿 SELECT 정책, 첫 값'
 test('M1: 설정 행 필수 키가 코드 SUPPORT_PAGE_REQUIRED_KEYS 와 같고 보관 기간은 2', () => {
   const json = JSON.parse(M1.split('$json_support_page_content$')[1])
   assert.equal(json.revision, 1)
-  assert.deepEqual(Object.keys(json.member), [...SUPPORT_PAGE_MEMBER_KEYS])
+  // 16번이 답변 알림 키 4개를 '알림' 화면으로 옮겼다(M1 첫 값·VERIFY 에는 남아 있고, 코드는 읽지 않는다 — 정리 스크립트가 지운다).
+  const moved = ['answerCreatedNotificationTitle', 'answerCreatedNotificationMessage', 'answerEditedNotificationTitle', 'answerEditedNotificationMessage']
+  assert.deepEqual(Object.keys(json.member).filter((key) => !moved.includes(key)), [...SUPPORT_PAGE_MEMBER_KEYS])
   const verifyRequired = [...M1.match(/v_required text\[\] := ARRAY\[([\s\S]*?)\];/)[1].matchAll(/'([A-Za-z]+)'/g)].map((m) => m[1])
-  assert.deepEqual(verifyRequired, [...SUPPORT_PAGE_REQUIRED_KEYS])
+  assert.deepEqual(verifyRequired.filter((key) => !moved.includes(key)), [...SUPPORT_PAGE_REQUIRED_KEYS])
+  for (const key of moved) assert.ok(verifyRequired.includes(key), key)
   for (const key of SUPPORT_PAGE_REQUIRED_KEYS) assert.ok(json.member[key].trim(), `${key} 첫 값`)
   assert.deepEqual(json.admin, {
     templateBlankMarker: '○○',

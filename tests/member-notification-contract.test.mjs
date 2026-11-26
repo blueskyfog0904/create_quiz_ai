@@ -4,6 +4,7 @@ import { createRequire } from 'node:module'
 import test from 'node:test'
 import ts from 'typescript'
 import { adminGuardMocks } from './helpers/market-images-harness.mjs'
+import { memberNotificationsServer } from './helpers/member-notifications-harness.mjs'
 
 // 계획 W3-8b(마켓 환불 처리 알림), U1-5(사용자 알림 보강)
 const require = createRequire(import.meta.url)
@@ -47,16 +48,19 @@ function loadMarketRefundRoute({ approve, reject, insert }) {
     '@/lib/supabase/server': adminSession(() => adminProfile),
     '@/lib/supabase/bypass': {
       createAdminClient: () => ({
-        from: (table) => ({
+        from: () => ({
           // 처리 전 본인 요청 확인(U3-4 검증 반영)이 읽는 요청. 다른 회원의 요청으로 둔다.
           select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { user_id: 'member-1', requested_refund_credits: 500 }, error: null }) }) }),
-          insert: async (row) => {
-            order.push({ table, row })
-            return insert ? insert() : { error: null }
-          },
         }),
       }),
     },
+    // 16번: 회원 알림은 공용 함수가 넣는다(문구는 DB 첫 값으로 그림). 그린 행을 notifications 기록으로 본다.
+    '@/lib/member-notifications-server': memberNotificationsServer({
+      insert: async (row) => {
+        order.push({ table: 'notifications', row })
+        return insert ? insert() : { error: null }
+      },
+    }),
     '@/lib/market-refunds': {
       MarketRefundConflictError,
       MarketRefundShortfallError,
@@ -129,7 +133,7 @@ test('market refund rejection notifies the member with the required reject reaso
   assert.match(order[1].row.message, /사유: 받은 자료로 확인됨/)
 })
 
-test('a failed or throwing notification never changes the refund response and logs only an error code', async () => {
+test('a failed or throwing notification never changes the refund response and reports notificationFailed without member ids', async () => {
   const failures = [
     () => ({ error: { code: '42501', message: 'member-1 denied' } }),
     () => {
@@ -144,7 +148,8 @@ test('a failed or throwing notification never changes the refund response and lo
     const { result, logged } = await silenced(() => patch({ action: 'approve' }))
     assert.equal(result.status, 200)
     assert.equal(result.body.success, true)
-    assert.equal(logged.length, 1)
+    // 16번 6절: 실패는 같은 칸(notificationFailed)으로 화면에 알린다. 로그에는 회원 id 가 없다(공용 함수가 오류 코드만 남김).
+    assert.equal(result.body.notificationFailed, true)
     assert.doesNotMatch(JSON.stringify(logged), /member-1/)
   }
 })
@@ -169,8 +174,10 @@ test('shortfall, conflict and other errors send no notification', async () => {
 })
 
 test('the admin credit grant notification links to the credits page', () => {
+  // 16번: 지급 route 는 공용 함수에 종류만 넘기고, 링크는 종류 규칙(코드)에 있다.
   const route = read('../src/app/api/admin/users/credits/route.ts')
-  assert.match(route, /from\('notifications'\)\.insert\(\{[\s\S]{0,400}?link: '\/mypage\/credits',/)
+  assert.match(route, /sendMemberNotification\(\{\s+kind: 'creditGranted',/)
+  assert.match(read('../src/lib/member-notifications.ts'), /creditGranted: \{[\s\S]{0,300}?link: '\/mypage\/credits',/)
   assert.ok(existsSync(new URL('../src/app/(solvook)/mypage/credits/page.tsx', import.meta.url)))
 })
 
@@ -186,12 +193,10 @@ function loadTicketRoute(notificationError) {
           assert.equal(name, 'save_support_ticket_answer')
           return { data: { ticket: { id: 'ticket-1', user_id: 'member-1', subject: '문의' }, isEdit: false, historyId: null, replayed: false }, error: null }
         },
-        from: (table) => {
-          assert.equal(table, 'notifications')
-          return { insert: async () => ({ error: notificationError }) }
-        },
       }),
     },
+    // 16번: 회원 알림은 공용 함수(서버 키)로 넣는다. 세션으로 알림을 넣는 길은 없다.
+    '@/lib/member-notifications-server': memberNotificationsServer({ insert: async () => ({ error: notificationError }) }),
     '@/lib/admin-request-meta': loadModule('../src/lib/admin-request-meta.ts', {}),
     '@/lib/support-page-content-server': {
       getSupportPageContent: async () => ({

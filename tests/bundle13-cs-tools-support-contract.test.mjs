@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { existsSync, readFileSync } from 'node:fs'
 import { NextResponse, adminGuardMocks, load } from './helpers/market-images-harness.mjs'
+import { memberNotificationsServer, seedMemberNotificationTexts } from './helpers/member-notifications-harness.mjs'
 
 // 13번 묶음(docs/plan-bundle13-cs-tools.md 12-1) 가운데 문의 쪽 코드 계약: 답변 저장·수정(5절), 템플릿(6절), 카테고리 복구(7절),
 // 문의 화면의 연락처 붙이기·열람 기록(8-2), 고객지원 문구 DB화(9절), 10번 가림 코드 갱신(5-1).
@@ -17,6 +18,8 @@ const requestMeta = load('src/lib/admin-request-meta.ts')
 const TICKET = '22222222-2222-4222-8222-222222222222'
 const MEMBER = '11111111-1111-4111-8111-111111111111'
 const EMPTY_SHA = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+// 16번 묶음이 '알림' 화면(member_notification_texts)으로 옮긴 13번 키(16번 계획 5-2 대응표). 코드는 더 읽지 않는다.
+const MOVED_TO_BUNDLE16 = ['answerCreatedNotificationTitle', 'answerCreatedNotificationMessage', 'answerEditedNotificationTitle', 'answerEditedNotificationMessage']
 
 // 계획 10-1 표에서 키 목록(표 순서)과 '선택' 키(2번째 칸의 `키`)를 읽는다.
 function planKeyTable() {
@@ -49,25 +52,28 @@ function makeContent(overrides = {}) {
 }
 
 // ─── 9절: 문구 키 ────────────────────────────────────────────────────────────────────────────────
-test('필수 키 목록(SUPPORT_PAGE_REQUIRED_KEYS)·전체 키가 계획 10-1 표와 같다(순서 포함)', () => {
+test('필수 키 목록(SUPPORT_PAGE_REQUIRED_KEYS)·전체 키가 계획 10-1 표와 같다(순서 포함, 16번이 옮긴 답변 알림 키 4개 빼고)', () => {
   const table = planKeyTable()
   assert.equal(table.all.length, 46)
-  assert.deepEqual([...content.SUPPORT_PAGE_MEMBER_KEYS], table.all)
-  assert.deepEqual([...content.SUPPORT_PAGE_REQUIRED_KEYS], table.required)
-  assert.equal(content.SUPPORT_PAGE_REQUIRED_KEYS.length, 37)
+  const kept = table.all.filter((key) => !MOVED_TO_BUNDLE16.includes(key))
+  assert.deepEqual([...content.SUPPORT_PAGE_MEMBER_KEYS], kept)
+  assert.deepEqual([...content.SUPPORT_PAGE_REQUIRED_KEYS], table.required.filter((key) => !MOVED_TO_BUNDLE16.includes(key)))
+  assert.equal(content.SUPPORT_PAGE_REQUIRED_KEYS.length, 33)
   // 관리자 칸 이름이 모든 키에 있다
-  assert.deepEqual(Object.keys(content.SUPPORT_PAGE_MEMBER_KEY_LABELS), table.all)
+  assert.deepEqual(Object.keys(content.SUPPORT_PAGE_MEMBER_KEY_LABELS), kept)
 })
 
 test('M1 첫 값(support_page_content)은 해석되고, 키가 코드 목록과 같다', { skip: !m1 && 'M1 파일 없음' }, () => {
   const seed = seedPageContent()
   assert.ok(seed, 'M1 에 $json_support_page_content$ 값이 있다')
-  assert.deepEqual(Object.keys(seed.member), [...content.SUPPORT_PAGE_MEMBER_KEYS])
+  // 13번 첫 값에는 답변 알림 키가 남아 있다(16번 마이그레이션이 복사한 뒤 정리 스크립트가 지운다). 코드는 그 키를 읽지 않는다.
+  assert.deepEqual(Object.keys(seed.member).filter((key) => !MOVED_TO_BUNDLE16.includes(key)), [...content.SUPPORT_PAGE_MEMBER_KEYS])
   const parsed = content.parseSupportPageContent(seed)
   assert.ok(parsed, '첫 값이 해석된다(필수 키가 모두 채워짐)')
   assert.equal(parsed.admin.templateBlankMarker, '○○')
   assert.equal(parsed.admin.accessLogRetentionYears, 2)
-  assert.equal(parsed.admin.notifyOnAnswerEdit, true)
+  assert.equal('notifyOnAnswerEdit' in parsed.admin, false)
+  for (const key of MOVED_TO_BUNDLE16) assert.equal(key in parsed.member, false, key)
   // 알림 문구의 자리표시는 {문의제목} 하나뿐
   for (const key of ['answerCreatedNotificationMessage', 'answerEditedNotificationMessage']) {
     assert.deepEqual([...seed.member[key].matchAll(/\{[^{}]*\}/g)].map((m) => m[0]), ['{문의제목}'], key)
@@ -86,7 +92,8 @@ test('문구 해석: 필수 키가 없거나 비면 null(오류 화면), 선택 
   const noOptional = makeContent()
   delete noOptional.member.formNotice
   assert.equal(content.parseSupportPageContent(noOptional).member.formNotice, '')
-  assert.equal(content.parseSupportPageContent(makeContent({ admin: { notifyOnAnswerEdit: 'yes' } })), null)
+  // 16번: notifyOnAnswerEdit 는 더 읽지 않는다(정리 전 값이 남아 있어도 해석에 영향 없음)
+  assert.ok(content.parseSupportPageContent(makeContent({ admin: { notifyOnAnswerEdit: 'yes' } })))
   assert.equal(content.parseSupportPageContent(makeContent({ admin: { templateBlankMarker: '' } })), null)
 })
 
@@ -94,18 +101,18 @@ test('문구 저장 검사: 필수 빈 값·모르는 자리표시·빈칸 표�
   const current = content.parseSupportPageContent(makeContent())
   const input = (overrides = {}) => ({ revision: 3, member: { ...current.member, ...overrides.member }, admin: { ...overrides.admin } })
   assert.equal(content.validateSupportPageContentInput(input({ member: { formTitle: '' } }), current).ok, false)
-  assert.equal(content.validateSupportPageContentInput(input({ member: { answerEditedNotificationMessage: '{회원이메일}' } }), current).ok, false)
   assert.equal(content.validateSupportPageContentInput(input({ admin: { templateBlankMarker: '□□' } }), current).ok, false)
   assert.equal(content.validateSupportPageContentInput(input({ admin: { accessLogRetentionYears: 1 } }), current).ok, false)
   assert.deepEqual(content.validateSupportPageContentInput({ ...input(), revision: 2 }, current), { ok: false, error: 'REVISION_CONFLICT' })
-  const ok = content.validateSupportPageContentInput(input({ member: { responseTimeNote: '  평일 10~18시 ' }, admin: { notifyOnAnswerEdit: false } }), current)
+  const ok = content.validateSupportPageContentInput(input({ member: { responseTimeNote: '  평일 10~18시 ' } }), current)
   assert.equal(ok.ok, true)
   assert.equal(ok.content.revision, 4)
   assert.equal(ok.content.member.responseTimeNote, '평일 10~18시')
-  assert.equal(ok.content.admin.notifyOnAnswerEdit, false)
   assert.equal(ok.content.admin.templateBlankMarker, '○○')
   assert.equal(ok.content.admin.accessLogRetentionYears, 2)
-  assert.equal(content.fillSupportNotificationText('제목: {문의제목}\n확인', '환불'), '제목: 환불\n확인')
+  // 16번: 이 탭은 답변 알림 키·notifyOnAnswerEdit 없이 저장한다(같은 문구를 두 곳에서 고치는 기간을 만들지 않음 — 16번 5-6)
+  for (const key of MOVED_TO_BUNDLE16) assert.equal(key in ok.content.member, false, key)
+  assert.equal('notifyOnAnswerEdit' in ok.content.admin, false)
 })
 
 test('회원 고객지원 화면에 1-5 옛 문구가 남지 않는다(상태 이름만 코드에 남김), 탭 제목도 DB 값', () => {
@@ -171,19 +178,33 @@ test('M1 템플릿 첫 값은 정한 자리표시만 쓴다', { skip: !m1 && 'M1
 })
 
 // ─── 5절: 답변 route ─────────────────────────────────────────────────────────────────────────────
-function loadAnswerRoute({ rpcResult = { data: null, error: null }, pageContent = makeContent(), notificationError = null } = {}) {
+// 16번: 답변 알림 문구·켜기는 member_notification_texts(공용 보내기 함수)에서 온다.
+function answerTexts({ editEnabled = true } = {}) {
+  const texts = seedMemberNotificationTexts()
+  texts.kinds.supportAnswerCreated.title = '값 answerCreatedNotificationTitle'
+  texts.kinds.supportAnswerCreated.message = '제목: {문의제목}'
+  texts.kinds.supportAnswerEdited.title = '값 answerEditedNotificationTitle'
+  texts.kinds.supportAnswerEdited.message = '수정: {문의제목}'
+  texts.kinds.supportAnswerEdited.enabled = editEnabled
+  return texts
+}
+
+function loadAnswerRoute({ rpcResult = { data: null, error: null }, pageContent = makeContent(), notificationError = null, texts = answerTexts() } = {}) {
   const calls = { rpc: [], notifications: [] }
   const route = load('src/app/api/admin/support/tickets/[id]/route.ts', {
     'next/server': { NextResponse },
     '@/lib/supabase/bypass': {
       createAdminClient: () => ({
         rpc: async (name, args) => (calls.rpc.push({ name, args }), rpcResult),
-        from: (table) => ({
-          insert: async (row) => (calls.notifications.push({ table, row }), { error: notificationError }),
+        from: () => ({
           select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: TICKET, admin_response: '최신 답변' }, error: null }) }) }),
         }),
       }),
     },
+    '@/lib/member-notifications-server': memberNotificationsServer({
+      texts,
+      insert: async (row) => (calls.notifications.push({ table: 'notifications', row }), { error: notificationError }),
+    }),
     '@/lib/admin-request-meta': requestMeta,
     '@/lib/support-page-content-server': {
       getSupportPageContent: async () => {
@@ -228,7 +249,7 @@ test('답변 route: 빈칸 표시를 읽지 못하면 저장을 막고(503), 빈
   assert.equal(blank.calls.rpc.length, 0)
 })
 
-test('답변 route: 첫 답변 알림·수정 알림(설정 켬/끔)·재요청은 알림 없음·문구 DB 값', async () => {
+test('답변 route: 첫 답변 알림·수정 알림(설정 켬/끔)·재요청은 알림 없음·문구 DB 값(16번: member_notification_texts)', async () => {
   const first = loadAnswerRoute({ rpcResult: { data: { ticket: savedTicket, isEdit: false, historyId: null, replayed: false }, error: null } })
   const firstResult = await first.patch()
   assert.equal(firstResult.status, 200)
@@ -247,10 +268,13 @@ test('답변 route: 첫 답변 알림·수정 알림(설정 켬/끔)·재요청�
 
   const editQuiet = loadAnswerRoute({
     rpcResult: { data: { ticket: savedTicket, isEdit: true, historyId: 'h1', replayed: false }, error: null },
-    pageContent: makeContent({ admin: { notifyOnAnswerEdit: false } }),
+    texts: answerTexts({ editEnabled: false }),
   })
-  assert.equal((await editQuiet.patch({ reason: '오타' })).status, 200)
+  const quietResult = await editQuiet.patch({ reason: '오타' })
+  assert.equal(quietResult.status, 200)
   assert.equal(editQuiet.calls.notifications.length, 0)
+  // 꺼 둔 종류는 실패가 아니다
+  assert.equal(quietResult.body.notificationFailed, undefined)
 
   const replay = loadAnswerRoute({ rpcResult: { data: { ticket: savedTicket, isEdit: false, historyId: null, replayed: true }, error: null } })
   const replayResult = await replay.patch()

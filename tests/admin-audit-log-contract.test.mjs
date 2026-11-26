@@ -3,6 +3,7 @@ import test from 'node:test'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { NextResponse, adminGuardMocks, createFakeAdmin, load } from './helpers/market-images-harness.mjs'
+import { memberNotificationsServer } from './helpers/member-notifications-harness.mjs'
 
 // 계획 U3-5(작업 기록)와 마이그레이션 20261117110000의 계약.
 
@@ -27,6 +28,8 @@ const SUSPENSION_MIGRATION = read('supabase/migrations/20261214100000_member_sus
 const CS_TOOLS_MIGRATION = read('supabase/migrations/20261217110000_bundle13_cs_tools.sql')
 // 14번 묶음(공지 게시판 + FAQ): 글 저장·삭제·순서·가림·안내 문구 기록은 DB 함수가 같은 거래에서 남긴다(원문 없이 지문·글자 수).
 const SITE_BOARD_MIGRATION = read('supabase/migrations/20261217140000_bundle14_site_board.sql')
+// 16번 묶음(회원 알림 문구 + 공지 알림): 문구 수정·보내기·회수 기록은 DB 함수가 같은 거래에서 남긴다(보내기·회수는 원문·회원 id 없이).
+const MEMBER_NOTIFICATIONS_MIGRATION = read('supabase/migrations/20261218100000_bundle16_member_notifications.sql')
 const DB_FUNCTION_ACTIONS = [
   [PERMISSION_MIGRATION, 'admin_permissions_replace'],
   [PERMISSION_MIGRATION, 'admin_account_revoke'],
@@ -60,6 +63,9 @@ const DB_FUNCTION_ACTIONS = [
   [SITE_BOARD_MIGRATION, 'site_board_post_reorder'],
   [SITE_BOARD_MIGRATION, 'site_board_post_redact'],
   [SITE_BOARD_MIGRATION, 'site_board_content_update'],
+  [MEMBER_NOTIFICATIONS_MIGRATION, 'member_notification_texts_update'],
+  [MEMBER_NOTIFICATIONS_MIGRATION, 'member_broadcast_send'],
+  [MEMBER_NOTIFICATIONS_MIGRATION, 'member_broadcast_retract'],
 ]
 // 9번 묶음: 대표 승인 SQL 템플릿·정책 문구 스크립트(supabase/scripts)가 record_admin_audit 로 적는 종류.
 const SCRIPT_ACTIONS = readdirSync(join(ROOT, 'supabase/scripts'))
@@ -231,6 +237,7 @@ function loadAuditServer(admin, errors = []) {
     '@/lib/admin-orders': load('src/lib/admin-orders.ts'),
     '@/lib/kst-period': load('src/lib/kst-period.ts'),
     '@/lib/list-pagination': load('src/lib/list-pagination.ts'),
+    '@/lib/member-notifications-server': memberNotificationsServer(),
     '@/lib/supabase/bypass': { createAdminClient: () => admin },
   }, errors)
 }
@@ -303,6 +310,7 @@ function loadMarketRefundRoute({ audit = auditMock(), approve, requester = MEMBE
     'next/server': json,
     ...adminGuardMocks(session),
     '@/lib/admin-audit-log-server': audit.module,
+    '@/lib/member-notifications-server': memberNotificationsServer(),
     '@/lib/supabase/bypass': {
       createAdminClient: () => ({
         from: () => ({
@@ -378,6 +386,7 @@ function loadCreditRoute({ audit = auditMock(), grant, session = { userId: ADMIN
     'next/server': json,
     ...adminGuardMocks(session),
     '@/lib/admin-audit-log-server': audit.module,
+    '@/lib/member-notifications-server': memberNotificationsServer(),
     '@/lib/supabase/bypass': { createAdminClient: () => ({ from: () => ({ insert: async () => ({ error: null }) }) }) },
     '@/lib/credits': { CreditService: { grantCreditsAsAdmin: grant ?? (async () => ({ newBalance: 700, alreadyGranted: false })) } },
     '@/lib/credit-source-display': { resolveAdminGrantSourceCategory: () => 'admin_other' },
@@ -449,6 +458,7 @@ function loadTicketRoute(rpcResult, audit = auditMock()) {
   const rpcCalls = []
   const route = load('src/app/api/admin/support/tickets/[id]/route.ts', {
     'next/server': { NextResponse },
+    '@/lib/member-notifications-server': memberNotificationsServer(),
     '@/lib/supabase/bypass': {
       createAdminClient: () => ({
         rpc: async (name, args) => (rpcCalls.push({ name, args }), rpcResult),

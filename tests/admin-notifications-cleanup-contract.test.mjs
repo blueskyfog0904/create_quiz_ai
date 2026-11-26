@@ -28,13 +28,16 @@ test('payapp 웹훅 후속 처리는 관리자에게 notifications를 넣지 않
   assert.doesNotMatch(webhook, /admins\.map/)
   assert.doesNotMatch(webhook, /admin_events/)
 
-  // notifications INSERT는 회원 알림 하나뿐이다.
+  // 16번: 웹훅 파일은 notifications 에 직접 넣지 않는다. 회원 알림 하나만 공용 함수(종류·회원 id)로 보낸다 — 관리자에게 가는 알림은 없다.
   const inserts = [...webhook.matchAll(/\.from\('notifications'\)\s*\.insert\(/g)]
-  assert.equal(inserts.length, 1)
+  assert.equal(inserts.length, 0)
+  assert.equal([...followUps.matchAll(/sendMemberNotification\(/g)].length, 1)
   assert.match(
     followUps,
-    /if \(followUps\.userNotification\)[\s\S]*?\.from\('notifications'\)\s*\.insert\(\{\s*user_id: userId,/
+    /if \(followUps\.userNotification\) \{\s+const \{ paymentOrderId, \.\.\.request \} = followUps\.userNotification[\s\S]*?await sendMemberNotification\(request\)/
   )
+  // 알림 종류는 회원 결과 두 가지뿐(충전 완료·결제사 취소 확인 환불)
+  assert.deepEqual([...webhook.matchAll(/kind: '(\w+)' as const/g)].map((match) => match[1]).sort(), ['chargeCompleted', 'chargeRefundProviderFinalized'])
 })
 
 test('잔액 불일치는 admin_events 1행으로 남기고 notifications를 쓰지 않는다', () => {

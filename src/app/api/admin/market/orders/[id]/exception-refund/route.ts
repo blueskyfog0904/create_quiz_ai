@@ -9,8 +9,9 @@ import {
   MarketRefundRuleError,
   MarketRefundShortfallError,
 } from '@/lib/market-refunds'
-import { buildMarketRefundApprovedMessage, isMarketRefundMemberWithdrawnError, MARKET_REFUND_MEMBER_WITHDRAWN_MESSAGE } from '@/lib/market-refund-rules'
+import { isMarketRefundMemberWithdrawnError, MARKET_REFUND_MEMBER_WITHDRAWN_MESSAGE } from '@/lib/market-refund-rules'
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { notificationFailed, sendMemberNotification } from '@/lib/member-notifications-server'
 import { withdrawalText } from '@/lib/member-withdrawal'
 import { readMemberWithdrawalPolicy } from '@/lib/member-withdrawal-server'
 
@@ -88,20 +89,13 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       claimReceivedAt: body.claimReceivedAt,
       confirmedRefundCredits: body.confirmedRefundCredits,
     })
-    // 처리 결과를 회원에게 알린다(실패해도 결과는 그대로).
+    // 처리 결과를 회원에게 알린다(16번 공용 함수, 문구는 DB). 실패해도 결과는 그대로이고 화면에 notificationFailed 로 알린다.
     const { data: refundRequest } = await createAdminClient().from('market_refund_requests')
       .select('user_id, requested_refund_credits, approved_refund_credits, allocated_items').eq('id', result.requestId).maybeSingle()
-    if (refundRequest) {
-      await createAdminClient().from('notifications').insert({
-        user_id: refundRequest.user_id,
-        type: 'success',
-        title: '문제마켓 환불이 처리되었습니다',
-        message: buildMarketRefundApprovedMessage(refundRequest),
-        link: '/mypage/credits',
-        is_read: false,
-      })
-    }
-    return NextResponse.json({ success: true, data: result, message: '예외 환불을 처리했습니다.' })
+    const failed = refundRequest
+      ? notificationFailed(await sendMemberNotification({ kind: 'marketRefundException', userId: refundRequest.user_id, marketRefund: refundRequest }))
+      : true
+    return NextResponse.json({ success: true, data: result, message: '예외 환불을 처리했습니다.', notificationFailed: failed })
   } catch (error) {
     if (isMarketRefundMemberWithdrawnError(error)) {
       return NextResponse.json({ success: false, error: MARKET_REFUND_MEMBER_WITHDRAWN_MESSAGE, code: 'MEMBER_WITHDRAWN' }, { status: 409 })

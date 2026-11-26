@@ -71,25 +71,6 @@ export function buildPendingMarketRefundScopes(
   return scopes
 }
 
-// 환불 승인 알림 문구(승인·대표 정산·예외 환불 공용). 다시 지급한 몫과 돌려주지 못한 몫을 따로 알린다(정책 3-2 ⑥⑦).
-export function buildMarketRefundApprovedMessage(request: {
-  requested_refund_credits?: number | null
-  approved_refund_credits?: number | null
-  allocated_items?: unknown
-}) {
-  if (typeof request.approved_refund_credits !== 'number') return '크레딧 복구 내역은 크레딧 관리에서 확인해 주세요.'
-  const items = Array.isArray(request.allocated_items) ? (request.allocated_items as Array<{ reissued?: number }>) : []
-  const reissued = items.reduce((sum, item) => sum + (Number(item.reissued) || 0), 0)
-  const missing = typeof request.requested_refund_credits === 'number'
-    ? Math.max(request.requested_refund_credits - request.approved_refund_credits, 0)
-    : 0
-  return [
-    `${request.approved_refund_credits.toLocaleString()} 크레딧이 돌아왔습니다.`,
-    reissued > 0 ? `그중 ${reissued.toLocaleString()} 크레딧은 새 유효기간으로 다시 지급되었습니다(만료일은 크레딧 관리에서 확인해 주세요).` : '',
-    missing > 0 ? `나머지 ${missing.toLocaleString()} 크레딧은 결제에 쓴 크레딧의 사정(충전 환불 이력 등)으로 돌려드리지 못했습니다. 자세한 내용은 고객센터로 문의해 주세요.` : '',
-  ].filter(Boolean).join(' ')
-}
-
 // 10번: 탈퇴(익명화)한 회원에게는 크레딧으로 환불할 수 없다(DB 트리거가 MEMBER_WITHDRAWN 으로 거절). 대표가 현금으로 정산하고 기록을 남긴다.
 export const MARKET_REFUND_MEMBER_WITHDRAWN_MESSAGE =
   '탈퇴한 회원이라 크레딧으로 환불할 수 없습니다. 대표가 원래 결제수단이나 계좌로 정산한 뒤 주문 상세의 \'탈퇴 회원 — 현금 정산 기록\'을 남겨 주세요.'

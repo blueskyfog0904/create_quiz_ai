@@ -3200,6 +3200,7 @@ export type Database = {
       }
       notifications: {
         Row: {
+          broadcast_id: string | null
           created_at: string | null
           id: string
           is_read: boolean | null
@@ -3210,6 +3211,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          broadcast_id?: string | null
           created_at?: string | null
           id?: string
           is_read?: boolean | null
@@ -3220,6 +3222,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          broadcast_id?: string | null
           created_at?: string | null
           id?: string
           is_read?: boolean | null
@@ -4768,6 +4771,7 @@ export type Database = {
           id: string
           last_error_code: string | null
           last_error_message: string | null
+          member_reject_reason: string | null
           next_attempt_at: string | null
           origin: string
           payment_order_id: string | null
@@ -4793,6 +4797,7 @@ export type Database = {
           id?: string
           last_error_code?: string | null
           last_error_message?: string | null
+          member_reject_reason?: string | null
           next_attempt_at?: string | null
           origin?: string
           payment_order_id?: string | null
@@ -4818,6 +4823,7 @@ export type Database = {
           id?: string
           last_error_code?: string | null
           last_error_message?: string | null
+          member_reject_reason?: string | null
           next_attempt_at?: string | null
           origin?: string
           payment_order_id?: string | null
@@ -6503,10 +6509,11 @@ export type Database = {
         Args: {
           p_admin_id: string
           p_admin_note: string
-          p_provider_not_cancelled_confirmed?: boolean
+          p_member_reason: string
+          p_provider_not_cancelled_confirmed: boolean
           p_request_id: string
         }
-        Returns: undefined
+        Returns: Json
       }
       remind_unanswered_admin_work: { Args: never; Returns: undefined }
       remove_market_cart_items: {

@@ -4,6 +4,7 @@ import { createRequire } from 'node:module'
 import test from 'node:test'
 import ts from 'typescript'
 import { adminGuardMocks } from './helpers/market-images-harness.mjs'
+import { memberNotificationsServer } from './helpers/member-notifications-harness.mjs'
 
 const require = createRequire(import.meta.url)
 
@@ -37,17 +38,13 @@ function loadRoute(grant) {
     'next/server': {
       NextResponse: { json: (body, init) => ({ body, status: init?.status ?? 200 }) },
     },
-    // 회원 알림은 서버 키(bypass)로 넣는다. 관리자 세션 클라이언트는 쓰지 않는다.
-    '@/lib/supabase/bypass': {
-      createAdminClient: () => ({
-        from: (table) => ({
-          insert: async (row) => {
-            if (table === 'notifications') calls.notifications.push(row)
-            return { error: null }
-          },
-        }),
-      }),
-    },
+    // 회원 알림은 공용 함수(16번, 서버 키)로 넣는다. 관리자 세션 클라이언트는 쓰지 않는다.
+    '@/lib/member-notifications-server': memberNotificationsServer({
+      insert: async (row) => {
+        calls.notifications.push(row)
+        return { error: null }
+      },
+    }),
     '@/lib/credits': {
       CreditService: {
         grantCreditsAsAdmin: async (...args) => {

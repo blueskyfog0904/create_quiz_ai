@@ -80,7 +80,7 @@ export const ADMIN_MARKET_MENU_HREFS = [
 
 // 과목과 상관없는 공통 메뉴 묶음
 export const ADMIN_PAYMENT_MENU_HREFS = ['/admin/orders', '/admin/refunds', '/admin/credits', '/admin/pricing'] as const
-export const ADMIN_MEMBER_MENU_HREFS = ['/admin/users', '/admin/support', '/admin/notices', '/admin/faq'] as const
+export const ADMIN_MEMBER_MENU_HREFS = ['/admin/users', '/admin/support', '/admin/notices', '/admin/faq', '/admin/notifications'] as const
 export const ADMIN_SITE_MENU_HREFS = [
   '/admin/market/images',
   '/admin/footer',
@@ -158,6 +158,7 @@ export const DEFAULT_ADMIN_SIDEBAR_NAVIGATION_CONFIG: AdminSidebarNavigationConf
     '/admin/support',
     '/admin/notices',
     '/admin/faq',
+    '/admin/notifications',
     '/admin/labels',
     '/admin/source-configs',
     '/admin/footer',
@@ -200,6 +201,8 @@ export const ADMIN_SIDEBAR_MENU_REQUIREMENTS: Readonly<Record<string, AdminGuard
   '/admin/support': 'support.manage',
   '/admin/notices': 'content.manage',
   '/admin/faq': 'content.manage',
+  // 16번: 회원 알림 문구·공지 알림 보내기(충전·환불 결과 알림이 들어 있어 대표만 — Q1)
+  '/admin/notifications': 'owner',
   '/admin/labels': 'owner',
   '/admin/source-configs': 'owner',
   '/admin/footer': 'site.manage',
@@ -258,6 +261,7 @@ function getDefaultAdminSidebarMenuItems(workspaceSubject: WorkspaceSubject): Ad
     { name: '고객지원 관리', href: '/admin/support', icon: 'messageSquare' },
     { name: '공지사항', href: '/admin/notices', icon: 'fileText' },
     { name: '자주 묻는 질문', href: '/admin/faq', icon: 'messageSquare' },
+    { name: '알림', href: '/admin/notifications', icon: 'messageSquare' },
     { name: '표기값 관리', href: '/admin/labels', icon: 'settings' },
     { name: '출처 관리', href: '/admin/source-configs', icon: 'settings' },
     { name: 'Footer 설정', href: '/admin/footer', icon: 'fileText' },

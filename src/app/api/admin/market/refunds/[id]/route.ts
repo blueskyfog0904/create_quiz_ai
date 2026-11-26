@@ -14,8 +14,9 @@ import {
   rejectMarketRefund,
   settleMarketRefundByOwner,
 } from '@/lib/market-refunds'
-import { buildMarketRefundApprovedMessage, isMarketRefundMemberWithdrawnError, MARKET_REFUND_MEMBER_WITHDRAWN_MESSAGE } from '@/lib/market-refund-rules'
+import { isMarketRefundMemberWithdrawnError, MARKET_REFUND_MEMBER_WITHDRAWN_MESSAGE } from '@/lib/market-refund-rules'
 import { createAdminClient } from '@/lib/supabase/bypass'
+import { notificationFailed, sendMemberNotification } from '@/lib/member-notifications-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,7 +50,8 @@ async function requireAdmin() {
   return { user: { id: guard.access.userId }, access: guard.access } as const
 }
 
-// 처리 결과를 요청한 회원에게 알린다. 알림이 실패해도 환불 처리 결과는 바꾸지 않는다.
+// 처리 결과를 요청한 회원에게 알린다(16번 공용 함수, 문구는 DB). 알림이 실패해도 환불 처리 결과는 바꾸지 않는다 — 실패 여부만 돌려준다.
+// 거절 사유는 화면에서 필수('회원에게 안내됩니다')다. 사유 없이 보내는 길은 없다(빈 사유 대체 문구 없음, Q2) — 비면 실패로 알린다.
 async function notifyMarketRefundProcessed(
   action: 'approve' | 'reject',
   request: {
@@ -59,30 +61,11 @@ async function notifyMarketRefundProcessed(
     admin_note?: string | null
     allocated_items?: unknown
   }
-) {
-  try {
-    const approved = action === 'approve'
-    const { error } = await createAdminClient().from('notifications').insert({
-      user_id: request.user_id,
-      type: approved ? 'success' : 'info',
-      title: approved ? '문제마켓 환불이 승인되었습니다' : '문제마켓 환불 요청이 거절되었습니다',
-      message: approved
-        ? buildMarketRefundApprovedMessage(request)
-        : `환불 요청이 승인되지 않았습니다. 사유: ${(request.admin_note ?? '').trim() || '고객지원으로 문의해 주세요.'}`,
-      link: approved ? '/mypage/credits' : '/mypage/support',
-      is_read: false,
-    })
-
-    if (error) {
-      console.error('[MarketRefund] Processed notification failed', {
-        errorCode: error.code,
-      })
-    }
-  } catch {
-    console.error('[MarketRefund] Processed notification failed', {
-      errorCode: 'exception',
-    })
-  }
+): Promise<boolean> {
+  const result = action === 'approve'
+    ? await sendMemberNotification({ kind: 'marketRefundApproved', userId: request.user_id, marketRefund: request })
+    : await sendMemberNotification({ kind: 'marketRefundRejected', userId: request.user_id, values: { '{사유}': (request.admin_note ?? '').trim() } })
+  return notificationFailed(result)
 }
 
 // 대표 정산 대화상자용 원천 정보(대표만). 표시용이며 확정은 DB 함수가 다시 판정한다.
@@ -175,10 +158,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         confirmedRefundCredits: parsed.data.confirmedRefundCredits,
       })
       const { data: settled } = await createAdminClient().from('market_refund_requests').select('*').eq('id', id).maybeSingle()
-      if (settled) {
-        await notifyMarketRefundProcessed('approve', settled)
-      }
-      return NextResponse.json({ success: true, data: settled, message: '대표 정산으로 환불을 처리했습니다.' })
+      // 행을 다시 읽지 못하면 알림을 보내지 못한 것으로 본다(예외 환불 route 와 같음)
+      const settledNotificationFailed = settled ? await notifyMarketRefundProcessed('approve', settled) : true
+      return NextResponse.json({ success: true, data: settled, message: '대표 정산으로 환불을 처리했습니다.', notificationFailed: settledNotificationFailed })
     }
 
     const data = parsed.data.action === 'approve'
@@ -196,7 +178,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         evidence: parsed.data.evidence,
       })
 
-    await notifyMarketRefundProcessed(parsed.data.action === 'approve' ? 'approve' : 'reject', data)
+    const processedNotificationFailed = await notifyMarketRefundProcessed(parsed.data.action === 'approve' ? 'approve' : 'reject', data)
 
     // 처리가 끝난 뒤 작업 기록을 남긴다. 환불 처리 함수는 고치지 않으므로 같은 트랜잭션이 아니다(계획 U3-5).
     // 기록이 빠지면 응답에 경고를 싣고 대표에게 알린다. 처리 결과는 바꾸지 않는다.
@@ -227,6 +209,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       success: true,
       data,
       message: parsed.data.action === 'approve' ? '문제마켓 환불이 승인되었습니다.' : '문제마켓 환불이 거부되었습니다.',
+      notificationFailed: processedNotificationFailed,
       ...(audited ? {} : { auditWarning: '처리는 완료됐지만 작업 기록을 남기지 못했습니다. 대표 관리자에게 알렸습니다.' }),
     })
   } catch (error) {
@@ -240,9 +223,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       // 받지 않은 자료 환불의 승인·대표 정산이 판정 변경으로 막히면 DB 가 요청을 거부(TARGET_CHANGED)해 두었다 — 회원에게 알린다.
       if (error.code === 'TARGET_CHANGED' && (parsed.data.action === 'approve' || parsed.data.action === 'owner_settle')) {
         const { data: rejected } = await createAdminClient().from('market_refund_requests').select('*').eq('id', id).maybeSingle()
-        if (rejected?.status === 'rejected') {
-          await notifyMarketRefundProcessed('reject', rejected)
-        }
+        // 16번 6절: 자동 거절 알림이 실패하면(행을 못 읽음 포함) 409 응답에 같은 칸으로 알린다
+        const rejectedNotificationFailed = !rejected ? true : rejected.status === 'rejected' ? await notifyMarketRefundProcessed('reject', rejected) : false
+        return NextResponse.json({ success: false, error: error.message, code: error.code, details: error.details, notificationFailed: rejectedNotificationFailed }, { status: 409 })
       }
       return NextResponse.json({ success: false, error: error.message, code: error.code, details: error.details }, { status: 409 })
     }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { load, createFakeAdmin, NextResponse, adminGuardMocks } from './helpers/market-images-harness.mjs'
+import { memberNotificationsServer } from './helpers/member-notifications-harness.mjs'
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 const page = read('src/app/(admin)/admin/support/page.tsx')
@@ -122,12 +123,14 @@ function loadTicketRoute(rpcResult) {
   const route = load('src/app/api/admin/support/tickets/[id]/route.ts', {
     'next/server': { NextResponse },
     '@/lib/supabase/server': { createClient: async () => session },
-    // DB 함수와 회원 알림은 서버 키로 부른다(세션 쪽 queries에는 아무것도 남지 않는다).
+    // DB 함수와 회원 알림은 서버 키로 부른다(세션 쪽 queries에는 아무것도 남지 않는다). 16번: 알림은 공용 함수(서버 키)가 넣는다.
+    '@/lib/member-notifications-server': memberNotificationsServer({
+      insert: async (row) => (queries.push({ table: 'notifications', ops: [['insert', row]], viaServiceRole: true }), { error: null }),
+    }),
     '@/lib/supabase/bypass': {
       createAdminClient: () => ({
         rpc: async (name, args) => (rpcCalls.push({ name, args }), rpcResult),
-        from: (table) => ({
-          insert: async (row) => (queries.push({ table, ops: [['insert', row]], viaServiceRole: true }), { error: null }),
+        from: () => ({
           select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: TICKET, admin_response: '최신' }, error: null }) }) }),
         }),
       }),
@@ -153,7 +156,8 @@ test('답변 route는 DB 함수로만 저장하고, 회원이 삭제한 문의�
   assert.equal(ok.queries.some((query) => query.table === 'support_tickets'), false)
   const notification = ok.queries.find((query) => query.table === 'notifications')
   assert.ok(notification?.viaServiceRole)
-  assert.equal(notification.ops[0][1].message, '제목: 문의')
+  // 문구는 member_notification_texts 첫 값(13번 문구를 복사한 값)
+  assert.match(notification.ops[0][1].message, /^제목: 문의\n/)
 
   // 회원이 삭제한 문의는 DB 함수가 거부한다
   const rejected = loadTicketRoute({ data: null, error: { message: 'SUPPORT_TICKET_DELETED_BY_MEMBER' } })
@@ -192,6 +196,7 @@ function loadSummary({ tableErrors = [], counts = {} } = {}) {
   const { client: admin } = createFakeAdmin(handler('admin'))
   const { client: paymentAdmin } = createFakeAdmin(handler('payment'))
   const server = load('src/lib/admin-member-detail-server.ts', {
+    '@/lib/member-notifications-server': memberNotificationsServer(),
     '@/lib/supabase/bypass': { createAdminClient: () => admin },
     '@/lib/payment-orders-server': { createPaymentAdminClient: () => paymentAdmin },
     '@/lib/credit-balance': {},

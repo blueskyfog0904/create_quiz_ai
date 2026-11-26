@@ -6,6 +6,8 @@ import { getRequestAuthUserId } from '@/lib/request-auth'
 import { createClient } from '@/lib/supabase/server'
 import { getListPagination } from '@/lib/list-pagination'
 import { StudioEmptyState } from '@/components/design-system/studio-empty-state'
+import { NotificationListItemBody } from '@/components/notifications/notification-item'
+import { getMemberNotificationTexts } from '@/lib/member-notifications-server'
 
 export const metadata: Metadata = {
   title: '알림',
@@ -54,7 +56,7 @@ export default async function MypageNotificationsPage({
 
   const { data: notifications, error } = await supabase
     .from('notifications')
-    .select('id, title, message, link, created_at')
+    .select('id, title, message, link, type, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .order('id')
@@ -63,6 +65,9 @@ export default async function MypageNotificationsPage({
   if (error) {
     throw new Error(error.message)
   }
+
+  // 16번: 공지 알림 머리표(DB 문구). 읽지 못하면 머리표 없이 보인다.
+  const memberLabel = (await getMemberNotificationTexts())?.broadcast.memberLabel ?? null
 
   return (
     <div>
@@ -79,19 +84,12 @@ export default async function MypageNotificationsPage({
         <ul className="mt-6 divide-y divide-[var(--studio-border)] rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]">
           {(notifications ?? []).map((notification) => (
             <li key={notification.id} className="px-4 py-4 sm:px-5">
-              <p className="text-base font-semibold text-[var(--studio-ink)] break-keep">{notification.title}</p>
-              <p className="mt-1 whitespace-pre-wrap break-words text-sm text-[var(--studio-text)]">{notification.message}</p>
-              <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--studio-muted)]">
-                {notification.created_at ? <span>{formatKoreanDateTime(notification.created_at)}</span> : null}
-                {notification.link ? (
-                  <Link
-                    href={notification.link}
-                    className="font-semibold text-[var(--studio-primary)] outline-none transition-colors hover:text-[var(--studio-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
-                  >
-                    바로가기 →
-                  </Link>
-                ) : null}
-              </p>
+              <NotificationListItemBody
+                notification={notification}
+                memberLabel={memberLabel}
+                createdAtLabel={notification.created_at ? formatKoreanDateTime(notification.created_at) : null}
+                linkClassName="font-semibold text-[var(--studio-primary)] outline-none transition-colors hover:text-[var(--studio-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+              />
             </li>
           ))}
         </ul>

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import test from 'node:test'
 import ts from 'typescript'
+import { memberNotificationsServer } from './helpers/member-notifications-harness.mjs'
 
 const require = createRequire(import.meta.url)
 
@@ -21,8 +22,18 @@ function loadModule(path, modules = {}) {
 }
 
 const payapp = loadModule('../src/lib/payapp-server.ts')
+// 16번: 회원 알림은 공용 함수(종류·회원 id)로 보낸다. 대역은 DB 첫 값으로 그린 행을 지금 시험의 가짜 클라이언트 notifications 기록에 넣는다
+// (결과별 회원 알림 1건/0건·관리자에게 알림 없음 단언은 그대로 둔다 — 계획 10-1 (a)).
+let currentAdmin = null
+const memberNotifications = memberNotificationsServer({
+  insert: async (row) => {
+    currentAdmin?.calls.notifications.push(row)
+    return { error: null }
+  },
+})
 const { handlePayAppFeedback, cancellationFollowUps } = loadModule('../src/lib/payapp-webhook-server.ts', {
   '@/lib/payapp-server': payapp,
+  '@/lib/member-notifications-server': memberNotifications,
 })
 
 const ENV = {
@@ -115,6 +126,7 @@ function createFakeAdmin({ rpc = {}, insertError = null, alertThrows = false } =
       return handler(args, calls.rpc.filter((call) => call.name === name).length)
     },
   }
+  currentAdmin = admin
   return admin
 }
 
@@ -682,9 +694,48 @@ test('secrets never reach events, RPC arguments, alerts or notifications', async
   await handlePayAppFeedback(feedbackBody(), admin)
   await handlePayAppFeedback(feedbackBody({ linkval: 'bad' }), admin)
 
-  const stored = JSON.stringify({ events: [...admin.events.values()], calls: admin.calls })
+  // 16번 10-1 (b): 보내기 함수에 넘긴 값까지 본다
+  const paid = createFakeAdmin({
+    rpc: { apply_payapp_feedback: () => ok({ result: 'fulfilled', payment_order_id: ORDER_UUID, order_id: 'PAYAPP_ORDER_1', user_id: USER_UUID }) },
+  })
+  await handlePayAppFeedback(feedbackBody({ mul_no: '2999' }), paid)
+  const stored = JSON.stringify({ events: [...admin.events.values()], calls: admin.calls, paid: paid.calls, sent: memberNotifications.sent })
   assert.equal(stored.includes('link-key-secret'), false)
   assert.equal(stored.includes('link-val-secret'), false)
+  assert.deepEqual(memberNotifications.sent.at(-1), { kind: 'chargeCompleted', userId: USER_UUID })
+})
+
+// 16번 6절: 화면이 없는 경로(웹훅)의 알림 실패는 결과·응답을 바꾸지 않고 경보 1건(회원 id·글자 없음)만 남긴다. 꺼 둔 종류는 실패가 아니다.
+test('a failed member notification leaves the reply unchanged and records one MEMBER_NOTIFICATION_FAILED alert without member data', async () => {
+  const cases = [
+    { label: 'texts unavailable', server: memberNotificationsServer({ texts: null }), alerted: true, reason: 'texts_unavailable' },
+    { label: 'insert failed', server: memberNotificationsServer({ insert: async () => ({ error: { code: '42501' } }) }), alerted: true, reason: 'insert_failed' },
+    { label: 'disabled', server: { ...memberNotificationsServer(), sendMemberNotification: async () => ({ sent: false, reason: 'disabled' }) }, alerted: false },
+  ]
+  for (const item of cases) {
+    const webhook = loadModule('../src/lib/payapp-webhook-server.ts', { '@/lib/payapp-server': payapp, '@/lib/member-notifications-server': item.server })
+    for (const alertThrows of [false, true]) {
+      const admin = createFakeAdmin({
+        alertThrows,
+        rpc: { apply_payapp_feedback: () => ok({ result: 'fulfilled', payment_order_id: ORDER_UUID, order_id: 'PAYAPP_ORDER_1', user_id: USER_UUID }) },
+      })
+      const reply = await webhook.handlePayAppFeedback(feedbackBody({ mul_no: alertThrows ? '3101' : '3100' }), admin)
+      assert.deepEqual(reply, { body: 'SUCCESS', status: 200 }, item.label)
+      assert.equal(admin.events.get(`payapp:${alertThrows ? '3101' : '3100'}:4`).processing_status, 'completed', item.label)
+      if (alertThrows) continue
+      const failed = admin.calls.alerts.filter((alert) => alert.p_code === 'MEMBER_NOTIFICATION_FAILED')
+      assert.equal(failed.length, item.alerted ? 1 : 0, item.label)
+      if (item.alerted) {
+        assert.equal(failed[0].p_severity, 'warning')
+        assert.match(failed[0].p_details.dedupe_key, /^member_notification_failed:chargeCompleted:\d{4}-\d{2}-\d{2}$/)
+        assert.equal(failed[0].p_details.reason, item.reason)
+        assert.equal(failed[0].p_details.related_payment_order_id, ORDER_UUID)
+        // 회원 id 는 없다. 주문 id 는 payment_order_id·order_id 키로 두지 않는다(경보 묶음 키·탈퇴 진행 판정에 걸리지 않게).
+        assert.equal(JSON.stringify(failed[0]).includes(USER_UUID), false)
+        assert.equal('payment_order_id' in failed[0].p_details || 'order_id' in failed[0].p_details || 'user_id' in failed[0].p_details, false)
+      }
+    }
+  }
 })
 
 test('admin-confirmed cancel alert asks to check the PayApp console instead of full refund', () => {

@@ -1,5 +1,7 @@
 // 13번 묶음 9절: 고객지원 회원 화면 문구(system_settings 'support_page_content')의 규칙. 문구 자체는 DB 에만 있다(코드에 기본 문구 없음).
-// 값 모양: { revision, member: { 키: 문자열 }, admin: { templateBlankMarker, answerEditReasonGuide, notifyOnAnswerEdit, accessLogRetentionYears } }
+// 값 모양: { revision, member: { 키: 문자열 }, admin: { templateBlankMarker, answerEditReasonGuide, accessLogRetentionYears } }
+// 16번: 답변·답변 수정 알림 문구와 켜기(옛 answer*Notification*·notifyOnAnswerEdit)는 '알림' 화면(member_notification_texts)으로 옮겼다.
+//   DB 에 남은 옛 키는 읽지 않고, 이 탭은 그 키 없이 저장한다(정리 스크립트가 지운다 — 16번 계획 5-6).
 // 필수/선택의 기준은 계획 10-1 표의 '필수/선택' 칸 하나다. 필수 키 목록(SUPPORT_PAGE_REQUIRED_KEYS)을 저장 검사·마이그레이션 VERIFY·화면 해석이 같이 쓴다.
 // 필수 키가 없거나 비면 해석은 null(화면은 오류 화면), 선택 키가 비면 그 칸만 숨긴다.
 
@@ -30,8 +32,7 @@ export const SUPPORT_PAGE_MEMBER_KEY_GROUPS = [
   },
   {
     label: '답변',
-    keys: ['answerLabel', 'answerEditedLabel', 'answerCreatedNotificationTitle', 'answerCreatedNotificationMessage',
-      'answerEditedNotificationTitle', 'answerEditedNotificationMessage'],
+    keys: ['answerLabel', 'answerEditedLabel'],
   },
 ] as const
 
@@ -47,9 +48,6 @@ const OPTIONAL_MEMBER_KEYS: readonly SupportPageMemberKey[] = [
 
 // 필수 키(10-1 표 순서). 저장 검사·VERIFY·해석이 같이 쓴다.
 export const SUPPORT_PAGE_REQUIRED_KEYS: readonly SupportPageMemberKey[] = SUPPORT_PAGE_MEMBER_KEYS.filter((key) => !OPTIONAL_MEMBER_KEYS.includes(key))
-
-// 알림 문구의 자리표시(문의 제목) — 코드에 정한 하나뿐이다.
-export const SUPPORT_NOTIFICATION_PLACEHOLDER = '{문의제목}'
 
 // 관리자 화면 칸 이름(관리자 글, 회원 문구 아님)
 export const SUPPORT_PAGE_MEMBER_KEY_LABELS: Record<SupportPageMemberKey, string> = {
@@ -95,10 +93,6 @@ export const SUPPORT_PAGE_MEMBER_KEY_LABELS: Record<SupportPageMemberKey, string
   deleteFailedToast: '삭제 실패 알림',
   answerLabel: '답변 이름',
   answerEditedLabel: '답변 수정 표시(비우면 숨김)',
-  answerCreatedNotificationTitle: '답변 알림 제목',
-  answerCreatedNotificationMessage: '답변 알림 본문({문의제목})',
-  answerEditedNotificationTitle: '답변 수정 알림 제목',
-  answerEditedNotificationMessage: '답변 수정 알림 본문({문의제목})',
 }
 
 // 한 칸 글자 수 상한(관리자 저장 검사)
@@ -110,7 +104,6 @@ export interface SupportPageAdminSettings {
   // 템플릿 빈칸 표시(DB 값이지만 관리자 화면에서 고치지 않는다 — 템플릿과 함께 스크립트로)
   templateBlankMarker: string
   answerEditReasonGuide: string
-  notifyOnAnswerEdit: boolean
   // 처리방침 3절 '기록한 날부터 N년'과 같아야 한다(관리자 화면에서 고치지 않는다)
   accessLogRetentionYears: number
 }
@@ -144,7 +137,6 @@ export function parseSupportPageContent(value: unknown): SupportPageContent | nu
   const admin = value.admin
   if (typeof admin.templateBlankMarker !== 'string' || !admin.templateBlankMarker.trim()) return null
   if (typeof admin.answerEditReasonGuide !== 'string') return null
-  if (typeof admin.notifyOnAnswerEdit !== 'boolean') return null
   if (typeof admin.accessLogRetentionYears !== 'number' || !Number.isInteger(admin.accessLogRetentionYears) || admin.accessLogRetentionYears < 1) return null
   return {
     revision,
@@ -152,7 +144,6 @@ export function parseSupportPageContent(value: unknown): SupportPageContent | nu
     admin: {
       templateBlankMarker: admin.templateBlankMarker,
       answerEditReasonGuide: admin.answerEditReasonGuide,
-      notifyOnAnswerEdit: admin.notifyOnAnswerEdit,
       accessLogRetentionYears: admin.accessLogRetentionYears,
     },
   }
@@ -161,10 +152,10 @@ export function parseSupportPageContent(value: unknown): SupportPageContent | nu
 export interface SupportPageContentInput {
   revision: number
   member: Record<string, unknown>
-  admin: { answerEditReasonGuide?: unknown; notifyOnAnswerEdit?: unknown; templateBlankMarker?: unknown; accessLogRetentionYears?: unknown }
+  admin: { answerEditReasonGuide?: unknown; templateBlankMarker?: unknown; accessLogRetentionYears?: unknown }
 }
 
-// 관리자 저장 검사(지금 값 current 와 비교). 고칠 수 있는 것: member 전부, admin.answerEditReasonGuide·notifyOnAnswerEdit.
+// 관리자 저장 검사(지금 값 current 와 비교). 고칠 수 있는 것: member 전부, admin.answerEditReasonGuide.
 // admin.templateBlankMarker·accessLogRetentionYears 는 화면에서 고치지 않는다 — 보냈는데 지금 값과 다르면 거부한다.
 export function validateSupportPageContentInput(
   input: SupportPageContentInput,
@@ -181,10 +172,6 @@ export function validateSupportPageContentInput(
     if (text.length > SUPPORT_PAGE_TEXT_MAX) return { ok: false, error: `${SUPPORT_PAGE_MEMBER_KEY_LABELS[key]}은(는) ${SUPPORT_PAGE_TEXT_MAX}자 이하로 적어 주세요.` }
     member[key] = text
   }
-  for (const key of ['answerCreatedNotificationMessage', 'answerEditedNotificationMessage'] as const) {
-    const unknown = [...member[key].matchAll(/\{([^{}]*)\}/g)].map((match) => match[0]).filter((token) => token !== SUPPORT_NOTIFICATION_PLACEHOLDER)
-    if (unknown.length > 0) return { ok: false, error: `${SUPPORT_PAGE_MEMBER_KEY_LABELS[key]}에 쓸 수 없는 자리표시가 있습니다: ${unknown.join(', ')}` }
-  }
   const { admin } = input
   if (admin.templateBlankMarker !== undefined && admin.templateBlankMarker !== current.admin.templateBlankMarker) {
     return { ok: false, error: '빈칸 표시는 관리자 화면에서 고칠 수 없습니다.' }
@@ -194,7 +181,6 @@ export function validateSupportPageContentInput(
   }
   const guide = typeof admin.answerEditReasonGuide === 'string' ? admin.answerEditReasonGuide.trim() : current.admin.answerEditReasonGuide
   if (guide.length > SUPPORT_PAGE_TEXT_MAX) return { ok: false, error: `수정 사유 안내는 ${SUPPORT_PAGE_TEXT_MAX}자 이하로 적어 주세요.` }
-  const notify = typeof admin.notifyOnAnswerEdit === 'boolean' ? admin.notifyOnAnswerEdit : current.admin.notifyOnAnswerEdit
   return {
     ok: true,
     content: {
@@ -203,14 +189,8 @@ export function validateSupportPageContentInput(
       admin: {
         templateBlankMarker: current.admin.templateBlankMarker,
         answerEditReasonGuide: guide,
-        notifyOnAnswerEdit: notify,
         accessLogRetentionYears: current.admin.accessLogRetentionYears,
       },
     },
   }
-}
-
-// 알림 문구 채우기: {문의제목} 하나만 바꾼다. 줄바꿈은 DB 값의 \n 그대로.
-export function fillSupportNotificationText(template: string, ticketSubject: string): string {
-  return template.split(SUPPORT_NOTIFICATION_PLACEHOLDER).join(ticketSubject)
 }

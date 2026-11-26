@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,7 +22,7 @@ import { getSupportPageContentAdminData, saveSupportPageContentAction } from './
 // 길게 쓰는 칸(여러 줄 입력)
 const MULTILINE_KEYS: readonly SupportPageMemberKey[] = [
   'formNotice', 'responseTimeNote', 'defaultCategoryHelp', 'defaultMessagePlaceholder', 'submittedDescription',
-  'deleteConfirmDescription', 'answerCreatedNotificationMessage', 'answerEditedNotificationMessage',
+  'deleteConfirmDescription',
 ]
 
 // 13번 9절 '안내 문구' 탭(대표만 — Q9 가): 회원 고객지원 화면 문구를 항목별로 고친다. 필수 칸은 비울 수 없다.
@@ -66,7 +67,7 @@ export function SupportPageContentPanel({ initialContent, initialStatus }: {
       const result = await saveSupportPageContentAction({
         revision: content.revision,
         member: draft.member,
-        admin: { answerEditReasonGuide: draft.admin.answerEditReasonGuide, notifyOnAnswerEdit: draft.admin.notifyOnAnswerEdit },
+        admin: { answerEditReasonGuide: draft.admin.answerEditReasonGuide },
       })
       if (!result.ok) {
         // 충돌이면 최신 값을 다시 읽는다(쓰던 값은 사라지므로 안내).
@@ -91,7 +92,10 @@ export function SupportPageContentPanel({ initialContent, initialStatus }: {
             <CardTitle className="text-lg">안내 문구(회원 고객지원 화면)</CardTitle>
             <p className="mt-1 text-sm text-gray-500">
               응답 시간 같은 약속이 들어 있어 대표만 고칩니다. * 표시는 비울 수 없는 칸이고, 나머지는 비우면 회원 화면에서 그 줄이 숨겨집니다.
-              알림 본문의 {'{문의제목}'} 은 문의 제목으로 바뀝니다.
+            </p>
+            {/* 16번 7-2: 답변 알림 문구·켜기는 '알림' 화면으로 옮겼다 */}
+            <p className="mt-1 text-sm text-gray-500">
+              답변 알림 문구는 <Link href="/admin/notifications" className="font-medium text-blue-700 underline">&apos;알림&apos; 화면</Link>에서 고칩니다.
             </p>
           </div>
           <div className="flex gap-2">
@@ -150,14 +154,6 @@ export function SupportPageContentPanel({ initialContent, initialStatus }: {
               onChange={(event) => setDraft({ ...draft, admin: { ...draft.admin, answerEditReasonGuide: event.target.value } })}
             />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={draft.admin.notifyOnAnswerEdit}
-              onChange={(event) => setDraft({ ...draft, admin: { ...draft.admin, notifyOnAnswerEdit: event.target.checked } })}
-            />
-            답변을 고치면 회원에게 알림을 보냄
-          </label>
           <p className="text-xs text-gray-500">
             템플릿 빈칸 표시 <strong>{draft.admin.templateBlankMarker}</strong>, 열람 기록 보관 {draft.admin.accessLogRetentionYears}년 —
             이 두 값은 여기서 고치지 않습니다(템플릿·처리방침과 함께 바꿔야 해서 개발 담당이 스크립트로 바꿉니다).

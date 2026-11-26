@@ -78,7 +78,7 @@ const TARGET_FIELDS: Record<WithdrawalRedactionItem['kind'], [string, string][]>
   support_ticket: [['subject', '제목'], ['message', '본문'], ['admin_response', '답변']],
   support_ticket_revision: [['subject', '제목'], ['message', '본문']],
   support_ticket_answer_revision: [['previous_response', '이전 답변'], ['reason', '수정 사유']],
-  refund_request: [['reason', '사유'], ['admin_note', '메모']],
+  refund_request: [['reason', '사유'], ['admin_note', '메모'], ['member_reject_reason', '회원에게 보낸 거절 사유']],
   market_refund_request: [['reason', '사유'], ['admin_note', '메모']],
 }
 const REDACTION_REASON_LABELS: Record<string, string> = {

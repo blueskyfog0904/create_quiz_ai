@@ -1,4 +1,3 @@
-import { createAdminClient } from '@/lib/supabase/bypass'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { ADMIN_PERMISSION_LIMIT_MAX } from '@/lib/admin-permissions'
 import { NextResponse } from 'next/server'
@@ -6,6 +5,7 @@ import { z } from 'zod'
 import { CreditService } from '@/lib/credits'
 import { resolveAdminGrantSourceCategory } from '@/lib/credit-source-display'
 import { buildCreditBalanceResponseFields, getCreditBalanceSnapshot } from '@/lib/credit-balance'
+import { notificationFailed, sendMemberNotification } from '@/lib/member-notifications-server'
 
 // 지급 수량의 상한은 DB 정수 범위뿐이다. 직원의 1회·하루 한도는 지급 함수(DB)가 본다(대표는 한도 없음, 20261118120000).
 const GrantCreditSchema = z.object({
@@ -82,13 +82,6 @@ export async function POST(request: Request) {
     }
 
     // 2. Grant Credits
-    const categoryLabel = {
-      compensation: '보상',
-      event: '이벤트',
-      refund: '환불',
-      other: '기타'
-    }[category] || '기타'
-
     const sourceCategory = resolveAdminGrantSourceCategory(category)
 
     // 지급·한도 확인·작업 기록(credit_grant)은 지급 함수가 한 트랜잭션으로 한다.
@@ -104,16 +97,15 @@ export async function POST(request: Request) {
     })
 
     // 3. Send Notification (같은 키로 이미 지급된 재요청이면 다시 보내지 않는다)
-    // 회원 알림은 서버 키로 넣는다(관리자 세션의 알림 INSERT 정책을 없앨 수 있게 — 20261117140000 3절).
+    // 16번: 회원 알림은 공용 함수가 서버 키로 넣는다(문구·분류 이름은 DB). 실패해도 지급은 그대로이고 화면에 알린다.
+    let failed = false
     if (!result.alreadyGranted) {
-      await createAdminClient().from('notifications').insert({
-        user_id: userId,
-        type: 'info',
-        title: '크레딧이 지급되었습니다',
-        message: `${categoryLabel} 사유로 ${amount.toLocaleString()} 크레딧이 지급되었습니다. (내용: ${description})`,
-        link: '/mypage/credits',
-        is_read: false
-      })
+      failed = notificationFailed(await sendMemberNotification({
+        kind: 'creditGranted',
+        userId,
+        categoryKey: category,
+        values: { '{수량}': amount, '{내용}': description },
+      }))
     }
 
     const snapshot = await getCreditBalanceSnapshot(userId)
@@ -122,6 +114,7 @@ export async function POST(request: Request) {
       success: true,
       newBalance: result.newBalance,
       ...buildCreditBalanceResponseFields(snapshot),
+      notificationFailed: failed,
     })
 
   } catch (error: unknown) {

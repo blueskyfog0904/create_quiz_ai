@@ -48,6 +48,8 @@ import {
 import { toast } from 'sonner'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
+import { CHARGE_REFUND_REJECT_REASON_MAX, MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE, memberTextHasLongNumber } from '@/lib/member-notifications'
+import { MEMBER_FACING_PII_LABELS, memberFacingTextPiiHits } from '@/lib/member-facing-text-pii'
 import { extractAdminLoginId } from '@/lib/admin-accounts-shared'
 import { refundRequiresRecovery } from '@/lib/payment-review-actions'
 import type { ManualRefundRecoveryPreview } from '@/lib/manual-refund-recovery-preview'
@@ -68,6 +70,8 @@ export interface RefundRequest {
     provider: 'kakaopay' | 'payapp' | 'toss'
     origin: 'user' | 'external_cancel' | 'partial_cancel'
     admin_note: string | null
+    // 16번 Q7: 회원에게 보낸 거절 사유(거절 때 저장, 내부 메모 admin_note 와 따로)
+    member_reject_reason?: string | null
     refund_amount: number | null
     provider_cancel_transaction_key: string | null
     provider_cancelled_at: string | null
@@ -132,6 +136,8 @@ interface RefundsClientProps {
     }
     // 제목 바로 아래, 환불 요청보다 먼저 보여 줄 영역(결제 경보·수동 확인 주문)
     children?: ReactNode
+    // 16번: 거절 사유 개인정보 경고의 예외 값(하단 정보 고객센터 연락처, DB 값)
+    piiAllowed: { customerCenter: string; orderEmail: string }
 }
 
 // 여러 상태를 묶어 보는 필터. 그 밖의 값은 상태 하나와 그대로 비교한다.
@@ -169,7 +175,7 @@ const externalMethodLabels: Record<ExternalMethod, string> = {
     provider_admin_cancel: '결제사 관리자에서 취소',
 }
 
-export function RefundsClient({ requests, stats, children }: RefundsClientProps) {
+export function RefundsClient({ requests, stats, children, piiAllowed }: RefundsClientProps) {
     const router = useRouter()
     const alerts = useAdminAlerts()
     const [statusFilter, setStatusFilter] = useState('needs_action')
@@ -177,6 +183,10 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
     const [selectedRequest, setSelectedRequest] = useState<RefundRequest | null>(null)
     const [processAction, setProcessAction] = useState<ProcessAction>('approve')
     const [adminNote, setAdminNote] = useState('')
+    // 16번 Q7: 회원에게 보낼 거절 사유(필수 — 회원에게 그대로 안내됨). 처리 메모와 따로 둔다.
+    const [memberReason, setMemberReason] = useState('')
+    // 거절은 됐지만 회원 알림이 실패했을 때 저장된 사유(창이 지우지 않고 보여 준다 — 고객지원으로 그대로 옮길 수 있게)
+    const [unsentReason, setUnsentReason] = useState<string | null>(null)
     const [externalMethod, setExternalMethod] = useState<ExternalMethod>('payapp_cancel_request')
     const [refundAmount, setRefundAmount] = useState('')
     const [recoveredCredits, setRecoveredCredits] = useState('')
@@ -222,6 +232,8 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
         setSelectedRequest(request)
         setProcessAction(action)
         setAdminNote('')
+        setMemberReason('')
+        setUnsentReason(null)
         setExternalMethod(request.provider === 'payapp' ? 'payapp_cancel_request' : 'provider_admin_cancel')
         // 부분취소 건의 refund_amount는 신청 기준액(전액)이므로 실제 환불액을 직접 입력하게 한다.
         setRefundAmount(!requiresRecovery(request) && request.refund_amount ? String(request.refund_amount) : '')
@@ -274,6 +286,13 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
     const rejectReady = !rejectingManualReview ||
         (providerNotCancelledConfirmed && adminNote.trim().length > 0)
     const noteRequired = processAction === 'complete_manual' || rejectingManualReview
+    // 거절 사유: 1~300자, 개인정보 모양·긴 숫자(계좌·카드번호)면 보내지 않는다(서버·DB 도 다시 막는다)
+    const memberReasonText = memberReason.trim()
+    const memberReasonPii = processAction === 'reject' ? memberFacingTextPiiHits(memberReasonText, piiAllowed) : []
+    const memberReasonLongNumber = processAction === 'reject' && memberTextHasLongNumber(memberReasonText)
+    const memberReasonReady = processAction !== 'reject' || (
+        memberReasonText.length > 0 && memberReasonText.length <= CHARGE_REFUND_REJECT_REASON_MAX
+        && memberReasonPii.length === 0 && !memberReasonLongNumber && unsentReason === null)
 
     // 환불 처리
     const handleProcess = async () => {
@@ -288,6 +307,7 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                     requestId: selectedRequest.id,
                     action: processAction,
                     adminNote: adminNote || undefined,
+                    ...(processAction === 'reject' ? { memberReason: memberReasonText } : {}),
                     ...(processAction === 'reject' && selectedRequest.status === 'manual_review'
                         ? { providerNotCancelledConfirmed }
                         : {}),
@@ -309,6 +329,16 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
             }
 
             toast.success(data.message)
+            if (data.notificationFailed) {
+                toast.warning(MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE)
+                // 거절 알림이 실패하면 저장된 사유를 창에 남겨 보여 준다(다시 거절은 막힌다 — 이미 처리됨).
+                if (processAction === 'reject' && typeof data.memberReason === 'string') {
+                    setUnsentReason(data.memberReason)
+                    router.refresh()
+                    alerts?.refresh()
+                    return
+                }
+            }
             setIsProcessDialogOpen(false)
             router.refresh()
             alerts?.refresh()
@@ -452,6 +482,12 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                                         </TableCell>
                                         <TableCell className="max-w-[200px] truncate" title={request.reason || ''}>
                                             {request.memberWithdrawn ? '가림' : request.reason || '-'}
+                                            {/* 16번: 회원에게 보낸 거절 사유(요청 상세) */}
+                                            {request.status === 'rejected' && !request.memberWithdrawn && request.member_reject_reason && (
+                                                <p className="mt-1 whitespace-normal text-xs text-red-700" title={request.member_reject_reason}>
+                                                    보낸 거절 사유: {request.member_reject_reason}
+                                                </p>
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             {getStatusBadge(request.status)}
@@ -576,6 +612,41 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                                 <p className="text-sm text-red-700">
                                     거부 시 환불 요청이 취소되고, 해당 크레딧은 다시 사용 가능 상태가 됩니다.
                                 </p>
+                            </div>
+                        )}
+
+                        {processAction === 'reject' && (
+                            <div>
+                                <label htmlFor="refund-member-reason" className="text-sm font-medium text-gray-700 mb-2 block">
+                                    회원에게 보낼 거절 사유 (필수 — 회원에게 그대로 안내됩니다)
+                                </label>
+                                {unsentReason !== null ? (
+                                    <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                                        <p className="font-semibold">거절은 처리했지만 회원 알림을 보내지 못했습니다. 아래 사유를 고객지원으로 그대로 알려 주세요.</p>
+                                        <p className="mt-2 whitespace-pre-wrap break-words">{unsentReason}</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <Textarea
+                                            id="refund-member-reason"
+                                            placeholder="예: 충전한 크레딧을 이미 사용하셔서 환불 요건에 맞지 않습니다."
+                                            value={memberReason}
+                                            onChange={(e) => setMemberReason(e.target.value)}
+                                            rows={3}
+                                        />
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            계좌번호·카드번호 같은 숫자는 적지 마세요. 처리 메모는 회원에게 보이지 않습니다. ({memberReasonText.length}/{CHARGE_REFUND_REJECT_REASON_MAX})
+                                        </p>
+                                        {memberReasonPii.length > 0 && (
+                                            <p role="alert" className="mt-1 text-xs text-red-700">
+                                                개인정보로 보이는 글이 있습니다({memberReasonPii.map((kind) => MEMBER_FACING_PII_LABELS[kind]).join(', ')}). 지운 뒤 거절할 수 있습니다.
+                                            </p>
+                                        )}
+                                        {memberReasonLongNumber && (
+                                            <p role="alert" className="mt-1 text-xs text-red-700">계좌번호·카드번호 같은 긴 숫자가 있습니다. 지운 뒤 거절할 수 있습니다.</p>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         )}
 
@@ -746,6 +817,10 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                             <label htmlFor="refund-admin-note" className="text-sm font-medium text-gray-700 mb-2 block">
                                 {noteRequired ? '처리 메모 (필수)' : '관리자 메모 (선택)'}
                             </label>
+                            {/* 16번 16절 3: 수동 확인 거절의 처리 메모는 고칠 수 없는 처리 기록에 원문으로 남는다 */}
+                            {rejectingManualReview && (
+                                <p className="mb-2 text-xs text-gray-500">이 메모는 고칠 수 없는 처리 기록에 남습니다. 회원 개인정보(계좌·연락처 등)는 적지 마세요.</p>
+                            )}
                             <Textarea
                                 id="refund-admin-note"
                                 placeholder="처리 관련 메모를 입력하세요..."
@@ -766,7 +841,7 @@ export function RefundsClient({ requests, stats, children }: RefundsClientProps)
                         </Button>
                         <Button
                             onClick={handleProcess}
-                            disabled={isSubmitting || !manualCompletionReady || !rejectReady}
+                            disabled={isSubmitting || !manualCompletionReady || !rejectReady || !memberReasonReady}
                             className={processAction === 'reject' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}
                         >
                             {isSubmitting ? (

@@ -11,6 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { NotificationBellItemBody } from '@/components/notifications/notification-item'
 
 interface Notification {
   id: string
@@ -32,6 +33,8 @@ interface NotificationBellProps {
 export function NotificationBell({ isAdmin = false, className }: NotificationBellProps) {
   const router = useRouter()
   const [notifications, setNotifications] = useState<Notification[]>([])
+  // 16번: 공지 알림 머리표(DB 문구, GET /api/notifications 가 함께 준다)
+  const [memberLabel, setMemberLabel] = useState<string | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
   const [adminPendingCount, setAdminPendingCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
@@ -44,6 +47,7 @@ export function NotificationBell({ isAdmin = false, className }: NotificationBel
       if (res.ok) {
         const data = await res.json()
         setNotifications(data.notifications || [])
+        setMemberLabel(typeof data.memberLabel === 'string' ? data.memberLabel : null)
         userUnread = data.notifications.filter((n: Notification) => !n.is_read).length
       }
 
@@ -194,17 +198,7 @@ export function NotificationBell({ isAdmin = false, className }: NotificationBel
                   )}
                   onClick={() => handleRead(notification)}
                 >
-                  <div className="space-y-1">
-                    <p className={cn("text-sm font-medium", !notification.is_read && "text-blue-700")}>
-                      {notification.title}
-                    </p>
-                    <p className="text-xs text-gray-500 line-clamp-2">
-                      {notification.message}
-                    </p>
-                    <p className="text-[10px] text-gray-400">
-                      {new Date(notification.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
+                  <NotificationBellItemBody notification={notification} memberLabel={memberLabel} />
                 </div>
               ))}
             </div>

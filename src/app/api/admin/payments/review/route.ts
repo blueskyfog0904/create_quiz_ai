@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
 import { requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import { MEMBER_WITHDRAWAL_ERRORS } from '@/lib/member-withdrawal'
+import { notificationFailed, sendMemberNotification } from '@/lib/member-notifications-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,25 +79,16 @@ export async function PATCH(request: Request) {
   }
 
   const result = data as { status?: string; user_id?: string } | null
+  // 16번: 회원 알림은 공용 함수로(문구는 DB). 실패해도 처리 결과는 그대로이고 화면에 notificationFailed 로 알린다.
+  let failed = false
   if (input.action === 'paid_confirmed' && result?.status === 'completed' && result.user_id) {
-    const { error: notificationError } = await admin.from('notifications').insert({
-      user_id: result.user_id,
-      type: 'success',
-      title: '크레딧 충전 완료',
-      message: '결제가 확인되어 크레딧이 충전되었습니다.',
-      link: '/mypage/credits',
-      is_read: false,
-    })
-    if (notificationError) {
-      console.error('[PaymentReview] Completion notification failed', {
-        errorCode: notificationError.code,
-      })
-    }
+    failed = notificationFailed(await sendMemberNotification({ kind: 'chargeCompleted', userId: result.user_id }))
   }
 
   return NextResponse.json({
     success: true,
     status: result?.status ?? null,
     message: '결제 확인 처리를 기록했습니다.',
+    notificationFailed: failed,
   })
 }

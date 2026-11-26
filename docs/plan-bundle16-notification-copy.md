@@ -345,3 +345,52 @@
 |---|---|
 | 링크 꼴이 자유로워 가릴 수 없는 곳에 글이 남음 / 거절 사유 긴 숫자가 알림 표에 남음 / 경계 문장 원문이 2년 기록에만 / 재정의 함수 권한 문장이 운영과 다름 / 허용 칸 위치 오류 / 다시 적용 때 5-8 남은 것 / down 이 옛 거절 함수를 확인 안 함 | 5-4 링크 고정 꼴(쿼리 없음), 5-8·6절 긴 숫자 거절(route 400·DB 새 코드), 5-3 `not_advertising_statement_text`, VERIFY·R6 적용 전 보안 방식·`proacl`, route `:72` enum, 5-1 남은 것 처리(지문 두 판), 5-5 down 첫머리 확인, R3·R7·R9·10-1 |
 
+
+## 21. 구현 메모(2026-11-26, 커밋 전)
+### 21-1. 만든 것
+- DB: `supabase/migrations/20261218100000_bundle16_member_notifications.sql`(버전은 가안 그대로), down `supabase/rollback/20261218100000_bundle16_member_notifications_down.sql`, 정리 `supabase/scripts/20261218_bundle16_support_notification_keys_cleanup.sql`, 되살리기 `…_restore.sql`, 리허설 생성기 `supabase/scripts/bundle16_rehearsal/generate.mjs`(`a_light.sql`·`b_full.sql`).
+- 코드: 규칙 `src/lib/member-notifications.ts`, 보내기 `src/lib/member-notifications-server.ts`(회원 알림 INSERT 는 여기 한 곳), 관리자 읽기·DB 호출 `src/lib/member-broadcast-server.ts`, 화면 `/admin/notifications`(page·actions·`notifications-admin.tsx`, 대표만), 표시 부품 `src/components/notifications/notification-item.tsx`(벨·목록·관리자 미리보기 공용).
+- 12곳 교체(웹훅 2·대사 2·결제 확인·충전 환불 route·답변·지급·회수·마켓 환불·예외 환불), 응답 칸 `notificationFailed` 통일, 충전 환불 거절 사유 칸(`refunds-client.tsx`)·route 400/409/503, 탈퇴 패널·가림 route enum, `PAYMENT_ADMIN_ACTION_LABELS.refund_rejected`, 작업 기록 3종, 사이드바 '알림'(owner), 14번 편집 창 [이 공지로 알림 보내기]·확인 창 경고 3종, 13번 안내 문구 탭 링크 한 줄.
+- 시험: `tests/bundle16-member-notifications-contract.test.mjs`(23개), 대역 `tests/helpers/member-notifications-harness.mjs`(실제 규칙 + 마이그레이션 첫 값으로 그림). 10-1 의 기존 시험 13개 파일을 (a)(b)(c) 대로 고침.
+
+### 21-2. 13·14번이 운영에 없는 상태의 처리
+- 사전 점검의 '13번 뒤 판' 지문은 13번 계획 18-4 의 light 측정값(`member_withdrawal_facts` `05923c4d…`, `redact_member_text` `47173300…`)이다. '16번 확장 판'은 `md5(prosrc)`(이 파일 본문에서 계산, 계약 시험이 상수와 대조). 옛 4인자 거절 지문 `20384719…` 는 운영 읽기 값.
+- 리허설은 선행 블록에서 13번 M0·M1(light 는 13번 생성기의 light 사본, full 은 원본)과 14번 원본을 **같은 거래 안에서 먼저 적용**한다(이미 있으면 건너뜀 — 13·14 적용 뒤에도 그대로 돌릴 수 있음). light 에서는 13번 M1 사본에 `support_tickets.response_edited_at` 이 없어 탈퇴 판정 함수는 부르지 않는다(R9 는 full).
+
+### 21-3. 리허설
+- **a_light: 2026-11-26 운영에서 실행, 113줄 전부 통과**(setup·선행 적용 13 M0·13 M1 light·14, 측정 지문이 사전 점검 상수와 같음, A·R2·R3·R4·R5·R6·R8·R7 일부·Z). 첫 시도는 plpgsql IF 조건 안의 맨 CASE 문법 오류로 거래 전체가 실패(바뀐 것 없음) → 괄호로 고친 뒤 통과. 끝은 ROLLBACK 이고, 뒤 확인 조회로 기록 표·설정 행·함수·13·14번 물건이 없고 `member_withdrawal_facts` 지문이 10번 값 그대로임을 봤다.
+- **b_full: 돌리지 않았다**(새벽, DB 적용 직전 — refund_requests·payment_admin_actions·notifications·system_settings 를 ROLLBACK 까지 잠금). full 에서만 보는 것: R2 대표 세션 직접 UPDATE, R3 보내기 성공·재요청, R5 회수·가림, R6 `broadcast_id` 칸 권한, R9 충전 환불 거절(새 서명·옛 서명 겹침 없음·처리 기록·가림), R7 되돌리기(16 down → 14 down → 14 재적용 → 16 재적용). 이 경우들은 아직 한 번도 실행되지 않았다. b_full 결과에 'NOTE R9 익명화 미실행:' 표지가 나오면 원인을 확인하고 대표가 판단한 뒤 진행한다.
+
+### 21-4. 계획과 다르게 하거나 구현하며 정한 것
+1. 함수 5개 밖에 **내부 검사 함수 `member_notification_texts_problem(jsonb)`**(아무도 EXECUTE 없음 — 저장 함수·사전 대조·VERIFY 가 같이 씀)와 기록 표 가드 함수를 더했다. down 은 검사 함수를 지우고 가드는 남긴다(기록 표와 짝).
+2. 웹훅·대사 알림 실패 경보: code `MEMBER_NOTIFICATION_FAILED`, details 는 `dedupe_key`·`kind`·`reason`·`related_payment_order_id`. 주문 id 를 `payment_order_id`·`order_id` 키로 두면 `record_payment_alert` 묶음 키가 주문 단위가 되어 '하루 한 건'이 깨지고, `member_withdrawal_facts` 의 '풀리지 않은 결제 경보' 진행 판정에 걸려 탈퇴가 막혀서다.
+3. `member_withdrawal_facts` 의 '미리보기에 member_reject_reason'(5-8)은 판정에만 넣었다(`refund_request` 항목은 원래 미리보기가 NULL).
+4. 길이·범위(코드 = 함수): 문구 제목 100·내용 500, 분류 이름 20, 마켓 문장 300, 머리표 10, 경계 문장 500, 가림 문구 60(기록 표 제목 칸에 들어감). 상한은 전체 1~5, 시험 1~50. 회수 사유 코드 `mistake`·`pii`·`wrong_target`·`other`, `pii` 면 가림 필수(DB 도).
+5. 인원 0명 보내기는 `expectedCount` 검사(1 이상)로 거절된다(별도 오류 코드 없음).
+6. 보내기 화면의 연결 목록에는 `/faq#{uuid}` 고르기를 넣지 않았다(FAQ 글 목록을 읽지 않음). 서버·DB 는 이 꼴을 받는다.
+7. 지급 창의 개인정보 경고(16절 2 기본안)는 회사 연락처 예외 없이 본다(창에 연락처 값이 없음). 경고만 하고 막지 않는다. 16절 3 기본안대로 수동 확인 거절의 처리 메모 칸에 안내 한 줄을 더했다.
+8. 13번 코드에서 답변 알림 키 4개·`notifyOnAnswerEdit`·`fillSupportNotificationText`·`SUPPORT_NOTIFICATION_PLACEHOLDER` 를 지웠다(안내 문구 탭은 그 키 없이 저장 — 정리 스크립트의 '이미 없음' 경로). `market-refund-rules.buildMarketRefundApprovedMessage` 도 지웠다(조립 규칙은 `buildMarketRefundMessage`, 문장은 DB).
+9. 마켓 TARGET_CHANGED 자동 거절의 회원 알림은 DB 가 적은 `admin_note` 를 사유로 보낸다. 비어 있으면 보내지 않고 실패로 알린다(빈 사유 대체 문구 없음, Q2).
+10. 충전 환불 거절 창: 알림이 실패하면 창을 닫지 않고 저장된 사유를 보여 준다. 목록 사유 칸 아래에 '보낸 거절 사유'를 보인다(탈퇴 회원은 가림). GET 목록·관리 화면의 탈퇴 가림에 `member_reject_reason: null` 을 더했다.
+11. `src/types/supabase.ts` 를 손으로 고쳤다(5인자 거절 Args·Returns Json, `refund_requests.member_reject_reason`, `notifications.broadcast_id`). DB 적용 뒤 생성 타입으로 다시 맞춘다.
+12. 14번 `board-admin.tsx` 의 '16번 연결점(7-3)' 주석 글자는 남겼다(14번 계약 시험이 단언).
+- 0절 질문은 모두 기본안으로 구현했다.
+
+### 21-5. 시험·남은 일
+- `node --test tests/*.test.mjs`: 2247개 중 실패 46개(21-6 반영 뒤) — 시작 전 기준선의 실패 46개와 이름이 모두 같다(새 실패 0). `npx tsc --noEmit -p .`: `.next/` 밖 0. 바뀐 파일 eslint 오류는 HEAD 원본에도 있는 것뿐(`notification-bell.tsx` set-state-in-effect 2, `api/notifications/route.ts` any 2, `grant-credit-dialog.tsx` any 1).
+- 남은 일(13절 순서): 12절 검증(DB·결제 3명·법률) → 13·14번 DB 적용 → b_full(새벽) → 16번 DB 적용(승인) → 로컬 확인(Claude in Chrome 먼저, 저장·보내기·회수·벨 열기 안 함) → 대표 승인 → push·배포 → 운영 확인(10-2) → 정리 스크립트(승인) → 런북.
+
+### 21-6. 구현 독립 검증(5관점) 반영 — 결제·환불 FAIL(major 1), 나머지 PASS(minor) → 고침
+| 관점·등급 | 지적 | 반영 |
+|---|---|---|
+| 결제 major | full 리허설 R9 에 메모 없는 보통 거절·수동 확인 분기·결제사 취소 흔적이 없음 | R9 에 메모 없는 보통 거절(`admin_note_present` false), 수동 확인(확인 false·빈 메모 → `REFUND_REJECT_CONFIRMATION_REQUIRED`·그대로, 확인 true → action·note=메모·details 기존 키+글자 수·actor), 격리 건(origin `external_cancel`) 거절 불가를 더함. 결제 회원 근거로 원천을 `plan_purchase` 로 만든다 |
+| 결제 minor | 커밋 뒤 회원 id 없음을 거절 실패(503)로 안내 | 래퍼가 예외를 던지지 않고 `userId: null` → route 는 200·`notificationFailed: true` |
+| 결제 minor | 알림·실패 안내의 사유가 DB 저장 값과 다를 수 있음 | 거절 함수가 저장한(다듬은) `member_reject_reason` 도 돌려주고, 알림·응답이 그 값을 쓴다 |
+| 경로 minor | 마켓 자동 거절 409 에 실패 칸 없음, 정산 뒤 행을 못 읽으면 false | 409 에 `notificationFailed`(행 못 읽음 = true), 화면 두 곳이 읽음, 정산 뒤 행 못 읽음 = true |
+| 공지 minor | 읽은 수를 기록마다 따로 셈, 미리보기 STABLE | 한 번에 `in(broadcast_id)` 로 읽어 코드에서 셈(500행씩), 미리보기 VOLATILE |
+| 공지 minor | full 미실행 | 그대로 — 적용 전 새벽 b_full 에서 R3·R5·R6 확인 |
+| DB minor | down 이 회수 안 한 알림의 연결을 끊음 | down 사전 점검: 회수 안 한 기록에 연결된 알림이 남으면 멈춤(R7 에 경우 추가 — 회수 뒤 down) |
+| DB minor | 다시 적용 VERIFY 가 칸 이름만 봄 | VERIFY 에 기록 표 칸 형식·NOT NULL·기본값과 제약 정의(외래 키 빼고) 지문(light 측정 `985ff2dc…`·`c5cb1756…`) |
+| DB minor | 잠금 순서 교착 가능 | 기존 표 DDL 구역 첫 문장 `LOCK TABLE system_settings, refund_requests, payment_admin_actions, notifications` |
+| 탈퇴 minor | R9 가 익명화 뒤 칸 보존을 안 봄 | 익명화 함수가 refund_requests 를 지우거나 고치지 않음을 단언하고, 실제 대표 익명화를 시도해 통과하면 칸 보존을 단언(시험 계정 상태로 판정이 거절하면 이유를 기록 — full 에서 확인) |
+- a_light: 고친 뒤 운영에서 다시 실행, 113줄 전부 통과(VERIFY 지문은 한 번 실패시켜 측정한 뒤 넣음 — 그 실행도 거래 전체 취소). ROLLBACK 뒤 운영 잔여 0 확인. b_full 은 여전히 돌리지 않았다.

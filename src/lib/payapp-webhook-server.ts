@@ -7,6 +7,7 @@ import {
   type PayAppFeedback,
 } from '@/lib/payapp-server'
 import type { createPaymentAdminClient } from '@/lib/payment-orders-server'
+import { sendMemberNotification, type MemberNotificationRequest } from '@/lib/member-notifications-server'
 import type { Database, Json } from '@/types/supabase'
 
 type PaymentAdminClient = ReturnType<typeof createPaymentAdminClient>
@@ -42,9 +43,16 @@ export interface Alert {
   notifyAdmins?: boolean
 }
 
+// 16번: 회원 알림은 글 대신 종류(kind)·회원 id 만 담는다. 문구는 공용 보내기 함수가 DB 에서 읽는다.
+// paymentOrderId 는 알림 실패 흔적(경보)에만 쓴다(회원 id·글자는 경보에 남기지 않는다).
 export interface FollowUps {
   alerts: Alert[]
-  userNotification?: { userId: string; title: string; message: string; link: string }
+  userNotification?: MemberNotificationRequest & { paymentOrderId?: string | null }
+}
+
+// 한국 날짜(YYYY-MM-DD) — 같은 종류의 알림 실패 경보를 하루 한 건으로 모은다.
+function kstDate(now = new Date()) {
+  return new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
 
 const SUCCESS: PayAppWebhookReply = { body: 'SUCCESS', status: 200 }
@@ -113,18 +121,27 @@ export async function runFollowUps(admin: PaymentAdminClient, followUps: FollowU
   }
 
   if (followUps.userNotification) {
-    try {
-      const { userId, title, message, link } = followUps.userNotification
-      await admin.from('notifications').insert({
-        user_id: userId,
-        type: 'success',
-        title,
-        message,
-        link,
-        is_read: false,
-      })
-    } catch {
-      // 사용자 알림 실패는 결제 처리 결과와 무관하다.
+    const { paymentOrderId, ...request } = followUps.userNotification
+    // 사용자 알림 실패는 결제 처리 결과와 무관하다(공용 함수는 예외를 던지지 않는다).
+    const result = await sendMemberNotification(request)
+    // 화면이 없는 경로(웹훅·대사)의 실패 흔적: 꺼 둔 종류가 아니면 경보 1건(같은 종류는 한국 날짜로 하루 한 건). 이 기록이 실패해도 무시한다.
+    // details 에 회원 id·글자는 넣지 않는다. 주문 id 는 related_payment_order_id 로 둔다(payment_order_id 로 두면 경보 묶음 키·탈퇴 진행 판정에 걸린다).
+    if (!result.sent && result.reason !== 'disabled') {
+      try {
+        await admin.rpc('record_payment_alert', {
+          p_code: 'MEMBER_NOTIFICATION_FAILED',
+          p_severity: 'warning',
+          p_message: '결제·환불 결과 회원 알림을 보내지 못했습니다(처리 결과는 그대로). 관리자 \'알림\' 화면의 문구를 확인하세요.',
+          p_details: {
+            dedupe_key: `member_notification_failed:${request.kind}:${kstDate()}`,
+            kind: request.kind,
+            reason: result.reason,
+            related_payment_order_id: paymentOrderId ?? null,
+          } as Json,
+        })
+      } catch {
+        // 실패 흔적 기록이 실패해도 결제 처리 결과와 무관하다.
+      }
     }
   }
 }
@@ -153,12 +170,7 @@ function feedbackFollowUps(feedback: PayAppFeedback, result: PayAppRpcResult): F
   }
 
   const userNotification = result.result === 'fulfilled' && result.user_id
-    ? {
-        userId: result.user_id,
-        title: '크레딧 충전 완료',
-        message: '결제가 확인되어 크레딧이 충전되었습니다.',
-        link: '/mypage/credits',
-      }
+    ? { kind: 'chargeCompleted' as const, userId: result.user_id, paymentOrderId: result.payment_order_id ?? null }
     : undefined
 
   return { alerts, userNotification }
@@ -275,12 +287,7 @@ export function cancellationFollowUps(
   }
 
   const userNotification = result.result === 'refund_finalized' && result.user_id
-    ? {
-        userId: result.user_id,
-        title: '환불 완료',
-        message: '결제 취소가 확인되어 환불이 완료되었습니다.',
-        link: '/mypage/payments',
-      }
+    ? { kind: 'chargeRefundProviderFinalized' as const, userId: result.user_id, paymentOrderId: result.payment_order_id ?? null }
     : undefined
 
   return { alerts, userNotification }
