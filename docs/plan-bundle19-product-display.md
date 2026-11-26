@@ -291,6 +291,7 @@
    - 추가 키·함수뿐이라 옛 코드 영향은 없다. 옛 코드는 `detail` 을 읽지 않는다.
 4. **표시명 스크립트 1차**(4-5, push 직전): 옛 코드는 비어 있지 않은 표시명을 덮지 않으므로(`||` 대체) 배포 전에 돌려도 안전하다. 그래야 새 상세가 처음부터 '전체 패키지'를 보인다.
 5. 로컬 확인(미리보기, 나 → 대표) → 대표 승인 → push·배포
+   - 1차 스크립트 뒤 배포 전까지는 옛 장바구니 화면이 묶음 줄에 꼬리표 '전체 패키지'와 줄 이름 '전체 패키지'를 두 번 보인다(겹침 정리는 새 코드). 표시만의 일시 현상이라 배포로 풀린다. (구현 검증 minor)
 6. **표시명 스크립트 2차**(배포 직후): 읽기 조회로 다시 세어 0이 아니면(1차와 배포 사이 옛 코드로 만든 행) 새 상수로 다시 돌린다. 0 확인. 배포는 실회원이 적은 시간에 한다.
 7. 운영 확인(9-2 마지막) → 대표가 '상세 안내 문구'·'자료 정보 항목' 최종 문구를 관리자 화면에서 정한다.
 8. 진행 기록 갱신. `docs/purchase-section-redesign-plan.md` D8 줄 옆에 '2026-11-20 대표 결정으로 19번에서 바뀜'을 한 줄 더한다.
@@ -326,3 +327,53 @@
 | 화면·결제 | 규칙 파일 이름이 17번과 다름, 결제 경로 시험 범위가 흐림 | 5절: 17번 파일 이름, 겹침 정리는 별도 순수 파일, 9-1 결제 경로 파일 목록 전부 |
 | 결제 | 배포부터 스크립트까지 상세가 옛 글자를 보임 | 11절: push 직전 1차·배포 직후 2차, 4-5 '스크립트 뒤 기준' |
 | 결제 | 관리자 주문 화면 빈칸은 배포 직후부터 생김 | 5절: `admin-orders-server.ts:616` 한 줄을 19번 범위로, 12절 후속 줄 삭제 |
+
+## 15. 구현 메모 (2026-11-26, 커밋·push·DB 적용 안 함)
+### 15-1. 만든·바꾼 것
+- DB(적용 안 함)
+  - 마이그레이션 `supabase/migrations/20261221100000_bundle19_product_display.sql`(18번 다음 버전), down `supabase/rollback/20261221100000_bundle19_product_display_down.sql`(17번 함수 전문 그대로)
+  - 표시명 스크립트 `supabase/scripts/20261221_bundle19_bundle_label.sql`·`20261221_bundle19_bundle_label_revert.sql`(마이그레이션 밖, 4-5)
+  - 리허설 생성기 `supabase/scripts/bundle19_rehearsal/generate.mjs` → `a_light.sql`·`b_full.sql`, `--preview` → `output/b19-product-display-preview.json`
+- 규칙·읽기: `src/lib/market-item-options.ts`(detail 키·필수 키·`parseMarketItemDetailDisplay`·`fillSampleCount`·`buildMaterialInfoRows`·`isInfoItemVisible`·`resolveBundleTitle`·`findMarketItemDetailDisplayProblem`), `src/lib/market-item-options-server.ts`(부분 저장·순서 함수 호출·개발 미리보기), 새 순수 파일 `src/lib/cart-line-title.ts`
+- 회원: 상세 page(설정 읽기 try/catch), `market-material-detail.tsx`·`market-material-sample-button.tsx`·`market-item-actions.tsx`, 새 공용 부품 `src/components/market/market-sample-row.tsx`, 장바구니 줄 `cart-line-list-view.tsx`
+- 관리자: '상품 표시 설정'에 탭 3개(`detail-display-tabs.tsx`·`taxonomy-tab.tsx`), 상품 편집 서브상품 순서(`_hooks/use-subproduct-order.ts`·`_editor/subproduct-table.tsx`), 전체구매 칸(`_editor/bundle-section.tsx`), 새 route `PUT /api/admin/market/items/[id]/subproducts/order`, 표시 설정 route 부분 저장, 전체구매 route `label ?? ''`, `admin-orders-server.ts` 한 줄, 작업 기록 종류 2개
+- 옮김: `products/_settings/subproduct-category-settings-dialog.tsx`·`file-type-settings-dialog.tsx`를 지우고 내용을 `product-settings/taxonomy-tab.tsx`로(창 → 카드, 목록은 탭이 직접 읽음, route·문구 그대로)
+- 개발 미리보기: `/preview/solvook-concept/product-display`(`PRODUCT_DISPLAY_PREVIEW=1 PRODUCT_DISPLAY_PREVIEW_FILE=output/b19-product-display-preview.json`, 관리자 탭은 같은 파일을 `PRODUCT_INFO_PREVIEW_FILE`로). 예시 상품 id 는 가짜라 조회 route 가 404(쓰기 없음)
+
+### 15-2. 계획과 다르거나 정한 것
+1. 순서 함수의 상품 행 잠금은 `FOR UPDATE` 대신 `FOR NO KEY UPDATE`. 같은 상품의 동시 순서 저장은 똑같이 줄 세우고, 구매 줄·장바구니 INSERT 의 FK 확인(KEY SHARE)은 막지 않는다.
+2. 사전 점검 지문 `5cd1e1f548bd73aea05f5845a0212a6a`는 '17번 적용 뒤 채움' 대신 지금 채웠다. 운영 `BEGIN…ROLLBACK` 거래에 17번 light 사본을 넣고 잰 값이다. 17번 적용 뒤에도 같아야 하며, 리허설 R1 이 다시 확인한다.
+3. `MarketItemDisplay`에 `detail`을 필수로 더했다(17번처럼 객체 전체 검사). 17번 계약 시험의 첫 값 읽기는 19번 첫 값을 합친 행으로, 필수 키 대조는 17번 키만 보게 고쳤다.
+4. 순서 함수 오류 코드는 17번 목록과 나눈 `MARKET_SUBPRODUCT_ORDER_ERROR_MESSAGES`에 두었다. 17번 계약 시험이 17번 RAISE 코드 목록을 그대로 고정하기 때문이다.
+5. `display = null`이면 학년·자료유형 배지는 숨기고, 연도 배지는 그대로 둔다. 연도는 자료 정보 항목이 아니고 설정 글도 없다.
+6. D8 주석은 "대표 결정(11월 20일)으로 표시명 사용"으로 적었다. 구매 영역 시험이 v2 구역의 4자리 숫자(가격 리터럴)를 금지하기 때문이다.
+7. 샘플 줄을 공용 부품 `MarketSampleRow`로 뺐다. 관리자 [상세 안내 문구] 미리보기가 회원 부품을 요청 없이(`onOpen` 없이) 그린다.
+8. 표시명 스크립트
+   - 상수 3개(대표 id·건수·id md5)는 `NULL`로 두었다. 채우기 전에는 아무것도 바꾸지 않고 멈춘다. 세는 조회는 머리 주석에 있다.
+   - 대상 0건이면 기록 없이 끝난다(2차 실행이 0일 때).
+   - `updated_at`은 기존 트리거(`trg_market_item_bundle_options_updated_at`)가 바꾼다.
+   - 되돌림은 마지막 되돌림 뒤의 실행 기록(1차·2차) ids 를 합쳐, 지금도 '전체 패키지'인 행만 되돌린다.
+9. light 리허설의 표시명 스크립트는 대상 글자를 시험 글자('rh19 전체 한번에 구매하기')로 바꾼 사본이다(실상품 145행을 잠그지 않음). full 은 원본 글자로 실제 건수를 대조한다.
+10. 상품 편집에서 기본 제목을 읽지 못하면 전체구매 미리보기에 '(기본 제목)'(관리자 조작 문구)을 보인다.
+11. 다시 읽은 목록에 고르던 구성·파일 유형이 없으면 값을 비우고 `needsReselect` 표시('다시 골라 주세요')를 한다. 서브상품 추가 버튼과 그 행의 올리기는 고를 때까지 막힌다.
+12. `docs/purchase-section-redesign-plan.md` D8 줄 옆 한 줄은 11절 8단계(배포 뒤)에 더한다(지금은 고치지 않음).
+13. 새 서브상품 순서(`max + 10`)는 잠금 없이 읽고 만든다. 같은 상품에 서브상품 추가와 순서 저장이 동시에 일어나면 새 서브상품 위치는 보장하지 않는다(다시 순서 저장으로 고침, 또는 순서 저장이 MISMATCH 로 거절됨). 표시 순서만의 일이고 결제·판정과 무관하다.
+14. 구현 검증(3관점 PASS) minor 반영
+   - 되돌림 스크립트 머리에 '같은 글자로 다시 저장한 행도 되돌림' 주석.
+   - 장바구니 줄 이름 겹침 정리는 묶음 줄에만(`resolveCartLineOptionTitle(targetKind, …)` — 개별 자료 줄은 지금 그대로).
+   - 자료 정보 행·설명이 모두 없으면 '자료 상세 정보' 카드를 숨긴다.
+   - [자료 정보 항목] 탭의 위로·아래로·보이기에 항목 이름을 넣은 aria-label.
+   - VERIFY 는 판이 정확히 1 올랐는지 본다(사전 점검이 `set_config('bundle19.revision_before', …, true)`로 거래 안에만 보관, 리허설 R1 이 단언).
+   - 11절 4단계에 1차~배포 사이 장바구니 이름 두 번 보임 한 줄.
+
+### 15-3. 확인 결과
+- light 리허설(2026-11-26, 운영 `BEGIN…ROLLBACK`, `a_light.sql`): 81줄(minor 반영 뒤 다시 실행 82줄 — R1 '정확히 +1' 단언 더함), R1~R6 와 경우 밖 남은 것 0(Z) 모두 통과. 17·18번이 운영에 없어 사본을 먼저 넣었다. 시험 계정 @test.com 5개 중 4개를 썼다.
+  - R1: 적용 VERIFY 통과 → 다시 적용 거절, 19번 상태에서 17번 down 멈춤. down 뒤 행 값·함수 지문이 17번 상태와 같고(판 +2) 다시 적용된다.
+  - R2: 판 +1. 17번 키만 보낸 저장은 detail 을, detail 만 보낸 저장은 17번 키를 그대로 둔다. 다음은 모두 거절되고 성공 5건만 기록된다: infoItems 빠짐·겹침·모르는 key, 모르는 자리표시, 받지 않는 키의 `{장수}`, `{type}`, 201자, 31자, 줄바꿈, 빈 값, 판 충돌, 일반 회원.
+  - R3·R4: 권한 표 그대로다. 빠짐·더함·다른 상품·지운 서브상품·겹침은 MISMATCH 다. 사용 안 함 포함 저장은 성공하고, 같은 순서를 다시 저장하면 기록이 없다. 값은 10·20·30, 공개 읽기 순서는 새 순서다.
+  - R5: 상수가 비거나 건수가 다르면 멈춘다. 실행 뒤 대상 0건·기록 1건, 두 번째 실행은 0건이라 기록이 없다. 되돌림 → 원래 글자, 그 사이 고친 행은 남기고 `kept_ids`로 기록한다.
+  - R6: 시험 상품 묶음 판정 `chargedCredits 3500·purchasable true`가 전후 같고 `optionTitle`만 바뀐다. 장바구니 문구·2판 동의 묶음은 글자까지 같다.
+- `node --test tests/*.test.mjs`: 2,259 통과 / 44 실패. 실패 44건은 작업 전 기준선과 이름까지 같다(새 실패 0). 새 시험 `tests/bundle19-product-display-contract.test.mjs` 22건.
+- 바뀐 기존 시험: purchase-section-redesign·market-item-detail-ui·market-detail-multiselect·market-v2-detail-library·market-sample-pages-api·market-products-admin-material-info·solvook-real-market-detail·market-admin-subproduct-ui·market-upload-draft-source·security-quick-fixes·bundle17-product-info·bundle18-product-split(호출 목록 기준 다시 저장: fetch 32 → 29)·admin-audit-log·admin-guard-coverage. 도우미 `tests/helpers/product-admin-sources.mjs`.
+- `npx tsc --noEmit -p .`: `.next/` 밖 0건. eslint(바뀐·새 파일 47개): 0건.
+- 하지 않은 것: full 리허설(DB 적용 직전·새벽), 화면 확인 9-2(Claude in Chrome, 내가 먼저 → 대표), 구현 검증, DB 적용, 표시명 스크립트 실행, 커밋·push.

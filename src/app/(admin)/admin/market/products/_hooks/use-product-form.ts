@@ -143,9 +143,10 @@ export function useProductForm(ctx: MarketProductsState) {
 
     setSubproductCategories(nextCategories)
     setFileTypes(nextFileTypes)
-    setSubproductDraft((current) => nextActiveCategories.some((category) => category.id === current.categoryId)
+    // 19번 6-2: 고르던 값이 다시 읽은 목록에 없으면(숨김·삭제) 첫 항목으로 바꿔 끼우지 않고 비운다 — '다시 골라 주세요'(잘못된 유형으로 저장되지 않게)
+    setSubproductDraft((current) => !current.categoryId || nextActiveCategories.some((category) => category.id === current.categoryId)
       ? current
-      : { ...current, categoryId: nextActiveCategories[0]?.id || '' })
+      : { ...current, categoryId: '', needsReselect: true })
     setSubproductFileDrafts((current) => {
       let changed = false
       const nextDrafts = current.map((draft) => {
@@ -154,7 +155,7 @@ export function useProductForm(ctx: MarketProductsState) {
         }
 
         changed = true
-        return { ...draft, fileTypeId: nextActiveFileTypes[0]?.id || '' }
+        return { ...draft, fileTypeId: '', needsReselect: true }
       })
 
       return changed ? nextDrafts : current
@@ -189,6 +190,31 @@ export function useProductForm(ctx: MarketProductsState) {
       isMounted = false
     }
   }, [reloadUploadTaxonomy])
+
+  // 19번 6-2: 구성·파일 유형 관리는 '상품 표시 설정'(새 탭)으로 옮겼다. 창이 다시 보이면(visibilitychange·focus) 목록을 다시 읽는다.
+  // 고르던 값·올리던 파일 초안은 그대로 둔다(위 reloadUploadTaxonomy 가 없어진 값만 비움).
+  useEffect(() => {
+    const reloadQuietly = () => {
+      if (document.visibilityState !== 'visible') return
+      reloadUploadTaxonomy().catch(() => undefined)
+    }
+    document.addEventListener('visibilitychange', reloadQuietly)
+    window.addEventListener('focus', reloadQuietly)
+    return () => {
+      document.removeEventListener('visibilitychange', reloadQuietly)
+      window.removeEventListener('focus', reloadQuietly)
+    }
+  }, [reloadUploadTaxonomy])
+
+  // [목록 새로고침] 버튼
+  const refreshUploadTaxonomy = async () => {
+    try {
+      await reloadUploadTaxonomy()
+      toast.success('구성·파일 유형 목록을 다시 읽었습니다.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '서브상품 설정을 불러오지 못했습니다.')
+    }
+  }
 
   // [카테고리 관리] 팝업에서 칸을 바꾸면 선택칸에 바로 반영한다. 고른 칸이 삭제됐으면 선택을 비운다.
   const applyCategoryTree = (tree: AdminCategoryTreeNode[]) => {
@@ -308,7 +334,7 @@ export function useProductForm(ctx: MarketProductsState) {
       headers: bundleForm.enabled ? { 'Content-Type': 'application/json' } : undefined,
       body: bundleForm.enabled
         ? JSON.stringify({
-          label: bundleForm.label || '전체 한번에 구매하기',
+          label: bundleForm.label,
           description: bundleForm.description,
           priceCredits: parseCreditInputValue(bundleForm.priceCredits),
           isActive: true,
@@ -571,7 +597,7 @@ export function useProductForm(ctx: MarketProductsState) {
     subproductFileDrafts, setSubproductFileDrafts, thumbnailFieldValue, selectedCategoryPath, selectedCategory,
     selectedCategoryDefaultImage, isUploadBlockedByCategory, examYearOptions, activeSubproductCategories,
     activeFileTypes, subproductFilesBySubproductId, isExamYearOpen, setIsExamYearOpen, currentExamYear,
-    productOptionChoices, scrollExamYearListToAnchor, pickExamYear, reloadUploadTaxonomy, applyCategoryTree,
+    productOptionChoices, scrollExamYearListToAnchor, pickExamYear, reloadUploadTaxonomy, refreshUploadTaxonomy, applyCategoryTree,
     reloadCategoryTree, resetForm, fetchItemDetail, applyItemDetail, fetchItemSamplePages, persistSamplePageOrder,
     persistBundleOption, loadItemDetail, refreshEditingFiles, buildRequestBody, persistForm, handleSave,
     ensureDraftItemForUpload, handleArchive,

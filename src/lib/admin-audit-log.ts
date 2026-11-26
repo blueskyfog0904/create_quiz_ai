@@ -99,6 +99,9 @@ export const ADMIN_AUDIT_ACTIONS = {
   market_item_display_update: '상품 표시 설정 수정',
   // 18번 묶음(상품 업로드 개선): 복제·같은 구성으로 다음 상품은 DB 함수가 같은 거래에서 남긴다(결제 연결 아님).
   market_item_duplicate: '상품 복제·같은 구성으로 새 상품',
+  // 19번 묶음(상품 표시 설정): 순서는 DB 함수가, 표시명 일괄 변경은 SQL 스크립트(실행·되돌림)가 남긴다(결제 연결 아님).
+  market_subproduct_reorder: '서브상품 순서 변경',
+  market_bundle_label_bulk_update: '전체구매 표시명 일괄 변경(SQL 스크립트)',
 } as const
 
 export type AdminAuditAction = keyof typeof ADMIN_AUDIT_ACTIONS

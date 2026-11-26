@@ -80,6 +80,22 @@ export async function readProductInfoPreviewData(): Promise<ProductInfoPreviewDa
   return { options: Array.isArray(parsed.options) ? parsed.options : [], display: parsed.display ?? null, usageBasis: parsed.usageBasis ?? null }
 }
 
+// 19번 9-2: 상품 상세 표시 미리보기(개발 전용 — 예시 상품·설정 값을 메모리에서 그린다. 상세 주소를 열지 않아 조회 기록이 쓰이지 않는다).
+// 켜는 법: `PRODUCT_DISPLAY_PREVIEW=1 PRODUCT_DISPLAY_PREVIEW_FILE=output/b19-product-display-preview.json npm run dev`
+//   → /preview/solvook-concept/product-display. 파일은 생성기(node supabase/scripts/bundle19_rehearsal/generate.mjs --preview)가 만든다.
+export function isProductDisplayPreviewEnabled() {
+  return process.env.NODE_ENV === 'development'
+    && !process.env.VERCEL
+    && process.env.PRODUCT_DISPLAY_PREVIEW === '1'
+}
+
+export async function readProductDisplayPreviewData(): Promise<{ display: unknown; detailPreview: unknown }> {
+  const file = process.env.PRODUCT_DISPLAY_PREVIEW_FILE
+  if (!isProductDisplayPreviewEnabled() || !file) throw new Error('product display preview file missing')
+  const parsed = JSON.parse(await readFile(resolve(process.cwd(), file), 'utf8')) as { display?: unknown; detailPreview?: unknown }
+  return { display: parsed.display ?? null, detailPreview: parsed.detailPreview ?? null }
+}
+
 const sortOptions = (options: MarketItemOption[]) =>
   [...options].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
 
@@ -149,7 +165,8 @@ const getCachedDisplayValue = unstable_cache(
   { revalidate: MARKET_ITEM_OPTIONS_CACHE_SECONDS, tags: [MARKET_ITEM_DISPLAY_CACHE_TAG] }
 )
 
-// 회원 화면 필터 이름. 행이 없거나 필수 키가 비면 예외 — 부르는 화면은 필터 이름만 숨기고 필터 동작은 그대로 둔다.
+// 회원 화면 필터 이름·상품 상세 안내 문구(19번 — 상세 page 만 부름. 장바구니·결제 경로는 부르지 않는다).
+// 행이 없거나 필수 키가 비면 예외 — 부르는 화면은 설정에 기대는 글만 숨기고 동작(필터·담기)은 그대로 둔다.
 export async function getMarketItemDisplay(): Promise<MarketItemDisplay> {
   const raw = isProductInfoPreviewEnabled() ? (await readProductInfoPreviewData()).display : await getCachedDisplayValue()
   const display = parseMarketItemDisplay(raw)
@@ -204,9 +221,20 @@ export function callReorderMarketItemOptions(actorId: string, subject: Workspace
   })
 }
 
-export function callSaveMarketItemDisplay(actorId: string, expectedRevision: number, value: Omit<MarketItemDisplay, 'revision'>, requestMeta: AdminRequestMeta) {
+// 19번 4-3: 탭마다 자기 최상위 키만 보낸다(검색 필터 이름 탭은 facetLabels·libraryEmptyFilterHint, 상세 탭들은 detail).
+// 보내지 않은 키는 DB 함수가 지금 값 그대로 둔다.
+export type MarketItemDisplayPatch = Partial<Omit<MarketItemDisplay, 'revision'>>
+
+export function callSaveMarketItemDisplay(actorId: string, expectedRevision: number, value: MarketItemDisplayPatch, requestMeta: AdminRequestMeta) {
   return callMarketCatalogRpc('save_market_item_display', {
     p_actor_id: actorId, p_expected_revision: expectedRevision, p_value: value, p_request_meta: requestMeta,
+  })
+}
+
+// 19번 4-4: 상품의 서브상품 순서(지우지 않은 서브상품 전부, 사용 안 함 포함). 10·20·30… 으로 다시 매긴다.
+export function callReorderMarketItemSubproducts(actorId: string, itemId: string, ids: string[], requestMeta: AdminRequestMeta) {
+  return callMarketCatalogRpc('reorder_market_item_subproducts', {
+    p_actor_id: actorId, p_item_id: itemId, p_ids: ids, p_request_meta: requestMeta,
   })
 }
 

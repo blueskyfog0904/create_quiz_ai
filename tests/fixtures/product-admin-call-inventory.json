@@ -1,8 +1,8 @@
 {
-  "base": "18번 2단계(77b7511 + 1단계 나누기 + 2단계 기능)",
+  "base": "19번(18번 2단계 + 19번: 구성·파일 유형 설정 창을 상품 표시 설정 탭으로 옮김, 서브상품 순서 저장)",
   "step1Base": "77b7511",
   "counts": {
-    "fetch": 32,
+    "fetch": 29,
     "router.refresh": 7,
     "uploadToSignedUrl": 1,
     "router.push": 1,
@@ -98,20 +98,6 @@
       "order": 0
     },
     {
-      "fn": "handleDeleteCategorySettings",
-      "kind": "fetch",
-      "args": "withAdminWorkspaceSubject(`/api/admin/market/subproduct-categories/${categoryId}`, workspaceSubject), { method: 'DELETE', }",
-      "variables": {},
-      "order": 0
-    },
-    {
-      "fn": "handleDeleteFileTypeSettings",
-      "kind": "fetch",
-      "args": "withAdminWorkspaceSubject(`/api/admin/market/file-types/${fileTypeId}`, workspaceSubject), { method: 'DELETE', }",
-      "variables": {},
-      "order": 0
-    },
-    {
       "fn": "handleDeleteFromList",
       "kind": "fetch",
       "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${deleteTarget.id}`, workspaceSubject), { method: 'DELETE', }",
@@ -183,20 +169,6 @@
       "order": 3
     },
     {
-      "fn": "handleSaveCategorySettings",
-      "kind": "fetch",
-      "args": "withAdminWorkspaceSubject( editingCategoryId ? `/api/admin/market/subproduct-categories/${editingCategoryId}` : '/api/admin/market/subproduct-categories', workspaceSubject ), { method: editingCategoryId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: categorySettingsForm.name, slug: categorySettingsForm.slug, description: categorySettingsForm.description, sortOrder: Number(categorySettingsForm.sortOrder || 0), isActive: categorySettingsForm.isActive, }), }",
-      "variables": {},
-      "order": 0
-    },
-    {
-      "fn": "handleSaveFileTypeSettings",
-      "kind": "fetch",
-      "args": "withAdminWorkspaceSubject( editingFileTypeId ? `/api/admin/market/file-types/${editingFileTypeId}` : '/api/admin/market/file-types', workspaceSubject ), { method: editingFileTypeId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: fileTypeSettingsForm.code, label: fileTypeSettingsForm.label, extension: fileTypeSettingsForm.extension.replace(/^\\./, ''), ...(fileTypeSettingsForm.requiredProgram.trim() ? { requiredProgram: fileTypeSettingsForm.requiredProgram } : {}), mimeAllowlist: fileTypeSettingsForm.mimeAllowlist .split(/\\n|,/) .map((mime) => mime.trim()) .filter(Boolean), sortOrder: Number(fileTypeSettingsForm.sortOrder || 0), isActive: fileTypeSettingsForm.isActive, }), }",
-      "variables": {},
-      "order": 0
-    },
-    {
       "fn": "handleSaveSubproduct",
       "kind": "fetch",
       "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}/subproducts/${subproductId}`, workspaceSubject), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categoryId: subproductEditDraft.categoryId, description: subproductEditDraft.description, purchaseNoticeLabel: subproductEditDraft.purchaseNoticeLabel, purchaseNoticeText: subproductEditDraft.purchaseNoticeText, priceCredits: parseCreditInputValue(subproductEditDraft.priceCredits), isActive: subproductEditDraft.isActive, }), }",
@@ -229,7 +201,7 @@
     {
       "fn": "persistBundleOption",
       "kind": "fetch",
-      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/bundle-option`, workspaceSubject), { method: bundleForm.enabled ? 'PATCH' : 'DELETE', headers: bundleForm.enabled ? { 'Content-Type': 'application/json' } : undefined, body: bundleForm.enabled ? JSON.stringify({ label: bundleForm.label || '전체 한번에 구매하기', description: bundleForm.description, priceCredits: parseCreditInputValue(bundleForm.priceCredits), isActive: true, }) : undefined, }",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/bundle-option`, workspaceSubject), { method: bundleForm.enabled ? 'PATCH' : 'DELETE', headers: bundleForm.enabled ? { 'Content-Type': 'application/json' } : undefined, body: bundleForm.enabled ? JSON.stringify({ label: bundleForm.label, description: bundleForm.description, priceCredits: parseCreditInputValue(bundleForm.priceCredits), isActive: true, }) : undefined, }",
       "variables": {},
       "order": 0
     },
@@ -328,6 +300,15 @@
         "filesUrl": "withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/subproducts/${subproductId}/files`, workspaceSubject)"
       },
       "order": 2
+    },
+    {
+      "fn": "saveSubproductOrder",
+      "kind": "fetch",
+      "args": "withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/subproducts/order`, workspaceSubject), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: subproductOrderIds }), }",
+      "variables": {
+        "itemId": "form.id"
+      },
+      "order": 0
     }
   ]
 }

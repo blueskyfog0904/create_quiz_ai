@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import type { MarketCartItem } from '@/lib/market-cart-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { formatCartCredits } from '@/lib/cart-checkout-panel'
+import { resolveCartLineOptionTitle } from '@/lib/cart-line-title'
 
 // 11번 6-1 표시 부품: 장바구니 줄 목록. 선택 값은 껍데기가 든다(이 부품 안에 선택 상태 없음).
 
@@ -67,6 +68,9 @@ export function CartLineListView({
     const isUpgradePrice = item.chargedCredits !== null && item.originalCredits !== null && item.chargedCredits < item.originalCredits
     const conflicted = conflictLineIds.has(item.id)
     const previous = previousCredits[item.id]
+    const lineTag = item.categoryName ?? (item.targetKind === 'bundle' ? '전체 패키지' : '개별 자료')
+    // 19번: 묶음 줄 이름이 꼬리표와 같으면 한 번만 보인다(빈 이름은 지금처럼 숨김)
+    const lineOptionTitle = resolveCartLineOptionTitle(item.targetKind, lineTag, item.optionTitle)
 
     return (
       <li key={item.id} data-conflict-line={conflicted ? 'true' : undefined} className="flex items-start gap-2 py-4 sm:gap-3">
@@ -80,7 +84,7 @@ export function CartLineListView({
         </label>
         <div className="min-w-0 flex-1 py-1">
           <p className="text-xs font-semibold text-[var(--studio-muted)]">
-            {item.categoryName ?? (item.targetKind === 'bundle' ? '전체 패키지' : '개별 자료')}
+            {lineTag}
           </p>
           <p className="mt-1 break-keep font-bold leading-6 text-[var(--studio-ink)]">
             {item.detailHref ? (
@@ -92,8 +96,8 @@ export function CartLineListView({
               </Link>
             ) : title}
           </p>
-          {item.optionTitle ? (
-            <p className="mt-0.5 break-keep text-sm text-[var(--studio-text)]">{item.optionTitle}</p>
+          {lineOptionTitle ? (
+            <p className="mt-0.5 break-keep text-sm text-[var(--studio-text)]">{lineOptionTitle}</p>
           ) : null}
           {unavailableReason ? (
             <p className="mt-2 text-xs font-medium text-destructive">{unavailableReason}</p>

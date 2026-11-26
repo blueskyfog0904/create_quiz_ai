@@ -29,6 +29,8 @@ import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import MarketSamplePreviewDialog from './market-sample-preview-dialog'
 import type { MarketPurchasePolicyView } from '@/lib/market-purchase-policy'
 import { findConflictingSelection, type MarketSelectionLine } from '@/lib/market-selection-conflict'
+import { resolveBundleTitle, type MarketItemDetailDisplay } from '@/lib/market-item-options'
+import { MarketSampleRow } from './market-sample-row'
 
 interface MarketItemActionsProps {
   itemId: string
@@ -49,6 +51,11 @@ interface MarketItemActionsProps {
   // 구매 고지(DB 문구). 상세 아래 안내 줄(purchaseCompleteNotice)만 쓴다. 읽지 못했으면 null — 그 줄을 숨긴다.
   // 11번: 자료 구매는 장바구니로만 한다(상세 바로 구매·확인창 없음).
   purchasePolicy: MarketPurchasePolicyView | null
+  // 19번: 상세 안내 문구(샘플 줄·HWP+PDF 기본 안내·전체구매 기본 제목, DB). 읽지 못했으면 null —
+  // 샘플 줄 전체와 HWP+PDF 기본 안내를 숨기고, 담기·가격·전체구매 선택은 그대로 둔다.
+  display: MarketItemDetailDisplay | null
+  // 전체구매 표시명과 설정이 함께 없을 때 제목 자리에 쓰는 상품 제목(체크박스 이름이 비지 않게)
+  itemTitle: string
 }
 
 type OptionState = 'instant' | 'owned' | 'included' | 'available' | 'unavailable'
@@ -101,10 +108,6 @@ const NO_FILES_REASON = '파일 준비 중이라 선택할 수 없습니다.'
 const BUNDLE_SELECTED_REASON = '전체 패키지에 포함되어 함께 선택할 수 없습니다. 개별 구매는 전체 패키지 선택을 해제하세요.'
 const SUBPRODUCT_SELECTED_REASON = '개별 자료를 선택한 상태에서는 전체 패키지를 함께 선택할 수 없습니다.'
 const PDF_HWP_CONFLICT_REASON = '문제(HWP)에 PDF가 포함되어 있어 함께 선택할 수 없습니다.'
-const DEFAULT_HWP_PDF_NOTICE = {
-  label: 'PDF 포함',
-  text: '편집 가능한 HWP와 문제(PDF)를 함께 제공합니다. PDF는 따로 구매하지 않아도 됩니다.',
-}
 
 function buildDownloadUrl(itemId: string, assetKind: 'pdf' | 'hwp' | 'zip') {
   return `/api/market/items/${itemId}/download?assetKind=${assetKind}`
@@ -135,18 +138,19 @@ function hasHwpAndPdf(subproduct: MarketSubproductPublicSummary) {
   return codes.has('hwp') && codes.has('pdf')
 }
 
-function resolveSubproductPurchaseNotice(subproduct: MarketSubproductPublicSummary): PurchaseNotice | null {
+// 서브상품 안내 문구가 있으면 그것을, 없고 HWP+PDF 구성이면 설정의 기본 안내(19번, DB)를 쓴다. 설정을 읽지 못했으면 기본 안내는 숨긴다.
+function resolveSubproductPurchaseNotice(subproduct: MarketSubproductPublicSummary, display: MarketItemDetailDisplay | null): PurchaseNotice | null {
   const customText = subproduct.purchaseNoticeText?.trim()
 
   if (customText) {
     return {
-      label: subproduct.purchaseNoticeLabel?.trim() || DEFAULT_HWP_PDF_NOTICE.label,
+      label: subproduct.purchaseNoticeLabel?.trim() || display?.hwpPdfNoticeLabel || '',
       text: customText,
     }
   }
 
-  if (hasHwpAndPdf(subproduct)) {
-    return DEFAULT_HWP_PDF_NOTICE
+  if (hasHwpAndPdf(subproduct) && display) {
+    return { label: display.hwpPdfNoticeLabel, text: display.hwpPdfNoticeText }
   }
 
   return null
@@ -335,6 +339,8 @@ export default function MarketItemActions({
   bundleOption = null,
   downloadFiles = [],
   purchasePolicy,
+  display,
+  itemTitle,
 }: MarketItemActionsProps) {
   const { redirectToLogin } = useLoginRedirect()
   const searchParams = useSearchParams()
@@ -378,6 +384,9 @@ export default function MarketItemActions({
   // R6: 개별 자료를 이미 보유한 채 전체 패키지를 사면 정가 구매다(장바구니 결제 칸이 확인을 받는다).
   const isPartiallyOwnedBundle = subproducts.some((subproduct) => subproduct.ownedScope === 'subproduct')
 
+  // 19번(2026-11-20 대표 결정): 전체구매 제목은 관리자 표시명, 비면 설정의 기본 제목. 둘 다 없으면 상품 제목(이름 없는 체크박스 방지).
+  const bundleTitle = resolveBundleTitle(bundleOption?.label, display) ?? itemTitle
+
   // 표시·expectedCredits 비교용 가격. 차감액은 RPC가 다시 계산하고, 다르면 409로 알린다.
   const purchaseOptions: PurchaseOption[] = []
   if (bundleOption && !bundleOption.owned) {
@@ -385,7 +394,7 @@ export default function MarketItemActions({
       key: `bundle:${bundleOption.id}`,
       targetKind: 'bundle',
       targetId: bundleOption.id,
-      title: bundleOption.label || '전체 패키지',
+      title: bundleTitle,
       priceCredits: bundleOption.priceCredits,
       categorySlug: null,
       includesPdf: false,
@@ -768,17 +777,17 @@ export default function MarketItemActions({
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                {/* 관리자 라벨(bundleOption.label)이 아니라 고정 제목을 쓴다(D8).
+                {/* 19번: 대표 결정(11월 20일)으로 표시명 사용(D8 고정 제목을 바꿈) — 관리자 표시명, 비면 설정의 기본 제목.
                     선택 칸은 제목 왼쪽 체크박스이고, 제목 줄 전체(label)를 눌러도 선택된다(14절). label은 h3 안 phrasing만 감싼다.
-                    체크박스 이름은 보이는 제목과 맞춰 '전체 패키지 선택'(WCAG 2.5.3), section 이름은 제목 span만 가리킨다. */}
+                    체크박스 이름은 보이는 제목과 맞춰 '{제목} 선택'(WCAG 2.5.3), section 이름은 제목 span만 가리킨다. */}
                 <h3 className="break-keep text-xl font-extrabold">
                   {bundleKey && bundleSelectOption ? (
                     <label className="-ml-3 inline-flex cursor-pointer flex-wrap items-center gap-x-1 gap-y-1 has-[:disabled]:cursor-not-allowed">
-                      {renderOptionSelectControl(bundleKey, INK_BLOCK_CHECKBOX_CLASS, '전체 패키지 선택')}
+                      {renderOptionSelectControl(bundleKey, INK_BLOCK_CHECKBOX_CLASS, `${bundleTitle} 선택`)}
                       {bundleSavings ? (
                         <span className="mr-1 rounded-[var(--studio-radius-control)] bg-[var(--studio-highlight)] px-2 py-0.5 text-xs font-bold text-[var(--studio-ink)]">추천</span>
                       ) : null}
-                      <span id={bundleTitleId}>전체 패키지</span>
+                      <span id={bundleTitleId} className="break-words [overflow-wrap:anywhere]">{bundleTitle}</span>
                     </label>
                   ) : (
                     <span className="inline-flex flex-wrap items-center gap-2">
@@ -787,7 +796,7 @@ export default function MarketItemActions({
                       ) : bundleSavings ? (
                         <span className="rounded-[var(--studio-radius-control)] bg-[var(--studio-highlight)] px-2 py-0.5 text-xs font-bold text-[var(--studio-ink)]">추천</span>
                       ) : null}
-                      <span id={bundleTitleId}>전체 패키지</span>
+                      <span id={bundleTitleId} className="break-words [overflow-wrap:anywhere]">{bundleTitle}</span>
                     </span>
                   )}
                 </h3>
@@ -886,7 +895,7 @@ export default function MarketItemActions({
                   const effectivePriceCredits = isUpgradePricing
                     ? subproduct.upgradePriceCredits!
                     : subproduct.priceCredits
-                  const notice = resolveSubproductPurchaseNotice(subproduct)
+                  const notice = resolveSubproductPurchaseNotice(subproduct, display)
                   const subtitle = [...getVisibleFileTypeLabels(subproduct, subproducts), notice?.label]
                     .filter((label): label is string => Boolean(label))
                     .join(' · ')
@@ -997,35 +1006,18 @@ export default function MarketItemActions({
 
   return (
     <div className="space-y-5">
-      {/* 무료 샘플: 장식 카드·배지 없이 한 줄 행(D4). 미리 불러오기와 미리보기 Dialog는 그대로 쓴다. */}
-      <section aria-labelledby={`${selectionIdPrefix}-sample-title`} className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--studio-border)] pb-4">
-        <div className="min-w-0">
-          <h3 id={`${selectionIdPrefix}-sample-title`} className="text-sm font-bold text-[var(--studio-ink)]">
-            {hasSamplePages ? '무료 샘플 미리보기' : '샘플 준비 중'}
-          </h3>
-          <p className="mt-0.5 break-keep text-xs leading-5 text-[var(--studio-muted)]">
-            {hasSamplePages
-              ? `구매 전 PDF 첫 ${samplePageCount}쪽을 확인할 수 있어요.`
-              : hasLegacySample
-                ? '기존 샘플 PDF는 판매용 PDF 재업로드 후 JPG 미리보기로 대체됩니다.'
-                : '현재 이 자료는 미리보기를 제공하지 않습니다.'}
-          </p>
-        </div>
-        {hasSamplePages ? (
-          <Button
-            type="button"
-            variant="brandOutline"
-            className="min-h-11 shrink-0"
-            onClick={openSamplePreview}
-            onFocus={prefetchSamplePreview}
-            onMouseEnter={prefetchSamplePreview}
-            onTouchStart={prefetchSamplePreview}
-          >
-            <Eye aria-hidden="true" className="h-4 w-4" />
-            샘플 보기
-          </Button>
-        ) : null}
-      </section>
+      {/* 무료 샘플: 한 줄 행(D4). 미리 불러오기와 미리보기 Dialog는 그대로 쓴다.
+          19번: 글은 DB 상세 안내 문구(MarketSampleRow). 설정을 읽지 못했으면 줄 전체(제목·설명·[샘플 보기])를 숨긴다. */}
+      {display ? (
+        <MarketSampleRow
+          titleId={`${selectionIdPrefix}-sample-title`}
+          display={display}
+          samplePageCount={hasSamplePages ? samplePageCount : 0}
+          hasLegacySample={hasLegacySample}
+          onOpen={openSamplePreview}
+          onPrefetch={prefetchSamplePreview}
+        />
+      ) : null}
 
       {hasV2PurchaseOptions ? renderV2PurchaseOptions() : (
         <>

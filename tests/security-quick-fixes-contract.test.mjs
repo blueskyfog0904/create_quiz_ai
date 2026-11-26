@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
-import { readProductAdminSource } from './helpers/product-admin-sources.mjs'
+import { readTaxonomySettingsSource } from './helpers/product-admin-sources.mjs'
 
 // 출시 전 작업 순서표 1번 묶음(보안 즉시 조치, 2026-11-20)
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
@@ -39,7 +39,8 @@ test('서브상품 카테고리 slug와 파일 유형 code는 만든 뒤에 바�
   assert.match(server, /if \(nextCode !== existing\.code\) \{\s+throw new Error\('파일 유형의 코드는 만든 뒤에 바꿀 수 없습니다/)
   assert.doesNotMatch(server, /payload\.slug = /)
   assert.doesNotMatch(server, /payload\.code = nextCode/)
-  const client = readProductAdminSource()
-  assert.match(client, /placeholder="예: workbook" disabled=\{Boolean\(editingCategoryId\)\}/)
-  assert.match(client, /placeholder="예: pdf" disabled=\{Boolean\(editingFileTypeId\)\}/)
+  // 19번: 구성·파일 유형 설정은 '상품 표시 설정' [구성·파일 유형] 탭으로 옮겼다(slug·code 는 만든 뒤 읽기만)
+  const client = readTaxonomySettingsSource()
+  assert.match(client, /placeholder="예: workbook" readOnly=\{Boolean\(editingCategoryId\)\} disabled=\{Boolean\(editingCategoryId\)\}/)
+  assert.match(client, /placeholder="예: pdf" readOnly=\{Boolean\(editingFileTypeId\)\} disabled=\{Boolean\(editingFileTypeId\)\}/)
 })

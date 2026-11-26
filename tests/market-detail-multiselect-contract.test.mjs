@@ -63,8 +63,9 @@ test('individual rows read checkbox → icon → title, and the bundle checkbox 
   assert.ok(rowSelect !== -1 && rowSelect < rowIcon && rowIcon < rowTitle, 'row select before icon before title')
   // 패키지: 제목(h3) 안에서 체크박스 → 제목 순서(14절)
   const bundleHeading = v2.indexOf('<h3 className="break-keep text-xl font-extrabold">')
-  const bundleSelect = v2.indexOf("renderOptionSelectControl(bundleKey, INK_BLOCK_CHECKBOX_CLASS, '전체 패키지 선택')")
-  const bundleTitle = v2.indexOf('<span id={bundleTitleId}>전체 패키지</span>', bundleSelect)
+  // 19번: 제목은 표시명 규칙(bundleTitle), 체크박스 이름은 '{제목} 선택'
+  const bundleSelect = v2.indexOf('renderOptionSelectControl(bundleKey, INK_BLOCK_CHECKBOX_CLASS, `${bundleTitle} 선택`)')
+  const bundleTitle = v2.indexOf('<span id={bundleTitleId} className="break-words [overflow-wrap:anywhere]">{bundleTitle}</span>', bundleSelect)
   assert.ok(bundleHeading !== -1 && bundleHeading < bundleSelect && bundleSelect < bundleTitle, 'bundle checkbox before the title text')
   assert.doesNotMatch(v2, /aria-pressed/)
   const control = itemActions.slice(itemActions.indexOf('const renderOptionSelectControl'), itemActions.indexOf('const summaryHintId'))

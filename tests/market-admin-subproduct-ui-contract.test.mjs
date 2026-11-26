@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readProductAdminSource } from './helpers/product-admin-sources.mjs'
+import { readProductAdminSource, readTaxonomySettingsSource } from './helpers/product-admin-sources.mjs'
 
 const adminProductsClient = readProductAdminSource()
+// 19번: 구성·파일 유형 설정은 '상품 표시 설정' [구성·파일 유형] 탭으로 옮겼다
+const taxonomySettings = readTaxonomySettingsSource()
 
 test('admin product form uses v2 subproduct upload state and item detail payload', () => {
   assert.match(adminProductsClient, /MarketSubproductCategory/)
@@ -19,17 +21,27 @@ test('admin product form loads configurable categories and file types for the se
   assert.match(adminProductsClient, /\/api\/admin\/market\/subproduct-categories/)
   assert.match(adminProductsClient, /\/api\/admin\/market\/file-types/)
   assert.match(adminProductsClient, /withAdminWorkspaceSubject/)
-  assert.match(adminProductsClient, /MANAGE_SUBPRODUCT_CATEGORIES_VALUE/)
-  assert.match(adminProductsClient, /MANAGE_FILE_TYPES_VALUE/)
-  assert.match(adminProductsClient, /설정하기/)
-  assert.match(adminProductsClient, /서브상품 카테고리 설정/)
-  assert.match(adminProductsClient, /파일 유형 설정/)
+  // 19번 Q7·6-2: 선택칸 안 '설정하기' 항목 대신 선택칸 옆 링크(새 탭, 지금 과목) + 돌아오면 다시 읽기 + [목록 새로고침]
+  assert.doesNotMatch(adminProductsClient, /MANAGE_SUBPRODUCT_CATEGORIES_VALUE|MANAGE_FILE_TYPES_VALUE|>설정하기</)
+  assert.match(adminProductsClient, /withAdminWorkspaceSubject\('\/admin\/market\/product-settings\?tab=taxonomy', workspaceSubject\)/)
+  assert.match(adminProductsClient, /구성·파일 유형 관리\(새 탭\)/)
+  assert.match(adminProductsClient, /target="_blank"/)
+  assert.match(adminProductsClient, /목록 새로고침/)
+  assert.match(adminProductsClient, /document\.addEventListener\('visibilitychange', reloadQuietly\)/)
+  assert.match(adminProductsClient, /window\.addEventListener\('focus', reloadQuietly\)/)
+  assert.match(taxonomySettings, /서브상품 카테고리 설정/)
+  assert.match(taxonomySettings, /파일 유형 설정/)
+  assert.match(taxonomySettings, /\/api\/admin\/market\/subproduct-categories/)
+  assert.match(taxonomySettings, /\/api\/admin\/market\/file-types/)
 })
 
 test('admin product form renders subproduct, file-add, bundle, and arbitrary sample page controls', () => {
   assert.match(adminProductsClient, /서브상품 추가/)
   assert.match(adminProductsClient, /파일 추가\+/)
-  assert.match(adminProductsClient, /전체 한번에 구매하기/)
+  // 19번: 옛 기본 글자 '전체 한번에 구매하기'는 없다. 표시명 칸 placeholder·미리보기에 DB 기본 제목(resolveBundleTitle)
+  assert.doesNotMatch(adminProductsClient, /전체 한번에 구매하기/)
+  assert.match(adminProductsClient, /resolveBundleTitle\(bundleForm\.label, bundleDefaultTitle \? \{ bundleDefaultTitle \} : null\)/)
+  assert.match(adminProductsClient, /placeholder=\{bundleDefaultTitle \?\? undefined\}/)
   // 전체구매 옵션은 기본 미사용(켜고 가격을 넣어야 노출)
   assert.match(adminProductsClient, /enabled: false/)
   assert.match(adminProductsClient, /기본값은 미사용/)

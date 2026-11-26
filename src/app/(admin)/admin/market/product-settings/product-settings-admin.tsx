@@ -40,8 +40,11 @@ import {
 } from '@/lib/market-item-options'
 import type { MarketItemOptionWithCount } from '@/lib/market-item-options-server'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import { DetailTextTab, InfoItemsTab, type DisplaySaver } from './detail-display-tabs'
+import { TaxonomyTab } from './taxonomy-tab'
 
-// 17번 7-1: 상품 표시 설정. 탭 [학년] [자료유형] [이용 근거(내부)] [검색 필터 이름]. 19번이 탭을 더한다.
+// 17번 7-1: 상품 표시 설정. 탭 [학년] [자료유형] [이용 근거(내부)] [검색 필터 이름].
+// 19번 6-1: [상세 안내 문구] [자료 정보 항목] [구성·파일 유형]을 더한다. 표시 설정 탭들은 판(revision)을 함께 쓰고, 저장할 때 자기 키만 보낸다.
 // 목록 탭: 이름·사용 여부·[위로]/[아래로]·[순서 저장]. 지우기는 없다(숨김만). 이름을 바꾸면 그 값을 쓰는 상품도 함께 바뀐다(DB 함수).
 
 interface ProductSettingsAdminProps {
@@ -49,7 +52,11 @@ interface ProductSettingsAdminProps {
   initialLists: Record<MarketItemOptionKind, MarketItemOptionWithCount[]>
   initialDisplay: MarketItemDisplay | null
   preview: boolean
+  // 19번: 상품 편집의 '구성·파일 유형 관리(새 탭)' 링크가 ?tab=taxonomy 로 연다
+  initialTab: string
 }
+
+const SETTINGS_TABS = [...MARKET_ITEM_OPTION_KINDS, 'display', 'detail-text', 'info-items', 'taxonomy'] as const
 
 // 관리자 화면의 필터 key 설명(관리자 조작 문구 — 회원에게 보이는 이름은 DB 값)
 const FACET_KEY_HELP: Record<MarketItemFacetKey, string> = {
@@ -72,23 +79,36 @@ async function callApi(url: string, method: 'POST' | 'PUT', body: unknown): Prom
   }
 }
 
-export function ProductSettingsAdmin({ workspaceSubject, initialLists, initialDisplay, preview }: ProductSettingsAdminProps) {
+export function ProductSettingsAdmin({ workspaceSubject, initialLists, initialDisplay, preview, initialTab }: ProductSettingsAdminProps) {
   const subjectLabel = workspaceSubject === 'english' ? '영어' : '국어'
+  // 표시 설정(두 과목 공통 1행): 탭들이 같은 판을 쓴다. 한 탭이 저장하면 판과 그 탭의 키만 바꾼다(다른 탭 초안은 그대로).
+  const [display, setDisplay] = useState(initialDisplay)
+  const saveDisplay: DisplaySaver = async (patch) => {
+    if (!display) return { ok: false, message: '상품 표시 설정을 읽지 못했습니다. 화면을 새로고침해 주세요.' }
+    const result = await callApi('/api/admin/market/item-display', 'PUT', { expectedRevision: display.revision, ...patch })
+    if (!result.ok) return result
+    const revision = typeof result.data.revision === 'number' ? result.data.revision : display.revision
+    setDisplay((current) => current ? { ...current, ...patch, revision } : current)
+    return { ok: true, changed: result.data.changed !== false }
+  }
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
           <AdminMenuName href="/admin/market/product-settings" fallback="상품 표시 설정" /> · {subjectLabel}
         </h1>
-        <p className="mt-1 text-sm text-gray-500">상품 편집에서 고르는 학년·자료유형 목록과 회원 검색·자료 보관함의 필터 이름을 정합니다.</p>
+        <p className="mt-1 text-sm text-gray-500">상품 편집에서 고르는 학년·자료유형·구성·파일 유형 목록과 회원 검색·자료 보관함의 필터 이름, 상품 상세 안내 문구를 정합니다.</p>
         {preview ? <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">미리보기입니다. 저장은 하지 않습니다.</p> : null}
       </div>
-      <Tabs defaultValue="grade">
+      <Tabs defaultValue={(SETTINGS_TABS as readonly string[]).includes(initialTab) ? initialTab : 'grade'}>
         <TabsList className="flex h-auto flex-wrap">
           {MARKET_ITEM_OPTION_KINDS.map((kind) => (
             <TabsTrigger key={kind} value={kind}>{MARKET_ITEM_OPTION_KIND_LABELS[kind]}</TabsTrigger>
           ))}
           <TabsTrigger value="display">검색 필터 이름</TabsTrigger>
+          <TabsTrigger value="detail-text">상세 안내 문구</TabsTrigger>
+          <TabsTrigger value="info-items">자료 정보 항목</TabsTrigger>
+          <TabsTrigger value="taxonomy">구성·파일 유형</TabsTrigger>
         </TabsList>
         {MARKET_ITEM_OPTION_KINDS.map((kind) => (
           <TabsContent key={kind} value={kind} className="mt-4">
@@ -96,7 +116,16 @@ export function ProductSettingsAdmin({ workspaceSubject, initialLists, initialDi
           </TabsContent>
         ))}
         <TabsContent value="display" className="mt-4">
-          <DisplayTab initialDisplay={initialDisplay} />
+          <DisplayTab display={display} onSave={saveDisplay} />
+        </TabsContent>
+        <TabsContent value="detail-text" className="mt-4">
+          <DetailTextTab display={display} onSave={saveDisplay} />
+        </TabsContent>
+        <TabsContent value="info-items" className="mt-4">
+          <InfoItemsTab display={display} onSave={saveDisplay} />
+        </TabsContent>
+        <TabsContent value="taxonomy" className="mt-4">
+          <TaxonomyTab workspaceSubject={workspaceSubject} preview={preview} />
         </TabsContent>
       </Tabs>
     </div>
@@ -319,42 +348,39 @@ function OptionListTab({ kind, workspaceSubject, initialOptions, subjectLabel }:
   )
 }
 
-function DisplayTab({ initialDisplay }: { initialDisplay: MarketItemDisplay | null }) {
-  const [saved, setSaved] = useState(initialDisplay)
-  const [draft, setDraft] = useState(() => initialDisplay
-    ? { facetLabels: { ...initialDisplay.facetLabels }, libraryEmptyFilterHint: initialDisplay.libraryEmptyFilterHint }
+function DisplayTab({ display, onSave }: { display: MarketItemDisplay | null; onSave: DisplaySaver }) {
+  const [draft, setDraft] = useState(() => display
+    ? { facetLabels: { ...display.facetLabels }, libraryEmptyFilterHint: display.libraryEmptyFilterHint }
     : null)
   const [pending, setPending] = useState(false)
 
-  if (!saved || !draft) {
+  if (!display || !draft) {
     return (
       <Card>
-        <CardContent className="py-6 text-sm text-red-700">상품 표시 설정(market_item_display)을 읽지 못했습니다. 17번 DB 적용 여부를 확인해 주세요.</CardContent>
+        <CardContent className="py-6 text-sm text-red-700">상품 표시 설정(market_item_display)을 읽지 못했습니다. 17·19번 DB 적용 여부를 확인해 주세요.</CardContent>
       </Card>
     )
   }
 
   async function saveDisplay() {
-    if (!saved || !draft) return
+    if (!draft) return
     const problem = findMarketItemDisplayProblem(draft)
     if (problem) {
       toast.error(marketItemOptionErrorMessage({ code: 'MARKET_ITEM_DISPLAY_INPUT_INVALID', detail: problem }))
       return
     }
     setPending(true)
-    const result = await callApi('/api/admin/market/item-display', 'PUT', { expectedRevision: saved.revision, ...draft })
+    // 19번 4-3: 이 탭은 17번 키(facetLabels·libraryEmptyFilterHint)만 보낸다(detail 은 DB 가 그대로 둔다)
+    const result = await onSave({
+      facetLabels: Object.fromEntries(MARKET_ITEM_FACET_KEYS.map((key) => [key, draft.facetLabels[key].trim()])) as Record<MarketItemFacetKey, string>,
+      libraryEmptyFilterHint: draft.libraryEmptyFilterHint.trim(),
+    })
     setPending(false)
     if (!result.ok) {
       toast.error(result.message)
       return
     }
-    const revision = typeof result.data.revision === 'number' ? result.data.revision : saved.revision
-    setSaved({
-      revision,
-      facetLabels: Object.fromEntries(MARKET_ITEM_FACET_KEYS.map((key) => [key, draft.facetLabels[key].trim()])) as Record<MarketItemFacetKey, string>,
-      libraryEmptyFilterHint: draft.libraryEmptyFilterHint.trim(),
-    })
-    toast.success(result.data.changed === false ? '바뀐 것이 없습니다.' : '저장했습니다. 회원 화면에는 1분 안에 반영됩니다.')
+    toast.success(result.changed === false ? '바뀐 것이 없습니다.' : '저장했습니다. 회원 화면에는 1분 안에 반영됩니다.')
   }
 
   return (

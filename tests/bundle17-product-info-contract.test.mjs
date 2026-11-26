@@ -10,6 +10,8 @@ import { readProductAdminSource } from './helpers/product-admin-sources.mjs'
 // 등록 훅이 켜진 뒤에 불러야 '@/' 경로를 찾는다(정적 import 는 훅보다 먼저 풀린다).
 const options = await import('../src/lib/market-item-options.ts')
 const generator = await import('../supabase/scripts/bundle17_rehearsal/generate.mjs')
+// 19번이 설정 행에 detail 을 더했다(필수 키) — 17번 첫 값 시험은 19번 첫 값과 합친 행으로 읽는다
+const generator19 = await import('../supabase/scripts/bundle19_rehearsal/generate.mjs')
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
@@ -140,14 +142,16 @@ test('오류 코드 목록 = market-item-options.ts 매핑(마이그레이션 RA
 test('표시 설정: 필수 키 = 코드 MARKET_ITEM_DISPLAY_REQUIRED_KEYS, 첫 값은 코드 규칙을 통과하고 {type} 을 채움', () => {
   const save = fnBody('save_market_item_display')
   const facetKeys = [...save.match(/v_facet_keys text\[\] := ARRAY\[([^\]]*)\]/)[1].matchAll(/'([^']+)'/g)].map((m) => m[1])
-  assert.deepEqual([...facetKeys.map((key) => `facetLabels.${key}`), 'libraryEmptyFilterHint'], [...options.MARKET_ITEM_DISPLAY_REQUIRED_KEYS])
+  // 19번 detail.* 키는 19번 계약 시험이 19번 저장 함수와 대조한다
+  assert.deepEqual([...facetKeys.map((key) => `facetLabels.${key}`), 'libraryEmptyFilterHint'],
+    options.MARKET_ITEM_DISPLAY_REQUIRED_KEYS.filter((key) => !key.startsWith('detail.')))
   assert.deepEqual(facetKeys, [...options.MARKET_ITEM_FACET_KEYS])
   assert.match(save, /char_length\(v_text\) > 20 OR v_text ~ '\[\[:cntrl:\]\]' OR strpos\(v_text, '\{type\}'\) > 0/)
   assert.match(save, /char_length\(v_hint\) > 60/)
   // 17번 키만 다시 만들고 다른 키는 저장된 값 그대로(19번 키 자리) — 본문에 19번 키 이름이 없어야 down 의 19번 판정이 맞다
   assert.match(save, /v_new := v_old \|\| jsonb_build_object\('revision', v_revision \+ 1, 'facetLabels', v_facets, 'libraryEmptyFilterHint', v_hint\);/)
   assert.doesNotMatch(save, /detail/i)
-  const seed = generator.seedDisplayFromMigration()
+  const seed = { ...generator.seedDisplayFromMigration(), detail: generator19.seedDetailFromMigration() }
   const display = options.parseMarketItemDisplay(seed)
   assert.ok(display)
   assert.equal(options.findMarketItemDisplayProblem(display), null, '첫 값 그대로 저장 → 성공(2판)')

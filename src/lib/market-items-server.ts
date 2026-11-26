@@ -815,6 +815,28 @@ function throwIfSubproductCategoryConflict(error: { code?: string; message?: str
   }
 }
 
+// 19번 Q6: 새 서브상품 순서 = 지우지 않은 서브상품의 max(sort_order) + 10(없으면 10). 순서 저장(10·20·30…) 뒤에 더해도 맨 뒤에 온다.
+export function nextMarketItemSubproductSortOrder(sortOrders: number[]): number {
+  return sortOrders.length > 0 ? Math.max(...sortOrders) + 10 : 10
+}
+
+async function getNextMarketItemSubproductSortOrder(itemId: string, workspaceSubject: WorkspaceSubject): Promise<number> {
+  const { data, error } = await getAdminSupabase()
+    .from('market_item_subproducts')
+    .select('sort_order')
+    .eq('item_id', itemId)
+    .eq('workspace_subject', workspaceSubject)
+    .is('deleted_at', null)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return nextMarketItemSubproductSortOrder((data ?? []).map((row) => row.sort_order))
+}
+
 export async function createMarketItemSubproduct(input: {
   itemId: string
   workspaceSubject?: WorkspaceSubject
@@ -839,6 +861,8 @@ export async function createMarketItemSubproduct(input: {
   assertMatchingWorkspaceSubject('서브상품 카테고리', item.workspace_subject, category.workspace_subject)
 
   ensureNonNegativeInteger(input.priceCredits ?? 0, '서브상품 가격')
+  // 19번 Q6: 순서를 주지 않으면 그 상품의 맨 뒤(지우지 않은 서브상품 max(sort_order) + 10, 없으면 10)
+  const sortOrder = input.sortOrder ?? await getNextMarketItemSubproductSortOrder(item.id, item.workspace_subject)
 
   const payload: MarketItemSubproductInsert = {
     item_id: item.id,
@@ -849,7 +873,7 @@ export async function createMarketItemSubproduct(input: {
     purchase_notice_label: normalizeNullableText(input.purchaseNoticeLabel),
     purchase_notice_text: normalizeNullableText(input.purchaseNoticeText),
     price_credits: input.priceCredits ?? 0,
-    sort_order: input.sortOrder ?? 0,
+    sort_order: sortOrder,
     is_active: input.isActive ?? true,
   }
 
@@ -1132,7 +1156,8 @@ export async function upsertMarketItemBundleOption(
   const payload: MarketItemBundleOptionInsert | MarketItemBundleOptionUpdate = {
     item_id: item.id,
     workspace_subject: item.workspace_subject,
-    label: normalizeText(input.label) || '전체 한번에 구매하기',
+    // 19번: 옛 대체 글자를 두지 않는다. 빈 값은 ''(상세는 설정의 기본 제목을 보임). INSERT 때도 늘 label 을 넘긴다(DB 칸 기본값에 기대지 않음).
+    label: normalizeText(input.label),
     description: normalizeNullableText(input.description),
     price_credits: input.priceCredits ?? 0,
     is_active: input.isActive ?? true,

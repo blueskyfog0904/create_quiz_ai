@@ -4,7 +4,7 @@ import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { listMarketCategoryTreeForAdmin } from '@/lib/market-categories-server'
 import { findCategoryPath } from '@/lib/market-category-tree'
 import { listMarketItemsForAdmin } from '@/lib/market-items-server'
-import { listMarketItemOptions } from '@/lib/market-item-options-server'
+import { listMarketItemOptions, readMarketItemDisplayForAdmin } from '@/lib/market-item-options-server'
 import MarketProductsClient from '../market-products-client'
 
 interface AdminMarketProductNewPageProps {
@@ -23,6 +23,8 @@ export default async function AdminMarketProductNewPage({ searchParams }: AdminM
     listMarketItemOptions(workspaceSubject, 'grade'),
     listMarketItemOptions(workspaceSubject, 'material_type'),
   ])
+  // 19번: 전체구매 표시명 칸 안내·미리보기의 기본 제목(못 읽어도 상품 화면은 열린다)
+  const display = await readMarketItemDisplayForAdmin().catch(() => null)
 
   // 18번: 관리 화면 저장 뒤 창 [빈 새 상품]이 넘긴 카테고리(이 과목 트리에 있는 칸만)
   const requestedCategoryId = resolvedSearchParams?.categoryId ?? ''
@@ -38,6 +40,7 @@ export default async function AdminMarketProductNewPage({ searchParams }: AdminM
       workspaceSubject={workspaceSubject}
       canDeleteProducts={hasAdminPermission(access, 'products.delete')}
       attributeOptions={{ grade: gradeOptions, material_type: materialTypeOptions }}
+      bundleDefaultTitle={display?.detail.bundleDefaultTitle ?? null}
       initialCategoryItemId={initialCategoryItemId}
     />
   )

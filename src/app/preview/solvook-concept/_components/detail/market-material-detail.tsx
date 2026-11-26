@@ -25,6 +25,11 @@ import { findCategoryPath, type MarketCategoryNode } from '@/lib/market-category
 import type { MarketPurchasePolicyView } from '@/lib/market-purchase-policy'
 import type { MarketPurchaseInfo } from '@/lib/market-purchase-info'
 import {
+  buildMaterialInfoRows,
+  isInfoItemVisible,
+  type MarketItemDetailDisplay,
+} from '@/lib/market-item-options'
+import {
   MarketPurchaseInfoSection,
   type MarketPurchaseInfoFileType,
 } from '@/components/market/market-purchase-info-section'
@@ -43,6 +48,8 @@ interface MarketMaterialDetailProps {
   categoryTree: MarketCategoryNode[]
   purchasePolicy: MarketPurchasePolicyView | null
   purchaseInfo: MarketPurchaseInfo
+  // 19번: 상세 안내 문구·자료 정보 항목(DB). 읽지 못했으면 null — 자료 정보 표·학년/자료유형 배지·등록일 줄·요약 두 줄·샘플 버튼을 숨긴다.
+  display: MarketItemDetailDisplay | null
 }
 
 // 이 상품의 서브상품에 들어 있는 파일 형식(코드별 하나, 서브상품 순서대로)
@@ -101,6 +108,7 @@ export function MarketMaterialDetail({
   categoryTree,
   purchasePolicy,
   purchaseInfo,
+  display,
 }: MarketMaterialDetailProps) {
   // 상품이 연결된 칸까지의 경로(depth1 → 연결 칸). 카테고리가 없거나 공개 트리에 없으면 빈 경로.
   const categoryPath = item.category_item_id ? findCategoryPath(categoryTree, item.category_item_id) ?? [] : []
@@ -112,41 +120,24 @@ export function MarketMaterialDetail({
   const ownsPdf = purchases.some((purchase) => purchase.asset_kind === 'pdf')
   const ownsHwp = purchases.some((purchase) => purchase.asset_kind === 'hwp')
   const ownsZip = purchases.some((purchase) => purchase.asset_kind === 'zip')
-  const sources = [item.source_1, item.source_2, item.source_3, item.source_4]
-    .filter((source): source is string => Boolean(source))
   const examPeriod = [
     item.exam_year ? `${item.exam_year}년` : null,
     item.exam_month ? `${item.exam_month}월` : null,
   ].filter(Boolean).join(' ')
   const description = item.description?.trim() || item.summary?.trim()
-  const materialInfoRows = [
-    {
-      label: '과목',
-      value: subjectLabel,
-    },
-    {
-      label: '학년',
-      value: item.grade_level?.trim() || null,
-    },
-    {
-      label: '출처',
-      value: sources.length > 0 ? sources.join(' · ') : null,
-    },
-    {
-      label: '자료유형',
-      value: item.source_type?.trim() || null,
-    },
-    {
-      label: '문항 수',
-      value: item.question_count === null
-        ? null
-        : item.question_count.toLocaleString('ko-KR'),
-    },
-    {
-      label: '등록일자',
-      value: formatRegisteredAt(item.created_at),
-    },
-  ].filter((row): row is { label: string; value: string } => Boolean(row.value))
+  // 19번: 자료 정보 표는 DB 설정의 항목 이름·보이기·순서를 따른다(빈 값 행은 뺀다). 숨긴 학년·자료유형은 위 배지도, 숨긴 등록일자는 위 등록일 줄도 숨긴다.
+  const materialInfoRows = display
+    ? buildMaterialInfoRows({
+      subject: subjectLabel,
+      grade: item.grade_level,
+      sources: [item.source_1, item.source_2, item.source_3, item.source_4],
+      materialType: item.source_type,
+      questionCount: item.question_count,
+      registeredAt: formatRegisteredAt(item.created_at),
+    }, display)
+    : []
+  const registeredAtLabel = display?.infoItems.find((info) => info.key === 'registeredAt')?.label ?? null
+  const showRegisteredAt = isInfoItemVisible(display, 'registeredAt') && registeredAtLabel !== null
 
   return (
     <StudioDetailPageFrame
@@ -209,11 +200,14 @@ export function MarketMaterialDetail({
                 <span className="mt-3 text-sm font-bold">{activeCategory?.title ?? subjectLabel}</span>
               </div>
             )}
-            <MarketMaterialSampleButton
-              itemId={item.id}
-              samplePageCount={samplePageCount}
-              workspaceSubject={item.workspace_subject}
-            />
+            {display ? (
+              <MarketMaterialSampleButton
+                itemId={item.id}
+                samplePageCount={samplePageCount}
+                workspaceSubject={item.workspace_subject}
+                label={samplePageCount > 0 ? display.sampleButton : display.sampleButtonEmpty}
+              />
+            ) : null}
           </div>
 
           <div className="min-w-0 py-1">
@@ -223,7 +217,7 @@ export function MarketMaterialDetail({
                   {examPeriod}
                 </Badge>
               ) : null}
-              {item.source_type ? (
+              {item.source_type && isInfoItemVisible(display, 'materialType') ? (
                 <Badge
                   variant="outline"
                   className="border-[var(--studio-border)] text-[var(--studio-text)]"
@@ -231,7 +225,7 @@ export function MarketMaterialDetail({
                   {item.source_type}
                 </Badge>
               ) : null}
-              {item.grade_level ? (
+              {item.grade_level && isInfoItemVisible(display, 'grade') ? (
                 <Badge
                   variant="outline"
                   className="border-[var(--studio-border)] text-[var(--studio-text)]"
@@ -250,25 +244,29 @@ export function MarketMaterialDetail({
               </p>
             ) : null}
 
-            <dl className="mt-6 border-y border-[var(--studio-border)] py-5 text-sm">
-              <div className="flex items-center gap-2">
-                <CalendarDays aria-hidden="true" className="h-4 w-4 text-[var(--studio-muted)]" />
-                <dt className="sr-only">등록일</dt>
-                <dd>{formatRegisteredAt(item.created_at)}</dd>
-              </div>
-            </dl>
+            {showRegisteredAt ? (
+              <dl className="mt-6 border-y border-[var(--studio-border)] py-5 text-sm">
+                <div className="flex items-center gap-2">
+                  <CalendarDays aria-hidden="true" className="h-4 w-4 text-[var(--studio-muted)]" />
+                  <dt className="sr-only">{registeredAtLabel}</dt>
+                  <dd>{formatRegisteredAt(item.created_at)}</dd>
+                </div>
+              </dl>
+            ) : null}
 
-            {/* 자료 정보는 칸 상자 대신 한 줄씩(라벨·값), 가격은 크게 */}
-            <dl className="mt-5 grid grid-cols-[5.5rem_minmax(0,1fr)] gap-y-2.5 text-sm">
-              <dt className="text-[var(--studio-muted)]">포함 문항</dt>
-              <dd className="font-medium text-[var(--studio-text)]">
-                {item.question_count === null ? '정보 없음' : `${item.question_count}개`}
-              </dd>
-              <dt className="text-[var(--studio-muted)]">샘플 페이지</dt>
-              <dd className="font-medium text-[var(--studio-text)]">
-                {hasSamplePages ? `${samplePageCount}장` : '제공 없음'}
-              </dd>
-            </dl>
+            {/* 자료 정보는 칸 상자 대신 한 줄씩(라벨·값), 가격은 크게. 요약 이름은 DB 설정(19번) */}
+            {display ? (
+              <dl className="mt-5 grid grid-cols-[5.5rem_minmax(0,1fr)] gap-y-2.5 text-sm">
+                <dt className="text-[var(--studio-muted)]">{display.summaryLabels.questionCount}</dt>
+                <dd className="font-medium text-[var(--studio-text)]">
+                  {item.question_count === null ? display.summaryLabels.unknown : `${item.question_count}개`}
+                </dd>
+                <dt className="text-[var(--studio-muted)]">{display.summaryLabels.samplePages}</dt>
+                <dd className="font-medium text-[var(--studio-text)]">
+                  {hasSamplePages ? `${samplePageCount}장` : display.summaryLabels.noSample}
+                </dd>
+              </dl>
+            ) : null}
             <p className="mt-5 [font-family:var(--studio-font-price)] text-2xl font-bold tabular-nums text-[var(--studio-ink)]">
               {startingPrice === null ? '가격 정보 없음' : `${startingPrice.toLocaleString('ko-KR')} 크레딧`}
             </p>
@@ -281,30 +279,35 @@ export function MarketMaterialDetail({
       )}
       tabs={(
         <div className="space-y-6">
-          <section
-            aria-labelledby="market-material-information-heading"
-            className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-6 sm:p-8"
-          >
-            <h2
-              id="market-material-information-heading"
-              className="text-xl font-bold text-[var(--studio-ink)]"
+          {/* 19번: 자료 정보 행도 설명도 없으면(설정을 읽지 못했거나 모두 숨김·빈 값) 빈 카드를 그리지 않는다 */}
+          {materialInfoRows.length > 0 || description ? (
+            <section
+              aria-labelledby="market-material-information-heading"
+              className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-6 sm:p-8"
             >
-              자료 상세 정보
-            </h2>
-            <dl className="mt-5 grid gap-x-10 gap-y-4 border-t border-[var(--studio-border)] pt-5 text-sm sm:grid-cols-2">
-              {materialInfoRows.map((row) => (
-                <div key={row.label} className="flex gap-6">
-                  <dt className="min-w-[72px] text-[var(--studio-muted)]">{row.label}</dt>
-                  <dd className="break-words font-medium text-[var(--studio-text)]">{row.value}</dd>
+              <h2
+                id="market-material-information-heading"
+                className="text-xl font-bold text-[var(--studio-ink)]"
+              >
+                자료 상세 정보
+              </h2>
+              {materialInfoRows.length > 0 ? (
+                <dl className="mt-5 grid gap-x-10 gap-y-4 border-t border-[var(--studio-border)] pt-5 text-sm sm:grid-cols-2">
+                  {materialInfoRows.map((row) => (
+                    <div key={row.key} className="flex gap-6">
+                      <dt className="min-w-[72px] text-[var(--studio-muted)]">{row.label}</dt>
+                      <dd className="break-words font-medium text-[var(--studio-text)]">{row.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+              {description ? (
+                <div className="mt-5 whitespace-pre-line break-keep border-t border-[var(--studio-border)] pt-5 text-sm leading-7 text-[var(--studio-text)]">
+                  {description}
                 </div>
-              ))}
-            </dl>
-            {description ? (
-              <div className="mt-5 whitespace-pre-line break-keep border-t border-[var(--studio-border)] pt-5 text-sm leading-7 text-[var(--studio-text)]">
-                {description}
-              </div>
-            ) : null}
-          </section>
+              ) : null}
+            </section>
+          ) : null}
 
           <MarketPurchaseInfoSection
             policy={purchasePolicy}
@@ -341,6 +344,8 @@ export function MarketMaterialDetail({
               workspaceSubject={item.workspace_subject}
               zipPrice={item.zip_price}
               purchasePolicy={purchasePolicy}
+              itemTitle={item.title}
+              display={display}
             />
           </section>
 

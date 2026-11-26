@@ -613,7 +613,7 @@ export async function listMarketOrdersForAdmin(input: {
           lineType: line.line_type,
           priceCredits: line.price_credits,
           status: line.status,
-          title: line.subproduct?.title ?? line.bundle?.label ?? null,
+          title: line.subproduct?.title ?? (line.bundle?.label || null) ?? null,
         })),
         entitlements: row.entitlements.map((entitlement) => ({
           id: entitlement.id,

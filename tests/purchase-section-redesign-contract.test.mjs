@@ -21,15 +21,15 @@ test('U2: v2 구매 영역은 Studio 토큰만 쓴다(raw hex·tailwind 팔레�
 test('14절: 패키지는 제목 왼쪽 체크박스(제목 label로 선택), 개별은 Checkbox + aria-label, 막힌 사유는 aria-describedby로 잇는다', () => {
   // 하단 흰 토글 막대 없음
   assert.doesNotMatch(v2, /aria-pressed/)
-  // h3 안 label(체크박스 + 추천 + 제목). 부제·가격은 label 밖. 체크박스 이름 '전체 패키지 선택'은 보이는 제목을 포함(WCAG 2.5.3)
-  assert.match(v2, /<h3 className="break-keep text-xl font-extrabold">\n[\s\S]{0,120}<label className="[^"]*cursor-pointer[^"]*">\n\s+\{renderOptionSelectControl\(bundleKey, INK_BLOCK_CHECKBOX_CLASS, '전체 패키지 선택'\)\}/)
+  // h3 안 label(체크박스 + 추천 + 제목). 부제·가격은 label 밖. 체크박스 이름 '{제목} 선택'은 보이는 제목을 포함(WCAG 2.5.3, 19번 표시명)
+  assert.match(v2, /<h3 className="break-keep text-xl font-extrabold">\n[\s\S]{0,120}<label className="[^"]*cursor-pointer[^"]*">\n\s+\{renderOptionSelectControl\(bundleKey, INK_BLOCK_CHECKBOX_CLASS, `\$\{bundleTitle\} 선택`\)\}/)
   // section 이름은 체크박스 이름을 빼고 제목 span만 가리킨다
   assert.match(v2, /aria-labelledby=\{bundleTitleId\}/)
-  assert.equal((v2.match(/<span id=\{bundleTitleId\}>전체 패키지<\/span>/g) ?? []).length, 2)
+  assert.equal(v2.split('<span id={bundleTitleId} className="break-words [overflow-wrap:anywhere]">{bundleTitle}</span>').length - 1, 2)
   assert.doesNotMatch(v2, /<h3 id=\{bundleTitleId\}/)
   const label = v2.slice(v2.indexOf('<label className="-ml-3'), v2.indexOf('</label>'))
   assert.match(label, />추천<\/span>/)
-  assert.match(label, /<span id=\{bundleTitleId\}>전체 패키지<\/span>/)
+  assert.ok(label.includes('<span id={bundleTitleId} className="break-words [overflow-wrap:anywhere]">{bundleTitle}</span>'))
   assert.doesNotMatch(label, /bundleSubtitle|priceCredits/)
   // 잉크 위 체크박스: 미체크도 흰 바탕+흰 테두리, 체크 시 흰 바탕+잉크 체크, 흰 포커스 링 + 잉크 offset
   assert.match(itemActions, /const INK_BLOCK_CHECKBOX_CLASS = 'border-\[var\(--studio-surface\)\] bg-\[var\(--studio-surface\)\] text-\[var\(--studio-ink\)\] data-\[state=checked\]:border-\[var\(--studio-surface\)\] data-\[state=checked\]:bg-\[var\(--studio-surface\)\] data-\[state=checked\]:text-\[var\(--studio-ink\)\] focus-visible:border-\[var\(--studio-surface\)\] focus-visible:ring-2 focus-visible:ring-\[var\(--studio-surface\)\] focus-visible:ring-offset-2 focus-visible:ring-offset-\[var\(--studio-ink\)\]'/)
@@ -68,9 +68,12 @@ test('U2: 원가·절약·추천은 getBundleSavings 결과에 묶여 있고 가
   assert.match(v2, /bg-\[var\(--studio-highlight\)\] px-2 py-0\.5 text-xs font-bold text-\[var\(--studio-ink\)\]">추천/)
 })
 
-test('U2: 패키지 제목은 고정 문구 "전체 패키지"이고 관리자 라벨을 제목에 쓰지 않는다(D8)', () => {
+// 19번(2026-11-20 대표 결정): D8 고정 제목을 바꿔 관리자 표시명을 쓰고, 비면 DB 기본 제목(resolveBundleTitle)
+test('U2: 패키지 제목은 표시명 규칙(resolveBundleTitle)이고 고정 문구 "전체 패키지"를 쓰지 않는다(19번, D8 바뀜)', () => {
   const heading = v2.slice(v2.indexOf('<h3 className="break-keep text-xl font-extrabold">'), v2.indexOf('</h3>'))
-  assert.equal((heading.match(/<span id=\{bundleTitleId\}>전체 패키지<\/span>/g) ?? []).length, 2, 'selectable and owned/fixed title variants')
+  assert.equal(heading.split('<span id={bundleTitleId} className="break-words [overflow-wrap:anywhere]">{bundleTitle}</span>').length - 1, 2, 'selectable and owned title variants')
+  assert.doesNotMatch(heading, /전체 패키지/)
+  assert.match(itemActions, /const bundleTitle = resolveBundleTitle\(bundleOption\?\.label, display\) \?\? itemTitle/)
   assert.doesNotMatch(v2, /\{bundleOption\.label/)
 })
 
@@ -131,8 +134,11 @@ test('U3: 무료 샘플은 배지·장식 카드 없는 한 줄 행이고, 보�
   const sample = itemActions.slice(itemActions.indexOf('{/* 무료 샘플:'), itemActions.indexOf('{hasV2PurchaseOptions ? renderV2PurchaseOptions()'))
   assert.ok(sample.length > 0)
   assert.doesNotMatch(sample, /<Badge|FileOptionRow|sky-|#[0-9a-fA-F]{3,8}\b/)
-  assert.match(sample, /variant="brandOutline"\n\s+className="min-h-11 shrink-0"/)
-  assert.match(sample, /onClick=\{openSamplePreview\}/)
+  // 19번: 한 줄 행은 공용 부품(MarketSampleRow, 관리자 미리보기도 씀)이 그린다
+  const sampleRow = readFileSync(new URL('../src/components/market/market-sample-row.tsx', import.meta.url), 'utf8')
+  assert.doesNotMatch(sampleRow, /<Badge|FileOptionRow|sky-|#[0-9a-fA-F]{3,8}\b/)
+  assert.match(sampleRow, /variant="brandOutline"\n\s+className="min-h-11 shrink-0"/)
+  assert.match(sample, /onOpen=\{openSamplePreview\}/)
   // 7번 묶음: 보관함 안내 문장은 DB 문구(purchaseCompleteNotice)
   const noticeStart = itemActions.indexOf('{purchasePolicy ? (\n        <p className="break-keep text-xs')
   assert.ok(noticeStart > 0)

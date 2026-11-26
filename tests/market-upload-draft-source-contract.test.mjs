@@ -55,6 +55,7 @@ test('upload draft creation stops before POST until a category is chosen', () =>
   assert.match(adminProductsClient, /const isUploadBlockedByCategory = !form\.id && !categoryItemId/)
   assert.match(adminProductsClient, /accept="\.pdf,application\/pdf"\n\s+disabled=\{isSampleSourceUploading \|\| isUploadBlockedByCategory\}/)
   assert.match(adminProductsClient, /disabled=\{isSampleSourceUploading \|\| !selectedSampleSourceFile \|\| isUploadBlockedByCategory\}/)
-  assert.match(adminProductsClient, /disabled=\{isSubproductSaving \|\| activeSubproductCategories\.length === 0 \|\| isUploadBlockedByCategory\}/)
+  // 19번 6-2: 고르던 구성이 숨겨져 비워졌으면(다시 골라 주세요) 고를 때까지 추가를 막는다
+  assert.match(adminProductsClient, /disabled=\{isSubproductSaving \|\| activeSubproductCategories\.length === 0 \|\| isUploadBlockedByCategory \|\| !subproductDraft\.categoryId\}/)
   assert.equal((adminProductsClient.match(/isUploadBlockedByCategory \? <p className="text-xs text-amber-700">카테고리를 먼저 선택해주세요\.<\/p> : null/g) ?? []).length, 2)
 })

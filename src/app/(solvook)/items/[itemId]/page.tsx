@@ -15,6 +15,7 @@ import { isWorkspaceSubject } from '@/lib/workspace-subject'
 import { getMarketPurchasePolicyView } from '@/lib/market-purchase-policy-server'
 import { buildMarketPurchaseInfo } from '@/lib/market-purchase-info'
 import { getSiteFooterContent } from '@/lib/footer-content-server'
+import { getMarketItemDisplay } from '@/lib/market-item-options-server'
 import { MarketMaterialDetail } from '@/app/preview/solvook-concept/_components/detail/market-material-detail'
 
 interface MarketItemDetailPageProps {
@@ -58,6 +59,13 @@ export default async function MarketItemDetailPage({
   const reviewSortParam = firstValue(resolvedSearchParams.reviewSort)
   const reviewSort: MarketReviewSort = reviewSortParam === 'helpful' ? 'helpful' : 'latest'
 
+  // 19번: 상세 안내 문구·자료 정보 항목(DB 상품 표시 설정, 60초 캐시). 상품 상세에서만 읽는다(장바구니·결제 경로는 읽지 않음).
+  // 읽지 못하면 null — 설정에 기대는 글(샘플 줄·샘플 버튼·자료 정보·요약·HWP+PDF 기본 안내)만 숨기고 담기·가격·전체구매 선택은 그대로.
+  const displayPromise = getMarketItemDisplay().then((display) => display.detail).catch((error) => {
+    console.error('[item-detail] 상품 표시 설정 읽기 실패', error instanceof Error ? error.message : error)
+    return null
+  })
+
   // item 조회가 workspace_subject = subject 로 필터되므로,
   // 나머지 조회를 subject 기준으로 함께 병렬 실행해도 결과가 동일하다.
   const [
@@ -94,6 +102,10 @@ export default async function MarketItemDetailPage({
   if (!item) {
     return redirectToItemSubject(itemId)
   }
+  const display = await displayPromise
+  if (!display && bundleOption && !bundleOption.label.trim()) {
+    console.error('[item-detail] 전체구매 표시명과 기본 제목이 모두 없어 상품 제목을 씀', itemId)
+  }
 
   return (
     <MarketMaterialDetail
@@ -110,6 +122,7 @@ export default async function MarketItemDetailPage({
       categoryTree={categoryTree[subject]}
       purchasePolicy={purchasePolicy}
       purchaseInfo={buildMarketPurchaseInfo(footerContent)}
+      display={display}
     />
   )
 }

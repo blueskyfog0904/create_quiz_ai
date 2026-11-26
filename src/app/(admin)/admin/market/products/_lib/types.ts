@@ -21,6 +21,8 @@ interface SubproductDraftState {
   purchaseNoticeLabel: string
   purchaseNoticeText: string
   priceCredits: string
+  // 19번 6-2: 다시 읽은 목록에 고르던 구성이 없어(숨김·삭제) 비웠다 — '다시 골라 주세요', 고를 때까지 추가를 막는다
+  needsReselect?: boolean
 }
 
 interface SubproductEditState {
@@ -37,6 +39,8 @@ interface SubproductFileDraftState {
   subproductId: string
   fileTypeId: string
   fileName?: string
+  // 19번 6-2: 다시 읽은 목록에 고르던 파일 유형이 없어 비웠다 — '다시 골라 주세요', 고를 때까지 올리기를 막는다
+  needsReselect?: boolean
 }
 
 interface BundleFormState {

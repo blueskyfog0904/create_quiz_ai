@@ -56,7 +56,9 @@ test('admin product form exposes material information inputs', () => {
 })
 
 // 예전 상세 page는 S4-2b에서 지웠다. 지금 상세(market-material-detail)는 계산값 대신 question_count만 보인다.
+// 19번: 자료 정보 행은 buildMaterialInfoRows(설정의 이름·보이기·순서)가 만들고, 문항 수는 question_count 그대로 넘긴다.
 test('public detail page shows explicit question_count for material information', () => {
-  assert.match(materialDetail, /value: item\.question_count === null/)
-  assert.match(materialDetail, /item\.question_count\.toLocaleString\('ko-KR'\)/)
+  assert.match(materialDetail, /questionCount: item\.question_count,/)
+  const options = readFileSync(new URL('../src/lib/market-item-options.ts', import.meta.url), 'utf8')
+  assert.match(options, /questionCount: item\.questionCount === null \? null : item\.questionCount\.toLocaleString\('ko-KR'\)/)
 })

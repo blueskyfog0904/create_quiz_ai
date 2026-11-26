@@ -14,8 +14,6 @@ export const PRODUCT_ADMIN_FILES = [
   '_hooks/use-product-form.ts',
   '_list/product-list.tsx',
   '_hooks/use-sample-generation.ts',
-  '_settings/subproduct-category-settings-dialog.tsx',
-  '_settings/file-type-settings-dialog.tsx',
   '_hooks/use-subproduct-uploads.ts',
   '_editor/basic-info-section.tsx',
   '_editor/subproduct-table.tsx',
@@ -29,7 +27,15 @@ export const PRODUCT_ADMIN_FILES = [
   '_editor/after-save-dialog.tsx',
   '_hooks/use-product-duplicate.ts',
   '_lib/focus-field.ts',
+  // 19번: 구성·파일 유형 설정 창(_settings/subproduct-category-settings-dialog·file-type-settings-dialog)은 '상품 표시 설정'
+  // [구성·파일 유형] 탭(product-settings/taxonomy-tab.tsx)으로 옮겼다. 서브상품 순서 저장 훅을 더했다.
+  '_hooks/use-subproduct-order.ts',
 ]
+
+// 19번: 옮긴 구성·파일 유형 설정(상품 화면 밖). 그 내용을 단언하던 시험은 이 글을 읽는다.
+export function readTaxonomySettingsSource() {
+  return readFileSync(new URL('../product-settings/taxonomy-tab.tsx', PRODUCTS_DIR), 'utf8')
+}
 
 export function readProductAdminFile(relativePath) {
   return readFileSync(new URL(relativePath, PRODUCTS_DIR), 'utf8')

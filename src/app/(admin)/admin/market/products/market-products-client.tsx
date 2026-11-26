@@ -27,24 +27,19 @@ import { useProductDuplicate, type ProductDuplicateApi } from './_hooks/use-prod
 import {
   buildEmptyForm,
   buildEmptyBundleForm,
-  buildEmptyCategorySettingsForm,
-  buildEmptyFileTypeSettingsForm,
   type MarketListStatusTab,
   type MarketListSortKey,
 } from './_lib/product-form'
 import type {
   SubproductEditState,
   BundleFormState,
-  CategorySettingsFormState,
-  FileTypeSettingsFormState,
   MarketItemFormState,
   AdminSamplePage,
   SampleGenerationStep,
 } from './_lib/types'
 import { useProductListActions, type ProductListActionsApi, ProductList, ProductListDialogs } from './_list/product-list'
 import { CategoryManagerDialog } from './_settings/category-manager-dialog'
-import { FileTypeSettingsDialog } from './_settings/file-type-settings-dialog'
-import { SubproductCategorySettingsDialog } from './_settings/subproduct-category-settings-dialog'
+import { useSubproductOrder, type SubproductOrderApi } from './_hooks/use-subproduct-order'
 
 interface MarketProductsClientProps {
   // create: '문제마켓 상품 등록'(폼만), manage: '문제마켓 상품 관리'(목록·필터, 수정할 때만 폼)
@@ -58,10 +53,12 @@ interface MarketProductsClientProps {
   attributeOptions: Record<MarketItemProductOptionKind, MarketItemOption[]>
   // 18번: 등록 화면 주소의 ?categoryId=(관리 화면 저장 뒤 창 [빈 새 상품]이 카테고리를 넘김). 트리에 있는 칸만 page 가 넘긴다.
   initialCategoryItemId?: string
+  // 19번: 전체구매 표시명을 비웠을 때 상세에 보일 기본 제목(DB 상품 표시 설정). 읽지 못했으면 null.
+  bundleDefaultTitle: string | null
 }
 
 // 18번 1단계: 화면 상태(useState·useRef)와 목록 상태·처리 함수. 편집 훅·부품은 이 값을 ctx 로 받는다.
-function useMarketProductsState({ mode, initialCategoryNodes, initialItems, workspaceSubject, canDeleteProducts, attributeOptions, initialCategoryItemId }: MarketProductsClientProps) {
+function useMarketProductsState({ mode, initialCategoryNodes, initialItems, workspaceSubject, canDeleteProducts, attributeOptions, initialCategoryItemId, bundleDefaultTitle }: MarketProductsClientProps) {
   const router = useRouter()
   // 상품 목록 상단 필터(가장 깊이 고른 칸, '' = 전체). 서버가 하위 칸까지 포함해 거른다.
   const [filterCategoryId, setFilterCategoryId] = useState('')
@@ -103,16 +100,6 @@ function useMarketProductsState({ mode, initialCategoryNodes, initialItems, work
   const [editingSubproductId, setEditingSubproductId] = useState<string | null>(null)
   const [subproductEditDraft, setSubproductEditDraft] = useState<SubproductEditState | null>(null)
   const [bundleForm, setBundleForm] = useState<BundleFormState>(buildEmptyBundleForm())
-  const [isCategorySettingsOpen, setIsCategorySettingsOpen] = useState(false)
-  const [categorySettingsForm, setCategorySettingsForm] = useState<CategorySettingsFormState>(buildEmptyCategorySettingsForm())
-  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
-  const [isCategorySettingsSaving, setIsCategorySettingsSaving] = useState(false)
-  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null)
-  const [isFileTypeSettingsOpen, setIsFileTypeSettingsOpen] = useState(false)
-  const [fileTypeSettingsForm, setFileTypeSettingsForm] = useState<FileTypeSettingsFormState>(buildEmptyFileTypeSettingsForm())
-  const [editingFileTypeId, setEditingFileTypeId] = useState<string | null>(null)
-  const [isFileTypeSettingsSaving, setIsFileTypeSettingsSaving] = useState(false)
-  const [deletingFileTypeId, setDeletingFileTypeId] = useState<string | null>(null)
   const [isSubproductSaving, setIsSubproductSaving] = useState(false)
   const [subproductUploadingKeys, setSubproductUploadingKeys] = useState<string[]>([])
   const [subproductDragActiveKeys, setSubproductDragActiveKeys] = useState<string[]>([])
@@ -285,7 +272,7 @@ function useMarketProductsState({ mode, initialCategoryNodes, initialItems, work
   }
 
   return {
-    mode, workspaceSubject, canDeleteProducts, attributeOptions, router, filterCategoryId, setFilterCategoryId,
+    mode, workspaceSubject, canDeleteProducts, attributeOptions, bundleDefaultTitle, router, filterCategoryId, setFilterCategoryId,
     titleQuery, setTitleQuery, statusTab, setStatusTab, sortKey, setSortKey, items, setItems, form, setForm,
     isSaving, setIsSaving, isArchiving, setIsArchiving, hidingItemId, setHidingItemId, hiddenItemIds,
     setHiddenItemIds, requiresFinalRegistration, setRequiresFinalRegistration, deleteTarget, setDeleteTarget,
@@ -297,12 +284,7 @@ function useMarketProductsState({ mode, initialCategoryNodes, initialItems, work
     setIsSampleSourceUploading, sampleGenerationStep, setSampleGenerationStep, deletingSamplePageId,
     setDeletingSamplePageId, subproducts, setSubproducts, subproductFiles, setSubproductFiles, bundleOption,
     setBundleOption, bundleOptionRef, isSubproductFormOpen, setIsSubproductFormOpen, editingSubproductId,
-    setEditingSubproductId, subproductEditDraft, setSubproductEditDraft, bundleForm, setBundleForm,
-    isCategorySettingsOpen, setIsCategorySettingsOpen, categorySettingsForm, setCategorySettingsForm,
-    editingCategoryId, setEditingCategoryId, isCategorySettingsSaving, setIsCategorySettingsSaving,
-    deletingCategoryId, setDeletingCategoryId, isFileTypeSettingsOpen, setIsFileTypeSettingsOpen,
-    fileTypeSettingsForm, setFileTypeSettingsForm, editingFileTypeId, setEditingFileTypeId, isFileTypeSettingsSaving,
-    setIsFileTypeSettingsSaving, deletingFileTypeId, setDeletingFileTypeId, isSubproductSaving,
+    setEditingSubproductId, subproductEditDraft, setSubproductEditDraft, bundleForm, setBundleForm, isSubproductSaving,
     setIsSubproductSaving, subproductUploadingKeys, setSubproductUploadingKeys, subproductDragActiveKeys,
     setSubproductDragActiveKeys, categoryNodes, setCategoryNodes, isCategoryManagerOpen, setIsCategoryManagerOpen,
     categoryItemId, setCategoryItemId, savedCategoryItemId, setSavedCategoryItemId, thumbnailPreview,
@@ -317,7 +299,7 @@ function useMarketProductsState({ mode, initialCategoryNodes, initialItems, work
 
 export type MarketProductsState = ReturnType<typeof useMarketProductsState>
 export type ProductAdminContext = MarketProductsState & ProductFormApi & SampleGenerationApi & SubproductUploadsApi & ProductListActionsApi
-  & ProductDuplicateApi
+  & ProductDuplicateApi & SubproductOrderApi
 
 export default function MarketProductsClient(props: MarketProductsClientProps) {
   const state = useMarketProductsState(props)
@@ -326,7 +308,9 @@ export default function MarketProductsClient(props: MarketProductsClientProps) {
   const subproductUploads = useSubproductUploads({ ...state, ...productForm })
   const listActions = useProductListActions({ ...state, ...productForm })
   const productDuplicate = useProductDuplicate({ ...state, ...productForm })
-  const ctx: ProductAdminContext = { ...state, ...productForm, ...sampleGeneration, ...subproductUploads, ...listActions, ...productDuplicate }
+  const subproductOrder = useSubproductOrder({ ...state, ...productForm })
+  const ctx: ProductAdminContext = { ...state, ...productForm, ...sampleGeneration, ...subproductUploads, ...listActions, ...productDuplicate,
+    ...subproductOrder }
   const {
     mode, workspaceSubject, form, isSamplePreviewOpen, setIsSamplePreviewOpen, samplePreviewItemId,
     setSamplePreviewItemId, sampleDraftToken, resetForm,
@@ -392,10 +376,6 @@ export default function MarketProductsClient(props: MarketProductsClientProps) {
       />
 
       <CategoryManagerDialog ctx={ctx} />
-
-      <SubproductCategorySettingsDialog ctx={ctx} />
-
-      <FileTypeSettingsDialog ctx={ctx} />
 
       <ProductListDialogs ctx={ctx} />
     </div>

@@ -247,6 +247,8 @@ const ROUTE_REQUIREMENTS = {
   'market/items/[id]/subproducts/[subproductId]/route.ts': all('products.edit', 'PATCH', 'DELETE'),
   'market/items/[id]/subproducts/[subproductId]/files/route.ts': all('products.edit', 'GET', 'POST'),
   'market/items/[id]/subproducts/[subproductId]/files/[fileId]/route.ts': all('products.edit', 'DELETE'),
+  // 19번: 서브상품 순서 저장(DB 함수 reorder_market_item_subproducts)
+  'market/items/[id]/subproducts/order/route.ts': all('products.edit', 'PUT'),
   'market/file-types/route.ts': all('products.edit', 'GET', 'POST'),
   'market/file-types/[id]/route.ts': all('products.edit', 'PATCH', 'DELETE'),
   'market/subproduct-categories/route.ts': all('products.edit', 'GET', 'POST'),

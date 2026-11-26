@@ -1,18 +1,42 @@
-import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, ExternalLink, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { formatCreditInputValue, formatFileSize, formatDateTime, MANAGE_SUBPRODUCT_CATEGORIES_VALUE, MANAGE_FILE_TYPES_VALUE } from '../_lib/product-form'
+import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
+import type { WorkspaceSubject } from '@/lib/workspace-subject'
+import { formatCreditInputValue, formatFileSize, formatDateTime } from '../_lib/product-form'
 import type { ProductAdminContext } from '../market-products-client'
 import { UploadQueueList } from './upload-queue-list'
 
+// 19번 Q7·6-2: 구성·파일 유형 관리는 '상품 표시 설정' [구성·파일 유형] 탭(새 탭)으로 옮겼다. 돌아오면 편집 화면이 목록을 다시 읽는다.
+function TaxonomyManageLinks({ workspaceSubject, onRefresh }: { workspaceSubject: WorkspaceSubject; onRefresh: () => void }) {
+  return (
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+      <a
+        href={withAdminWorkspaceSubject('/admin/market/product-settings?tab=taxonomy', workspaceSubject)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 text-indigo-700 underline-offset-2 hover:underline"
+      >
+        구성·파일 유형 관리(새 탭)
+        <ExternalLink aria-hidden="true" className="h-3 w-3" />
+      </a>
+      <button type="button" className="inline-flex items-center gap-1 text-gray-600 hover:text-gray-900" onClick={onRefresh}>
+        <RefreshCw aria-hidden="true" className="h-3 w-3" />
+        목록 새로고침
+      </button>
+    </span>
+  )
+}
+
 export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
   const {
-    subproducts, isSubproductFormOpen, setIsSubproductFormOpen, editingSubproductId, subproductEditDraft,
-    setSubproductEditDraft, setIsCategorySettingsOpen, setIsFileTypeSettingsOpen, isSubproductSaving,
+    workspaceSubject, subproducts, isSubproductFormOpen, setIsSubproductFormOpen, editingSubproductId, subproductEditDraft,
+    setSubproductEditDraft, isSubproductSaving, refreshUploadTaxonomy,
+    subproductOrderIds, isSubproductOrderChanged, isOrderSaving, isEditingPublishedItem, moveSubproduct, saveSubproductOrder,
     subproductUploadingKeys, subproductDragActiveKeys, subproductCategories, subproductDraft, setSubproductDraft,
     subproductFileDrafts, isUploadBlockedByCategory, activeSubproductCategories, activeFileTypes,
     subproductFilesBySubproductId, getSubproductCategoryName, getFileTypeLabel, getFileTypeAcceptValue,
@@ -30,7 +54,20 @@ export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {subproducts.map((subproduct) => {
+                    {/* 19번 6-2: 순서는 [위로]·[아래로] 뒤 [순서 저장](상품 저장과 따로) */}
+                    {isSubproductOrderChanged ? (
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                        <span className="font-semibold">순서 바뀜 — 저장 필요</span>
+                        <Button type="button" size="sm" disabled={isOrderSaving} onClick={() => void saveSubproductOrder()}>
+                          {isOrderSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          순서 저장
+                        </Button>
+                        {isEditingPublishedItem ? <p className="w-full text-xs">회원 상세에 바로 반영됩니다.</p> : null}
+                      </div>
+                    ) : null}
+                    {subproductOrderIds.map((subproductId, orderIndex) => {
+                      const subproduct = subproducts.find((candidate) => candidate.id === subproductId)
+                      if (!subproduct) return null
                       const filesForSubproduct = subproductFilesBySubproductId.get(subproduct.id) || []
                       const isEditingSubproduct = editingSubproductId === subproduct.id && subproductEditDraft
 
@@ -40,24 +77,19 @@ export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
                             <div className="space-y-3 rounded-md border bg-slate-50/80 p-3">
                               <div className="grid gap-3 md:grid-cols-2">
                                 <div className="space-y-2">
-                                  <Label>서브상품 카테고리</Label>
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <Label>서브상품 카테고리</Label>
+                                    <TaxonomyManageLinks workspaceSubject={workspaceSubject} onRefresh={() => void refreshUploadTaxonomy()} />
+                                  </div>
                                   <select
                                     value={subproductEditDraft.categoryId}
-                                    onChange={(event) => {
-                                      if (event.target.value === MANAGE_SUBPRODUCT_CATEGORIES_VALUE) {
-                                        setIsCategorySettingsOpen(true)
-                                        return
-                                      }
-
-                                      setSubproductEditDraft((current) => current ? { ...current, categoryId: event.target.value } : current)
-                                    }}
+                                    onChange={(event) => setSubproductEditDraft((current) => current ? { ...current, categoryId: event.target.value } : current)}
                                     className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
                                   >
                                     <option value="">카테고리 선택</option>
                                     {subproductCategories.map((category) => (
                                       <option key={category.id} value={category.id}>{category.name}</option>
                                     ))}
-                                    <option value={MANAGE_SUBPRODUCT_CATEGORIES_VALUE}>설정하기</option>
                                   </select>
                                 </div>
                                 <div className="space-y-2">
@@ -122,7 +154,16 @@ export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
                             </div>
                           ) : (
                             <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                              <div>
+                              <div className="flex min-w-0 gap-2">
+                                <div className="flex shrink-0 flex-col gap-1">
+                                  <Button type="button" variant="outline" size="icon" className="h-7 w-7" aria-label="위로" disabled={isOrderSaving || orderIndex === 0} onClick={() => moveSubproduct(subproduct.id, -1)}>
+                                    <ArrowUp className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button type="button" variant="outline" size="icon" className="h-7 w-7" aria-label="아래로" disabled={isOrderSaving || orderIndex === subproductOrderIds.length - 1} onClick={() => moveSubproduct(subproduct.id, 1)}>
+                                    <ArrowDown className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
                                   <p className="font-semibold text-gray-900">{getSubproductCategoryName(subproduct.category_id)}</p>
                                   <Badge variant={subproduct.is_active ? 'outline' : 'secondary'}>{subproduct.is_active ? '활성' : '비활성'}</Badge>
@@ -135,6 +176,7 @@ export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
                                   </p>
                                 ) : null}
                                 <p className="mt-1 text-sm font-medium text-gray-900">{formatCreditInputValue(subproduct.price_credits)} 크레딧 · 파일 {filesForSubproduct.length}개</p>
+                              </div>
                               </div>
                               <div className="flex gap-2">
                                 <Button type="button" variant="adminAction" size="sm" disabled={isSubproductSaving} onClick={() => handleEditSubproduct(subproduct)}>
@@ -198,26 +240,23 @@ export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
                                 <div key={draft.id} className="space-y-3 rounded-md border p-3">
                                   <div className="flex flex-col gap-3 md:flex-row md:items-end">
                                     <div className="flex-1 space-y-2">
-                                      <Label>파일 유형</Label>
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <Label>파일 유형</Label>
+                                        <TaxonomyManageLinks workspaceSubject={workspaceSubject} onRefresh={() => void refreshUploadTaxonomy()} />
+                                      </div>
                                       <select
                                         value={draft.fileTypeId}
                                         disabled={isUploading}
-                                        onChange={(event) => {
-                                          if (event.target.value === MANAGE_FILE_TYPES_VALUE) {
-                                            setIsFileTypeSettingsOpen(true)
-                                            return
-                                          }
-
-                                          handleUpdateSubproductFileDraft(draft.id, { fileTypeId: event.target.value })
-                                        }}
+                                        aria-invalid={draft.needsReselect ? true : undefined}
+                                        onChange={(event) => handleUpdateSubproductFileDraft(draft.id, { fileTypeId: event.target.value, needsReselect: false })}
                                         className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
                                       >
                                         <option value="">파일 유형 선택</option>
                                         {activeFileTypes.map((fileType) => (
                                           <option key={fileType.id} value={fileType.id}>{fileType.label}</option>
                                         ))}
-                                        <option value={MANAGE_FILE_TYPES_VALUE}>설정하기</option>
                                       </select>
+                                      {draft.needsReselect ? <p className="text-xs font-semibold text-red-700">고르던 파일 유형이 숨겨지거나 지워졌습니다. 다시 골라 주세요.</p> : null}
                                     </div>
                                     <Button type="button" variant="ghost" size="sm" disabled={isUploading} onClick={() => handleRemoveSubproductFileDraft(draft.id)}>
                                       row 삭제
@@ -229,7 +268,7 @@ export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
                                     className="hidden"
                                     multiple
                                     accept={activeFileTypes.map(getFileTypeAcceptValue).join(',')}
-                                    disabled={isUploading}
+                                    disabled={isUploading || !draft.fileTypeId}
                                     onChange={(event) => {
                                       const selectedFiles = Array.from(event.target.files || [])
                                       event.target.value = ''
@@ -237,24 +276,24 @@ export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
                                     }}
                                   />
                                   <label
-                                    htmlFor={!isUploading ? inputId : undefined}
+                                    htmlFor={!isUploading && draft.fileTypeId ? inputId : undefined}
                                     onDragEnter={(event) => {
-                                      if (isUploading) return
+                                      if (isUploading || !draft.fileTypeId) return
                                       event.preventDefault()
                                       setSubproductDragActive(draft.id, true)
                                     }}
                                     onDragOver={(event) => {
-                                      if (isUploading) return
+                                      if (isUploading || !draft.fileTypeId) return
                                       event.preventDefault()
                                       setSubproductDragActive(draft.id, true)
                                     }}
                                     onDragLeave={(event) => {
-                                      if (isUploading) return
+                                      if (isUploading || !draft.fileTypeId) return
                                       event.preventDefault()
                                       setSubproductDragActive(draft.id, false)
                                     }}
                                     onDrop={(event) => {
-                                      if (isUploading) return
+                                      if (isUploading || !draft.fileTypeId) return
                                       event.preventDefault()
                                       setSubproductDragActive(draft.id, false)
                                       void handleSubproductFileUpload(subproduct.id, draft.fileTypeId, Array.from(event.dataTransfer.files || []), draft.id)
@@ -299,25 +338,22 @@ export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
                     </div>
                     <div className="grid gap-3 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>서브상품 카테고리</Label>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <Label>서브상품 카테고리</Label>
+                          <TaxonomyManageLinks workspaceSubject={workspaceSubject} onRefresh={() => void refreshUploadTaxonomy()} />
+                        </div>
                         <select
                           value={subproductDraft.categoryId}
-                          onChange={(event) => {
-                            if (event.target.value === MANAGE_SUBPRODUCT_CATEGORIES_VALUE) {
-                              setIsCategorySettingsOpen(true)
-                              return
-                            }
-
-                            setSubproductDraft((current) => ({ ...current, categoryId: event.target.value }))
-                          }}
+                          aria-invalid={subproductDraft.needsReselect ? true : undefined}
+                          onChange={(event) => setSubproductDraft((current) => ({ ...current, categoryId: event.target.value, needsReselect: false }))}
                           className="flex h-10 w-full rounded-md border bg-white px-3 text-sm"
                         >
                           <option value="">카테고리 선택</option>
                           {activeSubproductCategories.map((category) => (
                             <option key={category.id} value={category.id}>{category.name}</option>
                           ))}
-                          <option value={MANAGE_SUBPRODUCT_CATEGORIES_VALUE}>설정하기</option>
                         </select>
+                        {subproductDraft.needsReselect ? <p className="text-xs font-semibold text-red-700">고르던 구성이 숨겨지거나 지워졌습니다. 다시 골라 주세요.</p> : null}
                       </div>
                       <div className="space-y-2">
                         <Label>서브상품 가격</Label>
@@ -361,7 +397,7 @@ export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
                     </div>
                     <div className="mt-3 flex items-center justify-end gap-3">
                       {isUploadBlockedByCategory ? <p className="text-xs text-amber-700">카테고리를 먼저 선택해주세요.</p> : null}
-                      <Button type="button" disabled={isSubproductSaving || activeSubproductCategories.length === 0 || isUploadBlockedByCategory} onClick={() => void handleCreateSubproduct()}>
+                      <Button type="button" disabled={isSubproductSaving || activeSubproductCategories.length === 0 || isUploadBlockedByCategory || !subproductDraft.categoryId} onClick={() => void handleCreateSubproduct()}>
                         {isSubproductSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                         서브상품 추가
                       </Button>

@@ -50,19 +50,23 @@ test('Solvook real market detail keeps a compact title and registration date onl
   assert.match(source, /<h1 className="mt-5 break-words text-2xl font-extrabold/)
   assert.doesNotMatch(source, /<h1[^>]*text-3xl|<h1[^>]*sm:text-4xl/)
   assert.match(metadata, /CalendarDays/)
-  assert.match(metadata, /등록일/)
+  // 19번: 등록일 줄 이름은 DB 자료 정보 항목(registeredAt)의 이름이고, 그 항목을 숨기면 줄도 숨긴다
+  assert.match(metadata, /<dt className="sr-only">\{registeredAtLabel\}<\/dt>/)
+  assert.match(source, /\{showRegisteredAt \? \(\n\s+<dl className="mt-6/)
   assert.doesNotMatch(metadata, /Eye|조회|GraduationCap|과목 및 학년|FileArchive|파일 형식/)
 })
 
 test('Solvook material information mirrors the reference label-value grid and hides missing values', async () => {
   const source = await read('src/app/preview/solvook-concept/_components/detail/market-material-detail.tsx')
 
-  assert.match(source, /const materialInfoRows = \[/)
+  // 19번: 항목 이름·보이기·순서는 DB(detail.infoItems), 행 만들기·빈 값 빼기는 buildMaterialInfoRows. 이름 6개는 코드 글자로 없다.
+  assert.match(source, /const materialInfoRows = display\n\s+\? buildMaterialInfoRows\(\{/)
   for (const label of ['과목', '학년', '출처', '자료유형', '문항 수', '등록일자']) {
-    assert.match(source, new RegExp(`label: '${label}'`))
+    assert.doesNotMatch(source, new RegExp(`label: '${label}'`))
   }
   assert.doesNotMatch(source, /label: '단원'|label: '제작자'/)
-  assert.match(source, /\.filter\(\(row\): row is \{ label: string; value: string \} => Boolean\(row\.value\)\)/)
+  const options = await read('src/lib/market-item-options.ts')
+  assert.match(options, /\.filter\(\(row\): row is \{ key: MarketItemInfoKey; label: string; value: string \} => Boolean\(row\.value\)\)/)
   assert.match(source, /materialInfoRows\.map\(\(row\)/)
   assert.match(source, /<dt className="min-w-\[72px\] text-\[var\(--studio-muted\)\]">\{row\.label\}<\/dt>/)
   assert.match(source, /description \? \(/)

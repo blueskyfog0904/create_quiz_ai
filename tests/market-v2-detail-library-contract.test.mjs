@@ -35,7 +35,8 @@ test('market detail action panel renders bundle package and individual alternati
   // 개별 행과 패키지 모두 같은 체크박스 컨트롤로 선택한다(패키지는 제목 왼쪽, 14절).
   assert.match(itemActions, /const key = `subproduct:\$\{subproduct\.id\}`/)
   assert.match(itemActions, /renderOptionSelectControl\(key\)/)
-  assert.match(itemActions, /renderOptionSelectControl\(bundleKey, INK_BLOCK_CHECKBOX_CLASS, '전체 패키지 선택'\)/)
+  // 19번: 체크박스 이름은 보이는 제목(표시명 규칙)과 같은 '{제목} 선택'
+  assert.match(itemActions, /renderOptionSelectControl\(bundleKey, INK_BLOCK_CHECKBOX_CLASS, `\$\{bundleTitle\} 선택`\)/)
   assert.doesNotMatch(itemActions, /aria-pressed=\{isBundleSelected\}/)
   assert.match(itemActions, /clearSelection\(\)/)
   assert.match(itemActions, /targetKind: 'subproduct'/)

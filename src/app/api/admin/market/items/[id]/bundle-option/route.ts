@@ -86,7 +86,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
     const bundleOption = await upsertMarketItemBundleOption(id, {
       workspaceSubject,
-      label: parsed.data.label,
+      // 19번: NULL·빈 값은 ''(칸은 NOT NULL — 상세는 설정의 기본 제목을 보임)
+      label: parsed.data.label ?? '',
       description: parsed.data.description,
       priceCredits: parsed.data.priceCredits,
       isActive: parsed.data.isActive,

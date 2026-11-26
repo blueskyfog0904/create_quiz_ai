@@ -6,16 +6,23 @@ const itemActions = readFileSync(
   new URL('../src/components/market/market-item-actions.tsx', import.meta.url),
   'utf8'
 )
+// 19번: 샘플 한 줄 행은 공용 부품(관리자 미리보기도 씀), 글은 DB 상세 안내 문구(display)
+const sampleRow = readFileSync(
+  new URL('../src/components/market/market-sample-row.tsx', import.meta.url),
+  'utf8'
+)
 
 test('market item detail separates sample preview from purchase options', () => {
   assert.match(itemActions, /function FileOptionRow/)
   assert.match(itemActions, /무료 샘플/)
-  assert.match(itemActions, /무료 샘플 미리보기/)
-  assert.match(itemActions, /구매 전 PDF 첫 \$\{samplePageCount\}쪽을 확인할 수 있어요/)
+  // 19번: 샘플 줄 제목·설명·버튼은 DB 상세 안내 문구(코드 글자 없음, 샘플 문장은 '첫 N쪽'이 아니라 {장수})
+  assert.match(itemActions, /<MarketSampleRow\n/)
+  assert.match(sampleRow, /\{hasSamplePages \? display\.sampleTitle : display\.sampleTitleEmpty\}/)
+  assert.match(sampleRow, /fillSampleCount\(display\.sampleDescription, samplePageCount\)/)
+  assert.match(sampleRow, /\{display\.sampleRowButton\}/)
+  assert.doesNotMatch(itemActions + sampleRow, /무료 샘플 미리보기|샘플 준비 중|첫 \$\{samplePageCount\}쪽/)
   // 구매 영역 A안: 샘플은 장식 배지 없이 한 줄 행(D4)
   assert.doesNotMatch(itemActions, /구매 전 확인/)
-  assert.match(itemActions, /샘플 보기/)
-  assert.match(itemActions, /샘플 준비 중/)
   assert.doesNotMatch(itemActions, /PDF 구매하기/)
   assert.doesNotMatch(itemActions, /HWP & PDF 구매하기/)
   // 보관함 안내는 지금 메뉴 이름 "자료 보관함"(D5)
@@ -55,20 +62,20 @@ test('market item detail shows individual subproducts as lower-emphasis alternat
 
 test('market item detail shows editable purchase notice copy on HWP PDF subproducts', () => {
   assert.match(itemActions, /interface PurchaseNotice/)
-  assert.match(itemActions, /DEFAULT_HWP_PDF_NOTICE/)
-  assert.match(itemActions, /label: 'PDF 포함'/)
-  assert.match(itemActions, /text: '편집 가능한 HWP와 문제\(PDF\)를 함께 제공합니다\. PDF는 따로 구매하지 않아도 됩니다\.'/)
+  // 19번: HWP+PDF 기본 안내는 DB 상세 안내 문구(코드 상수 없음). 설정을 읽지 못했으면 기본 안내는 숨긴다.
+  assert.doesNotMatch(itemActions, /DEFAULT_HWP_PDF_NOTICE|label: 'PDF 포함'|편집 가능한 HWP와 문제/)
+  assert.match(itemActions, /if \(hasHwpAndPdf\(subproduct\) && display\) \{\n\s+return \{ label: display\.hwpPdfNoticeLabel, text: display\.hwpPdfNoticeText \}/)
   assert.match(itemActions, /function hasHwpAndPdf\(subproduct: MarketSubproductPublicSummary\)/)
   assert.match(itemActions, /codes\.has\('hwp'\) && codes\.has\('pdf'\)/)
-  assert.match(itemActions, /function resolveSubproductPurchaseNotice\(subproduct: MarketSubproductPublicSummary\): PurchaseNotice \| null/)
+  assert.match(itemActions, /function resolveSubproductPurchaseNotice\(subproduct: MarketSubproductPublicSummary, display: MarketItemDetailDisplay \| null\): PurchaseNotice \| null/)
   assert.match(itemActions, /subproduct\.purchaseNoticeText\?\.trim\(\)/)
-  assert.match(itemActions, /subproduct\.purchaseNoticeLabel\?\.trim\(\) \|\| DEFAULT_HWP_PDF_NOTICE\.label/)
+  assert.match(itemActions, /subproduct\.purchaseNoticeLabel\?\.trim\(\) \|\| display\?\.hwpPdfNoticeLabel \|\| ''/)
   assert.match(itemActions, /notice\?: PurchaseNotice \| null/)
   assert.match(itemActions, /rounded-xl border border-indigo-100 bg-indigo-50\/70/)
   assert.match(itemActions, /\{notice\.label\}/)
   assert.match(itemActions, /\{notice\.text\}/)
   // 개별 행: 형식 부제에 안내 라벨을 덧붙이고 본문은 행 아래 한 줄로 보인다(D7).
-  assert.match(itemActions, /const notice = resolveSubproductPurchaseNotice\(subproduct\)/)
+  assert.match(itemActions, /const notice = resolveSubproductPurchaseNotice\(subproduct, display\)/)
   assert.match(itemActions, /\[\.\.\.getVisibleFileTypeLabels\(subproduct, subproducts\), notice\?\.label\]/)
 })
 
@@ -121,7 +128,8 @@ test('market item sample preview prefetch is available to visitors when samples 
   assert.match(itemActions, /if \(!hasSamplePages\)/)
   assert.doesNotMatch(itemActions, /!isLoggedIn \|\| !hasSamplePages/)
   assert.match(itemActions, /setSamplePreviewPrefetchKey\(\(value\) => value \+ 1\)/)
-  // 샘플 한 줄 행의 버튼이 같은 미리 불러오기를 건다
-  assert.match(itemActions, /onClick=\{openSamplePreview\}\n\s+onFocus=\{prefetchSamplePreview\}\n\s+onMouseEnter=\{prefetchSamplePreview\}\n\s+onTouchStart=\{prefetchSamplePreview\}/)
+  // 샘플 한 줄 행의 버튼이 같은 미리 불러오기를 건다(19번: 공용 부품 MarketSampleRow 에 넘김)
+  assert.match(itemActions, /onOpen=\{openSamplePreview\}\n\s+onPrefetch=\{prefetchSamplePreview\}/)
+  assert.match(sampleRow, /onClick=\{onOpen\}\n\s+onFocus=\{onPrefetch\}\n\s+onMouseEnter=\{onPrefetch\}\n\s+onTouchStart=\{onPrefetch\}/)
   assert.match(itemActions, /prefetchKey=\{samplePreviewPrefetchKey\}/)
 })

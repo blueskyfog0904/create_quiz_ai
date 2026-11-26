@@ -128,8 +128,6 @@ function formatDateTime(value?: string | null) {
   return new Date(value).toLocaleString('ko-KR')
 }
 
-const MANAGE_SUBPRODUCT_CATEGORIES_VALUE = '__manage_subproduct_categories__'
-const MANAGE_FILE_TYPES_VALUE = '__manage_file_types__'
 const MARKET_ITEM_HIDDEN_INSTEAD_MESSAGE = '구매·환불·후기 이력이 있어 삭제하지 않고 숨김 처리했습니다.'
 
 function buildEmptySubproductDraft(categoryId = ''): SubproductDraftState {
@@ -153,10 +151,11 @@ function buildSubproductEditState(subproduct: MarketItemSubproduct): SubproductE
   }
 }
 
+// 19번: 표시명 첫 값은 ''(비우면 상세는 DB 기본 제목을 보임 — 옛 기본 글자를 다시 채우지 않는다)
 function buildEmptyBundleForm(): BundleFormState {
   return {
     enabled: false,
-    label: '전체 한번에 구매하기',
+    label: '',
     description: '',
     priceCredits: '0',
   }
@@ -166,7 +165,7 @@ function buildBundleFormFromOption(option: MarketItemBundleOption | null): Bundl
   return option
     ? {
       enabled: option.is_active,
-      label: option.label || '전체 한번에 구매하기',
+      label: option.label,
       description: option.description || '',
       priceCredits: formatCreditInputValue(option.price_credits),
     }
@@ -242,8 +241,6 @@ export {
   buildEditForm,
   formatFileSize,
   formatDateTime,
-  MANAGE_SUBPRODUCT_CATEGORIES_VALUE,
-  MANAGE_FILE_TYPES_VALUE,
   MARKET_ITEM_HIDDEN_INSTEAD_MESSAGE,
   buildEmptySubproductDraft,
   buildSubproductEditState,

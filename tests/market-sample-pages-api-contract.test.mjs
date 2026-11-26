@@ -52,8 +52,9 @@ test('market sample pages api exposes ttl and file size metadata for client cach
 
 test('market item detail uses generated sample page preview instead of sample pdf download', () => {
   assert.match(itemActions, /MarketSamplePreviewDialog/)
-  assert.match(itemActions, /샘플 미리보기/)
-  assert.match(itemActions, /구매 전 PDF 첫 \$\{samplePageCount\}쪽을 확인할 수 있어요\./)
+  // 19번: 샘플 문장은 DB 상세 안내 문구('샘플 {장수}장 …' — 고른 쪽이 1·5·7쪽일 수 있어 '첫 N쪽'을 쓰지 않음)
+  assert.doesNotMatch(itemActions, /첫 \$\{samplePageCount\}쪽/)
+  assert.match(itemActions, /<MarketSampleRow\n/)
   assert.doesNotMatch(itemActions, /title="샘플 PDF"/)
   assert.doesNotMatch(itemActions, /buildDownloadUrl\(itemId, 'sample'\)/)
 })
