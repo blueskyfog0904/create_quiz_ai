@@ -286,3 +286,41 @@ Q7. 화면 비교
 | refactor minor | Q3 로 깨지는 기존 단언 3개 | 9절 '바뀌는 기존 단언'(같은 뜻으로 바꾸기, 지우기 금지), 6-2 4 |
 | refactor minor | `min-w-0` 대상·단계, xl 이상 넓은 표 | 5-2 `layout.tsx:30`·1단계 커밋·960px 대비 |
 
+
+## 구현 메모 (0단계)
+작성일: 2026-11-26. 0단계(공통 부품·토큰, 화면 변경 없음)만 했다. 화면 이전(1~7단계)·`layout.tsx` 의 `min-w-0`(1단계)·DB 변경은 하지 않았다.
+
+**만든·고친 파일**
+- 토큰: `src/styles/studio-tokens.css` 에 `--admin-tone-{neutral,info,success,warning,danger}-{text,soft,border}`, `--admin-tone-danger-solid`(#c4271d, 흰 글자 5.75:1), `--admin-tone-danger-solid-hover`. `--studio-*` 값은 그대로.
+- 버튼: `button.tsx` 에 `adminTable`(보라 테두리, 그 아래 44px·`md` 이상 32px), `adminDanger`(위험 바탕 토큰 + 흰 글자). `adminAction` 은 그대로 둠(6-1 가).
+- `StudioAlertDialog` 선택 속성(주지 않으면 지금 그대로): `destructiveVariant`('destructive' 기본 | 'adminDanger'), `impacts`(영향 목록, 있으면 480px·왼쪽 정렬, `emphasis` 굵게), `reason`(사유 칸, `required` 면 빈 동안 확정 막음), `limitHeight`(`max-h-[calc(100dvh-2rem)]`), `focusCancelOnOpen`(첫 초점 [취소]).
+- 순수: `src/lib/admin-format.ts`(`formatWon`·`formatCredits`·`formatSignedCredits`·`formatCount`·`formatKstShort`·`formatKstFull`·`formatKstTime`·`formatDelta`, 세지 못한 값은 `ADMIN_UNAVAILABLE` 로 넘김), `src/lib/admin-status-tone.ts`(5-1 표, `adminStatusTone(kind, value)`, 표에 없는 값은 회색).
+- 부품 `src/components/admin/kit/`: `AdminPageHeader`, `AdminStatusBadge`, `AdminNotice`, `AdminDataTable`(+`ADMIN_TABLE_PAGE_WIDTH_LIMIT` 960), `AdminTableState`, `AdminFilterBar`+`useAdminFilterParams`, `AdminMetricCard`+`AdminMetricGrid`, `AdminSaveBar`, `AdminConfirmDialog`+`useAdminConfirm`, `admin-tone-classes.ts`.
+- 시험: `tests/admin-kit-format`·`-status-tone`·`-contrast`·`-contract`(.test.mjs, 26건). 화면별 `admin-kit-screen-parity` 와 유형 (가)/(나) 시험은 그 화면을 옮기는 단계에서 만든다(0단계엔 옮긴 화면이 없음).
+- 화면 비교 스크립트 `scripts/admin-visual-snapshot.mjs`(뼈대): `login`(막기 없이 사람이 로그인 → storageState 를 `~/admin-visual-snapshots/.auth/` 에 저장, 찍지 않음) / `capture`(GET·HEAD 아닌 요청 모두 abort·1건이라도 있으면 실패, `dialog` dismiss, `[data-admin-pii]` 회색 가림, 1366·1024·375 폭, `~/admin-visual-snapshots/<날짜>/<label>/` 저장, 저장소 안 경로 거부, 로그인 화면으로 넘어가면 실패). 실행하지 않았다(`node --check` 만).
+
+**기본안으로 정한 것(구현 때 판단)**
+1. 회원·배너 tone 키 이름: 회원 `active`·`withdrawn`·`suspension_lifted`·`restricted`·`login_blocked`(뒤 둘은 12번 `MemberSuspensionScope` 그대로), 배너 `live`·`scheduled`·`ended`·`off`. 이름(글자)은 화면이 준다. 22번이 상태 값을 정하면 키를 맞춘다.
+2. `AdminSaveBar` 의 `fixed` 는 CSS `fixed` 가 아니라 `sticky bottom-0`: 사이드바가 접히면(w-16) 왼쪽 위치를 계산할 수 없어서. 본문 폭을 따라가며 아래에 붙는다. 변경이 없으면 저장 버튼은 막히고, 실패면 같은 버튼이 [다시 시도](같은 저장 함수).
+3. `useAdminConfirm()` 은 `{ ask, askReason, dialog }`. `await ask()` → boolean, `await askReason()` → 사유 글 또는 null. 창이 열린 채 다른 `ask` 가 오거나 화면이 사라지면 앞 약속은 취소(false/null)로 풀린다. 확정을 누르면 창은 바로 닫힌다(유형 나의 잠금은 화면이 쥔다).
+4. `formatKstFull` 모양은 `2026-11-19 10:44`(짧은 표기와 같은 하이픈). 지금 화면의 `YYYY.MM.DD` 와 다르므로 1단계 화면 비교 때 대표 확인.
+5. `formatDelta` 는 `{ direction, text }` 이고 글에는 부호가 없다(▲▼ 는 카드가 그림, 화면 읽기용 '증가/감소' 글 포함). 앞 기간 0 이면 '이전 0 → 신규', 같으면 '변화 없음'.
+6. `AdminMetricCard` 말풍선 단추는 375px 에서 44px, `md` 이상 32px. 보조 줄은 누르는 영역 밖.
+7. 래칫(6-4)은 **목록에 없는 켜진 화면 파일에 새로 생기면 실패**만 본다(이미 줄어든 항목을 목록에서 안 지워도 통과 — 12·13·14번 등이 같은 파일을 고쳐도 시험이 깨지지 않게). 범위는 `src/app/(admin)`·`src/components/admin`·`src/components/layout/admin-*`, 꺼진 기능은 경로 정규식으로 예외. `toLocaleString(` 은 파일별 실제 건수(줄 수 아님) 상한. 단계마다 목록을 손으로 줄인다.
+8. 이탈 경고 훅 단언: 훅을 부르는 파일은 지금 3곳 정확히, 관리자 page 마다(page + 위 layout + import 를 따라간 파일 전체) 합계 ≤ 1.
+
+**확인 결과**
+- `node --test tests/*.test.mjs`: 2339건 중 실패 44(작업 전 기준선 44와 이름까지 같음, 새 실패 0). 새 시험 26건 통과.
+- `npx tsc --noEmit -p .`: `.next/` 밖 오류 0. 바꾼 파일 eslint 0.
+
+**다음(1단계 시범) 때 볼 것**
+- `layout.tsx:30` `max-md:min-w-0` → `min-w-0` 를 시범 커밋에 넣고 표 있는 화면 전부 1024×768 비교.
+- 화면 비교 스크립트에 확인 창(유형 가) 열린 상태 찍기(화면별 여는 단추)를 더한다 — 지금 뼈대는 기본·필터 적용(주소에 값)까지.
+- 모양 점검표(5-2 끝: 21번 ①·③·4-2·7절, 22번 6절)는 부품 속성으로 그릴 수 있게 넣었다(도구 칸·보조 줄·카드 증감 줄 따로 실패·비교 범위 글·▲▼·말풍선·반영 안내 칸). 실제 모양은 1단계 화면 비교에서 본다.
+
+**0단계 검증 반영(no-regression PASS·minor 1, kit FAIL·major 1·minor 2)**
+- major: 표 첫 머리 칸에서 tailwind-merge 가 `xl:sticky` 를 뒤에 온 `xl:static` 으로 지우던 문제. 칸 클래스를 `kit/admin-data-table-classes.ts`(순수)로 떼고 `xl:static` 을 없앴다(첫 열 `sticky left-0` 는 xl 이상에서도 두되 가로 넘침이 없으면 효과 없음, 첫 머리 칸은 `xl:z-20`). 시험은 문자열 대신 실제 `cn`(tailwind-merge) 결과로 첫 th 에 `xl:sticky`·`xl:top-0` 이 남고 static 이 없음을 본다.
+- minor: `useAdminConfirm` 약속 처리를 `kit/admin-confirm-queue.ts`(순수)로 떼고 실행 시험(확정 true·사유 trim, 취소 false/null, 연속 ask 때 앞 약속 취소, 화면 사라짐 취소, 열린 것 없을 때 무동작)을 더했다.
+- minor: `useAdminFilterParams(keys, { baseQuery })` — 화면이 정규화한 기준 쿼리를 주면 지금 주소 대신 그것으로 읽고 고친다(회원·크레딧 목록처럼 아는 키만으로 주소를 다시 만들던 화면용).
+- minor: 화면 비교 스크립트가 `context.routeWebSocket` 으로 WebSocket 을 서버에 잇지 않고 닫는다(닫은 수만 출력, 실패로 보지 않음).
+- 확인: 전체 2341건 중 실패 44(기준선과 이름 같음), 부품 시험 28건 통과, tsc(`.next/` 밖) 0, eslint 0.

@@ -28,6 +28,12 @@ const buttonVariants = cva(
           "min-h-11 min-w-11 border border-[var(--studio-control-border)] bg-[var(--studio-surface)] text-[var(--studio-text)] hover:border-[var(--studio-primary)] hover:text-[var(--studio-primary)] focus-visible:ring-[var(--studio-focus-ring)]",
         brandGhost:
           "min-h-11 min-w-11 text-[var(--studio-text)] hover:bg-[var(--studio-primary-soft)] hover:text-[var(--studio-primary)] focus-visible:ring-[var(--studio-focus-ring)]",
+        // 관리자 표 안 버튼(20번): 보라 테두리. md 이상은 행 밀도에 맞춰 32px, 그 아래는 누르기 크기 44px.
+        adminTable:
+          "min-h-11 min-w-11 md:h-8 md:min-h-0 md:min-w-0 border border-[var(--studio-primary-border)] bg-[var(--studio-surface)] text-[var(--studio-primary)] hover:bg-[var(--studio-primary-soft)] focus-visible:ring-[var(--studio-focus-ring)]",
+        // 관리자 위험 확정 버튼(삭제·회수·판매 중지, 20번): 흰 글자 대비 4.5:1 이상인 전용 바탕.
+        adminDanger:
+          "min-h-11 min-w-11 bg-[var(--admin-tone-danger-solid)] text-white hover:bg-[var(--admin-tone-danger-solid-hover)] focus-visible:ring-[var(--admin-tone-danger-border)]",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

@@ -26,6 +26,26 @@
   --studio-shadow-card: 0 12px 34px rgb(40 35 85 / 8%);
   --studio-font-sans: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
   --studio-font-price: "Pretendard", var(--studio-font-sans);
+
+  /* 관리자 상태 색(20번 5-1). 각 text 는 자기 soft 바탕·흰 바탕 모두 4.5:1 이상(tests/admin-kit-contrast.test.mjs). */
+  --admin-tone-neutral-text: #4a5068;
+  --admin-tone-neutral-soft: #f1f2f6;
+  --admin-tone-neutral-border: #d4d7e1;
+  --admin-tone-info-text: #1f5bb5;
+  --admin-tone-info-soft: #e9f1fc;
+  --admin-tone-info-border: #b9d1f3;
+  --admin-tone-success-text: #19744a;
+  --admin-tone-success-soft: #e6f5ed;
+  --admin-tone-success-border: #b3dfc6;
+  --admin-tone-warning-text: #8a5300;
+  --admin-tone-warning-soft: #fdf3df;
+  --admin-tone-warning-border: #efd39a;
+  --admin-tone-danger-text: #b4231a;
+  --admin-tone-danger-soft: #fdecea;
+  --admin-tone-danger-border: #f3c1bc;
+  /* 위험 확정 버튼(adminDanger) 바탕. 흰 글자 대비 4.5:1 이상. */
+  --admin-tone-danger-solid: #c4271d;
+  --admin-tone-danger-solid-hover: #a91f16;
 }
 
 @layer base {
