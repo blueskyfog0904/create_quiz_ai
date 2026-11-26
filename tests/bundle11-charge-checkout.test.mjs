@@ -14,7 +14,7 @@ const policyLib = load('src/lib/point-charge-policy.ts', { '@/lib/payment-consta
 const consentLib = load('src/lib/checkout-consent.ts', { '@/lib/point-charge-policy': policyLib })
 
 // 충전 서버 모듈을 가짜 DB·스위치로 불러온다. calls 에 RPC·조회가 쌓이고, alerts 에 2판 경보 호출이 쌓인다.
-function loadServer({ preview = false, policyValue = seedPolicy, rpcResult = null, bundle = null } = {}) {
+function loadServer({ preview = false, policyValue = seedPolicy, rpcResult = null, bundle = null, previewKeys = null } = {}) {
   const alerts = []
   const fake = createFakeAdmin(({ table }) => (table === 'system_settings'
     ? { data: policyValue === undefined ? null : { value: policyValue }, error: null }
@@ -31,7 +31,7 @@ function loadServer({ preview = false, policyValue = seedPolicy, rpcResult = nul
       readRawSiteFooterValue: async () => ({}),
       recordCheckoutConsentUnavailableAlert: async (kind, details) => { alerts.push({ kind, details }) },
     },
-    '@/lib/checkout-consent-preview': { isCheckoutConsentPreview: () => preview },
+    '@/lib/checkout-consent-preview': { isCheckoutConsentPreview: () => preview, readCheckoutConsentPreviewKeys: async (kind) => previewKeys?.[kind] ?? null },
   })
   return { server, calls: fake.calls, alerts }
 }

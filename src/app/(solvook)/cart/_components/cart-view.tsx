@@ -46,6 +46,7 @@ import {
   type CheckoutReceiptData,
   type CheckoutRequestBody,
 } from '@/lib/cart-checkout-panel'
+import { fillMarketShortfall } from '@/lib/checkout-consent'
 import { CartLineListView, getCartItemTitle } from './cart-line-list-view'
 import { CartCheckoutPanelView } from './cart-checkout-panel-view'
 import { CART_BAR_HEIGHT, CartCheckoutBar, CartPageView } from './cart-page-view'
@@ -155,6 +156,8 @@ export function CartView({ initialView, upcomingNotice }: CartViewProps) {
     needsPartialAck,
     partialAck: consent.partialAck,
     consentComplete: isConsentComplete(noticeCopy, consent.checkedKeys),
+    insufficientLabels: view.cartInsufficientTexts
+      ? { charge: view.cartInsufficientTexts.chargeLabel, recheck: view.cartInsufficientTexts.recheckLabel } : null,
   })
   const listLocked = decision.locked || isMutating || submitting
 
@@ -647,6 +650,8 @@ export function CartView({ initialView, upcomingNotice }: CartViewProps) {
             onPrimary={onPrimary}
             onSecondary={onSecondary}
             chargeHref={CHARGE_HREF}
+            insufficientNotice={decision.state === 'insufficient' && view.cartInsufficientTexts
+              ? fillMarketShortfall(view.cartInsufficientTexts.notice, total - view.balance) : null}
           />
         )}
         bar={(
@@ -656,6 +661,7 @@ export function CartView({ initialView, upcomingNotice }: CartViewProps) {
             total={total}
             barRef={barRef}
             onGoToPanel={goToPanel}
+            charge={decision.state === 'insufficient' && decision.primaryEnabled ? { href: CHARGE_HREF, label: decision.primaryLabel } : null}
           />
         )}
       />

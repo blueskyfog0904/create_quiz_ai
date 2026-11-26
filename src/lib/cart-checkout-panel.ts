@@ -215,6 +215,8 @@ export interface CheckoutButtonInput {
   needsPartialAck: boolean
   partialAck: boolean
   consentComplete: boolean
+  // 잔액 부족 때 두 버튼 이름(DB cartChargeButtonLabel·cartBalanceRecheckLabel). 없으면 충전 버튼 없이 결제만 막는다.
+  insufficientLabels?: { charge: string; recheck: string } | null
 }
 
 export interface CheckoutButtonDecision {
@@ -256,15 +258,20 @@ export function decideCheckoutButton(input: CheckoutButtonInput): CheckoutButton
   if (input.selectedCount === 0) {
     return { ...base, state: 'empty', primaryLabel: '자료를 선택하세요', primaryEnabled: false, blockedReason: '결제할 자료를 선택하세요.', focusTarget: 'title', consentDisabled: true }
   }
-  if (!input.noticeAvailable) {
-    return { ...base, state: 'noNotice', primaryLabel: '지금은 결제할 수 없습니다', primaryEnabled: false, blockedReason: '결제 전 확인 내용을 불러오지 못했습니다.', focusTarget: 'reload' }
-  }
   // 충돌을 부족보다 앞에 둔다(부풀어 오른 합계로 충전을 권하지 않음).
   if (input.hasConflict) {
     return { ...base, state: 'conflict', primaryLabel: '함께 살 수 없는 자료가 선택됐어요', primaryEnabled: false, blockedReason: '함께 살 수 없는 자료가 선택되었습니다. 표시된 줄 중 하나를 빼 주세요.', focusTarget: 'conflict' }
   }
+  // 부족을 고지 없음보다 앞에 둔다(대표 요청 2026-11-26): 충전은 고지와 관계없이 할 수 있으므로 충전으로 안내하고, 결제 버튼은 없다.
   if (input.total > input.balance) {
-    return { ...base, state: 'insufficient', primaryLabel: '크레딧 충전', primaryEnabled: true, secondaryLabel: '잔액 다시 확인', blockedReason: '보유 크레딧이 부족합니다.', focusTarget: 'primary' }
+    const labels = input.insufficientLabels
+    // 버튼 이름은 DB 값. 읽지 못하면 충전 링크를 그리지 않고(이름 없는 버튼을 만들지 않음) 결제만 막는다.
+    return labels
+      ? { ...base, state: 'insufficient', primaryLabel: labels.charge, primaryEnabled: true, secondaryLabel: labels.recheck, blockedReason: '보유 크레딧이 부족합니다.', focusTarget: 'primary' }
+      : { ...base, state: 'insufficient', primaryLabel: '지금은 결제할 수 없습니다', primaryEnabled: false, blockedReason: '보유 크레딧이 부족합니다.', focusTarget: 'title' }
+  }
+  if (!input.noticeAvailable) {
+    return { ...base, state: 'noNotice', primaryLabel: '지금은 결제할 수 없습니다', primaryEnabled: false, blockedReason: '결제 전 확인 내용을 불러오지 못했습니다.', focusTarget: 'reload' }
   }
   if (input.needsPartialAck && !input.partialAck) {
     return { ...base, state: 'partialAck', primaryLabel: '정가 구매 확인을 체크해 주세요', primaryEnabled: false, blockedReason: '정가 구매 확인을 체크해 주세요.', focusTarget: 'partialAck' }

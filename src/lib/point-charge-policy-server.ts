@@ -27,7 +27,7 @@ import {
   readRawSiteFooterValue,
   recordCheckoutConsentUnavailableAlert,
 } from '@/lib/checkout-consent-server'
-import { isCheckoutConsentPreview } from '@/lib/checkout-consent-preview'
+import { isCheckoutConsentPreview, readCheckoutConsentPreviewKeys } from '@/lib/checkout-consent-preview'
 
 // 지문 = sha256(채운 제목 LF 항목 5개 LF 미성년자 안내 LF 동의 문구). DB 함수 record_point_charge_checkout_ack 와 같은 규칙.
 export function computePointChargeNoticeSha256(policy: PointChargePolicy): string {
@@ -95,10 +95,13 @@ export async function readPointChargeConsentUncached(screen: string): Promise<Po
   const preview = isCheckoutConsentPreview()
   const storedFormat = readCheckoutConsentFormat(raw)
   const consentFormat = preview ? 2 : storedFormat
+  // 개발 스위치일 때만: 미리보기 키 파일(스크립트 A 초안)을 저장된 정책 위에 덮어 화면용 값을 만든다(결제·기록 경로와 무관).
+  const previewKeys = preview ? await readCheckoutConsentPreviewKeys('point_charge') : null
+  const screenRaw = previewKeys ? { ...(raw as Record<string, unknown>), ...previewKeys } : raw
   let consent: CheckoutConsentBundle | null = null
   if (consentFormat === 2) {
     try {
-      consent = buildCheckoutConsentBundle('point_charge', raw, policy.refundDays, await readRawSiteFooterValue())
+      consent = buildCheckoutConsentBundle('point_charge', screenRaw, policy.refundDays, await readRawSiteFooterValue())
     } catch (footerError) {
       console.error('약관 문서 원본 조회에 실패했습니다.', footerError)
       consent = null

@@ -72,6 +72,8 @@ export interface CartCheckoutPanelViewProps {
   onPrimary: () => void
   onSecondary: () => void
   chargeHref: string
+  // 잔액 부족일 때만: DB 안내 문장({부족크레딧} 채움). 없으면 줄을 그리지 않는다.
+  insufficientNotice: string | null
 }
 
 export function CartCheckoutPanelView({
@@ -108,6 +110,7 @@ export function CartCheckoutPanelView({
   onPrimary,
   onSecondary,
   chargeHref,
+  insufficientNotice,
 }: CartCheckoutPanelViewProps) {
   const [listOpen, setListOpen] = useState(false)
   const sticky = mode === 'sticky'
@@ -147,7 +150,7 @@ export function CartCheckoutPanelView({
   const primaryClass = 'h-12 min-w-0 flex-1 whitespace-normal break-keep text-base font-bold'
   const buttonRow = (
     <div ref={buttonRowRef} className="flex gap-2">
-      {decision.state === 'insufficient' ? (
+      {decision.state === 'insufficient' && decision.primaryEnabled ? (
         <Button asChild variant="brand" className={primaryClass}>
           <Link ref={primaryRef as RefObject<HTMLAnchorElement | null>} href={chargeHref}>{decision.primaryLabel}</Link>
         </Button>
@@ -197,6 +200,10 @@ export function CartCheckoutPanelView({
           <p role="status" aria-live="polite" className="break-keep text-sm leading-6 text-[var(--studio-ink)] [&:not(:empty)]:mt-2">{statusText}</p>
           <p role="alert" className="break-keep text-sm font-semibold leading-6 text-destructive [&:not(:empty)]:mt-2">{alertText}</p>
         </div>
+        {/* 잔액 부족 충전 안내(위 영역 — 아래 묶음 높이를 바꾸지 않음). 주 버튼은 충전 페이지 링크. */}
+        {insufficientNotice ? (
+          <p className="mt-2 break-keep text-sm font-semibold leading-6 text-[var(--studio-ink)]">{insufficientNotice}</p>
+        ) : null}
         {reloadFailed ? (
           <Button type="button" variant="brandOutline" className="mt-2 min-h-11" data-checkout-focus="reload" onClick={onReload}>
             다시 불러오기

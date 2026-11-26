@@ -186,7 +186,8 @@ test('고지 없음: 동의 자리에 안내(빨강 아님) + [다시 불러오�
 test('[잔액 다시 확인]은 장바구니를 다시 읽고, 부족일 때 첫 버튼은 충전 링크', () => {
   const secondary = between(shell, 'const onSecondary = () =>', '// ── 초점 대상')
   assert.match(secondary, /void reload\('panel'\)/)
-  assert.match(panelView, /decision\.state === 'insufficient' \? \(\s+<Button asChild/)
+  // 버튼 이름(DB)을 읽었을 때만 충전 링크(이름 없는 버튼을 만들지 않음)
+  assert.match(panelView, /decision\.state === 'insufficient' && decision\.primaryEnabled \? \(\s+<Button asChild/)
 })
 
 test('함께 살 수 없는 선택은 공용 판정 함수로 미리 막고 줄에 표시만 한다(선택을 풀지 않음)', () => {

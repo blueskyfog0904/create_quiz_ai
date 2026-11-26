@@ -32,7 +32,13 @@ import {
   buildCheckoutConsentDraft,
   charLength,
   checkCheckoutConsentKeys,
+  checkMarketCartInsufficientTexts,
   checkMarketCartTexts,
+  MARKET_CART_INSUFFICIENT_KEYS,
+  MARKET_CART_INSUFFICIENT_LABELS,
+  MARKET_CART_INSUFFICIENT_MAX,
+  type MarketCartInsufficientKey,
+  MARKET_SHORTFALL_PLACEHOLDER,
   MARKET_CART_TEXT_KEYS,
   MARKET_CART_TEXT_LABELS,
   MARKET_CART_TEXT_MAX,
@@ -81,12 +87,27 @@ function normalizeTexts(texts: MarketPurchasePolicyTexts): MarketPurchasePolicyT
 }
 
 // 자료 구매 고지(장바구니 결제 칸·상품 상세·환불 안내). 환불 기간 값과 동의 방식(판)은 여기서 바꾸지 않는다.
+type InsufficientDraft = Record<MarketCartInsufficientKey, string>
+
+// 저장된 원본에 세 키 중 하나라도 있으면 편집칸을 보인다(스크립트 A 가 초안을 넣음).
+function pickInsufficientTexts(raw: unknown): InsufficientDraft | null {
+  const record = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : null
+  if (!record || !MARKET_CART_INSUFFICIENT_KEYS.some((key) => Object.hasOwn(record, key))) return null
+  return Object.fromEntries(MARKET_CART_INSUFFICIENT_KEYS.map((key) => [key, typeof record[key] === 'string' ? record[key] : ''])) as InsufficientDraft
+}
+
+function normalizeInsufficientTexts(draft: InsufficientDraft): InsufficientDraft {
+  return Object.fromEntries(MARKET_CART_INSUFFICIENT_KEYS.map((key) => [key, normalizeMarketPurchasePolicyText(draft[key])])) as InsufficientDraft
+}
+
 export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyAdminView }) {
   const router = useRouter()
   const [saved, setSaved] = useState<MarketPurchasePolicyAdminData | null>(initial.data)
   const [draft, setDraft] = useState<MarketPurchasePolicyTexts | null>(initial.data ? pickTexts(initial.data.policy) : null)
   const [consentDraft, setConsentDraft] = useState<CheckoutConsentKeysInput | null>(initial.data ? pickCheckoutConsentKeys('market', initial.data.raw) : null)
   const [cartDraft, setCartDraft] = useState<MarketCartTextsInput | null>(initial.data ? pickMarketCartTexts(initial.data.raw) : null)
+  // 잔액 부족 충전 안내·두 버튼 이름(지문과 무관). 저장된 키가 있을 때만 편집칸을 보인다(스크립트 A 가 초안을 넣음).
+  const [insufficientDraft, setInsufficientDraft] = useState<InsufficientDraft | null>(initial.data ? pickInsufficientTexts(initial.data.raw) : null)
   const [legacyOpen, setLegacyOpen] = useState(false)
   const [fit, setFit] = useState<{ legacy: CheckoutPanelFit; consent: CheckoutPanelFit }>({ legacy: null, consent: null })
   const [isSaving, setIsSaving] = useState(false)
@@ -102,14 +123,17 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
   const cartProblems = merged && normalizedCart ? checkMarketCartTexts(merged) : []
   const savedConsent = saved ? pickCheckoutConsentKeys('market', saved.raw) : null
   const savedCart = saved ? pickMarketCartTexts(saved.raw) : null
+  const normalizedInsufficient = insufficientDraft === null ? null : normalizeInsufficientTexts(insufficientDraft)
+  const insufficientProblems = normalizedInsufficient === null ? [] : checkMarketCartInsufficientTexts(normalizedInsufficient)
   const hasChanges = Boolean(saved && normalizedDraft && (
     MARKET_PURCHASE_POLICY_TEXT_KEYS.some((key) => normalizedDraft[key] !== saved.policy[key])
     || JSON.stringify(normalizedConsent) !== JSON.stringify(savedConsent)
     || JSON.stringify(normalizedCart) !== JSON.stringify(savedCart)
+    || JSON.stringify(normalizedInsufficient) !== JSON.stringify(saved ? pickInsufficientTexts(saved.raw) : null)
   ))
   const invalid = normalizedDraft ? validateMarketPurchasePolicyTexts(normalizedDraft) : null
   const fitBlocked = fit.legacy === false || fit.consent === false
-  const blocked = Boolean(invalid) || consentProblems.length > 0 || cartProblems.length > 0 || fitBlocked
+  const blocked = Boolean(invalid) || consentProblems.length > 0 || cartProblems.length > 0 || insufficientProblems.length > 0 || fitBlocked
   const fingerprintFields = saved && merged ? checkoutConsentFingerprintFields('market', saved.storedFormat, merged) : new Set<string>()
   const legacyCollapsed = saved?.storedFormat === 2
   const legacyInvalid = Boolean(invalid && LEGACY_ONLY_KEYS.some((key) => invalid.includes(MARKET_PURCHASE_POLICY_TEXT_LABELS[key])))
@@ -142,6 +166,7 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
         texts: draft,
         consentKeys: consentDraft,
         cartTexts: cartDraft,
+        cartInsufficientTexts: insufficientDraft,
         expectedVersion: saved.policy.version,
       })
       if (!result.success) {
@@ -152,6 +177,7 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
       setDraft(pickTexts(result.data.policy))
       setConsentDraft(pickCheckoutConsentKeys('market', result.data.raw))
       setCartDraft(pickMarketCartTexts(result.data.raw))
+      setInsufficientDraft(pickInsufficientTexts(result.data.raw))
       toast.success('구매 고지를 저장했습니다.')
       router.refresh()
     } catch {
@@ -259,6 +285,26 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
                     </div>
                   )
                 })}
+                {insufficientDraft !== null ? MARKET_CART_INSUFFICIENT_KEYS.map((key) => {
+                  const id = `market-cart-insufficient-${key}`
+                  const value = insufficientDraft[key]
+                  const problems = insufficientProblems.filter((problem) => problem.field === key)
+                  return (
+                    <div key={key} className="grid gap-1.5">
+                      <Label htmlFor={id}>{MARKET_CART_INSUFFICIENT_LABELS[key]}(한 줄)</Label>
+                      <Input id={id} value={value} onChange={(event) => setInsufficientDraft({ ...insufficientDraft, [key]: event.target.value })} />
+                      <div className="flex justify-between gap-2 text-xs text-muted-foreground">
+                        <span>
+                          {key === 'cartInsufficientNotice'
+                            ? `잔액이 부족할 때 결제 칸 위쪽에 보입니다. ${MARKET_SHORTFALL_PLACEHOLDER} 에 부족한 크레딧 수가 들어갑니다. 결제 동의 내용에는 들지 않습니다.`
+                            : '잔액이 부족할 때 결제 칸·고정 막대의 버튼 이름입니다(충전 페이지로 가는 버튼·잔액을 다시 읽는 버튼). 결제 동의 내용에는 들지 않습니다.'}
+                        </span>
+                        <span>{charLength(value)}/{MARKET_CART_INSUFFICIENT_MAX[key]}</span>
+                      </div>
+                      {problems.length > 0 ? <p role="alert" className="text-xs text-red-600">{problems.map((problem) => problem.message).join(' ')}</p> : null}
+                    </div>
+                  )
+                }) : null}
               </fieldset>
             ) : null}
 

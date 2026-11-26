@@ -81,7 +81,7 @@ test('작업 기록: 지문에 들지 않는 바뀐 키(장바구니 문구 포�
     assert.match(action, /\.\.\.\(format === 2 && !current\.linksVisible \? \{ notice_sha256_unavailable: 'link_document' \} : \{\}\)/)
   }
   assert.match(marketAction, /const changedTexts = Object\.fromEntries\(Object\.entries\(changes\)\.filter\(\(\[key\]\) => !\(fingerprintBefore\.has\(key\) && fingerprintAfter\.has\(key\)\)\)\)/)
-  assert.match(marketAction, /const allKeys = \[\.\.\.MARKET_PURCHASE_POLICY_TEXT_KEYS, \.\.\.CHECKOUT_CONSENT_KEY_NAMES, \.\.\.MARKET_CART_TEXT_KEYS\]/)
+  assert.match(marketAction, /const allKeys = \[\.\.\.MARKET_PURCHASE_POLICY_TEXT_KEYS, \.\.\.CHECKOUT_CONSENT_KEY_NAMES, \.\.\.MARKET_CART_TEXT_KEYS, \.\.\.MARKET_CART_INSUFFICIENT_KEYS\]/)
   assert.match(marketAction, /action: 'market_purchase_policy_update'/)
   assert.match(chargeAction, /action: 'point_charge_policy_update'/)
 })
@@ -160,4 +160,16 @@ test('작업 기록: 저장 전·뒤 지문에 모두 드는 칸만 전문에서
   }
   const editor = readFileSync(new URL('../src/components/admin/checkout-consent-editor.tsx', import.meta.url), 'utf8')
   assert.match(editor, /\|\| \/\^consentItems\\\.\\d\+\(\\\.key\)\?\$\/\.test\(problem\.field\)/)
+})
+
+test('잔액 부족 충전 안내·두 버튼 이름: 관리자 폼에서 한 줄로 고치고(지문 밖), 저장 검사(빈 값·길이)·작업 기록 전문에 든다', () => {
+  const form = read('src/app/(admin)/admin/footer/purchase-policy-form.tsx')
+  assert.match(form, /MARKET_CART_INSUFFICIENT_KEYS\.map\(\(key\) => \{\n\s+const id = `market-cart-insufficient-\$\{key\}`/)
+  assert.match(form, /checkMarketCartInsufficientTexts\(normalizedInsufficient\)/)
+  assert.match(form, /cartInsufficientTexts: insufficientDraft,/)
+  assert.match(marketAction, /checkMarketCartInsufficientTexts\(cartInsufficientTexts\)/)
+  assert.match(marketAction, /MARKET_CART_INSUFFICIENT_KEYS\.map\(\(key\) => \[key, normalizeMarketPurchasePolicyText\(/)
+  assert.match(read('src/lib/market-purchase-policy-server.ts'), /\.\.\.\(input\.cartInsufficientTexts \? Object\.fromEntries\(/)
+  const lib = read('src/lib/checkout-consent.ts')
+  assert.match(lib, /cartChargeButtonLabel: 20,\n\s+cartBalanceRecheckLabel: 20,/)
 })

@@ -119,7 +119,10 @@ DECLARE
       {"key": "terms", "label": "서비스 이용약관", "view": "link", "link": "serviceTerms"}
     ],
     "cartCheckoutNotice": "크레딧으로 선택한 자료를 한 번에 구매합니다. 하나라도 구매할 수 없으면 전체 구매가 취소됩니다.",
-    "partialOwnedConfirmLabel": "이미 구매한 개별 자료가 포함된 전체 패키지는 기보유분 차감 없이 정가로 구매됨을 확인했습니다."
+    "partialOwnedConfirmLabel": "이미 구매한 개별 자료가 포함된 전체 패키지는 기보유분 차감 없이 정가로 구매됨을 확인했습니다.",
+    "cartInsufficientNotice": "보유 크레딧이 {부족크레딧} 크레딧 부족합니다. 충전한 뒤 결제해 주세요.",
+    "cartChargeButtonLabel": "크레딧 충전하기",
+    "cartBalanceRecheckLabel": "잔액 다시 확인"
   }$market_keys$;
   c_point_keys constant jsonb := $point_keys${
     "consentTitle": "주문 내용·충전 조건 확인 및 결제 동의",
@@ -188,7 +191,9 @@ BEGIN
     RAISE EXCEPTION 'VERIFY: policies not saved';
   END IF;
   -- 1판 키는 글자 그대로(더한 키와 version 만 다름)
-  IF (v_market_new - ARRAY['consentTitle', 'consentSummary', 'consentItems', 'cartCheckoutNotice', 'partialOwnedConfirmLabel', 'consentFormat', 'version'])
+  IF (v_market_new - ARRAY['consentTitle', 'consentSummary', 'consentItems', 'cartCheckoutNotice', 'partialOwnedConfirmLabel', 'cartInsufficientNotice',
+                           'cartChargeButtonLabel', 'cartBalanceRecheckLabel',
+                           'consentFormat', 'version'])
        IS DISTINCT FROM (v_market - 'version')
      OR (v_point_new - ARRAY['consentTitle', 'consentSummary', 'consentItems', 'consentFormat', 'version']) IS DISTINCT FROM (v_point - 'version')
      OR (v_market_new ->> 'purchaseCompleteNotice') IS DISTINCT FROM (v_market ->> 'purchaseCompleteNotice') THEN

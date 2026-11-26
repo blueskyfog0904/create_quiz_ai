@@ -2,6 +2,7 @@
 // 원본(마이그레이션·down·스크립트 A·B·되돌림·10번 down_b·9번 충전 함수·예시 묶음)을 읽어 리허설 SQL 파일을 만든다.
 //   node supabase/scripts/bundle11_rehearsal/generate.mjs          → 이 폴더의 *.sql 을 다시 쓴다
 //   node supabase/scripts/bundle11_rehearsal/generate.mjs --check  → 다시 만든 값과 파일이 다르면 실패
+// 미리보기 키 파일도 함께 쓴다: output/b11-consent-preview-keys.json(스크립트 A 초안 그대로, 10-1 CHECKOUT_CONSENT_PREVIEW_KEYS_FILE 용).
 // 실행(운영 DB, postgres): supabase db query --remote --yes -o json --file supabase/scripts/bundle11_rehearsal/<파일>
 //   모든 파일은 BEGIN … 마지막 SELECT … ROLLBACK 이다(COMMIT 없음). 결과는 ON COMMIT DROP 임시 표 _rh_log 로 받는다.
 //   지금(낮) 돌려도 되는 파일: a_light.sql — 표 잠금 DDL 없음(함수 생성·설정 행 잠금뿐). 기록 함수는 같은 본문의 pg_temp 사본이
@@ -9,7 +10,7 @@
 //     거절 경로만). 기록 함수에 넘기는 회원은 @test.com 시험 계정만(없으면 멈춤).
 //   새벽에만 돌릴 파일: b_full.sql — 실제 마이그레이션(두 기록 표 ACCESS EXCLUSIVE — 읽기도 막음)과 실제 표에 기록하는 경우들.
 //                      c_snapshot_closed.sql — 사본 없음 경우(policy_document_snapshots 의 가드 트리거를 그 거래 안에서만 끔).
-import { readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -757,6 +758,19 @@ const CASE_R8_AFTER = isolatedCase('rh_r8_down_b', 'R8', `
     v_r := pg_temp.try_sql(pg_temp.ctx('src_down_b_precheck'));
     v_log := v_log || pg_temp.expect(v_r, 'ERR DOWN_B_BLOCKED: public.record_point_charge_checkout_ack', 'R8', '11번 적용 상태에서 10번 down_b 사전 검사 멈춤');`)
 
+// 10-1 미리보기 키 파일: 스크립트 A 가 넣을 초안 키(c_market_keys·c_point_keys)를 그대로 옮긴다(손으로 복사하지 않음).
+// 개발 서버가 CHECKOUT_CONSENT_PREVIEW_KEYS_FILE 로 읽는다. output/ 은 저장소에 넣지 않는다.
+export const PREVIEW_KEYS_PATH = 'output/b11-consent-preview-keys.json'
+export function previewKeysFromScriptA() {
+  const source = read(SOURCES.scriptKeys)
+  const json = (tag) => {
+    const parts = source.split(`$${tag}$`)
+    if (parts.length !== 3) throw new Error(`script A: $${tag}$ not found once`)
+    return JSON.parse(parts[1])
+  }
+  return { market: json('market_keys'), point_charge: json('point_keys') }
+}
+
 export function buildRehearsalFiles() {
   const files = {}
   const light = migrationCopy('light')
@@ -824,6 +838,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       writeFileSync(path, content)
       console.log(`wrote ${name} (${content.split('\n').length} lines)`)
     }
+  }
+  if (!check) {
+    mkdirSync(join(ROOT, 'output'), { recursive: true })
+    writeFileSync(join(ROOT, PREVIEW_KEYS_PATH), `${JSON.stringify(previewKeysFromScriptA(), null, 2)}\n`)
+    console.log(`wrote ${PREVIEW_KEYS_PATH}`)
   }
   if (stale) process.exit(1)
 }

@@ -484,3 +484,61 @@ export function parseMarketCartTexts(input: unknown): MarketCartTexts | null {
     cartTextsSha256: value.cartTextsSha256,
   }
 }
+
+// 장바구니 잔액 부족 충전 안내(대표 요청·결정 2026-11-26): 안내 줄과 두 버튼 이름. 동의·지문과 관계없는 안내라 장바구니 문구 지문(cartTexts)에는 넣지 않는다.
+// 안내 줄의 자리표시 {부족크레딧} 은 화면이 부족한 크레딧 수(천 단위 쉼표)로 채운다. 세 키가 모두 규칙을 지킬 때만 화면이 쓴다(아니면 충전 버튼 없이 결제만 막음).
+export const MARKET_CART_INSUFFICIENT_KEYS = ['cartInsufficientNotice', 'cartChargeButtonLabel', 'cartBalanceRecheckLabel'] as const
+export type MarketCartInsufficientKey = (typeof MARKET_CART_INSUFFICIENT_KEYS)[number]
+export const MARKET_CART_INSUFFICIENT_NOTICE_KEY: MarketCartInsufficientKey = 'cartInsufficientNotice'
+export const MARKET_SHORTFALL_PLACEHOLDER = '{부족크레딧}'
+export const MARKET_CART_INSUFFICIENT_LABELS: Record<MarketCartInsufficientKey, string> = {
+  cartInsufficientNotice: '잔액 부족 충전 안내',
+  cartChargeButtonLabel: '잔액 부족 때 충전 버튼 이름',
+  cartBalanceRecheckLabel: '잔액 부족 때 잔액 다시 확인 버튼 이름',
+}
+export const MARKET_CART_INSUFFICIENT_MAX: Record<MarketCartInsufficientKey, number> = {
+  cartInsufficientNotice: 200,
+  cartChargeButtonLabel: 20,
+  cartBalanceRecheckLabel: 20,
+}
+
+export interface MarketCartInsufficientTexts {
+  // 채우기 전 안내 틀
+  notice: string
+  chargeLabel: string
+  recheckLabel: string
+}
+
+// 저장·화면 검사: 글자, 비지 않음, 최대 글자, 한 줄, 중괄호 없음(안내 줄은 {부족크레딧} 만). keys 를 주면 그 키만 본다.
+export function checkMarketCartInsufficientTexts(value: unknown, keys: readonly MarketCartInsufficientKey[] = MARKET_CART_INSUFFICIENT_KEYS): CheckoutConsentProblem[] {
+  const record = asRecord(value)
+  const problems: CheckoutConsentProblem[] = []
+  for (const field of keys) {
+    const label = MARKET_CART_INSUFFICIENT_LABELS[field]
+    const max = MARKET_CART_INSUFFICIENT_MAX[field]
+    const text = record?.[field]
+    const placeholder = field === 'cartInsufficientNotice' ? MARKET_SHORTFALL_PLACEHOLDER : null
+    if (typeof text !== 'string' || !isNotBlank(text)) problems.push({ field, message: `${label}을(를) 입력해 주세요.` })
+    else if (charLength(text) > max) problems.push({ field, message: `${label}은(는) ${max}자 이하로 입력해 주세요.` })
+    else if (text.includes('\n')) problems.push({ field, message: `${label}은(는) 한 줄로 입력해 주세요(줄바꿈 없음).` })
+    else if (/[{}]/.test(placeholder ? text.split(placeholder).join('') : text)) {
+      problems.push({ field, message: placeholder ? `${label}에는 ${placeholder} 외의 중괄호를 쓸 수 없습니다.` : `${label}에는 중괄호를 쓸 수 없습니다.` })
+    }
+  }
+  return problems
+}
+
+// 저장된 원본에서 세 키를 읽는다. 하나라도 없거나 규칙을 어기면 null.
+export function readMarketCartInsufficientTexts(value: unknown): MarketCartInsufficientTexts | null {
+  if (checkMarketCartInsufficientTexts(value).length > 0) return null
+  const record = asRecord(value)!
+  return {
+    notice: record.cartInsufficientNotice as string,
+    chargeLabel: record.cartChargeButtonLabel as string,
+    recheckLabel: record.cartBalanceRecheckLabel as string,
+  }
+}
+
+export function fillMarketShortfall(template: string, shortfall: number): string {
+  return template.split(MARKET_SHORTFALL_PLACEHOLDER).join(Math.max(shortfall, 0).toLocaleString('ko-KR'))
+}

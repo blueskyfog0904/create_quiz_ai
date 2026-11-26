@@ -19,9 +19,12 @@ import {
   areCheckoutConsentLinksVisible,
   parseCheckoutConsentBundle,
   parseMarketCartTexts,
+  readMarketCartInsufficientTexts,
   readCheckoutConsentFormat,
   type CheckoutConsentBundle,
   type CheckoutConsentFormat,
+  type MarketCartInsufficientKey,
+  type MarketCartInsufficientTexts,
   type MarketCartTexts,
 } from '@/lib/checkout-consent'
 import {
@@ -31,7 +34,7 @@ import {
   readRawSiteFooterValue,
   recordCheckoutConsentUnavailableAlert,
 } from '@/lib/checkout-consent-server'
-import { isCheckoutConsentPreview } from '@/lib/checkout-consent-preview'
+import { isCheckoutConsentPreview, readCheckoutConsentPreviewKeys } from '@/lib/checkout-consent-preview'
 
 // 지문 = sha256(채운 체크 문구 + "\n" + 채운 고지 본문). DB 함수 record_purchase_notice_ack 와 같은 규칙.
 export function computeMarketPurchaseNoticeSha256(checkboxLabel: string, confirmNotice: string): string {
@@ -130,6 +133,8 @@ export interface MarketPurchaseConsentRead {
   // 판 2 이고 검사(문구·링크 문서)를 지나면 2판 묶음, 그 밖은 null
   consent: CheckoutConsentBundle | null
   cartTexts: MarketCartTexts | null
+  // 잔액 부족 충전 안내 틀({부족크레딧} 채우기 전)과 두 버튼 이름. 하나라도 없거나 깨지면 null.
+  insufficientTexts: MarketCartInsufficientTexts | null
   // 개발 스위치(10-1)가 켜져 있을 때만: 2판 키가 없거나 깨졌는지(띠에 보임)
   preview: { keysMissing: boolean } | null
 }
@@ -146,11 +151,14 @@ export async function readMarketPurchaseConsentUncached(): Promise<MarketPurchas
   const preview = isCheckoutConsentPreview()
   const storedFormat = readCheckoutConsentFormat(raw)
   const consentFormat = preview ? 2 : storedFormat
-  const cartTexts = buildMarketCartTexts(raw)
+  // 개발 스위치일 때만: 미리보기 키 파일(스크립트 A 초안)을 저장된 정책 위에 덮어 화면용 값을 만든다(결제·기록 경로와 무관).
+  const previewKeys = preview ? await readCheckoutConsentPreviewKeys('market') : null
+  const screenRaw = previewKeys ? { ...(raw as Record<string, unknown>), ...previewKeys } : raw
+  const cartTexts = buildMarketCartTexts(screenRaw)
   let consent: CheckoutConsentBundle | null = null
   if (consentFormat === 2) {
     try {
-      consent = buildCheckoutConsentBundle('market', raw, policy.refundDays, await readRawSiteFooterValue())
+      consent = buildCheckoutConsentBundle('market', screenRaw, policy.refundDays, await readRawSiteFooterValue())
     } catch (footerError) {
       console.error('약관 문서 원본 조회에 실패했습니다.', footerError)
       consent = null
@@ -170,6 +178,7 @@ export async function readMarketPurchaseConsentUncached(): Promise<MarketPurchas
     notice: consentFormat === 1 ? toMarketPurchaseNotice(toMarketPurchasePolicyView(policy)) : null,
     consent,
     cartTexts,
+    insufficientTexts: readMarketCartInsufficientTexts(screenRaw),
     preview: preview ? { keysMissing: consent === null } : null,
   }
 }
@@ -327,6 +336,8 @@ export interface MarketPurchasePolicySaveInput {
   consentKeys: { consentTitle: string; consentSummary: Record<string, string>; consentItems: unknown[] } | null
   // 장바구니 결제 칸 문구 2개. null 이면 건드리지 않는다.
   cartTexts: { cartCheckoutNotice: string; partialOwnedConfirmLabel: string } | null
+  // 잔액 부족 충전 안내와 두 버튼 이름(지문과 무관). undefined·null 이면 건드리지 않는다.
+  cartInsufficientTexts?: Partial<Record<MarketCartInsufficientKey, string>> | null
   // 폼을 연 때의 편집 번호(낙관적 잠금)
   expectedVersion: number
 }
@@ -367,6 +378,7 @@ export async function saveMarketPurchasePolicyTexts(input: MarketPurchasePolicyS
       cartCheckoutNotice: input.cartTexts.cartCheckoutNotice,
       partialOwnedConfirmLabel: input.cartTexts.partialOwnedConfirmLabel,
     } : {}),
+    ...(input.cartInsufficientTexts ? Object.fromEntries(Object.entries(input.cartInsufficientTexts).filter(([, text]) => typeof text === 'string')) : {}),
     version: nextVersion,
   }
   // 판은 입력으로 받지 않는다: 저장 전 원본 값 그대로(없으면 없음).

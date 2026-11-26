@@ -25,7 +25,7 @@ const policyServer = load('src/lib/point-charge-policy-server.ts', {
     readRawSiteFooterValue: async () => null,
     recordCheckoutConsentUnavailableAlert: async () => {},
   },
-  '@/lib/checkout-consent-preview': { isCheckoutConsentPreview: () => false },
+  '@/lib/checkout-consent-preview': { isCheckoutConsentPreview: () => false, readCheckoutConsentPreviewKeys: async () => null },
 })
 
 const REDEFINED = [

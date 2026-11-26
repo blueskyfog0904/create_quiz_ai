@@ -30,7 +30,7 @@ function fakeAdmin({ settings = {}, rpc = () => ({ data: null, error: null }) } 
   return { calls, client }
 }
 
-function loadMarketServer({ admin, preview = false }) {
+function loadMarketServer({ admin, preview = false, previewKeys = null }) {
   const bypass = { createAdminClient: () => admin.client }
   const consentServer = load('src/lib/checkout-consent-server.ts', {
     'server-only': {},
@@ -45,7 +45,7 @@ function loadMarketServer({ admin, preview = false }) {
     '@/lib/market-purchase-policy': marketPolicyLib,
     '@/lib/checkout-consent': consentLib,
     '@/lib/checkout-consent-server': consentServer,
-    '@/lib/checkout-consent-preview': { isCheckoutConsentPreview: () => preview },
+    '@/lib/checkout-consent-preview': { isCheckoutConsentPreview: () => preview, readCheckoutConsentPreviewKeys: async (kind) => previewKeys?.[kind] ?? null },
   })
 }
 
@@ -258,4 +258,101 @@ test('충전도 같은 경보: 기록 경로 판 2 닫힘·판 값 오류(스위
   const point = read('src/lib/point-charge-policy-server.ts')
   assert.match(point, /if \(result\.code === 'NOTICE_POLICY_UNAVAILABLE' && result\.consentFormat === 2\) \{\n\s+await recordCheckoutConsentUnavailableAlert\('point_charge', \{ screen: 'record' \}\)/)
   assert.match(point, /if \(!preview && storedFormat === null\) \{\n\s+await recordCheckoutConsentUnavailableAlert\('point_charge', \{ screen, reason: 'consent_format_invalid' \}\)/)
+})
+
+// 대표 확인(2026-11-26) 반영: 미리보기 키 파일·잔액 부족 충전 안내
+test('스위치 참 + 미리보기 키 파일: DB 에 2판 키가 없어도 화면용 2판 묶음·장바구니 문구·부족 안내를 만들고, 기록은 여전히 RPC 전에 막힌다(경보 0)', async () => {
+  const generator = await import('../supabase/scripts/bundle11_rehearsal/generate.mjs')
+  const previewKeys = generator.previewKeysFromScriptA()
+  const admin = fakeAdmin({ settings: { market_purchase_policy: v1Policy, site_footer_content: visibleFooter } })
+  const server = loadMarketServer({ admin, preview: true, previewKeys })
+  const result = await server.readMarketPurchaseConsentUncached()
+  assert.ok(result.consent)
+  assert.equal(result.consent.consentTitle, previewKeys.market.consentTitle)
+  assert.ok(result.cartTexts)
+  assert.deepEqual(result.insufficientTexts, { notice: previewKeys.market.cartInsufficientNotice,
+    chargeLabel: previewKeys.market.cartChargeButtonLabel, recheckLabel: previewKeys.market.cartBalanceRecheckLabel })
+  assert.deepEqual(result.preview, { keysMissing: false })
+  assert.deepEqual(await server.recordPurchaseNoticeAck(ARGS), { status: 'unavailable' })
+  assert.equal(admin.calls.length, 0)
+  // 스위치가 꺼져 있으면 키 파일을 쓰지 않는다(판 1 그대로)
+  const off = await loadMarketServer({ admin: fakeAdmin({ settings: { market_purchase_policy: v1Policy, site_footer_content: visibleFooter } }), previewKeys }).readMarketPurchaseConsentUncached()
+  assert.equal(off.consent, null)
+  assert.equal(off.insufficientTexts, null)
+})
+
+test('미리보기 키 파일 읽기: 스위치 조건 셋 + 파일 경로일 때만, 판·편집 번호 키는 버리고, 없거나 깨지면 null', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const dir = mkdtempSync(join(tmpdir(), 'b11-preview-'))
+  const good = join(dir, 'keys.json')
+  writeFileSync(good, JSON.stringify({ market: { consentTitle: '제목', consentFormat: 9, version: 9 }, point_charge: [] }))
+  const broken = join(dir, 'broken.json')
+  writeFileSync(broken, '{not json')
+  const { readCheckoutConsentPreviewKeys } = await import('../src/lib/checkout-consent-preview.ts')
+  const saved = { ...process.env }
+  try {
+    Object.assign(process.env, { NODE_ENV: 'development', CHECKOUT_CONSENT_PREVIEW: '2', CHECKOUT_CONSENT_PREVIEW_KEYS_FILE: good })
+    delete process.env.VERCEL
+    assert.deepEqual(await readCheckoutConsentPreviewKeys('market'), { consentTitle: '제목' })
+    assert.equal(await readCheckoutConsentPreviewKeys('point_charge'), null)
+    process.env.CHECKOUT_CONSENT_PREVIEW_KEYS_FILE = broken
+    assert.equal(await readCheckoutConsentPreviewKeys('market'), null)
+    process.env.CHECKOUT_CONSENT_PREVIEW_KEYS_FILE = join(dir, 'missing.json')
+    assert.equal(await readCheckoutConsentPreviewKeys('market'), null)
+    process.env.CHECKOUT_CONSENT_PREVIEW_KEYS_FILE = good
+    process.env.CHECKOUT_CONSENT_PREVIEW = '1'
+    assert.equal(await readCheckoutConsentPreviewKeys('market'), null)
+    process.env.CHECKOUT_CONSENT_PREVIEW = '2'
+    process.env.VERCEL = '1'
+    assert.equal(await readCheckoutConsentPreviewKeys('market'), null)
+  } finally {
+    for (const key of ['NODE_ENV', 'VERCEL', 'CHECKOUT_CONSENT_PREVIEW', 'CHECKOUT_CONSENT_PREVIEW_KEYS_FILE']) {
+      if (saved[key] === undefined) delete process.env[key]
+      else process.env[key] = saved[key]
+    }
+  }
+})
+
+test('미리보기 키 파일 = 스크립트 A 초안(생성기가 같은 원본에서 만듦), 장바구니 화면은 부족이면 DB 안내 + 충전 링크(막대도)', async () => {
+  const generator = await import('../supabase/scripts/bundle11_rehearsal/generate.mjs')
+  const keys = generator.previewKeysFromScriptA()
+  const script = read('supabase/scripts/20261216_bundle11_consent_keys.sql')
+  assert.deepEqual(keys.market, JSON.parse(script.split('$market_keys$')[1]))
+  assert.deepEqual(keys.point_charge, JSON.parse(script.split('$point_keys$')[1]))
+  assert.equal(generator.PREVIEW_KEYS_PATH, 'output/b11-consent-preview-keys.json')
+  try {
+    assert.deepEqual(JSON.parse(read(generator.PREVIEW_KEYS_PATH)), keys, '생성기를 다시 돌려 파일을 맞추세요')
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error
+  }
+  assert.deepEqual(consentLib.checkMarketCartInsufficientTexts(keys.market), [])
+  assert.equal(keys.market.cartChargeButtonLabel, '크레딧 충전하기')
+  assert.equal(keys.market.cartBalanceRecheckLabel, '잔액 다시 확인')
+  assert.equal(consentLib.fillMarketShortfall(keys.market.cartInsufficientNotice, 11600), '보유 크레딧이 11,600 크레딧 부족합니다. 충전한 뒤 결제해 주세요.')
+  for (const bad of ['', '줄\n바꿈', '{모름} 부족', 'x'.repeat(201)]) {
+    assert.equal(consentLib.readMarketCartInsufficientTexts({ ...keys.market, cartInsufficientNotice: bad }), null, bad)
+  }
+  // 버튼 이름: 빈 값·20자 넘음·줄바꿈·중괄호(자리표시도 안 됨)는 거절, 하나라도 깨지면 묶음 전체 null
+  for (const key of ['cartChargeButtonLabel', 'cartBalanceRecheckLabel']) {
+    for (const bad of ['', ' ', 'x'.repeat(21), '줄\n바꿈', '{부족크레딧}']) {
+      assert.equal(consentLib.readMarketCartInsufficientTexts({ ...keys.market, [key]: bad }), null, `${key} ${bad}`)
+      assert.equal(consentLib.checkMarketCartInsufficientTexts({ ...keys.market, [key]: bad }).length, 1, `${key} ${bad}`)
+    }
+    assert.ok(consentLib.readMarketCartInsufficientTexts({ ...keys.market, [key]: 'x'.repeat(20) }))
+    const missing = { ...keys.market }
+    delete missing[key]
+    assert.equal(consentLib.readMarketCartInsufficientTexts(missing), null, key)
+  }
+  const shell = read('src/app/(solvook)/cart/_components/cart-view.tsx')
+  assert.match(shell, /insufficientNotice=\{decision\.state === 'insufficient' && view\.cartInsufficientTexts\n\s+\? fillMarketShortfall\(view\.cartInsufficientTexts\.notice, total - view\.balance\) : null\}/)
+  assert.match(shell, /charge=\{decision\.state === 'insufficient' && decision\.primaryEnabled \? \{ href: CHARGE_HREF, label: decision\.primaryLabel \} : null\}/)
+  assert.match(shell, /insufficientLabels: view\.cartInsufficientTexts\n\s+\? \{ charge: view\.cartInsufficientTexts\.chargeLabel, recheck: view\.cartInsufficientTexts\.recheckLabel \} : null,/)
+  assert.match(read('src/app/(solvook)/cart/_components/cart-page-view.tsx'), /<Link href=\{charge\.href\}>\{charge\.label\}<\/Link>/)
+  // 부족 안내 문장은 코드에 없다(DB 값만)
+  for (const path of ['src/app/(solvook)/cart/_components/cart-view.tsx', 'src/app/(solvook)/cart/_components/cart-checkout-panel-view.tsx', 'src/lib/cart-checkout-panel.ts']) {
+    assert.doesNotMatch(read(path), /충전한 뒤 결제해 주세요|크레딧 충전하기|'잔액 다시 확인'/, path)
+  }
+  // 스크립트 A VERIFY 가 1판 키 보존을 볼 때 새 키를 뺀다
+  assert.match(script, /'partialOwnedConfirmLabel', 'cartInsufficientNotice',\n\s+'cartChargeButtonLabel', 'cartBalanceRecheckLabel',/)
 })

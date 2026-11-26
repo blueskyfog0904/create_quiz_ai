@@ -15,7 +15,7 @@ import type { MarketPurchaseNotice } from '@/lib/market-purchase-policy'
 import { buildMarketPurchaseInfo, type MarketPurchaseLink } from '@/lib/market-purchase-info'
 import { readMarketPurchaseConsentUncached, type MarketPurchaseConsentRead } from '@/lib/market-purchase-policy-server'
 import { getSiteFooterContent } from '@/lib/footer-content-server'
-import type { CheckoutConsentBundle, MarketCartTexts } from '@/lib/checkout-consent'
+import type { CheckoutConsentBundle, MarketCartInsufficientTexts, MarketCartTexts } from '@/lib/checkout-consent'
 
 export type MarketCartTargetKind = 'subproduct' | 'bundle'
 
@@ -53,6 +53,8 @@ export interface MarketCartView {
   purchaseConsent: CheckoutConsentBundle | null
   // 장바구니 결제 칸 문구(판과 관계없음). 규칙을 어기거나 읽지 못하면 null — 결제 막힘.
   cartTexts: MarketCartTexts | null
+  // 잔액 부족 충전 안내 틀({부족크레딧} 채우기 전)과 두 버튼 이름(지문과 무관). 없거나 깨지면 null — 부족이면 결제만 막는다.
+  cartInsufficientTexts: MarketCartInsufficientTexts | null
   // 개발 스위치(10-1)가 켜졌을 때만 값이 있다.
   consentPreview: { keysMissing: boolean } | null
   termsLink: MarketPurchaseLink | null
@@ -269,6 +271,7 @@ export async function getMarketCartView(userId: string): Promise<MarketCartView>
     purchaseNotice: consentRead?.consentFormat === 1 ? consentRead.notice : null,
     purchaseConsent: consentRead?.consentFormat === 2 ? consentRead.consent : null,
     cartTexts: consentRead?.cartTexts ?? null,
+    cartInsufficientTexts: consentRead?.insufficientTexts ?? null,
     consentPreview: consentRead?.preview ?? null,
     termsLink: purchaseInfo.termsLink,
     refundPolicyLink: purchaseInfo.refundPolicyLink,

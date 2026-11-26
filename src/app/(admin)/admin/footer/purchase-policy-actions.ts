@@ -14,7 +14,9 @@ import {
 } from '@/lib/market-purchase-policy'
 import {
   checkCheckoutConsentKeys,
+  checkMarketCartInsufficientTexts,
   checkMarketCartTexts,
+  MARKET_CART_INSUFFICIENT_KEYS,
   hasCheckoutConsentKeys,
   MARKET_CART_TEXT_KEYS,
   readCheckoutConsentFormat,
@@ -60,6 +62,8 @@ export interface MarketPurchasePolicySaveRequest {
   // 2판 키·장바구니 문구(편집칸이 있을 때만 보냄, 없으면 null)
   consentKeys: unknown
   cartTexts: unknown
+  // 잔액 부족 충전 안내·두 버튼 이름(편집칸이 있을 때만 보냄, 없으면 null)
+  cartInsufficientTexts?: unknown
   expectedVersion: number
 }
 
@@ -109,9 +113,20 @@ export async function saveMarketPurchasePolicyAction(
     if (problem) return { success: false, error: problem }
   }
 
+  const rawInsufficient = input.cartInsufficientTexts && typeof input.cartInsufficientTexts === 'object'
+    ? input.cartInsufficientTexts as Record<string, unknown> : null
+  const cartInsufficientTexts = rawInsufficient
+    ? Object.fromEntries(MARKET_CART_INSUFFICIENT_KEYS.map((key) => [key, normalizeMarketPurchasePolicyText(String(rawInsufficient[key] ?? ''))]))
+    : null
+  if (cartInsufficientTexts) {
+    // 빈 값·길이·한 줄·중괄호(세 키 모두)
+    const problem = summarizeCheckoutConsentProblems(checkMarketCartInsufficientTexts(cartInsufficientTexts))
+    if (problem) return { success: false, error: problem }
+  }
+
   let saved: Awaited<ReturnType<typeof saveMarketPurchasePolicyTexts>>
   try {
-    saved = await saveMarketPurchasePolicyTexts({ texts, consentKeys, cartTexts, expectedVersion: input.expectedVersion })
+    saved = await saveMarketPurchasePolicyTexts({ texts, consentKeys, cartTexts, cartInsufficientTexts, expectedVersion: input.expectedVersion })
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : '구매 고지 저장에 실패했습니다.' }
   }
@@ -121,7 +136,7 @@ export async function saveMarketPurchasePolicyAction(
   // 저장 전·뒤 지문에 모두 드는 칸만 전문에서 뺀다(이번에 새로 항목에 넣은 본문은 이전 글이 지문에 없으므로 전후 전문을 남긴다).
   const fingerprintBefore = checkoutConsentFingerprintFields('market', readCheckoutConsentFormat(saved.before), saved.before)
   const fingerprintAfter = checkoutConsentFingerprintFields('market', format, saved.after)
-  const allKeys = [...MARKET_PURCHASE_POLICY_TEXT_KEYS, ...CHECKOUT_CONSENT_KEY_NAMES, ...MARKET_CART_TEXT_KEYS]
+  const allKeys = [...MARKET_PURCHASE_POLICY_TEXT_KEYS, ...CHECKOUT_CONSENT_KEY_NAMES, ...MARKET_CART_TEXT_KEYS, ...MARKET_CART_INSUFFICIENT_KEYS]
   const { changedKeys, changes } = diffPolicyTextKeys(saved.before, saved.after, allKeys)
   const changedTexts = Object.fromEntries(Object.entries(changes).filter(([key]) => !(fingerprintBefore.has(key) && fingerprintAfter.has(key))))
   const before = fingerprintOf(saved.before, saved.beforePolicy, current.linksVisible)

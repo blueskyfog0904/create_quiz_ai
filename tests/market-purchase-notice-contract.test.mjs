@@ -29,7 +29,7 @@ const policyServer = load('src/lib/market-purchase-policy-server.ts', {
     readRawSiteFooterValue: async () => null,
     recordCheckoutConsentUnavailableAlert: async () => {},
   },
-  '@/lib/checkout-consent-preview': { isCheckoutConsentPreview: () => false },
+  '@/lib/checkout-consent-preview': { isCheckoutConsentPreview: () => false, readCheckoutConsentPreviewKeys: async () => null },
 })
 const migration = read('supabase/migrations/20261123100000_market_purchase_notice.sql')
 const bundle7Policy = JSON.parse(migration.split('$json$')[1])

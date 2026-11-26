@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import '../src/components/features/passages/node-test-register.mjs'
+import { readFileSync } from 'node:fs'
+
+const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
 // 11번 계획 11-1 '장바구니 껍데기·순수 함수'·'배치': 결제 칸 순수 함수(src/lib/cart-checkout-panel.ts, checkout-panel-layout.ts).
 const panel = await import('../src/lib/cart-checkout-panel.ts')
@@ -155,9 +158,11 @@ test('주문 키: 선택 줄 cartItemId 정렬 + 줄별 금액, 순서가 달라
 const ready = {
   submitting: false, reloading: false, saving: false, reloadFailed: false, retryable: false, selectedCount: 2,
   noticeAvailable: true, hasConflict: false, total: 300, balance: 1000, needsPartialAck: false, partialAck: false, consentComplete: true,
+  // 잔액 부족 때 버튼 이름은 DB 값(cartChargeButtonLabel·cartBalanceRecheckLabel)
+  insufficientLabels: { charge: 'DB 충전 버튼', recheck: 'DB 다시 확인' },
 }
 
-test('버튼: 겹치면 결제 중 → 다시 읽는 중 → 선택 저장 중 → 다시 읽기 실패 → retryable → 0건 → 고지 없음 → 충돌 → 부족 → 부분 보유 → 동의 → 결제', () => {
+test('버튼: 겹치면 결제 중 → 다시 읽는 중 → 선택 저장 중 → 다시 읽기 실패 → retryable → 0건 → 충돌 → 부족 → 고지 없음 → 부분 보유 → 동의 → 결제(부족을 고지 없음보다 앞 — 대표 요청)', () => {
   const order = [
     ['submitting', { submitting: true }],
     ['reloading', { reloading: true }],
@@ -165,9 +170,9 @@ test('버튼: 겹치면 결제 중 → 다시 읽는 중 → 선택 저장 중 �
     ['reloadFailed', { reloadFailed: true }],
     ['retryable', { retryable: true }],
     ['empty', { selectedCount: 0 }],
-    ['noNotice', { noticeAvailable: false }],
     ['conflict', { hasConflict: true }],
     ['insufficient', { balance: 10 }],
+    ['noNotice', { noticeAvailable: false }],
     ['partialAck', { needsPartialAck: true }],
     ['consent', { consentComplete: false }],
   ]
@@ -207,7 +212,7 @@ test('버튼: 0건이면 동의 체크도 비활성, 결제 중·retryable 은 �
   assert.equal(retry.locked, true)
   assert.deepEqual([retry.primaryLabel, retry.secondaryLabel], ['같은 요청으로 다시 시도', '다시 선택'])
   const short = panel.decideCheckoutButton({ ...ready, balance: 0 })
-  assert.deepEqual([short.primaryLabel, short.secondaryLabel], ['크레딧 충전', '잔액 다시 확인'])
+  assert.deepEqual([short.primaryLabel, short.secondaryLabel], ['DB 충전 버튼', 'DB 다시 확인'])
   for (const state of [ready, { ...ready, consentComplete: false }, { ...ready, hasConflict: true }]) {
     assert.equal(panel.decideCheckoutButton(state).secondaryLabel, null)
   }
@@ -371,4 +376,23 @@ test('viewWithNoticeCopy: 409 사본을 판에 맞는 칸에만 넣어, 그 뷰�
   const back = panel.viewWithNoticeCopy(next, { format: 1, notice: oldNotice }, null)
   assert.equal(back.purchaseConsent, null)
   assert.equal(back.purchaseNotice, oldNotice)
+})
+
+test('부족 + 고지 없음: 충전으로 안내(주 버튼 [크레딧 충전하기], 보조 [잔액 다시 확인]), 결제 버튼은 없음', () => {
+  const d = panel.decideCheckoutButton({ ...ready, noticeAvailable: false, balance: 10 })
+  assert.equal(d.state, 'insufficient')
+  assert.equal(d.primaryLabel, 'DB 충전 버튼')
+  assert.equal(d.secondaryLabel, 'DB 다시 확인')
+  assert.equal(d.focusTarget, 'primary')
+  assert.equal(panel.decideCheckoutButton({ ...ready, noticeAvailable: false }).state, 'noNotice')
+})
+
+test('부족 + 버튼 이름 없음(DB 키 없음·깨짐): 이름 없는 충전 버튼을 만들지 않고 결제만 막는다', () => {
+  const d = panel.decideCheckoutButton({ ...ready, balance: 10, insufficientLabels: null })
+  assert.equal(d.state, 'insufficient')
+  assert.equal(d.primaryEnabled, false)
+  assert.equal(d.secondaryLabel, null)
+  assert.equal(d.focusTarget, 'title')
+  // 버튼 이름은 코드에 두지 않는다
+  assert.doesNotMatch(read('src/lib/cart-checkout-panel.ts'), /크레딧 충전하기|'잔액 다시 확인'/)
 })
