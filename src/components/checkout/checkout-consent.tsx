@@ -147,12 +147,14 @@ export function CheckoutConsent({
             event.preventDefault()
             detailsButtonRef.current?.focus()
           }}
-          className={cn('flex max-h-[min(640px,calc(100dvh-2rem))] flex-col gap-4 sm:max-w-[480px]', dialogClassName)}
+          // 창 높이는 내용에 맞추고(최대는 화면 안), 넘치면 목록만 창 안에서 스크롤 — [닫기]는 목록 바로 아래.
+          // studio-theme(base 층)의 min-height: 100% 가 창을 화면 높이로 늘리지 않게 min-h-0 을 끝에 둔다.
+          className={cn('flex h-auto max-h-[min(640px,calc(100dvh-2rem))] flex-col gap-4 sm:max-w-[480px]', dialogClassName, 'min-h-0')}
         >
           <StudioDialogHeader className="text-left sm:text-left [&]:px-0">
             <StudioDialogTitle className="text-left text-[var(--consent-ink)]">세부 항목 — {consent.consentTitle}</StudioDialogTitle>
           </StudioDialogHeader>
-          <ul className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2 text-sm">
+          <ul className="-mx-2 min-h-0 shrink overflow-y-auto px-2 text-sm">
             {consent.consentItems.map((item, index) => {
               const itemId = `${baseId}-item-${index}`
               const panelId = `${baseId}-panel-${index}`

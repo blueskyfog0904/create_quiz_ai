@@ -138,3 +138,14 @@ test('SQL 과 같은 식: 기간 숫자 금지·비지 않음·키 규칙 정규
   assert.ok(lib.includes('/^[a-z][A-Za-z0-9]{0,29}$/') && migration.includes("'^[a-z][A-Za-z0-9]{0,29}$'"))
   for (const limit of ['26', '120', '220', '30']) assert.ok(migration.includes(limit))
 })
+
+test('세부 항목 창: 높이는 내용에 맞추고(최대는 화면 안, studio-theme 의 min-height 를 끔) 목록만 스크롤, [닫기]는 목록 바로 아래', () => {
+  const source = read('src/components/checkout/checkout-consent.tsx')
+  assert.match(source, /className=\{cn\('flex h-auto max-h-\[min\(640px,calc\(100dvh-2rem\)\)\] flex-col gap-4 sm:max-w-\[480px\]', dialogClassName, 'min-h-0'\)\}/)
+  const list = source.slice(source.indexOf('<ul className="-mx-2'), source.indexOf('</ul>', source.indexOf('<ul className="-mx-2')))
+  assert.match(list, /^<ul className="-mx-2 min-h-0 shrink overflow-y-auto px-2 text-sm">/)
+  assert.doesNotMatch(list.split('\n')[0], /flex-1|h-full|min-h-screen/)
+  // 목록 다음이 바로 버튼 줄([닫기] 하나)
+  const after = source.slice(source.indexOf('</ul>', source.indexOf('<ul className="-mx-2')))
+  assert.match(after, /^<\/ul>\n\s+<StudioDialogFooter>\n\s+<Button type="button" variant="brand" onClick=\{\(\) => setDialogOpen\(false\)\}>\n\s+닫기/)
+})
