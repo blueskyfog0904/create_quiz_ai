@@ -38,6 +38,7 @@ import {
   canAddMarketHomeSection,
   diffMarketHomeSections,
   moveMarketHomeSection,
+  plainMarketHomeTitle,
   removeFeaturedItem,
   validateMarketHomeDraft,
   type MarketHomeConfig,
@@ -165,7 +166,7 @@ export default function MarketMainSettingsClient({
     const itemNote = section.kind === 'featured' ? ` 고른 상품 ${section.itemIds.length}개 목록도 함께 사라집니다.` : ''
     const ok = await ask({
       title: '섹션을 지울까요?',
-      description: `‘${section.title || '제목 없음'}’ 섹션을 지웁니다.${itemNote} 저장해야 회원 홈에 반영됩니다.`,
+      description: `‘${plainMarketHomeTitle(section.title) || '제목 없음'}’ 섹션을 지웁니다.${itemNote} 저장해야 회원 홈에 반영됩니다.`,
       confirmLabel: '지우기',
       danger: true,
     })
@@ -177,7 +178,7 @@ export default function MarketMainSettingsClient({
     if (!isActive && section.kind === 'featured' && section.isActive) {
       const ok = await ask({
         title: '추천 섹션을 끌까요?',
-        description: `‘${section.title || '제목 없음'}’ 섹션이 회원 홈에서 사라집니다. 고른 상품 ${section.itemIds.length}개 목록은 남습니다.`,
+        description: `‘${plainMarketHomeTitle(section.title) || '제목 없음'}’ 섹션이 회원 홈에서 사라집니다. 고른 상품 ${section.itemIds.length}개 목록은 남습니다.`,
         confirmLabel: '끄기',
       })
       if (!ok) return
@@ -312,7 +313,7 @@ export default function MarketMainSettingsClient({
       header: '제목',
       cell: (section) => (
         <div className="min-w-0 space-y-0.5">
-          <p className="break-keep font-medium">{section.title.trim() || <span className="text-[var(--studio-muted)]">제목 없음</span>}</p>
+          <p className="break-keep font-medium">{plainMarketHomeTitle(section.title).trim() || <span className="text-[var(--studio-muted)]">제목 없음</span>}</p>
           <p className="break-keep text-xs text-[var(--studio-muted)]">
             {section.emptyText?.trim() ? `비었을 때: ${section.emptyText.trim()}` : '비었을 때 섹션 숨김'}
           </p>
@@ -324,7 +325,7 @@ export default function MarketMainSettingsClient({
       header: '켜기',
       cell: (section) => (
         <Switch
-          aria-label={`${section.title.trim() || MARKET_HOME_SECTION_KIND_LABELS[section.kind]} 섹션 켜기`}
+          aria-label={`${plainMarketHomeTitle(section.title).trim() || MARKET_HOME_SECTION_KIND_LABELS[section.kind]} 섹션 켜기`}
           checked={section.isActive}
           onCheckedChange={(checked) => void toggleSection(section, checked)}
         />
@@ -357,7 +358,7 @@ export default function MarketMainSettingsClient({
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button type="button" variant="adminTable" size="icon" aria-label={`${section.title.trim() || '제목 없음'} 섹션 더 보기`}>
+              <Button type="button" variant="adminTable" size="icon" aria-label={`${plainMarketHomeTitle(section.title).trim() || '제목 없음'} 섹션 더 보기`}>
                 <MoreHorizontal aria-hidden="true" className="size-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -500,6 +501,7 @@ export default function MarketMainSettingsClient({
                     onChange={(event) => updateSection(editing.id, { title: event.target.value })}
                   />
                   <p className="text-xs text-[var(--studio-muted)]">{editing.title.trim().length}/{MARKET_HOME_LIMITS.title.max}자 · 회원 홈 섹션 제목</p>
+                  <p className="text-xs text-[var(--studio-muted)]">이모지는 제목에 그대로 넣습니다. 강조할 말은 별표 두 개로 감쌉니다(예: 인기 **다운로드** 자료). 아래 미리보기에서 강조 색으로 보입니다.</p>
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="market-home-section-empty">빈 화면 문구</Label>

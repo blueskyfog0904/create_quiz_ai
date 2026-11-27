@@ -281,3 +281,21 @@ test('3-4 저장 경로: revision ≥ 1 은 판 2·같은 revision 조건, 0 은
     )
   }
 })
+
+test('섹션 제목 강조: **…** 로 감싼 부분만 강조로 나뉘고, 짝이 없는 ** 와 이모지는 글자 그대로 남는다', () => {
+  assert.deepEqual(home.splitMarketHomeTitle('인기 다운로드 자료'), [{ text: '인기 다운로드 자료', emphasis: false }])
+  assert.deepEqual(home.splitMarketHomeTitle('🔥 인기 **다운로드** 자료'), [
+    { text: '🔥 인기 ', emphasis: false },
+    { text: '다운로드', emphasis: true },
+    { text: ' 자료', emphasis: false },
+  ])
+  assert.deepEqual(home.splitMarketHomeTitle('**최근** 등록된 **수업 자료**'), [
+    { text: '최근', emphasis: true },
+    { text: ' 등록된 ', emphasis: false },
+    { text: '수업 자료', emphasis: true },
+  ])
+  assert.deepEqual(home.splitMarketHomeTitle('별표 ** 하나만'), [{ text: '별표 ** 하나만', emphasis: false }])
+  assert.equal(home.plainMarketHomeTitle('🔥 인기 **다운로드** 자료'), '🔥 인기 다운로드 자료')
+  // 강조 표시가 든 제목도 판 2 구조 검사를 그대로 통과한다(길이는 표시까지 센다)
+  assert.equal(home.validateMarketHomeConfig(config([popular({ title: '🔥 인기 **다운로드** 자료' })])).sections[0].title, '🔥 인기 **다운로드** 자료')
+})

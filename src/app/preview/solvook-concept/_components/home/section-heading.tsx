@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
+import { splitMarketHomeTitle } from '@/lib/market-home'
 
 interface SectionHeadingProps {
   title: string
@@ -7,7 +8,7 @@ interface SectionHeadingProps {
   linkLabel?: string
 }
 
-// 섹션 제목은 한글 제목 하나만 둔다(영문 소제목·설명 줄 없음).
+// 섹션 제목은 한글 제목 하나만 둔다(영문 소제목·설명 줄 없음). 제목 안의 **…** 부분은 강조 색으로 그린다.
 export function SectionHeading({
   title,
   href,
@@ -16,7 +17,11 @@ export function SectionHeading({
   return (
     <div className="mb-4 flex items-end justify-between gap-4">
       <h2 className="text-xl font-bold tracking-[-0.02em] text-[var(--studio-ink)] sm:text-2xl">
-        {title}
+        {splitMarketHomeTitle(title).map((part, index) => (
+          part.emphasis
+            ? <span key={index} className="text-[var(--studio-primary)]">{part.text}</span>
+            : <span key={index}>{part.text}</span>
+        ))}
       </h2>
 
       {href ? (

@@ -310,6 +310,31 @@ export function readMarketHomeConfig(value: unknown): MarketHomeConfigReadResult
   }
 }
 
+// 섹션 제목 강조: 제목 안에서 **…** 로 감싼 부분을 회원 홈이 강조 색으로 그린다(이모지는 제목에 그대로 적는다).
+// 짝이 맞지 않는 ** 는 글자 그대로 보인다 — 관리 화면 미리보기가 같은 규칙으로 보여 준다.
+export interface MarketHomeTitlePart {
+  text: string
+  emphasis: boolean
+}
+
+export function splitMarketHomeTitle(title: string): MarketHomeTitlePart[] {
+  const parts: MarketHomeTitlePart[] = []
+  let last = 0
+  for (const match of title.matchAll(/\*\*(.+?)\*\*/g)) {
+    const start = match.index ?? 0
+    if (start > last) parts.push({ text: title.slice(last, start), emphasis: false })
+    parts.push({ text: match[1], emphasis: true })
+    last = start + match[0].length
+  }
+  if (last < title.length) parts.push({ text: title.slice(last), emphasis: false })
+  return parts
+}
+
+// 강조 표시를 뺀 제목(확인 창·읽어 주는 이름처럼 색을 쓸 수 없는 곳)
+export function plainMarketHomeTitle(title: string): string {
+  return splitMarketHomeTitle(title).map((part) => part.text).join('')
+}
+
 // 회원 홈에 보일 섹션: 상품이 있으면 보이고, 0개면 빈 화면 문구가 있을 때만 보인다(Q4).
 export function visibleMarketHomeSections(sections: MarketHomeRenderedSection[]): MarketHomeRenderedSection[] {
   return sections.filter((section) => section.items.length > 0 || Boolean(section.emptyText))

@@ -9,6 +9,7 @@ import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { FeaturedMaterials } from './featured-materials'
 import { RecentMaterials } from './home-material-sections'
 import { PopularDownloadsSlider } from './popular-downloads-slider'
+import { SectionDoodle } from './section-doodle'
 
 // 22번 회원 홈 섹션: 저장한 순서·제목대로 그린다(3-3). 0개 섹션은 빈 화면 문구가 있을 때만 보인다.
 // 보일 섹션과 배너가 모두 0개면 빈 홈 링크 한 줄(과목 문제마켓)을 보인다. 문구는 모두 DB 값이다.
@@ -25,24 +26,27 @@ export function MarketHomeSections({
 
   return (
     <>
-      {sections.map((section) => {
-        if (section.kind === 'popular') {
-          return <PopularDownloadsSlider key={section.id} subject={subject} title={section.title} emptyText={section.emptyText} items={section.items} />
-        }
-        if (section.kind === 'recent') {
-          return <RecentMaterials key={section.id} subject={subject} title={section.title} emptyText={section.emptyText} items={section.items} />
-        }
-        return (
-          <FeaturedMaterials
-            key={section.id}
-            sectionId={section.id}
-            subject={subject}
-            title={section.title}
-            emptyText={section.emptyText}
-            items={section.items}
-          />
-        )
-      })}
+      {sections.map((section, index) => (
+        // 꾸밈 그림은 모든 섹션 내용(z-10)보다 뒤에 깔린다 — 위 섹션의 상품 목록과 닿아도 목록이 앞에 온다.
+        <div key={section.id} className="relative">
+          <SectionDoodle index={index} />
+          <div className="relative z-10">
+            {section.kind === 'popular' ? (
+              <PopularDownloadsSlider subject={subject} title={section.title} emptyText={section.emptyText} items={section.items} />
+            ) : section.kind === 'recent' ? (
+              <RecentMaterials subject={subject} title={section.title} emptyText={section.emptyText} items={section.items} />
+            ) : (
+              <FeaturedMaterials
+                sectionId={section.id}
+                subject={subject}
+                title={section.title}
+                emptyText={section.emptyText}
+                items={section.items}
+              />
+            )}
+          </div>
+        </div>
+      ))}
       {shouldShowEmptyHomeLink(homeData, visibleBannerCount) ? (
         <p className="text-center">
           <Link
