@@ -51,7 +51,8 @@ test('Solvook real market detail keeps a compact title and registration date onl
   assert.doesNotMatch(source, /<h1[^>]*text-3xl|<h1[^>]*sm:text-4xl/)
   assert.match(metadata, /CalendarDays/)
   // 19번: 등록일 줄 이름은 DB 자료 정보 항목(registeredAt)의 이름이고, 그 항목을 숨기면 줄도 숨긴다
-  assert.match(metadata, /<dt className="sr-only">\{registeredAtLabel\}<\/dt>/)
+  // 이름은 날짜 왼쪽에 글자로 보인다(화면 낭독 전용 아님)
+  assert.match(metadata, /<dt className="text-\[var\(--studio-muted\)\]">\{registeredAtLabel\}<\/dt>\n\s+<dd>\{formatMarketItemRegisteredAt\(item\.created_at\)\}<\/dd>/)
   assert.match(source, /\{showRegisteredAt \? \(\n\s+<dl className="mt-6/)
   assert.doesNotMatch(metadata, /Eye|조회|GraduationCap|과목 및 학년|FileArchive|파일 형식/)
 })

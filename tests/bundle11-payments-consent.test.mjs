@@ -40,7 +40,7 @@ function loadDetails(acks) {
     '@/lib/checkout-consent': consentLib,
     '@/lib/footer-content-server': { getSiteFooterContent: async () => ({}) },
     '@/lib/market-purchase-info': {
-      buildMarketPurchaseInfo: () => ({ supplierRows: [], termsLink: { label: '약관', href: '/terms/service' }, refundPolicyLink: { label: '환불', href: '/terms/refund' } }),
+      buildMarketPurchaseInfo: () => ({ termsLink: { label: '약관', href: '/terms/service' }, refundPolicyLink: { label: '환불', href: '/terms/refund' } }),
     },
   })
 }

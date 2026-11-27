@@ -14,6 +14,11 @@ export const MARKET_HOME_LIMITS = {
   title: { min: 1, max: 40 },
   emptyText: { min: 1, max: 80 },
   emptyHomeLink: { min: 1, max: 40 },
+  // 인기 섹션 기간 버튼(17절): 버튼 수·버튼 이름 길이. 일수 범위는 rankingWindowDays 와 같다.
+  periodTabs: { min: 1, max: 3 },
+  periodLabel: { min: 1, max: 10 },
+  // 펼치기·접기 버튼 글자 길이
+  toggleLabel: { min: 1, max: 20 },
 } as const
 
 // 관리자가 새 섹션을 더할 때의 숫자 시작값(문구는 관리자가 적는다). 지금 인기 12·최근 8·기간 30일과 같다.
@@ -21,6 +26,8 @@ export const MARKET_HOME_NEW_SECTION_NUMBERS = {
   popularLimit: 12,
   rankingWindowDays: 30,
   recentLimit: 8,
+  // 기간 버튼을 더할 때의 일수 시작값(아직 쓰지 않은 첫 값을 쓴다). 버튼 이름은 관리자가 적는다.
+  periodTabDays: [30, 7, 1],
 } as const
 
 export const MARKET_HOME_SECTION_KINDS = ['popular', 'recent', 'featured'] as const
@@ -42,15 +49,28 @@ interface MarketHomeSectionBase {
   emptyText: string | null
 }
 
+// 인기 섹션 기간 버튼 하나(17절): 버튼 이름과 집계 기간(일)
+export interface MarketHomePeriodTab {
+  label: string
+  days: number
+}
+
 export interface MarketHomePopularSection extends MarketHomeSectionBase {
   kind: 'popular'
   limit: number
   rankingWindowDays: number
+  // 기간 버튼(없으면 버튼 없이 rankingWindowDays 하나로 집계 — 22번 그대로).
+  // 있으면 버튼마다 그 기간의 순위를 보이고, rankingWindowDays 는 첫 버튼의 일수로 맞춰 저장한다.
+  periodTabs?: MarketHomePeriodTab[]
+  // 처음 보이는 개수(없으면 limit 까지 모두 보임). 있으면 펼치기 버튼으로 limit 까지 보인다.
+  collapsedLimit?: number
 }
 
 export interface MarketHomeRecentSection extends MarketHomeSectionBase {
   kind: 'recent'
   limit: number
+  // 처음 보이는 개수(없으면 limit 까지 모두 보임)
+  collapsedLimit?: number
 }
 
 export interface MarketHomeFeaturedSection extends MarketHomeSectionBase {
@@ -65,6 +85,9 @@ export interface MarketHomeDraft {
   sections: MarketHomeSection[]
   // 보일 섹션과 배너가 모두 0개일 때 과목 문제마켓으로 가는 한 줄. null 이면 그리지 않는다.
   emptyHomeLink: string | null
+  // 펼치기·접기 버튼 글자(17절). 처음 보이는 개수를 쓰는 섹션이 있으면 둘 다 있어야 한다.
+  expandLabel?: string | null
+  collapseLabel?: string | null
 }
 
 export interface MarketHomeConfig extends MarketHomeDraft {
@@ -118,9 +141,18 @@ export interface MarketHomePopularItem extends MarketHomeItem {
 }
 
 // 회원 홈이 그리는 섹션(켜진 섹션만, 상품을 채운 것)
+// 인기 섹션의 기간 버튼 하나와 그 기간의 순위
+export interface MarketHomeRenderedPeriod {
+  label: string
+  days: number
+  items: MarketHomePopularItem[]
+}
+
+// - 인기 periods: 기간 버튼이 있으면 버튼별 순위(items 는 첫 버튼의 순위), 없으면 null
+// - 인기·최근 collapsedLimit: 처음 보이는 개수(없으면 null — 모두 보임)
 export type MarketHomeRenderedSection =
-  | { id: string; kind: 'popular'; title: string; emptyText: string | null; items: MarketHomePopularItem[] }
-  | { id: string; kind: 'recent'; title: string; emptyText: string | null; items: MarketHomeItem[] }
+  | { id: string; kind: 'popular'; title: string; emptyText: string | null; items: MarketHomePopularItem[]; periods?: MarketHomeRenderedPeriod[] | null; collapsedLimit?: number | null }
+  | { id: string; kind: 'recent'; title: string; emptyText: string | null; items: MarketHomeItem[]; collapsedLimit?: number | null }
   | { id: string; kind: 'featured'; title: string; emptyText: string | null; items: MarketHomeItem[] }
 
 // ok: 판 2 검사 통과 / missing: 판 1·행 없음 / invalid: 판 2 인데 구조 검사 실패(3-3). missing·invalid 는 섹션 0개.
@@ -132,11 +164,14 @@ export interface MarketHomeData {
   state: MarketHomeConfigState | 'error'
   sections: MarketHomeRenderedSection[]
   emptyHomeLink: string | null
+  // 펼치기·접기 버튼 글자(DB 값). 없으면 펼치기 버튼 없이 모두 보인다.
+  expandLabel: string | null
+  collapseLabel: string | null
 }
 
 // 캐시 첫 채움부터 실패했을 때 page 가 쓰는 값: 섹션 없이 배너만(3-3)
 export function marketHomeReadFailed(subject: WorkspaceSubject): MarketHomeData {
-  return { subject, state: 'error', sections: [], emptyHomeLink: null }
+  return { subject, state: 'error', sections: [], emptyHomeLink: null, expandLabel: null, collapseLabel: null }
 }
 
 export class MarketHomeValidationError extends Error {
@@ -157,12 +192,14 @@ function fail(message: string): never {
   throw new MarketHomeValidationError(message)
 }
 
+// keys 는 꼭 있어야 하는 칸, optionalKeys 는 없어도 되는 칸(17절 — 없으면 22번과 같은 동작)
 function assertExactKeys(
   value: Record<string, unknown>,
   keys: readonly string[],
-  label: string
+  label: string,
+  optionalKeys: readonly string[] = []
 ) {
-  const allowed = new Set(keys)
+  const allowed = new Set([...keys, ...optionalKeys])
   const unexpected = Object.keys(value).find((key) => !allowed.has(key))
   if (unexpected) fail(`${label}.${unexpected} 칸은 쓰지 않습니다.`)
   const missing = keys.find((key) => !(key in value))
@@ -204,6 +241,31 @@ function readOptionalLine(value: unknown, range: { min: number; max: number }, l
 
 const BASE_KEYS = ['id', 'kind', 'isActive', 'title', 'emptyText'] as const
 
+// 기간 버튼(17절): 없으면 undefined. 1~3개, 이름 1~10자, 일수는 집계 기간과 같은 범위, 같은 일수 두 번 금지.
+function readPeriodTabs(value: unknown, label: string): MarketHomePeriodTab[] | undefined {
+  if (value === undefined) return undefined
+  const limits = MARKET_HOME_LIMITS.periodTabs
+  if (!Array.isArray(value) || value.length < limits.min || value.length > limits.max) {
+    fail(`${label}.periodTabs(기간 버튼) 은(는) ${limits.min}~${limits.max}개여야 합니다.`)
+  }
+  const tabs = value.map((tab, index) => {
+    const tabLabel = `${label}.periodTabs[${index}]`
+    if (!isRecord(tab)) fail(`${tabLabel} 형식이 올바르지 않습니다.`)
+    assertExactKeys(tab, ['label', 'days'], tabLabel)
+    assertIntegerInRange(tab.days, MARKET_HOME_LIMITS.rankingWindowDays, `${tabLabel}.days(집계 기간)`)
+    return { label: readLine(tab.label, MARKET_HOME_LIMITS.periodLabel, `${tabLabel}.label(버튼 이름)`), days: tab.days }
+  })
+  if (new Set(tabs.map((tab) => tab.days)).size !== tabs.length) fail(`${label}.periodTabs: 같은 집계 기간의 버튼을 두 개 둘 수 없습니다.`)
+  return tabs
+}
+
+// 처음 보이는 개수(17절): 없으면 undefined. 1 이상 개수(limit) 이하.
+function readCollapsedLimit(value: unknown, limit: number, label: string): number | undefined {
+  if (value === undefined) return undefined
+  assertIntegerInRange(value, { min: 1, max: limit }, `${label}.collapsedLimit(처음 보이는 개수)`)
+  return value
+}
+
 function validateSection(value: unknown, index: number): MarketHomeSection {
   const label = `sections[${index}]`
   if (!isRecord(value)) fail(`${label} 형식이 올바르지 않습니다.`)
@@ -214,15 +276,26 @@ function validateSection(value: unknown, index: number): MarketHomeSection {
   const base = { id, isActive: value.isActive, title, emptyText }
 
   if (value.kind === 'popular') {
-    assertExactKeys(value, [...BASE_KEYS, 'limit', 'rankingWindowDays'], label)
+    assertExactKeys(value, [...BASE_KEYS, 'limit', 'rankingWindowDays'], label, ['periodTabs', 'collapsedLimit'])
     assertIntegerInRange(value.limit, MARKET_HOME_LIMITS.popular, `${label}.limit(개수)`)
     assertIntegerInRange(value.rankingWindowDays, MARKET_HOME_LIMITS.rankingWindowDays, `${label}.rankingWindowDays(집계 기간)`)
-    return { ...base, kind: 'popular', limit: value.limit, rankingWindowDays: value.rankingWindowDays }
+    const periodTabs = readPeriodTabs(value.periodTabs, label)
+    const collapsedLimit = readCollapsedLimit(value.collapsedLimit, value.limit, label)
+    return {
+      ...base,
+      kind: 'popular',
+      limit: value.limit,
+      // 기간 버튼이 있으면 쓰이지 않는 값이 따로 놀지 않게 첫 버튼의 일수로 맞춘다
+      rankingWindowDays: periodTabs ? periodTabs[0].days : value.rankingWindowDays,
+      ...(periodTabs ? { periodTabs } : {}),
+      ...(collapsedLimit !== undefined ? { collapsedLimit } : {}),
+    }
   }
   if (value.kind === 'recent') {
-    assertExactKeys(value, [...BASE_KEYS, 'limit'], label)
+    assertExactKeys(value, [...BASE_KEYS, 'limit'], label, ['collapsedLimit'])
     assertIntegerInRange(value.limit, MARKET_HOME_LIMITS.recent, `${label}.limit(개수)`)
-    return { ...base, kind: 'recent', limit: value.limit }
+    const collapsedLimit = readCollapsedLimit(value.collapsedLimit, value.limit, label)
+    return { ...base, kind: 'recent', limit: value.limit, ...(collapsedLimit !== undefined ? { collapsedLimit } : {}) }
   }
   if (value.kind === 'featured') {
     assertExactKeys(value, [...BASE_KEYS, 'itemIds'], label)
@@ -250,23 +323,37 @@ function validateSections(value: unknown): MarketHomeSection[] {
   return sections
 }
 
+const TOGGLE_LABEL_KEYS = ['expandLabel', 'collapseLabel'] as const
+
 // 관리자 저장 입력(판·revision 없이). 구조 검사만 — 개인정보 모양 검사는 저장 route 가 따로 한다(3-1).
 export function validateMarketHomeDraft(input: unknown): MarketHomeDraft {
   if (!isRecord(input)) fail('홈 진열 설정 형식이 올바르지 않습니다.')
-  assertExactKeys(input, ['sections', 'emptyHomeLink'], 'config')
+  assertExactKeys(input, ['sections', 'emptyHomeLink'], 'config', TOGGLE_LABEL_KEYS)
+  const sections = validateSections(input.sections)
+  // 펼치기·접기 글자(17절): 칸이 없으면 그대로 없이 둔다(22번 값과 같은 모양).
+  const labels: Pick<MarketHomeDraft, 'expandLabel' | 'collapseLabel'> = {}
+  if (input.expandLabel !== undefined) labels.expandLabel = readOptionalLine(input.expandLabel, MARKET_HOME_LIMITS.toggleLabel, 'expandLabel(펼치기 버튼 글자)')
+  if (input.collapseLabel !== undefined) labels.collapseLabel = readOptionalLine(input.collapseLabel, MARKET_HOME_LIMITS.toggleLabel, 'collapseLabel(접기 버튼 글자)')
+  const collapsing = sections.some((section) => section.kind !== 'featured' && section.collapsedLimit !== undefined)
+  if (collapsing && (!labels.expandLabel || !labels.collapseLabel)) {
+    fail('처음 보이는 개수를 쓰려면 펼치기·접기 버튼 글자를 모두 적어야 합니다.')
+  }
   return {
-    sections: validateSections(input.sections),
+    sections,
     emptyHomeLink: readOptionalLine(input.emptyHomeLink, MARKET_HOME_LIMITS.emptyHomeLink, 'emptyHomeLink(빈 홈 링크 문구)'),
+    ...labels,
   }
 }
 
 // 저장된 판 2 값의 구조 검사(회원 홈 읽기도 이것만 쓴다 — 키·종류·개수·길이).
 export function validateMarketHomeConfig(input: unknown): MarketHomeConfig {
   if (!isRecord(input)) fail('홈 진열 설정 형식이 올바르지 않습니다.')
-  assertExactKeys(input, ['version', 'revision', 'sections', 'emptyHomeLink'], 'config')
+  assertExactKeys(input, ['version', 'revision', 'sections', 'emptyHomeLink'], 'config', TOGGLE_LABEL_KEYS)
   if (input.version !== 2) fail('config.version 은 2 여야 합니다.')
   if (!Number.isInteger(input.revision) || (input.revision as number) < 1) fail('config.revision 은 1 이상 정수여야 합니다.')
-  const draft = validateMarketHomeDraft({ sections: input.sections, emptyHomeLink: input.emptyHomeLink })
+  const draft = validateMarketHomeDraft(Object.fromEntries(
+    ['sections', 'emptyHomeLink', ...TOGGLE_LABEL_KEYS].filter((key) => key in input).map((key) => [key, input[key]])
+  ))
   return { version: 2, revision: input.revision as number, ...draft }
 }
 
@@ -275,7 +362,7 @@ export type MarketHomeConfigReadResult =
   // 판 1·행 없음: revision 0(저장은 3-4 의 0 경로)
   | { state: 'missing'; config: null; revision: 0 }
   // 판 2 인데 구조 검사 실패: 저장된 revision(정수면)과 읽을 수 있는 섹션만
-  | { state: 'invalid'; config: null; revision: number; readableSections: MarketHomeSection[]; emptyHomeLink: string | null }
+  | { state: 'invalid'; config: null; revision: number; readableSections: MarketHomeSection[]; emptyHomeLink: string | null; expandLabel: string | null; collapseLabel: string | null }
 
 // 저장된 값 → 상태(3-3·3-4). 판 1·행 없음은 '설정 없음'이고 기본값으로 돌아가지 않는다.
 export function readMarketHomeConfig(value: unknown): MarketHomeConfigReadResult {
@@ -300,13 +387,22 @@ export function readMarketHomeConfig(value: unknown): MarketHomeConfigReadResult
         }
       })
     }
-    let emptyHomeLink: string | null = null
-    try {
-      emptyHomeLink = readOptionalLine(value.emptyHomeLink, MARKET_HOME_LIMITS.emptyHomeLink, 'emptyHomeLink')
-    } catch {
-      emptyHomeLink = null
+    const readableLine = (line: unknown, range: { min: number; max: number }) => {
+      try {
+        return line === undefined ? null : readOptionalLine(line, range, 'line')
+      } catch {
+        return null
+      }
     }
-    return { state: 'invalid', config: null, revision, readableSections, emptyHomeLink }
+    return {
+      state: 'invalid',
+      config: null,
+      revision,
+      readableSections,
+      emptyHomeLink: readableLine(value.emptyHomeLink, MARKET_HOME_LIMITS.emptyHomeLink),
+      expandLabel: readableLine(value.expandLabel, MARKET_HOME_LIMITS.toggleLabel),
+      collapseLabel: readableLine(value.collapseLabel, MARKET_HOME_LIMITS.toggleLabel),
+    }
   }
 }
 
@@ -335,9 +431,34 @@ export function plainMarketHomeTitle(title: string): string {
   return splitMarketHomeTitle(title).map((part) => part.text).join('')
 }
 
+// 인기 섹션의 보일 기간 버튼(17절): 빈 화면 문구가 있으면 모두(0개 기간은 그 문구), 없으면 상품이 있는 기간만.
+export function visibleMarketHomePeriods(section: { periods?: MarketHomeRenderedPeriod[] | null; emptyText: string | null }): MarketHomeRenderedPeriod[] {
+  const periods = section.periods ?? []
+  return section.emptyText ? periods : periods.filter((period) => period.items.length > 0)
+}
+
 // 회원 홈에 보일 섹션: 상품이 있으면 보이고, 0개면 빈 화면 문구가 있을 때만 보인다(Q4).
+// 기간 버튼이 있는 인기 섹션은 어느 기간에든 상품이 있으면 보인다(모든 기간이 0개면 빈 화면 문구가 있을 때만).
 export function visibleMarketHomeSections(sections: MarketHomeRenderedSection[]): MarketHomeRenderedSection[] {
-  return sections.filter((section) => section.items.length > 0 || Boolean(section.emptyText))
+  return sections.filter((section) => {
+    const hasItems = section.kind === 'popular' && section.periods
+      ? section.periods.some((period) => period.items.length > 0)
+      : section.items.length > 0
+    return hasItems || Boolean(section.emptyText)
+  })
+}
+
+// 펼쳐보기(17절): 접힌 동안은 처음 개수만 보인다. 버튼은 숨은 상품이 있고 버튼 글자가 둘 다 있을 때만(toggleLabel = 지금 누르면 할 일).
+export function collapseMarketHomeItems<Item>(
+  items: Item[],
+  collapse: { collapsedLimit?: number | null; expandLabel: string | null; collapseLabel: string | null },
+  expanded: boolean
+): { visible: Item[]; toggleLabel: string | null } {
+  const limit = collapse.collapsedLimit
+  if (!limit || !collapse.expandLabel || !collapse.collapseLabel || items.length <= limit) return { visible: items, toggleLabel: null }
+  return expanded
+    ? { visible: items, toggleLabel: collapse.collapseLabel }
+    : { visible: items.slice(0, limit), toggleLabel: collapse.expandLabel }
 }
 
 // 보일 섹션과 배너가 모두 0개일 때만 빈 홈 링크 한 줄을 보인다(3-3).
@@ -378,6 +499,18 @@ export function createMarketHomeSection(kind: MarketHomeSectionKind, id: string)
 export function addMarketHomeSection(sections: MarketHomeSection[], kind: MarketHomeSectionKind, id: string): MarketHomeSection[] {
   if (!canAddMarketHomeSection(sections, kind)) return sections
   return [...sections, createMarketHomeSection(kind, id)]
+}
+
+// 기간 버튼 더하기(17절): 이름은 비워 두고(관리자가 적는다), 일수는 아직 쓰지 않은 첫 시작값. 버튼이 없던 섹션은 지금 집계 기간부터 쓴다.
+export function addMarketHomePeriodTab(section: Pick<MarketHomePopularSection, 'rankingWindowDays' | 'periodTabs'>): MarketHomePeriodTab[] {
+  const tabs = section.periodTabs ?? []
+  if (tabs.length >= MARKET_HOME_LIMITS.periodTabs.max) return tabs
+  const used = new Set(tabs.map((tab) => tab.days))
+  const range = MARKET_HOME_LIMITS.rankingWindowDays
+  const days = [section.rankingWindowDays, ...MARKET_HOME_NEW_SECTION_NUMBERS.periodTabDays].find((value) => !used.has(value))
+    ?? Array.from({ length: range.max - range.min + 1 }, (_, index) => range.min + index).find((value) => !used.has(value))
+    ?? range.min
+  return [...tabs, { label: '', days }]
 }
 
 // 추천 상품 순서 바꾸기·더하기·빼기
@@ -454,6 +587,10 @@ export function diffMarketHomeSections(before: MarketHomeSection[], after: Marke
     if (previous.emptyText !== section.emptyText) fields.push('emptyText')
     if ('limit' in previous && 'limit' in section && previous.limit !== section.limit) fields.push('limit')
     if (previous.kind === 'popular' && section.kind === 'popular' && previous.rankingWindowDays !== section.rankingWindowDays) fields.push('rankingWindowDays')
+    // 17절: 기간 버튼(이름 원문은 넣지 않는다)·처음 보이는 개수
+    if (previous.kind === 'popular' && section.kind === 'popular'
+      && JSON.stringify(previous.periodTabs ?? null) !== JSON.stringify(section.periodTabs ?? null)) fields.push('periodTabs')
+    if (previous.kind !== 'featured' && section.kind !== 'featured' && previous.collapsedLimit !== section.collapsedLimit) fields.push('collapsedLimit')
     const change: Record<string, MarketHomeAuditValue> = {}
     if (previous.kind === 'featured' && section.kind === 'featured') {
       const addedItemIds = section.itemIds.filter((id) => !previous.itemIds.includes(id))

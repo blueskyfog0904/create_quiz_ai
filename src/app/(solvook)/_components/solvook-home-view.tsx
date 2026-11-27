@@ -19,12 +19,15 @@ interface SolvookHomeViewProps {
   english: SubjectHomeData
   korean: SubjectHomeData
   initialSubject: WorkspaceSubject
+  // 최근 등록 섹션의 자료 등록일 이름(DB 상품 표시 설정). null 이면 날짜를 보이지 않는다.
+  registeredAtLabel: string | null
 }
 
 export function SolvookHomeView({
   english,
   korean,
   initialSubject,
+  registeredAtLabel,
 }: SolvookHomeViewProps) {
   const searchParams = useSearchParams()
   const paramSubject = searchParams.get('subject')
@@ -43,7 +46,7 @@ export function SolvookHomeView({
     <StudioLandingPageFrame
       hero={adItems.length > 0 ? <MainAdCarousel subject={subject} items={adItems} /> : null}
     >
-      <MarketHomeSections subject={subject} homeData={homeData} visibleBannerCount={adItems.length} />
+      <MarketHomeSections subject={subject} homeData={homeData} visibleBannerCount={adItems.length} registeredAtLabel={registeredAtLabel} />
     </StudioLandingPageFrame>
   )
 }

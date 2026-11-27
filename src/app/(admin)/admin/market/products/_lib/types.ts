@@ -62,8 +62,6 @@ interface FileTypeSettingsFormState {
   code: string
   label: string
   extension: string
-  // 상품 상세 "구매 전 확인"에 보이는 필요 프로그램(DB market_file_types.required_program)
-  requiredProgram: string
   mimeAllowlist: string
   sortOrder: string
   isActive: boolean

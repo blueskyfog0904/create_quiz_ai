@@ -49,10 +49,10 @@ test('배너 기간 거르기는 unstable_cache 로 감싼 함수 안에 없고,
   assert.match(read('src/app/preview/solvook-concept/page.tsx'), /filterVisibleMainAdItems\(cachedAdItems, new Date\(\)\)/)
 })
 
-test('홈 설정 일시 오류는 캐시 함수 안에서 throw — 캐시 키는 v2, 홈 진열 저장 태그로 바로 비운다', () => {
+test('홈 설정 일시 오류는 캐시 함수 안에서 throw — 캐시 키는 v3(17절에서 값 모양이 바뀜), 홈 진열 저장 태그로 바로 비운다', () => {
   const cache = read('src/lib/preview-home-cache.ts')
   const server = read('src/lib/market-home-server.ts')
-  assert.match(cache, /unstable_cache\(getMarketHomeData, \['preview-market-home-v2'\]/)
+  assert.match(cache, /unstable_cache\(getMarketHomeData, \['preview-market-home-v3'\]/)
   assert.match(cache, /tags: \[MARKET_PUBLIC_LIST_CACHE_TAG, MARKET_HOME_CACHE_TAG\]/)
   const loader = server.slice(server.indexOf('async function loadConfigRow'), server.indexOf('async function loadRecent'))
   assert.match(loader, /if \(error\) throw new Error\(error\.message\)/)
@@ -60,12 +60,13 @@ test('홈 설정 일시 오류는 캐시 함수 안에서 throw — 캐시 키�
   assert.doesNotMatch(reader, /catch|allSettled/)
 })
 
-test('권한 네 곳(화면·저장·검색·미리보기)이 storefront.edit, 작업 기록 종류 세 개', () => {
+test('권한 다섯 곳(화면·저장·검색·추천 미리보기·인기 순위 미리보기)이 storefront.edit, 작업 기록 종류 세 개', () => {
   assert.match(read('src/app/(admin)/admin/market-main-settings/page.tsx'), /await requireAdminPagePermission\('storefront\.edit'\)/)
   for (const path of [
     'src/app/api/admin/market-main-settings/route.ts',
     'src/app/api/admin/market-main-settings/item-search/route.ts',
     'src/app/api/admin/market-main-settings/preview-items/route.ts',
+    'src/app/api/admin/market-main-settings/preview-popular/route.ts',
   ]) {
     assert.match(read(path), /async function requireAdminUser\(permission: AdminPermissionRequirement = 'storefront\.edit'\)/, path)
   }
@@ -187,6 +188,105 @@ test('검색·미리보기 route: 권한 없으면 403, 응답에 회원 정보 
   for (const body of [{ subject: 'korean', itemIds: ['x'] }, { subject: 'math', itemIds: [] }, { subject: 'korean', itemIds: Array.from({ length: 25 }, (_, index) => uuid(index)) }]) {
     assert.equal((await preview.route.POST(previewRequest(body))).status, 400)
   }
+})
+
+test('17절 인기 순위 미리보기 route: 권한 없으면 403(읽지 않음), 일수 범위 검사, 응답은 일수와 공개 카드 목록만', async () => {
+  const calls = []
+  const mock = () => ({
+    getMarketHomePopularPreview: async (subject, days) => {
+      calls.push([subject, days])
+      return [{ id: uuid(5), title: '자료', downloadUserCount: 3 }]
+    },
+  })
+  const path = 'src/app/api/admin/market-main-settings/preview-popular/route.ts'
+  const request = (body) => new Request('https://example.com/api/admin/market-main-settings/preview-popular', { method: 'POST', body: JSON.stringify(body) })
+  const denied = loadRouteWith(path, STAFF_WITHOUT, mock)
+  assert.equal((await denied.route.POST(request({ subject: 'korean', days: 7 }))).status, 403)
+  assert.deepEqual(calls, [])
+
+  const allowed = loadRouteWith(path, STAFF_WITH, mock)
+  const body = await (await allowed.route.POST(request({ subject: 'korean', days: 7 }))).json()
+  assert.deepEqual(body, { success: true, data: { days: 7, items: [{ id: uuid(5), title: '자료', downloadUserCount: 3 }] } })
+  assert.deepEqual(calls, [['korean', 7]])
+  for (const bad of [{ subject: 'math', days: 7 }, { subject: 'korean', days: 0 }, { subject: 'korean', days: 91 }, { subject: 'korean', days: 1.5 }, { subject: 'korean', days: '7' }, { subject: 'korean' }, []]) {
+    assert.equal((await allowed.route.POST(request(bad))).status, 400, JSON.stringify(bad))
+  }
+  assert.equal(calls.length, 1)
+  // 저장하지 않는 읽기 route 다(작업 기록·캐시 비움 없음)
+  assert.deepEqual(allowed.events, [])
+})
+
+test('17절 저장 route: 기간 버튼 이름·펼치기·접기 글자도 개인정보 모양 검사를 하고, 검사를 통과한 값(첫 버튼 일수로 맞춘 집계 기간)을 저장한다', async () => {
+  const save = (events) => ({
+    saveMarketHomeConfig: async (input) => {
+      events.push(['save', input])
+      return { config: { version: 2, revision: input.expectedRevision + 1, ...input.draft }, previousRevision: input.expectedRevision, previousSections: [] }
+    },
+  })
+  const withTabs = {
+    sections: [{ ...draft.sections[0], limit: 20, collapsedLimit: 5, periodTabs: [{ label: ' 주간 ', days: 7 }, { label: '월간', days: 30 }] }],
+    emptyHomeLink: null,
+    expandLabel: ' 펼쳐보기 ',
+    collapseLabel: '접기',
+  }
+  const ok = loadRouteWith('src/app/api/admin/market-main-settings/route.ts', STAFF_WITH, (events) => save(events))
+  assert.equal((await ok.route.POST(saveRequest({ expectedRevision: 2, config: withTabs }))).status, 200)
+  const saved = ok.events[0][1].draft
+  assert.deepEqual(saved.sections[0].periodTabs, [{ label: '주간', days: 7 }, { label: '월간', days: 30 }])
+  assert.equal(saved.sections[0].rankingWindowDays, 7)
+  assert.equal(saved.sections[0].collapsedLimit, 5)
+  assert.deepEqual([saved.expandLabel, saved.collapseLabel], ['펼쳐보기', '접기'])
+  // 작업 기록에는 버튼 이름·버튼 글자 원문이 없다
+  for (const raw of ['주간', '월간', '펼쳐보기', '접기']) assert.equal(JSON.stringify(ok.events[1][1]).includes(raw), false, raw)
+
+  for (const [config, code] of [
+    [{ ...withTabs, sections: [{ ...withTabs.sections[0], periodTabs: [{ label: '0212345678', days: 7 }] }] }, 'MEMBER_FACING_PII'],
+    [{ ...withTabs, expandLabel: 'a@b.com' }, 'MEMBER_FACING_PII'],
+    [{ ...withTabs, collapseLabel: null }, 'INVALID_INPUT'],
+    [{ sections: withTabs.sections, emptyHomeLink: null }, 'INVALID_INPUT'],
+  ]) {
+    const loaded = loadRouteWith('src/app/api/admin/market-main-settings/route.ts', STAFF_WITH, (events) => save(events))
+    const result = await loaded.route.POST(saveRequest({ expectedRevision: 1, config }))
+    assert.equal(result.status, 400, JSON.stringify(config).slice(0, 80))
+    assert.equal((await result.json()).error.code, code)
+    assert.deepEqual(loaded.events, [])
+  }
+})
+
+test('17절 회원 부품: 버튼 글자는 DB 값만 쓰고, 기간 버튼은 aria-pressed·펼치기는 aria-expanded, 기간을 바꾸면 접힌 채로', () => {
+  const popular = read('src/app/preview/solvook-concept/_components/home/popular-downloads-slider.tsx')
+  const recent = read('src/app/preview/solvook-concept/_components/home/home-material-sections.tsx')
+  const toggle = read('src/app/preview/solvook-concept/_components/home/expand-toggle.tsx')
+  const sections = read('src/app/preview/solvook-concept/_components/home/market-home-sections.tsx')
+  for (const source of [popular, recent, toggle, sections]) {
+    for (const copy of ['월간', '주간', '일간', '펼쳐보기', '더보기', '접기']) assert.equal(source.includes(`'${copy}'`) || source.includes(`>${copy}<`), false, copy)
+  }
+  assert.match(popular, /visibleMarketHomePeriods\(\{ periods, emptyText \}\)/)
+  assert.match(popular, /aria-pressed=\{tab === selected\}/)
+  assert.match(popular, /onClick=\{\(\) => \{ setSelectedDays\(tab\.days\); setExpanded\(false\) \}\}/)
+  for (const source of [popular, recent]) {
+    assert.match(source, /collapseMarketHomeItems\((?:periodItems|items), \{ collapsedLimit, expandLabel, collapseLabel \}, expanded\)/)
+    assert.match(source, /\{toggleLabel \? \(\n\s+<ExpandToggle label=\{toggleLabel\} expanded=\{expanded\} controls=\{listId\}/)
+  }
+  assert.match(toggle, /aria-expanded=\{expanded\}/)
+  assert.match(toggle, /aria-controls=\{controls\}/)
+  // 버튼 글자는 홈 설정(homeData)에서, 처음 보이는 개수·기간은 섹션에서 온다. 추천 섹션에는 넘기지 않는다.
+  assert.equal((sections.match(/expandLabel=\{homeData\.expandLabel\}/g) ?? []).length, 2)
+  assert.equal((sections.match(/collapsedLimit=\{section\.collapsedLimit\}/g) ?? []).length, 2)
+  assert.match(sections, /periods=\{section\.periods\}/)
+  const featured = sections.slice(sections.indexOf('<FeaturedMaterials'))
+  assert.doesNotMatch(featured, /collapsedLimit|expandLabel|periods/)
+})
+
+test('17절 관리 화면: 미리보기는 저장 전 기간 버튼의 일수로 읽은 실제 순위와 회원 홈 부품을 쓴다', () => {
+  const client = read('src/app/(admin)/admin/market-main-settings/market-main-settings-client.tsx')
+  assert.match(client, /fetch\('\/api\/admin\/market-main-settings\/preview-popular', \{/)
+  assert.match(client, /items: \(fetchedPopular\[tab\.days\] \?\? pool\.popularByDays\[tab\.days\] \?\? \[\]\)\.slice\(0, section\.limit\)/)
+  assert.match(client, /expandLabel: payload\.expandLabel \?\? null,\n\s+collapseLabel: payload\.collapseLabel \?\? null,/)
+  assert.match(client, /<MarketHomeSections subject=\{workspaceSubject\} homeData=\{previewData\}/)
+  // 기간 버튼이 있으면 '집계 기간' 칸을 숨기고 '저장 뒤 반영' 안내도 하지 않는다
+  assert.match(client, /editing\.kind === 'popular' && !editing\.periodTabs\?\.length \? \(/)
+  assert.match(client, /popularDraft\.isActive && !popularDraft\.periodTabs\?\.length/)
 })
 
 test('검색·미리보기 서버: 상품 상태·공개 카드 칸만 읽고 돌려준다(회원·주문 표를 읽지 않음)', async (t) => {

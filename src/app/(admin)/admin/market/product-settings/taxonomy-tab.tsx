@@ -276,11 +276,6 @@ function FileTypeSettingsPanel({ workspaceSubject, preview }: { workspaceSubject
       toast.error('파일 유형 코드, 표시명, 확장자를 입력해주세요.')
       return
     }
-    // 새 유형은 필요 프로그램 필수(수정은 비워 둔 채 다른 칸만 바꿀 수 있음 — 서버 PATCH 와 같은 규칙)
-    if (!editingFileTypeId && !fileTypeSettingsForm.requiredProgram.trim()) {
-      toast.error('필요 프로그램을 입력해주세요. 상품 상세 "구매 전 확인"에 보입니다.')
-      return
-    }
 
     setIsFileTypeSettingsSaving(true)
     setFileTypeSaveError(null)
@@ -298,7 +293,6 @@ function FileTypeSettingsPanel({ workspaceSubject, preview }: { workspaceSubject
           code: fileTypeSettingsForm.code,
           label: fileTypeSettingsForm.label,
           extension: fileTypeSettingsForm.extension.replace(/^\./, ''),
-          ...(fileTypeSettingsForm.requiredProgram.trim() ? { requiredProgram: fileTypeSettingsForm.requiredProgram } : {}),
           mimeAllowlist: fileTypeSettingsForm.mimeAllowlist
             .split(/\n|,/)
             .map((mime) => mime.trim())
@@ -414,11 +408,6 @@ function FileTypeSettingsPanel({ workspaceSubject, preview }: { workspaceSubject
           <div className="space-y-2">
             <Label htmlFor="taxonomy-file-type-extension">확장자</Label>
             <Input id="taxonomy-file-type-extension" value={fileTypeSettingsForm.extension} onChange={(event) => setFileTypeSettingsForm((current) => ({ ...current, extension: event.target.value }))} placeholder="예: pdf" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="taxonomy-file-type-program">필요 프로그램</Label>
-            <Input id="taxonomy-file-type-program" value={fileTypeSettingsForm.requiredProgram} maxLength={200} onChange={(event) => setFileTypeSettingsForm((current) => ({ ...current, requiredProgram: event.target.value }))} placeholder="예: PDF 뷰어(Adobe Acrobat Reader 등)" />
-            <p className="text-xs text-gray-500">상품 상세 &quot;구매 전 확인&quot;의 파일 형식 줄에 보입니다.</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="taxonomy-file-type-mime">MIME 허용 목록</Label>

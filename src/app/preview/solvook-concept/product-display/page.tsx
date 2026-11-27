@@ -93,7 +93,7 @@ export default async function ProductDisplayPreviewPage({ searchParams }: Produc
         subproducts={example.subproducts}
         categoryTree={[]}
         purchasePolicy={null}
-        purchaseInfo={{ supplierRows: [], termsLink: null, refundPolicyLink: null }}
+        purchaseInfo={{ termsLink: null, refundPolicyLink: null }}
         display={display}
       />
       <section aria-label="장바구니 묶음 줄 미리보기" className="mx-auto max-w-3xl px-4">

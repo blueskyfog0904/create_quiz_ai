@@ -167,7 +167,7 @@ test('환불 판정: 기간은 인자로 받은 DB 값, 보관함은 요청당 �
   assert.match(adminRoute, /error\.name === 'REFUND_POLICY_UNAVAILABLE'[\s\S]+code: 'REFUND_POLICY_UNAVAILABLE',\n\s+\}, \{ status: 503 \}/)
 })
 
-test('상품 상세: 구매 전 확인 블록은 DB 문구·하단 정보·파일 형식 필요 프로그램을 쓴다', () => {
+test('상품 상세: 구매 전 확인 블록은 DB 문구·하단 정보의 약관 링크를 쓴다(공급자·파일 형식 줄 없음)', () => {
   const page = read('src/app/(solvook)/items/[itemId]/page.tsx')
   assert.match(page, /getMarketPurchasePolicyView\(\),\n\s+getSiteFooterContent\(\),\n\s+\]\)/)
   assert.match(page, /purchaseInfo=\{buildMarketPurchaseInfo\(footerContent\)\}/)
@@ -175,12 +175,15 @@ test('상품 상세: 구매 전 확인 블록은 DB 문구·하단 정보·파�
   for (const field of ['downloadPeriodNotice', 'usageScopeNotice', 'detailRefundNotice']) {
     assert.match(section, new RegExp(`\\{policy\\.${field}\\}`))
   }
-  assert.match(section, /fileType\.requiredProgram/)
+  // 공급자는 하단 정보(footer)에, 파일 형식은 자료 선택에 있어 이 블록에서 뺐다
+  assert.doesNotMatch(section, /supplierRows|fileType|label: '공급자'|label: '파일 형식'/)
   const info = read('src/lib/market-purchase-info.ts')
   assert.match(info, /getVisibleFooterPolicyLinks\(footer\)/)
-  assert.match(info, /\.filter\(\(field\) => field\.value\.trim\(\)\)/)
+  assert.doesNotMatch(info, /supplierRows/)
   const items = read('src/lib/market-items-server.ts')
-  assert.match(items, /\.select\('id, code, label, extension, required_program'\)/)
+  // 필요 프로그램은 회원 화면에서 뺐다 — 상품 조회가 그 열을 읽지 않는다
+  assert.match(items, /\.select\('id, code, label, extension'\)/)
+  assert.doesNotMatch(items, /required_program|requiredProgram/)
   // 부가 모듈(하단 정보 기본 약관 본문)이 브라우저 번들로 가지 않게 결제 칸 1판 동의 부품은 타입만 가져온다
   assert.match(read('src/components/checkout/market-legacy-consent.tsx'), /import type \{ MarketPurchaseLink/)
   assert.doesNotMatch(read('src/components/market/market-item-actions.tsx'), /from '@\/lib\/market-purchase-info'/)
@@ -208,15 +211,13 @@ test('관리자: 구매 고지 저장은 site.manage·작업 기록·캐시 즉�
   assert.match(read('src/lib/admin-audit-log.ts'), /market_purchase_policy_update: /)
 })
 
-test('파일 유형: 새 유형은 필요 프로그램 필수, 수정은 작업 기록을 남긴다', () => {
+test('파일 유형: 필요 프로그램 칸은 없앴고(DB 열만 남음), 수정은 작업 기록을 남긴다', () => {
   const post = read('src/app/api/admin/market/file-types/route.ts')
-  assert.match(post, /requiredProgram: z\.string\(\)\.trim\(\)\.min\(1, /)
   const patch = read('src/app/api/admin/market/file-types/[id]/route.ts')
-  assert.match(patch, /requiredProgram: z\.string\(\)\.trim\(\)\.min\(1, [^\n]+\.optional\(\)/)
+  for (const source of [post, patch, read('src/app/(admin)/admin/market/product-settings/taxonomy-tab.tsx')]) {
+    assert.doesNotMatch(source, /requiredProgram|required_program|필요 프로그램/)
+  }
   assert.match(patch, /action: 'market_file_type_update'/)
-  const items = read('src/lib/market-items-server.ts')
-  assert.match(items, /required_program: requiredProgram,/)
-  assert.match(items, /if \(input\.requiredProgram !== undefined\) payload\.required_program = /)
   assert.match(read('src/lib/admin-audit-log.ts'), /market_file_type_update: /)
 })
 

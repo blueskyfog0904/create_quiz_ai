@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowDown, ArrowUp, Loader2, MoreHorizontal, Pencil, Plus, Search, X } from 'lucide-react'
@@ -34,6 +34,7 @@ import {
   MARKET_HOME_SECTION_KINDS,
   MARKET_HOME_SECTION_KIND_LABELS,
   addFeaturedItem,
+  addMarketHomePeriodTab,
   addMarketHomeSection,
   canAddMarketHomeSection,
   diffMarketHomeSections,
@@ -45,6 +46,8 @@ import {
   type MarketHomeData,
   type MarketHomeFeaturedExclusionReason,
   type MarketHomeItem,
+  type MarketHomePeriodTab,
+  type MarketHomePopularItem,
   type MarketHomeRenderedSection,
   type MarketHomeSection,
   type MarketHomeSectionKind,
@@ -56,12 +59,17 @@ interface MarketMainSettingsClientProps extends MarketHomeAdminData {
   workspaceSubject: WorkspaceSubject
   // 지금 회원 홈에 보이는 배너 수(미리보기의 빈 홈 링크 판정용)
   visibleBannerCount: number
+  // 미리보기 최근 등록 섹션의 자료 등록일 이름(상품 표시 설정). null 이면 날짜를 보이지 않는다.
+  registeredAtLabel: string | null
 }
 
 // 편집 중 값: 빈 홈 링크는 입력 칸 글(빈 글 = 없음). 저장 때 다듬는다.
 interface EditDraft {
   sections: MarketHomeSection[]
   emptyHomeLink: string
+  // 펼치기·접기 버튼 글자(빈 글 = 없음)
+  expandLabel: string
+  collapseLabel: string
 }
 
 interface ApiResponse<T> {
@@ -74,27 +82,49 @@ type ExcludedInfo = { reason: MarketHomeFeaturedExclusionReason; title: string |
 
 const APPLY_NOTE = '저장하면 바로 회원 홈에 반영됩니다(상품 정보는 최대 1분).'
 
-function toEditDraft(value: { sections: MarketHomeSection[]; emptyHomeLink: string | null }): EditDraft {
-  return { sections: value.sections.map((section) => ({ ...section })), emptyHomeLink: value.emptyHomeLink ?? '' }
+function toEditDraft(value: { sections: MarketHomeSection[]; emptyHomeLink: string | null; expandLabel?: string | null; collapseLabel?: string | null }): EditDraft {
+  return {
+    sections: value.sections.map((section) => ({ ...section })),
+    emptyHomeLink: value.emptyHomeLink ?? '',
+    expandLabel: value.expandLabel ?? '',
+    collapseLabel: value.collapseLabel ?? '',
+  }
 }
 
-// 저장할 값: 앞뒤 공백을 떼고, 빈 문구는 null(섹션째 숨김)
+// 저장할 섹션: 앞뒤 공백을 떼고, 빈 문구는 null(섹션째 숨김). 쓰지 않는 선택 칸(기간 버튼·처음 보이는 개수)은 칸째 뺀다.
+function toPayloadSection(section: MarketHomeSection): MarketHomeSection {
+  const next = { ...section, title: section.title.trim(), emptyText: section.emptyText?.trim() ? section.emptyText.trim() : null }
+  if (next.kind === 'popular') {
+    if (next.periodTabs && next.periodTabs.length > 0) next.periodTabs = next.periodTabs.map((tab) => ({ label: tab.label.trim(), days: tab.days }))
+    else delete next.periodTabs
+  }
+  if (next.kind !== 'featured' && next.collapsedLimit === undefined) delete next.collapsedLimit
+  return next
+}
+
+// 저장할 값: 빈 글은 null(빈 홈 링크) 또는 칸 없음(펼치기·접기 글자)
 function toPayload(draft: EditDraft) {
+  const expandLabel = draft.expandLabel.trim()
+  const collapseLabel = draft.collapseLabel.trim()
   return {
-    sections: draft.sections.map((section) => ({
-      ...section,
-      title: section.title.trim(),
-      emptyText: section.emptyText?.trim() ? section.emptyText.trim() : null,
-    })),
+    sections: draft.sections.map(toPayloadSection),
     emptyHomeLink: draft.emptyHomeLink.trim() || null,
+    ...(expandLabel ? { expandLabel } : {}),
+    ...(collapseLabel ? { collapseLabel } : {}),
   }
 }
 
 function countChanges(saved: EditDraft, draft: EditDraft) {
   const before = toPayload(saved)
   const after = toPayload(draft)
-  return diffMarketHomeSections(before.sections, after.sections).length + (before.emptyHomeLink !== after.emptyHomeLink ? 1 : 0)
+  return diffMarketHomeSections(before.sections, after.sections).length
+    + (before.emptyHomeLink !== after.emptyHomeLink ? 1 : 0)
+    + (before.expandLabel !== after.expandLabel ? 1 : 0)
+    + (before.collapseLabel !== after.collapseLabel ? 1 : 0)
 }
+
+const isRankingDays = (days: number) => Number.isInteger(days)
+  && days >= MARKET_HOME_LIMITS.rankingWindowDays.min && days <= MARKET_HOME_LIMITS.rankingWindowDays.max
 
 function mergePreview(
   previews: MarketHomeFeaturedPreview[],
@@ -124,6 +154,7 @@ export default function MarketMainSettingsClient({
   pool,
   featured,
   visibleBannerCount,
+  registeredAtLabel,
 }: MarketMainSettingsClientProps) {
   const subjectLabel = workspaceSubject === 'english' ? '영어' : '국어'
   const [configState, setConfigState] = useState(initialState)
@@ -141,6 +172,10 @@ export default function MarketMainSettingsClient({
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [pendingItemIds, setPendingItemIds] = useState<string[]>([])
+  // 17절 미리보기: 저장 전 기간 버튼의 일수로 다시 읽은 인기 순위(저장된 버튼의 일수는 pool.popularByDays 에 있다)
+  const [fetchedPopular, setFetchedPopular] = useState<Record<string, MarketHomePopularItem[]>>({})
+  const [popularPreviewError, setPopularPreviewError] = useState<string | null>(null)
+  const requestedPopularDays = useRef(new Set<number>())
   const { ask, dialog } = useAdminConfirm()
   const router = useRouter()
 
@@ -231,6 +266,33 @@ export default function MarketMainSettingsClient({
     if (!itemState.cards[itemId] && !itemState.excluded[itemId]) void loadItemPreview([itemId])
   }
 
+  // 기간 버튼의 일수가 아직 읽지 않은 값이면 그 기간의 인기 순위를 읽는다(회원 홈과 같은 집계, 미리보기용)
+  const loadPopularPreview = async (days: number) => {
+    if (!isRankingDays(days) || pool.popularByDays[days] || requestedPopularDays.current.has(days)) return
+    requestedPopularDays.current.add(days)
+    setPopularPreviewError(null)
+    try {
+      const response = await fetch('/api/admin/market-main-settings/preview-popular', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: workspaceSubject, days }),
+      })
+      const body = await response.json() as ApiResponse<{ days: number; items: MarketHomePopularItem[] }>
+      if (!response.ok || !body.success || !body.data) throw new Error(body.error?.message || '미리보기를 읽지 못했습니다.')
+      const items = body.data.items
+      setFetchedPopular((current) => ({ ...current, [days]: items }))
+    } catch (error) {
+      requestedPopularDays.current.delete(days)
+      setPopularPreviewError(error instanceof Error ? error.message : '미리보기를 읽지 못했습니다.')
+    }
+  }
+
+  const updatePeriodTabs = (section: MarketHomeSection, periodTabs: MarketHomePeriodTab[]) => {
+    if (section.kind !== 'popular') return
+    updateSection(section.id, { periodTabs: periodTabs.length > 0 ? periodTabs : undefined })
+    for (const tab of periodTabs) void loadPopularPreview(tab.days)
+  }
+
   const handleSave = async () => {
     const payload = toPayload(draft)
     try {
@@ -270,24 +332,38 @@ export default function MarketMainSettingsClient({
   }
 
   // 회원 홈 미리보기(저장 전 값, 실제 카드 부품): 인기·최근은 미리 읽은 24개를 개수만큼 자르고, 추천은 고른 순서대로.
-  const previewSections: MarketHomeRenderedSection[] = toPayload(draft).sections.filter((section) => section.isActive).map((section) => {
+  // 기간 버튼은 버튼의 일수로 읽은 실제 순위를 쓰고, 처음 보이는 개수·펼치기 버튼도 회원 홈과 같은 부품이 그린다(17절).
+  const payload = toPayload(draft)
+  const previewCollapsedLimit = (limit: number | undefined) => (Number.isInteger(limit) && (limit as number) >= 1 ? limit as number : null)
+  const previewSections: MarketHomeRenderedSection[] = payload.sections.filter((section) => section.isActive).map((section) => {
     const base = { id: section.id, title: section.title || '(제목 없음)', emptyText: section.emptyText }
-    if (section.kind === 'popular') return { ...base, kind: 'popular', items: pool.popular.slice(0, section.limit) }
-    if (section.kind === 'recent') return { ...base, kind: 'recent', items: pool.recent.slice(0, section.limit) }
+    if (section.kind === 'popular') {
+      const periods = section.periodTabs?.map((tab) => ({
+        label: tab.label || '(이름 없음)',
+        days: tab.days,
+        items: (fetchedPopular[tab.days] ?? pool.popularByDays[tab.days] ?? []).slice(0, section.limit),
+      })) ?? null
+      return { ...base, kind: 'popular', items: periods ? periods[0].items : pool.popular.slice(0, section.limit), periods, collapsedLimit: previewCollapsedLimit(section.collapsedLimit) }
+    }
+    if (section.kind === 'recent') return { ...base, kind: 'recent', items: pool.recent.slice(0, section.limit), collapsedLimit: previewCollapsedLimit(section.collapsedLimit) }
     return { ...base, kind: 'featured', items: section.itemIds.flatMap((id) => (itemState.cards[id] ? [itemState.cards[id]] : [])) }
   })
   const previewData: MarketHomeData = {
     subject: workspaceSubject,
     state: 'ok',
     sections: previewSections,
-    emptyHomeLink: draft.emptyHomeLink.trim() || null,
+    emptyHomeLink: payload.emptyHomeLink,
+    expandLabel: payload.expandLabel ?? null,
+    collapseLabel: payload.collapseLabel ?? null,
   }
   // Q3: 안 보이는 추천 상품은 저장을 막지 않고 경고만 한다
   const hiddenFeaturedCount = draft.sections.reduce((count, section) => (
     section.kind === 'featured' ? count + section.itemIds.filter((id) => itemState.excluded[id]).length : count
   ), 0)
   const popularDraft = draft.sections.find((section) => section.kind === 'popular')
-  const windowChanged = popularDraft?.kind === 'popular' && popularDraft.isActive && popularDraft.rankingWindowDays !== pool.rankingWindowDays
+  // 기간 버튼이 있으면 버튼의 일수로 바로 다시 읽으므로 '저장 뒤 반영' 안내는 버튼이 없을 때만 한다
+  const windowChanged = popularDraft?.kind === 'popular' && popularDraft.isActive && !popularDraft.periodTabs?.length
+    && popularDraft.rankingWindowDays !== pool.rankingWindowDays
 
   const columns: AdminDataTableColumn<MarketHomeSection>[] = [
     {
@@ -335,8 +411,13 @@ export default function MarketMainSettingsClient({
       key: 'count',
       header: '상품',
       cell: (section) => {
-        if (section.kind === 'popular') return `최대 ${section.limit}개 · 최근 ${section.rankingWindowDays}일`
-        if (section.kind === 'recent') return `최대 ${section.limit}개`
+        const collapsedNote = section.kind !== 'featured' && section.collapsedLimit !== undefined ? ` · 처음 ${section.collapsedLimit}개` : ''
+        if (section.kind === 'popular') {
+          return section.periodTabs?.length
+            ? `최대 ${section.limit}개 · 기간 버튼 ${section.periodTabs.length}개${collapsedNote}`
+            : `최대 ${section.limit}개 · 최근 ${section.rankingWindowDays}일${collapsedNote}`
+        }
+        if (section.kind === 'recent') return `최대 ${section.limit}개${collapsedNote}`
         const hidden = section.itemIds.filter((id) => itemState.excluded[id]).length
         return (
           <span className="space-x-1">
@@ -450,18 +531,42 @@ export default function MarketMainSettingsClient({
           />
           <p className="text-xs text-[var(--studio-muted)]">보일 섹션과 배너가 모두 없을 때 {subjectLabel} 문제마켓으로 가는 한 줄입니다. 비우면 보이지 않습니다.</p>
         </div>
+        <div className="max-w-xl space-y-1">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="market-home-expand-label">펼치기 버튼 글자</Label>
+              <Input
+                id="market-home-expand-label"
+                value={draft.expandLabel}
+                maxLength={MARKET_HOME_LIMITS.toggleLabel.max}
+                onChange={(event) => setDraft((current) => ({ ...current, expandLabel: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="market-home-collapse-label">접기 버튼 글자</Label>
+              <Input
+                id="market-home-collapse-label"
+                value={draft.collapseLabel}
+                maxLength={MARKET_HOME_LIMITS.toggleLabel.max}
+                onChange={(event) => setDraft((current) => ({ ...current, collapseLabel: event.target.value }))}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-[var(--studio-muted)]">인기·최근 섹션에 &apos;처음 보이는 개수&apos;를 적으면 목록 아래에 나오는 버튼의 글자입니다. 그 칸을 쓰려면 두 글자를 모두 적어야 합니다.</p>
+        </div>
       </section>
 
       <section className="space-y-3" aria-labelledby="market-home-preview-heading">
         <h2 id="market-home-preview-heading" className="text-lg font-semibold">회원 홈 미리보기</h2>
         {pool.error ? <AdminNotice kind="warning">인기·최근 상품을 읽지 못해 미리보기가 비어 보일 수 있습니다.</AdminNotice> : null}
+        {popularPreviewError ? <AdminNotice kind="warning">기간 버튼의 인기 순위를 읽지 못했습니다({popularPreviewError}). 일수를 다시 적으면 다시 읽습니다.</AdminNotice> : null}
         {windowChanged ? (
           <AdminNotice kind="info">인기 집계 기간을 바꿨습니다. 미리보기는 저장된 기간({pool.rankingWindowDays}일) 기준이고, 새 기간은 저장 뒤 반영됩니다.</AdminNotice>
         ) : null}
         <p className="text-xs text-[var(--studio-muted)]">저장 전 값입니다. 지금 보이는 배너 {visibleBannerCount}개는 &apos;홈 배너&apos; 화면에서 정합니다.</p>
         <div className="studio-theme overflow-hidden rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-background)] p-4 sm:p-6">
           <div className="space-y-10">
-            <MarketHomeSections subject={workspaceSubject} homeData={previewData} visibleBannerCount={visibleBannerCount} />
+            <MarketHomeSections subject={workspaceSubject} homeData={previewData} visibleBannerCount={visibleBannerCount} registeredAtLabel={registeredAtLabel} />
           </div>
         </div>
       </section>
@@ -526,7 +631,21 @@ export default function MarketMainSettingsClient({
                         onChange={(event) => updateSection(editing.id, { limit: Number(event.target.value) })}
                       />
                     </div>
-                    {editing.kind === 'popular' ? (
+                    <div className="space-y-1">
+                      <Label htmlFor="market-home-section-collapsed">처음 보이는 개수</Label>
+                      <Input
+                        id="market-home-section-collapsed"
+                        type="number"
+                        min={1}
+                        max={editing.limit}
+                        value={editing.collapsedLimit ?? ''}
+                        onChange={(event) => updateSection(editing.id, { collapsedLimit: event.target.value === '' ? undefined : Number(event.target.value) })}
+                      />
+                    </div>
+                    <p className="text-xs text-[var(--studio-muted)] sm:col-span-2">
+                      &apos;처음 보이는 개수&apos;를 비우면 처음부터 모두 보입니다. 적으면 그 개수만 보이고, 펼치기 버튼을 누르면 &apos;개수&apos;까지 보입니다.
+                    </p>
+                    {editing.kind === 'popular' && !editing.periodTabs?.length ? (
                       <div className="space-y-1">
                         <Label htmlFor="market-home-section-window">집계 기간(일)</Label>
                         <Input
@@ -539,6 +658,56 @@ export default function MarketMainSettingsClient({
                         />
                       </div>
                     ) : null}
+                  </div>
+                ) : null}
+                {editing.kind === 'popular' ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">기간 버튼 {editing.periodTabs?.length ?? 0}/{MARKET_HOME_LIMITS.periodTabs.max}</p>
+                    {(editing.periodTabs ?? []).map((tab, index) => (
+                      <div key={index} className="flex items-end gap-2">
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <Label htmlFor={`market-home-period-label-${index}`}>{index + 1}번 버튼 이름</Label>
+                          <Input
+                            id={`market-home-period-label-${index}`}
+                            value={tab.label}
+                            maxLength={MARKET_HOME_LIMITS.periodLabel.max}
+                            onChange={(event) => updatePeriodTabs(editing, (editing.periodTabs ?? []).map((entry, entryIndex) => (
+                              entryIndex === index ? { ...entry, label: event.target.value } : entry
+                            )))}
+                          />
+                        </div>
+                        <div className="w-28 space-y-1">
+                          <Label htmlFor={`market-home-period-days-${index}`}>집계 기간(일)</Label>
+                          <Input
+                            id={`market-home-period-days-${index}`}
+                            type="number"
+                            min={MARKET_HOME_LIMITS.rankingWindowDays.min}
+                            max={MARKET_HOME_LIMITS.rankingWindowDays.max}
+                            value={tab.days}
+                            onChange={(event) => updatePeriodTabs(editing, (editing.periodTabs ?? []).map((entry, entryIndex) => (
+                              entryIndex === index ? { ...entry, days: Number(event.target.value) } : entry
+                            )))}
+                          />
+                        </div>
+                        <Button type="button" variant="adminTable" size="icon" aria-label={`${index + 1}번 기간 버튼 빼기`}
+                          onClick={() => updatePeriodTabs(editing, (editing.periodTabs ?? []).filter((_, entryIndex) => entryIndex !== index))}>
+                          <X aria-hidden="true" className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="adminTable"
+                      size="sm"
+                      disabled={(editing.periodTabs?.length ?? 0) >= MARKET_HOME_LIMITS.periodTabs.max}
+                      onClick={() => updatePeriodTabs(editing, addMarketHomePeriodTab(editing))}
+                    >
+                      <Plus aria-hidden="true" className="size-4" />
+                      기간 버튼 추가
+                    </Button>
+                    <p className="text-xs text-[var(--studio-muted)]">
+                      버튼을 두면 회원이 버튼을 눌러 그 기간(오늘부터 거꾸로 센 일수)의 인기 순위를 봅니다. 첫 버튼이 처음에 보입니다. 버튼이 없으면 &apos;집계 기간&apos; 하나로 집계합니다.
+                    </p>
                   </div>
                 ) : null}
                 {editing.kind === 'featured' ? (

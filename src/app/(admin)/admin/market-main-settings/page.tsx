@@ -4,6 +4,8 @@ import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { filterVisibleMainAdItems, getActiveMainAdCarouselItems } from '@/lib/main-ad-carousel'
 import { getMainAdCarouselConfig } from '@/lib/main-ad-carousel-server'
 import { getMarketHomeAdminData } from '@/lib/market-home-server'
+import { visibleInfoItemLabel } from '@/lib/market-item-options'
+import { readMarketItemDisplayForAdmin } from '@/lib/market-item-options-server'
 import MarketMainSettingsClient from './market-main-settings-client'
 import { buildAdminMenuMetadata } from '@/lib/admin-sidebar-server'
 
@@ -27,9 +29,11 @@ export default async function MarketMainSettingsPage({
   await requireAdminPagePermission('storefront.edit')
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const workspaceSubject = resolveAdminWorkspaceSubject(resolvedSearchParams?.subject)
-  const [data, bannerConfig] = await Promise.all([
+  const [data, bannerConfig, display] = await Promise.all([
     getMarketHomeAdminData(workspaceSubject),
     getMainAdCarouselConfig(),
+    // 미리보기의 자료 등록일 이름(상품 표시 설정). 읽지 못하면 날짜만 빼고 그린다.
+    readMarketItemDisplayForAdmin().catch(() => null),
   ])
   const visibleBannerCount = filterVisibleMainAdItems(getActiveMainAdCarouselItems(bannerConfig, workspaceSubject), new Date()).length
 
@@ -37,6 +41,7 @@ export default async function MarketMainSettingsPage({
     <MarketMainSettingsClient
       {...data}
       visibleBannerCount={visibleBannerCount}
+      registeredAtLabel={visibleInfoItemLabel(display?.detail ?? null, 'registeredAt')}
       key={workspaceSubject}
       workspaceSubject={workspaceSubject}
     />

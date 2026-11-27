@@ -215,10 +215,20 @@ async function renderSection(
 ): Promise<MarketHomeRenderedSection> {
   const base = { id: section.id, title: section.title, emptyText: section.emptyText }
   if (section.kind === 'popular') {
-    return { ...base, kind: 'popular', items: await loadPopular(supabase, workspaceSubject, section) }
+    const collapsedLimit = section.collapsedLimit ?? null
+    if (!section.periodTabs) {
+      return { ...base, kind: 'popular', items: await loadPopular(supabase, workspaceSubject, section), periods: null, collapsedLimit }
+    }
+    // 17절: 기간 버튼마다 그 기간의 순위를 함께 읽는다(버튼을 눌러도 다시 읽지 않는다). items 는 첫 버튼의 순위.
+    const periods = await Promise.all(section.periodTabs.map(async (tab) => ({
+      label: tab.label,
+      days: tab.days,
+      items: await loadPopular(supabase, workspaceSubject, { limit: section.limit, rankingWindowDays: tab.days }),
+    })))
+    return { ...base, kind: 'popular', items: periods[0].items, periods, collapsedLimit }
   }
   if (section.kind === 'recent') {
-    return { ...base, kind: 'recent', items: await loadRecent(supabase, workspaceSubject, section.limit) }
+    return { ...base, kind: 'recent', items: await loadRecent(supabase, workspaceSubject, section.limit), collapsedLimit: section.collapsedLimit ?? null }
   }
   return { ...base, kind: 'featured', items: (await loadFeatured(supabase, workspaceSubject, section.itemIds)).items }
 }
@@ -231,12 +241,12 @@ export async function getMarketHomeData(
   workspaceSubject: WorkspaceSubject
 ): Promise<MarketHomeData> {
   const supabase = getAdminClient()
-  if (!supabase) return { subject: workspaceSubject, state: 'missing', sections: [], emptyHomeLink: null }
+  if (!supabase) return { subject: workspaceSubject, state: 'missing', sections: [], emptyHomeLink: null, expandLabel: null, collapseLabel: null }
 
   const read = readMarketHomeConfig((await loadConfigRow(supabase, workspaceSubject)).value)
   if (read.state !== 'ok') {
     console.error('[market-home] 회원 홈 설정이 없거나 형식이 다릅니다. 섹션 없이 그립니다.', { subject: workspaceSubject, state: read.state })
-    return { subject: workspaceSubject, state: read.state, sections: [], emptyHomeLink: null }
+    return { subject: workspaceSubject, state: read.state, sections: [], emptyHomeLink: null, expandLabel: null, collapseLabel: null }
   }
 
   const sections = await Promise.all(
@@ -244,7 +254,14 @@ export async function getMarketHomeData(
       .filter((section) => section.isActive)
       .map((section) => renderSection(supabase, workspaceSubject, section))
   )
-  return { subject: workspaceSubject, state: 'ok', sections, emptyHomeLink: read.config.emptyHomeLink }
+  return {
+    subject: workspaceSubject,
+    state: 'ok',
+    sections,
+    emptyHomeLink: read.config.emptyHomeLink,
+    expandLabel: read.config.expandLabel ?? null,
+    collapseLabel: read.config.collapseLabel ?? null,
+  }
 }
 
 // 관리 화면 미리보기(3-2): 추천 상품 카드와 빠진 이유.
@@ -255,6 +272,16 @@ export async function getMarketHomeFeaturedPreview(
   const supabase = getAdminClient()
   if (!supabase) throw new Error('홈 진열 미리보기에 필요한 서비스 역할 키가 없습니다.')
   return loadFeatured(supabase, workspaceSubject, itemIds)
+}
+
+// 관리 화면 미리보기(17절): 저장 전 기간 버튼의 일수로 읽은 인기 순위(상한 24개 — 화면이 저장 전 개수만큼 자른다).
+export async function getMarketHomePopularPreview(
+  workspaceSubject: WorkspaceSubject,
+  days: number
+): Promise<MarketHomePopularItem[]> {
+  const supabase = getAdminClient()
+  if (!supabase) throw new Error('홈 진열 미리보기에 필요한 서비스 역할 키가 없습니다.')
+  return loadPopular(supabase, workspaceSubject, { limit: MARKET_HOME_LIMITS.popular.max, rankingWindowDays: days })
 }
 
 export interface MarketHomeItemSearchResult {
@@ -313,6 +340,8 @@ export interface MarketHomeAdminData {
     recent: MarketHomeItem[]
     // 인기 미리보기가 쓴 집계 기간(이 값과 다르게 고치면 '저장 뒤 반영')
     rankingWindowDays: number
+    // 저장된 기간 버튼의 일수별 순위(17절, 상한 24개). 버튼의 일수를 고치면 화면이 preview-popular route 로 그 일수를 다시 읽는다.
+    popularByDays: Record<string, MarketHomePopularItem[]>
     error: boolean
   }
   // 추천 섹션별 미리보기(저장된 값 기준). 바꾸면 화면이 preview-items route 로 다시 읽는다.
@@ -320,9 +349,13 @@ export interface MarketHomeAdminData {
 }
 
 function adminDraft(read: MarketHomeConfigReadResult): MarketHomeDraft {
-  if (read.state === 'ok') return { sections: read.config.sections, emptyHomeLink: read.config.emptyHomeLink }
-  if (read.state === 'invalid') return { sections: read.readableSections, emptyHomeLink: read.emptyHomeLink }
-  return { sections: [], emptyHomeLink: null }
+  if (read.state === 'ok') {
+    return { sections: read.config.sections, emptyHomeLink: read.config.emptyHomeLink, expandLabel: read.config.expandLabel ?? null, collapseLabel: read.config.collapseLabel ?? null }
+  }
+  if (read.state === 'invalid') {
+    return { sections: read.readableSections, emptyHomeLink: read.emptyHomeLink, expandLabel: read.expandLabel, collapseLabel: read.collapseLabel }
+  }
+  return { sections: [], emptyHomeLink: null, expandLabel: null, collapseLabel: null }
 }
 
 export async function getMarketHomeAdminData(
@@ -336,10 +369,14 @@ export async function getMarketHomeAdminData(
   const savedPopular = draft.sections.find((section): section is MarketHomePopularSection => section.kind === 'popular')
   const rankingWindowDays = savedPopular?.rankingWindowDays ?? MARKET_HOME_NEW_SECTION_NUMBERS.rankingWindowDays
 
+  // 저장된 기간 버튼의 일수(첫 버튼 = rankingWindowDays 는 위에서 읽으므로 뺀다)
+  const tabDays = (savedPopular?.periodTabs ?? []).map((tab) => tab.days).filter((days) => days !== rankingWindowDays)
+
   const [poolResult, featuredResults] = await Promise.all([
     Promise.all([
       loadPopular(supabase, workspaceSubject, { limit: MARKET_HOME_LIMITS.popular.max, rankingWindowDays }),
       loadRecent(supabase, workspaceSubject, MARKET_HOME_LIMITS.recent.max),
+      Promise.all(tabDays.map((days) => loadPopular(supabase, workspaceSubject, { limit: MARKET_HOME_LIMITS.popular.max, rankingWindowDays: days }))),
     ]).then((value) => ({ ok: true as const, value }), (error: unknown) => {
       console.error('[market-home] 관리 화면 미리보기 상품을 읽지 못했습니다.', error instanceof Error ? error.message : error)
       return { ok: false as const }
@@ -355,8 +392,14 @@ export async function getMarketHomeAdminData(
     revision: read.revision,
     draft,
     pool: poolResult.ok
-      ? { popular: poolResult.value[0], recent: poolResult.value[1], rankingWindowDays, error: false }
-      : { popular: [], recent: [], rankingWindowDays, error: true },
+      ? {
+        popular: poolResult.value[0],
+        recent: poolResult.value[1],
+        rankingWindowDays,
+        popularByDays: Object.fromEntries([[rankingWindowDays, poolResult.value[0]], ...tabDays.map((days, index) => [days, poolResult.value[2][index]] as const)]),
+        error: false,
+      }
+      : { popular: [], recent: [], rankingWindowDays, popularByDays: {}, error: true },
     featured: Object.fromEntries(featuredResults),
   }
 }
@@ -396,6 +439,9 @@ export async function saveMarketHomeConfig(input: {
     revision: input.expectedRevision + 1,
     sections: input.draft.sections,
     emptyHomeLink: input.draft.emptyHomeLink,
+    // 17절: 펼치기·접기 글자는 적었을 때만 칸을 둔다(없으면 22번 값과 같은 모양)
+    ...(input.draft.expandLabel ? { expandLabel: input.draft.expandLabel } : {}),
+    ...(input.draft.collapseLabel ? { collapseLabel: input.draft.collapseLabel } : {}),
   }
   const row = {
     value: config as unknown as Json,

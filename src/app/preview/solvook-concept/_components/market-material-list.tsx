@@ -17,6 +17,8 @@ export interface MarketMaterialListItem {
   startingPriceCredits: number | null
   ratingAverage: number | null
   ratingCount: number
+  // 자료 등록일(이름은 DB 상품 표시 설정). 없으면 그 줄을 그리지 않는다.
+  registeredAt?: { label: string; text: string } | null
 }
 
 function Thumbnail({ item }: { item: MarketMaterialListItem }) {
@@ -89,6 +91,14 @@ export function MarketMaterialList({
                       <p className="flex items-center gap-1 text-xs text-[var(--studio-muted)]">
                         <Star aria-hidden="true" className="size-4 fill-current text-amber-400" />
                         {`${item.ratingAverage.toFixed(1)} (${item.ratingCount.toLocaleString('ko-KR')})`}
+                      </p>
+                    </>
+                  ) : null}
+                  {item.registeredAt ? (
+                    <>
+                      <span aria-hidden="true" className="text-[var(--studio-border)]">·</span>
+                      <p className="text-xs text-[var(--studio-muted)]">
+                        {item.registeredAt.label} <span className="text-[var(--studio-text)]">{item.registeredAt.text}</span>
                       </p>
                     </>
                   ) : null}

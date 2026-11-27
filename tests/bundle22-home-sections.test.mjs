@@ -238,7 +238,7 @@ test('회원 홈 읽기: 설정 없음·형식 오류는 섹션 0개 + 서버 �
   const data = await off.server.getMarketHomeData('korean')
   assert.deepEqual(data.sections.map((section) => section.kind), ['recent'])
   assert.equal(off.admin.calls.some((call) => call.type === 'rpc'), false)
-  assert.deepEqual(home.marketHomeReadFailed('english'), { subject: 'english', state: 'error', sections: [], emptyHomeLink: null })
+  assert.deepEqual(home.marketHomeReadFailed('english'), { subject: 'english', state: 'error', sections: [], emptyHomeLink: null, expandLabel: null, collapseLabel: null })
 })
 
 test('3-4 저장 경로: revision ≥ 1 은 판 2·같은 revision 조건, 0 은 행 없음 INSERT DO NOTHING·판 1 UPDATE, 0행이면 409', async (t) => {
@@ -298,4 +298,172 @@ test('섹션 제목 강조: **…** 로 감싼 부분만 강조로 나뉘고, �
   assert.equal(home.plainMarketHomeTitle('🔥 인기 **다운로드** 자료'), '🔥 인기 다운로드 자료')
   // 강조 표시가 든 제목도 판 2 구조 검사를 그대로 통과한다(길이는 표시까지 센다)
   assert.equal(home.validateMarketHomeConfig(config([popular({ title: '🔥 인기 **다운로드** 자료' })])).sections[0].title, '🔥 인기 **다운로드** 자료')
+})
+
+// ---------------------------------------------------------------------------------------------------------------
+// 17절: 인기 기간 버튼과 펼쳐보기(새 칸은 모두 선택 — 없으면 22번과 같은 모양·같은 동작)
+// ---------------------------------------------------------------------------------------------------------------
+
+const tabs = [{ label: '월간', days: 30 }, { label: '주간', days: 7 }]
+const labels = { expandLabel: '펼쳐보기', collapseLabel: '접기' }
+
+test('17절 검사: 새 칸이 없으면 값이 그대로, 있으면 기간 버튼·처음 보이는 개수·버튼 글자를 검사하고 집계 기간을 첫 버튼에 맞춘다', () => {
+  // 새 칸이 없는 값에는 칸을 더하지 않는다(시드 값·지금 저장된 값과 같은 모양)
+  const plain = home.validateMarketHomeConfig(config([popular(), recent()]))
+  assert.deepEqual(Object.keys(plain).sort(), ['emptyHomeLink', 'revision', 'sections', 'version'])
+  assert.equal('periodTabs' in plain.sections[0] || 'collapsedLimit' in plain.sections[0] || 'collapsedLimit' in plain.sections[1], false)
+
+  const full = home.validateMarketHomeConfig(config(
+    [popular({ limit: 20, rankingWindowDays: 14, collapsedLimit: 5, periodTabs: [{ label: ' 주간 ', days: 7 }, { label: '월간', days: 30 }] }), recent({ limit: 20, collapsedLimit: 5 })],
+    labels
+  ))
+  assert.deepEqual(full.sections[0].periodTabs, [{ label: '주간', days: 7 }, { label: '월간', days: 30 }])
+  assert.equal(full.sections[0].rankingWindowDays, 7)
+  assert.equal(full.sections[0].collapsedLimit, 5)
+  assert.equal(full.sections[1].collapsedLimit, 5)
+  assert.deepEqual([full.expandLabel, full.collapseLabel], ['펼쳐보기', '접기'])
+  assert.equal(home.readMarketHomeConfig(config([popular({ periodTabs: tabs })])).state, 'ok')
+  // 처음 보이는 개수 = 개수 도 된다(버튼은 숨은 상품이 없어 나오지 않는다)
+  assert.equal(home.validateMarketHomeConfig(config([recent({ collapsedLimit: 8 })], labels)).sections[0].collapsedLimit, 8)
+  // 버튼 글자만 있고 쓰는 섹션이 없어도 된다
+  assert.equal(home.validateMarketHomeConfig(config([recent()], labels)).expandLabel, '펼쳐보기')
+
+  const bad = [
+    config([popular({ periodTabs: [] })]),
+    config([popular({ periodTabs: [...tabs, { label: '일간', days: 1 }, { label: '분기', days: 90 }] })]),
+    config([popular({ periodTabs: [{ label: '월간', days: 30 }, { label: '한 달', days: 30 }] })]),
+    config([popular({ periodTabs: [{ label: '', days: 30 }] })]),
+    config([popular({ periodTabs: [{ label: '가'.repeat(11), days: 30 }] })]),
+    config([popular({ periodTabs: [{ label: '월간', days: 0 }] })]),
+    config([popular({ periodTabs: [{ label: '월간', days: 91 }] })]),
+    config([popular({ periodTabs: [{ label: '월간', days: 30, extra: 1 }] })]),
+    config([popular({ periodTabs: [{ label: '월간' }] })]),
+    config([popular({ periodTabs: 'x' })]),
+    config([recent({ periodTabs: tabs })]),
+    config([featured({ collapsedLimit: 1 })]),
+    config([popular({ collapsedLimit: 0 })], labels),
+    config([popular({ collapsedLimit: 13 })], labels),
+    config([recent({ collapsedLimit: 2.5 })], labels),
+    // 처음 보이는 개수를 쓰면 버튼 글자 둘 다 있어야 한다
+    config([recent({ collapsedLimit: 5 })]),
+    config([recent({ collapsedLimit: 5 })], { expandLabel: '펼쳐보기' }),
+    config([recent({ collapsedLimit: 5 })], { expandLabel: '펼쳐보기', collapseLabel: null }),
+    config([recent()], { expandLabel: '' }),
+    config([recent()], { collapseLabel: '가'.repeat(21) }),
+  ]
+  for (const value of bad) assert.throws(() => home.validateMarketHomeConfig(value), home.MarketHomeValidationError, JSON.stringify(value).slice(0, 160))
+
+  // 형식 오류 값도 읽을 수 있는 버튼 글자는 편집 시작값으로 돌려준다
+  const broken = home.readMarketHomeConfig({ ...config([popular({ periodTabs: tabs }), { ...recent(), limit: 99 }], labels) })
+  assert.equal(broken.state, 'invalid')
+  assert.deepEqual(broken.readableSections.map((section) => section.periodTabs?.length ?? null), [2])
+  assert.deepEqual([broken.expandLabel, broken.collapseLabel], ['펼쳐보기', '접기'])
+})
+
+test('17절 빈 목록 규칙: 빈 화면 문구가 있으면 0개 기간도 버튼을 보이고, 없으면 그 버튼을 숨기고 모든 기간이 0개면 섹션째 숨긴다', () => {
+  const period = (label, days, count) => ({ label, days, items: Array.from({ length: count }, (_, index) => ({ id: `${days}-${index}` })) })
+  const section = (emptyText, periods) => ({ id: 'p', kind: 'popular', title: '인기', emptyText, items: periods[0].items, periods })
+  const mixed = [period('월간', 30, 3), period('주간', 7, 0)]
+  assert.deepEqual(home.visibleMarketHomePeriods(section('집계 없음', mixed)).map((entry) => entry.label), ['월간', '주간'])
+  assert.deepEqual(home.visibleMarketHomePeriods(section(null, mixed)).map((entry) => entry.label), ['월간'])
+  assert.deepEqual(home.visibleMarketHomePeriods({ periods: null, emptyText: '집계 없음' }), [])
+  // 첫 기간(items)이 0개여도 다른 기간에 상품이 있으면 섹션은 보인다
+  const firstEmpty = section(null, [period('주간', 7, 0), period('월간', 30, 2)])
+  assert.equal(firstEmpty.items.length, 0)
+  assert.equal(home.visibleMarketHomeSections([firstEmpty]).length, 1)
+  assert.deepEqual(home.visibleMarketHomePeriods(firstEmpty).map((entry) => entry.label), ['월간'])
+  const allEmpty = [period('월간', 30, 0), period('주간', 7, 0)]
+  assert.equal(home.visibleMarketHomeSections([section(null, allEmpty)]).length, 0)
+  assert.equal(home.visibleMarketHomeSections([section('집계 없음', allEmpty)]).length, 1)
+  assert.equal(home.shouldShowEmptyHomeLink({ sections: [section(null, allEmpty)], emptyHomeLink: '보기' }, 0), true)
+  assert.equal(home.shouldShowEmptyHomeLink({ sections: [firstEmpty], emptyHomeLink: '보기' }, 0), false)
+})
+
+test('17절 펼치기 계산: 접힌 동안은 처음 개수만, 버튼 글자는 지금 누르면 할 일, 숨은 상품이 없거나 글자가 없으면 버튼 없이 모두', () => {
+  const items = Array.from({ length: 12 }, (_, index) => index)
+  const collapse = { collapsedLimit: 5, ...labels }
+  assert.deepEqual(home.collapseMarketHomeItems(items, collapse, false), { visible: [0, 1, 2, 3, 4], toggleLabel: '펼쳐보기' })
+  assert.deepEqual(home.collapseMarketHomeItems(items, collapse, true), { visible: items, toggleLabel: '접기' })
+  assert.deepEqual(home.collapseMarketHomeItems(items.slice(0, 5), collapse, false), { visible: [0, 1, 2, 3, 4], toggleLabel: null })
+  assert.deepEqual(home.collapseMarketHomeItems(items.slice(0, 3), collapse, false), { visible: [0, 1, 2], toggleLabel: null })
+  for (const noCollapse of [
+    { collapsedLimit: null, ...labels },
+    { ...labels },
+    { collapsedLimit: 5, expandLabel: null, collapseLabel: '접기' },
+    { collapsedLimit: 5, expandLabel: '펼쳐보기', collapseLabel: null },
+  ]) assert.deepEqual(home.collapseMarketHomeItems(items, noCollapse, false), { visible: items, toggleLabel: null })
+})
+
+test('17절 기간 버튼 더하기·작업 기록: 일수는 쓰지 않은 첫 시작값(이름은 빈 채), 3개까지, 차이는 칸 이름만(버튼 이름 원문 없음)', () => {
+  assert.deepEqual(home.addMarketHomePeriodTab({ rankingWindowDays: 30 }), [{ label: '', days: 30 }])
+  assert.deepEqual(home.addMarketHomePeriodTab({ rankingWindowDays: 30, periodTabs: [{ label: '월간', days: 30 }] }).at(-1), { label: '', days: 7 })
+  assert.deepEqual(home.addMarketHomePeriodTab({ rankingWindowDays: 14, periodTabs: [{ label: '2주', days: 14 }] }).at(-1), { label: '', days: 30 })
+  assert.deepEqual(home.addMarketHomePeriodTab({ rankingWindowDays: 30, periodTabs: tabs }).at(-1), { label: '', days: 1 })
+  const three = [...tabs, { label: '일간', days: 1 }]
+  assert.equal(home.addMarketHomePeriodTab({ rankingWindowDays: 30, periodTabs: three }), three)
+  // 새 섹션의 시작값은 22번 그대로(기간 버튼·처음 보이는 개수 없이)
+  assert.deepEqual(Object.keys(home.createMarketHomeSection('popular', uuid(70))).sort(), ['emptyText', 'id', 'isActive', 'kind', 'limit', 'rankingWindowDays', 'title'])
+
+  const changes = home.diffMarketHomeSections(
+    [popular(), recent()],
+    [popular({ periodTabs: tabs, collapsedLimit: 5 }), recent({ collapsedLimit: 5 })]
+  )
+  assert.deepEqual(changes.map((change) => change.fields), [['periodTabs', 'collapsedLimit'], ['collapsedLimit']])
+  for (const raw of ['월간', '주간']) assert.equal(JSON.stringify(changes).includes(raw), false, raw)
+  assert.deepEqual(home.diffMarketHomeSections([popular({ periodTabs: tabs })], [popular({ periodTabs: tabs })]), [])
+})
+
+test('17절 회원 홈 읽기: 기간 버튼마다 그 기간·같은 개수로 순위를 읽고 items 는 첫 버튼, 새 칸이 없으면 한 번만 읽는다', async (t) => {
+  withEnv(t)
+  const setting = config(
+    [popular({ limit: 20, collapsedLimit: 5, periodTabs: [{ label: '주간', days: 7 }, { label: '월간', days: 30 }] }), recent({ limit: 20, collapsedLimit: 5 })],
+    labels
+  )
+  const { server, admin } = loadServer({ setting, popularRows: [uuid(1), uuid(2)], recentRows: [uuid(7)] })
+  const before = Date.now()
+  const data = await server.getMarketHomeData('korean')
+  const rpcs = admin.calls.filter((call) => call.type === 'rpc')
+  assert.equal(rpcs.length, 2)
+  assert.deepEqual(rpcs.map((call) => call.args.p_limit), [20, 20])
+  // p_from = 지금에서 버튼의 일수만큼 거꾸로(오늘부터 7일·30일)
+  const spans = rpcs.map((call) => Math.round((before - Date.parse(call.args.p_from)) / 86_400_000))
+  assert.deepEqual(spans, [7, 30])
+  const [popularSection, recentSection] = data.sections
+  assert.deepEqual(popularSection.periods.map((period) => [period.label, period.days, period.items.length]), [['주간', 7, 2], ['월간', 30, 2]])
+  assert.equal(popularSection.items, popularSection.periods[0].items)
+  assert.equal(popularSection.collapsedLimit, 5)
+  assert.equal(recentSection.collapsedLimit, 5)
+  assert.deepEqual([data.expandLabel, data.collapseLabel], ['펼쳐보기', '접기'])
+
+  const plain = loadServer({ setting: config([popular(), recent()]), popularRows: [uuid(1)], recentRows: [uuid(7)] })
+  const plainData = await plain.server.getMarketHomeData('korean')
+  assert.equal(plain.admin.calls.filter((call) => call.type === 'rpc').length, 1)
+  assert.deepEqual([plainData.sections[0].periods, plainData.sections[0].collapsedLimit, plainData.sections[1].collapsedLimit], [null, null, null])
+  assert.deepEqual([plainData.expandLabel, plainData.collapseLabel], [null, null])
+})
+
+test('17절 관리 화면 재료·저장: 저장된 기간 버튼의 일수별 순위를 상한(24)까지 미리 읽고, 버튼 글자는 적었을 때만 칸을 둔다', async (t) => {
+  withEnv(t)
+  const setting = config([popular({ periodTabs: [{ label: '주간', days: 7 }, { label: '월간', days: 30 }] }), recent()], labels)
+  const { server, admin } = loadServer({ setting, popularRows: [uuid(1)], recentRows: [uuid(7)] })
+  const data = await server.getMarketHomeAdminData('korean')
+  assert.equal(data.pool.rankingWindowDays, 7)
+  assert.deepEqual(Object.keys(data.pool.popularByDays).sort(), ['30', '7'])
+  assert.deepEqual(admin.calls.filter((call) => call.type === 'rpc').map((call) => call.args.p_limit), [24, 24])
+  assert.deepEqual([data.draft.expandLabel, data.draft.collapseLabel], ['펼쳐보기', '접기'])
+  const preview = await server.getMarketHomePopularPreview('korean', 14)
+  assert.equal(preview.length, 1)
+  assert.equal(admin.calls.filter((call) => call.type === 'rpc').at(-1).args.p_limit, 24)
+
+  const write = async (draft) => {
+    const loaded = loadServer({ setting: seed.korean })
+    await loaded.server.saveMarketHomeConfig({ workspaceSubject: 'korean', expectedRevision: 1, draft, actorId: uuid(900) })
+    return op(loaded.admin.calls.find((call) => call.table === 'workspace_settings' && op(call.ops, 'update')).ops, 'update')[1].value
+  }
+  assert.deepEqual(Object.keys(await write({ sections: [popular()], emptyHomeLink: null })).sort(), ['emptyHomeLink', 'revision', 'sections', 'version'])
+  assert.deepEqual(Object.keys(await write({ sections: [popular()], emptyHomeLink: null, expandLabel: null, collapseLabel: null })).sort(), ['emptyHomeLink', 'revision', 'sections', 'version'])
+  const withLabels = await write({ sections: [recent({ collapsedLimit: 5 })], emptyHomeLink: null, ...labels })
+  assert.deepEqual([withLabels.expandLabel, withLabels.collapseLabel], ['펼쳐보기', '접기'])
+  // 저장한 값은 다시 읽어도 통과한다
+  assert.equal(home.readMarketHomeConfig(withLabels).state, 'ok')
 })

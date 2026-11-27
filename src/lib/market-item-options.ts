@@ -201,6 +201,24 @@ export function isInfoItemVisible(display: Pick<MarketItemDetailDisplay, 'infoIt
   return Boolean(display?.infoItems.some((info) => info.key === key && info.visible))
 }
 
+// 보이는 자료 정보 항목의 이름. 숨겼거나 설정을 읽지 못했으면 null(부르는 곳이 그 줄을 숨긴다).
+export function visibleInfoItemLabel(display: Pick<MarketItemDetailDisplay, 'infoItems'> | null, key: MarketItemInfoKey): string | null {
+  return display?.infoItems.find((info) => info.key === key && info.visible)?.label ?? null
+}
+
+// 자료 등록일 표기(한국 시간). 상품 상세와 홈 목록이 같은 모양으로 쓴다.
+export function formatMarketItemRegisteredAt(value: string): string {
+  const parts = new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: 'Asia/Seoul',
+  }).formatToParts(new Date(value))
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+
+  return `${values.year}년 ${values.month}월 ${values.day}일`
+}
+
 // 전체구매 제목: 앞뒤 공백을 뺀 표시명, 비면 설정의 기본 제목. 둘 다 없으면 null(부르는 곳이 상품 제목 등으로 채운다).
 export function resolveBundleTitle(label: string | null | undefined, display: Pick<MarketItemDetailDisplay, 'bundleDefaultTitle'> | null): string | null {
   return label?.trim() || display?.bundleDefaultTitle || null

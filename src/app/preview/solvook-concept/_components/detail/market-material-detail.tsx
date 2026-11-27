@@ -26,12 +26,12 @@ import type { MarketPurchasePolicyView } from '@/lib/market-purchase-policy'
 import type { MarketPurchaseInfo } from '@/lib/market-purchase-info'
 import {
   buildMaterialInfoRows,
+  formatMarketItemRegisteredAt,
   isInfoItemVisible,
   type MarketItemDetailDisplay,
 } from '@/lib/market-item-options'
 import {
   MarketPurchaseInfoSection,
-  type MarketPurchaseInfoFileType,
 } from '@/components/market/market-purchase-info-section'
 
 interface MarketMaterialDetailProps {
@@ -50,31 +50,6 @@ interface MarketMaterialDetailProps {
   purchaseInfo: MarketPurchaseInfo
   // 19번: 상세 안내 문구·자료 정보 항목(DB). 읽지 못했으면 null — 자료 정보 표·학년/자료유형 배지·등록일 줄·요약 두 줄·샘플 버튼을 숨긴다.
   display: MarketItemDetailDisplay | null
-}
-
-// 이 상품의 서브상품에 들어 있는 파일 형식(코드별 하나, 서브상품 순서대로)
-function collectPurchaseInfoFileTypes(subproducts: MarketSubproductPublicSummary[]): MarketPurchaseInfoFileType[] {
-  const byCode = new Map<string, MarketPurchaseInfoFileType>()
-  for (const subproduct of subproducts) {
-    for (const fileType of subproduct.fileTypes) {
-      if (!byCode.has(fileType.code)) {
-        byCode.set(fileType.code, { code: fileType.code, label: fileType.label, requiredProgram: fileType.requiredProgram })
-      }
-    }
-  }
-  return [...byCode.values()]
-}
-
-function formatRegisteredAt(value: string) {
-  const parts = new Intl.DateTimeFormat('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    timeZone: 'Asia/Seoul',
-  }).formatToParts(new Date(value))
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
-
-  return `${values.year}년 ${values.month}월 ${values.day}일`
 }
 
 function getStartingPrice(
@@ -133,7 +108,7 @@ export function MarketMaterialDetail({
       sources: [item.source_1, item.source_2, item.source_3, item.source_4],
       materialType: item.source_type,
       questionCount: item.question_count,
-      registeredAt: formatRegisteredAt(item.created_at),
+      registeredAt: formatMarketItemRegisteredAt(item.created_at),
     }, display)
     : []
   const registeredAtLabel = display?.infoItems.find((info) => info.key === 'registeredAt')?.label ?? null
@@ -248,8 +223,8 @@ export function MarketMaterialDetail({
               <dl className="mt-6 border-y border-[var(--studio-border)] py-5 text-sm">
                 <div className="flex items-center gap-2">
                   <CalendarDays aria-hidden="true" className="h-4 w-4 text-[var(--studio-muted)]" />
-                  <dt className="sr-only">{registeredAtLabel}</dt>
-                  <dd>{formatRegisteredAt(item.created_at)}</dd>
+                  <dt className="text-[var(--studio-muted)]">{registeredAtLabel}</dt>
+                  <dd>{formatMarketItemRegisteredAt(item.created_at)}</dd>
                 </div>
               </dl>
             ) : null}
@@ -309,12 +284,6 @@ export function MarketMaterialDetail({
             </section>
           ) : null}
 
-          <MarketPurchaseInfoSection
-            policy={purchasePolicy}
-            info={purchaseInfo}
-            fileTypes={collectPurchaseInfoFileTypes(subproducts)}
-          />
-
           <section
             id="purchase-options"
             aria-labelledby="market-purchase-options-heading"
@@ -354,6 +323,12 @@ export function MarketMaterialDetail({
             isLoggedIn={isLoggedIn}
             reviews={reviews}
             sort={reviewSort}
+          />
+
+          {/* 구매 전 확인(이용 기간·이용 범위·환불)은 상세 맨 아래에 둔다 */}
+          <MarketPurchaseInfoSection
+            policy={purchasePolicy}
+            info={purchaseInfo}
           />
         </div>
       )}

@@ -2,53 +2,16 @@ import Link from 'next/link'
 import type { MarketPurchasePolicyView } from '@/lib/market-purchase-policy'
 import type { MarketPurchaseInfo } from '@/lib/market-purchase-info'
 
-export interface MarketPurchaseInfoFileType {
-  code: string
-  label: string
-  requiredProgram: string | null
-}
-
 interface MarketPurchaseInfoSectionProps {
   policy: MarketPurchasePolicyView | null
   info: MarketPurchaseInfo
-  fileTypes: MarketPurchaseInfoFileType[]
 }
 
-// 상품 상세 "구매 전 확인"(전자상거래법 제13조 표시 사항 + 청약철회 제한 고지). 문구는 모두 DB 값.
-// 고지 설정을 읽지 못하면(policy null) 고지 줄은 숨기고 공급자·파일 형식만 보인다(구매 버튼은 확인창에서 막힘).
-export function MarketPurchaseInfoSection({ policy, info, fileTypes }: MarketPurchaseInfoSectionProps) {
+// 상품 상세 "구매 전 확인"(이용 기간·이용 범위·청약철회 제한 고지). 문구는 모두 DB 값.
+// 공급자 정보는 하단 정보(footer)에, 파일 형식은 아래 자료 선택에 있어 여기서는 보이지 않는다.
+// 고지 설정을 읽지 못하면(policy null) 블록째 숨긴다(구매 버튼은 확인창에서 막힘).
+export function MarketPurchaseInfoSection({ policy, info }: MarketPurchaseInfoSectionProps) {
   const rows: { label: string; content: React.ReactNode }[] = []
-
-  if (info.supplierRows.length > 0) {
-    rows.push({
-      label: '공급자',
-      content: (
-        <ul className="space-y-1">
-          {info.supplierRows.map((row, index) => (
-            <li key={index} className="break-words">
-              <span className="text-[var(--studio-muted)]">{row.label}</span> {row.value}
-            </li>
-          ))}
-        </ul>
-      ),
-    })
-  }
-
-  if (fileTypes.length > 0) {
-    rows.push({
-      label: '파일 형식',
-      content: (
-        <ul className="space-y-1">
-          {fileTypes.map((fileType) => (
-            <li key={fileType.code} className="break-keep">
-              <span className="font-semibold text-[var(--studio-ink)]">{fileType.label}</span>
-              {fileType.requiredProgram ? <> · {fileType.requiredProgram}</> : null}
-            </li>
-          ))}
-        </ul>
-      ),
-    })
-  }
 
   if (policy) {
     rows.push({ label: '이용 기간', content: <p className="break-keep">{policy.downloadPeriodNotice}</p> })

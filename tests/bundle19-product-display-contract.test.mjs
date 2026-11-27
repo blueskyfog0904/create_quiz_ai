@@ -319,7 +319,8 @@ test('결제 경로 고정: 장바구니·결제 경로 파일은 표시 설정(
   }
   const readers = SRC_FILES.filter((path) => path !== 'src/lib/market-item-options-server.ts'
     && /getMarketItemDisplay\(\)/.test(readFileSync(join(ROOT, path), 'utf8')))
-  assert.deepEqual(readers.sort(), ['src/app/(solvook)/items/[itemId]/page.tsx', 'src/app/(solvook)/library/page.tsx', 'src/app/(solvook)/search/page.tsx'])
+  // 홈(page.tsx)은 최근 등록 섹션의 자료 등록일 이름만 읽는다(결제 경로 아님)
+  assert.deepEqual(readers.sort(), ['src/app/(solvook)/items/[itemId]/page.tsx', 'src/app/(solvook)/library/page.tsx', 'src/app/(solvook)/page.tsx', 'src/app/(solvook)/search/page.tsx'])
   const page = read('src/app/(solvook)/items/[itemId]/page.tsx')
   assert.match(page, /const displayPromise = getMarketItemDisplay\(\)\.then\(\(display\) => display\.detail\)\.catch\(\(error\) => \{/)
   assert.match(page, /display=\{display\}/)
@@ -425,4 +426,28 @@ test('개발 미리보기: development·VERCEL 아님·PRODUCT_DISPLAY_PREVIEW=1
   const preview = generator.buildPreviewData()
   assert.ok(options.parseMarketItemDisplay(preview.display))
   assert.match(preview.detailPreview.item.id, /^00000000-0000-4000-8000-/)
+})
+
+test('자료 등록일: 이름은 보이는 자료 정보 항목(registeredAt)에서 오고, 홈 최근 등록 목록과 상세가 같은 표기를 쓴다', () => {
+  const display = { infoItems: [{ key: 'registeredAt', label: '자료 등록일', visible: true }, { key: 'grade', label: '학년', visible: false }] }
+  assert.equal(options.visibleInfoItemLabel(display, 'registeredAt'), '자료 등록일')
+  // 숨긴 항목·설정 읽기 실패는 null → 날짜 줄을 그리지 않는다
+  assert.equal(options.visibleInfoItemLabel(display, 'grade'), null)
+  assert.equal(options.visibleInfoItemLabel(null, 'registeredAt'), null)
+  // 한국 시간 기준 날짜(UTC 15시 = 한국 다음 날 0시)
+  assert.equal(options.formatMarketItemRegisteredAt('2026-06-02T15:00:00Z'), '2026년 06월 03일')
+  assert.equal(options.formatMarketItemRegisteredAt('2026-06-02T14:59:59Z'), '2026년 06월 02일')
+
+  const home = read('src/app/(solvook)/page.tsx')
+  assert.match(home, /visibleInfoItemLabel\(display\.detail, 'registeredAt'\)/)
+  const sections = read('src/app/preview/solvook-concept/_components/home/market-home-sections.tsx')
+  // 최근 등록 섹션에만 넘긴다(인기·추천 섹션은 날짜 없음)
+  assert.equal(sections.match(/registeredAtLabel=\{registeredAtLabel\}/g).length, 1)
+  assert.match(sections, /<RecentMaterials [^>]*registeredAtLabel=\{registeredAtLabel\} \/>/)
+  const recent = read('src/app/preview/solvook-concept/_components/home/home-material-sections.tsx')
+  assert.match(recent, /registeredAt: registeredAtLabel\n\s+\? \{ label: registeredAtLabel, text: formatMarketItemRegisteredAt\(item\.createdAt\) \}\n\s+: null,/)
+  const list = read('src/app/preview/solvook-concept/_components/market-material-list.tsx')
+  assert.match(list, /\{item\.registeredAt\.label\} <span[^>]*>\{item\.registeredAt\.text\}<\/span>/)
+  // 이름을 코드 글자로 두지 않는다
+  for (const source of [home, sections, recent, list]) assert.doesNotMatch(source, /'자료 등록일'|'등록일자'|>자료 등록일<|>등록일자</)
 })

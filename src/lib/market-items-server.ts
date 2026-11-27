@@ -141,8 +141,6 @@ export interface MarketSubproductPublicFileType {
   code: string
   label: string
   extension: string
-  // 이 형식을 여는 데 필요한 프로그램(상품 상세 "구매 전 확인"). 비어 있으면 표시하지 않음.
-  requiredProgram: string | null
 }
 
 export interface MarketSubproductPublicSummary {
@@ -579,7 +577,6 @@ export async function createMarketFileType(input: {
   code: string
   label: string
   extension: string
-  requiredProgram: string
   mimeAllowlist?: string[]
   sortOrder?: number
   isActive?: boolean
@@ -588,13 +585,9 @@ export async function createMarketFileType(input: {
   const code = normalizeText(input.code).toLowerCase()
   const label = normalizeText(input.label)
   const extension = normalizeText(input.extension).toLowerCase()
-  const requiredProgram = normalizeText(input.requiredProgram)
 
   if (!code || !label || !extension) {
     throw new Error('파일 유형 코드, 라벨, 확장자를 입력해주세요.')
-  }
-  if (!requiredProgram) {
-    throw new Error('필요 프로그램을 입력해주세요.')
   }
 
   const payload: MarketFileTypeInsert = {
@@ -602,7 +595,6 @@ export async function createMarketFileType(input: {
     code,
     label,
     extension,
-    required_program: requiredProgram,
     mime_allowlist: input.mimeAllowlist ?? [],
     sort_order: input.sortOrder ?? 0,
     is_active: input.isActive ?? true,
@@ -648,7 +640,6 @@ export async function updateMarketFileType(
     code?: string | null
     label?: string | null
     extension?: string | null
-    requiredProgram?: string | null
     mimeAllowlist?: string[]
     sortOrder?: number
     isActive?: boolean
@@ -692,7 +683,6 @@ export async function updateMarketFileType(
   const payload: MarketFileTypeUpdate = {}
   if (input.label !== undefined) payload.label = normalizeText(input.label)
   if (input.extension !== undefined) payload.extension = nextExtension
-  if (input.requiredProgram !== undefined) payload.required_program = normalizeText(input.requiredProgram) || null
   if (input.mimeAllowlist !== undefined) payload.mime_allowlist = nextMimeAllowlist
   if (input.sortOrder !== undefined) payload.sort_order = input.sortOrder
   if (input.isActive !== undefined) payload.is_active = input.isActive
@@ -1381,7 +1371,7 @@ export async function listMarketSubproductPublicSummaries(
     applyWorkspaceSubjectFilter(
       supabase
         .from('market_file_types')
-        .select('id, code, label, extension, required_program'),
+        .select('id, code, label, extension'),
       workspaceSubject
     ),
   ])
@@ -1492,7 +1482,6 @@ export async function listMarketSubproductPublicSummaries(
         code: fileType.code,
         label: fileType.label,
         extension: fileType.extension,
-        requiredProgram: fileType.required_program?.trim() || null,
       })),
       owned: purchasedAt !== null,
       ownedScope,

@@ -35,9 +35,18 @@ async function requireAdminUser(permission: AdminPermissionRequirement = 'storef
   return { user: { id: guard.access.userId }, denied: null } as const
 }
 
-// 회원에게 보이는 글(제목·빈 화면 문구·빈 홈 링크) 개인정보 모양 검사는 저장 때만 한다(22번 3-1, 14번 규칙).
+// 회원에게 보이는 글(제목·빈 화면 문구·기간 버튼 이름·빈 홈 링크·펼치기·접기 글자) 개인정보 모양 검사는 저장 때만 한다(22번 3-1, 14번 규칙).
 function findPiiProblem(draft: MarketHomeDraft, allowed: Awaited<ReturnType<typeof readPiiAllowedContacts>>) {
-  const texts = [...draft.sections.flatMap((section) => [section.title, section.emptyText]), draft.emptyHomeLink]
+  const texts = [
+    ...draft.sections.flatMap((section) => [
+      section.title,
+      section.emptyText,
+      ...(section.kind === 'popular' ? (section.periodTabs ?? []).map((tab) => tab.label) : []),
+    ]),
+    draft.emptyHomeLink,
+    draft.expandLabel ?? null,
+    draft.collapseLabel ?? null,
+  ]
   for (const text of texts) {
     const hits = memberFacingTextPiiHits(text, allowed)
     if (hits.length > 0) return hits.map((kind) => MEMBER_FACING_PII_LABELS[kind]).join(', ')

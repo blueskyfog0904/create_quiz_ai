@@ -17,10 +17,13 @@ export function MarketHomeSections({
   subject,
   homeData,
   visibleBannerCount,
+  registeredAtLabel = null,
 }: {
   subject: WorkspaceSubject
   homeData: MarketHomeData
   visibleBannerCount: number
+  // 최근 등록 섹션의 자료 등록일 이름(DB 상품 표시 설정). 주지 않으면 날짜를 보이지 않는다.
+  registeredAtLabel?: string | null
 }) {
   const sections = visibleMarketHomeSections(homeData.sections)
 
@@ -32,9 +35,18 @@ export function MarketHomeSections({
           <SectionDoodle index={index} />
           <div className="relative z-10">
             {section.kind === 'popular' ? (
-              <PopularDownloadsSlider subject={subject} title={section.title} emptyText={section.emptyText} items={section.items} />
+              <PopularDownloadsSlider
+                subject={subject}
+                title={section.title}
+                emptyText={section.emptyText}
+                items={section.items}
+                periods={section.periods}
+                collapsedLimit={section.collapsedLimit}
+                expandLabel={homeData.expandLabel}
+                collapseLabel={homeData.collapseLabel}
+              />
             ) : section.kind === 'recent' ? (
-              <RecentMaterials subject={subject} title={section.title} emptyText={section.emptyText} items={section.items} />
+              <RecentMaterials subject={subject} title={section.title} emptyText={section.emptyText} items={section.items} collapsedLimit={section.collapsedLimit} expandLabel={homeData.expandLabel} collapseLabel={homeData.collapseLabel} registeredAtLabel={registeredAtLabel} />
             ) : (
               <FeaturedMaterials
                 sectionId={section.id}
