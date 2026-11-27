@@ -59,7 +59,7 @@ test('버튼 변형: adminTable(md 32px·그 아래 44px), adminDanger(--admin-t
   const button = read('src/components/ui/button.tsx')
   assert.match(button, /adminTable:\s*\n\s*"min-h-11 min-w-11 md:h-8 md:min-h-0 md:min-w-0 border border-\[var\(--studio-primary-border\)\]/)
   assert.match(button, /adminDanger:\s*\n\s*"min-h-11 min-w-11 bg-\[var\(--admin-tone-danger-solid\)\] text-white /)
-  // 7단계 전까지 adminAction 은 지우지 않는다(6-1 가).
+  // adminAction 은 지우지 않는다(6-1 가): 꺼진 기능 파일만 쓰고, 그 기능을 다시 켤 때 옮긴다(7단계 래칫이 켜진 화면 0을 지킨다).
   assert.match(button, /adminAction:\s*\n/)
 })
 
@@ -294,52 +294,61 @@ test('래칫: confirm( 은 지금 목록 밖 켜진 화면에 새로 생기지 �
 })
 
 test('래칫: alert( 은 지금 목록 밖 켜진 화면에 새로 생기지 않는다', () => {
-  assertRatchet('alert(', /\balert\(/, [
-    // 20번 6단계: 카테고리 칸 편집기(market-category-tree-editor)는 화면 안 오류로 옮겨 뺐다.
-    'src/components/layout/admin-sidebar-client.tsx',
-  ])
+  // 20번 6단계: 카테고리 칸 편집기는 화면 안 오류로 옮겨 뺐다. 7단계: 사이드바 로그아웃 실패 알림을 toast 로 옮겨 목록이 비었다.
+  // 예외는 꺼진 기능 파일(DISABLED_FEATURE_FILE)뿐이다. 이탈 경고 훅(src/hooks/use-unsaved-changes-guard.ts)은 범위 밖이라 따로 둔다(5-3).
+  assertRatchet('alert(', /\balert\(/, [])
 })
 
 test('래칫: adminAction 은 지금 목록 밖 켜진 화면에 새로 생기지 않는다', () => {
-  assertRatchet('adminAction', /\badminAction\b/, [
-    'src/app/(admin)/admin/dashboard-client.tsx',
-    // 22번(20번 6-1 4단계 '홈'): main-ad-settings 는 brandOutline 으로 옮겨 목록에서 뺐다.
-    // 20번 6단계: 상품 화면 8파일(/admin/market/products/**)을 adminTable·brand·brandOutline 으로 옮겨 뺐다.
-    'src/app/(admin)/admin/notices/board-admin.tsx',
-    'src/app/(admin)/admin/notifications/notifications-admin.tsx',
-  ])
+  // 22번(20번 6-1 4단계 '홈'): main-ad-settings 는 brandOutline 으로 옮겨 목록에서 뺐다.
+  // 20번 6단계: 상품 화면 8파일(/admin/market/products/**)을 adminTable·brand·brandOutline 으로 옮겨 뺐다.
+  // 20번 7단계: 대시보드(21번이 다시 만들며 없어짐)·공지/FAQ(board-admin)·알림 화면을 옮겨 목록이 비었다(켜진 화면 0, 예외는 꺼진 기능 파일뿐).
+  assertRatchet('adminAction', /\badminAction\b/, [])
 })
 
+// 20번 7단계 완료 조건: 켜진 화면에서 숫자 표기용 toLocaleString( 은 0(formatCount 등 admin-format.ts).
+// 남은 것은 날짜 표기뿐이다 — 대표가 날짜 표기(formatKstFull 등)를 정하기 전까지 화면마다 지금 모양을 지킨다(1~6단계 판단 1).
+// 숫자 예외 1곳: 탈퇴 패널(10번)의 num — 값 일부가 타입 없는 보관 기록(unknown)에서 와서 formatCount 로 바꾸면 글자 값일 때 '확인 불가'로 바뀔 수 있다.
+const TO_LOCALE_DATE_ALLOWED = {
+  'src/app/(admin)/admin/audit-log/audit-log-client.tsx': 1,
+  'src/app/(admin)/admin/audit-log/member-access-log-client.tsx': 1,
+  'src/app/(admin)/admin/credits/credits-client.tsx': 1,
+  'src/app/(admin)/admin/footer/policy-history/page.tsx': 1,
+  'src/app/(admin)/admin/market/products/_lib/product-form.ts': 1,
+  'src/app/(admin)/admin/orders/market-exception-refund-dialog.tsx': 4,
+  'src/app/(admin)/admin/orders/orders-client.tsx': 1,
+  'src/app/(admin)/admin/refunds/payment-review-client.tsx': 2,
+  'src/app/(admin)/admin/support/support-client.tsx': 2,
+  'src/app/(admin)/admin/support/withdrawn-tickets-panel.tsx': 1,
+  'src/app/(admin)/admin/users/[id]/page.tsx': 1,
+  'src/components/admin/admin-alert-center.tsx': 1,
+}
+const TO_LOCALE_NUMBER_EXCEPTIONS = {
+  'src/app/(admin)/admin/users/[id]/member-withdrawal-panel.tsx': 1,
+}
+const DATE_TO_LOCALE = /new Date\([^)]*\)\.toLocaleString\(/g
+
 test('래칫: 화면별 toLocaleString( 수는 늘지 않는다(새 표기는 admin-format.ts)', () => {
-  const allowed = {
-    // 20번 5단계: 남은 것은 날짜 표기(대표가 표기를 정하기 전까지 지금 모양), 회수 알림 문장(toast), 탈퇴 패널(10번 흐름) 숫자
-    'src/app/(admin)/admin/audit-log/audit-log-client.tsx': 1,
-    'src/app/(admin)/admin/audit-log/member-access-log-client.tsx': 1,
-    'src/app/(admin)/admin/credits/credits-client.tsx': 1,
-    'src/app/(admin)/admin/dashboard-client.tsx': 9,
-    'src/app/(admin)/admin/footer/policy-history/page.tsx': 1,
-    // 20번 6단계: 상품 목록(상태 탭 개수·최저가·전체 가격 → formatCount·formatCredits)·카테고리 칸 편집기(상품 수 → formatCount)는 0.
-    // 남은 product-form.ts 1곳은 파일 올린 시각(날짜 표기, 대표가 정하기 전까지 지금 모양).
-    'src/app/(admin)/admin/market/products/_lib/product-form.ts': 1,
-    'src/app/(admin)/admin/notifications/notifications-admin.tsx': 5,
-    // 20번 2단계: 남은 것은 날짜 표기(문의 판 고르기 4곳, 대표가 표기를 정하기 전까지 지금 모양)
-    'src/app/(admin)/admin/orders/market-exception-refund-dialog.tsx': 4,
-    'src/app/(admin)/admin/orders/orders-client.tsx': 1,
-    'src/app/(admin)/admin/refunds/payment-review-client.tsx': 2,
-    'src/app/(admin)/admin/support/support-client.tsx': 2,
-    'src/app/(admin)/admin/support/withdrawn-tickets-panel.tsx': 1,
-    'src/app/(admin)/admin/users/[id]/member-withdrawal-panel.tsx': 1,
-    'src/app/(admin)/admin/users/[id]/page.tsx': 1,
-    'src/app/(admin)/admin/users/[id]/revoke-credit-button.tsx': 4,
-    'src/components/admin/admin-alert-center.tsx': 2,
-  }
   const over = []
   for (const file of RATCHET_SCOPE) {
     if (DISABLED_FEATURE_FILE.test(file)) continue
     const count = (read(file).match(/toLocaleString\(/g) ?? []).length
-    if (count > (allowed[file] ?? 0)) over.push(`${file}: ${count} > ${allowed[file] ?? 0}`)
+    const allowed = (TO_LOCALE_DATE_ALLOWED[file] ?? 0) + (TO_LOCALE_NUMBER_EXCEPTIONS[file] ?? 0)
+    if (count > allowed) over.push(`${file}: ${count} > ${allowed}`)
   }
   assert.deepEqual(over, [])
+})
+
+test('래칫(7단계 완료 조건): 켜진 화면의 toLocaleString( 은 날짜 표기뿐(숫자는 예외 목록 1곳만)', () => {
+  const numeric = []
+  for (const file of RATCHET_SCOPE) {
+    if (DISABLED_FEATURE_FILE.test(file)) continue
+    const source = read(file)
+    const total = (source.match(/toLocaleString\(/g) ?? []).length
+    const dates = (source.match(DATE_TO_LOCALE) ?? []).length
+    if (total - dates > (TO_LOCALE_NUMBER_EXCEPTIONS[file] ?? 0)) numeric.push(`${file}: 숫자 ${total - dates}`)
+  }
+  assert.deepEqual(numeric, [])
 })
 
 test('부품 파일에는 래칫 대상(confirm·alert·adminAction·toLocaleString)이 없다', () => {

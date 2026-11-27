@@ -20,7 +20,7 @@ export default async function AdminLayout({
   const renderedAt = Date.now()
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[var(--studio-background)]">
       {/* 알림 조회·실시간 구독은 여기서 한 번만 하고, 종과 메뉴 배지가 같이 쓴다 */}
       <AdminAlertProvider adminId={admin.id} renderedAt={renderedAt}>
       <div className="flex">

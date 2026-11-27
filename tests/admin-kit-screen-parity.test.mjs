@@ -1841,3 +1841,108 @@ test('/admin/market/images: 제목줄만 공통 부품(이미지 관리 부품�
   assert.match(page, /<MarketImageLibrary mode="manage" \/>/)
   assert.match(read('src/components/admin/market-image-library.tsx'), /target\?\.closest\('input, textarea, \[role="alertdialog"\]'\)/)
 })
+
+// ───── 7단계 마무리: 사이드바 활성색·관리자 바탕, 남은 adminAction·alert·숫자 toLocaleString (기대값은 a51f631 에서 뽑음) ─────
+const STEP7 = {
+  NOTICES: 'src/app/(admin)/admin/notices',
+  FAQ: 'src/app/(admin)/admin/faq',
+  NOTIFICATIONS: 'src/app/(admin)/admin/notifications',
+  SIDEBAR: 'src/components/layout/admin-sidebar-client.tsx',
+  LAYOUT: 'src/app/(admin)/admin/layout.tsx',
+}
+
+test('7단계: /admin/notices·/admin/faq·/admin/notifications 의 서버 액션·가드·주소 키는 옮기기 전(a51f631)과 같다', () => {
+  const boardServer = ['./actions', '@/lib/admin-permissions-server', '@/lib/admin-permissions-server', '@/lib/site-board-server', '@/lib/site-board-server', '@/lib/site-board-server']
+  const boardGuards = ['requireAdmin()', 'requireAdmin()', 'requireAdmin()', 'requireAdmin()', 'requireAdmin()', "requireAdminPagePermission('content.manage')"]
+  const expected = {
+    [STEP7.NOTICES]: { serverImports: [...boardServer.slice(0, 3), '@/lib/member-broadcast-server', ...boardServer.slice(3)], guards: boardGuards, searchParamKeys: [] },
+    [STEP7.FAQ]: { serverImports: boardServer, guards: boardGuards, searchParamKeys: [] },
+    [STEP7.NOTIFICATIONS]: {
+      serverImports: ['./actions', '@/lib/admin-permissions-server', '@/lib/admin-permissions-server', '@/lib/member-broadcast-server', '@/lib/member-broadcast-server', '@/lib/member-broadcast-server', '@/lib/member-notifications-server', '@/lib/member-notifications-server', '@/lib/site-board-server', '@/lib/site-board-server'],
+      guards: ['requireAdmin()', 'requireAdmin()', 'requireAdmin()', 'requireAdmin()', "requireAdminPagePermission('owner')"],
+      searchParamKeys: ['postId', 'tab'],
+    },
+  }
+  for (const [dir, want] of Object.entries(expected)) {
+    const items = parityItems(dir)
+    assert.deepEqual(items.fetch, [], dir)
+    assert.deepEqual(items.db, [], dir)
+    assert.deepEqual(items.serverImports, want.serverImports, dir)
+    assert.deepEqual(items.guards, want.guards, dir)
+    assert.deepEqual(items.searchParamKeys, want.searchParamKeys, dir)
+    assert.deepEqual(items.confirm, [], dir)
+    assert.deepEqual(items.alert, [], dir)
+    assert.deepEqual(items.guardHook, [], dir)
+  }
+})
+
+test('7단계: 공지/FAQ·알림 화면은 주황 버튼(adminAction)만 보라로 — 같은 버튼·처리 함수·막힘 조건, 숫자는 같은 모양(formatCount)', () => {
+  const board = read(`${STEP7.NOTICES}/board-admin.tsx`)
+  assert.doesNotMatch(board, /adminAction/)
+  for (const fragment of [
+    '<Button variant="brandOutline" onClick={() => openEditor(null)} disabled={pending}>',
+    '<Button size="sm" variant="adminTable" onClick={() => openEditor(post)} disabled={pending || Boolean(post.redactedAt)}>편집</Button>',
+    '<Button size="sm" variant="adminTable" onClick={() => editor.post && void copyAddress(editor.post)}>주소 복사</Button>',
+    '<Button size="sm" variant="adminTable" asChild>\n                        <Link href={`/admin/notifications?tab=broadcast&postId=${editor.post.id}`}>이 공지로 알림 보내기</Link>',
+    "<Button size=\"sm\" variant=\"adminTable\" disabled={value.faq.categories.length >= 20} onClick={() => setCategories([...value.faq.categories, { key: '', label: '' }])}>",
+  ]) {
+    assert.ok(board.includes(fragment), fragment)
+  }
+  const notifications = read(`${STEP7.NOTIFICATIONS}/notifications-admin.tsx`)
+  assert.doesNotMatch(notifications, /adminAction|toLocaleString\(/)
+  for (const fragment of [
+    '<Button variant="brandOutline" onClick={runPreview} disabled={pending || !inputOk}>미리보기</Button>',
+    "toast.success(result.replayed ? '이미 보낸 요청입니다(다시 보내지 않았습니다).' : `${formatCount(result.recipientCount ?? 0)}명에게 보냈습니다.`)",
+    '받는 사람 {formatCount(preview.preview.recipientCount)}명',
+    '{formatCount(preview?.preview.recipientCount ?? 0)}명에게 보냅니다.',
+    '<td className="px-3 py-2">{formatCount(item.recipientCount)}</td>',
+    "{item.readCount === null ? '확인 못 함' : formatCount(item.readCount)}",
+  ]) {
+    assert.ok(notifications.includes(fragment), fragment)
+  }
+})
+
+test('7단계: 회수 알림 문장·알림 센터 건수는 같은 숫자 모양(formatCount), 회수 요청·검사는 그대로', () => {
+  const revoke = read('src/app/(admin)/admin/users/[id]/revoke-credit-button.tsx')
+  assert.doesNotMatch(revoke, /toLocaleString\(/)
+  for (const fragment of [
+    'toast.error(`이 지급 건에 남은 크레딧(${formatCount(remaining)})보다 많이 회수할 수 없습니다.`)',
+    'toast.warning(`크레딧 ${formatCount(parsedAmount)}개를 회수했지만 회원 알림을 보내지 못했습니다. 고객지원으로 직접 알려 주세요.`)',
+    'toast.success(`크레딧 ${formatCount(parsedAmount)}개를 회수했습니다. 회원에게 알림을 보냈습니다.`)',
+    '건에 남은 {formatCount(remaining)} 크레딧 안에서 회수합니다.',
+    'if (!Number.isInteger(parsedAmount) || parsedAmount < 1) {',
+    'if (parsedAmount > remaining) {',
+  ]) {
+    assert.ok(revoke.includes(fragment), fragment)
+  }
+  const center = read('src/components/admin/admin-alert-center.tsx')
+  assert.match(center, /\{value === null \? '확인 불가' : formatCount\(value\)\}/)
+  // 알림 시각(날짜 표기)은 지금 모양 그대로
+  assert.match(center, /new Date\(value\)\.toLocaleString\('ko-KR', \{\n\s+timeZone: 'Asia\/Seoul',\n\s+month: 'numeric',\n\s+day: 'numeric',\n\s+hour: '2-digit',\n\s+minute: '2-digit',\n\s+\}\)/)
+})
+
+test('7단계: 사이드바 — 같은 요청·이름 바꾸기 액션, 로그아웃 실패는 같은 문구의 화면 알림(toast), 활성색은 회원 화면 보라', () => {
+  const sidebar = read(STEP7.SIDEBAR)
+  assert.deepEqual(callsOf(sidebar, 'fetch'), ["fetch('/api/auth/logout', { method: 'POST' })"])
+  assert.match(sidebar, /import \{ renameAdminSidebarMenuAction \} from '@\/app\/\(admin\)\/admin\/menu-management\/actions'/)
+  assert.deepEqual(callsOf(sidebar, 'renameAdminSidebarMenuAction'), ['renameAdminSidebarMenuAction(key, labelToSave)'])
+  assert.deepEqual(callsOf(sidebar, 'alert'), [])
+  assert.deepEqual(callsOf(sidebar, 'confirm'), [])
+  // 실패하면 알림 뒤 버튼을 다시 켠다(전과 같은 순서), 성공이면 로그인 화면으로
+  assert.match(sidebar, /\} catch \{\n\s+toast\.error\('로그아웃에 실패했습니다\.'\)\n\s+setIsLoggingOut\(false\)\n\s+\}/)
+  assert.match(sidebar, /window\.location\.href = '\/admin\/login'/)
+  // 주황 없음, 활성 메뉴 = 보라 바탕 흰 글자, 활성 묶음 제목 = 어두운 바탕용 보라 글자
+  assert.doesNotMatch(sidebar, /orange-/)
+  assert.match(sidebar, /active \? 'bg-\[var\(--studio-primary\)\] text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'/)
+  assert.equal(sidebar.match(/'text-\[var\(--admin-sidebar-accent-text\)\]'/g)?.length, 2)
+  assert.match(sidebar, /aria-current=\{active \? 'page' : undefined\}/)
+})
+
+test('7단계: 관리자 바탕은 회원 화면 바탕 토큰, 본문 감싸기(min-w-0)·여백은 그대로', () => {
+  const layout = read(STEP7.LAYOUT)
+  assert.match(layout, /<div className="min-h-screen bg-\[var\(--studio-background\)\]">/)
+  assert.doesNotMatch(layout, /bg-gray-50/)
+  assert.match(layout, /<div className="flex-1 flex flex-col min-h-screen min-w-0 md:ml-0">/)
+  assert.match(layout, /<div className="p-6 max-md:px-4 max-md:pt-\[4\.5rem\] md:p-8">/)
+  assert.match(layout, /const admin = await requireAdminPanelUser\(\)/)
+})

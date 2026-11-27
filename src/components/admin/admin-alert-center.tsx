@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Bell } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
+import { formatCount } from '@/lib/admin-format'
 import { dispatchStatusMessages, visibleWorkItems, workTotal } from '@/lib/admin-alerts'
 import { useAdminAlerts } from './admin-alert-context'
 
@@ -125,7 +126,7 @@ export function AdminAlertCenter({ className, compact = false }: { className?: s
                                 : 'shrink-0 px-2.5 text-xs text-gray-400'
                             }
                           >
-                            {value === null ? '확인 불가' : value.toLocaleString()}
+                            {value === null ? '확인 불가' : formatCount(value)}
                           </span>
                         </Link>
                       </li>

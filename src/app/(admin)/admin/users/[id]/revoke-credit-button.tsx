@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { formatSignedCredits } from '@/lib/admin-format'
+import { formatCount, formatSignedCredits } from '@/lib/admin-format'
 
 interface RevokeCreditButtonProps {
   sourceId: string
@@ -44,7 +44,7 @@ export function RevokeCreditButton({ sourceId, remaining, sourceLabel }: RevokeC
       return
     }
     if (parsedAmount > remaining) {
-      toast.error(`이 지급 건에 남은 크레딧(${remaining.toLocaleString()})보다 많이 회수할 수 없습니다.`)
+      toast.error(`이 지급 건에 남은 크레딧(${formatCount(remaining)})보다 많이 회수할 수 없습니다.`)
       return
     }
     if (!reason.trim()) {
@@ -74,9 +74,9 @@ export function RevokeCreditButton({ sourceId, remaining, sourceLabel }: RevokeC
         toast.success('이미 처리된 회수입니다. 크레딧 내역을 확인해 주세요.')
       } else if (result.notificationFailed) {
         // 16번 6절: 응답 칸은 notificationFailed 하나로 맞춘다(회수는 끝났고 회원 알림만 실패)
-        toast.warning(`크레딧 ${parsedAmount.toLocaleString()}개를 회수했지만 회원 알림을 보내지 못했습니다. 고객지원으로 직접 알려 주세요.`)
+        toast.warning(`크레딧 ${formatCount(parsedAmount)}개를 회수했지만 회원 알림을 보내지 못했습니다. 고객지원으로 직접 알려 주세요.`)
       } else {
-        toast.success(`크레딧 ${parsedAmount.toLocaleString()}개를 회수했습니다. 회원에게 알림을 보냈습니다.`)
+        toast.success(`크레딧 ${formatCount(parsedAmount)}개를 회수했습니다. 회원에게 알림을 보냈습니다.`)
       }
       setOpen(false)
       router.refresh()
@@ -105,7 +105,7 @@ export function RevokeCreditButton({ sourceId, remaining, sourceLabel }: RevokeC
           <DialogHeader>
             <DialogTitle>크레딧 회수</DialogTitle>
             <DialogDescription>
-              {sourceLabel} 건에 남은 {remaining.toLocaleString()} 크레딧 안에서 회수합니다. 이미 사용한 크레딧은 회수되지 않습니다.
+              {sourceLabel} 건에 남은 {formatCount(remaining)} 크레딧 안에서 회수합니다. 이미 사용한 크레딧은 회수되지 않습니다.
             </DialogDescription>
           </DialogHeader>
 

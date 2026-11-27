@@ -46,6 +46,8 @@
   /* 위험 확정 버튼(adminDanger) 바탕. 흰 글자 대비 4.5:1 이상. */
   --admin-tone-danger-solid: #c4271d;
   --admin-tone-danger-solid-hover: #a91f16;
+  /* 관리자 사이드바(어두운 바탕 slate-900) 위 보라 글자: 활성 묶음 제목·'관리자 패널' 제목(20번 7단계). 바탕 대비 4.5:1 이상. */
+  --admin-sidebar-accent-text: #c3b9f5;
 }
 
 @layer base {

@@ -42,3 +42,18 @@ test('위험 확정 버튼: 흰 글자 대 --admin-tone-danger-solid(·hover) 4.
     assert.ok(ratio >= 4.5, `#fff 대 ${name}: ${ratio.toFixed(2)}:1`)
   }
 })
+
+test('사이드바(7단계): 활성 메뉴 흰 글자 대 --studio-primary, 보라 강조 글자 대 어두운 바탕 4.5:1 이상', () => {
+  assert.ok(contrast('#ffffff', token('studio-primary')) >= 4.5)
+  assert.ok(contrast('#ffffff', token('studio-primary-hover')) >= 4.5)
+  // 사이드바 바탕 Tailwind slate-900 ≈ #0f172a
+  const ratio = contrast(token('admin-sidebar-accent-text'), '#0f172a')
+  assert.ok(ratio >= 4.5, `--admin-sidebar-accent-text 대 slate-900: ${ratio.toFixed(2)}:1`)
+})
+
+test('사이드바(7단계 검증 반영): 이름 입력칸 초점 테두리(--admin-sidebar-accent-text) 대 slate-900 3:1 이상', () => {
+  const sidebar = readFileSync(new URL('../src/components/layout/admin-sidebar-client.tsx', import.meta.url), 'utf8')
+  assert.match(sidebar, /ring-1 ring-slate-600 focus:ring-\[var\(--admin-sidebar-accent-text\)\]/)
+  const ratio = contrast(token('admin-sidebar-accent-text'), '#0f172a')
+  assert.ok(ratio >= 3, `사이드바 초점 테두리 대 slate-900: ${ratio.toFixed(2)}:1`)
+})

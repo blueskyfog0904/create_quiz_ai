@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { ANNOUNCEMENT_NOTIFICATION_TYPE, NotificationBellItemBody, NotificationListItemBody } from '@/components/notifications/notification-item'
+import { formatCount } from '@/lib/admin-format'
 import { formatKstDateTime } from '@/lib/kst-date-format'
 import { MEMBER_FACING_PII_LABELS, memberFacingTextPiiHits, type MemberFacingPiiKind } from '@/lib/member-facing-text-pii'
 import {
@@ -443,7 +444,7 @@ function BroadcastComposer({
         if (result.code === 'BROADCAST_CONFIRM_REQUIRED') router.refresh()
         return
       }
-      toast.success(result.replayed ? '이미 보낸 요청입니다(다시 보내지 않았습니다).' : `${(result.recipientCount ?? 0).toLocaleString('ko-KR')}명에게 보냈습니다.`)
+      toast.success(result.replayed ? '이미 보낸 요청입니다(다시 보내지 않았습니다).' : `${formatCount(result.recipientCount ?? 0)}명에게 보냈습니다.`)
       setPreviewState(null)
       setAgreedKey(null)
       setTitle('')
@@ -511,7 +512,7 @@ function BroadcastComposer({
             </p>
           ) : null}
           <div className="flex flex-wrap gap-2">
-            <Button variant="adminAction" onClick={runPreview} disabled={pending || !inputOk}>미리보기</Button>
+            <Button variant="brandOutline" onClick={runPreview} disabled={pending || !inputOk}>미리보기</Button>
             <Button variant="destructive" onClick={() => setConfirmOpen(true)} disabled={pending || !canSend}>보내기</Button>
           </div>
           {previewState && !preview ? <p className="text-xs text-amber-800">입력이 바뀌어 미리보기가 풀렸습니다. 다시 미리보기를 해 주세요.</p> : null}
@@ -523,7 +524,7 @@ function BroadcastComposer({
           <CardHeader className="pb-2">
             <CardTitle className="text-base">미리보기</CardTitle>
             <CardDescription>
-              받는 사람 {preview.preview.recipientCount.toLocaleString('ko-KR')}명 · 24시간 상한 {preview.preview.dailyLimit}회 중 {preview.preview.usedInWindow}회 사용(남은 {preview.preview.remaining}회)
+              받는 사람 {formatCount(preview.preview.recipientCount)}명 · 24시간 상한 {preview.preview.dailyLimit}회 중 {preview.preview.usedInWindow}회 사용(남은 {preview.preview.remaining}회)
               {preview.preview.nextAvailableAt ? ` · 다음 가능 시각 ${formatKstDateTime(preview.preview.nextAvailableAt)}` : ''}
             </CardDescription>
           </CardHeader>
@@ -555,7 +556,7 @@ function BroadcastComposer({
           <AlertDialogHeader>
             <AlertDialogTitle>공지 알림을 보낼까요?</AlertDialogTitle>
             <AlertDialogDescription className="text-left leading-6">
-              {(preview?.preview.recipientCount ?? 0).toLocaleString('ko-KR')}명에게 보냅니다. 보낸 뒤에는 고칠 수 없고 회수만 할 수 있습니다.
+              {formatCount(preview?.preview.recipientCount ?? 0)}명에게 보냅니다. 보낸 뒤에는 고칠 수 없고 회수만 할 수 있습니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -625,10 +626,10 @@ function BroadcastHistory({ history, canRedact }: { history: NotificationsAdminP
                 <td className="whitespace-nowrap px-3 py-2">{formatKstDateTime(item.createdAt)}</td>
                 <td className="px-3 py-2">{item.actorLabel}</td>
                 <td className="px-3 py-2">{BROADCAST_TARGET_LABELS[item.target]}</td>
-                <td className="px-3 py-2">{item.recipientCount.toLocaleString('ko-KR')}</td>
+                <td className="px-3 py-2">{formatCount(item.recipientCount)}</td>
                 <td className="px-3 py-2">{item.title}</td>
                 <td className="px-3 py-2 text-xs">{item.linkUrl ?? '-'}</td>
-                <td className="px-3 py-2">{item.readCount === null ? '확인 못 함' : item.readCount.toLocaleString('ko-KR')}</td>
+                <td className="px-3 py-2">{item.readCount === null ? '확인 못 함' : formatCount(item.readCount)}</td>
                 <td className="px-3 py-2">
                   {item.retractedAt ? (
                     <div className="space-y-1">

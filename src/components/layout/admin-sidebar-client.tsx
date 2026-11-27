@@ -59,7 +59,7 @@ export function AdminSidebarClient({ navigationConfig, hiddenHrefs, canRenameMen
       }
       window.location.href = '/admin/login'
     } catch {
-      alert('로그아웃에 실패했습니다.')
+      toast.error('로그아웃에 실패했습니다.')
       setIsLoggingOut(false)
     }
   }
@@ -143,7 +143,7 @@ export function AdminSidebarClient({ navigationConfig, hiddenHrefs, canRenameMen
           placeholder={defaultName}
           aria-label="메뉴 이름"
           disabled={isSavingMenuLabel}
-          className="min-w-0 flex-1 rounded-md bg-slate-900 px-2 py-1.5 text-sm text-white outline-none ring-1 ring-slate-600 focus:ring-orange-500"
+          className="min-w-0 flex-1 rounded-md bg-slate-900 px-2 py-1.5 text-sm text-white outline-none ring-1 ring-slate-600 focus:ring-[var(--admin-sidebar-accent-text)]"
         />
         <button
           type="submit"
@@ -177,7 +177,7 @@ export function AdminSidebarClient({ navigationConfig, hiddenHrefs, canRenameMen
       className={cn(
         'absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-1.5 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/menu:opacity-100 [@media(hover:none)]:opacity-100',
         active
-          ? 'bg-orange-600 text-orange-100 hover:bg-orange-700 hover:text-white'
+          ? 'bg-[var(--studio-primary)] text-white hover:bg-[var(--studio-primary-hover)]'
           : cn(surface === 'link' ? 'bg-slate-800' : 'bg-slate-900', 'text-slate-400 hover:bg-slate-700 hover:text-white')
       )}
     >
@@ -219,7 +219,7 @@ export function AdminSidebarClient({ navigationConfig, hiddenHrefs, canRenameMen
           className={cn(
             'flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors',
             variant === 'child' && !collapsed && 'py-2 pl-3',
-            active ? 'bg-orange-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+            active ? 'bg-[var(--studio-primary)] text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white',
             collapsed && 'md:justify-center md:px-2'
           )}
           title={collapsed ? (item.subject ? `${WORKSPACE_SUBJECT_LABELS[item.subject]} ${item.name}` : item.name) : undefined}
@@ -245,7 +245,7 @@ export function AdminSidebarClient({ navigationConfig, hiddenHrefs, canRenameMen
           aria-label="메뉴 열기"
           aria-expanded={mobileOpen}
           aria-controls="admin-sidebar"
-          className="flex h-10 w-10 items-center justify-center rounded-md outline-none hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-orange-500"
+          className="flex h-10 w-10 items-center justify-center rounded-md outline-none hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
           onClick={() => setMobileOpen(true)}
         >
           <Menu className="h-5 w-5" aria-hidden="true" />
@@ -278,7 +278,7 @@ export function AdminSidebarClient({ navigationConfig, hiddenHrefs, canRenameMen
         </div>
 
         <div className={cn('border-b border-slate-700 px-4 py-4', collapsed && 'md:px-2 md:py-3')}>
-          <h2 className={cn('text-lg font-bold text-orange-400', collapsed && 'md:text-center md:text-sm')}>
+          <h2 className={cn('text-lg font-bold text-[var(--admin-sidebar-accent-text)]', collapsed && 'md:text-center md:text-sm')}>
             {collapsed ? '관리' : '관리자 패널'}
           </h2>
         </div>
@@ -309,7 +309,7 @@ export function AdminSidebarClient({ navigationConfig, hiddenHrefs, canRenameMen
                           'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold transition-colors hover:bg-slate-800',
                           // 이름 바꾸기 연필(오른쪽 끝)이 펼침 화살표를 덮지 않게 자리를 비운다
                           canRenameMenus && 'pr-10',
-                          groupActive ? 'text-orange-300' : 'text-slate-300'
+                          groupActive ? 'text-[var(--admin-sidebar-accent-text)]' : 'text-slate-300'
                         )}
                       >
                         {(() => {
@@ -341,7 +341,7 @@ export function AdminSidebarClient({ navigationConfig, hiddenHrefs, canRenameMen
                   <div
                     className={cn(
                       'group/menu relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold',
-                      node.items.some((item) => isActive(item)) ? 'text-orange-300' : 'text-slate-400'
+                      node.items.some((item) => isActive(item)) ? 'text-[var(--admin-sidebar-accent-text)]' : 'text-slate-400'
                     )}
                   >
                     {(() => {

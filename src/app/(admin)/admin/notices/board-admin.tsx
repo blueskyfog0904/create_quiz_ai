@@ -286,7 +286,7 @@ export function BoardAdmin({ data, canRedact, piiAllowed, canBroadcast = false, 
                     : '분류마다 정한 순서로 회원 화면에 보입니다. 숨긴 글도 순서 묶음에 함께 보입니다.'}
                 </CardDescription>
               </div>
-              <Button variant="adminAction" onClick={() => openEditor(null)} disabled={pending}>
+              <Button variant="brandOutline" onClick={() => openEditor(null)} disabled={pending}>
                 <Plus /> 새 글
               </Button>
             </CardHeader>
@@ -321,7 +321,7 @@ export function BoardAdmin({ data, canRedact, piiAllowed, canBroadcast = false, 
                         <td className="py-2 pr-3 text-xs text-gray-600">{post.updatedByLabel ?? '-'}</td>
                         <td className="py-2 text-right">
                           <div className="flex justify-end gap-2">
-                            <Button size="sm" variant="adminAction" onClick={() => openEditor(post)} disabled={pending || Boolean(post.redactedAt)}>편집</Button>
+                            <Button size="sm" variant="adminTable" onClick={() => openEditor(post)} disabled={pending || Boolean(post.redactedAt)}>편집</Button>
                             <Button size="sm" variant="outline" onClick={() => setConfirm({ kind: 'delete', post })} disabled={pending}>삭제</Button>
                             {canRedact && !post.isPublished && !post.redactedAt ? (
                               <Button size="sm" variant="outline" onClick={() => setConfirm({ kind: 'redact', post })} disabled={pending}>가림</Button>
@@ -469,13 +469,13 @@ export function BoardAdmin({ data, canRedact, piiAllowed, canBroadcast = false, 
                   <div className={`space-y-2 rounded-md px-3 py-2 text-sm ${data.noticePeriod ? 'bg-amber-50 text-amber-900' : 'bg-gray-50 text-gray-700'}`}>
                     <div className="flex flex-wrap items-center gap-2">
                       <code className="rounded bg-white px-2 py-1 text-xs">{noticePath(editor.post.id)}</code>
-                      <Button size="sm" variant="adminAction" onClick={() => editor.post && void copyAddress(editor.post)}>주소 복사</Button>
+                      <Button size="sm" variant="adminTable" onClick={() => editor.post && void copyAddress(editor.post)}>주소 복사</Button>
                     </div>
                     <p>공지 팝업 링크로 쓸 수 있습니다. 약관 변경 고지 기간에는 팝업 링크를 바꾸지 마세요.</p>
                     {popupLinked(editor.post) ? <p className="font-semibold text-orange-800">지금 공지 팝업이 이 글로 연결됩니다.</p> : null}
                     {/* 16번 7-3: 게시 중인 저장된 공지로 공지 알림 보내기(대표만) — '알림' 화면의 보내기 탭을 이 글로 채워 연다 */}
                     {canBroadcast ? (
-                      <Button size="sm" variant="adminAction" asChild>
+                      <Button size="sm" variant="adminTable" asChild>
                         <Link href={`/admin/notifications?tab=broadcast&postId=${editor.post.id}`}>이 공지로 알림 보내기</Link>
                       </Button>
                     ) : null}
@@ -656,7 +656,7 @@ function BoardContentEditor({
                 <Button size="sm" variant="outline" disabled={value.faq.categories.length <= 1} onClick={() => setCategories(value.faq.categories.filter((_, at) => at !== index))}>지우기</Button>
               </div>
             ))}
-            <Button size="sm" variant="adminAction" disabled={value.faq.categories.length >= 20} onClick={() => setCategories([...value.faq.categories, { key: '', label: '' }])}>
+            <Button size="sm" variant="adminTable" disabled={value.faq.categories.length >= 20} onClick={() => setCategories([...value.faq.categories, { key: '', label: '' }])}>
               <Plus /> 분류 추가
             </Button>
           </div>
