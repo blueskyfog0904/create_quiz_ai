@@ -6239,7 +6239,9 @@ BEGIN
     v_log := v_log || pg_temp.expect(pg_temp.try_sql(format('UPDATE public.member_notification_broadcasts SET title = %L WHERE id = %L', '바꿈', v_id)), 'ERR MEMBER_BROADCASTS_APPEND_ONLY', 'R5', '제목 UPDATE 거절');
     v_log := v_log || pg_temp.expect(pg_temp.try_sql(format('UPDATE public.member_notification_broadcasts SET recipient_count = 2 WHERE id = %L', v_id)), 'ERR MEMBER_BROADCASTS_APPEND_ONLY', 'R5', '인원 UPDATE 거절');
     v_log := v_log || pg_temp.expect(pg_temp.try_sql(format('DELETE FROM public.member_notification_broadcasts WHERE id = %L', v_id)), 'ERR MEMBER_BROADCASTS_APPEND_ONLY', 'R5', 'DELETE 거절');
-    v_log := v_log || pg_temp.expect(pg_temp.try_sql('TRUNCATE public.member_notification_broadcasts'), 'ERR MEMBER_BROADCASTS_APPEND_ONLY', 'R5', 'TRUNCATE 거절');
+    -- full 에서는 notifications.broadcast_id FK 가 생겨 Postgres 가 트리거보다 먼저 FK 로 거절한다(0A000). 둘 다 '거절'이면 통과.
+    v_log := v_log || pg_temp.expect((SELECT CASE WHEN s.r LIKE 'ERR cannot truncate a table referenced in a foreign key constraint%' THEN 'ERR MEMBER_BROADCASTS_APPEND_ONLY (FK 로 먼저 거절)' ELSE s.r END
+      FROM (SELECT pg_temp.try_sql('TRUNCATE public.member_notification_broadcasts') AS r) s), 'ERR MEMBER_BROADCASTS_APPEND_ONLY', 'R5', 'TRUNCATE 거절');
     v_log := v_log || pg_temp.expect(pg_temp.try_sql(format('UPDATE public.member_notification_broadcasts SET title = %L, message = %L, redacted_at = now(), redacted_by = %L WHERE id = %L',
       pg_temp.texts() #>> '{broadcast,redactedText}', pg_temp.texts() #>> '{broadcast,redactedText}', v_owner, v_id)), 'ERR MEMBER_BROADCASTS_APPEND_ONLY', 'R5', '회수 전 가림 거절');
     v_log := v_log || pg_temp.expect(pg_temp.try_sql(format('UPDATE public.member_notification_broadcasts SET retracted_at = now(), retracted_by = %L, retract_reason_code = %L, retracted_deleted_count = 0, retracted_read_count = 0 WHERE id = %L',
