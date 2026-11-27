@@ -1,7 +1,6 @@
 import 'server-only'
 
 import { readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
 import { unstable_cache } from 'next/cache'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/bypass'
@@ -57,6 +56,7 @@ function catalogDb() {
   return createAdminClient() as unknown as SupabaseClient
 }
 
+// 경로는 환경 변수 그대로 읽는다(상대 경로는 Node 가 작업 폴더 기준으로 푼다). process.cwd() 로 만들면 배포 때 파일 추적이 저장소 전체를 함수에 담아 250MB 를 넘긴다.
 // ── 10-2. 개발 전용 미리보기(운영 DB 의 17번 표를 읽거나 쓰지 않고 예시 값을 메모리에서 그린다) ──────────────────────────
 // 켜는 법: `PRODUCT_INFO_PREVIEW=1 PRODUCT_INFO_PREVIEW_FILE=output/b17-product-info-preview.json npm run dev`
 // 파일은 생성기(node supabase/scripts/bundle17_rehearsal/generate.mjs --preview)가 마이그레이션 첫 값에서 만든다.
@@ -76,7 +76,7 @@ export interface ProductInfoPreviewData {
 export async function readProductInfoPreviewData(): Promise<ProductInfoPreviewData> {
   const file = process.env.PRODUCT_INFO_PREVIEW_FILE
   if (!isProductInfoPreviewEnabled() || !file) throw new Error('product info preview file missing')
-  const parsed = JSON.parse(await readFile(resolve(process.cwd(), file), 'utf8')) as Partial<ProductInfoPreviewData>
+  const parsed = JSON.parse(await readFile(file, 'utf8')) as Partial<ProductInfoPreviewData>
   return { options: Array.isArray(parsed.options) ? parsed.options : [], display: parsed.display ?? null, usageBasis: parsed.usageBasis ?? null }
 }
 
@@ -92,7 +92,7 @@ export function isProductDisplayPreviewEnabled() {
 export async function readProductDisplayPreviewData(): Promise<{ display: unknown; detailPreview: unknown }> {
   const file = process.env.PRODUCT_DISPLAY_PREVIEW_FILE
   if (!isProductDisplayPreviewEnabled() || !file) throw new Error('product display preview file missing')
-  const parsed = JSON.parse(await readFile(resolve(process.cwd(), file), 'utf8')) as { display?: unknown; detailPreview?: unknown }
+  const parsed = JSON.parse(await readFile(file, 'utf8')) as { display?: unknown; detailPreview?: unknown }
   return { display: parsed.display ?? null, detailPreview: parsed.detailPreview ?? null }
 }
 

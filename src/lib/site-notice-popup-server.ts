@@ -1,7 +1,6 @@
 import 'server-only'
 
 import { readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
 import { unstable_cache } from 'next/cache'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/bypass'
@@ -54,7 +53,7 @@ async function readPreviewUpcomingFile(): Promise<unknown> {
   const file = process.env.NOTICE_POPUP_PREVIEW_UPCOMING_FILE
   if (!isNoticePopupPreviewEnabled() || !file) return null
   try {
-    return JSON.parse(await readFile(resolve(process.cwd(), file), 'utf8'))
+    return JSON.parse(await readFile(file, 'utf8'))
   } catch {
     // 파일이 없거나 깨졌으면 조용히 없음으로 본다.
     return null

@@ -1,7 +1,6 @@
 import 'server-only'
 
 import { readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
 import { unstable_cache } from 'next/cache'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/bypass'
@@ -101,7 +100,7 @@ async function readPreviewData(): Promise<SiteBoardPreviewData | null> {
   const file = process.env.SITE_BOARD_PREVIEW_FILE
   if (!isSiteBoardPreviewEnabled() || !file) return null
   try {
-    const parsed = JSON.parse(await readFile(resolve(process.cwd(), file), 'utf8')) as Partial<SiteBoardPreviewData>
+    const parsed = JSON.parse(await readFile(file, 'utf8')) as Partial<SiteBoardPreviewData>
     return { content: parsed.content ?? null, posts: Array.isArray(parsed.posts) ? parsed.posts : [], popup: parsed.popup ?? null }
   } catch {
     return null

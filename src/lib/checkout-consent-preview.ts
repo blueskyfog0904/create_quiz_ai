@@ -24,8 +24,7 @@ export async function readCheckoutConsentPreviewKeys(kind: CheckoutConsentPrevie
   if (!isCheckoutConsentPreview() || !file) return null
   try {
     const { readFile } = await import('node:fs/promises')
-    const { resolve } = await import('node:path')
-    const parsed = JSON.parse(await readFile(resolve(process.cwd(), file), 'utf8')) as unknown
+    const parsed = JSON.parse(await readFile(file, 'utf8')) as unknown
     const keys = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>)[kind] : null
     if (!keys || typeof keys !== 'object' || Array.isArray(keys)) return null
     return Object.fromEntries(Object.entries(keys as Record<string, unknown>).filter(([key]) => !PREVIEW_KEYS_IGNORED.has(key)))
