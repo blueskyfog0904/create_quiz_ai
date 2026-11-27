@@ -390,3 +390,64 @@ Q7. 화면 비교
   - 오류 띠가 생기면 그 자리로 옮겨 보인다(`scrollIntoView({ block: 'nearest' })`).
   - 위 비교 목록에 '알림 창 → 위쪽 띠' 확인 항목을 더했다.
 - 시험: 대조 시험과 kit 계약 시험에 위 내용 단언을 더했다.
+
+## 구현 메모 (2·3단계)
+작성일: 2026-11-27. 2단계(`/admin/orders`, 예외 환불 창 유형 나 포함)·3단계(`/admin/pricing`, `/admin/storefront-menu`, `/admin/admin-accounts`, `/admin/menu-management`)·3-2단계(`/admin/footer` 전체, 공용 `checkout-consent-editor.tsx`·`checkout-consent-admin-preview.tsx`)를 했다. 4단계(홈 진열·홈 배너, 22번이 다시 만듦)와 다른 화면·DB 는 건드리지 않았다. 커밋·push 하지 않았다. 공용 부품 규칙대로 3단계 `/admin/pricing` 커밋에는 동의 편집기를 넣지 않고, 편집기·미리보기는 3-2단계 커밋(footer 와 함께)으로 나눈다.
+
+**바꾼 파일**
+- 2단계: `orders/page.tsx`(제목줄·탭 보라), `orders-client.tsx`·`market-orders-client.tsx`(필터 줄 `AdminFilterBar` + '결과 n건', 표 `AdminDataTable` 760·860px, 상태 `AdminStatusBadge`+`adminStatusTone`, 불러오는 중·실패·0건 `AdminTableState`, 오류·주의 띠 `AdminNotice`, [상세] `adminTable`, [예외 환불] `brandOutline`), `market-exception-refund-dialog.tsx`(부족분 `window.confirm` → `await ask()` 유형 나, 같은 try 안에서 `submitting` 을 쥔 채 기다림, 확인 창은 예외 환불 창 안에 그림).
+- 3단계
+  - `pricing/page.tsx`(제목줄), `pricing-plans-client.tsx`(표·배지·판매 상태 확인 창 → `AdminConfirmDialog`, 판매 중지는 `adminDanger`, 처리 중 닫힘·확정 막힘), `components/pricing-plan-dialog.tsx`(오류 띠·버튼 색), `pricing-page-content-form.tsx`·`point-charge-policy-form.tsx`(저장 버튼 → 인라인 저장 줄, 안내·오류 → `AdminNotice`/tone 글자색).
+  - `storefront-menu-client.tsx`: 제목줄(도구 칸 [되돌리기]), 저장 함수 하나 → 아래 고정 저장 바, 빈 목록 `AdminTableState`.
+  - `admin-accounts/page.tsx`·`admin-accounts-client.tsx`·`admin-permissions-dialog.tsx`: `confirm(` 2곳 → `await ask()` 유형 가(삭제·권한 해제, 위험 버튼), `alert(` 11곳 → 같은 문구의 화면 안 오류 띠(목록 읽기·새 계정·줄 작업·비밀번호 창) 또는 성공 알림(toast: 비밀번호 변경·권한 저장), 표 `AdminDataTable`(960px).
+  - `menu-management-client.tsx`: 제목줄(도구 칸 과목 전환기, 전에도 제목 옆), 인라인 저장 줄 2개(`handleSaveAll`·`handleSaveAdminSidebar`, 이탈 경고 훅은 OR 1개 그대로), 표 4개, 삭제·보관 확인 창 → `AdminConfirmDialog`.
+- 3-2단계: `footer-client.tsx`·`site-brand-form.tsx`·`notice-popup-admin.tsx`·`signup-consent-admin.tsx`·`purchase-policy-form.tsx`(저장 함수마다 인라인 저장 줄 6개, 이탈 경고 훅 1개 그대로), `site-logo-settings.tsx`(버튼·오류 띠만), `policy-history/page.tsx`(제목줄·빈 칸). 동의 편집기는 입력 처리 16곳이 HEAD 와 글자까지 같다(시험이 지문으로 봄) — 저장 내용·동의 지문이 바뀌지 않는다.
+- 부품(작은 추가): `AdminConfirmDialog` 에 선택 속성 `pending`(창 안에서 처리 기다림), `admin-save-bar.tsx` 에 순수 함수 `countChangedFields`(저장된 값과 다른 칸 수 → 저장 바 'n건'), `admin-status-tone.ts` 에 **충전 요금제** 줄(판매중 = success, 비활성 = neutral).
+- 시험
+  - `admin-kit-screen-parity`: 화면마다 6-2 대조 항목을 38a1273 에서 뽑아 기대값으로 적음(바뀐 것은 없앤 `confirm`·`alert` 뿐). 유형 (나)는 예외 환불 창의 `submit` 을 떼어 실제로 돌린다 — 409 → 확인 → `confirmedRefundCredits: 60` 재요청, 취소면 재요청 없음, 창이 열린 동안 `submitting` 이 true. 유형 (가)는 `ask` → 취소면 return → 그 뒤 잠금·요청 순서. 저장 바 하나 = 저장 함수 하나(storefront 고정 1, pricing 인라인 2, menu-management 인라인 2, footer 인라인 6).
+  - 래칫: `confirm(` 목록에서 admin-accounts·예외 환불 창, `alert(` 목록에서 admin-accounts 2파일, `adminAction` 목록에서 11파일을 뺌. `toLocaleString(` 상한: 예외 환불 창 12 → 4, 충전 주문 8 → 1, 마켓 주문·요금제 목록은 목록에서 뺌(0). 남은 것은 모두 날짜 표기.
+  - 같은 뜻으로 바꾼 기존 단언: `admin-orders-contract`·`admin-market-orders-contract`(`<div role="alert"` → `<AdminNotice kind="error"`, 다운로드 배지 글은 `label` 템플릿), `admin-unsaved-draft-preservation-contract:73,75`(`alert('비밀번호 확인이 일치하지 않습니다.')` → 같은 문구 `setPasswordError`·`setCreateError` + 띠 그리기 단언, 9절 예정 항목), `pricing-page-content-contract`(`disabled={saving || readFailed}` → `saveDisabled=`), `site-brand-contract`(저장 버튼 막힘 → 저장 줄 `saveDisabled`·`status`).
+
+**구현 때 판단한 것(대표 확인 대상)**
+1. **날짜 표기는 화면마다 지금 모양 그대로**(주문 `toLocaleString('ko-KR')`, 관리자 계정 `YYYY.MM.DD`, 약관 이력·예외 환불 창 문의 판). 정해 주면 `formatKstFull` 로 한 번에 바꾼다.
+2. **숫자 표기는 공통 함수로 바뀌었다**: 크레딧 '3,000 크레딧' → '3,000 C', 요금제 가격 '₩9,900' → '9,900원', 빈 값 '-' → '–'(금액만, 날짜는 그대로). 예외 환불 창의 '낸 크레딧 1,000'처럼 단위 없던 곳은 그대로.
+3. **상태 색이 5-1 표를 따르며 바뀐 것**: 충전 주문 '수동 확인 필요' 빨강 → 호박, '결제 실패' 회색 → 빨강, 진행 중 상태들 호박 → 파랑, 환불 요청 배지 회색 → 상태별 색. 마켓 주문 '회수됨·구매 실패' 회색 → 빨강, 권한 '환불로 회수' 빨강 → 파랑. 요금제 '판매중' 초록 글자 → 초록 배지.
+4. 주문 두 탭의 필터 줄 오른쪽에 '결과 n건'이 생겼다(읽기 실패면 '확인 불가'). [초기화]는 넣지 않았다(전에 없던 동작).
+5. **저장 줄은 변경이 없으면 저장 버튼을 막는다.** 전에는 늘 누를 수 있던 곳: 충전 화면 문구, 결제 전 확인 문구, 공지 팝업, 가입 동의 항목·안내 문구. 변경 없는 저장은 서버가 쓰는 것이 없거나 같은 값을 다시 쓰는 것이라 데이터 영향은 없다고 판단했다. 저장 실패는 지금처럼 알림(toast)도 뜨고 저장 줄에도 빨간 글 + [다시 시도].
+6. 저장 버튼 위치: 요금제 두 폼은 카드 아래 오른쪽 버튼 → 카드 아래 저장 줄, 상단 메뉴는 제목 오른쪽 [저장] → 화면 아래 고정 저장 바([되돌리기]는 제목 오른쪽에 남음), 메뉴 관리 [일반 메뉴 저장]은 제목 오른쪽 → 제목 아래 저장 줄, [하단 정보 저장]은 머리줄 → '기본 사업자 정보' 카드 바로 위.
+7. 반영 안내 문구(저장 줄 아래 작은 글)는 초안이다: '저장하면 충전 화면에 바로 반영됩니다.', '저장한 뒤 결제부터 새 문구로 동의를 받습니다.', 상단 메뉴는 전의 안내 문장을 옮김, 메뉴 관리 2개·footer 3개(각 작업 보고 문구). 바꾸려면 알려 주면 된다.
+8. 요금제 판매 상태 확인 창이 공통 창으로 바뀌었다: 영향 목록(요금제·가격·크레딧), 첫 초점 [취소], 판매 중지 확정은 진한 빨강, 처리 중에는 닫히지 않음(전과 같음).
+9. 관리자 계정: 알림 창이 뜨던 자리 → 화면 안 빨간 띠(새 계정 칸 아래·표 위·비밀번호 창 안). 성공 두 가지('비밀번호를 변경했습니다.', '권한을 저장했습니다…')는 화면 위 알림(toast). 표 안 [권한 해제]·[삭제]는 빨강 글자 테두리 버튼, 확정 창은 진한 빨강. 배지 색: 내 계정 파랑, 관리자 ID 초록·기존 계정 회색, 대표 호박·일반 회색(전과 같은 계열).
+10. 메뉴 관리: 대메뉴 줄 회색 바탕 → 이름 굵게(표 부품에 줄 색 없음), 아이콘 버튼에 한국어 이름표(예: '…위로 이동').
+11. 로고 카드(footer)는 고르면 바로 올라가는 동작이라 저장 줄을 두지 않았다(1단계 비밀번호 화면과 같은 판단). 가입 동의 항목 편집 칸의 저장 줄은 '저장됨'을 보이지 않는다(저장되면 칸이 닫힘).
+
+**2·3단계 검증 반영(3관점 PASS·minor 5)**
+- `/admin/storefront-menu`: 저장 바 `saveDisabled` 에 `!hasChanges` 를 다시 넣었다(전 저장 버튼 막힘 조건과 글자까지 같음).
+- 저장 바(부품): 실패여도 저장 안 된 변경이 0건이면 '변경 없음'으로 보이고 [다시 시도]를 막는다(예: 공지 팝업이 충돌로 다시 읽은 뒤 헛 [다시 시도]). 규칙은 순수 파일 `kit/admin-save-bar-state.ts`(`adminSaveBarView`, `countChangedFields` 도 이리 옮기고 `admin-save-bar.tsx` 가 다시 내보냄)로 떼어 kit 계약 시험이 직접 돌린다. 홈 진열·매출 보고 화면(22·21번)의 저장 바에도 같은 규칙이 적용된다.
+- 저장 바에 선택 속성 `saveWhenClean`: `point-charge-policy-form.tsx` 는 변경 0건이어도 예전 칸 검사에 걸리면(`blocked && legacyFieldsInvalid`) 버튼이 켜져, 전처럼 누르면 되돌리기용 칸을 펼치고 초점을 옮긴다.
+- `/admin/admin-accounts`: 목록을 다시 읽는 데 성공하면 앞 줄 작업 오류 띠를 지운다.
+- '변경이 없으면 저장 막힘'(판단 5, 5곳)은 그대로 두고 대표 확인 항목으로 남긴다.
+
+**확인 결과**
+- `node --test tests/*.test.mjs`: 2429건 중 실패 43(검증 반영 뒤). 작업 전(38a1273, 같은 작업 트리에서 먼저 돌림) 2410건 중 43과 실패 이름이 같다(새 실패 0). 대조 시험 22건(1단계 4건 포함) 통과.
+- `npx tsc --noEmit -p .`: `.next/` 밖 오류 0.
+- 바꾼 src 파일 eslint: 1건 — `pricing-plans-client.tsx:32` `catch (err: any)`(HEAD 부터 있던 줄, 이번에 건드리지 않음).
+
+**대표 화면 비교 순서(내가 실행하지 않음)**
+- '바꾸기 전'은 38a1273(지금 HEAD). 1단계 메모의 순서대로 하되 `git worktree add ../create_quiz_ai-before 38a1273` 으로 꺼내 4001 에 띄운다. 지금 폴더(바뀐 코드)는 4000.
+- 주소: `/admin/orders,/admin/orders?tab=market,/admin/pricing,/admin/storefront-menu,/admin/admin-accounts,/admin/menu-management?subject=korean,/admin/menu-management?subject=english,/admin/footer,/admin/footer/policy-history`
+  - 전: `node scripts/admin-visual-snapshot.mjs capture --label before-s2 --base http://localhost:4001 --paths <위 주소>`
+  - 후: `node scripts/admin-visual-snapshot.mjs capture --label after-s2 --paths <위 주소> --confirm '/admin/admin-accounts::권한 해제'`(일반 관리자 계정이 있을 때만. 전 화면은 브라우저 확인 창이라 찍히지 않는다)
+  - 필터 적용 사진: `/admin/orders?status=completed`, `/admin/orders?tab=market&orderSubject=english` 를 주소에 더한다.
+  - 주문·관리자 계정 화면은 회원 이메일이 보인다. 후 화면은 회원 칸을 가리지만 전 화면은 안 가린다 — 사진을 밖에 공유하지 않는다. 13번 열람 기록이 쌓일 수 있다.
+- 볼 것(세 폭 1366·1024×768·375×667)
+  - `/admin/orders` 두 탭: 제목·설명 그대로, 탭 밑줄 보라. 필터 줄 한 칸(검색 보라 [검색], 상태·결제사·환경 / 상태·과목, 기간) + 오른쪽 '결과 n건'. 열 7개 그대로, [상세] 보라 테두리(1024·1366 32px, 375 44px). 배지 색은 위 판단 3. 1366 에서 표 머리 고정·페이지 스크롤, 1024·375 에서는 표 안에서만 옆으로 밀리고 첫 열(주문 시각) 고정. 쪽 넘김 그대로. 상세 창(직접 열기): 칸 순서·문구 그대로, 크레딧 'N C'.
+  - **예외 환불(직접 해 보기, 쓰기라 사진 없음)**: 시험 계정 완료 주문으로 [금액 확인]까지만 본다. 부족분 창은 실제 환불 요청이 나간 뒤에만 뜨므로 운영 DB 에서는 일부러 띄우지 않는다(시험이 흐름을 돌려 봄). 떴을 때 모양: 제목 '일부만 돌려줄 수 있습니다', 서버 안내 글, 영향 목록 '요청 N C / 돌려줄 수 있음 N C', [취소]·[돌려줄 수 있는 만큼 환불].
+  - `/admin/pricing`: 제목·설명, 요금제 표 열 7개(가격 '9,900원'), 판매 상태 스위치 + 배지. 스위치를 누르면 확인 창(사진은 직접): 영향 목록·[취소] 첫 초점·판매 중지 진한 빨강 — 확정은 누르지 않고 Esc. 두 폼 아래 저장 줄 '변경 없음' + 안내 글 + 막힌 [문구 저장]·[결제 고지 문구 저장]. 칸 하나를 고치면 '저장 안 된 변경 1건' + 버튼 켜짐(저장하지 말고 새로고침으로 되돌림). '…추가' 버튼 보라 테두리.
+  - `/admin/storefront-menu`: 제목 오른쪽 [되돌리기], 링크 줄마다 칸·스위치·아이콘 버튼(보라 테두리), 아래 고정 저장 바가 화면 아래에 붙어 있음(375 에서 줄바꿈되고 잘리지 않음).
+  - `/admin/admin-accounts`: 새 계정 칸, 표 열 6개(1366 에서도 960px 를 넘지 않게 맞춰 표 안 스크롤이 생길 수 있음), 버튼 넷 보라·빨강 테두리. 빈 아이디로 [관리자 ID 추가]를 누르면 칸 아래 빨간 띠(요청 없음). 비밀번호 창에서 확인 칸을 다르게 넣으면 빨간 글.
+  - `/admin/menu-management`(국어·영어): 제목 '메뉴관리 · 국어/영어' + 오른쪽 과목 전환기(375 에서는 제목 아래). 제목 아래 저장 줄 [일반 메뉴 저장], 관리자 패널 카드 안 저장 줄 [관리자 패널 순서 저장]. 띠 순서: 상단 메뉴 링크 안내(주의) → 헤더 규칙(정보) → 상위 메뉴 없음(해당할 때) → 가져오기 안내. 표 4개 열 그대로, 표 안 버튼 보라 테두리·삭제/보관만 빨강 글자, 배지 1단계 파랑·2단계 회색. 직접 해 보기: 순서 하나를 바꾸면 그쪽 저장 줄만 'n건', 다른 쪽은 그대로. 삭제·보관 확인 창 첫 초점 [취소]·Esc 로 닫힘(확정은 누르지 않음).
+  - `/admin/footer`: 제목·설명 그대로, 머리줄 버튼 없음. 카드마다 저장 줄(사이트 이름, 공지 팝업 — 옆에 [미리보기], 가입 동의 안내 문구, 구매 고지), '기본 사업자 정보' 카드 바로 위에 [하단 정보 저장] + [되돌리기]. 가입 동의 표 열 10개·[수정]·[다시 동의 받기] 32px, 375 에서는 표 안 가로 스크롤·첫 열 고정. 고지 중이면 호박 주의 띠. 공지 팝업 [저장]은 지금처럼 확인 창을 먼저 연다(고지가 끊기는 경우 확정 진한 빨강), 재동의 확인 창 확정도 진한 빨강 — 확정은 누르지 않는다.
+  - `/admin/footer/policy-history`: 뒤로 가기 링크·제목(3xl → 2xl)·설명, 사본 목록, 비어 있으면 점선 '사본이 없습니다.' 칸, 날짜 표기 그대로.
+  - `/admin/pricing` 아래 동의 편집기: '…추가'·[항목 추가] 주황 → 보라 테두리, 오류 글자 진한 빨강, 지문 힌트 호박색, 칸·순서 그대로.
+- 대표가 정할 것: 위 판단 1~11(특히 1 날짜, 2 숫자 표기, 3 상태 색, 5 변경 없으면 저장 막힘). 확인 뒤 push 는 대표가 정한다. 비교가 끝나면 `git worktree remove ../create_quiz_ai-before`.

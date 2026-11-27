@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useSiteLogoUrl } from '@/components/layout/site-logo'
 import { SITE_LOGO_MAX_BYTES, SITE_LOGO_MIME_TYPES, SITE_LOGO_SIZE } from '@/lib/site-logo'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
 
 export function SiteLogoSettings() {
   const savedUrl = useSiteLogoUrl()
@@ -81,7 +82,7 @@ export function SiteLogoSettings() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center gap-4">
-          <div className="flex h-24 w-24 items-center justify-center rounded-md border bg-background p-2">
+          <div className="flex h-24 w-24 items-center justify-center rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-2">
             <Image
               src={preview || currentLogoUrl || '/brand-mark.svg'}
               alt={file ? '선택한 로고 미리보기' : '현재 사이트 로고'}
@@ -91,7 +92,7 @@ export function SiteLogoSettings() {
               unoptimized
             />
           </div>
-          <div className="space-y-1 text-sm text-muted-foreground" id="site-logo-help">
+          <div className="space-y-1 text-sm text-[var(--studio-muted)]" id="site-logo-help">
             <p>권장: {SITE_LOGO_SIZE} × {SITE_LOGO_SIZE}px, 투명 배경 PNG</p>
             <p>PNG·JPG·WebP / 최대 5MB / 2,500만 픽셀 이하 / 정지 이미지</p>
             <p>크기가 달라도 비율을 유지해 자동 변환합니다. 남는 공간은 투명 여백으로 채우며 이미지를 자르지 않습니다.</p>
@@ -124,18 +125,18 @@ export function SiteLogoSettings() {
             }}
           />
         </div>
-        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        {error && <AdminNotice kind="error">{error}</AdminNotice>}
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="button" className="min-h-11" disabled={!file || isSaving} onClick={saveLogo}>
+          <Button type="button" variant="brand" className="min-h-11" disabled={!file || isSaving} onClick={saveLogo}>
             {isSaving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
             {isSaving ? '변환 및 저장 중…' : '로고 저장 및 적용'}
           </Button>
           {currentLogoUrl ? (
-            <Button type="button" variant="outline" className="min-h-11" disabled={isSaving} onClick={resetLogo}>
+            <Button type="button" variant="brandOutline" className="min-h-11" disabled={isSaving} onClick={resetLogo}>
               기본 로고로 되돌리기
             </Button>
           ) : null}
-          <p className="text-sm text-muted-foreground">파일 선택 후 저장하면 바로 적용됩니다. 아래 사업자 정보 저장과 별도로 동작합니다.</p>
+          <p className="text-sm text-[var(--studio-muted)]">파일 선택 후 저장하면 바로 적용됩니다. 아래 사업자 정보 저장과 별도로 동작합니다.</p>
         </div>
       </CardContent>
     </Card>

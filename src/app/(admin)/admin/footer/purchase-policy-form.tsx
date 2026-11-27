@@ -2,9 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -58,6 +56,10 @@ import {
 } from '@/lib/checkout-consent-admin'
 import type { MarketPurchasePolicyAdminData } from '@/lib/market-purchase-policy-server'
 import { saveMarketPurchasePolicyAction, type MarketPurchasePolicyAdminView } from './purchase-policy-actions'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminSaveBar, countChangedFields } from '@/components/admin/kit/admin-save-bar'
+import { ADMIN_TONE_TEXT_CLASSES } from '@/components/admin/kit/admin-tone-classes'
+import { cn } from '@/lib/utils'
 
 const TEXT_HINTS: Record<keyof MarketPurchasePolicyTexts, string> = {
   checkboxLabel: '장바구니 결제 칸(예전 방식)의 필수 체크 문구입니다.',
@@ -111,6 +113,9 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
   const [legacyOpen, setLegacyOpen] = useState(false)
   const [fit, setFit] = useState<{ legacy: CheckoutPanelFit; consent: CheckoutPanelFit }>({ legacy: null, consent: null })
   const [isSaving, setIsSaving] = useState(false)
+  // 저장 상태 줄(20번 3-2): 마지막 저장 시각·실패 문구. 알림(toast)은 그대로 띄운다. 이탈 경고는 아래 훅 하나 그대로.
+  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const onFitChange = useCallback((next: { legacy: CheckoutPanelFit; consent: CheckoutPanelFit }) => setFit(next), [])
 
   const normalizedDraft = draft ? normalizeTexts(draft) : null
@@ -138,6 +143,15 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
   const legacyCollapsed = saved?.storedFormat === 2
   const legacyInvalid = Boolean(invalid && LEGACY_ONLY_KEYS.some((key) => invalid.includes(MARKET_PURCHASE_POLICY_TEXT_LABELS[key])))
   useUnsavedChangesGuard(hasChanges)
+  // 저장 안 된 변경 수(표시용): 바뀐 고지 문구 칸 수 + 바뀐 묶음(새 방식 문구·장바구니 문구·잔액 부족 안내) 수
+  const changedCount = saved && normalizedDraft
+    ? countChangedFields(normalizedDraft, pickTexts(saved.policy))
+      + [
+        JSON.stringify(normalizedConsent) !== JSON.stringify(savedConsent),
+        JSON.stringify(normalizedCart) !== JSON.stringify(savedCart),
+        JSON.stringify(normalizedInsufficient) !== JSON.stringify(pickInsufficientTexts(saved.raw)),
+      ].filter(Boolean).length
+    : 0
 
   const refundDays = saved?.policy.refundDays ?? 0
   const previewConsentDraft = merged && normalizedConsent && consentProblems.length === 0
@@ -161,6 +175,7 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
       return
     }
     setIsSaving(true)
+    setSaveError(null)
     try {
       const result = await saveMarketPurchasePolicyAction({
         texts: draft,
@@ -171,6 +186,7 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
       })
       if (!result.success) {
         toast.error(result.error)
+        setSaveError(result.error)
         return
       }
       setSaved(result.data)
@@ -178,10 +194,12 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
       setConsentDraft(pickCheckoutConsentKeys('market', result.data.raw))
       setCartDraft(pickMarketCartTexts(result.data.raw))
       setInsufficientDraft(pickInsufficientTexts(result.data.raw))
+      setSavedAt(Date.now())
       toast.success('구매 고지를 저장했습니다.')
       router.refresh()
     } catch {
       toast.error('구매 고지를 저장하지 못했습니다.')
+      setSaveError('구매 고지를 저장하지 못했습니다.')
     } finally {
       setIsSaving(false)
     }
@@ -196,7 +214,7 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
       <div key={key} className="space-y-2">
         <Label htmlFor={id}>
           {MARKET_PURCHASE_POLICY_TEXT_LABELS[key]}
-          {required ? <span className="ml-1 text-xs font-normal text-muted-foreground">({MARKET_REFUND_DAYS_PLACEHOLDER} 필수)</span> : null}
+          {required ? <span className="ml-1 text-xs font-normal text-[var(--studio-muted)]">({MARKET_REFUND_DAYS_PLACEHOLDER} 필수)</span> : null}
         </Label>
         <Textarea
           id={id}
@@ -206,13 +224,13 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
           disabled={isSaving}
           onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
         />
-        <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap justify-between gap-2 text-xs text-[var(--studio-muted)]">
           <span>{TEXT_HINTS[key]}</span>
           <span>{value.length}/{MARKET_PURCHASE_POLICY_TEXT_LIMITS[key]}</span>
         </div>
-        {fingerprintFields.has(key) ? <p className="text-xs text-amber-700">{CHECKOUT_CONSENT_FINGERPRINT_HINT}</p> : null}
+        {fingerprintFields.has(key) ? <p className={cn('text-xs', ADMIN_TONE_TEXT_CLASSES.warning)}>{CHECKOUT_CONSENT_FINGERPRINT_HINT}</p> : null}
         {value.includes(MARKET_REFUND_DAYS_PLACEHOLDER) ? (
-          <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+          <p className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-3 py-2 text-xs text-[var(--studio-muted)]">
             보이는 문장: {fillMarketRefundDays(normalizeMarketPurchasePolicyText(value), saved.policy.refundDays)}
           </p>
         ) : null}
@@ -233,24 +251,24 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
       </CardHeader>
       <CardContent className="space-y-5">
         {!saved || !draft ? (
-          <p role="alert" className="text-sm text-destructive">
+          <AdminNotice kind="error">
             구매 고지 설정을 읽지 못했습니다. 새로고침한 뒤 다시 시도해 주세요. (덮어쓰지 않도록 저장을 막았습니다)
-          </p>
+          </AdminNotice>
         ) : (
           <>
-            <p className="rounded-md bg-muted px-3 py-2 text-sm">
+            <p className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-3 py-2 text-sm">
               지금 결제 화면 동의 방식: <strong>{describeCheckoutConsentFormat(saved.storedFormat)}</strong>
-              <span className="ml-1 text-xs text-muted-foreground">(방식 바꾸기는 이 화면에서 하지 않습니다)</span>
+              <span className="ml-1 text-xs text-[var(--studio-muted)]">(방식 바꾸기는 이 화면에서 하지 않습니다)</span>
             </p>
 
             {MARKET_PURCHASE_POLICY_TEXT_KEYS.filter((key) => !(legacyCollapsed && LEGACY_ONLY_KEYS.includes(key))).map(renderTextField)}
             {legacyCollapsed ? (
-              <details open={legacyOpen || legacyInvalid} onToggle={(event) => setLegacyOpen(event.currentTarget.open)} className="rounded-md border p-3">
+              <details open={legacyOpen || legacyInvalid} onToggle={(event) => setLegacyOpen(event.currentTarget.open)} className="rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] p-3">
                 <summary className="cursor-pointer text-sm font-medium">되돌리기용(예전 방식에만 쓰는 칸)</summary>
                 <div className="mt-3 space-y-4">{LEGACY_ONLY_KEYS.map(renderTextField)}</div>
               </details>
             ) : null}
-            {invalid && hasChanges ? <p role="alert" className="text-sm text-destructive">{invalid}</p> : null}
+            {invalid && hasChanges ? <p role="alert" className={cn('text-sm', ADMIN_TONE_TEXT_CLASSES.danger)}>{invalid}</p> : null}
 
             {consentDraft ? (
               <CheckoutConsentEditor
@@ -263,11 +281,11 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
                 inFingerprint={saved.storedFormat === 2}
               />
             ) : (
-              <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">새 방식 문구가 아직 없습니다.</p>
+              <p className="rounded-[var(--studio-radius-control)] border border-dashed border-[var(--studio-border)] px-3 py-2 text-sm text-[var(--studio-muted)]">새 방식 문구가 아직 없습니다.</p>
             )}
 
             {cartDraft ? (
-              <fieldset className="grid gap-4 rounded-md border p-4" disabled={isSaving}>
+              <fieldset className="grid gap-4 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] p-4" disabled={isSaving}>
                 <legend className="px-1 text-sm font-medium">장바구니 결제 칸 문구</legend>
                 {MARKET_CART_TEXT_KEYS.map((key) => {
                   const id = `market-cart-text-${key}`
@@ -277,11 +295,11 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
                     <div key={key} className="grid gap-1.5">
                       <Label htmlFor={id}>{MARKET_CART_TEXT_LABELS[key]}(한 줄)</Label>
                       <Input id={id} value={value} onChange={(event) => setCartDraft({ ...cartDraft, [key]: event.target.value })} />
-                      <div className="flex justify-between gap-2 text-xs text-muted-foreground">
+                      <div className="flex justify-between gap-2 text-xs text-[var(--studio-muted)]">
                         <span>{MARKET_CART_TEXT_HINT}</span>
                         <span>{charLength(value)}/{MARKET_CART_TEXT_MAX}</span>
                       </div>
-                      {problems.length > 0 ? <p role="alert" className="text-xs text-red-600">{problems.map((problem) => problem.message).join(' ')}</p> : null}
+                      {problems.length > 0 ? <p role="alert" className={cn('text-xs', ADMIN_TONE_TEXT_CLASSES.danger)}>{problems.map((problem) => problem.message).join(' ')}</p> : null}
                     </div>
                   )
                 })}
@@ -293,7 +311,7 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
                     <div key={key} className="grid gap-1.5">
                       <Label htmlFor={id}>{MARKET_CART_INSUFFICIENT_LABELS[key]}(한 줄)</Label>
                       <Input id={id} value={value} onChange={(event) => setInsufficientDraft({ ...insufficientDraft, [key]: event.target.value })} />
-                      <div className="flex justify-between gap-2 text-xs text-muted-foreground">
+                      <div className="flex justify-between gap-2 text-xs text-[var(--studio-muted)]">
                         <span>
                           {key === 'cartInsufficientNotice'
                             ? `잔액이 부족할 때 결제 칸 위쪽에 보입니다. ${MARKET_SHORTFALL_PLACEHOLDER} 에 부족한 크레딧 수가 들어갑니다. 결제 동의 내용에는 들지 않습니다.`
@@ -301,7 +319,7 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
                         </span>
                         <span>{charLength(value)}/{MARKET_CART_INSUFFICIENT_MAX[key]}</span>
                       </div>
-                      {problems.length > 0 ? <p role="alert" className="text-xs text-red-600">{problems.map((problem) => problem.message).join(' ')}</p> : null}
+                      {problems.length > 0 ? <p role="alert" className={cn('text-xs', ADMIN_TONE_TEXT_CLASSES.danger)}>{problems.map((problem) => problem.message).join(' ')}</p> : null}
                     </div>
                   )
                 }) : null}
@@ -318,7 +336,7 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
                 linksVisible={saved.linksVisible}
                 onFitChange={onFitChange}
               />
-              {fitBlocked ? <p role="alert" className="text-sm text-destructive">{CHECKOUT_PANEL_OVERFLOW_MESSAGE} 넘친 쪽의 문구를 줄여 주세요.</p> : null}
+              {fitBlocked ? <p role="alert" className={cn('text-sm', ADMIN_TONE_TEXT_CLASSES.danger)}>{CHECKOUT_PANEL_OVERFLOW_MESSAGE} 넘친 쪽의 문구를 줄여 주세요.</p> : null}
               <StoredCheckoutConsentFingerprint
                 consent={saved.storedConsent}
                 consentIgnoringLinks={saved.storedConsentIgnoringLinks}
@@ -326,12 +344,18 @@ export function PurchasePolicyForm({ initial }: { initial: MarketPurchasePolicyA
               />
             </section>
 
-            <div className="flex justify-end">
-              <Button type="button" disabled={!hasChanges || (blocked && !legacyInvalid) || isSaving} onClick={() => void handleSave()}>
-                {isSaving ? <Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" /> : <Save aria-hidden="true" className="mr-2 h-4 w-4" />}
-                구매 고지 저장
-              </Button>
-            </div>
+            {/* 저장 함수 하나 = 인라인 저장 줄 하나. 막힘 조건은 전과 같다(변경 없음·검사 실패(접힌 칸 오류는 펼치려고 누를 수 있음)·저장 중). */}
+            <AdminSaveBar
+              variant="inline"
+              dirtyCount={hasChanges ? Math.max(1, changedCount) : 0}
+              status={isSaving ? 'saving' : saveError ? 'error' : savedAt ? 'saved' : 'idle'}
+              savedAt={savedAt}
+              errorMessage={saveError}
+              applyNote="저장하면 장바구니 결제 칸·상품 상세·환불 안내에 바로 반영됩니다."
+              onSave={() => void handleSave()}
+              saveLabel="구매 고지 저장"
+              saveDisabled={!hasChanges || (blocked && !legacyInvalid)}
+            />
           </>
         )}
       </CardContent>

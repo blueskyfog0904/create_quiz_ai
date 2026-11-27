@@ -76,6 +76,24 @@ test('저장 바는 표시만 한다: 이탈 경고 훅·확인 함수·단축�
   for (const file of kitFiles) assert.doesNotMatch(read(file), /metaKey|ctrlKey/, `${file}: 단축키`)
 })
 
+test('저장 바 규칙: 실패여도 변경이 없으면 변경 없음·[다시 시도] 막힘, saveWhenClean 이면 변경 없어도 켜짐', () => {
+  const { adminSaveBarView, countChangedFields } = load(`${KIT_DIR}/admin-save-bar-state.ts`)
+  const view = (input) => adminSaveBarView({ hasSavedAt: false, ...input })
+  assert.deepEqual(view({ status: 'error', dirtyCount: 2 }), { kind: 'error', retry: true, disabled: false })
+  // 충돌 등으로 다시 읽어 변경이 0건이 되면 헛 [다시 시도]가 없다.
+  assert.deepEqual(view({ status: 'error', dirtyCount: 0 }), { kind: 'clean', retry: false, disabled: true })
+  assert.deepEqual(view({ status: 'idle', dirtyCount: 0 }), { kind: 'clean', retry: false, disabled: true })
+  assert.deepEqual(view({ status: 'idle', dirtyCount: 0, saveWhenClean: true }), { kind: 'clean', retry: false, disabled: false })
+  assert.deepEqual(view({ status: 'idle', dirtyCount: 1, saveDisabled: true }), { kind: 'dirty', retry: false, disabled: true })
+  assert.deepEqual(view({ status: 'saving', dirtyCount: 1, saveWhenClean: true }), { kind: 'saving', retry: false, disabled: true })
+  assert.equal(view({ status: 'saved', dirtyCount: 0, hasSavedAt: true }).kind, 'saved')
+  assert.equal(view({ status: 'saved', dirtyCount: 1, hasSavedAt: true }).kind, 'dirty')
+  assert.equal(countChangedFields({ a: 1, b: [1] }, { a: 1, b: [2], c: 0 }), 2)
+  const saveBar = read(`${KIT_DIR}/admin-save-bar.tsx`)
+  assert.match(saveBar, /disabled=\{view\.disabled\}/)
+  assert.match(saveBar, /\{view\.retry \? '다시 시도' : saveLabel\}/)
+})
+
 test('AdminMetricCard: 바깥 div, 누르는 영역만 button aria-pressed, button 안에 button·a 없음', () => {
   const card = read(`${KIT_DIR}/admin-metric-card.tsx`)
   const component = card.slice(card.indexOf('export function AdminMetricCard'), card.indexOf('export function AdminMetricGrid'))
@@ -269,12 +287,10 @@ function assertRatchet(name, pattern, allowedEnabled) {
 
 test('래칫: confirm( 은 지금 목록 밖 켜진 화면에 새로 생기지 않는다', () => {
   assertRatchet('confirm(', /\bconfirm\(/, [
-    'src/app/(admin)/admin/admin-accounts/admin-accounts-client.tsx',
     'src/app/(admin)/admin/market/product-settings/taxonomy-tab.tsx',
     'src/app/(admin)/admin/market/products/_hooks/use-product-form.ts',
     'src/app/(admin)/admin/market/products/_hooks/use-sample-generation.ts',
     'src/app/(admin)/admin/market/products/_hooks/use-subproduct-uploads.ts',
-    'src/app/(admin)/admin/orders/market-exception-refund-dialog.tsx',
     'src/app/(admin)/admin/refunds/market-refunds-client.tsx',
     'src/app/(admin)/admin/reviews/reviews-admin-client.tsx',
     'src/app/(admin)/admin/support/reply-template-tools.tsx',
@@ -287,8 +303,6 @@ test('래칫: confirm( 은 지금 목록 밖 켜진 화면에 새로 생기지 �
 
 test('래칫: alert( 은 지금 목록 밖 켜진 화면에 새로 생기지 않는다', () => {
   assertRatchet('alert(', /\balert\(/, [
-    'src/app/(admin)/admin/admin-accounts/admin-accounts-client.tsx',
-    'src/app/(admin)/admin/admin-accounts/admin-permissions-dialog.tsx',
     'src/app/(admin)/admin/reviews/reviews-admin-client.tsx',
     'src/components/admin/market-category-tree-editor.tsx',
     'src/components/layout/admin-sidebar-client.tsx',
@@ -297,13 +311,10 @@ test('래칫: alert( 은 지금 목록 밖 켜진 화면에 새로 생기지 않
 
 test('래칫: adminAction 은 지금 목록 밖 켜진 화면에 새로 생기지 않는다', () => {
   assertRatchet('adminAction', /\badminAction\b/, [
-    'src/app/(admin)/admin/admin-accounts/admin-accounts-client.tsx',
     'src/app/(admin)/admin/audit-log/audit-log-client.tsx',
     'src/app/(admin)/admin/credits/credit-grant-limits-card.tsx',
     'src/app/(admin)/admin/credits/credits-client.tsx',
     'src/app/(admin)/admin/dashboard-client.tsx',
-    'src/app/(admin)/admin/footer/footer-client.tsx',
-    'src/app/(admin)/admin/footer/signup-consent-admin.tsx',
     // 22번(20번 6-1 4단계 '홈'): main-ad-settings 는 brandOutline 으로 옮겨 목록에서 뺐다.
     'src/app/(admin)/admin/market/products/_editor/after-save-dialog.tsx',
     'src/app/(admin)/admin/market/products/_editor/category-step.tsx',
@@ -313,23 +324,15 @@ test('래칫: adminAction 은 지금 목록 밖 켜진 화면에 새로 생기�
     'src/app/(admin)/admin/market/products/_list/product-list.tsx',
     'src/app/(admin)/admin/market/products/admin-market-sample-preview-dialog.tsx',
     'src/app/(admin)/admin/market/products/market-products-client.tsx',
-    'src/app/(admin)/admin/menu-management/menu-management-client.tsx',
     'src/app/(admin)/admin/notices/board-admin.tsx',
     'src/app/(admin)/admin/notifications/notifications-admin.tsx',
-    'src/app/(admin)/admin/orders/market-orders-client.tsx',
-    'src/app/(admin)/admin/orders/orders-client.tsx',
-    'src/app/(admin)/admin/pricing/point-charge-policy-form.tsx',
-    'src/app/(admin)/admin/pricing/pricing-page-content-form.tsx',
-    'src/app/(admin)/admin/pricing/pricing-plans-client.tsx',
     'src/app/(admin)/admin/refunds/market-refunds-client.tsx',
     'src/app/(admin)/admin/refunds/payment-review-client.tsx',
     'src/app/(admin)/admin/refunds/refunds-client.tsx',
     'src/app/(admin)/admin/reviews/reviews-admin-client.tsx',
-    'src/app/(admin)/admin/storefront-menu/storefront-menu-client.tsx',
     'src/app/(admin)/admin/support/reply-templates-panel.tsx',
     'src/app/(admin)/admin/support/support-client.tsx',
     'src/app/(admin)/admin/users/users-client.tsx',
-    'src/components/admin/checkout-consent-editor.tsx',
   ])
 })
 
@@ -345,10 +348,9 @@ test('래칫: 화면별 toLocaleString( 수는 늘지 않는다(새 표기는 ad
     'src/app/(admin)/admin/market/products/_lib/product-form.ts': 1,
     'src/app/(admin)/admin/market/products/_list/product-list.tsx': 4,
     'src/app/(admin)/admin/notifications/notifications-admin.tsx': 5,
-    'src/app/(admin)/admin/orders/market-exception-refund-dialog.tsx': 12,
-    'src/app/(admin)/admin/orders/market-orders-client.tsx': 2,
-    'src/app/(admin)/admin/orders/orders-client.tsx': 8,
-    'src/app/(admin)/admin/pricing/pricing-plans-client.tsx': 4,
+    // 20번 2단계: 남은 것은 날짜 표기(문의 판 고르기 4곳, 대표가 표기를 정하기 전까지 지금 모양)
+    'src/app/(admin)/admin/orders/market-exception-refund-dialog.tsx': 4,
+    'src/app/(admin)/admin/orders/orders-client.tsx': 1,
     'src/app/(admin)/admin/refunds/market-refunds-client.tsx': 7,
     'src/app/(admin)/admin/refunds/payment-review-client.tsx': 3,
     'src/app/(admin)/admin/refunds/refunds-client.tsx': 21,

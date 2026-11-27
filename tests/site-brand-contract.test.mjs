@@ -51,7 +51,10 @@ test('관리자 사이트 기본 정보: 이름 저장은 site.manage·검사·�
   assert.doesNotMatch(read('src/app/(admin)/admin/menu-management/menu-management-client.tsx'), /SiteLogoSettings/)
   const route = read('src/app/api/admin/site-logo/route.ts')
   assert.match(route, /export async function DELETE\(\) \{\n\s+const guard = await requireAdminApiPermission\('site\.manage'\)/)
-  assert.match(read('src/app/(admin)/admin/footer/site-brand-form.tsx'), /disabled=\{loadFailed \|\| Boolean\(invalid\) \|\| isSaving \|\| !hasChanges\}/)
+  // 저장은 읽기 실패·검사 실패·저장 중·변경 없음이면 막힌다(20번 3-2: 저장 줄 부품이 저장 중을 막고, 나머지는 saveDisabled).
+  const brandForm = read('src/app/(admin)/admin/footer/site-brand-form.tsx')
+  assert.match(brandForm, /saveDisabled=\{loadFailed \|\| Boolean\(invalid\) \|\| !hasChanges\}/)
+  assert.match(brandForm, /status=\{isSaving \? 'saving' :/)
 })
 
 test('사이트 이름 첫 값은 마이그레이션으로 넣고(관리자가 고친 값 보존), 되돌리기 파일이 있다', () => {

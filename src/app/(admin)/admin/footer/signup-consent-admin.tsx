@@ -27,6 +27,11 @@ import {
   type ConsentPolicyOption,
   type SignupConsentAdminData,
 } from './consent-actions'
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/kit/admin-data-table'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminSaveBar, countChangedFields } from '@/components/admin/kit/admin-save-bar'
+import { ADMIN_TONE_TEXT_CLASSES } from '@/components/admin/kit/admin-tone-classes'
+import { cn } from '@/lib/utils'
 
 type Draft = SaveConsentItemInput & { lock: boolean | null }
 
@@ -53,6 +58,11 @@ function draftFromItem(item: AdminConsentItem): Draft {
     note: '',
     lock: item.required_lock,
   }
+}
+
+// 저장 안 된 변경 수(저장 상태 줄 표시용): 고치기 시작한 값과 다른 칸 수. 새 항목은 늘 1 이상(지금처럼 바로 저장 가능).
+function countDraftChanges(draft: Draft, origin: AdminConsentItem | null) {
+  return origin ? countChangedFields(draft, draftFromItem(origin)) : 1
 }
 
 function newDraft(sortOrder: number): Draft {
@@ -99,7 +109,7 @@ function ReconsentDialog({
         <DialogHeader>
           <DialogTitle>회원에게 다시 동의를 받습니다</DialogTitle>
           <DialogDescription className="space-y-2 text-left leading-6">
-            <span className="block font-semibold text-red-700">
+            <span className={cn('block font-semibold', ADMIN_TONE_TEXT_CLASSES.danger)}>
               기존 회원 {pending.result.affected_members ?? 0}명이 다음 접속 때 다시 동의합니다. 되돌릴 수 없습니다.
             </span>
             <span className="block">
@@ -115,8 +125,8 @@ function ReconsentDialog({
           </DialogDescription>
         </DialogHeader>
         {preview ? (
-          <div className="rounded-lg border p-3">
-            <p className="mb-2 text-xs font-semibold text-gray-500">회원 화면 미리보기</p>
+          <div className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] p-3">
+            <p className="mb-2 text-xs font-semibold text-[var(--studio-muted)]">회원 화면 미리보기</p>
             <ConsentChecklist
               items={[{
                 id: 'preview',
@@ -142,8 +152,8 @@ function ReconsentDialog({
           하단 정보의 약관 본문을 시행일 기준으로 바꿨습니까? (바꿨거나, 약관 본문과 관계없는 변경입니다)
         </label>
         <DialogFooter>
-          <Button type="button" variant="outline" disabled={busy} onClick={() => { setAcknowledged(false); onCancel() }}>취소</Button>
-          <Button type="button" variant="destructive" disabled={busy || !acknowledged} onClick={onConfirm}>
+          <Button type="button" variant="brandOutline" disabled={busy} onClick={() => { setAcknowledged(false); onCancel() }}>취소</Button>
+          <Button type="button" variant="adminDanger" disabled={busy || !acknowledged} onClick={onConfirm}>
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             다시 동의 받기로 저장
           </Button>
@@ -157,6 +167,7 @@ function ItemEditor({
   draft,
   policyOptions,
   busy,
+  dirtyCount,
   onChange,
   onCancel,
   onSave,
@@ -164,23 +175,24 @@ function ItemEditor({
   draft: Draft
   policyOptions: ConsentPolicyOption[]
   busy: boolean
+  dirtyCount: number
   onChange: (next: Draft) => void
   onCancel: () => void
   onSave: () => void
 }) {
   const requiredLocked = draft.lock !== null
   return (
-    <div className="grid gap-4 rounded-lg border p-4 lg:grid-cols-2">
+    <div className="grid gap-4 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] p-4 lg:grid-cols-2">
       <div className="grid gap-3">
         <div className="grid gap-1.5">
           <Label htmlFor="consent-label">이름</Label>
           <Input id="consent-label" value={draft.label} maxLength={100} onChange={(event) => onChange({ ...draft, label: event.target.value })} />
-          <p className="text-xs text-gray-500">[필수]/[선택] 표시는 화면이 붙입니다. 이름 앞에 쓰지 마세요.</p>
+          <p className="text-xs text-[var(--studio-muted)]">[필수]/[선택] 표시는 화면이 붙입니다. 이름 앞에 쓰지 마세요.</p>
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="consent-content">내용(고지 본문)</Label>
           <Textarea id="consent-content" rows={8} value={draft.content} onChange={(event) => onChange({ ...draft, content: event.target.value })} />
-          <p className="text-xs text-gray-500">**강조할 문장**처럼 별표 두 개로 감싸면 굵게·밑줄·크게 보입니다(보유 기간·마케팅 목적 등).</p>
+          <p className="text-xs text-[var(--studio-muted)]">**강조할 문장**처럼 별표 두 개로 감싸면 굵게·밑줄·크게 보입니다(보유 기간·마케팅 목적 등).</p>
         </div>
         <div className="flex flex-wrap items-center gap-4">
           <label className="flex items-center gap-2 text-sm">
@@ -191,15 +203,15 @@ function ItemEditor({
             <Switch checked={draft.isActive} disabled={draft.id === null || draft.lock === true} onCheckedChange={(value) => onChange({ ...draft, isActive: value })} />
             회원에게 보임
           </label>
-          {requiredLocked ? <span className="text-xs text-gray-500">{draft.lock ? '필수 고정 항목' : '선택 고정 항목'}</span> : null}
-          {draft.id === null ? <span className="text-xs text-gray-500">새 항목은 숨김으로 만들어 미리 본 뒤 켭니다.</span> : null}
+          {requiredLocked ? <span className="text-xs text-[var(--studio-muted)]">{draft.lock ? '필수 고정 항목' : '선택 고정 항목'}</span> : null}
+          {draft.id === null ? <span className="text-xs text-[var(--studio-muted)]">새 항목은 숨김으로 만들어 미리 본 뒤 켭니다.</span> : null}
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1.5">
             <Label htmlFor="consent-policy">연결 약관</Label>
             <select
               id="consent-policy"
-              className="h-9 rounded-md border px-2 text-sm"
+              className="h-9 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] px-2 text-sm"
               value={draft.policySlug ?? ''}
               onChange={(event) => onChange({ ...draft, policySlug: event.target.value || null })}
             >
@@ -225,16 +237,22 @@ function ItemEditor({
             onChange={(event) => onChange({ ...draft, note: event.target.value })}
           />
         </div>
-        <div className="flex gap-2">
-          <Button type="button" onClick={onSave} disabled={busy}>
-            {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            저장
-          </Button>
-          <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>취소</Button>
+        {/* 저장 함수 하나 = 인라인 저장 줄 하나. 결과는 지금처럼 알림(toast)으로 보이고, 저장되면 이 편집 칸이 닫힌다. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <AdminSaveBar
+            className="min-w-0 flex-1"
+            variant="inline"
+            dirtyCount={dirtyCount}
+            status={busy ? 'saving' : 'idle'}
+            applyNote="다시 동의가 생기는 저장은 확인 창을 거칩니다."
+            onSave={onSave}
+            saveLabel="저장"
+          />
+          <Button type="button" variant="brandOutline" onClick={onCancel} disabled={busy}>취소</Button>
         </div>
       </div>
       <div className="grid content-start gap-2">
-        <p className="text-xs font-semibold text-gray-500">회원 화면 미리보기</p>
+        <p className="text-xs font-semibold text-[var(--studio-muted)]">회원 화면 미리보기</p>
         <ConsentChecklist
           items={[{
             id: 'preview',
@@ -261,10 +279,29 @@ function ItemEditor({
 function TextsEditor({ initial }: { initial: SignupConsentTexts | null }) {
   const router = useRouter()
   const [texts, setTexts] = useState<SignupConsentTexts | null>(initial)
+  // 저장 상태 줄(20번 3-2): 마지막으로 저장된 값·시각·실패 문구. 알림(toast)은 그대로 띄운다.
+  const [savedTexts, setSavedTexts] = useState<SignupConsentTexts | null>(initial)
+  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [busy, startTransition] = useTransition()
   if (!texts) {
-    return <p className="text-sm text-red-600">안내 문구를 불러오지 못했습니다.</p>
+    return <AdminNotice kind="error">안내 문구를 불러오지 못했습니다.</AdminNotice>
   }
+  const changedCount = savedTexts ? countChangedFields(texts, savedTexts) : 1
+  const saveTexts = () => startTransition(async () => {
+    setSaveError(null)
+    const response = await saveSignupConsentTextsAction(texts)
+    if (!response.success) {
+      toast.error(response.error)
+      setSaveError(response.error)
+      return
+    }
+    setTexts(response.data)
+    setSavedTexts(response.data)
+    setSavedAt(Date.now())
+    toast.success('안내 문구를 저장했습니다.')
+    router.refresh()
+  })
   return (
     <div className="grid gap-3">
       {SIGNUP_CONSENT_TEXT_KEYS.map((key) => (
@@ -279,26 +316,17 @@ function TextsEditor({ initial }: { initial: SignupConsentTexts | null }) {
           />
         </div>
       ))}
-      <p className="text-xs text-gray-500">처리 결과 안내 틀에는 {'{전송자}'}·{'{항목}'}·{'{결과}'}·{'{처리일자}'}, 접수 안내 틀에는 {'{항목}'}·{'{결과}'}를 모두 넣어야 합니다.</p>
-      <div>
-        <Button
-          type="button"
-          disabled={busy}
-          onClick={() => startTransition(async () => {
-            const response = await saveSignupConsentTextsAction(texts)
-            if (!response.success) {
-              toast.error(response.error)
-              return
-            }
-            setTexts(response.data)
-            toast.success('안내 문구를 저장했습니다.')
-            router.refresh()
-          })}
-        >
-          {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          안내 문구 저장
-        </Button>
-      </div>
+      <p className="text-xs text-[var(--studio-muted)]">처리 결과 안내 틀에는 {'{전송자}'}·{'{항목}'}·{'{결과}'}·{'{처리일자}'}, 접수 안내 틀에는 {'{항목}'}·{'{결과}'}를 모두 넣어야 합니다.</p>
+      {/* 저장 함수 하나 = 인라인 저장 줄 하나 */}
+      <AdminSaveBar
+        variant="inline"
+        dirtyCount={changedCount}
+        status={busy ? 'saving' : saveError ? 'error' : savedAt ? 'saved' : 'idle'}
+        savedAt={savedAt}
+        errorMessage={saveError}
+        onSave={saveTexts}
+        saveLabel="안내 문구 저장"
+      />
     </div>
   )
 }
@@ -321,7 +349,7 @@ export function SignupConsentAdmin({ data, lockNotice = null }: { data: SignupCo
       <Card>
         <CardHeader>
           <CardTitle>가입 동의 항목</CardTitle>
-          <CardDescription className="text-red-600">{data.error}</CardDescription>
+          <CardDescription className={ADMIN_TONE_TEXT_CLASSES.danger}>{data.error}</CardDescription>
         </CardHeader>
       </Card>
     )
@@ -398,11 +426,50 @@ export function SignupConsentAdmin({ data, lockNotice = null }: { data: SignupCo
   }
 
   const policyLabel = (slug: string | null) => data.policyOptions.find((option) => option.slug === slug)?.label ?? '없음'
+  const draftOrigin = draft?.id ? data.items.find((item) => item.id === draft.id) ?? null : null
+
+  // 항목 표(열·버튼·막힘 조건은 전과 같다)
+  const columns: AdminDataTableColumn<AdminConsentItem>[] = [
+    { key: 'label', header: '이름', cell: (item) => <span className="font-medium">{item.label}</span> },
+    { key: 'required', header: '구분', cell: (item) => (item.required ? '필수' : '선택') },
+    {
+      key: 'lock',
+      header: '고정',
+      className: 'text-xs text-[var(--studio-muted)]',
+      cell: (item) => (item.required_lock === true ? '필수 고정' : item.required_lock === false ? '선택 고정' : '-'),
+    },
+    { key: 'policy', header: '연결 약관', cell: (item) => policyLabel(item.policy_slug) },
+    { key: 'sort', header: '순서', numeric: true, cell: (item) => item.sort_order },
+    { key: 'active', header: '보임', cell: (item) => (item.is_active ? '보임' : '숨김') },
+    { key: 'version', header: '버전', numeric: true, cell: (item) => item.version },
+    {
+      key: 'revised',
+      header: '마지막 개정',
+      className: 'text-xs',
+      cell: (item) => (item.revisedAt && item.version > 1 ? formatConsentDate(item.revisedAt) : '-'),
+    },
+    { key: 'agreed', header: '현재 버전 동의 회원', numeric: true, cell: (item) => item.agreedMembers ?? '-' },
+    {
+      key: 'actions',
+      header: <span className="sr-only">작업</span>,
+      align: 'right',
+      cell: (item) => (
+        <div className="flex justify-end gap-1">
+          <Button type="button" size="sm" variant="adminTable" disabled={busy} onClick={() => setDraft(draftFromItem(item))}>수정</Button>
+          {item.required && item.is_active && item.policy_slug ? (
+            <Button type="button" size="sm" variant="adminTable" disabled={busy} onClick={() => setReviseTarget({ item, note: '' })}>
+              다시 동의 받기
+            </Button>
+          ) : null}
+        </div>
+      ),
+    },
+  ]
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>가입 동의 항목 <span className="ml-1 text-xs font-normal text-gray-500">대표 전용</span></CardTitle>
+        <CardTitle>가입 동의 항목 <span className="ml-1 text-xs font-normal text-[var(--studio-muted)]">대표 전용</span></CardTitle>
         <CardDescription className="space-y-1 leading-6">
           <span className="block">이럴 때 무엇을 누르나</span>
           <span className="block">· 이용약관 개정: 변경 예정 약관 게시(/terms/upcoming, 런북) → 불리한 변경은 30일 전부터 공지 팝업(필요하면 공지사항에도) → 시행일 당일 15번 시행 스크립트(이 화면에서 누르지 않음), 스크립트를 쓰지 않으면 하단 정보 본문이 새 전문으로 바뀐 것을 확인한 뒤 그 항목의 &lsquo;다시 동의 받기&rsquo;</span>
@@ -412,53 +479,11 @@ export function SignupConsentAdmin({ data, lockNotice = null }: { data: SignupCo
       </CardHeader>
       <CardContent className="grid gap-4">
         {/* 고지 기간(변경 예정 글 upcoming)에는 이용약관·개인정보 동의 항목 저장이 DB 트리거로 막힌다(15번 7-3). */}
-        {lockNotice ? <p role="note" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">{lockNotice}</p> : null}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-sm">
-            <thead className="border-b text-left text-xs text-gray-500">
-              <tr>
-                <th className="py-2 pr-2">이름</th>
-                <th className="py-2 pr-2">구분</th>
-                <th className="py-2 pr-2">고정</th>
-                <th className="py-2 pr-2">연결 약관</th>
-                <th className="py-2 pr-2 text-right">순서</th>
-                <th className="py-2 pr-2">보임</th>
-                <th className="py-2 pr-2 text-right">버전</th>
-                <th className="py-2 pr-2">마지막 개정</th>
-                <th className="py-2 pr-2 text-right">현재 버전 동의 회원</th>
-                <th className="py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((item) => (
-                <tr key={item.id} className="border-b last:border-0">
-                  <td className="py-2 pr-2 font-medium">{item.label}</td>
-                  <td className="py-2 pr-2">{item.required ? '필수' : '선택'}</td>
-                  <td className="py-2 pr-2 text-xs text-gray-500">{item.required_lock === true ? '필수 고정' : item.required_lock === false ? '선택 고정' : '-'}</td>
-                  <td className="py-2 pr-2">{policyLabel(item.policy_slug)}</td>
-                  <td className="py-2 pr-2 text-right tabular-nums">{item.sort_order}</td>
-                  <td className="py-2 pr-2">{item.is_active ? '보임' : '숨김'}</td>
-                  <td className="py-2 pr-2 text-right tabular-nums">{item.version}</td>
-                  <td className="py-2 pr-2 text-xs">{item.revisedAt && item.version > 1 ? formatConsentDate(item.revisedAt) : '-'}</td>
-                  <td className="py-2 pr-2 text-right tabular-nums">{item.agreedMembers ?? '-'}</td>
-                  <td className="py-2 text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button type="button" size="sm" variant="adminAction" disabled={busy} onClick={() => setDraft(draftFromItem(item))}>수정</Button>
-                      {item.required && item.is_active && item.policy_slug ? (
-                        <Button type="button" size="sm" variant="adminAction" disabled={busy} onClick={() => setReviseTarget({ item, note: '' })}>
-                          다시 동의 받기
-                        </Button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {lockNotice ? <AdminNotice kind="warning">{lockNotice}</AdminNotice> : null}
+        <AdminDataTable columns={columns} rows={data.items} getRowKey={(item) => item.id} caption="가입 동의 항목" minWidth={860} />
 
         {reviseTarget ? (
-          <div className="grid gap-2 rounded-lg border p-4">
+          <div className="grid gap-2 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] p-4">
             <p className="text-sm font-semibold">&lsquo;{reviseTarget.item.label}&rsquo; 다시 동의 받기(연결 약관 본문을 바꿨을 때)</p>
             <Label htmlFor="consent-revise-note">회원에게 보이는 변경 안내</Label>
             <Input
@@ -468,10 +493,10 @@ export function SignupConsentAdmin({ data, lockNotice = null }: { data: SignupCo
               onChange={(event) => setReviseTarget({ ...reviseTarget, note: event.target.value })}
             />
             <div className="flex gap-2">
-              <Button type="button" disabled={busy || !reviseTarget.note.trim()} onClick={() => startRevise(reviseTarget.item, reviseTarget.note)}>
+              <Button type="button" variant="brand" disabled={busy || !reviseTarget.note.trim()} onClick={() => startRevise(reviseTarget.item, reviseTarget.note)}>
                 확인 창 열기
               </Button>
-              <Button type="button" variant="outline" disabled={busy} onClick={() => setReviseTarget(null)}>취소</Button>
+              <Button type="button" variant="brandOutline" disabled={busy} onClick={() => setReviseTarget(null)}>취소</Button>
             </div>
           </div>
         ) : null}
@@ -481,6 +506,7 @@ export function SignupConsentAdmin({ data, lockNotice = null }: { data: SignupCo
             draft={draft}
             policyOptions={data.policyOptions}
             busy={busy}
+            dirtyCount={countDraftChanges(draft, draftOrigin)}
             onChange={setDraft}
             onCancel={() => setDraft(null)}
             onSave={() => startSave(draft)}
@@ -489,7 +515,7 @@ export function SignupConsentAdmin({ data, lockNotice = null }: { data: SignupCo
           <div>
             <Button
               type="button"
-              variant="adminAction"
+              variant="brandOutline"
               disabled={busy}
               onClick={() => setDraft(newDraft(Math.max(0, ...data.items.map((item) => item.sort_order)) + 10))}
             >
@@ -498,7 +524,7 @@ export function SignupConsentAdmin({ data, lockNotice = null }: { data: SignupCo
           </div>
         )}
 
-        <div className="grid gap-3 border-t pt-4">
+        <div className="grid gap-3 border-t border-[var(--studio-border)] pt-4">
           <p className="text-sm font-semibold">안내 문구</p>
           <TextsEditor initial={data.texts} />
         </div>

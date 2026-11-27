@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState, type ReactNode } from 'react'
-import { History, Loader2, Plus, Save, Trash2 } from 'lucide-react'
+import { History, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,6 +21,11 @@ import {
 } from '@/lib/footer-content'
 import { saveFooterContentAction } from './actions'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
+import { AdminPageHeader } from '@/components/admin/kit/admin-page-header'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminSaveBar, countChangedFields } from '@/components/admin/kit/admin-save-bar'
+import { ADMIN_TONE_CLASSES, ADMIN_TONE_TEXT_CLASSES } from '@/components/admin/kit/admin-tone-classes'
+import { cn } from '@/lib/utils'
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -40,6 +45,9 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
   const [footerContent, setFooterContent] = useState<FooterContentConfig>(() => clone(initialFooterContent))
   const [savedFooterContent, setSavedFooterContent] = useState<FooterContentConfig>(() => clone(initialFooterContent))
   const [isSaving, setIsSaving] = useState(false)
+  // 저장 상태 줄(20번 3-2): 마지막 저장 시각·실패 문구. 알림(toast)은 그대로 띄운다.
+  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const fixedFieldEntries = useMemo(
     () => FOOTER_FIXED_FIELD_KEYS.map((key) => ({
@@ -57,6 +65,10 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
   )
   const previewRows = useMemo(() => getVisibleFooterRows(footerContent), [footerContent])
   const hasUnsavedChanges = JSON.stringify(footerContent) !== JSON.stringify(savedFooterContent)
+  // 저장 안 된 변경 수: 바뀐 사업자 정보 칸·약관 문서 수 + 안내 문구 목록(바뀌었으면 1)
+  const changedCount = countChangedFields(footerContent.fixedFields, savedFooterContent.fixedFields)
+    + countChangedFields(footerContent.policyDocuments, savedFooterContent.policyDocuments)
+    + (JSON.stringify(footerContent.extraNotices) !== JSON.stringify(savedFooterContent.extraNotices) ? 1 : 0)
 
   const updateFixedField = (
     key: FooterFixedFieldKey,
@@ -117,18 +129,22 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
 
   const handleSave = async () => {
     setIsSaving(true)
+    setSaveError(null)
     try {
       // 화면 상태 원본을 그대로 보낸다: 서버가 원본으로 '가입 동의에 쓰이는 약관 끄기·비우기'를 검사한 뒤 정규화한다.
       const response = await saveFooterContentAction(footerContent)
       if (!response.success) {
         toast.error(response.error)
+        setSaveError(response.error)
         return
       }
       setFooterContent(response.data)
       setSavedFooterContent(response.data)
+      setSavedAt(Date.now())
       toast.success('하단 정보를 저장했습니다.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '하단 정보 저장에 실패했습니다.')
+      setSaveError(error instanceof Error ? error.message : '하단 정보 저장에 실패했습니다.')
     } finally {
       setIsSaving(false)
     }
@@ -136,23 +152,32 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900"><AdminMenuName href="/admin/footer" fallback="사이트 기본 정보" /></h1>
-          <p className="mt-1 text-gray-500">사이트 이름·로고와 하단 사업자 정보·안내 문구·약관을 관리합니다.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={handleReset} disabled={isSaving || !hasUnsavedChanges}>
-            되돌리기
-          </Button>
-          <Button onClick={handleSave} disabled={isSaving || !hasUnsavedChanges}>
-            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            하단 정보 저장
-          </Button>
-        </div>
-      </div>
+      <AdminPageHeader
+        className="mb-0"
+        title={<AdminMenuName href="/admin/footer" fallback="사이트 기본 정보" />}
+        description="사이트 이름·로고와 하단 사업자 정보·안내 문구·약관을 관리합니다."
+      />
 
       {topSections}
+
+      {/* 하단 정보 저장(저장 함수 하나 = 인라인 저장 줄 하나). 아래 사업자 정보·안내 문구·약관 카드를 함께 저장한다. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <AdminSaveBar
+          className="min-w-0 flex-1"
+          variant="inline"
+          dirtyCount={hasUnsavedChanges ? Math.max(1, changedCount) : 0}
+          status={isSaving ? 'saving' : saveError ? 'error' : savedAt ? 'saved' : 'idle'}
+          savedAt={savedAt}
+          errorMessage={saveError}
+          applyNote="하단 정보: 아래 기본 사업자 정보·추가 안내 문구·약관 및 정책을 함께 저장합니다."
+          onSave={() => void handleSave()}
+          saveLabel="하단 정보 저장"
+          saveDisabled={!hasUnsavedChanges}
+        />
+        <Button variant="brandOutline" onClick={handleReset} disabled={isSaving || !hasUnsavedChanges}>
+          되돌리기
+        </Button>
+      </div>
 
       <Card>
         <CardHeader>
@@ -183,8 +208,8 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
               {isFooterLegalFieldKey(field.key) ? (
                 // 법정 표시 항목은 끌 수 없다(저장할 때도 켜짐으로 고정된다)
                 <div className="flex flex-col items-end justify-center gap-1 md:min-w-[120px]">
-                  <span className="text-sm text-gray-500">법정 표시 항목</span>
-                  <span className="text-xs text-gray-400">끌 수 없음</span>
+                  <span className="text-sm text-[var(--studio-muted)]">법정 표시 항목</span>
+                  <span className="text-xs text-[var(--studio-muted)]">끌 수 없음</span>
                 </div>
               ) : (
                 <div className="flex items-center justify-end gap-2 md:min-w-[120px]">
@@ -192,11 +217,11 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
                     checked={field.enabled}
                     onCheckedChange={(checked) => updateFixedField(field.key, { enabled: checked })}
                   />
-                  <span className="text-sm text-gray-500">{field.enabled ? '활성' : '비활성'}</span>
+                  <span className="text-sm text-[var(--studio-muted)]">{field.enabled ? '활성' : '비활성'}</span>
                 </div>
               )}
               {isFooterLegalFieldKey(field.key) && !field.value.trim() ? (
-                <p className="text-xs text-amber-700 md:col-span-2">비어 있으면 하단에 보이지 않습니다. 출시 전에 채워 주세요.</p>
+                <p className={cn('text-xs md:col-span-2', ADMIN_TONE_TEXT_CLASSES.warning)}>비어 있으면 하단에 보이지 않습니다. 출시 전에 채워 주세요.</p>
               ) : null}
             </div>
           ))}
@@ -209,14 +234,14 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
             <CardTitle>추가 안내 문구</CardTitle>
             <CardDescription>제목 없이 문장 리스트 형태로 footer 하단에 표시됩니다.</CardDescription>
           </div>
-          <Button variant="adminAction" onClick={handleAddNotice}>
+          <Button variant="brandOutline" onClick={handleAddNotice}>
             <Plus className="mr-2 h-4 w-4" />
             안내 문구 추가
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">
           {footerContent.extraNotices.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-6 text-sm text-gray-500">
+            <div className="rounded-lg border border-dashed border-[var(--studio-border)] p-6 text-sm text-[var(--studio-muted)]">
               등록된 추가 안내 문구가 없습니다.
             </div>
           ) : footerContent.extraNotices.map((notice, index) => (
@@ -230,7 +255,8 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="text-red-500 hover:bg-red-50 hover:text-red-600"
+                aria-label={`${index + 1}번째 안내 문구 삭제`}
+                className={cn('hover:bg-[var(--admin-tone-danger-soft)]', ADMIN_TONE_TEXT_CLASSES.danger)}
                 onClick={() => handleRemoveNotice(index)}
               >
                 <Trash2 className="h-4 w-4" />
@@ -248,7 +274,7 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
               Footer에 노출할 약관 링크와 각 페이지의 본문을 관리합니다. 저장할 때마다 바뀐 본문의 사본이 남습니다.
             </CardDescription>
           </div>
-          <Button asChild variant="adminAction">
+          <Button asChild variant="brandOutline">
             <Link href="/admin/footer/policy-history">
               <History className="mr-2 h-4 w-4" />
               약관 이력 보기
@@ -256,7 +282,7 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
           </Button>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {policyLockNotice ? <p role="note" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">{policyLockNotice}</p> : null}
+          {policyLockNotice ? <AdminNotice kind="warning">{policyLockNotice}</AdminNotice> : null}
           {policyDocumentEntries.map((document) => (
             <div key={document.key} className="rounded-lg border p-4">
               <div className="flex flex-col gap-4">
@@ -280,14 +306,14 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
                         />
                       </div>
                     </div>
-                    <p className="text-sm text-gray-500">연결 경로: /terms/{document.slug}</p>
+                    <p className="text-sm text-[var(--studio-muted)]">연결 경로: /terms/{document.slug}</p>
                   </div>
                   <div className="flex items-center justify-end gap-2 md:min-w-[120px]">
                     <Switch
                       checked={document.enabled}
                       onCheckedChange={(checked) => updatePolicyDocument(document.key, { enabled: checked })}
                     />
-                    <span className="text-sm text-gray-500">{document.enabled ? '활성' : '비활성'}</span>
+                    <span className="text-sm text-[var(--studio-muted)]">{document.enabled ? '활성' : '비활성'}</span>
                   </div>
                 </div>
                 <div className="flex flex-col gap-2">
@@ -298,14 +324,14 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
                     value={document.content}
                     onChange={(event) => updatePolicyDocument(document.key, { content: event.target.value })}
                   />
-                  <p className="text-xs text-gray-500"># 제목, ## 소제목, - 목록 형식의 간단한 마크다운을 사용할 수 있습니다.</p>
+                  <p className="text-xs text-[var(--studio-muted)]"># 제목, ## 소제목, - 목록 형식의 간단한 마크다운을 사용할 수 있습니다.</p>
                   {document.key === 'serviceTerms' ? (
-                    <p className="rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                    <p className={cn('rounded-md border px-3 py-2 text-xs leading-5', ADMIN_TONE_CLASSES.warning)}>
                       이용약관은 가입 동의에 연결된 문서라 끄거나 비울 수 없습니다. 중요한 변경은 새 전문·시행일을 먼저 알린 뒤, 본문 수정은 시행일 당일에 하고 수정한 뒤 바로 가입 동의 항목에서 &lsquo;다시 동의 받기&rsquo;를 누르세요.
                     </p>
                   ) : null}
                   {document.key === 'privacyPolicy' ? (
-                    <p className="rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                    <p className={cn('rounded-md border px-3 py-2 text-xs leading-5', ADMIN_TONE_CLASSES.warning)}>
                       개인정보처리방침은 공개 의무가 있어 끄거나 비울 수 없습니다. 수집 항목·보유 기간을 바꿨다면 가입 동의의 &lsquo;개인정보 수집·이용 동의&rsquo; 항목 내용도 같이 고치세요.
                     </p>
                   ) : null}
@@ -321,7 +347,7 @@ export default function FooterSettingsClient({ footerContent: initialFooterConte
           <CardTitle>미리보기</CardTitle>
           <CardDescription>저장 전 Footer 노출 형태를 확인할 수 있습니다.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2 rounded-lg border bg-white p-4 text-sm text-gray-500">
+        <CardContent className="space-y-2 rounded-lg border border-[var(--studio-border)] bg-[var(--studio-surface)] p-4 text-sm text-[var(--studio-muted)]">
           {previewRows.map((row, index) => (
             <p key={`preview-row-${index}`}>
               {row.map((field) => `${field.label}: ${field.value.trim()}`).join(' | ')}

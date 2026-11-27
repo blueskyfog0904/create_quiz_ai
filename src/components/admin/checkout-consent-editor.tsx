@@ -24,6 +24,8 @@ import {
   nextCheckoutConsentItemKey,
   type CheckoutConsentKeysInput,
 } from '@/lib/checkout-consent-admin'
+import { ADMIN_TONE_TEXT_CLASSES } from '@/components/admin/kit/admin-tone-classes'
+import { cn } from '@/lib/utils'
 
 // 11번 9절: 접는 동의(2판) 문구 편집칸 — 자료·충전 폼이 같이 쓴다. 판(consentFormat)은 입력으로 받지 않는다.
 // 한 줄 칸(제목·요약 줄·항목 이름)은 input 이다(줄바꿈 금지, 4-3 (S1)). key 는 코드가 만든다.
@@ -31,12 +33,12 @@ import {
 function ProblemText({ problems, field }: { problems: CheckoutConsentProblem[]; field: string }) {
   const matched = problems.filter((problem) => problem.field === field)
   if (matched.length === 0) return null
-  return <p role="alert" className="text-xs text-red-600">{matched.map((problem) => problem.message).join(' ')}</p>
+  return <p role="alert" className={cn('text-xs', ADMIN_TONE_TEXT_CLASSES.danger)}>{matched.map((problem) => problem.message).join(' ')}</p>
 }
 
 function Counter({ text, length: givenLength, max }: { text?: string; length?: number; max: number }) {
   const length = givenLength ?? charLength(text ?? '')
-  return <span className={length > max ? 'text-red-600' : undefined}>{length}/{max}</span>
+  return <span className={length > max ? ADMIN_TONE_TEXT_CLASSES.danger : undefined}>{length}/{max}</span>
 }
 
 function move<T>(list: T[], index: number, delta: number): T[] {
@@ -75,13 +77,13 @@ export function CheckoutConsentEditor({
     index !== exceptIndex && item.view === 'link' ? [item.link] : [])))
   const setItems = (consentItems: CheckoutConsentRawItem[]) => onChange({ ...value, consentItems })
   const setItem = (index: number, item: CheckoutConsentRawItem) => setItems(value.consentItems.map((current, i) => (i === index ? item : current)))
-  const hint = inFingerprint ? <p className="text-xs text-amber-700">{CHECKOUT_CONSENT_FINGERPRINT_HINT}</p> : null
+  const hint = inFingerprint ? <p className={cn('text-xs', ADMIN_TONE_TEXT_CLASSES.warning)}>{CHECKOUT_CONSENT_FINGERPRINT_HINT}</p> : null
   // 칸에 붙여 보이지 않는 문제(요약 줄 전체, 항목 목록 전체, 항목 모양·키 — 키는 코드가 만들어 DB 를 직접 고쳤을 때만 생김)는 아래 목록에 모은다.
   const otherProblems = problems.filter((problem) => problem.field === 'consentSummary' || problem.field === 'consentItems'
     || /^consentItems\.\d+(\.key)?$/.test(problem.field))
 
   return (
-    <fieldset className="grid gap-4 rounded-md border p-4" disabled={disabled}>
+    <fieldset className="grid gap-4 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] p-4" disabled={disabled}>
       <legend className="px-1 text-sm font-medium">접는 동의(새 방식) 문구</legend>
       <p className="text-xs text-muted-foreground">
         쓸 수 있는 자리표시: <code className="rounded bg-muted px-1">{placeholders}</code>. 기간은 숫자 대신 자리표시로 적어 주세요
@@ -118,7 +120,7 @@ export function CheckoutConsentEditor({
               <Button
                 key={role.role}
                 type="button"
-                variant="adminAction"
+                variant="brandOutline"
                 size="sm"
                 className="w-fit"
                 onClick={() => onChange({ ...value, consentSummary: { ...value.consentSummary, [role.role]: '' } })}
@@ -175,7 +177,7 @@ export function CheckoutConsentEditor({
           const taken = usedTargets(index)
           const takenLinks = usedLinks(index)
           return (
-            <div key={item.key} className="grid gap-2 rounded-md border p-3">
+            <div key={item.key} className="grid gap-2 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Label htmlFor={`${id}-label`} className="shrink-0">항목 이름</Label>
                 <Input
@@ -262,7 +264,7 @@ export function CheckoutConsentEditor({
         {value.consentItems.length < CHECKOUT_CONSENT_ITEMS_MAX ? (
           <Button
             type="button"
-            variant="adminAction"
+            variant="brandOutline"
             size="sm"
             className="w-fit"
             onClick={() => setItems([...value.consentItems, {
@@ -279,7 +281,7 @@ export function CheckoutConsentEditor({
       </div>
 
       {otherProblems.length > 0 ? (
-        <ul role="alert" className="list-disc pl-5 text-xs text-red-600">
+        <ul role="alert" className={cn('list-disc pl-5 text-xs', ADMIN_TONE_TEXT_CLASSES.danger)}>
           {otherProblems.map((problem, index) => <li key={index}>{problem.message}</li>)}
         </ul>
       ) : null}
@@ -291,7 +293,7 @@ export function CheckoutConsentEditor({
 function ProblemTextList({ problems, targetLabels }: { problems: CheckoutConsentProblem[]; targetLabels: Record<string, string> }) {
   if (problems.length === 0) return null
   return (
-    <ul role="alert" className="list-disc pl-5 text-xs text-red-600">
+    <ul role="alert" className={cn('list-disc pl-5 text-xs', ADMIN_TONE_TEXT_CLASSES.danger)}>
       {problems.map((problem, index) => (
         <li key={index}>{targetLabels[problem.field.slice('body:'.length)] ?? problem.field}: {problem.message}</li>
       ))}

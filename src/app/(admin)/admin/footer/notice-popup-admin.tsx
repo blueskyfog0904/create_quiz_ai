@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Eye, Loader2, Save } from 'lucide-react'
+import { Eye } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,6 +30,10 @@ import {
   type SiteNoticePopupValue,
 } from '@/lib/site-notice-popup'
 import { saveNoticePopupAction, type NoticePopupAdminData } from './notice-popup-actions'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminSaveBar, countChangedFields } from '@/components/admin/kit/admin-save-bar'
+import { ADMIN_TONE_TEXT_CLASSES } from '@/components/admin/kit/admin-tone-classes'
+import { cn } from '@/lib/utils'
 
 type LoadedData = Extract<NoticePopupAdminData, { ok: true }>
 
@@ -134,6 +138,9 @@ export function NoticePopupAdmin({ data: initialData }: { data: NoticePopupAdmin
   const [previewOpen, setPreviewOpen] = useState(false)
   const [pending, setPending] = useState<PendingSave | null>(null)
   const [saving, setSaving] = useState(false)
+  // 저장 상태 줄(20번 3-2): 마지막 저장 시각·실패 문구. 알림(toast)은 그대로 띄운다.
+  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   if (!data.ok || !draft) {
     return (
@@ -142,7 +149,7 @@ export function NoticePopupAdmin({ data: initialData }: { data: NoticePopupAdmin
           <CardTitle>공지 팝업</CardTitle>
         </CardHeader>
         <CardContent>
-          <p role="alert" className="text-sm text-destructive">{data.ok ? '공지 팝업 설정을 불러오지 못했습니다.' : data.error}</p>
+          <AdminNotice kind="error">{data.ok ? '공지 팝업 설정을 불러오지 못했습니다.' : data.error}</AdminNotice>
         </CardContent>
       </Card>
     )
@@ -180,18 +187,22 @@ export function NoticePopupAdmin({ data: initialData }: { data: NoticePopupAdmin
   const save = async () => {
     if (!pending || saving) return
     setSaving(true)
+    setSaveError(null)
     try {
       const result = await saveNoticePopupAction(saved.revision, pending.input)
       if (!result.success) {
         toast.error(result.error)
+        setSaveError(result.error)
         if (result.data) applyLoaded(result.data)
         return
       }
       applyLoaded(result.data)
+      setSavedAt(Date.now())
       toast.success(result.changed ? '공지 팝업을 저장했습니다.' : '바뀐 내용이 없어 저장하지 않았습니다.')
       router.refresh()
     } catch {
       toast.error('공지 팝업을 저장하지 못했습니다.')
+      setSaveError('공지 팝업을 저장하지 못했습니다.')
     } finally {
       setSaving(false)
       setPending(null)
@@ -201,15 +212,17 @@ export function NoticePopupAdmin({ data: initialData }: { data: NoticePopupAdmin
   const visibility = getNoticePopupVisibility(saved, Date.now())
   const previewContent = toInput(draft)
   const bodyLength = Array.from(draft.body).length
+  // 저장 안 된 변경 수: 마지막으로 저장된 값과 다른 칸 수
+  const changedCount = countChangedFields(draft, toDraft(saved))
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>공지 팝업 <span className="ml-1 text-xs font-normal text-gray-500">대표 전용</span></CardTitle>
+        <CardTitle>공지 팝업 <span className="ml-1 text-xs font-normal text-[var(--studio-muted)]">대표 전용</span></CardTitle>
         <CardDescription>회원 화면에 처음 들어올 때 뜨는 공지입니다. 관리자·충전·결제·장바구니 화면에는 뜨지 않습니다. 저장할 때마다 원문이 작업 기록에 남습니다.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">
+        <p className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-3 py-2 text-sm text-[var(--studio-text)]">
           {VISIBILITY_LABELS[visibility]} · 지문 {short(saved.contentSha256)} · 판 {saved.revision} · 마지막 저장 {formatKst(loaded.popupUpdatedAt)}
         </p>
 
@@ -224,7 +237,7 @@ export function NoticePopupAdmin({ data: initialData }: { data: NoticePopupAdmin
         <div className="space-y-2">
           <Label htmlFor="notice-popup-body">본문</Label>
           <Textarea id="notice-popup-body" rows={12} value={draft.body} disabled={saving} onChange={(event) => set({ body: event.target.value })} />
-          <p className={bodyLength > NOTICE_POPUP_BODY_MAX ? 'text-xs text-destructive' : 'text-xs text-gray-500'}>{bodyLength} / {NOTICE_POPUP_BODY_MAX}자</p>
+          <p className={bodyLength > NOTICE_POPUP_BODY_MAX ? cn('text-xs', ADMIN_TONE_TEXT_CLASSES.danger) : 'text-xs text-[var(--studio-muted)]'}>{bodyLength} / {NOTICE_POPUP_BODY_MAX}자</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
@@ -247,29 +260,37 @@ export function NoticePopupAdmin({ data: initialData }: { data: NoticePopupAdmin
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={() => setPreviewOpen(true)} disabled={!previewContent.title || !previewContent.body}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="brandOutline" onClick={() => setPreviewOpen(true)} disabled={!previewContent.title || !previewContent.body}>
             <Eye className="mr-2 h-4 w-4" />
             미리보기
           </Button>
-          <Button type="button" onClick={openConfirm} disabled={saving}>
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Save className="mr-2 h-4 w-4" />}
-            저장
-          </Button>
+          {/* 저장 함수 하나 = 인라인 저장 줄 하나. 저장은 지금처럼 확인 창(openConfirm)을 거친다. */}
+          <AdminSaveBar
+            className="min-w-0 flex-1"
+            variant="inline"
+            dirtyCount={changedCount}
+            status={saving ? 'saving' : saveError ? 'error' : savedAt ? 'saved' : 'idle'}
+            savedAt={savedAt}
+            errorMessage={saveError}
+            applyNote="저장하면 바로 회원 화면에 반영됩니다."
+            onSave={openConfirm}
+            saveLabel="저장"
+          />
         </div>
 
         {loaded.continuity ? (
-          <p role="status" className={loaded.continuity.ok ? 'text-sm text-emerald-700' : 'text-sm text-destructive'}>
+          <p role="status" className={cn('text-sm', loaded.continuity.ok ? ADMIN_TONE_TEXT_CLASSES.success : ADMIN_TONE_TEXT_CLASSES.danger)}>
             고지 끊김 판정: {loaded.continuity.ok
               ? `이어짐(고지 시작 기록 ${formatKst(loaded.continuity.sSavedAt)})`
               : `끊김 — ${CONTINUITY_REASON_LABELS[loaded.continuity.reason ?? ''] ?? loaded.continuity.reason ?? '알 수 없음'}`}
           </p>
         ) : null}
 
-        <section aria-labelledby="notice-popup-upcoming-title" className="rounded-lg border p-4">
-          <h3 id="notice-popup-upcoming-title" className="text-sm font-semibold text-gray-900">변경 예정 글 상태(읽기만 — 글은 스크립트로만 바꿉니다)</h3>
+        <section aria-labelledby="notice-popup-upcoming-title" className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] p-4">
+          <h3 id="notice-popup-upcoming-title" className="text-sm font-semibold text-[var(--studio-ink)]">변경 예정 글 상태(읽기만 — 글은 스크립트로만 바꿉니다)</h3>
           {upcoming ? (
-            <div className="mt-2 space-y-1 text-sm text-gray-700">
+            <div className="mt-2 space-y-1 text-sm text-[var(--studio-text)]">
               <p>상태 {UPCOMING_STATUS_LABELS[upcoming.status] ?? upcoming.status} · 시행일 {upcoming.effectiveDateLabel || upcoming.effectiveDate} · 게시 {formatKst(upcoming.publishedAt)}</p>
               <ul className="list-disc pl-5">
                 {upcoming.documents.map((document) => (
@@ -282,7 +303,7 @@ export function NoticePopupAdmin({ data: initialData }: { data: NoticePopupAdmin
               <Link href={POLICY_UPCOMING_PATH} className="text-sm font-semibold underline underline-offset-4">{POLICY_UPCOMING_PATH} 열기</Link>
             </div>
           ) : (
-            <p className="mt-2 text-sm text-gray-500">게시된 변경 예정 글이 없습니다.</p>
+            <p className="mt-2 text-sm text-[var(--studio-muted)]">게시된 변경 예정 글이 없습니다.</p>
           )}
         </section>
       </CardContent>
@@ -308,7 +329,7 @@ export function NoticePopupAdmin({ data: initialData }: { data: NoticePopupAdmin
           <span className="block space-y-2 text-left">
             {pending.lines.map((line) => <span key={line} className="block">{line}</span>)}
             {pending.problems.length > 0 ? (
-              <span className="block font-semibold text-destructive">
+              <span className={cn('block font-semibold', ADMIN_TONE_TEXT_CLASSES.danger)}>
                 이렇게 저장하면 30일 고지가 끊긴 것으로 기록되어 시행일 스크립트가 멈춥니다.
                 {pending.problems.map((problem) => <span key={problem} className="block font-normal">- {RECORD_PROBLEM_LABELS[problem]}</span>)}
               </span>
@@ -319,6 +340,9 @@ export function NoticePopupAdmin({ data: initialData }: { data: NoticePopupAdmin
         confirmLabel="저장"
         cancelLabel="취소"
         destructive={(pending?.problems.length ?? 0) > 0}
+        destructiveVariant="adminDanger"
+        limitHeight
+        focusCancelOnOpen
         pending={saving}
         onConfirm={save}
       />

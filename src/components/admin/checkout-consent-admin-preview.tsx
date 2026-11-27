@@ -103,7 +103,7 @@ export function MarketCheckoutConsentPreview({
   return (
     <div className="grid gap-4">
       {!linksVisible ? (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-[var(--admin-tone-danger-text)]">
           취소·환불정책 또는 서비스 이용약관 문서가 꺼져 있거나 비어 있어, 새 방식(접는 동의)으로는 결제가 막힙니다. 약관 문서를 먼저 확인해 주세요.
         </p>
       ) : null}
@@ -171,7 +171,7 @@ export function PointChargeCheckoutConsentPreview({
   return (
     <div className="grid gap-2">
       {!linksVisible ? (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-[var(--admin-tone-danger-text)]">
           취소·환불정책 또는 서비스 이용약관 문서가 꺼져 있거나 비어 있어, 새 방식(접는 동의)으로는 충전 결제가 막힙니다.
         </p>
       ) : null}
@@ -214,7 +214,7 @@ export function StoredCheckoutConsentFingerprint({
             {bundle ? <Button type="button" variant="outline" size="sm" onClick={() => copy(bundle.noticeSha256)}>복사</Button> : null}
           </dd>
           {!consent && consentIgnoringLinks ? (
-            <dd className="text-red-600">약관 문서(링크)가 닫혀 있어 결제 때는 이 지문으로도 막힙니다.</dd>
+            <dd className="text-[var(--admin-tone-danger-text)]">약관 문서(링크)가 닫혀 있어 결제 때는 이 지문으로도 막힙니다.</dd>
           ) : null}
         </div>
         {cartTextsSha256 !== undefined ? (
