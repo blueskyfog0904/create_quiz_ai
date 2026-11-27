@@ -124,7 +124,6 @@ export function NotificationsAdmin({ texts, history, notices, terms, piiAllowed,
       <div>
         <h1 className="text-2xl font-bold">알림</h1>
         <p className="text-gray-500">회원에게 가는 알림 문구를 고치고, 서비스 공지 알림을 보내고 회수합니다(대표만).</p>
-        <p className="mt-1 text-xs text-amber-800">localhost 도 운영 DB 를 씁니다. 로컬에서는 저장·보내기·회수를 누르지 마세요.</p>
       </div>
       <Tabs value={tab} onValueChange={(value) => setTab(value as NotificationsAdminTab)}>
         <TabsList>
