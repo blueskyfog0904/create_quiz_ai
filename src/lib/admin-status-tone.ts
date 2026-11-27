@@ -120,6 +120,22 @@ const pricingPlan = {
   inactive: 'neutral',
 } as const
 
+// 크레딧 거래 종류(20번 5단계). 키는 admin-credit-transaction-kind.ts 가 주는 tone 이름 그대로(충전 green·관리자 지급 amber·
+// 환불 지급·사용 취소 blue·회수 red·사용·탈퇴 소멸 gray). 평범한 사용은 회색, 빨강은 회수에만(20번 Q6).
+const creditTransaction = {
+  green: 'success',
+  amber: 'warning',
+  blue: 'info',
+  red: 'danger',
+  gray: 'neutral',
+} as const
+
+// 문의 카테고리·답변 템플릿(20번 5단계): 사용·숨김(사용 안 함)
+const supportOption = {
+  active: 'success',
+  hidden: 'neutral',
+} as const
+
 export const ADMIN_STATUS_TONES = {
   paymentOrder,
   refundRequest,
@@ -133,6 +149,8 @@ export const ADMIN_STATUS_TONES = {
   banner,
   reviewTag,
   pricingPlan,
+  creditTransaction,
+  supportOption,
 } as const
 
 export type AdminStatusKind = keyof typeof ADMIN_STATUS_TONES
@@ -141,4 +159,11 @@ export type AdminStatusKind = keyof typeof ADMIN_STATUS_TONES
 export function adminStatusTone(kind: AdminStatusKind, value: string | null | undefined): AdminTone {
   const tones: Record<string, AdminTone> = ADMIN_STATUS_TONES[kind]
   return value && Object.hasOwn(tones, value) ? tones[value] : 'neutral'
+}
+
+// 크레딧 증감 글자색(20번 Q6): 평범한 사용 차감은 기본 글자색(null) + '−' 부호, 빨강은 회수에만, 늘어난 것은 초록.
+// kindTone 은 admin-credit-transaction-kind.ts 가 주는 tone 이름.
+export function creditAmountTone(amount: number, kindTone: string): AdminTone | null {
+  if (kindTone === 'red') return 'danger'
+  return amount > 0 ? 'success' : null
 }

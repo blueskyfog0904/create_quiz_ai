@@ -2,28 +2,18 @@
 
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
-  Search,
-  Coins,
-  ArrowUpRight,
-  ArrowDownLeft,
-  RotateCcw,
-  Filter,
-  Calendar
-} from 'lucide-react'
+import { Search, Coins, Filter, Calendar } from 'lucide-react'
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/kit/admin-data-table'
+import { AdminFilterBar } from '@/components/admin/kit/admin-filter-bar'
+import { AdminMetricCard, AdminMetricGrid } from '@/components/admin/kit/admin-metric-card'
+import { AdminStatusBadge } from '@/components/admin/kit/admin-status-badge'
+import { AdminTableState } from '@/components/admin/kit/admin-table-state'
+import { ADMIN_TONE_TEXT_CLASSES } from '@/components/admin/kit/admin-tone-classes'
+import { formatSignedCredits } from '@/lib/admin-format'
+import { adminStatusTone, creditAmountTone } from '@/lib/admin-status-tone'
 import { GrantCreditDialog } from './grant-credit-dialog'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { getAdminCreditTransactionKind } from '@/lib/admin-credit-transaction-kind'
@@ -47,16 +37,9 @@ interface CreditsClientProps {
   canGrantCredits: boolean
 }
 
-const KIND_BADGE_CLASS = {
-  green: 'bg-green-100 text-green-700 hover:bg-green-100',
-  amber: 'bg-amber-100 text-amber-800 hover:bg-amber-100',
-  blue: 'bg-blue-100 text-blue-700 hover:bg-blue-100',
-  red: 'bg-red-100 text-red-700 hover:bg-red-100',
-  gray: 'bg-gray-100 text-gray-700 hover:bg-gray-100',
-} as const
-
-function formatSigned(amount: number) {
-  return `${amount > 0 ? '+' : ''}${amount.toLocaleString()}`
+function amountClass(amount: number, kindTone: string) {
+  const tone = creditAmountTone(amount, kindTone)
+  return tone ? ADMIN_TONE_TEXT_CLASSES[tone] : 'text-[var(--studio-ink)]'
 }
 
 // 목록·검색·유형·페이지는 서버가 정한다(주소의 type·q·page·pageSize). 이 화면은 받은 값을 그대로 그린다.
@@ -81,7 +64,66 @@ export function CreditsClient({ transactions, totalCount, page, pageSize, query,
   }
 
   const statsPeriod = monthlyStats ? `${monthlyStats.year}년 ${monthlyStats.month}월 (한국 시간)` : '이번 달'
-  const statValue = (value: number | undefined) => (value === undefined ? '확인 불가' : formatSigned(value))
+  const stats = [
+    { title: '충전·지급', value: monthlyStats?.added, sub: '결제 충전, 관리자 지급, 환불 지급' },
+    { title: '사용', value: monthlyStats?.consumed, sub: '자료 구매 등' },
+    { title: '사용 취소', value: monthlyStats?.restored, sub: '구매 환불로 되돌려 준 크레딧' },
+    { title: '환불·관리자 회수', value: monthlyStats?.recovered, sub: '결제 환불·관리자 회수로 빠진 크레딧' },
+    { title: '탈퇴 소멸', value: monthlyStats?.forfeited, sub: '회원 탈퇴로 사라진 크레딧(사용 아님)' },
+  ]
+
+  const columns: AdminDataTableColumn<AdminCreditTransaction>[] = [
+    {
+      key: 'createdAt',
+      header: '일시',
+      className: 'whitespace-nowrap text-xs text-[var(--studio-muted)]',
+      cell: (t) => (
+        <div className="flex items-center gap-2">
+          <Calendar aria-hidden="true" className="h-3 w-3" />
+          {new Date(t.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
+        </div>
+      ),
+    },
+    {
+      key: 'member',
+      header: '사용자',
+      pii: true,
+      cell: (t) => (
+        <div className="flex flex-col">
+          <span className="text-sm font-medium">{formatMemberDisplayName(t.user?.email, t.user?.display_tag)}</span>
+          <span className="text-xs text-[var(--studio-muted)]">{t.user?.email || '-'}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'kind',
+      header: '유형',
+      cell: (t) => {
+        const kind = getAdminCreditTransactionKind(t)
+        return <AdminStatusBadge label={kind.label} tone={adminStatusTone('creditTransaction', kind.tone)} />
+      },
+    },
+    {
+      key: 'description',
+      header: '내용',
+      cell: (t) => (
+        <>
+          <div className="text-sm">{t.description}</div>
+          {t.resource_type && (
+            <div className="mt-0.5 text-xs text-[var(--studio-muted)]">
+              {t.resource_type} #{t.resource_id?.slice(0, 8)}
+            </div>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'amount',
+      header: '금액',
+      numeric: true,
+      cell: (t) => <span className={`font-bold ${amountClass(t.amount, getAdminCreditTransactionKind(t).tone)}`}>{formatSignedCredits(t.amount)}</span>,
+    },
+  ]
 
   return (
     <div className="space-y-6">
@@ -91,164 +133,74 @@ export function CreditsClient({ transactions, totalCount, page, pageSize, query,
         onSuccess={() => router.refresh()}
       />
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">충전·지급</CardTitle>
-            <ArrowUpRight className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-700">{statValue(monthlyStats?.added)}</div>
-            <p className="text-xs text-muted-foreground">{statsPeriod} · 결제 충전, 관리자 지급, 환불 지급</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">사용</CardTitle>
-            <ArrowDownLeft className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-700">{statValue(monthlyStats?.consumed)}</div>
-            <p className="text-xs text-muted-foreground">{statsPeriod} · 자료 구매 등</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">사용 취소</CardTitle>
-            <RotateCcw className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-700">{statValue(monthlyStats?.restored)}</div>
-            <p className="text-xs text-muted-foreground">{statsPeriod} · 구매 환불로 되돌려 준 크레딧</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">환불·관리자 회수</CardTitle>
-            <RotateCcw className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-700">{statValue(monthlyStats?.recovered)}</div>
-            <p className="text-xs text-muted-foreground">{statsPeriod} · 결제 환불·관리자 회수로 빠진 크레딧</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">탈퇴 소멸</CardTitle>
-            <ArrowDownLeft className="h-4 w-4 text-gray-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-700">{statValue(monthlyStats?.forfeited)}</div>
-            <p className="text-xs text-muted-foreground">{statsPeriod} · 회원 탈퇴로 사라진 크레딧(사용 아님)</p>
-          </CardContent>
-        </Card>
-      </div>
+      <AdminMetricGrid>
+        {stats.map((stat) => (
+          <AdminMetricCard
+            key={stat.title}
+            title={stat.title}
+            value={formatSignedCredits(stat.value)}
+            valueUnavailable={stat.value === undefined}
+            sub={`${statsPeriod} · ${stat.sub}`}
+          />
+        ))}
+      </AdminMetricGrid>
 
-      {/* Filters & Actions */}
-      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-white p-4 rounded-lg border shadow-sm">
-        <div className="flex items-center gap-2 w-full sm:w-auto max-sm:flex-col max-sm:items-stretch">
-          <form onSubmit={handleSearch} className="flex flex-1 gap-2 sm:w-96" role="search">
+      <AdminFilterBar
+        className="mb-0"
+        search={
+          <form onSubmit={handleSearch} className="flex w-full gap-2 sm:w-96" role="search">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--studio-muted)]" />
               <Input
                 placeholder="이메일, 내역 검색..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
                 aria-label="크레딧 거래 검색"
+                data-admin-pii=""
               />
             </div>
-            <Button type="submit" variant="adminAction">검색</Button>
+            <Button type="submit" variant="brand">검색</Button>
           </form>
-          <Select value={type} onValueChange={(value) => router.push(buildHref({ type: value === 'all' ? null : value, page: 1 }))}>
-            <SelectTrigger className="w-[150px] max-sm:w-full" aria-label="거래 유형">
-              <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-gray-500" />
-                <SelectValue />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">전체 내역</SelectItem>
-              <SelectItem value="purchase">충전·지급</SelectItem>
-              <SelectItem value="consume">사용</SelectItem>
-              <SelectItem value="refund">환불·회수</SelectItem>
-              <SelectItem value="withdrawal_forfeit">탈퇴 소멸</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {canGrantCredits ? (
-          <div className="flex items-center gap-2 max-sm:w-full">
-            <Button
-              onClick={() => setIsGrantDialogOpen(true)}
-              className="gap-2 bg-blue-600 hover:bg-blue-700 text-white max-sm:w-full"
-            >
-              <Coins className="h-4 w-4" />
-              크레딧 지급
-            </Button>
-          </div>
-        ) : null}
-      </div>
+        }
+        filters={
+          <>
+            <Select value={type} onValueChange={(value) => router.push(buildHref({ type: value === 'all' ? null : value, page: 1 }))}>
+              <SelectTrigger className="w-[150px] max-sm:w-full" aria-label="거래 유형">
+                <div className="flex items-center gap-2">
+                  <Filter aria-hidden="true" className="h-4 w-4 text-[var(--studio-muted)]" />
+                  <SelectValue />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체 내역</SelectItem>
+                <SelectItem value="purchase">충전·지급</SelectItem>
+                <SelectItem value="consume">사용</SelectItem>
+                <SelectItem value="refund">환불·회수</SelectItem>
+                <SelectItem value="withdrawal_forfeit">탈퇴 소멸</SelectItem>
+              </SelectContent>
+            </Select>
+            {canGrantCredits ? (
+              <Button variant="brand" onClick={() => setIsGrantDialogOpen(true)} className="gap-2 max-sm:w-full">
+                <Coins aria-hidden="true" className="h-4 w-4" />
+                크레딧 지급
+              </Button>
+            ) : null}
+          </>
+        }
+        resultCount={totalCount}
+      />
 
-      {/* Transaction Table */}
-      <Card>
-        <CardContent className="p-0 overflow-x-auto">
-          <Table className="max-md:min-w-[760px]">
-            <TableHeader>
-              <TableRow>
-                <TableHead>일시</TableHead>
-                <TableHead>사용자</TableHead>
-                <TableHead>유형</TableHead>
-                <TableHead>내용</TableHead>
-                <TableHead className="text-right">금액</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {transactions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    {query || type !== 'all' ? '조건에 맞는 거래 내역이 없습니다.' : '거래 내역이 없습니다.'}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                transactions.map((t) => {
-                  const kind = getAdminCreditTransactionKind(t)
-                  return (
-                    <TableRow key={t.id}>
-                      <TableCell className="text-xs text-gray-500">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(t.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium text-sm">{formatMemberDisplayName(t.user?.email, t.user?.display_tag)}</span>
-                          <span className="text-xs text-gray-400">{t.user?.email || '-'}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className={KIND_BADGE_CLASS[kind.tone]}>{kind.label}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">{t.description}</div>
-                        {t.resource_type && (
-                          <div className="text-xs text-gray-400 mt-0.5">
-                            {t.resource_type} #{t.resource_id?.slice(0, 8)}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className={`text-right font-bold ${t.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatSigned(t.amount)}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <AdminDataTable
+        caption="크레딧 거래 목록"
+        columns={columns}
+        rows={transactions}
+        getRowKey={(t) => t.id}
+        minWidth={760}
+        state={transactions.length === 0 ? (
+          <AdminTableState kind="empty" message={query || type !== 'all' ? '조건에 맞는 거래 내역이 없습니다.' : '거래 내역이 없습니다.'} />
+        ) : undefined}
+      />
 
       <StudioListPagination
         page={page}

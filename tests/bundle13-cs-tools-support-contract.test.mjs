@@ -326,7 +326,8 @@ test('관리자 문의 상세: [답변 수정]은 답변이 있고 회원이 지
   // 템플릿 넣기: 그 문의 카테고리 먼저, 쓰던 글이 있으면 확인
   const tools = read('src/app/(admin)/admin/support/reply-template-tools.tsx')
   assert.match(tools, /template\.category_id === ticket\.category_id/)
-  assert.match(tools, /if \(currentText\.trim\(\) && !confirm\(/)
+  // 20번 5단계: 브라우저 확인 창 → 공통 확인 창(유형 가, 같은 자리에서 먼저 묻기)
+  assert.match(tools, /if \(currentText\.trim\(\) && !\(await ask\(\{\s+title: '쓰던 답변을 이 템플릿으로 바꿀까요\?'/)
 })
 
 function loadRevisionsRoute({ withdrawn = false, revisions = [{ id: 'r1', previous_response: '이전', reason: '오타' }], logged = true } = {}) {

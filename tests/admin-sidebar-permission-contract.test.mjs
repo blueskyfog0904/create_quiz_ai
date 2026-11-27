@@ -95,7 +95,8 @@ test('크레딧 지급 버튼은 credits.grant일 때만 보인다(회원 목록
     assert.match(read(page), /canGrantCredits=\{hasAdminPermission\(access, 'credits\.grant'\)\}/, page)
     const source = read(client)
     // 10번: 회원 목록은 탈퇴 회원 줄에서도 버튼을 뺀다(DB가 MEMBER_WITHDRAWN 으로 거절).
-    assert.match(source, /\{canGrantCredits(?: && !user\.withdrawn_at)? \? \(\s*(<div[^>]*>\s*)?<Button[\s\S]{0,400}크레딧 지급\s*<\/Button>/, client)
+    // 20번 5단계: 회원 목록은 표의 '작업' 열 자체를 credits.grant 일 때만 넣는다(…(canGrantCredits ? [{ 열 }] : []))
+    assert.match(source, /(?:\{canGrantCredits(?: && !user\.withdrawn_at)? \? \(|\.\.\.\(canGrantCredits\s+\? \[\{[\s\S]{0,400}?!user\.withdrawn_at \? \()\s*(<div[^>]*>\s*)?<Button[\s\S]{0,400}크레딧 지급\s*<\/Button>/, client)
     assert.equal(source.match(/크레딧 지급\s*<\/Button>/g).length, 1, client)
   }
 })

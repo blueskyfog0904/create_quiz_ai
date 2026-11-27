@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminSaveBar, countChangedFields } from '@/components/admin/kit/admin-save-bar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -82,11 +84,14 @@ export function SuspensionPolicyCard({ data: initial }: { data: MemberSuspension
   const [draft, setDraft] = useState<Draft | null>(initial.ok ? toDraft(initial.policy) : null)
   const [preview, setPreview] = useState(false)
   const [saving, setSaving] = useState(false)
+  // 20번: 저장 줄의 실패·저장 시각 표시(알림 toast 는 그대로)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [savedAt, setSavedAt] = useState<number | null>(null)
 
   if (!data.ok || !draft) {
     return (
       <Card className="border-0 shadow-sm">
-        <CardContent className="p-4"><p role="alert" className="text-sm text-red-700">{data.ok ? '이용 정지 설정을 불러오지 못했습니다.' : data.error}</p></CardContent>
+        <CardContent className="p-4"><AdminNotice kind="error">{data.ok ? '이용 정지 설정을 불러오지 못했습니다.' : data.error}</AdminNotice></CardContent>
       </Card>
     )
   }
@@ -120,10 +125,12 @@ export function SuspensionPolicyCard({ data: initial }: { data: MemberSuspension
     const error = validateDraft(normalized)
     if (error) return toast.error(error)
     setSaving(true)
+    setSaveError(null)
     try {
       const result = await saveMemberSuspensionPolicyAction(data.policy.revision, normalized)
       if (!result.success) {
         toast.error(result.error)
+        setSaveError(result.error)
         if (result.data?.ok) {
           setData(result.data)
           setDraft(toDraft(result.data.policy))
@@ -133,22 +140,24 @@ export function SuspensionPolicyCard({ data: initial }: { data: MemberSuspension
       toast.success(result.changed ? '저장했습니다. 회원 화면에 바로 반영됩니다.' : '바뀐 내용이 없습니다.')
       setData(result.data)
       if (result.data.ok) setDraft(toDraft(result.data.policy))
+      setSavedAt(Date.now())
     } catch {
       toast.error('저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+      setSaveError('저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Card className="border-0 shadow-sm">
+    <Card className="rounded-[var(--studio-radius-card)] border-[var(--studio-border)] shadow-none">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
-        <CardTitle className="text-lg">이용 정지 안내 문구·사유 분류 <span className="text-sm font-normal text-gray-500">(대표 전용)</span></CardTitle>
-        <Button type="button" variant="outline" size="sm" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? '접기' : '펼치기'}</Button>
+        <CardTitle className="text-lg">이용 정지 안내 문구·사유 분류 <span className="text-sm font-normal text-[var(--studio-muted)]">(대표 전용)</span></CardTitle>
+        <Button type="button" variant="adminTable" size="sm" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? '접기' : '펼치기'}</Button>
       </CardHeader>
       {open && (
         <CardContent className="space-y-6">
-          <p className="text-sm text-gray-500">문구는 초안입니다. 클라이언트와 정한 뒤 여기서 고칩니다. 저장하면 회원 화면·로그인 화면·관리자 정지 창에 바로 쓰입니다.</p>
+          <p className="text-sm text-[var(--studio-muted)]">문구는 초안입니다. 클라이언트와 정한 뒤 여기서 고칩니다. 저장하면 회원 화면·로그인 화면·관리자 정지 창에 바로 쓰입니다.</p>
 
           <div className="space-y-1">
             <Label htmlFor="suspension-max-days">이용 제한 최대 일수(1~365)</Label>
@@ -165,8 +174,8 @@ export function SuspensionPolicyCard({ data: initial }: { data: MemberSuspension
           </div>
 
           <div className="space-y-3">
-            <p className="font-medium text-gray-800">사유 분류</p>
-            <p className="text-xs text-gray-500">&apos;다운로드도 막기 기본&apos;은 정지 창에서 그 분류를 고르면 미리 체크됩니다(바꿀 수 있음). 정지 기록에 쓰인 코드는 지울 수 없고 숨김만 됩니다.</p>
+            <p className="font-medium text-[var(--studio-ink)]">사유 분류</p>
+            <p className="text-xs text-[var(--studio-muted)]">&apos;다운로드도 막기 기본&apos;은 정지 창에서 그 분류를 고르면 미리 체크됩니다(바꿀 수 있음). 정지 기록에 쓰인 코드는 지울 수 없고 숨김만 됩니다.</p>
             {draft.reasonCategories.map((category, index) => {
               const locked = category.persisted && inUse.has(category.code)
               return (
@@ -188,22 +197,22 @@ export function SuspensionPolicyCard({ data: initial }: { data: MemberSuspension
                       만 14세 미만 안내 보이기
                     </label>
                     <span className="ml-auto flex gap-1">
-                      <Button type="button" size="sm" variant="outline" onClick={() => move(index, -1)} disabled={index === 0} aria-label="위로">↑</Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => move(index, 1)} disabled={index === draft.reasonCategories.length - 1} aria-label="아래로">↓</Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => remove(index)} disabled={locked} title={locked ? '정지 기록에 쓰인 코드는 숨김만 됩니다' : undefined}>지우기</Button>
+                      <Button type="button" size="sm" variant="adminTable" onClick={() => move(index, -1)} disabled={index === 0} aria-label="위로">↑</Button>
+                      <Button type="button" size="sm" variant="adminTable" onClick={() => move(index, 1)} disabled={index === draft.reasonCategories.length - 1} aria-label="아래로">↓</Button>
+                      <Button type="button" size="sm" variant="adminTable" className="text-[var(--admin-tone-danger-text)]" onClick={() => remove(index)} disabled={locked} title={locked ? '정지 기록에 쓰인 코드는 숨김만 됩니다' : undefined}>지우기</Button>
                     </span>
                   </div>
                 </div>
               )
             })}
-            <Button type="button" size="sm" variant="outline" onClick={addCategory}>분류 추가</Button>
+            <Button type="button" size="sm" variant="adminTable" onClick={addCategory}>분류 추가</Button>
           </div>
 
           <div className="space-y-3">
-            <p className="font-medium text-gray-800">문구</p>
+            <p className="font-medium text-[var(--studio-ink)]">문구</p>
             {MEMBER_SUSPENSION_TEXT_KEYS.map((key) => (
               <div key={key} className="space-y-1">
-                <Label htmlFor={`suspension-text-${key}`}>{TEXT_LABELS[key]} <span className="text-xs font-normal text-gray-400">{key}</span></Label>
+                <Label htmlFor={`suspension-text-${key}`}>{TEXT_LABELS[key]} <span className="text-xs font-normal text-[var(--studio-muted)]">{key}</span></Label>
                 <Textarea id={`suspension-text-${key}`} value={draft.texts[key]} onChange={(event) => setText(key, event.target.value)} className="h-16" maxLength={MEMBER_SUSPENSION_TEXT_MAX} />
               </div>
             ))}
@@ -215,21 +224,33 @@ export function SuspensionPolicyCard({ data: initial }: { data: MemberSuspension
               <div className="space-y-1 rounded bg-white p-3">
                 <p className="text-base font-semibold">{draft.texts.noticeTitle}</p>
                 <p>{draft.texts.noticeIntro}</p>
-                <p><span className="text-gray-500">막힌 것 </span>{draft.texts.noticeBlockedList}, {draft.texts.noticeBlockedDownload}</p>
-                <p><span className="text-gray-500">아직 되는 것 </span>{draft.texts.noticeAvailableList}</p>
+                <p><span className="text-[var(--studio-muted)]">막힌 것 </span>{draft.texts.noticeBlockedList}, {draft.texts.noticeBlockedDownload}</p>
+                <p><span className="text-[var(--studio-muted)]">아직 되는 것 </span>{draft.texts.noticeAvailableList}</p>
                 <p>{draft.texts.noticeDeadlines}</p>
                 <p>{draft.texts.noticeObjection}</p>
               </div>
-              <p className="rounded bg-white p-3"><span className="text-gray-500">로그인 화면 </span>{draft.texts.loginBlocked}</p>
-              <p className="rounded bg-white p-3"><span className="text-gray-500">막힌 동작 </span>{draft.texts.apiBlocked}</p>
+              <p className="rounded bg-white p-3"><span className="text-[var(--studio-muted)]">로그인 화면 </span>{draft.texts.loginBlocked}</p>
+              <p className="rounded bg-white p-3"><span className="text-[var(--studio-muted)]">막힌 동작 </span>{draft.texts.apiBlocked}</p>
             </div>
           )}
 
           <div className="flex flex-wrap justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setPreview(!preview)}>{preview ? '미리보기 닫기' : '미리보기'}</Button>
-            <Button type="button" variant="outline" onClick={() => setDraft(toDraft(data.policy))} disabled={saving}>되돌리기</Button>
-            <Button type="button" onClick={() => void save()} disabled={saving}>{saving ? '저장 중…' : '저장'}</Button>
+            <Button type="button" variant="brandOutline" onClick={() => setPreview(!preview)}>{preview ? '미리보기 닫기' : '미리보기'}</Button>
+            <Button type="button" variant="brandOutline" onClick={() => setDraft(toDraft(data.policy))} disabled={saving}>되돌리기</Button>
           </div>
+          {/* 저장 함수 하나(save). 변경이 없어도 전처럼 누를 수 있다(서버가 '바뀐 내용이 없습니다'로 답함). */}
+          <AdminSaveBar
+            variant="inline"
+            dirtyCount={countChangedFields(draft, toDraft(data.policy))}
+            status={saving ? 'saving' : saveError ? 'error' : savedAt ? 'saved' : 'idle'}
+            savedAt={savedAt}
+            errorMessage={saveError}
+            applyNote="저장하면 회원 화면·로그인 화면·관리자 정지 창에 바로 쓰입니다."
+            onSave={() => void save()}
+            saveLabel="저장"
+            saveDisabled={saving}
+            saveWhenClean
+          />
         </CardContent>
       )}
     </Card>

@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { SupportClient, type Ticket } from './support-client'
 import type { SupportReplyTemplateRow } from './reply-template-tools'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminPageHeader } from '@/components/admin/kit/admin-page-header'
 import { UUID_PATTERN } from '@/lib/admin-orders'
 import { attachMemberContacts } from '@/lib/admin-member-access-log-server'
 import { findSupportMemberIdsByEmail, readLockedSupportCategoryIds } from '@/lib/admin-support-server'
@@ -161,17 +163,18 @@ export default async function AdminSupportPage({ searchParams }: AdminSupportPag
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 max-md:text-2xl"><AdminMenuName href="/admin/support" fallback="고객지원 관리" /></h1>
-        <p className="text-gray-500 mt-1">고객 문의 카테고리와 티켓을 관리합니다</p>
-      </div>
+      <AdminPageHeader
+        title={<AdminMenuName href="/admin/support" fallback="고객지원 관리" />}
+        description="고객 문의 카테고리와 티켓을 관리합니다"
+      />
 
       {resolvedSearchParams.ticket && !linkedTicket && (
-        <div role="alert" className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        // 전처럼 화면 읽기가 바로 읽는다(role="alert")
+        <AdminNotice kind="warning" role="alert" className="mb-6">
           {linkedTicketWithdrawn
             ? '탈퇴 회원의 문의(법정 보존)입니다. 아래 \'탈퇴 회원\' 줄에서 대표가 사유를 적고 열람할 수 있습니다.'
             : '링크의 문의를 찾지 못했습니다. 아래 목록에서 찾아 주세요.'}
-        </div>
+        </AdminNotice>
       )}
 
       <WithdrawnTicketsPanel

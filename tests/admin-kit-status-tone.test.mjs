@@ -66,6 +66,9 @@ test("5-1 표(대표 확인 대상) 그대로이고 '환불 완료'는 어느 �
     banner: { neutral: ['off', 'ended'], info: ['scheduled'], success: ['live'] },
     reviewTag: { neutral: ['inactive'], success: ['active'] },
     pricingPlan: { neutral: ['inactive'], success: ['active'] },
+    // 20번 5단계: 크레딧 거래 종류(평범한 사용 = 회색, 회수만 빨강 — Q6), 문의 카테고리·답변 템플릿 사용·숨김
+    creditTransaction: { neutral: ['gray'], info: ['blue'], success: ['green'], warning: ['amber'], danger: ['red'] },
+    supportOption: { neutral: ['hidden'], success: ['active'] },
   }
   assert.deepEqual(sortedKeys(ADMIN_STATUS_TONES), sortedKeys(expected))
   for (const [kind, groups] of Object.entries(expected)) {

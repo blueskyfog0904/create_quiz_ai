@@ -3,13 +3,16 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminStatusBadge } from '@/components/admin/kit/admin-status-badge'
+import { adminStatusTone } from '@/lib/admin-status-tone'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { formatKstDateTime } from '@/lib/kst-date-format'
+import { formatCredits } from '@/lib/admin-format'
 import {
   MEMBER_DEADLINE_TEXT_KEYS,
   earliestMemberDeadline,
@@ -54,7 +57,7 @@ function postSuspension(userId: string, body: Record<string, unknown>) {
 }
 
 function Warning({ children }: { children: ReactNode }) {
-  return <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{children}</div>
+  return <AdminNotice kind="warning">{children}</AdminNotice>
 }
 
 // 3절 돈 원칙: 기한을 넘는 정지면 (가)(나)(다) 가운데 하나를 고르고 메모에 적는다(런북 RB-12).
@@ -70,6 +73,9 @@ function DeadlineChoices({ text }: { text: string | null }) {
     </>
   )
 }
+
+// 화면 비교 때 가리는 칸(회원에게 알린 사유·내부 메모 = 관리자 메모, 알림 요약·해제 사유)
+const PII_FACTS = new Set(['회원에게 알린 사유', '내부 메모', '알림', '해제'])
 
 function SuspensionFacts({ row, actorLabels }: { row: MemberSuspensionRow; actorLabels: Record<string, string> }) {
   const items: [string, ReactNode][] = [
@@ -91,8 +97,8 @@ function SuspensionFacts({ row, actorLabels }: { row: MemberSuspensionRow; actor
     <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1 text-sm max-sm:grid-cols-1">
       {items.map(([label, value]) => (
         <div key={label} className="contents">
-          <dt className="text-gray-500">{label}</dt>
-          <dd className="min-w-0 whitespace-pre-wrap break-words">{value}</dd>
+          <dt className="text-[var(--studio-muted)]">{label}</dt>
+          <dd data-admin-pii={PII_FACTS.has(label) ? '' : undefined} className="min-w-0 whitespace-pre-wrap break-words">{value}</dd>
         </div>
       ))}
     </dl>
@@ -112,7 +118,7 @@ export function MemberSuspensionPanel({ userId, data, capabilities }: {
   )
 
   if (data.withdrawn) {
-    return <p className="text-sm text-gray-600">탈퇴로 지워짐 · 범위·분류·기간은 작업 기록에서 봅니다.</p>
+    return <p className="text-sm text-[var(--studio-text)]">탈퇴로 지워짐 · 범위·분류·기간은 작업 기록에서 봅니다.</p>
   }
 
   const { active, policy } = data
@@ -138,9 +144,9 @@ export function MemberSuspensionPanel({ userId, data, capabilities }: {
       )}
 
       {active ? (
-        <div className="space-y-3 rounded-lg border border-red-200 bg-red-50/40 p-4">
+        <div className="space-y-3 rounded-[var(--studio-radius-card)] border border-[var(--admin-tone-danger-border)] p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <Badge className="bg-red-100 text-red-800">정지 중 · {SUSPENSION_SCOPE_LABELS[active.scope]}</Badge>
+            <AdminStatusBadge label={`정지 중 · ${SUSPENSION_SCOPE_LABELS[active.scope]}`} tone={adminStatusTone('member', active.scope)} />
             {canHandleActive && (
               <div className="flex flex-wrap gap-2">
                 {!active.notified_at && <NoticeRecordButton userId={userId} suspension={active} />}
@@ -150,24 +156,24 @@ export function MemberSuspensionPanel({ userId, data, capabilities }: {
           </div>
           <SuspensionFacts row={active} actorLabels={data.actorLabels} />
           {!canHandleActive && capabilities.canSuspend && active.scope === 'login_blocked' && (
-            <p className="text-xs text-gray-500">로그인 차단의 해제·알림 기록은 대표만 할 수 있습니다.</p>
+            <p className="text-xs text-[var(--studio-muted)]">로그인 차단의 해제·알림 기록은 대표만 할 수 있습니다.</p>
           )}
         </div>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-gray-600">지금 정지 중이 아닙니다.</p>
+          <p className="text-sm text-[var(--studio-text)]">지금 정지 중이 아닙니다.</p>
           {capabilities.canSuspend && (
             policy
               ? <SuspendButton userId={userId} policy={policy} isOwner={capabilities.isOwner} earliest={earliest} data={data} nowMs={nowMs} />
-              : <p role="alert" className="text-sm text-red-700">이용 정지 설정을 읽지 못해 정지할 수 없습니다.</p>
+              : <AdminNotice kind="error">이용 정지 설정을 읽지 못해 정지할 수 없습니다.</AdminNotice>
           )}
         </div>
       )}
 
       <div>
-        <p className="mb-1 text-sm font-medium text-gray-700">정지 이력</p>
-        {past.length === 0 ? <p className="text-sm text-gray-500">지난 정지가 없습니다.</p> : (
-          <ul className="divide-y">
+        <p className="mb-1 text-sm font-medium text-[var(--studio-text)]">정지 이력</p>
+        {past.length === 0 ? <p className="text-sm text-[var(--studio-muted)]">지난 정지가 없습니다.</p> : (
+          <ul className="divide-y divide-[var(--studio-border)]">
             {past.map((row) => (
               <li key={row.id} className="py-3"><SuspensionFacts row={row} actorLabels={data.actorLabels} /></li>
             ))}
@@ -184,24 +190,24 @@ function DeadlineSummary({ deadlines, earliest, paidBalance }: {
   paidBalance: number | null
 }) {
   if (!deadlines) return null
-  if (deadlines.failed) return <p role="alert" className="text-sm text-red-700">환불·소멸 기한을 불러오지 못했습니다. 정지 전에 결제·크레딧 내역을 직접 확인해 주세요.</p>
+  if (deadlines.failed) return <AdminNotice kind="error">환불·소멸 기한을 불러오지 못했습니다. 정지 전에 결제·크레딧 내역을 직접 확인해 주세요.</AdminNotice>
   const rows: [MemberDeadlineKind, string | null][] = [
     ['chargeRefund', deadlines.data.chargeRefundUntil],
     ['materialRefund', deadlines.data.materialRefundUntil],
     ['creditExpiry', deadlines.data.earliestCreditExpiry],
   ]
   return (
-    <div className="rounded-lg bg-gray-50 p-3 text-sm">
-      <p className="mb-1 font-medium text-gray-700">환불·소멸 기한</p>
+    <div className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] p-3 text-sm">
+      <p className="mb-1 font-medium text-[var(--studio-ink)]">환불·소멸 기한</p>
       <ul className="space-y-0.5">
         {rows.map(([kind, at]) => (
           <li key={kind}>
-            <span className="text-gray-500">{MEMBER_DEADLINE_KIND_LABELS[kind]} </span>
+            <span className="text-[var(--studio-muted)]">{MEMBER_DEADLINE_KIND_LABELS[kind]} </span>
             {at ? formatKstDateTime(at) : '없음'}
-            {earliest?.kind === kind && <Badge variant="outline" className="ml-2 border-amber-400 text-amber-800">가장 빠름</Badge>}
+            {earliest?.kind === kind && <AdminStatusBadge label="가장 빠름" tone="warning" className="ml-2" />}
           </li>
         ))}
-        {paidBalance !== null && <li><span className="text-gray-500">남은 유료 크레딧 </span>{paidBalance.toLocaleString()} C</li>}
+        {paidBalance !== null && <li><span className="text-[var(--studio-muted)]">남은 유료 크레딧 </span>{formatCredits(paidBalance)}</li>}
       </ul>
     </div>
   )
@@ -295,7 +301,7 @@ function SuspendButton({ userId, policy, isOwner, earliest, data, nowMs }: {
 
   return (
     <>
-      <Button type="button" variant="destructive" size="sm" onClick={openDialog}>정지</Button>
+      <Button type="button" variant="adminDanger" size="sm" onClick={openDialog}>정지</Button>
       <Dialog open={open} onOpenChange={(next) => { if (!submitting) setOpen(next) }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[560px] max-md:max-w-[calc(100vw-2rem)]">
           <DialogHeader>
@@ -305,13 +311,13 @@ function SuspendButton({ userId, policy, isOwner, earliest, data, nowMs }: {
 
           {confirming ? (
             <div className="space-y-3 text-sm">
-              <div className="rounded-lg bg-gray-50 p-3">
-                <p className="font-semibold text-gray-900">{SUSPENSION_SCOPE_LABELS[scope]} · {category?.label}</p>
+              <div className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] p-3">
+                <p className="font-semibold text-[var(--studio-ink)]">{SUSPENSION_SCOPE_LABELS[scope]} · {category?.label}</p>
                 <p className="mt-1">기간: 지금 ~ {endsAt ? formatKstDateTime(endsAt) : '끝나는 날 없음(해제할 때까지)'}</p>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <div className="rounded-lg border p-3">
-                  <p className="mb-1 font-medium text-red-800">막히는 것</p>
+                  <p className="mb-1 font-medium text-[var(--admin-tone-danger-text)]">막히는 것</p>
                   {scope === 'login_blocked' ? (
                     <p>로그인 자체(이메일·카카오). 기존 세션도 모두 끊깁니다.</p>
                   ) : (
@@ -319,7 +325,7 @@ function SuspendButton({ userId, policy, isOwner, earliest, data, nowMs }: {
                   )}
                 </div>
                 <div className="rounded-lg border p-3">
-                  <p className="mb-1 font-medium text-green-800">계속 되는 것</p>
+                  <p className="mb-1 font-medium text-[var(--admin-tone-success-text)]">계속 되는 것</p>
                   {scope === 'login_blocked' ? (
                     <p>이메일·전화로 이의, 충전·자료 환불, 탈퇴 신청(접수 시각을 신청 시각으로 봄). 진행 중 결제 통보·환불 처리.</p>
                   ) : (
@@ -327,13 +333,13 @@ function SuspendButton({ userId, policy, isOwner, earliest, data, nowMs }: {
                   )}
                 </div>
               </div>
-              <p className="text-gray-700">{texts.adminSuspendConfirm}</p>
+              <p className="text-[var(--studio-text)]">{texts.adminSuspendConfirm}</p>
               {data.pending === null ? (
-                <p className="text-xs text-gray-500">결제 정보는 주문 조회 권한이 있어야 보입니다.</p>
+                <p className="text-xs text-[var(--studio-muted)]">결제 정보는 주문 조회 권한이 있어야 보입니다.</p>
               ) : data.pending.failed ? (
-                <p role="alert" className="text-xs text-red-700">진행 중 결제·환불 건수를 불러오지 못했습니다.</p>
+                <p role="alert" className="text-xs text-[var(--admin-tone-danger-text)]">진행 중 결제·환불 건수를 불러오지 못했습니다.</p>
               ) : (
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-[var(--studio-text)]">
                   진행 중 충전 결제 {data.pending.data.paymentOrders}건 · 심사 중 충전 환불 {data.pending.data.pointRefunds}건 · 심사 중 자료 환불 {data.pending.data.marketRefunds}건
                 </p>
               )}
@@ -348,10 +354,10 @@ function SuspendButton({ userId, policy, isOwner, earliest, data, nowMs }: {
               )}
               {category?.underageGuide && <Warning>{texts.adminUnderageGuide}</Warning>}
               {scope === 'login_blocked' && !mailDraft && !data.deadlines?.failed && (
-                <p className="text-xs text-gray-600">확인된 환불·소멸 기한이 없어 이메일 기한 안내 초안을 만들지 않았습니다. 기한 문장은 빼고 보내세요.</p>
+                <p className="text-xs text-[var(--studio-text)]">확인된 환불·소멸 기한이 없어 이메일 기한 안내 초안을 만들지 않았습니다. 기한 문장은 빼고 보내세요.</p>
               )}
               {scope === 'login_blocked' && data.deadlines?.failed && (
-                <p role="alert" className="text-xs text-red-700">기한을 확인하지 못했습니다. 결제·크레딧 내역에서 가장 빠른 기한을 직접 찾아 이메일에 넣으세요.</p>
+                <p role="alert" className="text-xs text-[var(--admin-tone-danger-text)]">기한을 확인하지 못했습니다. 결제·크레딧 내역에서 가장 빠른 기한을 직접 찾아 이메일에 넣으세요.</p>
               )}
               {mailDraft && (
                 <div className="space-y-1">
@@ -368,12 +374,12 @@ function SuspendButton({ userId, policy, isOwner, earliest, data, nowMs }: {
                   <label key={value} className="flex items-center gap-2 text-sm">
                     <input type="radio" name={`suspend-scope-${userId}`} value={value} checked={scope === value} onChange={() => setScope(value)} />
                     {SUSPENSION_SCOPE_LABELS[value]}
-                    {value === 'login_blocked' && <span className="text-xs text-gray-500">(계정 도용·자동 수집처럼 로그인을 열어 두면 안 될 때만, 대표 전용)</span>}
+                    {value === 'login_blocked' && <span className="text-xs text-[var(--studio-muted)]">(계정 도용·자동 수집처럼 로그인을 열어 두면 안 될 때만, 대표 전용)</span>}
                   </label>
                 ))}
               </fieldset>
               <div className="space-y-1">
-                <Label htmlFor={`suspend-category-${userId}`}>사유 분류 <span className="text-red-500">*</span></Label>
+                <Label htmlFor={`suspend-category-${userId}`}>사유 분류 <span className="text-[var(--admin-tone-danger-text)]">*</span></Label>
                 <select
                   id={`suspend-category-${userId}`}
                   value={reasonCode}
@@ -393,19 +399,19 @@ function SuspendButton({ userId, policy, isOwner, earliest, data, nowMs }: {
                   disabled={scope === 'login_blocked'}
                   onChange={(event) => setBlocksDownload(event.target.checked)}
                 />
-                다운로드도 막기 {scope === 'login_blocked' && <span className="text-xs text-gray-500">(로그인 차단은 늘 막힘)</span>}
+                다운로드도 막기 {scope === 'login_blocked' && <span className="text-xs text-[var(--studio-muted)]">(로그인 차단은 늘 막힘)</span>}
               </label>
               <div className="space-y-1">
-                <Label htmlFor={`suspend-member-reason-${userId}`}>회원에게 알릴 사유 <span className="text-red-500">*</span></Label>
-                <Textarea id={`suspend-member-reason-${userId}`} value={memberReason} onChange={(event) => setMemberReason(event.target.value)} className="h-20" maxLength={500} />
-                <p className="text-xs text-gray-500">회원 안내 화면에 그대로 보입니다. 작업 기록에는 글자 수만 남습니다.</p>
+                <Label htmlFor={`suspend-member-reason-${userId}`}>회원에게 알릴 사유 <span className="text-[var(--admin-tone-danger-text)]">*</span></Label>
+                <Textarea id={`suspend-member-reason-${userId}`} value={memberReason} onChange={(event) => setMemberReason(event.target.value)} className="h-20" maxLength={500} data-admin-pii="" />
+                <p className="text-xs text-[var(--studio-muted)]">회원 안내 화면에 그대로 보입니다. 작업 기록에는 글자 수만 남습니다.</p>
               </div>
               <div className="space-y-1">
                 <Label htmlFor={`suspend-internal-${userId}`}>내부 메모</Label>
-                <Textarea id={`suspend-internal-${userId}`} value={internalNote} onChange={(event) => setInternalNote(event.target.value)} className="h-16" maxLength={2000} />
+                <Textarea id={`suspend-internal-${userId}`} value={internalNote} onChange={(event) => setInternalNote(event.target.value)} className="h-16" maxLength={2000} data-admin-pii="" />
               </div>
               <div className="space-y-1">
-                <Label htmlFor={`suspend-end-${userId}`}>끝나는 날(한국 날짜, 그날 끝까지){scope === 'restricted' && <span className="text-red-500"> *</span>}</Label>
+                <Label htmlFor={`suspend-end-${userId}`}>끝나는 날(한국 날짜, 그날 끝까지){scope === 'restricted' && <span className="text-[var(--admin-tone-danger-text)]"> *</span>}</Label>
                 <Input
                   id={`suspend-end-${userId}`}
                   type="date"
@@ -415,7 +421,7 @@ function SuspendButton({ userId, policy, isOwner, earliest, data, nowMs }: {
                   onChange={(event) => setEndDate(event.target.value)}
                   className="w-48"
                 />
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-[var(--studio-muted)]">
                   {scope === 'restricted'
                     ? `이용 제한은 반드시 정하고 최대 ${policy.maxRestrictedDays}일입니다.`
                     : '비워 두면 본인 확인 때까지 막습니다. 비워 두면 늘 기한을 넘는 정지로 보고 경고합니다.'}
@@ -428,13 +434,13 @@ function SuspendButton({ userId, policy, isOwner, earliest, data, nowMs }: {
           <DialogFooter className="gap-2">
             {confirming ? (
               <>
-                <Button type="button" variant="outline" onClick={() => setConfirming(false)} disabled={submitting}>이전</Button>
-                <Button type="button" variant="destructive" onClick={() => void submit()} disabled={submitting}>{submitting ? '처리 중…' : '정지 확정'}</Button>
+                <Button type="button" variant="brandOutline" onClick={() => setConfirming(false)} disabled={submitting}>이전</Button>
+                <Button type="button" variant="adminDanger" onClick={() => void submit()} disabled={submitting}>{submitting ? '처리 중…' : '정지 확정'}</Button>
               </>
             ) : (
               <>
-                <Button type="button" variant="outline" onClick={() => setOpen(false)}>취소</Button>
-                <Button type="button" onClick={toConfirm}>다음</Button>
+                <Button type="button" variant="brandOutline" onClick={() => setOpen(false)}>취소</Button>
+                <Button type="button" variant="brand" onClick={toConfirm}>다음</Button>
               </>
             )}
           </DialogFooter>
@@ -467,7 +473,7 @@ function LiftButton({ userId, suspension }: { userId: string; suspension: Member
 
   return (
     <>
-      <Button type="button" size="sm" variant="outline" onClick={() => { setReason(''); setOpen(true) }}>해제</Button>
+      <Button type="button" size="sm" variant="adminTable" onClick={() => { setReason(''); setOpen(true) }}>해제</Button>
       <Dialog open={open} onOpenChange={(next) => { if (!submitting) setOpen(next) }}>
         <DialogContent className="sm:max-w-[460px] max-md:max-w-[calc(100vw-2rem)]">
           <DialogHeader>
@@ -478,13 +484,13 @@ function LiftButton({ userId, suspension }: { userId: string; suspension: Member
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1">
-            <Label htmlFor={`lift-reason-${suspension.id}`}>해제 사유 <span className="text-red-500">*</span></Label>
-            <Textarea id={`lift-reason-${suspension.id}`} value={reason} onChange={(event) => setReason(event.target.value)} className="h-20" maxLength={500} />
-            <p className="text-xs text-gray-500">작업 기록에는 글자 수만 남습니다.</p>
+            <Label htmlFor={`lift-reason-${suspension.id}`}>해제 사유 <span className="text-[var(--admin-tone-danger-text)]">*</span></Label>
+            <Textarea id={`lift-reason-${suspension.id}`} value={reason} onChange={(event) => setReason(event.target.value)} className="h-20" maxLength={500} data-admin-pii="" />
+            <p className="text-xs text-[var(--studio-muted)]">작업 기록에는 글자 수만 남습니다.</p>
           </div>
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>취소</Button>
-            <Button type="button" onClick={() => void submit()} disabled={submitting}>{submitting ? '처리 중…' : '해제'}</Button>
+            <Button type="button" variant="brandOutline" onClick={() => setOpen(false)} disabled={submitting}>취소</Button>
+            <Button type="button" variant="brand" onClick={() => void submit()} disabled={submitting}>{submitting ? '처리 중…' : '해제'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -518,7 +524,7 @@ function NoticeRecordButton({ userId, suspension }: { userId: string; suspension
 
   return (
     <>
-      <Button type="button" size="sm" variant="outline" onClick={() => { setSentAt(''); setSummary(''); setOpen(true) }}>알림 기록</Button>
+      <Button type="button" size="sm" variant="adminTable" onClick={() => { setSentAt(''); setSummary(''); setOpen(true) }}>알림 기록</Button>
       <Dialog open={open} onOpenChange={(next) => { if (!submitting) setOpen(next) }}>
         <DialogContent className="sm:max-w-[460px] max-md:max-w-[calc(100vw-2rem)]">
           <DialogHeader>
@@ -543,13 +549,13 @@ function NoticeRecordButton({ userId, suspension }: { userId: string; suspension
             </div>
             <div className="space-y-1">
               <Label htmlFor={`notice-summary-${suspension.id}`}>요약</Label>
-              <Textarea id={`notice-summary-${suspension.id}`} value={summary} onChange={(event) => setSummary(event.target.value)} className="h-20" maxLength={500} />
-              <p className="text-xs text-gray-500">작업 기록에는 글자 수만 남습니다.</p>
+              <Textarea id={`notice-summary-${suspension.id}`} value={summary} onChange={(event) => setSummary(event.target.value)} className="h-20" maxLength={500} data-admin-pii="" />
+              <p className="text-xs text-[var(--studio-muted)]">작업 기록에는 글자 수만 남습니다.</p>
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>취소</Button>
-            <Button type="button" onClick={() => void submit()} disabled={submitting}>{submitting ? '처리 중…' : '기록'}</Button>
+            <Button type="button" variant="brandOutline" onClick={() => setOpen(false)} disabled={submitting}>취소</Button>
+            <Button type="button" variant="brand" onClick={() => void submit()} disabled={submitting}>{submitting ? '처리 중…' : '기록'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

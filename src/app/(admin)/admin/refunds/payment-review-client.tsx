@@ -10,7 +10,6 @@ import { useAdminAlerts } from '@/components/admin/admin-alert-context'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE } from '@/lib/member-notifications'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -29,15 +28,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/kit/admin-data-table'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminStatusBadge } from '@/components/admin/kit/admin-status-badge'
+import { AdminTableState } from '@/components/admin/kit/admin-table-state'
+import { formatWon } from '@/lib/admin-format'
 import type { ReviewAction } from '@/lib/payment-review-actions'
 
 export interface PaymentReviewOrder {
@@ -182,44 +178,99 @@ export function PaymentReviewClient({
         }
     }
 
+    // 날짜 표기는 지금 모양(toLocaleString ko-KR) 그대로(20번: 대표가 바꾸기로 정하기 전까지).
+    const columns: AdminDataTableColumn<PaymentReviewOrder>[] = [
+        {
+            key: 'createdAt',
+            header: '주문일',
+            className: 'whitespace-nowrap text-sm text-[var(--studio-muted)]',
+            cell: (order) => new Date(order.created_at).toLocaleString('ko-KR'),
+        },
+        { key: 'member', header: '회원', pii: true, className: 'text-xs', cell: (order) => order.email ?? '-' },
+        {
+            key: 'orderId',
+            header: '주문번호·결제사 거래번호',
+            className: 'max-w-[200px] text-xs',
+            cell: (order) => (
+                <>
+                    <p className="truncate" title={order.order_id}>{order.order_id}</p>
+                    {/* 결제사 관리자 화면에서 이 결제를 찾을 때 쓰는 번호 */}
+                    <p className="truncate text-[var(--studio-muted)]" title={order.providerTransactionId ?? undefined}>
+                        {order.providerTransactionId ?? '거래번호 없음'}
+                    </p>
+                </>
+            ),
+        },
+        { key: 'provider', header: '결제사', cell: (order) => providerLabel(order.provider) },
+        {
+            key: 'plan',
+            header: '상품·금액',
+            className: 'text-sm',
+            cell: (order) => <>{order.plan_name_snapshot} · {formatWon(order.expected_amount)}</>,
+        },
+        {
+            key: 'reason',
+            header: '사유',
+            className: 'max-w-[260px] text-xs',
+            cell: (order) => (
+                <>
+                    <p className="font-medium text-[var(--admin-tone-danger-text)]">{order.failure_code ?? '-'}</p>
+                    <p className="text-[var(--studio-muted)]">{order.failure_message}</p>
+                </>
+            ),
+        },
+        {
+            key: 'actions',
+            header: '처리',
+            align: 'right',
+            cell: (order) => (order.allowedActions.length > 0 ? (
+                <Button size="sm" variant="adminTable" onClick={() => openDialog(order)}>
+                    확인 처리
+                </Button>
+            ) : order.heldOrderNotice ? (
+                <span className="text-xs text-[var(--studio-muted)] break-keep">{order.heldOrderNotice}</span>
+            ) : (
+                <span className="text-xs text-[var(--studio-muted)]">아래 환불 요청에서 처리</span>
+            )),
+        },
+    ]
+
     return (
-        <Card>
+        <Card className="rounded-[var(--studio-radius-card)] border-[var(--studio-border)] shadow-none">
             <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                    <AlertTriangle className="h-5 w-5 text-orange-600" aria-hidden="true" />
+                    <AlertTriangle className="h-5 w-5 text-[var(--admin-tone-warning-text)]" aria-hidden="true" />
                     결제 확인 필요
                 </CardTitle>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-[var(--studio-muted)]">
                     수동 확인 주문과 미해소 결제 경보입니다. 취소·부분취소로 격리된 건은 아래 환불 요청에서 수동 완료하세요.
                 </p>
             </CardHeader>
             <CardContent className="space-y-6">
                 {/* 경보가 가장 급하므로 주문 목록보다 먼저 보여 준다. */}
                 <div>
-                    <h3 className="mb-2 text-sm font-semibold text-gray-700">미해소 결제 경보</h3>
+                    <h3 className="mb-2 text-sm font-semibold text-[var(--studio-ink)]">미해소 결제 경보</h3>
                     {alerts.length === 0 ? (
-                        <p className="text-sm text-gray-500">미해소 경보가 없습니다.</p>
+                        <p className="text-sm text-[var(--studio-muted)]">미해소 경보가 없습니다.</p>
                     ) : (
                         <ul className="space-y-2">
                             {alerts.map((alert) => (
-                                <li key={alert.id} className="rounded-md border p-3 text-sm">
+                                <li key={alert.id} className="rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] p-3 text-sm">
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <Badge variant={alert.severity === 'critical' ? 'destructive' : 'secondary'}>
-                                            {alert.severity === 'critical' ? '긴급' : '주의'}
-                                        </Badge>
+                                        <AdminStatusBadge label={alert.severity === 'critical' ? '긴급' : '주의'} tone={alert.severity === 'critical' ? 'danger' : 'warning'} />
                                         <span className="font-mono text-xs">{alert.code}</span>
-                                        <span className="text-xs text-gray-500">
+                                        <span className="text-xs text-[var(--studio-muted)]">
                                             {new Date(alert.created_at).toLocaleString('ko-KR')}
                                         </span>
                                     </div>
                                     <p className="mt-1 break-words">{alert.message}</p>
                                     {typeof alert.details?.order_id === 'string' && (
-                                        <p className="mt-1 text-xs text-gray-500">주문 {alert.details.order_id}</p>
+                                        <p className="mt-1 text-xs text-[var(--studio-muted)]">주문 {alert.details.order_id}</p>
                                     )}
                                     <div className="mt-2 flex justify-end">
                                         <Button
                                             size="sm"
-                                            variant="adminAction"
+                                            variant="adminTable"
                                             aria-label={`${alert.code} 경보 해소`}
                                             onClick={() => {
                                                 setSelectedAlert(alert)
@@ -236,62 +287,15 @@ export function PaymentReviewClient({
                 </div>
 
                 <div>
-                    <h3 className="mb-2 text-sm font-semibold text-gray-700">수동 확인 주문</h3>
-                    <Table className="max-md:min-w-[760px]">
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>주문일</TableHead>
-                                <TableHead>회원</TableHead>
-                                <TableHead>주문번호·결제사 거래번호</TableHead>
-                                <TableHead>결제사</TableHead>
-                                <TableHead>상품·금액</TableHead>
-                                <TableHead>사유</TableHead>
-                                <TableHead className="text-right">처리</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {orders.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={7} className="py-6 text-center text-gray-500">
-                                        수동 확인이 필요한 주문이 없습니다.
-                                    </TableCell>
-                                </TableRow>
-                            ) : orders.map((order) => (
-                                <TableRow key={order.id}>
-                                    <TableCell className="text-sm text-gray-500">
-                                        {new Date(order.created_at).toLocaleString('ko-KR')}
-                                    </TableCell>
-                                    <TableCell className="text-xs">{order.email ?? '-'}</TableCell>
-                                    <TableCell className="max-w-[200px] text-xs">
-                                        <p className="truncate" title={order.order_id}>{order.order_id}</p>
-                                        {/* 결제사 관리자 화면에서 이 결제를 찾을 때 쓰는 번호 */}
-                                        <p className="truncate text-gray-500" title={order.providerTransactionId ?? undefined}>
-                                            {order.providerTransactionId ?? '거래번호 없음'}
-                                        </p>
-                                    </TableCell>
-                                    <TableCell>{providerLabel(order.provider)}</TableCell>
-                                    <TableCell className="text-sm">
-                                        {order.plan_name_snapshot} · ₩{order.expected_amount.toLocaleString()}
-                                    </TableCell>
-                                    <TableCell className="max-w-[260px] text-xs">
-                                        <p className="font-medium text-red-600">{order.failure_code ?? '-'}</p>
-                                        <p className="text-gray-500">{order.failure_message}</p>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        {order.allowedActions.length > 0 ? (
-                                            <Button size="sm" variant="adminAction" onClick={() => openDialog(order)}>
-                                                확인 처리
-                                            </Button>
-                                        ) : order.heldOrderNotice ? (
-                                            <span className="text-xs text-gray-500 break-keep">{order.heldOrderNotice}</span>
-                                        ) : (
-                                            <span className="text-xs text-gray-500">아래 환불 요청에서 처리</span>
-                                        )}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                    <h3 className="mb-2 text-sm font-semibold text-[var(--studio-ink)]">수동 확인 주문</h3>
+                    <AdminDataTable
+                        caption="수동 확인 주문 목록"
+                        columns={columns}
+                        rows={orders}
+                        getRowKey={(order) => order.id}
+                        minWidth={760}
+                        state={orders.length === 0 ? <AdminTableState kind="empty" message="수동 확인이 필요한 주문이 없습니다." /> : undefined}
+                    />
                 </div>
             </CardContent>
 
@@ -306,7 +310,7 @@ export function PaymentReviewClient({
 
                     <div className="space-y-4">
                         <div>
-                            <label htmlFor="review-action" className="mb-2 block text-sm font-medium text-gray-700">처리</label>
+                            <label htmlFor="review-action" className="mb-2 block text-sm font-medium text-[var(--studio-ink)]">처리</label>
                             <Select value={action} onValueChange={(value) => setAction(value as ReviewAction)}>
                                 <SelectTrigger id="review-action">
                                     <SelectValue />
@@ -322,7 +326,7 @@ export function PaymentReviewClient({
                         {action === 'paid_confirmed' && (
                             <>
                                 <div>
-                                    <label htmlFor="review-mul-no" className="mb-2 block text-sm font-medium text-gray-700">
+                                    <label htmlFor="review-mul-no" className="mb-2 block text-sm font-medium text-[var(--studio-ink)]">
                                         페이앱 결제요청번호 (결제완료 통보가 없을 때 필수)
                                     </label>
                                     <Input
@@ -333,7 +337,7 @@ export function PaymentReviewClient({
                                     />
                                 </div>
                                 <div>
-                                    <label htmlFor="review-paid-at" className="mb-2 block text-sm font-medium text-gray-700">
+                                    <label htmlFor="review-paid-at" className="mb-2 block text-sm font-medium text-[var(--studio-ink)]">
                                         결제 시각 (비우면 지금)
                                     </label>
                                     <Input
@@ -348,7 +352,7 @@ export function PaymentReviewClient({
 
                         {action === 'cancel_handled' && (
                             <div>
-                                <label htmlFor="review-external-method" className="mb-2 block text-sm font-medium text-gray-700">외부 처리 방식</label>
+                                <label htmlFor="review-external-method" className="mb-2 block text-sm font-medium text-[var(--studio-ink)]">외부 처리 방식</label>
                                 <Select value={externalMethod} onValueChange={(value) => setExternalMethod(value as ExternalMethod)}>
                                     <SelectTrigger id="review-external-method">
                                         <SelectValue />
@@ -363,7 +367,7 @@ export function PaymentReviewClient({
                         )}
 
                         <div>
-                            <label htmlFor="review-note" className="mb-2 block text-sm font-medium text-gray-700">
+                            <label htmlFor="review-note" className="mb-2 block text-sm font-medium text-[var(--studio-ink)]">
                                 처리 메모 (필수)
                             </label>
                             <Textarea
@@ -372,15 +376,16 @@ export function PaymentReviewClient({
                                 onChange={(e) => setNote(e.target.value)}
                                 rows={3}
                                 placeholder="결제사 관리자에서 확인한 내용을 적어 주세요."
+                                data-admin-pii=""
                             />
                         </div>
                     </div>
 
                     <DialogFooter className="justify-center gap-2">
-                        <Button variant="outline" onClick={() => setSelectedOrder(null)} disabled={isSubmitting}>
+                        <Button variant="brandOutline" onClick={() => setSelectedOrder(null)} disabled={isSubmitting}>
                             취소
                         </Button>
-                        <Button onClick={handleSubmit} disabled={isSubmitting || note.trim().length === 0}>
+                        <Button variant="brand" onClick={handleSubmit} disabled={isSubmitting || note.trim().length === 0}>
                             {isSubmitting ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -402,22 +407,22 @@ export function PaymentReviewClient({
                     </DialogHeader>
 
                     <div className="space-y-4">
-                        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                        <AdminNotice kind="warning">
                             원인을 확인하고 처리한 뒤 해소하세요. 해소해도 판매 스위치는 바뀌지 않으며,
                             원인이 남아 있으면 점검이 같은 경보를 다시 만듭니다.
-                        </div>
+                        </AdminNotice>
                         {alertOrderUnderReview(selectedAlert) && (
-                            <p id="alert-order-hint" role="note" className="text-sm font-medium text-red-600">
+                            <p id="alert-order-hint" role="note" className="text-sm font-medium text-[var(--admin-tone-danger-text)]">
                                 이 경보의 주문이 아직 수동 확인 중입니다. 아래 주문 목록에서 확인 처리하면 경보도 함께 해소됩니다.
                             </p>
                         )}
                         {alertOrderInRefund(selectedAlert) && (
-                            <p id="alert-order-hint" role="note" className="text-sm font-medium text-red-600">
+                            <p id="alert-order-hint" role="note" className="text-sm font-medium text-[var(--admin-tone-danger-text)]">
                                 이 경보의 주문은 환불 요청에서 처리합니다. 수동 환불을 완료한 뒤 이 경보를 직접 해소하세요.
                             </p>
                         )}
                         <div>
-                            <label htmlFor="alert-note" className="mb-2 block text-sm font-medium text-gray-700">
+                            <label htmlFor="alert-note" className="mb-2 block text-sm font-medium text-[var(--studio-ink)]">
                                 처리 메모 (필수)
                             </label>
                             <Textarea
@@ -428,15 +433,16 @@ export function PaymentReviewClient({
                                 rows={3}
                                 maxLength={500}
                                 placeholder="확인한 원인과 처리 내용을 적어 주세요."
+                                data-admin-pii=""
                             />
                         </div>
                     </div>
 
                     <DialogFooter className="justify-center gap-2">
-                        <Button variant="outline" onClick={() => setSelectedAlert(null)} disabled={isSubmitting}>
+                        <Button variant="brandOutline" onClick={() => setSelectedAlert(null)} disabled={isSubmitting}>
                             취소
                         </Button>
-                        <Button onClick={handleResolveAlert} disabled={isSubmitting || alertNote.trim().length === 0}>
+                        <Button variant="brand" onClick={handleResolveAlert} disabled={isSubmitting || alertNote.trim().length === 0}>
                             {isSubmitting ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

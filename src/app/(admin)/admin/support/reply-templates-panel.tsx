@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -18,6 +17,11 @@ import {
 } from '@/lib/support-reply-template'
 import { hideSupportReplyTemplateAction, saveSupportReplyTemplateAction } from './actions'
 import { TemplateBlankPreview, type SupportReplyTemplateRow } from './reply-template-tools'
+import { useAdminConfirm } from '@/components/admin/kit/admin-confirm-dialog'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminStatusBadge } from '@/components/admin/kit/admin-status-badge'
+import { AdminTableState } from '@/components/admin/kit/admin-table-state'
+import { adminStatusTone } from '@/lib/admin-status-tone'
 
 type TemplateForm = { title: string; body: string; categoryId: string; sortOrder: string; isActive: boolean }
 
@@ -34,11 +38,12 @@ export function ReplyTemplatesPanel({ templates, onTemplatesChange, categories, 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState<TemplateForm>(emptyForm)
   const [saving, setSaving] = useState(false)
+  const { ask, dialog: confirmDialog } = useAdminConfirm()
 
   if (templates === null) {
     return (
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-6 text-sm text-red-700" role="alert">답변 템플릿을 불러오지 못했습니다. 새로고침해 주세요.</CardContent>
+      <Card className="rounded-[var(--studio-radius-card)] border-[var(--studio-border)] shadow-none">
+        <CardContent className="p-6"><AdminNotice kind="error">답변 템플릿을 불러오지 못했습니다. 새로고침해 주세요.</AdminNotice></CardContent>
       </Card>
     )
   }
@@ -88,8 +93,15 @@ export function ReplyTemplatesPanel({ templates, onTemplatesChange, categories, 
     }
   }
 
+  // (가) 먼저 묻기: 확인 전에는 요청을 보내지 않는다(문구는 전의 브라우저 확인 창 그대로).
   const hide = async (template: SupportReplyTemplateRow) => {
-    if (!confirm(`'${template.title}' 템플릿을 숨길까요? 답변 창의 템플릿 목록에서 빠집니다.`)) return
+    const confirmed = await ask({
+      title: `'${template.title}' 템플릿을 숨길까요?`,
+      description: '답변 창의 템플릿 목록에서 빠집니다.',
+      confirmLabel: '숨김',
+      danger: true,
+    })
+    if (!confirmed) return
     try {
       const result = await hideSupportReplyTemplateAction({ id: template.id, revision: template.revision })
       if (!result.ok) throw new Error(result.error)
@@ -101,45 +113,45 @@ export function ReplyTemplatesPanel({ templates, onTemplatesChange, categories, 
   }
 
   return (
-    <Card className="border-0 shadow-sm">
+    <Card className="rounded-[var(--studio-radius-card)] border-[var(--studio-border)] shadow-none">
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <CardTitle className="text-lg">답변 템플릿</CardTitle>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-[var(--studio-muted)]">
               답변 창의 [템플릿 넣기]에 보입니다. 자리표시 {SUPPORT_REPLY_PLACEHOLDERS.join(' · ')} 는 자동으로 채워지고,
               {blankMarker ? ` 직원이 채울 곳은 ${blankMarker} 로 적습니다(채우지 않으면 저장되지 않음).` : ' 빈칸 표시 설정을 읽지 못했습니다.'}
             </p>
           </div>
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
+          <Button variant="brand" onClick={openCreate}>
+            <Plus aria-hidden="true" className="mr-2 h-4 w-4" />
             템플릿 추가
           </Button>
         </div>
       </CardHeader>
       <CardContent className="p-0">
         {sorted.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">등록된 템플릿이 없습니다.</div>
+          <AdminTableState kind="empty" message="등록된 템플릿이 없습니다." className="m-4" />
         ) : (
-          <div className="divide-y">
+          <div className="divide-y divide-[var(--studio-border)]">
             {sorted.map((template) => (
               <div key={template.id} className="flex items-start justify-between gap-4 p-4 max-md:flex-col max-md:gap-3">
                 <div className="min-w-0 space-y-1 break-words">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-gray-900">{template.title}</span>
-                    <Badge variant="outline">{categoryName(template.category_id)}</Badge>
-                    <Badge variant={template.is_active ? 'default' : 'secondary'}>{template.is_active ? '사용' : '사용 안 함'}</Badge>
-                    <span className="text-xs text-gray-400">순서 {template.sort_order}</span>
+                    <span className="font-semibold text-[var(--studio-ink)]">{template.title}</span>
+                    <AdminStatusBadge label={categoryName(template.category_id)} tone="neutral" />
+                    <AdminStatusBadge label={template.is_active ? '사용' : '사용 안 함'} tone={adminStatusTone('supportOption', template.is_active ? 'active' : 'hidden')} />
+                    <span className="text-xs text-[var(--studio-muted)]">순서 {template.sort_order}</span>
                   </div>
-                  <p className="line-clamp-2 whitespace-pre-wrap text-sm text-gray-500">{template.body}</p>
+                  <p className="line-clamp-2 whitespace-pre-wrap text-sm text-[var(--studio-muted)]">{template.body}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <Button variant="adminAction" size="sm" onClick={() => openEdit(template)}>
-                    <Pencil className="mr-1 h-4 w-4" />
+                  <Button variant="adminTable" size="sm" onClick={() => openEdit(template)}>
+                    <Pencil aria-hidden="true" className="mr-1 h-4 w-4" />
                     수정
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => void hide(template)}>
-                    <Trash2 className="mr-1 h-4 w-4" />
+                  <Button variant="adminTable" size="sm" className="text-[var(--admin-tone-danger-text)]" onClick={() => void hide(template)}>
+                    <Trash2 aria-hidden="true" className="mr-1 h-4 w-4" />
                     숨김
                   </Button>
                 </div>
@@ -181,9 +193,9 @@ export function ReplyTemplatesPanel({ templates, onTemplatesChange, categories, 
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="template-body">본문</Label>
               <Textarea id="template-body" rows={10} value={form.body} maxLength={SUPPORT_REPLY_TEMPLATE_BODY_MAX} onChange={(event) => setForm({ ...form, body: event.target.value })} />
-              <p className="text-right text-xs text-gray-400">{form.body.length}/{SUPPORT_REPLY_TEMPLATE_BODY_MAX}</p>
+              <p className="text-right text-xs text-[var(--studio-muted)]">{form.body.length}/{SUPPORT_REPLY_TEMPLATE_BODY_MAX}</p>
               {unknownPlaceholders.length > 0 && (
-                <p role="alert" className="text-sm text-red-700">쓸 수 없는 자리표시: {unknownPlaceholders.join(', ')}</p>
+                <AdminNotice kind="error">쓸 수 없는 자리표시: {unknownPlaceholders.join(', ')}</AdminNotice>
               )}
               <TemplateBlankPreview text={form.body} marker={blankMarker} message={(count) => `직원이 채울 빈칸 ${count}곳(답변 창에서 채워야 저장됨)`} />
             </div>
@@ -193,13 +205,14 @@ export function ReplyTemplatesPanel({ templates, onTemplatesChange, categories, 
             </label>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>취소</Button>
-            <Button onClick={() => void save()} disabled={saving || !form.title.trim() || !form.body.trim() || unknownPlaceholders.length > 0}>
+            <Button variant="brandOutline" onClick={() => setDialogOpen(false)}>취소</Button>
+            <Button variant="brand" onClick={() => void save()} disabled={saving || !form.title.trim() || !form.body.trim() || unknownPlaceholders.length > 0}>
               {saving ? '저장 중...' : '저장'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {confirmDialog}
     </Card>
   )
 }

@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createPaymentAdminClient } from '@/lib/payment-orders-server'
 import { RefundsClient, type RefundRequest } from './refunds-client'
 import { MarketRefundsClient, type MarketRefundRequestRow } from './market-refunds-client'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
 import {
     PaymentReviewClient,
     type PaymentAlert,
@@ -201,10 +202,9 @@ export default async function AdminRefundsPage() {
         <div className="space-y-8">
             {canPayment && <PaymentSalesPanel status={salesStatus} canStopSales={hasAdminPermission(access, 'owner')} />}
             {loadErrors.length > 0 && (
-                <div role="alert" className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
-                    <p className="font-semibold">다음 목록을 불러오지 못했습니다: {loadErrors.join(', ')}</p>
-                    <p className="mt-1">비어 보여도 처리할 건이 있을 수 있습니다. 새로고침해도 같으면 개발 담당자에게 알려 주세요.</p>
-                </div>
+                <AdminNotice kind="error" title={`다음 목록을 불러오지 못했습니다: ${loadErrors.join(', ')}`}>
+                    비어 보여도 처리할 건이 있을 수 있습니다. 새로고침해도 같으면 개발 담당자에게 알려 주세요.
+                </AdminNotice>
             )}
             {/* 결제 경보와 수동 확인 주문을 환불 요청보다 위에 둔다(가장 먼저 봐야 하는 것). */}
             {canPayment && (

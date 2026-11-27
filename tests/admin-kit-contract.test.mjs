@@ -291,19 +291,12 @@ test('래칫: confirm( 은 지금 목록 밖 켜진 화면에 새로 생기지 �
     'src/app/(admin)/admin/market/products/_hooks/use-product-form.ts',
     'src/app/(admin)/admin/market/products/_hooks/use-sample-generation.ts',
     'src/app/(admin)/admin/market/products/_hooks/use-subproduct-uploads.ts',
-    'src/app/(admin)/admin/refunds/market-refunds-client.tsx',
-    'src/app/(admin)/admin/reviews/reviews-admin-client.tsx',
-    'src/app/(admin)/admin/support/reply-template-tools.tsx',
-    'src/app/(admin)/admin/support/reply-templates-panel.tsx',
-    'src/app/(admin)/admin/support/support-client.tsx',
-    'src/app/(admin)/admin/users/[id]/member-notes-panel.tsx',
     'src/components/admin/market-category-tree-editor.tsx',
   ])
 })
 
 test('래칫: alert( 은 지금 목록 밖 켜진 화면에 새로 생기지 않는다', () => {
   assertRatchet('alert(', /\balert\(/, [
-    'src/app/(admin)/admin/reviews/reviews-admin-client.tsx',
     'src/components/admin/market-category-tree-editor.tsx',
     'src/components/layout/admin-sidebar-client.tsx',
   ])
@@ -311,9 +304,6 @@ test('래칫: alert( 은 지금 목록 밖 켜진 화면에 새로 생기지 않
 
 test('래칫: adminAction 은 지금 목록 밖 켜진 화면에 새로 생기지 않는다', () => {
   assertRatchet('adminAction', /\badminAction\b/, [
-    'src/app/(admin)/admin/audit-log/audit-log-client.tsx',
-    'src/app/(admin)/admin/credits/credit-grant-limits-card.tsx',
-    'src/app/(admin)/admin/credits/credits-client.tsx',
     'src/app/(admin)/admin/dashboard-client.tsx',
     // 22번(20번 6-1 4단계 '홈'): main-ad-settings 는 brandOutline 으로 옮겨 목록에서 뺐다.
     'src/app/(admin)/admin/market/products/_editor/after-save-dialog.tsx',
@@ -326,23 +316,15 @@ test('래칫: adminAction 은 지금 목록 밖 켜진 화면에 새로 생기�
     'src/app/(admin)/admin/market/products/market-products-client.tsx',
     'src/app/(admin)/admin/notices/board-admin.tsx',
     'src/app/(admin)/admin/notifications/notifications-admin.tsx',
-    'src/app/(admin)/admin/refunds/market-refunds-client.tsx',
-    'src/app/(admin)/admin/refunds/payment-review-client.tsx',
-    'src/app/(admin)/admin/refunds/refunds-client.tsx',
-    'src/app/(admin)/admin/reviews/reviews-admin-client.tsx',
-    'src/app/(admin)/admin/support/reply-templates-panel.tsx',
-    'src/app/(admin)/admin/support/support-client.tsx',
-    'src/app/(admin)/admin/users/users-client.tsx',
   ])
 })
 
 test('래칫: 화면별 toLocaleString( 수는 늘지 않는다(새 표기는 admin-format.ts)', () => {
   const allowed = {
-    'src/app/(admin)/admin/audit-log/audit-log-client.tsx': 2,
+    // 20번 5단계: 남은 것은 날짜 표기(대표가 표기를 정하기 전까지 지금 모양), 회수 알림 문장(toast), 탈퇴 패널(10번 흐름) 숫자
+    'src/app/(admin)/admin/audit-log/audit-log-client.tsx': 1,
     'src/app/(admin)/admin/audit-log/member-access-log-client.tsx': 1,
-    'src/app/(admin)/admin/credits/credit-grant-limits-card.tsx': 1,
-    'src/app/(admin)/admin/credits/credits-client.tsx': 2,
-    'src/app/(admin)/admin/credits/grant-credit-dialog.tsx': 1,
+    'src/app/(admin)/admin/credits/credits-client.tsx': 1,
     'src/app/(admin)/admin/dashboard-client.tsx': 9,
     'src/app/(admin)/admin/footer/policy-history/page.tsx': 1,
     'src/app/(admin)/admin/market/products/_lib/product-form.ts': 1,
@@ -351,17 +333,12 @@ test('래칫: 화면별 toLocaleString( 수는 늘지 않는다(새 표기는 ad
     // 20번 2단계: 남은 것은 날짜 표기(문의 판 고르기 4곳, 대표가 표기를 정하기 전까지 지금 모양)
     'src/app/(admin)/admin/orders/market-exception-refund-dialog.tsx': 4,
     'src/app/(admin)/admin/orders/orders-client.tsx': 1,
-    'src/app/(admin)/admin/refunds/market-refunds-client.tsx': 7,
-    'src/app/(admin)/admin/refunds/payment-review-client.tsx': 3,
-    'src/app/(admin)/admin/refunds/refunds-client.tsx': 21,
-    'src/app/(admin)/admin/reviews/reviews-admin-client.tsx': 1,
-    'src/app/(admin)/admin/support/support-client.tsx': 5,
-    'src/app/(admin)/admin/support/withdrawn-tickets-panel.tsx': 2,
-    'src/app/(admin)/admin/users/[id]/member-suspension-panel.tsx': 1,
+    'src/app/(admin)/admin/refunds/payment-review-client.tsx': 2,
+    'src/app/(admin)/admin/support/support-client.tsx': 2,
+    'src/app/(admin)/admin/support/withdrawn-tickets-panel.tsx': 1,
     'src/app/(admin)/admin/users/[id]/member-withdrawal-panel.tsx': 1,
-    'src/app/(admin)/admin/users/[id]/page.tsx': 15,
-    'src/app/(admin)/admin/users/[id]/revoke-credit-button.tsx': 5,
-    'src/app/(admin)/admin/users/users-client.tsx': 3,
+    'src/app/(admin)/admin/users/[id]/page.tsx': 1,
+    'src/app/(admin)/admin/users/[id]/revoke-credit-button.tsx': 4,
     'src/components/admin/admin-alert-center.tsx': 2,
     'src/components/admin/market-category-tree-editor.tsx': 3,
   }

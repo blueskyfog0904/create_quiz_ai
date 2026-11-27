@@ -253,7 +253,9 @@ test('the admin route answers a shortfall with 409 and the numbers, and forwards
 test('the admin screen confirms a shortfall and resends with confirmedRefundCredits', () => {
   const client = readFileSync(new URL('../src/app/(admin)/admin/refunds/market-refunds-client.tsx', import.meta.url), 'utf8')
   assert.match(client, /result\?\.code === 'MARKET_REFUND_SHORTFALL'/)
-  assert.match(client, /window\.confirm\(/)
+  // 20번 5단계: 부족분 확인은 공통 확인 창(유형 나 — 응답 뒤 묻기, 잠금을 쥔 채 기다림)
+  assert.match(client, /const confirmed = await ask\(\{\s+title: '일부만 돌려줄 수 있습니다',\s+description: shortfall\.error,/)
+  assert.doesNotMatch(client, /window\.confirm\(/)
   assert.match(client, /JSON\.stringify\(\{\s*action,\s*confirmedRefundCredits,\s*adminNote: adminNote\.trim\(\) \|\| undefined,/)
   assert.match(client, /send\(shortfall\.restorable\)/)
 })

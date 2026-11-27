@@ -5,6 +5,7 @@ import { maskPhone } from '@/lib/admin-member-access-log'
 import { recordMemberAccess } from '@/lib/admin-member-access-log-server'
 import { UsersClient } from './users-client'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
+import { AdminPageHeader } from '@/components/admin/kit/admin-page-header'
 import { SuspensionPolicyCard } from './suspension-policy-card'
 import { getMemberSuspensionPolicyAdminData } from './suspension-policy-actions'
 
@@ -37,10 +38,10 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 max-md:text-2xl"><AdminMenuName href="/admin/users" fallback="사용자 관리" /></h1>
-        <p className="text-gray-500 mt-1">가입된 사용자를 조회하고 관리합니다</p>
-      </div>
+      <AdminPageHeader
+        title={<AdminMenuName href="/admin/users" fallback="사용자 관리" />}
+        description="가입된 사용자를 조회하고 관리합니다"
+      />
 
       {suspensionPolicyData && <div className="mb-6"><SuspensionPolicyCard data={suspensionPolicyData} /></div>}
 

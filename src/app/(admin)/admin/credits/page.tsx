@@ -3,6 +3,7 @@ import { CreditGrantLimitsCard } from './credit-grant-limits-card'
 import { hasAdminPermission } from '@/lib/admin-permissions'
 import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
+import { AdminPageHeader } from '@/components/admin/kit/admin-page-header'
 import { listAdminCreditTransactions } from '@/lib/admin-credit-transactions-server'
 import { recordMemberAccess } from '@/lib/admin-member-access-log-server'
 import { getAdminCreditGrantLimits } from '@/lib/admin-credit-grant-limits-server'
@@ -37,10 +38,10 @@ export default async function AdminCreditsPage({ searchParams }: AdminCreditsPag
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 max-md:text-2xl"><AdminMenuName href="/admin/credits" fallback="크레딧 관리" /></h1>
-        <p className="text-gray-500 mt-1">시스템 전체 크레딧 거래 내역을 조회합니다</p>
-      </div>
+      <AdminPageHeader
+        title={<AdminMenuName href="/admin/credits" fallback="크레딧 관리" />}
+        description="시스템 전체 크레딧 거래 내역을 조회합니다"
+      />
 
       <CreditGrantLimitsCard limits={grantLimits} canEdit={hasAdminPermission(access, 'credits.limits.manage')} />
 

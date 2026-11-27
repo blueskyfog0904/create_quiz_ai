@@ -111,20 +111,23 @@ async function callApi(userId: string, body: Record<string, unknown>) {
 
 function Block({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="rounded-lg border border-gray-200 p-4">
-      <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+    <div className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] p-4">
+      <h3 className="text-sm font-semibold text-[var(--studio-ink)]">{title}</h3>
       <div className="mt-2 space-y-2 text-sm">{children}</div>
     </div>
   )
 }
+
+// 화면 비교 때 가리는 칸(보관 연락처)
+const PII_ROWS = new Set(['이메일', '휴대폰', '카카오 이메일'])
 
 function Rows({ rows }: { rows: [string, ReactNode][] }) {
   return (
     <dl className="grid grid-cols-[10rem_1fr] gap-x-3 gap-y-1 text-sm max-md:grid-cols-[7rem_1fr]">
       {rows.map(([label, value]) => (
         <div key={label} className="contents">
-          <dt className="text-gray-500">{label}</dt>
-          <dd className="min-w-0 break-all">{value}</dd>
+          <dt className="text-[var(--studio-muted)]">{label}</dt>
+          <dd data-admin-pii={PII_ROWS.has(label) ? '' : undefined} className="min-w-0 break-all">{value}</dd>
         </div>
       ))}
     </dl>
@@ -161,8 +164,8 @@ function RedactionRow({ userId, item }: { userId: string; item: WithdrawalRedact
     <li className="space-y-2 py-2">
       <p>
         <span className="font-medium">{TARGET_KIND_LABELS[item.kind] ?? item.kind}</span>
-        {item.preview && <span className="ml-2 text-gray-600">{item.preview}</span>}
-        <span className="ml-2 text-xs text-gray-500">{item.reasons.map((reason) => REDACTION_REASON_LABELS[reason] ?? reason).join(' · ')}</span>
+        {item.preview && <span data-admin-pii="" className="ml-2 text-[var(--studio-text)]">{item.preview}</span>}
+        <span className="ml-2 text-xs text-[var(--studio-muted)]">{item.reasons.map((reason) => REDACTION_REASON_LABELS[reason] ?? reason).join(' · ')}</span>
       </p>
       <div className="flex flex-wrap items-center gap-2">
         {fields.length > 0 && (
@@ -170,14 +173,14 @@ function RedactionRow({ userId, item }: { userId: string; item: WithdrawalRedact
             <select value={field} onChange={(event) => setField(event.target.value)} className="h-9 rounded-md border px-2 text-sm" aria-label="가릴 칸">
               {fields.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
-            <Input value={text} onChange={(event) => setText(event.target.value)} placeholder="가릴 문구(원문 그대로)" className="h-9 max-w-xs" />
-            <Button size="sm" variant="outline" disabled={pending || !text.trim()}
+            <Input value={text} onChange={(event) => setText(event.target.value)} placeholder="가릴 문구(원문 그대로)" className="h-9 max-w-xs" data-admin-pii="" />
+            <Button size="sm" variant="adminTable" disabled={pending || !text.trim()}
               onClick={() => void run({ action: 'redact', targetKind: item.kind, targetId: item.id, field, targetText: text, operationKey: crypto.randomUUID() }, '가렸습니다.')}>
               가림
             </Button>
           </>
         )}
-        <Button size="sm" variant="outline" disabled={pending}
+        <Button size="sm" variant="adminTable" disabled={pending}
           onClick={() => void run({ action: 'mark_reviewed', targetKind: item.kind, targetId: item.id }, '가릴 것이 없다고 기록했습니다.')}>
           확인함
         </Button>
@@ -231,14 +234,14 @@ function RequestForm({ userId, preview, texts }: { userId: string; preview: Memb
         )}
       </div>
       <Label className="grid gap-1">본인 확인 메모
-        <Textarea value={identityNote} onChange={(event) => setIdentityNote(event.target.value)} maxLength={500} rows={2} />
+        <Textarea value={identityNote} onChange={(event) => setIdentityNote(event.target.value)} maxLength={500} rows={2} data-admin-pii="" />
       </Label>
-      {texts.identityNoteGuide && <p className="text-xs text-gray-500">{texts.identityNoteGuide}</p>}
-      <Button size="sm" variant="outline" disabled={pending} onClick={() => void makeNotice()}>고지 원문 만들기</Button>
+      {texts.identityNoteGuide && <p className="text-xs text-[var(--studio-muted)]">{texts.identityNoteGuide}</p>}
+      <Button size="sm" variant="adminTable" disabled={pending} onClick={() => void makeNotice()}>고지 원문 만들기</Button>
       {notice && (
         <div className="space-y-2">
-          <Textarea readOnly value={notice.text} rows={8} className="font-mono text-xs" />
-          <p className="text-xs text-gray-500">지문 {notice.sha256.slice(0, 12)} · 이 원문을 회원(또는 대리인) 이메일로 보내고, 유료 소멸분({num(notice.expectedForfeitPaid)} 크레딧)이 있으면 회신을 받은 뒤 처리합니다.</p>
+          <Textarea readOnly value={notice.text} rows={8} className="font-mono text-xs" data-admin-pii="" />
+          <p className="text-xs text-[var(--studio-muted)]">지문 {notice.sha256.slice(0, 12)} · 이 원문을 회원(또는 대리인) 이메일로 보내고, 유료 소멸분({num(notice.expectedForfeitPaid)} 크레딧)이 있으면 회신을 받은 뒤 처리합니다.</p>
           <div className="grid gap-2 sm:grid-cols-2">
             <Label className="grid gap-1">고지 보낸 시각(보냈으면)
               <Input type="datetime-local" value={noticeSentAt} onChange={(event) => setNoticeSentAt(event.target.value)} />
@@ -247,7 +250,7 @@ function RequestForm({ userId, preview, texts }: { userId: string; preview: Memb
               <Input type="datetime-local" value={replyAt} onChange={(event) => setReplyAt(event.target.value)} />
             </Label>
           </div>
-          <Button size="sm" disabled={pending || !receivedAt}
+          <Button size="sm" variant="brand" disabled={pending || !receivedAt}
             onClick={() => void run({
               action: 'record_request',
               channel,
@@ -333,7 +336,7 @@ function OpenRequest({ userId, email, preview, texts }: {
               </select>
             </Label>
           )}
-          <Button size="sm" variant="outline" disabled={pending}
+          <Button size="sm" variant="adminTable" disabled={pending}
             onClick={() => void run({
               action: 'record_reply',
               requestId: request.id,
@@ -346,11 +349,11 @@ function OpenRequest({ userId, email, preview, texts }: {
         </div>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="destructive" disabled={pending}
+        <Button size="sm" variant="adminDanger" disabled={pending}
           onClick={() => { setConfirmEmail(''); setReason(''); setProviderChecked(false); setPendingChecked(false); setOperationKey(crypto.randomUUID()); setOpen(true) }}>
           익명화
         </Button>
-        <Button size="sm" variant="outline" disabled={pending}
+        <Button size="sm" variant="adminTable" disabled={pending}
           onClick={() => void run({ action: 'cancel_request', requestId: request.id }, '요청을 취소했습니다.')}>
           요청 취소
         </Button>
@@ -376,16 +379,16 @@ function OpenRequest({ userId, email, preview, texts }: {
               </label>
             )}
             <Label className="grid gap-1">사유(선택)
-              <Textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} rows={2} />
+              <Textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} rows={2} data-admin-pii="" />
             </Label>
-            {texts.reasonGuide && <p className="text-xs text-gray-500">{texts.reasonGuide}</p>}
+            {texts.reasonGuide && <p className="text-xs text-[var(--studio-muted)]">{texts.reasonGuide}</p>}
             <Label className="grid gap-1">확인을 위해 회원 이메일을 그대로 입력
-              <Input value={confirmEmail} onChange={(event) => setConfirmEmail(event.target.value)} placeholder={email ?? userId} />
+              <Input value={confirmEmail} onChange={(event) => setConfirmEmail(event.target.value)} placeholder={email ?? userId} data-admin-pii="" />
             </Label>
           </div>
           <DialogFooter>
-            <Button variant="outline" disabled={pending} onClick={() => setOpen(false)}>취소</Button>
-            <Button variant="destructive" disabled={pending || !confirmEmail.trim()} onClick={() => void anonymize()}>익명화</Button>
+            <Button variant="brandOutline" disabled={pending} onClick={() => setOpen(false)}>취소</Button>
+            <Button variant="adminDanger" disabled={pending || !confirmEmail.trim()} onClick={() => void anonymize()}>익명화</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -412,9 +415,9 @@ function WithdrawnSection({ userId, data }: { userId: string; data: MemberWithdr
       <Block title="보관함 열람(열람 기록이 남습니다)">
         <div className="flex flex-wrap items-center gap-2">
           <Input value={viewReason} onChange={(event) => setViewReason(event.target.value)} placeholder="열람 사유" maxLength={500} className="h-9 max-w-sm" />
-          <Button size="sm" variant="outline" disabled={pending || !viewReason.trim()} onClick={() => void readRecord()}>보관 연락처 보기</Button>
+          <Button size="sm" variant="adminTable" disabled={pending || !viewReason.trim()} onClick={() => void readRecord()}>보관 연락처 보기</Button>
         </div>
-        {data.texts.reasonGuide && <p className="text-xs text-gray-500">{data.texts.reasonGuide}</p>}
+        {data.texts.reasonGuide && <p className="text-xs text-[var(--studio-muted)]">{data.texts.reasonGuide}</p>}
         {record && (
           <div className="space-y-2">
             <Rows rows={[
@@ -426,7 +429,7 @@ function WithdrawnSection({ userId, data }: { userId: string; data: MemberWithdr
               ['마케팅 철회', fmt(record.marketing_withdrawn_at as string | null)],
               ['로그인 계정 정리', fmt(record.auth_scrubbed_at as string | null)],
             ]} />
-            <ul className="divide-y text-xs">
+            <ul data-admin-pii="" className="divide-y divide-[var(--studio-border)] text-xs">
               {(Array.isArray(record.events) ? record.events as Record<string, unknown>[] : []).map((event) => (
                 <li key={String(event.id)} className="py-1">{fmt(event.createdAt as string)} · {String(event.kind)} · {JSON.stringify(event.details)}</li>
               ))}
@@ -438,7 +441,7 @@ function WithdrawnSection({ userId, data }: { userId: string; data: MemberWithdr
       {data.accountStatus && (data.accountStatus.authPending || data.accountStatus.kakaoPending) && (
         <Block title="로그인 계정 정리">
           <p>{data.accountStatus.authPending ? '소프트 삭제가 끝나지 않았습니다. ' : ''}{data.accountStatus.kakaoPending ? '카카오 연결 끊기가 남았습니다.' : ''}</p>
-          <Button size="sm" variant="outline" disabled={pending} onClick={() => void run({ action: 'retry_account' }, '다시 시도했습니다.')}>로그인 계정 정리 다시 시도</Button>
+          <Button size="sm" variant="adminTable" disabled={pending} onClick={() => void run({ action: 'retry_account' }, '다시 시도했습니다.')}>로그인 계정 정리 다시 시도</Button>
         </Block>
       )}
 
@@ -456,7 +459,7 @@ function WithdrawnSection({ userId, data }: { userId: string; data: MemberWithdr
                       {Object.entries(CLOSE_METHOD_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                     </select>
                     <Input value={state.note} onChange={(event) => setState({ note: event.target.value })} placeholder="메모(개인정보 금지)" maxLength={1000} className="h-9 max-w-sm" />
-                    <Button size="sm" variant="outline" disabled={pending || !state.note.trim()}
+                    <Button size="sm" variant="adminTable" disabled={pending || !state.note.trim()}
                       onClick={() => void run({ action: 'close_held_order', orderId: order.id, method: state.method, note: state.note, operationKey: crypto.randomUUID() }, '보류 주문을 닫았습니다.')}>
                       보류 주문 닫기
                     </Button>
@@ -470,7 +473,7 @@ function WithdrawnSection({ userId, data }: { userId: string; data: MemberWithdr
 
       <Block title="추가 기록(안내 메일 발송 등)">
         <Textarea value={noteText} onChange={(event) => setNoteText(event.target.value)} maxLength={1000} rows={2} placeholder="예: 완료·마케팅 철회 결과를 받은 메일 스레드로 보냄(개인정보 금지)" />
-        <Button size="sm" variant="outline" disabled={pending || !noteText.trim()}
+        <Button size="sm" variant="adminTable" disabled={pending || !noteText.trim()}
           onClick={() => void run({ action: 'add_event', kind: 'note', refId: null, details: { note: noteText.trim(), recorded_at: new Date().toISOString() } }, '기록했습니다.').then((done) => { if (done) setNoteText('') })}>
           기록
         </Button>
@@ -506,7 +509,7 @@ export function MemberWithdrawalPanel({ userId, email, data }: { userId: string;
         ['이메일·전화 요청(결제 회원)', ownerReasons.length === 0 ? '가능' : reasonList(ownerReasons)],
       ]} />
       {balance.breakdown.length > 0 && (
-        <ul className="text-xs text-gray-600">
+        <ul className="text-xs text-[var(--studio-text)]">
           {balance.breakdown.map((item) => (
             <li key={item.source_id}>
               {item.paid ? '유료' : '무상'} {item.category} · 소멸 {num(item.forfeited)} · 만료 정리 {num(item.expired_cleared)} · 만료 {fmt(item.expires_at)}{item.paid ? ` · 원 환산 ${item.cash_value == null ? '계산 불가' : `${num(item.cash_value)}원`}` : ''}
@@ -514,7 +517,7 @@ export function MemberWithdrawalPanel({ userId, email, data }: { userId: string;
           ))}
         </ul>
       )}
-      <details className="text-xs text-gray-600">
+      <details className="text-xs text-[var(--studio-text)]">
         <summary className="cursor-pointer">지울 것·남길 것 건수</summary>
         <p className="mt-1 break-all">{Object.entries(preview.counts ?? {}).map(([key, count]) => `${key} ${count}`).join(' · ')}</p>
       </details>
@@ -532,7 +535,7 @@ export function MemberWithdrawalPanel({ userId, email, data }: { userId: string;
         : !preview.isAdmin && <RequestForm userId={userId} preview={preview} texts={texts} />}
 
       {(texts.ownerMailBlocked || texts.ownerMailCompleted) && (
-        <details className="text-xs text-gray-600">
+        <details className="text-xs text-[var(--studio-text)]">
           <summary className="cursor-pointer">안내 메일 틀(10일 안에 회원에게)</summary>
           {texts.ownerMailBlocked && <p className="mt-1 whitespace-pre-line">{texts.ownerMailBlocked}</p>}
           {texts.ownerMailCompleted && <p className="mt-1 whitespace-pre-line">{texts.ownerMailCompleted}</p>}

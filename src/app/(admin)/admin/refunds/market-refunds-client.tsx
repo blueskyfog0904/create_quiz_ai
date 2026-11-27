@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import { useAdminAlerts } from '@/components/admin/admin-alert-context'
 import { toast } from 'sonner'
 import { MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE } from '@/lib/member-notifications'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -17,17 +16,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
+import { useAdminConfirm } from '@/components/admin/kit/admin-confirm-dialog'
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/kit/admin-data-table'
+import { AdminStatusBadge } from '@/components/admin/kit/admin-status-badge'
+import { AdminTableState } from '@/components/admin/kit/admin-table-state'
+import { formatCredits } from '@/lib/admin-format'
+import { adminStatusTone } from '@/lib/admin-status-tone'
 
 export interface MarketRefundRequestRow {
   id: string
@@ -108,6 +105,9 @@ export function MarketRefundsClient({ requests, isOwner }: MarketRefundsClientPr
   const [ownerSources, setOwnerSources] = useState<OwnerSource[]>([])
   const [ownerInputs, setOwnerInputs] = useState<Record<string, { restored: string; reissued: string; unrecovered: string; reason: string }>>({})
   const [ownerNote, setOwnerNote] = useState('')
+  // 부족분 확인(유형 나): 일반 승인 창·대표 정산 창 안에 각각 그린다.
+  const { ask, dialog: confirmDialog } = useAdminConfirm()
+  const { ask: askOwnerShortfall, dialog: ownerConfirmDialog } = useAdminConfirm()
 
   const openOwnerSettle = async (request: MarketRefundRequestRow) => {
     setProcessingId(request.id)
@@ -150,10 +150,17 @@ export function MarketRefundsClient({ requests, isOwner }: MarketRefundsClientPr
       })
       const result = await response.json().catch(() => null)
       // 규칙대로 정산할 때 돌려줄 수 없는 몫이 있으면 숫자를 보여 주고 확인받은 뒤 다시 보낸다.
+      // (나) 응답 뒤 묻기: 같은 try 안에서 잠금(processingId)을 쥔 채 기다린다(finally 가 먼저 풀지 않음).
       if (response.status === 409 && result?.code === 'MARKET_REFUND_SHORTFALL' && confirmedRefundCredits === undefined) {
-        const confirmed = window.confirm(
-          `${result.error}\n\n요청 ${Number(result.requested).toLocaleString()}C / 돌려줄 수 있음 ${Number(result.restorable).toLocaleString()}C`
-        )
+        const confirmed = await askOwnerShortfall({
+          title: '일부만 돌려줄 수 있습니다',
+          description: result.error,
+          impacts: [
+            { label: '요청', value: formatCredits(Number(result.requested)), emphasis: true },
+            { label: '돌려줄 수 있음', value: formatCredits(Number(result.restorable)), emphasis: true },
+          ],
+          confirmLabel: '돌려줄 수 있는 만큼 정산',
+        })
         if (confirmed) {
           setProcessingId(null)
           await submitOwnerSettle(Number(result.restorable))
@@ -197,11 +204,18 @@ export function MarketRefundsClient({ requests, isOwner }: MarketRefundsClientPr
 
       let attempt = await send()
       // 되돌릴 수 없는 크레딧이 있으면 두 숫자를 보여 주고, 확인하면 복구 가능한 양으로 다시 보낸다.
+      // (나) 응답 뒤 묻기: 같은 try 안에서 잠금(processingId)을 쥔 채 기다린다(finally 가 먼저 풀지 않음).
       if (attempt.response.status === 409 && attempt.result?.code === 'MARKET_REFUND_SHORTFALL') {
         const shortfall = attempt.result
-        const confirmed = window.confirm(
-          `${shortfall.error}\n\n요청 ${Number(shortfall.requested).toLocaleString()}C / 복구 가능 ${Number(shortfall.restorable).toLocaleString()}C`
-        )
+        const confirmed = await ask({
+          title: '일부만 돌려줄 수 있습니다',
+          description: shortfall.error,
+          impacts: [
+            { label: '요청', value: formatCredits(Number(shortfall.requested)), emphasis: true },
+            { label: '복구 가능', value: formatCredits(Number(shortfall.restorable)), emphasis: true },
+          ],
+          confirmLabel: '복구 가능한 만큼 환불',
+        })
         if (!confirmed) return
         attempt = await send(shortfall.restorable)
       }
@@ -235,100 +249,112 @@ export function MarketRefundsClient({ requests, isOwner }: MarketRefundsClientPr
   const memberName = (request: MarketRefundRequestRow) =>
     request.user ? formatMemberDisplayName(request.user.email, request.user.display_tag) : '알 수 없음'
 
+  // 날짜 표기는 지금 모양(toLocaleDateString ko-KR) 그대로(20번: 대표가 바꾸기로 정하기 전까지).
+  const columns: AdminDataTableColumn<MarketRefundRequestRow>[] = [
+    {
+      key: 'createdAt',
+      header: '요청일',
+      className: 'whitespace-nowrap text-sm',
+      cell: (request) => new Date(request.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' }),
+    },
+    {
+      key: 'member',
+      header: '사용자',
+      pii: true,
+      cell: (request) => (
+        <div className="flex flex-col">
+          <Link href={`/admin/users/${request.user_id}`} className="text-sm font-medium hover:underline">{request.memberWithdrawn ? '탈퇴 회원' : memberName(request)}</Link>
+          <span className="text-xs text-[var(--studio-muted)]">{request.memberWithdrawn ? '법정 보존' : request.user?.email ?? '-'}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'item',
+      header: '상품',
+      className: 'max-w-[220px] truncate',
+      cell: (request) => <span title={request.item?.title ?? ''}>{request.item?.title ?? '-'}</span>,
+    },
+    { key: 'credits', header: '환불 크레딧', numeric: true, className: 'whitespace-nowrap', cell: (request) => formatCredits(request.requested_refund_credits) },
+    {
+      key: 'kind',
+      header: '대상',
+      cell: (request) => (
+        <div className="flex flex-col text-xs">
+          <span>{KIND_LABELS[request.refund_kind ?? 'full'] ?? request.refund_kind}</span>
+          {request.refund_subproduct_ids?.length ? <span className="text-[var(--studio-muted)]">자료 {request.refund_subproduct_ids.length}개</span> : null}
+          {request.status === 'pending' ? <span className="text-[var(--studio-muted)]">접수 {elapsedDays(request.created_at)}일째</span> : null}
+        </div>
+      ),
+    },
+    {
+      key: 'reason',
+      header: '사유',
+      pii: true,
+      className: 'max-w-[220px] truncate',
+      cell: (request) => <span title={request.reason ?? ''}>{request.memberWithdrawn ? '가림' : request.reason ?? '-'}</span>,
+    },
+    {
+      key: 'status',
+      header: '상태',
+      cell: (request) => <AdminStatusBadge label={STATUS_LABELS[request.status] ?? request.status} tone={adminStatusTone('marketRefundRequest', request.status)} />,
+    },
+    {
+      key: 'adminNote',
+      header: '처리 메모',
+      pii: true,
+      className: 'max-w-[200px] truncate text-xs text-[var(--studio-muted)]',
+      cell: (request) => <span title={request.admin_note ?? ''}>{request.memberWithdrawn ? '가림' : request.admin_note ?? '-'}</span>,
+    },
+    {
+      key: 'actions',
+      header: '처리',
+      align: 'right',
+      cell: (request) => (request.status === 'pending' ? (
+        <div className="flex justify-end gap-2">
+          {isOwner ? (
+            <Button size="sm" variant="adminTable" disabled={processingId === request.id} onClick={() => void openOwnerSettle(request)}>
+              대표 정산
+            </Button>
+          ) : null}
+          {(['approve', 'reject'] as const).map((action) => (
+            <Button
+              key={action}
+              size="sm"
+              variant="adminTable"
+              className={action === 'reject' ? 'text-[var(--admin-tone-danger-text)]' : undefined}
+              disabled={processingId === request.id}
+              onClick={() => {
+                setAdminNote('')
+                setRejectCode('')
+                setRejectEvidence('')
+                setPending({ request, action })
+              }}
+            >
+              {ACTION_LABELS[action]}
+            </Button>
+          ))}
+        </div>
+      ) : (
+        <span className="text-sm text-[var(--studio-muted)]">처리됨</span>
+      )),
+    },
+  ]
+
   return (
-    <Card>
+    <Card className="rounded-[var(--studio-radius-card)] border-[var(--studio-border)] shadow-none">
       <CardHeader>
         <CardTitle>문제마켓 환불</CardTitle>
         <CardDescription>문제마켓 상품 환불 요청을 다운로드 이력 기준으로 검토합니다.</CardDescription>
       </CardHeader>
-      <CardContent className="p-0">
-        <Table className="max-md:min-w-[900px]">
-          <TableHeader>
-            <TableRow>
-              <TableHead>요청일</TableHead>
-              <TableHead>사용자</TableHead>
-              <TableHead>상품</TableHead>
-              <TableHead>환불 크레딧</TableHead>
-              <TableHead>대상</TableHead>
-              <TableHead>사유</TableHead>
-              <TableHead>상태</TableHead>
-              <TableHead>처리 메모</TableHead>
-              <TableHead className="text-right">처리</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {requests.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9} className="py-8 text-center text-gray-500">
-                  문제마켓 환불 요청이 없습니다.
-                </TableCell>
-              </TableRow>
-            ) : (
-              requests.map((request) => (
-                <TableRow key={request.id}>
-                  <TableCell>{new Date(request.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <Link href={`/admin/users/${request.user_id}`} className="text-sm font-medium hover:underline">{request.memberWithdrawn ? '탈퇴 회원' : memberName(request)}</Link>
-                      <span className="text-xs text-gray-400">{request.memberWithdrawn ? '법정 보존' : request.user?.email ?? '-'}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="max-w-[220px] truncate" title={request.item?.title ?? ''}>
-                    {request.item?.title ?? '-'}
-                  </TableCell>
-                  <TableCell>{request.requested_refund_credits.toLocaleString()} C</TableCell>
-                  <TableCell>
-                    <div className="flex flex-col text-xs">
-                      <span>{KIND_LABELS[request.refund_kind ?? 'full'] ?? request.refund_kind}</span>
-                      {request.refund_subproduct_ids?.length ? <span className="text-gray-400">자료 {request.refund_subproduct_ids.length}개</span> : null}
-                      {request.status === 'pending' ? <span className="text-gray-400">접수 {elapsedDays(request.created_at)}일째</span> : null}
-                    </div>
-                  </TableCell>
-                  <TableCell className="max-w-[220px] truncate" title={request.reason ?? ''}>
-                    {request.memberWithdrawn ? '가림' : request.reason ?? '-'}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={request.status === 'pending' ? 'outline' : 'secondary'}>
-                      {STATUS_LABELS[request.status] ?? request.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="max-w-[200px] truncate text-xs text-gray-500" title={request.admin_note ?? ''}>
-                    {request.memberWithdrawn ? '가림' : request.admin_note ?? '-'}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {request.status === 'pending' ? (
-                      <div className="flex justify-end gap-2">
-                        {isOwner ? (
-                          <Button size="sm" variant="adminAction" disabled={processingId === request.id} onClick={() => void openOwnerSettle(request)}>
-                            대표 정산
-                          </Button>
-                        ) : null}
-                        {(['approve', 'reject'] as const).map((action) => (
-                          <Button
-                            key={action}
-                            size="sm"
-                            variant="outline"
-                            disabled={processingId === request.id}
-                            onClick={() => {
-                              setAdminNote('')
-                              setRejectCode('')
-                              setRejectEvidence('')
-                              setPending({ request, action })
-                            }}
-                          >
-                            {ACTION_LABELS[action]}
-                          </Button>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-400">처리됨</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+      <CardContent>
+        <AdminDataTable
+          caption="문제마켓 환불 요청 목록"
+          columns={columns}
+          rows={requests}
+          getRowKey={(request) => request.id}
+          minWidth={900}
+          state={requests.length === 0 ? <AdminTableState kind="empty" message="문제마켓 환불 요청이 없습니다." /> : undefined}
+        />
       </CardContent>
 
       <Dialog open={pending !== null} onOpenChange={(open) => !open && processingId === null && setPending(null)}>
@@ -338,28 +364,28 @@ export function MarketRefundsClient({ requests, isOwner }: MarketRefundsClientPr
             <DialogDescription>
               {pending && (
                 <>
-                  <strong>{memberName(pending.request)}</strong>님의{' '}
+                  <strong data-admin-pii="">{memberName(pending.request)}</strong>님의{' '}
                   <strong>{pending.request.item?.title ?? '상품'}</strong> 환불 요청
-                  ({pending.request.requested_refund_credits.toLocaleString()} C)
+                  ({formatCredits(pending.request.requested_refund_credits)})
                 </>
               )}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
-            <p className="text-sm text-gray-700">
+            <p className="text-sm text-[var(--studio-text)]">
               {pending?.action === 'approve'
                 ? '승인하면 크레딧을 회원에게 되돌려 주고, 이 상품을 더 이상 내려받을 수 없게 합니다. 되돌릴 수 없습니다.'
                 : '거부하면 이 환불 요청이 닫히고 구매는 그대로 유지됩니다. 되돌릴 수 없습니다. 거부 사유는 회원에게 그대로 안내됩니다.'}
             </p>
             {pending?.action === 'reject' ? (
               <div>
-                <label htmlFor="market-refund-reject-code" className="mb-2 block text-sm font-medium text-gray-700">거부 사유 종류 (필수)</label>
+                <label htmlFor="market-refund-reject-code" className="mb-2 block text-sm font-medium text-[var(--studio-ink)]">거부 사유 종류 (필수)</label>
                 <select
                   id="market-refund-reject-code"
                   value={rejectCode}
                   onChange={(event) => setRejectCode(event.target.value)}
-                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  className="h-10 w-full rounded-[var(--studio-radius-control)] border border-[var(--studio-control-border)] bg-[var(--studio-surface)] px-3 text-sm"
                 >
                   <option value="">고르세요</option>
                   {REJECT_CODE_OPTIONS
@@ -375,12 +401,13 @@ export function MarketRefundsClient({ requests, isOwner }: MarketRefundsClientPr
                     onChange={(event) => setRejectEvidence(event.target.value)}
                     maxLength={500}
                     placeholder="받은 사실의 근거(연결 문의, 또는 제공 경로·시각) — 필수"
+                    data-admin-pii=""
                   />
                 ) : null}
               </div>
             ) : null}
             <div>
-              <label htmlFor="market-refund-admin-note" className="mb-2 block text-sm font-medium text-gray-700">
+              <label htmlFor="market-refund-admin-note" className="mb-2 block text-sm font-medium text-[var(--studio-ink)]">
                 {pending?.action === 'reject' ? '거부 사유 (필수 — 회원에게 안내됩니다)' : '처리 메모 (선택)'}
               </label>
               <Textarea
@@ -390,15 +417,17 @@ export function MarketRefundsClient({ requests, isOwner }: MarketRefundsClientPr
                 rows={3}
                 maxLength={1000}
                 placeholder="처리 관련 메모를 입력하세요..."
+                data-admin-pii=""
               />
             </div>
           </div>
 
           <DialogFooter className="justify-center gap-2">
-            <Button variant="outline" onClick={() => setPending(null)} disabled={processingId !== null}>
+            <Button variant="brandOutline" onClick={() => setPending(null)} disabled={processingId !== null}>
               취소
             </Button>
             <Button
+              variant={pending?.action === 'reject' ? 'adminDanger' : 'brand'}
               disabled={processingId !== null || (pending?.action === 'reject' && (!rejectCode || !adminNote.trim()
                 || (rejectCode === 'PROVIDED_CONFIRMED' && rejectEvidence.trim().length < 5)))}
               onClick={() => pending && processRefund(pending.request.id, pending.action)}
@@ -406,6 +435,7 @@ export function MarketRefundsClient({ requests, isOwner }: MarketRefundsClientPr
               {processingId !== null ? '처리 중...' : pending ? ACTION_LABELS[pending.action] : ''}
             </Button>
           </DialogFooter>
+          {confirmDialog}
         </DialogContent>
       </Dialog>
 
@@ -420,19 +450,19 @@ export function MarketRefundsClient({ requests, isOwner }: MarketRefundsClientPr
           </DialogHeader>
           <div className="space-y-4">
             {ownerSources.length === 0 ? (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-[var(--studio-muted)]">
                 {ownerTarget?.refund_kind === 'exception'
                   ? '대표가 정할 원천이 없습니다(대기 원인이 풀림). 정산하면 일반 규칙(복구·다시 지급)대로 돌려줍니다.'
                   : '대표가 정할 원천이 없습니다. 일반 승인으로 처리해 주세요.'}
               </p>
             ) : ownerSources.map((source) => (
-              <div key={source.sourceId} className="space-y-2 rounded-md border p-3 text-sm">
+              <div key={source.sourceId} className="space-y-2 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] p-3 text-sm">
                 <p className="font-medium">원천 {source.sourceId.slice(0, 8)} · {source.category} · {source.status}
                   {source.cashRefunded ? ' · 현금 환불 이력 있음' : ''}{source.refundOpen ? ' · 충전 환불 진행 중' : ''}{source.cancelInProgress ? ' · 결제 취소 처리 중(먼저 끝내야 함)' : ''}</p>
-                <p className="text-xs text-gray-500">이 주문에서 남은 소비 {source.remainingConsumed.toLocaleString()}C — 아래 세 칸의 합이 이 값 이하</p>
+                <p className="text-xs text-[var(--studio-muted)]">이 주문에서 남은 소비 {formatCredits(source.remainingConsumed)} — 아래 세 칸의 합이 이 값 이하</p>
                 <div className="grid grid-cols-3 gap-2">
                   {(['restored', 'reissued', 'unrecovered'] as const).map((key) => (
-                    <label key={key} className="text-xs text-gray-600">
+                    <label key={key} className="text-xs text-[var(--studio-text)]">
                       {key === 'restored' ? '원천에 되돌림' : key === 'reissued' ? '새로 지급' : '지급 안 함'}
                       <Input
                         type="number"
@@ -445,16 +475,18 @@ export function MarketRefundsClient({ requests, isOwner }: MarketRefundsClientPr
                 </div>
                 <Input
                   placeholder="이 원천의 판단 근거(필수)"
+                  data-admin-pii=""
                   value={ownerInputs[source.sourceId]?.reason ?? ''}
                   onChange={(event) => setOwnerInputs((current) => ({ ...current, [source.sourceId]: { ...current[source.sourceId], reason: event.target.value } }))}
                 />
               </div>
             ))}
-            <Textarea value={ownerNote} onChange={(event) => setOwnerNote(event.target.value)} rows={2} maxLength={1000} placeholder="정산 메모(필수)" />
+            <Textarea value={ownerNote} onChange={(event) => setOwnerNote(event.target.value)} rows={2} maxLength={1000} placeholder="정산 메모(필수)" aria-label="정산 메모" data-admin-pii="" />
           </div>
           <DialogFooter className="justify-center gap-2">
-            <Button variant="outline" onClick={() => setOwnerTarget(null)} disabled={processingId !== null}>취소</Button>
+            <Button variant="brandOutline" onClick={() => setOwnerTarget(null)} disabled={processingId !== null}>취소</Button>
             <Button
+              variant="brand"
               disabled={processingId !== null || !ownerNote.trim()
                 || (ownerSources.length === 0 && ownerTarget?.refund_kind !== 'exception')
                 || ownerSources.some((source) => {
@@ -466,6 +498,7 @@ export function MarketRefundsClient({ requests, isOwner }: MarketRefundsClientPr
               {processingId !== null ? '처리 중...' : '정산하고 환불 승인'}
             </Button>
           </DialogFooter>
+          {ownerConfirmDialog}
         </DialogContent>
       </Dialog>
     </Card>

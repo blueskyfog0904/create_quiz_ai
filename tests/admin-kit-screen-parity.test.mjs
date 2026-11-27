@@ -797,3 +797,633 @@ test('/admin/footer: 저장 함수가 여럿인 주소 → 저장 함수마다 �
   // 저장 줄은 이탈 경고 훅을 부르지 않는다 — 훅은 구매 고지 폼의 1개뿐(위 대조 시험).
   assert.match(read(`${FOOTER}/signup-consent-admin.tsx`), /onSave=\{\(\) => startSave\(draft\)\}/)
 })
+
+// ───── 5단계: 회원·고객(/admin/users·상세, /admin/support, /admin/refunds, /admin/credits, /admin/reviews, /admin/audit-log) ─────
+// 기대값은 옮기기 전(e3a37d9) 코드에서 뽑은 목록이다. 바뀐 것은 없앤 confirm·alert 뿐(→ 공통 확인 창·화면 안 오류).
+const STEP5 = {
+  USERS: 'src/app/(admin)/admin/users',
+  SUPPORT: 'src/app/(admin)/admin/support',
+  REFUNDS: 'src/app/(admin)/admin/refunds',
+  CREDITS: 'src/app/(admin)/admin/credits',
+  REVIEWS: 'src/app/(admin)/admin/reviews',
+  AUDIT_LOG: 'src/app/(admin)/admin/audit-log',
+}
+const STEP5_BEFORE = {
+  USERS: {
+    "fetch": [
+      "fetch('/api/admin/users/credits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: selectedUser.id, amount, description: reason, category, idempotencyKey }) })",
+      "fetch('/api/admin/users/credits/revoke', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sourceId, amount: parsedAmount, reason: reason.trim(), idempotencyKey }), })",
+      "fetch(`/api/admin/users/${userId}/suspension`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), })",
+      "fetch(`/api/admin/users/${userId}/withdrawal`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), })",
+      "fetch(`/api/admin/users/search?q=${encodeURIComponent(searchQuery.trim())}`)",
+      "fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })"
+    ],
+    "serverImports": [
+      "./suspension-policy-actions",
+      "./suspension-policy-actions",
+      "@/lib/admin-member-access-log-server",
+      "@/lib/admin-member-access-log-server",
+      "@/lib/admin-member-detail-server",
+      "@/lib/admin-member-suspension-server",
+      "@/lib/admin-member-suspension-server",
+      "@/lib/admin-permissions-server",
+      "@/lib/admin-permissions-server",
+      "@/lib/admin-permissions-server",
+      "@/lib/admin-users-server",
+      "@/lib/admin-users-server",
+      "@/lib/member-suspension-policy-server"
+    ],
+    "db": [
+      "from:member_suspensions",
+      "rpc:save_member_suspension_policy"
+    ],
+    "guards": [
+      "requireAdminPagePermission('members.view')",
+      "requireAdminPagePermission('members.view')"
+    ],
+    "searchParamKeys": [
+      "page",
+      "pageSize",
+      "q",
+      "suspended"
+    ]
+  },
+  SUPPORT: {
+    "fetch": [
+      "fetch('/api/admin/alerts/summary', { cache: 'no-store' })",
+      "fetch(`/api/admin/support/categories/${category.id}/restore`, { method: 'POST', })",
+      "fetch(`/api/admin/support/categories/${category.id}`, { method: 'DELETE', })",
+      "fetch(`/api/admin/support/tickets/${selectedTicket.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminResponse: response, status: 'resolved', // 13번: 지금 보이는 답변(첫 답변이면 빈 글)의 sha256 — 그사이 다른 사람이 답했으면 서버가 충돌로 막는다. expectedSha256: await sha256Hex(selectedTicket.admin_response ?? ''), operationKey: answerOperationKey, }), })",
+      "fetch(`/api/admin/support/tickets/${selectedTicketId}/member-summary`)",
+      "fetch(`/api/admin/support/tickets/${ticket.id}/answer-revisions`)",
+      "fetch(`/api/admin/support/tickets/${ticket.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminResponse: text, expectedSha256: await sha256Hex(ticket.admin_response ?? ''), reason: reason.trim(), operationKey, }), })",
+      "fetch(`/api/admin/users/${target.user_id}/withdrawal`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'read_ticket', ticketId: target.id, reason: reason.trim() }), })",
+      "fetch(editingCategory ? `/api/admin/support/categories/${editingCategory.id}` : '/api/admin/support/categories', { method: editingCategory ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), })"
+    ],
+    "serverImports": [
+      "./actions",
+      "./actions",
+      "@/lib/admin-audit-log-server",
+      "@/lib/admin-member-access-log-server",
+      "@/lib/admin-member-detail-server",
+      "@/lib/admin-permissions-server",
+      "@/lib/admin-permissions-server",
+      "@/lib/admin-support-server",
+      "@/lib/member-withdrawal-server",
+      "@/lib/site-brand-server",
+      "@/lib/support-page-content-server",
+      "@/lib/support-page-content-server",
+      "@/lib/withdrawn-member-redaction-server"
+    ],
+    "db": [
+      "from:support_reply_templates",
+      "from:support_reply_templates",
+      "from:support_reply_templates",
+      "from:support_reply_templates",
+      "from:support_ticket_categories",
+      "from:support_tickets",
+      "from:support_tickets",
+      "from:support_tickets",
+      "from:support_tickets",
+      "from:support_tickets",
+      "from:support_tickets"
+    ],
+    "guards": [
+      "requireAdminPagePermission('support.manage')"
+    ],
+    "searchParamKeys": [
+      "categoryId",
+      "includeDeleted",
+      "page",
+      "pageSize",
+      "q",
+      "status",
+      "ticket"
+    ]
+  },
+  REFUNDS: {
+    "fetch": [
+      "fetch('/api/admin/alerts/summary', { cache: 'no-store' })",
+      "fetch('/api/admin/payments/alerts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alertId: selectedAlert.id, note: alertNote }), })",
+      "fetch('/api/admin/payments/review', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentOrderId: selectedOrder.id, action, note, ...(action === 'paid_confirmed' && mulNo.trim() ? { mulNo: mulNo.trim() } : {}), ...(action === 'paid_confirmed' && paidAt ? { paidAt: new Date(paidAt).toISOString() } : {}), ...(action === 'cancel_handled' ? { externalMethod } : {}), }), })",
+      "fetch('/api/admin/payments/sales-stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: reason.trim() }), })",
+      "fetch('/api/admin/refunds', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: selectedRequest.id, action: processAction, adminNote: adminNote || undefined, ...(processAction === 'reject' ? { memberReason: memberReasonText } : {}), ...(processAction === 'reject' && selectedRequest.status === 'manual_review' ? { providerNotCancelledConfirmed } : {}), ...(processAction === 'complete_manual' ? { externalMethod, refundAmount: Number(refundAmount), // 전액 모드도 미리보기에서 받은 쓸 수 있는 몫 합을 보낸다(그사이 바뀌면 DB 가 거절 → 새로고침 안내). recoveredCredits: selectedRequiresRecovery ? Number(recoveredCredits) : remainingCredits, } : {}), }) })",
+      "fetch(`/api/admin/market/refunds/${ownerTarget.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'owner_settle', confirmedRefundCredits, adminNote: ownerNote.trim(), ownerItems: ownerSources.map((source) => ({ sourceId: source.sourceId, restored: Number(ownerInputs[source.sourceId]?.restored || 0), reissued: Number(ownerInputs[source.sourceId]?.reissued || 0), unrecovered: Number(ownerInputs[source.sourceId]?.unrecovered || 0), reason: ownerInputs[source.sourceId]?.reason.trim() ?? '', })), }), })",
+      "fetch(`/api/admin/market/refunds/${request.id}`)",
+      "fetch(`/api/admin/market/refunds/${requestId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, confirmedRefundCredits, adminNote: adminNote.trim() || undefined, ...(action === 'reject' ? { rejectCode, evidence: rejectCode === 'PROVIDED_CONFIRMED' ? rejectEvidence.trim() : undefined } : {}), }), })",
+      "fetch(`/api/admin/refunds/recovery-preview?requestId=${encodeURIComponent(requestId)}`, { cache: 'no-store' })"
+    ],
+    "serverImports": [
+      "@/lib/admin-member-access-log-server",
+      "@/lib/admin-permissions-server",
+      "@/lib/member-withdrawal-server",
+      "@/lib/payment-orders-server",
+      "@/lib/payment-review-actions",
+      "@/lib/payment-review-actions",
+      "@/lib/payment-review-actions",
+      "@/lib/payment-sales-status-server",
+      "@/lib/payment-sales-status-server",
+      "@/lib/site-board-server",
+      "@/lib/withdrawn-member-redaction-server"
+    ],
+    "db": [
+      "from:market_refund_requests",
+      "from:payment_orders",
+      "from:payment_reconciliation_alerts",
+      "from:refund_requests"
+    ],
+    "guards": [
+      "requireAdminPagePermission(['refunds.payment', 'refunds.market'])"
+    ],
+    "searchParamKeys": []
+  },
+  CREDITS: {
+    "fetch": [
+      "fetch('/api/admin/users/credits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: selectedUser.id, amount, description: reason, category, idempotencyKey }) })",
+      "fetch('/api/admin/users/credits/limits', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ perGrant: nextPerGrant, perDay: nextPerDay }), })",
+      "fetch(`/api/admin/users/search?q=${encodeURIComponent(searchQuery.trim())}`)"
+    ],
+    "serverImports": [
+      "@/lib/admin-credit-grant-limits-server",
+      "@/lib/admin-credit-transactions-server",
+      "@/lib/admin-credit-transactions-server",
+      "@/lib/admin-member-access-log-server",
+      "@/lib/admin-permissions-server"
+    ],
+    "db": [],
+    "guards": [
+      "requireAdminPagePermission('credits.view')"
+    ],
+    "searchParamKeys": [
+      "page",
+      "pageSize",
+      "q",
+      "type"
+    ]
+  },
+  REVIEWS: {
+    "fetch": [
+      "fetch(`/api/admin/reviews/${review.id}`, { method: 'DELETE' })",
+      "fetch(`/api/admin/reviews?${params.toString()}`)"
+    ],
+    "serverImports": [
+      "@/lib/admin-permissions-server",
+      "@/lib/admin-sidebar-server"
+    ],
+    "db": [],
+    "guards": [
+      "requireAdminPagePermission('reviews.manage')"
+    ],
+    "searchParamKeys": [
+      "subject"
+    ]
+  },
+  AUDIT_LOG: {
+    "fetch": [
+      "fetch(`/api/admin/audit-log/access?${requestKey}`)",
+      "fetch(`/api/admin/audit-log?${requestKey}`)"
+    ],
+    "serverImports": [
+      "@/lib/admin-audit-log-server",
+      "@/lib/admin-member-access-log-view-server",
+      "@/lib/admin-permissions-server",
+      "@/lib/admin-sidebar-server"
+    ],
+    "db": [],
+    "guards": [
+      "requireAdminPagePermission('owner')"
+    ],
+    "searchParamKeys": [
+      "subject",
+      "tab"
+    ]
+  },
+}
+
+for (const [name, dir] of Object.entries(STEP5)) {
+  test(`${dir.replace('src/app/(admin)', '')}: 부르는 API·서버 액션·로더·표·가드·주소 키는 옮기기 전(e3a37d9)과 같고, 브라우저 확인·알림 창은 없다`, () => {
+    const items = parityItems(dir)
+    for (const key of ['fetch', 'serverImports', 'db', 'guards', 'searchParamKeys']) assert.deepEqual(items[key], STEP5_BEFORE[name][key], `${name}.${key}`)
+    assert.deepEqual(items.confirm, [], `${name}.confirm`)
+    assert.deepEqual(items.alert, [], `${name}.alert`)
+    // 이탈 경고 훅은 이 화면들에 없다(새로 걸지 않음, 5-3).
+    assert.deepEqual(items.guardHook, [], `${name}.guardHook`)
+    // 켜진 화면의 주황 버튼은 없다(6-4 래칫).
+    for (const file of screenFiles(dir).filter((file) => file.startsWith(dir))) assert.doesNotMatch(read(file), /adminAction/, file)
+  })
+}
+// 13번 열람 기록(recordMemberAccess·attachMemberContacts)·연락처 가림(maskPhone·logged 분기)은 개인정보 의무라 글자까지 같다.
+// 지문은 옮기기 전(e3a37d9) 다섯 page 에서 뽑았다(18줄).
+test('5단계: 회원 연락처 열람 기록 호출·화면 키·항목과 기록 실패 때 가림은 옮기기 전과 글자까지 같다(13번)', () => {
+  const files = [
+    `${STEP5.USERS}/page.tsx`, `${STEP5.USERS}/[id]/page.tsx`, `${STEP5.SUPPORT}/page.tsx`, `${STEP5.REFUNDS}/page.tsx`, `${STEP5.CREDITS}/page.tsx`,
+  ]
+  const lines = []
+  for (const file of files) {
+    const source = read(file)
+    for (const name of ['recordMemberAccess', 'attachMemberContacts', 'maskPhone']) for (const call of callsOf(source, name)) lines.push(`${file}|${call}`)
+    for (const line of source.split('\n')) {
+      if (/logged \|\||paymentLogged|const profile = logged|notesSection|visiblePaymentRefundRows|visibleReviewOrders|const users = result\.users|email: logged/.test(line)) lines.push(`${file}|${line.trim()}`)
+    }
+  }
+  assert.equal(lines.length, 18)
+  assert.equal(createHash('sha256').update(lines.join('\n')).digest('hex'), '29870f5a83fb59c79d877c0ec951ec9040e82ff18a5bbc47ff3574ecce131cf6')
+  // 문의 상세 창의 연락처(전화는 회원 요약에서, 기록 실패면 가림)도 그대로
+  const support = read(`${STEP5.SUPPORT}/support-client.tsx`)
+  assert.ok(support.includes("if (loaded?.contactMasked) return '연락처 가림(열람 기록 실패)'"))
+})
+
+// 브라우저 확인 창 → 공통 확인 창(유형 가: 확인 전에는 잠금·요청이 없다). 문구는 전의 확인 창 그대로(제목 + 설명으로 나눔).
+function assertAskFirst(source, fnStart, { title, request, danger }) {
+  const start = source.indexOf(fnStart)
+  assert.ok(start >= 0, fnStart)
+  const body = source.slice(start, source.indexOf('\n  }\n', start))
+  const asked = body.indexOf('await ask')
+  assert.ok(asked > 0, `${fnStart}: ask`)
+  assert.ok(body.includes(title), `${fnStart}: ${title}`)
+  const stop = body.search(/if \(!confirmed\)|\)\)\) return/)
+  assert.ok(stop > asked, `${fnStart}: 취소면 멈춤`)
+  assert.ok(body.indexOf(request) > stop, `${fnStart}: 요청은 확인 뒤`)
+  if (danger) assert.match(body, /danger: true,/, fnStart)
+  else assert.doesNotMatch(body, /danger: true/, fnStart)
+}
+
+test('5단계 유형 (가): 메모 지우기·가림, 카테고리 숨김·다시 사용, 템플릿 숨김·바꾸기, 후기 삭제는 먼저 묻고 확인 뒤에만 요청한다', () => {
+  const notes = read(`${STEP5.USERS}/[id]/member-notes-panel.tsx`)
+  assertAskFirst(notes, 'const remove = async (noteId: string) => {', { title: "title: '이 메모를 지울까요?'", request: "void call(noteId, `/api/admin/users/${userId}/notes`, { action: 'delete', noteId }", danger: true })
+  assert.ok(notes.includes("description: '지운 메모도 탈퇴할 때까지 보관됩니다(개인정보처리방침 2·3절).'"))
+  assertAskFirst(notes, 'const redact = async (noteId: string) => {', { title: "title: '이 메모의 글을 가림 문구로 바꿀까요?'", request: "void call(noteId, `/api/admin/users/${userId}/notes/redact`, { noteId }", danger: true })
+  assert.ok(notes.includes("description: '되돌릴 수 없습니다. 적지 말아야 할 개인정보(계좌·주민등록번호 등)가 적힌 경우에만 씁니다.'"))
+  // 훅은 탈퇴 회원 조기 반환보다 먼저 부른다(훅 순서 고정).
+  assert.ok(notes.indexOf('useAdminConfirm()') < notes.indexOf('if (data.withdrawn) {'))
+  assert.match(notes, /\{confirmDialog\}\n\s+<\/div>\n\s+\)\n\}/)
+
+  const support = read(`${STEP5.SUPPORT}/support-client.tsx`)
+  assertAskFirst(support, 'const hideCategory = async (category: SupportCategory) => {', { title: "title: `'${category.name}' 카테고리를 숨김 처리하시겠습니까?`", request: 'fetch(`/api/admin/support/categories/${category.id}`', danger: true })
+  assert.ok(support.includes("description: '기존 문의의 카테고리 스냅샷은 유지됩니다.'"))
+  assertAskFirst(support, 'const restoreCategory = async (category: SupportCategory) => {', { title: "title: `'${category.name}' 카테고리를 다시 사용할까요?`", request: 'fetch(`/api/admin/support/categories/${category.id}/restore`', danger: false })
+  assert.ok(support.includes("description: '회원 문의 화면에 다시 보입니다.'"))
+
+  const templates = read(`${STEP5.SUPPORT}/reply-templates-panel.tsx`)
+  assertAskFirst(templates, 'const hide = async (template: SupportReplyTemplateRow) => {', { title: "title: `'${template.title}' 템플릿을 숨길까요?`", request: 'hideSupportReplyTemplateAction({ id: template.id, revision: template.revision })', danger: true })
+  assert.ok(templates.includes("description: '답변 창의 템플릿 목록에서 빠집니다.'"))
+
+  // 템플릿 고르기: 쓰던 글이 있을 때만 묻고, 확인하면 지금처럼 넣고 창을 닫는다. 확인 창은 고르기 창 안에 그린다.
+  const tools = read(`${STEP5.SUPPORT}/reply-template-tools.tsx`)
+  const choose = tools.slice(tools.indexOf('const choose = async (template: SupportReplyTemplateRow) => {'), tools.indexOf('const renderList'))
+  assert.match(choose, /if \(currentText\.trim\(\) && !\(await ask\(\{\s+title: '쓰던 답변을 이 템플릿으로 바꿀까요\?',\s+description: '지금 쓴 글은 사라집니다\.',/)
+  assert.ok(choose.indexOf('onInsert(fillSupportReplyTemplate(') > choose.indexOf(')))) return'))
+  assert.match(tools, /\{confirmDialog\}\n\s+<\/DialogContent>/)
+
+  const reviews = read(`${STEP5.REVIEWS}/reviews-admin-client.tsx`)
+  assertAskFirst(reviews, 'const deleteReview = async (review: AdminReviewRow) => {', { title: "title: '이 후기를 삭제하시겠습니까?'", request: 'fetch(`/api/admin/reviews/${review.id}`, { method: \'DELETE\' })', danger: true })
+  // 확인 창에 자료명·본문을 그대로 보인다(화면 비교 때 가림).
+  assert.ok(reviews.includes('description: <span data-admin-pii="" className="whitespace-pre-line break-keep">{`${review.itemTitle}\\n"${review.content ?? \'(본문 없음)\'}"`}</span>,'))
+  const deleteBody = reviews.slice(reviews.indexOf('const deleteReview = async'), reviews.indexOf('const columns'))
+  assert.ok(deleteBody.indexOf('setDeletingId(review.id)') > deleteBody.indexOf('if (!confirmed) return'))
+})
+
+test('/admin/reviews: 알림 창 2곳은 같은 문구로 화면 안에 보이고(읽기 = 표 실패 칸·오류 띠, 삭제 = 오류 띠), 표는 표 부품(가로 넘침 틀)', () => {
+  const client = read(`${STEP5.REVIEWS}/reviews-admin-client.tsx`)
+  assert.ok(client.includes("if (id === requestId.current) setLoadError(error instanceof Error ? error.message : '후기를 불러오지 못했습니다.')"))
+  assert.ok(client.includes("setActionError(error instanceof Error ? error.message : '삭제에 실패했습니다.')"))
+  assert.match(client, /loadError && !data \? \(\s+<AdminTableState kind="error" message=\{loadError\} onRetry=\{\(\) => void loadReviews\(\)\} \/>/)
+  assert.match(client, /\{loadError && data \? <AdminNotice kind="error" onRetry=\{\(\) => void loadReviews\(\)\}>\{loadError\}<\/AdminNotice> : null\}/)
+  assert.match(client, /\{actionError \? <div ref=\{actionErrorRef\}><AdminNotice kind="error">\{actionError\}<\/AdminNotice><\/div> : null\}/)
+  assert.match(client, /if \(actionError\) actionErrorRef\.current\?\.scrollIntoView\(\{ block: 'nearest' \}\)/)
+  // 1단계 메모: 이 표만 가로 넘침 틀이 없던 것 → 표 부품(xl 미만 표 안 가로 스크롤)
+  assert.doesNotMatch(client, /<table\b/)
+  assert.match(client, /<AdminDataTable\s+caption="후기 목록"[\s\S]*?minWidth=\{860\}/)
+  assert.deepEqual([...client.matchAll(/header: '([^']+)'/g)].map((match) => match[1]), ['자료', '별점', '본문·태그', '작성자', '도움', '작성일', '작업'])
+  assert.match(client, /key: 'content',\s+header: '본문·태그',\s+\/\/[^\n]*\n\s+pii: true,/)
+  // 주소 키·검색·쪽은 그대로, 날짜 표기(YYYY.MM.DD) 그대로
+  for (const fragment of [
+    "const ratingFilter = listQuery.params.get('rating') ?? ''",
+    "const search = listQuery.params.get('q') ?? ''",
+    "if (search) params.set('search', search)",
+    "disabled={deletingId === review.id}",
+    "{deletingId === review.id ? '삭제 중…' : '삭제'}",
+    'return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, \'0\')}.${String(date.getDate()).padStart(2, \'0\')}`',
+  ]) assert.ok(client.includes(fragment), fragment)
+  assert.match(read(`${STEP5.REVIEWS}/page.tsx`), /<AdminPageHeader\s+title=\{<><AdminMenuName href="\/admin\/reviews" fallback="후기 관리" \/> · \{workspaceSubject === 'english' \? '영어' : '국어'\}<\/>\}/)
+})
+
+// 자료 환불의 부족분 확인 2곳(유형 나)을 그대로 떼어 실행한다: 첫 요청 → 409 → 확인 → confirmedRefundCredits 로 다시 요청, 잠금 유지.
+const MARKET_REFUNDS = `${STEP5.REFUNDS}/market-refunds-client.tsx`
+const { default: ts } = await import('typescript')
+
+function sliceFunction(source, start) {
+  const begin = source.indexOf(start)
+  assert.ok(begin > 0, start)
+  let depth = 0
+  let end = source.indexOf('{', begin + start.length - 1)
+  for (; end < source.length; end += 1) {
+    if (source[end] === '{') depth += 1
+    else if (source[end] === '}') {
+      depth -= 1
+      if (depth === 0) break
+    }
+  }
+  return source.slice(begin, end + 1)
+}
+
+function loadMarketRefundFunction(start, name, names) {
+  const body = ts.transpileModule(sliceFunction(read(MARKET_REFUNDS), start), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+  return new Function('deps', `const { ${names.join(', ')} } = deps\n${body}\nreturn ${name}`)
+}
+
+function shortfallWorld({ answer, restorable = 60 }) {
+  const log = []
+  let processing = null
+  let release
+  const deps = {
+    setProcessingId: (value) => { processing = value; log.push(`processing:${value}`) },
+    fetch: async (url, init) => {
+      const body = JSON.parse(init.body)
+      log.push(`fetch:${JSON.stringify({ action: body.action, confirmedRefundCredits: body.confirmedRefundCredits })}`)
+      const first = log.filter((line) => line.startsWith('fetch:')).length === 1
+      const result = first
+        ? { code: 'MARKET_REFUND_SHORTFALL', error: '일부 크레딧은 이미 썼습니다.', requested: 100, restorable }
+        : { success: true, message: '처리했습니다.' }
+      return { status: first ? 409 : 200, ok: !first, json: async () => result }
+    },
+    formatCredits: (value) => `${value} C`,
+    toast: { success: (message) => log.push(`success:${message}`), error: (message) => log.push(`error:${message}`), warning: () => {} },
+    MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE: '',
+    router: { refresh: () => {} },
+    alerts: null,
+    setPending: () => {},
+    setOwnerTarget: () => {},
+    adminNote: '',
+    rejectCode: '',
+    rejectEvidence: '',
+    ownerTarget: { id: 'request-1' },
+    ownerNote: '대표 메모',
+    ownerSources: [],
+    ownerInputs: {},
+  }
+  const ask = (options) => {
+    log.push(`ask:processing=${processing}`)
+    deps.lastAsk = options
+    return new Promise((resolve) => { release = () => resolve(answer) })
+  }
+  deps.ask = ask
+  deps.askOwnerShortfall = ask
+  return { deps, log, release: () => release(), processing: () => processing }
+}
+
+const PROCESS_REFUND_DEPS = ['setProcessingId', 'fetch', 'adminNote', 'rejectCode', 'rejectEvidence', 'ask', 'formatCredits', 'setPending', 'toast', 'MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE', 'router', 'alerts']
+const OWNER_SETTLE_DEPS = ['ownerTarget', 'setProcessingId', 'fetch', 'ownerNote', 'ownerSources', 'ownerInputs', 'askOwnerShortfall', 'formatCredits', 'toast', 'MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE', 'setOwnerTarget', 'router', 'alerts']
+
+test('/admin/refunds 자료 환불 승인(유형 나): 409 부족분 → 확인 → confirmedRefundCredits 로 다시 요청, 창이 열린 동안 잠금 유지', async () => {
+  const world = shortfallWorld({ answer: true })
+  const processRefund = loadMarketRefundFunction('const processRefund = async (requestId: string, action: RefundAction) => {', 'processRefund', PROCESS_REFUND_DEPS)(world.deps)
+  const running = processRefund('request-1', 'approve')
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.deepEqual(world.log, ['processing:request-1', 'fetch:{"action":"approve"}', 'ask:processing=request-1'])
+  assert.equal(world.processing(), 'request-1')
+  assert.equal(world.deps.lastAsk.description, '일부 크레딧은 이미 썼습니다.')
+  assert.deepEqual(world.deps.lastAsk.impacts.map((impact) => [impact.label, impact.value]), [['요청', '100 C'], ['복구 가능', '60 C']])
+  assert.equal(world.deps.lastAsk.danger, undefined)
+  world.release()
+  await running
+  assert.deepEqual(world.log.slice(3), ['fetch:{"action":"approve","confirmedRefundCredits":60}', 'success:처리했습니다.', 'processing:null'])
+})
+
+test('/admin/refunds 자료 환불 승인(유형 나): 확인 창에서 취소하면 다시 요청하지 않는다', async () => {
+  const world = shortfallWorld({ answer: false })
+  const processRefund = loadMarketRefundFunction('const processRefund = async (requestId: string, action: RefundAction) => {', 'processRefund', PROCESS_REFUND_DEPS)(world.deps)
+  const running = processRefund('request-1', 'approve')
+  await new Promise((resolve) => setImmediate(resolve))
+  world.release()
+  await running
+  assert.deepEqual(world.log, ['processing:request-1', 'fetch:{"action":"approve"}', 'ask:processing=request-1', 'processing:null'])
+})
+
+test('/admin/refunds 대표 정산(유형 나): 409 부족분 → 확인 → 돌려줄 수 있는 양으로 다시 정산, 창이 열린 동안 잠금 유지 / 취소면 다시 보내지 않음', async () => {
+  const world = shortfallWorld({ answer: true })
+  const submitOwnerSettle = loadMarketRefundFunction('const submitOwnerSettle = async (confirmedRefundCredits?: number) => {', 'submitOwnerSettle', OWNER_SETTLE_DEPS)(world.deps)
+  const running = submitOwnerSettle(undefined)
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.deepEqual(world.log, ['processing:request-1', 'fetch:{"action":"owner_settle"}', 'ask:processing=request-1'])
+  assert.deepEqual(world.deps.lastAsk.impacts.map((impact) => [impact.label, impact.value]), [['요청', '100 C'], ['돌려줄 수 있음', '60 C']])
+  world.release()
+  await running
+  // 확인 뒤: 전처럼 잠금을 넘겨 같은 함수를 돌려줄 수 있는 양으로 다시 부른다(다시 묻지 않음).
+  assert.deepEqual(world.log.slice(3), [
+    'processing:null', 'processing:request-1', 'fetch:{"action":"owner_settle","confirmedRefundCredits":60}', 'success:처리했습니다.', 'processing:null', 'processing:null',
+  ])
+  assert.equal(world.log.filter((line) => line.startsWith('ask:')).length, 1)
+
+  const canceled = shortfallWorld({ answer: false })
+  const cancelRun = loadMarketRefundFunction('const submitOwnerSettle = async (confirmedRefundCredits?: number) => {', 'submitOwnerSettle', OWNER_SETTLE_DEPS)(canceled.deps)(undefined)
+  await new Promise((resolve) => setImmediate(resolve))
+  canceled.release()
+  await cancelRun
+  assert.deepEqual(canceled.log, ['processing:request-1', 'fetch:{"action":"owner_settle"}', 'ask:processing=request-1', 'processing:null'])
+})
+
+test('/admin/refunds: 부족분 확인 창은 각 처리 창 안에 그리고, 창이 열린 동안 실행 버튼이 잠긴다', () => {
+  const client = read(MARKET_REFUNDS)
+  assert.match(client, /const \{ ask, dialog: confirmDialog \} = useAdminConfirm\(\)/)
+  assert.match(client, /const \{ ask: askOwnerShortfall, dialog: ownerConfirmDialog \} = useAdminConfirm\(\)/)
+  assert.match(client, /\{confirmDialog\}\n\s+<\/DialogContent>/)
+  assert.match(client, /\{ownerConfirmDialog\}\n\s+<\/DialogContent>/)
+  assert.match(client, /onOpenChange=\{\(open\) => !open && processingId === null && setPending\(null\)\}/)
+  assert.match(client, /onOpenChange=\{\(open\) => !open && processingId === null && setOwnerTarget\(null\)\}/)
+  assert.match(client, /disabled=\{processingId !== null \|\| \(pending\?\.action === 'reject'/)
+  assert.match(client, /disabled=\{processingId !== null \|\| !ownerNote\.trim\(\)/)
+  assert.doesNotMatch(client, /window\.confirm|\bconfirm\(/)
+})
+
+test('/admin/refunds: 같은 열·버튼·조건, 상태 색은 5-1 표, 회원·사유·메모 칸은 가림 표시', () => {
+  const headers = (source) => [...source.matchAll(/header: '([^']+)'/g)].map((match) => match[1])
+  const payment = read(`${STEP5.REFUNDS}/refunds-client.tsx`)
+  const market = read(MARKET_REFUNDS)
+  const review = read(`${STEP5.REFUNDS}/payment-review-client.tsx`)
+  assert.deepEqual(headers(payment), ['요청일', '사용자', '요금제', '크레딧', '금액', '사유', '상태', '결제 처리', '처리'])
+  assert.deepEqual(headers(market), ['요청일', '사용자', '상품', '환불 크레딧', '대상', '사유', '상태', '처리 메모', '처리'])
+  assert.deepEqual(headers(review), ['주문일', '회원', '주문번호·결제사 거래번호', '결제사', '상품·금액', '사유', '처리'])
+  assert.match(payment, /adminStatusTone\('refundRequest', status\)/)
+  assert.match(market, /adminStatusTone\('marketRefundRequest', request\.status\)/)
+  for (const fragment of [
+    "['pending_review', 'retryable_failed'].includes(request.status) ? (",
+    "request.status === 'manual_review' ? (",
+    "{request.origin === 'user' && (",
+    "onClick={() => openProcessDialog(request, 'approve')}",
+    "onClick={() => openProcessDialog(request, 'complete_manual')}",
+    'disabled={isSubmitting || !manualCompletionReady || !rejectReady || !memberReasonReady}',
+    "variant={processAction === 'reject' ? 'adminDanger' : 'brand'}",
+    'onPress={() => setStatusFilter(card.filter)}',
+  ]) assert.ok(payment.includes(fragment), fragment)
+  assert.deepEqual([...payment.matchAll(/filter: '(\w+)' \}/g)].map((match) => match[1]), ['pending_review', 'completed', 'rejected', 'attention'])
+  for (const fragment of [
+    "cell: (request) => (request.status === 'pending' ? (",
+    '{isOwner ? (',
+    'disabled={processingId === request.id} onClick={() => void openOwnerSettle(request)}',
+    "{request.memberWithdrawn ? '가림' : request.reason ?? '-'}",
+    "{request.memberWithdrawn ? '가림' : request.admin_note ?? '-'}",
+  ]) assert.ok(market.includes(fragment), fragment)
+  for (const fragment of ['order.allowedActions.length > 0 ? (', 'onClick={() => openDialog(order)}']) assert.ok(review.includes(fragment), fragment)
+  for (const source of [payment, market]) {
+    assert.match(source, /key: 'member',\s+header: '사용자',\s+pii: true,/)
+    assert.match(source, /key: 'reason',\s+header: '사유',[\s\S]{0,80}?pii: true,/)
+  }
+  assert.match(market, /key: 'adminNote',\s+header: '처리 메모',\s+pii: true,/)
+  assert.match(review, /key: 'member', header: '회원', pii: true,/)
+  // 날짜 표기는 지금 모양 그대로
+  assert.ok(payment.includes("cell: (request) => new Date(request.created_at).toLocaleDateString('ko-KR'),"))
+  assert.ok(market.includes("cell: (request) => new Date(request.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' }),"))
+  assert.ok(review.includes("cell: (order) => new Date(order.created_at).toLocaleString('ko-KR'),"))
+  assert.match(read(`${STEP5.REFUNDS}/page.tsx`), /<AdminNotice kind="error" title=\{`다음 목록을 불러오지 못했습니다: \$\{loadErrors\.join\(', '\)\}`\}>/)
+})
+
+test('/admin/users: 카드형 목록 → 표(Q2), 같은 표시 조건·주소 키, 연락처는 가림 표시', () => {
+  const client = read(`${STEP5.USERS}/users-client.tsx`)
+  assert.deepEqual([...client.matchAll(/header: '([^']+)'/g)].map((match) => match[1]), ['회원', '연락처', '소속', '역할', '가입일', '크레딧', '작업'])
+  for (const fragment of [
+    '{user.is_admin && (',
+    '{user.suspended && (',
+    '{user.suspended === null && (',
+    '{user.withdrawn_at && (',
+    '{user.provider && (',
+    '{user.email && (',
+    '{user.phone && (',
+    "cell: (user) => (user.credit_balance === null ? '잔액 확인 불가' : formatCredits(user.credit_balance)),",
+    "cell: (user: AdminUserListItem) => (!user.withdrawn_at ? (",
+    '...(canGrantCredits',
+    "router.push(buildHref({ suspended: event.target.checked ? '1' : null, page: 1 }))",
+    "cell: (user) => new Date(user.created_at).toLocaleDateString('ko-KR'),",
+    "label={`탈퇴 ${new Date(user.withdrawn_at).toLocaleDateString('ko-KR')}`}",
+    'data-admin-pii=""',
+  ]) assert.ok(client.includes(fragment), fragment)
+  assert.match(client, /key: 'member',\s+header: '회원',\s+\/\/[^\n]*\n\s+pii: true,/)
+  assert.match(client, /key: 'contact',\s+header: '연락처',\s+pii: true,/)
+  assert.match(read(`${STEP5.USERS}/page.tsx`), /<AdminPageHeader\s+title=\{<AdminMenuName href="\/admin\/users" fallback="사용자 관리" \/>\}/)
+  // 정지 정책 카드(대표 전용, 12번): 저장 함수 하나 = 인라인 저장 줄 하나. 변경 없이 눌러도 전처럼 서버가 '바뀐 내용이 없습니다'로 답한다.
+  const card = read(`${STEP5.USERS}/suspension-policy-card.tsx`)
+  assert.ok(card.includes('const result = await saveMemberSuspensionPolicyAction(data.policy.revision, normalized)'))
+  assert.match(card, /saveDisabled=\{saving\}\s+saveWhenClean/)
+})
+
+test('/admin/users/[id]: 정지·메모(12번)·열람 기록 링크(13번)는 그대로, 표 4개는 표 부품, 개인정보 칸 가림 표시', () => {
+  const page = read(`${STEP5.USERS}/[id]/page.tsx`)
+  assert.match(page, /\{isOwner && \(\s*<Link href=\{`\/admin\/audit-log\?tab=access&member=\$\{profile\.id\}`\}/)
+  assert.equal(page.match(/<AdminDataTable\b/g)?.length, 4)
+  assert.deepEqual([...page.matchAll(/header: '([^']+)'/g)].map((match) => match[1]), [
+    '받은 날', '구분', '남은 수량', '만료일', '상태', '회수',
+    '주문 시각', '요금제', '결제수단', '상태', '주문번호',
+    '구매 시각', '상품', '상태', '다운로드', '진단',
+    '일시', '유형', '내용', '변동', '거래 후 잔액',
+  ])
+  assert.ok(page.includes("...(canRevoke ? [{"))
+  assert.match(page, /\['이메일', profile\.email \|\| '-', true\],\s+\['전화번호', profile\.phone \|\| '-', true\],/)
+  assert.ok(page.includes("<dd data-admin-pii={pii ? '' : undefined} className=\"min-w-0 break-all\">{value}</dd>"))
+  // 날짜 표기 그대로
+  assert.match(page, /const formatDateTime = \(value: string \| null \| undefined\) =>\s+value \? new Date\(value\)\.toLocaleString\('ko-KR', \{ timeZone: 'Asia\/Seoul' \}\) : '-'/)
+  // 크레딧 증감 색(Q6): 평범한 사용은 기본 글자색, 회수만 빨강
+  assert.match(page, /creditAmountTone\(transaction\.amount, getAdminCreditTransactionKind\(transaction\)\.tone\)/)
+
+  const suspension = read(`${STEP5.USERS}/[id]/member-suspension-panel.tsx`)
+  assert.equal(suspension.match(/fetch\(/g)?.length, 1)
+  for (const call of [
+    "await postSuspension(userId, { action: 'lift', suspensionId: suspension.id, liftReason: reason.trim() })",
+    "await postSuspension(userId, { action: 'notice', suspensionId: suspension.id, via, sentAt: sent.toISOString(), summary: summary.trim() })",
+    "const result = await postSuspension(userId, {\n        action: 'suspend',",
+  ]) assert.ok(suspension.includes(call), call)
+  assert.match(suspension, /<Button type="button" variant="adminDanger" onClick=\{\(\) => void submit\(\)\} disabled=\{submitting\}>\{submitting \? '처리 중…' : '정지 확정'\}<\/Button>/)
+  assert.ok(suspension.includes("data-admin-pii={PII_FACTS.has(label) ? '' : undefined}"))
+  assert.ok(suspension.includes("const PII_FACTS = new Set(['회원에게 알린 사유', '내부 메모', '알림', '해제'])"))
+  const notes = read(`${STEP5.USERS}/[id]/member-notes-panel.tsx`)
+  assert.match(notes, /aria-label="관리자 메모" data-admin-pii="" \/>/)
+  assert.match(notes, /<p data-admin-pii="" className=\{`mt-1 whitespace-pre-wrap break-words text-sm/)
+  const withdrawal = read(`${STEP5.USERS}/[id]/member-withdrawal-panel.tsx`)
+  assert.ok(withdrawal.includes("const PII_ROWS = new Set(['이메일', '휴대폰', '카카오 이메일'])"))
+  assert.match(withdrawal, /placeholder=\{email \?\? userId\} data-admin-pii="" \/>/)
+  // 본인 확인 메모·고지 원문·익명화 사유
+  for (const fragment of [
+    'onChange={(event) => setIdentityNote(event.target.value)} maxLength={500} rows={2} data-admin-pii="" />',
+    '<Textarea readOnly value={notice.text} rows={8} className="font-mono text-xs" data-admin-pii="" />',
+    'onChange={(event) => setReason(event.target.value)} maxLength={500} rows={2} data-admin-pii="" />',
+  ]) assert.ok(withdrawal.includes(fragment), fragment)
+})
+
+test('/admin/support: 카드형 목록 → 표(Q2), 첫 열 단추로 연다, 필터는 [적용] 그대로, 문의·답변 본문은 가림 표시', () => {
+  const client = read(`${STEP5.SUPPORT}/support-client.tsx`)
+  assert.deepEqual([...client.matchAll(/header: '([^']+)'/g)].map((match) => match[1]), ['문의', '카테고리', '상태', '회원', '접수일', '답변'])
+  assert.match(client, /<button\s+type="button"[\s\S]{0,200}?onClick=\{\(\) => openTicket\(ticket\)\}/)
+  assert.doesNotMatch(client, /<div[^>]*onClick=\{\(\) => openTicket/)
+  for (const fragment of [
+    '<Button variant="brand" onClick={applyFilters}>적용</Button>',
+    'onReset={resetFilters}',
+    'resultCount={pagination.totalCount}',
+    "adminStatusTone('supportTicket', statusKey)",
+    '<p data-admin-pii="" className="whitespace-pre-wrap text-[var(--studio-text)]">{selectedTicket?.message}</p>',
+    '<p data-admin-pii="" className="whitespace-pre-wrap text-[var(--studio-text)]">{selectedTicket.admin_response}</p>',
+    "cell: (ticket) => new Date(ticket.created_at).toLocaleDateString('ko-KR') },",
+  ]) assert.ok(client.includes(fragment), fragment)
+  assert.match(client, /key: 'subject',\s+header: '문의',\s+\/\/[^\n]*\n\s+pii: true,/)
+  assert.match(client, /key: 'member', header: '회원', pii: true,/)
+  // 안내 문구 탭(대표): 저장 함수 하나 = 인라인 저장 줄, 전의 [저장] 막힘 조건 그대로
+  const content = read(`${STEP5.SUPPORT}/support-page-content-panel.tsx`)
+  assert.ok(content.includes('saveDisabled={saving || emptyRequired.length > 0 || tooLong.length > 0}'))
+  assert.ok(content.includes('const result = await saveSupportPageContentAction({'))
+  // 변경이 없으면 저장이 막힌다(saveWhenClean 없음, 대표 확인 항목). 정지 정책 카드만 saveWhenClean(위 /admin/users 시험).
+  assert.doesNotMatch(content, /saveWhenClean/)
+  // 링크 문의 주의 문구는 전처럼 role="alert"
+  assert.match(read(`${STEP5.SUPPORT}/page.tsx`), /<AdminNotice kind="warning" role="alert" className="mb-6">/)
+  // 상세 창 제목·연락처 줄은 화면 비교 때 가린다
+  assert.ok(client.includes('<DialogTitle data-admin-pii="">{selectedTicket?.subject}</DialogTitle>'))
+  assert.ok(client.includes('<span data-admin-pii="">{selectedContactText(selectedTicket, memberSummary)}</span>'))
+})
+
+test('/admin/credits: 지급 창의 요청·검사는 그대로(돈이 오가는 창), 거래 표·지표 카드는 부품, 증감 색은 Q6', () => {
+  const dialog = read(`${STEP5.CREDITS}/grant-credit-dialog.tsx`)
+  for (const fragment of [
+    "if (amount <= 0) {",
+    "if (!Number.isInteger(amount)) {",
+    "if (reason.trim().length > 500) {",
+    "setStep('confirm')",
+    'setIdempotencyKey(crypto.randomUUID())',
+    '<Button variant="brand" onClick={handleSubmit} disabled={isSubmitting}>',
+  ]) assert.ok(dialog.includes(fragment), fragment)
+  assert.match(dialog, /<span className="font-bold tabular-nums text-\[var\(--admin-tone-success-text\)\]">\{formatSignedCredits\(amount\)\}<\/span>/)
+  const client = read(`${STEP5.CREDITS}/credits-client.tsx`)
+  assert.deepEqual([...client.matchAll(/header: '([^']+)'/g)].map((match) => match[1]), ['일시', '사용자', '유형', '내용', '금액'])
+  assert.match(client, /key: 'member',\s+header: '사용자',\s+pii: true,/)
+  assert.match(client, /adminStatusTone\('creditTransaction', kind\.tone\)/)
+  assert.ok(client.includes("{new Date(t.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}"))
+  // 기본 한도 카드: 저장 함수 하나 = 인라인 저장 줄, 요청 그대로
+  const card = read(`${STEP5.CREDITS}/credit-grant-limits-card.tsx`)
+  assert.match(card, /<AdminSaveBar\s+variant="inline"[\s\S]*?onSave=\{\(\) => void save\(\)\}[\s\S]*?saveDisabled=\{isSaving\}/)
+  // 변경이 없으면 저장이 막힌다(saveWhenClean 없음 — 2·3단계 판단 5와 같음, 대표 확인 항목)
+  assert.doesNotMatch(card, /saveWhenClean/)
+})
+
+test('/admin/audit-log: 두 탭의 표·필터는 부품, 대상·IP 칸은 가림 표시, 날짜 표기 그대로', () => {
+  const actions = read(`${STEP5.AUDIT_LOG}/audit-log-client.tsx`)
+  const access = read(`${STEP5.AUDIT_LOG}/member-access-log-client.tsx`)
+  assert.deepEqual([...actions.matchAll(/header: '([^']+)'/g)].map((match) => match[1]), ['시각', '처리자', '종류', '대상', '수량', '사유', '상세'])
+  assert.deepEqual([...access.matchAll(/header: '([^']+)'/g)].map((match) => match[1]), ['시각', '처리자', '화면', '회원', '항목', '사유', 'IP'])
+  assert.match(actions, /key: 'target', header: '대상', pii: true,/)
+  assert.match(access, /key: 'ip', header: 'IP', pii: true,/)
+  assert.match(access, /key: 'members',\s+header: '회원',\s+\/\/[^\n]*\n\s+pii: true,/)
+  assert.ok(access.includes('<span data-admin-pii="">회원: {data?.member?.name ?? member.slice(0, 8)}</span>'))
+  for (const key of ['actor', 'action', 'source', 'from', 'to']) assert.ok(actions.includes(`listQuery.params.get('${key}')`), key)
+  for (const key of ['actor', 'screen', 'member', 'from', 'to']) assert.ok(access.includes(`listQuery.params.get('${key}')`), key)
+  for (const source of [actions, access]) {
+    assert.match(source, /const formatDateTime = \(value: string \| null \| undefined\) =>\s+value \? new Date\(value\)\.toLocaleString\('ko-KR', \{ timeZone: 'Asia\/Seoul' \}\) : '-'/)
+    assert.match(source, /const setFilter = \(key: string, value: string\) => listQuery\.update\(\{ \[key\]: value, page: 1 \}\)/)
+  }
+  assert.ok(access.includes("onClick={() => setFilter('member', '')}>필터 해제</Button>"))
+})
+
+test('5단계: 저장 바 하나에 저장 함수 하나(모두 인라인 줄 — 접힌 카드·탭·편집 칸 안에 있음), 이탈 경고 훅 없음', () => {
+  const bars = Object.values(STEP5).flatMap((dir) => saveBarsOf(dir))
+  const byFile = [...new Set(bars.map((bar) => `${bar.file.split('/').pop()}:${bar.variant}:${bar.onSave.length}:${bar.onSave[0]?.match(SAVE_HANDLER)?.slice(1).find(Boolean)}`))].sort()
+  assert.deepEqual(byFile, [
+    'credit-grant-limits-card.tsx:inline:1:save',
+    'support-page-content-panel.tsx:inline:1:save',
+    'suspension-policy-card.tsx:inline:1:save',
+  ])
+})

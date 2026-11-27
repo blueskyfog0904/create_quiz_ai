@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { resolveAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import ReviewsAdminClient from './reviews-admin-client'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
+import { AdminPageHeader } from '@/components/admin/kit/admin-page-header'
 import { buildAdminMenuMetadata } from '@/lib/admin-sidebar-server'
 import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 
@@ -24,15 +25,11 @@ export default async function ReviewsAdminPage({ searchParams }: ReviewsAdminPag
   const workspaceSubject = resolveAdminWorkspaceSubject(resolvedSearchParams?.subject)
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">
-          <AdminMenuName href="/admin/reviews" fallback="후기 관리" /> · {workspaceSubject === 'english' ? '영어' : '국어'}
-        </h2>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        삭제한 후기는 화면과 평점 집계에서 즉시 제외됩니다.
-      </p>
+    <div>
+      <AdminPageHeader
+        title={<><AdminMenuName href="/admin/reviews" fallback="후기 관리" /> · {workspaceSubject === 'english' ? '영어' : '국어'}</>}
+        description="삭제한 후기는 화면과 평점 집계에서 즉시 제외됩니다."
+      />
       <ReviewsAdminClient workspaceSubject={workspaceSubject} />
     </div>
   )

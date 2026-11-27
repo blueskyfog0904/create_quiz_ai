@@ -1087,7 +1087,7 @@ test('2회차·3회차: 결제 검토 목록 — 탈퇴 회원 보류 주문(늦
   assert.match(refundsPage, /allowedActions: heldOrderCheckFailed \? \[\] : allowedReviewActions\(/)
   assert.match(refundsPage, /withdrawnHeldOrder: heldOrderIds\.has\(order\.id\),/)
   assert.doesNotMatch(refundsPage, /failure_code\)\s*\?\s*heldOrderNotice|isWithdrawnMemberHeldOrder/)
-  assert.match(reviewClient, /order\.heldOrderNotice \? \(\n\s*<span className="text-xs text-gray-500 break-keep">\{order\.heldOrderNotice\}<\/span>/)
+  assert.match(reviewClient, /order\.heldOrderNotice \? \(\n\s*<span className="text-xs text-\[var\(--studio-muted\)\] break-keep">\{order\.heldOrderNotice\}<\/span>/)
   assert.ok(lib.withdrawalText(policy, 'paymentReviewHeldOrder'))
 })
 

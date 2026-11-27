@@ -3,25 +3,29 @@
 import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import {
-  Search,
-  User,
-  Mail,
-  Phone,
-  Calendar,
-  Shield,
-  Coins,
-  Plus
-} from 'lucide-react'
+import { Search, Mail, Phone, Plus } from 'lucide-react'
 import { StudioListPagination } from '@/components/design-system/studio-list-pagination'
 import { updateListQuery } from '@/lib/list-pagination'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
 import type { AdminUserListItem } from '@/lib/admin-users-server'
 import { GrantCreditDialog } from '../credits/grant-credit-dialog'
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/kit/admin-data-table'
+import { AdminFilterBar } from '@/components/admin/kit/admin-filter-bar'
+import { AdminStatusBadge } from '@/components/admin/kit/admin-status-badge'
+import { AdminTableState } from '@/components/admin/kit/admin-table-state'
+import { formatCredits } from '@/lib/admin-format'
+import { adminStatusTone } from '@/lib/admin-status-tone'
+
+// 역할 이름(지금 화면 그대로)
+const ROLE_LABELS: Record<string, string> = {
+  teacher: '교사',
+  instructor: '강사',
+  student: '학생',
+  parent: '학부모',
+  academy_instructor: '학원강사',
+}
 
 interface UsersClientProps {
   users: AdminUserListItem[]
@@ -63,6 +67,92 @@ export function UsersClient({ users, totalCount, page, pageSize, query, suspende
     setIsGrantDialogOpen(true)
   }
 
+  // 날짜 표기는 지금 모양(toLocaleDateString ko-KR) 그대로(20번: 대표가 바꾸기로 정하기 전까지).
+  const columns: AdminDataTableColumn<AdminUserListItem>[] = [
+    {
+      key: 'member',
+      header: '회원',
+      // 표시 이름은 이메일에서 온다(화면 비교 때 가린다).
+      pii: true,
+      cell: (user) => (
+        <div className="min-w-0 space-y-1">
+          <Link href={`/admin/users/${user.id}`} className="break-all font-medium text-[var(--studio-ink)] hover:underline">
+            {formatMemberDisplayName(user.email, user.display_tag)}
+          </Link>
+          <div className="flex flex-wrap items-center gap-1">
+            {user.is_admin && (
+              <AdminStatusBadge label="관리자" tone="info" />
+            )}
+            {/* 정지 범위와 관계없이 정지는 빨강(5-1 회원 줄) */}
+            {user.suspended && (
+              <AdminStatusBadge label="정지" tone={adminStatusTone('member', 'restricted')} />
+            )}
+            {user.suspended === null && (
+              <AdminStatusBadge label="정지 여부 확인 불가" tone="neutral" />
+            )}
+            {user.withdrawn_at && (
+              <AdminStatusBadge label={`탈퇴 ${new Date(user.withdrawn_at).toLocaleDateString('ko-KR')}`} tone={adminStatusTone('member', 'withdrawn')} />
+            )}
+            {user.provider && (
+              <AdminStatusBadge label={user.provider} tone="neutral" />
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'contact',
+      header: '연락처',
+      pii: true,
+      className: 'text-sm text-[var(--studio-muted)]',
+      cell: (user) => (
+        <div className="flex flex-col gap-0.5 break-all">
+          {user.email && (
+            <span className="flex items-center gap-1">
+              <Mail aria-hidden="true" className="h-3 w-3 shrink-0" />
+              {user.email}
+            </span>
+          )}
+          {user.phone && (
+            <span className="flex items-center gap-1">
+              <Phone aria-hidden="true" className="h-3 w-3 shrink-0" />
+              {user.phone}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    { key: 'organization', header: '소속', className: 'text-sm', cell: (user) => user.organization || '-' },
+    { key: 'role', header: '역할', className: 'text-sm', cell: (user) => (user.role ? ROLE_LABELS[user.role] ?? user.role : '-') },
+    {
+      key: 'createdAt',
+      header: '가입일',
+      className: 'whitespace-nowrap text-xs text-[var(--studio-muted)]',
+      cell: (user) => new Date(user.created_at).toLocaleDateString('ko-KR'),
+    },
+    {
+      key: 'credits',
+      header: '크레딧',
+      numeric: true,
+      className: 'whitespace-nowrap font-semibold',
+      cell: (user) => (user.credit_balance === null ? '잔액 확인 불가' : formatCredits(user.credit_balance)),
+    },
+    ...(canGrantCredits
+      ? [{
+          key: 'actions',
+          header: '작업',
+          align: 'right' as const,
+          // 탈퇴 회원에게는 크레딧을 지급할 수 없다(DB가 MEMBER_WITHDRAWN 으로 거절).
+          cell: (user: AdminUserListItem) => (!user.withdrawn_at ? (
+            <Button size="sm" variant="adminTable" className="gap-1" onClick={() => openGrantDialog(user)}>
+              <Plus aria-hidden="true" className="h-3 w-3" />
+              크레딧 지급
+            </Button>
+          ) : null),
+        }]
+      : []),
+  ]
+
   return (
     <div className="space-y-6">
       <GrantCreditDialog
@@ -72,139 +162,47 @@ export function UsersClient({ users, totalCount, page, pageSize, query, suspende
         onSuccess={() => router.refresh()}
       />
 
-      {/* Search */}
-      <div className="flex flex-wrap gap-4 items-center max-md:gap-2">
-        <form onSubmit={handleSearch} className="flex flex-1 max-w-md gap-2 max-md:min-w-full" role="search">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="이메일, 전화번호, 소속으로 검색..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
-              aria-label="사용자 검색"
+      <AdminFilterBar
+        className="mb-0"
+        search={
+          <form onSubmit={handleSearch} className="flex w-full gap-2 sm:w-96">
+            <div className="relative flex-1">
+              <Search aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--studio-muted)]" />
+              <Input
+                placeholder="이메일, 전화번호, 소속으로 검색..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10"
+                aria-label="사용자 검색"
+                data-admin-pii=""
+              />
+            </div>
+            <Button type="submit" variant="brand">검색</Button>
+          </form>
+        }
+        filters={
+          <label className="flex min-h-10 items-center gap-2 text-sm text-[var(--studio-text)]">
+            <input
+              type="checkbox"
+              checked={suspendedOnly}
+              onChange={(event) => router.push(buildHref({ suspended: event.target.checked ? '1' : null, page: 1 }))}
             />
-          </div>
-          <Button type="submit" variant="adminAction">검색</Button>
-        </form>
-        <label className="flex items-center gap-2 text-sm text-gray-700">
-          <input
-            type="checkbox"
-            checked={suspendedOnly}
-            onChange={(event) => router.push(buildHref({ suspended: event.target.checked ? '1' : null, page: 1 }))}
-          />
-          정지 중만 보기
-        </label>
-        <Badge variant="secondary" className="text-sm">
-          {query || suspendedOnly ? `검색 결과 ${totalCount.toLocaleString()}명` : `총 ${totalCount.toLocaleString()}명`}
-        </Badge>
-      </div>
+            정지 중만 보기
+          </label>
+        }
+        resultCount={totalCount}
+      />
 
-      {/* Users List */}
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-0">
-          {users.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              {query || suspendedOnly ? '검색 결과가 없습니다.' : '가입한 사용자가 없습니다.'}
-            </div>
-          ) : (
-            <div className="divide-y">
-              {users.map((user) => (
-                <div key={user.id} className="p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-start justify-between max-md:flex-col max-md:gap-3">
-                    <div className="flex min-w-0 items-start gap-4 max-md:gap-3">
-                      <div className="w-10 h-10 shrink-0 rounded-full bg-gray-100 flex items-center justify-center">
-                        <User className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Link href={`/admin/users/${user.id}`} className="font-medium text-gray-900 break-all hover:underline">
-                            {formatMemberDisplayName(user.email, user.display_tag)}
-                          </Link>
-                          {user.is_admin && (
-                            <Badge className="bg-orange-100 text-orange-700">
-                              <Shield className="h-3 w-3 mr-1" />
-                              관리자
-                            </Badge>
-                          )}
-                          {user.suspended && (
-                            <Badge className="bg-red-100 text-red-800">정지</Badge>
-                          )}
-                          {user.suspended === null && (
-                            <Badge variant="outline" className="text-xs text-gray-500">정지 여부 확인 불가</Badge>
-                          )}
-                          {user.withdrawn_at && (
-                            <Badge variant="outline" className="border-red-300 text-red-700">
-                              탈퇴 {new Date(user.withdrawn_at).toLocaleDateString('ko-KR')}
-                            </Badge>
-                          )}
-                          {user.provider && (
-                            <Badge variant="outline" className="text-xs">
-                              {user.provider}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-4 mt-1 text-sm text-gray-500 break-all max-md:gap-x-3 max-md:gap-y-1">
-                          {user.email && (
-                            <span className="flex items-center gap-1">
-                              <Mail className="h-3 w-3" />
-                              {user.email}
-                            </span>
-                          )}
-                          {user.phone && (
-                            <span className="flex items-center gap-1">
-                              <Phone className="h-3 w-3" />
-                              {user.phone}
-                            </span>
-                          )}
-                          {user.organization && (
-                            <span className="text-blue-600">{user.organization}</span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-4 mt-2 max-md:gap-2">
-                          <div className="flex items-center gap-1 text-xs text-gray-400">
-                            <Calendar className="h-3 w-3" />
-                            가입일: {new Date(user.created_at).toLocaleDateString('ko-KR')}
-                          </div>
-                          {/* Credit Display */}
-                          <div className="flex items-center gap-1 text-sm font-semibold text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded">
-                            <Coins className="h-3 w-3" />
-                            {user.credit_balance === null ? '잔액 확인 불가' : `${user.credit_balance.toLocaleString()} C`}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {user.role && (
-                        <Badge variant="secondary">
-                          {user.role === 'teacher' ? '교사' :
-                            user.role === 'instructor' ? '강사' :
-                              user.role === 'student' ? '학생' :
-                                user.role === 'parent' ? '학부모' :
-                                  user.role === 'academy_instructor' ? '학원강사' :
-                                    user.role}
-                        </Badge>
-                      )}
-                      {/* 탈퇴 회원에게는 크레딧을 지급할 수 없다(DB가 MEMBER_WITHDRAWN 으로 거절). */}
-                      {canGrantCredits && !user.withdrawn_at ? (
-                        <Button
-                          size="sm"
-                          variant="adminAction"
-                          className="h-8 gap-1"
-                          onClick={() => openGrantDialog(user)}
-                        >
-                          <Plus className="h-3 w-3" />
-                          크레딧 지급
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <AdminDataTable
+        caption="회원 목록"
+        columns={columns}
+        rows={users}
+        getRowKey={(user) => user.id}
+        minWidth={900}
+        state={users.length === 0 ? (
+          <AdminTableState kind="empty" message={query || suspendedOnly ? '검색 결과가 없습니다.' : '가입한 사용자가 없습니다.'} />
+        ) : undefined}
+      />
 
       <StudioListPagination
         page={page}

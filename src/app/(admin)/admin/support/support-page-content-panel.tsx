@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminSaveBar, countChangedFields } from '@/components/admin/kit/admin-save-bar'
 import {
   SUPPORT_PAGE_MEMBER_KEY_GROUPS,
   SUPPORT_PAGE_MEMBER_KEY_LABELS,
@@ -35,6 +37,9 @@ export function SupportPageContentPanel({ initialContent, initialStatus }: {
   const [draft, setDraft] = useState<SupportPageContent | null>(initialContent)
   const [saving, setSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  // 20번: 저장 줄의 실패·저장 시각 표시(알림 toast 는 그대로)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [savedAt, setSavedAt] = useState<number | null>(null)
 
   if (!content || !draft) {
     const message = initialStatus === 'missing'
@@ -43,8 +48,8 @@ export function SupportPageContentPanel({ initialContent, initialStatus }: {
         ? '고객지원 문구 설정의 형식이 맞지 않습니다(필수 문구가 비었거나 값이 어긋남). 개발 담당에게 알려 주세요.'
         : '고객지원 문구를 읽지 못했습니다. 새로고침해 주세요.'
     return (
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-6 text-sm text-red-700" role="alert">{message}</CardContent>
+      <Card className="rounded-[var(--studio-radius-card)] border-[var(--studio-border)] shadow-none">
+        <CardContent className="p-6"><AdminNotice kind="error">{message}</AdminNotice></CardContent>
       </Card>
     )
   }
@@ -63,6 +68,7 @@ export function SupportPageContentPanel({ initialContent, initialStatus }: {
 
   const save = async () => {
     setSaving(true)
+    setSaveError(null)
     try {
       const result = await saveSupportPageContentAction({
         revision: content.revision,
@@ -76,43 +82,58 @@ export function SupportPageContentPanel({ initialContent, initialStatus }: {
       }
       setContent(result.data)
       setDraft(result.data)
+      setSavedAt(Date.now())
       toast.success('고객지원 문구를 저장했습니다.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '고객지원 문구를 저장하지 못했습니다.')
+      setSaveError(error instanceof Error ? error.message : '고객지원 문구를 저장하지 못했습니다.')
     } finally {
       setSaving(false)
     }
   }
 
+  // 저장 안 된 변경 수: 회원 문구 칸 + 관리자 설정(답변 수정 사유 안내)
+  const dirtyCount = countChangedFields(draft.member, content.member)
+    + (draft.admin.answerEditReasonGuide !== content.admin.answerEditReasonGuide ? 1 : 0)
+
   return (
-    <Card className="border-0 shadow-sm">
+    <Card className="rounded-[var(--studio-radius-card)] border-[var(--studio-border)] shadow-none">
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <CardTitle className="text-lg">안내 문구(회원 고객지원 화면)</CardTitle>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-[var(--studio-muted)]">
               응답 시간 같은 약속이 들어 있어 대표만 고칩니다. * 표시는 비울 수 없는 칸이고, 나머지는 비우면 회원 화면에서 그 줄이 숨겨집니다.
             </p>
             {/* 16번 7-2: 답변 알림 문구·켜기는 '알림' 화면으로 옮겼다 */}
-            <p className="mt-1 text-sm text-gray-500">
-              답변 알림 문구는 <Link href="/admin/notifications" className="font-medium text-blue-700 underline">&apos;알림&apos; 화면</Link>에서 고칩니다.
+            <p className="mt-1 text-sm text-[var(--studio-muted)]">
+              답변 알림 문구는 <Link href="/admin/notifications" className="font-medium text-[var(--studio-primary)] underline">&apos;알림&apos; 화면</Link>에서 고칩니다.
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setShowPreview((value) => !value)}>{showPreview ? '미리보기 닫기' : '미리보기'}</Button>
-            <Button onClick={() => void save()} disabled={saving || emptyRequired.length > 0 || tooLong.length > 0}>
-              {saving ? '저장 중...' : '저장'}
-            </Button>
+            <Button variant="brandOutline" onClick={() => setShowPreview((value) => !value)}>{showPreview ? '미리보기 닫기' : '미리보기'}</Button>
           </div>
         </div>
+        {/* 저장 함수 하나(save) — 저장 줄 하나. 전의 [저장] 막힘 조건 그대로. */}
+        <AdminSaveBar
+          variant="inline"
+          dirtyCount={dirtyCount}
+          status={saving ? 'saving' : saveError ? 'error' : savedAt ? 'saved' : 'idle'}
+          savedAt={savedAt}
+          errorMessage={saveError}
+          applyNote="저장하면 회원 고객지원 화면에 바로 반영됩니다."
+          onSave={() => void save()}
+          saveLabel="저장"
+          saveDisabled={saving || emptyRequired.length > 0 || tooLong.length > 0}
+        />
         {emptyRequired.length > 0 && (
-          <p role="alert" className="text-sm text-red-700">비울 수 없는 칸: {emptyRequired.map((key) => SUPPORT_PAGE_MEMBER_KEY_LABELS[key]).join(', ')}</p>
+          <AdminNotice kind="error">비울 수 없는 칸: {emptyRequired.map((key) => SUPPORT_PAGE_MEMBER_KEY_LABELS[key]).join(', ')}</AdminNotice>
         )}
       </CardHeader>
       <CardContent className="space-y-6">
         {showPreview && (
-          <div className="rounded-lg border bg-white p-4">
-            <p className="mb-3 text-xs text-gray-500">미리보기(저장 전 값, 버튼은 눌리지 않습니다)</p>
+          <div className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-4">
+            <p className="mb-3 text-xs text-[var(--studio-muted)]">미리보기(저장 전 값, 버튼은 눌리지 않습니다)</p>
             <fieldset disabled className="pointer-events-none">
               <SupportView tickets={[]} categories={[]} userId="preview" texts={draft.member} />
             </fieldset>
@@ -121,7 +142,7 @@ export function SupportPageContentPanel({ initialContent, initialStatus }: {
 
         {SUPPORT_PAGE_MEMBER_KEY_GROUPS.map((group) => (
           <section key={group.label} className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900">{group.label}</h3>
+            <h3 className="text-sm font-semibold text-[var(--studio-ink)]">{group.label}</h3>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {group.keys.map((key) => {
                 const required = SUPPORT_PAGE_REQUIRED_KEYS.includes(key)
@@ -135,7 +156,7 @@ export function SupportPageContentPanel({ initialContent, initialStatus }: {
                     ) : (
                       <Input id={id} value={value} onChange={(event) => setMember(key, event.target.value)} />
                     )}
-                    <p className={`text-right text-xs ${value.length > SUPPORT_PAGE_TEXT_MAX ? 'text-red-700' : 'text-gray-400'}`}>{value.length}/{SUPPORT_PAGE_TEXT_MAX}</p>
+                    <p className={`text-right text-xs ${value.length > SUPPORT_PAGE_TEXT_MAX ? 'text-[var(--admin-tone-danger-text)]' : 'text-[var(--studio-muted)]'}`}>{value.length}/{SUPPORT_PAGE_TEXT_MAX}</p>
                   </div>
                 )
               })}
@@ -144,7 +165,7 @@ export function SupportPageContentPanel({ initialContent, initialStatus }: {
         ))}
 
         <section className="space-y-3 border-t pt-4">
-          <h3 className="text-sm font-semibold text-gray-900">관리자 설정</h3>
+          <h3 className="text-sm font-semibold text-[var(--studio-ink)]">관리자 설정</h3>
           <div className="space-y-1">
             <Label htmlFor="support-content-reason-guide">답변 수정 사유 안내(관리자 답변 창)</Label>
             <Textarea
@@ -154,7 +175,7 @@ export function SupportPageContentPanel({ initialContent, initialStatus }: {
               onChange={(event) => setDraft({ ...draft, admin: { ...draft.admin, answerEditReasonGuide: event.target.value } })}
             />
           </div>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-[var(--studio-muted)]">
             템플릿 빈칸 표시 <strong>{draft.admin.templateBlankMarker}</strong>, 열람 기록 보관 {draft.admin.accessLogRetentionYears}년 —
             이 두 값은 여기서 고치지 않습니다(템플릿·처리방침과 함께 바꿔야 해서 개발 담당이 스크립트로 바꿉니다).
           </p>

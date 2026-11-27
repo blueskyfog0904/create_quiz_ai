@@ -6,6 +6,7 @@ import { Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
 import { formatKstDateTime } from '@/lib/kst-date-format'
 import { findTemplateBlanks, sha256Hex } from '@/lib/support-reply-template'
 import { ReplyTemplatePicker, TemplateBlankPreview, type SupportReplyTemplateRow } from './reply-template-tools'
@@ -114,30 +115,30 @@ export function TicketAnswerEdit({ ticket, draft, reasonGuide, blankMarker, temp
   return (
     <div className="space-y-3">
       {!editing && (
-        <Button type="button" size="sm" variant="outline" onClick={startEditing}>
-          <Pencil className="mr-1 h-4 w-4" />
+        <Button type="button" size="sm" variant="adminTable" onClick={startEditing}>
+          <Pencil aria-hidden="true" className="mr-1 h-4 w-4" />
           답변 수정
         </Button>
       )}
 
       {editing && (
-        <div className="space-y-3 rounded-lg border p-3">
-          <p className="text-sm text-gray-600">회원은 고친 글만 봅니다. 이전 글은 기록으로 남습니다.</p>
+        <div className="space-y-3 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] p-3">
+          <p className="text-sm text-[var(--studio-text)]">회원은 고친 글만 봅니다. 이전 글은 기록으로 남습니다.</p>
           <div className="flex flex-wrap items-center gap-2">
             <ReplyTemplatePicker templates={templates} ticket={ticket} siteName={siteName} currentText={text} onInsert={setText} disabled={saving} />
           </div>
-          <Textarea rows={6} value={text} onChange={(event) => setText(event.target.value)} aria-label="고친 답변" />
+          <Textarea rows={6} value={text} onChange={(event) => setText(event.target.value)} aria-label="고친 답변" data-admin-pii="" />
           <TemplateBlankPreview text={text} marker={blankMarker} />
           <div className="space-y-1">
             <Label htmlFor={`answer-edit-reason-${ticket.id}`}>수정 사유</Label>
-            {reasonGuide && <p className="text-xs text-gray-500">{reasonGuide}</p>}
+            {reasonGuide && <p className="text-xs text-[var(--studio-muted)]">{reasonGuide}</p>}
             <Textarea id={`answer-edit-reason-${ticket.id}`} rows={2} maxLength={ANSWER_REASON_MAX} value={reason} onChange={(event) => setReason(event.target.value)} />
-            <p className="text-right text-xs text-gray-400">{reason.length}/{ANSWER_REASON_MAX}</p>
+            <p className="text-right text-xs text-[var(--studio-muted)]">{reason.length}/{ANSWER_REASON_MAX}</p>
           </div>
-          {!blankMarker && <p role="alert" className="text-sm text-red-700">답변 검사 설정을 읽지 못해 지금은 저장할 수 없습니다.</p>}
+          {!blankMarker && <AdminNotice kind="error">답변 검사 설정을 읽지 못해 지금은 저장할 수 없습니다.</AdminNotice>}
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setEditing(false)} disabled={saving}>취소</Button>
-            <Button type="button" onClick={() => void save()} disabled={saving || !blankMarker || !text.trim() || !reason.trim() || blanksLeft || unchanged}>
+            <Button type="button" variant="brandOutline" onClick={() => setEditing(false)} disabled={saving}>취소</Button>
+            <Button type="button" variant="brand" onClick={() => void save()} disabled={saving || !blankMarker || !text.trim() || !reason.trim() || blanksLeft || unchanged}>
               {saving ? '저장 중...' : '수정 저장'}
             </Button>
           </div>
@@ -145,24 +146,24 @@ export function TicketAnswerEdit({ ticket, draft, reasonGuide, blankMarker, temp
       )}
 
       {ticket.response_edited_at && (
-        <details className="rounded-lg border p-3 text-sm" onToggle={(event) => {
+        <details className="rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] p-3 text-sm" onToggle={(event) => {
           const open = (event.target as HTMLDetailsElement).open
           setRevisionsOpen(open)
           if (open) void loadRevisions()
         }}>
-          <summary className="cursor-pointer font-medium text-gray-700">이전 답변 보기(열람 기록이 남습니다)</summary>
-          {!revisions && <p className="mt-2 text-gray-500">불러오는 중…</p>}
-          {revisions?.failed && <p role="alert" className="mt-2 text-red-700">이전 답변을 불러오지 못했습니다.</p>}
-          {revisions?.rows && revisions.rows.length === 0 && <p className="mt-2 text-gray-500">이전 답변이 없습니다.</p>}
+          <summary className="cursor-pointer font-medium text-[var(--studio-ink)]">이전 답변 보기(열람 기록이 남습니다)</summary>
+          {!revisions && <p className="mt-2 text-[var(--studio-muted)]">불러오는 중…</p>}
+          {revisions?.failed && <AdminNotice kind="error" className="mt-2">이전 답변을 불러오지 못했습니다.</AdminNotice>}
+          {revisions?.rows && revisions.rows.length === 0 && <p className="mt-2 text-[var(--studio-muted)]">이전 답변이 없습니다.</p>}
           {revisions?.rows && revisions.rows.length > 0 && (
             <ul className="mt-2 space-y-2">
               {revisions.rows.map((revision) => (
-                <li key={revision.id} className="rounded border bg-gray-50 p-2">
-                  <p className="text-xs text-gray-500">
+                <li key={revision.id} className="rounded border border-[var(--studio-border)] bg-[var(--studio-background)] p-2">
+                  <p className="text-xs text-[var(--studio-muted)]">
                     보인 때 {formatKstDateTime(revision.previous_shown_at)} · 고친 때 {formatKstDateTime(revision.created_at)}
                   </p>
-                  <p className="mt-1 whitespace-pre-wrap text-gray-700">{revision.previous_response}</p>
-                  <p className="mt-1 text-xs text-gray-500">수정 사유: {revision.reason}</p>
+                  <p data-admin-pii="" className="mt-1 whitespace-pre-wrap text-[var(--studio-text)]">{revision.previous_response}</p>
+                  <p className="mt-1 text-xs text-[var(--studio-muted)]">수정 사유: {revision.reason}</p>
                 </li>
               ))}
             </ul>

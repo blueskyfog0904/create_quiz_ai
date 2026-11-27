@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { AuditLogClient } from './audit-log-client'
 import { MemberAccessLogClient } from './member-access-log-client'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
+import { AdminPageHeader } from '@/components/admin/kit/admin-page-header'
+import { AdminTableState } from '@/components/admin/kit/admin-table-state'
 import { buildAdminMenuMetadata } from '@/lib/admin-sidebar-server'
 import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 
@@ -33,27 +35,27 @@ export default async function AdminAuditLogPage({ searchParams }: AdminAuditLogP
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 max-md:text-2xl"><AdminMenuName href="/admin/audit-log" fallback="작업 기록" /></h1>
-        <p className="text-gray-500 mt-1">
-          관리자가 한 일을 시간순으로 봅니다. 결제 쪽 조치(충전 환불·수동 확인·경보 해소)도 함께 보입니다. 기록은 고치거나 지울 수 없습니다.
-        </p>
-      </div>
-      <nav aria-label="기록 종류" className="mb-6 flex gap-1 border-b">
+      <AdminPageHeader
+        title={<AdminMenuName href="/admin/audit-log" fallback="작업 기록" />}
+        description="관리자가 한 일을 시간순으로 봅니다. 결제 쪽 조치(충전 환불·수동 확인·경보 해소)도 함께 보입니다. 기록은 고치거나 지울 수 없습니다."
+      />
+      <nav aria-label="기록 종류" className="mb-6 flex gap-1 border-b border-[var(--studio-border)]">
         {AUDIT_LOG_TABS.map((tab) => (
           <Link
             key={tab.id}
             href={`/admin/audit-log?tab=${tab.id}`}
             aria-current={tab.id === activeTab.id ? 'page' : undefined}
             className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
-              tab.id === activeTab.id ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-900'
+              tab.id === activeTab.id
+                ? 'border-[var(--studio-primary)] text-[var(--studio-primary)]'
+                : 'border-transparent text-[var(--studio-muted)] hover:text-[var(--studio-ink)]'
             }`}
           >
             {tab.label}
           </Link>
         ))}
       </nav>
-      <Suspense fallback={<p className="text-sm text-muted-foreground">불러오는 중…</p>}>
+      <Suspense fallback={<AdminTableState kind="loading" />}>
         {activeTab.id === 'actions' ? <AuditLogClient /> : <MemberAccessLogClient />}
       </Suspense>
     </div>

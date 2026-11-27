@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { formatMemberDisplayName } from '@/lib/member-display-name'
 import { MEMBER_NOTIFICATION_FAILED_ADMIN_MESSAGE } from '@/lib/member-notifications'
 import { MEMBER_FACING_PII_LABELS, memberFacingTextPiiHits } from '@/lib/member-facing-text-pii'
+import { formatSignedCredits } from '@/lib/admin-format'
 
 interface Profile {
   id: string
@@ -155,8 +156,10 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                aria-label="회원 이메일 검색"
+                data-admin-pii=""
               />
-              <Button onClick={handleSearch} disabled={isSearching}>
+              <Button variant="brand" onClick={handleSearch} disabled={isSearching} aria-label="회원 검색">
                 {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               </Button>
             </div>
@@ -165,23 +168,23 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
               {searchResults.map(user => (
                 <div 
                   key={user.id} 
-                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                  className="flex items-center justify-between rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] p-3 cursor-pointer transition-colors hover:bg-[var(--studio-background)]"
                   onClick={() => handleUserSelect(user)}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                      <User className="h-4 w-4 text-gray-500" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--studio-background)]">
+                      <User aria-hidden="true" className="h-4 w-4 text-[var(--studio-muted)]" />
                     </div>
-                    <div>
+                    <div data-admin-pii="">
                       <div className="font-medium text-sm">{formatMemberDisplayName(user.email, user.display_tag)}</div>
-                      <div className="text-xs text-gray-500">{user.email}</div>
+                      <div className="text-xs text-[var(--studio-muted)]">{user.email}</div>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm">선택</Button>
+                  <Button variant="adminTable" size="sm">선택</Button>
                 </div>
               ))}
               {searchResults.length === 0 && searchQuery && !isSearching && (
-                <div className="text-center text-sm text-gray-500 py-4">검색 결과가 없습니다.</div>
+                <div className="py-4 text-center text-sm text-[var(--studio-muted)]">검색 결과가 없습니다.</div>
               )}
             </div>
           </div>
@@ -189,11 +192,11 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
 
         {step === 'details' && selectedUser && (
           <div className="space-y-4 py-4">
-            <div className="flex items-center gap-3 p-3 bg-blue-50 text-blue-900 rounded-lg text-sm">
-              <User className="h-4 w-4" />
-              <span className="font-semibold">{formatMemberDisplayName(selectedUser.email, selectedUser.display_tag)}</span>
-              <span className="text-blue-700">({selectedUser.email})</span>
-              <Button variant="ghost" className="ml-auto h-6 text-xs hover:bg-blue-100" onClick={() => setStep('search')}>변경</Button>
+            <div className="flex items-center gap-3 rounded-[var(--studio-radius-control)] bg-[var(--studio-primary-soft)] p-3 text-sm text-[var(--studio-ink)]">
+              <User aria-hidden="true" className="h-4 w-4" />
+              <span data-admin-pii="" className="font-semibold">{formatMemberDisplayName(selectedUser.email, selectedUser.display_tag)}</span>
+              <span data-admin-pii="" className="text-[var(--studio-muted)]">({selectedUser.email})</span>
+              <Button variant="adminTable" size="sm" className="ml-auto" onClick={() => setStep('search')}>변경</Button>
             </div>
 
             <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
@@ -207,7 +210,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
                     className="pr-12"
                     placeholder="0"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">Credit</span>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--studio-muted)]">Credit</span>
                 </div>
               </div>
               <div className="space-y-2">
@@ -227,7 +230,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
             </div>
 
             <div className="space-y-2">
-              <Label>상세 지급 사유 <span className="text-red-500">*</span></Label>
+              <Label>상세 지급 사유 <span className="text-[var(--admin-tone-danger-text)]">*</span></Label>
               <Textarea 
                 value={reason} 
                 onChange={(e) => setReason(e.target.value)}
@@ -235,9 +238,9 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
                 className="h-20"
               />
               {/* 16번 16절 2: 지급 사유는 회원 알림 '{내용}'으로 그대로 간다 — 개인정보 모양이면 경고만(막지는 않음, 회사 연락처 예외 없이 본다) */}
-              <p className="text-xs text-gray-500">이 사유는 회원 알림에 그대로 보입니다.</p>
+              <p className="text-xs text-[var(--studio-muted)]">이 사유는 회원 알림에 그대로 보입니다.</p>
               {memberFacingTextPiiHits(reason, { customerCenter: '', orderEmail: '' }).length > 0 && (
-                <p role="alert" className="text-xs text-amber-700">
+                <p role="alert" className="text-xs text-[var(--admin-tone-warning-text)]">
                   개인정보로 보이는 글이 있습니다({memberFacingTextPiiHits(reason, { customerCenter: '', orderEmail: '' }).map((kind) => MEMBER_FACING_PII_LABELS[kind]).join(', ')}). 회원 알림에 그대로 보이니 지우는 것이 좋습니다.
                 </p>
               )}
@@ -248,21 +251,21 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
         {step === 'confirm' && selectedUser && (
             <div className="space-y-6 py-4">
                 <div className="text-center space-y-2">
-                    <h3 className="text-lg font-bold text-gray-900">지급 내용을 확인해주세요</h3>
-                    <p className="text-sm text-gray-500">지급 후에는 취소할 수 없으며 사용자에게 알림이 발송됩니다.</p>
+                    <h3 className="text-lg font-bold text-[var(--studio-ink)]">지급 내용을 확인해주세요</h3>
+                    <p className="text-sm text-[var(--studio-muted)]">지급 후에는 취소할 수 없으며 사용자에게 알림이 발송됩니다.</p>
                 </div>
 
-                <div className="bg-gray-50 p-4 rounded-lg space-y-3 text-sm">
+                <div className="space-y-3 rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] p-4 text-sm">
                     <div className="flex justify-between">
-                        <span className="text-gray-500">받는 사람</span>
-                        <span className="font-medium">{formatMemberDisplayName(selectedUser.email, selectedUser.display_tag)} ({selectedUser.email})</span>
+                        <span className="text-[var(--studio-muted)]">받는 사람</span>
+                        <span data-admin-pii="" className="font-medium">{formatMemberDisplayName(selectedUser.email, selectedUser.display_tag)} ({selectedUser.email})</span>
                     </div>
                     <div className="flex justify-between">
-                        <span className="text-gray-500">지급 금액</span>
-                        <span className="font-bold text-blue-600">+{amount.toLocaleString()} Credit</span>
+                        <span className="text-[var(--studio-muted)]">지급 금액</span>
+                        <span className="font-bold tabular-nums text-[var(--admin-tone-success-text)]">{formatSignedCredits(amount)}</span>
                     </div>
                     <div className="flex justify-between">
-                        <span className="text-gray-500">카테고리</span>
+                        <span className="text-[var(--studio-muted)]">카테고리</span>
                         <span className="font-medium">
                             {category === 'compensation' ? '보상' : 
                              category === 'event' ? '이벤트' : 
@@ -270,7 +273,7 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
                         </span>
                     </div>
                     <div className="flex justify-between">
-                        <span className="text-gray-500">상세 사유</span>
+                        <span className="text-[var(--studio-muted)]">상세 사유</span>
                         <span className="font-medium text-right max-w-[200px] break-words">{reason}</span>
                     </div>
                 </div>
@@ -281,13 +284,13 @@ export function GrantCreditDialog({ open, onOpenChange, initialUser, onSuccess }
             {step === 'details' && (
                 <>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>취소</Button>
-                    <Button onClick={handleToConfirm}>다음</Button>
+                    <Button variant="brand" onClick={handleToConfirm}>다음</Button>
                 </>
             )}
             {step === 'confirm' && (
                 <>
                     <Button variant="outline" onClick={() => setStep('details')}>이전</Button>
-                    <Button onClick={handleSubmit} disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700">
+                    <Button variant="brand" onClick={handleSubmit} disabled={isSubmitting}>
                         {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
                         지급 확정
                     </Button>

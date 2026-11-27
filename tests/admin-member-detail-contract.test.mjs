@@ -155,7 +155,8 @@ test('대표: 모든 구역을 그 회원 조건으로 읽고, 결제 표는 결
   assert.ok(page.includes("downloadsTruncated ? ' 이상 (기록이 많아 최근 것만 읽었습니다)' : ''"))
   assert.ok(read('src/app/(admin)/admin/orders/market-orders-client.tsx').includes("' 이상 (기록이 많아 최근 것만 읽었습니다)'"))
   // 테스트 결제는 주문 조회와 같은 배지로 구분한다.
-  assert.ok(page.includes("{order.environment !== 'live' && <Badge variant=\"outline\">{labelOf(PAYMENT_ENVIRONMENT_LABELS, order.environment)}</Badge>}"))
+  // 20번 5단계: 배지는 공통 상태 배지(같은 이름표·같은 조건)
+  assert.ok(page.includes("{order.environment !== 'live' && <AdminStatusBadge label={labelOf(PAYMENT_ENVIRONMENT_LABELS, order.environment)} tone=\"neutral\" />}"))
 })
 
 test('권한이 없는 구역은 조회 자체를 하지 않는다', async () => {
@@ -199,7 +200,8 @@ test('구역 실패 격리: 실패한 구역만 failed이고 나머지는 정상
   assert.equal(partial.creditTransactions.data[0].source_category, 'admin_grant')
   assert.equal(partial.paymentOrders.failed, false)
 
-  assert.match(page, /section\.failed \? \(\s*<p role="alert"[^>]*>불러오지 못했습니다\./)
+  // 20번 5단계: 오류 띠(AdminNotice kind="error" = role="alert")로 같은 문구
+  assert.match(page, /section\.failed \? \(\s*<AdminNotice kind="error">불러오지 못했습니다\./)
   assert.match(page, /<Empty>충전 결제가 없습니다\.<\/Empty>/)
 })
 
@@ -245,7 +247,8 @@ test('회원 삭제 문의도 읽고(삭제 표시), 상태 이름표는 주문 
   const detail = await server.getAdminMemberDetail(owner, MEMBER)
   assert.equal(detail.supportTickets.data.tickets[0].is_deleted_by_user, true)
   assert.equal(queries.find((query) => query.table === 'support_tickets').ops.some(([name, column]) => name === 'eq' && column === 'is_deleted_by_user'), false)
-  assert.match(page, /ticket\.is_deleted_by_user && <Badge[^>]*>회원이 삭제함<\/Badge>/)
+  // 20번 5단계: 공통 상태 배지(문의 '고객삭제'와 같은 색)
+  assert.match(page, /ticket\.is_deleted_by_user && <AdminStatusBadge label="회원이 삭제함" tone=\{adminStatusTone\('supportTicket', 'deleted'\)\} \/>/)
   // 문의별 링크는 제목 검색이 아니라(쉼표·괄호·같은 제목에서 깨진다) 문의 id로 그 문의를 바로 연다.
   assert.doesNotMatch(page, /\/admin\/support\?q=|ticket\.subject\)/)
   assert.ok(page.includes('<Link href={`/admin/support?ticket=${ticket.id}`}'))

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { formatSignedCredits } from '@/lib/admin-format'
 
 interface RevokeCreditButtonProps {
   sourceId: string
@@ -90,7 +91,7 @@ export function RevokeCreditButton({ sourceId, remaining, sourceLabel }: RevokeC
 
   return (
     <>
-      <Button type="button" size="sm" variant="outline" onClick={openDialog} aria-label={`${sourceLabel} 회수`}>회수</Button>
+      <Button type="button" size="sm" variant="adminTable" className="text-[var(--admin-tone-danger-text)]" onClick={openDialog} aria-label={`${sourceLabel} 회수`}>회수</Button>
       <Dialog
         open={open}
         onOpenChange={(next) => {
@@ -109,11 +110,11 @@ export function RevokeCreditButton({ sourceId, remaining, sourceLabel }: RevokeC
           </DialogHeader>
 
           {confirming ? (
-            <div className="space-y-2 rounded-lg bg-gray-50 p-4 text-sm">
-              <p className="font-semibold text-gray-900">회수 내용을 확인해 주세요</p>
-              <p>회수할 크레딧: <strong className="text-red-700">-{parsedAmount.toLocaleString()}</strong></p>
+            <div className="space-y-2 rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] p-4 text-sm">
+              <p className="font-semibold text-[var(--studio-ink)]">회수 내용을 확인해 주세요</p>
+              <p>회수할 크레딧: <strong className="tabular-nums text-[var(--admin-tone-danger-text)]">{formatSignedCredits(-parsedAmount)}</strong></p>
               <p className="break-words">사유: {reason.trim()}</p>
-              <p className="text-xs text-gray-500">회수하면 되돌릴 수 없고, 회원에게 사유와 함께 알림이 갑니다.</p>
+              <p className="text-xs text-[var(--studio-muted)]">회수하면 되돌릴 수 없고, 회원에게 사유와 함께 알림이 갑니다.</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -131,7 +132,7 @@ export function RevokeCreditButton({ sourceId, remaining, sourceLabel }: RevokeC
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor={`revoke-reason-${sourceId}`}>회수 사유 <span className="text-red-500">*</span></Label>
+                <Label htmlFor={`revoke-reason-${sourceId}`}>회수 사유 <span className="text-[var(--admin-tone-danger-text)]">*</span></Label>
                 <Textarea
                   id={`revoke-reason-${sourceId}`}
                   value={reason}
@@ -139,7 +140,7 @@ export function RevokeCreditButton({ sourceId, remaining, sourceLabel }: RevokeC
                   placeholder="예: 다른 회원에게 잘못 지급"
                   className="h-20"
                 />
-                <p className="text-xs text-gray-500">사유는 회원 알림에 함께 보입니다.</p>
+                <p className="text-xs text-[var(--studio-muted)]">사유는 회원 알림에 함께 보입니다.</p>
               </div>
             </div>
           )}
@@ -147,15 +148,15 @@ export function RevokeCreditButton({ sourceId, remaining, sourceLabel }: RevokeC
           <DialogFooter className="gap-2">
             {confirming ? (
               <>
-                <Button type="button" variant="outline" onClick={() => setConfirming(false)} disabled={isSubmitting}>이전</Button>
-                <Button type="button" variant="destructive" onClick={() => void submit()} disabled={isSubmitting}>
+                <Button type="button" variant="brandOutline" onClick={() => setConfirming(false)} disabled={isSubmitting}>이전</Button>
+                <Button type="button" variant="adminDanger" onClick={() => void submit()} disabled={isSubmitting}>
                   {isSubmitting ? '회수 중…' : '회수 확정'}
                 </Button>
               </>
             ) : (
               <>
-                <Button type="button" variant="outline" onClick={() => setOpen(false)}>취소</Button>
-                <Button type="button" onClick={toConfirm}>다음</Button>
+                <Button type="button" variant="brandOutline" onClick={() => setOpen(false)}>취소</Button>
+                <Button type="button" variant="brand" onClick={toConfirm}>다음</Button>
               </>
             )}
           </DialogFooter>
