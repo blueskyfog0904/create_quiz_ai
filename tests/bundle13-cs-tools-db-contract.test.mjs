@@ -178,7 +178,9 @@ test('M2·M3 에 DROP TRIGGER 가 없고, M2 는 4칸 회수·정책 DROP·잠�
 })
 
 test('M3: 사전 점검이 지금 식을 대조하고, 판정 함수를 private 에 두며, 정책 식을 바꾼 뒤에 profiles 를 좁힌다', () => {
-  assert.match(M3, /c_code_deployed constant boolean := false;/)
+  // 2026-11-27 운영 적용 때 적용자가 true 로 바꿨다(15절 7단계). 상수는 한 번만 있어야 한다.
+  assert.match(M3, /c_code_deployed constant boolean := (false|true);/)
+  assert.equal(M3.split('c_code_deployed constant boolean :=').length, 2)
   for (const name of ['support_tickets_withdrawn_hidden', 'market_refund_requests_withdrawn_hidden', 'refund_requests_withdrawn_hidden', 'support_ticket_revisions_withdrawn_hidden']) {
     assert.match(M3, new RegExp(`ARRAY\\['[a-z_]+', '${name}', '(ALL|SELECT)',\\n\\s+'\\(NOT \\(EXISTS \\( SELECT 1 FROM`))
   }
@@ -245,7 +247,7 @@ test('리허설: 생성 파일이 최신이고, light 는 기존 표를 잠그�
   assert.ok(stripComments(files['a_light.sql']).split('ON public.profiles').length === 1)
   assert.doesNotMatch(files['a_light.sql'], /src_m2|src_m3|_down'/)
   // full: M3 사본은 확인 상수만 바꿨다
-  assert.equal(generator.m3Copy(), M3.replace('  c_code_deployed constant boolean := false;', '  c_code_deployed constant boolean := true;'))
+  assert.equal(generator.m3Copy(), M3.includes('  c_code_deployed constant boolean := false;') ? M3.replace('  c_code_deployed constant boolean := false;', '  c_code_deployed constant boolean := true;') : M3)
   assert.match(files['b_full.sql'], /generate_listboard_generation_jobs SET status = 'cancelled'/)
   assert.match(files['b_full.sql'], /anonymize_member\(%L, %L, %L, NULL, %s, %L, false, NULL, %L, false, false\)/)
 })

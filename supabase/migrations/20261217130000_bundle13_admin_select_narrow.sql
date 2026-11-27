@@ -19,7 +19,7 @@ SET LOCAL statement_timeout = '60s';
 -- 0. 사전 점검 -----------------------------------------------------------------------------------------------------
 DO $precheck_bundle13_select_narrow$
 DECLARE
-  c_code_deployed constant boolean := false;
+  c_code_deployed constant boolean := true;
   -- 탈퇴 가림 정책 4개의 지금 식(10번 20261126100000 3-6 이 만든 식, pg_get_expr 를 공백 하나로 줄인 글)
   v_hidden text[][] := ARRAY[
     ARRAY['support_tickets', 'support_tickets_withdrawn_hidden', 'ALL',

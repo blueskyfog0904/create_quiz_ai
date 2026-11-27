@@ -94,6 +94,8 @@ export function m1Copy(kind) {
 export const M3_DEPLOYED_LINE = ['  c_code_deployed constant boolean := false;', '  c_code_deployed constant boolean := true;']
 export function m3Copy() {
   const sql = read(SOURCES.m3)
+  // 2026-11-27 운영 적용 때 원본 상수를 true 로 바꿨다(적용 이력과 같은 글자). 이미 true 면 그대로 쓴다.
+  if (sql.split(M3_DEPLOYED_LINE[1]).length === 2 && !sql.includes(M3_DEPLOYED_LINE[0])) return sql
   if (sql.split(M3_DEPLOYED_LINE[0]).length !== 2) throw new Error('m3 copy: c_code_deployed line not found once')
   return sql.replace(M3_DEPLOYED_LINE[0], M3_DEPLOYED_LINE[1])
 }
