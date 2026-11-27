@@ -285,6 +285,7 @@ const ROUTE_REQUIREMENTS = {
   'review-tags/[tagId]/route.ts': all('reviews.manage', 'PATCH'),
   // 사이트
   'site-logo/route.ts': all('site.manage', 'POST', 'DELETE'),
+  'site-logo/tab-icon/route.ts': all('site.manage', 'POST', 'DELETE'),
   // 꺼 둔 기능(4-2절): 미들웨어가 먼저 404로 막고, 다시 켜더라도 대표 전용
   'ai-connections/route.ts': all(OWNER, 'GET'),
   'ai-connections/[provider]/route.ts': all(OWNER, 'PATCH'),

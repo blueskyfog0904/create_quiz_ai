@@ -27,6 +27,8 @@ export const ADMIN_AUDIT_ACTIONS = {
   market_file_type_update: '파일 유형 수정',
   site_logo_update: '사이트 로고 변경',
   site_logo_reset: '사이트 로고 기본값으로 되돌리기',
+  site_tab_icon_update: '브라우저 탭 아이콘 변경',
+  site_tab_icon_reset: '브라우저 탭 아이콘을 사이트 로고로 되돌리기',
   storefront_header_links_update: '회원 헤더 상단 메뉴 수정',
   signup_consent_item_save: '가입 동의 항목 저장',
   signup_consent_item_revise: '가입 동의 다시 받기(약관 개정)',

@@ -7,16 +7,16 @@ import { StorefrontHeaderLinksProvider } from '@/components/layout/storefront-he
 import { buildSiteTitleTemplate } from '@/lib/site-brand'
 import { getSiteBrand } from '@/lib/site-brand-server'
 import { DEFAULT_SITE_LOGO_PATH } from '@/lib/site-logo'
-import { getSiteLogoUrl } from '@/lib/site-logo-server'
+import { getSiteLogoUrl, getSiteTabIconUrl } from '@/lib/site-logo-server'
 import { getActiveStorefrontHeaderLinks } from '@/lib/storefront-header-links-server'
 
 // 사이트 이름·소개 문구는 DB(관리자 "사이트 기본 정보")에서 읽는다.
 // 각 화면은 제목에 화면 이름만 적고, 뒤의 " | 사이트 이름"은 이 템플릿이 붙인다.
 // 홈((solvook)/page.tsx)은 설명을 따로 적지 않고 이 값을 물려받는다.
 export async function generateMetadata(): Promise<Metadata> {
-  const [brand, logoUrl] = await Promise.all([getSiteBrand(), getSiteLogoUrl()])
-  // 탭 아이콘은 관리자 "사이트 로고 이미지"에서 올린 로고를 그대로 쓴다.
-  const icon = logoUrl ?? DEFAULT_SITE_LOGO_PATH
+  const [brand, tabIconUrl, logoUrl] = await Promise.all([getSiteBrand(), getSiteTabIconUrl(), getSiteLogoUrl()])
+  // 탭 아이콘: 관리자에서 따로 올린 탭 아이콘 → 없으면 사이트 로고 → 그것도 없으면 기본 이미지
+  const icon = tabIconUrl ?? logoUrl ?? DEFAULT_SITE_LOGO_PATH
   return {
     title: { default: brand.name, template: buildSiteTitleTemplate(brand) },
     icons: { icon, apple: icon },

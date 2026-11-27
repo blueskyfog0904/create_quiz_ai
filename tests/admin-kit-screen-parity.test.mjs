@@ -674,6 +674,9 @@ test('/admin/footer: 부르는 API·서버 액션·가드·주소 키·이탈 �
   assert.deepEqual(items.fetch, [
     "fetch('/api/admin/site-logo', { method: 'DELETE' })",
     "fetch('/api/admin/site-logo', { method: 'POST', body: form })",
+    // 탭 아이콘 올리기 칸(38a1273 뒤에 새로 생김)
+    "fetch('/api/admin/site-logo/tab-icon', { method: 'DELETE' })",
+    "fetch('/api/admin/site-logo/tab-icon', { method: 'POST', body: form })",
   ])
   assert.deepEqual(items.serverImports, [
     './actions', './actions', './actions', './consent-actions', './consent-actions', './notice-popup-actions', './notice-popup-actions',
@@ -684,7 +687,8 @@ test('/admin/footer: 부르는 API·서버 액션·가드·주소 키·이탈 �
     '@/lib/checkout-consent-server', '@/lib/footer-content-server', '@/lib/footer-content-server',
     '@/lib/market-purchase-policy-server', '@/lib/market-purchase-policy-server',
     '@/lib/signup-consent-server', '@/lib/signup-consent-server', '@/lib/signup-consent-server', '@/lib/signup-consent-server',
-    '@/lib/site-brand-server', '@/lib/site-notice-popup-server', '@/lib/site-notice-popup-server',
+    // site-logo-server: 탭 아이콘 올리기 칸에 지금 값을 넘기려고 page.tsx 가 읽는다(38a1273 뒤에 새로 생김)
+    '@/lib/site-brand-server', '@/lib/site-logo-server', '@/lib/site-notice-popup-server', '@/lib/site-notice-popup-server',
   ])
   assert.deepEqual(items.db, [])
   assert.deepEqual(items.guards, [...Array(11).fill('requireAdmin()'), "requireAdminPagePermission('site.manage')", "requireAdminPagePermission('site.manage')"])

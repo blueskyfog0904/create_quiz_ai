@@ -75,14 +75,14 @@ test('invalid, oversized, empty, disguised SVG and excessive-pixel images are re
   ]) await assert.rejects(() => normalizeSiteLogo(file))
 })
 
-function routeHarness({ loggedIn = true, isAdmin = true, uploadFails = false, saveFails = false } = {}) {
+function routeHarness({ loggedIn = true, isAdmin = true, uploadFails = false, saveFails = false, route = 'src/app/api/admin/site-logo/route.ts' } = {}) {
   const calls = []
   const storage = {
     async upload(path, buffer, options) { calls.push({ type: 'upload', path, buffer, options }); return { error: uploadFails ? new Error('upload failed') : null } },
     async remove(paths) { calls.push({ type: 'remove', paths }); return { error: null } },
     getPublicUrl(path) { return { data: { publicUrl: `https://assets.example/${path}` } } },
   }
-  const { POST } = load('src/app/api/admin/site-logo/route.ts', {
+  const { POST } = load(route, {
     '@/lib/site-logo': constants,
     '@/lib/site-logo-image': imageModule,
     '@/lib/main-ad-carousel': { MAIN_AD_IMAGES_BUCKET: 'main-ad-images' },
@@ -149,4 +149,45 @@ test('missing files and corrupt files do not trigger storage writes', async () =
     assert.equal((await POST(await request(file))).status, 400)
     assert.deepEqual(calls, [])
   }
+})
+
+// 탭 아이콘 올리기: 로고와 같은 변환·저장 순서, 설정 행과 저장 폴더만 다르다.
+const TAB_ICON_ROUTE = 'src/app/api/admin/site-logo/tab-icon/route.ts'
+
+test('tab icon: anonymous and non-admin requests cannot write any data', async () => {
+  for (const [options, status] of [[{ loggedIn: false }, 401], [{ isAdmin: false }, 403]]) {
+    const { POST, calls } = routeHarness({ ...options, route: TAB_ICON_ROUTE })
+    assert.equal((await POST(await request())).status, status)
+    assert.deepEqual(calls, [])
+  }
+})
+
+test('tab icon: admin upload saves its own setting row and never touches the logo row', async () => {
+  const { POST, calls } = routeHarness({ route: TAB_ICON_ROUTE })
+  const response = await POST(await request(await makeImage(600, 100)))
+  assert.equal(response.status, 200)
+  assert.equal((await sharp(calls[0].buffer).metadata()).width, 256)
+  assert.match(calls[0].path, /^site-tab-icon\/[a-f0-9-]+\.png$/)
+  assert.equal(calls[1].value.key, constants.SITE_TAB_ICON_SETTING_KEY)
+  assert.notEqual(constants.SITE_TAB_ICON_SETTING_KEY, constants.SITE_LOGO_SETTING_KEY)
+  assert.equal(calls[1].value.value.path, calls[0].path)
+  assert.deepEqual(calls.map((call) => call.type), ['upload', 'save', 'tag', 'path'])
+  assert.deepEqual(calls[2].args, [constants.SITE_TAB_ICON_SETTING_KEY, { expire: 0 }])
+  assert.match((await response.json()).url, /\/site-tab-icon\/.+\.png$/)
+})
+
+test('tab icon: failed setting save removes only its new upload', async () => {
+  const { POST, calls } = routeHarness({ saveFails: true, route: TAB_ICON_ROUTE })
+  assert.equal((await POST(await request(await makeImage(20, 20)))).status, 500)
+  assert.deepEqual(calls.map((call) => call.type), ['upload', 'save', 'remove'])
+  assert.deepEqual(calls[2].paths, [calls[0].path])
+})
+
+test('tab icon: the site uses the uploaded tab icon first, then the logo, then the default image', () => {
+  const layout = readFileSync(new URL('../src/app/layout.tsx', import.meta.url), 'utf8')
+  assert.match(layout, /const icon = tabIconUrl \?\? logoUrl \?\? DEFAULT_SITE_LOGO_PATH/)
+  assert.match(layout, /icons: \{ icon, apple: icon \}/)
+  // 저장 경로 모양이 route 가 쓰는 것과 같아야 읽힌다
+  const server = readFileSync(new URL('../src/lib/site-logo-server.ts', import.meta.url), 'utf8')
+  assert.ok(server.includes('readSettingImageUrl(SITE_TAB_ICON_SETTING_KEY, /^site-tab-icon\\/[a-f0-9-]+\\.png$/)'))
 })
