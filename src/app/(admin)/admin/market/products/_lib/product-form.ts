@@ -19,14 +19,6 @@ const MARKET_STATUS_LABELS: Record<MarketItemFormState['status'], string> = {
   archived: '보관',
 }
 
-// 목록 상태 배지 색(공개 초록, 임시저장 회색, 숨김 주황, 보관 흐림)
-const MARKET_STATUS_BADGE_CLASSES: Record<MarketItemFormState['status'], string> = {
-  published: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  draft: 'border-gray-200 bg-gray-50 text-gray-600',
-  hidden: 'border-amber-200 bg-amber-50 text-amber-700',
-  archived: 'border-slate-200 bg-slate-100 text-slate-500',
-}
-
 const MARKET_LIST_STATUS_TABS = ['all', 'published', 'draft', 'hidden', 'archived'] as const
 type MarketListStatusTab = typeof MARKET_LIST_STATUS_TABS[number]
 type MarketListSortKey = 'created' | 'updated' | 'title'
@@ -226,7 +218,6 @@ function buildFileTypeSettingsForm(fileType: MarketFileType): FileTypeSettingsFo
 export {
   getItemCategoryItemId,
   MARKET_STATUS_LABELS,
-  MARKET_STATUS_BADGE_CLASSES,
   MARKET_LIST_STATUS_TABS,
   ADMIN_LIST_DATE_FORMATTER,
   MIN_EXAM_YEAR,

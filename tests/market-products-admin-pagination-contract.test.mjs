@@ -19,7 +19,8 @@ test('목록은 useListQuery와 getListPagination으로 자른 현재 페이지 
   assert.match(client, /const listQuery = useListQuery\(\)/)
   assert.match(client, /const listPagination = getListPagination\(filteredItems\.length, listQuery\.page, listQuery\.pageSize\)/)
   assert.match(client, /filteredItems\.slice\(listPagination\.offset, listPagination\.offset \+ listPagination\.pageSize\)/)
-  assert.match(client, /pagedItems\.map\(\(item\) => \{/)
+  // 20번 6단계: 표 부품(AdminDataTable)에 현재 페이지 조각만 행으로 넘긴다.
+  assert.match(client, /rows=\{pagedItems\}/)
   assert.doesNotMatch(client, /filteredItems\.map\(\(item\) => \{/)
 })
 

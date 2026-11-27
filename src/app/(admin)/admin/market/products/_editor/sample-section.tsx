@@ -82,7 +82,8 @@ export function SampleSection({ ctx, canOpenSamplePreview }: { ctx: ProductAdmin
                   <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="brandOutline"
+                      className="text-[var(--admin-tone-danger-text)]"
                       disabled={samplePages.length === 0 || deletingSamplePageId === '__all__'}
                       onClick={() => void handleDeleteAllSamplePages()}
                     >
@@ -91,7 +92,7 @@ export function SampleSection({ ctx, canOpenSamplePreview }: { ctx: ProductAdmin
                     </Button>
                     <Button
                       type="button"
-                      variant="adminAction"
+                      variant="brand"
                       disabled={isSampleSourceUploading || !selectedSampleSourceFile || isUploadBlockedByCategory}
                       onClick={() => void handleGenerateSampleImages()}
                     >
@@ -100,7 +101,7 @@ export function SampleSection({ ctx, canOpenSamplePreview }: { ctx: ProductAdmin
                     </Button>
                     <Button
                       type="button"
-                      variant="adminAction"
+                      variant="brandOutline"
                       disabled={!canOpenSamplePreview}
                       aria-label={`${form.title || '문제마켓 상품'} 샘플 JPG 확인`}
                       onClick={() => {

@@ -1,5 +1,8 @@
 import { CheckCircle2, Circle, Loader2, MoreHorizontal, Trash2, XCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminStatusBadge } from '@/components/admin/kit/admin-status-badge'
+import { ADMIN_TONE_TEXT_CLASSES } from '@/components/admin/kit/admin-tone-classes'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -20,7 +23,7 @@ function ProductStepHeading({ number, title, optional = false, description }: { 
   return (
     <div className="border-b pb-2">
       <div className="flex items-center gap-2">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white">{number}</span>
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--studio-primary)] text-xs font-semibold text-white">{number}</span>
         <h3 className="font-semibold text-gray-900">{title}</h3>
         {optional ? <span className="text-xs text-gray-500">선택</span> : null}
       </div>
@@ -86,9 +89,9 @@ export function ProductEditor({ ctx }: { ctx: ProductAdminContext }) {
             <div className="flex items-center justify-between gap-3">
               <CardTitle>{form.id ? '상품 수정' : '상품 추가'}</CardTitle>
               <div className="flex items-center gap-2">
-                {form.id ? <Badge variant="outline">편집 중</Badge> : null}
+                {form.id ? <AdminStatusBadge label="편집 중" tone="info" /> : null}
                 {mode === 'manage' ? (
-                  <Button type="button" variant="ghost" size="sm" onClick={() => resetForm()}>
+                  <Button type="button" variant="brandGhost" size="sm" onClick={() => resetForm()}>
                     수정 닫기
                   </Button>
                 ) : null}
@@ -105,8 +108,8 @@ export function ProductEditor({ ctx }: { ctx: ProductAdminContext }) {
                   onClick={() => scrollToProductStep(step.id)}
                   className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition ${
                     step.done
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                      : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                      ? 'border-[var(--admin-tone-success-border)] bg-[var(--admin-tone-success-soft)] text-[var(--admin-tone-success-text)]'
+                      : 'border-[var(--studio-border)] bg-white text-gray-600 hover:bg-[var(--studio-background)]'
                   }`}
                 >
                   {step.done ? <CheckCircle2 className="h-3.5 w-3.5" /> : <span>{index + 1}</span>}
@@ -176,25 +179,22 @@ export function ProductEditor({ ctx }: { ctx: ProductAdminContext }) {
                 {publishChecks.map((check) => (
                   <li key={check.key} className="flex items-center gap-2">
                     {check.done
-                      ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                      ? <CheckCircle2 className={`h-4 w-4 shrink-0 ${ADMIN_TONE_TEXT_CLASSES.success}`} />
                       : check.required
-                        ? <XCircle className="h-4 w-4 shrink-0 text-red-500" />
+                        ? <XCircle className={`h-4 w-4 shrink-0 ${ADMIN_TONE_TEXT_CLASSES.danger}`} />
                         : <Circle className="h-4 w-4 shrink-0 text-gray-300" />}
-                    <span className={check.done ? 'text-gray-700' : check.required ? 'font-medium text-red-700' : 'text-gray-500'}>{check.label}</span>
+                    <span className={check.done ? 'text-gray-700' : check.required ? `font-medium ${ADMIN_TONE_TEXT_CLASSES.danger}` : 'text-gray-500'}>{check.label}</span>
                     {check.required ? null : <span className="text-xs text-gray-400">선택</span>}
                   </li>
                 ))}
               </ul>
 
                 {isAutoUploadDraft ? (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    <p className="font-semibold">임시 업로드 상태</p>
-                    <p className="mt-1">
-                      {canDeleteProducts
-                        ? '상품 등록을 완료하지 않고 업로드 파일을 삭제하려면 등록 취소 및 파일 삭제를 눌러주세요.'
-                        : '등록을 취소하고 업로드 파일을 지우려면 상품 삭제 권한이 필요합니다. 대표 관리자에게 요청해 주세요.'}
-                    </p>
-                  </div>
+                  <AdminNotice kind="warning" title="임시 업로드 상태">
+                    {canDeleteProducts
+                      ? '상품 등록을 완료하지 않고 업로드 파일을 삭제하려면 등록 취소 및 파일 삭제를 눌러주세요.'
+                      : '등록을 취소하고 업로드 파일을 지우려면 상품 삭제 권한이 필요합니다. 대표 관리자에게 요청해 주세요.'}
+                  </AdminNotice>
                 ) : null}
             </section>
             </div>
@@ -210,12 +210,13 @@ export function ProductEditor({ ctx }: { ctx: ProductAdminContext }) {
               </p>
               <div className="flex gap-2">
                 {isPublishedItem ? null : (
-                  <Button type="button" variant="adminAction" className="h-11" disabled={isSaving} onClick={() => void handleSave('draft')}>
+                  <Button type="button" variant="brandOutline" className="h-11" disabled={isSaving} onClick={() => void handleSave('draft')}>
                     임시저장
                   </Button>
                 )}
                 <Button
                   type="button"
+                  variant="brand"
                   onClick={() => void handleSave('published')}
                   disabled={isSaving || isPublishBlocked}
                   className="h-11 flex-1 text-base font-semibold shadow-sm"
@@ -226,7 +227,7 @@ export function ProductEditor({ ctx }: { ctx: ProductAdminContext }) {
                 {form.id ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button type="button" variant="outline" size="icon" className="h-11 w-11" disabled={isSaving || isArchiving} aria-label="다른 상태로 저장·삭제">
+                      <Button type="button" variant="brandOutline" size="icon" className="h-11 w-11" disabled={isSaving || isArchiving} aria-label="다른 상태로 저장·삭제">
                         {isArchiving ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
                       </Button>
                     </DropdownMenuTrigger>
@@ -239,7 +240,7 @@ export function ProductEditor({ ctx }: { ctx: ProductAdminContext }) {
                       {canDeleteProducts ? (
                         <>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600 focus:text-red-700" onSelect={() => void handleArchive()}>
+                          <DropdownMenuItem className="text-[var(--admin-tone-danger-text)] focus:text-[var(--admin-tone-danger-text)]" onSelect={() => void handleArchive()}>
                             <Trash2 className="mr-2 h-4 w-4" />
                             {isAutoUploadDraft ? '등록 취소 및 파일 삭제' : '완전 삭제'}
                           </DropdownMenuItem>

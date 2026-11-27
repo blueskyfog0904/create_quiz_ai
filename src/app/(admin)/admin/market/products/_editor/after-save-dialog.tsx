@@ -1,5 +1,4 @@
 import { ExternalLink, Loader2, Pencil } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -10,8 +9,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { MARKET_STATUS_BADGE_CLASSES, MARKET_STATUS_LABELS } from '../_lib/product-form'
+import { AdminDataTable } from '@/components/admin/kit/admin-data-table'
+import { AdminStatusBadge } from '@/components/admin/kit/admin-status-badge'
+import { adminStatusTone } from '@/lib/admin-status-tone'
+import { MARKET_STATUS_LABELS } from '../_lib/product-form'
 import type { ProductAdminContext } from '../market-products-client'
 
 // 18번 8절: 공개·임시저장이 끝나면 다음 할 일을 고른다. 새 상품 저장·임시 상품 최종 등록·이 창에서 복제로 만든 상품의 첫 저장 뒤에만 뜬다.
@@ -37,18 +38,19 @@ export function AfterSaveDialog({ ctx }: { ctx: ProductAdminContext }) {
         </p>
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
           {afterSaveItem && isPublished ? (
-            <Button asChild type="button" variant="outline">
+            <Button asChild type="button" variant="brandOutline">
               <a href={`/items/${afterSaveItem.id}?subject=${workspaceSubject}`} target="_blank" rel="noreferrer">
                 <ExternalLink className="mr-2 h-4 w-4" />
                 상세 페이지 보기
               </a>
             </Button>
           ) : null}
-          <Button type="button" variant="outline" disabled={Boolean(duplicatingItemId)} onClick={handleStartBlankAfterSave}>
+          <Button type="button" variant="brandOutline" disabled={Boolean(duplicatingItemId)} onClick={handleStartBlankAfterSave}>
             빈 새 상품
           </Button>
           <Button
             type="button"
+            variant="brand"
             disabled={!afterSaveItem || Boolean(duplicatingItemId)}
             onClick={() => afterSaveItem && void handleStartNextFromItem(afterSaveItem.id)}
           >
@@ -73,33 +75,34 @@ export function RegisteredItemsTable({ ctx }: { ctx: ProductAdminContext }) {
         <p className="text-xs text-gray-500">이 창을 닫으면 사라지는 목록입니다. 전체 목록은 &apos;상품 관리&apos;에서 봅니다.</p>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>제목</TableHead>
-              <TableHead className="text-center">상태</TableHead>
-              <TableHead className="text-center">서브상품</TableHead>
-              <TableHead className="text-right">관리</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {registeredItems.map((registered) => (
-              <TableRow key={registered.id}>
-                <TableCell className="font-medium text-gray-900">{registered.title}</TableCell>
-                <TableCell className="text-center">
-                  <Badge variant="outline" className={MARKET_STATUS_BADGE_CLASSES[registered.status] ?? ''}>{MARKET_STATUS_LABELS[registered.status]}</Badge>
-                </TableCell>
-                <TableCell className="text-center text-sm text-gray-600">{registered.subproductCount}개</TableCell>
-                <TableCell className="text-right">
-                  <Button type="button" variant="adminAction" size="sm" onClick={() => void loadItemDetail(registered.id)}>
-                    <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                    다시 수정
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        {/* 20번 6단계: 표 부품. 열·버튼은 전과 같다. */}
+        <AdminDataTable
+          caption="이번에 등록한 상품"
+          rows={registeredItems}
+          getRowKey={(registered) => registered.id}
+          minWidth={560}
+          columns={[
+            { key: 'title', header: '제목', className: 'font-medium text-gray-900', cell: (registered) => registered.title },
+            {
+              key: 'status',
+              header: '상태',
+              align: 'center',
+              cell: (registered) => <AdminStatusBadge label={MARKET_STATUS_LABELS[registered.status]} tone={adminStatusTone('marketItem', registered.status)} />,
+            },
+            { key: 'subproducts', header: '서브상품', align: 'center', className: 'text-gray-600', cell: (registered) => `${registered.subproductCount}개` },
+            {
+              key: 'actions',
+              header: '관리',
+              align: 'right',
+              cell: (registered) => (
+                <Button type="button" variant="adminTable" size="sm" onClick={() => void loadItemDetail(registered.id)}>
+                  <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                  다시 수정
+                </Button>
+              ),
+            },
+          ]}
+        />
       </CardContent>
     </Card>
   )

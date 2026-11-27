@@ -54,7 +54,9 @@ test('admin market products list supports multi-selection controls', () => {
   assert.match(marketProductsClient, /선택 \{selectedItems\.length\}개/, 'bulk action area should show selected count')
   assert.match(marketProductsClient, /aria-label="현재 페이지 상품 전체 선택"/, 'header checkbox should be accessible')
   assert.match(marketProductsClient, /aria-label=\{`\$\{item\.title\} 선택`\}/, 'row checkbox should be accessible')
-  assert.match(marketProductsClient, /<TableCell colSpan=\{6\}/, 'empty table state should account for the selection column')
+  // 20번 6단계: 표 부품(AdminDataTable)의 state 칸은 열 전체(선택 열 포함)에 걸친다(colSpan={columns.length}).
+  assert.match(marketProductsClient, /state=\{filteredItems\.length === 0 \? \(\s+<AdminTableState\s+kind="empty"/, 'empty table state should account for the selection column')
+  assert.match(marketProductsClient, /const columns: AdminDataTableColumn<MarketItemForAdmin>\[\] = \[\n\s+\{\n\s+key: 'select',/, 'selection column is the first column')
 })
 
 test('admin market products list exposes bulk hide and delete actions', () => {
@@ -65,7 +67,8 @@ test('admin market products list exposes bulk hide and delete actions', () => {
   assert.match(marketProductsClient, /선택 삭제/, 'bulk delete button should be rendered')
   assert.match(
     marketProductsClient,
-    /선택한 문제마켓 상품 \{bulkDeleteTargetIds\?\.length/,
+    // 20번 6단계: 공통 확인 창의 제목(글 속성)이라 템플릿 글 `${…}` 로 같은 수를 보인다.
+    /선택한 문제마켓 상품 \$\{bulkDeleteTargetIds\?\.length/,
     'bulk delete dialog should show selected count'
   )
   assert.match(

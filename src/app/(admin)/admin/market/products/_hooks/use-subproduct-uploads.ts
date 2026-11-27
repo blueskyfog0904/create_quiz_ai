@@ -25,7 +25,7 @@ export function useSubproductUploads(ctx: MarketProductsState & ProductFormApi) 
     workspaceSubject, form, setIsSubproductFormOpen, editingSubproductId, setEditingSubproductId,
     subproductEditDraft, setSubproductEditDraft, setIsSubproductSaving, setSubproductUploadingKeys,
     setSubproductDragActiveKeys, subproductCategories, fileTypes, subproductDraft, setSubproductDraft,
-    setSubproductFileDrafts, activeFileTypes, refreshEditingFiles, ensureDraftItemForUpload,
+    setSubproductFileDrafts, activeFileTypes, refreshEditingFiles, ensureDraftItemForUpload, ask,
   } = ctx
   // 18번 7절: 입력 행(draftId)마다 올리기 줄. 화면은 state, 차례 처리는 ref(같은 값)를 읽는다. 파일 본문은 ref 에만 둔다.
   const [uploadQueues, setUploadQueues] = useState<Record<string, UploadQueueEntry[]>>({})
@@ -203,7 +203,9 @@ export function useSubproductUploads(ctx: MarketProductsState & ProductFormApi) 
       return
     }
 
-    if (!window.confirm('이 서브상품과 연결된 파일을 삭제하시겠습니까?')) {
+    // 20번 6단계: 브라우저 확인 창 → 공통 확인 창(유형 가), 같은 문구
+    const confirmed = await ask({ title: '이 서브상품과 연결된 파일을 삭제하시겠습니까?', confirmLabel: '삭제', danger: true })
+    if (!confirmed) {
       return
     }
 

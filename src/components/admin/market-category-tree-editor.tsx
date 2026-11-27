@@ -5,6 +5,12 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { MarketImageField, type MarketImageFieldValue } from '@/components/admin/market-image-field'
+import { useAdminConfirm } from '@/components/admin/kit/admin-confirm-dialog'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminStatusBadge } from '@/components/admin/kit/admin-status-badge'
+import { AdminTableState } from '@/components/admin/kit/admin-table-state'
+import { formatCount } from '@/lib/admin-format'
+import { adminStatusTone } from '@/lib/admin-status-tone'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import { MARKET_CATEGORY_MAX_DEPTH, findCategoryPath } from '@/lib/market-category-tree'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
@@ -66,10 +72,21 @@ export function MarketCategoryTreeEditor({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // 칸 이름 검색어: 맞는 칸과 그 상위 경로만 펼쳐 보여 준다.
   const [query, setQuery] = useState('')
+  // 20번 6단계: 브라우저 알림 창 대신 화면 안 오류(읽기 = 트리 칸의 실패 표시·오류 띠, 저장·삭제·빈 이름 = 위쪽 오류 띠)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const actionErrorRef = useRef<HTMLDivElement | null>(null)
+  // 삭제 확인(유형 가). 팝업에서 쓰일 때도 그 팝업 안에 그린다.
+  const { ask, dialog: confirmDialog } = useAdminConfirm()
 
   useEffect(() => {
     onTreeChangeRef.current = onTreeChange
   }, [onTreeChange])
+
+  // 알림 창은 늘 보였으므로, 위쪽 띠도 오류가 생기면 그 자리로 옮겨 보인다.
+  useEffect(() => {
+    if (actionError) actionErrorRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [actionError])
 
   const loadTree = useCallback(async (resetId?: string) => {
     setIsLoading(true)
@@ -91,8 +108,9 @@ export function MarketCategoryTreeEditor({
         return [row.id, isDirty && row.id !== resetId ? draft : { title: row.title, sortOrder: String(row.sortOrder) }]
       })))
       onTreeChangeRef.current?.(rows)
+      setLoadError(null)
     } catch (error) {
-      alert(error instanceof Error ? error.message : '카테고리를 불러오지 못했습니다.')
+      setLoadError(error instanceof Error ? error.message : '카테고리를 불러오지 못했습니다.')
     } finally {
       setIsLoading(false)
     }
@@ -106,6 +124,7 @@ export function MarketCategoryTreeEditor({
   // resetId: 다시 읽을 때 서버 값으로 맞출 칸(기본은 저장한 칸). 이미지·사용 여부만 바꾼 경우는 그 칸의 고친 이름·순서도 남긴다.
   const runMutation = async (savingKey: string, request: () => Promise<Response>, fallbackMessage: string, resetId: string | null = savingKey) => {
     setSavingId(savingKey)
+    setActionError(null)
     try {
       const response = await request()
       const result = await response.json().catch(() => null)
@@ -115,7 +134,7 @@ export function MarketCategoryTreeEditor({
       await loadTree(resetId ?? undefined)
       return true
     } catch (error) {
-      alert(error instanceof Error ? error.message : fallbackMessage)
+      setActionError(error instanceof Error ? error.message : fallbackMessage)
       return false
     } finally {
       setSavingId(null)
@@ -124,6 +143,7 @@ export function MarketCategoryTreeEditor({
 
   const openAddForm = (parentId: string | null) => {
     setAddingParentId(parentId)
+    setActionError(null)
     setNewTitle('')
     setNewSortOrder('')
   }
@@ -131,7 +151,7 @@ export function MarketCategoryTreeEditor({
   const createNode = async () => {
     const title = newTitle.trim()
     if (!title) {
-      alert('칸 이름을 입력하세요.')
+      setActionError('칸 이름을 입력하세요.')
       return
     }
     const parentId = addingParentId ?? null
@@ -161,8 +181,9 @@ export function MarketCategoryTreeEditor({
     }), '칸 저장에 실패했습니다.', payload.title !== undefined || payload.sort_order !== undefined ? nodeId : null)
   )
 
-  const deleteNode = (node: AdminCategoryTreeNode) => {
-    if (!window.confirm('이 칸을 삭제할까요?')) {
+  const deleteNode = async (node: AdminCategoryTreeNode) => {
+    const confirmed = await ask({ title: '이 칸을 삭제할까요?', confirmLabel: '삭제', danger: true })
+    if (!confirmed) {
       return
     }
     void runMutation(node.id, () => fetch(`/api/admin/market-categories/${node.id}`, {
@@ -191,6 +212,7 @@ export function MarketCategoryTreeEditor({
   // 칸을 고르면 그 상위 경로를 펼쳐 두어, 검색어를 지워도 트리에서 위치가 보이게 한다.
   const selectNode = (nodeId: string) => {
     setSelectedId(nodeId)
+    setActionError(null)
     if (typeof addingParentId === 'string' && addingParentId !== nodeId) {
       setAddingParentId(undefined)
     }
@@ -233,10 +255,13 @@ export function MarketCategoryTreeEditor({
         className="w-36"
         inputMode="numeric"
       />
-      <Button type="button" size="sm" disabled={savingId === 'new-node'} onClick={() => void createNode()}>
+      <Button type="button" size="sm" variant="brand" disabled={savingId === 'new-node'} onClick={() => void createNode()}>
         {savingId === 'new-node' ? '추가 중…' : '추가'}
       </Button>
-      <Button type="button" size="sm" variant="ghost" onClick={() => setAddingParentId(undefined)}>
+      <Button type="button" size="sm" variant="brandGhost" onClick={() => {
+        setAddingParentId(undefined)
+        setActionError(null)
+      }}>
         취소
       </Button>
     </div>
@@ -251,7 +276,7 @@ export function MarketCategoryTreeEditor({
     return (
       <Fragment key={node.id}>
         <li
-          className={`flex items-center gap-1 border-b py-1 pr-3 last:border-b-0 ${selected ? 'bg-violet-50' : 'hover:bg-muted/50'} ${node.isActive ? '' : 'opacity-60'}`}
+          className={`flex items-center gap-1 border-b border-[var(--studio-border)] py-1 pr-3 last:border-b-0 ${selected ? 'bg-[var(--studio-primary-soft)]' : 'hover:bg-[var(--studio-background)]'} ${node.isActive ? '' : 'opacity-60'}`}
           style={{ paddingLeft: 8 + (node.depth - 1) * 20 }}
         >
           {node.children.length > 0 && !keyword ? (
@@ -274,9 +299,9 @@ export function MarketCategoryTreeEditor({
             className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1 text-left"
           >
             <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs font-medium">{node.depth}단계</span>
-            <span className={`truncate ${selected || isMatch(node) ? 'font-semibold text-violet-700' : ''}`}>{node.title}</span>
-            {node.isActive ? null : <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">비활성</span>}
-            <span className="ml-auto shrink-0 text-xs text-muted-foreground">상품 {node.productCount.toLocaleString()}</span>
+            <span className={`truncate ${selected || isMatch(node) ? 'font-semibold text-[var(--studio-primary)]' : ''}`}>{node.title}</span>
+            {node.isActive ? null : <AdminStatusBadge label="비활성" tone={adminStatusTone('productSetting', 'inactive')} />}
+            <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">상품 {formatCount(node.productCount)}</span>
           </button>
         </li>
         {!collapsed && node.children.length > 0 ? renderNodes(node.children) : null}
@@ -297,18 +322,16 @@ export function MarketCategoryTreeEditor({
           <p className="text-xs text-muted-foreground">{(selectedPath ?? []).map((pathNode) => pathNode.title).join(' > ')}</p>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium">{node.depth}단계</span>
-            <span className={`rounded px-2 py-0.5 text-xs font-medium ${node.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-              {node.isActive ? '활성' : '비활성'}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              상품 {node.productCount.toLocaleString()}
-              {node.deletedProductCount > 0 ? ` (삭제 ${node.deletedProductCount.toLocaleString()})` : ''}
+            <AdminStatusBadge label={node.isActive ? '활성' : '비활성'} tone={adminStatusTone('productSetting', node.isActive ? 'active' : 'inactive')} />
+            <span className="text-xs tabular-nums text-muted-foreground">
+              상품 {formatCount(node.productCount)}
+              {node.deletedProductCount > 0 ? ` (삭제 ${formatCount(node.deletedProductCount)})` : ''}
             </span>
             <a
               href={`/categories/${node.id}?subject=${subject}`}
               target="_blank"
               rel="noreferrer"
-              className="ml-auto text-sm text-blue-600 underline underline-offset-2"
+              className="ml-auto text-sm text-[var(--studio-primary)] underline underline-offset-2"
             >
               새 탭 열기
             </a>
@@ -332,7 +355,7 @@ export function MarketCategoryTreeEditor({
               onChange={(event) => setDrafts((current) => ({ ...current, [node.id]: { ...draft, sortOrder: event.target.value } }))}
             />
           </label>
-          <Button type="button" size="sm" disabled={savingId === node.id || !isDirty} onClick={() => saveDraft(node)}>
+          <Button type="button" size="sm" variant="brand" disabled={savingId === node.id || !isDirty} onClick={() => saveDraft(node)}>
             저장
           </Button>
         </div>
@@ -352,18 +375,18 @@ export function MarketCategoryTreeEditor({
           <Button
             type="button"
             size="sm"
-            variant="outline"
+            variant="brandOutline"
             disabled={savingId === node.id}
             onClick={() => void patchNode(node.id, { is_active: !node.isActive })}
           >
             {node.isActive ? '비활성화' : '활성화'}
           </Button>
           {canAddChild ? (
-            <Button type="button" size="sm" variant="outline" onClick={() => openAddForm(node.id)}>
+            <Button type="button" size="sm" variant="brandOutline" onClick={() => openAddForm(node.id)}>
               {node.depth + 1}단계 하위 추가
             </Button>
           ) : null}
-          <Button type="button" size="sm" variant="outline" className="ml-auto text-red-600" disabled={savingId === node.id} onClick={() => deleteNode(node)}>
+          <Button type="button" size="sm" variant="brandOutline" className="ml-auto text-[var(--admin-tone-danger-text)]" disabled={savingId === node.id} onClick={() => void deleteNode(node)}>
             삭제
           </Button>
         </div>
@@ -388,37 +411,41 @@ export function MarketCategoryTreeEditor({
           aria-label="칸 이름 검색"
           className="w-64"
         />
-        <Button type="button" size="sm" variant="outline" onClick={() => setExpandedIds(new Set(allNodes.filter((node) => node.children.length > 0).map((node) => node.id)))}>
+        <Button type="button" size="sm" variant="brandOutline" onClick={() => setExpandedIds(new Set(allNodes.filter((node) => node.children.length > 0).map((node) => node.id)))}>
           모두 펼치기
         </Button>
-        <Button type="button" size="sm" variant="outline" onClick={() => setExpandedIds(new Set())}>
+        <Button type="button" size="sm" variant="brandOutline" onClick={() => setExpandedIds(new Set())}>
           모두 접기
         </Button>
-        <Button type="button" className="ml-auto" onClick={() => openAddForm(null)}>1단계 추가</Button>
+        <Button type="button" variant="brand" className="ml-auto" onClick={() => openAddForm(null)}>1단계 추가</Button>
       </div>
+
+      {actionError ? <div ref={actionErrorRef}><AdminNotice kind="error">{actionError}</AdminNotice></div> : null}
+      {loadError && nodes.length > 0 ? <AdminNotice kind="error" onRetry={() => void loadTree()}>{loadError}</AdminNotice> : null}
 
       {addingParentId === null ? renderAddForm(1) : null}
 
       <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <div className="rounded-lg border">
+        <div className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)]">
           {isLoading && nodes.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-muted-foreground">불러오는 중…</p>
+            <AdminTableState kind="loading" message="불러오는 중…" />
+          ) : loadError && nodes.length === 0 ? (
+            <AdminTableState kind="error" message={loadError} onRetry={() => void loadTree()} className="m-3" />
           ) : nodes.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-              아직 칸이 없습니다. [1단계 추가]로 첫 칸을 만드세요.
-            </p>
+            <AdminTableState kind="empty" message="아직 칸이 없습니다. [1단계 추가]로 첫 칸을 만드세요." className="m-3" />
           ) : hasMatches ? (
             <ul className="text-sm">{renderNodes(nodes)}</ul>
           ) : (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground">&apos;{query.trim()}&apos;와 맞는 칸이 없습니다.</p>
           )}
         </div>
-        <div className="rounded-lg border p-4 md:sticky md:top-4">
+        <div className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-4 md:sticky md:top-4">
           {selectedNode ? renderDetail(selectedNode) : (
             <p className="py-8 text-center text-sm text-muted-foreground">왼쪽에서 칸을 고르면 이름·순서·기본 이미지를 편집할 수 있습니다.</p>
           )}
         </div>
       </div>
+      {confirmDialog}
     </div>
   )
 }

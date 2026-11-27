@@ -10,7 +10,7 @@ export function useSampleGeneration(ctx: MarketProductsState & ProductFormApi) {
   const {
     workspaceSubject, form, samplePages, setSamplePages, samplePageSelection, selectedSampleSourceFile,
     setSelectedSampleSourceFile, sampleDraftToken, setSampleDraftToken, setIsSampleSourceUploading,
-    setSampleGenerationStep, setDeletingSamplePageId, sampleSourceInputRef, ensureDraftItemForUpload,
+    setSampleGenerationStep, setDeletingSamplePageId, sampleSourceInputRef, ensureDraftItemForUpload, ask,
   } = ctx
 
   const handleSelectSampleSourceFile = (file?: File | null) => {
@@ -208,7 +208,9 @@ export function useSampleGeneration(ctx: MarketProductsState & ProductFormApi) {
       return
     }
 
-    if (!window.confirm('생성된 샘플 이미지를 모두 삭제할까요?')) {
+    // 20번 6단계: 브라우저 확인 창 → 공통 확인 창(유형 가), 같은 문구
+    const confirmed = await ask({ title: '생성된 샘플 이미지를 모두 삭제할까요?', confirmLabel: '전체 삭제', danger: true })
+    if (!confirmed) {
       return
     }
 

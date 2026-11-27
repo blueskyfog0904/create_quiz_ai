@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
 
 // 상품을 지운 뒤 Storage 파일 삭제가 실패해 남은 파일이 있을 때만 보이는 안내.
 export function StorageCleanupNotice({ pendingCount }: { pendingCount: number }) {
@@ -39,11 +40,14 @@ export function StorageCleanupNotice({ pendingCount }: { pendingCount: number })
   }
 
   return (
-    <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-      <p>삭제한 상품의 파일 {pendingCount}개가 아직 저장소에 남아 있습니다. 상품은 정상적으로 삭제됐고, 파일만 정리되지 않았습니다.</p>
-      <Button type="button" variant="outline" size="sm" onClick={handleRetry} disabled={isRunning}>
-        {isRunning ? '정리하는 중…' : '남은 파일 다시 정리'}
-      </Button>
-    </div>
+    // 20번 6단계: 주의 띠(AdminNotice, 전처럼 role=status). 문구·단추·막힘 조건은 그대로.
+    <AdminNotice kind="warning" className="mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p>삭제한 상품의 파일 {pendingCount}개가 아직 저장소에 남아 있습니다. 상품은 정상적으로 삭제됐고, 파일만 정리되지 않았습니다.</p>
+        <Button type="button" variant="adminTable" size="sm" onClick={handleRetry} disabled={isRunning}>
+          {isRunning ? '정리하는 중…' : '남은 파일 다시 정리'}
+        </Button>
+      </div>
+    </AdminNotice>
   )
 }

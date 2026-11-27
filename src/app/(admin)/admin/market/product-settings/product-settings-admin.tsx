@@ -3,23 +3,19 @@
 import { useState } from 'react'
 import { ArrowDown, ArrowUp, Plus } from 'lucide-react'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
+import { AdminConfirmDialog } from '@/components/admin/kit/admin-confirm-dialog'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminPageHeader } from '@/components/admin/kit/admin-page-header'
+import { AdminSaveBar, countChangedFields } from '@/components/admin/kit/admin-save-bar'
+import { AdminStatusBadge } from '@/components/admin/kit/admin-status-badge'
+import { adminStatusTone } from '@/lib/admin-status-tone'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import {
   MARKET_ITEM_EMPTY_HINT_MAX,
@@ -94,11 +90,12 @@ export function ProductSettingsAdmin({ workspaceSubject, initialLists, initialDi
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">
-          <AdminMenuName href="/admin/market/product-settings" fallback="상품 표시 설정" /> · {subjectLabel}
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">상품 편집에서 고르는 학년·자료유형·구성·파일 유형 목록과 회원 검색·자료 보관함의 필터 이름, 상품 상세 안내 문구를 정합니다.</p>
-        {preview ? <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">미리보기입니다. 저장은 하지 않습니다.</p> : null}
+        <AdminPageHeader
+          className={preview ? 'mb-3' : 'mb-0'}
+          title={<><AdminMenuName href="/admin/market/product-settings" fallback="상품 표시 설정" /> · {subjectLabel}</>}
+          description="상품 편집에서 고르는 학년·자료유형·구성·파일 유형 목록과 회원 검색·자료 보관함의 필터 이름, 상품 상세 안내 문구를 정합니다."
+        />
+        {preview ? <AdminNotice kind="warning">미리보기입니다. 저장은 하지 않습니다.</AdminNotice> : null}
       </div>
       <Tabs defaultValue={(SETTINGS_TABS as readonly string[]).includes(initialTab) ? initialTab : 'grade'}>
         <TabsList className="flex h-auto flex-wrap">
@@ -151,10 +148,16 @@ function OptionListTab({ kind, workspaceSubject, initialOptions, subjectLabel }:
   const [newLabel, setNewLabel] = useState('')
   const [pending, setPending] = useState(false)
   const [rename, setRename] = useState<PendingRename | null>(null)
+  // 순서 저장 줄(20번 6단계): 순서 저장의 진행·마지막 저장 시각·실패 문구. 알림(toast)은 그대로 띄운다.
+  const [orderSaving, setOrderSaving] = useState(false)
+  const [orderSavedAt, setOrderSavedAt] = useState<number | null>(null)
+  const [orderSaveError, setOrderSaveError] = useState<string | null>(null)
   const apiUrl = withAdminWorkspaceSubject('/api/admin/market/item-options', workspaceSubject)
   const kindLabel = MARKET_ITEM_OPTION_KIND_LABELS[kind]
   const byId = new Map(options.map((option) => [option.id, option]))
   const orderChanged = order.join(',') !== options.map((option) => option.id).join(',')
+  // 저장 안 된 변경 = 자리가 바뀐 항목 수
+  const movedCount = order.filter((id, index) => id !== options[index]?.id).length
 
   // 서버 목록(서버가 센 상품 수·판 포함, 캐시 없음). 화면 상태는 건드리지 않는다.
   async function fetchOptions() {
@@ -238,10 +241,18 @@ function OptionListTab({ kind, workspaceSubject, initialOptions, subjectLabel }:
 
   async function saveOrder() {
     setPending(true)
+    setOrderSaving(true)
+    setOrderSaveError(null)
     const result = await callApi(apiUrl, 'PUT', { kind, ids: order })
-    if (!result.ok) toast.error(result.message)
-    else toast.success('순서를 저장했습니다.')
+    if (!result.ok) {
+      toast.error(result.message)
+      setOrderSaveError(result.message)
+    } else {
+      toast.success('순서를 저장했습니다.')
+      setOrderSavedAt(new Date().getTime())
+    }
     await reload()
+    setOrderSaving(false)
     setPending(false)
   }
 
@@ -263,12 +274,12 @@ function OptionListTab({ kind, workspaceSubject, initialOptions, subjectLabel }:
             const draft = drafts[id] ?? { label: option.label, isActive: option.isActive }
             const dirty = draft.label !== option.label || draft.isActive !== option.isActive
             return (
-              <li key={id} className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center">
+              <li key={id} className="flex flex-col gap-2 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] p-3 sm:flex-row sm:items-center">
                 <div className="flex shrink-0 gap-1">
-                  <Button type="button" variant="outline" size="icon" aria-label="위로" disabled={pending || index === 0} onClick={() => move(id, -1)}>
+                  <Button type="button" variant="adminTable" size="icon" aria-label="위로" disabled={pending || index === 0} onClick={() => move(id, -1)}>
                     <ArrowUp className="h-4 w-4" />
                   </Button>
-                  <Button type="button" variant="outline" size="icon" aria-label="아래로" disabled={pending || index === order.length - 1} onClick={() => move(id, 1)}>
+                  <Button type="button" variant="adminTable" size="icon" aria-label="아래로" disabled={pending || index === order.length - 1} onClick={() => move(id, 1)}>
                     <ArrowDown className="h-4 w-4" />
                   </Button>
                 </div>
@@ -289,18 +300,26 @@ function OptionListTab({ kind, workspaceSubject, initialOptions, subjectLabel }:
                     />
                     사용
                   </label>
-                  {!option.isActive ? <Badge variant="secondary">숨김</Badge> : null}
+                  {!option.isActive ? <AdminStatusBadge label="숨김" tone={adminStatusTone('productSetting', 'inactive')} /> : null}
                   {kind !== 'usage_basis' ? <span className="text-xs text-gray-500">상품 {option.itemCount}개</span> : null}
-                  <Button type="button" size="sm" disabled={pending || !dirty} onClick={() => void requestSave(option)}>저장</Button>
+                  <Button type="button" size="sm" variant="adminTable" disabled={pending || !dirty} onClick={() => void requestSave(option)}>저장</Button>
                 </div>
               </li>
             )
           })}
         </ul>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Button type="button" variant="outline" disabled={pending || !orderChanged} onClick={() => void saveOrder()}>순서 저장</Button>
-          {orderChanged ? <span className="text-sm text-amber-700">순서를 바꿨습니다. [순서 저장]을 눌러야 반영됩니다.</span> : null}
-        </div>
+        {/* 순서 저장 = 인라인 저장 줄 하나(이 탭의 저장 함수가 여럿이라 고정 바 없음). 막힘 조건은 전과 같다(처리 중·순서 그대로). */}
+        <AdminSaveBar
+          variant="inline"
+          dirtyCount={orderChanged ? Math.max(1, movedCount) : 0}
+          status={orderSaving ? 'saving' : orderSaveError ? 'error' : orderSavedAt ? 'saved' : 'idle'}
+          savedAt={orderSavedAt}
+          errorMessage={orderSaveError}
+          applyNote="[위로]·[아래로]로 바꾼 순서는 [순서 저장]을 눌러야 반영됩니다."
+          onSave={() => void saveOrder()}
+          saveLabel="순서 저장"
+          saveDisabled={pending || !orderChanged}
+        />
         <div className="space-y-2 border-t pt-4">
           <Label htmlFor={`new-option-${kind}`}>새 항목</Label>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -312,38 +331,30 @@ function OptionListTab({ kind, workspaceSubject, initialOptions, subjectLabel }:
               onChange={(event) => setNewLabel(event.target.value)}
               className="min-w-0 flex-1"
             />
-            <Button type="button" disabled={pending || !newLabel.trim()} onClick={() => void addOption()}>
+            <Button type="button" variant="brandOutline" disabled={pending || !newLabel.trim()} onClick={() => void addOption()}>
               <Plus className="h-4 w-4" /> 추가
             </Button>
           </div>
           <p className="text-xs text-gray-500">맨 뒤에 붙습니다. 숨긴 항목과 같은 이름은 쓸 수 없습니다(숨김을 풀어 주세요).</p>
         </div>
       </CardContent>
-      <AlertDialog open={rename !== null} onOpenChange={(open) => { if (!open) setRename(null) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>이름을 바꿀까요?</AlertDialogTitle>
-            <AlertDialogDescription>
-              &apos;{rename?.option.label}&apos; → &apos;{rename?.label}&apos;. 이 이름을 쓰는 상품 {rename?.itemCount ?? 0}개도 함께 바뀝니다.
-              {kind === 'grade' ? ` 옛 이름으로 저장된 검색 링크(?grade=${rename?.option.label ?? ''})는 결과가 비게 됩니다.` : ''}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={pending}>취소</AlertDialogCancel>
-            <Button
-              type="button"
-              disabled={pending || rename === null}
-              onClick={() => {
-                const target = rename
-                setRename(null)
-                if (target) void save(target.option, target.label, target.isActive)
-              }}
-            >
-              바꾸기
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* 이름 바꾸기 확인(유형 가): 확인 전에는 저장 요청이 없다. 공통 확인 창, 첫 초점 [취소]. */}
+      <AdminConfirmDialog
+        open={rename !== null}
+        onOpenChange={(open) => { if (!open) setRename(null) }}
+        title="이름을 바꿀까요?"
+        description={<>
+          &apos;{rename?.option.label}&apos; → &apos;{rename?.label}&apos;. 이 이름을 쓰는 상품 {rename?.itemCount ?? 0}개도 함께 바뀝니다.
+          {kind === 'grade' ? ` 옛 이름으로 저장된 검색 링크(?grade=${rename?.option.label ?? ''})는 결과가 비게 됩니다.` : ''}
+        </>}
+        confirmLabel="바꾸기"
+        pending={pending}
+        onConfirm={() => {
+          const target = rename
+          setRename(null)
+          if (target) void save(target.option, target.label, target.isActive)
+        }}
+      />
     </Card>
   )
 }
@@ -353,14 +364,19 @@ function DisplayTab({ display, onSave }: { display: MarketItemDisplay | null; on
     ? { facetLabels: { ...display.facetLabels }, libraryEmptyFilterHint: display.libraryEmptyFilterHint }
     : null)
   const [pending, setPending] = useState(false)
+  // 저장 상태 줄(20번 6단계): 마지막 저장 시각·실패 문구. 알림(toast)은 그대로 띄운다.
+  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   if (!display || !draft) {
-    return (
-      <Card>
-        <CardContent className="py-6 text-sm text-red-700">상품 표시 설정(market_item_display)을 읽지 못했습니다. 17·19번 DB 적용 여부를 확인해 주세요.</CardContent>
-      </Card>
-    )
+    return <AdminNotice kind="error">상품 표시 설정(market_item_display)을 읽지 못했습니다. 17·19번 DB 적용 여부를 확인해 주세요.</AdminNotice>
   }
+
+  // 저장 안 된 변경 = 저장된 값과 다른 칸 수(저장할 때처럼 앞뒤 공백을 뺀 값으로 비교)
+  const changedCount = countChangedFields(
+    { ...Object.fromEntries(MARKET_ITEM_FACET_KEYS.map((key) => [key, draft.facetLabels[key].trim()])), libraryEmptyFilterHint: draft.libraryEmptyFilterHint.trim() },
+    { ...display.facetLabels, libraryEmptyFilterHint: display.libraryEmptyFilterHint }
+  )
 
   async function saveDisplay() {
     if (!draft) return
@@ -378,8 +394,11 @@ function DisplayTab({ display, onSave }: { display: MarketItemDisplay | null; on
     setPending(false)
     if (!result.ok) {
       toast.error(result.message)
+      setSaveError(result.message)
       return
     }
+    setSaveError(null)
+    setSavedAt(Date.now())
     toast.success(result.changed === false ? '바뀐 것이 없습니다.' : '저장했습니다. 회원 화면에는 1분 안에 반영됩니다.')
   }
 
@@ -417,7 +436,17 @@ function DisplayTab({ display, onSave }: { display: MarketItemDisplay | null; on
             {MARKET_ITEM_EMPTY_HINT_PLACEHOLDER} 자리에 구성 필터 이름이 들어갑니다. 보이는 글: {fillLibraryEmptyFilterHint(draft)}
           </p>
         </div>
-        <Button type="button" disabled={pending} onClick={() => void saveDisplay()}>저장</Button>
+        {/* 저장 함수 하나 = 인라인 저장 줄 하나. 전처럼 변경이 없어도 누를 수 있다(서버가 '바뀐 것이 없습니다'). */}
+        <AdminSaveBar
+          variant="inline"
+          dirtyCount={changedCount}
+          status={pending ? 'saving' : saveError ? 'error' : savedAt ? 'saved' : 'idle'}
+          savedAt={savedAt}
+          errorMessage={saveError}
+          applyNote="회원 화면에는 1분 안에 반영됩니다."
+          onSave={() => void saveDisplay()}
+          saveWhenClean
+        />
       </CardContent>
     </Card>
   )

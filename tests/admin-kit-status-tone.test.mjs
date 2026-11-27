@@ -69,6 +69,8 @@ test("5-1 표(대표 확인 대상) 그대로이고 '환불 완료'는 어느 �
     // 20번 5단계: 크레딧 거래 종류(평범한 사용 = 회색, 회수만 빨강 — Q6), 문의 카테고리·답변 템플릿 사용·숨김
     creditTransaction: { neutral: ['gray'], info: ['blue'], success: ['green'], warning: ['amber'], danger: ['red'] },
     supportOption: { neutral: ['hidden'], success: ['active'] },
+    // 20번 6단계: 상품 설정 항목(카테고리 칸·서브상품 카테고리·파일 유형·서브상품 활성/비활성, 학년·자료유형 사용/숨김)
+    productSetting: { neutral: ['inactive'], success: ['active'] },
   }
   assert.deepEqual(sortedKeys(ADMIN_STATUS_TONES), sortedKeys(expected))
   for (const [kind, groups] of Object.entries(expected)) {

@@ -86,6 +86,9 @@ test('저장 바 규칙: 실패여도 변경이 없으면 변경 없음·[다시
   assert.deepEqual(view({ status: 'idle', dirtyCount: 0, saveWhenClean: true }), { kind: 'clean', retry: false, disabled: false })
   assert.deepEqual(view({ status: 'idle', dirtyCount: 1, saveDisabled: true }), { kind: 'dirty', retry: false, disabled: true })
   assert.deepEqual(view({ status: 'saving', dirtyCount: 1, saveWhenClean: true }), { kind: 'saving', retry: false, disabled: true })
+  // 20번 6단계: 변경 없이도 누를 수 있는 줄(saveWhenClean)은 변경이 없어도 실패를 보이고 [다시 시도]를 켠다.
+  assert.deepEqual(view({ status: 'error', dirtyCount: 0, saveWhenClean: true }), { kind: 'error', retry: true, disabled: false })
+  assert.deepEqual(view({ status: 'error', dirtyCount: 0, saveWhenClean: true, saveDisabled: true }), { kind: 'error', retry: true, disabled: true })
   assert.equal(view({ status: 'saved', dirtyCount: 0, hasSavedAt: true }).kind, 'saved')
   assert.equal(view({ status: 'saved', dirtyCount: 1, hasSavedAt: true }).kind, 'dirty')
   assert.equal(countChangedFields({ a: 1, b: [1] }, { a: 1, b: [2], c: 0 }), 2)
@@ -286,18 +289,13 @@ function assertRatchet(name, pattern, allowedEnabled) {
 }
 
 test('래칫: confirm( 은 지금 목록 밖 켜진 화면에 새로 생기지 않는다', () => {
-  assertRatchet('confirm(', /\bconfirm\(/, [
-    'src/app/(admin)/admin/market/product-settings/taxonomy-tab.tsx',
-    'src/app/(admin)/admin/market/products/_hooks/use-product-form.ts',
-    'src/app/(admin)/admin/market/products/_hooks/use-sample-generation.ts',
-    'src/app/(admin)/admin/market/products/_hooks/use-subproduct-uploads.ts',
-    'src/components/admin/market-category-tree-editor.tsx',
-  ])
+  // 20번 6단계: 상품 화면 6곳(상품 삭제·서브상품 삭제·샘플 전체 삭제·구성·파일 유형 삭제·카테고리 칸 삭제)을 공통 확인 창으로 옮겨 목록이 비었다.
+  assertRatchet('confirm(', /\bconfirm\(/, [])
 })
 
 test('래칫: alert( 은 지금 목록 밖 켜진 화면에 새로 생기지 않는다', () => {
   assertRatchet('alert(', /\balert\(/, [
-    'src/components/admin/market-category-tree-editor.tsx',
+    // 20번 6단계: 카테고리 칸 편집기(market-category-tree-editor)는 화면 안 오류로 옮겨 뺐다.
     'src/components/layout/admin-sidebar-client.tsx',
   ])
 })
@@ -306,14 +304,7 @@ test('래칫: adminAction 은 지금 목록 밖 켜진 화면에 새로 생기�
   assertRatchet('adminAction', /\badminAction\b/, [
     'src/app/(admin)/admin/dashboard-client.tsx',
     // 22번(20번 6-1 4단계 '홈'): main-ad-settings 는 brandOutline 으로 옮겨 목록에서 뺐다.
-    'src/app/(admin)/admin/market/products/_editor/after-save-dialog.tsx',
-    'src/app/(admin)/admin/market/products/_editor/category-step.tsx',
-    'src/app/(admin)/admin/market/products/_editor/product-editor.tsx',
-    'src/app/(admin)/admin/market/products/_editor/sample-section.tsx',
-    'src/app/(admin)/admin/market/products/_editor/subproduct-table.tsx',
-    'src/app/(admin)/admin/market/products/_list/product-list.tsx',
-    'src/app/(admin)/admin/market/products/admin-market-sample-preview-dialog.tsx',
-    'src/app/(admin)/admin/market/products/market-products-client.tsx',
+    // 20번 6단계: 상품 화면 8파일(/admin/market/products/**)을 adminTable·brand·brandOutline 으로 옮겨 뺐다.
     'src/app/(admin)/admin/notices/board-admin.tsx',
     'src/app/(admin)/admin/notifications/notifications-admin.tsx',
   ])
@@ -327,8 +318,9 @@ test('래칫: 화면별 toLocaleString( 수는 늘지 않는다(새 표기는 ad
     'src/app/(admin)/admin/credits/credits-client.tsx': 1,
     'src/app/(admin)/admin/dashboard-client.tsx': 9,
     'src/app/(admin)/admin/footer/policy-history/page.tsx': 1,
+    // 20번 6단계: 상품 목록(상태 탭 개수·최저가·전체 가격 → formatCount·formatCredits)·카테고리 칸 편집기(상품 수 → formatCount)는 0.
+    // 남은 product-form.ts 1곳은 파일 올린 시각(날짜 표기, 대표가 정하기 전까지 지금 모양).
     'src/app/(admin)/admin/market/products/_lib/product-form.ts': 1,
-    'src/app/(admin)/admin/market/products/_list/product-list.tsx': 4,
     'src/app/(admin)/admin/notifications/notifications-admin.tsx': 5,
     // 20번 2단계: 남은 것은 날짜 표기(문의 판 고르기 4곳, 대표가 표기를 정하기 전까지 지금 모양)
     'src/app/(admin)/admin/orders/market-exception-refund-dialog.tsx': 4,
@@ -340,7 +332,6 @@ test('래칫: 화면별 toLocaleString( 수는 늘지 않는다(새 표기는 ad
     'src/app/(admin)/admin/users/[id]/page.tsx': 1,
     'src/app/(admin)/admin/users/[id]/revoke-credit-button.tsx': 4,
     'src/components/admin/admin-alert-center.tsx': 2,
-    'src/components/admin/market-category-tree-editor.tsx': 3,
   }
   const over = []
   for (const file of RATCHET_SCOPE) {

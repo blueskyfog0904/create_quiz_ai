@@ -40,7 +40,7 @@ export function useProductForm(ctx: MarketProductsState) {
     setEditingSubproductId, setSubproductEditDraft, bundleForm, setBundleForm, setSubproductUploadingKeys,
     setSubproductDragActiveKeys, categoryNodes, setCategoryNodes, categoryItemId, setCategoryItemId,
     savedCategoryItemId, setSavedCategoryItemId, thumbnailPreview, setThumbnailPreview, sampleSourceInputRef,
-    listQuery, setHiddenOverride, refreshItems, changeFilterCategory,
+    listQuery, setHiddenOverride, refreshItems, changeFilterCategory, ask,
   } = ctx
 
   const [subproductCategories, setSubproductCategories] = useState<MarketSubproductCategory[]>([])
@@ -556,11 +556,22 @@ export function useProductForm(ctx: MarketProductsState) {
     }
 
     const isCancellingAutoUploadDraft = form.draftSource === 'auto_upload'
-    const confirmMessage = isCancellingAutoUploadDraft
-      ? '상품 등록을 완료하지 않고 업로드 파일을 삭제할까요? 임시 상품과 생성된 샘플 JPG가 모두 삭제되며 되돌릴 수 없습니다.'
-      : '이 상품을 완전 삭제하시겠습니까? DB 데이터와 업로드된 파일이 모두 삭제되며 되돌릴 수 없습니다. 구매·환불·후기 이력이 있는 상품은 삭제되지 않고 숨김 처리됩니다(구매자 다운로드는 유지).'
+    // 20번 6단계: 브라우저 확인 창 → 공통 확인 창(유형 가). 문구는 전 확인 창 그대로(제목 + 설명으로 나눔).
+    const confirmed = await ask(isCancellingAutoUploadDraft
+      ? {
+        title: '상품 등록을 완료하지 않고 업로드 파일을 삭제할까요?',
+        description: '임시 상품과 생성된 샘플 JPG가 모두 삭제되며 되돌릴 수 없습니다.',
+        confirmLabel: '등록 취소 및 파일 삭제',
+        danger: true,
+      }
+      : {
+        title: '이 상품을 완전 삭제하시겠습니까?',
+        description: 'DB 데이터와 업로드된 파일이 모두 삭제되며 되돌릴 수 없습니다. 구매·환불·후기 이력이 있는 상품은 삭제되지 않고 숨김 처리됩니다(구매자 다운로드는 유지).',
+        confirmLabel: '완전 삭제',
+        danger: true,
+      })
 
-    if (!window.confirm(confirmMessage)) {
+    if (!confirmed) {
       return
     }
 

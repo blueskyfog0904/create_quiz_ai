@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { AdminStatusBadge } from '@/components/admin/kit/admin-status-badge'
+import { adminStatusTone } from '@/lib/admin-status-tone'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import type { WorkspaceSubject } from '@/lib/workspace-subject'
 import { formatCreditInputValue, formatFileSize, formatDateTime } from '../_lib/product-form'
@@ -166,7 +168,7 @@ export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
                                   <p className="font-semibold text-gray-900">{getSubproductCategoryName(subproduct.category_id)}</p>
-                                  <Badge variant={subproduct.is_active ? 'outline' : 'secondary'}>{subproduct.is_active ? '활성' : '비활성'}</Badge>
+                                  <AdminStatusBadge label={subproduct.is_active ? '활성' : '비활성'} tone={adminStatusTone('productSetting', subproduct.is_active ? 'active' : 'inactive')} />
                                 </div>
                                 <p className="mt-1 text-sm text-gray-500">{subproduct.description || '설명이 없습니다.'}</p>
                                 {subproduct.purchase_notice_text ? (
@@ -179,10 +181,10 @@ export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
                               </div>
                               </div>
                               <div className="flex gap-2">
-                                <Button type="button" variant="adminAction" size="sm" disabled={isSubproductSaving} onClick={() => handleEditSubproduct(subproduct)}>
+                                <Button type="button" variant="adminTable" size="sm" disabled={isSubproductSaving} onClick={() => handleEditSubproduct(subproduct)}>
                                   수정
                                 </Button>
-                                <Button type="button" variant="outline" size="sm" disabled={isSubproductSaving} onClick={() => void handleDeleteSubproduct(subproduct.id)}>
+                                <Button type="button" variant="adminTable" size="sm" className="text-[var(--admin-tone-danger-text)]" disabled={isSubproductSaving} onClick={() => void handleDeleteSubproduct(subproduct.id)}>
                                   <Trash2 className="mr-2 h-4 w-4" />
                                   삭제
                                 </Button>
@@ -219,7 +221,7 @@ export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
                             )}
 
                             <div className="flex justify-end">
-                              <Button type="button" variant="adminAction" size="sm" disabled={activeFileTypes.length === 0} onClick={() => handleAddSubproductFileDraft(subproduct.id)}>
+                              <Button type="button" variant="brandOutline" size="sm" disabled={activeFileTypes.length === 0} onClick={() => handleAddSubproductFileDraft(subproduct.id)}>
                                 <Plus className="mr-2 h-4 w-4" />
                                 파일 추가+
                               </Button>
@@ -404,7 +406,7 @@ export function SubproductTable({ ctx }: { ctx: ProductAdminContext }) {
                     </div>
                   </div>
                 ) : (
-                  <Button type="button" variant="adminAction" className="w-full border-dashed" disabled={isSubproductSaving} onClick={() => setIsSubproductFormOpen(true)}>
+                  <Button type="button" variant="brandOutline" className="w-full border-dashed" disabled={isSubproductSaving} onClick={() => setIsSubproductFormOpen(true)}>
                     <Plus className="mr-2 h-4 w-4" />
                     서브상품 추가
                   </Button>

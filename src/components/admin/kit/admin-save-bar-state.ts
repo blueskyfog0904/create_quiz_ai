@@ -1,6 +1,7 @@
 // 저장 바의 표시·버튼 규칙(20번 5-2). React 없이 돌아가는 순수 규칙이라 시험이 직접 실행한다.
 // - 실패여도 저장 안 된 변경이 없으면(예: 충돌로 다시 읽은 뒤) '변경 없음'으로 보이고 [다시 시도]를 막는다.
-// - saveWhenClean: 변경이 없어도 버튼을 켠다(화면이 누름을 받아 검사·초점 이동을 하는 경우).
+// - saveWhenClean: 변경이 없어도 버튼을 켠다(화면이 누름을 받아 검사·초점 이동을 하는 경우). 이때는 변경이 없어도
+//   저장할 수 있으므로 실패(error)도 그대로 보이고 [다시 시도]가 켜진다(20번 6단계).
 
 export type AdminSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -17,7 +18,7 @@ export function adminSaveBarView(input: {
   const dirty = dirtyCount > 0
   let kind: AdminSaveBarKind
   if (status === 'saving') kind = 'saving'
-  else if (status === 'error' && dirty) kind = 'error'
+  else if (status === 'error' && (dirty || saveWhenClean)) kind = 'error'
   else if (dirty) kind = 'dirty'
   else if (status === 'saved' && hasSavedAt) kind = 'saved'
   else kind = 'clean'

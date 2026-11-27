@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { MarketSampleRow } from '@/components/market/market-sample-row'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminSaveBar, countChangedFields } from '@/components/admin/kit/admin-save-bar'
 import {
   MARKET_ITEM_DETAIL_COUNT_KEYS,
   MARKET_ITEM_DETAIL_FIELD_LABELS,
@@ -71,29 +73,35 @@ function trimDetail(detail: MarketItemDetailDisplay): MarketItemDetailDisplay {
   }
 }
 
-function DisplayMissing() {
-  return (
-    <Card>
-      <CardContent className="py-6 text-sm text-red-700">상품 표시 설정의 상세 안내 문구(detail)를 읽지 못했습니다. 19번 DB 적용 여부를 확인해 주세요.</CardContent>
-    </Card>
-  )
+// 저장 안 된 변경 수를 세는 글 칸(문구 + 요약 이름). 저장할 때처럼 앞뒤 공백을 뺀 값으로 비교한다.
+function detailTextFields(detail: MarketItemDetailDisplay): Record<string, string> {
+  return {
+    ...Object.fromEntries(Object.entries(detail).filter((entry): entry is [string, string] => typeof entry[1] === 'string')),
+    ...Object.fromEntries(MARKET_ITEM_SUMMARY_LABEL_KEYS.map((key) => [`summaryLabels.${key}`, detail.summaryLabels[key]])),
+  }
 }
 
-async function saveDetail(onSave: DisplaySaver, detail: MarketItemDetailDisplay, setPending: (pending: boolean) => void) {
+function DisplayMissing() {
+  return <AdminNotice kind="error">상품 표시 설정의 상세 안내 문구(detail)를 읽지 못했습니다. 19번 DB 적용 여부를 확인해 주세요.</AdminNotice>
+}
+
+// 20번 6단계: 저장 상태 줄에 쓰도록 결과를 돌려준다(검사에 걸려 보내지 않았으면 null). 알림(toast)은 그대로 띄운다.
+async function saveDetail(onSave: DisplaySaver, detail: MarketItemDetailDisplay, setPending: (pending: boolean) => void): Promise<{ ok: boolean; message?: string } | null> {
   const trimmed = trimDetail(detail)
   const problem = findMarketItemDetailDisplayProblem(trimmed)
   if (problem) {
     toast.error(marketItemOptionErrorMessage({ code: 'MARKET_ITEM_DISPLAY_INPUT_INVALID', detail: problem }))
-    return
+    return null
   }
   setPending(true)
   const result = await onSave({ detail: trimmed })
   setPending(false)
   if (!result.ok) {
     toast.error(result.message)
-    return
+    return { ok: false, message: result.message }
   }
   toast.success(result.changed === false ? '바뀐 것이 없습니다.' : '저장했습니다. 회원 화면에는 1분 안에 반영됩니다.')
+  return { ok: true }
 }
 
 type SampleCase = 'none' | 'three' | 'legacy'
@@ -107,8 +115,22 @@ export function DetailTextTab({ display, onSave }: { display: MarketItemDisplay 
   const [draft, setDraft] = useState<MarketItemDetailDisplay | null>(() => display ? structuredClone(display.detail) : null)
   const [pending, setPending] = useState(false)
   const [sampleCase, setSampleCase] = useState<SampleCase>('three')
+  // 저장 상태 줄(20번 6단계): 마지막 저장 시각·실패 문구
+  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   if (!display || !draft) return <DisplayMissing />
+
+  const changedCount = countChangedFields(detailTextFields(trimDetail(draft)), detailTextFields(display.detail))
+
+  async function save() {
+    if (!display || !draft) return
+    // 이 탭은 문구만 바꾼다. 자료 정보 항목은 저장된 값 그대로 보낸다(다른 탭의 저장 안 된 초안은 섞지 않음).
+    const result = await saveDetail(onSave, { ...draft, infoItems: display.detail.infoItems }, setPending)
+    if (!result) return
+    setSaveError(result.ok ? null : result.message ?? null)
+    if (result.ok) setSavedAt(Date.now())
+  }
 
   const sampleCount = sampleCase === 'three' ? 3 : 0
   const textInput = (key: MarketItemDetailTextKey) => {
@@ -162,15 +184,24 @@ export function DetailTextTab({ display, onSave }: { display: MarketItemDisplay 
               </div>
             ))}
           </fieldset>
-          {/* 이 탭은 문구만 바꾼다. 자료 정보 항목은 저장된 값 그대로 보낸다(다른 탭의 저장 안 된 초안은 섞지 않음). */}
-          <Button type="button" disabled={pending} onClick={() => void saveDetail(onSave, { ...draft, infoItems: display.detail.infoItems }, setPending)}>저장</Button>
+          {/* 저장 함수 하나 = 인라인 저장 줄 하나. 전처럼 변경이 없어도 누를 수 있다(서버가 '바뀐 것이 없습니다'). */}
+          <AdminSaveBar
+            variant="inline"
+            dirtyCount={changedCount}
+            status={pending ? 'saving' : saveError ? 'error' : savedAt ? 'saved' : 'idle'}
+            savedAt={savedAt}
+            errorMessage={saveError}
+            applyNote="회원 화면에는 1분 안에 반영됩니다."
+            onSave={() => void save()}
+            saveWhenClean
+          />
         </div>
 
         {/* 미리보기: 회원 부품을 메모리 값으로 그린다(저장·요청 없음) */}
         <aside aria-label="미리보기" className="space-y-4 self-start rounded-md border bg-white p-4">
           <div className="flex flex-wrap gap-2" role="group" aria-label="샘플 경우">
             {SAMPLE_CASES.map((option) => (
-              <Button key={option.value} type="button" size="sm" variant={sampleCase === option.value ? 'default' : 'outline'}
+              <Button key={option.value} type="button" size="sm" variant={sampleCase === option.value ? 'brand' : 'brandOutline'}
                 aria-pressed={sampleCase === option.value} onClick={() => setSampleCase(option.value)}>
                 {option.label}
               </Button>
@@ -205,8 +236,17 @@ export function DetailTextTab({ display, onSave }: { display: MarketItemDisplay 
 export function InfoItemsTab({ display, onSave }: { display: MarketItemDisplay | null; onSave: DisplaySaver }) {
   const [draft, setDraft] = useState<MarketItemDetailDisplay | null>(() => display ? structuredClone(display.detail) : null)
   const [pending, setPending] = useState(false)
+  // 저장 상태 줄(20번 6단계): 마지막 저장 시각·실패 문구
+  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   if (!display || !draft) return <DisplayMissing />
+
+  // 저장 안 된 변경 = 저장된 값과 이름·보이기·자리가 다른 항목 수
+  const changedCount = draft.infoItems.filter((info, index) => {
+    const saved = display.detail.infoItems[index]
+    return !saved || saved.key !== info.key || saved.label !== info.label.trim() || saved.visible !== info.visible
+  }).length
 
   function move(index: number, delta: -1 | 1) {
     if (!draft) return
@@ -225,7 +265,10 @@ export function InfoItemsTab({ display, onSave }: { display: MarketItemDisplay |
   async function save() {
     if (!display || !draft) return
     // 이 탭은 자료 정보 항목만 바꾼다. 상세 안내 문구는 저장된 값 그대로 보낸다(다른 탭의 저장 안 된 초안은 섞지 않음).
-    await saveDetail(onSave, { ...display.detail, infoItems: draft.infoItems }, setPending)
+    const result = await saveDetail(onSave, { ...display.detail, infoItems: draft.infoItems }, setPending)
+    if (!result) return
+    setSaveError(result.ok ? null : result.message ?? null)
+    if (result.ok) setSavedAt(Date.now())
   }
 
   return (
@@ -242,12 +285,12 @@ export function InfoItemsTab({ display, onSave }: { display: MarketItemDisplay |
           {draft.infoItems.map((info, index) => {
             const itemName = info.label.trim() || INFO_KEY_HELP[info.key]
             return (
-            <li key={info.key} className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center">
+            <li key={info.key} className="flex flex-col gap-2 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] p-3 sm:flex-row sm:items-center">
               <div className="flex shrink-0 gap-1">
-                <Button type="button" variant="outline" size="icon" aria-label={`${itemName} 위로`} disabled={pending || index === 0} onClick={() => move(index, -1)}>
+                <Button type="button" variant="adminTable" size="icon" aria-label={`${itemName} 위로`} disabled={pending || index === 0} onClick={() => move(index, -1)}>
                   <ArrowUp className="h-4 w-4" />
                 </Button>
-                <Button type="button" variant="outline" size="icon" aria-label={`${itemName} 아래로`} disabled={pending || index === draft.infoItems.length - 1} onClick={() => move(index, 1)}>
+                <Button type="button" variant="adminTable" size="icon" aria-label={`${itemName} 아래로`} disabled={pending || index === draft.infoItems.length - 1} onClick={() => move(index, 1)}>
                   <ArrowDown className="h-4 w-4" />
                 </Button>
               </div>
@@ -269,8 +312,18 @@ export function InfoItemsTab({ display, onSave }: { display: MarketItemDisplay |
             )
           })}
         </ul>
-        <p className="text-xs text-amber-800">등록일 항목을 숨기면 상세 위쪽의 등록일 줄도 숨습니다. 학년·자료유형을 숨기면 제목 위 배지도 숨습니다.</p>
-        <Button type="button" disabled={pending} onClick={() => void save()}>저장</Button>
+        <p className="text-xs text-[var(--admin-tone-warning-text)]">등록일 항목을 숨기면 상세 위쪽의 등록일 줄도 숨습니다. 학년·자료유형을 숨기면 제목 위 배지도 숨습니다.</p>
+        {/* 저장 함수 하나 = 인라인 저장 줄 하나. 전처럼 변경이 없어도 누를 수 있다(서버가 '바뀐 것이 없습니다'). */}
+        <AdminSaveBar
+          variant="inline"
+          dirtyCount={changedCount}
+          status={pending ? 'saving' : saveError ? 'error' : savedAt ? 'saved' : 'idle'}
+          savedAt={savedAt}
+          errorMessage={saveError}
+          applyNote="회원 화면에는 1분 안에 반영됩니다."
+          onSave={() => void save()}
+          saveWhenClean
+        />
       </CardContent>
     </Card>
   )

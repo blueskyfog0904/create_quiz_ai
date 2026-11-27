@@ -190,7 +190,7 @@ export function CategoryField({ ctx }: { ctx: ProductAdminContext }) {
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <Label>카테고리 <span className="text-red-500">*</span></Label>
-                  <Button type="button" variant="adminAction" size="sm" onClick={() => setIsCategoryManagerOpen(true)}>
+                  <Button type="button" variant="brandOutline" size="sm" onClick={() => setIsCategoryManagerOpen(true)}>
                     카테고리 관리
                   </Button>
                 </div>

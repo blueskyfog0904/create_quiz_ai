@@ -1427,3 +1427,417 @@ test('5단계: 저장 바 하나에 저장 함수 하나(모두 인라인 줄 �
     'suspension-policy-card.tsx:inline:1:save',
   ])
 })
+
+// ───── 6단계: 상품(/admin/market/products·new, /admin/market/images, /admin/market/product-settings, /admin/market-categories) ─────
+// 기대값은 옮기기 전(d27f4aa) 코드에서 뽑은 목록이다. 바뀐 것은 없앤 confirm·alert 뿐(→ 공통 확인 창·화면 안 오류).
+// 18번 나누기 기준(fetch·Storage 업로드·router 호출 목록, tests/fixtures/product-admin-call-inventory.json)은 bundle18-product-split-contract 가 그대로 본다.
+const STEP6 = {
+  PRODUCTS: 'src/app/(admin)/admin/market/products',
+  IMAGES: 'src/app/(admin)/admin/market/images',
+  PRODUCT_SETTINGS: 'src/app/(admin)/admin/market/product-settings',
+  CATEGORIES: 'src/app/(admin)/admin/market-categories',
+}
+const TREE_EDITOR = 'src/components/admin/market-category-tree-editor.tsx'
+const STEP6_BEFORE = {
+  "PRODUCTS": {
+    "fetch": [
+      "fetch('/api/admin/market-categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspace_subject: subject, parent_id: parentId, title, sort_order: Number(newSortOrder) || 0, }), })",
+      "fetch('/api/admin/market/storage-cleanup', { method: 'POST' })",
+      "fetch(`/api/admin/market-categories/${node.id}`, { method: 'DELETE', })",
+      "fetch(`/api/admin/market-categories/${nodeId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), })",
+      "fetch(filesUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ step: 'complete', fileTypeId, fileName: file.name, storagePath }), })",
+      "fetch(filesUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ step: 'prepare', fileTypeId, fileName: file.name, fileSize: file.size, contentType: file.type || null, }), })",
+      "fetch(url, { cache: 'no-store' })",
+      "fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevision: data.basis?.revision ?? null, ...draft }), })",
+      "fetch(withAdminWorkspaceSubject('/api/admin/market-categories', subject))",
+      "fetch(withAdminWorkspaceSubject('/api/admin/market-categories', workspaceSubject), { cache: 'no-store' })",
+      "fetch(withAdminWorkspaceSubject('/api/admin/market/file-types', workspaceSubject), { cache: 'no-store' })",
+      "fetch(withAdminWorkspaceSubject('/api/admin/market/items/thumbnail', workspaceSubject), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemIds: chunk, imageId: image?.id ?? null }), })",
+      "fetch(withAdminWorkspaceSubject('/api/admin/market/subproduct-categories', workspaceSubject), { cache: 'no-store' })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${deleteTarget.id}`, workspaceSubject), { method: 'DELETE', })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${detail.item.id}/samples/commit`, workspaceSubject), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ draftToken: sampleDraftToken }), })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}/subproducts/${subproductId}/files/${fileId}`, workspaceSubject), { method: 'DELETE', })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}/subproducts/${subproductId}`, workspaceSubject), { method: 'DELETE', })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}/subproducts/${subproductId}`, workspaceSubject), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categoryId: subproductEditDraft.categoryId, description: subproductEditDraft.description, purchaseNoticeLabel: subproductEditDraft.purchaseNoticeLabel, purchaseNoticeText: subproductEditDraft.purchaseNoticeText, priceCredits: parseCreditInputValue(subproductEditDraft.priceCredits), isActive: subproductEditDraft.isActive, }), })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}`, workspaceSubject), { method: 'DELETE', })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${id}/sample-pages`, workspaceSubject), { cache: 'no-store' })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${id}`, workspaceSubject), { cache: 'no-store' })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${item.id}`, workspaceSubject), { method: 'DELETE', })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${item.id}`, workspaceSubject), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildItemPatchBody(item, nextStatus)), })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${item.id}`, workspaceSubject), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...buildItemPatchBody(item, 'hidden'), status: 'hidden' }), })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/bundle-option`, workspaceSubject), { method: bundleForm.enabled ? 'PATCH' : 'DELETE', headers: bundleForm.enabled ? { 'Content-Type': 'application/json' } : undefined, body: bundleForm.enabled ? JSON.stringify({ label: bundleForm.label, description: bundleForm.description, priceCredits: parseCreditInputValue(bundleForm.priceCredits), isActive: true, }) : undefined, })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/sample-pages${draftToken ? `?draftToken=${encodeURIComponent(draftToken)}` : ''}`, workspaceSubject), { cache: 'no-store' })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/sample-pages`, workspaceSubject), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pageIds: samplePages.map((page) => page.id) }), })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${itemId}/subproducts/order`, workspaceSubject), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: subproductOrderIds }), })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${sourceItemId}/duplicate`, workspaceSubject), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }), })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/sample-pages/source/finalize`, workspaceSubject), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cleanup_upload_batch', sourceBatchId: cleanupSourceBatchId, storagePaths: uploadedStoragePaths, }), })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/sample-pages/source/finalize`, workspaceSubject), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'finalize_upload', draftToken: payload.draftToken, sourceBatchId: payload.sourceBatchId, pages: payload.uploadTargets.map((page) => ({ pageNumber: page.pageNumber, originalFileName: page.originalFileName, storageFileName: page.storageFileName, storagePath: page.storagePath, mimeType: page.mimeType, fileSizeBytes: page.fileSizeBytes, widthPx: page.widthPx, heightPx: page.heightPx, })), }), })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/sample-pages/source`, workspaceSubject), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ draftToken: sampleDraftToken || undefined, pages: renderedPages.map((page) => ({ pageNumber: page.pageNumber, originalFileName: page.originalFileName, storageFileName: page.storageFileName, mimeType: page.mimeType, fileSizeBytes: page.fileSizeBytes, widthPx: page.widthPx, heightPx: page.heightPx, })), }), })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${targetItemId}/subproducts`, workspaceSubject), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categoryId: subproductDraft.categoryId, description: subproductDraft.description, purchaseNoticeLabel: subproductDraft.purchaseNoticeLabel, purchaseNoticeText: subproductDraft.purchaseNoticeText, priceCredits: parseCreditInputValue(subproductDraft.priceCredits), isActive: true, }), })",
+      "fetch(withAdminWorkspaceSubject(deleteUrl, workspaceSubject), { method: 'DELETE', })",
+      "fetch(withAdminWorkspaceSubject(deleteUrl, workspaceSubject), { method: 'DELETE', })",
+      "fetch(withAdminWorkspaceSubject(targetId ? `/api/admin/market/items/${targetId}` : '/api/admin/market/items', workspaceSubject), { method: targetId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildRequestBody(statusOverride, options.draftSource)), })",
+      "fetch(withAdminWorkspaceSubject(url, workspaceSubject), { cache: 'no-store' })"
+    ],
+    "serverImports": [
+      "@/lib/admin-permissions-server",
+      "@/lib/admin-permissions-server",
+      "@/lib/market-categories-server",
+      "@/lib/market-categories-server",
+      "@/lib/market-item-options-server",
+      "@/lib/market-item-options-server",
+      "@/lib/market-item-usage-basis-server",
+      "@/lib/market-items-server",
+      "@/lib/market-items-server",
+      "@/lib/market-items-server",
+      "@/lib/market-items-server",
+      "@/lib/market-items-server",
+      "@/lib/market-items-server",
+      "@/lib/market-items-server",
+      "@/lib/market-items-server",
+      "@/lib/market-items-server"
+    ],
+    "db": [],
+    "guards": [
+      "requireAdminPagePermission('products.edit')",
+      "requireAdminPagePermission('products.edit')"
+    ],
+    "searchParamKeys": [
+      "categoryId",
+      "subject"
+    ]
+  },
+  "IMAGES": {
+    "fetch": [],
+    "serverImports": [
+      "@/lib/admin-permissions-server",
+      "@/lib/admin-sidebar-server"
+    ],
+    "db": [],
+    "guards": [
+      "requireAdminPagePermission('products.edit')"
+    ],
+    "searchParamKeys": [
+      "subject"
+    ]
+  },
+  "PRODUCT_SETTINGS": {
+    "fetch": [
+      "fetch(url, { cache: 'no-store' })",
+      "fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/file-types/${fileTypeId}`, workspaceSubject), { method: 'DELETE', })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/item-options?kind=${kind}`, workspaceSubject), { cache: 'no-store' })",
+      "fetch(withAdminWorkspaceSubject(`/api/admin/market/subproduct-categories/${categoryId}`, workspaceSubject), { method: 'DELETE', })",
+      "fetch(withAdminWorkspaceSubject(editingCategoryId ? `/api/admin/market/subproduct-categories/${editingCategoryId}` : '/api/admin/market/subproduct-categories', workspaceSubject), { method: editingCategoryId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: categorySettingsForm.name, slug: categorySettingsForm.slug, description: categorySettingsForm.description, sortOrder: Number(categorySettingsForm.sortOrder || 0), isActive: categorySettingsForm.isActive, }), })",
+      "fetch(withAdminWorkspaceSubject(editingFileTypeId ? `/api/admin/market/file-types/${editingFileTypeId}` : '/api/admin/market/file-types', workspaceSubject), { method: editingFileTypeId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: fileTypeSettingsForm.code, label: fileTypeSettingsForm.label, extension: fileTypeSettingsForm.extension.replace(/^\\./, ''), ...(fileTypeSettingsForm.requiredProgram.trim() ? { requiredProgram: fileTypeSettingsForm.requiredProgram } : {}), mimeAllowlist: fileTypeSettingsForm.mimeAllowlist .split(/\\n|,/) .map((mime) => mime.trim()) .filter(Boolean), sortOrder: Number(fileTypeSettingsForm.sortOrder || 0), isActive: fileTypeSettingsForm.isActive, }), })"
+    ],
+    "serverImports": [
+      "@/lib/admin-permissions-server",
+      "@/lib/market-item-options-server",
+      "@/lib/market-item-options-server",
+      "@/lib/market-items-server",
+      "@/lib/market-items-server",
+      "@/lib/market-items-server"
+    ],
+    "db": [],
+    "guards": [
+      "requireAdminPagePermission('products.edit')"
+    ],
+    "searchParamKeys": [
+      "subject",
+      "tab"
+    ]
+  },
+  "CATEGORIES": {
+    "fetch": [
+      "fetch('/api/admin/market-categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workspace_subject: subject, parent_id: parentId, title, sort_order: Number(newSortOrder) || 0, }), })",
+      "fetch(`/api/admin/market-categories/${node.id}`, { method: 'DELETE', })",
+      "fetch(`/api/admin/market-categories/${nodeId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), })",
+      "fetch(withAdminWorkspaceSubject('/api/admin/market-categories', subject))"
+    ],
+    "serverImports": [
+      "@/lib/admin-permissions-server",
+      "@/lib/admin-sidebar-server"
+    ],
+    "db": [],
+    "guards": [
+      "requireAdminPagePermission('products.edit')"
+    ],
+    "searchParamKeys": [
+      "subject"
+    ]
+  }
+}
+
+for (const [name, dir] of Object.entries(STEP6)) {
+  test(`${dir.replace('src/app/(admin)', '')}: 부르는 API·로더·가드·주소 키는 옮기기 전(d27f4aa)과 같고, 브라우저 확인·알림 창은 없다`, () => {
+    const items = parityItems(dir)
+    for (const key of ['fetch', 'serverImports', 'db', 'guards', 'searchParamKeys']) assert.deepEqual(items[key], STEP6_BEFORE[name][key], `${name}.${key}`)
+    assert.deepEqual(items.confirm, [], `${name}.confirm`)
+    assert.deepEqual(items.alert, [], `${name}.alert`)
+    // 이탈 경고 훅은 이 화면들에 없다(새로 걸지 않음, 5-3).
+    assert.deepEqual(items.guardHook, [], `${name}.guardHook`)
+    // 켜진 화면의 주황 버튼은 없다(6-4 래칫). 공용 칸 편집기도 함께 본다.
+    for (const file of screenFiles(dir).filter((file) => file.startsWith(dir) || file === TREE_EDITOR)) assert.doesNotMatch(read(file), /adminAction/, file)
+  })
+}
+
+// 브라우저 확인 창 → 공통 확인 창(유형 가: 확인 전에는 잠금·요청이 없다). 문구는 전 확인 창 그대로(제목 + 설명으로 나눔).
+function assertAskBeforeRequest(source, fnStart, { titles, requests }) {
+  const start = source.indexOf(fnStart)
+  assert.ok(start >= 0, fnStart)
+  const body = source.slice(start, source.indexOf('\n  }\n', start))
+  const asked = body.indexOf('await ask(')
+  assert.ok(asked > 0, `${fnStart}: ask`)
+  for (const title of titles) assert.ok(body.includes(title), `${fnStart}: ${title}`)
+  const stop = body.indexOf('if (!confirmed) {\n      return\n    }')
+  assert.ok(stop > asked, `${fnStart}: 취소면 멈춤`)
+  for (const request of requests) assert.ok(body.indexOf(request) > stop, `${fnStart}: ${request} 은 확인 뒤`)
+  // 모두 지우는 동작이라 위험 확정(adminDanger)
+  assert.match(body.slice(asked, stop), /danger: true/, fnStart)
+}
+
+test('6단계 유형 (가): 상품 삭제·서브상품 삭제·샘플 전체 삭제·구성·파일 유형 삭제·카테고리 칸 삭제는 먼저 묻고 확인 뒤에만 요청한다', () => {
+  const productForm = read(`${STEP6.PRODUCTS}/_hooks/use-product-form.ts`)
+  assertAskBeforeRequest(productForm, 'const handleArchive = async () => {', {
+    titles: [
+      "title: '상품 등록을 완료하지 않고 업로드 파일을 삭제할까요?'",
+      "description: '임시 상품과 생성된 샘플 JPG가 모두 삭제되며 되돌릴 수 없습니다.'",
+      "title: '이 상품을 완전 삭제하시겠습니까?'",
+      "description: 'DB 데이터와 업로드된 파일이 모두 삭제되며 되돌릴 수 없습니다. 구매·환불·후기 이력이 있는 상품은 삭제되지 않고 숨김 처리됩니다(구매자 다운로드는 유지).'",
+    ],
+    requests: ['setIsArchiving(true)', "fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}`, workspaceSubject), {"],
+  })
+  // 임시 업로드 취소인지는 묻기 전에 정한다(전과 같은 갈래).
+  assert.ok(productForm.indexOf("const isCancellingAutoUploadDraft = form.draftSource === 'auto_upload'") < productForm.indexOf('const confirmed = await ask(isCancellingAutoUploadDraft'))
+  assertAskBeforeRequest(read(`${STEP6.PRODUCTS}/_hooks/use-subproduct-uploads.ts`), 'const handleDeleteSubproduct = async (subproductId: string) => {', {
+    titles: ["title: '이 서브상품과 연결된 파일을 삭제하시겠습니까?'"],
+    requests: ['setIsSubproductSaving(true)', 'fetch(withAdminWorkspaceSubject(`/api/admin/market/items/${form.id}/subproducts/${subproductId}`, workspaceSubject), {'],
+  })
+  assertAskBeforeRequest(read(`${STEP6.PRODUCTS}/_hooks/use-sample-generation.ts`), 'const handleDeleteAllSamplePages = async () => {', {
+    titles: ["title: '생성된 샘플 이미지를 모두 삭제할까요?'"],
+    requests: ["setDeletingSamplePageId('__all__')", 'fetch(withAdminWorkspaceSubject(deleteUrl, workspaceSubject), {'],
+  })
+  // 상품 화면의 확인 창 하나(useAdminConfirm)는 상태 훅이 만들고 화면 끝에 한 번 그린다. 세 훅은 ctx 의 ask 를 쓴다.
+  const client = read(`${STEP6.PRODUCTS}/market-products-client.tsx`)
+  assert.equal(client.match(/useAdminConfirm\(\)/g)?.length, 1)
+  assert.match(client, /changeStatusTab, changeSortKey, resetListFilters, ask, confirmDialog,\n {2}\}/)
+  assert.match(client, /<ProductListDialogs ctx=\{ctx\} \/>\n\n\s+\{confirmDialog\}\n\s+<\/div>/)
+  for (const hook of ['use-product-form.ts', 'use-subproduct-uploads.ts', 'use-sample-generation.ts']) {
+    assert.match(read(`${STEP6.PRODUCTS}/_hooks/${hook}`), /, ask,\n {2}\} = ctx/, hook)
+  }
+
+  const taxonomy = read(`${STEP6.PRODUCT_SETTINGS}/taxonomy-tab.tsx`)
+  assertAskBeforeRequest(taxonomy, 'const handleDeleteCategorySettings = async (categoryId: string) => {', {
+    titles: ["title: '이 서브상품 카테고리를 삭제할까요?'", "description: '사용 중인 카테고리는 삭제할 수 없습니다.'"],
+    requests: ['setDeletingCategoryId(categoryId)', 'fetch(withAdminWorkspaceSubject(`/api/admin/market/subproduct-categories/${categoryId}`, workspaceSubject), {'],
+  })
+  assertAskBeforeRequest(taxonomy, 'const handleDeleteFileTypeSettings = async (fileTypeId: string) => {', {
+    titles: ["title: '이 파일 유형을 삭제할까요?'", "description: '사용 중인 파일 유형은 삭제할 수 없습니다.'"],
+    requests: ['setDeletingFileTypeId(fileTypeId)', 'fetch(withAdminWorkspaceSubject(`/api/admin/market/file-types/${fileTypeId}`, workspaceSubject), {'],
+  })
+  // 두 판(구성·파일 유형)이 각자 확인 창을 자기 카드 안에 그린다.
+  assert.equal(taxonomy.match(/const \{ ask, dialog: confirmDialog \} = useAdminConfirm\(\)/g)?.length, 2)
+  assert.equal(taxonomy.match(/\{confirmDialog\}\n\s+<\/Card>/g)?.length, 2)
+
+  const tree = read(TREE_EDITOR)
+  const deleteNode = tree.slice(tree.indexOf('const deleteNode = async (node: AdminCategoryTreeNode) => {'), tree.indexOf('const saveDraft'))
+  assert.match(deleteNode, /const confirmed = await ask\(\{ title: '이 칸을 삭제할까요\?', confirmLabel: '삭제', danger: true \}\)\n\s+if \(!confirmed\) \{\n\s+return\n\s+\}\n\s+void runMutation\(node\.id, \(\) => fetch\(`\/api\/admin\/market-categories\/\$\{node\.id\}`, \{/)
+  assert.match(tree, /onClick=\{\(\) => void deleteNode\(node\)\}/)
+  // 상품 화면의 [카테고리 관리] 팝업에서 쓰일 때도 확인 창은 편집기 안(그 팝업 안)에 그린다.
+  assert.match(tree, /\{confirmDialog\}\n\s+<\/div>\n\s+\)\n\}/)
+})
+
+test('/admin/market-categories: 알림 창 3곳은 같은 문구로 화면 안에 보인다(읽기 = 트리 칸 실패 표시·오류 띠, 저장·삭제·빈 이름 = 위쪽 오류 띠)', () => {
+  const tree = read(TREE_EDITOR)
+  for (const expected of [
+    "setLoadError(error instanceof Error ? error.message : '카테고리를 불러오지 못했습니다.')",
+    'setActionError(error instanceof Error ? error.message : fallbackMessage)',
+    "setActionError('칸 이름을 입력하세요.')",
+  ]) {
+    assert.ok(tree.includes(expected), expected)
+  }
+  assert.match(tree, /\{actionError \? <div ref=\{actionErrorRef\}><AdminNotice kind="error">\{actionError\}<\/AdminNotice><\/div> : null\}/)
+  assert.match(tree, /if \(actionError\) actionErrorRef\.current\?\.scrollIntoView\(\{ block: 'nearest' \}\)/)
+  assert.match(tree, /\{loadError && nodes\.length > 0 \? <AdminNotice kind="error" onRetry=\{\(\) => void loadTree\(\)\}>\{loadError\}<\/AdminNotice> : null\}/)
+  assert.match(tree, /loadError && nodes\.length === 0 \? \(\s+<AdminTableState kind="error" message=\{loadError\} onRetry=\{\(\) => void loadTree\(\)\}/)
+  // 읽기 성공이면 앞 읽기 오류를 지우고, 새 저장·삭제를 시작하면 앞 오류 띠를 지운다.
+  assert.match(tree, /onTreeChangeRef\.current\?\.\(rows\)\n\s+setLoadError\(null\)/)
+  assert.match(tree, /setSavingId\(savingKey\)\n\s+setActionError\(null\)/)
+  // 버튼·막힘 조건·상품 수 표기
+  for (const fragment of [
+    "disabled={savingId === 'new-node'} onClick={() => void createNode()}",
+    'disabled={savingId === node.id || !isDirty} onClick={() => saveDraft(node)}',
+    'onClick={() => void patchNode(node.id, { is_active: !node.isActive })}',
+    '상품 {formatCount(node.productCount)}',
+    "{node.deletedProductCount > 0 ? ` (삭제 ${formatCount(node.deletedProductCount)})` : ''}",
+  ]) {
+    assert.ok(tree.includes(fragment), fragment)
+  }
+  assert.doesNotMatch(tree, /toLocaleString\(|bg-violet|text-blue-600/)
+  const page = read(`${STEP6.CATEGORIES}/page.tsx`)
+  assert.match(page, /<AdminPageHeader\s+title=\{<><AdminMenuName href="\/admin\/market-categories" fallback="카테고리 메뉴 관리" \/> · \{workspaceSubject === 'english' \? '영어' : '국어'\}<\/>\}/)
+  assert.doesNotMatch(page, /p-8 pt-6/, '레이아웃 여백 안의 이중 여백을 없앤다')
+})
+
+test('/admin/market/products: 같은 열·버튼·조건, 목록 필터는 지금처럼 화면 상태(주소엔 쪽·표시 개수만), 상태 색은 5-1 표, 날짜 표기 그대로', () => {
+  const list = read(`${STEP6.PRODUCTS}/_list/product-list.tsx`)
+  assert.doesNotMatch(list, /<Table\b|<TableRow\b/)
+  assert.match(list, /<AdminDataTable\s+caption="상품 목록"\s+columns=\{columns\}\s+rows=\{pagedItems\}[\s\S]*?minWidth=\{860\}/)
+  assert.deepEqual([...list.matchAll(/^ {6}header: '([^']+)'/gm)].map((match) => match[1]), ['상품', '판매 구성', '상태', '관리'])
+  assert.match(list, /header: sortKey === 'updated' \? '수정일' : '등록일',/)
+  // 날짜는 지금 모양 그대로(Asia/Seoul YYYY. MM. DD.)
+  assert.match(list, /cell: \(item\) => ADMIN_LIST_DATE_FORMATTER\.format\(new Date\(sortKey === 'updated' \? item\.updated_at : item\.created_at\)\),/)
+  assert.match(read(`${STEP6.PRODUCTS}/_lib/product-form.ts`), /const ADMIN_LIST_DATE_FORMATTER = new Intl\.DateTimeFormat\('ko-KR', \{ timeZone: 'Asia\/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' \}\)/)
+  assert.match(list, /<AdminStatusBadge label=\{MARKET_STATUS_LABELS\[status\] \?\? item\.status\} tone=\{adminStatusTone\('marketItem', status\)\} \/>/)
+  // 필터 줄: 검색·카테고리·정렬은 화면 상태 그대로(바꾸면 1쪽), '결과 n건'·[초기화]는 고른 것이 있을 때만 켜짐(전에는 그때만 보임)
+  assert.match(list, /resultCount=\{filteredItems\.length\}\s+onReset=\{resetListFilters\}\s+resetDisabled=\{!filterCategoryId && !titleQuery\}/)
+  assert.doesNotMatch(list, /useAdminFilterParams/)
+  for (const fragment of [
+    'onChange={(event) => changeTitleQuery(event.target.value)}',
+    'onChange={changeFilterCategory}',
+    'onChange={(event) => changeSortKey(event.target.value as MarketListSortKey)}',
+    'onClick={() => changeStatusTab(tab)}',
+    '{formatCount(statusCounts[tab])}',
+    "{summary.minPriceCredits !== null ? `${formatCredits(summary.minPriceCredits)}~` : ''}",
+    "{summary.bundlePriceCredits !== null ? ` · 전체 ${formatCredits(summary.bundlePriceCredits)}` : ''}",
+    'onClick={() => void loadItemDetail(item.id)}',
+    'disabled={duplicatingItemId === item.id} onClick={() => setDuplicateTarget(item)}',
+    'disabled={hidingItemId === item.id}',
+    'onSelect={() => void handleVisibilityFromList(item)}',
+    'onSelect={() => setDeleteTarget(item)}',
+    'onClick={() => void handleBulkVisibility()}',
+    'onClick={() => setIsBulkImagePickerOpen(true)}',
+    'onClick={() => setBulkImageTarget({ itemIds: selectedItems.map((item) => item.id), image: null })}',
+    'onClick={() => setBulkDeleteTargetIds(selectedItems.map((item) => item.id))}',
+  ]) {
+    assert.ok(list.includes(fragment), fragment)
+  }
+  // 표 안 버튼은 보라 테두리(adminTable), 수정 중인 상품은 줄 색 대신 '편집 중' 배지
+  assert.equal(list.match(/variant="adminTable"/g)?.length, 2)
+  assert.match(list, /\{form\.id === item\.id \? <AdminStatusBadge label="편집 중" tone="info" \/> : null\}/)
+  // 수정 폼이 옆에 열려 목록 칸이 좁으면 넓은 화면에서도 표 안에서 옆으로 민다(머리 고정 대신).
+  assert.match(list, /className=\{form\.id \? 'xl:overflow-auto' : undefined\}/)
+
+  // 확인 창 넷: 공통 확인 창, 같은 처리 함수, 처리 중에는 닫히지 않음, 삭제는 위험 확정
+  const dialogs = list.slice(list.indexOf('export function ProductListDialogs'))
+  assert.doesNotMatch(dialogs, /AlertDialog\b/)
+  const confirmBlocks = [...dialogs.matchAll(/<AdminConfirmDialog\b[\s\S]*?\n {6}\/>/g)].map((match) => match[0])
+  assert.equal(confirmBlocks.length, 4)
+  const expected = [
+    ['handleConfirmDuplicate', 'Boolean(duplicatingItemId)', false, '복제'],
+    ['handleDeleteFromList', 'isArchiving', true, '완전 삭제'],
+    ['handleBulkImageAssign', 'isBulkActionRunning', false, null],
+    ['handleBulkDelete', 'isBulkActionRunning', true, '완전 삭제'],
+  ]
+  confirmBlocks.forEach((block, index) => {
+    const [handler, pending, danger, label] = expected[index]
+    assert.match(block, new RegExp(`onConfirm=\\{\\(\\) => void ${handler}\\(\\)\\}`), handler)
+    assert.ok(block.includes(`pending={${pending}}`), `${handler}: pending`)
+    assert.equal(/\n\s+danger\n/.test(block), danger, `${handler}: danger`)
+    if (label) assert.ok(block.includes(`confirmLabel="${label}"`), `${handler}: ${label}`)
+  })
+  assert.ok(dialogs.includes("onOpenChange={(open) => !open && !isArchiving && setDeleteTarget(null)}"))
+  assert.ok(dialogs.includes("onOpenChange={(open) => !open && !duplicatingItemId && setDuplicateTarget(null)}"))
+  assert.ok(dialogs.includes("title=\"문제마켓 상품을 완전 삭제할까요?\""))
+  assert.ok(dialogs.includes('구매·환불·후기 이력이 있는 상품은 삭제되지 않고 숨김 처리됩니다(구매자 다운로드는 유지).'))
+
+  // 제목줄·주요 버튼(보라), 상품 폼의 저장 버튼 넷은 그대로(상태별 저장이라 저장 바 하나로 묶지 않음)
+  const client = read(`${STEP6.PRODUCTS}/market-products-client.tsx`)
+  assert.match(client, /<AdminPageHeader\s+className="mb-0"\s+title=\{<>/)
+  assert.equal(client.match(/variant="brand"/g)?.length, 2)
+  const editor = read(`${STEP6.PRODUCTS}/_editor/product-editor.tsx`)
+  for (const fragment of [
+    "variant=\"brandOutline\" className=\"h-11\" disabled={isSaving} onClick={() => void handleSave('draft')}",
+    "onClick={() => void handleSave('published')}\n                  disabled={isSaving || isPublishBlocked}",
+    "onSelect={() => void handleSave('hidden')}",
+    "onSelect={() => void handleSave('archived')}",
+    'disabled={isSaving || isArchiving} aria-label="다른 상태로 저장·삭제"',
+  ]) {
+    assert.ok(editor.includes(fragment), fragment)
+  }
+  assert.match(editor, /<AdminNotice kind="warning" title="임시 업로드 상태">/)
+  assert.deepEqual(saveBarsOf(STEP6.PRODUCTS).filter((bar) => bar.file.startsWith(STEP6.PRODUCTS)).map((bar) => bar.file.replace(`${STEP6.PRODUCTS}/`, '')), ['market-item-usage-basis-card.tsx'])
+
+  // 이번에 등록한 상품 표: 같은 열·버튼
+  const afterSave = read(`${STEP6.PRODUCTS}/_editor/after-save-dialog.tsx`)
+  assert.deepEqual([...afterSave.matchAll(/header: '([^']+)'/g)].map((match) => match[1]), ['제목', '상태', '서브상품', '관리'])
+  assert.match(afterSave, /<Button type="button" variant="adminTable" size="sm" onClick=\{\(\) => void loadItemDetail\(registered\.id\)\}>/)
+  // 서브상품 [삭제]는 빨강 글자 테두리(확정은 공통 확인 창의 진한 빨강)
+  assert.match(read(`${STEP6.PRODUCTS}/_editor/subproduct-table.tsx`), /variant="adminTable" size="sm" className="text-\[var\(--admin-tone-danger-text\)\]" disabled=\{isSubproductSaving\} onClick=\{\(\) => void handleDeleteSubproduct\(subproduct\.id\)\}/)
+  // 정리 안내는 전처럼 role=status 주의 띠, 같은 요청·막힘
+  const cleanup = read(`${STEP6.PRODUCTS}/storage-cleanup-notice.tsx`)
+  assert.match(cleanup, /<AdminNotice kind="warning" className="mb-4">/)
+  assert.match(cleanup, /onClick=\{handleRetry\} disabled=\{isRunning\}/)
+})
+
+test('/admin/market/products 이용 근거 카드: 저장 줄 하나(상품 저장과 따로), 전처럼 변경 없어도 누를 수 있음, 메모·증빙 위치는 가림 표시', () => {
+  const card = read(`${STEP6.PRODUCTS}/market-item-usage-basis-card.tsx`)
+  const bars = saveBarsOf(STEP6.PRODUCTS).filter((bar) => bar.file.endsWith('market-item-usage-basis-card.tsx'))
+  assert.equal(bars.length, 1)
+  assert.equal(bars[0].variant, 'inline')
+  assert.equal(bars[0].onSave.length, 1)
+  assert.equal(bars[0].onSave[0].match(SAVE_HANDLER)?.slice(1).find(Boolean), 'save')
+  // 막힘 조건은 전과 같다(처리 중은 저장 바가 막음·미리보기·근거 미선택)
+  assert.match(card, /saveDisabled=\{data\.preview \|\| !draft\.basisOptionId\}\s+saveWhenClean/)
+  assert.match(card, /body: JSON\.stringify\(\{ expectedRevision: data\.basis\?\.revision \?\? null, \.\.\.draft \}\),/)
+  assert.equal(card.match(/data-admin-pii=""/g)?.length, 2)
+  assert.match(card, /id="usage-basis-note"\n\s+data-admin-pii=""/)
+  assert.match(card, /id="usage-basis-evidence"\n\s+data-admin-pii=""/)
+})
+
+test('/admin/market/product-settings: 저장 함수마다 인라인 저장 줄 하나(6개), 이름 바꾸기는 공통 확인 창, 보내는 값 그대로', () => {
+  const bars = saveBarsOf(STEP6.PRODUCT_SETTINGS)
+  assert.equal(bars.length, 6)
+  for (const bar of bars) {
+    assert.equal(bar.variant, 'inline', bar.file)
+    assert.equal(bar.onSave.length, 1, bar.file)
+  }
+  assert.deepEqual(bars.map((bar) => `${bar.file.replace(`${STEP6.PRODUCT_SETTINGS}/`, '')}:${bar.onSave[0].match(SAVE_HANDLER)?.slice(1).find(Boolean)}`).sort(), [
+    'detail-display-tabs.tsx:save',
+    'detail-display-tabs.tsx:save',
+    'product-settings-admin.tsx:saveDisplay',
+    'product-settings-admin.tsx:saveOrder',
+    'taxonomy-tab.tsx:handleSaveCategorySettings',
+    'taxonomy-tab.tsx:handleSaveFileTypeSettings',
+  ])
+  const settings = read(`${STEP6.PRODUCT_SETTINGS}/product-settings-admin.tsx`)
+  const tabs = read(`${STEP6.PRODUCT_SETTINGS}/detail-display-tabs.tsx`)
+  const taxonomy = read(`${STEP6.PRODUCT_SETTINGS}/taxonomy-tab.tsx`)
+  // 순서 저장만 전처럼 '순서가 그대로면 막힘', 나머지 다섯은 전처럼 늘 누를 수 있음(서버가 '바뀐 것이 없습니다' 또는 빈 칸 안내)
+  assert.match(settings, /onSave=\{\(\) => void saveOrder\(\)\}\s+saveLabel="순서 저장"\s+saveDisabled=\{pending \|\| !orderChanged\}\s+\/>/)
+  assert.equal((settings + tabs + taxonomy).match(/saveWhenClean/g)?.length, 5)
+  assert.equal(taxonomy.match(/saveDisabled=\{preview\}/g)?.length, 2)
+  // 보내는 값(탭마다 자기 키만)·순서 저장 요청은 그대로
+  assert.match(settings, /const result = await callApi\(apiUrl, 'PUT', \{ kind, ids: order \}\)/)
+  assert.match(tabs, /const result = await saveDetail\(onSave, \{ \.\.\.draft, infoItems: display\.detail\.infoItems \}, setPending\)/)
+  assert.match(tabs, /const result = await saveDetail\(onSave, \{ \.\.\.display\.detail, infoItems: draft\.infoItems \}, setPending\)/)
+  // 줄 저장·추가 버튼과 막힘 조건 그대로
+  for (const fragment of [
+    'disabled={pending || !dirty} onClick={() => void requestSave(option)}',
+    'disabled={pending || !newLabel.trim()} onClick={() => void addOption()}',
+    'disabled={pending || index === 0} onClick={() => move(id, -1)}',
+    "disabled={preview || deletingCategoryId === category.id} onClick={() => void handleDeleteCategorySettings(category.id)}",
+    "disabled={preview || deletingFileTypeId === fileType.id} onClick={() => void handleDeleteFileTypeSettings(fileType.id)}",
+  ]) {
+    assert.ok((settings + taxonomy).includes(fragment), fragment)
+  }
+  // 이름 바꾸기 확인(유형 가): 확인 전에는 저장 요청이 없다
+  assert.doesNotMatch(settings, /AlertDialog/)
+  assert.match(settings, /<AdminConfirmDialog\s+open=\{rename !== null\}\s+onOpenChange=\{\(open\) => \{ if \(!open\) setRename\(null\) \}\}\s+title="이름을 바꿀까요\?"/)
+  assert.match(settings, /confirmLabel="바꾸기"\s+pending=\{pending\}\s+onConfirm=\{\(\) => \{\s+const target = rename\s+setRename\(null\)\s+if \(target\) void save\(target\.option, target\.label, target\.isActive\)\s+\}\}/)
+  // 제목줄·미리보기 안내·읽기 실패
+  assert.match(settings, /<AdminPageHeader\s+className=\{preview \? 'mb-3' : 'mb-0'\}\s+title=\{<><AdminMenuName href="\/admin\/market\/product-settings" fallback="상품 표시 설정" \/> · \{subjectLabel\}<\/>\}/)
+  assert.match(settings, /\{preview \? <AdminNotice kind="warning">미리보기입니다\. 저장은 하지 않습니다\.<\/AdminNotice> : null\}/)
+  assert.match(tabs, /return <AdminNotice kind="error">상품 표시 설정의 상세 안내 문구\(detail\)를 읽지 못했습니다/)
+  // 상태 배지는 5-1 표(상품 설정 항목: 활성·사용 = 초록, 비활성·숨김 = 회색)
+  assert.equal(taxonomy.match(/adminStatusTone\('productSetting', /g)?.length, 2)
+  assert.match(settings, /<AdminStatusBadge label="숨김" tone=\{adminStatusTone\('productSetting', 'inactive'\)\} \/>/)
+})
+
+test('/admin/market/images: 제목줄만 공통 부품(이미지 관리 부품은 그대로 — 붙여넣기 막기가 role="alertdialog" 에 걸려 있어 확인 창을 바꾸지 않음)', () => {
+  const page = read(`${STEP6.IMAGES}/page.tsx`)
+  assert.match(page, /<AdminPageHeader\s+title=\{<AdminMenuName href="\/admin\/market\/images" fallback="문제마켓 이미지 관리" \/>\}/)
+  assert.match(page, /<MarketImageLibrary mode="manage" \/>/)
+  assert.match(read('src/components/admin/market-image-library.tsx'), /target\?\.closest\('input, textarea, \[role="alertdialog"\]'\)/)
+})

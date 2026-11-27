@@ -307,6 +307,7 @@ test('상품 관리 목록 검색: 카테고리 필터(서버) + 제목 검색(�
   assert.match(productsClient, /return titleTerms\.every\(\(term\) => title\.includes\(term\)\)/)
   assert.match(productsClient, /const changeTitleQuery = \(nextQuery: string\) => \{\n\s+setTitleQuery\(nextQuery\)\n\s+listQuery\.update\(\{ page: 1 \}, true\)/)
   assert.match(productsClient, /<Label htmlFor="market-product-title-search"[^>]*>제목 검색<\/Label>/)
-  assert.match(productsClient, /검색 결과 \{filteredItems\.length\.toLocaleString\(\)\}개/)
+  // 20번 6단계: '검색 결과 n개' → 필터 줄 부품(AdminFilterBar)의 '결과 n건'(같은 값, 표기는 formatCount)
+  assert.match(productsClient, /resultCount=\{filteredItems\.length\}/)
   assert.match(productsClient, /'검색 조건에 맞는 상품이 없습니다\.'/)
 })

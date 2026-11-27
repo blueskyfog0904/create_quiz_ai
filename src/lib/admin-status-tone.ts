@@ -136,6 +136,12 @@ const supportOption = {
   hidden: 'neutral',
 } as const
 
+// 상품 설정 항목(20번 6단계): 카테고리 칸·서브상품 카테고리·파일 유형·서브상품의 활성·비활성, 학년·자료유형 목록의 사용·숨김
+const productSetting = {
+  active: 'success',
+  inactive: 'neutral',
+} as const
+
 export const ADMIN_STATUS_TONES = {
   paymentOrder,
   refundRequest,
@@ -151,6 +157,7 @@ export const ADMIN_STATUS_TONES = {
   pricingPlan,
   creditTransaction,
   supportOption,
+  productSetting,
 } as const
 
 export type AdminStatusKind = keyof typeof ADMIN_STATUS_TONES

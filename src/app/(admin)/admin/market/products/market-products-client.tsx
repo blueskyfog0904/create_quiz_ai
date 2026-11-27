@@ -17,6 +17,8 @@ import { findCategoryPath } from '@/lib/market-category-tree'
 import { useListQuery } from '@/hooks/use-list-query'
 import { getListPagination } from '@/lib/list-pagination'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
+import { useAdminConfirm } from '@/components/admin/kit/admin-confirm-dialog'
+import { AdminPageHeader } from '@/components/admin/kit/admin-page-header'
 import { categoryNodeLabel } from './_editor/category-step'
 import { AfterSaveDialog, RegisteredItemsTable } from './_editor/after-save-dialog'
 import { ProductEditor } from './_editor/product-editor'
@@ -116,6 +118,8 @@ function useMarketProductsState({ mode, initialCategoryNodes, initialItems, work
   const productListHeaderRef = useRef<HTMLDivElement | null>(null)
   // 필터를 빠르게 바꿀 때 늦게 온 이전 목록 응답을 버린다.
   const itemsRequestRef = useRef(0)
+  // 20번 6단계: 상품 삭제·서브상품 삭제·샘플 전체 삭제의 확인(유형 가, 브라우저 확인 창 대신). 창은 화면 끝에 한 번 그린다.
+  const { ask, dialog: confirmDialog } = useAdminConfirm()
   // 목록은 서버가 상단 카테고리 필터(하위 칸 포함)로 거른 결과에 제목 검색을 더한 것이다.
   const titleTerms = useMemo(() => titleQuery.toLowerCase().split(/\s+/).filter(Boolean), [titleQuery])
   const titleMatchedItems = useMemo(
@@ -293,7 +297,7 @@ function useMarketProductsState({ mode, initialCategoryNodes, initialItems, work
     filteredItems, selectedItems, listQuery, listPagination, pagedItems, allFilteredSelected, someFilteredSelected,
     bulkDeleteTargetItems, formatCategoryPath, toggleItemSelection, toggleFilteredSelection, changeListPage,
     changeListPageSize, setHiddenOverride, buildItemPatchBody, refreshItems, changeFilterCategory, changeTitleQuery,
-    changeStatusTab, changeSortKey, resetListFilters,
+    changeStatusTab, changeSortKey, resetListFilters, ask, confirmDialog,
   }
 }
 
@@ -313,42 +317,39 @@ export default function MarketProductsClient(props: MarketProductsClientProps) {
     ...subproductOrder }
   const {
     mode, workspaceSubject, form, isSamplePreviewOpen, setIsSamplePreviewOpen, samplePreviewItemId,
-    setSamplePreviewItemId, sampleDraftToken, resetForm,
+    setSamplePreviewItemId, sampleDraftToken, resetForm, confirmDialog,
   } = ctx
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            {mode === 'create'
-              ? <AdminMenuName href="/admin/market/products/new" fallback="문제마켓 상품 등록" />
-              : <AdminMenuName href="/admin/market/products" fallback="문제마켓 상품 관리" />} · {workspaceSubject === 'english' ? '영어' : '국어'}
-          </h1>
-          <p className="mt-1 text-gray-500">
-            {mode === 'create'
-              ? '선택한 과목의 문제마켓 상품을 새로 등록하고 판매 파일을 올립니다.'
-              : '선택한 과목의 문제마켓 상품을 찾아 수정하거나 삭제합니다.'}
-          </p>
-        </div>
-        {mode === 'create' ? (
+      <AdminPageHeader
+        className="mb-0"
+        title={<>
+          {mode === 'create'
+            ? <AdminMenuName href="/admin/market/products/new" fallback="문제마켓 상품 등록" />
+            : <AdminMenuName href="/admin/market/products" fallback="문제마켓 상품 관리" />} · {workspaceSubject === 'english' ? '영어' : '국어'}
+        </>}
+        description={mode === 'create'
+          ? '선택한 과목의 문제마켓 상품을 새로 등록하고 판매 파일을 올립니다.'
+          : '선택한 과목의 문제마켓 상품을 찾아 수정하거나 삭제합니다.'}
+        tools={mode === 'create' ? (
           <Button
             type="button"
-            variant="adminAction"
+            variant="brand"
             onClick={() => resetForm()}
           >
             <Plus className="mr-2 h-4 w-4" />
             새 상품 작성
           </Button>
         ) : (
-          <Button asChild variant="adminAction">
+          <Button asChild variant="brand">
             <Link href={withAdminWorkspaceSubject('/admin/market/products/new', workspaceSubject)}>
               <Plus className="mr-2 h-4 w-4" />
               새 상품 등록
             </Link>
           </Button>
         )}
-      </div>
+      />
 
       {/* 관리 화면은 목록 옆에 수정 중인 상품의 폼만 연다(새 등록은 '문제마켓 상품 등록'에서). */}
       <div className={mode === 'manage' && form.id ? 'grid gap-6 xl:grid-cols-[minmax(0,460px),minmax(0,1fr)]' : 'grid gap-6'}>
@@ -378,6 +379,8 @@ export default function MarketProductsClient(props: MarketProductsClientProps) {
       <CategoryManagerDialog ctx={ctx} />
 
       <ProductListDialogs ctx={ctx} />
+
+      {confirmDialog}
     </div>
   )
 }

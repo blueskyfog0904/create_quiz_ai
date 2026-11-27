@@ -61,7 +61,8 @@ test("카테고리 관리 화면은 공용 편집기를 쓰고 'N단계' 용어�
   assert.match(page, /import \{ MarketCategoryTreeEditor \} from '@\/components\/admin\/market-category-tree-editor'/)
   assert.match(page, /<MarketCategoryTreeEditor key=\{workspaceSubject\} subject=\{workspaceSubject\} \/>/)
   assert.match(editor, /const canAddChild = node\.depth < MARKET_CATEGORY_MAX_DEPTH/)
-  assert.match(editor, /window\.confirm\('이 칸을 삭제할까요\?'\)/)
+  // 20번 6단계(계획 9절 '바뀌는 기존 단언'): 브라우저 확인 창 → 같은 문구의 공통 확인 창(먼저 묻고, 확인 뒤에만 삭제 요청)
+  assert.match(editor, /await ask\(\{ title: '이 칸을 삭제할까요\?'/)
   assert.match(editor, /href=\{`\/categories\/\$\{node\.id\}\?subject=\$\{subject\}`\}/)
   for (const source of [page, editor]) {
     // 화면 문구에 depth1·depth{n} 같은 표기를 쓰지 않는다(코드의 node.depth는 허용)
