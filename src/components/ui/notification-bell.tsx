@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Bell } from 'lucide-react'
+import { Notification01Icon } from '@/components/icons/hugeicons'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -142,7 +142,7 @@ export function NotificationBell({ isAdmin = false, className }: NotificationBel
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" aria-label="알림" className={cn("relative", className)}>
-          <Bell className="h-5 w-5" />
+          <Notification01Icon className="size-6" />
           {unreadCount > 0 && (
             <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-white">
               {unreadCount > 9 ? '9+' : unreadCount}

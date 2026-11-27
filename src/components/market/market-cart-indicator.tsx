@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ShoppingCart } from 'lucide-react'
+import { ShoppingCart02Icon } from '@/components/icons/hugeicons'
 
 const MARKET_CART_UPDATED_EVENT = 'market-cart-updated'
 
@@ -57,7 +57,7 @@ function MarketCartLink({ initialCount, className, label }: {
   return (
     <Link href="/cart" aria-label={`장바구니 ${count}개`} className={className}>
       <span className="relative inline-flex">
-        <ShoppingCart aria-hidden="true" className="h-5 w-5" />
+        <ShoppingCart02Icon aria-hidden="true" className="h-5 w-5" />
         {count > 0 ? (
           <span
             aria-hidden="true"

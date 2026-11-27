@@ -16,6 +16,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { UserIcon } from '@/components/icons/hugeicons'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -208,7 +209,7 @@ export function MypageMenu({ libraryHref }: MypageMenuProps) {
               }
             }}
           >
-            <UserRound aria-hidden="true" className="h-5 w-5" />
+            <UserIcon aria-hidden="true" className="h-5 w-5" />
             <span className="whitespace-nowrap text-[11px] font-bold leading-none">마이페이지</span>
           </Link>
         </DropdownMenuTrigger>

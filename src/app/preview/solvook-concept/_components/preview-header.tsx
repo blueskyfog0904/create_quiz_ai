@@ -7,8 +7,8 @@ import { useStorefrontHeaderLinks } from '@/components/layout/storefront-header-
 import { isExternalStorefrontHref } from '@/lib/storefront-header-links'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { ChevronDown, Coins, Grid2X2, Library, Search, WalletCards } from 'lucide-react'
 import { StudioContainer } from '@/components/design-system'
+import { ArrowDown01Icon, Coins01Icon, GridViewIcon, LibraryIcon, Search01Icon, Wallet01Icon } from '@/components/icons/hugeicons'
 import { CategoryMegaMenu } from '@/components/layout/category-mega-menu'
 import { MarketCartIndicator } from '@/components/market/market-cart-indicator'
 import { NotificationBell } from '@/components/ui/notification-bell'
@@ -240,7 +240,7 @@ export function PreviewHeader({
               aria-label={`${subjectLabel} 자료 검색`}
               className="grid min-h-11 min-w-11 place-items-center rounded-md text-[var(--studio-text)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
             >
-              <Search aria-hidden="true" className="h-5 w-5" />
+              <Search01Icon aria-hidden="true" className="h-5 w-5" />
             </Link>
           </div>
         </StudioContainer>
@@ -254,7 +254,7 @@ export function PreviewHeader({
             onClick={() => setCategoryMenuOpen((open) => !open)}
             className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md px-2 text-[var(--studio-text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
           >
-            <Grid2X2 aria-hidden="true" className="h-4 w-4" />
+            <GridViewIcon aria-hidden="true" className="h-4 w-4" />
             <span>카테고리</span>
           </button>
           <Link
@@ -278,7 +278,7 @@ export function PreviewHeader({
               href={libraryHref}
               className="ml-auto inline-flex min-h-11 shrink-0 items-center gap-1.5 px-2 text-xs font-bold text-[var(--studio-text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
             >
-              <Library aria-hidden="true" className="h-4 w-4" />
+              <LibraryIcon aria-hidden="true" className="h-4 w-4" />
               <span>보관함</span>
             </Link>
           )}
@@ -289,7 +289,7 @@ export function PreviewHeader({
               {...(isExternalStorefrontHref(link.href) ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
               className={`${!isLoggedIn && index === 0 ? 'ml-auto ' : ''}inline-flex min-h-11 shrink-0 items-center gap-1.5 px-2 text-xs font-bold ${link.emphasis ? 'text-[var(--studio-primary)]' : 'text-[var(--studio-text)]'} outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]`}
             >
-              {link.emphasis ? <WalletCards aria-hidden="true" className="h-4 w-4" /> : null}
+              {link.emphasis ? <Wallet01Icon aria-hidden="true" className="h-4 w-4" /> : null}
               <span>{link.label}</span>
             </Link>
           ))}
@@ -331,7 +331,7 @@ export function PreviewHeader({
                   className="inline-flex min-h-9 items-center gap-0.5 rounded-full px-2.5 text-xs font-bold text-[var(--studio-ink)] outline-none hover:bg-[var(--studio-surface)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
                 >
                   {searchSubjectLabel}
-                  <ChevronDown
+                  <ArrowDown01Icon
                     aria-hidden="true"
                     className={`h-3.5 w-3.5 transition-transform ${searchSubjectMenuOpen ? 'rotate-180' : ''}`}
                   />
@@ -381,7 +381,7 @@ export function PreviewHeader({
                 aria-label="검색"
                 className="absolute right-0 top-0 grid h-11 w-11 place-items-center rounded-full text-[var(--studio-text)] outline-none hover:bg-[var(--studio-surface)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
               >
-                <Search aria-hidden="true" className="h-[18px] w-[18px]" />
+                <Search01Icon aria-hidden="true" className="h-[18px] w-[18px]" />
               </button>
             </form>
 
@@ -394,7 +394,7 @@ export function PreviewHeader({
                     aria-label={`보유 크레딧 ${creditBalance.toLocaleString()}`}
                     className="flex min-h-11 shrink-0 flex-col items-center justify-center gap-1 rounded-md px-2 py-1 text-[var(--studio-primary)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
                   >
-                    <Coins aria-hidden="true" className="h-5 w-5" />
+                    <Coins01Icon aria-hidden="true" className="h-5 w-5" />
                     <span className="whitespace-nowrap text-[11px] font-bold leading-none">
                       {creditBalance.toLocaleString()} 크레딧
                     </span>
@@ -410,7 +410,7 @@ export function PreviewHeader({
                   href={libraryHref}
                   className="flex min-h-11 shrink-0 flex-col items-center justify-center gap-1 rounded-md px-2 py-1 text-[var(--studio-ink)] outline-none hover:bg-[var(--studio-background)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
                 >
-                  <Library aria-hidden="true" className="h-5 w-5" />
+                  <LibraryIcon aria-hidden="true" className="h-5 w-5" />
                   <span className="whitespace-nowrap text-[11px] font-bold leading-none">자료 보관함</span>
                 </Link>
                 <MypageMenu libraryHref={libraryHref} />
@@ -448,7 +448,7 @@ export function PreviewHeader({
               onClick={() => setCategoryMenuOpen((open) => !open)}
               className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md px-1.5 text-[var(--studio-text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
             >
-              <Grid2X2 aria-hidden="true" className="h-[18px] w-[18px]" />
+              <GridViewIcon aria-hidden="true" className="h-[18px] w-[18px]" />
               <span>카테고리</span>
             </button>
             <Link
@@ -478,7 +478,7 @@ export function PreviewHeader({
                   {...(isExternalStorefrontHref(link.href) ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                   className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-bold outline-none focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${link.emphasis ? 'text-[var(--studio-primary)] hover:bg-[var(--studio-primary-soft)]' : 'text-[var(--studio-text)] hover:text-[var(--studio-ink)]'}`}
                 >
-                  {link.emphasis ? <WalletCards aria-hidden="true" className="h-4 w-4" /> : null}
+                  {link.emphasis ? <Wallet01Icon aria-hidden="true" className="h-4 w-4" /> : null}
                   <span>{link.label}</span>
                 </Link>
               ))}
