@@ -78,7 +78,7 @@ export function SiteLogoSettings() {
     <Card>
       <CardHeader>
         <CardTitle>사이트 로고 이미지</CardTitle>
-        <CardDescription>브랜드명 옆의 로고를 변경합니다. 영어·국어 헤더와 푸터에 공통으로 적용됩니다.</CardDescription>
+        <CardDescription>브랜드명 옆의 로고를 변경합니다. 영어·국어 헤더와 푸터, 브라우저 탭 아이콘에 공통으로 적용됩니다.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center gap-4">

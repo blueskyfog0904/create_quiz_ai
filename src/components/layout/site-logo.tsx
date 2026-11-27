@@ -2,6 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from 'react'
 import Image from 'next/image'
+import { DEFAULT_SITE_LOGO_PATH } from '@/lib/site-logo'
 
 const SiteLogoContext = createContext<string | null>(null)
 
@@ -17,7 +18,7 @@ export function SiteLogo({ size, className }: { size: number; className?: string
   const url = useSiteLogoUrl()
   return (
     <Image
-      src={url || '/brand-mark.svg'}
+      src={url || DEFAULT_SITE_LOGO_PATH}
       alt=""
       aria-hidden="true"
       width={size}
