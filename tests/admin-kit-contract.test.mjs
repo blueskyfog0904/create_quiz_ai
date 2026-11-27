@@ -304,7 +304,7 @@ test('래칫: adminAction 은 지금 목록 밖 켜진 화면에 새로 생기�
     'src/app/(admin)/admin/dashboard-client.tsx',
     'src/app/(admin)/admin/footer/footer-client.tsx',
     'src/app/(admin)/admin/footer/signup-consent-admin.tsx',
-    'src/app/(admin)/admin/main-ad-settings/main-ad-settings-client.tsx',
+    // 22번(20번 6-1 4단계 '홈'): main-ad-settings 는 brandOutline 으로 옮겨 목록에서 뺐다.
     'src/app/(admin)/admin/market/products/_editor/after-save-dialog.tsx',
     'src/app/(admin)/admin/market/products/_editor/category-step.tsx',
     'src/app/(admin)/admin/market/products/_editor/product-editor.tsx',

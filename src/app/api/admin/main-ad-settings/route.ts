@@ -3,12 +3,15 @@ import { revalidatePath } from 'next/cache'
 import { NextResponse } from 'next/server'
 import { adminApiGuardMessage, requireAdminApiPermission } from '@/lib/admin-permissions-server'
 import type { AdminPermissionRequirement } from '@/lib/admin-permissions'
+import { recordAdminAudit } from '@/lib/admin-audit-log-server'
+import { adminRequestMeta } from '@/lib/admin-request-meta'
 import { createAdminClient } from '@/lib/supabase/bypass'
 import { isWorkspaceSubject } from '@/lib/workspace-subject'
 import {
   MAIN_AD_IMAGES_BUCKET,
   MainAdCarouselValidationError,
   buildMainAdStoragePath,
+  diffMainAdItems,
   getMainAdImageExtension,
   getReferencedMainAdImagePaths,
   getMainAdCarouselSubjectConfig,
@@ -162,7 +165,7 @@ function hasServiceRoleCredentials() {
 }
 
 export async function POST(request: Request) {
-  const { denied } = await requireAdminUser()
+  const { user, denied } = await requireAdminUser()
 
   if (denied) {
     return denied
@@ -237,6 +240,20 @@ export async function POST(request: Request) {
       nextSubjectConfig
     )
     settingSaved = true
+
+    // 22번 7절: 저장 성공 뒤 작업 기록(배너별 바뀐 칸 — 켜기·기간·링크·순서, 제목·대체 글 원문 없음). 실패해도 응답은 그대로(로그만).
+    await recordAdminAudit({
+      actorId: user.id,
+      action: 'main_ad_carousel_save',
+      targetType: 'system_settings',
+      targetId: 'main_ad_carousel',
+      details: {
+        subject: workspaceSubject,
+        itemCount: afterConfig.items[workspaceSubject].length,
+        changes: diffMainAdItems(beforeConfig.items[workspaceSubject], afterConfig.items[workspaceSubject]),
+        request: adminRequestMeta(request),
+      },
+    })
 
     const previousPaths = getReferencedMainAdImagePaths(beforeConfig)
     const nextPaths = getReferencedMainAdImagePaths(afterConfig)

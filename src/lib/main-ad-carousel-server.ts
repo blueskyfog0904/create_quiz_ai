@@ -144,6 +144,9 @@ export async function getPublicMainAdCarouselItems(
     alt: item.alt,
     href: item.href,
     durationSeconds: item.durationSeconds,
+    // 기간 거르기는 캐시 밖에서 한다(22번 3-5): 여기서는 isActive 만 거르고 기간을 함께 돌려준다.
+    startsAt: item.startsAt,
+    endsAt: item.endsAt,
   }))
 }
 

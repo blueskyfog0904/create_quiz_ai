@@ -54,7 +54,8 @@ test('every public read path embeds both image levels in its select and maps thr
 })
 
 test('public list caches are tagged and admin image writes revalidate that tag', () => {
-  assert.match(read('src/lib/preview-home-cache.ts'), /tags: \[MARKET_PUBLIC_LIST_CACHE_TAG\]/)
+  // 22번: 홈 데이터 캐시는 홈 진열 저장 태그(MARKET_HOME_CACHE_TAG)도 함께 단다.
+  assert.match(read('src/lib/preview-home-cache.ts'), /tags: \[MARKET_PUBLIC_LIST_CACHE_TAG, MARKET_HOME_CACHE_TAG\]/)
   for (const path of [
     'src/app/api/admin/market/items/route.ts',
     'src/app/api/admin/market/items/[id]/route.ts',

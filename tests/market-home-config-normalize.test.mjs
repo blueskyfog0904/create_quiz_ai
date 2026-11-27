@@ -2,42 +2,33 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import {
-  DEFAULT_MARKET_HOME_CONFIG,
-  normalizeMarketHomeConfig,
+  readMarketHomeConfig,
   validateMarketHomeConfig,
 } from '../src/lib/market-home.ts'
 
-// 삭제된 '문제마켓 카테고리' 설정이 남은 예전 형태 값. popular·recent는 기본값과 다르게 둔다.
+// 22번(계획 3-1·3-3, 의도적 변경): 판 1 값은 새 코드에서 '설정 없음'이다. 기본값(인기 12·최근 8)으로 돌아가지 않고
+// 회원 홈은 섹션 0개 + 관리 화면 빨간 띠, 저장은 revision 0 경로(3-4)로 판 2 를 쓴다.
+// 예전 '문제마켓 카테고리'(categories) 키가 남은 판 1 값도 같다.
 const legacy = {
   version: 1,
   popular: { isActive: false, limit: 5, rankingWindowDays: 7 },
   categories: { isActive: true, menuEntryIds: ['x'] },
   recent: { isActive: false, limit: 3 },
 }
-const expected = {
-  version: 1,
-  popular: { isActive: false, limit: 5, rankingWindowDays: 7 },
-  recent: { isActive: false, limit: 3 },
-}
 
-test('예전 categories 키가 남은 값도 인기·최근 설정을 그대로 유지한다', () => {
-  assert.deepEqual(normalizeMarketHomeConfig(legacy), expected)
-  assert.equal('categories' in normalizeMarketHomeConfig(legacy), false)
-})
-
-test('저장 API가 쓰는 validate도 예전 값을 받아들여 categories 없이 돌려주고 입력은 바꾸지 않는다', () => {
-  const input = structuredClone(legacy)
-  assert.deepEqual(validateMarketHomeConfig(input), expected)
-  assert.deepEqual(input, legacy)
-})
-
-test('categories 외의 모르는 키는 지금처럼 거절하고 normalize는 기본값을 돌려준다', () => {
-  for (const extra of [{ sourceExplorer: { isActive: true } }, { extra: 1 }]) {
-    const value = { ...expected, ...extra }
-    assert.throws(() => validateMarketHomeConfig(value), /is not supported/)
-    assert.deepEqual(normalizeMarketHomeConfig(value), DEFAULT_MARKET_HOME_CONFIG)
+test('판 1 값(예전 categories 키 포함)과 행 없음은 설정 없음(revision 0)이고 기본값으로 바꾸지 않는다', () => {
+  for (const value of [legacy, { ...legacy, categories: undefined }, null, undefined]) {
+    const read = readMarketHomeConfig(value)
+    assert.equal(read.state, 'missing')
+    assert.equal(read.revision, 0)
+    assert.equal(read.config, null)
   }
-  assert.equal('categories' in DEFAULT_MARKET_HOME_CONFIG, false)
+})
+
+test('저장된 값 검사는 판 1 을 거절하고 입력은 바꾸지 않는다', () => {
+  const input = structuredClone(legacy)
+  assert.throws(() => validateMarketHomeConfig(input), /version|칸/)
+  assert.deepEqual(input, legacy)
 })
 
 test('저장 라우트에 게시판 허용 목록 검사가 없다', () => {

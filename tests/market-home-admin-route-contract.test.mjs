@@ -37,8 +37,12 @@ test('market home admin page and API both enforce the admin boundary', () => {
 test('market home settings POST strictly validates the config and persists the shared setting', () => {
   assert.match(routeSource, /isWorkspaceSubject/)
   assert.doesNotMatch(routeSource, /getMarketHomeAdminOptions|validateAllowlist/)
-  assert.match(routeSource, /validateMarketHomeConfig/)
-  assert.match(routeSource, /upsertWorkspaceSetting/)
+  // 22번 3-4: 판 2 초안 검사 + 조건부 저장(revision). 통째로 덮어쓰는 upsert 는 쓰지 않는다.
+  assert.match(routeSource, /validateMarketHomeDraft/)
+  assert.doesNotMatch(routeSource, /upsertWorkspaceSetting/)
+  assert.match(routeSource, /saveMarketHomeConfig\(\{ workspaceSubject, expectedRevision, draft, actorId: user\.id \}\)/)
+  assert.match(routeSource, /REVISION_CONFLICT', error\.message, 409/)
+  assert.match(routeSource, /revalidateTag\(MARKET_HOME_CACHE_TAG, \{ expire: 0 \}\)/)
   assert.match(routeSource, /MARKET_HOME_SETTING_KEY/)
   assert.match(routeSource, /INVALID_INPUT/)
   assert.match(routeSource, /INVALID_INPUT[\s\S]*400/)

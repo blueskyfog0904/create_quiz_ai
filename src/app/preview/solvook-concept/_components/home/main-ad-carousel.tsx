@@ -83,16 +83,10 @@ function subscribeToReducedMotion(onStoreChange: () => void) {
   return () => mediaQuery.removeEventListener('change', onStoreChange)
 }
 
+// 22번: 보일 배너가 0개면 page 가 이 부품을 그리지 않는다(빈 틀 없음, Q6). 0개로 오면 아무것도 그리지 않는다.
 export function MainAdCarousel({ subject, items }: MainAdCarouselProps) {
   const activeItems = items
-  const carouselState = activeItems.length === 0
-    ? 'empty'
-    : activeItems.length === 1
-      ? 'single'
-      : 'multiple'
-  const subjectLabel = subject === 'korean' ? '국어' : '영어'
-  // 광고가 없을 때는 현재 디자인의 과목별 전체 자료 검색으로 보낸다(검색어 없이 열면 공개 상품 전체).
-  const marketHref = `/search?subject=${subject}`
+  const carouselState = activeItems.length === 1 ? 'single' : 'multiple'
   const [activeIndex, setActiveIndex] = useState(0)
   const [cycleKey, setCycleKey] = useState(0)
   const [transitionState, setTransitionState] = useState<TransitionState | null>(null)
@@ -514,26 +508,19 @@ export function MainAdCarousel({ subject, items }: MainAdCarouselProps) {
   const outgoingItem = activeTransition ? activeItems[activeTransition.fromIndex] : null
   const incomingItem = activeTransition ? activeItems[activeTransition.toIndex] : null
 
+  if (!activeItem) return null
+
   return (
     <section
       data-slot="main-ad-carousel"
+      data-subject={subject}
       data-state={carouselState}
       className="border-b border-[var(--studio-border)] bg-[var(--studio-surface)] py-6 sm:py-8"
     >
       <StudioContainer className="relative">
         <div className="relative h-[220px] overflow-hidden rounded-xl border border-[var(--studio-border)] bg-[var(--studio-background)] sm:h-[300px] min-[641px]:h-[360px]">
           <div className="hidden min-[1080px]:absolute min-[1080px]:inset-y-0 min-[1080px]:left-0 min-[1080px]:z-10 min-[1080px]:flex min-[1080px]:w-[200px] min-[1080px]:flex-col min-[1080px]:overflow-y-auto min-[1080px]:border-r min-[1080px]:border-[var(--studio-border)] min-[1080px]:bg-[var(--studio-surface)] min-[1200px]:w-60">
-            {carouselState === 'empty' ? (
-              <div
-                aria-hidden="true"
-                className="flex min-h-[60px] items-center border-b border-[var(--studio-border)] px-4"
-              >
-                <span className="break-keep text-sm font-semibold leading-5 text-[var(--studio-muted)]">
-                  등록된 광고가 없습니다
-                </span>
-              </div>
-            ) : (
-              activeItems.map((item, index) => {
+            {activeItems.map((item, index) => {
                 const selected = index === resolvedActiveIndex
 
                 return (
@@ -567,26 +554,11 @@ export function MainAdCarousel({ subject, items }: MainAdCarouselProps) {
                     </span>
                   </button>
                 )
-              })
-            )}
+              })}
           </div>
 
           <div className="relative h-full min-[1080px]:ml-[200px] min-[1200px]:ml-60">
-            {!activeItem ? (
-              <div className="flex h-full items-center justify-center px-6 text-center sm:px-10">
-                <div role="status" className="max-w-md">
-                  <p className="text-lg font-bold text-[var(--studio-text)] sm:text-xl">
-                    등록된 {subjectLabel} 광고가 없습니다
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-[var(--studio-muted)]">
-                    {subjectLabel} 문제마켓에 등록된 수업 자료를 먼저 둘러보세요.
-                  </p>
-                  <Button asChild className="mt-5 min-h-11">
-                    <Link href={marketHref}>{subjectLabel} 문제마켓 보기</Link>
-                  </Button>
-                </div>
-              </div>
-            ) : activeTransition && outgoingItem && incomingItem ? (
+            {activeTransition && outgoingItem && incomingItem ? (
               <>
                 <div
                   className="absolute inset-0"

@@ -20,13 +20,22 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { AdminWorkspaceSwitcher } from '@/components/layout/admin-workspace-switcher'
+import { useAdminConfirm } from '@/components/admin/kit/admin-confirm-dialog'
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/kit/admin-data-table'
+import { AdminStatusBadge } from '@/components/admin/kit/admin-status-badge'
+import { formatKstFull } from '@/lib/admin-format'
+import { adminStatusTone } from '@/lib/admin-status-tone'
 import { withAdminWorkspaceSubject } from '@/lib/admin-workspace'
 import {
   MAIN_AD_DEFAULT_DURATION_SECONDS,
   MAIN_AD_MAX_DURATION_SECONDS,
   MAIN_AD_MIN_DURATION_SECONDS,
+  MAIN_AD_SCHEDULE_STATUS_LABELS,
   getMainAdImageExtension,
+  getMainAdScheduleStatus,
   isAllowedMainAdHref,
+  kstLocalToUtcIso,
+  utcIsoToKstLocal,
   validateMainAdCarouselDraftConfig,
   type MainAdCarouselSubjectConfig,
   type MainAdCarouselItem,
@@ -59,7 +68,7 @@ interface MainAdApiResponse {
   }
 }
 
-type MainAdFieldName = 'title' | 'href' | 'alt' | 'durationSeconds' | 'pcImage' | 'mobileImage'
+type MainAdFieldName = 'title' | 'href' | 'alt' | 'durationSeconds' | 'pcImage' | 'mobileImage' | 'schedule'
 type MainAdFieldErrors = Record<string, Partial<Record<MainAdFieldName, string>>>
 
 function getFieldErrorId(itemId: string, field: MainAdFieldName) {
@@ -90,6 +99,9 @@ function validateEditableItems(items: EditableMainAdItem[]) {
     }
     if (!item.pcImagePath && !item.pcFile) {
       itemErrors.pcImage = 'PC 이미지를 선택해 주세요.'
+    }
+    if (item.startsAt && item.endsAt && Date.parse(item.endsAt) <= Date.parse(item.startsAt)) {
+      itemErrors.schedule = '노출 끝 시각은 시작 시각보다 뒤여야 합니다.'
     }
 
     if (Object.keys(itemErrors).length > 0) {
@@ -138,8 +150,15 @@ function toConfig(items: EditableMainAdItem[]): MainAdCarouselSubjectConfig {
       href: item.href,
       durationSeconds: item.durationSeconds,
       isActive: item.isActive,
+      startsAt: item.startsAt,
+      endsAt: item.endsAt,
     })),
   }
+}
+
+// 노출 기간 글(한국 시간). 비어 있으면 '바로'·'계속'(22번 6절).
+function formatSchedule(item: Pick<MainAdCarouselItem, 'startsAt' | 'endsAt'>) {
+  return `${item.startsAt ? formatKstFull(item.startsAt) : '바로'} ~ ${item.endsAt ? formatKstFull(item.endsAt) : '계속'}`
 }
 
 function ImagePreview({
@@ -209,6 +228,9 @@ export default function MainAdSettingsClient({
   const [savedImageUrls, setSavedImageUrls] = useState(initialImageUrls)
   const [fieldErrors, setFieldErrors] = useState<MainAdFieldErrors>({})
   const [isSaving, setIsSaving] = useState(false)
+  // 상태(노출 중·예약·종료·꺼짐) 계산 기준 시각: 화면을 연 때와 저장한 때
+  const [now, setNow] = useState(() => new Date())
+  const { ask, dialog } = useAdminConfirm()
 
   const currentConfig = useMemo(() => toConfig(items), [items])
   const hasPendingFiles = items.some((item) => item.pcFile || item.mobileFile)
@@ -255,6 +277,8 @@ export default function MainAdSettingsClient({
         href: '',
         durationSeconds: MAIN_AD_DEFAULT_DURATION_SECONDS,
         isActive: true,
+        startsAt: null,
+        endsAt: null,
         pcFile: null,
         mobileFile: null,
       },
@@ -328,6 +352,19 @@ export default function MainAdSettingsClient({
       return
     }
 
+    // 22번 6절: 보일 배너가 0개가 되는 저장이면 확인한다(회원 홈의 배너 영역이 사라짐).
+    const checkAt = new Date()
+    const visibleAfter = items.filter((item) => getMainAdScheduleStatus(item, checkAt) === 'live').length
+    const visibleBefore = savedConfig.items.filter((item) => getMainAdScheduleStatus(item, checkAt) === 'live').length
+    if (visibleAfter === 0 && visibleBefore > 0) {
+      const ok = await ask({
+        title: '배너 영역이 사라집니다',
+        description: '저장하면 지금 보일 배너가 0개가 되어 회원 홈에 배너 영역이 사라집니다. 저장할까요?',
+        confirmLabel: '저장',
+      })
+      if (!ok) return
+    }
+
     setIsSaving(true)
 
     try {
@@ -359,6 +396,7 @@ export default function MainAdSettingsClient({
       setImageUrls(body.data.imageUrls)
       setSavedImageUrls(body.data.imageUrls)
       setFieldErrors({})
+      setNow(new Date())
 
       if (body.data.cleanupWarnings.length > 0) {
         toast.warning('설정은 저장했지만 이전 이미지 일부를 정리하지 못했습니다.')
@@ -371,6 +409,31 @@ export default function MainAdSettingsClient({
       setIsSaving(false)
     }
   }
+
+  // 요약 표(C-10): 작은 미리보기·제목·링크·노출 기간·상태(20번 tone). 저장 전 값 기준.
+  const summaryColumns: AdminDataTableColumn<EditableMainAdItem>[] = [
+    {
+      key: 'preview',
+      header: '미리보기',
+      cell: (item) => (imageUrls[item.id]?.pc && !item.pcFile ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={imageUrls[item.id].pc} alt="" className="h-9 w-24 rounded border object-cover" />
+      ) : (
+        <span className="text-xs text-muted-foreground">{item.pcFile ? '새 이미지' : '없음'}</span>
+      )),
+    },
+    { key: 'title', header: '제목', cell: (item) => <span className="break-keep">{item.title || '제목 없음'}</span> },
+    { key: 'href', header: '링크', cell: (item) => <span className="break-all text-xs">{item.href || '없음'}</span> },
+    { key: 'schedule', header: '노출 기간', cell: (item) => <span className="whitespace-nowrap text-xs">{formatSchedule(item)}</span> },
+    {
+      key: 'status',
+      header: '상태',
+      cell: (item) => {
+        const status = getMainAdScheduleStatus(item, now)
+        return <AdminStatusBadge label={MAIN_AD_SCHEDULE_STATUS_LABELS[status]} tone={adminStatusTone('banner', status)} />
+      },
+    },
+  ]
 
   return (
     <div className="space-y-6">
@@ -405,8 +468,18 @@ export default function MainAdSettingsClient({
         </div>
       </div>
 
+      {items.length > 0 ? (
+        <AdminDataTable
+          caption={`${workspaceSubject === 'english' ? '영어' : '국어'} 홈 배너 요약`}
+          columns={summaryColumns}
+          rows={items}
+          getRowKey={(item) => item.id}
+          minWidth={760}
+        />
+      ) : null}
+
       <div className="flex justify-end">
-        <Button type="button" variant="adminAction" onClick={addItem}>
+        <Button type="button" variant="brandOutline" onClick={addItem}>
           <Plus className="h-4 w-4" aria-hidden="true" />
           광고 추가
         </Button>
@@ -415,7 +488,7 @@ export default function MainAdSettingsClient({
       {items.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            등록된 광고가 없습니다. 프리뷰에는 같은 광고 영역의 빈 상태가 표시됩니다.
+            등록된 광고가 없습니다. 보일 배너가 없으면 회원 홈에는 배너 영역이 보이지 않습니다.
           </CardContent>
         </Card>
       ) : (
@@ -592,6 +665,55 @@ export default function MainAdSettingsClient({
                   />
                 </div>
 
+                <div className="space-y-2 rounded-lg border px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Label>노출 기간(한국 시간)</Label>
+                    <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                      지금 기준
+                      <AdminStatusBadge
+                        label={MAIN_AD_SCHEDULE_STATUS_LABELS[getMainAdScheduleStatus(item, now)]}
+                        tone={adminStatusTone('banner', getMainAdScheduleStatus(item, now))}
+                      />
+                    </span>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label htmlFor={`main-ad-starts-${item.id}`} className="text-xs font-normal">시작(비우면 바로)</Label>
+                      <Input
+                        id={`main-ad-starts-${item.id}`}
+                        type="datetime-local"
+                        value={utcIsoToKstLocal(item.startsAt)}
+                        aria-invalid={Boolean(fieldErrors[item.id]?.schedule)}
+                        onChange={(event) => {
+                          clearFieldError(item.id, 'schedule')
+                          updateItem(item.id, { startsAt: event.target.value ? kstLocalToUtcIso(event.target.value) : null })
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor={`main-ad-ends-${item.id}`} className="text-xs font-normal">끝(비우면 계속)</Label>
+                      <Input
+                        id={`main-ad-ends-${item.id}`}
+                        type="datetime-local"
+                        value={utcIsoToKstLocal(item.endsAt)}
+                        aria-invalid={Boolean(fieldErrors[item.id]?.schedule)}
+                        aria-describedby={fieldErrors[item.id]?.schedule ? getFieldErrorId(item.id, 'schedule') : undefined}
+                        onChange={(event) => {
+                          clearFieldError(item.id, 'schedule')
+                          updateItem(item.id, { endsAt: event.target.value ? kstLocalToUtcIso(event.target.value) : null })
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    시작 시각부터 보이고 끝 시각부터 빠집니다. 끝난 배너는 지우지 않고 &apos;종료&apos;로 남습니다.
+                  </p>
+                  <FieldError
+                    id={getFieldErrorId(item.id, 'schedule')}
+                    message={fieldErrors[item.id]?.schedule}
+                  />
+                </div>
+
                 <div className="grid gap-5 lg:grid-cols-2">
                   <div className="space-y-3">
                     <div>
@@ -673,6 +795,7 @@ export default function MainAdSettingsClient({
           ))}
         </div>
       )}
+      {dialog}
     </div>
   )
 }

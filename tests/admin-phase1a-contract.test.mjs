@@ -43,10 +43,12 @@ test('U2: 결제 성공 화면과 홈 광고 빈 상태 버튼이 과거 /{과�
 
   const carousel = read('src/app/preview/solvook-concept/_components/home/main-ad-carousel.tsx')
   assert.doesNotMatch(carousel, /\/\$\{subject\}\/market/)
-  assert.match(carousel, /\/search\?subject=\$\{subject\}/)
+  // 22번: 배너 빈 틀(버튼)은 없앴고, 보일 섹션·배너가 모두 0개일 때의 빈 홈 링크가 과목 검색으로 보낸다.
+  const homeSections = read('src/app/preview/solvook-concept/_components/home/market-home-sections.tsx')
+  assert.match(homeSections, /\/search\?subject=\$\{subject\}/)
   assert.doesNotMatch(carousel, /categories/, 'categories prop is no longer used')
 
-  for (const source of [success, carousel]) {
+  for (const source of [success, carousel, homeSections]) {
     assert.doesNotMatch(source, /\/(english|korean)\/market/)
   }
 
