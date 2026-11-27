@@ -70,9 +70,12 @@ test('관리자 ID: 비밀번호 재설정·새 계정은 확인 칸이 일치�
   const client = read('src/app/(admin)/admin/admin-accounts/admin-accounts-client.tsx')
   // 표 안의 가려진 칸 하나로 바로 바꾸던 방식은 없다.
   assert.doesNotMatch(client, /passwordDrafts/)
-  assert.match(client, /if \(resetPasswordValue !== resetPasswordConfirm\) \{\s+alert\('비밀번호 확인이 일치하지 않습니다\.'\)\s+return/)
+  // 20번 3단계: 브라우저 알림 창 대신 같은 문구를 화면 안 오류 띠(AdminNotice)로 보이고 보내지 않는다.
+  assert.match(client, /if \(resetPasswordValue !== resetPasswordConfirm\) \{\s+setPasswordError\('비밀번호 확인이 일치하지 않습니다\.'\)\s+return/)
   assert.match(client, /\|\| resetPasswordValue !== resetPasswordConfirm\n/)
-  assert.match(client, /if \(newPassword !== newPasswordConfirm\) \{\s+alert\('비밀번호 확인이 일치하지 않습니다\.'\)\s+return/)
+  assert.match(client, /if \(newPassword !== newPasswordConfirm\) \{\s+setCreateError\('비밀번호 확인이 일치하지 않습니다\.'\)\s+return/)
+  assert.match(client, /\{passwordError \? <AdminNotice kind="error">\{passwordError\}<\/AdminNotice> : null\}/)
+  assert.match(client, /\{createError \? <AdminNotice kind="error" className="mt-3">\{createError\}<\/AdminNotice> : null\}/)
   assert.match(client, /<DialogTitle>비밀번호 재설정<\/DialogTitle>/)
 })
 

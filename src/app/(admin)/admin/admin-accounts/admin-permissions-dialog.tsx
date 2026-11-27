@@ -1,9 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { ADMIN_TONE_CLASSES } from '@/components/admin/kit/admin-tone-classes'
 import {
   ADMIN_PERMISSIONS,
   ADMIN_PERMISSION_KEYS,
@@ -119,7 +122,7 @@ export function AdminPermissionsDialog({ account, presets, onClose, onSaved }: A
       if (!response.ok || !result?.success) {
         throw new Error(result?.error ?? '권한을 저장하지 못했습니다.')
       }
-      alert('권한을 저장했습니다. 그 계정의 다음 요청(화면 이동·새로고침)부터 반영됩니다.')
+      toast.success('권한을 저장했습니다. 그 계정의 다음 요청(화면 이동·새로고침)부터 반영됩니다.')
       onSaved()
     } catch (error) {
       setErrors([error instanceof Error ? error.message : '권한을 저장하지 못했습니다.'])
@@ -140,18 +143,18 @@ export function AdminPermissionsDialog({ account, presets, onClose, onSaved }: A
 
         {presets.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-muted-foreground">묶음으로 체크 채우기:</span>
+            <span className="text-sm text-[var(--studio-muted)]">묶음으로 체크 채우기:</span>
             {presets.map((preset) => (
-              <Button key={preset.name} type="button" size="sm" variant="outline" onClick={() => applyPreset(preset)}>
+              <Button key={preset.name} type="button" size="sm" variant="adminTable" onClick={() => applyPreset(preset)}>
                 {preset.name}
               </Button>
             ))}
           </div>
         )}
 
-        {notice && <p role="status" className="rounded bg-blue-50 px-3 py-2 text-sm text-blue-800">{notice}</p>}
+        {notice && <AdminNotice kind="info">{notice}</AdminNotice>}
 
-        <ul className="divide-y rounded-lg border">
+        <ul className="divide-y divide-[var(--studio-border)] rounded-[var(--studio-radius-card)] border border-[var(--studio-border)]">
           {ADMIN_PERMISSION_KEYS.map((key) => {
             const definition = ADMIN_PERMISSIONS[key]
             const limitEntries = Object.entries<string>(definition.limits)
@@ -166,10 +169,10 @@ export function AdminPermissionsDialog({ account, presets, onClose, onSaved }: A
                     onChange={(event) => toggle(key, event.target.checked)}
                   />
                   <span>
-                    <span className="font-medium">{definition.label}</span>
-                    <span className="ml-2 font-mono text-xs text-muted-foreground">{key}</span>
+                    <span className="font-medium text-[var(--studio-ink)]">{definition.label}</span>
+                    <span className="ml-2 font-mono text-xs text-[var(--studio-muted)]">{key}</span>
                     {definition.requires.length > 0 && (
-                      <span className="block text-xs text-muted-foreground">
+                      <span className="block text-xs text-[var(--studio-muted)]">
                         함께 필요: {definition.requires.map((required) => ADMIN_PERMISSIONS[required as AdminPermissionKey].label).join(', ')}
                       </span>
                     )}
@@ -202,14 +205,14 @@ export function AdminPermissionsDialog({ account, presets, onClose, onSaved }: A
         </ul>
 
         {errors.length > 0 && (
-          <ul role="alert" className="list-disc space-y-1 rounded border border-red-300 bg-red-50 py-2 pl-8 pr-3 text-sm text-red-800">
+          <ul role="alert" className={`list-disc space-y-1 rounded-[var(--studio-radius-card)] border py-2 pl-8 pr-3 text-sm ${ADMIN_TONE_CLASSES.danger}`}>
             {errors.map((error) => <li key={error}>{error}</li>)}
           </ul>
         )}
 
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>닫기</Button>
-          <Button type="button" onClick={() => void save()} disabled={isSaving}>{isSaving ? '저장 중…' : '저장'}</Button>
+          <Button type="button" variant="brandOutline" onClick={onClose} disabled={isSaving}>닫기</Button>
+          <Button type="button" variant="brand" onClick={() => void save()} disabled={isSaving}>{isSaving ? '저장 중…' : '저장'}</Button>
         </div>
       </DialogContent>
     </Dialog>

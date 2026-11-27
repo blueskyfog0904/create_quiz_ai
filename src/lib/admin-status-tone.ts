@@ -114,6 +114,12 @@ const reviewTag = {
   inactive: 'neutral',
 } as const
 
+// 충전 요금제(20번 3단계): 판매중·비활성(is_active)
+const pricingPlan = {
+  active: 'success',
+  inactive: 'neutral',
+} as const
+
 export const ADMIN_STATUS_TONES = {
   paymentOrder,
   refundRequest,
@@ -126,6 +132,7 @@ export const ADMIN_STATUS_TONES = {
   member,
   banner,
   reviewTag,
+  pricingPlan,
 } as const
 
 export type AdminStatusKind = keyof typeof ADMIN_STATUS_TONES

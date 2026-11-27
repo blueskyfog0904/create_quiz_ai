@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { MarketOrdersClient } from './market-orders-client'
 import { PaymentOrdersClient } from './orders-client'
 import { AdminMenuName } from '@/components/layout/admin-menu-labels'
+import { AdminPageHeader } from '@/components/admin/kit/admin-page-header'
 import { buildAdminMenuMetadata } from '@/lib/admin-sidebar-server'
 import { requireAdminPagePermission } from '@/lib/admin-permissions-server'
 
@@ -32,19 +33,21 @@ export default async function AdminOrdersPage({ searchParams }: AdminOrdersPageP
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 max-md:text-2xl"><AdminMenuName href="/admin/orders" fallback="주문 조회" /></h1>
-        <p className="text-gray-500 mt-1">고객 문의에 답할 때 주문을 찾아보는 화면입니다. 조회만 할 수 있습니다.</p>
-      </div>
+      <AdminPageHeader
+        title={<AdminMenuName href="/admin/orders" fallback="주문 조회" />}
+        description="고객 문의에 답할 때 주문을 찾아보는 화면입니다. 조회만 할 수 있습니다."
+      />
 
-      <nav aria-label="주문 종류" className="mb-6 flex gap-1 border-b">
+      <nav aria-label="주문 종류" className="mb-6 flex gap-1 border-b border-[var(--studio-border)]">
         {ORDER_TABS.map((tab) => (
           <Link
             key={tab.id}
             href={`/admin/orders?tab=${tab.id}`}
             aria-current={tab.id === activeTab.id ? 'page' : undefined}
             className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
-              tab.id === activeTab.id ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-900'
+              tab.id === activeTab.id
+                ? 'border-[var(--studio-primary)] text-[var(--studio-primary)]'
+                : 'border-transparent text-[var(--studio-muted)] hover:text-[var(--studio-ink)]'
             }`}
           >
             {tab.label}

@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminSaveBar, countChangedFields } from '@/components/admin/kit/admin-save-bar'
 import {
     PRICING_PAGE_PLACEHOLDERS,
     type PricingPageContent,
@@ -44,6 +46,10 @@ export function PricingPageContentForm({ initial }: { initial: InitialState }) {
     // 읽기에 실패했으면 빈 양식으로 저장해 기존 문구를 덮어쓰지 않도록 저장을 막는다.
     const readFailed = initial.status === 'error'
     const [saving, setSaving] = useState(false)
+    // 저장 상태 표시(20번 저장 바): 마지막으로 저장된 값·시각·실패 글. 저장 동작은 그대로.
+    const [savedContent, setSavedContent] = useState<PricingPageContent>(content)
+    const [savedAt, setSavedAt] = useState<number | null>(null)
+    const [saveError, setSaveError] = useState<string | null>(null)
 
     const setText = (key: keyof PricingPageContent, value: string) => setContent((prev) => ({ ...prev, [key]: value }))
     const setNotice = (index: number, patch: Partial<PricingPageNoticeItem>) =>
@@ -56,45 +62,50 @@ export function PricingPageContentForm({ initial }: { initial: InitialState }) {
 
     const handleSave = async () => {
         setSaving(true)
+        setSaveError(null)
         try {
             const result = await savePricingPageContentAction(content)
             if (!result.success) {
                 toast.error(result.error)
+                setSaveError(result.error)
                 return
             }
             setContent(result.data)
+            setSavedContent(result.data)
+            setSavedAt(Date.now())
             toast.success('충전 화면 문구를 저장했습니다. 충전 화면에 바로 반영됩니다.')
         } catch (error) {
             toast.error(error instanceof Error ? error.message : '충전 화면 문구를 저장하지 못했습니다.')
+            setSaveError(error instanceof Error ? error.message : '충전 화면 문구를 저장하지 못했습니다.')
         } finally {
             setSaving(false)
         }
     }
 
     return (
-        <section className="mt-12 rounded-lg border bg-white p-6 max-md:p-4">
+        <section className="mt-12 rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-6 max-md:p-4">
             <div className="mb-6">
-                <h2 className="text-xl font-bold text-gray-900">충전 화면 문구</h2>
-                <p className="mt-1 text-sm text-gray-500">
+                <h2 className="text-xl font-bold text-[var(--studio-ink)]">충전 화면 문구</h2>
+                <p className="mt-1 text-sm text-[var(--studio-muted)]">
                     회원 크레딧 충전 화면(/pricing)에 보이는 안내 문구입니다. 상품 이름·설명·배지·강조는 위 요금제에서 고칩니다.
                 </p>
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="mt-2 text-xs text-[var(--studio-muted)]">
                     쓸 수 있는 자리표시:{' '}
                     {Object.entries(PRICING_PAGE_PLACEHOLDERS).map(([placeholder, label], index) => (
                         <span key={placeholder}>
                             {index > 0 && ', '}
-                            <code className="rounded bg-gray-100 px-1">{placeholder}</code> {label}
+                            <code className="rounded bg-[var(--studio-background-sunken)] px-1">{placeholder}</code> {label}
                         </span>
                     ))}
                 </p>
                 {initial.status === 'invalid' && (
-                    <p className="mt-2 text-sm text-red-600">저장된 문구의 형식이 올바르지 않아 회원 충전 화면에서 결제 버튼이 막혀 있습니다. 문구를 다시 입력하고 저장하면 고쳐집니다.</p>
+                    <AdminNotice kind="error" className="mt-2">저장된 문구의 형식이 올바르지 않아 회원 충전 화면에서 결제 버튼이 막혀 있습니다. 문구를 다시 입력하고 저장하면 고쳐집니다.</AdminNotice>
                 )}
                 {initial.status === 'missing' && (
-                    <p className="mt-2 text-sm text-amber-700">저장된 문구가 없어 회원 충전 화면에서 결제 버튼이 막혀 있습니다. 입력하고 저장해 주세요.</p>
+                    <AdminNotice kind="warning" className="mt-2">저장된 문구가 없어 회원 충전 화면에서 결제 버튼이 막혀 있습니다. 입력하고 저장해 주세요.</AdminNotice>
                 )}
                 {readFailed && (
-                    <p className="mt-2 text-sm text-red-600">저장된 문구를 읽지 못했습니다. 기존 문구를 덮어쓰지 않도록 저장을 막았습니다. 새로고침해 주세요.</p>
+                    <AdminNotice kind="error" className="mt-2">저장된 문구를 읽지 못했습니다. 기존 문구를 덮어쓰지 않도록 저장을 막았습니다. 새로고침해 주세요.</AdminNotice>
                 )}
             </div>
 
@@ -116,14 +127,14 @@ export function PricingPageContentForm({ initial }: { initial: InitialState }) {
                                 onChange={(event) => setText(field.key, event.target.value)}
                             />
                         )}
-                        {field.hint && <p className="text-xs text-gray-500">{field.hint}</p>}
+                        {field.hint && <p className="text-xs text-[var(--studio-muted)]">{field.hint}</p>}
                     </div>
                 ))}
 
                 <fieldset className="grid gap-3">
-                    <legend className="mb-1 text-sm font-medium">확인 사항(제목 + 내용)</legend>
+                    <legend className="mb-1 text-sm font-medium text-[var(--studio-ink)]">확인 사항(제목 + 내용)</legend>
                     {content.notice_items.map((item, index) => (
-                        <div key={index} className="grid gap-2 rounded-md border p-3 sm:grid-cols-[12rem_1fr_auto] sm:items-start">
+                        <div key={index} className="grid gap-2 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] p-3 sm:grid-cols-[12rem_1fr_auto] sm:items-start">
                             <Input
                                 aria-label={`확인 사항 ${index + 1}번 제목`}
                                 value={item.title}
@@ -150,7 +161,7 @@ export function PricingPageContentForm({ initial }: { initial: InitialState }) {
                     ))}
                     <Button
                         type="button"
-                        variant="adminAction"
+                        variant="brandOutline"
                         size="sm"
                         className="w-fit"
                         onClick={() => setContent((prev) => ({ ...prev, notice_items: [...prev.notice_items, { title: '', body: '' }] }))}
@@ -160,7 +171,7 @@ export function PricingPageContentForm({ initial }: { initial: InitialState }) {
                 </fieldset>
 
                 <fieldset className="grid gap-3">
-                    <legend className="mb-1 text-sm font-medium">환불 정책(한 줄씩, 충전 화면에 항상 펼쳐 보입니다)</legend>
+                    <legend className="mb-1 text-sm font-medium text-[var(--studio-ink)]">환불 정책(한 줄씩, 충전 화면에 항상 펼쳐 보입니다)</legend>
                     {content.refund_items.map((item, index) => (
                         <div key={index} className="flex items-start gap-2">
                             <Textarea
@@ -182,7 +193,7 @@ export function PricingPageContentForm({ initial }: { initial: InitialState }) {
                     ))}
                     <Button
                         type="button"
-                        variant="adminAction"
+                        variant="brandOutline"
                         size="sm"
                         className="w-fit"
                         onClick={() => setContent((prev) => ({ ...prev, refund_items: [...prev.refund_items, ''] }))}
@@ -192,12 +203,18 @@ export function PricingPageContentForm({ initial }: { initial: InitialState }) {
                 </fieldset>
             </div>
 
-            <div className="mt-6 flex justify-end">
-                <Button type="button" onClick={() => void handleSave()} disabled={saving || readFailed} className="min-h-11">
-                    {saving && <Loader2 className="mr-2 size-4 animate-spin" />}
-                    문구 저장
-                </Button>
-            </div>
+            <AdminSaveBar
+                variant="inline"
+                className="mt-6"
+                dirtyCount={countChangedFields(content, savedContent)}
+                status={saving ? 'saving' : saveError ? 'error' : savedAt ? 'saved' : 'idle'}
+                savedAt={savedAt}
+                errorMessage={saveError}
+                applyNote="저장하면 충전 화면에 바로 반영됩니다."
+                onSave={() => void handleSave()}
+                saveLabel="문구 저장"
+                saveDisabled={saving || readFailed}
+            />
         </section>
     )
 }

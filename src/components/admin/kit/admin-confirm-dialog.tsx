@@ -36,6 +36,8 @@ interface AdminConfirmDialogProps extends AdminConfirmOptions {
   onOpenChange: (open: boolean) => void
   onConfirm: () => void
   reason?: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; required?: boolean }
+  // 창 안에서 처리를 기다리는 화면용(확정 뒤 창을 열어 둔 채 처리 중 표시). 처리 중에는 닫힘·확정을 막는다.
+  pending?: boolean
 }
 
 // 관리자 확인 창(20번 5-3) = StudioAlertDialog 를 넓힌 것. 첫 초점 [취소], 높이 제한, 위험 확정은 adminDanger.
@@ -50,6 +52,7 @@ export function AdminConfirmDialog({
   cancelLabel = '취소',
   danger = false,
   reason,
+  pending = false,
 }: AdminConfirmDialogProps) {
   return (
     <StudioAlertDialog
@@ -63,6 +66,7 @@ export function AdminConfirmDialog({
       cancelLabel={cancelLabel}
       onConfirm={onConfirm}
       destructive={danger}
+      pending={pending}
       destructiveVariant="adminDanger"
       limitHeight
       focusCancelOnOpen

@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { upsertPricingPlan, PricingPlan, PricingPlanInsert } from '../actions'
 import { Loader2 } from 'lucide-react'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
 import { MAX_POINT_CHARGE_AMOUNT, MIN_POINT_CHARGE_AMOUNT } from '@/lib/payment-constants'
 import { PRICING_PLAN_DESCRIPTION_MAX_LENGTH, PRICING_PLAN_DISPLAY_TEXT_MAX_LENGTH } from '@/lib/pricing-plan-display'
 // If sonner not installed, I might need to check. But standard shadcn often uses sonner or useToast.
@@ -237,16 +238,16 @@ export function PricingPlanDialog({
                     </div>
 
                     {error && (
-                        <div className="text-sm text-red-500 bg-red-50 p-2 rounded">
+                        <AdminNotice kind="error">
                             {error}
-                        </div>
+                        </AdminNotice>
                     )}
 
                     <div className="flex justify-center gap-2 pt-2">
-                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                        <Button type="button" variant="brandOutline" onClick={() => onOpenChange(false)}>
                             취소
                         </Button>
-                        <Button type="submit" disabled={loading}>
+                        <Button type="submit" variant="brand" disabled={loading}>
                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             {planToEdit ? '수정하기' : '생성하기'}
                         </Button>

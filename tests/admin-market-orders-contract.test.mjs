@@ -79,7 +79,8 @@ test('개인정보: 회원은 email·display_tag만, 다운로드 기록은 시�
 test('조회 실패는 0건과 구분해 오류로 보인다', () => {
   assert.match(route, /catch \(error\) \{[\s\S]*return NextResponse\.json\(\{ error: '주문을 불러오지 못했습니다\.[^']*' \}, \{ status: 500 \}\)/)
   assert.match(client, /if \(!response\.ok \|\| !result\?\.success\) throw new Error\(/)
-  assert.match(client, /\{loadError && \(\s*<div role="alert"/)
+  // 20번 2단계: 오류 띠는 role="alert" 를 그리는 AdminNotice kind="error"
+  assert.match(client, /\{loadError && \(\s*<AdminNotice kind="error"/)
   const loading = client.indexOf('{isLoading ? (')
   const failed = client.indexOf(') : !data ? (', loading)
   const empty = client.indexOf(') : data.orders.length === 0 ? (', failed)
@@ -300,8 +301,9 @@ test('같은 회원이 같은 상품에 권한을 2개 가지면, 주문이 아�
 
 test('화면은 회원이 받을 수 있는지와 이 주문의 권한 상태를 따로 보여 준다', () => {
   assert.doesNotMatch(client + lib, /uncertain|확인 필요/)
-  assert.match(client, /회원 다운로드 불가: \{reason\}/)
-  assert.match(client, /회원 다운로드 가능 \(파일 \{download\.fileCount\}개\)/)
+  // 20번 2단계: 배지 글은 AdminStatusBadge 의 label 글자(템플릿)로 그린다.
+  assert.match(client, /회원 다운로드 불가: \$\{reason\}/)
+  assert.match(client, /회원 다운로드 가능 \(파일 \$\{download\.fileCount\}개\)/)
   assert.match(client, /const own = `이 주문: \$\{labelOf\(MARKET_DOWNLOAD_BLOCK_REASON_LABELS, download\.ownEntitlementReason\)\}`/)
   assert.match(client, /같은 회원의 다른 주문\(\$\{download\.otherOrderIds\.map\(\(orderId\) => orderId\.slice\(0, 8\)\)\.join\(', '\)\}\) 권한으로 다운로드/)
   assert.equal(client.match(/ownEntitlementNote\((order|selectedOrder)\.download\) &&/g).length, 2)

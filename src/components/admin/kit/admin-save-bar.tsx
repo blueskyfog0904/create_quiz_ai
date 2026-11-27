@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button'
 import { formatKstTime } from '@/lib/admin-format'
 import { cn } from '@/lib/utils'
 
+import { adminSaveBarView, type AdminSaveStatus } from './admin-save-bar-state'
 import { ADMIN_TONE_TEXT_CLASSES } from './admin-tone-classes'
 
-export type AdminSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+export { countChangedFields, type AdminSaveStatus } from './admin-save-bar-state'
 
 interface AdminSaveBarProps {
   // fixed: 아래 고정(저장 함수가 하나인 주소). inline: 저장 영역 안 한 줄(저장 함수가 둘 이상인 주소).
@@ -26,6 +27,8 @@ interface AdminSaveBarProps {
   onSave: () => void
   saveLabel?: string
   saveDisabled?: boolean
+  // 변경이 없어도 버튼을 켠다(누르면 화면이 검사·초점 이동을 한다). 기본 false.
+  saveWhenClean?: boolean
   className?: string
 }
 
@@ -41,20 +44,22 @@ export function AdminSaveBar({
   onSave,
   saveLabel = '저장',
   saveDisabled = false,
+  saveWhenClean = false,
   className,
 }: AdminSaveBarProps) {
-  const saving = status === 'saving'
+  const view = adminSaveBarView({ status, dirtyCount, hasSavedAt: Boolean(savedAt), saveDisabled, saveWhenClean })
+  const saving = view.kind === 'saving'
   let statusText: React.ReactNode
   let statusClass = 'text-[var(--studio-muted)]'
   if (saving) {
     statusText = '저장 중'
-  } else if (status === 'error') {
+  } else if (view.kind === 'error') {
     statusText = errorMessage ?? '저장하지 못했습니다.'
     statusClass = cn('font-medium', ADMIN_TONE_TEXT_CLASSES.danger)
-  } else if (dirtyCount > 0) {
+  } else if (view.kind === 'dirty') {
     statusText = `저장 안 된 변경 ${dirtyCount}건`
     statusClass = cn('font-medium', ADMIN_TONE_TEXT_CLASSES.warning)
-  } else if (status === 'saved' && savedAt) {
+  } else if (view.kind === 'saved' && savedAt) {
     statusText = `${formatKstTime(savedAt)} 저장됨`
     statusClass = ADMIN_TONE_TEXT_CLASSES.success
   } else {
@@ -85,9 +90,9 @@ export function AdminSaveBar({
         variant="brand"
         size={variant === 'inline' ? 'sm' : 'default'}
         onClick={onSave}
-        disabled={saving || saveDisabled || (status !== 'error' && dirtyCount === 0)}
+        disabled={view.disabled}
       >
-        {status === 'error' ? '다시 시도' : saveLabel}
+        {view.retry ? '다시 시도' : saveLabel}
       </Button>
     </div>
   )

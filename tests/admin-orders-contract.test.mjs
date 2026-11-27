@@ -75,7 +75,8 @@ test('조회 실패는 0건과 구분해 오류로 보인다', () => {
   assert.match(route, /catch \(error\) \{[\s\S]*return NextResponse\.json\(\{ error: '주문을 불러오지 못했습니다\.[^']*' \}, \{ status: 500 \}\)/)
   assert.match(client, /if \(!response\.ok \|\| !result\?\.success\) throw new Error\(/)
   assert.match(client, /setLoaded\(\{ key: requestKey, data: null, error: /)
-  assert.match(client, /\{loadError && \(\s*<div role="alert"/)
+  // 20번 2단계: 오류 띠는 role="alert" 를 그리는 AdminNotice kind="error"
+  assert.match(client, /\{loadError && \(\s*<AdminNotice kind="error"/)
   // 표 본문: 불러오는 중 → 실패(data 없음) → 0건 순서로 가른다.
   const loading = client.indexOf('{isLoading ? (')
   const failed = client.indexOf(') : !data ? (', loading)

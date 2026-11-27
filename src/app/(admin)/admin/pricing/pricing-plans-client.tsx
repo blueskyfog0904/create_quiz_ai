@@ -3,26 +3,15 @@
 import { useState, useEffect } from 'react'
 import { PricingPlan, getPricingPlans, togglePlanStatus } from './actions'
 import { Button } from '@/components/ui/button'
-import { Plus, Pencil, Loader2 } from 'lucide-react'
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
+import { Plus, Pencil } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { PricingPlanDialog } from './components/pricing-plan-dialog'
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog'
+import { AdminConfirmDialog } from '@/components/admin/kit/admin-confirm-dialog'
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/kit/admin-data-table'
+import { AdminStatusBadge } from '@/components/admin/kit/admin-status-badge'
+import { AdminTableState } from '@/components/admin/kit/admin-table-state'
+import { formatCredits, formatWon } from '@/lib/admin-format'
+import { adminStatusTone } from '@/lib/admin-status-tone'
 import { toast } from 'sonner'
 
 export function PricingPlansClient() {
@@ -89,126 +78,113 @@ export function PricingPlansClient() {
     }
 
     if (loading && plans.length === 0) {
-        return (
-            <div className="flex justify-center items-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-            </div>
-        )
+        return <AdminTableState kind="loading" className="h-64" />
     }
 
     if (error) {
-        return (
-            <div className="text-center py-12 text-red-500">
-                <p>{error}</p>
-                <Button onClick={fetchPlans} variant="adminAction" className="mt-4">다시 시도</Button>
-            </div>
-        )
+        return <AdminTableState kind="error" message={error} onRetry={fetchPlans} />
     }
+
+    const columns: AdminDataTableColumn<PricingPlan>[] = [
+        { key: 'sort_order', header: '순서', numeric: true, headerClassName: 'w-[80px]', cell: (plan) => plan.sort_order },
+        {
+            key: 'name',
+            header: '상품명',
+            className: 'font-medium',
+            cell: (plan) => (
+                <>
+                    {plan.name}
+                    {plan.description && (
+                        <p className="text-xs font-normal text-[var(--studio-muted)] truncate max-w-[200px]">{plan.description}</p>
+                    )}
+                </>
+            ),
+        },
+        { key: 'credits', header: '크레딧', numeric: true, cell: (plan) => formatCredits(plan.credits) },
+        { key: 'price', header: '가격', numeric: true, cell: (plan) => formatWon(plan.price) },
+        {
+            key: 'display',
+            header: '화면 표시',
+            className: 'text-xs text-[var(--studio-text)]',
+            cell: (plan) => (
+                <>
+                    <p>배지: {plan.badge_text || '없음'}</p>
+                    <p>강조: {plan.is_highlighted ? '예' : '아니오'}</p>
+                    <p>할인·혜택: {plan.discount_text || '없음'}</p>
+                </>
+            ),
+        },
+        {
+            key: 'status',
+            header: '상태',
+            cell: (plan) => (
+                <div className="flex items-center gap-2">
+                    <Switch
+                        checked={plan.is_active}
+                        aria-label={`${plan.name} 판매 상태`}
+                        onCheckedChange={() => setToggleTarget(plan)}
+                    />
+                    <AdminStatusBadge
+                        label={plan.is_active ? '판매중' : '비활성'}
+                        tone={adminStatusTone('pricingPlan', plan.is_active ? 'active' : 'inactive')}
+                    />
+                </div>
+            ),
+        },
+        {
+            key: 'manage',
+            header: '관리',
+            align: 'right',
+            cell: (plan) => (
+                <Button variant="adminTable" size="sm" aria-label={`${plan.name} 수정`} onClick={() => handleEdit(plan)}>
+                    <Pencil className="h-4 w-4" />
+                </Button>
+            ),
+        },
+    ]
 
     return (
         <div className="space-y-6">
             <div className="flex flex-wrap justify-between items-center gap-3">
-                <h2 className="text-xl font-semibold text-gray-800">요금제 목록</h2>
-                <Button onClick={handleCreate}>
+                <h2 className="text-xl font-semibold text-[var(--studio-ink)]">요금제 목록</h2>
+                <Button variant="brand" onClick={handleCreate}>
                     <Plus className="h-4 w-4 mr-2" />
                     새 요금제 추가
                 </Button>
             </div>
 
-            <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
-                <Table className="max-md:min-w-[720px]">
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-[80px]">순서</TableHead>
-                            <TableHead>상품명</TableHead>
-                            <TableHead>크레딧</TableHead>
-                            <TableHead>가격</TableHead>
-                            <TableHead>화면 표시</TableHead>
-                            <TableHead>상태</TableHead>
-                            <TableHead className="text-right">관리</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {plans.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={7} className="text-center text-gray-500 py-8">
-                                    등록된 요금제가 없습니다.
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            plans.map((plan) => (
-                                <TableRow key={plan.id}>
-                                    <TableCell>{plan.sort_order}</TableCell>
-                                    <TableCell className="font-medium">
-                                        {plan.name}
-                                        {plan.description && (
-                                            <p className="text-xs text-gray-500 truncate max-w-[200px]">{plan.description}</p>
-                                        )}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge variant="secondary" className="font-mono">
-                                            {plan.credits.toLocaleString()} C
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>₩{plan.price.toLocaleString()}</TableCell>
-                                    <TableCell className="text-xs text-gray-600">
-                                        <p>배지: {plan.badge_text || '없음'}</p>
-                                        <p>강조: {plan.is_highlighted ? '예' : '아니오'}</p>
-                                        <p>할인·혜택: {plan.discount_text || '없음'}</p>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <Switch
-                                                checked={plan.is_active}
-                                                aria-label={`${plan.name} 판매 상태`}
-                                                onCheckedChange={() => setToggleTarget(plan)}
-                                            />
-                                            <span className={`text-xs ${plan.is_active ? 'text-green-600' : 'text-gray-400'}`}>
-                                                {plan.is_active ? '판매중' : '비활성'}
-                                            </span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <Button variant="ghost" size="sm" onClick={() => handleEdit(plan)}>
-                                            <Pencil className="h-4 w-4" />
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
-            </div>
+            <AdminDataTable
+                caption="요금제 목록"
+                columns={columns}
+                rows={plans}
+                getRowKey={(plan) => plan.id}
+                minWidth={720}
+                state={plans.length === 0 ? <AdminTableState kind="empty" message="등록된 요금제가 없습니다." /> : undefined}
+            />
 
-            <Dialog open={toggleTarget !== null} onOpenChange={(open) => !open && !toggling && setToggleTarget(null)}>
-                <DialogContent className="max-md:max-h-[calc(100dvh-2rem)] max-md:max-w-[calc(100vw-2rem)] max-md:overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>
-                            {toggleTarget?.is_active ? '요금제 판매 중지' : '요금제 판매 시작'}
-                        </DialogTitle>
-                        <DialogDescription>
-                            {toggleTarget && (
-                                <>
-                                    <strong>{toggleTarget.name}</strong> (₩{toggleTarget.price.toLocaleString()} · {toggleTarget.credits.toLocaleString()} C)
-                                </>
-                            )}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <p className="text-sm text-gray-700">
-                        {toggleTarget?.is_active
-                            ? '중지하면 고객의 충전 화면에서 이 요금제가 바로 사라지고 새로 결제할 수 없습니다. 이미 결제한 건에는 영향이 없습니다.'
-                            : '시작하면 고객의 충전 화면에 이 요금제가 바로 나타나고 누구나 결제할 수 있습니다.'}
-                    </p>
-                    <DialogFooter className="justify-center gap-2">
-                        <Button variant="outline" onClick={() => setToggleTarget(null)} disabled={toggling}>
-                            취소
-                        </Button>
-                        <Button onClick={handleConfirmToggle} disabled={toggling}>
-                            {toggling ? '처리 중...' : toggleTarget?.is_active ? '판매 중지' : '판매 시작'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <AdminConfirmDialog
+                open={toggleTarget !== null}
+                onOpenChange={(open) => !open && !toggling && setToggleTarget(null)}
+                title={toggleTarget?.is_active ? '요금제 판매 중지' : '요금제 판매 시작'}
+                description={
+                    toggleTarget?.is_active
+                        ? '중지하면 고객의 충전 화면에서 이 요금제가 바로 사라지고 새로 결제할 수 없습니다. 이미 결제한 건에는 영향이 없습니다.'
+                        : '시작하면 고객의 충전 화면에 이 요금제가 바로 나타나고 누구나 결제할 수 있습니다.'
+                }
+                impacts={
+                    toggleTarget
+                        ? [
+                              { label: '요금제', value: toggleTarget.name, emphasis: true },
+                              { label: '가격', value: formatWon(toggleTarget.price), emphasis: true },
+                              { label: '크레딧', value: formatCredits(toggleTarget.credits) },
+                          ]
+                        : undefined
+                }
+                confirmLabel={toggleTarget?.is_active ? '판매 중지' : '판매 시작'}
+                danger={Boolean(toggleTarget?.is_active)}
+                pending={toggling}
+                onConfirm={handleConfirmToggle}
+            />
 
             <PricingPlanDialog
                 open={dialogOpen}

@@ -7,6 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { useAdminConfirm } from '@/components/admin/kit/admin-confirm-dialog'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminTableState } from '@/components/admin/kit/admin-table-state'
+import { ADMIN_TONE_CLASSES } from '@/components/admin/kit/admin-tone-classes'
+import { formatCount, formatCredits } from '@/lib/admin-format'
 import type { MarketOrderRefundContext } from '@/lib/market-refunds'
 
 interface MarketExceptionRefundDialogProps {
@@ -17,6 +22,8 @@ interface MarketExceptionRefundDialogProps {
 
 type ClaimType = 'defect' | 'withdrawal'
 type ClaimChannel = 'ticket' | 'email' | 'phone'
+
+const SELECT_CLASS = 'w-full rounded-[var(--studio-radius-control)] border border-[var(--studio-control-border)] bg-[var(--studio-surface)] px-3 py-2'
 
 function toLocalInputValue(date: Date) {
   const offset = date.getTimezoneOffset() * 60000
@@ -41,6 +48,8 @@ export function MarketExceptionRefundDialog({ orderId, onClose, onDone }: Market
   const [evidence, setEvidence] = useState('')
   const [preview, setPreview] = useState<{ amount: number; committed: number } | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  // 부족분 확인(20번 5-3 유형 나): 첫 요청이 409 로 돌아온 뒤 묻는다.
+  const { ask, dialog: confirmDialog } = useAdminConfirm()
 
   useEffect(() => {
     if (!orderId) return
@@ -128,7 +137,16 @@ export function MarketExceptionRefundDialog({ orderId, onClose, onDone }: Market
       let attempt = await post(buildBody(preview.amount))
       // 일부를 돌려줄 수 없으면 숫자를 보여 주고 확인받은 뒤 다시 보낸다.
       if (attempt.response.status === 409 && attempt.result?.code === 'MARKET_REFUND_SHORTFALL') {
-        const confirmed = window.confirm(`${attempt.result.error}\n\n요청 ${Number(attempt.result.requested).toLocaleString()}C / 돌려줄 수 있음 ${Number(attempt.result.restorable).toLocaleString()}C`)
+        // 잠금(submitting)을 쥔 채 같은 try 안에서 기다린다 — 창이 열린 동안 실행 버튼은 잠겨 있다.
+        const confirmed = await ask({
+          title: '일부만 돌려줄 수 있습니다',
+          description: attempt.result.error,
+          impacts: [
+            { label: '요청', value: formatCredits(Number(attempt.result.requested)), emphasis: true },
+            { label: '돌려줄 수 있음', value: formatCredits(Number(attempt.result.restorable)), emphasis: true },
+          ],
+          confirmLabel: '돌려줄 수 있는 만큼 환불',
+        })
         if (!confirmed) return
         attempt = await post(buildBody(preview.amount, { confirmedRefundCredits: attempt.result.restorable }))
       }
@@ -158,27 +176,27 @@ export function MarketExceptionRefundDialog({ orderId, onClose, onDone }: Market
           </DialogDescription>
         </DialogHeader>
 
-        {loadError ? <p role="alert" className="text-sm text-red-700">{loadError}</p> : null}
-        {!context && !loadError ? <p className="text-sm text-gray-500">불러오는 중…</p> : null}
+        {loadError ? <AdminNotice kind="error">{loadError}</AdminNotice> : null}
+        {!context && !loadError ? <AdminTableState kind="loading" message="불러오는 중…" /> : null}
         {context?.memberWithdrawn && orderId ? (
           <WithdrawnCashRefundForm context={context} orderId={orderId} onClose={onClose} onDone={onDone} />
         ) : null}
         {context && !context.memberWithdrawn ? (
           <div className="space-y-4 text-sm">
             <p>
-              <strong>{context.order.itemTitle}</strong> · 낸 크레딧 {context.order.chargedCredits.toLocaleString()} · 환불된 누계 {context.order.committedCredits.toLocaleString()}
+              <strong>{context.order.itemTitle}</strong> · 낸 크레딧 {formatCount(context.order.chargedCredits)} · 환불된 누계 {formatCount(context.order.committedCredits)}
               {context.hasPendingRequest ? ' · 처리 대기 중인 환불 요청이 있습니다(먼저 처리)' : ''}
             </p>
 
             <fieldset className="space-y-1">
-              <legend className="font-medium">사유 종류</legend>
+              <legend className="font-medium text-[var(--studio-ink)]">사유 종류</legend>
               <label className="mr-4"><input type="radio" checked={claimType === 'defect'} onChange={() => { setClaimType('defect'); setPreview(null) }} /> 하자·소개와 다름</label>
               <label><input type="radio" checked={claimType === 'withdrawal'} onChange={() => { setClaimType('withdrawal'); setPreview(null) }} /> 받지 않은 자료 환불(고객센터 접수)</label>
             </fieldset>
 
             {claimType === 'withdrawal' ? (
               <fieldset className="space-y-1">
-                <legend className="font-medium">접수 경로</legend>
+                <legend className="font-medium text-[var(--studio-ink)]">접수 경로</legend>
                 <label className="mr-4"><input type="radio" checked={claimChannel === 'ticket'} onChange={() => { setClaimChannel('ticket'); setPreview(null) }} /> 1:1 문의</label>
                 <label className="mr-4"><input type="radio" disabled={!context.isOwner} checked={claimChannel === 'email'} onChange={() => { setClaimChannel('email'); setPreview(null) }} /> 이메일(대표만)</label>
                 <label><input type="radio" disabled={!context.isOwner} checked={claimChannel === 'phone'} onChange={() => { setClaimChannel('phone'); setPreview(null) }} /> 전화(대표만)</label>
@@ -187,10 +205,10 @@ export function MarketExceptionRefundDialog({ orderId, onClose, onDone }: Market
 
             {(claimType === 'withdrawal' && claimChannel === 'ticket') || claimType === 'defect' ? (
               <div className="space-y-2">
-                <label className="block font-medium" htmlFor="exception-ticket">
+                <label className="block font-medium text-[var(--studio-ink)]" htmlFor="exception-ticket">
                   1:1 문의 {claimType === 'withdrawal' ? '(필수 — 기간은 이 문의를 쓴 시각으로 판단)' : '(선택)'}
                 </label>
-                <select id="exception-ticket" className="w-full rounded-md border px-3 py-2" value={ticketId}
+                <select id="exception-ticket" className={SELECT_CLASS} value={ticketId}
                   onChange={(event) => { setTicketId(event.target.value); setRevisionId(''); setIntentConfirmed(false); setPreview(null) }}>
                   <option value="">{claimType === 'withdrawal' ? '문의를 고르세요' : '연결 안 함'}</option>
                   {context.tickets.map((ticket) => (
@@ -198,7 +216,7 @@ export function MarketExceptionRefundDialog({ orderId, onClose, onDone }: Market
                   ))}
                 </select>
                 {isTicketWithdrawal && selectedTicket ? (
-                  <select aria-label="기준 판" className="w-full rounded-md border px-3 py-2" value={revisionId}
+                  <select aria-label="기준 판" className={SELECT_CLASS} value={revisionId}
                     onChange={(event) => { setRevisionId(event.target.value); setIntentConfirmed(false); setPreview(null) }}>
                     <option value="">환불 의사가 처음 담긴 판을 고르세요</option>
                     {selectedTicket.revisions.map((revision) => (
@@ -208,8 +226,8 @@ export function MarketExceptionRefundDialog({ orderId, onClose, onDone }: Market
                   </select>
                 ) : null}
                 {isTicketWithdrawal && selectedBody ? (
-                  <div className="space-y-2 rounded-md border bg-gray-50 p-3">
-                    <p className="text-xs text-gray-500">고른 판 · {new Date(selectedBody.writtenAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (이 시각으로 기간을 판단)</p>
+                  <div data-admin-pii="" className="space-y-2 rounded-[var(--studio-radius-control)] border border-[var(--studio-border)] bg-[var(--studio-background)] p-3">
+                    <p className="text-xs text-[var(--studio-muted)]">고른 판 · {new Date(selectedBody.writtenAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (이 시각으로 기간을 판단)</p>
                     <p className="font-medium">{selectedBody.subject}</p>
                     <p className="max-h-40 overflow-y-auto whitespace-pre-line break-all">{selectedBody.message || '(본문 없음)'}</p>
                     <label className="flex items-start gap-2">
@@ -224,14 +242,14 @@ export function MarketExceptionRefundDialog({ orderId, onClose, onDone }: Market
 
             {needsClaimTime ? (
               <label className="block">
-                <span className="font-medium">{claimType === 'defect' ? '하자 주장 접수 시각' : '접수 시각(이메일 수신·통화 시각)'}</span>
+                <span className="font-medium text-[var(--studio-ink)]">{claimType === 'defect' ? '하자 주장 접수 시각' : '접수 시각(이메일 수신·통화 시각)'}</span>
                 <Input type="datetime-local" value={claimReceivedAt} onChange={(event) => { setClaimReceivedAt(event.target.value); setPreview(null) }} />
               </label>
             ) : null}
 
             {isBundle && claimType === 'defect' ? (
               <fieldset className="space-y-1">
-                <legend className="font-medium">환불할 자료</legend>
+                <legend className="font-medium text-[var(--studio-ink)]">환불할 자료</legend>
                 {context.composition.map((component) => (
                   <label key={component.subproductId} className="flex items-center gap-2">
                     <input
@@ -245,11 +263,11 @@ export function MarketExceptionRefundDialog({ orderId, onClose, onDone }: Market
                           : current.filter((id) => id !== component.subproductId))
                       }}
                     />
-                    {component.title} · 정가 {component.listPriceCredits.toLocaleString()}
+                    {component.title} · 정가 {formatCount(component.listPriceCredits)}
                     {component.downloaded ? ' · 받음' : ''}{component.refunded ? ' · 이미 환불됨' : ''}
                   </label>
                 ))}
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-[var(--studio-muted)]">
                   &apos;받음&apos;은 파일 분류 기준 표시입니다. 문제(HWP)를 받으면 문제(PDF)도 받은 것으로 보는 규칙은 &apos;금액 확인&apos;에서 DB 가 판정합니다.
                 </p>
               </fieldset>
@@ -257,32 +275,33 @@ export function MarketExceptionRefundDialog({ orderId, onClose, onDone }: Market
 
             {needsEvidence ? (
               <label className="block">
-                <span className="font-medium">접수 증빙(필수 — 발신 주소·수신 시각, 또는 통화 번호·시각)</span>
-                <Input value={evidence} onChange={(event) => setEvidence(event.target.value)} maxLength={500} />
+                <span className="font-medium text-[var(--studio-ink)]">접수 증빙(필수 — 발신 주소·수신 시각, 또는 통화 번호·시각)</span>
+                <Input data-admin-pii="" value={evidence} onChange={(event) => setEvidence(event.target.value)} maxLength={500} />
               </label>
             ) : null}
 
             <label className="block">
-              <span className="font-medium">사유(필수 — 작업 기록에 남음)</span>
+              <span className="font-medium text-[var(--studio-ink)]">사유(필수 — 작업 기록에 남음)</span>
               <Textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={3} maxLength={1000} />
             </label>
 
             {preview ? (
-              <p className="rounded-md bg-gray-50 px-3 py-2">환불 금액 <strong>{preview.amount.toLocaleString()} 크레딧</strong></p>
+              <p className="rounded-[var(--studio-radius-control)] bg-[var(--studio-background)] px-3 py-2">환불 금액 <strong className="tabular-nums">{formatCredits(preview.amount)}</strong></p>
             ) : null}
           </div>
         ) : null}
 
         {context?.memberWithdrawn ? null : (
         <DialogFooter className="justify-center gap-2">
-          <Button variant="outline" onClick={onClose} disabled={submitting}>취소</Button>
-          <Button variant="outline" onClick={() => void loadPreview()} disabled={submitting || !context || !ticketReady}>금액 확인</Button>
-          <Button onClick={() => void submit()} disabled={submitting || !context || !preview || !reason.trim() || !ticketReady
+          <Button variant="brandOutline" onClick={onClose} disabled={submitting}>취소</Button>
+          <Button variant="brandOutline" onClick={() => void loadPreview()} disabled={submitting || !context || !ticketReady}>금액 확인</Button>
+          <Button variant="brand" onClick={() => void submit()} disabled={submitting || !context || !preview || !reason.trim() || !ticketReady
             || (needsEvidence && evidence.trim().length < 5)}>
             {submitting ? '처리 중...' : '예외 환불 처리'}
           </Button>
         </DialogFooter>
         )}
+        {confirmDialog}
       </DialogContent>
     </Dialog>
   )
@@ -336,36 +355,36 @@ function WithdrawnCashRefundForm({ context, orderId, onClose, onDone }: {
     <>
       <div className="space-y-4 text-sm">
         <p>
-          <strong>{context.order.itemTitle}</strong> · 낸 크레딧 {context.order.chargedCredits.toLocaleString()} · 환불된 누계 {context.order.committedCredits.toLocaleString()}
+          <strong>{context.order.itemTitle}</strong> · 낸 크레딧 {formatCount(context.order.chargedCredits)} · 환불된 누계 {formatCount(context.order.committedCredits)}
         </p>
-        <p role="note" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
+        <p role="note" className={`rounded-[var(--studio-radius-control)] border px-3 py-2 ${ADMIN_TONE_CLASSES.warning}`}>
           탈퇴 회원 주문입니다. 크레딧으로 환불할 수 없습니다. 하자 등 법에 따른 환불은 대표가 원래 결제수단이나 계좌로 정산한 뒤 여기에 기록합니다(주문 상태는 바뀌지 않습니다).
         </p>
         {context.isOwner ? (
           <>
             <label className="block">
-              <span className="font-medium">정산 금액(원)</span>
+              <span className="font-medium text-[var(--studio-ink)]">정산 금액(원)</span>
               <Input type="number" min={1} step={1} value={amount} onChange={(event) => setAmount(event.target.value)} />
             </label>
             <fieldset className="space-y-1">
-              <legend className="font-medium">정산 방법</legend>
+              <legend className="font-medium text-[var(--studio-ink)]">정산 방법</legend>
               <label className="mr-4"><input type="radio" checked={method === 'original_method'} onChange={() => setMethod('original_method')} /> 원래 결제수단 취소</label>
               <label><input type="radio" checked={method === 'bank_transfer'} onChange={() => setMethod('bank_transfer')} /> 계좌 송금</label>
             </fieldset>
             <label className="block">
-              <span className="font-medium">메모(필수 — 보관함 추가 기록에 남음)</span>
+              <span className="font-medium text-[var(--studio-ink)]">메모(필수 — 보관함 추가 기록에 남음)</span>
               <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} maxLength={1000} />
-              {context.reasonGuide ? <span className="mt-1 block text-xs text-gray-500">{context.reasonGuide}</span> : null}
+              {context.reasonGuide ? <span className="mt-1 block text-xs text-[var(--studio-muted)]">{context.reasonGuide}</span> : null}
             </label>
           </>
         ) : (
-          <p className="text-gray-600">현금 정산 기록은 대표 계정만 남길 수 있습니다.</p>
+          <p className="text-[var(--studio-text)]">현금 정산 기록은 대표 계정만 남길 수 있습니다.</p>
         )}
       </div>
       <DialogFooter className="justify-center gap-2">
-        <Button variant="outline" onClick={onClose} disabled={submitting}>닫기</Button>
+        <Button variant="brandOutline" onClick={onClose} disabled={submitting}>닫기</Button>
         {context.isOwner ? (
-          <Button onClick={() => void submit()} disabled={submitting || !ready}>
+          <Button variant="brand" onClick={() => void submit()} disabled={submitting || !ready}>
             {submitting ? '기록 중...' : '탈퇴 회원 — 현금 정산 기록'}
           </Button>
         ) : null}

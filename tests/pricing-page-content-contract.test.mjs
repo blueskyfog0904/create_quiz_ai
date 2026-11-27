@@ -105,7 +105,7 @@ test('관리자 저장은 pricing.manage 권한 검사 뒤 저장하고 작업 �
   assert.match(server, /return content \? \{ status: 'ok', content \} : \{ status: 'invalid' \}/)
   assert.match(form, /initial\.status === 'invalid'/)
   assert.match(form, /const readFailed = initial\.status === 'error'/)
-  assert.match(form, /disabled=\{saving \|\| readFailed\}/)
+  assert.match(form, /saveDisabled=\{saving \|\| readFailed\}/)
   assert.match(form, /savePricingPageContentAction\(content\)/)
   // 관리자 화면에도 기본 문구를 두지 않는다(빈 틀만)
   assert.match(form, /banner_title: '',/)

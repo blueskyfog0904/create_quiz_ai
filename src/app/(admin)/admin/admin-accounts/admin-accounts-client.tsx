@@ -1,9 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { useAdminConfirm } from '@/components/admin/kit/admin-confirm-dialog'
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/kit/admin-data-table'
+import { AdminNotice } from '@/components/admin/kit/admin-notice'
+import { AdminStatusBadge } from '@/components/admin/kit/admin-status-badge'
+import { AdminTableState } from '@/components/admin/kit/admin-table-state'
+import { ADMIN_TONE_TEXT_CLASSES } from '@/components/admin/kit/admin-tone-classes'
 import { ADMIN_PASSWORD_MIN_LENGTH } from '@/lib/admin-accounts-shared'
 import { AdminPermissionsDialog, type AdminPermissionPreset } from './admin-permissions-dialog'
 
@@ -17,6 +24,10 @@ interface AdminAccountRow {
   grants: Array<{ permission: string; limits: unknown }>
 }
 
+// 표 안 위험 동작(권한 해제·삭제) 버튼: 보라 테두리 대신 빨강 글자·테두리
+const TABLE_DANGER_BUTTON_CLASS = 'border-[var(--admin-tone-danger-border)] text-[var(--admin-tone-danger-text)] hover:bg-[var(--admin-tone-danger-soft)]'
+
+// 날짜 표기는 지금 모양(YYYY.MM.DD) 그대로(20번: 대표가 바꾸기로 정하기 전까지).
 function formatDate(value: string | null) {
   if (!value) return '-'
   const date = new Date(value)
@@ -41,6 +52,12 @@ export default function AdminAccountsClient() {
   const [resetPasswordConfirm, setResetPasswordConfirm] = useState('')
   const [presets, setPresets] = useState<AdminPermissionPreset[]>([])
   const [editingAccount, setEditingAccount] = useState<AdminAccountRow | null>(null)
+  // 브라우저 알림 창 대신 화면 안에 보이는 오류(20번 Q3): 목록 읽기·새 계정·줄 작업(삭제·권한 해제)·비밀번호 창
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const { ask, dialog: confirmDialog } = useAdminConfirm()
 
   const loadAccounts = useCallback(async () => {
     setIsLoading(true)
@@ -54,8 +71,10 @@ export default function AdminAccountsClient() {
       setAccounts(rows)
       setSelfUserId(result.selfUserId ?? null)
       setPresets(Array.isArray(result.presets) ? result.presets : [])
+      setLoadError(null)
+      setActionError(null)
     } catch (error) {
-      alert(error instanceof Error ? error.message : '관리자 목록을 불러오지 못했습니다.')
+      setLoadError(error instanceof Error ? error.message : '관리자 목록을 불러오지 못했습니다.')
     } finally {
       setIsLoading(false)
     }
@@ -67,12 +86,13 @@ export default function AdminAccountsClient() {
 
   const createAccount = async () => {
     const loginId = newLoginId.trim()
+    setCreateError(null)
     if (!loginId || !newPassword) {
-      alert('아이디와 비밀번호를 모두 입력하세요.')
+      setCreateError('아이디와 비밀번호를 모두 입력하세요.')
       return
     }
     if (newPassword !== newPasswordConfirm) {
-      alert('비밀번호 확인이 일치하지 않습니다.')
+      setCreateError('비밀번호 확인이 일치하지 않습니다.')
       return
     }
     setSavingId('new')
@@ -91,7 +111,7 @@ export default function AdminAccountsClient() {
       setNewPasswordConfirm('')
       await loadAccounts()
     } catch (error) {
-      alert(error instanceof Error ? error.message : '관리자 ID 생성에 실패했습니다.')
+      setCreateError(error instanceof Error ? error.message : '관리자 ID 생성에 실패했습니다.')
     } finally {
       setSavingId(null)
     }
@@ -110,19 +130,27 @@ export default function AdminAccountsClient() {
         throw new Error(result?.error ?? '저장에 실패했습니다.')
       }
       closePasswordDialog()
-      alert('비밀번호를 변경했습니다.')
+      toast.success('비밀번호를 변경했습니다.')
       await loadAccounts()
     } catch (error) {
-      alert(error instanceof Error ? error.message : '저장에 실패했습니다.')
+      setPasswordError(error instanceof Error ? error.message : '저장에 실패했습니다.')
     } finally {
       setSavingId(null)
     }
   }
 
   const deleteAccount = async (account: AdminAccountRow) => {
-    if (!confirm(`'${account.loginId}' 관리자 계정을 삭제할까요? 삭제하면 되돌릴 수 없습니다.`)) {
+    // 먼저 묻기(20번 5-3 유형 가): 확인 전에는 요청을 보내지 않는다.
+    const confirmed = await ask({
+      title: `'${account.loginId}' 관리자 계정을 삭제할까요?`,
+      description: '삭제하면 되돌릴 수 없습니다.',
+      confirmLabel: '삭제',
+      danger: true,
+    })
+    if (!confirmed) {
       return
     }
+    setActionError(null)
     setSavingId(account.userId)
     try {
       const response = await fetch(`/api/admin/admin-accounts/${account.userId}`, {
@@ -134,7 +162,7 @@ export default function AdminAccountsClient() {
       }
       await loadAccounts()
     } catch (error) {
-      alert(error instanceof Error ? error.message : '삭제에 실패했습니다.')
+      setActionError(error instanceof Error ? error.message : '삭제에 실패했습니다.')
     } finally {
       setSavingId(null)
     }
@@ -142,9 +170,17 @@ export default function AdminAccountsClient() {
 
   // 일반 관리자의 관리자 자격 해제(W4-6). 계정과 이력은 남고, 관리자 목록에서 빠진다.
   const revokeAccount = async (account: AdminAccountRow) => {
-    if (!confirm(`'${account.loginId}' 계정의 관리자 권한을 해제할까요?\n해제하면 관리자 화면에 들어올 수 없고 목록에서 빠집니다. 다시 주는 화면은 없습니다(필요하면 새 아이디를 만드세요).`)) {
+    // 먼저 묻기(20번 5-3 유형 가): 확인 전에는 요청을 보내지 않는다.
+    const confirmed = await ask({
+      title: `'${account.loginId}' 계정의 관리자 권한을 해제할까요?`,
+      description: '해제하면 관리자 화면에 들어올 수 없고 목록에서 빠집니다. 다시 주는 화면은 없습니다(필요하면 새 아이디를 만드세요).',
+      confirmLabel: '권한 해제',
+      danger: true,
+    })
+    if (!confirmed) {
       return
     }
+    setActionError(null)
     setSavingId(account.userId)
     try {
       const response = await fetch(`/api/admin/admin-accounts/${account.userId}/revoke`, { method: 'POST' })
@@ -154,7 +190,7 @@ export default function AdminAccountsClient() {
       }
       await loadAccounts()
     } catch (error) {
-      alert(error instanceof Error ? error.message : '권한 해제에 실패했습니다.')
+      setActionError(error instanceof Error ? error.message : '권한 해제에 실패했습니다.')
     } finally {
       setSavingId(null)
     }
@@ -164,31 +200,121 @@ export default function AdminAccountsClient() {
     setPasswordTarget(account)
     setResetPasswordValue('')
     setResetPasswordConfirm('')
+    setPasswordError(null)
   }
 
   function closePasswordDialog() {
     setPasswordTarget(null)
     setResetPasswordValue('')
     setResetPasswordConfirm('')
+    setPasswordError(null)
   }
 
   const resetPassword = () => {
     if (!passwordTarget) return
+    setPasswordError(null)
     if (resetPasswordValue.length < ADMIN_PASSWORD_MIN_LENGTH) {
-      alert(`비밀번호는 ${ADMIN_PASSWORD_MIN_LENGTH}자 이상이어야 합니다.`)
+      setPasswordError(`비밀번호는 ${ADMIN_PASSWORD_MIN_LENGTH}자 이상이어야 합니다.`)
       return
     }
     if (resetPasswordValue !== resetPasswordConfirm) {
-      alert('비밀번호 확인이 일치하지 않습니다.')
+      setPasswordError('비밀번호 확인이 일치하지 않습니다.')
       return
     }
     void patchAccount(passwordTarget.userId, { password: resetPasswordValue })
   }
 
+  const columns: AdminDataTableColumn<AdminAccountRow>[] = [
+    {
+      key: 'loginId',
+      header: '아이디',
+      cell: (account) => (
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{account.loginId}</span>
+          {account.userId === selfUserId ? <AdminStatusBadge label="내 계정" tone="info" /> : null}
+        </div>
+      ),
+    },
+    {
+      key: 'type',
+      header: '유형',
+      headerClassName: 'w-28',
+      cell: (account) => (
+        <AdminStatusBadge label={account.isBootstrapAccount ? '기존 계정' : '관리자 ID'} tone={account.isBootstrapAccount ? 'neutral' : 'success'} />
+      ),
+    },
+    {
+      key: 'role',
+      header: '역할 · 권한',
+      headerClassName: 'w-32',
+      cell: (account) => (account.role === 'owner' ? (
+        <AdminStatusBadge label="대표 · 모든 권한" tone="warning" />
+      ) : (
+        <AdminStatusBadge label={`일반 · 권한 ${account.grants.length}개`} tone="neutral" />
+      )),
+    },
+    { key: 'createdAt', header: '생성일', headerClassName: 'w-28', className: 'text-[var(--studio-muted)]', cell: (account) => formatDate(account.createdAt) },
+    { key: 'lastSignInAt', header: '최근 로그인', headerClassName: 'w-28', className: 'text-[var(--studio-muted)]', cell: (account) => formatDate(account.lastSignInAt) },
+    {
+      key: 'actions',
+      header: '작업',
+      headerClassName: 'w-[26rem]',
+      cell: (account) => {
+        const isSelf = account.userId === selfUserId
+        return (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="adminTable"
+              disabled={savingId === account.userId}
+              onClick={() => openPasswordDialog(account)}
+            >
+              비밀번호 재설정
+            </Button>
+            {account.role === 'staff' && !isSelf ? (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="adminTable"
+                  disabled={savingId === account.userId}
+                  onClick={() => setEditingAccount(account)}
+                >
+                  권한 편집
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="adminTable"
+                  className={TABLE_DANGER_BUTTON_CLASS}
+                  disabled={savingId === account.userId}
+                  onClick={() => void revokeAccount(account)}
+                >
+                  권한 해제
+                </Button>
+              </>
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              variant="adminTable"
+              className={TABLE_DANGER_BUTTON_CLASS}
+              disabled={savingId === account.userId || isSelf}
+              onClick={() => void deleteAccount(account)}
+            >
+              삭제
+            </Button>
+          </div>
+        )
+      },
+    },
+  ]
+
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border p-4">
-        <h3 className="text-sm font-semibold">새 관리자 ID 추가</h3>
+      <section className="rounded-[var(--studio-radius-card)] border border-[var(--studio-border)] bg-[var(--studio-surface)] p-4">
+        <h3 className="text-sm font-semibold text-[var(--studio-ink)]">새 관리자 ID 추가</h3>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Input
             value={newLoginId}
@@ -214,115 +340,36 @@ export default function AdminAccountsClient() {
             autoComplete="new-password"
             aria-invalid={newPasswordConfirm.length > 0 && newPasswordConfirm !== newPassword}
           />
-          <Button type="button" disabled={savingId === 'new'} onClick={() => void createAccount()}>
+          <Button type="button" variant="brand" disabled={savingId === 'new'} onClick={() => void createAccount()}>
             {savingId === 'new' ? '추가 중…' : '관리자 ID 추가'}
           </Button>
         </div>
-      </div>
+        {createError ? <AdminNotice kind="error" className="mt-3">{createError}</AdminNotice> : null}
+      </section>
 
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-[var(--studio-muted)]">
         대표 관리자는 모든 권한을 가지며 권한 편집 대상이 아닙니다. 일반 관리자의 권한을 바꾸면 그 계정의 다음 요청부터 반영됩니다.
       </p>
 
-      <div className="rounded-lg border max-md:overflow-x-auto">
-        <table className="w-full text-sm max-md:min-w-[1040px]">
-          <thead>
-            <tr className="border-b bg-muted/50 text-left">
-              <th className="px-4 py-3 font-medium">아이디</th>
-              <th className="w-28 px-4 py-3 font-medium">유형</th>
-              <th className="w-32 px-4 py-3 font-medium">역할 · 권한</th>
-              <th className="w-28 px-4 py-3 font-medium">생성일</th>
-              <th className="w-28 px-4 py-3 font-medium">최근 로그인</th>
-              <th className="w-[26rem] px-4 py-3 font-medium">작업</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">불러오는 중…</td>
-              </tr>
-            ) : accounts.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">등록된 관리자가 없습니다.</td>
-              </tr>
-            ) : (
-              accounts.map((account) => {
-                const isSelf = account.userId === selfUserId
-                return (
-                  <tr key={account.userId} className="border-b last:border-b-0">
-                    <td className="px-4 py-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{account.loginId}</span>
-                        {isSelf ? (
-                          <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">내 계정</span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-4 py-2">
-                      <span className={`rounded px-2 py-1 text-xs font-medium ${account.isBootstrapAccount ? 'bg-slate-100 text-slate-600' : 'bg-emerald-50 text-emerald-700'}`}>
-                        {account.isBootstrapAccount ? '기존 계정' : '관리자 ID'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2">
-                      {account.role === 'owner' ? (
-                        <span className="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800">대표 · 모든 권한</span>
-                      ) : (
-                        <span className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">일반 · 권한 {account.grants.length}개</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-muted-foreground">{formatDate(account.createdAt)}</td>
-                    <td className="px-4 py-2 text-muted-foreground">{formatDate(account.lastSignInAt)}</td>
-                    <td className="px-4 py-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="adminAction"
-                          disabled={savingId === account.userId}
-                          onClick={() => openPasswordDialog(account)}
-                        >
-                          비밀번호 재설정
-                        </Button>
-                        {account.role === 'staff' && !isSelf ? (
-                          <>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="adminAction"
-                              disabled={savingId === account.userId}
-                              onClick={() => setEditingAccount(account)}
-                            >
-                              권한 편집
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              disabled={savingId === account.userId}
-                              onClick={() => void revokeAccount(account)}
-                            >
-                              권한 해제
-                            </Button>
-                          </>
-                        ) : null}
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="destructive"
-                          disabled={savingId === account.userId || isSelf}
-                          onClick={() => void deleteAccount(account)}
-                        >
-                          삭제
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      {loadError && accounts.length > 0 ? (
+        <AdminNotice kind="error" onRetry={() => void loadAccounts()}>{loadError}</AdminNotice>
+      ) : null}
+      {actionError ? <AdminNotice kind="error">{actionError}</AdminNotice> : null}
+
+      <AdminDataTable
+        caption="관리자 ID 목록"
+        columns={columns}
+        rows={accounts}
+        getRowKey={(account) => account.userId}
+        minWidth={960}
+        state={isLoading ? (
+          <AdminTableState kind="loading" message="불러오는 중…" />
+        ) : loadError && accounts.length === 0 ? (
+          <AdminTableState kind="error" message={loadError} onRetry={() => void loadAccounts()} />
+        ) : accounts.length === 0 ? (
+          <AdminTableState kind="empty" message="등록된 관리자가 없습니다." />
+        ) : undefined}
+      />
 
       {editingAccount && (
         <AdminPermissionsDialog
@@ -361,15 +408,17 @@ export default function AdminAccountsClient() {
               aria-invalid={resetPasswordConfirm.length > 0 && resetPasswordConfirm !== resetPasswordValue}
             />
             {resetPasswordConfirm.length > 0 && resetPasswordConfirm !== resetPasswordValue ? (
-              <p className="text-sm text-destructive">비밀번호 확인이 일치하지 않습니다.</p>
+              <p className={`text-sm ${ADMIN_TONE_TEXT_CLASSES.danger}`}>비밀번호 확인이 일치하지 않습니다.</p>
             ) : null}
+            {passwordError ? <AdminNotice kind="error">{passwordError}</AdminNotice> : null}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" disabled={savingId === passwordTarget?.userId} onClick={closePasswordDialog}>
+            <Button type="button" variant="brandOutline" disabled={savingId === passwordTarget?.userId} onClick={closePasswordDialog}>
               취소
             </Button>
             <Button
               type="button"
+              variant="brand"
               disabled={
                 savingId === passwordTarget?.userId
                 || resetPasswordValue.length < ADMIN_PASSWORD_MIN_LENGTH
@@ -382,6 +431,8 @@ export default function AdminAccountsClient() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   )
 }
