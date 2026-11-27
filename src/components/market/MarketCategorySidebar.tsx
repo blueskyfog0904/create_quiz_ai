@@ -40,6 +40,8 @@ export function MarketCategorySidebar({
       const active = item.id === highlightId
       const root = item.depth === 1
       const children = item.depth < SIDEBAR_MAX_DEPTH ? item.children : []
+      // 자료가 1개라도 있는 칸은 수를 강조 색으로, 빈 칸은 흐리게(메가메뉴와 같은 규칙)
+      const hasItems = (item.itemCount ?? 0) > 0
       return (
         <li key={item.id}>
           <div className="flex items-start gap-1">
@@ -51,10 +53,10 @@ export function MarketCategorySidebar({
               } ${
                 active
                   ? 'bg-black/5 font-semibold text-[var(--studio-ink)]'
-                  : `${root ? '' : 'text-[var(--studio-text)]'} hover:bg-[var(--studio-background)] hover:text-[var(--studio-ink)]`
+                  : `${root ? '' : hasItems ? 'text-[var(--studio-text)]' : 'text-[var(--studio-muted)]'} hover:bg-[var(--studio-background)] hover:text-[var(--studio-ink)]`
               }`}
             >
-              <span className="break-keep">{item.title} <span className="whitespace-nowrap text-[var(--studio-muted)]">({(item.itemCount ?? 0).toLocaleString()})</span></span>
+              <span className="break-keep">{item.title} <span className={`whitespace-nowrap ${hasItems ? 'font-semibold text-[var(--studio-primary)]' : 'text-[var(--studio-muted)]'}`}>({(item.itemCount ?? 0).toLocaleString()})</span></span>
             </Link>
             {children.length > 0 && (
               <button

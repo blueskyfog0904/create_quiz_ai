@@ -19,7 +19,8 @@ test('메가메뉴는 상품 수가 있을 때만 왼쪽 목록과 같은 형식
   assert.match(menu, /interface CategoryMenuItem \{[\s\S]*?itemCount\?: number[\s\S]*?\}/)
   assert.match(menu, /\{item\.itemCount !== undefined \? \(/)
   assert.doesNotMatch(menu, /itemCount \?\? 0/, '수를 못 읽었을 때 (0)으로 보이면 안 된다')
-  const countSpan = /<span className="whitespace-nowrap text-\[var\(--studio-muted\)\]">\(\{\(?item\.itemCount(?: \?\? 0\))?\.toLocaleString\(\)\}\)<\/span>/
+  // 자료가 있는 칸의 수는 강조 색, 빈 칸((0))은 흐린 색 — 두 화면이 같은 규칙
+  const countSpan = /<span className=\{`whitespace-nowrap \$\{(?:item\.itemCount > 0|hasItems) \? 'font-semibold text-\[var\(--studio-primary\)\]' : 'text-\[var\(--studio-muted\)\]'\}`\}>\(\{\(?item\.itemCount(?: \?\? 0\))?\.toLocaleString\(\)\}\)<\/span>/
   assert.match(menu, countSpan)
   assert.match(read('src/components/market/MarketCategorySidebar.tsx'), countSpan)
 })

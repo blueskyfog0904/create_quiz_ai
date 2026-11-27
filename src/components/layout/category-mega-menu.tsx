@@ -146,12 +146,15 @@ export function CategoryMegaMenu({ open, currentSubject, onClose, panelRef }: Ca
                         <Link
                           href={`/categories/${item.id}?subject=${activeSubject}`}
                           onClick={onClose}
-                          className="flex min-h-9 items-center break-keep rounded-md text-sm text-[var(--studio-muted)] outline-none hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)]"
+                          // 자료가 1개라도 있는 칸은 글자를 진하게, 수를 강조 색으로 — 빈 칸((0))과 한눈에 구분된다
+                          className={`flex min-h-9 items-center break-keep rounded-md text-sm outline-none hover:text-[var(--studio-ink)] focus-visible:ring-2 focus-visible:ring-[var(--studio-focus-ring)] ${
+                            item.itemCount ? 'font-medium text-[var(--studio-ink)]' : 'text-[var(--studio-muted)]'
+                          }`}
                         >
                           <span className="break-keep">
                             {item.title}
                             {item.itemCount !== undefined ? (
-                              <> <span className="whitespace-nowrap text-[var(--studio-muted)]">({item.itemCount.toLocaleString()})</span></>
+                              <> <span className={`whitespace-nowrap ${item.itemCount > 0 ? 'font-semibold text-[var(--studio-primary)]' : 'text-[var(--studio-muted)]'}`}>({item.itemCount.toLocaleString()})</span></>
                             ) : null}
                           </span>
                         </Link>
